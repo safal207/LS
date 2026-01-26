@@ -1,38 +1,49 @@
-from ..rust_bridge import RustOptimizer
-import json
-import time
 import logging
+from .self_improving_v2 import SelfImprovingBrainV2
+from ..rust_bridge import RustOptimizer
 
 logger = logging.getLogger("SelfImproving")
 
 class SelfImprovingBrain:
+    """
+    Facade for SelfImprovingBrainV2.
+    Maintains backward compatibility while leveraging the new V2 architecture.
+    """
     def __init__(self, rust_instance=None):
-        self.rust = rust_instance if rust_instance else RustOptimizer()
+        # Initialize V2. It will handle its own threads and config.
+        self.v2 = SelfImprovingBrainV2(rust_instance=rust_instance)
+        # Expose rust instance as legacy consumers might expect it
+        self.rust = self.v2.rust
 
     def learn_from_session(self, session_data):
         """
-        Analyze session data and store valuable patterns.
+        Delegates to V2 implementation.
         session_data: list of dicts {'question', 'answer', 'timestamp'}
         """
-        if not self.rust.available:
-            logger.info("Rust core unavailable, skipping optimized learning.")
-            return
+        self.v2.learn_from_session(session_data)
 
-        logger.info(f"Learning from {len(session_data)} interactions...")
+    def optimize_memory(self):
+        """
+        Legacy method. V2 handles optimization in background.
+        We trigger reindex and return optimization result for compatibility.
+        """
+        if self.v2.rust.available:
+            self.v2.rust.reindex()
+            return self.v2.rust.optimize_memory()
+        return 0
 
-        for item in session_data:
-            key = f"pattern_{int(item['timestamp'])}"
-            # In a real system, we would compute an embedding here.
-            # For now, we store the raw data in the efficient Rust storage.
+    def stop(self):
+        """Stops the underlying V2 background threads."""
+        self.v2.stop()
 
-            data_bytes = json.dumps(item).encode('utf-8')
-            try:
-                self.rust.save_to_storage(key, data_bytes)
-                # Mock embedding for cache (random or simple hash for demo)
-                # self.rust.cache_pattern(key, [0.1] * 384)
-            except Exception as e:
-                logger.error(f"Failed to save pattern: {e}")
+    def status(self):
+        """Returns status from V2."""
+        return self.v2.status()
 
-        # Trigger memory optimization
-        freed = self.rust.optimize_memory()
-        logger.info(f"Memory optimization complete. Freed virtual units: {freed}")
+    def search_similar(self, query, k=5):
+        """New V2 method exposed."""
+        return self.v2.search_similar(query, k)
+
+    def flush(self):
+        """Wait for processing to complete."""
+        self.v2.flush()

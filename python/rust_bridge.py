@@ -60,8 +60,17 @@ class RustOptimizer:
         if self.available:
             try:
                 self.matcher.add_patterns(patterns)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Rust add_patterns error: {e}")
+
+    def reindex(self):
+        if self.available:
+            try:
+                # Try calling reindex if it exists
+                if hasattr(self.matcher, 'reindex'):
+                    self.matcher.reindex()
+            except Exception as e:
+                logger.error(f"Rust reindex error: {e}")
 
     def find_similar(self, query: list, k: int = 5):
         if self.available:
