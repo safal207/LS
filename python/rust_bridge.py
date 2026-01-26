@@ -49,62 +49,71 @@ class RustOptimizer:
     def is_available(self) -> bool:
         return bool(self.available)
 
-    def cache_pattern(self, key: str, embedding: list):
+    def cache_pattern(self, key: str, embedding: list) -> bool:
         if self.available:
             try:
                 self.memory.cache_pattern(key, embedding)
-            except Exception:
-                pass
+                return True
+            except Exception as e:
+                logger.error(f"Rust Cache Error: {e}")
+        return False
 
-    def add_patterns(self, patterns: list):
+    def add_patterns(self, patterns: list) -> bool:
+        """
+        Add patterns to matcher.
+        patterns: List of vectors (if Rust handles IDs internally) or List of (ID, Vector).
+        """
         if self.available:
             try:
                 self.matcher.add_patterns(patterns)
                 return True
             except Exception as e:
-                logger.error(f"Rust add_patterns error: {e}")
+                logger.error(f"Rust Pattern Add Error: {e}")
                 return False
         return False
-
-    def reindex(self):
-        if self.available:
-            try:
-                # Try calling reindex if it exists
-                if hasattr(self.matcher, 'reindex'):
-                    self.matcher.reindex()
-            except Exception as e:
-                logger.error(f"Rust reindex error: {e}")
 
     def find_similar(self, query: list, k: int = 5):
         if self.available:
             try:
                 return self.matcher.find_similar(query, k)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Rust Search Error: {e}")
         return []
 
-    def save_to_storage(self, key: str, data: bytes):
+    def save_to_storage(self, key: str, data: bytes) -> bool:
         if self.available:
             try:
                 self.storage.save(key, data)
+                return True
             except Exception as e:
                 logger.error(f"Rust Save Error: {e}")
+                return False
+        return False
 
     def load_from_storage(self, key: str):
         if self.available:
             try:
                 return self.storage.load(key)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Rust Load Error: {e}")
         return None
 
     def optimize_memory(self):
         if self.available:
             try:
                 return self.memory.optimize()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Rust Optimize Error: {e}")
         return 0
+
+    def reindex(self) -> bool:
+        if self.available and hasattr(self.matcher, 'reindex'):
+            try:
+                self.matcher.reindex()
+                return True
+            except Exception as e:
+                logger.error(f"Rust Reindex Error: {e}")
+        return False
 
     def close(self):
         if self.available and self.storage:

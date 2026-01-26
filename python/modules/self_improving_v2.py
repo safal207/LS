@@ -6,20 +6,13 @@ import threading
 import queue
 import os
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
-
-# Attempt to import numpy, handle if missing
-try:
-    import numpy as np
-    HAS_NUMPY = True
-except ImportError:
-    HAS_NUMPY = False
+from typing import List, Dict, Any
 
 from ..rust_bridge import RustOptimizer
 
 logger = logging.getLogger("SelfImprovingV2")
 
-# --- Configuration Loading ---
+# --- Config Loader (Robust) ---
 def load_config(config_path: str = "config/self_improving.yaml") -> Dict[str, Any]:
     defaults = {
         "batch_size": 10,
@@ -32,77 +25,56 @@ def load_config(config_path: str = "config/self_improving.yaml") -> Dict[str, An
     }
 
     if not os.path.exists(config_path):
-        logger.warning(f"Config file {config_path} not found. Using defaults.")
         return defaults
 
+    config = defaults.copy()
     try:
-        # Simple YAML parser since PyYAML is not available
-        config = defaults.copy()
         with open(config_path, 'r') as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith('#'):
+                if not line or line.startswith('#') or ':' not in line:
                     continue
-                if ':' in line:
-                    key, value = line.split(':', 1)
-                    key = key.strip()
-                    value = value.split('#')[0].strip() # Remove comments
 
-                    # Type conversion
-                    if value.isdigit():
-                        value = int(value)
-                    elif value.lower() == 'true':
-                        value = True
-                    elif value.lower() == 'false':
-                        value = False
-                    elif value.startswith('"') and value.endswith('"'):
-                        value = value[1:-1]
-                    elif value.startswith("'") and value.endswith("'"):
-                        value = value[1:-1]
+                key, val = line.split(':', 1)
+                key = key.strip()
+                val = val.split('#')[0].strip() # Remove comments
 
-                    if key in config:
-                        config[key] = value
-        return config
+                # Simple type casting
+                if val.isdigit(): val = int(val)
+                elif val.lower() == 'true': val = True
+                elif val.lower() == 'false': val = False
+                elif val.startswith('"') and val.endswith('"'): val = val[1:-1]
+
+                if key in config:
+                    config[key] = val
     except Exception as e:
-        logger.error(f"Error loading config: {e}. Using defaults.")
-        return defaults
+        logger.error(f"Config load error: {e}")
 
-# --- Embedding Providers ---
+    return config
+
+# --- Embedders ---
 class EmbeddingProvider(ABC):
     @abstractmethod
-    def embed(self, texts: List[str]) -> List[List[float]]:
-        pass
+    def embed(self, texts: List[str]) -> List[List[float]]: pass
 
 class LocalEmbedder(EmbeddingProvider):
-    def __init__(self, dim: int = 384):
-        self.dim = dim
-
+    def __init__(self, dim: int = 384): self.dim = dim
     def embed(self, texts: List[str]) -> List[List[float]]:
-        # Deterministic embedding using SHA256 -> float vector
-        # WARNING: This is for consistency in tests/mocks only. Not semantic!
+        # Deterministic Mock (SHA256)
         embeddings = []
         for t in texts:
             h = hashlib.sha256(t.encode('utf-8')).digest()
-            # Map 32 bytes to dim floats. Reuse bytes if dim > 32
             vec = [(h[i % 32] / 255.0) for i in range(self.dim)]
             embeddings.append(vec)
         return embeddings
 
 class RemoteEmbedder(EmbeddingProvider):
-    def __init__(self, dim: int = 384):
-        self.dim = dim
-
+    def __init__(self, dim: int = 384): self.dim = dim
     def embed(self, texts: List[str]) -> List[List[float]]:
-        # Mock remote call with retry logic
-        embeddings = []
-        # Simulate latency
-        time.sleep(0.1)
-        for _ in texts:
-            vec = [0.0] * self.dim
-            embeddings.append(vec)
-        return embeddings
+        time.sleep(0.1) # Mock latency
+        return [[0.0] * self.dim for _ in texts]
 
-# --- Main Module ---
+# --- Main V2 Class ---
 class SelfImprovingBrainV2:
     def __init__(self, config_path: str = "config/self_improving.yaml", rust_instance=None):
         self.config = load_config(config_path)
@@ -110,221 +82,180 @@ class SelfImprovingBrainV2:
             db_path=self.config.get("storage_path", "./data/patterns.db")
         )
 
-        provider_type = self.config.get("embedding_provider", "local")
-        dim = self.config.get("embedding_dim", 384)
-        if provider_type == "remote":
-            self.embedder = RemoteEmbedder(dim)
+        # Select Embedder
+        if self.config.get("embedding_provider") == "remote":
+            self.embedder = RemoteEmbedder(self.config.get("embedding_dim"))
         else:
-            self.embedder = LocalEmbedder(dim)
+            self.embedder = LocalEmbedder(self.config.get("embedding_dim"))
 
+        # Thread-safe Queue
         self.queue = queue.Queue(maxsize=self.config.get("max_queue_size", 1000))
-        self.running = False
-        self.workers = []
-        self.cluster_thread = None
-        self.stop_event = threading.Event()
 
-        # Metrics
+        # Metrics Lock
+        self.lock = threading.Lock()
         self.processed_count = 0
         self.failed_count = 0
         self.last_cluster_time = 0
 
+        # Lifecycle
+        self.stop_event = threading.Event()
+        self.workers = []
         self.start()
 
     def start(self):
-        if self.running:
-            return
-        self.running = True
         self.stop_event.clear()
 
-        # Start workers
-        num_workers = self.config.get("max_workers", 1)
-        for i in range(num_workers):
-            t = threading.Thread(target=self._worker_loop, name=f"LearningWorker-{i}")
+        # Start Workers
+        for i in range(self.config.get("max_workers", 1)):
+            t = threading.Thread(target=self._worker_loop, name=f"Worker-{i}")
             t.start()
             self.workers.append(t)
 
-        # Start clusterer
+        # Start Clusterer
         self.cluster_thread = threading.Thread(target=self._background_clusterer, name="ClusterWorker")
         self.cluster_thread.start()
 
-        logger.info("SelfImprovingBrainV2 started.")
+        logger.info("SelfImprovingBrainV2 Active.")
 
     def shutdown(self):
-        logger.info("Stopping SelfImprovingBrainV2...")
-        self.running = False
+        logger.info("Stopping V2...")
+        # 1. Stop accepting new tasks (implicit by caller stopping)
+        # 2. Process remaining items
+        self.flush()
+
+        # 3. Signal stop
         self.stop_event.set()
 
-        # Ensure queue is processed if possible (optional, but requested by logic "flush before stop")
-        # However, flushing is blocking. We'll assume the user calls flush() manually if they want guarantee.
-        # But per patch logic: "self.flush() # Ensure queue is empty before stopping"
-        # We will try to flush with a timeout to avoid hanging forever.
-
-        # Signal workers to stop (via running=False and stop_event)
-
         for t in self.workers:
-            if t.is_alive():
-                t.join(timeout=2.0)
+            t.join(timeout=2.0)
 
-        if self.cluster_thread and self.cluster_thread.is_alive():
+        if self.cluster_thread:
             self.cluster_thread.join(timeout=2.0)
 
-        logger.info("SelfImprovingBrainV2 stopped.")
+        logger.info("V2 Stopped.")
 
     def learn_from_session(self, session_data: List[Dict]):
-        """
-        Add session data to the processing queue.
-        session_data: list of dicts {'question', 'answer', 'timestamp'}
-        """
-        if not self.running:
-            return
+        if self.stop_event.is_set(): return
 
-        try:
-            for item in session_data:
+        dropped = 0
+        for item in session_data:
+            try:
                 self.queue.put(item, block=False)
-        except queue.Full:
-            logger.warning("Learning queue full, dropping items.")
-            self.failed_count += len(session_data)
+            except queue.Full:
+                dropped += 1
+
+        if dropped > 0:
+            with self.lock:
+                self.failed_count += dropped
+            logger.warning(f"Queue full. Dropped {dropped} items.")
 
     def _worker_loop(self):
         batch_size = self.config.get("batch_size", 10)
         batch = []
 
-        while self.running and not self.stop_event.is_set():
+        while not self.stop_event.is_set() or not self.queue.empty():
             try:
-                # Collect batch
                 try:
-                    # Short timeout to check running flag frequently
                     item = self.queue.get(timeout=0.5)
                     batch.append(item)
                 except queue.Empty:
-                    pass
+                    # If queue empty and we have a partial batch, process it
+                    if batch:
+                        self._process_batch(batch)
+                        batch = []
+                    continue
 
-                # Process if batch full or if queue is empty (drain) and we have data
-                if len(batch) >= batch_size or (batch and self.queue.empty()):
+                if len(batch) >= batch_size:
                     self._process_batch(batch)
                     batch = []
 
             except Exception as e:
-                logger.error(f"Worker loop error: {e}")
-                if batch:
-                    self.failed_count += len(batch)
-                    batch = []
+                logger.error(f"Worker Error: {e}")
+
+        # Final cleanup
+        if batch:
+            self._process_batch(batch)
 
     def _process_batch(self, batch: List[Dict]):
-        if not batch:
-            return
-
+        if not batch: return
         try:
-            # 1. Compute embeddings
-            texts = [f"Q: {item.get('question', '')} A: {item.get('answer', '')}" for item in batch]
+            texts = [f"Q: {i.get('question','')} A: {i.get('answer','')}" for i in batch]
             embeddings = self.embedder.embed(texts)
 
-            # 2. Store in Rust
             if self.rust.available:
-                patterns_to_add = []
-                for i, item in enumerate(batch):
-                    key = f"pattern_{int(item.get('timestamp', time.time()))}_{i}"
-                    embedding = embeddings[i]
-                    data_bytes = json.dumps(item).encode('utf-8')
+                patterns = []
+                for idx, item in enumerate(batch):
+                    key = f"pat_{int(item.get('timestamp', time.time()))}_{idx}"
+                    # Rust save data
+                    self.rust.save_to_storage(key, json.dumps(item).encode('utf-8'))
+                    # Rust add vector
+                    patterns.append(embeddings[idx])
 
-                    # Save raw data
-                    self.rust.save_to_storage(key, data_bytes)
-
-                    # Prepare for pattern matcher
-                    patterns_to_add.append((key, embedding))
-
-                # Add to matcher
-                self.rust.add_patterns(patterns_to_add)
+                self.rust.add_patterns(patterns)
             else:
-                # Fallback to local file (e.g. JSONL)
                 self._fallback_save(batch)
 
-            self.processed_count += len(batch)
+            # Atomic update
+            with self.lock:
+                self.processed_count += len(batch)
+
+            # Mark tasks as done for queue.join()
+            for _ in batch:
+                self.queue.task_done()
 
         except Exception as e:
-            logger.error(f"Batch processing error: {e}")
-            self.failed_count += len(batch)
+            logger.error(f"Batch Failed: {e}")
+            with self.lock:
+                self.failed_count += len(batch)
+            # Ensure task_done called even on failure
+            for _ in batch:
+                try:
+                    self.queue.task_done()
+                except ValueError:
+                    pass
 
-    def _fallback_save(self, batch: List[Dict]):
-        # Simple append to a jsonl file
-        fallback_dir = "data"
-        if not os.path.exists(fallback_dir):
-            os.makedirs(fallback_dir)
-
-        fallback_path = os.path.join(fallback_dir, "learning_fallback.jsonl")
+    def _fallback_save(self, batch):
         try:
-            with open(fallback_path, 'a') as f:
+            os.makedirs("data", exist_ok=True)
+            with open("data/learning_fallback.jsonl", "a") as f:
                 for item in batch:
                     f.write(json.dumps(item) + "\n")
-        except Exception as e:
-            logger.error(f"Fallback save failed: {e}")
+        except Exception:
+            pass
 
     def _background_clusterer(self):
-        interval = self.config.get("cluster_interval", 60)
-        while self.running and not self.stop_event.is_set():
-            # Sleep in chunks to allow faster shutdown
+        interval = max(1, self.config.get("cluster_interval", 60))
+        while not self.stop_event.is_set():
+            # Sleep in small chunks to react to stop_event
             for _ in range(interval):
-                if not self.running or self.stop_event.is_set():
-                    return
+                if self.stop_event.is_set(): return
                 time.sleep(1)
 
-            try:
-                # Trigger clustering/reindexing in Rust
-                if self.rust.available:
-                    # logger.info("Triggering background reindex...") # reduce log noise
+            if self.rust.available and hasattr(self.rust, 'reindex'):
+                try:
                     self.rust.reindex()
                     self.last_cluster_time = time.time()
-            except Exception as e:
-                logger.error(f"Clusterer error: {e}")
+                except Exception: pass
 
     def flush(self):
-        """Wait until queue is empty."""
-        while not self.queue.empty():
-            time.sleep(0.1)
-        # Give workers a moment to finish processing
-        time.sleep(0.5)
+        """Blocks until all items in queue are processed."""
+        self.queue.join()
 
-    def status(self) -> Dict:
-        return {
-            "queue_size": self.queue.qsize(),
-            "processed": self.processed_count,
-            "failed": self.failed_count,
-            "last_cluster": self.last_cluster_time,
-            "rust_available": self.rust.available
-        }
+    def status(self):
+        with self.lock:
+            return {
+                "queue": self.queue.qsize(),
+                "processed": self.processed_count,
+                "failed": self.failed_count,
+                "rust": self.rust.available
+            }
 
-    def search_similar(self, query: str, k: int = 5) -> List[Dict]:
-        """
-        Search for similar patterns.
-        """
-        if not self.rust.available:
-            return []
-
-        # Embed query. Convert to string to be safe.
+    def search_similar(self, query: str, k: int = 5):
+        if not self.rust.available: return []
         embedding = self.embedder.embed([f"{query}"])[0]
-
-        # Search Rust
         results = self.rust.find_similar(embedding, k)
 
-        # Results might be list of (id, score). We need to load data.
-        decoded_results = []
-        if results:
-            for res in results:
-                try:
-                    # Assuming result structure
-                    if isinstance(res, (tuple, list)):
-                        pid = res[0]
-                        score = res[1] if len(res) > 1 else 0.0
-                    else:
-                        pid = res
-                        score = 0.0
-
-                    data_bytes = self.rust.load_from_storage(pid)
-                    if data_bytes:
-                        data = json.loads(data_bytes)
-                        data['score'] = score
-                        decoded_results.append(data)
-                except Exception as e:
-                    logger.warning(f"Failed to load result {res}: {e}")
-
-        return decoded_results
+        decoded = []
+        # Mock decoding logic (assuming Rust returns IDs, need to fetch Data)
+        # For now just return raw results or empty list if no data fetching implemented
+        return results

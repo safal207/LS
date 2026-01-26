@@ -1,8 +1,8 @@
-self_improving:
-  batch_size: 10
-  cluster_interval: 60
-  embedding_provider: "local"  # options: "local", "remote"
-  max_workers: 2
-  max_queue_size: 1000
-  storage_path: "./data/patterns.db"
-  embedding_dim: 384  # Default for mini-LM
+# Self-Improving Brain Configuration (Flat Structure)
+batch_size: 10
+cluster_interval: 60
+embedding_provider: local  # options: "local", "remote"
+max_workers: 2
+max_queue_size: 1000
+storage_path: ./data/patterns.db
+embedding_dim: 384

@@ -15,18 +15,12 @@ class SelfImprovingBrain:
         self.v2 = SelfImprovingBrainV2(rust_instance=self.rust)
 
     def learn_from_session(self, session_data):
-        """
-        Delegate to V2 (Non-blocking queue).
-        session_data: list of dicts {'question', 'answer', 'timestamp'}
-        """
+        """Delegate to V2 (Non-blocking queue)."""
         self.v2.learn_from_session(session_data)
 
     def optimize_memory(self):
-        """
-        Legacy method. V2 handles optimization in background.
-        We trigger reindex and return optimization result for compatibility.
-        """
         if self.rust.available:
+            # Trigger reindex via V2 logic or directly
             if hasattr(self.rust, 'reindex'):
                 self.rust.reindex()
             return self.rust.optimize_memory()
@@ -34,7 +28,6 @@ class SelfImprovingBrain:
 
     def stop(self):
         """Stops the underlying V2 background threads."""
-        # Maps facade .stop() to V2 .shutdown()
         self.v2.shutdown()
 
     def status(self):
