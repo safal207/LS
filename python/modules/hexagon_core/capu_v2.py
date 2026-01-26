@@ -91,7 +91,9 @@ class CaPU:
                 keywords = item.get("keywords", [])
                 # If any keyword from the item is in the query
                 if any(k.lower() in q_lower for k in keywords):
-                    found_logic.append(f"DECISION: {item.get('decision')}\nREASON: {item.get('reason')}\nTRADE_OFF: {item.get('trade_off')}")
+                    # Use 'trade_off' as primary, fallback to 'tradeoff'
+                    t_off = item.get('trade_off') or item.get('tradeoff', 'N/A')
+                    found_logic.append(f"DECISION: {item.get('decision')}\nREASON: {item.get('reason')}\nTRADE_OFF: {t_off}")
 
         if found_logic:
             context_parts.append("ARCHITECTURAL LOGIC:\n" + "\n\n".join(found_logic))

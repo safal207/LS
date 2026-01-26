@@ -50,8 +50,6 @@ class GhostCore(QObject):
 
         # Modules
         self.learner = SelfImprovingBrain(rust_instance=self.rust_optimizer)
-        self.audio_module = AudioIngestion(self.audio_queue)
-        self.stt_module = SpeechToText(self.audio_queue, self.text_queue)
 
         # === BRAIN INITIALIZATION (SOVEREIGN EDITION) ===
         # tier="local" -> Только Qwen (бесплатно, приватно)
@@ -63,6 +61,10 @@ class GhostCore(QObject):
             rust_instance=self.rust_optimizer,
             learner_instance=self.learner
         )
+
+        # IO Modules
+        self.audio_module = AudioIngestion(self.audio_queue)
+        self.stt_module = SpeechToText(self.audio_queue, self.text_queue)
 
     def start(self):
         """Starts all subsystems in daemon threads but keeps ref for joining."""
