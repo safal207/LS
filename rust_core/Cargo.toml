@@ -1,0 +1,31 @@
+[package]
+name = "interview_copilot_core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "interview_copilot_core"
+crate-type = ["cdylib"]  # For Python binding
+
+[dependencies]
+# Audio processing
+cpal = "0.15"
+ringbuf = "0.3"
+# VAD (Voice Activity Detection)
+# Note: We'll implement a simple energy-based VAD
+# For production, consider webrtc-vad-sys or similar
+
+# Serialization for communication with Python
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Threading and async
+tokio = { version = "1.0", features = ["full"] }
+crossbeam-channel = "0.5"
+
+# Memory management
+bytes = "1.0"

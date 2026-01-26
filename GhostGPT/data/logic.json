@@ -1,0 +1,20 @@
+[
+  {
+    "keywords": ["next.js", "ssr", "seo"],
+    "decision": "Выбрал Next.js App Router",
+    "reason": "Критически важен SEO для Nexus Sales. SSR снизил FCP (First Contentful Paint).",
+    "tradeoff": "Сложнее кэширование, но прирост трафика окупил это."
+  },
+  {
+    "keywords": ["supabase", "firebase", "sql"],
+    "decision": "Supabase (PostgreSQL) вместо Firebase",
+    "reason": "Нужны были реляционные связи для воронок продаж. NoSQL не подходил для сложной аналитики.",
+    "tradeoff": "Пришлось писать RLS (Row Level Security) вручную."
+  },
+  {
+    "keywords": ["rust", "python", "audio"],
+    "decision": "Аудио-движок на Rust",
+    "reason": "Python GC давал лаги в реал-тайме. Rust обеспечил Zero-Cost Abstractions и стабильную задержку <10ms.",
+    "tradeoff": "Увеличилось время разработки (FFI bindings)."
+  }
+]

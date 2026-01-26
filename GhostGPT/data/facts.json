@@ -1,0 +1,9 @@
+{
+  "facts": [
+    "Проект Nexus Sales: AI-конструктор воронок продаж на Next.js + Supabase.",
+    "Проект L-THREAD: Собственный защищенный протокол передачи данных (UDP/TCP wrapper).",
+    "Проект LiminalQAengineer: Настройка CI/CD пайплайнов, GitHub Actions, Trivy Security Scan.",
+    "Стек: TypeScript, Python, Rust (Audio Engine), React, Docker, Kubernetes.",
+    "Опыт: Аудит безопасности платформы TakeProfit (найдены критические уязвимости в API)."
+  ]
+}

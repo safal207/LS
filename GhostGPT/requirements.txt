@@ -1,0 +1,7 @@
+PyQt6
+faster-whisper
+openai
+pyaudio
+numpy
+keyboard
+requests

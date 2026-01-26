@@ -1,0 +1,11 @@
+faster-whisper==1.0.3
+pyaudio==0.2.14
+requests==2.31.0
+numpy==1.24.3
+sounddevice==0.4.6
+PyQt6==6.10.2
+psutil==5.9.0
+
+# Optional: For Rust integration (performance boost)
+# Install Rust toolchain from https://www.rust-lang.org/tools/install
+# Then run: powershell -ExecutionPolicy Bypass -File build_rust.ps1
