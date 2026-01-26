@@ -5,6 +5,7 @@ Simple test to verify LLM connection with existing llama3.2 model
 
 import requests
 import json
+from config import LLM_MODEL_NAME
 
 def test_ollama_connection():
     """Test connection to Ollama API"""
@@ -31,7 +32,7 @@ def test_simple_generation():
         url = "http://localhost:11434/api/generate"
         
         payload = {
-            "model": "llama3.2",
+            "model": LLM_MODEL_NAME,
             "prompt": "What is 2+2?",
             "stream": False,
             "options": {
