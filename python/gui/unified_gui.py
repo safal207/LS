@@ -71,17 +71,17 @@ class GhostCore(QObject):
         logger.info("Starting GhostCore Subsystems...")
 
         # 1. Audio Thread
-        t_audio = threading.Thread(target=self.audio_module.run, daemon=True, name="AudioThread")
+        t_audio = threading.Thread(target=self.audio_module.run, name="AudioThread")
         t_audio.start()
         self.threads.append(t_audio)
 
         # 2. STT Thread
-        t_stt = threading.Thread(target=self.stt_module.run, daemon=True, name="STTThread")
+        t_stt = threading.Thread(target=self.stt_module.run, name="STTThread")
         t_stt.start()
         self.threads.append(t_stt)
 
         # 3. Brain Processing Thread
-        t_proc = threading.Thread(target=self._process_loop, daemon=True, name="BrainThread")
+        t_proc = threading.Thread(target=self._process_loop, name="BrainThread")
         t_proc.start()
         self.threads.append(t_proc)
 
@@ -92,16 +92,27 @@ class GhostCore(QObject):
         logger.info("Initiating Shutdown Sequence...")
         self.status_update.emit("Stopping...")
 
+        # Prevent double-stop races
+        if self._stop_event.is_set():
+            logger.info("Stop already initiated; skipping duplicate stop.")
+            return
+
         self._stop_event.set()
 
         if hasattr(self.audio_module, 'stop'): self.audio_module.stop()
         if hasattr(self.stt_module, 'stop'): self.stt_module.stop()
 
+        # Give threads more time to finish cleanly; try a couple of joins
         for t in self.threads:
             if t.is_alive():
-                t.join(timeout=1.0)
+                t.join(timeout=2.0)
+
+        # Final check with longer timeout for any remaining threads
+        for t in self.threads:
+            if t.is_alive():
+                t.join(timeout=5.0)
                 if t.is_alive():
-                    logger.warning(f"Thread {t.name} did not terminate gracefully.")
+                    logger.warning(f"Thread {t.name} did not terminate gracefully after retries.")
 
         self.rust_optimizer.close()
         self.status_update.emit("GhostCore Offline")
@@ -140,6 +151,8 @@ class GhostCore(QObject):
 
                 self.text_queue.task_done()
             except queue.Empty:
+                # small sleep to avoid busy loop
+                time.sleep(0.01)
                 continue
             except Exception as e:
                 logger.error(f"Loop Exception: {e}")

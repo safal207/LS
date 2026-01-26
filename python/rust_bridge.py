@@ -4,6 +4,15 @@ import logging
 
 logger = logging.getLogger("RustBridge")
 
+# Try import at module level so import errors are visible once
+try:
+    import ghostgpt_core
+except ImportError:
+    ghostgpt_core = None
+except Exception as e:
+    logger.error(f"Unexpected error importing ghostgpt_core: {e}")
+    ghostgpt_core = None
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
@@ -19,9 +28,11 @@ class RustOptimizer:
         self.matcher = None
         self.storage = None
 
-        try:
-            import ghostgpt_core
+        if ghostgpt_core is None:
+            logger.warning("🦀 ghostgpt_core not available at module import time.")
+            return
 
+        try:
             self.memory = ghostgpt_core.MemoryManager(max_size_mb=memory_mb)
             self.matcher = ghostgpt_core.PatternMatcher()
 
@@ -31,11 +42,12 @@ class RustOptimizer:
             self.available = True
             logger.info(f"🦀 Rust Core Loaded. DB: {db_path}")
 
-        except ImportError:
-            logger.warning("🦀 Rust Core NOT FOUND. Running in Python-only mode.")
         except Exception as e:
             logger.error(f"🦀 Rust Initialization Failed: {e}")
             self.available = False
+
+    def is_available(self) -> bool:
+        return bool(self.available)
 
     def cache_pattern(self, key: str, embedding: list):
         if self.available:

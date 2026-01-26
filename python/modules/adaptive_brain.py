@@ -47,12 +47,17 @@ class AdaptiveBrain:
 
         # TIER 1: CLOUD (DeepSeek)
         if self.tier == "cloud":
-            try:
-                res = self._call_deepseek(prompt)
-                if res: return res
-            except Exception as e:
-                logger.error(f"❌ DeepSeek Failed: {e}")
-            logger.warning("Falling back to Local Qwen...")
+            # Retry with exponential backoff for transient errors
+            backoff = 0.5
+            for attempt in range(3):
+                try:
+                    res = self._call_deepseek(prompt)
+                    if res: return res
+                except Exception as e:
+                    logger.warning(f"DeepSeek attempt {attempt+1} failed: {e}")
+                    time.sleep(backoff)
+                    backoff *= 2
+            logger.error("DeepSeek failed after retries. Falling back to Local Qwen...")
 
         # TIER 2: LOCAL (Qwen)
         return self._call_local_qwen(prompt)
@@ -78,9 +83,25 @@ class AdaptiveBrain:
         }
 
         resp = requests.post(url, json=data, headers=headers, timeout=30)
-        if resp.status_code == 200:
-            return resp.json()['choices'][0]['message']['content']
-        raise ConnectionError(f"DeepSeek Status {resp.status_code}")
+        if resp.status_code != 200:
+            raise ConnectionError(f"DeepSeek Status {resp.status_code}: {resp.text}")
+
+        # Validate JSON structure defensively
+        try:
+            j = resp.json()
+            choices = j.get("choices")
+            if not choices or not isinstance(choices, list):
+                raise ValueError("DeepSeek response missing choices")
+            first = choices[0]
+            message = first.get("message") or first.get("text") or {}
+            content = message.get("content") or message.get("text")
+            if not content:
+                raise ValueError("DeepSeek response missing content")
+            return content
+        except ValueError:
+            raise
+        except Exception as e:
+            raise ConnectionError(f"DeepSeek JSON parse error: {e}")
 
     def _call_local_qwen(self, prompt):
         try:
