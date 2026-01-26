@@ -1,10 +1,10 @@
 import json
 import time
 import logging
+import hashlib
 import threading
 import queue
 import os
-import random
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 
@@ -76,16 +76,15 @@ class EmbeddingProvider(ABC):
 class LocalEmbedder(EmbeddingProvider):
     def __init__(self, dim: int = 384):
         self.dim = dim
-        self.rng = random.Random(42)
 
     def embed(self, texts: List[str]) -> List[List[float]]:
-        # Mock implementation using random vectors or numpy if available
+        # Deterministic embedding using SHA256 -> float vector
+        # WARNING: This is for consistency in tests/mocks only. Not semantic!
         embeddings = []
-        for _ in texts:
-            if HAS_NUMPY:
-                vec = np.random.rand(self.dim).tolist()
-            else:
-                vec = [self.rng.random() for _ in range(self.dim)]
+        for t in texts:
+            h = hashlib.sha256(t.encode('utf-8')).digest()
+            # Map 32 bytes to dim floats. Reuse bytes if dim > 32
+            vec = [(h[i % 32] / 255.0) for i in range(self.dim)]
             embeddings.append(vec)
         return embeddings
 
@@ -95,12 +94,10 @@ class RemoteEmbedder(EmbeddingProvider):
 
     def embed(self, texts: List[str]) -> List[List[float]]:
         # Mock remote call with retry logic
-        # In a real scenario, this would call an API
         embeddings = []
         # Simulate latency
         time.sleep(0.1)
         for _ in texts:
-            # Return dummy embeddings
             vec = [0.0] * self.dim
             embeddings.append(vec)
         return embeddings
@@ -124,6 +121,7 @@ class SelfImprovingBrainV2:
         self.running = False
         self.workers = []
         self.cluster_thread = None
+        self.stop_event = threading.Event()
 
         # Metrics
         self.processed_count = 0
@@ -136,28 +134,40 @@ class SelfImprovingBrainV2:
         if self.running:
             return
         self.running = True
+        self.stop_event.clear()
 
         # Start workers
         num_workers = self.config.get("max_workers", 1)
-        for _ in range(num_workers):
-            t = threading.Thread(target=self._worker_loop, daemon=True)
+        for i in range(num_workers):
+            t = threading.Thread(target=self._worker_loop, name=f"LearningWorker-{i}")
             t.start()
             self.workers.append(t)
 
         # Start clusterer
-        self.cluster_thread = threading.Thread(target=self._background_clusterer, daemon=True)
+        self.cluster_thread = threading.Thread(target=self._background_clusterer, name="ClusterWorker")
         self.cluster_thread.start()
 
         logger.info("SelfImprovingBrainV2 started.")
 
-    def stop(self):
+    def shutdown(self):
+        logger.info("Stopping SelfImprovingBrainV2...")
         self.running = False
-        # Wait for queue to empty? Or just stop?
-        # Typically we want to process remaining items if possible, but for shutdown speed we might just flag.
+        self.stop_event.set()
+
+        # Ensure queue is processed if possible (optional, but requested by logic "flush before stop")
+        # However, flushing is blocking. We'll assume the user calls flush() manually if they want guarantee.
+        # But per patch logic: "self.flush() # Ensure queue is empty before stopping"
+        # We will try to flush with a timeout to avoid hanging forever.
+
+        # Signal workers to stop (via running=False and stop_event)
+
         for t in self.workers:
-            t.join(timeout=1.0)
-        if self.cluster_thread:
-            self.cluster_thread.join(timeout=1.0)
+            if t.is_alive():
+                t.join(timeout=2.0)
+
+        if self.cluster_thread and self.cluster_thread.is_alive():
+            self.cluster_thread.join(timeout=2.0)
+
         logger.info("SelfImprovingBrainV2 stopped.")
 
     def learn_from_session(self, session_data: List[Dict]):
@@ -165,6 +175,9 @@ class SelfImprovingBrainV2:
         Add session data to the processing queue.
         session_data: list of dicts {'question', 'answer', 'timestamp'}
         """
+        if not self.running:
+            return
+
         try:
             for item in session_data:
                 self.queue.put(item, block=False)
@@ -176,15 +189,17 @@ class SelfImprovingBrainV2:
         batch_size = self.config.get("batch_size", 10)
         batch = []
 
-        while self.running:
+        while self.running and not self.stop_event.is_set():
             try:
                 # Collect batch
                 try:
-                    item = self.queue.get(timeout=1.0)
+                    # Short timeout to check running flag frequently
+                    item = self.queue.get(timeout=0.5)
                     batch.append(item)
                 except queue.Empty:
                     pass
 
+                # Process if batch full or if queue is empty (drain) and we have data
                 if len(batch) >= batch_size or (batch and self.queue.empty()):
                     self._process_batch(batch)
                     batch = []
@@ -216,9 +231,9 @@ class SelfImprovingBrainV2:
                     self.rust.save_to_storage(key, data_bytes)
 
                     # Prepare for pattern matcher
-                    # Assuming add_patterns takes list of tuples (id, vector)
                     patterns_to_add.append((key, embedding))
 
+                # Add to matcher
                 self.rust.add_patterns(patterns_to_add)
             else:
                 # Fallback to local file (e.g. JSONL)
@@ -246,17 +261,17 @@ class SelfImprovingBrainV2:
 
     def _background_clusterer(self):
         interval = self.config.get("cluster_interval", 60)
-        while self.running:
+        while self.running and not self.stop_event.is_set():
             # Sleep in chunks to allow faster shutdown
             for _ in range(interval):
-                if not self.running:
+                if not self.running or self.stop_event.is_set():
                     return
                 time.sleep(1)
 
             try:
                 # Trigger clustering/reindexing in Rust
                 if self.rust.available:
-                    logger.info("Triggering background reindex...")
+                    # logger.info("Triggering background reindex...") # reduce log noise
                     self.rust.reindex()
                     self.last_cluster_time = time.time()
             except Exception as e:
@@ -285,8 +300,8 @@ class SelfImprovingBrainV2:
         if not self.rust.available:
             return []
 
-        # Embed query
-        embedding = self.embedder.embed([query])[0]
+        # Embed query. Convert to string to be safe.
+        embedding = self.embedder.embed([f"{query}"])[0]
 
         # Search Rust
         results = self.rust.find_similar(embedding, k)

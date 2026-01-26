@@ -60,8 +60,11 @@ class RustOptimizer:
         if self.available:
             try:
                 self.matcher.add_patterns(patterns)
+                return True
             except Exception as e:
                 logger.error(f"Rust add_patterns error: {e}")
+                return False
+        return False
 
     def reindex(self):
         if self.available:

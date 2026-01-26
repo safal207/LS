@@ -3,6 +3,7 @@ import time
 import json
 import os
 import shutil
+import hashlib
 from unittest.mock import MagicMock, patch
 import sys
 
@@ -26,6 +27,7 @@ class MockRustOptimizer:
 
     def add_patterns(self, patterns):
         self.patterns.extend(patterns)
+        return True
 
     def find_similar(self, query, k):
         # Mock similar search: return first k patterns if available
@@ -61,13 +63,18 @@ def clean_env():
     if os.path.exists("data/learning_fallback.jsonl"):
         os.remove("data/learning_fallback.jsonl")
 
-def test_local_embedder():
+def test_local_embedder_deterministic():
     embedder = LocalEmbedder(dim=10)
     texts = ["hello", "world"]
-    embeddings = embedder.embed(texts)
-    assert len(embeddings) == 2
-    assert len(embeddings[0]) == 10
-    assert isinstance(embeddings[0][0], float)
+    embeddings1 = embedder.embed(texts)
+    embeddings2 = embedder.embed(texts)
+
+    assert len(embeddings1) == 2
+    assert len(embeddings1[0]) == 10
+    # Determinism check
+    assert embeddings1 == embeddings2
+    # Sanity check (hello != world)
+    assert embeddings1[0] != embeddings1[1]
 
 def test_brain_initialization(clean_env):
     # Create temp config
@@ -78,7 +85,7 @@ def test_brain_initialization(clean_env):
     brain = SelfImprovingBrainV2(config_path="config/test_config.yaml", rust_instance=rust_mock)
 
     assert brain.config["batch_size"] == 2
-    brain.stop()
+    brain.shutdown()
 
 def test_learning_flow(clean_env):
     # Create temp config
@@ -102,13 +109,13 @@ def test_learning_flow(clean_env):
     # Check if processed
     # Batch size is 2, so first 2 should be processed immediately, last 1 might wait or be processed if we wait enough
     # With flush logic, it waits until queue empty. Worker might pick up last item after timeout.
-    time.sleep(1.5) # Allow worker timeout cycle (1.0s) to pick up remaining item
+    time.sleep(1.5) # Allow worker timeout cycle (0.5s) to pick up remaining item
 
     assert brain.processed_count == 3
     assert len(rust_mock.patterns) == 3
     assert len(rust_mock.storage) == 3
 
-    brain.stop()
+    brain.shutdown()
 
 def test_fallback_save(clean_env):
     # Rust unavailable
@@ -135,10 +142,17 @@ def test_fallback_save(clean_env):
         last_line = json.loads(lines[-1])
         assert last_line["question"] == "fq"
 
-    brain.stop()
+    brain.shutdown()
 
 def test_search_similar(clean_env):
     rust_mock = MockRustOptimizer()
+    # Pre-populate mock
+    # Embed "sq" to match what search will embed
+    embedder = LocalEmbedder(dim=384)
+    # The brain uses "Q: q A: a" for learning but just q for search?
+    # Actually brain uses `f"{query}"` for search embedding.
+    # We just need mock to return something.
+
     rust_mock.patterns = [("pattern_1", [0.1]*10)]
     rust_mock.storage["pattern_1"] = json.dumps({"question": "sq", "answer": "sa"}).encode('utf-8')
 
@@ -149,4 +163,4 @@ def test_search_similar(clean_env):
     assert results[0]["question"] == "sq"
     assert results[0]["score"] == 0.9
 
-    brain.stop()
+    brain.shutdown()
