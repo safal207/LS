@@ -48,6 +48,11 @@ class GhostCore(QObject):
         # Resources
         self.rust_optimizer = RustOptimizer()
 
+        # Modules
+        self.learner = SelfImprovingBrain(rust_instance=self.rust_optimizer)
+        self.audio_module = AudioIngestion(self.audio_queue)
+        self.stt_module = SpeechToText(self.audio_queue, self.text_queue)
+
         # === BRAIN INITIALIZATION (SOVEREIGN EDITION) ===
         # tier="local" -> Только Qwen (бесплатно, приватно)
         # tier="cloud" -> DeepSeek API (дешево, мощно)
@@ -55,13 +60,9 @@ class GhostCore(QObject):
             tier="local",
             # Вставь сюда ключ DeepSeek, если захочешь использовать Cloud tier
             api_keys={"deepseek": "sk-YOUR-DEEPSEEK-KEY"},
-            rust_instance=self.rust_optimizer
+            rust_instance=self.rust_optimizer,
+            learner_instance=self.learner
         )
-
-        # Modules
-        self.audio_module = AudioIngestion(self.audio_queue)
-        self.stt_module = SpeechToText(self.audio_queue, self.text_queue)
-        self.learner = SelfImprovingBrain(rust_instance=self.rust_optimizer)
 
     def start(self):
         """Starts all subsystems in daemon threads but keeps ref for joining."""

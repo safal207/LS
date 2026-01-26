@@ -1,0 +1,14 @@
+[
+  {
+    "keywords": ["rust", "python", "hybrid", "performance"],
+    "decision": "Hybrid Architecture (Python + Rust)",
+    "reason": "Python for UI speed, Rust for vector search performance.",
+    "trade_off": "Build complexity (FFI) vs 50% RAM savings."
+  },
+  {
+    "keywords": ["ollama", "local", "privacy", "cloud"],
+    "decision": "Local-First AI (Ollama + Qwen)",
+    "reason": "Data sovereignty and offline capability.",
+    "trade_off": "Requires local hardware resources."
+  }
+]

@@ -4,12 +4,12 @@ import logging
 import requests
 import json
 from ..rust_bridge import RustOptimizer
-from .hexagon_core.capu import CaPU
+from .hexagon_core.capu_v2 import CaPU
 
 logger = logging.getLogger("AdaptiveBrain")
 
 class AdaptiveBrain:
-    def __init__(self, tier="local", api_keys=None, rust_instance=None):
+    def __init__(self, tier="local", api_keys=None, rust_instance=None, learner_instance=None):
         """
         Adaptive Intelligence Module (Sovereign Edition).
 
@@ -20,7 +20,7 @@ class AdaptiveBrain:
         self.tier = tier
         self.api_keys = api_keys or {}
         self.rust = rust_instance if rust_instance else RustOptimizer()
-        self.capu = CaPU()
+        self.capu = CaPU(memory_module=learner_instance)
         self.latency_stats = []
 
         if tier == "cloud" and not self.api_keys.get("deepseek"):
@@ -30,7 +30,8 @@ class AdaptiveBrain:
     def generate(self, prompt, context_data=None):
         start_time = time.time()
 
-        # 1. Contextualize
+        # 1. Update History & Contextualize
+        self.capu.update_history("user", prompt)
         full_prompt = self.capu.construct_prompt(prompt)
 
         # 2. Rust Cache (Future)
@@ -38,6 +39,9 @@ class AdaptiveBrain:
 
         # 3. Inference
         response = self._inference_strategy(full_prompt)
+
+        # 4. Update History with Response
+        self.capu.update_history("ai", response)
 
         self.latency_stats.append(time.time() - start_time)
         return response
