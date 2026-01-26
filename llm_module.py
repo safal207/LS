@@ -9,9 +9,10 @@ import json
 import time
 import logging
 import queue
+import threading
 from typing import Optional, Dict
 from qwen_handler import QwenHandler
-from config import OLLAMA_HOST, LLM_MODEL_NAME, SYSTEM_PROMPT, USE_CLOUD_LLM
+from config import OLLAMA_HOST, LLM_MODEL_NAME, SYSTEM_PROMPT, USE_CLOUD_LLM, GROQ_API_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,21 @@ class LanguageModel:
             use_cloud_api=USE_CLOUD_LLM,
             api_key=qwen_api_key
         )
+
+    def test_ollama_connection(self) -> bool:
+        """Test connection to Ollama server"""
+        try:
+            # Simple check to see if Ollama is responsive
+            response = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=2)
+            if response.status_code == 200:
+                logger.info("Successfully connected to Ollama")
+                return True
+            else:
+                logger.warning(f"Ollama connected but returned status {response.status_code}")
+                return False
+        except Exception as e:
+            logger.warning(f"Could not connect to Ollama: {e}")
+            return False
         
     def generate_response_local(self, question: str) -> Optional[str]:
         """Generate response using local Ollama Qwen"""
@@ -185,8 +201,7 @@ def test_llm_module():
     output_queue = queue.Queue()
     
     # Create and start LLM module
-    llm_module = LanguageModel(output_queue)
-    llm_module.input_queue = input_queue  # Inject input queue for testing
+    llm_module = LanguageModel(input_queue, output_queue)
     
     print("Testing LLM module...")
     
