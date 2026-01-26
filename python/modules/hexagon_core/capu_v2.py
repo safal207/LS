@@ -80,7 +80,22 @@ class CaPU:
         if found_facts:
             context_parts.append("RELEVANT FACTS:\n" + "\n".join(found_facts))
 
-        # 2. Scan for Logic (CML)
+        # 2. Dynamic Memory Lookup
+        memory_snippets = []
+        if self.memory and hasattr(self.memory, "search_similar"):
+            try:
+                results = self.memory.search_similar(query, k=3)
+                for r in results:
+                    q = r.get("question") or r.get("q") or ""
+                    a = r.get("answer") or r.get("a") or ""
+                    a = (a[:100] + '...') if len(a) > 100 else a
+                    memory_snippets.append(f"- Q: {q} | A: {a}")
+            except Exception:
+                pass
+        if memory_snippets:
+            context_parts.append("RELATED PAST SESSIONS:\n" + "\n".join(memory_snippets))
+
+        # 3. Scan for Logic (CML)
         # Scans query for triggers ("why", "reason") from Logic.
         triggers = ["why", "reason", "почему", "зачем", "tradeoff", "decision"]
         is_reasoning_query = any(t in q_lower for t in triggers)
@@ -98,7 +113,7 @@ class CaPU:
         if found_logic:
             context_parts.append("ARCHITECTURAL LOGIC:\n" + "\n\n".join(found_logic))
 
-        # 3. Short-term history
+        # 4. Short-term history
         if self.history:
              history_str = "CONVERSATION HISTORY:\n"
              for msg in self.history:

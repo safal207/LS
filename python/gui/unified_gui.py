@@ -45,24 +45,21 @@ class GhostCore(QObject):
         self._stop_event = threading.Event()
         self.threads = []
 
-        # Resources
+        # 1. Resources (Low-level)
         self.rust_optimizer = RustOptimizer()
 
-        # Modules
+        # 2. Memory Module (Learner)
         self.learner = SelfImprovingBrain(rust_instance=self.rust_optimizer)
 
         # === BRAIN INITIALIZATION (SOVEREIGN EDITION) ===
-        # tier="local" -> Только Qwen (бесплатно, приватно)
-        # tier="cloud" -> DeepSeek API (дешево, мощно)
         self.brain = AdaptiveBrain(
             tier="local",
-            # Вставь сюда ключ DeepSeek, если захочешь использовать Cloud tier
-            api_keys={"deepseek": "sk-YOUR-DEEPSEEK-KEY"},
+            api_keys={"deepseek": "sk-YOUR-KEY"},
             rust_instance=self.rust_optimizer,
             learner_instance=self.learner
         )
 
-        # IO Modules
+        # 3. IO Modules
         self.audio_module = AudioIngestion(self.audio_queue)
         self.stt_module = SpeechToText(self.audio_queue, self.text_queue)
 

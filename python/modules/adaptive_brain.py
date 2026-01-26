@@ -4,7 +4,10 @@ import logging
 import requests
 import json
 from ..rust_bridge import RustOptimizer
-from .hexagon_core.capu_v2 import CaPU
+try:
+    from .hexagon_core.capu_v2 import CaPU
+except ImportError:
+    from .hexagon_core.capu import CaPU
 
 logger = logging.getLogger("AdaptiveBrain")
 
@@ -31,7 +34,11 @@ class AdaptiveBrain:
         start_time = time.time()
 
         # 1. Update History & Contextualize
-        self.capu.update_history("user", prompt)
+        try:
+            self.capu.update_history("user", prompt)
+        except Exception:
+            pass
+
         full_prompt = self.capu.construct_prompt(prompt)
 
         # 2. Rust Cache (Future)
@@ -41,7 +48,10 @@ class AdaptiveBrain:
         response = self._inference_strategy(full_prompt)
 
         # 4. Update History with Response
-        self.capu.update_history("ai", response)
+        try:
+            self.capu.update_history("ai", response)
+        except Exception:
+            pass
 
         self.latency_stats.append(time.time() - start_time)
         return response
