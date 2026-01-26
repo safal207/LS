@@ -1,70 +1,90 @@
 import sys
 import os
-import time
+import logging
 
-# Add current directory (python/) to sys.path to find ghostgpt_core.so/.pyd
+logger = logging.getLogger("RustBridge")
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
 
-try:
-    import ghostgpt_core
-except ImportError:
-    # Fallback or error if not built
-    print("WARNING: ghostgpt_core module not found. Building or check paths.")
-    ghostgpt_core = None
-
 class RustOptimizer:
-    """Wrapper around Rust modules for memory and pattern matching."""
-
+    """
+    Robust Wrapper around Rust modules.
+    Falls back to 'Silent Mode' if Rust is not available.
+    """
     def __init__(self, memory_mb=2000, db_path="./data/patterns.db"):
-        if ghostgpt_core:
+        self.available = False
+        self.memory = None
+        self.matcher = None
+        self.storage = None
+
+        try:
+            import ghostgpt_core
+
             self.memory = ghostgpt_core.MemoryManager(max_size_mb=memory_mb)
             self.matcher = ghostgpt_core.PatternMatcher()
-            # Ensure data dir exists
+
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
             self.storage = ghostgpt_core.Storage(db_path)
+
             self.available = True
-        else:
+            logger.info(f"🦀 Rust Core Loaded. DB: {db_path}")
+
+        except ImportError:
+            logger.warning("🦀 Rust Core NOT FOUND. Running in Python-only mode.")
+        except Exception as e:
+            logger.error(f"🦀 Rust Initialization Failed: {e}")
             self.available = False
-            self.memory = None
-            self.matcher = None
-            self.storage = None
-            print("Rust core unavailable - running in pure Python mode (slower).")
 
     def cache_pattern(self, key: str, embedding: list):
         if self.available:
-            self.memory.cache_pattern(key, embedding)
+            try:
+                self.memory.cache_pattern(key, embedding)
+            except Exception:
+                pass
 
     def add_patterns(self, patterns: list):
         if self.available:
-            self.matcher.add_patterns(patterns)
+            try:
+                self.matcher.add_patterns(patterns)
+            except Exception:
+                pass
 
     def find_similar(self, query: list, k: int = 5):
         if self.available:
-            return self.matcher.find_similar(query, k)
+            try:
+                return self.matcher.find_similar(query, k)
+            except Exception:
+                pass
         return []
 
     def save_to_storage(self, key: str, data: bytes):
         if self.available:
-            self.storage.save(key, data)
+            try:
+                self.storage.save(key, data)
+            except Exception as e:
+                logger.error(f"Rust Save Error: {e}")
 
     def load_from_storage(self, key: str):
         if self.available:
-            return self.storage.load(key)
+            try:
+                return self.storage.load(key)
+            except Exception:
+                pass
         return None
 
     def optimize_memory(self):
         if self.available:
-            freed = self.memory.optimize()
-            return freed
+            try:
+                return self.memory.optimize()
+            except Exception:
+                pass
         return 0
 
     def close(self):
-        # Sled db flush/close happens on drop, but we can force flush
         if self.available and self.storage:
             try:
                 self.storage.flush()
-            except:
+            except Exception:
                 pass
-            # We rely on Rust Drop to close DB handle when object is deleted
