@@ -5,6 +5,7 @@ import re
 from collections import deque
 from typing import Protocol, List, Optional, Dict
 from dataclasses import dataclass
+from pathlib import Path
 
 logger = logging.getLogger("CaPU_v2")
 
@@ -31,41 +32,52 @@ class CaPU:
         # Lazy loading flags
         self._loaded = False
 
-    def _resolve_path(self, filename):
-        """Helper to find data files from various working directories."""
-        candidates = [
-            filename,
-            os.path.join("..", filename),
-            os.path.join("..", "..", filename),
-            os.path.join("..", "..", "..", filename),
-            os.path.join(os.getcwd(), filename),
-        ]
+    def _resolve_path(self, filename: str) -> Optional[Path]:
+        """Helper to find data files using Pathlib."""
+        try:
+            cwd = Path.cwd()
+            candidates = [
+                Path(filename),
+                cwd / filename,
+                cwd.parent / filename,
+                cwd.parent.parent / filename,
+                cwd.parent.parent.parent / filename,
+            ]
 
-        for path in candidates:
-            if os.path.exists(path):
-                return path
+            for path in candidates:
+                if path.exists():
+                    return path
+        except Exception:
+            pass
         return None
 
-    def _load_dmp(self, filename):
+    def _load_dmp(self, filename: str):
         path = self._resolve_path(filename)
         if path:
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    self.facts = data.get("facts", {})
-                logger.info(f"Loaded DMP from {path}")
+                    if isinstance(data, dict):
+                        self.facts = data.get("facts", {})
+                        logger.info(f"Loaded DMP from {path}")
+                    else:
+                        logger.warning(f"DMP file {path} has invalid structure (expected dict).")
             except Exception as e:
                 logger.error(f"Error loading DMP from {path}: {e}")
         else:
             logger.warning(f"DMP file {filename} not found.")
 
-    def _load_cml(self, filename):
+    def _load_cml(self, filename: str):
         path = self._resolve_path(filename)
         if path:
             try:
                 with open(path, "r", encoding="utf-8") as f:
-                    self.logic = json.load(f)
-                logger.info(f"Loaded CML from {path}")
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        self.logic = data
+                        logger.info(f"Loaded CML from {path}")
+                    else:
+                        logger.warning(f"CML file {path} has invalid structure (expected list).")
             except Exception as e:
                 logger.error(f"Error loading CML from {path}: {e}")
         else:
@@ -104,7 +116,8 @@ class CaPU:
         found_logic = []
         for item in self.logic:
             keywords = item.get("keywords", [])
-            if any(k.lower() in q_lower for k in keywords):
+            # Use _matches_query for strict word boundary checks
+            if any(self._matches_query(k, q_lower) for k in keywords):
                 found_logic.append(item)
         return found_logic
 
