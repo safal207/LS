@@ -4,11 +4,12 @@ import re
 import copy
 import time
 from collections import deque
-from typing import Protocol, List, Optional, Dict, Any, Union
+from typing import Protocol, List, Optional, Dict, Any, Union, Tuple
 from dataclasses import dataclass, field
 from pathlib import Path
 from datetime import datetime
 from .cte import CognitiveTimelineEngine
+from .missionstate import MissionState
 
 logger = logging.getLogger("CaPU_v3")
 
@@ -40,8 +41,8 @@ class CognitiveContext:
 
 class CaPUv3:
     """
-    CaPU v3: Cognitive Processing Unit with Timeline Engine.
-    Implements a 7-layer cognitive architecture.
+    CaPU v3.1: Cognitive Processing Unit with Timeline Engine & Mission State.
+    Implements a 7-layer cognitive architecture with cold storage and prioritization.
     """
     def __init__(self, memory_module: Optional[MemoryInterface] = None):
         self.memory = memory_module
@@ -59,8 +60,15 @@ class CaPUv3:
         self._predictions: List[Dict[str, Any]] = []
         self._consequences: List[Dict[str, Any]] = []
 
-        # CTE: Liminal transitions + insights
+        # CTE: Liminal transitions + insights + convicts
         self._cte = CognitiveTimelineEngine()
+
+        # Mission State: Goals, Values, Priorities
+        self.mission = MissionState()
+
+        # Cold Storage
+        self.cold_storage: List[Dict[str, Any]] = []
+        self.archive_threshold: int = 100
 
         self._loaded = False
         self.base_dir = self._resolve_data_dir()
@@ -112,14 +120,43 @@ class CaPUv3:
             except Exception as e:
                 logger.error(f"❌ Error loading CML: {e}")
 
+    # --- Cold Storage Management ---
+
+    def _archive_old_data(self) -> None:
+        """
+        Moves old elements from working memory layers to cold storage
+        if they exceed the threshold.
+        """
+        layers_to_check = [
+            ("procedure", self._procedures),
+            ("duration", self._durations),
+            ("prediction", self._predictions),
+            ("consequence", self._consequences)
+        ]
+
+        for layer_type, layer_list in layers_to_check:
+            while len(layer_list) > self.archive_threshold:
+                old_item = layer_list.pop(0)
+                self.cold_storage.append({
+                    "type": layer_type,
+                    "data": old_item,
+                    "archived_at": datetime.now().isoformat()
+                })
+
     # --- v3 Cognitive Interface ---
 
     def store_intent(self, intent: str, context: str):
         """Layer 1: Intent Memory (Why?)"""
+        # Check alignment with Mission
+        alignment = self.mission.check_alignment(intent)
+        if alignment["recommendation"] == "reject":
+            logger.warning(f"⚠️ Intent rejected by Mission: {alignment['reason']}")
+
         self._intent = {
             "intent": intent,
             "context": context,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "alignment": alignment
         }
 
     def store_target(self, for_whom: str, reason: str):
@@ -136,6 +173,7 @@ class CaPUv3:
             "steps": steps,
             "timestamp": datetime.now().isoformat()
         })
+        self._archive_old_data()
 
     def store_duration(self, event: str, duration_sec: float):
         """Layer 4: Duration Memory (How Long?)"""
@@ -143,6 +181,7 @@ class CaPUv3:
             "event": event,
             "duration_sec": duration_sec
         })
+        self._archive_old_data()
 
     def store_prediction(self, condition: str, prediction: str, confidence: float):
         """Layer 5: Predictive Memory (How Soon?)"""
@@ -151,6 +190,7 @@ class CaPUv3:
             "prediction": prediction,
             "confidence": confidence
         })
+        self._archive_old_data()
 
     def store_consequence(self, if_cond: str, then_result: str, severity: str):
         """Layer 6: Consequence Engine (What If?)"""
@@ -159,21 +199,27 @@ class CaPUv3:
             "then": then_result,
             "severity": severity
         })
+        self._archive_old_data()
 
     # --- v3.1 CTE Interface (Liminal Transitions) ---
 
     def commit_transition(self, decision: str, alternatives: Optional[List[str]] = None,
-                          commitment: float = 0.9) -> str:
-        """
-        Wrapper for CTE: commits a choice (liminal anchor).
-        """
+                          commitment: float = 0.9) -> Dict[str, Any]:
+        """Wrapper for CTE: commits a choice (liminal anchor)."""
         return self._cte.commit_transition(decision, alternatives, commitment)
 
-    def register_outcome(self, content: str, outcome_type: str = "insight") -> Optional[str]:
-        """
-        Wrapper for CTE: registers an outcome (insight/conflict).
-        """
+    def register_outcome(self, content: str, outcome_type: str = "insight") -> Dict[str, Any]:
+        """Wrapper for CTE: registers an outcome (insight/conflict)."""
         return self._cte.register_outcome(content, outcome_type)
+
+    def sync_convicts_to_mission(self) -> None:
+        """Syncs CTE convicts to Mission State."""
+        convicts = self._cte.get_convicts(min_confidence=0.7)
+        for c in convicts:
+            # Minimal implementation: just add them to mission history/beliefs
+            # Avoid dupes? MissionState.add_convict just appends currently.
+            # Ideally we check existence.
+            self.mission.add_convict(c)
 
     def update_history(self, role: str, content: str):
         self.history.append({"role": role, "content": content})
@@ -237,48 +283,69 @@ class CaPUv3:
     def render_cognitive_prompt(self, query: str, ctx: CognitiveContext) -> str:
         """
         Cognitive Timeline Engine (CTE).
-        Organizes context into:
-        1. Meta-Cognition (Intent, Target)
-        2. Past (History, Durations, Memories)
-        3. Present (Context: Facts, Logic)
-        4. Future (Procedures, Predictions, Consequences)
+        Organizes context into prioritized sections based on Mission weights.
         """
-        sections: List[str] = []
+        weights = self.mission.weights
 
         # --- 1. META-COGNITION ---
-        meta_section = []
-        if ctx.intent:
-            meta_section.append(f"🧠 INTENT: {ctx.intent['intent']} (Context: {ctx.intent['context']})")
-        if ctx.target:
-            meta_section.append(f"🎯 TARGET: {ctx.target['for_whom']} (Reason: {ctx.target['reason']})")
+        meta_lines = []
 
-        # CTE snapshot (Liminal Anchors + Insights)
+        # Intent (Always First)
+        if ctx.intent:
+            align_pct = int(ctx.intent["alignment"]["score"] * 100)
+            meta_lines.append(
+                f"🧠 INTENT: {ctx.intent['intent']} "
+                f"(Context: {ctx.intent['context']}) "
+                f"[Mission alignment: {align_pct}%]"
+            )
+
+        # Mission Summary
+        ms = self.mission.get_summary()
+        meta_lines.append(
+            f"📜 MISSION: core={ms['core_principles_count']} values, "
+            f"adaptive={ms['adaptive_beliefs_count']} beliefs, "
+            f"changes={ms['total_changes']}"
+        )
+
+        # Target (Weighted)
+        if ctx.target:
+            meta_lines.append(
+                (weights.get("target", 0.9), 2, f"🎯 TARGET: {ctx.target['for_whom']} (Reason: {ctx.target['reason']})")
+            )
+
+        # CTE snapshot
         cte_summary = self._cte.export_summary()
         if "active_anchor" in cte_summary:
             a = cte_summary["active_anchor"]
-            meta_section.append(
-                f"🔒 ACTIVE CHOICE: {a['decision']} (commitment={a['commitment']:.2f}, status={a['status']})"
+            meta_lines.append(
+                (2.0, 3, f"🔒 ACTIVE CHOICE: {a['decision']} (commitment={a['commitment']:.2f}, status={a['status']})")
             )
         if "last_outcome" in cte_summary:
             o = cte_summary["last_outcome"]
-            meta_section.append(
-                f"💡 LAST OUTCOME: {o['content']} (type={o['type']})"
+            meta_lines.append(
+                (2.0, 4, f"💡 LAST OUTCOME: {o['content']} (type={o['type']})")
             )
 
-        if meta_section:
-            sections.append("### META-COGNITION ###\n" + "\n".join(meta_section))
+        # Sort META lines (except forced ones)
+        # Separate forced (already strings) from weighted (tuples)
+        meta_final = [line for line in meta_lines if isinstance(line, str)]
+        weighted_meta = [line for line in meta_lines if isinstance(line, tuple)]
+        weighted_meta.sort(key=lambda x: (-x[0], x[1]))
+        meta_final.extend([x[2] for x in weighted_meta])
+
+        sections: List[str] = []
+        if meta_final:
+            sections.append("### META-COGNITION ###\n" + "\n".join(meta_final))
 
         # --- 2. PAST (Timeline) ---
-        past_section = []
+        past_blocks = []
 
         # History
         if ctx.history:
-            past_section.append(
-                "💬 RECENT HISTORY:\n" +
-                "\n".join([f"{m['role'].upper()}: {m['content'][:TRUNCATE_LIMIT_HISTORY]}" for m in ctx.history])
-            )
+            h_str = "💬 RECENT HISTORY:\n" + "\n".join([f"{m['role'].upper()}: {m['content'][:TRUNCATE_LIMIT_HISTORY]}" for m in ctx.history])
+            past_blocks.append((weights.get("history", 0.8), 1, h_str))
 
-        # Episodic Memory
+        # Memory
         if ctx.memory:
             snippets = []
             for m in ctx.memory:
@@ -286,51 +353,64 @@ class CaPUv3:
                 a = m.get("answer") or m.get("a") or ""
                 a_short = (a[:TRUNCATE_LIMIT_ANSWER] + "...") if len(a) > TRUNCATE_LIMIT_ANSWER else a
                 snippets.append(f"• Q: {q} | A: {a_short}")
-            past_section.append("📂 EPISODIC RECALL:\n" + "\n".join(snippets))
+            m_str = "📂 EPISODIC RECALL:\n" + "\n".join(snippets)
+            past_blocks.append((weights.get("memory", 0.7), 2, m_str))
 
         # Durations
         if ctx.durations:
             dur_lines = [f"• {d['event']}: {d['duration_sec']}s" for d in ctx.durations]
-            past_section.append("⏳ TIME TRACKING:\n" + "\n".join(dur_lines))
+            d_str = "⏳ TIME TRACKING:\n" + "\n".join(dur_lines)
+            past_blocks.append((weights.get("durations", 0.3), 3, d_str))
 
-        if past_section:
-            sections.append("### PAST TIMELINE ###\n" + "\n\n".join(past_section))
+        past_blocks.sort(key=lambda x: (-x[0], x[1]))
+        if past_blocks:
+            sections.append("### PAST TIMELINE ###\n" + "\n\n".join([b[2] for b in past_blocks]))
 
         # --- 3. PRESENT (Knowledge) ---
-        present_section = []
+        present_blocks = []
         if ctx.facts:
-            present_section.append("📚 RELEVANT FACTS (DMP):\n" + "\n".join(ctx.facts))
+            f_str = "📚 RELEVANT FACTS (DMP):\n" + "\n".join(ctx.facts)
+            present_blocks.append((weights.get("facts", 0.6), 1, f_str))
         if ctx.logic:
-            present_section.append(
-                "📐 LOGIC PATTERNS (CML):\n" +
-                "\n".join([f"⚙️ {i.get('decision')} (Reason: {i.get('reason')})" for i in ctx.logic])
-            )
+            l_str = "📐 LOGIC PATTERNS (CML):\n" + "\n".join([f"⚙️ {i.get('decision')} (Reason: {i.get('reason')})" for i in ctx.logic])
+            present_blocks.append((weights.get("logic", 0.6), 2, l_str))
 
-        if present_section:
-            sections.append("### PRESENT CONTEXT ###\n" + "\n\n".join(present_section))
+        present_blocks.sort(key=lambda x: (-x[0], x[1]))
+        if present_blocks:
+            sections.append("### PRESENT CONTEXT ###\n" + "\n\n".join([b[2] for b in present_blocks]))
 
         # --- 4. FUTURE (Planning) ---
-        future_section = []
+        future_blocks = []
         if ctx.procedures:
             proc_lines = []
             for p in ctx.procedures:
                 steps_str = " -> ".join(p['steps'])
                 proc_lines.append(f"🛠 {p['task']}: {steps_str}")
-            future_section.append("🛠 ACTIVE PROCEDURES:\n" + "\n".join(proc_lines))
-
-        if ctx.predictions:
-            pred_lines = [f"🔮 {p['condition']} -> {p['prediction']} ({p['confidence']*100:.0f}%)" for p in ctx.predictions]
-            future_section.append("🔮 PREDICTIONS:\n" + "\n".join(pred_lines))
+            p_str = "🛠 ACTIVE PROCEDURES:\n" + "\n".join(proc_lines)
+            future_blocks.append((weights.get("procedures", 0.5), 1, p_str))
 
         if ctx.consequences:
             cons_lines = [f"⚠️ IF {c['if']} THEN {c['then']} (Severity: {c['severity']})" for c in ctx.consequences]
-            future_section.append("⚠️ CONSEQUENCE ANALYSIS:\n" + "\n".join(cons_lines))
+            c_str = "⚠️ CONSEQUENCE ANALYSIS:\n" + "\n".join(cons_lines)
+            future_blocks.append((weights.get("consequences", 0.5), 2, c_str))
 
-        if future_section:
-            sections.append("### FUTURE PROJECTIONS ###\n" + "\n\n".join(future_section))
+        if ctx.predictions:
+            pred_lines = [f"🔮 {p['condition']} -> {p['prediction']} ({p['confidence']*100:.0f}%)" for p in ctx.predictions]
+            pr_str = "🔮 PREDICTIONS:\n" + "\n".join(pred_lines)
+            future_blocks.append((weights.get("predictions", 0.4), 3, pr_str))
+
+        future_blocks.sort(key=lambda x: (-x[0], x[1]))
+        if future_blocks:
+            sections.append("### FUTURE PROJECTIONS ###\n" + "\n\n".join([b[2] for b in future_blocks]))
+
+        # --- 5. CONVICTS ---
+        convicts = self._cte.get_convicts()
+        if convicts:
+            c_lines = [f"• {c['belief']} (confidence={c['confidence']:.2f}, strength={c['strength']})" for c in convicts[:5]]
+            sections.append("### CONVICTS (FORMED BELIEFS) ###\n" + "\n".join(c_lines))
 
         # Final Assembly
-        system_msg = "🚀 INSTRUCTION: You are CaPU v3. Use the provided Cognitive Timeline to reason effectively. Maintain the timeline continuity."
+        system_msg = "🚀 INSTRUCTION: You are CaPU v3.1. Use the provided Cognitive Timeline and Mission values to reason effectively."
 
         final_prompt = (
             f"{system_msg}\n\n" +
