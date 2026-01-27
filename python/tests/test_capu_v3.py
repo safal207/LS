@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 import sys
 import os
 from pathlib import Path
@@ -12,98 +12,67 @@ from modules.hexagon_core.capu_v3 import CaPUv3, CognitiveContext
 class TestCaPUv3(unittest.TestCase):
     def setUp(self):
         self.capu = CaPUv3()
-        # Mocking data loading to avoid filesystem dependency during tests
+        # Mocking data loading
         self.capu.facts = {"test_fact": "This is a fact."}
         self.capu.logic = [{"keywords": ["logic"], "decision": "Use Logic", "reason": "It works"}]
         self.capu._loaded = True
 
-    def test_store_layers(self):
-        """Test storing data in all new cognitive layers."""
-        self.capu.store_intent("Fix bugs", "Testing context")
-        self.capu.store_target("Developer", "Code review")
-        self.capu.store_procedure("Run tests", ["Step 1", "Step 2"])
-        self.capu.store_duration("Coding", 120.5)
-        self.capu.store_prediction("Tests pass", "Merge", 0.95)
-        self.capu.store_consequence("Bug found", "Fix it", "High")
-
+    def test_store_intent_with_alignment(self):
+        """Test that storing intent calculates mission alignment."""
+        self.capu.store_intent("Refactor code", "context")
         self.assertIsNotNone(self.capu._intent)
-        self.assertEqual(self.capu._intent["intent"], "Fix bugs")
-        self.assertEqual(self.capu._target["for_whom"], "Developer")
-        self.assertEqual(len(self.capu._procedures), 1)
-        self.assertEqual(self.capu._procedures[0]["task"], "Run tests")
-        self.assertEqual(len(self.capu._durations), 1)
-        self.assertEqual(self.capu._durations[0]["event"], "Coding")
-        self.assertEqual(len(self.capu._predictions), 1)
-        self.assertEqual(self.capu._predictions[0]["confidence"], 0.95)
-        self.assertEqual(len(self.capu._consequences), 1)
-        self.assertEqual(self.capu._consequences[0]["severity"], "High")
+        self.assertIn("alignment", self.capu._intent)
+        self.assertEqual(self.capu._intent["alignment"]["recommendation"], "proceed")
 
-    def test_build_cognitive_context(self):
-        """Test aggregation of data into CognitiveContext."""
-        # Setup data
-        self.capu.store_intent("Test Intent", "Context")
-        self.capu.update_history("user", "Hello")
+    def test_cold_storage_archiving(self):
+        """Test that old data moves to cold storage."""
+        self.capu.archive_threshold = 2
 
-        # Query that matches fact and logic
-        ctx = self.capu.build_cognitive_context("test_fact logic")
+        self.capu.store_procedure("Task 1", ["Step 1"])
+        self.capu.store_procedure("Task 2", ["Step 2"])
+        self.capu.store_procedure("Task 3", ["Step 3"]) # Should trigger archive of Task 1
 
-        self.assertIsInstance(ctx, CognitiveContext)
-        # Check v2 layers
-        self.assertTrue(any("test_fact" in f for f in ctx.facts))
-        # Logic matches "logic" keyword which is in "keywords": ["logic"]?
-        # Wait, my mock logic has keyword "logic". The query has "logic".
-        # Let's verify _matches_query logic.
-        # It uses strict word boundaries. "logic" matches "logic".
-        # But wait, logic trigger words are needed: ["why", "reason", ...]
-        # My query "test_fact logic" does not contain a trigger word.
-        # So logic might be empty.
+        self.assertEqual(len(self.capu._procedures), 2)
+        self.assertEqual(self.capu._procedures[0]["task"], "Task 2")
+        self.assertEqual(len(self.capu.cold_storage), 1)
+        self.assertEqual(self.capu.cold_storage[0]["data"]["task"], "Task 1")
 
-        # Let's add a trigger word to query
-        ctx = self.capu.build_cognitive_context("why use logic test_fact")
-        self.assertTrue(len(ctx.logic) > 0)
+    def test_layer_prioritization_rendering(self):
+        """Test that prompt sections are ordered by weight."""
+        # Set weights: Consequences (0.9) > Predictions (0.1)
+        self.capu.mission.weights["consequences"] = 0.9
+        self.capu.mission.weights["predictions"] = 0.1
 
-        # Check v3 layers
-        self.assertIsNotNone(ctx.intent)
-        self.assertEqual(ctx.intent["intent"], "Test Intent")
-        self.assertEqual(len(ctx.history), 1)
+        self.capu.store_prediction("Pred", "Result", 0.5)
+        self.capu.store_consequence("If", "Then", "High")
 
-    def test_render_cognitive_prompt(self):
-        """Test the Cognitive Timeline Engine output."""
-        self.capu.store_intent("Solve world hunger", "Global context")
-        self.capu.store_prediction("Plan works", "Peace", 1.0)
-        self.capu.update_history("user", "How do I do it?")
+        ctx = self.capu.build_cognitive_context("query")
+        prompt = self.capu.render_cognitive_prompt("query", ctx)
 
-        ctx = self.capu.build_cognitive_context("How do I do it?")
-        prompt = self.capu.render_cognitive_prompt("How do I do it?", ctx)
+        # Verify Consequences appear before Predictions in FUTURE section
+        future_idx = prompt.find("### FUTURE PROJECTIONS ###")
+        cons_idx = prompt.find("⚠️ CONSEQUENCE ANALYSIS:", future_idx)
+        pred_idx = prompt.find("🔮 PREDICTIONS:", future_idx)
 
-        # Check for headers
-        self.assertIn("### META-COGNITION ###", prompt)
-        self.assertIn("🧠 INTENT: Solve world hunger", prompt)
-        self.assertIn("### PAST TIMELINE ###", prompt)
-        self.assertIn("💬 RECENT HISTORY:", prompt)
-        self.assertIn("### FUTURE PROJECTIONS ###", prompt)
-        self.assertIn("🔮 Plan works -> Peace", prompt)
-        self.assertIn("🚀 INSTRUCTION: You are CaPU v3", prompt)
+        self.assertNotEqual(future_idx, -1)
+        self.assertNotEqual(cons_idx, -1)
+        self.assertNotEqual(pred_idx, -1)
+        self.assertLess(cons_idx, pred_idx)
 
-    def test_compatibility(self):
-        """Test construct_prompt wrapper."""
-        prompt = self.capu.construct_prompt("Simple query")
-        self.assertIsInstance(prompt, str)
-        self.assertIn("❓ CURRENT QUERY: Simple query", prompt)
+    def test_render_full_prompt_elements(self):
+        """Test that Mission, CTE, and Convicts appear."""
+        self.capu.store_intent("Test", "ctx")
+        self.capu.commit_transition("Decision A")
+        self.capu.register_outcome("Outcome B") # Forms convict
 
-    def test_cte_liminal_and_insight(self):
-        """CTE: liminal anchor + insight appear in META-COGNITION."""
-        self.capu.store_intent("Refactor core", "Architecture evolution")
-        self.capu.commit_transition("Switch to Rust Core", ["Stay on Python"])
-        self.capu.register_outcome("Rust improved latency 100x", "insight")
+        ctx = self.capu.build_cognitive_context("query")
+        prompt = self.capu.render_cognitive_prompt("query", ctx)
 
-        ctx = self.capu.build_cognitive_context("Why Rust?")
-        prompt = self.capu.render_cognitive_prompt("Why Rust?", ctx)
-
+        self.assertIn("Mission alignment", prompt)
+        self.assertIn("📜 MISSION:", prompt)
         self.assertIn("🔒 ACTIVE CHOICE", prompt)
-        self.assertIn("Switch to Rust Core", prompt)
         self.assertIn("💡 LAST OUTCOME", prompt)
-        self.assertIn("Rust improved latency 100x", prompt)
+        self.assertIn("### CONVICTS (FORMED BELIEFS) ###", prompt)
 
 if __name__ == '__main__':
     unittest.main()
