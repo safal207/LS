@@ -8,6 +8,7 @@ from typing import Protocol, List, Optional, Dict, Any, Union
 from dataclasses import dataclass, field
 from pathlib import Path
 from datetime import datetime
+from .cte import CognitiveTimelineEngine
 
 logger = logging.getLogger("CaPU_v3")
 
@@ -57,6 +58,9 @@ class CaPUv3:
         self._durations: List[Dict[str, Any]] = []
         self._predictions: List[Dict[str, Any]] = []
         self._consequences: List[Dict[str, Any]] = []
+
+        # CTE: Liminal transitions + insights
+        self._cte = CognitiveTimelineEngine()
 
         self._loaded = False
         self.base_dir = self._resolve_data_dir()
@@ -156,6 +160,21 @@ class CaPUv3:
             "severity": severity
         })
 
+    # --- v3.1 CTE Interface (Liminal Transitions) ---
+
+    def commit_transition(self, decision: str, alternatives: Optional[List[str]] = None,
+                          commitment: float = 0.9) -> str:
+        """
+        Wrapper for CTE: commits a choice (liminal anchor).
+        """
+        return self._cte.commit_transition(decision, alternatives, commitment)
+
+    def register_outcome(self, content: str, outcome_type: str = "insight") -> Optional[str]:
+        """
+        Wrapper for CTE: registers an outcome (insight/conflict).
+        """
+        return self._cte.register_outcome(content, outcome_type)
+
     def update_history(self, role: str, content: str):
         self.history.append({"role": role, "content": content})
 
@@ -232,6 +251,20 @@ class CaPUv3:
             meta_section.append(f"🧠 INTENT: {ctx.intent['intent']} (Context: {ctx.intent['context']})")
         if ctx.target:
             meta_section.append(f"🎯 TARGET: {ctx.target['for_whom']} (Reason: {ctx.target['reason']})")
+
+        # CTE snapshot (Liminal Anchors + Insights)
+        cte_summary = self._cte.export_summary()
+        if "active_anchor" in cte_summary:
+            a = cte_summary["active_anchor"]
+            meta_section.append(
+                f"🔒 ACTIVE CHOICE: {a['decision']} (commitment={a['commitment']:.2f}, status={a['status']})"
+            )
+        if "last_outcome" in cte_summary:
+            o = cte_summary["last_outcome"]
+            meta_section.append(
+                f"💡 LAST OUTCOME: {o['content']} (type={o['type']})"
+            )
+
         if meta_section:
             sections.append("### META-COGNITION ###\n" + "\n".join(meta_section))
 

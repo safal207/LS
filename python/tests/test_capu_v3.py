@@ -91,5 +91,19 @@ class TestCaPUv3(unittest.TestCase):
         self.assertIsInstance(prompt, str)
         self.assertIn("❓ CURRENT QUERY: Simple query", prompt)
 
+    def test_cte_liminal_and_insight(self):
+        """CTE: liminal anchor + insight appear in META-COGNITION."""
+        self.capu.store_intent("Refactor core", "Architecture evolution")
+        self.capu.commit_transition("Switch to Rust Core", ["Stay on Python"])
+        self.capu.register_outcome("Rust improved latency 100x", "insight")
+
+        ctx = self.capu.build_cognitive_context("Why Rust?")
+        prompt = self.capu.render_cognitive_prompt("Why Rust?", ctx)
+
+        self.assertIn("🔒 ACTIVE CHOICE", prompt)
+        self.assertIn("Switch to Rust Core", prompt)
+        self.assertIn("💡 LAST OUTCOME", prompt)
+        self.assertIn("Rust improved latency 100x", prompt)
+
 if __name__ == '__main__':
     unittest.main()
