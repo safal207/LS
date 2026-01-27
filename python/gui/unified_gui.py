@@ -54,7 +54,7 @@ class GhostCore(QObject):
         # === BRAIN INITIALIZATION (SOVEREIGN EDITION) ===
         self.brain = AdaptiveBrain(
             tier="local",
-            api_keys={"deepseek": "sk-YOUR-KEY"},
+            api_keys={"deepseek": os.getenv("DEEPSEEK_API_KEY", "")},
             rust_instance=self.rust_optimizer,
             learner_instance=self.learner
         )
