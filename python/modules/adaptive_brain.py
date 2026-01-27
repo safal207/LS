@@ -9,16 +9,22 @@ logger = logging.getLogger("AdaptiveBrain")
 
 class AdaptiveBrain:
     def __init__(self, tier="local", api_keys=None, rust_instance=None, learner_instance=None):
+        """
+        Adaptive Intelligence Module (Sovereign Edition).
+        """
         self.tier = tier
         self.api_keys = api_keys or {}
         self.rust = rust_instance if rust_instance else RustOptimizer()
 
+        # ✅ LAZY IMPORT: Безопасный импорт CaPU v2
         try:
             from .hexagon_core.capu_v2 import CaPU
         except ImportError:
             from .hexagon_core.capu import CaPU
 
+        # ✅ SINGLE INIT: Инициализируем CaPU только один раз
         self.capu = CaPU(memory_module=learner_instance)
+
         self.latency_stats = []
 
         if tier == "cloud" and not self.api_keys.get("deepseek"):
@@ -32,9 +38,9 @@ class AdaptiveBrain:
         try:
             self.capu.update_history("user", prompt)
         except Exception:
-            pass
+            pass # Логирование можно добавить по желанию
 
-        # 2. Build Context
+        # 2. Build Context (СТРОГО ОДИН РАЗ)
         full_prompt = self.capu.construct_prompt(prompt)
 
         # 3. Inference
@@ -46,7 +52,7 @@ class AdaptiveBrain:
         except Exception:
             pass
 
-        # ✅ SINGLE LOG: Статистика пишется один раз
+        # ✅ SINGLE STAT: Статистика пишется один раз
         self.latency_stats.append(time.time() - start_time)
 
         return response

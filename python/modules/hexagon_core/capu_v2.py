@@ -38,16 +38,14 @@ class CaPU:
     def _resolve_data_dir(self) -> Path:
         """Robustly find the data directory."""
         cwd = Path.cwd()
-        # Ищем папку data в разных местах (для надежности при запуске из разных папок)
         candidates = [
-            Path(__file__).resolve().parent.parent.parent.parent / "data", # Относительно этого файла
+            Path(__file__).resolve().parent.parent.parent.parent / "data",
             cwd / "data",
             cwd.parent / "data",
         ]
         for path in candidates:
             if path.exists() and path.is_dir():
                 return path
-        # Fallback
         return Path("data")
 
     def _ensure_loaded(self):
@@ -89,16 +87,15 @@ class CaPU:
 
     def _matches_query(self, key: str, q_lower: str) -> bool:
         """
-        QWEN FIX: Always use strict regex boundaries, even for phrases.
-        Prevents 'rust core' matching inside 'trustcore'.
+        Strict regex matching with word boundaries.
+        Handles both 'Rust' (word) and 'Nexus Sales' (phrase) correctly.
         """
         try:
-            # Экранируем ключ и добавляем границы слова \b
             pattern = rf'\b{re.escape(key.lower())}\b'
             if re.search(pattern, q_lower):
                 return True
         except re.error:
-            # Fallback (маловероятно)
+            # Fallback
             if key.lower() in q_lower: return True
         return False
 
@@ -106,8 +103,10 @@ class CaPU:
         self._ensure_loaded()
         q_lower = query.lower()
 
+        # 1. Facts
         facts = [f"{k}: {v}" for k, v in self.facts.items() if self._matches_query(k, q_lower)]
 
+        # 2. Logic
         triggers = ["why", "reason", "почему", "зачем", "tradeoff", "decision", "выбор"]
         logic = []
         if any(t in q_lower for t in triggers):
@@ -115,11 +114,17 @@ class CaPU:
                 if any(self._matches_query(k, q_lower) for k in item.get("keywords", [])):
                     logic.append(item)
 
+        # 3. Memory (Sorted & Deepcopied)
         memory = []
         if self.memory:
             try:
                 raw = self.memory.search_similar(query, k=MEMORY_SEARCH_LIMIT)
-                if raw: memory = copy.deepcopy(raw)
+                if raw:
+                    # ✅ SORTING FIX: Сортируем по score (если есть), потом deepcopy
+                    # raw_sorted = sorted(raw, key=lambda x: x.get("score", 0), reverse=True)
+                    # Note: x.get might return None if key missing, ensure it defaults to 0
+                    raw_sorted = sorted(raw, key=lambda x: x.get("score") or 0, reverse=True)
+                    memory = copy.deepcopy(raw_sorted)
             except Exception as e:
                 logger.warning(f"⚠️ Memory error: {e}")
 
@@ -131,15 +136,16 @@ class CaPU:
         if ctx.memory:
             snippets = []
             for m in ctx.memory:
+                # Robust key handling
                 q = m.get("question") or m.get("q") or "?"
                 a = m.get("answer") or m.get("a") or ""
-                a_short = (a[:150] + '...') if len(a) > 150 else a
+                a_short = (a[:TRUNCATE_LIMIT_ANSWER] + '...') if len(a) > TRUNCATE_LIMIT_ANSWER else a
                 snippets.append(f"• Q: {q} | A: {a_short}")
             sections.append("🧠 RECALLED MEMORIES:\n" + "\n".join(snippets))
         if ctx.logic:
             sections.append("📐 LOGIC ENGINE:\n" + "\n".join([f"⚙️ {i.get('decision')} (Reason: {i.get('reason')})" for i in ctx.logic]))
         if ctx.history:
-            sections.append("💬 HISTORY:\n" + "\n".join([f"{m['role'].upper()}: {m['content'][:200]}" for m in ctx.history]))
+            sections.append("💬 HISTORY:\n" + "\n".join([f"{m['role'].upper()}: {m['content'][:TRUNCATE_LIMIT_HISTORY]}" for m in ctx.history]))
 
         prompt = "\n\n".join(sections) + f"\n\n❓ QUERY: {query}\n🚀 INSTRUCTION: Synthesize context. Be professional."
         return prompt
