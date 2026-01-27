@@ -10,6 +10,8 @@ from pathlib import Path
 from datetime import datetime
 from .cte import CognitiveTimelineEngine
 from .missionstate import MissionState
+from .homeostasis import HomeostasisMonitor
+from .compression import ActiveCompressionEngine
 
 logger = logging.getLogger("CaPU_v3")
 
@@ -65,6 +67,10 @@ class CaPUv3:
 
         # Mission State: Goals, Values, Priorities
         self.mission = MissionState()
+
+        # Phase 1: Cognitive Homeostasis & Compression
+        self.homeostasis = HomeostasisMonitor(self)
+        self.compression = ActiveCompressionEngine(self)
 
         # Cold Storage
         self.cold_storage: List[Dict[str, Any]] = []
@@ -221,6 +227,14 @@ class CaPUv3:
             # Ideally we check existence.
             self.mission.add_convict(c)
 
+    def monitor_homeostasis(self) -> Dict[str, Any]:
+        """Runs the homeostasis monitor and returns the report."""
+        return self.homeostasis.auto_adjust()
+
+    def compress_cognition(self) -> None:
+        """Triggers cognitive compression."""
+        self.compression.compress_cognition()
+
     def update_history(self, role: str, content: str):
         self.history.append({"role": role, "content": content})
 
@@ -298,6 +312,16 @@ class CaPUv3:
                 f"(Context: {ctx.intent['context']}) "
                 f"[Mission alignment: {align_pct}%]"
             )
+
+        # Stability Status (Homeostasis)
+        try:
+            h_report = self.homeostasis.monitor()
+            stab_status = f"Stability: {h_report.stability_score:.2f}"
+            if h_report.is_locked:
+                stab_status += " [LOCKED]"
+            meta_lines.append(f"⚖️ HOMEOSTASIS: {stab_status}")
+        except Exception as e:
+            logger.warning(f"Failed to read homeostasis: {e}")
 
         # Mission Summary
         ms = self.mission.get_summary()
