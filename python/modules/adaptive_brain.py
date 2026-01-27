@@ -21,11 +21,17 @@ class AdaptiveBrain:
         self.api_keys = api_keys or {}
         self.rust = rust_instance if rust_instance else RustOptimizer()
 
-        # Lazy import CaPU v2 with fallback
+        # Lazy import CaPU v3 with fallback to v2 -> v1
         try:
-            from .hexagon_core.capu_v2 import CaPU
+            from .hexagon_core.capu_v3 import CaPUv3 as CaPU
+            logger.info("🧠 Brain upgraded to CaPU v3")
         except ImportError:
-            from .hexagon_core.capu import CaPU
+            try:
+                from .hexagon_core.capu_v2 import CaPU
+                logger.warning("⚠️ CaPU v3 not found, falling back to v2")
+            except ImportError:
+                from .hexagon_core.capu import CaPU
+                logger.warning("⚠️ CaPU v2 not found, falling back to v1")
 
         self.capu = CaPU(memory_module=learner_instance)
         self.latency_stats = []
