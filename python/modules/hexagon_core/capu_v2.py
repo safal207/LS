@@ -2,7 +2,7 @@ import json
 import os
 import logging
 import re
-import copy  # ✅ QWEN FIX: Для безопасного копирования памяти
+import copy
 from collections import deque
 from typing import Protocol, List, Optional, Dict, Any
 from dataclasses import dataclass
@@ -33,8 +33,22 @@ class CaPU:
         self.logic: List[Dict[str, Any]] = []
         self.history = deque(maxlen=HISTORY_BUFFER_SIZE)
         self._loaded = False
-        # ✅ PATHLIB FIX: Надежный поиск папки data
-        self.base_dir = Path(__file__).parent.parent.parent.parent / "data"
+        self.base_dir = self._resolve_data_dir()
+
+    def _resolve_data_dir(self) -> Path:
+        """Robustly find the data directory."""
+        cwd = Path.cwd()
+        # Ищем папку data в разных местах (для надежности при запуске из разных папок)
+        candidates = [
+            Path(__file__).resolve().parent.parent.parent.parent / "data", # Относительно этого файла
+            cwd / "data",
+            cwd.parent / "data",
+        ]
+        for path in candidates:
+            if path.exists() and path.is_dir():
+                return path
+        # Fallback
+        return Path("data")
 
     def _ensure_loaded(self):
         if not self._loaded:
@@ -48,7 +62,6 @@ class CaPU:
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    # ✅ VALIDATION FIX
                     if isinstance(data, dict):
                         self.facts = data.get("facts", {})
                         logger.info(f"🧠 DMP loaded from {path}")
@@ -63,7 +76,6 @@ class CaPU:
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    # ✅ VALIDATION FIX
                     if isinstance(data, list):
                         self.logic = data
                         logger.info(f"📐 CML loaded from {path}")
@@ -77,97 +89,60 @@ class CaPU:
 
     def _matches_query(self, key: str, q_lower: str) -> bool:
         """
-        QWEN/DEEPSEEK FIX: Strict matching only.
+        QWEN FIX: Always use strict regex boundaries, even for phrases.
+        Prevents 'rust core' matching inside 'trustcore'.
         """
-        key_lower = key.lower()
-
-        # 1. Если это фраза (много слов), то 'in' безопасен
-        if " " in key_lower:
-             if key_lower in q_lower:
-                 return True
-
-        # 2. Если это одно слово ("Rust"), используем ТОЛЬКО строгий Regex
-        # \b защищает от срабатывания "Rust" внутри "Trust"
         try:
-            pattern = rf'\b{re.escape(key_lower)}\b'
+            # Экранируем ключ и добавляем границы слова \b
+            pattern = rf'\b{re.escape(key.lower())}\b'
             if re.search(pattern, q_lower):
                 return True
         except re.error:
-            pass
-
+            # Fallback (маловероятно)
+            if key.lower() in q_lower: return True
         return False
 
     def build_context(self, query: str) -> Context:
         self._ensure_loaded()
         q_lower = query.lower()
 
-        # 1. Facts
-        relevant_facts = []
-        for key, value in self.facts.items():
-            if self._matches_query(key, q_lower):
-                relevant_facts.append(f"{key}: {value}")
+        facts = [f"{k}: {v}" for k, v in self.facts.items() if self._matches_query(k, q_lower)]
 
-        # 2. Logic
-        relevant_logic = []
         triggers = ["why", "reason", "почему", "зачем", "tradeoff", "decision", "выбор"]
+        logic = []
         if any(t in q_lower for t in triggers):
             for item in self.logic:
-                keywords = item.get("keywords", [])
-                if any(self._matches_query(k, q_lower) for k in keywords):
-                    relevant_logic.append(item)
+                if any(self._matches_query(k, q_lower) for k in item.get("keywords", [])):
+                    logic.append(item)
 
-        # 3. Memory
-        relevant_memory = []
+        memory = []
         if self.memory:
             try:
-                # Assuming search_similar follows the protocol or duck typing
-                # We need to check if it has the method or just try calling it
-                if hasattr(self.memory, "search_similar"):
-                    raw_memory = self.memory.search_similar(query, k=MEMORY_SEARCH_LIMIT)
-                    # ✅ QWEN FIX: Deepcopy защищает от мутаций внешней памяти
-                    if raw_memory:
-                        relevant_memory = copy.deepcopy(raw_memory)
+                raw = self.memory.search_similar(query, k=MEMORY_SEARCH_LIMIT)
+                if raw: memory = copy.deepcopy(raw)
             except Exception as e:
-                logger.warning(f"⚠️ Memory retrieval failed: {e}")
+                logger.warning(f"⚠️ Memory error: {e}")
 
-        return Context(
-            facts=relevant_facts,
-            logic=relevant_logic,
-            memory=relevant_memory,
-            history=list(self.history)
-        )
+        return Context(facts=facts, logic=logic, memory=memory, history=list(self.history))
 
     def render_prompt(self, query: str, ctx: Context) -> str:
         sections = []
-        if ctx.facts:
-            sections.append("📚 RELEVANT KNOWLEDGE (DMP):\n" + "\n".join(ctx.facts))
+        if ctx.facts: sections.append("📚 RELEVANT KNOWLEDGE (DMP):\n" + "\n".join(ctx.facts))
         if ctx.memory:
             snippets = []
             for m in ctx.memory:
                 q = m.get("question") or m.get("q") or "?"
                 a = m.get("answer") or m.get("a") or ""
-                a_short = (a[:TRUNCATE_LIMIT_ANSWER] + '...') if len(a) > TRUNCATE_LIMIT_ANSWER else a
+                a_short = (a[:150] + '...') if len(a) > 150 else a
                 snippets.append(f"• Q: {q} | A: {a_short}")
             sections.append("🧠 RECALLED MEMORIES:\n" + "\n".join(snippets))
         if ctx.logic:
-            logic_strs = []
-            for item in ctx.logic:
-                t_off = item.get('trade_off') or item.get('tradeoff', 'None')
-                logic_strs.append(f"⚙️ LOGIC: {item.get('decision')} (Reason: {item.get('reason')})")
-            sections.append("📐 LOGIC ENGINE:\n" + "\n".join(logic_strs))
+            sections.append("📐 LOGIC ENGINE:\n" + "\n".join([f"⚙️ {i.get('decision')} (Reason: {i.get('reason')})" for i in ctx.logic]))
         if ctx.history:
-            hist_str = "💬 HISTORY:\n"
-            for msg in ctx.history:
-                hist_str += f"{msg['role'].upper()}: {msg['content'][:TRUNCATE_LIMIT_HISTORY]}\n"
-            sections.append(hist_str)
+            sections.append("💬 HISTORY:\n" + "\n".join([f"{m['role'].upper()}: {m['content'][:200]}" for m in ctx.history]))
 
-        prompt = ""
-        if sections:
-            prompt += "\n\n".join(sections) + "\n\n"
-        prompt += f"❓ QUERY: {query}\n"
-        prompt += "🚀 INSTRUCTION: Synthesize context. Be professional."
+        prompt = "\n\n".join(sections) + f"\n\n❓ QUERY: {query}\n🚀 INSTRUCTION: Synthesize context. Be professional."
         return prompt
 
     def construct_prompt(self, query: str) -> str:
-        ctx = self.build_context(query)
-        return self.render_prompt(query, ctx)
+        return self.render_prompt(query, self.build_context(query))

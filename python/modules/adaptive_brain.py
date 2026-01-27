@@ -13,13 +13,12 @@ class AdaptiveBrain:
         self.api_keys = api_keys or {}
         self.rust = rust_instance if rust_instance else RustOptimizer()
 
-        # Lazy Import
         try:
             from .hexagon_core.capu_v2 import CaPU
         except ImportError:
             from .hexagon_core.capu import CaPU
-        self.capu = CaPU(memory_module=learner_instance)
 
+        self.capu = CaPU(memory_module=learner_instance)
         self.latency_stats = []
 
         if tier == "cloud" and not self.api_keys.get("deepseek"):
@@ -29,24 +28,25 @@ class AdaptiveBrain:
     def generate(self, prompt, context_data=None):
         start_time = time.time()
 
-        # 1. Update History & Contextualize
+        # 1. Update History (User)
         try:
             self.capu.update_history("user", prompt)
         except Exception:
             pass
 
+        # 2. Build Context
         full_prompt = self.capu.construct_prompt(prompt)
 
-        # 2. Inference
+        # 3. Inference
         response = self._inference_strategy(full_prompt)
 
-        # 3. Update History with Response
+        # 4. Update History (AI)
         try:
             self.capu.update_history("ai", response)
         except Exception:
             pass
 
-        # ✅ FIX: Статистика пишется только один раз!
+        # ✅ SINGLE LOG: Статистика пишется один раз
         self.latency_stats.append(time.time() - start_time)
 
         return response
