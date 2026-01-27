@@ -46,14 +46,13 @@ class GhostCore(QObject):
         # 2. Low-level Resources
         self.rust_optimizer = RustOptimizer()
 
-        # 3. Memory Layer (The Hippocampus)
-        # ✅ SINGLETON: Создаем память строго один раз
+        # 3. Memory Layer (The Hippocampus) - SINGLETON
         self.learner = SelfImprovingBrain(rust_instance=self.rust_optimizer)
 
         # 4. Cognitive Core (Adaptive Brain)
         self.brain = AdaptiveBrain(
             tier="local",
-            # ✅ SECURITY: Ключи из ENV
+            # ✅ SECURITY: Key from ENV
             api_keys={"deepseek": os.getenv("DEEPSEEK_API_KEY", "")},
             rust_instance=self.rust_optimizer,
             learner_instance=self.learner

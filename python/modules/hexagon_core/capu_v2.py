@@ -1,4 +1,5 @@
 import json
+import os
 import logging
 import re
 import copy
@@ -9,7 +10,6 @@ from pathlib import Path
 
 logger = logging.getLogger("CaPU_v2")
 
-# PEP-8 Constants
 HISTORY_BUFFER_SIZE = 6
 MEMORY_SEARCH_LIMIT = 3
 TRUNCATE_LIMIT_ANSWER = 150
@@ -87,18 +87,10 @@ class CaPU:
 
     def _matches_query(self, key: str, q_lower: str) -> bool:
         """
-        Improved matching v7:
-        - If key is a phrase: match ANY significant word (len > 2) from the phrase.
-        - If key is a single word: strict boundary match.
+        STRICT v8:
+        - Use word boundaries for strict matching.
         """
         key_lower = key.lower()
-        words = key_lower.split()
-
-        # Smart Phrase Matching: "Nexus Sales" matches if "Nexus" is in query
-        if len(words) > 1:
-            return any(w in q_lower for w in words if len(w) > 2)
-
-        # Strict Single Word Matching
         try:
             pattern = rf'\b{re.escape(key_lower)}\b'
             return bool(re.search(pattern, q_lower))
@@ -114,28 +106,36 @@ class CaPU:
 
         # 2. Logic
         triggers = ["why", "reason", "почему", "зачем", "tradeoff", "decision", "выбор"]
-        logic = []
+        logic: List[Dict[str, Any]] = []
         if any(t in q_lower for t in triggers):
             for item in self.logic:
-                if any(self._matches_query(k, q_lower) for k in item.get("keywords", [])):
+                keywords = item.get("keywords", [])
+                if any(self._matches_query(k, q_lower) for k in keywords):
                     logic.append(item)
 
-        # 3. Memory (Sorted by Score!)
-        memory = []
+        # 3. Memory (sorted, safe)
+        memory: List[Dict[str, Any]] = []
         if self.memory:
             try:
                 raw = self.memory.search_similar(query, k=MEMORY_SEARCH_LIMIT)
-                if raw:
-                    # ✅ SORT: Сначала самые релевантные
-                    raw_sorted = sorted(raw, key=lambda x: x.get("score", 0), reverse=True)
+                if isinstance(raw, list):
+                    def score_of(x: Dict[str, Any]) -> float:
+                        try:
+                            return float(x.get("score", 0) or 0)
+                        except (TypeError, ValueError):
+                            return 0.0
+
+                    raw_sorted = sorted(raw, key=score_of, reverse=True)
                     memory = copy.deepcopy(raw_sorted)
+                else:
+                    logger.warning("⚠️ Memory returned non-list structure.")
             except Exception as e:
                 logger.warning(f"⚠️ Memory error: {e}")
 
         return Context(facts=facts, logic=logic, memory=memory, history=list(self.history))
 
     def render_prompt(self, query: str, ctx: Context) -> str:
-        sections = []
+        sections: List[str] = []
 
         if ctx.facts:
             sections.append("📚 RELEVANT KNOWLEDGE (DMP):\n" + "\n".join(ctx.facts))
@@ -150,14 +150,20 @@ class CaPU:
             sections.append("🧠 RECALLED MEMORIES:\n" + "\n".join(snippets))
 
         if ctx.logic:
-            sections.append("📐 LOGIC ENGINE:\n" + "\n".join(
-                [f"⚙️ {i.get('decision')} (Reason: {i.get('reason')})" for i in ctx.logic]
-            ))
+            sections.append(
+                "📐 LOGIC ENGINE:\n"
+                + "\n".join(
+                    [f"⚙️ {i.get('decision')} (Reason: {i.get('reason')})" for i in ctx.logic]
+                )
+            )
 
         if ctx.history:
-            sections.append("💬 HISTORY:\n" + "\n".join(
-                [f"{m['role'].upper()}: {m['content'][:TRUNCATE_LIMIT_HISTORY]}" for m in ctx.history]
-            ))
+            sections.append(
+                "💬 HISTORY:\n"
+                + "\n".join(
+                    [f"{m['role'].upper()}: {m['content'][:TRUNCATE_LIMIT_HISTORY]}" for m in ctx.history]
+                )
+            )
 
         prompt = "\n\n".join(sections) + f"\n\n❓ QUERY: {query}\n🚀 INSTRUCTION: Synthesize context. Be professional."
         return prompt
