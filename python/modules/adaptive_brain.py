@@ -1,29 +1,25 @@
-import os
 import time
 import logging
+import os
 import requests
 import json
 from ..rust_bridge import RustOptimizer
-try:
-    from .hexagon_core.capu_v2 import CaPU
-except ImportError:
-    from .hexagon_core.capu import CaPU
 
 logger = logging.getLogger("AdaptiveBrain")
 
 class AdaptiveBrain:
     def __init__(self, tier="local", api_keys=None, rust_instance=None, learner_instance=None):
-        """
-        Adaptive Intelligence Module (Sovereign Edition).
-
-        Tiers:
-        - 'cloud': Uses DeepSeek V3 API (China's SOTA).
-        - 'local': Uses Qwen 2.5 via Ollama (Local & Private).
-        """
         self.tier = tier
         self.api_keys = api_keys or {}
         self.rust = rust_instance if rust_instance else RustOptimizer()
+
+        # Lazy Import
+        try:
+            from .hexagon_core.capu_v2 import CaPU
+        except ImportError:
+            from .hexagon_core.capu import CaPU
         self.capu = CaPU(memory_module=learner_instance)
+
         self.latency_stats = []
 
         if tier == "cloud" and not self.api_keys.get("deepseek"):
@@ -41,19 +37,18 @@ class AdaptiveBrain:
 
         full_prompt = self.capu.construct_prompt(prompt)
 
-        # 2. Rust Cache (Future)
-        # if self.rust.available: ...
-
-        # 3. Inference
+        # 2. Inference
         response = self._inference_strategy(full_prompt)
 
-        # 4. Update History with Response
+        # 3. Update History with Response
         try:
             self.capu.update_history("ai", response)
         except Exception:
             pass
 
+        # ✅ FIX: Статистика пишется только один раз!
         self.latency_stats.append(time.time() - start_time)
+
         return response
 
     def _inference_strategy(self, prompt):

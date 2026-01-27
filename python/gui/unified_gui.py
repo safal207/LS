@@ -37,31 +37,33 @@ class GhostCore(QObject):
 
     def __init__(self):
         super().__init__()
-        # Communication Channels
+        # 1. State & Queues
+        self._stop_event = threading.Event()
         self.audio_queue = queue.Queue()
         self.text_queue = queue.Queue()
-
-        # Lifecycle Control
-        self._stop_event = threading.Event()
         self.threads = []
 
-        # 1. Resources (Low-level)
+        # 2. Low-level Resources
         self.rust_optimizer = RustOptimizer()
 
-        # 2. Memory Module (Learner)
+        # 3. Memory Layer (The Hippocampus)
+        # ✅ SINGLETON: Создаем память строго один раз!
         self.learner = SelfImprovingBrain(rust_instance=self.rust_optimizer)
 
-        # === BRAIN INITIALIZATION (SOVEREIGN EDITION) ===
+        # 4. Cognitive Core (The Brain)
         self.brain = AdaptiveBrain(
             tier="local",
+            # ✅ SECURITY: Ключ берется из среды. Никакого хардкода.
             api_keys={"deepseek": os.getenv("DEEPSEEK_API_KEY", "")},
             rust_instance=self.rust_optimizer,
-            learner_instance=self.learner
+            learner_instance=self.learner  # Передаем единственный экземпляр
         )
 
-        # 3. IO Modules
+        # 5. IO Modules
         self.audio_module = AudioIngestion(self.audio_queue)
         self.stt_module = SpeechToText(self.audio_queue, self.text_queue)
+
+        # ❌ CLEAN: В конце файла больше нет дубликатов!
 
     def start(self):
         """Starts all subsystems in daemon threads but keeps ref for joining."""

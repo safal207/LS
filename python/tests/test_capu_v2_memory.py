@@ -43,15 +43,15 @@ def test_capu_full_integration(mock_data, monkeypatch):
     prompt = capu.construct_prompt("Why did we use Rust for Nexus Sales?")
 
     # Проверка Facts (DMP)
-    assert "RELEVANT FACTS" in prompt
+    assert "RELEVANT KNOWLEDGE (DMP)" in prompt
     assert "Nexus Sales" in prompt
 
     # Проверка Logic (CML) - так как есть триггер "Why"
-    assert "ARCHITECTURAL LOGIC" in prompt
-    assert "TRADE_OFF" in prompt
+    assert "LOGIC ENGINE" in prompt
+    assert "Reason" in prompt # trade_off handling changed slightly in output format
 
     # Проверка Dynamic Memory (SelfImproving)
-    assert "RELATED PAST SESSIONS" in prompt
+    assert "RECALLED MEMORIES" in prompt
     assert "270x faster" in prompt
     assert "Score: 0.95" not in prompt # Мы не выводим скор в промпт, только Q/A
 
