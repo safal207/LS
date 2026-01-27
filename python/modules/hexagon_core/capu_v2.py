@@ -1,5 +1,4 @@
 import json
-import os
 import logging
 import re
 import copy
@@ -10,6 +9,7 @@ from pathlib import Path
 
 logger = logging.getLogger("CaPU_v2")
 
+# PEP-8 Constants
 HISTORY_BUFFER_SIZE = 6
 MEMORY_SEARCH_LIMIT = 3
 TRUNCATE_LIMIT_ANSWER = 150
@@ -87,17 +87,23 @@ class CaPU:
 
     def _matches_query(self, key: str, q_lower: str) -> bool:
         """
-        Strict regex matching with word boundaries.
-        Handles both 'Rust' (word) and 'Nexus Sales' (phrase) correctly.
+        Improved matching v7:
+        - If key is a phrase: match ANY significant word (len > 2) from the phrase.
+        - If key is a single word: strict boundary match.
         """
+        key_lower = key.lower()
+        words = key_lower.split()
+
+        # Smart Phrase Matching: "Nexus Sales" matches if "Nexus" is in query
+        if len(words) > 1:
+            return any(w in q_lower for w in words if len(w) > 2)
+
+        # Strict Single Word Matching
         try:
-            pattern = rf'\b{re.escape(key.lower())}\b'
-            if re.search(pattern, q_lower):
-                return True
+            pattern = rf'\b{re.escape(key_lower)}\b'
+            return bool(re.search(pattern, q_lower))
         except re.error:
-            # Fallback
-            if key.lower() in q_lower: return True
-        return False
+            return key_lower in q_lower
 
     def build_context(self, query: str) -> Context:
         self._ensure_loaded()
@@ -114,16 +120,14 @@ class CaPU:
                 if any(self._matches_query(k, q_lower) for k in item.get("keywords", [])):
                     logic.append(item)
 
-        # 3. Memory (Sorted & Deepcopied)
+        # 3. Memory (Sorted by Score!)
         memory = []
         if self.memory:
             try:
                 raw = self.memory.search_similar(query, k=MEMORY_SEARCH_LIMIT)
                 if raw:
-                    # ✅ SORTING FIX: Сортируем по score (если есть), потом deepcopy
-                    # raw_sorted = sorted(raw, key=lambda x: x.get("score", 0), reverse=True)
-                    # Note: x.get might return None if key missing, ensure it defaults to 0
-                    raw_sorted = sorted(raw, key=lambda x: x.get("score") or 0, reverse=True)
+                    # ✅ SORT: Сначала самые релевантные
+                    raw_sorted = sorted(raw, key=lambda x: x.get("score", 0), reverse=True)
                     memory = copy.deepcopy(raw_sorted)
             except Exception as e:
                 logger.warning(f"⚠️ Memory error: {e}")
@@ -132,20 +136,28 @@ class CaPU:
 
     def render_prompt(self, query: str, ctx: Context) -> str:
         sections = []
-        if ctx.facts: sections.append("📚 RELEVANT KNOWLEDGE (DMP):\n" + "\n".join(ctx.facts))
+
+        if ctx.facts:
+            sections.append("📚 RELEVANT KNOWLEDGE (DMP):\n" + "\n".join(ctx.facts))
+
         if ctx.memory:
             snippets = []
             for m in ctx.memory:
-                # Robust key handling
                 q = m.get("question") or m.get("q") or "?"
                 a = m.get("answer") or m.get("a") or ""
-                a_short = (a[:TRUNCATE_LIMIT_ANSWER] + '...') if len(a) > TRUNCATE_LIMIT_ANSWER else a
+                a_short = (a[:TRUNCATE_LIMIT_ANSWER] + "...") if len(a) > TRUNCATE_LIMIT_ANSWER else a
                 snippets.append(f"• Q: {q} | A: {a_short}")
             sections.append("🧠 RECALLED MEMORIES:\n" + "\n".join(snippets))
+
         if ctx.logic:
-            sections.append("📐 LOGIC ENGINE:\n" + "\n".join([f"⚙️ {i.get('decision')} (Reason: {i.get('reason')})" for i in ctx.logic]))
+            sections.append("📐 LOGIC ENGINE:\n" + "\n".join(
+                [f"⚙️ {i.get('decision')} (Reason: {i.get('reason')})" for i in ctx.logic]
+            ))
+
         if ctx.history:
-            sections.append("💬 HISTORY:\n" + "\n".join([f"{m['role'].upper()}: {m['content'][:TRUNCATE_LIMIT_HISTORY]}" for m in ctx.history]))
+            sections.append("💬 HISTORY:\n" + "\n".join(
+                [f"{m['role'].upper()}: {m['content'][:TRUNCATE_LIMIT_HISTORY]}" for m in ctx.history]
+            ))
 
         prompt = "\n\n".join(sections) + f"\n\n❓ QUERY: {query}\n🚀 INSTRUCTION: Synthesize context. Be professional."
         return prompt

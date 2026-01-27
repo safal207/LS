@@ -47,23 +47,21 @@ class GhostCore(QObject):
         self.rust_optimizer = RustOptimizer()
 
         # 3. Memory Layer (The Hippocampus)
-        # ✅ SINGLETON: Создаем память строго один раз!
+        # ✅ SINGLETON: Создаем память строго один раз
         self.learner = SelfImprovingBrain(rust_instance=self.rust_optimizer)
 
-        # 4. Cognitive Core (The Brain)
+        # 4. Cognitive Core (Adaptive Brain)
         self.brain = AdaptiveBrain(
             tier="local",
-            # ✅ SECURITY: Ключ только из ENV
+            # ✅ SECURITY: Ключи из ENV
             api_keys={"deepseek": os.getenv("DEEPSEEK_API_KEY", "")},
             rust_instance=self.rust_optimizer,
-            learner_instance=self.learner  # Передаем единственный экземпляр
+            learner_instance=self.learner
         )
 
-        # 5. IO Modules (Ears & Voice)
+        # 5. IO Modules
         self.audio_module = AudioIngestion(self.audio_queue)
         self.stt_module = SpeechToText(self.audio_queue, self.text_queue)
-
-        # ❌ CLEAN: Файл чист. Никаких повторных инициализаций внизу.
 
     def start(self):
         """Starts all subsystems in daemon threads but keeps ref for joining."""
