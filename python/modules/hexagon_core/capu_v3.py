@@ -12,6 +12,7 @@ from .cte import CognitiveTimelineEngine
 from .missionstate import MissionState
 from .homeostasis import HomeostasisMonitor
 from .compression import ActiveCompressionEngine
+from .belief_system import BeliefLifecycleManager, Convict
 
 logger = logging.getLogger("CaPU_v3")
 
@@ -62,8 +63,11 @@ class CaPUv3:
         self._predictions: List[Dict[str, Any]] = []
         self._consequences: List[Dict[str, Any]] = []
 
-        # CTE: Liminal transitions + insights + convicts
+        # CTE: Liminal transitions + insights
         self._cte = CognitiveTimelineEngine()
+
+        # Phase 2: Convict Dynamics (Belief System)
+        self.lifecycle = BeliefLifecycleManager()
 
         # Mission State: Goals, Values, Priorities
         self.mission = MissionState()
@@ -215,17 +219,63 @@ class CaPUv3:
         return self._cte.commit_transition(decision, alternatives, commitment)
 
     def register_outcome(self, content: str, outcome_type: str = "insight") -> Dict[str, Any]:
-        """Wrapper for CTE: registers an outcome (insight/conflict)."""
-        return self._cte.register_outcome(content, outcome_type)
+        """Wrapper for CTE: registers an outcome and integrates with Belief System."""
+        result = self._cte.register_outcome(content, outcome_type)
+
+        if result["status"] == "success" and result.get("convict"):
+            candidate = result["convict"]
+            # Check if belief exists to decide register or reinforce
+            # Simpler: just call register which handles existence check internally
+            # (or returns existing), then reinforce.
+
+            # Phase 2 spec: "register_belief(text, metadata)"
+            meta = {
+                "origin": candidate["origin"],
+                "context_id": candidate.get("context_id")
+            }
+            convict = self.lifecycle.register_belief(candidate["belief"], meta)
+
+            # Initial reinforcement or subsequent reinforcement
+            self.lifecycle.reinforce(
+                convict.id,
+                source="cte_outcome",
+                context=candidate["evidence"],
+                strength=1.0 # strong reinforcement from direct insight
+            )
+
+            # Add updated info to result
+            result["convict_id"] = convict.id
+            result["convict_status"] = convict.status.value
+
+        return result
+
+    def register_belief(self, text: str, metadata: Dict[str, Any]) -> Convict:
+        """Expose lifecycle method."""
+        return self.lifecycle.register_belief(text, metadata)
+
+    def reinforce_belief(self, convict_id: str, source: str, context: Dict[str, Any], strength: float) -> bool:
+        """Expose lifecycle method."""
+        return self.lifecycle.reinforce(convict_id, source, context, strength)
+
+    def update_cognitive_state(self):
+        """Triggers decay and contradiction detection."""
+        self.lifecycle.decay_all()
+        self.lifecycle.detect_contradictions()
 
     def sync_convicts_to_mission(self) -> None:
-        """Syncs CTE convicts to Mission State."""
-        convicts = self._cte.get_convicts(min_confidence=0.7)
-        for c in convicts:
-            # Minimal implementation: just add them to mission history/beliefs
-            # Avoid dupes? MissionState.add_convict just appends currently.
-            # Ideally we check existence.
-            self.mission.add_convict(c)
+        """Syncs active beliefs to Mission State."""
+        # Get active beliefs from lifecycle
+        active_beliefs = self.lifecycle.get_active_beliefs()
+        for c in active_beliefs:
+            # Minimal mapping to dict for MissionState
+            c_dict = {
+                "belief": c.belief,
+                "confidence": c.confidence,
+                "strength": c.strength,
+                "origin": c.metadata.get("origin", "unknown"),
+                "last_validated": c.last_reinforced_at.timestamp() if c.last_reinforced_at else c.created_at.timestamp()
+            }
+            self.mission.add_convict(c_dict)
 
     def monitor_homeostasis(self) -> Dict[str, Any]:
         """Runs the homeostasis monitor and returns the report."""
@@ -251,6 +301,9 @@ class CaPUv3:
     def build_cognitive_context(self, query: str) -> CognitiveContext:
         self._ensure_loaded()
         q_lower = query.lower()
+
+        # Trigger maintenance
+        self.update_cognitive_state()
 
         # 1. Facts (DMP)
         facts = [f"{k}: {v}" for k, v in self.facts.items() if self._matches_query(k, q_lower)]
@@ -296,7 +349,7 @@ class CaPUv3:
 
     def render_cognitive_prompt(self, query: str, ctx: CognitiveContext) -> str:
         """
-        Cognitive Timeline Engine (CTE).
+        Cognitive Timeline Engine (CTE) & Belief System.
         Organizes context into prioritized sections based on Mission weights.
         """
         weights = self.mission.weights
@@ -428,9 +481,12 @@ class CaPUv3:
             sections.append("### FUTURE PROJECTIONS ###\n" + "\n\n".join([b[2] for b in future_blocks]))
 
         # --- 5. CONVICTS ---
-        convicts = self._cte.get_convicts()
+        convicts = self.lifecycle.get_active_beliefs()
+        # Sort by confidence desc
+        convicts.sort(key=lambda x: x.confidence, reverse=True)
+
         if convicts:
-            c_lines = [f"• {c['belief']} (confidence={c['confidence']:.2f}, strength={c['strength']})" for c in convicts[:5]]
+            c_lines = [f"• {c.belief} (confidence={c.confidence:.2f}, strength={c.strength:.2f})" for c in convicts[:5]]
             sections.append("### CONVICTS (FORMED BELIEFS) ###\n" + "\n".join(c_lines))
 
         # Final Assembly

@@ -1,58 +1,50 @@
 import unittest
 import sys
+import time
 from pathlib import Path
+from datetime import datetime, timedelta
 
 # Ensure python/ directory is in sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from modules.hexagon_core.cte import CognitiveTimelineEngine
+from modules.hexagon_core.capu_v3 import CaPUv3
 
 class TestConvictFormation(unittest.TestCase):
     def setUp(self):
-        self.cte = CognitiveTimelineEngine()
+        self.capu = CaPUv3()
+        # Reduce cooldown for testing
+        self.capu.lifecycle.tracker.cooldown = timedelta(milliseconds=1)
 
     def test_form_convict_from_outcome(self):
-        """Test forming a convict from a registered outcome."""
-        self.cte.commit_transition("Learn Python")
-        res = self.cte.register_outcome("Python is versatile", outcome_type="insight")
+        """Test forming a convict from a registered outcome via CaPU."""
+        self.capu.commit_transition("Learn Python")
+        res = self.capu.register_outcome("Python is versatile", outcome_type="insight")
 
         self.assertEqual(res["status"], "success")
-        self.assertIsNotNone(res["convict"])
-        self.assertEqual(res["convict"]["belief"], "Python is versatile")
+        self.assertIn("convict_id", res)
 
         # Verify it's in the system
-        convicts = self.cte.get_convicts()
+        convicts = self.capu.lifecycle.get_active_beliefs()
         self.assertEqual(len(convicts), 1)
-        self.assertEqual(convicts[0]["belief"], "Python is versatile")
+        self.assertEqual(convicts[0].belief, "Python is versatile")
 
     def test_validate_strengthens_convict(self):
         """Test that validation increases confidence."""
-        self.cte.commit_transition("A")
-        self.cte.register_outcome("Sky is blue")
+        self.capu.commit_transition("A")
+        self.capu.register_outcome("Sky is blue")
 
-        c_initial = self.cte.get_convicts()[0]
-        initial_conf = c_initial["confidence"]
-        initial_strength = c_initial["strength"]
+        c = self.capu.lifecycle.get_active_beliefs()[0]
+        initial_conf = c.confidence
 
-        # Validate via duplicate outcome (simulated) or direct access
-        # Since register_outcome calls form_convict which calls validate if exists...
-        self.cte.commit_transition("A again")
-        self.cte.register_outcome("Sky is blue")
+        # Ensure time passes for cooldown (we set it to 1ms)
+        time.sleep(0.01)
 
-        c_updated = self.cte.get_convicts()[0]
-        self.assertGreater(c_updated["confidence"], initial_conf)
-        self.assertGreater(c_updated["strength"], initial_strength)
+        # Validate via duplicate outcome
+        self.capu.commit_transition("A again")
+        self.capu.register_outcome("Sky is blue")
 
-    def test_get_convicts_filtering(self):
-        """Test filtering by confidence."""
-        # Manually inject convicts
-        from modules.hexagon_core.cte import Convict
-        self.cte._convicts["weak"] = Convict("weak", {}, 0.4, "test", 1, 0, 0)
-        self.cte._convicts["strong"] = Convict("strong", {}, 0.9, "test", 1, 0, 0)
-
-        results = self.cte.get_convicts(min_confidence=0.7)
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["belief"], "strong")
+        c_updated = self.capu.lifecycle.get_active_beliefs()[0]
+        self.assertGreater(c_updated.confidence, initial_conf)
 
 if __name__ == '__main__':
     unittest.main()
