@@ -96,6 +96,8 @@ class DecayEngine:
     def apply_decay(self, convict: Convict, now: datetime) -> ConvictStatus:
         factor = self.calculate_decay_factor(convict, now)
 
+        old_status = convict.status
+
         # Apply factor
         convict.confidence *= factor
         convict.strength *= factor
@@ -108,7 +110,7 @@ class DecayEngine:
         # Note: We don't automatically restore to ACTIVE here, that happens on reinforcement
 
         # Increment survival counter if it survived a cycle
-        if convict.status != ConvictStatus.DEPRECATED:
+        if old_status != ConvictStatus.DEPRECATED and convict.status != ConvictStatus.DEPRECATED:
             convict.decay_cycles_survived += 1
 
         return convict.status
@@ -128,29 +130,9 @@ class ReinforcementTracker:
 
     def calculate_boost(self, convict: Convict) -> float:
         """
-        boost = base_boost * strength * (1 - current_confidence)
-
-        However, for new beliefs strength might be low, so we ensure a minimum effective strength for calculation
-        or just use the formula as spec:
-        If strength is 0.1, boost is small.
-        But usually we want reinforcement to INCREASE strength too.
-
-        Wait, spec says:
-        confidence_new = ...
-        strength_new = ...
-
-        Actually spec says:
-        boost = base_boost * strength * (1 - current_confidence)
-
-        This seems to apply to confidence boost.
-        We also need to boost strength.
+        boost = base_boost * (1 - current_confidence)
         """
-        # Using 1.0 as max strength for the factor to ensure it doesn't shrink boost too much if strength is 1.0
-        # Actually if strength is 0 (new), boost is 0? That's bad.
-        # Let's assume minimum effective strength of 0.5 for the formula if it's low
-        effective_strength = max(0.5, convict.strength)
-
-        return self.base_boost * effective_strength * (1.0 - convict.confidence)
+        return self.base_boost * (1.0 - convict.confidence)
 
     def reinforce(self, convict: Convict, source: str, context: Dict[str, Any], strength_signal: float, now: datetime) -> bool:
         if not self.can_reinforce(convict, now):
@@ -159,8 +141,9 @@ class ReinforcementTracker:
         # Calculate boost
         boost = self.calculate_boost(convict)
 
-        # Apply boost (scaled by the incoming signal strength 0.0-1.0)
-        actual_boost = boost * strength_signal
+        # Apply boost (scaled by the incoming signal strength 0.0-1.0 and strength multiplier)
+        strength_multiplier = max(0.3, convict.strength)
+        actual_boost = boost * strength_signal * strength_multiplier
 
         convict.confidence = min(1.0, convict.confidence + actual_boost)
         convict.strength = min(1.0, convict.strength + (0.05 * strength_signal)) # Strength grows slower
@@ -175,6 +158,10 @@ class ReinforcementTracker:
             strength=strength_signal
         )
         convict.reinforcement_history.append(event)
+
+        # Pruning
+        if len(convict.reinforcement_history) > 50:
+            convict.reinforcement_history.pop(0)
 
         # Restore status if needed
         if convict.status in [ConvictStatus.DECAYING, ConvictStatus.DEPRECATED]:
@@ -217,13 +204,13 @@ class ContradictionDetector:
                 tokens1 = set(c1.belief.lower().split())
                 tokens2 = set(c2.belief.lower().split())
 
-                has_negation = not tokens1.isdisjoint(negation_tokens) or not tokens2.isdisjoint(negation_tokens)
+                has_neg_a = not tokens1.isdisjoint(negation_tokens)
+                has_neg_b = not tokens2.isdisjoint(negation_tokens)
 
                 is_explicit_negation = False
-                if similarity > 0.6 and has_negation:
-                    # Check if one effectively negates the other is hard without NLP.
-                    # Assumption: If very similar and one has 'not', it might be a contradiction.
-                    is_explicit_negation = True
+                if similarity > 0.6:
+                    if has_neg_a != has_neg_b:
+                        is_explicit_negation = True
 
                 # 2. Outcome Conflicts
                 # same context_id (if available), both confident, low similarity?
@@ -298,7 +285,13 @@ class SemanticClusterManager:
         # Placeholder for embedding provider
 
     def _jaccard_distance(self, s1: str, s2: str) -> float:
-        stopwords = {"is", "a", "the", "an", "of", "and", "or", "to", "in", "on", "at", "are", "it", "this", "that"}
+        # English + Russian Stopwords
+        stopwords = {
+            # English
+            "is", "a", "the", "an", "of", "and", "or", "to", "in", "on", "at", "are", "it", "this", "that",
+            # Russian (common)
+            "и", "в", "во", "не", "что", "он", "на", "я", "с", "со", "как", "а", "то", "все", "она", "так", "его", "но", "да", "ты", "к", "у", "же", "вы", "за", "бы", "по", "только", "ее", "мне", "было", "вот", "от", "меня", "еще", "нет", "о", "из", "ему", "теперь", "когда", "даже", "ну", "вдруг", "ли", "если", "уже", "или", "ни", "быть", "был", "него", "до", "вас", "нибудь", "опять", "уж", "вам", "ведь", "там", "потом", "себя", "ничего", "ей", "может", "они", "тут", "где", "есть", "надо", "ней", "для", "мы", "тебя", "их", "чем", "была", "сам", "чтоб", "без", "будто", "чего", "раз", "тоже", "себе", "под", "будет", "ж", "тогда", "кто", "этот", "того", "потому", "этого", "какой", "совсем", "ним", "здесь", "этом", "один", "почти", "мой", "тем", "чтобы", "нее", "сейчас", "были", "куда", "зачем", "всех", "никогда", "можно", "при", "наконец", "два", "об", "другой", "хоть", "после", "над", "больше", "тот", "через", "эти", "нас", "про", "всего", "них", "какая", "много", "разве", "три", "эту", "моя", "впрочем", "хорошо", "свою", "этой", "перед", "иногда", "лучше", "чуть", "том", "нельзя", "такой", "им", "более", "всегда", "конечно", "всю", "между"
+        }
 
         def tokenize(text):
             words = text.lower().split()
@@ -314,24 +307,27 @@ class SemanticClusterManager:
         return 1.0 - (intersection / union)
 
     def cluster(self, convicts: List[Convict]) -> List[BeliefCluster]:
-        # Simple clustering: Iterate and assign to first matching cluster or create new
+        # Simple clustering: Iterate and assign to BEST matching cluster or create new
         # Threshold for Jaccard: distance < 0.7 (similarity > 0.3)
         threshold = 0.7
 
         clusters: List[BeliefCluster] = []
 
         for c in convicts:
-            assigned = False
+            best_cluster = None
+            best_dist = threshold
+
             for cluster in clusters:
                 # Compare with center (simplification)
                 dist = self._jaccard_distance(c.belief, cluster.center_text)
-                if dist < threshold:
-                    cluster.member_ids.append(c.id)
-                    c.cluster_id = cluster.id
-                    assigned = True
-                    break
+                if dist < best_dist:
+                    best_dist = dist
+                    best_cluster = cluster
 
-            if not assigned:
+            if best_cluster:
+                best_cluster.member_ids.append(c.id)
+                c.cluster_id = best_cluster.id
+            else:
                 new_cluster = BeliefCluster(
                     id=f"cluster_{uuid.uuid4()}",
                     center_text=c.belief,
@@ -359,6 +355,8 @@ class BeliefLifecycleManager:
         # Ideally we search by ID if provided, or hash text
         for c in self._convicts.values():
             if c.belief == text:
+                if metadata:
+                    c.metadata.update(metadata)
                 return c
 
         # Create new

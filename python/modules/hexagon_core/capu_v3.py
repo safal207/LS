@@ -257,10 +257,20 @@ class CaPUv3:
         """Expose lifecycle method."""
         return self.lifecycle.reinforce(convict_id, source, context, strength)
 
+    def maybe_update_cognitive_state(self):
+        """Triggers decay and contradiction detection with throttling (5 mins)."""
+        now = datetime.now()
+        if not hasattr(self, "_last_maintenance"):
+            self._last_maintenance = None
+
+        if self._last_maintenance is None or (now - self._last_maintenance).total_seconds() > 300:
+            self.lifecycle.decay_all(now)
+            self.lifecycle.detect_contradictions()
+            self._last_maintenance = now
+
     def update_cognitive_state(self):
-        """Triggers decay and contradiction detection."""
-        self.lifecycle.decay_all()
-        self.lifecycle.detect_contradictions()
+        """Deprecated: use maybe_update_cognitive_state. Triggers immediate update."""
+        self.maybe_update_cognitive_state()
 
     def sync_convicts_to_mission(self) -> None:
         """Syncs active beliefs to Mission State."""
@@ -302,8 +312,8 @@ class CaPUv3:
         self._ensure_loaded()
         q_lower = query.lower()
 
-        # Trigger maintenance
-        self.update_cognitive_state()
+        # Trigger maintenance (throttled)
+        self.maybe_update_cognitive_state()
 
         # 1. Facts (DMP)
         facts = [f"{k}: {v}" for k, v in self.facts.items() if self._matches_query(k, q_lower)]
