@@ -7,11 +7,12 @@ from collections import deque
 from typing import Protocol, List, Optional, Dict, Any, Union, Tuple
 from dataclasses import dataclass, field
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from .cte import CognitiveTimelineEngine
 from .missionstate import MissionState
 from .homeostasis import HomeostasisMonitor
 from .compression import ActiveCompressionEngine
+from .belief_system import BeliefLifecycleManager
 
 logger = logging.getLogger("CaPU_v3")
 
@@ -71,6 +72,10 @@ class CaPUv3:
         # Phase 1: Cognitive Homeostasis & Compression
         self.homeostasis = HomeostasisMonitor(self)
         self.compression = ActiveCompressionEngine(self)
+
+        # Phase 2: Belief System Lifecycle
+        self.lifecycle = BeliefLifecycleManager(self._cte)
+        self.last_maintenance = datetime.min
 
         # Cold Storage
         self.cold_storage: List[Dict[str, Any]] = []
@@ -248,7 +253,15 @@ class CaPUv3:
         except re.error:
             return key_lower in q_lower
 
+    def maybe_update_cognitive_state(self):
+        """Fix 2: Throttled maintenance (5 min)."""
+        now = datetime.now()
+        if (now - self.last_maintenance) > timedelta(minutes=5):
+            self.lifecycle.process_lifecycle()
+            self.last_maintenance = now
+
     def build_cognitive_context(self, query: str) -> CognitiveContext:
+        self.maybe_update_cognitive_state()
         self._ensure_loaded()
         q_lower = query.lower()
 
@@ -430,7 +443,17 @@ class CaPUv3:
         # --- 5. CONVICTS ---
         convicts = self._cte.get_convicts()
         if convicts:
-            c_lines = [f"• {c['belief']} (confidence={c['confidence']:.2f}, strength={c['strength']})" for c in convicts[:5]]
+            # Fix 8: Use object attribute access
+            c_lines = []
+            for c in convicts[:5]:
+                # Handle both dict and object (backward compat if cte returns dicts,
+                # but we know get_convicts returns dicts in current cte.py implementation,
+                # wait, let me check cte.py get_convicts again)
+                belief_text = c['belief'] if isinstance(c, dict) else c.belief
+                conf = c['confidence'] if isinstance(c, dict) else c.confidence
+                stren = c['strength'] if isinstance(c, dict) else c.strength
+                c_lines.append(f"• {belief_text} (confidence={conf:.2f}, strength={stren})")
+
             sections.append("### CONVICTS (FORMED BELIEFS) ###\n" + "\n".join(c_lines))
 
         # Final Assembly
