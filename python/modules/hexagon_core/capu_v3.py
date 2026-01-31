@@ -273,6 +273,7 @@ class CaPUv3:
 
         if self._last_maintenance is None or (now - self._last_maintenance).total_seconds() > 300:
             self.lifecycle.decay_all(now)
+            self.lifecycle.detect_contradictions()
             self.cot.run_cot_cycle()
             self._last_maintenance = now
 

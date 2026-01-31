@@ -126,7 +126,8 @@ class MissionState:
 
     def remove_convict(self, belief_text: str) -> bool:
         """
-        Removes a belief from adaptive beliefs.
+        Removes a belief from adaptive beliefs by text.
+        Deprecated: use remove_convict_by_id if possible.
         """
         initial_len = len(self.adaptive_beliefs)
         self.adaptive_beliefs = [b for b in self.adaptive_beliefs if b.get('belief') != belief_text]
@@ -135,6 +136,22 @@ class MissionState:
             self.record_change(
                 MissionChangeType.NEW_CONVICT,
                 {"action": "remove", "belief": belief_text}
+            )
+            return True
+        return False
+
+    def remove_convict_by_id(self, convict_id: str) -> bool:
+        """
+        Removes a belief from adaptive beliefs by ID.
+        """
+        initial_len = len(self.adaptive_beliefs)
+        # Assuming convicts stored in adaptive_beliefs contain 'id'
+        self.adaptive_beliefs = [b for b in self.adaptive_beliefs if b.get('id') != convict_id]
+
+        if len(self.adaptive_beliefs) < initial_len:
+            self.record_change(
+                MissionChangeType.NEW_CONVICT,
+                {"action": "remove", "id": convict_id}
             )
             return True
         return False

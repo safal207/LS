@@ -1,13 +1,15 @@
 import pytest
 import datetime
+from datetime import timezone
 from unittest.mock import MagicMock
 
 from hexagon_core.belief.lifecycle import BeliefLifecycleManager
 from hexagon_core.belief.models import Convict, ConvictStatus, ReinforcementEvent
-from hexagon_core.belief.promotion import PromotionCriteria
+from hexagon_core.belief.events import BeliefDeprecatedEvent
 from hexagon_core.causal.graph import CausalGraph
 from hexagon_core.cot.alignment import AlignmentSystem
 from hexagon_core.mission.state import MissionState
+from hexagon_core.mission.cleanup import MissionCleanupObserver
 
 class TestPhase3Starter:
 
@@ -26,10 +28,7 @@ class TestPhase3Starter:
     # --- Tier 1: Must Have ---
 
     def test_promotion_rules_basic(self, lifecycle):
-        # Setup: Create a convict that meets all criteria
-        # Criteria defaults: age=6h, decay=3, reinf=2, conf=0.75, sources=2
-
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(timezone.utc)
         past = now - datetime.timedelta(hours=7)
 
         c = lifecycle.register_belief("Sky is blue")
@@ -38,24 +37,20 @@ class TestPhase3Starter:
         c.reinforcement_count = 2
         c.confidence = 0.8
 
-        # Add 2 unique sources
         c.reinforcement_history.append(ReinforcementEvent(timestamp=past, source="A", context={}, strength=1.0))
         c.reinforcement_history.append(ReinforcementEvent(timestamp=past, source="B", context={}, strength=1.0))
 
-        # Test
         can_promote, reason = lifecycle.promotion_system.can_be_promoted(c, now)
         assert can_promote, f"Should be promotable but failed: {reason}"
 
-        # Test failure case: Low confidence
         c.confidence = 0.5
         can_promote, reason = lifecycle.promotion_system.can_be_promoted(c, now)
         assert not can_promote
         assert "Confidence" in reason
 
     def test_promotion_with_temporal_aspects(self, lifecycle):
-        # Test Age constraint
-        now = datetime.datetime.now()
-        past = now - datetime.timedelta(hours=1) # Too young (default 6h)
+        now = datetime.datetime.now(timezone.utc)
+        past = now - datetime.timedelta(hours=1)
 
         c = lifecycle.register_belief("Time flies")
         c.created_at = past
@@ -70,11 +65,9 @@ class TestPhase3Starter:
         assert "Age" in reason
 
     def test_add_causal_link(self, causal_graph):
-        # A -> B
         added = causal_graph.add_causal_link("A", "B", 1.0)
         assert added
 
-        # Verify upstream/downstream
         down = causal_graph.get_downstream("A")
         assert len(down) == 1
         assert down[0].effect_id == "B"
@@ -85,33 +78,78 @@ class TestPhase3Starter:
 
     def test_alignment_scores_range(self, mission):
         align_sys = AlignmentSystem(mission)
-
-        # "Avoid oscillation" is a core principle.
         score = align_sys.calculate_alignment("We must avoid oscillation at all costs")
         assert 0.0 <= score <= 1.0
-        # Should be relatively high due to overlap "avoid", "oscillation"
         assert score > 0.0
 
-    # --- Tier 2: Should Have ---
+    # --- New Tests from Fix List ---
+
+    def test_observer_pattern(self, lifecycle):
+        mock_observer = MagicMock()
+        mock_observer.handle_event = MagicMock()
+
+        lifecycle.add_observer(mock_observer)
+
+        # Trigger deprecated event
+        c = lifecycle.register_belief("Weak belief")
+        c.strength = 0.01
+        c.status = ConvictStatus.ACTIVE
+
+        # Decay it
+        lifecycle.decay_all()
+
+        assert mock_observer.handle_event.called
+        event = mock_observer.handle_event.call_args[0][0]
+        assert isinstance(event, BeliefDeprecatedEvent)
+        assert event.convict_id == c.id
+
+    def test_promote_mature_beliefs(self, lifecycle):
+        # Setup valid candidate
+        now = datetime.datetime.now(timezone.utc)
+        past = now - datetime.timedelta(hours=7)
+        c = lifecycle.register_belief("Mature Idea")
+        c.created_at = past
+        c.decay_cycles_survived = 3
+        c.reinforcement_count = 2
+        c.confidence = 0.8
+        c.reinforcement_history.append(ReinforcementEvent(timestamp=past, source="A", context={}, strength=1.0))
+        c.reinforcement_history.append(ReinforcementEvent(timestamp=past, source="B", context={}, strength=1.0))
+
+        promoted = lifecycle.promote_mature_beliefs()
+        assert len(promoted) == 1
+        assert promoted[0].id == c.id
+        assert c.status == ConvictStatus.MATURE
+
+    def test_mission_cleanup_by_id(self, mission):
+        # Setup
+        observer = MissionCleanupObserver(mission)
+        c_id = "convict_123"
+        mission.add_convict({"belief": "Bad Idea", "id": c_id})
+
+        assert len(mission.adaptive_beliefs) == 1
+
+        # Trigger event
+        event = BeliefDeprecatedEvent(
+            timestamp=datetime.datetime.now(timezone.utc),
+            convict_id=c_id,
+            belief_text="Bad Idea",
+            reason="decay"
+        )
+
+        observer.handle_event(event)
+
+        assert len(mission.adaptive_beliefs) == 0
 
     def test_causal_chain_ordering(self, causal_graph):
-        # A -> B -> C
         causal_graph.add_causal_link("A", "B", 1.0)
         causal_graph.add_causal_link("B", "C", 1.0)
-
-        # Cycle detection A -> B -> C -> A
-        # Trying to add C -> A should fail
         added = causal_graph.add_causal_link("C", "A", 1.0)
-        assert not added # Cycle detected
+        assert not added
 
     def test_graph_cleanup_mechanism(self, causal_graph):
         causal_graph.add_causal_link("A", "B", 1.0)
         causal_graph.add_causal_link("B", "C", 1.0)
-
-        # Remove B
         causal_graph.remove_belief("B")
-
-        # Links involving B should be gone
         assert len(causal_graph.get_downstream("A")) == 0
         assert len(causal_graph.get_upstream("C")) == 0
 

@@ -12,24 +12,31 @@ class AlignmentSystem:
         self._cache: Dict[str, Dict[str, Any]] = {} # text -> {score, timestamp}
         self.cache_ttl = 60.0
 
+    def cleanup_cache(self):
+        """Removes expired cache entries."""
+        now = time.time()
+        expired = [k for k,v in self._cache.items() if now - v["timestamp"] > self.cache_ttl]
+        for k in expired:
+            del self._cache[k]
+
     def calculate_alignment(self, belief_text: str) -> float:
         """
         Calculates alignment score (0.0 - 1.0).
-        Uses simple keyword overlap with Mission core principles for now.
+        Uses Jaccard similarity with Mission core principles.
         """
         now = time.time()
+
+        # Periodic cleanup probability or call explicitly?
+        # User requested the method, let's call it opportunistically or rely on caller.
+        # Let's call it if cache is large? Or just leave it for maintenance.
+        # I'll add the method as requested.
+
         if belief_text in self._cache:
             entry = self._cache[belief_text]
             if now - entry["timestamp"] < self.cache_ttl:
                 return entry["score"]
 
-        # Calculate
-        # This is a placeholder for more complex logic.
-        # MissionState.check_alignment uses "intent", let's reuse it if possible
-        # or implement Jaccard against principles.
-
         # Spec: "Jaccard po mission keywords"
-        # Core principles are sentences.
         mission_keywords = set()
         for p in self.mission.core_principles:
             mission_keywords.update(p.lower().split())
@@ -40,8 +47,6 @@ class AlignmentSystem:
         else:
             intersection = len(belief_words.intersection(mission_keywords))
             union = len(belief_words.union(mission_keywords))
-            # Jaccard might be too strict if texts are very different lengths.
-            # Spec says Jaccard.
             score = intersection / union if union > 0 else 0.0
 
         self._cache[belief_text] = {"score": score, "timestamp": now}
@@ -56,20 +61,14 @@ class AlignmentSystem:
         if not upstream_edges:
             return 0.5
 
-        # Weighted average of upstream weights (which imply success/confidence)
-        # Maybe upstream node confidence?
-        # Spec: "score = weighted average with time decay"
+        # Spec: "score = weighted average with time decay" (Phase 3.1 placeholder)
 
         total_weight = 0.0
         weighted_sum = 0.0
 
         for edge in upstream_edges:
-            # Assuming edge.weight is positive indicator
-            # Time decay?
-            # Not implementing complex time decay here without `now` reference in args
-            # Using edge weight directly.
             weighted_sum += edge.weight
-            total_weight += 1.0 # Or use some importance factor
+            total_weight += 1.0
 
         if total_weight == 0: return 0.5
 

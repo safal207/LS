@@ -54,11 +54,6 @@ class DecayEngine:
         elif convict.strength < self.min_strength_active:
             convict.status = ConvictStatus.DECAYING
 
-        # If it was MATURE, does it decay back?
-        # For now assuming MATURE behaves like ACTIVE but eligible for mission sync.
-        # If strength drops, it might lose MATURE status?
-        # Spec is silent, but safest is to let it decay to DECAYING/DEPRECATED regardless.
-
         if old_status in [ConvictStatus.ACTIVE, ConvictStatus.MATURE] and convict.status == ConvictStatus.DECAYING:
              convict.decay_cycles_survived += 1
 
@@ -105,9 +100,6 @@ class ReinforcementTracker:
         # Restore status
         if convict.status in [ConvictStatus.DECAYING, ConvictStatus.DEPRECATED]:
              convict.status = ConvictStatus.ACTIVE
-             # If it was MATURE before, does it regain it?
-             # No, needs to be promoted again or check criteria.
-             # For now set to ACTIVE.
 
         return True
 
@@ -123,9 +115,6 @@ class ContradictionDetector:
     def detect(self, active_convicts: List[Convict]) -> List[Contradiction]:
         contradictions = []
         now = datetime.now(timezone.utc)
-
-        # Optimization: Don't compare every time if N is large.
-        # But for starter pack, O(N^2) is accepted as per legacy code.
 
         for i in range(len(active_convicts)):
             for j in range(i + 1, len(active_convicts)):
@@ -252,13 +241,13 @@ class BeliefLifecycleManager:
         self.promotion_system = BeliefPromotionSystem()
 
         self.contradictions: List[Contradiction] = []
-        self.observers = [] # List of objects with handle_event(event) method
+        self._observers = [] # List of objects with handle_event(event) method
 
     def add_observer(self, observer):
-        self.observers.append(observer)
+        self._observers.append(observer)
 
     def _notify(self, event: BeliefEvent):
-        for obs in self.observers:
+        for obs in self._observers:
             if hasattr(obs, 'handle_event'):
                 try:
                     obs.handle_event(event)
@@ -295,8 +284,6 @@ class BeliefLifecycleManager:
         success = self.tracker.reinforce(convict, source, context, strength, datetime.now(timezone.utc))
         if success:
             logger.info(f"💪 Reinforced: {convict.belief}")
-            # Check promotion after reinforcement?
-            pass
         return success
 
     def decay_all(self, now: Optional[datetime] = None) -> List[str]:
@@ -356,19 +343,14 @@ class BeliefLifecycleManager:
         return new_conflicts
 
     def promote_mature_beliefs(self) -> List[Convict]:
-        """
-        New Method: Checks all active beliefs and promotes them if they meet criteria.
-        Returns list of newly promoted beliefs.
-        """
         promoted = []
         now = datetime.now(timezone.utc)
-        for c in self._convicts.values():
-            if c.status == ConvictStatus.ACTIVE:
-                can_promote, reason = self.promotion_system.can_be_promoted(c, now)
-                if can_promote:
-                    c.status = ConvictStatus.MATURE
-                    promoted.append(c)
-                    logger.info(f"🎓 Belief Promoted to MATURE: {c.belief}")
+        for c in self.get_active_beliefs():
+            can_promote, reason = self.promotion_system.can_be_promoted(c, now)
+            if can_promote:
+                c.status = ConvictStatus.MATURE
+                promoted.append(c)
+                logger.info(f"🎓 Belief Promoted to MATURE: {c.belief}")
         return promoted
 
     def get_mature_beliefs(self) -> List[Convict]:
@@ -376,6 +358,9 @@ class BeliefLifecycleManager:
 
     def get_active_beliefs(self) -> List[Convict]:
         return [c for c in self._convicts.values() if c.status in [ConvictStatus.ACTIVE, ConvictStatus.MATURE]]
+
+    def get_belief_count(self) -> int:
+        return len(self._convicts)
 
     def get_summary(self) -> Dict[str, Any]:
         active_count = sum(1 for c in self._convicts.values() if c.status == ConvictStatus.ACTIVE)

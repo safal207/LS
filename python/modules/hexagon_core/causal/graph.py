@@ -73,6 +73,7 @@ class CausalGraph:
     def remove_belief(self, convict_id: str) -> None:
         """
         Removes all links involving this belief.
+        TODO: Optimize O(N) scan for Phase 3.1
         """
         with self._lock:
             # Find edges to remove

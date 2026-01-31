@@ -8,6 +8,10 @@ class IndexedItem:
     timestamp: datetime
     item: Any
 
+    # Comparison methods for bisect
+    def __lt__(self, other):
+        return self.timestamp < other.timestamp
+
 class TemporalIndex:
     """
     Maintains a time-ordered index of items.
@@ -17,20 +21,9 @@ class TemporalIndex:
 
     def add(self, item: Any, timestamp: datetime):
         entry = IndexedItem(timestamp, item)
-        # Keep sorted by timestamp
-        # bisect doesn't support key argument in older python, but python 3.10+ does.
-        # Assuming standard python env. If not, separate keys list.
-        # Let's use a separate keys list for safety if needed, or just append and sort (slow).
-        # Optimization: since we often add "now", it's likely already sorted.
-
-        if not self._items or timestamp >= self._items[-1].timestamp:
-            self._items.append(entry)
-        else:
-            # Find insertion point
-            # Linear scan or binary search.
-            # Using simple sort for robustness in "starter pack".
-            self._items.append(entry)
-            self._items.sort(key=lambda x: x.timestamp)
+        # Optimized insertion O(log N) + O(N) shift, better than O(N log N) sort
+        # bisect.insort uses < operator defined in IndexedItem
+        bisect.insort(self._items, entry)
 
     def remove_item(self, item: Any):
         # O(N) removal

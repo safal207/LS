@@ -31,7 +31,7 @@ class COTCore:
         Executes the COT loop.
         """
         now_ts = time.time()
-        current_belief_count = len(self.lifecycle._convicts) # accessing internal for count
+        current_belief_count = self.lifecycle.get_belief_count()
 
         # Check triggers
         time_diff = (now_ts - self._last_cycle_time) / 60.0
@@ -45,7 +45,7 @@ class COTCore:
 
         # 1. OBSERVE
         active_beliefs = self.lifecycle.get_active_beliefs()
-        contradictions = self.lifecycle.detect_contradictions() # This runs detection!
+        # detect_contradictions is now handled by maybe_update_cognitive_state separately
 
         # 2. ORIENT
         aligned_beliefs = []
@@ -53,7 +53,7 @@ class COTCore:
             alignment = self.alignment_system.calculate_alignment(belief.belief)
             trajectory = self.alignment_system.calculate_trajectory(belief.id, self.causal_graph)
 
-            # Store/Update metadata with orientation info?
+            # Store/Update metadata with orientation info
             belief.metadata["cot_alignment"] = alignment
             belief.metadata["cot_trajectory"] = trajectory
 
@@ -74,13 +74,9 @@ class COTCore:
                     logger.info(f"💡 Candidate for promotion: {belief.belief}")
 
         # 4. ADJUST
-        # Logging is done.
-        # Maybe trigger mission sync if promotions happened?
         if promoted:
             logger.info(f"🚀 Auto-promoted {len(promoted)} beliefs.")
-            # Sync to mission (this logic is usually in CaPU, but maybe here?)
-            # Spec says "syncallactivetomission" -> "promotematurebeliefs"
-            # So updating mission happens via syncing mature beliefs.
+            # Sync to mission
             for p in promoted:
                 self.mission.add_convict({
                     "belief": p.belief,
