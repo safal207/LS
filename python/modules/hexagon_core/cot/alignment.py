@@ -24,12 +24,8 @@ class AlignmentSystem:
         Calculates alignment score (0.0 - 1.0).
         Uses Jaccard similarity with Mission core principles.
         """
+        self.cleanup_cache()
         now = time.time()
-
-        # Periodic cleanup probability or call explicitly?
-        # User requested the method, let's call it opportunistically or rely on caller.
-        # Let's call it if cache is large? Or just leave it for maintenance.
-        # I'll add the method as requested.
 
         if belief_text in self._cache:
             entry = self._cache[belief_text]

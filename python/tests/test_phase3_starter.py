@@ -3,6 +3,7 @@ import datetime
 from datetime import timezone
 from unittest.mock import MagicMock
 
+from hexagon_core.capu_v3 import CaPUv3
 from hexagon_core.belief.lifecycle import BeliefLifecycleManager
 from hexagon_core.belief.models import Convict, ConvictStatus, ReinforcementEvent
 from hexagon_core.belief.events import BeliefDeprecatedEvent
@@ -158,3 +159,9 @@ class TestPhase3Starter:
         t1 = align_sys.calculate_alignment("Test")
         t2 = align_sys.calculate_alignment("Test")
         assert t1 == t2
+
+    def test_no_mission_duplication(self):
+        """Test that MissionState is not duplicated in CaPUv3."""
+        capu = CaPUv3()
+        # cleanup_observer.mission should point to the same object as capu.mission
+        assert capu.cleanup_observer.mission is capu.mission

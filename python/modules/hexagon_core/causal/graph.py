@@ -17,6 +17,18 @@ class CausalEdge:
     weight: float
     context: Dict[str, Any]
 
+    def __hash__(self):
+        # Hash based on ID and timestamp, ignoring mutable context
+        return hash((self.cause_id, self.effect_id, self.timestamp, self.weight))
+
+    def __eq__(self, other):
+        if not isinstance(other, CausalEdge):
+            return False
+        return (self.cause_id == other.cause_id and
+                self.effect_id == other.effect_id and
+                self.timestamp == other.timestamp and
+                self.weight == other.weight)
+
 class CausalGraph:
     """
     Manages cause-and-effect relationships between beliefs (Convicts) or events.
@@ -31,8 +43,14 @@ class CausalGraph:
         self._lock = threading.RLock()
         self._cycle_detector = CycleDetector()
 
-    def add_causal_link(self, cause_id: str, effect_id: str, weight: float, context: Dict[str, Any] = None) -> bool:
+    def add_causal_link(self, cause_id: str, effect_id: str, weight: float, context: Dict[str, Any] = None, lifecycle=None) -> bool:
         with self._lock:
+            # Validate belief existence
+            if lifecycle:
+                if cause_id not in lifecycle._convicts or effect_id not in lifecycle._convicts:
+                    logger.warning(f"❌ Cannot add causal link: {cause_id} or {effect_id} not found in lifecycle")
+                    return False
+
             # 1. Cycle Check
             # Build simple graph for detector
             simple_graph = {k: [e.effect_id for e in v] for k, v in self._downstream.items()}
@@ -73,27 +91,33 @@ class CausalGraph:
     def remove_belief(self, convict_id: str) -> None:
         """
         Removes all links involving this belief.
-        TODO: Optimize O(N) scan for Phase 3.1
         """
         with self._lock:
-            # Find edges to remove
-            to_remove = []
-            for edge in self._edges:
-                if edge.cause_id == convict_id or edge.effect_id == convict_id:
-                    to_remove.append(edge)
+            upstream_edges = self._upstream.get(convict_id, [])
+            downstream_edges = self._downstream.get(convict_id, [])
 
+            # Identify edges to remove
+            to_remove = set(upstream_edges) | set(downstream_edges)
+
+            if not to_remove:
+                return
+
+            # Remove from main list
+            self._edges = [e for e in self._edges if e not in to_remove]
+
+            # Remove from indices
             for edge in to_remove:
-                self._edges.remove(edge)
+                # Remove from upstream of effect
+                if edge.effect_id in self._upstream:
+                    if edge in self._upstream[edge.effect_id]:
+                        self._upstream[edge.effect_id].remove(edge)
 
-                # Update indices
-                if edge in self._upstream.get(edge.effect_id, []):
-                    self._upstream[edge.effect_id].remove(edge)
+                # Remove from downstream of cause
+                if edge.cause_id in self._downstream:
+                    if edge in self._downstream[edge.cause_id]:
+                        self._downstream[edge.cause_id].remove(edge)
 
-                if edge in self._downstream.get(edge.cause_id, []):
-                    self._downstream[edge.cause_id].remove(edge)
-
-            if to_remove:
-                logger.info(f"🗑️ Removed {len(to_remove)} causal links for belief {convict_id}")
+            logger.info(f"🗑️ Removed {len(to_remove)} causal links for belief {convict_id}")
 
     def get_edges(self) -> List[CausalEdge]:
          with self._lock:
