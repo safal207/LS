@@ -2,7 +2,7 @@ import logging
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger("MissionState")
 
@@ -48,7 +48,7 @@ class MissionState:
     def record_change(self, change_type: MissionChangeType, payload: Dict[str, Any]) -> None:
         """Records a modification to the mission state."""
         entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "type": change_type.value,
             "payload": payload
         }
@@ -124,6 +124,21 @@ class MissionState:
                 {"action": "create", "belief": belief_text, "full_data": convict}
             )
 
+    def remove_convict(self, belief_text: str) -> bool:
+        """
+        Removes a belief from adaptive beliefs.
+        """
+        initial_len = len(self.adaptive_beliefs)
+        self.adaptive_beliefs = [b for b in self.adaptive_beliefs if b.get('belief') != belief_text]
+
+        if len(self.adaptive_beliefs) < initial_len:
+            self.record_change(
+                MissionChangeType.NEW_CONVICT,
+                {"action": "remove", "belief": belief_text}
+            )
+            return True
+        return False
+
     def adjust_weight(self, layer: str, new_weight: float) -> bool:
         """Dynamically adjusts the importance of a cognitive layer."""
         if layer in self.weights:
@@ -141,7 +156,7 @@ class MissionState:
         """Returns a statistical summary of the mission state."""
         return {
             "core_principles_count": len(self.core_principles),
-            "core_principles": self.core_principles, # Added as per spec requirement for render
+            "core_principles": self.core_principles,
             "adaptive_beliefs_count": len(self.adaptive_beliefs),
             "total_changes": len(self.history),
             "top_priorities": sorted(self.weights.items(), key=lambda x: x[1], reverse=True)[:3]

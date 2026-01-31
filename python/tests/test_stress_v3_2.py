@@ -2,9 +2,9 @@ import pytest
 import time
 from unittest.mock import MagicMock, patch
 from hexagon_core.capu_v3 import CaPUv3, CognitiveContext
-from hexagon_core.missionstate import MissionState, MissionChangeType
+from hexagon_core.mission.state import MissionState, MissionChangeType
 from hexagon_core.cte import CognitiveTimelineEngine
-from hexagon_core.belief_system import ConvictStatus
+from hexagon_core.belief.models import ConvictStatus
 
 # Placeholder imports for new modules (to be implemented in Phase 1)
 try:

@@ -1,7 +1,7 @@
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any, Union
 
 logger = logging.getLogger("CTE")
@@ -13,7 +13,7 @@ class LiminalAnchor:
     decision: str
     alternatives: List[str]
     commitment: float
-    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     status: str = "locked"  # locked -> resolved -> archived
 
 
@@ -23,7 +23,7 @@ class InsightNode:
     parent_anchor_id: str
     content: str
     outcome_type: str  # "insight" | "conflict"
-    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class CognitiveTimelineEngine:
@@ -161,7 +161,7 @@ class CognitiveTimelineEngine:
 
             # Log to history
             self.oscillation_history.append({
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "new_decision": new_proposal,
                 "result": recommendation
             })
@@ -199,7 +199,7 @@ class CognitiveTimelineEngine:
 
         # 2. Proceed with creation
         # Use high-resolution timestamp to prevent ID collision in fast tests
-        anchor_id = f"anchor_{datetime.now().timestamp()}"
+        anchor_id = f"anchor_{datetime.now(timezone.utc).timestamp()}"
         anchor = LiminalAnchor(
             id=anchor_id,
             decision=decision,
@@ -248,7 +248,7 @@ class CognitiveTimelineEngine:
             "confidence": confidence,
             "origin": origin,
             "strength": 1,
-            "timestamp": datetime.now().timestamp(),
+            "timestamp": datetime.now(timezone.utc).timestamp(),
             "context_id": anchor_id # Useful for outcome conflicts
         }
 
@@ -265,7 +265,7 @@ class CognitiveTimelineEngine:
         if not anchor:
             return {"status": "error", "reason": "anchor_not_found"}
 
-        insight_id = f"insight_{datetime.now().timestamp()}"
+        insight_id = f"insight_{datetime.now(timezone.utc).timestamp()}"
         node = InsightNode(
             id=insight_id,
             parent_anchor_id=anchor.id,

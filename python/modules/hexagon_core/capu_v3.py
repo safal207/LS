@@ -7,12 +7,18 @@ from collections import deque
 from typing import Protocol, List, Optional, Dict, Any, Union, Tuple
 from dataclasses import dataclass, field
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from .cte import CognitiveTimelineEngine
-from .missionstate import MissionState
 from .homeostasis import HomeostasisMonitor
 from .compression import ActiveCompressionEngine
-from .belief_system import BeliefLifecycleManager, Convict
+
+# Phase 3 Modules
+from .mission.state import MissionState
+from .mission.cleanup import MissionCleanupObserver
+from .belief.lifecycle import BeliefLifecycleManager
+from .belief.models import Convict
+from .causal.graph import CausalGraph
+from .cot.core import COTCore
 
 logger = logging.getLogger("CaPU_v3")
 
@@ -66,11 +72,17 @@ class CaPUv3:
         # CTE: Liminal transitions + insights
         self._cte = CognitiveTimelineEngine()
 
-        # Phase 2: Convict Dynamics (Belief System)
-        self.lifecycle = BeliefLifecycleManager()
-
-        # Mission State: Goals, Values, Priorities
+        # Phase 3: Mission System
         self.mission = MissionState()
+        self.cleanup_observer = MissionCleanupObserver(self.mission)
+
+        # Phase 3: Belief System & Lifecycle
+        self.lifecycle = BeliefLifecycleManager()
+        self.lifecycle.add_observer(self.cleanup_observer)
+
+        # Phase 3: Causal & COT
+        self.causal_graph = CausalGraph()
+        self.cot = COTCore(self.lifecycle, self.causal_graph, self.mission)
 
         # Phase 1: Cognitive Homeostasis & Compression
         self.homeostasis = HomeostasisMonitor(self)
@@ -150,7 +162,7 @@ class CaPUv3:
                 self.cold_storage.append({
                     "type": layer_type,
                     "data": old_item,
-                    "archived_at": datetime.now().isoformat()
+                    "archived_at": datetime.now(timezone.utc).isoformat()
                 })
 
     # --- v3 Cognitive Interface ---
@@ -165,7 +177,7 @@ class CaPUv3:
         self._intent = {
             "intent": intent,
             "context": context,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "alignment": alignment
         }
 
@@ -181,7 +193,7 @@ class CaPUv3:
         self._procedures.append({
             "task": task,
             "steps": steps,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
         self._archive_old_data()
 
@@ -224,10 +236,6 @@ class CaPUv3:
 
         if result["status"] == "success" and result.get("convict"):
             candidate = result["convict"]
-            # Check if belief exists to decide register or reinforce
-            # Simpler: just call register which handles existence check internally
-            # (or returns existing), then reinforce.
-
             # Phase 2 spec: "register_belief(text, metadata)"
             meta = {
                 "origin": candidate["origin"],
@@ -235,7 +243,7 @@ class CaPUv3:
             }
             convict = self.lifecycle.register_belief(candidate["belief"], meta)
 
-            # Initial reinforcement or subsequent reinforcement
+            # Initial reinforcement
             self.lifecycle.reinforce(
                 convict.id,
                 source="cte_outcome",
@@ -258,14 +266,14 @@ class CaPUv3:
         return self.lifecycle.reinforce(convict_id, source, context, strength)
 
     def maybe_update_cognitive_state(self):
-        """Triggers decay and contradiction detection with throttling (5 mins)."""
-        now = datetime.now()
+        """Triggers maintenance tasks: decay, contradiction, COT loop."""
+        now = datetime.now(timezone.utc)
         if not hasattr(self, "_last_maintenance"):
             self._last_maintenance = None
 
         if self._last_maintenance is None or (now - self._last_maintenance).total_seconds() > 300:
             self.lifecycle.decay_all(now)
-            self.lifecycle.detect_contradictions()
+            self.cot.run_cot_cycle()
             self._last_maintenance = now
 
     def update_cognitive_state(self):
