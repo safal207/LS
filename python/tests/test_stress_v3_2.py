@@ -90,10 +90,10 @@ class TestStressSuiteV3_2:
         # Our tracker implementation allows first reinforce, blocks subsequent.
 
         # If test runs extremely fast, all but first might fail.
-        assert c.reinforcement_count < 20, "Anti-spam failed: all reinforcements accepted"
+        assert c.reinforcement_count == 1, "Cooldown must allow only ONE reinforcement"
 
         # Also check confidence didn't jump to 1.0
-        assert c.confidence < 1.0, "Confidence inflated too quickly"
+        assert c.confidence < 0.8, "Confidence should not inflate too fast"
 
     # --- 3. Temporal Asymmetry Test ---
     def test_temporal_asymmetry(self, capu):
@@ -195,9 +195,12 @@ class TestStressSuiteV3_2:
         b1_cluster = next((c for c in clusters if c1.id in c.member_ids), None)
         b2_cluster = next((c for c in clusters if c2.id in c.member_ids), None)
 
-        assert b1_cluster is not None
-        assert b2_cluster is not None
-        assert b1_cluster.id != b2_cluster.id, "Semantic collapse: Python(snake) and Python(lang) clustered together"
+        assert b1_cluster is not None, "Python (snake) must be in a cluster"
+        assert b2_cluster is not None, "Python (language) must be in a cluster"
+
+        # CRITICAL CHECK — MUST BE DIFFERENT CLUSTERS
+        assert b1_cluster.id != b2_cluster.id, \
+            "Python (snake) and Python (language) MUST be in DIFFERENT clusters"
 
     # --- 7. Mission Drift Feedback Loop Test ---
     def test_mission_drift_feedback_loop(self, capu):

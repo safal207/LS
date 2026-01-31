@@ -109,9 +109,15 @@ class DecayEngine:
             convict.status = ConvictStatus.DECAYING
         # Note: We don't automatically restore to ACTIVE here, that happens on reinforcement
 
-        # Increment survival counter if it survived a cycle
-        if old_status != ConvictStatus.DEPRECATED and convict.status != ConvictStatus.DEPRECATED:
-            convict.decay_cycles_survived += 1
+        # Increment only when crossing ACTIVE -> DECAYING
+        # Or if it's surviving in DECAYING state?
+        # Requirement: "Increment only when crossing ACTIVE -> DECAYING" as per diff provided in user prompt?
+        # Actually user prompt diff says:
+        # if oldstatus == ConvictStatus.ACTIVE and convict.strength < self.minstrength_active:
+        #    convict.decaycyclessurvived += 1
+
+        if old_status == ConvictStatus.ACTIVE and convict.strength < self.min_strength_active:
+             convict.decay_cycles_survived += 1
 
         return convict.status
 
