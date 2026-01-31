@@ -1,13 +1,12 @@
 import pytest
 import time
 from datetime import datetime, timedelta
-from hexagon_core.belief_system import (
+from hexagon_core.belief.lifecycle import (
     BeliefLifecycleManager,
-    ConvictStatus,
     DecayEngine,
-    ReinforcementTracker,
-    Convict
+    ReinforcementTracker
 )
+from hexagon_core.belief.models import Convict, ConvictStatus
 
 class TestBeliefSystem:
 

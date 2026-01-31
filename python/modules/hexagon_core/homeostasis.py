@@ -1,7 +1,7 @@
 import logging
 import random
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from collections import deque
 
@@ -16,7 +16,7 @@ class StabilityMetrics:
     variability_score: float
     layer_balance_score: float
     is_locked: bool
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 @dataclass
 class Recommendation:
@@ -32,7 +32,7 @@ class HomeostasisReport:
     is_locked: bool
     metrics: StabilityMetrics
     recommendations: List[Recommendation]
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 class RecoveryProtocols:
     """Emergency protocols for cognitive instability"""

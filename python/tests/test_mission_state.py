@@ -5,7 +5,7 @@ from pathlib import Path
 # Ensure python/ directory is in sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from modules.hexagon_core.missionstate import MissionState, MissionChangeType
+from modules.hexagon_core.mission.state import MissionState, MissionChangeType
 
 class TestMissionState(unittest.TestCase):
     def setUp(self):
