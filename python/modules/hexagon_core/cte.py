@@ -25,41 +25,6 @@ class InsightNode:
     outcome_type: str  # "insight" | "conflict"
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
-@dataclass
-class Convict:
-    belief: str
-    evidence: Dict[str, Any]
-    confidence: float        # 0.0..1.0
-    origin: str              # "liminal_experience" | "direct_learning" | "user_instruction" | "system_inference"
-    strength: int
-    timestamp: float         # epoch seconds
-    last_validated: float    # epoch seconds
-
-    def validate(self, new_evidence: Dict[str, Any]) -> bool:
-        """
-        Validates the belief against new evidence.
-        - supports=True: increases confidence/strength
-        - supports=False: decreases confidence, potentially weakens
-        """
-        supports = new_evidence.get("supports", True)
-        now = datetime.now().timestamp()
-        self.last_validated = now
-
-        if supports:
-            self.confidence = min(1.0, self.confidence + 0.1)
-            self.strength += 1
-            # Update evidence to latest
-            self.evidence = new_evidence
-            return True
-        else:
-            self.confidence = max(0.0, self.confidence - 0.2)
-            # Evidence of conflict?
-            return False
-
-    @property
-    def weakened(self) -> bool:
-        return self.confidence < 0.5
-
 
 class CognitiveTimelineEngine:
     """
@@ -68,14 +33,12 @@ class CognitiveTimelineEngine:
     - Insights/Conflicts (Consequences)
     - Causal Chain: Choice -> Outcome
     - Oscillation Control (Anti-Runaway)
-    - Convict Formation (Beliefs)
+    - Convict Formation (Beliefs) -> Delegated to BeliefLifecycleManager
     """
 
     def __init__(self) -> None:
         self._anchors: Dict[str, LiminalAnchor] = {}
         self._insights: Dict[str, InsightNode] = {}
-        # Key = belief string (consolidated)
-        self._convicts: Dict[str, Convict] = {}
 
         self.active_anchor_id: Optional[str] = None
         self._trajectory: List[str] = []  # Stores node IDs in chronological order
@@ -257,6 +220,7 @@ class CognitiveTimelineEngine:
     def form_convict(self, anchor_id: str) -> Optional[Dict[str, Any]]:
         """
         Attempts to form a belief (Convict) from the last outcome of an anchor.
+        Returns candidate data, does NOT store it.
         """
         # Find last insight for this anchor
         target_insight = None
@@ -276,35 +240,16 @@ class CognitiveTimelineEngine:
         confidence = 0.7
         origin = "direct_learning"
 
-        # Check if belief exists
-        if belief in self._convicts:
-            convict = self._convicts[belief]
-            convict.validate(evidence)
-            # Override evidence with new one as per spec
-            convict.evidence = evidence
-        else:
-            convict = Convict(
-                belief=belief,
-                evidence=evidence,
-                confidence=confidence,
-                origin=origin,
-                strength=1,
-                timestamp=datetime.now().timestamp(),
-                last_validated=datetime.now().timestamp()
-            )
-            self._convicts[belief] = convict
-            logger.info(f"🧠 CONVICT FORMED: {convict.belief}")
-
-        c = self._convicts[belief]
+        # Return candidate data structure
+        # The LifecycleManager will decide if it's new or reinforcement
         return {
-            "belief": c.belief,
-            "evidence": c.evidence,
-            "confidence": c.confidence,
-            "origin": c.origin,
-            "strength": c.strength,
-            "timestamp": c.timestamp,
-            "last_validated": c.last_validated,
-            "weakened": c.weakened
+            "belief": belief,
+            "evidence": evidence,
+            "confidence": confidence,
+            "origin": origin,
+            "strength": 1,
+            "timestamp": datetime.now().timestamp(),
+            "context_id": anchor_id # Useful for outcome conflicts
         }
 
     def register_outcome(self, content: str, outcome_type: str = "insight") -> Dict[str, Any]:
@@ -346,24 +291,6 @@ class CognitiveTimelineEngine:
             "insight_id": insight_id,
             "convict": convict_data
         }
-
-    def get_convicts(self, min_confidence: float = 0.7) -> List[Dict[str, Any]]:
-        """Retrieves active beliefs meeting confidence threshold, sorted."""
-        candidates = [c for c in self._convicts.values() if c.confidence >= min_confidence]
-
-        # Sort: confidence desc, strength desc, last_validated desc
-        candidates.sort(key=lambda x: (x.confidence, x.strength, x.last_validated), reverse=True)
-
-        results = []
-        for c in candidates:
-            results.append({
-                "belief": c.belief,
-                "confidence": c.confidence,
-                "strength": c.strength,
-                "origin": c.origin,
-                "last_validated": c.last_validated
-            })
-        return results
 
     # --------- Read-only views for CaPUv3 ---------
 

@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 from hexagon_core.capu_v3 import CaPUv3, CognitiveContext
 from hexagon_core.missionstate import MissionState, MissionChangeType
 from hexagon_core.cte import CognitiveTimelineEngine
+from hexagon_core.belief_system import ConvictStatus
 
 # Placeholder imports for new modules (to be implemented in Phase 1)
 try:
@@ -75,7 +76,24 @@ class TestStressSuiteV3_2:
         Success Criteria: Promotion rejected, Confidence growth controlled.
         Mitigation: Anti-Promotion Cooldown.
         """
-        pytest.skip("Phase 2: Convict Dynamics v2 pending")
+        c = capu.register_belief("The earth is flat", {})
+
+        # Try to reinforce 20 times rapidly (spam)
+        start_count = c.reinforcement_count
+
+        for _ in range(20):
+             capu.reinforce_belief(c.id, "spam_bot", {}, 1.0)
+
+        # Due to cooldown (default 60s), subsequent reinforcements in this loop should be rejected
+        # So count should increase by at most 1 (the first one)
+        # (Assuming initial register does not count as reinforcement, or tracker handles it)
+        # Our tracker implementation allows first reinforce, blocks subsequent.
+
+        # If test runs extremely fast, all but first might fail.
+        assert c.reinforcement_count == 1, "Cooldown must allow only ONE reinforcement"
+
+        # Also check confidence didn't jump to 1.0
+        assert c.confidence < 0.8, "Confidence should not inflate too fast"
 
     # --- 3. Temporal Asymmetry Test ---
     def test_temporal_asymmetry(self, capu):
@@ -85,7 +103,7 @@ class TestStressSuiteV3_2:
         Success Criteria: Temporal contradiction detected.
         Mitigation: Temporal Contradiction Detector.
         """
-        pytest.skip("Phase 2: TemporalContextEngine pending")
+        pytest.skip("Phase 2: TemporalContextEngine pending (Phase 3?)")
 
     # --- 4. Blind Spot Collapse Test ---
     def test_blind_spot_collapse(self, capu):
@@ -159,36 +177,30 @@ class TestStressSuiteV3_2:
         Success Criteria: Separate clusters.
         Mitigation: Semantic Disambiguator.
         """
-        if not ActiveCompressionEngine:
-            pytest.skip("Phase 1: ActiveCompressionEngine not implemented yet")
+        # Phase 2: Use Lifecycle Manager's cluster engine
 
-        # Inject conflicting beliefs into CTE convicts (mocking)
-        # Using the scaffolded Compression Engine to analyze them
+        c1 = capu.register_belief("Python is a large constricting snake", {})
+        c2 = capu.register_belief("Python is a popular programming language", {})
+        c3 = capu.register_belief("Cobras are venomous snakes", {})
+        c4 = capu.register_belief("Rust is a systems programming language", {})
 
-        beliefs = [
-            {"belief": "Python is a large constricting snake", "id": "b1"},
-            {"belief": "Python is a popular programming language", "id": "b2"},
-            {"belief": "Cobras are venomous snakes", "id": "b3"},
-            {"belief": "Rust is a systems programming language", "id": "b4"}
-        ]
-
-        # Manually populate capu._cte._convicts for the test context
-        # (Assuming we have a way to mock this or using the engine directly)
-
-        clusters = capu.compression.cluster_engine.cluster_raw_data(beliefs)
+        clusters = capu.lifecycle.cluster_manager.cluster([c1, c2, c3, c4])
 
         # We expect:
         # Cluster A: Snake, Cobra
         # Cluster B: Python (Lang), Rust
 
-        # Check that b1 and b2 are NOT in the same cluster
+        # Check that c1 and c2 are NOT in the same cluster
 
-        b1_cluster = next((c for c in clusters if "b1" in c.member_ids), None)
-        b2_cluster = next((c for c in clusters if "b2" in c.member_ids), None)
+        b1_cluster = next((c for c in clusters if c1.id in c.member_ids), None)
+        b2_cluster = next((c for c in clusters if c2.id in c.member_ids), None)
 
-        assert b1_cluster is not None
-        assert b2_cluster is not None
-        assert b1_cluster.id != b2_cluster.id, "Semantic collapse: Python(snake) and Python(lang) clustered together"
+        assert b1_cluster is not None, "Python (snake) must be in a cluster"
+        assert b2_cluster is not None, "Python (language) must be in a cluster"
+
+        # CRITICAL CHECK — MUST BE DIFFERENT CLUSTERS
+        assert b1_cluster.id != b2_cluster.id, \
+            "Python (snake) and Python (language) MUST be in DIFFERENT clusters"
 
     # --- 7. Mission Drift Feedback Loop Test ---
     def test_mission_drift_feedback_loop(self, capu):
