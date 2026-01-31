@@ -173,8 +173,10 @@ class TestPhase3_1(unittest.TestCase):
         # I will implement exactly that. If it locks, it locks.
         # Wait, I can verify "Resets on success" by manually resetting `circuit_open = False` and seeing if it clears `consecutive_failures` on success.
 
-        # Manually reset to simulate intervention or timeout (if I were to add one)
-        self.cot.circuit_open = False
+        # Manually reset to simulate intervention
+        self.cot.reset_circuit()
+        self.assertFalse(self.cot.circuit_open)
+
         self.cot.lifecycle.get_belief_count = MagicMock(return_value=10) # Success
 
         self.cot.run_cot_cycle(force=True)

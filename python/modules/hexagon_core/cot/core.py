@@ -30,6 +30,12 @@ class COTCore:
         self.consecutive_failures = 0
         self.circuit_open = False
 
+    def reset_circuit(self):
+        """Manually reset circuit breaker state."""
+        self.consecutive_failures = 0
+        self.circuit_open = False
+        logger.warning("COT circuit breaker manually reset.")
+
     def run_cot_cycle(self, force: bool = False):
         """
         Executes the COT loop.
@@ -107,5 +113,5 @@ class COTCore:
             self.consecutive_failures += 1
             if self.consecutive_failures >= 3:
                 self.circuit_open = True
-                logger.error("Circuit breaker OPENED due to repeated failures.")
+                logger.error("COT circuit breaker OPENED after 3 consecutive failures.")
             logger.error(f"❌ COT cycle failed: {e}", exc_info=True)
