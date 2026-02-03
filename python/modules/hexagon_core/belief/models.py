@@ -25,6 +25,7 @@ class Convict:
     strength: float    # 0.0 - 1.0 (Inertia/Resilience)
     created_at: datetime
     last_reinforced_at: Optional[datetime] = None
+    last_updated_at: Optional[datetime] = None
     reinforcement_count: int = 0
     reinforcement_history: List[ReinforcementEvent] = field(default_factory=list)
     status: ConvictStatus = ConvictStatus.ACTIVE

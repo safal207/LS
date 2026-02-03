@@ -12,3 +12,4 @@ from .models import (
     Contradiction,
     BeliefCluster
 )
+from .temporal_index import TemporalIndex
