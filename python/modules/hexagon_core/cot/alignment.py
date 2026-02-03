@@ -3,6 +3,12 @@ from typing import Dict, Any, List
 from ..mission.state import MissionState
 from ..causal.graph import CausalGraph
 
+STOPWORDS = {
+    "is","a","the","an","of","and","or","to","in","on","at",
+    "are","it","this","that","we","must","can","should","will",
+    "be","as","for","with","by","from","not","but","have","has"
+}
+
 class AlignmentSystem:
     """
     Calculates alignment of beliefs with Mission State and determines trajectory.
@@ -12,6 +18,15 @@ class AlignmentSystem:
         self._cache: Dict[str, Dict[str, Any]] = {} # text -> {score, timestamp}
         self.cache_ttl = 60.0
 
+        # Cleanup params
+        self.cleanup_threshold = 100
+        self.cleanup_frequency = 10
+        self.cleanup_counter = 0
+
+        # Metrics
+        self.cache_hits = 0
+        self.cache_misses = 0
+
     def cleanup_cache(self):
         """Removes expired cache entries."""
         now = time.time()
@@ -19,25 +34,46 @@ class AlignmentSystem:
         for k in expired:
             del self._cache[k]
 
+    def get_cache_stats(self) -> Dict[str, Any]:
+        total = self.cache_hits + self.cache_misses
+        return {
+            "hits": self.cache_hits,
+            "misses": self.cache_misses,
+            "hit_rate": self.cache_hits / total if total > 0 else 0.0,
+        }
+
     def calculate_alignment(self, belief_text: str) -> float:
         """
         Calculates alignment score (0.0 - 1.0).
         Uses Jaccard similarity with Mission core principles.
         """
-        self.cleanup_cache()
+        self.cleanup_counter += 1
+        if len(self._cache) > self.cleanup_threshold or \
+           self.cleanup_counter >= self.cleanup_frequency:
+            self.cleanup_cache()
+            self.cleanup_counter = 0
+
         now = time.time()
 
         if belief_text in self._cache:
             entry = self._cache[belief_text]
             if now - entry["timestamp"] < self.cache_ttl:
+                self.cache_hits += 1
                 return entry["score"]
+
+        self.cache_misses += 1
 
         # Spec: "Jaccard po mission keywords"
         mission_keywords = set()
         for p in self.mission.core_principles:
             mission_keywords.update(p.lower().split())
 
+        # Apply stopwords
+        mission_keywords = {w for w in mission_keywords if w not in STOPWORDS}
+
         belief_words = set(belief_text.lower().split())
+        belief_words = {w for w in belief_words if w not in STOPWORDS}
+
         if not mission_keywords or not belief_words:
             score = 0.5
         else:

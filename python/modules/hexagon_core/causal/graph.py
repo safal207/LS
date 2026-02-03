@@ -1,11 +1,13 @@
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional, Set
+from typing import Dict, List, Any, Optional, Set, TYPE_CHECKING
 import logging
 
 from .cycle_detector import CycleDetector
-# from .temporal_index import TemporalIndex # Optional for now
+
+if TYPE_CHECKING:
+    from ..belief.lifecycle import BeliefLifecycleManager
 
 logger = logging.getLogger("CausalGraph")
 
@@ -43,11 +45,11 @@ class CausalGraph:
         self._lock = threading.RLock()
         self._cycle_detector = CycleDetector()
 
-    def add_causal_link(self, cause_id: str, effect_id: str, weight: float, context: Dict[str, Any] = None, lifecycle=None) -> bool:
+    def add_causal_link(self, cause_id: str, effect_id: str, weight: float, context: Dict[str, Any] = None, lifecycle: Optional['BeliefLifecycleManager'] = None) -> bool:
         with self._lock:
             # Validate belief existence
             if lifecycle:
-                if cause_id not in lifecycle._convicts or effect_id not in lifecycle._convicts:
+                if not lifecycle.belief_exists(cause_id) or not lifecycle.belief_exists(effect_id):
                     logger.warning(f"❌ Cannot add causal link: {cause_id} or {effect_id} not found in lifecycle")
                     return False
 

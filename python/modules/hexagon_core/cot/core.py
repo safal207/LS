@@ -26,10 +26,24 @@ class COTCore:
         self._last_cycle_time = 0.0
         self._belief_count_at_last_cycle = 0
 
+        # Circuit Breaker
+        self.consecutive_failures = 0
+        self.circuit_open = False
+
+    def reset_circuit(self):
+        """Manually reset circuit breaker state."""
+        self.consecutive_failures = 0
+        self.circuit_open = False
+        logger.warning("COT circuit breaker manually reset.")
+
     def run_cot_cycle(self, force: bool = False):
         """
         Executes the COT loop.
         """
+        if self.circuit_open:
+            logger.error("Circuit breaker OPEN — skipping COT cycle.")
+            return
+
         try:
             now_ts = time.time()
             current_belief_count = self.lifecycle.get_belief_count()
@@ -89,7 +103,15 @@ class COTCore:
 
             self._last_cycle_time = now_ts
             self._belief_count_at_last_cycle = current_belief_count
+
+            # Reset circuit breaker on success
+            self.consecutive_failures = 0
+
             logger.info("✅ COT Cycle Complete.")
 
         except Exception as e:
+            self.consecutive_failures += 1
+            if self.consecutive_failures >= 3:
+                self.circuit_open = True
+                logger.error("COT circuit breaker OPENED after 3 consecutive failures.")
             logger.error(f"❌ COT cycle failed: {e}", exc_info=True)

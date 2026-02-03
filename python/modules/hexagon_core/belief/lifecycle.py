@@ -254,6 +254,10 @@ class BeliefLifecycleManager:
                 except Exception as e:
                     logger.error(f"Observer error: {e}")
 
+    def belief_exists(self, convict_id: str) -> bool:
+        """Return True if a belief with this ID exists."""
+        return convict_id in self._convicts
+
     def register_belief(self, text: str, metadata: Dict[str, Any] = None) -> Convict:
         for c in self._convicts.values():
             if c.belief == text:
