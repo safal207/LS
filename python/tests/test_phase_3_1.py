@@ -88,7 +88,9 @@ class TestPhase3_1(unittest.TestCase):
             # Call 2: counter 2
             # Call 3: counter 3 >= 3 -> cleanup() called.
 
-            self.assertGreaterEqual(mock_cleanup.call_count, 1)
+            # If unconditional cleanup was present, call_count would be 5.
+            # With lazy cleanup (freq=3), it should be 1 (at the 3rd call).
+            self.assertEqual(mock_cleanup.call_count, 1, f"Cleanup called {mock_cleanup.call_count} times, expected 1 (lazy)")
 
             # Check metrics
             stats = self.alignment.get_cache_stats()
