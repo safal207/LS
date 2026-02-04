@@ -89,20 +89,23 @@ class AgentLoop:
     def _utc_now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
 
-    def _map_sink_event(self, event_type: EventType) -> str:
+    def _map_sink_event(self, event_type: EventType) -> str | None:
         mapping = {
             "input_received": "input",
             "output_ready": "output",
             "cancelled": "cancel",
             "state_change": "state_change",
+            "metrics": "metrics",
         }
-        return mapping.get(event_type, event_type)
+        return mapping.get(event_type)
 
     def _emit_observability(self, event_type: EventType, payload: dict) -> None:
         if not self.observability_enabled:
             return
         state = self.temporal.state if self.temporal else "unknown"
         sink_type = self._map_sink_event(event_type)
+        if sink_type is None:
+            return
         timestamp = self._utc_now_iso()
         if sink_type == "metrics":
             event = {
@@ -141,6 +144,12 @@ class AgentLoop:
         with self._task_lock:
             if key in self.metrics and isinstance(value, (int, float)):
                 self.metrics[key] = value
+
+    def _track_cancellation(self, cancel_event: threading.Event) -> None:
+        if getattr(cancel_event, "_counted", False):
+            return
+        setattr(cancel_event, "_counted", True)
+        self._increment_metric("cancellations", 1)
 
     def _increment_metric(self, key: str, delta: int = 1) -> None:
         with self._task_lock:
@@ -188,7 +197,7 @@ class AgentLoop:
         if self._active_thread and self._active_thread.is_alive() and self._active_cancel:
             self._active_cancel.set()
             self._emit("cancelled", {"reason": reason})
-            self._increment_metric("cancellations", 1)
+            self._track_cancellation(self._active_cancel)
             if self.cancel_grace_ms:
                 self._cancel_grace_until = time.time() + (self.cancel_grace_ms / 1000.0)
 
@@ -217,6 +226,7 @@ class AgentLoop:
 
             if cancel_event.is_set():
                 self._emit("cancelled", {"question": question})
+                self._track_cancellation(cancel_event)
                 return
 
             self._emit("llm_started", {"question": question})
@@ -228,7 +238,7 @@ class AgentLoop:
 
             if not self._is_active(task_id, cancel_event):
                 self._emit("cancelled", {"question": question})
-                self._increment_metric("cancellations", 1)
+                self._track_cancellation(cancel_event)
                 return
 
             self._emit("llm_finished", {
@@ -316,9 +326,11 @@ class AgentLoop:
                     continue
 
                 self._cancel_active("superseded")
+                # latest-wins semantics: keep only the most recent pending item
                 self._pending_item = item
                 self._transition("listening")
                 try:
+                    # We do not rely on queue.join(); task_done is called immediately.
                     self.input_queue.task_done()
                 except Exception:
                     pass
@@ -333,6 +345,7 @@ class AgentLoop:
                 except queue.Empty:
                     continue
                 try:
+                    # We do not rely on queue.join(); task_done is called immediately.
                     self.input_queue.task_done()
                 except Exception:
                     pass
