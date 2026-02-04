@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import queue
+import threading
 import time
 from typing import Any, Callable, Optional
 
@@ -35,15 +36,53 @@ class AgentLoop:
         if temporal_enabled and self.temporal is None:
             self.temporal = TemporalContext()
 
+        self.memory: dict[str, Any] = {}
+        self._task_lock = threading.Lock()
+        self._task_counter = 0
+        self._active_task_id = 0
+        self._active_thread: threading.Thread | None = None
+        self._active_cancel: threading.Event | None = None
+        self._pending_item: dict | None = None
+
+    def _next_task_id(self) -> int:
+        with self._task_lock:
+            self._task_counter += 1
+            return self._task_counter
+
+    def _set_active(self, task_id: int, cancel_event: threading.Event, thread: threading.Thread | None) -> None:
+        self._active_task_id = task_id
+        self._active_cancel = cancel_event
+        self._active_thread = thread
+
+    def _is_active(self, task_id: int, cancel_event: threading.Event) -> bool:
+        if cancel_event.is_set():
+            return False
+        return task_id == self._active_task_id
+
     def _emit(self, event_type: EventType, payload: dict | None = None) -> None:
         if not self.on_event:
             return
         self.on_event(AgentEvent(type=event_type, payload=payload or {}))
 
-    def _transition(self, state: str) -> None:
+    def _transition(self, state: str, *, task_id: int | None = None) -> None:
+        if task_id is not None and task_id != self._active_task_id:
+            return
         if self.temporal:
             self.temporal.transition(state)
         self._emit("state_changed", {"state": state})
+
+    def _remember_question(self, question: str) -> None:
+        self.memory["last_question"] = question
+        self.memory["last_question_ts"] = time.time()
+        if self.temporal is not None:
+            self.temporal.metadata["last_question"] = question
+
+    def _remember_answer(self, answer: Any, duration: float) -> None:
+        self.memory["last_answer"] = answer
+        self.memory["last_answer_ts"] = time.time()
+        self.memory["last_duration"] = duration
+        if self.temporal is not None:
+            self.temporal.metadata["last_answer"] = answer
 
     def _format_response(self, response: Any) -> Any:
         if self.llm and hasattr(self.llm, "format_response"):
@@ -53,26 +92,55 @@ class AgentLoop:
                 return response
         return response
 
-    def _process(self, question: str) -> Any:
+    def _process(self, question: str, cancel_event: threading.Event) -> Any:
         if self.llm:
-            return self.llm.generate_response(question)
+            try:
+                return self.llm.generate_response(question, cancel_event=cancel_event)
+            except TypeError:
+                return self.llm.generate_response(question)
         return self.handler(question)
 
-    def handle_item(self, item: dict) -> None:
+    def _cancel_active(self, reason: str) -> None:
+        if self._active_thread and self._active_thread.is_alive() and self._active_cancel:
+            self._active_cancel.set()
+            self._emit("cancelled", {"reason": reason})
+
+    def _start_task(self, item: dict) -> None:
+        task_id = self._next_task_id()
+        cancel_event = threading.Event()
+        thread = threading.Thread(
+            target=self._process_item,
+            args=(item, task_id, cancel_event),
+            daemon=True,
+        )
+        self._set_active(task_id, cancel_event, thread)
+        thread.start()
+
+    def _process_item(self, item: dict, task_id: int, cancel_event: threading.Event) -> None:
         try:
             self._emit("input_received", {"item": item})
-            self._transition("listening")
+            self._transition("listening", task_id=task_id)
 
             if item.get("type") != "question":
                 return
 
             question = item.get("text", "")
+            self._remember_question(question)
+
+            if cancel_event.is_set():
+                self._emit("cancelled", {"question": question})
+                return
+
             self._emit("llm_started", {"question": question})
-            self._transition("thinking")
+            self._transition("thinking", task_id=task_id)
 
             start = time.time()
-            result = self._process(question)
+            result = self._process(question, cancel_event)
             duration = time.time() - start
+
+            if not self._is_active(task_id, cancel_event):
+                self._emit("cancelled", {"question": question})
+                return
 
             self._emit("llm_finished", {
                 "question": question,
@@ -81,15 +149,17 @@ class AgentLoop:
             })
 
             if result is not None or self.handler is not None:
-                self._transition("responding")
+                self._transition("responding", task_id=task_id)
 
             payload = None
             if isinstance(result, dict):
                 payload = result
             elif result is not None:
+                formatted = self._format_response(result)
+                self._remember_answer(formatted, duration)
                 payload = {
                     "question": question,
-                    "response": self._format_response(result),
+                    "response": formatted,
                     "generation_time": duration,
                     "timestamp": time.time(),
                 }
@@ -108,7 +178,14 @@ class AgentLoop:
         except Exception as exc:
             self._emit("error", {"message": str(exc)})
         finally:
-            self._transition("idle")
+            if self._is_active(task_id, cancel_event):
+                self._transition("idle", task_id=task_id)
+
+    def handle_item(self, item: dict) -> None:
+        task_id = self._next_task_id()
+        cancel_event = threading.Event()
+        self._set_active(task_id, cancel_event, None)
+        self._process_item(item, task_id, cancel_event)
 
     def handle_input(self, text: str) -> None:
         self.handle_item({
@@ -133,18 +210,37 @@ class AgentLoop:
 
         self.running = True
         while self.running:
-            try:
-                item = self.input_queue.get(timeout=1.0)
-            except queue.Empty:
+            if self._active_thread and self._active_thread.is_alive():
+                try:
+                    item = self.input_queue.get(timeout=0.2)
+                except queue.Empty:
+                    continue
+
+                self._cancel_active("superseded")
+                self._pending_item = item
+                self._transition("listening")
+                try:
+                    self.input_queue.task_done()
+                except Exception:
+                    pass
                 continue
 
-            try:
-                self.handle_item(item)
-            finally:
+            if self._pending_item is not None:
+                item = self._pending_item
+                self._pending_item = None
+            else:
+                try:
+                    item = self.input_queue.get(timeout=0.2)
+                except queue.Empty:
+                    continue
                 try:
                     self.input_queue.task_done()
                 except Exception:
                     pass
 
+            self._start_task(item)
+
     def stop(self) -> None:
         self.running = False
+        if self._active_cancel:
+            self._active_cancel.set()

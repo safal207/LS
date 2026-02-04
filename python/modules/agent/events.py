@@ -10,6 +10,7 @@ EventType = Literal[
     "llm_finished",
     "output_ready",
     "state_changed",
+    "cancelled",
     "error",
 ]
 
