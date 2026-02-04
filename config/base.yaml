@@ -12,6 +12,10 @@ llm:
   model_name: qwen2.5:7b
   use_cloud: false
   use_cotcore: false
+  use_breaker: false
+  breaker:
+    failure_threshold: 3
+    cooldown_seconds: 10
   system_prompt: |
     You are a senior developer interviewing candidates. 
     Provide concise, bullet-point answers suitable for technical interviews.
