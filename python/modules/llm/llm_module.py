@@ -11,16 +11,19 @@ import logging
 import queue
 import threading
 from typing import Optional, Dict
+from llm.cot_adapter import COTAdapter
 from llm.qwen_handler import QwenHandler
-from config import OLLAMA_HOST, LLM_MODEL_NAME, SYSTEM_PROMPT, USE_CLOUD_LLM, GROQ_API_KEY
+from config import OLLAMA_HOST, LLM_MODEL_NAME, SYSTEM_PROMPT, USE_CLOUD_LLM, GROQ_API_KEY, USE_COTCORE
 
 logger = logging.getLogger(__name__)
 
 class LanguageModel:
-    def __init__(self, input_queue: queue.Queue, output_queue: queue.Queue):
+    def __init__(self, input_queue: queue.Queue, output_queue: queue.Queue, use_cotcore: Optional[bool] = None):
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.running = False
+        self.use_cotcore = USE_COTCORE if use_cotcore is None else use_cotcore
+        self.cot_adapter = COTAdapter() if self.use_cotcore else None
         
         # Initialize Qwen handler
         import os
@@ -29,6 +32,12 @@ class LanguageModel:
             use_cloud_api=USE_CLOUD_LLM,
             api_key=qwen_api_key
         )
+
+    def _compose_prompt(self, question: str) -> str:
+        prompt = f"{SYSTEM_PROMPT}\n\n\u0412\u043e\u043f\u0440\u043e\u0441: {question}\n\u041e\u0442\u0432\u0435\u0442:"
+        if self.cot_adapter:
+            return self.cot_adapter.process(question, prompt)
+        return prompt
 
     def test_ollama_connection(self) -> bool:
         """Test connection to Ollama server"""
@@ -48,7 +57,7 @@ class LanguageModel:
     def generate_response_local(self, question: str) -> Optional[str]:
         """Generate response using local Ollama Qwen"""
         try:
-            prompt = f"{SYSTEM_PROMPT}\n\nВопрос: {question}\nОтвет:"
+            prompt = self._compose_prompt(question)
             
             logger.debug(f"Sending to Qwen: {question[:50]}...")
             
@@ -68,7 +77,7 @@ class LanguageModel:
     def generate_response_cloud(self, question: str) -> Optional[str]:
         """Generate response using cloud Qwen API"""
         try:
-            prompt = f"{SYSTEM_PROMPT}\n\nВопрос: {question}\nОтвет:"
+            prompt = self._compose_prompt(question)
             
             logger.debug(f"Sending to Qwen Cloud: {question[:50]}...")
             
