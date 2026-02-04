@@ -6,7 +6,7 @@ import time
 from typing import Any, Callable, Optional
 
 from llm.temporal import TemporalContext
-from cognitive_flow import PresenceState
+from cognitive_flow import CognitiveFlow, PresenceState, TransitionEngine
 
 from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
@@ -45,6 +45,7 @@ class AgentLoop:
         if temporal_enabled and self.temporal is None:
             self.temporal = TemporalContext()
         self.presence = PresenceState()
+        self.cognitive_flow = CognitiveFlow(self.presence, TransitionEngine())
 
         self.memory: dict[str, Any] = {}
         self._task_lock = threading.Lock()
@@ -96,6 +97,20 @@ class AgentLoop:
         if task_id is not None:
             self.presence.task_id = str(task_id)
 
+    def _step_flow(self, event_type: EventType, payload: dict, *, task_id: int | None = None) -> None:
+        if self.cognitive_flow is None:
+            return
+        try:
+            self.cognitive_flow.step({
+                "type": event_type,
+                "payload": payload,
+                "task_id": str(task_id or self._active_task_id),
+                "state": self.temporal.state if self.temporal else None,
+            })
+        except Exception:
+            # cognitive flow should be best-effort for now
+            pass
+
     def _emit_observability(self, event_type: EventType, payload: dict, *, task_id: int | None = None) -> None:
         if not self.observability_enabled:
             return
@@ -119,6 +134,7 @@ class AgentLoop:
     def _emit(self, event_type: EventType, payload: dict | None = None, *, task_id: int | None = None) -> None:
         payload = payload or {}
         self._touch_presence(task_id=task_id)
+        self._step_flow(event_type, payload, task_id=task_id)
         if self.on_event:
             self.on_event(AgentEvent(type=event_type, payload=payload))
         self._emit_observability(event_type, payload, task_id=task_id)
