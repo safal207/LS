@@ -1,16 +1,25 @@
 ﻿from PyQt6.QtWidgets import QApplication
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+MODULES = ROOT / "python" / "modules"
+if str(MODULES) not in sys.path:
+    sys.path.insert(0, str(MODULES))
+
+from shared.config_loader import load_config
+
+os.environ.setdefault("LS_APP", "ghostgpt")
+cfg = load_config("ghostgpt")
 
 import keyboard
 from GhostGPT.modules.gui import GhostWindow
 from GhostGPT.modules.audio import AudioWorker
 from GhostGPT.modules.access_protocol import AccessProtocol
-from GhostGPT import config
+import config
 
 
 class GhostGPT:

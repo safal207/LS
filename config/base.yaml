@@ -1,0 +1,42 @@
+hardware:
+  max_ram_usage_mb: 4000
+  target_latency_sec: 7
+
+audio:
+  sample_rate: 16000
+
+stt:
+  whisper_model_size: small
+
+llm:
+  model_name: qwen2.5:7b
+  use_cloud: false
+  system_prompt: |
+    You are a senior developer interviewing candidates. 
+    Provide concise, bullet-point answers suitable for technical interviews.
+    Focus on practical knowledge and real-world applications.
+    Answer in Russian since the interview is conducted in Russian.
+  groq:
+    api_key: ""
+    model: llama3-8b-8192
+  ollama:
+    host: http://localhost:11434
+    timeout: 30
+
+question_keywords:
+  - "почему"
+  - "зачем"
+  - "как"
+  - "что"
+  - "чем"
+  - "когда"
+  - "где"
+  - "объясните"
+  - "расскажите"
+  - "опишите"
+  - "в чём"
+  - "в чем"
+  - "разница"
+  - "отличие"
+
+paths: {}

@@ -5,11 +5,20 @@ Phase 1: Audio capture -> STT -> LLM -> Console output
 """
 
 from pathlib import Path
+import os
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+MODULES = ROOT / "python" / "modules"
+if str(MODULES) not in sys.path:
+    sys.path.insert(0, str(MODULES))
+
+from shared.config_loader import load_config
+
+os.environ.setdefault("LS_APP", "console")
+cfg = load_config("console")
 
 
 import threading

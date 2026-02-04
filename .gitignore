@@ -24,3 +24,6 @@ venv/
 # Python cache
 __pycache__/
 *.pyc
+
+# Local config overrides
+config/local.yaml
