@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Qwen API Integration Module
 Supports both Ollama Qwen and Alibaba Cloud Qwen API
@@ -11,6 +11,8 @@ from typing import Optional
 from config import OLLAMA_HOST, LLM_MODEL_NAME
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_TIMEOUT = 30
 
 class QwenHandler:
     def __init__(self, use_cloud_api: bool = False, api_key: str = ""):
@@ -38,7 +40,7 @@ class QwenHandler:
             }
             
             logger.debug(f"Sending to Ollama Qwen: {prompt[:50]}...")
-            response = self.session.post(url, json=payload)
+            response = self.session.post(url, json=payload, timeout=DEFAULT_TIMEOUT)
             response.raise_for_status()
             
             result = response.json()
@@ -85,7 +87,7 @@ class QwenHandler:
             }
             
             logger.debug(f"Sending to Qwen Cloud API: {prompt[:50]}...")
-            response = self.session.post(url, headers=headers, json=payload)
+            response = self.session.post(url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
             response.raise_for_status()
             
             result = response.json()
@@ -124,11 +126,11 @@ def test_qwen_integration():
     response = handler.generate_response(test_prompt)
     
     if response:
-        print("✅ Ollama Qwen working!")
+        print("âœ… Ollama Qwen working!")
         print(f"Question: {test_prompt}")
         print(f"Answer: {response}\n")
     else:
-        print("❌ Ollama Qwen not available\n")
+        print("âŒ Ollama Qwen not available\n")
     
     # Test Cloud API if key provided
     api_key = os.getenv("QWEN_API_KEY", "")
@@ -138,10 +140,10 @@ def test_qwen_integration():
         cloud_response = cloud_handler.generate_response(test_prompt)
         
         if cloud_response:
-            print("✅ Qwen Cloud API working!")
+            print("âœ… Qwen Cloud API working!")
             print(f"Answer: {cloud_response}\n")
         else:
-            print("❌ Qwen Cloud API not working\n")
+            print("âŒ Qwen Cloud API not working\n")
     else:
         print("2. Qwen Cloud API key not provided (skip test)\n")
 

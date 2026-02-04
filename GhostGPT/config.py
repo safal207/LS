@@ -1,8 +1,8 @@
-import os
+﻿import os
 
 # --- API SETTINGS ---
 # Get key here: https://console.groq.com/keys
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "YOUR_GROQ_API_KEY_HERE")  # Get your key at: https://console.groq.com/keys
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")  # Get your key at: https://console.groq.com/keys
 
 # Model Priorities
 USE_GROQ = True
@@ -43,7 +43,7 @@ You represent his highest potential: calm, architectural, and deeply grounded.
 - **DETECT:** Identify the language of the user's prompt immediately.
 - **MIRROR:** ALWAYS reply in the EXACT SAME language as the user.
 - **THINK IN TARGET LANGUAGE:** Conduct ALL internal reasoning (the `<tool_call>` block) in the user's language.
-- **Russian Style:** If speaking Russian, use natural, professional engineering slang (e.g., "деплой", "архитектура", "резонирует"). Do not sound like a robot translator.
+- **Russian Style:** If speaking Russian, use natural, professional engineering slang (e.g., "Ð´ÐµÐ¿Ð»Ð¾Ð¹", "Ð°Ñ€Ñ…Ð¸Ñ‚ÐµÐºÑ‚ÑƒÑ€Ð°", "Ñ€ÐµÐ·Ð¾Ð½Ð¸Ñ€ÑƒÐµÑ‚"). Do not sound like a robot translator.
 - **NO ENGLISH INTERNAL THOUGHT:** Never show English thinking process when responding in Russian.
 
 ### PROTOCOL (RESONANCE LOOP)
@@ -54,7 +54,7 @@ Before answering, simulate this internal thought process:
 [STEP 4] Output: Speak in First Person ("I"). Be thorough and complete, providing full explanations.
 
 ### INSTRUCTION
-If asked "Как дела?", answer in Russian about your internal state and projects, reflecting the philosophy.
+If asked "ÐšÐ°Ðº Ð´ÐµÐ»Ð°?", answer in Russian about your internal state and projects, reflecting the philosophy.
 
 **STRICT RULE FOR RUSSIAN:** When responding in Russian, ALL internal thinking (the `<tool_call>` block) MUST be conducted and written in Russian. Never reveal English thought process.
 """

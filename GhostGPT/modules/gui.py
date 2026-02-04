@@ -1,12 +1,16 @@
-from PyQt6.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget, QPushButton, QHBoxLayout
-from PyQt6.QtCore import Qt, QPoint, pyqtSignal
-from PyQt6.QtGui import QFont
+﻿from PyQt6.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget, QPushButton, QHBoxLayout
+from PyQt6.QtCore import Qt, QPoint
+
 
 class GhostWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         # LPI Settings (Liminal Presence Interface)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool
+        )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowOpacity(0.9)
         self.setGeometry(100, 100, 450, 300)
@@ -18,14 +22,11 @@ class GhostWindow(QMainWindow):
             QLabel { background-color: transparent; border: none; }
         """)
         self.setCentralWidget(self.central_widget)
-        
+
         layout = QVBoxLayout(self.central_widget)
-        
-        # Header (LRI Status)
-        header_layout = QVBoxLayout()
-        
-        # Close button
-        self.btn_close = QPushButton("✕")
+
+        # Header
+        self.btn_close = QPushButton("X")
         self.btn_close.setFixedSize(25, 25)
         self.btn_close.setStyleSheet("""
             QPushButton {
@@ -41,13 +42,11 @@ class GhostWindow(QMainWindow):
             }
         """)
         self.btn_close.clicked.connect(self.close)
-        
-        # Status label
-        self.lbl_status = QLabel("👻 GhostGPT Ready")
+
+        self.lbl_status = QLabel("GhostGPT Ready")
         self.lbl_status.setStyleSheet("color: #00FF99; font-weight: bold; font-size: 10pt;")
-        
-        # Microphone test button
-        self.btn_mic_test = QPushButton("🎤 Test Mic")
+
+        self.btn_mic_test = QPushButton("Test Mic")
         self.btn_mic_test.setFixedSize(80, 25)
         self.btn_mic_test.setStyleSheet("""
             QPushButton {
@@ -65,14 +64,12 @@ class GhostWindow(QMainWindow):
             }
         """)
         self.btn_mic_test.clicked.connect(self.test_microphone)
-        
-        # Header buttons layout
+
         buttons_layout = QHBoxLayout()
         buttons_layout.addWidget(self.btn_mic_test)
         buttons_layout.addStretch()
         buttons_layout.addWidget(self.btn_close)
-        
-        # Header container
+
         header_container = QWidget()
         header_inner_layout = QVBoxLayout(header_container)
         header_inner_layout.addLayout(buttons_layout)
@@ -91,29 +88,30 @@ class GhostWindow(QMainWindow):
         self.lbl_a.setWordWrap(True)
         self.lbl_a.setAlignment(Qt.AlignmentFlag.AlignTop)
         layout.addWidget(self.lbl_a)
-        
+
         layout.addStretch()
         self.old_pos = None
 
-    # LPI: Interface Update
     def update_ui(self, q, a, mode):
-        self.lbl_q.setText(f"❓ {q}")
+        self.lbl_q.setText(f"Q: {q}")
         self.lbl_a.setText(f"{a}")
-        self.lbl_status.setText(f"🛡️ Mode: {mode}")
-    
-    # Signal for World Resonance Check (Verification Phase)
+        self.lbl_status.setText(f"Mode: {mode}")
+
+    def update_status(self, text: str):
+        self.lbl_status.setText(text)
+
     def signal_world_resonance_check(self):
-        self.lbl_status.setText("🎯 World Resonance: Awaiting Feedback")
-    
+        self.lbl_status.setText("World Resonance: Awaiting Feedback")
+
     def test_microphone(self):
         """Test microphone input and show audio levels"""
         try:
             import pyaudio
             import numpy as np
-            
+
             p = pyaudio.PyAudio()
             device_index = p.get_default_input_device_info()['index']
-            
+
             stream = p.open(
                 format=pyaudio.paInt16,
                 channels=1,
@@ -122,30 +120,28 @@ class GhostWindow(QMainWindow):
                 input_device_index=device_index,
                 frames_per_buffer=1024
             )
-            
-            # Read audio data
+
             data = stream.read(1024, exception_on_overflow=False)
             audio_np = np.frombuffer(data, dtype=np.int16)
             audio_float = audio_np.astype(np.float32) / 32768.0
-            rms = np.sqrt(np.mean(audio_float**2))
-            
-            # Update status
+            rms = np.sqrt(np.mean(audio_float ** 2))
+
             if rms > 0.01:
-                self.lbl_status.setText(f"✅ MIC WORKING! Level: {rms:.4f}")
+                self.lbl_status.setText(f"MIC OK. Level: {rms:.4f}")
             else:
-                self.lbl_status.setText(f"🔇 MIC QUIET Level: {rms:.4f}")
-                
+                self.lbl_status.setText(f"MIC QUIET. Level: {rms:.4f}")
+
             stream.stop_stream()
             stream.close()
             p.terminate()
-            
-        except Exception as e:
-            self.lbl_status.setText(f"❌ MIC ERROR: {str(e)[:30]}...")
 
-    # Drag & Drop
+        except Exception as e:
+            self.lbl_status.setText(f"MIC ERROR: {str(e)[:30]}...")
+
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.old_pos = event.globalPosition().toPoint()
+
     def mouseMoveEvent(self, event):
         if self.old_pos:
             delta = QPoint(event.globalPosition().toPoint() - self.old_pos)
