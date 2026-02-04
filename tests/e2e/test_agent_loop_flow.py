@@ -23,12 +23,16 @@ class DummyLLM:
         return response
 
 
-class TestTemporalFlow(unittest.TestCase):
-    def test_temporal_returns_idle(self):
+class TestAgentLoopFlow(unittest.TestCase):
+    def test_loop_emits_events_and_idle(self):
         input_queue = queue.Queue()
         output_queue = queue.Queue()
-        loop = AgentLoop(input_queue, output_queue, llm=DummyLLM())
+        events = []
 
+        def record(event):
+            events.append(event.type)
+
+        loop = AgentLoop(input_queue, output_queue, llm=DummyLLM(), on_event=record)
         thread = threading.Thread(target=loop.run, daemon=True)
         thread.start()
 
@@ -42,7 +46,10 @@ class TestTemporalFlow(unittest.TestCase):
         loop.stop()
         thread.join(timeout=5)
 
-        self.assertIsNotNone(loop.temporal)
+        self.assertIn("input_received", events)
+        self.assertIn("llm_started", events)
+        self.assertIn("llm_finished", events)
+        self.assertIn("output_ready", events)
         self.assertEqual(loop.temporal.state, "idle")
 
 

@@ -27,6 +27,8 @@ import time
 import logging
 from typing import Optional
 
+import config
+from agent.loop import AgentLoop
 from audio_module import AudioIngestion
 from stt_module import SpeechToText
 from llm_module import LanguageModel
@@ -53,6 +55,12 @@ class InterviewCopilot:
         self.audio_module = AudioIngestion(self.transcribe_queue)
         self.stt_module = SpeechToText(self.transcribe_queue, self.llm_queue)
         self.llm_module = LanguageModel(self.llm_queue, self.ui_queue)
+        self.agent_loop = AgentLoop(
+            self.llm_queue,
+            self.ui_queue,
+            llm=self.llm_module,
+            temporal_enabled=config.TEMPORAL_ENABLED,
+        ) if config.AGENT_ENABLED else None
         
         self.running = False
         
@@ -65,7 +73,10 @@ class InterviewCopilot:
         # Start threads
         audio_thread = threading.Thread(target=self.audio_module.run, daemon=True)
         stt_thread = threading.Thread(target=self.stt_module.run, daemon=True)
-        llm_thread = threading.Thread(target=self.llm_module.run, daemon=True)
+        llm_thread = threading.Thread(
+            target=self.agent_loop.run if self.agent_loop else self.llm_module.run,
+            daemon=True,
+        )
         ui_thread = threading.Thread(target=self._ui_display_loop, daemon=True)
         
         audio_thread.start()
@@ -88,7 +99,10 @@ class InterviewCopilot:
         self.running = False
         self.audio_module.stop()
         self.stt_module.stop()
-        self.llm_module.stop()
+        if self.agent_loop:
+            self.agent_loop.stop()
+        else:
+            self.llm_module.stop()
         
     def _ui_display_loop(self):
         """Display responses in console"""

@@ -29,6 +29,7 @@ USE_BREAKER = _get(["llm", "use_breaker"], False)
 BREAKER_THRESHOLD = _get(["llm", "breaker", "failure_threshold"], 3)
 BREAKER_COOLDOWN = _get(["llm", "breaker", "cooldown_seconds"], 10)
 TEMPORAL_ENABLED = _get(["llm", "temporal_enabled"], True)
+AGENT_ENABLED = _get(["agent", "enabled"], False)
 
 # Audio settings
 AUDIO_CHUNK_DURATION = _get(["audio", "chunk_duration"], 3.0)
