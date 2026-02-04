@@ -27,6 +27,10 @@ USE_CLOUD_LLM = _get(["llm", "use_cloud"], False)
 USE_COTCORE = _get(["llm", "use_cotcore"], False)
 TEMPORAL_ENABLED = _get(["llm", "temporal_enabled"], True)
 AGENT_ENABLED = _get(["agent", "enabled"], False)
+AGENT_CANCEL_ON_NEW_INPUT = _get(["agent", "cancel_on_new_input"], True)
+AGENT_CANCEL_GRACE_MS = _get(["agent", "cancel_grace_ms"], 0)
+AGENT_MEMORY_MAX_CHARS = _get(["agent", "memory_max_chars"], 2000)
+AGENT_METRICS_ENABLED = _get(["agent", "metrics_enabled"], True)
 
 # Audio settings
 AUDIO_CHUNK_DURATION = _get(["audio", "chunk_duration"], 3.0)
