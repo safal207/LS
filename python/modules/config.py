@@ -25,6 +25,7 @@ WHISPER_MODEL_SIZE = _get(["stt", "whisper_model_size"], "small")
 LLM_MODEL_NAME = _get(["llm", "model_name"], "qwen2.5:7b")
 USE_CLOUD_LLM = _get(["llm", "use_cloud"], False)
 USE_COTCORE = _get(["llm", "use_cotcore"], False)
+TEMPORAL_ENABLED = _get(["llm", "temporal_enabled"], True)
 
 # Audio settings
 AUDIO_CHUNK_DURATION = _get(["audio", "chunk_duration"], 3.0)
