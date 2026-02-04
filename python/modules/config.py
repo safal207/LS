@@ -25,6 +25,9 @@ WHISPER_MODEL_SIZE = _get(["stt", "whisper_model_size"], "small")
 LLM_MODEL_NAME = _get(["llm", "model_name"], "qwen2.5:7b")
 USE_CLOUD_LLM = _get(["llm", "use_cloud"], False)
 USE_COTCORE = _get(["llm", "use_cotcore"], False)
+USE_BREAKER = _get(["llm", "use_breaker"], False)
+BREAKER_THRESHOLD = _get(["llm", "breaker", "failure_threshold"], 3)
+BREAKER_COOLDOWN = _get(["llm", "breaker", "cooldown_seconds"], 10)
 
 # Audio settings
 AUDIO_CHUNK_DURATION = _get(["audio", "chunk_duration"], 3.0)

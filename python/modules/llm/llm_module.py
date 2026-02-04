@@ -11,19 +11,22 @@ import logging
 import queue
 import threading
 from typing import Optional, Dict
+from llm.breaker import CircuitBreaker, CircuitOpenError
 from llm.cot_adapter import COTAdapter
 from llm.qwen_handler import QwenHandler
-from config import OLLAMA_HOST, LLM_MODEL_NAME, SYSTEM_PROMPT, USE_CLOUD_LLM, GROQ_API_KEY, USE_COTCORE
+from config import OLLAMA_HOST, LLM_MODEL_NAME, SYSTEM_PROMPT, USE_CLOUD_LLM, GROQ_API_KEY, USE_COTCORE, USE_BREAKER, BREAKER_THRESHOLD, BREAKER_COOLDOWN
 
 logger = logging.getLogger(__name__)
 
 class LanguageModel:
-    def __init__(self, input_queue: queue.Queue, output_queue: queue.Queue, use_cotcore: Optional[bool] = None):
+    def __init__(self, input_queue: queue.Queue, output_queue: queue.Queue, use_cotcore: Optional[bool] = None, use_breaker: Optional[bool] = None):
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.running = False
         self.use_cotcore = USE_COTCORE if use_cotcore is None else use_cotcore
         self.cot_adapter = COTAdapter() if self.use_cotcore else None
+        self.use_breaker = USE_BREAKER if use_breaker is None else use_breaker
+        self.breaker = CircuitBreaker(failure_threshold=BREAKER_THRESHOLD, cooldown_seconds=BREAKER_COOLDOWN) if self.use_breaker else None
         
         # Initialize Qwen handler
         import os
@@ -58,10 +61,19 @@ class LanguageModel:
         """Generate response using local Ollama Qwen"""
         try:
             prompt = self._compose_prompt(question)
+
+            if self.breaker:
+                try:
+                    self.breaker.before_call()
+                except CircuitOpenError:
+                    return "LLM temporarily unavailable. Please try again later."
             
             logger.debug(f"Sending to Qwen: {question[:50]}...")
             
             response = self.qwen_handler.generate_response(prompt)
+
+            if self.breaker:
+                self.breaker.after_success()
             
             if response:
                 logger.info(f"Generated response: {response[:100]}...")
@@ -71,6 +83,8 @@ class LanguageModel:
                 return None
                 
         except Exception as e:
+            if self.breaker:
+                self.breaker.after_failure(e)
             logger.error(f"Error generating local response: {e}")
             return None
     
@@ -78,10 +92,19 @@ class LanguageModel:
         """Generate response using cloud Qwen API"""
         try:
             prompt = self._compose_prompt(question)
+
+            if self.breaker:
+                try:
+                    self.breaker.before_call()
+                except CircuitOpenError:
+                    return "LLM temporarily unavailable. Please try again later."
             
             logger.debug(f"Sending to Qwen Cloud: {question[:50]}...")
             
             response = self.qwen_handler.generate_response(prompt)
+
+            if self.breaker:
+                self.breaker.after_success()
             
             if response:
                 logger.info(f"Generated cloud response: {response[:100]}...")
@@ -91,6 +114,8 @@ class LanguageModel:
                 return None
                 
         except Exception as e:
+            if self.breaker:
+                self.breaker.after_failure(e)
             logger.error(f"Error generating cloud response: {e}")
             return None
     
