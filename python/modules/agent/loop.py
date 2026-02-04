@@ -3,11 +3,13 @@ from __future__ import annotations
 import queue
 import threading
 import time
+from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from llm.temporal import TemporalContext
 
 from .events import AgentEvent, EventType
+from .sinks import EventSink, NullSink
 
 
 class AgentLoop:
@@ -25,6 +27,8 @@ class AgentLoop:
         cancel_grace_ms: int = 0,
         memory_max_chars: int | None = None,
         metrics_enabled: bool = True,
+        event_sink: EventSink | None = None,
+        observability_enabled: bool = True,
     ) -> None:
         if (llm is None) == (handler is None):
             raise ValueError("Provide exactly one of llm or handler")
@@ -53,6 +57,11 @@ class AgentLoop:
         self.cancel_grace_ms = max(cancel_grace_ms, 0)
         self.memory_max_chars = memory_max_chars
         self.metrics_enabled = metrics_enabled
+        self.observability_enabled = observability_enabled
+        if observability_enabled:
+            self.event_sink: EventSink = event_sink or NullSink()
+        else:
+            self.event_sink = NullSink()
 
         self.metrics = {
             "inputs": 0,
@@ -77,17 +86,52 @@ class AgentLoop:
             return False
         return task_id == self._active_task_id
 
-    def _emit(self, event_type: EventType, payload: dict | None = None) -> None:
-        if not self.on_event:
+    def _utc_now_iso(self) -> str:
+        return datetime.now(timezone.utc).isoformat()
+
+    def _map_sink_event(self, event_type: EventType) -> str:
+        mapping = {
+            "input_received": "input",
+            "output_ready": "output",
+            "cancelled": "cancel",
+            "state_change": "state_change",
+        }
+        return mapping.get(event_type, event_type)
+
+    def _emit_observability(self, event_type: EventType, payload: dict) -> None:
+        if not self.observability_enabled:
             return
-        self.on_event(AgentEvent(type=event_type, payload=payload or {}))
+        state = self.temporal.state if self.temporal else "unknown"
+        sink_type = self._map_sink_event(event_type)
+        timestamp = self._utc_now_iso()
+        if sink_type == "metrics":
+            event = {
+                "type": sink_type,
+                "timestamp": timestamp,
+                "agent_state": state,
+                "metrics": payload,
+            }
+        else:
+            event = {
+                "type": sink_type,
+                "timestamp": timestamp,
+                "agent_state": state,
+                "metadata": payload,
+            }
+        self.event_sink.emit(event)
+
+    def _emit(self, event_type: EventType, payload: dict | None = None) -> None:
+        payload = payload or {}
+        if self.on_event:
+            self.on_event(AgentEvent(type=event_type, payload=payload))
+        self._emit_observability(event_type, payload)
 
     def _transition(self, state: str, *, task_id: int | None = None) -> None:
         if task_id is not None and task_id != self._active_task_id:
             return
         if self.temporal:
             self.temporal.transition(state)
-        self._emit("state_changed", {"state": state})
+        self._emit("state_change", {"state": state})
 
     def _record_metric(self, key: str, value: float | int) -> None:
         with self._task_lock:

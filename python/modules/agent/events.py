@@ -9,7 +9,7 @@ EventType = Literal[
     "llm_started",
     "llm_finished",
     "output_ready",
-    "state_changed",
+    "state_change",
     "cancelled",
     "metrics",
     "error",

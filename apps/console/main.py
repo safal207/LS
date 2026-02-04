@@ -29,6 +29,7 @@ from typing import Optional
 
 import config
 from agent.loop import AgentLoop
+from agent.sinks import build_event_sink
 from audio_module import AudioIngestion
 from stt_module import SpeechToText
 from llm_module import LanguageModel
@@ -55,6 +56,10 @@ class InterviewCopilot:
         self.audio_module = AudioIngestion(self.transcribe_queue)
         self.stt_module = SpeechToText(self.transcribe_queue, self.llm_queue)
         self.llm_module = LanguageModel(self.llm_queue, self.ui_queue)
+        event_sink = None
+        if config.AGENT_OBSERVABILITY_ENABLED:
+            event_sink = build_event_sink(config.AGENT_EVENT_SINK)
+
         self.agent_loop = AgentLoop(
             self.llm_queue,
             self.ui_queue,
@@ -64,6 +69,8 @@ class InterviewCopilot:
             cancel_grace_ms=config.AGENT_CANCEL_GRACE_MS,
             memory_max_chars=config.AGENT_MEMORY_MAX_CHARS,
             metrics_enabled=config.AGENT_METRICS_ENABLED,
+            observability_enabled=config.AGENT_OBSERVABILITY_ENABLED,
+            event_sink=event_sink,
         ) if config.AGENT_ENABLED else None
         
         self.running = False

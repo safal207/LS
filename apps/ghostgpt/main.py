@@ -20,6 +20,7 @@ from GhostGPT.modules.gui import GhostWindow
 from GhostGPT.modules.audio import AudioWorker
 from GhostGPT.modules.access_protocol import AccessProtocol
 from agent.loop import AgentLoop
+from agent.sinks import build_event_sink
 import config
 
 
@@ -33,6 +34,10 @@ class GhostGPT:
         self.protocol = AccessProtocol(self.window, self.audio)
 
         # Connect signals
+        event_sink = None
+        if config.AGENT_OBSERVABILITY_ENABLED:
+            event_sink = build_event_sink(config.AGENT_EVENT_SINK)
+
         self.agent_loop = AgentLoop(
             handler=self.protocol.execute_cycle,
             temporal_enabled=config.TEMPORAL_ENABLED,
@@ -40,6 +45,8 @@ class GhostGPT:
             cancel_grace_ms=config.AGENT_CANCEL_GRACE_MS,
             memory_max_chars=config.AGENT_MEMORY_MAX_CHARS,
             metrics_enabled=config.AGENT_METRICS_ENABLED,
+            observability_enabled=config.AGENT_OBSERVABILITY_ENABLED,
+            event_sink=event_sink,
         ) if config.AGENT_ENABLED else None
         if self.agent_loop:
             self.audio.text_ready.connect(self.agent_loop.handle_input)

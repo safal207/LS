@@ -31,6 +31,8 @@ agent:
   cancel_grace_ms: 0
   memory_max_chars: 2000
   metrics_enabled: true
+  observability_enabled: true
+  event_sink: "print"
 
 question_keywords:
   - "почему"
