@@ -14,3 +14,13 @@ data/patterns.db
 .coverage
 htmlcov/
 *.log
+# Virtual environments
+venv/
+.venv/
+
+# Qoder / editor metadata
+.qoder/
+
+# Python cache
+__pycache__/
+*.pyc
