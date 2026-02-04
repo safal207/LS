@@ -3,11 +3,11 @@ from __future__ import annotations
 import queue
 import threading
 import time
-from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from llm.temporal import TemporalContext
 
+from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
 
@@ -86,59 +86,36 @@ class AgentLoop:
             return False
         return task_id == self._active_task_id
 
-    def _utc_now_iso(self) -> str:
-        return datetime.now(timezone.utc).isoformat()
-
-    def _map_sink_event(self, event_type: EventType) -> str | None:
-        mapping = {
-            "input_received": "input",
-            "output_ready": "output",
-            "cancelled": "cancel",
-            "state_change": "state_change",
-            "metrics": "metrics",
-        }
-        return mapping.get(event_type)
-
-    def _emit_observability(self, event_type: EventType, payload: dict) -> None:
+    def _emit_observability(self, event_type: EventType, payload: dict, *, task_id: int | None = None) -> None:
         if not self.observability_enabled:
             return
-        state = self.temporal.state if self.temporal else "unknown"
-        sink_type = self._map_sink_event(event_type)
-        if sink_type is None:
+        state = self.temporal.state if self.temporal else None
+        event = build_observability_event(
+            event_type,
+            payload,
+            state,
+            str(task_id or self._active_task_id),
+        )
+        if event is None:
             return
-        timestamp = self._utc_now_iso()
-        if sink_type == "metrics":
-            event = {
-                "type": sink_type,
-                "timestamp": timestamp,
-                "agent_state": state,
-                "metrics": payload,
-            }
-        else:
-            event = {
-                "type": sink_type,
-                "timestamp": timestamp,
-                "agent_state": state,
-                "metadata": payload,
-            }
         try:
             self.event_sink.emit(event)
         except Exception:
             # observability must never break the agent loop
             pass
 
-    def _emit(self, event_type: EventType, payload: dict | None = None) -> None:
+    def _emit(self, event_type: EventType, payload: dict | None = None, *, task_id: int | None = None) -> None:
         payload = payload or {}
         if self.on_event:
             self.on_event(AgentEvent(type=event_type, payload=payload))
-        self._emit_observability(event_type, payload)
+        self._emit_observability(event_type, payload, task_id=task_id)
 
     def _transition(self, state: str, *, task_id: int | None = None) -> None:
         if task_id is not None and task_id != self._active_task_id:
             return
         if self.temporal:
             self.temporal.transition(state)
-        self._emit("state_change", {"state": state})
+        self._emit("state_change", {"state": state}, task_id=task_id)
 
     def _record_metric(self, key: str, value: float | int) -> None:
         with self._task_lock:
@@ -196,7 +173,7 @@ class AgentLoop:
     def _cancel_active(self, reason: str) -> None:
         if self._active_thread and self._active_thread.is_alive() and self._active_cancel:
             self._active_cancel.set()
-            self._emit("cancelled", {"reason": reason})
+            self._emit("cancelled", {"reason": reason}, task_id=self._active_task_id)
             self._track_cancellation(self._active_cancel)
             if self.cancel_grace_ms:
                 self._cancel_grace_until = time.time() + (self.cancel_grace_ms / 1000.0)
@@ -215,7 +192,7 @@ class AgentLoop:
     def _process_item(self, item: dict, task_id: int, cancel_event: threading.Event) -> None:
         try:
             self._increment_metric("inputs", 1)
-            self._emit("input_received", {"item": item})
+            self._emit("input_received", {"item": item}, task_id=task_id)
             self._transition("listening", task_id=task_id)
 
             if item.get("type") != "question":
@@ -225,11 +202,11 @@ class AgentLoop:
             self._remember_question(question)
 
             if cancel_event.is_set():
-                self._emit("cancelled", {"question": question})
+                self._emit("cancelled", {"question": question}, task_id=task_id)
                 self._track_cancellation(cancel_event)
                 return
 
-            self._emit("llm_started", {"question": question})
+            self._emit("llm_started", {"question": question}, task_id=task_id)
             self._transition("thinking", task_id=task_id)
 
             start = time.time()
@@ -237,7 +214,7 @@ class AgentLoop:
             duration = time.time() - start
 
             if not self._is_active(task_id, cancel_event):
-                self._emit("cancelled", {"question": question})
+                self._emit("cancelled", {"question": question}, task_id=task_id)
                 self._track_cancellation(cancel_event)
                 return
 
@@ -245,7 +222,7 @@ class AgentLoop:
                 "question": question,
                 "duration": duration,
                 "success": result is not None,
-            })
+            }, task_id=task_id)
 
             if result is not None or self.handler is not None:
                 self._transition("responding", task_id=task_id)
@@ -274,15 +251,15 @@ class AgentLoop:
                     try:
                         self.output_queue.put_nowait(payload)
                     except queue.Full:
-                        self._emit("error", {"message": "output_queue_full"})
+                        self._emit("error", {"message": "output_queue_full"}, task_id=task_id)
                     else:
-                        self._emit("output_ready", payload)
+                        self._emit("output_ready", payload, task_id=task_id)
                 else:
-                    self._emit("output_ready", payload)
+                    self._emit("output_ready", payload, task_id=task_id)
                 self._publish_metrics()
 
         except Exception as exc:
-            self._emit("error", {"message": str(exc)})
+            self._emit("error", {"message": str(exc)}, task_id=task_id)
         finally:
             if self._is_active(task_id, cancel_event):
                 self._transition("idle", task_id=task_id)
