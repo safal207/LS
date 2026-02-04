@@ -74,6 +74,12 @@ class AgentLoop:
             "last_latency": 0.0,
             "avg_latency": 0.0,
         }
+        self._phase_last: str | None = None
+        self._phase_last_ts: float | None = None
+        self._phase_counts: dict[str, int] = {}
+        self._phase_durations: dict[str, float] = {}
+        self._phase_transitions = 0
+        self._liminal_transitions = 0
 
     def _next_task_id(self) -> int:
         with self._task_lock:
@@ -115,12 +121,14 @@ class AgentLoop:
             return
         after = self.presence.phase if self.presence is not None else None
         if before != after and after is not None:
+            liminal = is_liminal_phase(after)
+            self._track_phase_transition(before, after, liminal=liminal)
             self._emit_observability(
                 "phase_transition",
                 {"from_phase": before, "to_phase": after, "trigger": event_type},
                 task_id=task_id,
             )
-            if is_liminal_phase(after):
+            if liminal:
                 self._emit_observability(
                     "liminal_transition",
                     {"from_phase": before, "to_phase": after, "trigger": event_type},
@@ -181,11 +189,31 @@ class AgentLoop:
         with self._task_lock:
             self.metrics[key] = int(self.metrics.get(key, 0)) + delta
 
+    def _track_phase_transition(self, before: str | None, after: str, *, liminal: bool) -> None:
+        now = time.time()
+        with self._task_lock:
+            if self._phase_last is not None and self._phase_last_ts is not None:
+                elapsed = max(0.0, now - self._phase_last_ts)
+                self._phase_durations[self._phase_last] = self._phase_durations.get(self._phase_last, 0.0) + elapsed
+            self._phase_last = after
+            self._phase_last_ts = now
+            self._phase_counts[after] = self._phase_counts.get(after, 0) + 1
+            self._phase_transitions += 1
+            if liminal:
+                self._liminal_transitions += 1
+
     def _publish_metrics(self) -> None:
         if not self.metrics_enabled:
             return
         with self._task_lock:
             snapshot = dict(self.metrics)
+            snapshot["phase_counts"] = dict(self._phase_counts)
+            snapshot["phase_durations"] = dict(self._phase_durations)
+            snapshot["phase_transitions"] = self._phase_transitions
+            snapshot["liminal_transitions"] = self._liminal_transitions
+            snapshot["last_phase"] = self._phase_last
+            if self._phase_last_ts is not None:
+                snapshot["last_phase_age"] = max(0.0, time.time() - self._phase_last_ts)
         self._emit("metrics", snapshot)
 
     def _remember_question(self, question: str) -> None:

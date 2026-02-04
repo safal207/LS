@@ -57,6 +57,14 @@ class TestAgentEvents(unittest.TestCase):
         input_events = [event for event in events if event.get("type") == "input"]
         self.assertTrue(any("payload" in event for event in input_events))
 
+        metrics_events = [event for event in events if event.get("type") == "metrics"]
+        self.assertTrue(metrics_events)
+        metrics_payload = metrics_events[-1].get("payload", {})
+        self.assertIn("phase_counts", metrics_payload)
+        self.assertIn("phase_durations", metrics_payload)
+        self.assertIn("phase_transitions", metrics_payload)
+        self.assertIn("liminal_transitions", metrics_payload)
+
     def test_liminal_transition_emits(self):
         buffer = io.StringIO()
         with redirect_stdout(buffer):
