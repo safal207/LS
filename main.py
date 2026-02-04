@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Deprecated entrypoint. Use apps/console/main.py instead.
 from pathlib import Path
 import runpy
 
