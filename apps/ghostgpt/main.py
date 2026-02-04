@@ -19,6 +19,7 @@ import keyboard
 from GhostGPT.modules.gui import GhostWindow
 from GhostGPT.modules.audio import AudioWorker
 from GhostGPT.modules.access_protocol import AccessProtocol
+from agent.loop import AgentLoop
 import config
 
 
@@ -32,7 +33,14 @@ class GhostGPT:
         self.protocol = AccessProtocol(self.window, self.audio)
 
         # Connect signals
-        self.audio.text_ready.connect(self.protocol.execute_cycle)
+        self.agent_loop = AgentLoop(
+            handler=self.protocol.execute_cycle,
+            temporal_enabled=config.TEMPORAL_ENABLED,
+        ) if config.AGENT_ENABLED else None
+        if self.agent_loop:
+            self.audio.text_ready.connect(self.agent_loop.handle_input)
+        else:
+            self.audio.text_ready.connect(self.protocol.execute_cycle)
         self.audio.status_update.connect(self.window.update_status)
 
         # Hotkey setup

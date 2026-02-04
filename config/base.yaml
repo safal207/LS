@@ -25,6 +25,9 @@ llm:
     host: http://localhost:11434
     timeout: 30
 
+agent:
+  enabled: false
+
 question_keywords:
   - "почему"
   - "зачем"

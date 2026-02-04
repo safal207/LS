@@ -26,6 +26,7 @@ LLM_MODEL_NAME = _get(["llm", "model_name"], "qwen2.5:7b")
 USE_CLOUD_LLM = _get(["llm", "use_cloud"], False)
 USE_COTCORE = _get(["llm", "use_cotcore"], False)
 TEMPORAL_ENABLED = _get(["llm", "temporal_enabled"], True)
+AGENT_ENABLED = _get(["agent", "enabled"], False)
 
 # Audio settings
 AUDIO_CHUNK_DURATION = _get(["audio", "chunk_duration"], 3.0)

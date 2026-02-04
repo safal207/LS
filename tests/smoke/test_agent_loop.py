@@ -1,6 +1,4 @@
 import queue
-import threading
-import time
 import sys
 import unittest
 from pathlib import Path
@@ -23,25 +21,15 @@ class DummyLLM:
         return response
 
 
-class TestTemporalFlow(unittest.TestCase):
-    def test_temporal_returns_idle(self):
-        input_queue = queue.Queue()
+class TestAgentLoop(unittest.TestCase):
+    def test_handle_input_sets_idle(self):
         output_queue = queue.Queue()
-        loop = AgentLoop(input_queue, output_queue, llm=DummyLLM())
+        loop = AgentLoop(output_queue=output_queue, llm=DummyLLM())
 
-        thread = threading.Thread(target=loop.run, daemon=True)
-        thread.start()
+        loop.handle_input("hi")
 
-        input_queue.put({
-            "type": "question",
-            "text": "hi",
-            "timestamp": time.time(),
-        })
-
-        output_queue.get(timeout=5)
-        loop.stop()
-        thread.join(timeout=5)
-
+        payload = output_queue.get_nowait()
+        self.assertIn("response", payload)
         self.assertIsNotNone(loop.temporal)
         self.assertEqual(loop.temporal.state, "idle")
 
