@@ -6,6 +6,7 @@ import time
 from typing import Any, Callable, Optional
 
 from llm.temporal import TemporalContext
+from cognitive_flow import PresenceState
 
 from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
@@ -43,6 +44,7 @@ class AgentLoop:
         self.temporal = temporal if temporal_enabled else None
         if temporal_enabled and self.temporal is None:
             self.temporal = TemporalContext()
+        self.presence = PresenceState()
 
         self.memory: dict[str, Any] = {}
         self._task_lock = threading.Lock()
@@ -80,11 +82,19 @@ class AgentLoop:
         self._active_task_id = task_id
         self._active_cancel = cancel_event
         self._active_thread = thread
+        self._touch_presence(task_id=task_id)
 
     def _is_active(self, task_id: int, cancel_event: threading.Event) -> bool:
         if cancel_event.is_set():
             return False
         return task_id == self._active_task_id
+
+    def _touch_presence(self, *, task_id: int | None = None) -> None:
+        if self.presence is None:
+            return
+        self.presence.updated_at = time.time()
+        if task_id is not None:
+            self.presence.task_id = str(task_id)
 
     def _emit_observability(self, event_type: EventType, payload: dict, *, task_id: int | None = None) -> None:
         if not self.observability_enabled:
@@ -98,6 +108,8 @@ class AgentLoop:
         )
         if event is None:
             return
+        if self.presence is not None:
+            event["presence"] = self.presence.snapshot()
         try:
             self.event_sink.emit(event)
         except Exception:
@@ -106,6 +118,7 @@ class AgentLoop:
 
     def _emit(self, event_type: EventType, payload: dict | None = None, *, task_id: int | None = None) -> None:
         payload = payload or {}
+        self._touch_presence(task_id=task_id)
         if self.on_event:
             self.on_event(AgentEvent(type=event_type, payload=payload))
         self._emit_observability(event_type, payload, task_id=task_id)
@@ -115,6 +128,10 @@ class AgentLoop:
             return
         if self.temporal:
             self.temporal.transition(state)
+        if self.presence is not None:
+            if state == "idle":
+                self.presence.reset(reason="agent_idle")
+            self.presence.updated_at = time.time()
         self._emit("state_change", {"state": state}, task_id=task_id)
 
     def _record_metric(self, key: str, value: float | int) -> None:
