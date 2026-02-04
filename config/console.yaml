@@ -1,0 +1,3 @@
+audio:
+  chunk_duration: 3.0
+  volume_threshold: 0.01

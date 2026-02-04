@@ -1,0 +1,10 @@
+﻿# Example local overrides (copy to config/local.yaml)
+# This file is safe to commit as an example. Do NOT commit config/local.yaml.
+
+llm:
+  groq:
+    api_key: "gsk_..."
+
+# You can also override per-app values here.
+# audio:
+#   sample_rate: 16000
