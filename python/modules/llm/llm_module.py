@@ -13,8 +13,20 @@ import threading
 from typing import Optional, Dict
 from llm.breaker import CircuitBreaker, CircuitOpenError
 from llm.cot_adapter import COTAdapter
+from llm.temporal import TemporalContext
 from llm.qwen_handler import QwenHandler
-from config import OLLAMA_HOST, LLM_MODEL_NAME, SYSTEM_PROMPT, USE_CLOUD_LLM, GROQ_API_KEY, USE_COTCORE, USE_BREAKER, BREAKER_THRESHOLD, BREAKER_COOLDOWN
+from config import (
+    OLLAMA_HOST,
+    LLM_MODEL_NAME,
+    SYSTEM_PROMPT,
+    USE_CLOUD_LLM,
+    GROQ_API_KEY,
+    USE_COTCORE,
+    USE_BREAKER,
+    BREAKER_THRESHOLD,
+    BREAKER_COOLDOWN,
+    TEMPORAL_ENABLED,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +36,10 @@ class LanguageModel:
         self.output_queue = output_queue
         self.running = False
         self.use_cotcore = USE_COTCORE if use_cotcore is None else use_cotcore
-        self.cot_adapter = COTAdapter() if self.use_cotcore else None
         self.use_breaker = USE_BREAKER if use_breaker is None else use_breaker
         self.breaker = CircuitBreaker(failure_threshold=BREAKER_THRESHOLD, cooldown_seconds=BREAKER_COOLDOWN) if self.use_breaker else None
+        self.temporal = TemporalContext() if TEMPORAL_ENABLED else None
+        self.cot_adapter = COTAdapter(temporal=self.temporal, temporal_enabled=TEMPORAL_ENABLED) if self.use_cotcore else None
         
         # Initialize Qwen handler
         import os
@@ -41,6 +54,10 @@ class LanguageModel:
         if self.cot_adapter:
             return self.cot_adapter.process(question, prompt)
         return prompt
+
+    def _transition_temporal(self, state: str) -> None:
+        if self.temporal:
+            self.temporal.transition(state)
 
     def test_ollama_connection(self) -> bool:
         """Test connection to Ollama server"""
@@ -60,6 +77,7 @@ class LanguageModel:
     def generate_response_local(self, question: str) -> Optional[str]:
         """Generate response using local Ollama Qwen"""
         try:
+            self._transition_temporal("thinking")
             prompt = self._compose_prompt(question)
 
             if self.breaker:
@@ -76,21 +94,25 @@ class LanguageModel:
                 self.breaker.after_success()
             
             if response:
+                self._transition_temporal("responding")
                 logger.info(f"Generated response: {response[:100]}...")
                 return response
             else:
                 logger.warning("Empty response from Qwen")
+                self._transition_temporal("idle")
                 return None
                 
         except Exception as e:
             if self.breaker:
                 self.breaker.after_failure(e)
             logger.error(f"Error generating local response: {e}")
+            self._transition_temporal("idle")
             return None
     
     def generate_response_cloud(self, question: str) -> Optional[str]:
         """Generate response using cloud Qwen API"""
         try:
+            self._transition_temporal("thinking")
             prompt = self._compose_prompt(question)
 
             if self.breaker:
@@ -107,16 +129,19 @@ class LanguageModel:
                 self.breaker.after_success()
             
             if response:
+                self._transition_temporal("responding")
                 logger.info(f"Generated cloud response: {response[:100]}...")
                 return response
             else:
                 logger.warning("Empty response from Qwen Cloud")
+                self._transition_temporal("idle")
                 return None
                 
         except Exception as e:
             if self.breaker:
                 self.breaker.after_failure(e)
             logger.error(f"Error generating cloud response: {e}")
+            self._transition_temporal("idle")
             return None
     
     def generate_response(self, question: str) -> Optional[str]:
@@ -179,6 +204,7 @@ class LanguageModel:
                         question = item['text']
                         timestamp = item['timestamp']
                         
+                        self._transition_temporal("listening")
                         logger.info(f"Processing question: {question}")
                         
                         # Generate response
@@ -202,8 +228,10 @@ class LanguageModel:
                                 logger.debug("Response sent to UI queue")
                             except queue.Full:
                                 logger.warning("UI queue full, dropping response")
+                            self._transition_temporal("idle")
                         else:
                             logger.warning("Failed to generate response")
+                            self._transition_temporal("idle")
                     
                     self.input_queue.task_done()
                     

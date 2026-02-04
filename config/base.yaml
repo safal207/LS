@@ -13,6 +13,7 @@ llm:
   use_cloud: false
   use_cotcore: false
   use_breaker: false
+  temporal_enabled: true
   breaker:
     failure_threshold: 3
     cooldown_seconds: 10
