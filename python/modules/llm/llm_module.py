@@ -13,6 +13,7 @@ import threading
 from typing import Optional, Dict
 from llm.breaker import CircuitBreaker, CircuitOpenError
 from llm.cot_adapter import COTAdapter
+from llm.errors import LLMEmptyResponseError, LLMInvalidFormatError, as_llm_error
 from llm.qwen_handler import QwenHandler
 from config import (
     OLLAMA_HOST,
@@ -43,7 +44,8 @@ class LanguageModel:
         qwen_api_key = os.getenv("QWEN_API_KEY", "")
         self.qwen_handler = QwenHandler(
             use_cloud_api=USE_CLOUD_LLM,
-            api_key=qwen_api_key
+            api_key=qwen_api_key,
+            raise_on_error=True,
         )
 
     def _compose_prompt(self, question: str) -> str:
@@ -89,23 +91,27 @@ class LanguageModel:
             logger.debug(f"Sending to Qwen: {question[:50]}...")
             
             response = self.qwen_handler.generate_response(prompt)
+            if response is None or (isinstance(response, str) and not response.strip()):
+                raise LLMEmptyResponseError()
+            if not isinstance(response, str):
+                raise LLMInvalidFormatError("Expected string response")
 
             if self.breaker:
                 self.breaker.after_success()
             if self._is_cancelled(cancel_event):
                 return None
-            
-            if response:
-                logger.info(f"Generated response: {response[:100]}...")
-                return response
+             
+            logger.info(f"Generated response: {response[:100]}...")
+            return response
+                 
+        except Exception as exc:
+            err = as_llm_error(exc)
+            if self.breaker and err.trip_breaker:
+                self.breaker.after_failure(err)
+            if isinstance(err, LLMEmptyResponseError):
+                logger.warning(str(err))
             else:
-                logger.warning("Empty response from Qwen")
-                return None
-                
-        except Exception as e:
-            if self.breaker:
-                self.breaker.after_failure(e)
-            logger.error(f"Error generating local response: {e}")
+                logger.error(f"Error generating local response ({err.kind}): {err}")
             return None
     
     def generate_response_cloud(self, question: str, cancel_event=None) -> Optional[str]:
@@ -127,23 +133,27 @@ class LanguageModel:
             logger.debug(f"Sending to Qwen Cloud: {question[:50]}...")
             
             response = self.qwen_handler.generate_response(prompt)
+            if response is None or (isinstance(response, str) and not response.strip()):
+                raise LLMEmptyResponseError()
+            if not isinstance(response, str):
+                raise LLMInvalidFormatError("Expected string response")
 
             if self.breaker:
                 self.breaker.after_success()
             if self._is_cancelled(cancel_event):
                 return None
-            
-            if response:
-                logger.info(f"Generated cloud response: {response[:100]}...")
-                return response
+             
+            logger.info(f"Generated cloud response: {response[:100]}...")
+            return response
+                 
+        except Exception as exc:
+            err = as_llm_error(exc)
+            if self.breaker and err.trip_breaker:
+                self.breaker.after_failure(err)
+            if isinstance(err, LLMEmptyResponseError):
+                logger.warning(str(err))
             else:
-                logger.warning("Empty response from Qwen Cloud")
-                return None
-                
-        except Exception as e:
-            if self.breaker:
-                self.breaker.after_failure(e)
-            logger.error(f"Error generating cloud response: {e}")
+                logger.error(f"Error generating cloud response ({err.kind}): {err}")
             return None
     
     def generate_response(self, question: str, cancel_event=None) -> Optional[str]:

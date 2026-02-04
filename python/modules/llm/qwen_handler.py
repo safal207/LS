@@ -9,15 +9,23 @@ import json
 import logging
 from typing import Optional
 from config import OLLAMA_HOST, LLM_MODEL_NAME
+from llm.errors import (
+    LLMEmptyResponseError,
+    LLMInvalidFormatError,
+    LLMProviderError,
+    LLMTimeoutError,
+    is_timeout_exception,
+)
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30
 
 class QwenHandler:
-    def __init__(self, use_cloud_api: bool = False, api_key: str = ""):
+    def __init__(self, use_cloud_api: bool = False, api_key: str = "", *, raise_on_error: bool = False):
         self.use_cloud_api = use_cloud_api
         self.api_key = api_key
+        self.raise_on_error = raise_on_error
         self.session = requests.Session()
         self.session.timeout = 30
         
@@ -44,25 +52,44 @@ class QwenHandler:
             response.raise_for_status()
             
             result = response.json()
-            answer = result.get('response', '').strip()
-            
+            if not isinstance(result, dict):
+                raise LLMInvalidFormatError("Invalid JSON payload from Ollama")
+            raw_answer = result.get("response", "")
+            if raw_answer is None:
+                raw_answer = ""
+            if not isinstance(raw_answer, str):
+                raise LLMInvalidFormatError("Expected 'response' to be a string")
+            answer = raw_answer.strip()
+             
             if answer:
                 logger.info(f"Qwen response: {answer[:100]}...")
                 return answer
             else:
+                if self.raise_on_error:
+                    raise LLMEmptyResponseError("Empty response from Qwen (Ollama)")
                 logger.warning("Empty response from Qwen")
                 return None
-                
+                 
         except Exception as e:
+            if self.raise_on_error:
+                if isinstance(e, (LLMEmptyResponseError, LLMInvalidFormatError, LLMProviderError, LLMTimeoutError)):
+                    raise
+                if is_timeout_exception(e):
+                    raise LLMTimeoutError(cause=e) from e
+                if isinstance(e, (KeyError, ValueError, TypeError, json.JSONDecodeError)):
+                    raise LLMInvalidFormatError(str(e) or "Invalid response format", cause=e) from e
+                raise LLMProviderError(str(e) or "Ollama Qwen error", cause=e) from e
             logger.error(f"Ollama Qwen error: {e}")
             return None
     
     def generate_with_cloud_api(self, prompt: str) -> Optional[str]:
         """Generate response using Alibaba Cloud Qwen API"""
         if not self.api_key:
+            if self.raise_on_error:
+                raise LLMProviderError("Qwen API key not provided")
             logger.error("Qwen API key not provided")
             return None
-            
+             
         try:
             # Alibaba Qwen API endpoint
             url = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
@@ -91,16 +118,36 @@ class QwenHandler:
             response.raise_for_status()
             
             result = response.json()
-            answer = result['output']['text'].strip()
-            
+            if not isinstance(result, dict):
+                raise LLMInvalidFormatError("Invalid JSON payload from Qwen Cloud")
+            output = result.get("output")
+            if not isinstance(output, dict) or "text" not in output:
+                raise LLMInvalidFormatError("Missing output.text in Qwen Cloud response")
+            raw_answer = output.get("text")
+            if raw_answer is None:
+                raw_answer = ""
+            if not isinstance(raw_answer, str):
+                raise LLMInvalidFormatError("Expected output.text to be a string")
+            answer = raw_answer.strip()
+             
             if answer:
                 logger.info(f"Qwen Cloud response: {answer[:100]}...")
                 return answer
             else:
+                if self.raise_on_error:
+                    raise LLMEmptyResponseError("Empty response from Qwen Cloud")
                 logger.warning("Empty response from Qwen Cloud")
                 return None
-                
+                 
         except Exception as e:
+            if self.raise_on_error:
+                if isinstance(e, (LLMEmptyResponseError, LLMInvalidFormatError, LLMProviderError, LLMTimeoutError)):
+                    raise
+                if is_timeout_exception(e):
+                    raise LLMTimeoutError(cause=e) from e
+                if isinstance(e, (KeyError, ValueError, TypeError, json.JSONDecodeError)):
+                    raise LLMInvalidFormatError(str(e) or "Invalid response format", cause=e) from e
+                raise LLMProviderError(str(e) or "Qwen Cloud API error", cause=e) from e
             logger.error(f"Qwen Cloud API error: {e}")
             return None
     
