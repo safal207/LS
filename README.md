@@ -101,6 +101,7 @@ config/local.example.yaml
 python apps/console/main.py
 python apps/ghostgpt/main.py
 python -c "from modules.shared.config_loader import load_config; print(load_config('console'))"
+python scripts/smoke.py
 ```
 
 ## Примечания
