@@ -69,6 +69,7 @@ class TestAgentObservability(unittest.TestCase):
         self.assertIn("output", types)
         self.assertIn("cancel", types)
         self.assertIn("metrics", types)
+        self.assertIn("phase_transition", types)
 
         for event in events:
             self.assertIn("timestamp", event)

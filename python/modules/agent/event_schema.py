@@ -3,13 +3,21 @@ from __future__ import annotations
 import time
 from typing import Any, Dict, Optional, TypedDict, Literal
 
-ObservabilityEventType = Literal["input", "output", "cancel", "state_change", "metrics"]
+ObservabilityEventType = Literal[
+    "input",
+    "output",
+    "cancel",
+    "state_change",
+    "phase_transition",
+    "metrics",
+]
 
 ALLOWED_EVENTS: set[ObservabilityEventType] = {
     "input",
     "output",
     "cancel",
     "state_change",
+    "phase_transition",
     "metrics",
 }
 
@@ -31,6 +39,7 @@ def _map_event_type(event_type: str) -> Optional[ObservabilityEventType]:
         "output_ready": "output",
         "cancelled": "cancel",
         "state_change": "state_change",
+        "phase_transition": "phase_transition",
         "metrics": "metrics",
     }
     return mapping.get(event_type)

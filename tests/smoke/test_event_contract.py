@@ -38,6 +38,19 @@ class TestEventContract(unittest.TestCase):
         )
         self.assertIsNone(event)
 
+    def test_phase_transition_event(self):
+        event = build_observability_event(
+            "phase_transition",
+            {"from_phase": "perceive", "to_phase": "interpret"},
+            "thinking",
+            "99",
+            timestamp=456.0,
+        )
+        self.assertIsNotNone(event)
+        self.assertEqual(event["type"], "phase_transition")
+        self.assertEqual(event["timestamp"], 456.0)
+        self.assertEqual(event["task_id"], "99")
+
 
 if __name__ == "__main__":
     unittest.main()

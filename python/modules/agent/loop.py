@@ -100,6 +100,7 @@ class AgentLoop:
     def _step_flow(self, event_type: EventType, payload: dict, *, task_id: int | None = None) -> None:
         if self.cognitive_flow is None:
             return
+        before = self.presence.phase if self.presence is not None else None
         try:
             self.cognitive_flow.step({
                 "type": event_type,
@@ -110,6 +111,14 @@ class AgentLoop:
         except Exception:
             # cognitive flow should be best-effort for now
             pass
+            return
+        after = self.presence.phase if self.presence is not None else None
+        if before != after and after is not None:
+            self._emit_observability(
+                "phase_transition",
+                {"from_phase": before, "to_phase": after, "trigger": event_type},
+                task_id=task_id,
+            )
 
     def _emit_observability(self, event_type: EventType, payload: dict, *, task_id: int | None = None) -> None:
         if not self.observability_enabled:

@@ -45,6 +45,7 @@ class TestAgentEvents(unittest.TestCase):
         self.assertIn("input", types)
         self.assertIn("output", types)
         self.assertIn("metrics", types)
+        self.assertIn("phase_transition", types)
 
         for event in events:
             self.assertIn("timestamp", event)
