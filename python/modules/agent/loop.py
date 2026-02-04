@@ -7,6 +7,7 @@ from typing import Any, Callable, Optional
 
 from llm.temporal import TemporalContext
 from cognitive_flow import CognitiveFlow, PresenceState, TransitionEngine
+from cognitive_flow.liminal import is_liminal_phase
 
 from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
@@ -119,6 +120,12 @@ class AgentLoop:
                 {"from_phase": before, "to_phase": after, "trigger": event_type},
                 task_id=task_id,
             )
+            if is_liminal_phase(after):
+                self._emit_observability(
+                    "liminal_transition",
+                    {"from_phase": before, "to_phase": after, "trigger": event_type},
+                    task_id=task_id,
+                )
 
     def _emit_observability(self, event_type: EventType, payload: dict, *, task_id: int | None = None) -> None:
         if not self.observability_enabled:

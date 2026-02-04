@@ -9,6 +9,7 @@ ObservabilityEventType = Literal[
     "cancel",
     "state_change",
     "phase_transition",
+    "liminal_transition",
     "metrics",
 ]
 
@@ -18,6 +19,7 @@ ALLOWED_EVENTS: set[ObservabilityEventType] = {
     "cancel",
     "state_change",
     "phase_transition",
+    "liminal_transition",
     "metrics",
 }
 
@@ -40,6 +42,7 @@ def _map_event_type(event_type: str) -> Optional[ObservabilityEventType]:
         "cancelled": "cancel",
         "state_change": "state_change",
         "phase_transition": "phase_transition",
+        "liminal_transition": "liminal_transition",
         "metrics": "metrics",
     }
     return mapping.get(event_type)

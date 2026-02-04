@@ -16,6 +16,7 @@ DEFAULT_LIMINALS: Dict[Tuple[str, str], str] = {
     ("analyze", "plan"): "validating",
     ("act", "reflect"): "checking",
 }
+LIMINAL_NAMES = set(DEFAULT_LIMINALS.values())
 
 
 def resolve_liminal(from_phase: Optional[str], to_phase: Optional[str]) -> Optional[LiminalState]:
@@ -25,3 +26,7 @@ def resolve_liminal(from_phase: Optional[str], to_phase: Optional[str]) -> Optio
     if not name:
         return None
     return LiminalState(name=name, from_phase=from_phase, to_phase=to_phase)
+
+
+def is_liminal_phase(phase: Optional[str]) -> bool:
+    return bool(phase and phase in LIMINAL_NAMES)

@@ -51,6 +51,17 @@ class TestEventContract(unittest.TestCase):
         self.assertEqual(event["timestamp"], 456.0)
         self.assertEqual(event["task_id"], "99")
 
+    def test_liminal_transition_event(self):
+        event = build_observability_event(
+            "liminal_transition",
+            {"from_phase": "perceive", "to_phase": "interpreting"},
+            "thinking",
+            "77",
+            timestamp=789.0,
+        )
+        self.assertIsNotNone(event)
+        self.assertEqual(event["type"], "liminal_transition")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -57,6 +57,22 @@ class TestAgentEvents(unittest.TestCase):
         input_events = [event for event in events if event.get("type") == "input"]
         self.assertTrue(any("payload" in event for event in input_events))
 
+    def test_liminal_transition_emits(self):
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            loop = AgentLoop(
+                output_queue=queue.Queue(),
+                llm=DummyLLM(),
+                event_sink=PrintSink(),
+                observability_enabled=True,
+            )
+            loop._emit("input_received", {"text": "hi"}, task_id=1)
+            loop._emit("state_change", {"transition_signal": True}, task_id=1)
+
+        events = [json.loads(line) for line in buffer.getvalue().splitlines() if line.strip()]
+        types = {event.get("type") for event in events}
+        self.assertIn("liminal_transition", types)
+
 
 if __name__ == "__main__":
     unittest.main()
