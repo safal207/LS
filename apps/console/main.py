@@ -60,6 +60,10 @@ class InterviewCopilot:
             self.ui_queue,
             llm=self.llm_module,
             temporal_enabled=config.TEMPORAL_ENABLED,
+            cancel_on_new_input=config.AGENT_CANCEL_ON_NEW_INPUT,
+            cancel_grace_ms=config.AGENT_CANCEL_GRACE_MS,
+            memory_max_chars=config.AGENT_MEMORY_MAX_CHARS,
+            metrics_enabled=config.AGENT_METRICS_ENABLED,
         ) if config.AGENT_ENABLED else None
         
         self.running = False

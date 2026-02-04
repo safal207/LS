@@ -11,6 +11,7 @@ EventType = Literal[
     "output_ready",
     "state_changed",
     "cancelled",
+    "metrics",
     "error",
 ]
 

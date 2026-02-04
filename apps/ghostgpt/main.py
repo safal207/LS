@@ -36,6 +36,10 @@ class GhostGPT:
         self.agent_loop = AgentLoop(
             handler=self.protocol.execute_cycle,
             temporal_enabled=config.TEMPORAL_ENABLED,
+            cancel_on_new_input=config.AGENT_CANCEL_ON_NEW_INPUT,
+            cancel_grace_ms=config.AGENT_CANCEL_GRACE_MS,
+            memory_max_chars=config.AGENT_MEMORY_MAX_CHARS,
+            metrics_enabled=config.AGENT_METRICS_ENABLED,
         ) if config.AGENT_ENABLED else None
         if self.agent_loop:
             self.audio.text_ready.connect(self.agent_loop.handle_input)

@@ -21,6 +21,10 @@ class AgentLoop:
         on_event: Optional[Callable[[AgentEvent], None]] = None,
         temporal: TemporalContext | None = None,
         temporal_enabled: bool = True,
+        cancel_on_new_input: bool = True,
+        cancel_grace_ms: int = 0,
+        memory_max_chars: int | None = None,
+        metrics_enabled: bool = True,
     ) -> None:
         if (llm is None) == (handler is None):
             raise ValueError("Provide exactly one of llm or handler")
@@ -43,6 +47,20 @@ class AgentLoop:
         self._active_thread: threading.Thread | None = None
         self._active_cancel: threading.Event | None = None
         self._pending_item: dict | None = None
+        self._cancel_grace_until = 0.0
+
+        self.cancel_on_new_input = cancel_on_new_input
+        self.cancel_grace_ms = max(cancel_grace_ms, 0)
+        self.memory_max_chars = memory_max_chars
+        self.metrics_enabled = metrics_enabled
+
+        self.metrics = {
+            "inputs": 0,
+            "cancellations": 0,
+            "outputs": 0,
+            "last_latency": 0.0,
+            "avg_latency": 0.0,
+        }
 
     def _next_task_id(self) -> int:
         with self._task_lock:
@@ -71,6 +89,22 @@ class AgentLoop:
             self.temporal.transition(state)
         self._emit("state_changed", {"state": state})
 
+    def _record_metric(self, key: str, value: float | int) -> None:
+        with self._task_lock:
+            if key in self.metrics and isinstance(value, (int, float)):
+                self.metrics[key] = value
+
+    def _increment_metric(self, key: str, delta: int = 1) -> None:
+        with self._task_lock:
+            self.metrics[key] = int(self.metrics.get(key, 0)) + delta
+
+    def _publish_metrics(self) -> None:
+        if not self.metrics_enabled:
+            return
+        with self._task_lock:
+            snapshot = dict(self.metrics)
+        self._emit("metrics", snapshot)
+
     def _remember_question(self, question: str) -> None:
         self.memory["last_question"] = question
         self.memory["last_question_ts"] = time.time()
@@ -78,6 +112,8 @@ class AgentLoop:
             self.temporal.metadata["last_question"] = question
 
     def _remember_answer(self, answer: Any, duration: float) -> None:
+        if isinstance(answer, str) and self.memory_max_chars:
+            answer = answer[: self.memory_max_chars]
         self.memory["last_answer"] = answer
         self.memory["last_answer_ts"] = time.time()
         self.memory["last_duration"] = duration
@@ -104,6 +140,9 @@ class AgentLoop:
         if self._active_thread and self._active_thread.is_alive() and self._active_cancel:
             self._active_cancel.set()
             self._emit("cancelled", {"reason": reason})
+            self._increment_metric("cancellations", 1)
+            if self.cancel_grace_ms:
+                self._cancel_grace_until = time.time() + (self.cancel_grace_ms / 1000.0)
 
     def _start_task(self, item: dict) -> None:
         task_id = self._next_task_id()
@@ -118,6 +157,7 @@ class AgentLoop:
 
     def _process_item(self, item: dict, task_id: int, cancel_event: threading.Event) -> None:
         try:
+            self._increment_metric("inputs", 1)
             self._emit("input_received", {"item": item})
             self._transition("listening", task_id=task_id)
 
@@ -140,6 +180,7 @@ class AgentLoop:
 
             if not self._is_active(task_id, cancel_event):
                 self._emit("cancelled", {"question": question})
+                self._increment_metric("cancellations", 1)
                 return
 
             self._emit("llm_finished", {
@@ -165,6 +206,12 @@ class AgentLoop:
                 }
 
             if payload is not None:
+                self._increment_metric("outputs", 1)
+                with self._task_lock:
+                    self.metrics["last_latency"] = duration
+                    outputs = max(int(self.metrics.get("outputs", 0)), 1)
+                    prev_avg = float(self.metrics.get("avg_latency", 0.0))
+                    self.metrics["avg_latency"] = prev_avg + ((duration - prev_avg) / outputs)
                 if self.output_queue is not None:
                     try:
                         self.output_queue.put_nowait(payload)
@@ -174,6 +221,7 @@ class AgentLoop:
                         self._emit("output_ready", payload)
                 else:
                     self._emit("output_ready", payload)
+                self._publish_metrics()
 
         except Exception as exc:
             self._emit("error", {"message": str(exc)})
@@ -211,6 +259,9 @@ class AgentLoop:
         self.running = True
         while self.running:
             if self._active_thread and self._active_thread.is_alive():
+                if not self.cancel_on_new_input:
+                    time.sleep(0.05)
+                    continue
                 try:
                     item = self.input_queue.get(timeout=0.2)
                 except queue.Empty:
@@ -237,6 +288,12 @@ class AgentLoop:
                     self.input_queue.task_done()
                 except Exception:
                     pass
+
+            if self._cancel_grace_until:
+                wait = self._cancel_grace_until - time.time()
+                if wait > 0:
+                    time.sleep(wait)
+                self._cancel_grace_until = 0.0
 
             self._start_task(item)
 
