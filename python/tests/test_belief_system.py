@@ -1,6 +1,6 @@
 import pytest
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from hexagon_core.belief.lifecycle import (
     BeliefLifecycleManager,
     DecayEngine,
@@ -128,3 +128,30 @@ class TestBeliefSystem:
         # Let's adjust test expectation or logic.
 
         assert len(clusters) >= 1
+
+    def test_temporal_queries(self, lifecycle):
+        now = datetime.now(timezone.utc)
+        base = now - timedelta(hours=2)
+        old = now - timedelta(hours=10)
+        new = now - timedelta(hours=1)
+
+        c1 = lifecycle.register_belief("Belief one")
+        previous_c1 = lifecycle._belief_timestamp(c1)
+        c1.last_updated_at = old
+        lifecycle._refresh_temporal_index(c1.id, previous_c1, old)
+
+        c2 = lifecycle.register_belief("Belief two")
+        previous_c2 = lifecycle._belief_timestamp(c2)
+        c2.last_updated_at = new
+        lifecycle._refresh_temporal_index(c2.id, previous_c2, new)
+
+        since = lifecycle.get_beliefs_since(base)
+        assert c2 in since
+        assert c1 not in since
+
+        in_range = lifecycle.get_beliefs_in_range(old, base)
+        assert c1 in in_range
+        assert c2 not in in_range
+
+        none_recent = lifecycle.get_recent_by_hours(0)
+        assert none_recent == []

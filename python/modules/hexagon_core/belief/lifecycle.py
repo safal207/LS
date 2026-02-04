@@ -7,6 +7,7 @@ from typing import List, Optional, Dict, Any, Tuple
 from .models import Convict, ConvictStatus, ReinforcementEvent, Contradiction, BeliefCluster
 from .events import BeliefEvent, BeliefDeprecatedEvent, BeliefConflictedEvent, BeliefRemovedEvent
 from .promotion import BeliefPromotionSystem
+from .temporal_index import TemporalIndex
 
 logger = logging.getLogger("BeliefLifecycle")
 
@@ -239,9 +240,16 @@ class BeliefLifecycleManager:
         self.contradiction_detector = ContradictionDetector()
         self.cluster_manager = SemanticClusterManager()
         self.promotion_system = BeliefPromotionSystem()
+        self.temporal_index = TemporalIndex()
 
         self.contradictions: List[Contradiction] = []
         self._observers = [] # List of objects with handle_event(event) method
+        self._ingest_existing_beliefs()
+
+    def _ingest_existing_beliefs(self) -> None:
+        """Load any pre-existing beliefs into the temporal index."""
+        for convict in self._convicts.values():
+            self.temporal_index.add(self._belief_timestamp(convict), convict.id)
 
     def add_observer(self, observer):
         self._observers.append(observer)
@@ -268,15 +276,18 @@ class BeliefLifecycleManager:
         new_id = f"convict_{uuid.uuid4()}"
         if metadata is None: metadata = {}
 
+        now = datetime.now(timezone.utc)
         convict = Convict(
             id=new_id,
             belief=text,
             confidence=0.5,
             strength=0.1,
-            created_at=datetime.now(timezone.utc),
+            created_at=now,
+            last_updated_at=now,
             metadata=metadata
         )
         self._convicts[new_id] = convict
+        self.temporal_index.add(now, new_id)
         logger.info(f"✨ Registered new belief: {text}")
         return convict
 
@@ -285,8 +296,12 @@ class BeliefLifecycleManager:
         if not convict:
             return False
 
-        success = self.tracker.reinforce(convict, source, context, strength, datetime.now(timezone.utc))
+        now = datetime.now(timezone.utc)
+        previous_ts = self._belief_timestamp(convict)
+        success = self.tracker.reinforce(convict, source, context, strength, now)
         if success:
+            convict.last_updated_at = now
+            self._refresh_temporal_index(convict_id, previous_ts, now)
             logger.info(f"💪 Reinforced: {convict.belief}")
         return success
 
@@ -299,7 +314,14 @@ class BeliefLifecycleManager:
                 continue
 
             old_status = c.status
+            old_strength = c.strength
             new_status = self.decay_engine.apply_decay(c, now)
+            status_changed = new_status != old_status
+            strength_changed = abs(c.strength - old_strength) > 0.001
+            if status_changed or strength_changed:
+                previous_ts = self._belief_timestamp(c)
+                c.last_updated_at = now
+                self._refresh_temporal_index(c.id, previous_ts, now)
 
             if new_status == ConvictStatus.DECAYING and old_status in [ConvictStatus.ACTIVE, ConvictStatus.MATURE]:
                 decayed_ids.append(c.id)
@@ -324,11 +346,18 @@ class BeliefLifecycleManager:
             c1 = self._convicts[conflict.belief_a_id]
             c2 = self._convicts[conflict.belief_b_id]
             self.contradiction_detector.resolve(conflict, c1, c2)
+            now = datetime.now(timezone.utc)
+            previous_ts_c1 = self._belief_timestamp(c1)
+            previous_ts_c2 = self._belief_timestamp(c2)
+            c1.last_updated_at = now
+            c2.last_updated_at = now
+            self._refresh_temporal_index(c1.id, previous_ts_c1, now)
+            self._refresh_temporal_index(c2.id, previous_ts_c2, now)
             self.contradictions.append(conflict)
             logger.warning(f"⚔️ Conflict: {c1.belief} vs {c2.belief}")
 
             self._notify(BeliefConflictedEvent(
-                timestamp=datetime.now(timezone.utc),
+                timestamp=now,
                 convict_id=c1.id,
                 belief_text=c1.belief,
                 conflict_id=conflict.id,
@@ -336,7 +365,7 @@ class BeliefLifecycleManager:
                 context=conflict.context
             ))
             self._notify(BeliefConflictedEvent(
-                timestamp=datetime.now(timezone.utc),
+                timestamp=now,
                 convict_id=c2.id,
                 belief_text=c2.belief,
                 conflict_id=conflict.id,
@@ -352,10 +381,78 @@ class BeliefLifecycleManager:
         for c in self.get_active_beliefs():
             can_promote, reason = self.promotion_system.can_be_promoted(c, now)
             if can_promote:
+                previous_ts = self._belief_timestamp(c)
                 c.status = ConvictStatus.MATURE
+                c.last_updated_at = now
+                self._refresh_temporal_index(c.id, previous_ts, now)
                 promoted.append(c)
                 logger.info(f"🎓 Belief Promoted to MATURE: {c.belief}")
         return promoted
+
+    def _normalize_timestamp(self, timestamp: datetime) -> datetime:
+        if timestamp.tzinfo is None:
+            return timestamp.replace(tzinfo=timezone.utc)
+        return timestamp
+
+    def _belief_timestamp(self, convict: Convict) -> datetime:
+        """
+        Return the most recent meaningful timestamp for a belief.
+        Guaranteed to be timezone-aware.
+        """
+        timestamp = (
+            convict.last_updated_at
+            or convict.last_reinforced_at
+            or convict.created_at
+            or datetime.now(timezone.utc)
+        )
+        return self._normalize_timestamp(timestamp)
+
+    def _refresh_temporal_index(self, convict_id: str, previous_ts: datetime, new_ts: datetime) -> None:
+        self.temporal_index.remove(self._normalize_timestamp(previous_ts), convict_id)
+        self.temporal_index.add(self._normalize_timestamp(new_ts), convict_id)
+
+    def get_beliefs_since(self, timestamp: datetime, *, include_deprecated: bool = False) -> List[Convict]:
+        """Return beliefs updated at or after the provided timestamp."""
+        now = datetime.now(timezone.utc)
+        ids = self.temporal_index.query_range(self._normalize_timestamp(timestamp), now)
+        beliefs = [self._convicts[c_id] for c_id in ids if c_id in self._convicts]
+        if include_deprecated:
+            return beliefs
+        return [belief for belief in beliefs if belief.status != ConvictStatus.DEPRECATED]
+
+    def get_beliefs_in_range(self, start: datetime, end: datetime, *, include_deprecated: bool = False) -> List[Convict]:
+        """Return beliefs updated within the [start, end] range."""
+        if start > end:
+            return []
+        ids = self.temporal_index.query_range(self._normalize_timestamp(start), self._normalize_timestamp(end))
+        beliefs = [self._convicts[c_id] for c_id in ids if c_id in self._convicts]
+        if include_deprecated:
+            return beliefs
+        return [belief for belief in beliefs if belief.status != ConvictStatus.DEPRECATED]
+
+    def get_recent_by_hours(self, hours: int) -> List[Convict]:
+        """Return beliefs updated within the last N hours."""
+        if hours <= 0:
+            return []
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        return self.get_beliefs_since(cutoff)
+
+    def get_recent_changes(self, hours: int) -> List[Convict]:
+        """Deprecated: use get_recent_by_hours."""
+        return self.get_recent_by_hours(hours)
+
+    def update_clusters(self) -> List[BeliefCluster]:
+        """Recompute clusters and update timestamps for affected beliefs."""
+        active = self.get_active_beliefs()
+        previous_clusters = {convict.id: convict.cluster_id for convict in active}
+        clusters = self.cluster_manager.cluster(active)
+        now = datetime.now(timezone.utc)
+        for convict in active:
+            if convict.cluster_id != previous_clusters.get(convict.id):
+                previous_ts = self._belief_timestamp(convict)
+                convict.last_updated_at = now
+                self._refresh_temporal_index(convict.id, previous_ts, now)
+        return clusters
 
     def get_mature_beliefs(self) -> List[Convict]:
         return [c for c in self._convicts.values() if c.status == ConvictStatus.MATURE]
