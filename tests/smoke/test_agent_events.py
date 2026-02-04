@@ -48,10 +48,13 @@ class TestAgentEvents(unittest.TestCase):
 
         for event in events:
             self.assertIn("timestamp", event)
-            self.assertIn("agent_state", event)
+            self.assertIn("state", event)
+            self.assertIn("task_id", event)
+            self.assertIn("version", event)
+            self.assertIn("payload", event)
 
         input_events = [event for event in events if event.get("type") == "input"]
-        self.assertTrue(any("metadata" in event for event in input_events))
+        self.assertTrue(any("payload" in event for event in input_events))
 
 
 if __name__ == "__main__":
