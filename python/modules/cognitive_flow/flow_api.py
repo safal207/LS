@@ -13,32 +13,50 @@ class CognitiveFlow:
 
     def step(self, event: Optional[Any] = None) -> None:
         if not isinstance(event, dict):
-            return None
+            return
 
-        event_type = event.get("type")
-        if not event_type:
-            return None
+        try:
+            event_type = event.get("type")
+            if not event_type:
+                return
 
-        advance = False
-        if event_type in {"input_received", "llm_started", "llm_finished", "output_ready"}:
-            advance = True
-        elif event_type == "state_change" and event.get("state") == "responding":
-            advance = True
+            payload = event.get("payload") or {}
+            current = self.presence.phase
 
-        if not advance:
-            return None
+            # 1) Explicit transition signal: advance to next phase.
+            if payload.get("transition_signal"):
+                next_phase = self.transitions.next_phase(current)
+                if not next_phase:
+                    return
+                liminal = self.transitions.enter_liminal(current, next_phase)
+                if liminal:
+                    self.presence.phase = liminal
+                else:
+                    self.presence.phase = next_phase
+                return
 
-        current = self.presence.phase
-        next_phase = self.transitions.next_phase(current)
-        if not next_phase:
-            return None
+            # 2) Event-driven defaults.
+            if event_type in {"input", "input_received"}:
+                self.presence.phase = "perceive"
+                return
 
-        liminal = self.transitions.enter_liminal(current, next_phase)
-        if liminal:
-            self.presence.phase = liminal
-            self.presence.metadata["liminal"] = liminal
-        else:
-            self.presence.metadata.pop("liminal", None)
+            if event_type in {"llm_call", "llm_started"}:
+                next_phase = self.transitions.next_phase("interpret")
+                liminal = self.transitions.enter_liminal("interpret", next_phase)
+                self.presence.phase = liminal or next_phase
+                return
 
-        self.presence.phase = next_phase
-        return next_phase
+            if event_type in {"output", "output_ready"}:
+                self.presence.phase = "act"
+                return
+
+            if event_type in {"task_complete"} or (event_type == "state_change" and event.get("state") == "idle"):
+                self.presence.phase = "reflect"
+                return
+
+            # 3) If phase is still unset, start with perceive.
+            if self.presence.phase is None:
+                self.presence.phase = "perceive"
+        except Exception:
+            # Cognitive Flow - best-effort
+            return
