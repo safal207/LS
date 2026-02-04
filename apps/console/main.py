@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Local Interview Copilot - Console MVP
-Phase 1: Audio capture -> STT -> LLM -> Console output
+LS — Console Runtime
+Audio capture -> STT -> LLM -> Console output
 """
 
 from pathlib import Path
@@ -77,7 +77,7 @@ class InterviewCopilot:
         
     def start(self):
         """Start all modules in separate threads"""
-        logger.info("Starting Interview Copilot...")
+        logger.info("Starting LS console runtime...")
         
         self.running = True
         

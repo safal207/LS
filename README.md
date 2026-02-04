@@ -1,6 +1,12 @@
-﻿# Local Interview Copilot (Ghost Mode)
+# LS — Local Cognitive System (LCS)
 
-Десктопное приложение для помощи в онлайн‑собеседованиях: захватывает системный звук, транскрибирует речь интервьюера и показывает подсказки в реальном времени.
+LS (Local Cognitive System) — локальная когнитивная система: архитектурный слой поверх LLM, который добавляет агентный цикл, временной контекст, устойчивость и наблюдаемость.
+
+Интервью‑копайлот (Ghost Mode) — **один из режимов/приложений**, а не “ядро” проекта.
+
+Документация:
+- `docs/MANIFESTO.md` — позиционирование и принципы
+- `docs/ARCHITECTURE.md` — архитектура и поток данных
 
 ## Структура репозитория
 
@@ -10,17 +16,26 @@ apps/
   ghostgpt/  # GUI entrypoint
 python/
   modules/
+    agent/          # AgentLoop + observability
     audio/          # аудио ingest
     stt/            # STT пайплайн
     llm/            # LLM пайплайн
     shared/         # shared utils + config loader
-    hexagon_core/   # ядро агента
+    hexagon_core/   # когнитивное ядро (beliefs/causal/mission/COT)
 config/
   base.yaml
   console.yaml
   ghostgpt.yaml
   local.yaml (ignored)
 ```
+
+## Что даёт LCS
+
+- **AgentLoop**: состояния `idle/listening/thinking/responding`, cooperative cancellation, memory hooks, метрики.
+- **Temporal/Belief foundation**: жизненный цикл убеждений и temporal‑индекс в `hexagon_core`.
+- **Stability layer**: circuit breaker для LLM вызовов.
+- **Observability**: event sink + строгий event‑contract (версия `1.0`).
+- **Единый конфиг**: YAML `base → app → local` через `shared.config_loader`.
 
 ## Быстрый старт
 
@@ -50,6 +65,7 @@ python apps/ghostgpt/main.py
 ```
 
 ### Legacy entrypoints (deprecated)
+
 Эти entrypoints оставлены для обратной совместимости и будут удалены после стабилизации:
 ```bash
 python main.py
@@ -58,7 +74,7 @@ python GhostGPT/main.py
 
 ## Конфигурация
 
-Конфиги теперь в YAML:
+Конфиги в YAML:
 - `config/base.yaml` — общие параметры
 - `config/console.yaml` — overrides для консоли
 - `config/ghostgpt.yaml` — overrides для GUI
@@ -81,14 +97,28 @@ config/local.example.yaml
 ```
 Скопируйте его в `config/local.yaml` и внесите свои значения (ключи, модели и т.п.).
 
+## Режимы (в т.ч. Interview Mode)
+
+Поведение системы в первую очередь задаётся `llm.system_prompt` (см. `config/base.yaml` и overrides в `config/local.yaml`).
+
+Если нужен “интервью‑режим”, задайте системный промпт в `config/local.yaml` (пример):
+```yaml
+llm:
+  system_prompt: |
+    You are a senior developer interviewing candidates.
+    Provide concise, bullet-point answers suitable for technical interviews.
+    Answer in Russian.
+```
+
 ## Модули
 
 Единый модульный слой находится в `python/modules/`:
+- `agent/` — AgentLoop и observability
 - `audio/` — ingest/VAD
 - `stt/` — Whisper обработка
 - `llm/` — генерация ответов (Ollama/Groq/Qwen)
 - `shared/` — общие утилиты и конфиг
-- `hexagon_core/` — ядро агента
+- `hexagon_core/` — когнитивное ядро агента
 
 ## Совместимость
 
@@ -106,5 +136,6 @@ python scripts/smoke.py
 
 ## Примечания
 
-- Все вычисления — локально (кроме опционального Groq‑fallback).
-- Для системного аудио на Windows обычно нужен VB‑Cable.
+- Все вычисления — локально (кроме опционального cloud‑fallback, если включён).
+- Для системного аудио на Windows обычно нужен VB‑Cable или включенный Stereo Mix (зависит от железа/драйверов).
+
