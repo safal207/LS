@@ -54,14 +54,25 @@ class LanguageModel:
             logger.warning(f"Could not connect to Ollama: {e}")
             return False
         
-    def generate_response_local(self, question: str) -> Optional[str]:
+    def _is_cancelled(self, cancel_event) -> bool:
+        return cancel_event is not None and getattr(cancel_event, "is_set", lambda: False)()
+
+    def generate_response_local(self, question: str, cancel_event=None) -> Optional[str]:
         """Generate response using local Ollama Qwen"""
         try:
+            if self._is_cancelled(cancel_event):
+                return None
             prompt = self._compose_prompt(question)
+
+            if self._is_cancelled(cancel_event):
+                return None
             
             logger.debug(f"Sending to Qwen: {question[:50]}...")
             
             response = self.qwen_handler.generate_response(prompt)
+
+            if self._is_cancelled(cancel_event):
+                return None
             
             if response:
                 logger.info(f"Generated response: {response[:100]}...")
@@ -74,14 +85,22 @@ class LanguageModel:
             logger.error(f"Error generating local response: {e}")
             return None
     
-    def generate_response_cloud(self, question: str) -> Optional[str]:
+    def generate_response_cloud(self, question: str, cancel_event=None) -> Optional[str]:
         """Generate response using cloud Qwen API"""
         try:
+            if self._is_cancelled(cancel_event):
+                return None
             prompt = self._compose_prompt(question)
+
+            if self._is_cancelled(cancel_event):
+                return None
             
             logger.debug(f"Sending to Qwen Cloud: {question[:50]}...")
             
             response = self.qwen_handler.generate_response(prompt)
+
+            if self._is_cancelled(cancel_event):
+                return None
             
             if response:
                 logger.info(f"Generated cloud response: {response[:100]}...")
@@ -94,14 +113,14 @@ class LanguageModel:
             logger.error(f"Error generating cloud response: {e}")
             return None
     
-    def generate_response(self, question: str) -> Optional[str]:
+    def generate_response(self, question: str, cancel_event=None) -> Optional[str]:
         """Generate response using either local or cloud LLM"""
         if USE_CLOUD_LLM:
             logger.info("Using cloud LLM (Groq)")
-            return self.generate_response_cloud(question)
+            return self.generate_response_cloud(question, cancel_event=cancel_event)
         else:
             logger.info("Using local LLM (Ollama phi3)")
-            return self.generate_response_local(question)
+            return self.generate_response_local(question, cancel_event=cancel_event)
     
     def format_response(self, response: str) -> str:
         """Format response for display"""
