@@ -34,6 +34,8 @@ AGENT_CANCEL_ON_NEW_INPUT = _get(["agent", "cancel_on_new_input"], True)
 AGENT_CANCEL_GRACE_MS = _get(["agent", "cancel_grace_ms"], 0)
 AGENT_MEMORY_MAX_CHARS = _get(["agent", "memory_max_chars"], 2000)
 AGENT_METRICS_ENABLED = _get(["agent", "metrics_enabled"], True)
+AGENT_OBSERVABILITY_ENABLED = _get(["agent", "observability_enabled"], True)
+AGENT_EVENT_SINK = _get(["agent", "event_sink"], "print")
 
 # Audio settings
 AUDIO_CHUNK_DURATION = _get(["audio", "chunk_duration"], 3.0)
