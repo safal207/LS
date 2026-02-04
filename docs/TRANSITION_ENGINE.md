@@ -9,7 +9,7 @@ Transition Engine управляет когнитивными переходам
 - возможность “закрыть” фазу и “открыть” следующую
 - интеграция liminal‑состояний
 
-## Фазы (proposal v1)
+## Фазы (proposal v1 / v0.1 implementation)
 
 - `perceive`
 - `interpret`
@@ -25,6 +25,9 @@ Liminal — это короткие “пороговые” состояния 
 - `analyze -> validating -> plan`
 - `act -> checking -> reflect`
 
+В v0.1 liminal‑состояния — **опциональные** и могут быть отключены.  
+Если включены, они описываются в `cognitive_flow.liminal.DEFAULT_LIMINALS`.
+
 ## Правила переходов (пример)
 
 - `perceive -> interpret`
@@ -33,4 +36,9 @@ Liminal — это короткие “пороговые” состояния 
 - `plan -> act`
 - `act -> reflect`
 - `reflect -> perceive` (новый цикл)
+
+## Примечание по observability
+
+Liminal‑состояния могут публиковаться как часть presence‑метаданных,  
+но не обязаны входить в event‑contract v1.0.
 

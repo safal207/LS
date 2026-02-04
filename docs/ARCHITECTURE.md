@@ -13,6 +13,7 @@
    - `stt/` → STT pipeline
    - `llm/` → LLM runtime (+ stability wrappers)
    - `agent/` → AgentLoop, cancellation, observability
+   - `cognitive_flow/` → Presence + Transition + Liminal (Phase 8)
    - `hexagon_core/` → когнитивное ядро (beliefs/causal/mission/COT)
    - `shared/` → config loader и общие утилиты
 
@@ -41,6 +42,16 @@ hotkey/UI events → audio/STT (text) → access protocol/agent loop → llm →
 - управляет состояниями: `idle/listening/thinking/responding`
 - умеет cooperative cancellation (new input supersedes current work)
 - публикует метрики и события (best-effort)
+
+## Cognitive Flow Layer (Phase 8)
+
+`python/modules/cognitive_flow/` — слой когнитивного потока:
+- `presence.py` → оперативное состояние (goal/phase/focus/intent/context)
+- `transition_engine.py` → фазные переходы reasoning
+- `liminal.py` → пороговые состояния между фазами
+- `flow_api.py` → будущая точка входа для когнитивного цикла
+
+На данном этапе слой подключён минимально: AgentLoop сохраняет presence‑снимок и обновляет `updated_at`.
 
 ### Observability Contract v1
 
