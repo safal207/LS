@@ -118,7 +118,11 @@ class AgentLoop:
                 "agent_state": state,
                 "metadata": payload,
             }
-        self.event_sink.emit(event)
+        try:
+            self.event_sink.emit(event)
+        except Exception:
+            # observability must never break the agent loop
+            pass
 
     def _emit(self, event_type: EventType, payload: dict | None = None) -> None:
         payload = payload or {}

@@ -15,7 +15,7 @@ class NullSink:
 
 class PrintSink:
     def emit(self, event: dict[str, Any]) -> None:
-        print(json.dumps(event, ensure_ascii=False))
+        print(json.dumps(event, ensure_ascii=False, default=str))
 
 
 def build_event_sink(name: str | None) -> EventSink:
