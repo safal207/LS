@@ -36,7 +36,14 @@ Acts like meta-thinking: learns from its own actions.
 
 ---
 
-## 1. Layer A - Fast Mode
+## 1. Layer A - Fast Mode## 1. Layer A - Fast Mode
+
+### Interface (v0.1)
+`ModeA.execute(input_data, context, system_load)` returns a fast result dict.
+
+### Status
+Mode A skeleton is implemented in `python/modules/modes/mode_a.py`.
+
 
 Fast Mode is a quick, shallow, reactive layer intended for:
 
@@ -218,7 +225,7 @@ The system must follow these constraints:
 
 | Module | Status | Code Location | Phase | Notes |
 |---|---|---|---|---|
-| A | NOT IMPLEMENTED | `python/modules/modes/mode_a.py` | 11 | Planned: simple lookup, fact-checking |
+| A | IMPLEMENTED | `python/modules/modes/mode_a.py` | 11 | Skeleton: fast handlers (Phase 11) |
 | B | IMPLEMENTED | `hexagon_core/`, `cognitive_flow/` | 5-9 | Beliefs, reasoning, phase transitions |
 | C | IN PROGRESS | `python/modules/coordinator/` | 10 | THIS PHASE - skeleton implementation |
 | D | IMPLEMENTED | `llm/temporal.py`, `agent/loop.py` | 6-8 | Timeline recording, observers |

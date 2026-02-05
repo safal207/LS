@@ -7,6 +7,7 @@ from .cognitive_flow import (
     AttentionState,
     AttentionEngine,
 )
+from .modes import ModeA
 
 # Phase 10: Coordinator (NEW)
 from .coordinator import (
@@ -24,6 +25,7 @@ __all__ = [
     "CognitiveFlow",
     "AttentionState",
     "AttentionEngine",
+    "ModeA",
 
     # New (Phase 10)
     "Coordinator",
