@@ -181,6 +181,10 @@ Retrospective is a pattern analyzer that:
 - No context mutation.
 - No persistence beyond in-memory history.
 
+### Phase 12.1 - Cache Insights (non-adaptive)
+- Derive cache insights from telemetry (repeat rate, hit ratio, qualitative reasons).
+- Best-effort analytics only; no changes to Fast Mode behavior.
+
 ---
 
 ## 6. Coordination Sequence (A -> B -> C -> D -> E)

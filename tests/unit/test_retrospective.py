@@ -83,6 +83,13 @@ class TestRetrospective(unittest.TestCase):
         self.assertEqual(summary["input"]["max"], 10)
         self.assertEqual(summary["input"]["count"], 5)
         self.assertEqual(summary["input"]["buckets"]["0-4"], 3)
+        insights = summary["cache_insights"]
+        self.assertAlmostEqual(insights["repeat_rate"], 0.75, places=2)
+        self.assertAlmostEqual(insights["hit_ratio"], 0.75, places=2)
+        self.assertEqual(insights["load_shed_saved"], 0)
+        self.assertIn("cache hit rate above 50%", insights["reasons"])
+        self.assertIn("cache mitigates load-shed events", insights["reasons"])
+        self.assertIn("temporal lookups frequently requested", insights["reasons"])
 
     def test_reset_clears_history(self):
         self.retrospective.snapshot(self._sample_stats())
