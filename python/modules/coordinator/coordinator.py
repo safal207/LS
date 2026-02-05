@@ -51,64 +51,37 @@ class Coordinator:
         from .context_sync import ContextSync
         from .cognitive_hygiene import CognitiveHygiene
         from orientation import OrientationCenter
+        from trajectory import TrajectoryLayer
 
         self.mode_detector = ModeDetector()
         self.context_sync = ContextSync()
         self.hygiene = CognitiveHygiene()
         self.orientation = OrientationCenter()
+        self.trajectory = TrajectoryLayer()
 
         # Metadata
         self.last_decision: Optional[CoordinationDecision] = None
         self.decision_history: list[CoordinationDecision] = []
         self.last_orientation: Optional[Dict[str, Any]] = None
+        self.last_trajectory_error: Optional[float] = None
 
     def _build_orientation_inputs(
         self,
         telemetry: Optional[Dict[str, Any]],
         retrospective: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+    ):
+        from orientation import RhythmInputs
+
         telemetry = telemetry or {}
         retrospective = retrospective or {}
 
-        history_stats = {
+        return RhythmInputs.from_dict({
             "diversity_score": telemetry.get("diversity_score", telemetry.get("diversity", 0.0)),
-            "entropy": telemetry.get("entropy", 0.0),
-            "unique_paths": telemetry.get("unique_paths", 0.0),
-            "total_paths": telemetry.get("total_paths", 0.0),
-        }
-
-        beliefs = retrospective.get("beliefs")
-        if beliefs is None and "stability" in retrospective:
-            beliefs = [{"age": 1.0, "support": float(retrospective.get("stability", 0.0))}]
-
-        temporal_metrics = {
+            "stability_score": retrospective.get("stability_score", retrospective.get("stability", 0.0)),
             "contradiction_rate": retrospective.get("contradiction_rate", retrospective.get("contradictions", 0.0)),
-            "short_term_trend": retrospective.get("short_term_trend", 0.0),
-            "long_term_trend": retrospective.get("long_term_trend", 0.0),
-        }
-
-        immunity_signals = {
             "drift_pressure": retrospective.get("drift_pressure", retrospective.get("drift", 0.0)),
-            "anomaly_rate": retrospective.get("anomaly_rate", 0.0),
-            "bias_flags": retrospective.get("bias_flags", 0.0),
-            "drift_signals": retrospective.get("drift_signals", []),
-        }
-
-        conviction_inputs = {
             "confidence_budget": retrospective.get("confidence_budget", retrospective.get("confidence", 0.0)),
-            "support_level": retrospective.get("support_level", 0.0),
-            "diversity_of_evidence": retrospective.get("diversity_of_evidence", 0.0),
-            "conflict_level": retrospective.get("conflict_level", 0.0),
-            "belief_age": retrospective.get("belief_age", 0.0),
-        }
-
-        return {
-            "history_stats": history_stats,
-            "beliefs": beliefs,
-            "temporal_metrics": temporal_metrics,
-            "immunity_signals": immunity_signals,
-            "conviction_inputs": conviction_inputs,
-        }
+        })
 
     def choose_mode(
         self,
@@ -174,7 +147,7 @@ class Coordinator:
         Does not change decision logic.
         """
         orientation_inputs = self._build_orientation_inputs(telemetry, retrospective)
-        orientation_output = self.orientation.evaluate(**orientation_inputs)
+        orientation_output = self.orientation.evaluate(orientation_inputs)
         self.last_orientation = orientation_output.to_dict()
 
         weight = self._compute_orientation_weight(self.last_orientation.get("rhythm_phase"))
@@ -185,7 +158,23 @@ class Coordinator:
         decision = self.choose_mode(input_data, context, system_load=system_load)
         payload = decision.to_dict()
         payload["orientation"] = self.last_orientation
+        self.trajectory.record_decision(
+            decision.mode,
+            {
+                "orientation": self.last_orientation,
+                "system_load": system_load,
+            },
+        )
+        self.last_trajectory_error = self.trajectory.compute_trajectory_error()
+        payload["trajectory_error"] = self.last_trajectory_error
         return payload
+
+    def record_outcome(self, outcome: Dict[str, Any]) -> None:
+        """
+        Skeleton: record the outcome of the last decision.
+        """
+        self.trajectory.record_outcome(outcome)
+        self.last_trajectory_error = self.trajectory.compute_trajectory_error()
 
     def _compute_orientation_weight(self, rhythm_phase: Optional[str]) -> float:
         if rhythm_phase == "inhale":

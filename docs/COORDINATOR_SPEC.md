@@ -66,6 +66,17 @@ orientation["weight"]   # -0.1 inhale, 0.0 hold, +0.1 exhale
 orientation["tendency"] # weighted sum of orientation signals
 ```
 
+## Trajectory Layer (Phase 14.1)
+
+Coordinator can record decisions and outcomes in the Trajectory Layer.
+This does not change decision logic; it only enriches context.
+
+```
+result = coordinator.decide(...)
+coordinator.record_outcome({"success": True})
+trajectory_error = result["trajectory_error"]
+```
+
 ## Roadmap
 
 - v0.1 (CURRENT): Skeleton with simple heuristics
