@@ -21,8 +21,18 @@ Records steps, events, transitions, durations.
 Acts like temporal memory: builds a timeline of thought.
 
 ### E - Retrospective (analysis and correction)
-Analyzes patterns, finds errors, ???????s strategies.
+Analyzes patterns, finds errors, corrects strategies.
 Acts like meta-thinking: learns from its own actions.
+
+---
+
+## Glossary
+
+**Context integrity** - the context is not corrupted, not lost, and not contradictory.  
+**Explainability** - the system can explain internal choice logic in metadata (not necessarily to the user).  
+**Pattern evolution** - updates to internal heuristics and strategies based on retrospection.  
+**Reasoning** - the process of building chains of inference.  
+**Lookup** - fast fact retrieval or direct matching without reasoning.
 
 ---
 
@@ -88,7 +98,7 @@ Coordinator is the executive layer that:
 
 ### Principles
 - C never modifies A/B results.
-- C always explains mode choice.
+- C always records the reason for mode choice in internal metadata (reason).
 - C always preserves context.
 - C always passes data to Temporal Spine.
 
@@ -115,6 +125,7 @@ Temporal Spine is the time axis that:
 - Write-only.
 - Observability only.
 - Telemetry only.
+- Best-effort and non-blocking.
 
 ### Why it exists
 - analysis,
@@ -130,7 +141,7 @@ Retrospective is a pattern analyzer that:
 
 - studies reasoning history,
 - finds errors,
-- ???????s strategies,
+- corrects strategies,
 - updates Coordinator heuristics.
 
 ### Principles
@@ -154,6 +165,8 @@ Each step goes through a single cognitive cycle:
 ### Principle
 Each layer does its own job.
 No layer interferes with another.
+C makes the final decision about mode selection and result synchronization.
+Mode "both" means sequential execution of A and B, followed by synchronization via C.
 
 ---
 
@@ -182,7 +195,7 @@ The system must follow these constraints:
 - A does not do reasoning.
 - B does not do lookup.
 - A does not explain.
-- B does not shorten.
+- B does not optimize response length at the expense of explanation completeness.
 
 ### Coordinator Constraints
 - C does not modify A/B results.
