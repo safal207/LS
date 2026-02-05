@@ -41,6 +41,21 @@ result = execute_mode(decision.mode)
 result, context = coordinator.finalize(result, context)
 ```
 
+## Orientation Center (Phase 13.1)
+
+Coordinator can optionally call the Orientation Center to attach a rhythm
+signal to its decision context. This does not change decision logic.
+
+```python
+result = coordinator.decide(
+    input_data=input,
+    context=context,
+    telemetry={},
+    retrospective={},
+)
+orientation = result["orientation"]
+```
+
 ## Roadmap
 
 - v0.1 (CURRENT): Skeleton with simple heuristics
