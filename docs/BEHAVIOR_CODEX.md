@@ -173,6 +173,14 @@ Retrospective is a pattern analyzer that:
 - Pattern updates only.
 - Improve future decisions only.
 
+### Phase 12 Rules
+- Analyze Mode A telemetry.
+- Produce structured summaries.
+- No reasoning.
+- No behavior modification.
+- No context mutation.
+- No persistence beyond in-memory history.
+
 ---
 
 ## 6. Coordination Sequence (A -> B -> C -> D -> E)
@@ -241,11 +249,11 @@ The system must follow these constraints:
 
 | Module | Status | Code Location | Phase | Notes |
 |---|---|---|---|---|
-| A | IMPLEMENTED | `python/modules/modes/mode_a.py` | 11 | v0.2: heuristics + caching |
+| A | IMPLEMENTED | `python/modules/modes/mode_a.py` | 11 | v0.3: telemetry + heuristics + caching |
 | B | IMPLEMENTED | `hexagon_core/`, `cognitive_flow/` | 5-9 | Beliefs, reasoning, phase transitions |
 | C | IN PROGRESS | `python/modules/coordinator/` | 10 | THIS PHASE - skeleton implementation |
 | D | IMPLEMENTED | `llm/temporal.py`, `agent/loop.py` | 6-8 | Timeline recording, observers |
-| E | NOT IMPLEMENTED | `python/modules/retrospective/` | 12 | Planned: pattern learning, updates |
+| E | IN PROGRESS | `python/modules/retrospective/` | 12 | Skeleton: telemetry summaries only |
 
 ## 10. How to Use This Codex
 
