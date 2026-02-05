@@ -36,7 +36,7 @@ Acts like meta-thinking: learns from its own actions.
 
 ---
 
-## 1. Layer A - Fast Mode## 1. Layer A - Fast Mode
+## 1. Layer A - Fast Mode
 
 ### Interface (v0.1)
 `ModeA.execute(input_data, context, system_load)` returns a fast result dict.
