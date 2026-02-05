@@ -9,6 +9,7 @@ from .belief_aging import BeliefAging
 from .temporal_causality import TemporalCausality
 from .cognitive_immunity import CognitiveImmunity
 from .conviction_regulator import ConvictionRegulator
+from .fusion_layer import OrientationFusionLayer
 from .metrics import OrientationSignals
 
 __all__ = [
@@ -22,5 +23,6 @@ __all__ = [
     "TemporalCausality",
     "CognitiveImmunity",
     "ConvictionRegulator",
+    "OrientationFusionLayer",
     "OrientationSignals",
 ]

@@ -26,6 +26,7 @@ from .orientation import (
     TemporalCausality,
     CognitiveImmunity,
     ConvictionRegulator,
+    OrientationFusionLayer,
 )
 
 __all__ = [
@@ -53,4 +54,5 @@ __all__ = [
     "TemporalCausality",
     "CognitiveImmunity",
     "ConvictionRegulator",
+    "OrientationFusionLayer",
 ]
