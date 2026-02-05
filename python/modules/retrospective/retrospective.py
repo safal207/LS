@@ -23,13 +23,15 @@ class Retrospective:
         })
 
     def summarize(self) -> dict[str, Any]:
-        return {
+        summary = {
             "total_snapshots": len(self.history),
             "heuristics_usage": self._aggregate_heuristics(),
             "cache": self._aggregate_cache(),
             "load": self._aggregate_load(),
             "input": self._aggregate_input(),
         }
+        summary["cache_insights"] = self._cache_insights(summary)
+        return summary
 
     def reset(self) -> None:
         self.history.clear()
@@ -109,4 +111,43 @@ class Retrospective:
             "max": max_len,
             "avg": avg,
             "buckets": buckets,
+        }
+
+    def _cache_insights(self, summary: dict[str, Any]) -> dict[str, Any]:
+        cache = summary.get("cache", {})
+        load = summary.get("load", {})
+        heuristics = summary.get("heuristics_usage", {})
+
+        hits = float(cache.get("hits", 0))
+        misses = float(cache.get("misses", 0))
+        total = hits + misses
+
+        repeat_rate = (hits / total) if total else 0.0
+        hit_ratio = repeat_rate
+
+        load_shed_saved = 0
+        reasons: list[str] = []
+
+        if total == 0:
+            reasons.append("no cache data available yet")
+        else:
+            if repeat_rate >= 0.5:
+                reasons.append("cache hit rate above 50%")
+            elif repeat_rate > 0:
+                reasons.append("cache hit rate above 0%")
+
+            if hits >= 10:
+                reasons.append("high repetition of simple queries")
+
+            if load.get("load_shed", 0) and hits > 0:
+                reasons.append("cache mitigates load-shed events")
+
+            if heuristics.get("temporal_lookup", 0) and hits > 0:
+                reasons.append("temporal lookups frequently requested")
+
+        return {
+            "repeat_rate": repeat_rate,
+            "hit_ratio": hit_ratio,
+            "load_shed_saved": load_shed_saved,
+            "reasons": reasons,
         }
