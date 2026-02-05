@@ -38,6 +38,14 @@ Acts like meta-thinking: learns from its own actions.
 
 ## 1. Layer A - Fast Mode
 
+### Interface (v0.2)
+`ModeA.execute(input_data, context, system_load)` returns a fast result dict.
+`source` may be `fast` or `cache`.
+
+### Status
+Mode A v0.2 is implemented in `python/modules/modes/mode_a.py` (heuristics + caching).
+
+
 Fast Mode is a quick, shallow, reactive layer intended for:
 
 - short answers,
@@ -52,6 +60,8 @@ Fast Mode is a quick, shallow, reactive layer intended for:
 - No long chains.
 - No complex explanations.
 - No assumptions.
+- Lightweight heuristics and small cache.
+- Load-aware: disables non-essential handlers under high load.
 
 ### When it activates
 - short queries,
@@ -218,7 +228,7 @@ The system must follow these constraints:
 
 | Module | Status | Code Location | Phase | Notes |
 |---|---|---|---|---|
-| A | NOT IMPLEMENTED | `python/modules/modes/mode_a.py` | 11 | Planned: simple lookup, fact-checking |
+| A | IMPLEMENTED | `python/modules/modes/mode_a.py` | 11 | v0.2: heuristics + caching |
 | B | IMPLEMENTED | `hexagon_core/`, `cognitive_flow/` | 5-9 | Beliefs, reasoning, phase transitions |
 | C | IN PROGRESS | `python/modules/coordinator/` | 10 | THIS PHASE - skeleton implementation |
 | D | IMPLEMENTED | `llm/temporal.py`, `agent/loop.py` | 6-8 | Timeline recording, observers |
