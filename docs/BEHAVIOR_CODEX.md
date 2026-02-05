@@ -38,38 +38,51 @@ Acts like meta-thinking: learns from its own actions.
 
 ## 1. Layer A - Fast Mode
 
-### Interface (v0.2)
-`ModeA.execute(input_data, context, system_load)` returns a fast result dict.
-`source` may be `fast` or `cache`.
+### Purpose
+Fast reaction with minimal depth.
 
-### Status
-Mode A v0.2 is implemented in `python/modules/modes/mode_a.py` (heuristics + caching).
+### Rules
+- Linear processing.
+- Minimal analysis.
+- No hypotheses.
+- No pattern building.
+- Minimal cost.
 
+### v0.2 Enhancements
+- Heuristics: pattern matching, command execution, mini-NLU
+- Caching: LRU cache for repeated inputs
+- Load-aware: disable heavy ops when system_load > 0.8
 
-Fast Mode is a quick, shallow, reactive layer intended for:
+### v0.3 Telemetry (non-adaptive)
+- Tracks heuristic usage, cache hits/misses, load-shed events, input length stats
+- Exposes stats via get_stats()/reset_stats()
+- Does not change behavior or heuristic order
 
-- short answers,
-- lookup operations,
-- simple transformations,
-- obvious facts,
-- low cognitive load.
+### Allowed Operations (v0.2)
+- Cached responses (instant)
+- Time/date lookup (O(1))
+- String commands: len, rev, trim, upper, lower, words
+- Mini-NLU: greeting matching, thanks responses
+- Math: + - * / only, no parentheses
+- Echo: repeat input
 
-### Principles
-- Minimal reasoning.
-- Maximum speed.
-- No long chains.
-- No complex explanations.
-- No assumptions.
-- Lightweight heuristics and small cache.
-- Load-aware: disables non-essential handlers under high load.
+### Not allowed
+- reasoning
+- context mutation
+- hypothesis building
 
-### When it activates
-- short queries,
-- low complexity,
-- high system load,
-- low ambiguity.
+### Conditions of Activation
+- input is simple
+- low ambiguity
+- speed > explainability
+- system under load
+- cached result (v0.2)
 
----
+### Performance Guarantees
+- Cache hit: < 1ms
+- Heuristic match: < 5ms
+- No context mutation
+- Always linear time (O(n) max)
 
 ## 2. Layer B - Deep Mode
 

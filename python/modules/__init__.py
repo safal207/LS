@@ -7,29 +7,26 @@ from .cognitive_flow import (
     AttentionState,
     AttentionEngine,
 )
-from .modes import ModeA
-
-# Phase 10: Coordinator (NEW)
 from .coordinator import (
     Coordinator,
     ModeDetector,
     ContextSync,
     CognitiveHygiene,
 )
+from .modes import FastMode, ModeAResponse, ModeA
 
 __all__ = [
-    # Existing
     "AgentLoop",
     "PresenceState",
     "TransitionEngine",
     "CognitiveFlow",
     "AttentionState",
     "AttentionEngine",
-    "ModeA",
-
-    # New (Phase 10)
     "Coordinator",
     "ModeDetector",
     "ContextSync",
     "CognitiveHygiene",
+    "FastMode",
+    "ModeAResponse",
+    "ModeA",
 ]
