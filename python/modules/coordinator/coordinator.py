@@ -50,14 +50,37 @@ class Coordinator:
         from .mode_detector import ModeDetector
         from .context_sync import ContextSync
         from .cognitive_hygiene import CognitiveHygiene
+        from orientation import OrientationCenter
 
         self.mode_detector = ModeDetector()
         self.context_sync = ContextSync()
         self.hygiene = CognitiveHygiene()
+        self.orientation = OrientationCenter()
 
         # Metadata
         self.last_decision: Optional[CoordinationDecision] = None
         self.decision_history: list[CoordinationDecision] = []
+        self.last_orientation: Optional[Dict[str, Any]] = None
+
+    def _build_orientation_inputs(
+        self,
+        telemetry: Optional[Dict[str, Any]],
+        retrospective: Optional[Dict[str, Any]],
+    ):
+        from orientation import RhythmInputs
+
+        telemetry = telemetry or {}
+        retrospective = retrospective or {}
+
+        data = {
+            "diversity_score": telemetry.get("diversity_score", telemetry.get("diversity", 0.0)),
+            "stability_score": retrospective.get("stability_score", retrospective.get("stability", 0.0)),
+            "contradiction_rate": retrospective.get("contradiction_rate", 0.0),
+            "drift_pressure": retrospective.get("drift_pressure", 0.0),
+            "confidence_budget": retrospective.get("confidence_budget", 0.0),
+        }
+
+        return RhythmInputs.from_dict(data)
 
     def choose_mode(
         self,
@@ -106,6 +129,30 @@ class Coordinator:
         self.decision_history.append(decision)
 
         return decision
+
+    def decide(
+        self,
+        input_data: str,
+        context: Dict[str, Any],
+        system_load: float = 0.0,
+        *,
+        telemetry: Optional[Dict[str, Any]] = None,
+        retrospective: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Skeleton integration with Orientation Center.
+
+        Returns a dict with the selected mode and orientation signal.
+        Does not change decision logic.
+        """
+        orientation_inputs = self._build_orientation_inputs(telemetry, retrospective)
+        orientation_output = self.orientation.evaluate(orientation_inputs)
+        self.last_orientation = orientation_output.to_dict()
+
+        decision = self.choose_mode(input_data, context, system_load=system_load)
+        payload = decision.to_dict()
+        payload["orientation"] = self.last_orientation
+        return payload
 
     def sync_context(
         self,
