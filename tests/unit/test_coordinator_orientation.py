@@ -25,6 +25,10 @@ class TestCoordinatorOrientation(unittest.TestCase):
         self.assertIn("orientation", result)
         orientation = result["orientation"]
         self.assertIn(orientation["rhythm_phase"], ["inhale", "hold", "exhale"])
+        self.assertIn("weight", orientation)
+        self.assertIn("tendency", orientation)
+        self.assertIsInstance(orientation["weight"], float)
+        self.assertIsInstance(orientation["tendency"], float)
 
 
 if __name__ == "__main__":

@@ -66,21 +66,49 @@ class Coordinator:
         self,
         telemetry: Optional[Dict[str, Any]],
         retrospective: Optional[Dict[str, Any]],
-    ):
-        from orientation import RhythmInputs
-
+    ) -> Dict[str, Any]:
         telemetry = telemetry or {}
         retrospective = retrospective or {}
 
-        data = {
+        history_stats = {
             "diversity_score": telemetry.get("diversity_score", telemetry.get("diversity", 0.0)),
-            "stability_score": retrospective.get("stability_score", retrospective.get("stability", 0.0)),
-            "contradiction_rate": retrospective.get("contradiction_rate", 0.0),
-            "drift_pressure": retrospective.get("drift_pressure", 0.0),
-            "confidence_budget": retrospective.get("confidence_budget", 0.0),
+            "entropy": telemetry.get("entropy", 0.0),
+            "unique_paths": telemetry.get("unique_paths", 0.0),
+            "total_paths": telemetry.get("total_paths", 0.0),
         }
 
-        return RhythmInputs.from_dict(data)
+        beliefs = retrospective.get("beliefs")
+        if beliefs is None and "stability" in retrospective:
+            beliefs = [{"age": 1.0, "support": float(retrospective.get("stability", 0.0))}]
+
+        temporal_metrics = {
+            "contradiction_rate": retrospective.get("contradiction_rate", retrospective.get("contradictions", 0.0)),
+            "short_term_trend": retrospective.get("short_term_trend", 0.0),
+            "long_term_trend": retrospective.get("long_term_trend", 0.0),
+        }
+
+        immunity_signals = {
+            "drift_pressure": retrospective.get("drift_pressure", retrospective.get("drift", 0.0)),
+            "anomaly_rate": retrospective.get("anomaly_rate", 0.0),
+            "bias_flags": retrospective.get("bias_flags", 0.0),
+            "drift_signals": retrospective.get("drift_signals", []),
+        }
+
+        conviction_inputs = {
+            "confidence_budget": retrospective.get("confidence_budget", retrospective.get("confidence", 0.0)),
+            "support_level": retrospective.get("support_level", 0.0),
+            "diversity_of_evidence": retrospective.get("diversity_of_evidence", 0.0),
+            "conflict_level": retrospective.get("conflict_level", 0.0),
+            "belief_age": retrospective.get("belief_age", 0.0),
+        }
+
+        return {
+            "history_stats": history_stats,
+            "beliefs": beliefs,
+            "temporal_metrics": temporal_metrics,
+            "immunity_signals": immunity_signals,
+            "conviction_inputs": conviction_inputs,
+        }
 
     def choose_mode(
         self,
@@ -146,13 +174,40 @@ class Coordinator:
         Does not change decision logic.
         """
         orientation_inputs = self._build_orientation_inputs(telemetry, retrospective)
-        orientation_output = self.orientation.evaluate(orientation_inputs)
+        orientation_output = self.orientation.evaluate(**orientation_inputs)
         self.last_orientation = orientation_output.to_dict()
+
+        weight = self._compute_orientation_weight(self.last_orientation.get("rhythm_phase"))
+        tendency = self._compute_orientation_tendency(self.last_orientation)
+        self.last_orientation["weight"] = weight
+        self.last_orientation["tendency"] = tendency
 
         decision = self.choose_mode(input_data, context, system_load=system_load)
         payload = decision.to_dict()
         payload["orientation"] = self.last_orientation
         return payload
+
+    def _compute_orientation_weight(self, rhythm_phase: Optional[str]) -> float:
+        if rhythm_phase == "inhale":
+            return -0.1
+        if rhythm_phase == "exhale":
+            return 0.1
+        return 0.0
+
+    def _compute_orientation_tendency(self, signals: Dict[str, Any]) -> float:
+        diversity = float(signals.get("diversity_score", 0.0))
+        stability = float(signals.get("stability_score", 0.0))
+        contradiction = float(signals.get("contradiction_rate", 0.0))
+        drift = float(signals.get("drift_pressure", 0.0))
+        confidence = float(signals.get("confidence_budget", 0.0))
+
+        return (
+            0.1 * diversity
+            + 0.3 * stability
+            - 0.3 * contradiction
+            - 0.2 * drift
+            + 0.2 * confidence
+        )
 
     def sync_context(
         self,

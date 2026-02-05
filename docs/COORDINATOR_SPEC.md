@@ -56,6 +56,16 @@ result = coordinator.decide(
 orientation = result["orientation"]
 ```
 
+## Orientation Weighting (Phase 14)
+
+Coordinator now attaches a non-invasive orientation weight and tendency.
+These values do not affect mode choice; they enrich the decision context.
+
+```
+orientation["weight"]   # -0.1 inhale, 0.0 hold, +0.1 exhale
+orientation["tendency"] # weighted sum of orientation signals
+```
+
 ## Roadmap
 
 - v0.1 (CURRENT): Skeleton with simple heuristics
