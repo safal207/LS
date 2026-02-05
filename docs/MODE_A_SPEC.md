@@ -10,6 +10,7 @@ Mode A is the lightweight, reactive layer designed for:
 
 v0.1: Skeleton only
 v0.2: Smart heuristics + LRU caching + load-aware behavior
+v0.3: Telemetry only (non-adaptive)
 
 ---
 
@@ -147,6 +148,7 @@ ModeAResponse:
 ### 6. v0.3 Telemetry (non-adaptive)
 
 v0.3 adds telemetry only. It does not change behavior or heuristic order.
+Telemetry is consumed by Retrospective (Phase 12) and does not modify Mode A behavior.
 
 Tracked metrics:
 - heuristic usage counts (temporal, math, string, mini_nlu, echo)
