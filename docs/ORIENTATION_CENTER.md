@@ -3,36 +3,39 @@
 ## Overview
 
 The Orientation Center (O) is a lightweight, non-invasive layer that provides
-an orientation signal to the rest of the system. It does not change behavior.
+orientation signals to the rest of the system. It does not change behavior.
 
-Phase 13 introduces the **Rhythm Engine** as the first signal generator for O.
+Phase 13.2 expands Orientation Center with modular organs that compute
+independent signals used by the Rhythm Engine.
 
-## Responsibilities
+## Modules
 
-- Compute an orientation signal based on system state metrics.
-- Expose the rhythm phase (inhale / hold / exhale).
-- Remain side-effect free.
-
-## Non-Goals
-
-- No policy enforcement.
-- No mode switching.
-- No behavior modification.
-- No persistence.
+- Metabolic Diversity -> diversity_score
+- Belief Aging -> stability_score
+- Temporal Causality -> contradiction_rate
+- Cognitive Immunity -> drift_pressure
+- Conviction Regulator -> confidence_budget
+- Rhythm Engine -> inhale/hold/exhale
 
 ## Outputs
-
-Orientation Center returns:
 
 ```
 {
   "rhythm_phase": "inhale" | "hold" | "exhale",
   "chaos_score": float,
   "harmony_score": float,
-  "delta": float
+  "delta": float,
+  "diversity_score": float,
+  "stability_score": float,
+  "contradiction_rate": float,
+  "drift_pressure": float,
+  "confidence_budget": float
 }
 ```
 
-## Phase 13 Status
+## Non-Goals
 
-Skeleton only. Provides a signal for future use in Coordinator (Phase 13+).
+- No policy enforcement
+- No mode switching
+- No behavior modification
+- No persistence

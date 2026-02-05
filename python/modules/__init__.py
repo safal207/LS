@@ -15,7 +15,18 @@ from .coordinator import (
 )
 from .modes import FastMode, ModeAResponse, ModeA
 from .retrospective import Retrospective
-from .orientation import OrientationCenter, RhythmEngine, RhythmPhase, RhythmInputs
+from .orientation import (
+    OrientationCenter,
+    OrientationOutput,
+    RhythmEngine,
+    RhythmPhase,
+    RhythmInputs,
+    MetabolicDiversity,
+    BeliefAging,
+    TemporalCausality,
+    CognitiveImmunity,
+    ConvictionRegulator,
+)
 
 __all__ = [
     "AgentLoop",
@@ -36,4 +47,10 @@ __all__ = [
     "RhythmEngine",
     "RhythmPhase",
     "RhythmInputs",
+    "OrientationOutput",
+    "MetabolicDiversity",
+    "BeliefAging",
+    "TemporalCausality",
+    "CognitiveImmunity",
+    "ConvictionRegulator",
 ]
