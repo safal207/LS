@@ -1,5 +1,5 @@
 """
-Cognitive Hygiene ? Clean up noise, prevent cycles, normalize context
+Cognitive Hygiene - Clean up noise, prevent cycles, normalize context
 
 v0.1 skeleton: Basic cleaning
 v0.2: Will add cycle detection, noise filtering, normalization

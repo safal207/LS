@@ -1,5 +1,5 @@
 """
-Context Sync ? Synchronize results between Mode A and Mode B
+Context Sync - Synchronize results between Mode A and Mode B
 
 v0.1 skeleton: Simple merge strategy
 v0.2: Will handle conflicts and cross-checking

@@ -1,5 +1,5 @@
 """
-C ? Coordinator Module
+C - Coordinator Module
 
 Part of Behavior Codex (docs/BEHAVIOR_CODEX.md)
 
@@ -38,9 +38,9 @@ class CoordinationDecision:
 
 class Coordinator:
     """
-    C ? Coordinator (?????????? ????)
-
-    v0.1: Skeleton ? defines interface and contract.
+    C - Coordinator
+    
+    v0.1: Skeleton - defines interface and contract.
     v0.2: Will implement mode selection logic.
     v0.3: Will add adaptive heuristics.
     """
@@ -84,9 +84,9 @@ class Coordinator:
             5. Pattern evolution
 
         Decision logic (v0.1 skeleton):
-            - if input is simple AND not under load ? "A"
-            - else if input is complex OR requires explanation ? "B"
-            - else ? "both" (for verification)
+            - if input is simple AND not under load -> "A"
+            - else if input is complex OR requires explanation -> "B"
+            - else -> "both" (for verification)
         """
         analysis = self.mode_detector.analyze(
             input_data=input_data,
@@ -169,10 +169,10 @@ class Coordinator:
         C MAIN ORCHESTRATOR: Full coordination pipeline.
 
         Sequence (Codex section 6):
-            1. choose_mode() ? pick A, B, or both
+            1. choose_mode() -> pick A, B, or both
             2. execute A or B (done by caller)
-            3. sync_context() ? merge results
-            4. cleanup() ? cognitive hygiene
+            3. sync_context() -> merge results
+            4. cleanup() -> cognitive hygiene
             5. return finalized result and context
 
         This is the method that AgentLoop calls.

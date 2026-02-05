@@ -1,5 +1,5 @@
 """
-Mode Detector ? Analyzes input to determine A vs B
+Mode Detector - Analyzes input to determine A vs B
 
 v0.1 skeleton: Returns decision based on simple heuristics
 v0.2: Will use metrics, confidence, learned patterns
@@ -36,10 +36,10 @@ class ModeDetector:
         v0.2: Will use ML models or learned patterns
 
         Decision tree (v0.1):
-            1. If input is very simple (< 5 words, no questions) ? "A"
-            2. If system under heavy load AND input medium ? "A"
-            3. If input requires explanation ("why", "how", "explain") ? "B"
-            4. If input is ambiguous OR complex ? "B"
+            1. If input is very simple (< 5 words, no questions) -> "A"
+            2. If system under heavy load AND input medium -> "A"
+            3. If input requires explanation ("why", "how", "explain") -> "B"
+            4. If input is ambiguous OR complex -> "B"
             5. Default: "both" (safe, but slower)
         """
 
