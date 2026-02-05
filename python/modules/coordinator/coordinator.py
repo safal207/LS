@@ -147,7 +147,7 @@ class Coordinator:
         Does not change decision logic.
         """
         orientation_inputs = self._build_orientation_inputs(telemetry, retrospective)
-        orientation_output = self.orientation.evaluate(orientation_inputs)
+        orientation_output = self.orientation.evaluate(**orientation_inputs)
         self.last_orientation = orientation_output.to_dict()
 
         weight = self._compute_orientation_weight(self.last_orientation.get("rhythm_phase"))
