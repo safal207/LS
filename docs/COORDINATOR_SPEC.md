@@ -12,13 +12,13 @@ The Coordinator (C) is the decision-making layer that:
 
 ### 1. choose_mode(input_data, context, system_load)
 Purpose: Determine which mode(s) to activate.
-Input: User query, current context, system load (0?1)
+Input: User query, current context, system load (0-1)
 Output: CoordinationDecision with mode and reasoning
 
 Decision rules (v0.1):
-- Simple input + low load ? Mode A
-- Complex input OR explanation needed ? Mode B
-- Default ? both (verify)
+- Simple input + low load -> Mode A
+- Complex input OR explanation needed -> Mode B
+- Default -> both (verify)
 
 ### 2. sync_context(mode_a_result, mode_b_result, context)
 Purpose: Merge results from modes into context.
@@ -49,6 +49,6 @@ result, context = coordinator.finalize(result, context)
 
 ## See Also
 
-- docs/BEHAVIOR_CODEX.md ? Formal codex
+- docs/BEHAVIOR_CODEX.md - Formal codex
 - Phase 11: Mode A (Fast Mode)
 - Phase 12: Retrospective (E)
