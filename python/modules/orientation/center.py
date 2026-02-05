@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from .rhythm_engine import RhythmEngine, RhythmInputs, RhythmPhase
+from .fusion_layer import OrientationFusionLayer
+from .metrics import OrientationSignals
 from .metabolic_diversity import MetabolicDiversity
 from .belief_aging import BeliefAging
 from .temporal_causality import TemporalCausality
@@ -49,6 +51,7 @@ class OrientationCenter:
         *,
         hold_epsilon: float = 0.1,
         rhythm_engine: RhythmEngine | None = None,
+        fusion_layer: OrientationFusionLayer | None = None,
         metabolic_diversity: MetabolicDiversity | None = None,
         belief_aging: BeliefAging | None = None,
         temporal_causality: TemporalCausality | None = None,
@@ -56,6 +59,7 @@ class OrientationCenter:
         conviction_regulator: ConvictionRegulator | None = None,
     ) -> None:
         self.rhythm_engine = rhythm_engine or RhythmEngine(hold_epsilon=hold_epsilon)
+        self.fusion_layer = fusion_layer or OrientationFusionLayer()
         self.metabolic_diversity = metabolic_diversity or MetabolicDiversity()
         self.belief_aging = belief_aging or BeliefAging()
         self.temporal_causality = temporal_causality or TemporalCausality()
@@ -77,12 +81,21 @@ class OrientationCenter:
         drift_pressure = self.cognitive_immunity.evaluate(immunity_signals)
         confidence_budget = self.conviction_regulator.evaluate(conviction_inputs)
 
-        rhythm_inputs = RhythmInputs(
+        raw_signals = OrientationSignals(
             diversity_score=diversity_score,
             stability_score=stability_score,
             contradiction_rate=contradiction_rate,
             drift_pressure=drift_pressure,
             confidence_budget=confidence_budget,
+        )
+        fused = self.fusion_layer.fuse(raw_signals)
+
+        rhythm_inputs = RhythmInputs(
+            diversity_score=fused.diversity_score,
+            stability_score=fused.stability_score,
+            contradiction_rate=fused.contradiction_rate,
+            drift_pressure=fused.drift_pressure,
+            confidence_budget=fused.confidence_budget,
         )
         rhythm_result = self.rhythm_engine.evaluate(rhythm_inputs)
 
@@ -91,9 +104,9 @@ class OrientationCenter:
             chaos_score=rhythm_result["chaos_score"],
             harmony_score=rhythm_result["harmony_score"],
             delta=rhythm_result["delta"],
-            diversity_score=diversity_score,
-            stability_score=stability_score,
-            contradiction_rate=contradiction_rate,
-            drift_pressure=drift_pressure,
-            confidence_budget=confidence_budget,
+            diversity_score=fused.diversity_score,
+            stability_score=fused.stability_score,
+            contradiction_rate=fused.contradiction_rate,
+            drift_pressure=fused.drift_pressure,
+            confidence_budget=fused.confidence_budget,
         )

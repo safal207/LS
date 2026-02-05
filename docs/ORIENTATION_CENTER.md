@@ -5,8 +5,8 @@
 The Orientation Center (O) is a lightweight, non-invasive layer that provides
 orientation signals to the rest of the system. It does not change behavior.
 
-Phase 13.2 expands Orientation Center with modular organs that compute
-independent signals used by the Rhythm Engine.
+Phase 13.2 added modular organs. Phase 13.3 adds the Fusion Layer to combine
+organ signals into a unified state vector before rhythm evaluation.
 
 ## Modules
 
@@ -15,6 +15,7 @@ independent signals used by the Rhythm Engine.
 - Temporal Causality -> contradiction_rate
 - Cognitive Immunity -> drift_pressure
 - Conviction Regulator -> confidence_budget
+- Fusion Layer -> smoothed OrientationSignals
 - Rhythm Engine -> inhale/hold/exhale
 
 ## Outputs
