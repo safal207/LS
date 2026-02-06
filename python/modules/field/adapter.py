@@ -3,6 +3,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from .bias import FieldBias
+
 from .registry import FieldRegistry
 from .state import FieldNodeState, FieldState
 
@@ -30,6 +32,10 @@ class FieldAdapter:
 
     def pull_field_metrics(self) -> dict[str, float]:
         return self.registry.get_state().metrics or {}
+
+    def compute_field_bias(self, bias: FieldBias) -> dict[str, float]:
+        metrics = self.pull_field_metrics()
+        return bias.compute_bias(metrics)
 
     @staticmethod
     def _coerce_float_dict(value: Any) -> dict[str, float]:
