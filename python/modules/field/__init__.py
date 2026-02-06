@@ -4,6 +4,7 @@ from .adapter import FieldAdapter
 from .dampening import FieldDampening
 from .resonance import FieldResonance
 from .bias import FieldBias
+from .consensus import ConsensusEngine
 
 __all__ = [
     "FieldNodeState",
@@ -13,4 +14,5 @@ __all__ = [
     "FieldResonance",
     "FieldBias",
     "FieldDampening",
+    "ConsensusEngine",
 ]
