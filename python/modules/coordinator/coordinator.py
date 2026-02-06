@@ -57,6 +57,7 @@ class Coordinator:
         from .meta_hygiene import MetaHygiene
         from orientation import OrientationCenter
         from trajectory import TrajectoryLayer
+        from field import ConsensusEngine
 
         self.mode_detector = ModeDetector()
         self.context_sync = ContextSync()
@@ -64,6 +65,7 @@ class Coordinator:
         self.adaptive = AdaptiveBias()
         self.confidence_dynamics = ConfidenceDynamics()
         self.field_coordination = FieldCoordination()
+        self.consensus = ConsensusEngine()
         self.meta = MetaAdaptationLayer()
         self.meta_hygiene = MetaHygiene()
         self.orientation = OrientationCenter()
@@ -208,10 +210,19 @@ class Coordinator:
         context["coordination_bias"] = coordination_bias
 
         decision = self.choose_mode(input_data, context, system_load=system_load)
+        consensus_adjustment = 0.0
+        if self.field_adapter is not None:
+            metrics = self.field_adapter.pull_field_metrics()
+            consensus_adjustment = self.consensus.compute(
+                metrics,
+                decision.mode,
+                decision.confidence,
+            )
         raw_confidence = max(
             0.0,
             min(1.0, decision.confidence + adaptive_bias + coordination_bias),
         )
+        raw_confidence = max(0.0, min(1.0, raw_confidence + consensus_adjustment))
         smoothed_confidence = self.confidence_dynamics.update(raw_confidence)
         decision.confidence = smoothed_confidence
 
@@ -241,6 +252,7 @@ class Coordinator:
         payload["orientation"] = self.last_orientation
         payload["field_bias"] = field_bias
         payload["coordination_bias"] = coordination_bias
+        payload["consensus_adjustment"] = consensus_adjustment
         snapshot = {
             "orientation": self.last_orientation,
             "confidence": {
