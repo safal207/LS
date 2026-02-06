@@ -11,6 +11,7 @@ from .belief_aging import BeliefAging
 from .temporal_causality import TemporalCausality
 from .cognitive_immunity import CognitiveImmunity
 from .conviction_regulator import ConvictionRegulator
+from .trajectory_adapter import TrajectoryAdapter
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,7 @@ class OrientationOutput:
     contradiction_rate: float
     drift_pressure: float
     confidence_budget: float
+    trajectory_signal: float
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -36,6 +38,7 @@ class OrientationOutput:
             "contradiction_rate": self.contradiction_rate,
             "drift_pressure": self.drift_pressure,
             "confidence_budget": self.confidence_budget,
+            "trajectory_signal": self.trajectory_signal,
         }
 
 
@@ -57,6 +60,7 @@ class OrientationCenter:
         temporal_causality: TemporalCausality | None = None,
         cognitive_immunity: CognitiveImmunity | None = None,
         conviction_regulator: ConvictionRegulator | None = None,
+        trajectory_adapter: TrajectoryAdapter | None = None,
     ) -> None:
         self.rhythm_engine = rhythm_engine or RhythmEngine(hold_epsilon=hold_epsilon)
         self.fusion_layer = fusion_layer or OrientationFusionLayer()
@@ -65,6 +69,7 @@ class OrientationCenter:
         self.temporal_causality = temporal_causality or TemporalCausality()
         self.cognitive_immunity = cognitive_immunity or CognitiveImmunity()
         self.conviction_regulator = conviction_regulator or ConvictionRegulator()
+        self.trajectory_adapter = trajectory_adapter or TrajectoryAdapter()
 
     def evaluate(
         self,
@@ -74,12 +79,14 @@ class OrientationCenter:
         temporal_metrics: dict[str, Any] | None = None,
         immunity_signals: dict[str, Any] | None = None,
         conviction_inputs: dict[str, Any] | None = None,
+        trajectory_error: float | None = None,
     ) -> OrientationOutput:
         diversity_score = self.metabolic_diversity.evaluate(history_stats)
         stability_score = self.belief_aging.evaluate(beliefs)
         contradiction_rate = self.temporal_causality.evaluate(temporal_metrics)
         drift_pressure = self.cognitive_immunity.evaluate(immunity_signals)
         confidence_budget = self.conviction_regulator.evaluate(conviction_inputs)
+        trajectory_signal = self.trajectory_adapter.evaluate(trajectory_error)
 
         raw_signals = OrientationSignals(
             diversity_score=diversity_score,
@@ -109,4 +116,5 @@ class OrientationCenter:
             contradiction_rate=fused.contradiction_rate,
             drift_pressure=fused.drift_pressure,
             confidence_budget=fused.confidence_budget,
+            trajectory_signal=trajectory_signal,
         )

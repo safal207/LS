@@ -28,6 +28,8 @@ from .orientation import (
     CognitiveImmunity,
     ConvictionRegulator,
     OrientationFusionLayer,
+    TrajectoryAdapter,
+    OrientationSignals,
 )
 from .trajectory import TrajectoryLayer, TrajectoryPoint
 
@@ -58,6 +60,8 @@ __all__ = [
     "CognitiveImmunity",
     "ConvictionRegulator",
     "OrientationFusionLayer",
+    "TrajectoryAdapter",
+    "OrientationSignals",
     "TrajectoryLayer",
     "TrajectoryPoint",
 ]
