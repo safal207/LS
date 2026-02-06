@@ -82,6 +82,7 @@ trajectory_error = result["trajectory_error"]
 - v0.1 (CURRENT): Skeleton with simple heuristics
 - v0.2: Real decision logic using metrics
 - v0.3: Adaptive heuristics, learning from retrospection
+- Phase 15: Adaptive bias (soft confidence adjustment only)
 
 ## See Also
 

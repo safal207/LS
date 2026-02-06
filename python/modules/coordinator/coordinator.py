@@ -50,12 +50,14 @@ class Coordinator:
         from .mode_detector import ModeDetector
         from .context_sync import ContextSync
         from .cognitive_hygiene import CognitiveHygiene
+        from .adaptive_bias import AdaptiveBias
         from orientation import OrientationCenter
         from trajectory import TrajectoryLayer
 
         self.mode_detector = ModeDetector()
         self.context_sync = ContextSync()
         self.hygiene = CognitiveHygiene()
+        self.adaptive = AdaptiveBias()
         self.orientation = OrientationCenter()
         self.trajectory = TrajectoryLayer()
 
@@ -181,8 +183,15 @@ class Coordinator:
         tendency = self._compute_orientation_tendency(self.last_orientation)
         self.last_orientation["weight"] = weight
         self.last_orientation["tendency"] = tendency
+        orientation_bias = self.adaptive.compute_orientation_bias(self.last_orientation)
+        trajectory_bias = self.adaptive.compute_trajectory_bias(self.last_trajectory_error)
+        adaptive_bias = self.adaptive.combine(orientation_bias, trajectory_bias)
+        self.last_orientation["orientation_bias"] = orientation_bias
+        self.last_orientation["trajectory_bias"] = trajectory_bias
+        self.last_orientation["adaptive_bias"] = adaptive_bias
 
         decision = self.choose_mode(input_data, context, system_load=system_load)
+        decision.confidence = max(0.0, min(1.0, decision.confidence + adaptive_bias))
         payload = decision.to_dict()
         payload["orientation"] = self.last_orientation
         self.trajectory.record_decision(

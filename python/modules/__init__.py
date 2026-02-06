@@ -12,6 +12,7 @@ from .coordinator import (
     ModeDetector,
     ContextSync,
     CognitiveHygiene,
+    AdaptiveBias,
 )
 from .modes import FastMode, ModeAResponse, ModeA
 from .retrospective import Retrospective
@@ -43,6 +44,7 @@ __all__ = [
     "ModeDetector",
     "ContextSync",
     "CognitiveHygiene",
+    "AdaptiveBias",
     "FastMode",
     "ModeAResponse",
     "ModeA",
