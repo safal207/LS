@@ -9,7 +9,7 @@ MODULES = ROOT / "python" / "modules"
 if str(MODULES) not in sys.path:
     sys.path.insert(0, str(MODULES))
 
-from field import FieldAdapter, FieldRegistry
+from field import FieldAdapter, FieldRegistry, FieldResonance, FieldBias, FieldNodeState
 
 
 class TestFieldAdapter(unittest.TestCase):
@@ -32,6 +32,22 @@ class TestFieldAdapter(unittest.TestCase):
         adapter = FieldAdapter(node_id="node-1", registry=registry)
         metrics = adapter.pull_field_metrics()
         self.assertEqual(metrics, {})
+
+    def test_compute_field_bias(self):
+        registry = FieldRegistry(ttl=10.0, resonance=FieldResonance())
+        adapter = FieldAdapter(node_id="node-1", registry=registry)
+        registry.update_node(
+            FieldNodeState(
+                node_id="other",
+                timestamp=0.0,
+                orientation={"x": 0.2},
+                confidence={"smoothed": 0.4},
+                trajectory={"error": 0.3},
+            )
+        )
+        bias = FieldBias()
+        values = adapter.compute_field_bias(bias)
+        self.assertIn("orientation_bias", values)
 
 
 if __name__ == "__main__":

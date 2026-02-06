@@ -16,6 +16,9 @@ class AdaptiveBias:
     Skeleton: linear combination with clamping.
     """
 
+    def __init__(self) -> None:
+        self.external_bias = 0.0
+
     def compute_orientation_bias(self, orientation: dict) -> float:
         tendency = float(orientation.get("tendency", 0.0))
         weight = float(orientation.get("weight", 0.0))
@@ -27,4 +30,7 @@ class AdaptiveBias:
         return _clamp(-float(trajectory_error) * 0.2, low=-0.2, high=0.2)
 
     def combine(self, orientation_bias: float, trajectory_bias: float) -> float:
-        return _clamp(orientation_bias + trajectory_bias)
+        return _clamp(orientation_bias + trajectory_bias + self.external_bias)
+
+    def apply_external_bias(self, delta: float) -> None:
+        self.external_bias = _clamp(self.external_bias + float(delta), low=-0.2, high=0.2)
