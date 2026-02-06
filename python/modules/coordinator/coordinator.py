@@ -50,12 +50,14 @@ class Coordinator:
         from .mode_detector import ModeDetector
         from .context_sync import ContextSync
         from .cognitive_hygiene import CognitiveHygiene
+        from .adaptive_bias import AdaptiveBias
         from orientation import OrientationCenter
         from trajectory import TrajectoryLayer
 
         self.mode_detector = ModeDetector()
         self.context_sync = ContextSync()
         self.hygiene = CognitiveHygiene()
+        self.adaptive = AdaptiveBias()
         self.orientation = OrientationCenter()
         self.trajectory = TrajectoryLayer()
 
@@ -70,18 +72,42 @@ class Coordinator:
         telemetry: Optional[Dict[str, Any]],
         retrospective: Optional[Dict[str, Any]],
     ):
-        from orientation import RhythmInputs
-
         telemetry = telemetry or {}
         retrospective = retrospective or {}
 
-        return RhythmInputs.from_dict({
-            "diversity_score": telemetry.get("diversity_score", telemetry.get("diversity", 0.0)),
-            "stability_score": retrospective.get("stability_score", retrospective.get("stability", 0.0)),
-            "contradiction_rate": retrospective.get("contradiction_rate", retrospective.get("contradictions", 0.0)),
-            "drift_pressure": retrospective.get("drift_pressure", retrospective.get("drift", 0.0)),
-            "confidence_budget": retrospective.get("confidence_budget", retrospective.get("confidence", 0.0)),
-        })
+        history_stats = dict(telemetry)
+        if "diversity" in history_stats and "diversity_score" not in history_stats:
+            history_stats["diversity_score"] = history_stats["diversity"]
+
+        beliefs = retrospective.get("beliefs")
+        if beliefs is None and "stability_score" in retrospective:
+            beliefs = [{"stability_score": retrospective.get("stability_score")}]
+
+        temporal_metrics = dict(retrospective.get("temporal_metrics") or {})
+        if "contradiction_rate" in retrospective and "contradiction_rate" not in temporal_metrics:
+            temporal_metrics["contradiction_rate"] = retrospective.get("contradiction_rate")
+        if "contradictions" in retrospective and "contradiction_rate" not in temporal_metrics:
+            temporal_metrics["contradiction_rate"] = retrospective.get("contradictions")
+
+        immunity_signals = dict(retrospective.get("immunity_signals") or {})
+        if "drift_pressure" in retrospective and "drift_pressure" not in immunity_signals:
+            immunity_signals["drift_pressure"] = retrospective.get("drift_pressure")
+        if "drift" in retrospective and "drift_pressure" not in immunity_signals:
+            immunity_signals["drift_pressure"] = retrospective.get("drift")
+
+        conviction_inputs = dict(retrospective.get("conviction_inputs") or {})
+        if "confidence_budget" in retrospective and "confidence_budget" not in conviction_inputs:
+            conviction_inputs["confidence_budget"] = retrospective.get("confidence_budget")
+        if "confidence" in retrospective and "confidence_budget" not in conviction_inputs:
+            conviction_inputs["confidence_budget"] = retrospective.get("confidence")
+
+        return {
+            "history_stats": history_stats,
+            "beliefs": beliefs,
+            "temporal_metrics": temporal_metrics,
+            "immunity_signals": immunity_signals,
+            "conviction_inputs": conviction_inputs,
+        }
 
     def choose_mode(
         self,
@@ -154,8 +180,15 @@ class Coordinator:
         tendency = self._compute_orientation_tendency(self.last_orientation)
         self.last_orientation["weight"] = weight
         self.last_orientation["tendency"] = tendency
+        orientation_bias = self.adaptive.compute_orientation_bias(self.last_orientation)
+        trajectory_bias = self.adaptive.compute_trajectory_bias(self.last_trajectory_error)
+        adaptive_bias = self.adaptive.combine(orientation_bias, trajectory_bias)
+        self.last_orientation["orientation_bias"] = orientation_bias
+        self.last_orientation["trajectory_bias"] = trajectory_bias
+        self.last_orientation["adaptive_bias"] = adaptive_bias
 
         decision = self.choose_mode(input_data, context, system_load=system_load)
+        decision.confidence = max(0.0, min(1.0, decision.confidence + adaptive_bias))
         payload = decision.to_dict()
         payload["orientation"] = self.last_orientation
         self.trajectory.record_decision(
