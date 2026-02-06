@@ -68,6 +68,7 @@ class Coordinator:
         self.trajectory = TrajectoryLayer()
         self.field_adapter = None
         self.field_resonance = None
+        self.field_bias = None
 
         # Metadata
         self.last_decision: Optional[CoordinationDecision] = None
@@ -209,6 +210,14 @@ class Coordinator:
         )
         self.meta.adapt_confidence_dynamics(self.confidence_dynamics)
         self.meta.adapt_adaptive_bias(self.adaptive)
+
+        field_bias = {}
+        if self.field_adapter is not None and self.field_bias is not None:
+            field_bias = self.field_adapter.compute_field_bias(self.field_bias)
+            self.confidence_dynamics.alpha += field_bias.get("confidence_bias", 0.0)
+            self.confidence_dynamics.max_delta += field_bias.get("trajectory_bias", 0.0)
+            self.adaptive.apply_external_bias(field_bias.get("orientation_bias", 0.0))
+
         self.meta_hygiene.update(
             trajectory_error=self.last_trajectory_error,
             confidence=smoothed_confidence,
@@ -219,6 +228,7 @@ class Coordinator:
         payload["confidence_raw"] = raw_confidence
         payload["confidence_smoothed"] = smoothed_confidence
         payload["orientation"] = self.last_orientation
+        payload["field_bias"] = field_bias
         snapshot = {
             "orientation": self.last_orientation,
             "confidence": {
