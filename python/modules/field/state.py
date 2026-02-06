@@ -15,3 +15,4 @@ class FieldNodeState:
 @dataclass(frozen=True)
 class FieldState:
     nodes: dict[str, FieldNodeState]
+    metrics: dict[str, float] | None = None

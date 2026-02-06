@@ -9,7 +9,7 @@ MODULES = ROOT / "python" / "modules"
 if str(MODULES) not in sys.path:
     sys.path.insert(0, str(MODULES))
 
-from field import FieldRegistry, FieldNodeState
+from field import FieldRegistry, FieldNodeState, FieldResonance
 
 
 class TestFieldRegistry(unittest.TestCase):
@@ -41,6 +41,20 @@ class TestFieldRegistry(unittest.TestCase):
         now[0] = 2.0
         state = registry.get_state()
         self.assertNotIn("node-1", state.nodes)
+
+    def test_registry_metrics_when_resonance_enabled(self):
+        registry = FieldRegistry(ttl=5.0, resonance=FieldResonance())
+        node = FieldNodeState(
+            node_id="node-1",
+            timestamp=0.0,
+            orientation={"o": 0.1},
+            confidence={"smoothed": 0.4},
+            trajectory={"error": 0.2},
+        )
+        registry.update_node(node)
+        state = registry.get_state()
+        self.assertIsNotNone(state.metrics)
+        self.assertIn("orientation_coherence", state.metrics)
 
 
 if __name__ == "__main__":

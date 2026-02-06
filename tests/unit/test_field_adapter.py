@@ -27,6 +27,12 @@ class TestFieldAdapter(unittest.TestCase):
         node = state.nodes["node-1"]
         self.assertIn("weight", node.orientation)
 
+    def test_pull_field_metrics(self):
+        registry = FieldRegistry(ttl=10.0)
+        adapter = FieldAdapter(node_id="node-1", registry=registry)
+        metrics = adapter.pull_field_metrics()
+        self.assertEqual(metrics, {})
+
 
 if __name__ == "__main__":
     unittest.main()

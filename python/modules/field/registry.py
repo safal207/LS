@@ -3,13 +3,21 @@ from __future__ import annotations
 import time
 from typing import Callable
 
+from .resonance import FieldResonance
 from .state import FieldNodeState, FieldState
 
 
 class FieldRegistry:
-    def __init__(self, ttl: float = 5.0, *, clock: Callable[[], float] | None = None) -> None:
+    def __init__(
+        self,
+        ttl: float = 5.0,
+        *,
+        clock: Callable[[], float] | None = None,
+        resonance: FieldResonance | None = None,
+    ) -> None:
         self.ttl = ttl
         self._clock = clock or time.time
+        self._resonance = resonance
         self._nodes: dict[str, FieldNodeState] = {}
 
     def update_node(self, node_state: FieldNodeState) -> None:
@@ -18,7 +26,11 @@ class FieldRegistry:
 
     def get_state(self) -> FieldState:
         self._prune()
-        return FieldState(nodes=dict(self._nodes))
+        base_state = FieldState(nodes=dict(self._nodes))
+        if self._resonance is None:
+            return base_state
+        metrics = self._resonance.compute(base_state)
+        return FieldState(nodes=base_state.nodes, metrics=metrics)
 
     def _prune(self) -> None:
         now = self._clock()

@@ -19,7 +19,7 @@ from .coordinator import (
 )
 from .modes import FastMode, ModeAResponse, ModeA
 from .retrospective import Retrospective
-from .field import FieldAdapter, FieldRegistry, FieldNodeState, FieldState
+from .field import FieldAdapter, FieldRegistry, FieldNodeState, FieldState, FieldResonance
 from .orientation import (
     OrientationCenter,
     OrientationOutput,
@@ -60,6 +60,7 @@ __all__ = [
     "FieldRegistry",
     "FieldNodeState",
     "FieldState",
+    "FieldResonance",
     "OrientationCenter",
     "RhythmEngine",
     "RhythmPhase",
