@@ -6,6 +6,7 @@ from typing import Callable
 from .dampening import FieldDampening
 from .evolution import FieldEvolution
 from .mesh import CognitiveMesh
+from .morphogenesis import FieldMorphogenesis
 from .resonance import FieldResonance
 from .state import FieldNodeState, FieldState
 
@@ -20,6 +21,7 @@ class FieldRegistry:
         dampening: FieldDampening | None = None,
         evolution: FieldEvolution | None = None,
         mesh: CognitiveMesh | None = None,
+        morphogenesis: FieldMorphogenesis | None = None,
     ) -> None:
         self.ttl = ttl
         self._clock = clock or time.time
@@ -27,6 +29,7 @@ class FieldRegistry:
         self._dampening = dampening
         self._evolution = evolution
         self._mesh = mesh
+        self._morphogenesis = morphogenesis
         self._nodes: dict[str, FieldNodeState] = {}
 
     def update_node(self, node_state: FieldNodeState) -> None:
@@ -47,6 +50,9 @@ class FieldRegistry:
         if self._mesh is not None:
             mesh_state = self._mesh.update(metrics)
             metrics = self.applymesh(metrics, mesh_state)
+            if self._morphogenesis is not None:
+                morphology = self._morphogenesis.update(mesh_state, metrics)
+                metrics = self.applymorphology(metrics, morphology)
         return FieldState(nodes=base_state.nodes, metrics=metrics)
 
     @staticmethod
@@ -85,6 +91,27 @@ class FieldRegistry:
             if blended > 1.0:
                 blended = 1.0
             out[key] = blended
+        return out
+
+    @staticmethod
+    def applymorphology(metrics: dict[str, float], morph: dict[str, float]) -> dict[str, float]:
+        out: dict[str, float] = {}
+        for key, value in metrics.items():
+            if key == "orientation_coherence":
+                scale = morph.get("coherence_scale", 1.0)
+            elif key == "confidence_alignment":
+                scale = morph.get("alignment_scale", 1.0)
+            elif key == "trajectory_tension":
+                scale = morph.get("tension_scale", 1.0)
+            else:
+                scale = 1.0
+
+            scaled = float(value) * float(scale)
+            if scaled < 0.0:
+                scaled = 0.0
+            if scaled > 1.0:
+                scaled = 1.0
+            out[key] = scaled
         return out
 
     def _prune(self) -> None:
