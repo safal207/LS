@@ -33,3 +33,4 @@ Updated internal parameters:
 - No policy learning
 - No persistence beyond in-memory state
 - No opaque ML models
+- AdaptiveBias tuning deferred to Phase 16.x (intentional no-op)
