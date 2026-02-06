@@ -22,6 +22,7 @@ class TestCoordinatorTrajectory(unittest.TestCase):
             retrospective={},
         )
         self.assertIn("trajectory_error", result)
+        self.assertIn("trajectory_signal", result["orientation"])
         self.assertEqual(len(coord.trajectory.history), 1)
 
     def test_record_outcome_updates_error(self):
