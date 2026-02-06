@@ -70,18 +70,42 @@ class Coordinator:
         telemetry: Optional[Dict[str, Any]],
         retrospective: Optional[Dict[str, Any]],
     ):
-        from orientation import RhythmInputs
-
         telemetry = telemetry or {}
         retrospective = retrospective or {}
 
-        return RhythmInputs.from_dict({
-            "diversity_score": telemetry.get("diversity_score", telemetry.get("diversity", 0.0)),
-            "stability_score": retrospective.get("stability_score", retrospective.get("stability", 0.0)),
-            "contradiction_rate": retrospective.get("contradiction_rate", retrospective.get("contradictions", 0.0)),
-            "drift_pressure": retrospective.get("drift_pressure", retrospective.get("drift", 0.0)),
-            "confidence_budget": retrospective.get("confidence_budget", retrospective.get("confidence", 0.0)),
-        })
+        history_stats = dict(telemetry)
+        if "diversity" in history_stats and "diversity_score" not in history_stats:
+            history_stats["diversity_score"] = history_stats["diversity"]
+
+        beliefs = retrospective.get("beliefs")
+        if beliefs is None and "stability_score" in retrospective:
+            beliefs = [{"stability_score": retrospective.get("stability_score")}]
+
+        temporal_metrics = dict(retrospective.get("temporal_metrics") or {})
+        if "contradiction_rate" in retrospective and "contradiction_rate" not in temporal_metrics:
+            temporal_metrics["contradiction_rate"] = retrospective.get("contradiction_rate")
+        if "contradictions" in retrospective and "contradiction_rate" not in temporal_metrics:
+            temporal_metrics["contradiction_rate"] = retrospective.get("contradictions")
+
+        immunity_signals = dict(retrospective.get("immunity_signals") or {})
+        if "drift_pressure" in retrospective and "drift_pressure" not in immunity_signals:
+            immunity_signals["drift_pressure"] = retrospective.get("drift_pressure")
+        if "drift" in retrospective and "drift_pressure" not in immunity_signals:
+            immunity_signals["drift_pressure"] = retrospective.get("drift")
+
+        conviction_inputs = dict(retrospective.get("conviction_inputs") or {})
+        if "confidence_budget" in retrospective and "confidence_budget" not in conviction_inputs:
+            conviction_inputs["confidence_budget"] = retrospective.get("confidence_budget")
+        if "confidence" in retrospective and "confidence_budget" not in conviction_inputs:
+            conviction_inputs["confidence_budget"] = retrospective.get("confidence")
+
+        return {
+            "history_stats": history_stats,
+            "beliefs": beliefs,
+            "temporal_metrics": temporal_metrics,
+            "immunity_signals": immunity_signals,
+            "conviction_inputs": conviction_inputs,
+        }
 
     def choose_mode(
         self,
@@ -147,7 +171,10 @@ class Coordinator:
         Does not change decision logic.
         """
         orientation_inputs = self._build_orientation_inputs(telemetry, retrospective)
-        orientation_output = self.orientation.evaluate(**orientation_inputs)
+        orientation_output = self.orientation.evaluate(
+            **orientation_inputs,
+            trajectory_error=self.last_trajectory_error,
+        )
         self.last_orientation = orientation_output.to_dict()
 
         weight = self._compute_orientation_weight(self.last_orientation.get("rhythm_phase"))

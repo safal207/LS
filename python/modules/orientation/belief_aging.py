@@ -16,6 +16,14 @@ class BeliefAging:
         self.max_age = max_age
 
     def evaluate(self, beliefs: list[dict[str, Any]] | None) -> float:
+        if isinstance(beliefs, dict):
+            if "stability_score" in beliefs:
+                return clamp(float(beliefs["stability_score"]))
+            beliefs = [beliefs]
+
+        if beliefs and isinstance(beliefs, list):
+            if len(beliefs) == 1 and "stability_score" in beliefs[0]:
+                return clamp(float(beliefs[0]["stability_score"]))
         if not beliefs:
             return 0.0
 

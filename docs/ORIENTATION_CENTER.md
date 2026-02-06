@@ -17,6 +17,7 @@ organ signals into a unified state vector before rhythm evaluation.
 - Conviction Regulator -> confidence_budget
 - Fusion Layer -> smoothed OrientationSignals
 - Rhythm Engine -> inhale/hold/exhale
+- Trajectory Adapter -> trajectory_signal (Phase 14.2)
 
 ## Outputs
 
@@ -30,9 +31,16 @@ organ signals into a unified state vector before rhythm evaluation.
   "stability_score": float,
   "contradiction_rate": float,
   "drift_pressure": float,
-  "confidence_budget": float
+  "confidence_budget": float,
+  "trajectory_signal": float
 }
 ```
+
+## Trajectory Signal (Phase 14.2)
+
+Orientation Center accepts `trajectory_error` from the Trajectory Layer and
+normalizes it into `trajectory_signal`. The signal is included in the output
+but does not affect rhythm or behavior.
 
 ## Non-Goals
 
