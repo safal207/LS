@@ -32,6 +32,16 @@ Coordinator applies temporal smoothing to decision confidence:
 - Exposes both `confidence_raw` and `confidence_smoothed`.
 - Does not change mode selection.
 
+## Meta-Adaptation (Phase 16)
+
+Coordinator maintains simple aggregates of error and confidence and softly
+adjusts its own adaptation parameters:
+
+- `ConfidenceDynamics.alpha`
+- `ConfidenceDynamics.max_delta`
+
+This is non-invasive and does not change mode selection.
+
 ## Non-Goals
 
 - No mode switching rules

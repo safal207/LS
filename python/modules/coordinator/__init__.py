@@ -4,6 +4,7 @@ from .context_sync import ContextSync
 from .cognitive_hygiene import CognitiveHygiene
 from .adaptive_bias import AdaptiveBias
 from .confidence_dynamics import ConfidenceDynamics
+from .meta_adaptation import MetaAdaptationLayer
 
 __all__ = [
     "Coordinator",
@@ -12,4 +13,5 @@ __all__ = [
     "CognitiveHygiene",
     "AdaptiveBias",
     "ConfidenceDynamics",
+    "MetaAdaptationLayer",
 ]
