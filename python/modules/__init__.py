@@ -28,6 +28,7 @@ from .orientation import (
     ConvictionRegulator,
     OrientationFusionLayer,
 )
+from .trajectory import TrajectoryLayer, TrajectoryPoint
 
 __all__ = [
     "AgentLoop",
@@ -55,4 +56,6 @@ __all__ = [
     "CognitiveImmunity",
     "ConvictionRegulator",
     "OrientationFusionLayer",
+    "TrajectoryLayer",
+    "TrajectoryPoint",
 ]
