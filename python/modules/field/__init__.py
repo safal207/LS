@@ -6,6 +6,7 @@ from .evolution import FieldEvolution
 from .mesh import CognitiveMesh
 from .morphogenesis import FieldMorphogenesis
 from .resonance import FieldResonance
+from .reflexivity import FieldReflexivity
 from .bias import FieldBias
 from .consensus import ConsensusEngine
 from .topology import CognitiveTopology
@@ -19,6 +20,7 @@ __all__ = [
     "FieldBias",
     "FieldDampening",
     "FieldEvolution",
+    "FieldReflexivity",
     "CognitiveMesh",
     "FieldMorphogenesis",
     "CognitiveTopology",
