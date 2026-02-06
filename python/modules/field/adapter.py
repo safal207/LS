@@ -28,6 +28,9 @@ class FieldAdapter:
     def pull_field_state(self) -> FieldState:
         return self.registry.get_state()
 
+    def pull_field_metrics(self) -> dict[str, float]:
+        return self.registry.get_state().metrics or {}
+
     @staticmethod
     def _coerce_float_dict(value: Any) -> dict[str, float]:
         if not isinstance(value, dict):

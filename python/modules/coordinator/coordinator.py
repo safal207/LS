@@ -65,6 +65,7 @@ class Coordinator:
         self.orientation = OrientationCenter()
         self.trajectory = TrajectoryLayer()
         self.field_adapter = None
+        self.field_resonance = None
 
         # Metadata
         self.last_decision: Optional[CoordinationDecision] = None
