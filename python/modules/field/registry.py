@@ -9,6 +9,7 @@ from .mesh import CognitiveMesh
 from .morphogenesis import FieldMorphogenesis
 from .resonance import FieldResonance
 from .state import FieldNodeState, FieldState
+from .topology import CognitiveTopology
 
 
 class FieldRegistry:
@@ -22,6 +23,7 @@ class FieldRegistry:
         evolution: FieldEvolution | None = None,
         mesh: CognitiveMesh | None = None,
         morphogenesis: FieldMorphogenesis | None = None,
+        topology: CognitiveTopology | None = None,
     ) -> None:
         self.ttl = ttl
         self._clock = clock or time.time
@@ -30,6 +32,7 @@ class FieldRegistry:
         self._evolution = evolution
         self._mesh = mesh
         self._morphogenesis = morphogenesis
+        self._topology = topology
         self._nodes: dict[str, FieldNodeState] = {}
 
     def update_node(self, node_state: FieldNodeState) -> None:
@@ -53,6 +56,9 @@ class FieldRegistry:
             if self._morphogenesis is not None:
                 morphology = self._morphogenesis.update(mesh_state, metrics)
                 metrics = self.applymorphology(metrics, morphology)
+            if self._topology is not None:
+                self._topology.update(metrics, mesh_state)
+                metrics = self.applytopology(metrics, self._topology)
         return FieldState(nodes=base_state.nodes, metrics=metrics)
 
     @staticmethod
@@ -113,6 +119,10 @@ class FieldRegistry:
                 scaled = 1.0
             out[key] = scaled
         return out
+
+    @staticmethod
+    def applytopology(metrics: dict[str, float], topology: CognitiveTopology) -> dict[str, float]:
+        return topology.apply(metrics)
 
     def _prune(self) -> None:
         now = self._clock()
