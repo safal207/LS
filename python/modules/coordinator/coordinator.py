@@ -53,6 +53,7 @@ class Coordinator:
         from .adaptive_bias import AdaptiveBias
         from .confidence_dynamics import ConfidenceDynamics
         from .meta_adaptation import MetaAdaptationLayer
+        from .meta_hygiene import MetaHygiene
         from orientation import OrientationCenter
         from trajectory import TrajectoryLayer
 
@@ -62,6 +63,7 @@ class Coordinator:
         self.adaptive = AdaptiveBias()
         self.confidence_dynamics = ConfidenceDynamics()
         self.meta = MetaAdaptationLayer()
+        self.meta_hygiene = MetaHygiene()
         self.orientation = OrientationCenter()
         self.trajectory = TrajectoryLayer()
 
@@ -205,6 +207,12 @@ class Coordinator:
         )
         self.meta.adapt_confidence_dynamics(self.confidence_dynamics)
         self.meta.adapt_adaptive_bias(self.adaptive)
+        self.meta_hygiene.update(
+            trajectory_error=self.last_trajectory_error,
+            confidence=smoothed_confidence,
+        )
+        self.meta_hygiene.correct_confidence_dynamics(self.confidence_dynamics)
+        self.meta_hygiene.correct_adaptive_bias(self.adaptive)
         payload = decision.to_dict()
         payload["confidence_raw"] = raw_confidence
         payload["confidence_smoothed"] = smoothed_confidence

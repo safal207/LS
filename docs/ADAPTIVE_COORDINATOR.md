@@ -42,6 +42,12 @@ adjusts its own adaptation parameters:
 
 This is non-invasive and does not change mode selection.
 
+## Meta-Hygiene (Phase 16.1)
+
+Coordinator applies a stabilizing layer that clamps or resets adaptation
+parameters when anomalous spikes are detected. This prevents runaway
+adaptation without changing mode selection.
+
 ## Non-Goals
 
 - No mode switching rules
