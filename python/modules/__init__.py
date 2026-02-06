@@ -28,6 +28,7 @@ from .field import (
     FieldResonance,
     FieldBias,
     FieldDampening,
+    FieldEvolution,
     ConsensusEngine,
 )
 from .orientation import (
@@ -74,6 +75,7 @@ __all__ = [
     "FieldResonance",
     "FieldBias",
     "FieldDampening",
+    "FieldEvolution",
     "ConsensusEngine",
     "OrientationCenter",
     "RhythmEngine",
