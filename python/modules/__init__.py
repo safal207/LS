@@ -14,6 +14,7 @@ from .coordinator import (
     CognitiveHygiene,
     AdaptiveBias,
     ConfidenceDynamics,
+    FieldCoordination,
     MetaAdaptationLayer,
     MetaHygiene,
 )
@@ -58,6 +59,7 @@ __all__ = [
     "CognitiveHygiene",
     "AdaptiveBias",
     "ConfidenceDynamics",
+    "FieldCoordination",
     "MetaAdaptationLayer",
     "MetaHygiene",
     "FastMode",
