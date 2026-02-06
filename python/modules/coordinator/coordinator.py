@@ -66,6 +66,7 @@ class Coordinator:
         self.meta_hygiene = MetaHygiene()
         self.orientation = OrientationCenter()
         self.trajectory = TrajectoryLayer()
+        self.field_adapter = None
 
         # Metadata
         self.last_decision: Optional[CoordinationDecision] = None
@@ -217,6 +218,18 @@ class Coordinator:
         payload["confidence_raw"] = raw_confidence
         payload["confidence_smoothed"] = smoothed_confidence
         payload["orientation"] = self.last_orientation
+        snapshot = {
+            "orientation": self.last_orientation,
+            "confidence": {
+                "raw": raw_confidence,
+                "smoothed": smoothed_confidence,
+            },
+            "trajectory": {
+                "error": self.last_trajectory_error if self.last_trajectory_error is not None else 0.0,
+            },
+        }
+        if self.field_adapter is not None:
+            self.field_adapter.publish_from_ls(snapshot)
         self.trajectory.record_decision(
             decision.mode,
             {
