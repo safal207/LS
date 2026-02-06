@@ -7,6 +7,7 @@ from .dampening import FieldDampening
 from .evolution import FieldEvolution
 from .mesh import CognitiveMesh
 from .morphogenesis import FieldMorphogenesis
+from .reflexivity import FieldReflexivity
 from .resonance import FieldResonance
 from .state import FieldNodeState, FieldState
 from .topology import CognitiveTopology
@@ -24,6 +25,7 @@ class FieldRegistry:
         mesh: CognitiveMesh | None = None,
         morphogenesis: FieldMorphogenesis | None = None,
         topology: CognitiveTopology | None = None,
+        reflexivity: FieldReflexivity | None = None,
     ) -> None:
         self.ttl = ttl
         self._clock = clock or time.time
@@ -33,6 +35,7 @@ class FieldRegistry:
         self._mesh = mesh
         self._morphogenesis = morphogenesis
         self._topology = topology
+        self._reflexivity = reflexivity
         self._nodes: dict[str, FieldNodeState] = {}
 
     def update_node(self, node_state: FieldNodeState) -> None:
@@ -59,6 +62,9 @@ class FieldRegistry:
             if self._topology is not None:
                 self._topology.update(metrics, mesh_state)
                 metrics = self.applytopology(metrics, self._topology)
+        if self._reflexivity is not None:
+            adjustments = self._reflexivity.update(metrics)
+            metrics = self.applyreflexivity(metrics, adjustments)
         return FieldState(nodes=base_state.nodes, metrics=metrics)
 
     @staticmethod
@@ -123,6 +129,22 @@ class FieldRegistry:
     @staticmethod
     def applytopology(metrics: dict[str, float], topology: CognitiveTopology) -> dict[str, float]:
         return topology.apply(metrics)
+
+    @staticmethod
+    def applyreflexivity(
+        metrics: dict[str, float],
+        adj: dict[str, float],
+    ) -> dict[str, float]:
+        out: dict[str, float] = {}
+        for key, value in metrics.items():
+            delta = adj.get(key, 0.0)
+            new = float(value) + float(delta)
+            if new < 0.0:
+                new = 0.0
+            if new > 1.0:
+                new = 1.0
+            out[key] = new
+        return out
 
     def _prune(self) -> None:
         now = self._clock()
