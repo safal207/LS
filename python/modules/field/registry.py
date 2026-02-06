@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from typing import Callable
 
+from .dampening import FieldDampening
 from .resonance import FieldResonance
 from .state import FieldNodeState, FieldState
 
@@ -14,10 +15,12 @@ class FieldRegistry:
         *,
         clock: Callable[[], float] | None = None,
         resonance: FieldResonance | None = None,
+        dampening: FieldDampening | None = None,
     ) -> None:
         self.ttl = ttl
         self._clock = clock or time.time
         self._resonance = resonance
+        self._dampening = dampening
         self._nodes: dict[str, FieldNodeState] = {}
 
     def update_node(self, node_state: FieldNodeState) -> None:
@@ -30,6 +33,8 @@ class FieldRegistry:
         if self._resonance is None:
             return base_state
         metrics = self._resonance.compute(base_state)
+        if self._dampening is not None:
+            metrics = self._dampening.apply(metrics)
         return FieldState(nodes=base_state.nodes, metrics=metrics)
 
     def _prune(self) -> None:
