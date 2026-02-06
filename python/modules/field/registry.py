@@ -5,6 +5,7 @@ from typing import Callable
 
 from .dampening import FieldDampening
 from .evolution import FieldEvolution
+from .mesh import CognitiveMesh
 from .resonance import FieldResonance
 from .state import FieldNodeState, FieldState
 
@@ -18,12 +19,14 @@ class FieldRegistry:
         resonance: FieldResonance | None = None,
         dampening: FieldDampening | None = None,
         evolution: FieldEvolution | None = None,
+        mesh: CognitiveMesh | None = None,
     ) -> None:
         self.ttl = ttl
         self._clock = clock or time.time
         self._resonance = resonance
         self._dampening = dampening
         self._evolution = evolution
+        self._mesh = mesh
         self._nodes: dict[str, FieldNodeState] = {}
 
     def update_node(self, node_state: FieldNodeState) -> None:
@@ -41,6 +44,9 @@ class FieldRegistry:
         if self._evolution is not None:
             weights = self._evolution.update(metrics)
             metrics = self._apply_weights(metrics, weights)
+        if self._mesh is not None:
+            mesh_state = self._mesh.update(metrics)
+            metrics = self.applymesh(metrics, mesh_state)
         return FieldState(nodes=base_state.nodes, metrics=metrics)
 
     @staticmethod
@@ -61,6 +67,24 @@ class FieldRegistry:
             if scaled > 1.0:
                 scaled = 1.0
             out[key] = scaled
+        return out
+
+    @staticmethod
+    def applymesh(metrics: dict[str, float], mesh: dict[str, float]) -> dict[str, float]:
+        out: dict[str, float] = {}
+        for key, value in metrics.items():
+            base = (
+                key.replace("orientation_", "")
+                .replace("confidence_", "")
+                .replace("trajectory_", "")
+            )
+            pattern = mesh.get(f"{base}_pattern", 0.0)
+            blended = (float(value) + float(pattern)) / 2.0
+            if blended < 0.0:
+                blended = 0.0
+            if blended > 1.0:
+                blended = 1.0
+            out[key] = blended
         return out
 
     def _prune(self) -> None:

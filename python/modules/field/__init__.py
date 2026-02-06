@@ -3,6 +3,7 @@ from .registry import FieldRegistry
 from .adapter import FieldAdapter
 from .dampening import FieldDampening
 from .evolution import FieldEvolution
+from .mesh import CognitiveMesh
 from .resonance import FieldResonance
 from .bias import FieldBias
 from .consensus import ConsensusEngine
@@ -16,5 +17,6 @@ __all__ = [
     "FieldBias",
     "FieldDampening",
     "FieldEvolution",
+    "CognitiveMesh",
     "ConsensusEngine",
 ]
