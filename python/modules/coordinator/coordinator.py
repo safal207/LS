@@ -51,6 +51,7 @@ class Coordinator:
         from .context_sync import ContextSync
         from .cognitive_hygiene import CognitiveHygiene
         from .adaptive_bias import AdaptiveBias
+        from .confidence_dynamics import ConfidenceDynamics
         from orientation import OrientationCenter
         from trajectory import TrajectoryLayer
 
@@ -58,6 +59,7 @@ class Coordinator:
         self.context_sync = ContextSync()
         self.hygiene = CognitiveHygiene()
         self.adaptive = AdaptiveBias()
+        self.confidence_dynamics = ConfidenceDynamics()
         self.orientation = OrientationCenter()
         self.trajectory = TrajectoryLayer()
 
@@ -191,8 +193,12 @@ class Coordinator:
         self.last_orientation["adaptive_bias"] = adaptive_bias
 
         decision = self.choose_mode(input_data, context, system_load=system_load)
-        decision.confidence = max(0.0, min(1.0, decision.confidence + adaptive_bias))
+        raw_confidence = max(0.0, min(1.0, decision.confidence + adaptive_bias))
+        smoothed_confidence = self.confidence_dynamics.update(raw_confidence)
+        decision.confidence = smoothed_confidence
         payload = decision.to_dict()
+        payload["confidence_raw"] = raw_confidence
+        payload["confidence_smoothed"] = smoothed_confidence
         payload["orientation"] = self.last_orientation
         self.trajectory.record_decision(
             decision.mode,
