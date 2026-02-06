@@ -83,6 +83,7 @@ trajectory_error = result["trajectory_error"]
 - v0.2: Real decision logic using metrics
 - v0.3: Adaptive heuristics, learning from retrospection
 - Phase 15: Adaptive bias (soft confidence adjustment only)
+- Phase 16: Meta-adaptation (soft parameter tuning)
 
 ## See Also
 

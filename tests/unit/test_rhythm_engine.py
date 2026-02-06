@@ -60,7 +60,13 @@ class TestOrientationCenter(unittest.TestCase):
             drift_pressure=0.2,
             confidence_budget=0.2,
         )
-        output = center.evaluate(inputs)
+        output = center.evaluate(
+            history_stats={"diversity_score": inputs.diversity_score},
+            beliefs=[{"stability_score": inputs.stability_score}],
+            temporal_metrics={"contradiction_rate": inputs.contradiction_rate},
+            immunity_signals={"drift_pressure": inputs.drift_pressure},
+            conviction_inputs={"confidence_budget": inputs.confidence_budget},
+        )
         self.assertIn(output.rhythm_phase, ["inhale", "hold", "exhale"])
         self.assertIsInstance(output.chaos_score, float)
         self.assertIsInstance(output.harmony_score, float)
