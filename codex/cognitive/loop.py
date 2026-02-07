@@ -23,6 +23,7 @@ from .decision import DecisionMemoryProtocol
 from .identity import LivingIdentity
 from .narrative import NarrativeGenerator, NarrativeMemoryLayer
 from .presence import PresenceMonitor
+from .scheduler import ThreadScheduler
 from .thread import ThreadFactory
 from .workspace import GlobalFrame, MeritEngine, WorkspaceAggregator, WorkspaceBus
 
@@ -128,6 +129,7 @@ class UnifiedCognitiveLoop:
     tracer: Tracer
     identity: LivingIdentity
     thread_factory: ThreadFactory
+    thread_scheduler: ThreadScheduler = field(default_factory=ThreadScheduler)
 
     selector: Selector | None = None
     capu_history: List[Dict[str, float]] = field(default_factory=list)
@@ -167,8 +169,9 @@ class UnifiedCognitiveLoop:
         if not decision_context.choice:
             raise ValueError(f"No model selected for task {ctx.task_type}. Reasons: {decision_context.reasons}")
 
-        thread_id = ctx.input_payload.get("thread_id")
+        thread_id = ctx.input_payload.get("thread_id") or self.thread_scheduler.select_active_thread()
         thread = self.thread_factory.get_thread(thread_id)
+        self.thread_scheduler.register_thread(thread)
 
         model_name = decision_context.choice
         model_config = self.registry.info(model_name)
@@ -257,6 +260,25 @@ class UnifiedCognitiveLoop:
 
         merit_scores = self.merit_engine.score(aggregated)
 
+        timestamp = datetime.now(timezone.utc).isoformat()
+        base_frame = GlobalFrame(
+            thread_id=thread.thread_id,
+            task_type=ctx.task_type,
+            system_state=state_after,
+            self_model=aggregated["self_model"],
+            affective=aggregated["affective"],
+            identity=aggregated["identity"],
+            capu_features=aggregated["capu"],
+            decision=aggregated["decision"],
+            memory_refs=aggregated["causal"],
+            narrative_refs={},
+            merit_scores=merit_scores,
+            timestamp=timestamp,
+        )
+        attention_distribution = self.thread_scheduler.update_attention(base_frame)
+        active_thread_id = self.thread_scheduler.select_active_thread()
+        thread_priorities = {t.thread_id: t.priority for t in self.thread_factory.list_threads()}
+
         frame = GlobalFrame(
             thread_id=thread.thread_id,
             task_type=ctx.task_type,
@@ -269,7 +291,10 @@ class UnifiedCognitiveLoop:
             memory_refs=aggregated["causal"],
             narrative_refs={},
             merit_scores=merit_scores,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=timestamp,
+            active_thread_id=active_thread_id,
+            thread_priorities=thread_priorities,
+            attention_distribution=attention_distribution,
         )
         self.workspace_bus.publish(frame)
 
@@ -333,6 +358,9 @@ class UnifiedCognitiveLoop:
             },
             merit_scores=frame.merit_scores,
             timestamp=frame.timestamp,
+            active_thread_id=frame.active_thread_id,
+            thread_priorities=frame.thread_priorities,
+            attention_distribution=frame.attention_distribution,
         )
         for index in range(len(self.workspace_bus.frames) - 1, -1, -1):
             if self.workspace_bus.frames[index] is frame:

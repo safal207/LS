@@ -24,6 +24,9 @@ class GlobalBroadcaster:
         decision: Dict[str, Any],
         memory_refs: Dict[str, str],
         narrative_refs: Dict[str, str] | None = None,
+        active_thread_id: str | None = None,
+        thread_priorities: Dict[str, float] | None = None,
+        attention_distribution: Dict[str, float] | None = None,
         tags: list[str] | None = None,
     ) -> GlobalFrame:
         frame = GlobalFrame(
@@ -38,6 +41,9 @@ class GlobalBroadcaster:
             narrative_refs=dict(narrative_refs or {}),
             timestamp=datetime.now(timezone.utc).isoformat(),
             tags=list(tags or []),
+            active_thread_id=active_thread_id,
+            thread_priorities=dict(thread_priorities or {}),
+            attention_distribution=dict(attention_distribution or {}),
         )
         self.bus.publish(frame)
         return frame

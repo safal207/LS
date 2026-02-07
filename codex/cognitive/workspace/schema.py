@@ -19,3 +19,6 @@ class GlobalFrame:
     timestamp: str
     narrative_refs: Dict[str, str] = field(default_factory=dict)
     tags: List[str] = field(default_factory=list)
+    active_thread_id: str | None = None
+    thread_priorities: Dict[str, float] = field(default_factory=dict)
+    attention_distribution: Dict[str, float] = field(default_factory=dict)
