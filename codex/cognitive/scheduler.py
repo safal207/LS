@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, Iterable
+from typing import Any, Dict, Iterable
 
 from .thread import CognitiveThread
 from .workspace import GlobalFrame
@@ -36,7 +36,7 @@ class ThreadScheduler:
             if frame.merit_scores:
                 avg_merit = sum(frame.merit_scores.values()) / len(frame.merit_scores)
                 thread.attention_weight = max(0.1, (thread.attention_weight + avg_merit) / 2)
-        self._apply_hardware_pressure(frame.hardware)
+        self._apply_hardware_pressure(frame.hardware or {})
         return self._normalize_attention(self._attention_scores())
 
     def select_active_thread(self) -> str | None:
@@ -62,7 +62,7 @@ class ThreadScheduler:
         decay = self._attention_decay(thread.last_active_timestamp)
         return base * decay
 
-    def _apply_hardware_pressure(self, hardware: Dict[str, object]) -> None:
+    def _apply_hardware_pressure(self, hardware: Dict[str, Any]) -> None:
         if not self._is_overloaded(hardware):
             return
         for thread in self.threads.values():
@@ -75,7 +75,7 @@ class ThreadScheduler:
                 thread.attention_weight = min(2.0, thread.attention_weight * 1.1)
 
     @staticmethod
-    def _is_overloaded(hardware: Dict[str, object]) -> bool:
+    def _is_overloaded(hardware: Dict[str, Any]) -> bool:
         cpu_percent = hardware.get("cpu_percent")
         cpu_temp = hardware.get("cpu_temp")
         io_wait = hardware.get("io_wait")

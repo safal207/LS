@@ -25,6 +25,10 @@ def test_thread_scheduler_updates_attention_and_selects_active() -> None:
         narrative_refs={},
         merit_scores={"focus": 0.8},
         timestamp=datetime.now(timezone.utc).isoformat(),
+        hardware={},
+        active_thread_id=None,
+        thread_priorities={},
+        attention_distribution={},
     )
 
     distribution = scheduler.update_attention(frame)
