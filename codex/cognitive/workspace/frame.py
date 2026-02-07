@@ -14,6 +14,6 @@ class GlobalFrame:
     identity: Dict[str, Any]
     capu_features: Dict[str, float]
     decision: Dict[str, Any]
-    causal_context: Dict[str, Any]
+    memory_refs: Dict[str, str]
     merit_scores: Dict[str, float]
     timestamp: str

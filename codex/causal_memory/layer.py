@@ -120,10 +120,8 @@ def _cuda_vram_gb() -> float:
 
 
 def _load_psutil():
-    import importlib.util
-
-    if importlib.util.find_spec("psutil") is None:
+    try:
+        import psutil
+        return psutil
+    except ImportError:
         return None
-    import psutil
-
-    return psutil
