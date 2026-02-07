@@ -22,6 +22,7 @@ from .context import DecisionContext, LoopContext, TaskContext
 from .decision import DecisionMemoryProtocol
 from .hardware import HardwareMonitor
 from .kernel_sensors import KernelSensorMonitor
+from .dmp import DMPProtocol
 from .lpi import LPIState
 from .lri import LRILayer
 from .identity import LivingIdentity
@@ -175,15 +176,15 @@ class UnifiedCognitiveLoop:
         constraints["hardware"] = hardware_state
         constraints["kernel"] = kernel_state
         constraints["lri"] = {"value": lri.value, "state": lri.state, "tags": lri.tags}
-        constraints["presence"] = {"state": self.lpi.state, "confidence": self.lpi.confidence}
-        ctx.constraints = constraints
-
         self.thread_scheduler.sync_threads(self.thread_factory.list_threads())
         thread_id = ctx.input_payload.get("thread_id") or self.thread_scheduler.select_active_thread()
         thread = self.thread_factory.get_thread(thread_id)
         self.thread_scheduler.register_thread(thread)
         if thread.ltp.state == "quarantined":
             raise RuntimeError("Thread quarantined by LTP")
+        constraints["presence"] = {"state": self.lpi.state, "confidence": self.lpi.confidence}
+        constraints["ltp_state"] = thread.ltp.state
+        ctx.constraints = constraints
 
         candidates = ctx.candidates or self.registry.list_models()
         candidates = self._filter_candidates_by_ltp(candidates, thread.ltp.state)
@@ -219,6 +220,16 @@ class UnifiedCognitiveLoop:
             "presence": {"state": self.lpi.state, "confidence": self.lpi.confidence},
         }
 
+        self.dmp = getattr(self, "dmp", DMPProtocol())
+        dmp_record = self.dmp.record(
+            decision=decision_context.choice,
+            alternatives=decision_context.alternatives,
+            reasons=decision_context.reasons,
+            consequences={
+                "latency_s": latency,
+            },
+            context=constraints,
+        )
         memory_record = self._record_memory(
             model_name=model_name,
             model_type=model_type,
@@ -228,6 +239,7 @@ class UnifiedCognitiveLoop:
             metrics=metrics,
             hardware=hardware,
             ltp_state=thread.ltp.state,
+            decision_trace=dmp_record.to_dict(),
         )
 
         state_after = self.presence_monitor.update(capu_features, metrics, hardware)
@@ -469,6 +481,7 @@ class UnifiedCognitiveLoop:
         metrics: Dict[str, Any],
         hardware: Dict[str, Any],
         ltp_state: str,
+        decision_trace: Dict[str, Any],
     ) -> MemoryRecord:
         return self.memory_layer.record_task(
             model=model_name,
@@ -482,6 +495,7 @@ class UnifiedCognitiveLoop:
                 "ltp_state": ltp_state,
                 "presence_state": self.lpi.state,
                 "presence_confidence": self.lpi.confidence,
+                "decision_trace": decision_trace,
             },
         )
 

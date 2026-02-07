@@ -1,5 +1,6 @@
 from .context import DecisionContext, LoopContext, TaskContext
 from .decision import DecisionMemoryProtocol, DecisionRecord
+from .dmp import DMPProtocol, DMPRecord
 from .hardware import HardwareMonitor
 from .kernel_runtime import KernelRuntime
 from .kernel_sensors import KernelSensorListener, KernelSensorMonitor
@@ -17,6 +18,8 @@ __all__ = [
     "DecisionContext",
     "DecisionMemoryProtocol",
     "DecisionRecord",
+    "DMPProtocol",
+    "DMPRecord",
     "HardwareMonitor",
     "KernelSensorMonitor",
     "KernelSensorListener",
