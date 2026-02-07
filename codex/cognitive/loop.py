@@ -15,6 +15,8 @@ from .decision import DecisionMemoryProtocol
 from .identity import LivingIdentity
 from .presence import PresenceMonitor
 from .thread import ThreadFactory
+from .workspace.broadcaster import GlobalBroadcaster
+from .workspace.bus import WorkspaceBus
 
 
 @dataclass
@@ -80,8 +82,14 @@ class UnifiedCognitiveLoop:
     tracer: Tracer
     identity: LivingIdentity
     thread_factory: ThreadFactory
+    workspace_bus: WorkspaceBus = field(default_factory=WorkspaceBus)
+    broadcaster: GlobalBroadcaster | None = None
     selector: Selector | None = None
     capu_history: List[Dict[str, float]] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.broadcaster is None:
+            self.broadcaster = GlobalBroadcaster(self.workspace_bus)
 
     def run_task(self, ctx: TaskContext) -> LoopContext:
         identity_snapshot = self.identity.snapshot()
@@ -150,6 +158,25 @@ class UnifiedCognitiveLoop:
 
         self.capu_history.append(capu_features)
 
+        self.broadcaster.broadcast(
+            task_type=ctx.task_type,
+            thread_id=thread.thread_id,
+            system_state=state_after,
+            self_model=self._snapshot_self_model(),
+            affective=self._snapshot_affective(),
+            capu_features=capu_features,
+            decision={
+                "choice": decision_context.choice,
+                "reasons": decision_context.reasons,
+                "success": memory_record.success,
+            },
+            memory_refs={
+                "decision_record_id": decision_record.record_id,
+                "memory_record_id": memory_record.record_id,
+            },
+            tags=["loop_step"],
+        )
+
         return LoopContext(
             task=ctx,
             decision=decision_context,
@@ -163,6 +190,24 @@ class UnifiedCognitiveLoop:
             thread_id=thread.thread_id,
             identity_snapshot=identity_snapshot,
         )
+
+    def _snapshot_self_model(self) -> Dict[str, Any]:
+        if hasattr(self, "self_model"):
+            self_model = getattr(self, "self_model")
+            if hasattr(self_model, "snapshot"):
+                return self_model.snapshot()
+            if isinstance(self_model, dict):
+                return dict(self_model)
+        return self.identity.snapshot()
+
+    def _snapshot_affective(self) -> Dict[str, Any]:
+        if hasattr(self, "affective_layer"):
+            layer = getattr(self, "affective_layer")
+            if hasattr(layer, "snapshot"):
+                return layer.snapshot()
+            if hasattr(layer, "__dict__"):
+                return dict(layer.__dict__)
+        return {}
 
     def _execute_model(
         self,
