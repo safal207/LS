@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 
 import psutil
 
+from codex.causal_memory import CausalMemoryLayer
 from codex.registry import ModelRegistry
 
 from .metrics import LLMMetrics, STTMetrics, VADMetrics, stability_score
@@ -24,6 +25,7 @@ class BenchmarkRunner:
         registry: ModelRegistry,
         results_dir: str | Path | None = None,
         stability_runs: int = 3,
+        memory_layer: CausalMemoryLayer | None = None,
     ) -> None:
         self.registry = registry
         self.results_dir = Path(results_dir or "benchmark_results")
@@ -31,6 +33,7 @@ class BenchmarkRunner:
         self.stability_runs = max(1, stability_runs)
         self.assets_dir = Path(__file__).resolve().parent / "assets"
         self.sample_wav = self.assets_dir / "sample_5s.wav"
+        self.memory_layer = memory_layer
 
     def run(self, model_name: str, save: bool = True, raise_on_error: bool = True) -> BenchmarkResult:
         if not self.registry.exists(model_name):
@@ -59,6 +62,17 @@ class BenchmarkRunner:
         finally:
             if self.registry.is_loaded(model_name):
                 self.registry.unload(model_name)
+        if self.memory_layer:
+            model_info = self.registry.info(model_name)
+            self.memory_layer.record_benchmark(
+                model=model_name,
+                model_type=model_type,
+                metrics=result.metrics,
+                parameters=model_info,
+                metadata={"stability_runs": self.stability_runs},
+                success=result.success,
+                error=result.metadata.get("error") if result.metadata else None,
+            )
         if save:
             self.reporter.save(result)
         return result
