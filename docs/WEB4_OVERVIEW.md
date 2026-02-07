@@ -54,4 +54,8 @@ Web4 is an **internet of cognitive agents**. It is not just a network of documen
 - `HCP_SPEC.md` — Human Connection Protocol
 - `LIP_SPEC.md` — Liminal Internet Protocol
 - `DIAGRAMS.md` — reference diagrams (text form)
+- `ARCH_DIAGRAMS.md` — Mermaid architecture diagrams
+- `RUST_TRANSPORT_SPEC.md` — Rust transport specification
+- `RFC_BUNDLE_WEB4.md` — unified RFC bundle
+- `WHITEPAPER_WEB4.md` — Web4 whitepaper
 - `ROADMAP.md` — phased delivery plan

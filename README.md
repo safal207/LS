@@ -7,6 +7,16 @@ LS (Local Cognitive System) — локальная когнитивная сис
 Документация:
 - `docs/MANIFESTO.md` — позиционирование и принципы
 - `docs/ARCHITECTURE.md` — архитектура и поток данных
+- `docs/CIP_SPEC.md` — Cognitive Interlink Protocol (агент‑агент)
+- `docs/HCP_SPEC.md` — Human Connection Protocol (человек‑агент)
+- `docs/LIP_SPEC.md` — Liminal Internet Protocol (обучение из интернета)
+- `docs/WEB4_OVERVIEW.md` — обзор Web4
+- `docs/WHITEPAPER_WEB4.md` — whitepaper Web4
+- `docs/RFC_BUNDLE_WEB4.md` — единый RFC‑bundle
+- `docs/RUST_TRANSPORT_SPEC.md` — спецификация Rust‑транспорта
+- `docs/ARCH_DIAGRAMS.md` — архитектурные диаграммы (Mermaid)
+- `docs/ROADMAP.md` — дорожная карта
+- `schemas/*.schema.json` — формальные JSON Schema протоколов
 
 ## Структура репозитория
 
@@ -138,4 +148,3 @@ python scripts/smoke.py
 
 - Все вычисления — локально (кроме опционального cloud‑fallback, если включён).
 - Для системного аудио на Windows обычно нужен VB‑Cable или включенный Stereo Mix (зависит от железа/драйверов).
-
