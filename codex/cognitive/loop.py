@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from codex.capu.features import extract_llm_features, extract_stt_features
@@ -15,6 +16,7 @@ from .decision import DecisionMemoryProtocol
 from .identity import LivingIdentity
 from .presence import PresenceMonitor
 from .thread import ThreadFactory
+from .workspace import GlobalFrame, MeritEngine, WorkspaceAggregator, WorkspaceBus
 
 
 @dataclass
@@ -82,6 +84,9 @@ class UnifiedCognitiveLoop:
     thread_factory: ThreadFactory
     selector: Selector | None = None
     capu_history: List[Dict[str, float]] = field(default_factory=list)
+    aggregator: WorkspaceAggregator = field(default_factory=WorkspaceAggregator)
+    merit_engine: MeritEngine = field(default_factory=MeritEngine)
+    workspace_bus: WorkspaceBus = field(default_factory=WorkspaceBus)
 
     def run_task(self, ctx: TaskContext) -> LoopContext:
         identity_snapshot = self.identity.snapshot()
@@ -150,6 +155,40 @@ class UnifiedCognitiveLoop:
 
         self.capu_history.append(capu_features)
 
+        identity_snapshot = self.identity.snapshot()
+        self_model_snapshot = self._build_self_model(identity_snapshot, state_after)
+        affective_snapshot = self._build_affective(state_after, metrics)
+
+        aggregated = self.aggregator.aggregate(
+            self_model=self_model_snapshot,
+            affective=affective_snapshot,
+            identity=identity_snapshot,
+            capu=capu_features,
+            decision=asdict(decision_context),
+            causal={
+                "memory_record_id": memory_record.record_id,
+                "decision_record_id": decision_record.record_id,
+            },
+            state=state_after,
+        )
+
+        merit_scores = self.merit_engine.score(aggregated)
+
+        frame = GlobalFrame(
+            thread_id=thread.thread_id,
+            task_type=ctx.task_type,
+            system_state=state_after,
+            self_model=aggregated["self_model"],
+            affective=aggregated["affective"],
+            identity=aggregated["identity"],
+            capu_features=aggregated["capu"],
+            decision=aggregated["decision"],
+            causal_context=aggregated["causal"],
+            merit_scores=merit_scores,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        self.workspace_bus.publish(frame)
+
         return LoopContext(
             task=ctx,
             decision=decision_context,
@@ -163,6 +202,44 @@ class UnifiedCognitiveLoop:
             thread_id=thread.thread_id,
             identity_snapshot=identity_snapshot,
         )
+
+    @staticmethod
+    def _build_self_model(identity_snapshot: Dict[str, Any], state: str) -> Dict[str, Any]:
+        if state == "stable":
+            fragmentation = 0.0
+        elif state == "uncertain":
+            fragmentation = 0.2
+        elif state == "overload":
+            fragmentation = 0.4
+        elif state == "fragmented":
+            fragmentation = 0.6
+        else:
+            fragmentation = 0.3
+
+        return {
+            "fragmentation": fragmentation,
+            "state": state,
+            "identity": identity_snapshot,
+        }
+
+    @staticmethod
+    def _build_affective(state: str, metrics: Dict[str, Any]) -> Dict[str, Any]:
+        if state == "stable":
+            energy = 1.0
+        elif state == "overload":
+            energy = 0.6
+        elif state == "fragmented":
+            energy = 0.4
+        elif state == "uncertain":
+            energy = 0.7
+        else:
+            energy = 0.5
+
+        latency = metrics.get("latency_s")
+        if isinstance(latency, (int, float)) and latency > 2.0:
+            energy = max(0.1, energy - 0.2)
+
+        return {"energy": energy, "state": state}
 
     def _execute_model(
         self,
