@@ -49,6 +49,7 @@ def test_scheduler_kernel_signal_adjustments() -> None:
     io_thread = CognitiveThread(thread_id="io", priority=0.6, attention_weight=1.0, tags=["io-heavy"])
     cpu_thread = CognitiveThread(thread_id="cpu", priority=0.9, attention_weight=1.0)
     low_thread = CognitiveThread(thread_id="low", priority=0.3, attention_weight=1.0)
+    cpu_thread.ltp.state = "trusted"
     scheduler.register_thread(io_thread)
     scheduler.register_thread(cpu_thread)
     scheduler.register_thread(low_thread)
@@ -173,3 +174,45 @@ def test_lri_conditions_and_scheduler_integration(tmp_path) -> None:
     )
     graph.observe(record)
     assert graph.get_downstream("lri_overload")
+
+
+def test_ltp_quarantine_and_promotion() -> None:
+    scheduler = ThreadScheduler()
+    thread = CognitiveThread(thread_id="t1", priority=0.6, attention_weight=1.0)
+    scheduler.register_thread(thread)
+
+    frame = GlobalFrame(
+        thread_id="t1",
+        task_type="chat",
+        system_state="stable",
+        self_model={},
+        affective={},
+        identity={},
+        capu_features={},
+        decision={},
+        memory_refs={},
+        merit_scores={},
+        timestamp="2025-01-01T00:00:00+00:00",
+        hardware={"kernel": {"signals": ["kernel_overload"]}, "lri": {"value": 0.9}},
+    )
+    scheduler.update_attention(frame)
+    assert thread.ltp.state == "quarantined"
+    assert thread.active is False
+
+    thread.ltp.reset()
+    frame = GlobalFrame(
+        thread_id="t1",
+        task_type="chat",
+        system_state="stable",
+        self_model={},
+        affective={},
+        identity={},
+        capu_features={},
+        decision={},
+        memory_refs={},
+        merit_scores={},
+        timestamp="2025-01-01T00:00:00+00:00",
+        hardware={"kernel": {"signals": []}, "lri": {"value": 0.2}},
+    )
+    scheduler.update_attention(frame)
+    assert thread.ltp.state == "probing"

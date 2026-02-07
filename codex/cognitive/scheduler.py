@@ -37,7 +37,10 @@ class ThreadScheduler:
                 avg_merit = sum(frame.merit_scores.values()) / len(frame.merit_scores)
                 thread.attention_weight = max(0.1, (thread.attention_weight + avg_merit) / 2)
         self._apply_hardware_pressure(frame.hardware or {})
-        self._apply_kernel_signals(frame.hardware.get("kernel") if isinstance(frame.hardware, dict) else {})
+        kernel = frame.hardware.get("kernel") if isinstance(frame.hardware, dict) else {}
+        lri = frame.hardware.get("lri") if isinstance(frame.hardware, dict) else {}
+        self._apply_kernel_signals(kernel)
+        self._apply_ltp_state(kernel, lri)
         self._apply_thread_placement(
             frame.hardware.get("topology") if isinstance(frame.hardware, dict) else {},
             frame.hardware.get("numa") if isinstance(frame.hardware, dict) else {},
@@ -45,7 +48,7 @@ class ThreadScheduler:
         self._apply_cpu_topology(frame.hardware.get("topology") if isinstance(frame.hardware, dict) else {})
         self._apply_numa_balance(frame.hardware.get("numa") if isinstance(frame.hardware, dict) else {})
         self._apply_thermal_policy(frame.hardware or {})
-        self._apply_lri(frame.hardware.get("lri") if isinstance(frame.hardware, dict) else {})
+        self._apply_lri(lri)
         return self._normalize_attention(self._attention_scores())
 
     def select_active_thread(self) -> str | None:
@@ -182,6 +185,39 @@ class ThreadScheduler:
             else:
                 if thread.priority >= 0.9:
                     thread.attention_weight = min(2.0, thread.attention_weight * 1.05)
+
+    def _apply_ltp_state(self, kernel: Dict[str, Any], lri: Dict[str, Any]) -> None:
+        if not isinstance(kernel, dict):
+            kernel = {}
+        if not isinstance(lri, dict):
+            lri = {}
+        signals = kernel.get("signals") if isinstance(kernel.get("signals"), list) else []
+        lri_value = lri.get("value")
+        for thread in self.threads.values():
+            if "kernel_overload" in signals:
+                thread.ltp.quarantine()
+            if isinstance(lri_value, (int, float)):
+                if lri_value >= 0.85:
+                    thread.ltp.quarantine()
+                elif lri_value >= 0.6:
+                    thread.ltp.demote()
+                elif lri_value <= 0.3:
+                    thread.ltp.promote()
+            self._apply_ltp_adjustment(thread)
+
+    @staticmethod
+    def _apply_ltp_adjustment(thread: CognitiveThread) -> None:
+        state = thread.ltp.state
+        if state == "quarantined":
+            thread.active = False
+            thread.attention_weight = 0.0
+            return
+        if state == "untrusted":
+            thread.attention_weight = max(0.1, thread.attention_weight * 0.5)
+        elif state == "probing":
+            thread.attention_weight = max(0.1, thread.attention_weight * 0.8)
+        elif state == "trusted":
+            thread.attention_weight = min(2.0, thread.attention_weight * 1.05)
 
     @staticmethod
     def _least_loaded_cpu(per_cpu: list[float], candidates: list[int]) -> int:

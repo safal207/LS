@@ -168,8 +168,18 @@ class UnifiedCognitiveLoop:
         constraints["lri"] = {"value": lri.value, "state": lri.state, "tags": lri.tags}
         ctx.constraints = constraints
 
+        self.thread_scheduler.sync_threads(self.thread_factory.list_threads())
+        thread_id = ctx.input_payload.get("thread_id") or self.thread_scheduler.select_active_thread()
+        thread = self.thread_factory.get_thread(thread_id)
+        self.thread_scheduler.register_thread(thread)
+        if thread.ltp.state == "quarantined":
+            raise RuntimeError("Thread quarantined by LTP")
+
+        candidates = ctx.candidates or self.registry.list_models()
+        candidates = self._filter_candidates_by_ltp(candidates, thread.ltp.state)
+
         selection_input = SelectionInput(
-            candidates=ctx.candidates or self.registry.list_models(),
+            candidates=candidates,
             task_type=ctx.task_type,
             constraints=constraints,
             state=state_before,
@@ -179,11 +189,6 @@ class UnifiedCognitiveLoop:
 
         if not decision_context.choice:
             raise ValueError(f"No model selected for task {ctx.task_type}. Reasons: {decision_context.reasons}")
-
-        self.thread_scheduler.sync_threads(self.thread_factory.list_threads())
-        thread_id = ctx.input_payload.get("thread_id") or self.thread_scheduler.select_active_thread()
-        thread = self.thread_factory.get_thread(thread_id)
-        self.thread_scheduler.register_thread(thread)
 
         model_name = decision_context.choice
         model_config = self.registry.info(model_name)
@@ -211,6 +216,7 @@ class UnifiedCognitiveLoop:
             capu_features=capu_features,
             metrics=metrics,
             hardware=hardware,
+            ltp_state=thread.ltp.state,
         )
 
         state_after = self.presence_monitor.update(capu_features, metrics, hardware)
@@ -451,11 +457,27 @@ class UnifiedCognitiveLoop:
         capu_features: Dict[str, float],
         metrics: Dict[str, Any],
         hardware: Dict[str, Any],
+        ltp_state: str,
     ) -> MemoryRecord:
         return self.memory_layer.record_task(
             model=model_name,
             model_type=model_type,
             inputs=input_payload,
             outputs=output_payload,
-            parameters={"capu_features": capu_features, "hardware": hardware, "metrics": metrics},
+            parameters={
+                "capu_features": capu_features,
+                "hardware": hardware,
+                "metrics": metrics,
+                "ltp_state": ltp_state,
+            },
         )
+
+    @staticmethod
+    def _filter_candidates_by_ltp(candidates: List[str], state: str) -> List[str]:
+        if state == "untrusted":
+            filtered = [model for model in candidates if "light" in model]
+            return filtered or list(candidates)
+        if state == "probing":
+            filtered = [model for model in candidates if "safe" in model]
+            return filtered or list(candidates)
+        return list(candidates)
