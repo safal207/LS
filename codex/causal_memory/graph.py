@@ -68,6 +68,7 @@ class CausalGraph:
     def _conditions_from_record(record: MemoryRecord) -> Iterable[str]:
         hardware = record.hardware
         metrics = record.metrics
+        metadata = record.inputs.get("metadata", {}) if isinstance(record.inputs, dict) else {}
 
         ram_gb = hardware.get("ram_gb")
         if isinstance(ram_gb, (int, float)) and ram_gb < 8:
@@ -100,3 +101,11 @@ class CausalGraph:
         segments_count = metrics.get("segments_count")
         if isinstance(segments_count, (int, float)) and segments_count > 25:
             yield "stt_segments>25"
+
+        system_state = metadata.get("system_state") if isinstance(metadata, dict) else None
+        if system_state == "overload":
+            yield "state_overload"
+        if system_state == "uncertain":
+            yield "state_uncertain"
+        if system_state == "diffuse_focus":
+            yield "state_diffuse_focus"

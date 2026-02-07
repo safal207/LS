@@ -8,11 +8,11 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Dict, List
 
-import psutil
-
 from codex.causal_memory import CausalMemoryLayer
 from codex.capu import Tracer
 from codex.capu.integration import finalize_llm_metrics, finalize_stt_metrics
+from codex.lpi import PresenceMonitor
+from codex.lpi.integration import extract_capu_features
 from codex.registry import ModelRegistry
 
 from .metrics import LLMMetrics, STTMetrics, VADMetrics, stability_score
@@ -29,6 +29,7 @@ class BenchmarkRunner:
         stability_runs: int = 3,
         memory_layer: CausalMemoryLayer | None = None,
         tracer: Tracer | None = None,
+        presence_monitor: PresenceMonitor | None = None,
     ) -> None:
         self.registry = registry
         self.results_dir = Path(results_dir or "benchmark_results")
@@ -38,6 +39,7 @@ class BenchmarkRunner:
         self.sample_wav = self.assets_dir / "sample_5s.wav"
         self.memory_layer = memory_layer
         self.tracer = tracer or Tracer()
+        self.presence_monitor = presence_monitor or PresenceMonitor()
 
     def run(self, model_name: str, save: bool = True, raise_on_error: bool = True) -> BenchmarkResult:
         if not self.registry.exists(model_name):
@@ -67,14 +69,27 @@ class BenchmarkRunner:
         finally:
             if self.registry.is_loaded(model_name):
                 self.registry.unload(model_name)
+        snapshot = None
+        if result.metrics and self.presence_monitor:
+            hardware_profile = self.memory_layer._collect_hardware_profile() if self.memory_layer else {}
+            snapshot = self.presence_monitor.update(
+                capu_features=extract_capu_features(result.metrics),
+                metrics=result.metrics,
+                hardware=hardware_profile,
+            )
+            result.metadata = result.metadata or {}
+            result.metadata["system_state"] = snapshot.state.value
         if self.memory_layer:
             model_info = self.registry.info(model_name)
+            metadata = {"stability_runs": self.stability_runs}
+            if snapshot is not None:
+                metadata["system_state"] = snapshot.state.value
             self.memory_layer.record_benchmark(
                 model=model_name,
                 model_type=model_type,
                 metrics=result.metrics,
                 parameters=model_info,
-                metadata={"stability_runs": self.stability_runs},
+                metadata=metadata,
                 success=result.success,
                 error=result.metadata.get("error") if result.metadata else None,
             )
@@ -89,7 +104,7 @@ class BenchmarkRunner:
         return results
 
     def _run_llm(self, model_name: str) -> Dict[str, Any]:
-        process = psutil.Process()
+        process = _psutil().Process()
         start_ram = self._ram_mb(process)
         load_start = time.perf_counter()
         model_bundle = self.registry.load(model_name)
@@ -137,7 +152,7 @@ class BenchmarkRunner:
         return finalize_llm_metrics(self.tracer, model_name, base_metrics.to_dict())
 
     def _run_stt(self, model_name: str) -> Dict[str, Any]:
-        process = psutil.Process()
+        process = _psutil().Process()
         start_ram = self._ram_mb(process)
         load_start = time.perf_counter()
         model = self.registry.load(model_name)
@@ -168,7 +183,7 @@ class BenchmarkRunner:
             raise RuntimeError("Torch is required for VAD benchmarking.")
         import torch
 
-        process = psutil.Process()
+        process = _psutil().Process()
         start_ram = self._ram_mb(process)
         load_start = time.perf_counter()
         model = self.registry.load(model_name)
@@ -209,7 +224,7 @@ class BenchmarkRunner:
         return max(0, int(output_length - input_length))
 
     @staticmethod
-    def _ram_mb(process: psutil.Process) -> float:
+    def _ram_mb(process: Any) -> float:
         return process.memory_info().rss / (1024 * 1024)
 
     @staticmethod
@@ -218,6 +233,14 @@ class BenchmarkRunner:
             frames = wf.getnframes()
             rate = wf.getframerate()
         return frames / float(rate)
+
+
+def _psutil():
+    if importlib.util.find_spec("psutil") is None:
+        raise RuntimeError("psutil is required for benchmarking.")
+    import psutil
+
+    return psutil
 
     def _ensure_sample_wav(self) -> Path:
         if self.sample_wav.exists():
