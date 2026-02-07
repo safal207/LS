@@ -126,5 +126,16 @@
 - **Low Fixed**: 1
 - **Active**: 1
 
+## 2025-02-07 - Additional Fixes
+
+### ✅ Fixed: Smoke/E2E Tests Import Errors
+- **Files**: 
+  - `python/modules/agent/loop.py`
+  - `python/modules/llm/cot_adapter.py`
+- **Problem**: Relative imports (`from ..llm.temporal`) broken when `python/modules` in sys.path
+- **Fix**: Changed to absolute imports (`from python.modules.llm.temporal`)
+- **Result**: All 19 smoke tests pass, all 8 e2e tests pass
+- **Commit**: `bbd2a47`
+
 ## Last Updated
 2025-02-07
