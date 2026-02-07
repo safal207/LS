@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
@@ -280,19 +280,8 @@ class UnifiedCognitiveLoop:
         active_thread_id = self.thread_scheduler.select_active_thread()
         thread_priorities = {t.thread_id: t.priority for t in self.thread_factory.list_threads()}
 
-        frame = GlobalFrame(
-            thread_id=thread.thread_id,
-            task_type=ctx.task_type,
-            system_state=state_after,
-            self_model=aggregated["self_model"],
-            affective=aggregated["affective"],
-            identity=aggregated["identity"],
-            capu_features=aggregated["capu"],
-            decision=aggregated["decision"],
-            memory_refs=aggregated["causal"],
-            narrative_refs={},
-            merit_scores=merit_scores,
-            timestamp=timestamp,
+        frame = replace(
+            base_frame,
             active_thread_id=active_thread_id,
             thread_priorities=thread_priorities,
             attention_distribution=attention_distribution,
