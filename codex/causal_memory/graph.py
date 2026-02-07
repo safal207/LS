@@ -109,3 +109,73 @@ class CausalGraph:
             yield "state_uncertain"
         if system_state == "diffuse_focus":
             yield "state_diffuse_focus"
+
+        cpu_temp = hardware.get("cpu_temp")
+        if isinstance(cpu_temp, (int, float)) and cpu_temp > 80:
+            yield "cpu_temp>80"
+
+        topology = hardware.get("topology", {}) if isinstance(hardware.get("topology", {}), dict) else {}
+        per_cpu = topology.get("per_cpu_percent")
+        if isinstance(per_cpu, list) and per_cpu:
+            max_cpu = max((value for value in per_cpu if isinstance(value, (int, float))), default=None)
+            if isinstance(max_cpu, (int, float)) and max_cpu > 85:
+                yield "cpu_hotspot"
+        logical = topology.get("logical_cpus")
+        physical = topology.get("physical_cores")
+        if isinstance(logical, int) and isinstance(physical, int) and logical > physical:
+            yield "hyperthreaded"
+
+        numa = hardware.get("numa", {}) if isinstance(hardware.get("numa", {}), dict) else {}
+        nodes = numa.get("nodes")
+        if isinstance(nodes, dict):
+            for node in nodes.values():
+                if not isinstance(node, dict):
+                    continue
+                mem_free = node.get("mem_free_gb")
+                mem_total = node.get("mem_total_gb")
+                if isinstance(mem_free, (int, float)) and isinstance(mem_total, (int, float)) and mem_total:
+                    if mem_free / mem_total < 0.15:
+                        yield "numa_pressure"
+                        break
+
+        lri = hardware.get("lri", {}) if isinstance(hardware.get("lri", {}), dict) else {}
+        lri_value = lri.get("value")
+        if isinstance(lri_value, (int, float)):
+            if lri_value > 0.8:
+                yield "lri_overload"
+            elif lri_value > 0.5:
+                yield "lri_elevated"
+        lri_state = lri.get("state")
+        if isinstance(lri_state, str):
+            yield f"lri_state:{lri_state}"
+
+        presence = hardware.get("presence", {}) if isinstance(hardware.get("presence", {}), dict) else {}
+        presence_state = presence.get("state")
+        if isinstance(presence_state, str):
+            yield f"presence:{presence_state}"
+
+        ltp_state = metadata.get("ltp_state") if isinstance(metadata, dict) else None
+        if isinstance(ltp_state, str):
+            yield f"ltp:{ltp_state}"
+
+        kernel = hardware.get("kernel", {}) if isinstance(hardware.get("kernel", {}), dict) else {}
+        kernel_signals = kernel.get("signals") if isinstance(kernel.get("signals"), list) else []
+        for signal in kernel_signals:
+            if not isinstance(signal, str):
+                continue
+            if signal.startswith("kernel:"):
+                yield signal
+                continue
+            if signal in {
+                "cache_thrashing",
+                "syscall_flood",
+                "branch_mispredict_storm",
+                "context_switch_storm",
+                "iowait_spike",
+                "thermal_throttling",
+                "kernel_overload",
+            }:
+                yield f"kernel:{signal}"
+        kernel_state = kernel.get("state")
+        if isinstance(kernel_state, str):
+            yield f"kernel_state:{kernel_state}"

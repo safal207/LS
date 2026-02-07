@@ -21,6 +21,10 @@ from .agents import (
 from .context import DecisionContext, LoopContext, TaskContext
 from .decision import DecisionMemoryProtocol
 from .hardware import HardwareMonitor
+from .kernel_sensors import KernelSensorMonitor
+from .dmp import DMPProtocol
+from .lpi import LPIState
+from .lri import LRILayer
 from .identity import LivingIdentity
 from .narrative import NarrativeGenerator, NarrativeMemoryLayer
 from .presence import PresenceMonitor
@@ -158,12 +162,35 @@ class UnifiedCognitiveLoop:
         identity_snapshot = self.identity.snapshot()
         state_before = self.presence_monitor.current_state
         hardware_state = HardwareMonitor.collect()
+        kernel_state = KernelSensorMonitor.collect()
+        lri = LRILayer.compute(hardware_state, kernel_state)
+        self.lpi = getattr(self, "lpi", LPIState())
+        self.lpi.update(
+            {
+                "lri": {"value": lri.value, "state": lri.state},
+                "kernel": kernel_state,
+                "hardware": hardware_state,
+            }
+        )
         constraints = dict(ctx.constraints or {})
         constraints["hardware"] = hardware_state
+        constraints["kernel"] = kernel_state
+        constraints["lri"] = {"value": lri.value, "state": lri.state, "tags": lri.tags}
+        self.thread_scheduler.sync_threads(self.thread_factory.list_threads())
+        thread_id = ctx.input_payload.get("thread_id") or self.thread_scheduler.select_active_thread()
+        thread = self.thread_factory.get_thread(thread_id)
+        self.thread_scheduler.register_thread(thread)
+        if thread.ltp.state == "quarantined":
+            raise RuntimeError("Thread quarantined by LTP")
+        constraints["presence"] = {"state": self.lpi.state, "confidence": self.lpi.confidence}
+        constraints["ltp_state"] = thread.ltp.state
         ctx.constraints = constraints
 
+        candidates = ctx.candidates or self.registry.list_models()
+        candidates = self._filter_candidates_by_ltp(candidates, thread.ltp.state)
+
         selection_input = SelectionInput(
-            candidates=ctx.candidates or self.registry.list_models(),
+            candidates=candidates,
             task_type=ctx.task_type,
             constraints=constraints,
             state=state_before,
@@ -173,11 +200,6 @@ class UnifiedCognitiveLoop:
 
         if not decision_context.choice:
             raise ValueError(f"No model selected for task {ctx.task_type}. Reasons: {decision_context.reasons}")
-
-        self.thread_scheduler.sync_threads(self.thread_factory.list_threads())
-        thread_id = ctx.input_payload.get("thread_id") or self.thread_scheduler.select_active_thread()
-        thread = self.thread_factory.get_thread(thread_id)
-        self.thread_scheduler.register_thread(thread)
 
         model_name = decision_context.choice
         model_config = self.registry.info(model_name)
@@ -190,8 +212,24 @@ class UnifiedCognitiveLoop:
 
         metrics = {"latency_s": latency}
         hardware_profile = self.memory_layer._collect_hardware_profile()
-        hardware = {**hardware_profile, **hardware_state}
+        hardware = {
+            **hardware_profile,
+            **hardware_state,
+            "kernel": kernel_state,
+            "lri": {"value": lri.value, "state": lri.state, "tags": lri.tags},
+            "presence": {"state": self.lpi.state, "confidence": self.lpi.confidence},
+        }
 
+        self.dmp = getattr(self, "dmp", DMPProtocol())
+        dmp_record = self.dmp.record(
+            decision=decision_context.choice,
+            alternatives=decision_context.alternatives,
+            reasons=decision_context.reasons,
+            consequences={
+                "latency_s": latency,
+            },
+            context=constraints,
+        )
         memory_record = self._record_memory(
             model_name=model_name,
             model_type=model_type,
@@ -200,6 +238,8 @@ class UnifiedCognitiveLoop:
             capu_features=capu_features,
             metrics=metrics,
             hardware=hardware,
+            ltp_state=thread.ltp.state,
+            decision_trace=dmp_record.to_dict(),
         )
 
         state_after = self.presence_monitor.update(capu_features, metrics, hardware)
@@ -247,8 +287,8 @@ class UnifiedCognitiveLoop:
 
         # Build Global Workspace Frame
         identity_snapshot = self.identity.snapshot()
-        self_model_snapshot = self._build_self_model(identity_snapshot, state_after)
-        affective_snapshot = self._build_affective(state_after, metrics)
+        self_model_snapshot = self._build_self_model(identity_snapshot, state_after, lri)
+        affective_snapshot = self._build_affective(state_after, metrics, lri)
 
         narrative_context = self.narrative_memory.timeline(limit=3) if self.narrative_memory else []
         aggregated = self.aggregator.aggregate(
@@ -367,7 +407,9 @@ class UnifiedCognitiveLoop:
         self.workspace_bus.publish(narrative)
 
     @staticmethod
-    def _build_self_model(identity_snapshot: Dict[str, Any], state: str) -> Dict[str, Any]:
+    def _build_self_model(
+        identity_snapshot: Dict[str, Any], state: str, lri: "LRIResult"
+    ) -> Dict[str, Any]:
         mapping = {
             "stable": 0.0,
             "uncertain": 0.2,
@@ -375,10 +417,16 @@ class UnifiedCognitiveLoop:
             "fragmented": 0.6,
         }
         fragmentation = mapping.get(state, 0.3)
-        return {"fragmentation": fragmentation, "state": state, "identity": identity_snapshot}
+        return {
+            "fragmentation": fragmentation,
+            "state": state,
+            "identity": identity_snapshot,
+            "cognitive_load": lri.value,
+            "cognitive_load_state": lri.state,
+        }
 
     @staticmethod
-    def _build_affective(state: str, metrics: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_affective(state: str, metrics: Dict[str, Any], lri: "LRIResult") -> Dict[str, Any]:
         base = {
             "stable": 1.0,
             "overload": 0.6,
@@ -389,7 +437,8 @@ class UnifiedCognitiveLoop:
         latency = metrics.get("latency_s")
         if isinstance(latency, (int, float)) and latency > 2.0:
             energy = max(0.1, energy - 0.2)
-        return {"energy": energy, "state": state}
+        stress_level = min(1.0, max(0.0, lri.value))
+        return {"energy": energy, "state": state, "stress_level": stress_level}
 
     def _execute_model(self, model_name: str, model_type: str, model: Any, input_payload: Dict[str, Any]):
         if model_type == "stt":
@@ -431,11 +480,31 @@ class UnifiedCognitiveLoop:
         capu_features: Dict[str, float],
         metrics: Dict[str, Any],
         hardware: Dict[str, Any],
+        ltp_state: str,
+        decision_trace: Dict[str, Any],
     ) -> MemoryRecord:
         return self.memory_layer.record_task(
             model=model_name,
             model_type=model_type,
             inputs=input_payload,
             outputs=output_payload,
-            parameters={"capu_features": capu_features, "hardware": hardware, "metrics": metrics},
+            parameters={
+                "capu_features": capu_features,
+                "hardware": hardware,
+                "metrics": metrics,
+                "ltp_state": ltp_state,
+                "presence_state": self.lpi.state,
+                "presence_confidence": self.lpi.confidence,
+                "decision_trace": decision_trace,
+            },
         )
+
+    @staticmethod
+    def _filter_candidates_by_ltp(candidates: List[str], state: str) -> List[str]:
+        if state == "untrusted":
+            filtered = [model for model in candidates if "light" in model]
+            return filtered or list(candidates)
+        if state == "probing":
+            filtered = [model for model in candidates if "safe" in model]
+            return filtered or list(candidates)
+        return list(candidates)
