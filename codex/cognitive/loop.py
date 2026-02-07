@@ -68,6 +68,9 @@ class Selector:
                 candidates.insert(0, best)
                 reasons.append(f"dmp:{best}")
 
+        if not candidates:
+            return DecisionContext(choice="", alternatives=[], reasons=["no_candidates_available"])
+
         choice = candidates[0]
         alternatives = candidates[1:]
         return DecisionContext(choice=choice, alternatives=alternatives, reasons=reasons or ["default"])
@@ -103,6 +106,9 @@ class UnifiedCognitiveLoop:
         )
         selector = self.selector or Selector(self.memory_layer, self.decision_protocol)
         decision_context = selector.select(selection_input, self.identity)
+
+        if not decision_context.choice:
+            raise ValueError(f"No model selected for task {ctx.task_type}. Reasons: {decision_context.reasons}")
 
         thread_id = ctx.input_payload.get("thread_id")
         thread = self.thread_factory.get_thread(thread_id)
