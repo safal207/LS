@@ -88,3 +88,15 @@ class CausalGraph:
         rtf = metrics.get("realtimefactor")
         if isinstance(rtf, (int, float)) and rtf > 1.0:
             yield "rtf>1"
+
+        logits_margin = metrics.get("logits_confidence_margin")
+        if isinstance(logits_margin, (int, float)) and logits_margin < 0.1:
+            yield "low_confidence_logits"
+
+        attention_entropy = metrics.get("avg_attention_entropy")
+        if isinstance(attention_entropy, (int, float)) and attention_entropy > 5.0:
+            yield "diffuse_attention"
+
+        segments_count = metrics.get("segments_count")
+        if isinstance(segments_count, (int, float)) and segments_count > 25:
+            yield "stt_segments>25"
