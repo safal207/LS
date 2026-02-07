@@ -1,5 +1,6 @@
-from .broadcaster import GlobalBroadcaster
+from .aggregator import WorkspaceAggregator
 from .bus import WorkspaceBus
-from .schema import GlobalFrame
+from .frame import GlobalFrame
+from .merit import MeritEngine
 
-__all__ = ["GlobalBroadcaster", "GlobalFrame", "WorkspaceBus"]
+__all__ = ["GlobalFrame", "MeritEngine", "WorkspaceAggregator", "WorkspaceBus"]

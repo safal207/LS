@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from codex.capu.features import extract_llm_features, extract_stt_features
@@ -15,8 +16,7 @@ from .decision import DecisionMemoryProtocol
 from .identity import LivingIdentity
 from .presence import PresenceMonitor
 from .thread import ThreadFactory
-from .workspace.broadcaster import GlobalBroadcaster
-from .workspace.bus import WorkspaceBus
+from .workspace import GlobalFrame, MeritEngine, WorkspaceAggregator, WorkspaceBus
 
 
 @dataclass
@@ -35,6 +35,7 @@ class Selector:
     def select(self, selection_input: SelectionInput, identity: LivingIdentity) -> DecisionContext:
         candidates = list(selection_input.candidates)
         reasons: List[str] = []
+
         if identity.preferences:
             preferred = sorted(identity.preferences, key=identity.preferences.get, reverse=True)
             for model in preferred:
@@ -50,7 +51,9 @@ class Selector:
                     candidates.remove(model)
                     reasons.append(f"avoided:{model}")
 
-        causal_recommendations = self.causal_memory.engine.recommend(candidates, context=selection_input.constraints)
+        causal_recommendations = self.causal_memory.engine.recommend(
+            candidates, context=selection_input.constraints
+        )
         if causal_recommendations:
             top = causal_recommendations[0]
             if top in candidates:
@@ -59,10 +62,7 @@ class Selector:
                 reasons.append(f"causal:{top}")
 
         if candidates:
-            best = max(
-                candidates,
-                key=lambda model: self.decision_protocol.success_rate(model),
-            )
+            best = max(candidates, key=lambda m: self.decision_protocol.success_rate(m))
             if best in candidates:
                 candidates.remove(best)
                 candidates.insert(0, best)
@@ -82,14 +82,14 @@ class UnifiedCognitiveLoop:
     tracer: Tracer
     identity: LivingIdentity
     thread_factory: ThreadFactory
-    workspace_bus: WorkspaceBus = field(default_factory=WorkspaceBus)
-    broadcaster: GlobalBroadcaster | None = None
+
     selector: Selector | None = None
     capu_history: List[Dict[str, float]] = field(default_factory=list)
 
-    def __post_init__(self) -> None:
-        if self.broadcaster is None:
-            self.broadcaster = GlobalBroadcaster(self.workspace_bus)
+    # Global Workspace Layer
+    aggregator: WorkspaceAggregator = field(default_factory=WorkspaceAggregator)
+    merit_engine: MeritEngine = field(default_factory=MeritEngine)
+    workspace_bus: WorkspaceBus = field(default_factory=WorkspaceBus)
 
     def run_task(self, ctx: TaskContext) -> LoopContext:
         identity_snapshot = self.identity.snapshot()
@@ -158,24 +158,40 @@ class UnifiedCognitiveLoop:
 
         self.capu_history.append(capu_features)
 
-        self.broadcaster.broadcast(
-            task_type=ctx.task_type,
-            thread_id=thread.thread_id,
-            system_state=state_after,
-            self_model=self._snapshot_self_model(),
-            affective=self._snapshot_affective(),
-            capu_features=capu_features,
-            decision={
-                "choice": decision_context.choice,
-                "reasons": decision_context.reasons,
-                "success": memory_record.success,
-            },
-            memory_refs={
-                "decision_record_id": decision_record.record_id,
+        # Build Global Workspace Frame
+        identity_snapshot = self.identity.snapshot()
+        self_model_snapshot = self._build_self_model(identity_snapshot, state_after)
+        affective_snapshot = self._build_affective(state_after, metrics)
+
+        aggregated = self.aggregator.aggregate(
+            self_model=self_model_snapshot,
+            affective=affective_snapshot,
+            identity=identity_snapshot,
+            capu=capu_features,
+            decision=asdict(decision_context),
+            causal={
                 "memory_record_id": memory_record.record_id,
+                "decision_record_id": decision_record.record_id,
             },
-            tags=["loop_step"],
+            state=state_after,
         )
+
+        merit_scores = self.merit_engine.score(aggregated)
+
+        frame = GlobalFrame(
+            thread_id=thread.thread_id,
+            task_type=ctx.task_type,
+            system_state=state_after,
+            self_model=aggregated["self_model"],
+            affective=aggregated["affective"],
+            identity=aggregated["identity"],
+            capu_features=aggregated["capu"],
+            decision=aggregated["decision"],
+            causal_context=aggregated["causal"],
+            merit_scores=merit_scores,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        self.workspace_bus.publish(frame)
 
         return LoopContext(
             task=ctx,
@@ -191,31 +207,32 @@ class UnifiedCognitiveLoop:
             identity_snapshot=identity_snapshot,
         )
 
-    def _snapshot_self_model(self) -> Dict[str, Any]:
-        if hasattr(self, "self_model"):
-            self_model = getattr(self, "self_model")
-            if hasattr(self_model, "snapshot"):
-                return self_model.snapshot()
-            if isinstance(self_model, dict):
-                return dict(self_model)
-        return self.identity.snapshot()
+    @staticmethod
+    def _build_self_model(identity_snapshot: Dict[str, Any], state: str) -> Dict[str, Any]:
+        mapping = {
+            "stable": 0.0,
+            "uncertain": 0.2,
+            "overload": 0.4,
+            "fragmented": 0.6,
+        }
+        fragmentation = mapping.get(state, 0.3)
+        return {"fragmentation": fragmentation, "state": state, "identity": identity_snapshot}
 
-    def _snapshot_affective(self) -> Dict[str, Any]:
-        if hasattr(self, "affective_layer"):
-            layer = getattr(self, "affective_layer")
-            if hasattr(layer, "snapshot"):
-                return layer.snapshot()
-            if hasattr(layer, "__dict__"):
-                return dict(layer.__dict__)
-        return {}
+    @staticmethod
+    def _build_affective(state: str, metrics: Dict[str, Any]) -> Dict[str, Any]:
+        base = {
+            "stable": 1.0,
+            "overload": 0.6,
+            "fragmented": 0.4,
+            "uncertain": 0.7,
+        }
+        energy = base.get(state, 0.5)
+        latency = metrics.get("latency_s")
+        if isinstance(latency, (int, float)) and latency > 2.0:
+            energy = max(0.1, energy - 0.2)
+        return {"energy": energy, "state": state}
 
-    def _execute_model(
-        self,
-        model_name: str,
-        model_type: str,
-        model: Any,
-        input_payload: Dict[str, Any],
-    ) -> tuple[Dict[str, Any], Dict[str, float]]:
+    def _execute_model(self, model_name: str, model_type: str, model: Any, input_payload: Dict[str, Any]):
         if model_type == "stt":
             hooks, wrapped = self.tracer.start_stt_session(model_name, model)
             output = {"result": self._run_stt(wrapped, input_payload)}
@@ -261,8 +278,4 @@ class UnifiedCognitiveLoop:
             model_type=model_type,
             inputs=input_payload,
             outputs=output_payload,
-            parameters={"capu_features": capu_features},
-            hardware=hardware,
-            metrics=metrics,
-            success=True,
-        )
+            parameters={"capu_features

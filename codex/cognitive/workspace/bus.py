@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, List
 
-from .schema import GlobalFrame
+from .frame import GlobalFrame
 
 
 @dataclass
@@ -13,11 +13,9 @@ class WorkspaceBus:
 
     def publish(self, frame: GlobalFrame) -> None:
         self.frames.append(frame)
-        for listener in self.listeners:
+        # Safe iteration in case listeners modify the list during callbacks
+        for listener in list(self.listeners):
             listener(frame)
 
     def subscribe(self, listener: Callable[[GlobalFrame], None]) -> None:
         self.listeners.append(listener)
-
-    def recent(self, limit: int = 10) -> List[GlobalFrame]:
-        return self.frames[-limit:]
