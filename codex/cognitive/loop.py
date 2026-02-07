@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
@@ -20,9 +20,11 @@ from .agents import (
 )
 from .context import DecisionContext, LoopContext, TaskContext
 from .decision import DecisionMemoryProtocol
+from .hardware import HardwareMonitor
 from .identity import LivingIdentity
 from .narrative import NarrativeGenerator, NarrativeMemoryLayer
 from .presence import PresenceMonitor
+from .scheduler import ThreadScheduler
 from .thread import ThreadFactory
 from .workspace import GlobalFrame, MeritEngine, WorkspaceAggregator, WorkspaceBus
 
@@ -128,6 +130,7 @@ class UnifiedCognitiveLoop:
     tracer: Tracer
     identity: LivingIdentity
     thread_factory: ThreadFactory
+    thread_scheduler: ThreadScheduler = field(default_factory=ThreadScheduler)
 
     selector: Selector | None = None
     capu_history: List[Dict[str, float]] = field(default_factory=list)
@@ -154,11 +157,15 @@ class UnifiedCognitiveLoop:
     def run_task(self, ctx: TaskContext) -> LoopContext:
         identity_snapshot = self.identity.snapshot()
         state_before = self.presence_monitor.current_state
+        hardware_state = HardwareMonitor.collect()
+        constraints = dict(ctx.constraints or {})
+        constraints["hardware"] = hardware_state
+        ctx.constraints = constraints
 
         selection_input = SelectionInput(
             candidates=ctx.candidates or self.registry.list_models(),
             task_type=ctx.task_type,
-            constraints=ctx.constraints,
+            constraints=constraints,
             state=state_before,
         )
         selector = self.selector or Selector(self.memory_layer, self.decision_protocol, self.narrative_memory)
@@ -167,8 +174,10 @@ class UnifiedCognitiveLoop:
         if not decision_context.choice:
             raise ValueError(f"No model selected for task {ctx.task_type}. Reasons: {decision_context.reasons}")
 
-        thread_id = ctx.input_payload.get("thread_id")
+        self.thread_scheduler.sync_threads(self.thread_factory.list_threads())
+        thread_id = ctx.input_payload.get("thread_id") or self.thread_scheduler.select_active_thread()
         thread = self.thread_factory.get_thread(thread_id)
+        self.thread_scheduler.register_thread(thread)
 
         model_name = decision_context.choice
         model_config = self.registry.info(model_name)
@@ -180,7 +189,8 @@ class UnifiedCognitiveLoop:
         latency = time.perf_counter() - start
 
         metrics = {"latency_s": latency}
-        hardware = self.memory_layer._collect_hardware_profile()
+        hardware_profile = self.memory_layer._collect_hardware_profile()
+        hardware = {**hardware_profile, **hardware_state}
 
         memory_record = self._record_memory(
             model_name=model_name,
@@ -257,7 +267,8 @@ class UnifiedCognitiveLoop:
 
         merit_scores = self.merit_engine.score(aggregated)
 
-        frame = GlobalFrame(
+        timestamp = datetime.now(timezone.utc).isoformat()
+        base_frame = GlobalFrame(
             thread_id=thread.thread_id,
             task_type=ctx.task_type,
             system_state=state_after,
@@ -269,7 +280,18 @@ class UnifiedCognitiveLoop:
             memory_refs=aggregated["causal"],
             narrative_refs={},
             merit_scores=merit_scores,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=timestamp,
+            hardware=hardware,
+        )
+        attention_distribution = self.thread_scheduler.update_attention(base_frame)
+        active_thread_id = self.thread_scheduler.select_active_thread()
+        thread_priorities = {t.thread_id: t.priority for t in self.thread_factory.list_threads()}
+
+        frame = replace(
+            base_frame,
+            active_thread_id=active_thread_id,
+            thread_priorities=thread_priorities,
+            attention_distribution=attention_distribution,
         )
         self.workspace_bus.publish(frame)
 
@@ -333,6 +355,10 @@ class UnifiedCognitiveLoop:
             },
             merit_scores=frame.merit_scores,
             timestamp=frame.timestamp,
+            hardware=frame.hardware,
+            active_thread_id=frame.active_thread_id,
+            thread_priorities=frame.thread_priorities,
+            attention_distribution=frame.attention_distribution,
         )
         for index in range(len(self.workspace_bus.frames) - 1, -1, -1):
             if self.workspace_bus.frames[index] is frame:

@@ -47,13 +47,27 @@ class LiminalThread:
         return event
 
 
+@dataclass
+class CognitiveThread(LiminalThread):
+    priority: float = 1.0
+    attention_weight: float = 1.0
+    active: bool = True
+    last_active_timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def touch(self, timestamp: str | None = None) -> None:
+        self.last_active_timestamp = timestamp or datetime.now(timezone.utc).isoformat()
+
+
 class ThreadFactory:
     def __init__(self) -> None:
-        self._threads: Dict[str, LiminalThread] = {}
+        self._threads: Dict[str, CognitiveThread] = {}
 
-    def get_thread(self, thread_id: str | None = None) -> LiminalThread:
+    def get_thread(self, thread_id: str | None = None) -> CognitiveThread:
         if thread_id and thread_id in self._threads:
             return self._threads[thread_id]
-        thread = LiminalThread(thread_id=thread_id or str(uuid.uuid4()))
+        thread = CognitiveThread(thread_id=thread_id or str(uuid.uuid4()))
         self._threads[thread.thread_id] = thread
         return thread
+
+    def list_threads(self) -> List[CognitiveThread]:
+        return list(self._threads.values())
