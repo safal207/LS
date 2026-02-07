@@ -258,8 +258,8 @@ class UnifiedCognitiveLoop:
 
         # Build Global Workspace Frame
         identity_snapshot = self.identity.snapshot()
-        self_model_snapshot = self._build_self_model(identity_snapshot, state_after)
-        affective_snapshot = self._build_affective(state_after, metrics)
+        self_model_snapshot = self._build_self_model(identity_snapshot, state_after, lri)
+        affective_snapshot = self._build_affective(state_after, metrics, lri)
 
         narrative_context = self.narrative_memory.timeline(limit=3) if self.narrative_memory else []
         aggregated = self.aggregator.aggregate(
@@ -378,7 +378,9 @@ class UnifiedCognitiveLoop:
         self.workspace_bus.publish(narrative)
 
     @staticmethod
-    def _build_self_model(identity_snapshot: Dict[str, Any], state: str) -> Dict[str, Any]:
+    def _build_self_model(
+        identity_snapshot: Dict[str, Any], state: str, lri: "LRIResult"
+    ) -> Dict[str, Any]:
         mapping = {
             "stable": 0.0,
             "uncertain": 0.2,
@@ -386,10 +388,16 @@ class UnifiedCognitiveLoop:
             "fragmented": 0.6,
         }
         fragmentation = mapping.get(state, 0.3)
-        return {"fragmentation": fragmentation, "state": state, "identity": identity_snapshot}
+        return {
+            "fragmentation": fragmentation,
+            "state": state,
+            "identity": identity_snapshot,
+            "cognitive_load": lri.value,
+            "cognitive_load_state": lri.state,
+        }
 
     @staticmethod
-    def _build_affective(state: str, metrics: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_affective(state: str, metrics: Dict[str, Any], lri: "LRIResult") -> Dict[str, Any]:
         base = {
             "stable": 1.0,
             "overload": 0.6,
@@ -400,7 +408,8 @@ class UnifiedCognitiveLoop:
         latency = metrics.get("latency_s")
         if isinstance(latency, (int, float)) and latency > 2.0:
             energy = max(0.1, energy - 0.2)
-        return {"energy": energy, "state": state}
+        stress_level = min(1.0, max(0.0, lri.value))
+        return {"energy": energy, "state": state, "stress_level": stress_level}
 
     def _execute_model(self, model_name: str, model_type: str, model: Any, input_payload: Dict[str, Any]):
         if model_type == "stt":
