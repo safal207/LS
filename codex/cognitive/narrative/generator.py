@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 
 from .base import NarrativeEvent
+from ..visualization import render_attention, render_bar
 
 
 @dataclass
@@ -25,7 +26,10 @@ class NarrativeGenerator:
         if isinstance(strain, str):
             summary += f"System strain reported as '{strain}'. "
         if isinstance(strain_value, (int, float)):
-            summary += f"Load index at {strain_value:.2f}. "
+            summary += f"Load index {render_bar(float(strain_value), width=12)}. "
+        attention = frame.get("attention_distribution", {})
+        if isinstance(attention, dict) and attention:
+            summary += f"Attention {render_attention(attention)}. "
 
         if "predicted_state" in agent_outputs.get("predictor", {}):
             summary += f"Prediction: {agent_outputs['predictor']['predicted_state']}. "
