@@ -1,9 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::f64::consts::LN_2;
+use std::fs;
 use std::io::{self, BufRead, Write};
 use std::os::unix::net::UnixDatagram;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Deserialize)]
@@ -44,6 +47,12 @@ struct KernelAggregate {
 
 fn main() {
     let socket_path = std::env::var("KACL_SOCKET").unwrap_or_else(|_| "/tmp/kacl.sock".to_string());
+    let latest_payload: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+    let responder_payload = Arc::clone(&latest_payload);
+    let responder_path = socket_path.clone();
+    let _ = fs::remove_file(&responder_path);
+    let responder = thread::spawn(move || poll_responder(&responder_path, responder_payload));
+
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
         let Ok(line) = line else { continue };
@@ -52,8 +61,18 @@ fn main() {
         }
         let Ok(event) = serde_json::from_str::<KernelEvent>(&line) else { continue };
         let aggregate = aggregate_event(event);
-        send_message(&socket_path, &aggregate);
+        let payload = match serde_json::to_vec(&aggregate) {
+            Ok(data) => data,
+            Err(_) => continue,
+        };
+        if let Ok(mut guard) = latest_payload.lock() {
+            *guard = payload.clone();
+        }
+        let _ = io::stdout().write_all(&payload);
+        let _ = io::stdout().write_all(b"\n");
     }
+
+    let _ = responder.join();
 }
 
 fn aggregate_event(event: KernelEvent) -> KernelAggregate {
@@ -142,15 +161,23 @@ fn normalized_entropy(syscalls: &HashMap<String, f64>) -> f64 {
     normalize(entropy / max_entropy)
 }
 
-fn send_message(socket_path: &str, aggregate: &KernelAggregate) {
-    let payload = match serde_json::to_vec(aggregate) {
-        Ok(data) => data,
+fn poll_responder(socket_path: &str, payload: Arc<Mutex<Vec<u8>>>) {
+    let socket = match UnixDatagram::bind(Path::new(socket_path)) {
+        Ok(sock) => sock,
         Err(_) => return,
     };
-    let socket = UnixDatagram::unbound();
-    let Ok(socket) = socket else { return };
-    let path = Path::new(socket_path);
-    if socket.send_to(&payload, path).is_err() {
-        let _ = io::stdout().write_all(&payload);
+    let mut buf = [0u8; 32];
+    loop {
+        let Ok((size, addr)) = socket.recv_from(&mut buf) else { continue };
+        if size == 0 {
+            continue;
+        }
+        let Some(path) = addr.as_pathname() else { continue };
+        if let Ok(guard) = payload.lock() {
+            if guard.is_empty() {
+                continue;
+            }
+            let _ = socket.send_to(&guard, path);
+        }
     }
 }

@@ -109,3 +109,25 @@ class CausalGraph:
             yield "state_uncertain"
         if system_state == "diffuse_focus":
             yield "state_diffuse_focus"
+
+        kernel = hardware.get("kernel", {}) if isinstance(hardware.get("kernel", {}), dict) else {}
+        kernel_signals = kernel.get("signals") if isinstance(kernel.get("signals"), list) else []
+        for signal in kernel_signals:
+            if not isinstance(signal, str):
+                continue
+            if signal.startswith("kernel:"):
+                yield signal
+                continue
+            if signal in {
+                "cache_thrashing",
+                "syscall_flood",
+                "branch_mispredict_storm",
+                "context_switch_storm",
+                "iowait_spike",
+                "thermal_throttling",
+                "kernel_overload",
+            }:
+                yield f"kernel:{signal}"
+        kernel_state = kernel.get("state")
+        if isinstance(kernel_state, str):
+            yield f"kernel_state:{kernel_state}"

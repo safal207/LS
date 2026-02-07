@@ -4,6 +4,7 @@ import json
 import math
 import os
 import socket
+import threading
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List
 
@@ -22,6 +23,11 @@ class KernelTelemetry:
 
 class KernelSensorMonitor:
     _default_socket = "/tmp/kacl.sock"
+    _listener: "KernelSensorListener | None" = None
+
+    @classmethod
+    def attach_listener(cls, listener: "KernelSensorListener") -> None:
+        cls._listener = listener
 
     @classmethod
     def collect(cls) -> Dict[str, Any]:
@@ -38,15 +44,27 @@ class KernelSensorMonitor:
 
     @classmethod
     def _read_message(cls) -> Dict[str, Any] | None:
+        if cls._listener is not None:
+            message = cls._listener.latest()
+            if message:
+                return message
         socket_path = os.getenv("KACL_SOCKET", cls._default_socket)
         if not os.path.exists(socket_path):
             return None
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
-                sock.settimeout(0.01)
-                sock.connect(socket_path)
-                sock.send(b"poll")
-                payload = sock.recv(65535)
+                sock.settimeout(0.05)
+                temp_path = f"{socket_path}.{os.getpid()}.client"
+                try:
+                    if os.path.exists(temp_path):
+                        os.unlink(temp_path)
+                    sock.bind(temp_path)
+                    sock.connect(socket_path)
+                    sock.send(b"poll")
+                    payload = sock.recv(65535)
+                finally:
+                    if os.path.exists(temp_path):
+                        os.unlink(temp_path)
         except (OSError, socket.timeout):
             return None
         try:
@@ -120,3 +138,52 @@ def syscall_entropy(syscalls: Dict[str, float]) -> float:
         entropy -= p * math.log(p, 2)
     max_entropy = math.log(len(syscalls), 2) if len(syscalls) > 1 else 1.0
     return min(1.0, entropy / max_entropy) if max_entropy else 0.0
+
+
+class KernelSensorListener:
+    def __init__(self, socket_path: str | None = None) -> None:
+        self._socket_path = socket_path or os.getenv("KACL_SOCKET", KernelSensorMonitor._default_socket)
+        self._latest: Dict[str, Any] | None = None
+        self._thread: threading.Thread | None = None
+        self._stop_event = threading.Event()
+
+    def start(self) -> None:
+        if self._thread and self._thread.is_alive():
+            return
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join(timeout=1.0)
+
+    def latest(self) -> Dict[str, Any] | None:
+        return dict(self._latest) if self._latest else None
+
+    def _run(self) -> None:
+        if os.path.exists(self._socket_path):
+            try:
+                os.unlink(self._socket_path)
+            except OSError:
+                return
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
+            try:
+                sock.bind(self._socket_path)
+            except OSError:
+                return
+            sock.settimeout(0.2)
+            while not self._stop_event.is_set():
+                try:
+                    payload = sock.recv(65535)
+                except socket.timeout:
+                    continue
+                except OSError:
+                    break
+                try:
+                    decoded = json.loads(payload.decode("utf-8"))
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(decoded, dict):
+                    self._latest = decoded

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from codex.causal_memory.engine import AdaptiveEngine
 from codex.causal_memory.graph import CausalGraph
+from codex.causal_memory.store import MemoryRecord
 from codex.causal_memory.store import MemoryStore
 from codex.cognitive.scheduler import ThreadScheduler
 from codex.cognitive.thread import CognitiveThread
@@ -72,3 +73,19 @@ def test_scheduler_kernel_signal_adjustments() -> None:
     assert io_thread.active is False
     assert low_thread.active is False
     assert cpu_thread.attention_weight > 1.0
+
+
+def test_kernel_causal_edges_from_record() -> None:
+    graph = CausalGraph()
+    record = MemoryRecord.build(
+        model="model-a",
+        model_type="llm",
+        inputs={},
+        outputs={},
+        hardware={"kernel": {"signals": ["cache_thrashing"], "state": "overload"}},
+        metrics={},
+        success=False,
+    )
+    graph.observe(record)
+    downstream = graph.get_downstream("kernel:cache_thrashing")
+    assert any(edge.effect.startswith("failure:model-a") for edge in downstream)

@@ -38,6 +38,8 @@ class ThreadScheduler:
                 thread.attention_weight = max(0.1, (thread.attention_weight + avg_merit) / 2)
         self._apply_hardware_pressure(frame.hardware or {})
         self._apply_kernel_signals(frame.hardware.get("kernel") if isinstance(frame.hardware, dict) else {})
+        self._apply_cpu_topology(frame.hardware.get("topology") if isinstance(frame.hardware, dict) else {})
+        self._apply_numa_balance(frame.hardware.get("numa") if isinstance(frame.hardware, dict) else {})
         return self._normalize_attention(self._attention_scores())
 
     def select_active_thread(self) -> str | None:
@@ -99,6 +101,44 @@ class ThreadScheduler:
                 elif thread.priority <= 0.5:
                     thread.attention_weight = max(0.1, thread.attention_weight * 0.85)
 
+    def _apply_cpu_topology(self, topology: Dict[str, Any]) -> None:
+        if not isinstance(topology, dict):
+            return
+        per_cpu = topology.get("per_cpu_percent")
+        if not isinstance(per_cpu, list) or not per_cpu:
+            return
+        for thread in self.threads.values():
+            affinity = getattr(thread, "cpu_affinity", [])
+            if not affinity:
+                continue
+            samples = [per_cpu[cpu] for cpu in affinity if isinstance(cpu, int) and cpu < len(per_cpu)]
+            if not samples:
+                continue
+            avg_load = sum(samples) / len(samples)
+            if avg_load >= 85:
+                thread.attention_weight = max(0.1, thread.attention_weight * 0.85)
+            elif avg_load <= 30:
+                thread.attention_weight = min(2.0, thread.attention_weight * 1.05)
+
+    def _apply_numa_balance(self, numa: Dict[str, Any]) -> None:
+        if not isinstance(numa, dict):
+            return
+        nodes = numa.get("nodes")
+        if not isinstance(nodes, dict) or not nodes:
+            return
+        for thread in self.threads.values():
+            node_id = getattr(thread, "numa_node", None)
+            if node_id is None:
+                continue
+            node = nodes.get(str(node_id)) or nodes.get(node_id)
+            if not isinstance(node, dict):
+                continue
+            mem_free = node.get("mem_free_gb")
+            mem_total = node.get("mem_total_gb")
+            if isinstance(mem_free, (int, float)) and isinstance(mem_total, (int, float)) and mem_total:
+                free_ratio = mem_free / mem_total
+                if free_ratio < 0.15:
+                    thread.attention_weight = max(0.1, thread.attention_weight * 0.8)
     @staticmethod
     def _is_overloaded(hardware: Dict[str, Any]) -> bool:
         cpu_percent = hardware.get("cpu_percent")
