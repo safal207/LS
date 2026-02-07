@@ -235,13 +235,6 @@ class BenchmarkRunner:
         return frames / float(rate)
 
 
-def _psutil():
-    if importlib.util.find_spec("psutil") is None:
-        raise RuntimeError("psutil is required for benchmarking.")
-    import psutil
-
-    return psutil
-
     def _ensure_sample_wav(self) -> Path:
         if self.sample_wav.exists():
             return self.sample_wav
@@ -279,21 +272,29 @@ def _psutil():
 
     @staticmethod
     def _reset_vram_peak() -> float:
-        if importlib.util.find_spec("torch") is None:
-            return 0.0
-        import torch
-
-        if torch.cuda.is_available():
-            torch.cuda.reset_peak_memory_stats()
-            return torch.cuda.max_memory_allocated() / (1024 * 1024)
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.reset_peak_memory_stats()
+                return torch.cuda.max_memory_allocated() / (1024 * 1024)
+        except ImportError:
+            pass
         return 0.0
 
     @staticmethod
     def _get_peak_vram_mb() -> float:
-        if importlib.util.find_spec("torch") is None:
-            return 0.0
-        import torch
-
-        if torch.cuda.is_available():
-            return torch.cuda.max_memory_allocated() / (1024 * 1024)
+        try:
+            import torch
+            if torch.cuda.is_available():
+                return torch.cuda.max_memory_allocated() / (1024 * 1024)
+        except ImportError:
+            pass
         return 0.0
+
+
+def _psutil():
+    try:
+        import psutil
+        return psutil
+    except ImportError:
+        raise RuntimeError("psutil is required for benchmarking.")
