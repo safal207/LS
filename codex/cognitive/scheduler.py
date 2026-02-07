@@ -37,6 +37,7 @@ class ThreadScheduler:
                 avg_merit = sum(frame.merit_scores.values()) / len(frame.merit_scores)
                 thread.attention_weight = max(0.1, (thread.attention_weight + avg_merit) / 2)
         self._apply_hardware_pressure(frame.hardware or {})
+        self._apply_kernel_signals(frame.hardware.get("kernel") if isinstance(frame.hardware, dict) else {})
         return self._normalize_attention(self._attention_scores())
 
     def select_active_thread(self) -> str | None:
@@ -73,6 +74,30 @@ class ThreadScheduler:
                 thread.attention_weight = max(0.1, thread.attention_weight * 0.8)
             else:
                 thread.attention_weight = min(2.0, thread.attention_weight * 1.1)
+
+    def _apply_kernel_signals(self, kernel: Dict[str, Any]) -> None:
+        if not isinstance(kernel, dict):
+            return
+        signals = kernel.get("signals") or []
+        if not isinstance(signals, list) or not signals:
+            return
+        for thread in self.threads.values():
+            if "cache_thrashing" in signals:
+                thread.attention_weight = max(0.1, thread.attention_weight * 0.85)
+                if thread.priority <= 0.4:
+                    thread.active = False
+            if "iowait_spike" in signals:
+                if getattr(thread, "tags", []) and "io-heavy" in getattr(thread, "tags", []):
+                    thread.active = False
+                elif thread.priority <= 0.5:
+                    thread.attention_weight = max(0.1, thread.attention_weight * 0.8)
+            if "branch_mispredict_storm" in signals:
+                thread.attention_weight = max(0.1, thread.attention_weight * 0.9)
+            if "context_switch_storm" in signals:
+                if thread.priority >= 0.8:
+                    thread.attention_weight = min(2.0, thread.attention_weight + 0.5)
+                elif thread.priority <= 0.5:
+                    thread.attention_weight = max(0.1, thread.attention_weight * 0.85)
 
     @staticmethod
     def _is_overloaded(hardware: Dict[str, Any]) -> bool:

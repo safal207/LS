@@ -118,6 +118,9 @@ class AdaptiveEngine:
         risk_threshold: float = 0.3,
     ) -> str:
         context = dict(context or {})
+        kernel_strategy = self._kernel_strategy(context)
+        if kernel_strategy:
+            return kernel_strategy
         hardware = context.get("hardware", {}) if isinstance(context.get("hardware", {}), dict) else {}
         cpu_percent = hardware.get("cpu_percent")
         ram_used_gb = hardware.get("ram_used_gb")
@@ -195,3 +198,41 @@ class AdaptiveEngine:
         io_wait = hardware.get("io_wait")
         if isinstance(io_wait, (int, float)) and io_wait > 5:
             yield "io_wait>5"
+
+        kernel = context.get("kernel", {}) if isinstance(context.get("kernel", {}), dict) else {}
+        kernel_signals = kernel.get("signals") if isinstance(kernel.get("signals"), list) else []
+        for signal in kernel_signals:
+            if not isinstance(signal, str):
+                continue
+            if signal.startswith("kernel:"):
+                yield signal
+                continue
+            if signal in {
+                "cache_thrashing",
+                "syscall_flood",
+                "branch_mispredict_storm",
+                "context_switch_storm",
+                "iowait_spike",
+                "thermal_throttling",
+            }:
+                yield f"kernel:{signal}"
+
+    @staticmethod
+    def _kernel_strategy(context: Dict[str, object]) -> str | None:
+        kernel = context.get("kernel", {}) if isinstance(context.get("kernel", {}), dict) else {}
+        signals = kernel.get("signals") if isinstance(kernel.get("signals"), list) else []
+        state = kernel.get("state")
+        if isinstance(state, str):
+            if state == "overload":
+                return "ultra_conservative"
+            if state == "high_throughput":
+                return "aggressive"
+            if state == "stable":
+                return "balanced"
+        if "kernel_overload" in signals:
+            return "ultra_conservative"
+        if "high_throughput" in signals:
+            return "aggressive"
+        if "stable" in signals:
+            return "balanced"
+        return None

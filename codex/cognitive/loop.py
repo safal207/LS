@@ -21,6 +21,7 @@ from .agents import (
 from .context import DecisionContext, LoopContext, TaskContext
 from .decision import DecisionMemoryProtocol
 from .hardware import HardwareMonitor
+from .kernel_sensors import KernelSensorMonitor
 from .identity import LivingIdentity
 from .narrative import NarrativeGenerator, NarrativeMemoryLayer
 from .presence import PresenceMonitor
@@ -158,8 +159,10 @@ class UnifiedCognitiveLoop:
         identity_snapshot = self.identity.snapshot()
         state_before = self.presence_monitor.current_state
         hardware_state = HardwareMonitor.collect()
+        kernel_state = KernelSensorMonitor.collect()
         constraints = dict(ctx.constraints or {})
         constraints["hardware"] = hardware_state
+        constraints["kernel"] = kernel_state
         ctx.constraints = constraints
 
         selection_input = SelectionInput(
@@ -190,7 +193,7 @@ class UnifiedCognitiveLoop:
 
         metrics = {"latency_s": latency}
         hardware_profile = self.memory_layer._collect_hardware_profile()
-        hardware = {**hardware_profile, **hardware_state}
+        hardware = {**hardware_profile, **hardware_state, "kernel": kernel_state}
 
         memory_record = self._record_memory(
             model_name=model_name,
