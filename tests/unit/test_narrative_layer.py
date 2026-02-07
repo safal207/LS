@@ -8,6 +8,7 @@ from codex.cognitive.context import TaskContext
 from codex.cognitive.decision import DecisionMemoryProtocol
 from codex.cognitive.identity import LivingIdentity
 from codex.cognitive.loop import UnifiedCognitiveLoop
+from codex.cognitive.narrative import NarrativeEvent
 from codex.cognitive.presence import PresenceMonitor
 from codex.cognitive.thread import ThreadFactory
 from codex.registry.model_registry import ModelRegistry
@@ -54,7 +55,7 @@ class DummyLoader:
         return None
 
 
-def test_workspace_layer_publishes_global_frame(tmp_path: Path) -> None:
+def test_narrative_event_published_from_agent_outputs(tmp_path: Path) -> None:
     registry = ModelRegistry(loader=DummyLoader())
     registry.register("dummy-llm", {"type": "llm", "path": "dummy"})
     memory_layer = CausalMemoryLayer(store_path=tmp_path / "memory.jsonl")
@@ -74,16 +75,6 @@ def test_workspace_layer_publishes_global_frame(tmp_path: Path) -> None:
         thread_factory=thread_factory,
     )
 
-    captured = []
-
-    def _capture_global(frame):
-        from codex.cognitive.workspace import GlobalFrame
-
-        if isinstance(frame, GlobalFrame):
-            captured.append(frame)
-
-    loop.workspace_bus.subscribe(_capture_global)
-
     ctx = TaskContext(
         task_type="chat",
         input_payload={"prompt": "hello"},
@@ -91,27 +82,16 @@ def test_workspace_layer_publishes_global_frame(tmp_path: Path) -> None:
         candidates=["dummy-llm"],
     )
 
-    result = loop.run_task(ctx)
+    loop.run_task(ctx)
 
-    assert loop.workspace_bus.frames
-    frame = next(
+    narrative = next(
         frame
         for frame in reversed(loop.workspace_bus.frames)
-        if isinstance(frame, GlobalFrame)
+        if isinstance(frame, NarrativeEvent)
     )
-    assert captured == [frame]
-    assert frame.thread_id == result.thread_id
-    assert frame.task_type == ctx.task_type
-    assert frame.memory_refs["memory_record_id"] == result.memory_record_id
 
-    aggregated = loop.aggregator.aggregate(
-        self_model=frame.self_model,
-        affective=frame.affective,
-        identity=frame.identity,
-        capu=frame.capu_features,
-        decision=frame.decision,
-           causal=frame.memory_refs,
-        state=frame.system_state,
-    )
-    expected_scores = loop.merit_engine.score(aggregated)
-    assert frame.merit_scores == expected_scores
+    assert narrative.source_frame["decision"]["choice"] == "dummy-llm"
+    assert "System is in state" in narrative.text
+    assert "Selected model 'dummy-llm'" in narrative.text
+    assert "Prediction:" in narrative.text
+    assert "Stabilizer suggests:" in narrative.text

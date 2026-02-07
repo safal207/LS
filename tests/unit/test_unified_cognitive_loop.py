@@ -119,7 +119,14 @@ def test_unified_cognitive_loop_emits_global_frame(tmp_path: Path) -> None:
     )
 
     received_frames = []
-    loop.workspace_bus.subscribe(received_frames.append)
+
+    def _capture_global(frame):
+        from codex.cognitive.workspace import GlobalFrame
+
+        if isinstance(frame, GlobalFrame):
+            received_frames.append(frame)
+
+    loop.workspace_bus.subscribe(_capture_global)
 
     ctx = TaskContext(
         task_type="chat",
@@ -131,7 +138,11 @@ def test_unified_cognitive_loop_emits_global_frame(tmp_path: Path) -> None:
     result = loop.run_task(ctx)
 
     assert loop.workspace_bus.frames
-    frame = loop.workspace_bus.frames[-1]
+    frame = next(
+        frame
+        for frame in reversed(loop.workspace_bus.frames)
+        if isinstance(frame, GlobalFrame)
+    )
     assert frame.task_type == ctx.task_type
     assert frame.thread_id == result.thread_id
     assert frame.system_state == result.state_after
