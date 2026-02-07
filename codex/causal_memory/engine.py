@@ -118,6 +118,20 @@ class AdaptiveEngine:
         risk_threshold: float = 0.3,
     ) -> str:
         context = dict(context or {})
+        hardware = context.get("hardware", {}) if isinstance(context.get("hardware", {}), dict) else {}
+        cpu_percent = hardware.get("cpu_percent")
+        ram_used_gb = hardware.get("ram_used_gb")
+        ram_total_gb = hardware.get("ram_total_gb")
+        cpu_temp = hardware.get("cpu_temp")
+        ram_percent = None
+        if isinstance(ram_used_gb, (int, float)) and isinstance(ram_total_gb, (int, float)) and ram_total_gb:
+            ram_percent = (ram_used_gb / ram_total_gb) * 100
+        if (
+            (isinstance(cpu_percent, (int, float)) and cpu_percent > 80)
+            or (isinstance(ram_percent, (int, float)) and ram_percent > 80)
+            or (isinstance(cpu_temp, (int, float)) and cpu_temp > 75)
+        ):
+            return "conservative"
         predicted_state = self.predict_system_state(context)
         risks = self.forecast_model_risks(models, context)
         max_risk = max(risks.values(), default=0.0)
@@ -154,3 +168,30 @@ class AdaptiveEngine:
         vram_gb = context.get("vram_gb")
         if isinstance(vram_gb, (int, float)) and vram_gb < 4:
             yield "vram<4gb"
+
+        hardware = context.get("hardware", {}) if isinstance(context.get("hardware", {}), dict) else {}
+        cpu_percent = hardware.get("cpu_percent")
+        if isinstance(cpu_percent, (int, float)) and cpu_percent > 80:
+            yield "cpu>80"
+
+        ram_used_gb = hardware.get("ram_used_gb")
+        ram_total_gb = hardware.get("ram_total_gb")
+        if (
+            isinstance(ram_used_gb, (int, float))
+            and isinstance(ram_total_gb, (int, float))
+            and ram_total_gb
+            and (ram_used_gb / ram_total_gb) * 100 > 80
+        ):
+            yield "ram>80"
+
+        cpu_temp = hardware.get("cpu_temp")
+        if isinstance(cpu_temp, (int, float)) and cpu_temp > 75:
+            yield "temp>75"
+
+        swap_used_gb = hardware.get("swap_used_gb")
+        if isinstance(swap_used_gb, (int, float)) and swap_used_gb > 0:
+            yield "swap>0"
+
+        io_wait = hardware.get("io_wait")
+        if isinstance(io_wait, (int, float)) and io_wait > 5:
+            yield "io_wait>5"

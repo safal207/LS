@@ -36,6 +36,7 @@ class ThreadScheduler:
             if frame.merit_scores:
                 avg_merit = sum(frame.merit_scores.values()) / len(frame.merit_scores)
                 thread.attention_weight = max(0.1, (thread.attention_weight + avg_merit) / 2)
+        self._apply_hardware_pressure(frame.hardware)
         return self._normalize_attention(self._attention_scores())
 
     def select_active_thread(self) -> str | None:
@@ -60,6 +61,43 @@ class ThreadScheduler:
         base = max(0.0, thread.priority) * max(0.0, thread.attention_weight)
         decay = self._attention_decay(thread.last_active_timestamp)
         return base * decay
+
+    def _apply_hardware_pressure(self, hardware: Dict[str, object]) -> None:
+        if not self._is_overloaded(hardware):
+            return
+        for thread in self.threads.values():
+            if thread.priority <= 0.3:
+                thread.active = False
+                continue
+            if thread.priority >= 1.0:
+                thread.attention_weight = max(0.1, thread.attention_weight * 0.8)
+            else:
+                thread.attention_weight = min(2.0, thread.attention_weight * 1.1)
+
+    @staticmethod
+    def _is_overloaded(hardware: Dict[str, object]) -> bool:
+        cpu_percent = hardware.get("cpu_percent")
+        cpu_temp = hardware.get("cpu_temp")
+        io_wait = hardware.get("io_wait")
+        swap_used_gb = hardware.get("swap_used_gb")
+        ram_used_gb = hardware.get("ram_used_gb")
+        ram_total_gb = hardware.get("ram_total_gb")
+        ram_percent = None
+        if (
+            isinstance(ram_used_gb, (int, float))
+            and isinstance(ram_total_gb, (int, float))
+            and ram_total_gb
+        ):
+            ram_percent = (ram_used_gb / ram_total_gb) * 100
+        return any(
+            [
+                isinstance(cpu_percent, (int, float)) and cpu_percent > 80,
+                isinstance(cpu_temp, (int, float)) and cpu_temp > 75,
+                isinstance(io_wait, (int, float)) and io_wait > 5,
+                isinstance(swap_used_gb, (int, float)) and swap_used_gb > 0,
+                isinstance(ram_percent, (int, float)) and ram_percent > 80,
+            ]
+        )
 
     @staticmethod
     def _attention_decay(timestamp: str) -> float:

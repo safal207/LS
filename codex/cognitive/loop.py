@@ -20,6 +20,7 @@ from .agents import (
 )
 from .context import DecisionContext, LoopContext, TaskContext
 from .decision import DecisionMemoryProtocol
+from .hardware import HardwareMonitor
 from .identity import LivingIdentity
 from .narrative import NarrativeGenerator, NarrativeMemoryLayer
 from .presence import PresenceMonitor
@@ -156,11 +157,15 @@ class UnifiedCognitiveLoop:
     def run_task(self, ctx: TaskContext) -> LoopContext:
         identity_snapshot = self.identity.snapshot()
         state_before = self.presence_monitor.current_state
+        hardware_state = HardwareMonitor.collect()
+        constraints = dict(ctx.constraints or {})
+        constraints["hardware"] = hardware_state
+        ctx.constraints = constraints
 
         selection_input = SelectionInput(
             candidates=ctx.candidates or self.registry.list_models(),
             task_type=ctx.task_type,
-            constraints=ctx.constraints,
+            constraints=constraints,
             state=state_before,
         )
         selector = self.selector or Selector(self.memory_layer, self.decision_protocol, self.narrative_memory)
@@ -184,7 +189,8 @@ class UnifiedCognitiveLoop:
         latency = time.perf_counter() - start
 
         metrics = {"latency_s": latency}
-        hardware = self.memory_layer._collect_hardware_profile()
+        hardware_profile = self.memory_layer._collect_hardware_profile()
+        hardware = {**hardware_profile, **hardware_state}
 
         memory_record = self._record_memory(
             model_name=model_name,
@@ -275,6 +281,7 @@ class UnifiedCognitiveLoop:
             narrative_refs={},
             merit_scores=merit_scores,
             timestamp=timestamp,
+            hardware=hardware,
         )
         attention_distribution = self.thread_scheduler.update_attention(base_frame)
         active_thread_id = self.thread_scheduler.select_active_thread()
@@ -348,6 +355,7 @@ class UnifiedCognitiveLoop:
             },
             merit_scores=frame.merit_scores,
             timestamp=frame.timestamp,
+            hardware=frame.hardware,
             active_thread_id=frame.active_thread_id,
             thread_priorities=frame.thread_priorities,
             attention_distribution=frame.attention_distribution,

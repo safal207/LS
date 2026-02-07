@@ -17,6 +17,7 @@ class GlobalFrame:
     memory_refs: Dict[str, str]
     merit_scores: Dict[str, float]
     timestamp: str
+    hardware: Dict[str, Any] = field(default_factory=dict)
     narrative_refs: Dict[str, str] = field(default_factory=dict)
     tags: List[str] = field(default_factory=list)
     active_thread_id: str | None = None
