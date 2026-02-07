@@ -15,7 +15,7 @@ class GlobalFrame:
     capu_features: Dict[str, float]
     decision: Dict[str, Any]
     memory_refs: Dict[str, str]
-    narrative_refs: Dict[str, str] = field(default_factory=dict)
     merit_scores: Dict[str, float]
     timestamp: str
+    narrative_refs: Dict[str, str] = field(default_factory=dict)
     tags: List[str] = field(default_factory=list)

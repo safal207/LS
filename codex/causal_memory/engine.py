@@ -38,6 +38,93 @@ class AdaptiveEngine:
             )
         return sorted(scores, key=lambda item: item.score, reverse=True)
 
+    def forecast_model_risks(
+        self,
+        models: Iterable[str],
+        context: Dict[str, object] | None = None,
+    ) -> Dict[str, float]:
+        context = dict(context or {})
+        conditions = list(self._conditions_from_context(context))
+        return {
+            model: round(self._penalty_for_conditions(model, conditions), 4)
+            for model in models
+        }
+
+    def forecast_outcomes(
+        self,
+        context: Dict[str, object] | None = None,
+        *,
+        top_k: int = 5,
+    ) -> List[Tuple[str, float]]:
+        context = dict(context or {})
+        conditions = list(self._conditions_from_context(context))
+        outcome_scores: Dict[str, float] = {}
+        for condition in conditions:
+            for edge in self.graph.get_downstream(condition):
+                outcome_scores[edge.effect] = outcome_scores.get(edge.effect, 0.0) + edge.weight
+        ranked = sorted(outcome_scores.items(), key=lambda item: item[1], reverse=True)
+        return ranked[:top_k]
+
+    def predict_system_state(self, context: Dict[str, object] | None = None) -> str:
+        outcomes = self.forecast_outcomes(context)
+        if not outcomes:
+            return "stable"
+
+        success_score = sum(score for label, score in outcomes if label.startswith("success:"))
+        failure_score = sum(score for label, score in outcomes if label.startswith("failure:"))
+
+        if failure_score >= success_score and failure_score > 0:
+            return "uncertain"
+        return "stable"
+
+    def explain_model_outcome(
+        self,
+        model: str,
+        outcome: str,
+        context: Dict[str, object] | None = None,
+        *,
+        top_k: int = 3,
+    ) -> List[Tuple[str, float]]:
+        context = dict(context or {})
+        conditions = list(self._conditions_from_context(context))
+        outcome_label = f"{outcome}:{model}"
+        influences: List[Tuple[str, float]] = []
+        for condition in conditions:
+            for edge in self.graph.get_downstream(condition):
+                if edge.effect == outcome_label:
+                    influences.append((condition, edge.weight))
+        influences.sort(key=lambda item: item[1], reverse=True)
+        return influences[:top_k]
+
+    def summarize_context(
+        self,
+        models: Iterable[str],
+        context: Dict[str, object] | None = None,
+        *,
+        top_k: int = 3,
+    ) -> Dict[str, object]:
+        context = dict(context or {})
+        return {
+            "predicted_state": self.predict_system_state(context),
+            "top_outcomes": self.forecast_outcomes(context, top_k=top_k),
+            "model_risks": self.forecast_model_risks(models, context),
+        }
+
+    def recommend_strategy(
+        self,
+        models: Iterable[str],
+        context: Dict[str, object] | None = None,
+        *,
+        risk_threshold: float = 0.3,
+    ) -> str:
+        context = dict(context or {})
+        predicted_state = self.predict_system_state(context)
+        risks = self.forecast_model_risks(models, context)
+        max_risk = max(risks.values(), default=0.0)
+        if predicted_state == "uncertain" or max_risk >= risk_threshold:
+            return "conservative"
+        return "balanced"
+
     def recommend(self, models: Iterable[str], context: Dict[str, object] | None = None, top_k: int = 3) -> List[str]:
         ranked = self.rank_models(models, context=context)
         return [entry.model for entry in ranked[:top_k]]
