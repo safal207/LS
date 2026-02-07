@@ -11,6 +11,13 @@ from codex.causal_memory.layer import CausalMemoryLayer
 from codex.causal_memory.store import MemoryRecord
 from codex.registry.model_registry import ModelRegistry
 
+from .agents import (
+    AgentRegistry,
+    AnalystAgent,
+    IntegratorAgent,
+    PredictorAgent,
+    StabilizerAgent,
+)
 from .context import DecisionContext, LoopContext, TaskContext
 from .decision import DecisionMemoryProtocol
 from .identity import LivingIdentity
@@ -90,6 +97,15 @@ class UnifiedCognitiveLoop:
     aggregator: WorkspaceAggregator = field(default_factory=WorkspaceAggregator)
     merit_engine: MeritEngine = field(default_factory=MeritEngine)
     workspace_bus: WorkspaceBus = field(default_factory=WorkspaceBus)
+    agent_registry: AgentRegistry = field(default_factory=AgentRegistry)
+
+    def __post_init__(self) -> None:
+        if not self.agent_registry.agents:
+            self.agent_registry.register(AnalystAgent(name="analyst"))
+            self.agent_registry.register(StabilizerAgent(name="stabilizer"))
+            self.agent_registry.register(PredictorAgent(name="predictor"))
+            self.agent_registry.register(IntegratorAgent(name="integrator"))
+        self.workspace_bus.subscribe(self._on_global_frame)
 
     def run_task(self, ctx: TaskContext) -> LoopContext:
         identity_snapshot = self.identity.snapshot()
@@ -207,6 +223,13 @@ class UnifiedCognitiveLoop:
             identity_snapshot=identity_snapshot,
         )
 
+    def _on_global_frame(self, frame: GlobalFrame) -> None:
+        if not isinstance(frame, GlobalFrame):
+            return
+        agent_outputs = self.agent_registry.process_frame(asdict(frame))
+        for output in agent_outputs:
+            self.workspace_bus.publish(output)
+
     @staticmethod
     def _build_self_model(identity_snapshot: Dict[str, Any], state: str) -> Dict[str, Any]:
         mapping = {
@@ -278,4 +301,7 @@ class UnifiedCognitiveLoop:
             model_type=model_type,
             inputs=input_payload,
             outputs=output_payload,
-            parameters={"capu_features
+            parameters={"capu_features": dict(capu_features)},
+            hardware=hardware,
+            metrics=metrics,
+        )

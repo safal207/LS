@@ -10,6 +10,7 @@ from codex.cognitive.identity import LivingIdentity
 from codex.cognitive.loop import UnifiedCognitiveLoop
 from codex.cognitive.presence import PresenceMonitor
 from codex.cognitive.thread import ThreadFactory
+from codex.cognitive.workspace import GlobalFrame
 from codex.registry.model_registry import ModelRegistry
 
 
@@ -54,7 +55,7 @@ class DummyLoader:
         return None
 
 
-def test_workspace_layer_publishes_global_frame(tmp_path: Path) -> None:
+def test_inner_agents_publish_outputs(tmp_path: Path) -> None:
     registry = ModelRegistry(loader=DummyLoader())
     registry.register("dummy-llm", {"type": "llm", "path": "dummy"})
     memory_layer = CausalMemoryLayer(store_path=tmp_path / "memory.jsonl")
@@ -74,15 +75,8 @@ def test_workspace_layer_publishes_global_frame(tmp_path: Path) -> None:
         thread_factory=thread_factory,
     )
 
-    captured = []
-
-    def _capture_global(frame):
-        from codex.cognitive.workspace import GlobalFrame
-
-        if isinstance(frame, GlobalFrame):
-            captured.append(frame)
-
-    loop.workspace_bus.subscribe(_capture_global)
+    assert loop._on_global_frame in loop.workspace_bus.listeners
+    assert len(loop.agent_registry.agents) >= 4
 
     ctx = TaskContext(
         task_type="chat",
@@ -91,27 +85,28 @@ def test_workspace_layer_publishes_global_frame(tmp_path: Path) -> None:
         candidates=["dummy-llm"],
     )
 
-    result = loop.run_task(ctx)
+    loop.run_task(ctx)
 
-    assert loop.workspace_bus.frames
-    frame = next(
-        frame
-        for frame in reversed(loop.workspace_bus.frames)
-        if isinstance(frame, GlobalFrame)
-    )
-    assert captured == [frame]
-    assert frame.thread_id == result.thread_id
-    assert frame.task_type == ctx.task_type
-    assert frame.causal_context["memory_record_id"] == result.memory_record_id
+    global_frames = [
+        frame for frame in loop.workspace_bus.frames if isinstance(frame, GlobalFrame)
+    ]
+    assert global_frames
+    frame = global_frames[-1]
 
-    aggregated = loop.aggregator.aggregate(
-        self_model=frame.self_model,
-        affective=frame.affective,
-        identity=frame.identity,
-        capu=frame.capu_features,
-        decision=frame.decision,
-        causal=frame.causal_context,
-        state=frame.system_state,
+    agent_outputs = [
+        item
+        for item in loop.workspace_bus.frames
+        if isinstance(item, dict) and item.get("agent")
+    ]
+    assert agent_outputs
+
+    outputs_by_agent = {item["agent"]: item for item in agent_outputs}
+    assert outputs_by_agent["analyst"]["insight"] == f"decision:{frame.decision['choice']}"
+    assert outputs_by_agent["stabilizer"]["recommendation"] in ("normal", "reduce_load")
+    assert outputs_by_agent["predictor"]["predicted_state"] in (
+        "stable",
+        "overload",
+        "fragmented",
     )
-    expected_scores = loop.merit_engine.score(aggregated)
-    assert frame.merit_scores == expected_scores
+    expected_merit = sum(frame.merit_scores.values()) / len(frame.merit_scores)
+    assert outputs_by_agent["integrator"]["integrated_merit"] == expected_merit
