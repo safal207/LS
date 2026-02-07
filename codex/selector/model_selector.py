@@ -37,6 +37,13 @@ PRIORITY_METRICS = {
 }
 
 
+STRATEGY_PRIORITY_OVERRIDES = {
+    "energy_saving": "memory",
+    "stability_first": "quality",
+    "confidence_recovery": "quality",
+}
+
+
 @dataclass(frozen=True)
 class SelectionResult:
     task: str
@@ -101,6 +108,23 @@ class AdaptiveModelSelector:
             reason=reason,
             candidates=[model.name for model in supported],
         )
+
+    def select(
+        self,
+        selection_input: Dict[str, str],
+        identity: Dict[str, str] | None = None,
+        *,
+        strategy: str | None = None,
+    ) -> SelectionResult:
+        task = selection_input.get("task")
+        if not task:
+            raise ValueError("selection_input must include a task.")
+        priority = selection_input.get("priority")
+        if strategy:
+            override = STRATEGY_PRIORITY_OVERRIDES.get(strategy)
+            if override:
+                priority = override
+        return self.pick(task, priority=priority)
 
     def _load_model_configs(self) -> List[ModelConfig]:
         models: List[ModelConfig] = []
