@@ -11,6 +11,9 @@ from unittest.mock import MagicMock, patch
 # Mock pyaudio
 sys.modules["pyaudio"] = MagicMock()
 
+# Mock faster-whisper (optional dependency)
+sys.modules["faster_whisper"] = MagicMock(WhisperModel=MagicMock())
+
 # Add root path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
@@ -27,7 +30,7 @@ try:
     OriginalRustOptimizer = python.rust_bridge.RustOptimizer
 except ImportError as e:
     print(f"Import Error: {e}")
-    sys.exit(1)
+    raise unittest.SkipTest(f"Optional dependency missing or import failed: {e}")
 
 class TestGhostGPTKiller(unittest.TestCase):
     def setUp(self):

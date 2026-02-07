@@ -25,7 +25,10 @@ try:
     from python.rust_bridge import RustOptimizer
 except ImportError as e:
     logger.critical(f"CRITICAL MODULE ERROR: {e}")
-    sys.exit(1)
+    # Avoid hard-exiting at import time (e.g. during test collection).
+    if __name__ == "__main__":
+        sys.exit(1)
+    raise
 
 class GhostCore(QObject):
     """

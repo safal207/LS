@@ -1,12 +1,12 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict
 
-from hexagon_core.belief.lifecycle import BeliefLifecycleManager
-from hexagon_core.causal.graph import CausalGraph
-from hexagon_core.cot.core import COTCore
-from hexagon_core.mission.state import MissionState
+from ..hexagon_core.belief.lifecycle import BeliefLifecycleManager
+from ..hexagon_core.causal.graph import CausalGraph
+from ..hexagon_core.cot.core import COTCore
+from ..hexagon_core.mission.state import MissionState
 
 logger = logging.getLogger("COTAdapter")
 
