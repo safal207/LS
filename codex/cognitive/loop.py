@@ -21,7 +21,7 @@ from .agents import (
 from .context import DecisionContext, LoopContext, TaskContext
 from .decision import DecisionMemoryProtocol
 from .identity import LivingIdentity
-from .narrative import NarrativeGenerator
+from .narrative import NarrativeGenerator, NarrativeMemoryLayer
 from .presence import PresenceMonitor
 from .thread import ThreadFactory
 from .workspace import GlobalFrame, MeritEngine, WorkspaceAggregator, WorkspaceBus
@@ -100,6 +100,7 @@ class UnifiedCognitiveLoop:
     workspace_bus: WorkspaceBus = field(default_factory=WorkspaceBus)
     agent_registry: AgentRegistry = field(default_factory=AgentRegistry)
     narrative_generator: NarrativeGenerator | None = None
+    narrative_memory: NarrativeMemoryLayer | None = None
 
     def __post_init__(self) -> None:
         if not self.agent_registry.agents:
@@ -108,6 +109,7 @@ class UnifiedCognitiveLoop:
             self.agent_registry.register(PredictorAgent(name="predictor"))
             self.agent_registry.register(IntegratorAgent(name="integrator"))
         self.narrative_generator = self.narrative_generator or NarrativeGenerator()
+        self.narrative_memory = self.narrative_memory or NarrativeMemoryLayer(self.memory_layer)
         self.workspace_bus.subscribe(self._on_global_frame)
         self.workspace_bus.subscribe(self._on_agent_output)
 
@@ -208,6 +210,7 @@ class UnifiedCognitiveLoop:
             capu_features=aggregated["capu"],
             decision=aggregated["decision"],
             memory_refs=aggregated["causal"],
+            narrative_refs={},
             merit_scores=merit_scores,
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
@@ -251,6 +254,29 @@ class UnifiedCognitiveLoop:
             return
 
         narrative = self.narrative_generator.generate(asdict(frame), agent_outputs)
+        narrative_record = self.narrative_memory.record_event(
+            narrative,
+            frame=asdict(frame),
+            agent_outputs=agent_outputs,
+        )
+        updated_frame = GlobalFrame(
+            thread_id=frame.thread_id,
+            task_type=frame.task_type,
+            system_state=frame.system_state,
+            self_model=frame.self_model,
+            affective=frame.affective,
+            identity=frame.identity,
+            capu_features=frame.capu_features,
+            decision=frame.decision,
+            memory_refs=frame.memory_refs,
+            narrative_refs={"narrative_record_id": narrative_record.record_id},
+            merit_scores=frame.merit_scores,
+            timestamp=frame.timestamp,
+        )
+        for index in range(len(self.workspace_bus.frames) - 1, -1, -1):
+            if self.workspace_bus.frames[index] is frame:
+                self.workspace_bus.frames[index] = updated_frame
+                break
         self.workspace_bus.publish(narrative)
 
     @staticmethod
