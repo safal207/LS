@@ -45,6 +45,7 @@ class ThreadScheduler:
         self._apply_cpu_topology(frame.hardware.get("topology") if isinstance(frame.hardware, dict) else {})
         self._apply_numa_balance(frame.hardware.get("numa") if isinstance(frame.hardware, dict) else {})
         self._apply_thermal_policy(frame.hardware or {})
+        self._apply_lri(frame.hardware.get("lri") if isinstance(frame.hardware, dict) else {})
         return self._normalize_attention(self._attention_scores())
 
     def select_active_thread(self) -> str | None:
@@ -163,6 +164,24 @@ class ThreadScheduler:
         elif cpu_temp >= 80:
             for thread in self.threads.values():
                 thread.attention_weight = max(0.1, thread.attention_weight * 0.9)
+
+    def _apply_lri(self, lri: Dict[str, Any]) -> None:
+        if not isinstance(lri, dict):
+            return
+        value = lri.get("value")
+        if not isinstance(value, (int, float)):
+            return
+        for thread in self.threads.values():
+            if value >= 0.8:
+                if thread.priority < 0.7:
+                    thread.active = False
+                thread.attention_weight = max(0.1, thread.attention_weight * 0.8)
+            elif value >= 0.5:
+                if thread.priority < 0.4:
+                    thread.attention_weight = max(0.1, thread.attention_weight * 0.9)
+            else:
+                if thread.priority >= 0.9:
+                    thread.attention_weight = min(2.0, thread.attention_weight * 1.05)
 
     @staticmethod
     def _least_loaded_cpu(per_cpu: list[float], candidates: list[int]) -> int:

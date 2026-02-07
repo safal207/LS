@@ -135,3 +135,41 @@ def test_graph_conditions_for_topology_and_numa() -> None:
     graph.observe(record)
     assert graph.get_downstream("cpu_hotspot")
     assert graph.get_downstream("numa_pressure")
+
+
+def test_lri_conditions_and_scheduler_integration(tmp_path) -> None:
+    engine = AdaptiveEngine(MemoryStore(tmp_path / "memory.jsonl"), CausalGraph())
+    assert engine.recommend_strategy(["model-a"], context={"lri": {"value": 0.9}}) == "ultra_conservative"
+
+    scheduler = ThreadScheduler()
+    thread = CognitiveThread(thread_id="t1", priority=0.5, attention_weight=1.0)
+    scheduler.register_thread(thread)
+    frame = GlobalFrame(
+        thread_id="t1",
+        task_type="chat",
+        system_state="stable",
+        self_model={},
+        affective={},
+        identity={},
+        capu_features={},
+        decision={},
+        memory_refs={},
+        merit_scores={},
+        timestamp="2025-01-01T00:00:00+00:00",
+        hardware={"lri": {"value": 0.85, "state": "overload", "tags": ["cpu_bound"]}},
+    )
+    scheduler.update_attention(frame)
+    assert thread.active is False
+
+    graph = CausalGraph()
+    record = MemoryRecord.build(
+        model="model-c",
+        model_type="llm",
+        inputs={},
+        outputs={},
+        hardware={"lri": {"value": 0.9, "state": "overload", "tags": []}},
+        metrics={},
+        success=False,
+    )
+    graph.observe(record)
+    assert graph.get_downstream("lri_overload")

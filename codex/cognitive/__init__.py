@@ -3,6 +3,7 @@ from .decision import DecisionMemoryProtocol, DecisionRecord
 from .hardware import HardwareMonitor
 from .kernel_runtime import KernelRuntime
 from .kernel_sensors import KernelSensorListener, KernelSensorMonitor
+from .lri import LRILayer, LRIResult
 from .identity import LivingIdentity
 from .loop import UnifiedCognitiveLoop
 from .presence import PresenceMonitor
@@ -17,6 +18,8 @@ __all__ = [
     "KernelSensorMonitor",
     "KernelSensorListener",
     "KernelRuntime",
+    "LRILayer",
+    "LRIResult",
     "LivingIdentity",
     "LoopContext",
     "CognitiveThread",

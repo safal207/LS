@@ -121,6 +121,15 @@ class AdaptiveEngine:
         kernel_strategy = self._kernel_strategy(context)
         if kernel_strategy:
             return kernel_strategy
+        lri = context.get("lri", {}) if isinstance(context.get("lri", {}), dict) else {}
+        lri_value = lri.get("value")
+        if isinstance(lri_value, (int, float)):
+            if lri_value >= 0.85:
+                return "ultra_conservative"
+            if lri_value >= 0.6:
+                return "conservative"
+            if lri_value <= 0.3:
+                return "aggressive"
         hardware = context.get("hardware", {}) if isinstance(context.get("hardware", {}), dict) else {}
         cpu_percent = hardware.get("cpu_percent")
         ram_used_gb = hardware.get("ram_used_gb")

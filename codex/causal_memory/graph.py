@@ -138,6 +138,17 @@ class CausalGraph:
                         yield "numa_pressure"
                         break
 
+        lri = hardware.get("lri", {}) if isinstance(hardware.get("lri", {}), dict) else {}
+        lri_value = lri.get("value")
+        if isinstance(lri_value, (int, float)):
+            if lri_value > 0.8:
+                yield "lri_overload"
+            elif lri_value > 0.5:
+                yield "lri_elevated"
+        lri_state = lri.get("state")
+        if isinstance(lri_state, str):
+            yield f"lri_state:{lri_state}"
+
         kernel = hardware.get("kernel", {}) if isinstance(hardware.get("kernel", {}), dict) else {}
         kernel_signals = kernel.get("signals") if isinstance(kernel.get("signals"), list) else []
         for signal in kernel_signals:
