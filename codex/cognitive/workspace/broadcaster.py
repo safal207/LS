@@ -23,6 +23,7 @@ class GlobalBroadcaster:
         capu_features: Dict[str, float],
         decision: Dict[str, Any],
         memory_refs: Dict[str, str],
+        narrative_refs: Dict[str, str] | None = None,
         tags: list[str] | None = None,
     ) -> GlobalFrame:
         frame = GlobalFrame(
@@ -34,6 +35,7 @@ class GlobalBroadcaster:
             capu_features=dict(capu_features),
             decision=dict(decision),
             memory_refs=dict(memory_refs),
+            narrative_refs=dict(narrative_refs or {}),
             timestamp=datetime.now(timezone.utc).isoformat(),
             tags=list(tags or []),
         )
