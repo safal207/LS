@@ -95,3 +95,39 @@ def test_narrative_event_published_from_agent_outputs(tmp_path: Path) -> None:
     assert "Selected model 'dummy-llm'" in narrative.text
     assert "Prediction:" in narrative.text
     assert "Stabilizer suggests:" in narrative.text
+
+
+def test_narrative_timeline_tracks_recent_events(tmp_path: Path) -> None:
+    registry = ModelRegistry(loader=DummyLoader())
+    registry.register("dummy-llm", {"type": "llm", "path": "dummy"})
+    memory_layer = CausalMemoryLayer(store_path=tmp_path / "memory.jsonl")
+    decision_protocol = DecisionMemoryProtocol()
+    presence_monitor = PresenceMonitor()
+    tracer = Tracer()
+    identity = LivingIdentity()
+    thread_factory = ThreadFactory()
+
+    loop = UnifiedCognitiveLoop(
+        registry=registry,
+        memory_layer=memory_layer,
+        decision_protocol=decision_protocol,
+        presence_monitor=presence_monitor,
+        tracer=tracer,
+        identity=identity,
+        thread_factory=thread_factory,
+    )
+
+    ctx = TaskContext(
+        task_type="chat",
+        input_payload={"prompt": "hello"},
+        constraints={},
+        candidates=["dummy-llm"],
+    )
+
+    loop.run_task(ctx)
+
+    timeline = loop.narrative_memory.timeline(limit=5)
+    assert timeline
+    entry = timeline[-1]
+    assert entry["decision_choice"] == "dummy-llm"
+    assert entry["task_type"] == "chat"
