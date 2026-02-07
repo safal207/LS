@@ -33,6 +33,7 @@ class ModelRegistry:
 
     def unload(self, name: str) -> None:
         if name in self.loaded:
+            self._loader.unload(self.loaded[name])
             del self.loaded[name]
             gc.collect()
 
