@@ -195,6 +195,11 @@ class UnifiedCognitiveLoop:
                 "latency_s": latency,
                 "success": memory_record.success,
                 "meta_forecast": self.memory_layer.engine.forecast_outcomes(ctx.constraints),
+                "meta_causes": self.memory_layer.engine.explain_model_outcome(
+                    model_name,
+                    "failure" if not memory_record.success else "success",
+                    ctx.constraints,
+                ),
             },
             system_state_before=state_before,
             system_state_after=state_after,

@@ -65,6 +65,25 @@ class AdaptiveEngine:
         ranked = sorted(outcome_scores.items(), key=lambda item: item[1], reverse=True)
         return ranked[:top_k]
 
+    def explain_model_outcome(
+        self,
+        model: str,
+        outcome: str,
+        context: Dict[str, object] | None = None,
+        *,
+        top_k: int = 3,
+    ) -> List[Tuple[str, float]]:
+        context = dict(context or {})
+        conditions = list(self._conditions_from_context(context))
+        outcome_label = f"{outcome}:{model}"
+        influences: List[Tuple[str, float]] = []
+        for condition in conditions:
+            for edge in self.graph.get_downstream(condition):
+                if edge.effect == outcome_label:
+                    influences.append((condition, edge.weight))
+        influences.sort(key=lambda item: item[1], reverse=True)
+        return influences[:top_k]
+
     def recommend(self, models: Iterable[str], context: Dict[str, object] | None = None, top_k: int = 3) -> List[str]:
         ranked = self.rank_models(models, context=context)
         return [entry.model for entry in ranked[:top_k]]
