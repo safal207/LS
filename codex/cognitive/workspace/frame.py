@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict
 
 
@@ -15,5 +15,6 @@ class GlobalFrame:
     capu_features: Dict[str, float]
     decision: Dict[str, Any]
     memory_refs: Dict[str, str]
+    narrative_refs: Dict[str, str] = field(default_factory=dict)
     merit_scores: Dict[str, float]
     timestamp: str
