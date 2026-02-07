@@ -47,6 +47,9 @@ class Selector:
         meta_risks = self.causal_memory.engine.forecast_model_risks(
             candidates, context=selection_input.constraints
         )
+        strategy = self.causal_memory.engine.recommend_strategy(
+            candidates, context=selection_input.constraints
+        )
 
         if identity.preferences:
             preferred = sorted(identity.preferences, key=identity.preferences.get, reverse=True)
@@ -86,6 +89,10 @@ class Selector:
                     candidates.remove(model)
                     candidates.append(model)
                     reasons.append(f"meta_causal_risk:{model}:{risk:.2f}")
+
+        if strategy == "conservative" and meta_risks:
+            candidates.sort(key=lambda model: meta_risks.get(model, 0.0))
+            reasons.append("meta_strategy:conservative")
 
         causal_recommendations = self.causal_memory.engine.recommend(
             candidates, context=selection_input.constraints

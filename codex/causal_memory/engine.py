@@ -110,6 +110,21 @@ class AdaptiveEngine:
             "model_risks": self.forecast_model_risks(models, context),
         }
 
+    def recommend_strategy(
+        self,
+        models: Iterable[str],
+        context: Dict[str, object] | None = None,
+        *,
+        risk_threshold: float = 0.3,
+    ) -> str:
+        context = dict(context or {})
+        predicted_state = self.predict_system_state(context)
+        risks = self.forecast_model_risks(models, context)
+        max_risk = max(risks.values(), default=0.0)
+        if predicted_state == "uncertain" or max_risk >= risk_threshold:
+            return "conservative"
+        return "balanced"
+
     def recommend(self, models: Iterable[str], context: Dict[str, object] | None = None, top_k: int = 3) -> List[str]:
         ranked = self.rank_models(models, context=context)
         return [entry.model for entry in ranked[:top_k]]
