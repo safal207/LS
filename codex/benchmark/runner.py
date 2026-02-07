@@ -11,6 +11,8 @@ from typing import Any, Dict, List
 import psutil
 
 from codex.causal_memory import CausalMemoryLayer
+from codex.capu import Tracer
+from codex.capu.integration import finalize_llm_metrics, finalize_stt_metrics
 from codex.registry import ModelRegistry
 
 from .metrics import LLMMetrics, STTMetrics, VADMetrics, stability_score
@@ -26,6 +28,7 @@ class BenchmarkRunner:
         results_dir: str | Path | None = None,
         stability_runs: int = 3,
         memory_layer: CausalMemoryLayer | None = None,
+        tracer: Tracer | None = None,
     ) -> None:
         self.registry = registry
         self.results_dir = Path(results_dir or "benchmark_results")
@@ -34,6 +37,7 @@ class BenchmarkRunner:
         self.assets_dir = Path(__file__).resolve().parent / "assets"
         self.sample_wav = self.assets_dir / "sample_5s.wav"
         self.memory_layer = memory_layer
+        self.tracer = tracer or Tracer()
 
     def run(self, model_name: str, save: bool = True, raise_on_error: bool = True) -> BenchmarkResult:
         if not self.registry.exists(model_name):
@@ -48,7 +52,8 @@ class BenchmarkRunner:
                 metrics = self._run_vad(model_name)
             else:
                 raise ValueError(f"Unsupported model type for benchmarking: {model_type}")
-            result = BenchmarkResult(model=model_name, model_type=model_type, metrics=metrics.to_dict())
+            metrics_payload = metrics.to_dict() if hasattr(metrics, "to_dict") else dict(metrics)
+            result = BenchmarkResult(model=model_name, model_type=model_type, metrics=metrics_payload)
         except Exception as exc:
             if raise_on_error:
                 raise
@@ -83,7 +88,7 @@ class BenchmarkRunner:
             results.append(self.run(name, save=save, raise_on_error=False))
         return results
 
-    def _run_llm(self, model_name: str) -> LLMMetrics:
+    def _run_llm(self, model_name: str) -> Dict[str, Any]:
         process = psutil.Process()
         start_ram = self._ram_mb(process)
         load_start = time.perf_counter()
@@ -95,6 +100,7 @@ class BenchmarkRunner:
         model = model_bundle["model"]
         tokenizer = model_bundle["tokenizer"]
         inputs = self._prepare_llm_inputs(model, tokenizer, DEFAULT_PROMPT)
+        self.tracer.start_llm_session(model_name, model)
 
         context = nullcontext()
         if importlib.util.find_spec("torch") is not None:
@@ -120,7 +126,7 @@ class BenchmarkRunner:
         peak_vram = max(peak_vram, self._get_peak_vram_mb())
         tokens_per_second = sum(tokens_per_sec_samples) / len(tokens_per_sec_samples)
 
-        return LLMMetrics(
+        base_metrics = LLMMetrics(
             loadtimems=round(load_ms, 2),
             firsttokenlatency_ms=round(first_ms, 2),
             tokenspersecond=round(tokens_per_second, 2),
@@ -128,8 +134,9 @@ class BenchmarkRunner:
             peakvrammb=round(peak_vram, 2),
             stability_score=stability_score(tokens_per_sec_samples),
         )
+        return finalize_llm_metrics(self.tracer, model_name, base_metrics.to_dict())
 
-    def _run_stt(self, model_name: str) -> STTMetrics:
+    def _run_stt(self, model_name: str) -> Dict[str, Any]:
         process = psutil.Process()
         start_ram = self._ram_mb(process)
         load_start = time.perf_counter()
@@ -137,6 +144,7 @@ class BenchmarkRunner:
         load_ms = (time.perf_counter() - load_start) * 1000
         peak_ram = max(start_ram, self._ram_mb(process))
 
+        _, model = self.tracer.start_stt_session(model_name, model)
         sample_wav = self._ensure_sample_wav()
         audio_seconds = self._wav_duration_seconds(sample_wav)
         start = time.perf_counter()
@@ -147,12 +155,13 @@ class BenchmarkRunner:
         peak_ram = max(peak_ram, self._ram_mb(process))
 
         rtf = latency / audio_seconds if audio_seconds else 0.0
-        return STTMetrics(
+        base_metrics = STTMetrics(
             loadtimems=round(load_ms, 2),
             transcriptionlatencyms=round(latency * 1000, 2),
             realtimefactor=round(rtf, 3),
             peakrammb=round(peak_ram, 2),
         )
+        return finalize_stt_metrics(self.tracer, model_name, base_metrics.to_dict())
 
     def _run_vad(self, model_name: str) -> VADMetrics:
         if importlib.util.find_spec("torch") is None:
