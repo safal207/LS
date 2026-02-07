@@ -142,7 +142,7 @@ def syscall_entropy(syscalls: Dict[str, float]) -> float:
 
 class KernelSensorListener:
     def __init__(self, socket_path: str | None = None) -> None:
-        self._socket_path = socket_path or os.getenv("KACL_SOCKET", KernelSensorMonitor._default_socket)
+        self._socket_path = socket_path or os.getenv("KACL_STREAM_SOCKET", "/tmp/kacl_stream.sock")
         self._latest: Dict[str, Any] | None = None
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()

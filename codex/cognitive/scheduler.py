@@ -38,8 +38,13 @@ class ThreadScheduler:
                 thread.attention_weight = max(0.1, (thread.attention_weight + avg_merit) / 2)
         self._apply_hardware_pressure(frame.hardware or {})
         self._apply_kernel_signals(frame.hardware.get("kernel") if isinstance(frame.hardware, dict) else {})
+        self._apply_thread_placement(
+            frame.hardware.get("topology") if isinstance(frame.hardware, dict) else {},
+            frame.hardware.get("numa") if isinstance(frame.hardware, dict) else {},
+        )
         self._apply_cpu_topology(frame.hardware.get("topology") if isinstance(frame.hardware, dict) else {})
         self._apply_numa_balance(frame.hardware.get("numa") if isinstance(frame.hardware, dict) else {})
+        self._apply_thermal_policy(frame.hardware or {})
         return self._normalize_attention(self._attention_scores())
 
     def select_active_thread(self) -> str | None:
@@ -119,6 +124,74 @@ class ThreadScheduler:
                 thread.attention_weight = max(0.1, thread.attention_weight * 0.85)
             elif avg_load <= 30:
                 thread.attention_weight = min(2.0, thread.attention_weight * 1.05)
+
+    def _apply_thread_placement(self, topology: Dict[str, Any], numa: Dict[str, Any]) -> None:
+        if not isinstance(topology, dict):
+            return
+        per_cpu = topology.get("per_cpu_percent")
+        if not isinstance(per_cpu, list) or not per_cpu:
+            return
+        nodes = numa.get("nodes") if isinstance(numa, dict) else None
+        for thread in self.threads.values():
+            if not getattr(thread, "cpu_affinity", None):
+                if isinstance(nodes, dict) and nodes and getattr(thread, "numa_node", None) is not None:
+                    node = nodes.get(str(thread.numa_node)) or nodes.get(thread.numa_node)
+                    if isinstance(node, dict):
+                        cpus = node.get("cpus")
+                        if isinstance(cpus, list) and cpus:
+                            thread.cpu_affinity = [self._least_loaded_cpu(per_cpu, cpus)]
+                            continue
+                if isinstance(nodes, dict) and nodes and getattr(thread, "numa_node", None) is None:
+                    best_node = self._best_numa_node(nodes)
+                    if best_node is not None:
+                        thread.numa_node = best_node
+                        cpus = nodes.get(str(best_node), {}).get("cpus") or nodes.get(best_node, {}).get("cpus")
+                        if isinstance(cpus, list) and cpus:
+                            thread.cpu_affinity = [self._least_loaded_cpu(per_cpu, cpus)]
+                            continue
+                thread.cpu_affinity = [self._least_loaded_cpu(per_cpu, list(range(len(per_cpu))))]
+
+    def _apply_thermal_policy(self, hardware: Dict[str, Any]) -> None:
+        cpu_temp = hardware.get("cpu_temp")
+        if not isinstance(cpu_temp, (int, float)):
+            return
+        if cpu_temp >= 90:
+            for thread in self.threads.values():
+                if thread.priority <= 0.4:
+                    thread.active = False
+                thread.attention_weight = max(0.1, thread.attention_weight * 0.8)
+        elif cpu_temp >= 80:
+            for thread in self.threads.values():
+                thread.attention_weight = max(0.1, thread.attention_weight * 0.9)
+
+    @staticmethod
+    def _least_loaded_cpu(per_cpu: list[float], candidates: list[int]) -> int:
+        best_cpu = candidates[0]
+        best_load = per_cpu[best_cpu] if best_cpu < len(per_cpu) else 100.0
+        for cpu in candidates:
+            if cpu >= len(per_cpu):
+                continue
+            load = per_cpu[cpu]
+            if load < best_load:
+                best_load = load
+                best_cpu = cpu
+        return best_cpu
+
+    @staticmethod
+    def _best_numa_node(nodes: Dict[str, Any]) -> int | None:
+        best_node = None
+        best_ratio = -1.0
+        for node_id, node in nodes.items():
+            if not isinstance(node, dict):
+                continue
+            mem_free = node.get("mem_free_gb")
+            mem_total = node.get("mem_total_gb")
+            if isinstance(mem_free, (int, float)) and isinstance(mem_total, (int, float)) and mem_total:
+                ratio = mem_free / mem_total
+                if ratio > best_ratio:
+                    best_ratio = ratio
+                    best_node = int(node_id)
+        return best_node
 
     def _apply_numa_balance(self, numa: Dict[str, Any]) -> None:
         if not isinstance(numa, dict):

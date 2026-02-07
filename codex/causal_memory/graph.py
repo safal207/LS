@@ -110,6 +110,34 @@ class CausalGraph:
         if system_state == "diffuse_focus":
             yield "state_diffuse_focus"
 
+        cpu_temp = hardware.get("cpu_temp")
+        if isinstance(cpu_temp, (int, float)) and cpu_temp > 80:
+            yield "cpu_temp>80"
+
+        topology = hardware.get("topology", {}) if isinstance(hardware.get("topology", {}), dict) else {}
+        per_cpu = topology.get("per_cpu_percent")
+        if isinstance(per_cpu, list) and per_cpu:
+            max_cpu = max((value for value in per_cpu if isinstance(value, (int, float))), default=None)
+            if isinstance(max_cpu, (int, float)) and max_cpu > 85:
+                yield "cpu_hotspot"
+        logical = topology.get("logical_cpus")
+        physical = topology.get("physical_cores")
+        if isinstance(logical, int) and isinstance(physical, int) and logical > physical:
+            yield "hyperthreaded"
+
+        numa = hardware.get("numa", {}) if isinstance(hardware.get("numa", {}), dict) else {}
+        nodes = numa.get("nodes")
+        if isinstance(nodes, dict):
+            for node in nodes.values():
+                if not isinstance(node, dict):
+                    continue
+                mem_free = node.get("mem_free_gb")
+                mem_total = node.get("mem_total_gb")
+                if isinstance(mem_free, (int, float)) and isinstance(mem_total, (int, float)) and mem_total:
+                    if mem_free / mem_total < 0.15:
+                        yield "numa_pressure"
+                        break
+
         kernel = hardware.get("kernel", {}) if isinstance(hardware.get("kernel", {}), dict) else {}
         kernel_signals = kernel.get("signals") if isinstance(kernel.get("signals"), list) else []
         for signal in kernel_signals:

@@ -47,11 +47,13 @@ struct KernelAggregate {
 
 fn main() {
     let socket_path = std::env::var("KACL_SOCKET").unwrap_or_else(|_| "/tmp/kacl.sock".to_string());
+    let stream_path = std::env::var("KACL_STREAM_SOCKET").unwrap_or_else(|_| "/tmp/kacl_stream.sock".to_string());
     let latest_payload: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
     let responder_payload = Arc::clone(&latest_payload);
     let responder_path = socket_path.clone();
     let _ = fs::remove_file(&responder_path);
     let responder = thread::spawn(move || poll_responder(&responder_path, responder_payload));
+    let stream_socket = UnixDatagram::unbound().ok();
 
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
@@ -70,6 +72,9 @@ fn main() {
         }
         let _ = io::stdout().write_all(&payload);
         let _ = io::stdout().write_all(b"\n");
+        if let Some(sock) = &stream_socket {
+            let _ = sock.send_to(&payload, Path::new(&stream_path));
+        }
     }
 
     let _ = responder.join();

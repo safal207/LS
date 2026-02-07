@@ -89,3 +89,49 @@ def test_kernel_causal_edges_from_record() -> None:
     graph.observe(record)
     downstream = graph.get_downstream("kernel:cache_thrashing")
     assert any(edge.effect.startswith("failure:model-a") for edge in downstream)
+
+
+def test_scheduler_assigns_affinity_and_numa() -> None:
+    scheduler = ThreadScheduler()
+    thread = CognitiveThread(thread_id="t1", priority=0.8, attention_weight=1.0)
+    scheduler.register_thread(thread)
+    frame = GlobalFrame(
+        thread_id="t1",
+        task_type="chat",
+        system_state="stable",
+        self_model={},
+        affective={},
+        identity={},
+        capu_features={},
+        decision={},
+        memory_refs={},
+        merit_scores={},
+        timestamp="2025-01-01T00:00:00+00:00",
+        hardware={
+            "topology": {"per_cpu_percent": [10.0, 20.0, 5.0, 40.0]},
+            "numa": {"nodes": {"0": {"cpus": [0, 1], "mem_total_gb": 16.0, "mem_free_gb": 8.0}}},
+        },
+    )
+    scheduler.update_attention(frame)
+    assert thread.cpu_affinity
+    assert thread.numa_node == 0
+
+
+def test_graph_conditions_for_topology_and_numa() -> None:
+    graph = CausalGraph()
+    record = MemoryRecord.build(
+        model="model-b",
+        model_type="llm",
+        inputs={},
+        outputs={},
+        hardware={
+            "topology": {"per_cpu_percent": [90.0, 20.0], "logical_cpus": 4, "physical_cores": 2},
+            "numa": {"nodes": {"0": {"mem_total_gb": 16.0, "mem_free_gb": 1.0}}},
+            "cpu_temp": 85.0,
+        },
+        metrics={},
+        success=True,
+    )
+    graph.observe(record)
+    assert graph.get_downstream("cpu_hotspot")
+    assert graph.get_downstream("numa_pressure")

@@ -1,6 +1,7 @@
 from .context import DecisionContext, LoopContext, TaskContext
 from .decision import DecisionMemoryProtocol, DecisionRecord
 from .hardware import HardwareMonitor
+from .kernel_runtime import KernelRuntime
 from .kernel_sensors import KernelSensorListener, KernelSensorMonitor
 from .identity import LivingIdentity
 from .loop import UnifiedCognitiveLoop
@@ -15,6 +16,7 @@ __all__ = [
     "HardwareMonitor",
     "KernelSensorMonitor",
     "KernelSensorListener",
+    "KernelRuntime",
     "LivingIdentity",
     "LoopContext",
     "CognitiveThread",
