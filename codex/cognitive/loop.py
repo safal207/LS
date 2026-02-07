@@ -44,6 +44,9 @@ class Selector:
     def select(self, selection_input: SelectionInput, identity: LivingIdentity) -> DecisionContext:
         candidates = list(selection_input.candidates)
         reasons: List[str] = []
+        meta_risks = self.causal_memory.engine.forecast_model_risks(
+            candidates, context=selection_input.constraints
+        )
 
         if identity.preferences:
             preferred = sorted(identity.preferences, key=identity.preferences.get, reverse=True)
@@ -71,6 +74,18 @@ class Selector:
                 candidates.remove(choice)
                 candidates.insert(0, choice)
                 reasons.append(f"narrative_continuity:{choice}")
+
+        if len(candidates) > 1:
+            risky = [
+                (model, risk)
+                for model, risk in meta_risks.items()
+                if model in candidates and risk >= 0.4
+            ]
+            for model, risk in sorted(risky, key=lambda item: item[1], reverse=True):
+                if model in candidates and len(candidates) > 1:
+                    candidates.remove(model)
+                    candidates.append(model)
+                    reasons.append(f"meta_causal_risk:{model}:{risk:.2f}")
 
         causal_recommendations = self.causal_memory.engine.recommend(
             candidates, context=selection_input.constraints

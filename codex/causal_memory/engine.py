@@ -38,6 +38,33 @@ class AdaptiveEngine:
             )
         return sorted(scores, key=lambda item: item.score, reverse=True)
 
+    def forecast_model_risks(
+        self,
+        models: Iterable[str],
+        context: Dict[str, object] | None = None,
+    ) -> Dict[str, float]:
+        context = dict(context or {})
+        conditions = list(self._conditions_from_context(context))
+        return {
+            model: round(self._penalty_for_conditions(model, conditions), 4)
+            for model in models
+        }
+
+    def forecast_outcomes(
+        self,
+        context: Dict[str, object] | None = None,
+        *,
+        top_k: int = 5,
+    ) -> List[Tuple[str, float]]:
+        context = dict(context or {})
+        conditions = list(self._conditions_from_context(context))
+        outcome_scores: Dict[str, float] = {}
+        for condition in conditions:
+            for edge in self.graph.get_downstream(condition):
+                outcome_scores[edge.effect] = outcome_scores.get(edge.effect, 0.0) + edge.weight
+        ranked = sorted(outcome_scores.items(), key=lambda item: item[1], reverse=True)
+        return ranked[:top_k]
+
     def recommend(self, models: Iterable[str], context: Dict[str, object] | None = None, top_k: int = 3) -> List[str]:
         ranked = self.rank_models(models, context=context)
         return [entry.model for entry in ranked[:top_k]]
