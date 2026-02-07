@@ -96,6 +96,20 @@ class AdaptiveEngine:
         influences.sort(key=lambda item: item[1], reverse=True)
         return influences[:top_k]
 
+    def summarize_context(
+        self,
+        models: Iterable[str],
+        context: Dict[str, object] | None = None,
+        *,
+        top_k: int = 3,
+    ) -> Dict[str, object]:
+        context = dict(context or {})
+        return {
+            "predicted_state": self.predict_system_state(context),
+            "top_outcomes": self.forecast_outcomes(context, top_k=top_k),
+            "model_risks": self.forecast_model_risks(models, context),
+        }
+
     def recommend(self, models: Iterable[str], context: Dict[str, object] | None = None, top_k: int = 3) -> List[str]:
         ranked = self.rank_models(models, context=context)
         return [entry.model for entry in ranked[:top_k]]

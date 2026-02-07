@@ -201,6 +201,10 @@ class UnifiedCognitiveLoop:
                     ctx.constraints,
                 ),
                 "meta_state": self.memory_layer.engine.predict_system_state(ctx.constraints),
+                "meta_summary": self.memory_layer.engine.summarize_context(
+                    ctx.candidates or self.registry.list_models(),
+                    ctx.constraints,
+                ),
             },
             system_state_before=state_before,
             system_state_after=state_after,
