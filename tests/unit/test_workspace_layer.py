@@ -10,6 +10,7 @@ from codex.cognitive.identity import LivingIdentity
 from codex.cognitive.loop import UnifiedCognitiveLoop
 from codex.cognitive.presence import PresenceMonitor
 from codex.cognitive.thread import ThreadFactory
+from codex.cognitive.workspace import GlobalFrame
 from codex.registry.model_registry import ModelRegistry
 
 

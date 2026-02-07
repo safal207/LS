@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 @dataclass(frozen=True)
@@ -17,4 +17,5 @@ class GlobalFrame:
     memory_refs: Dict[str, str]
     merit_scores: Dict[str, float]
     timestamp: str
-    narrative_refs: Dict[str, str] = field(default_factory=dict)
+    narrative_refs: Dict[str, Any] = field(default_factory=dict)
+    tags: List[str] = field(default_factory=list)
