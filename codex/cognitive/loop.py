@@ -207,7 +207,7 @@ class UnifiedCognitiveLoop:
             identity=aggregated["identity"],
             capu_features=aggregated["capu"],
             decision=aggregated["decision"],
-            causal_context=aggregated["causal"],
+            memory_refs=aggregated["causal"],
             merit_scores=merit_scores,
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
@@ -324,7 +324,5 @@ class UnifiedCognitiveLoop:
             model_type=model_type,
             inputs=input_payload,
             outputs=output_payload,
-            parameters={"capu_features": dict(capu_features)},
-            hardware=hardware,
-            metrics=metrics,
+            parameters={"capu_features": capu_features, "hardware": hardware, "metrics": metrics},
         )

@@ -102,7 +102,7 @@ def test_workspace_layer_publishes_global_frame(tmp_path: Path) -> None:
     assert captured == [frame]
     assert frame.thread_id == result.thread_id
     assert frame.task_type == ctx.task_type
-    assert frame.causal_context["memory_record_id"] == result.memory_record_id
+    assert frame.memory_refs["memory_record_id"] == result.memory_record_id
 
     aggregated = loop.aggregator.aggregate(
         self_model=frame.self_model,
@@ -110,7 +110,7 @@ def test_workspace_layer_publishes_global_frame(tmp_path: Path) -> None:
         identity=frame.identity,
         capu=frame.capu_features,
         decision=frame.decision,
-        causal=frame.causal_context,
+           causal=frame.memory_refs,
         state=frame.system_state,
     )
     expected_scores = loop.merit_engine.score(aggregated)

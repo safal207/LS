@@ -86,11 +86,13 @@ class CausalMemoryLayer:
         if psutil.cpu_freq() is not None:
             profile["cpu_mhz"] = round(psutil.cpu_freq().current, 2)
 
-        if psutil.sensors_temperatures():
-            profile["temps"] = {
-                name: [round(entry.current, 2) for entry in entries]
-                for name, entries in psutil.sensors_temperatures().items()
-            }
+        if hasattr(psutil, "sensors_temperatures"):
+            temps = psutil.sensors_temperatures()
+            if temps:
+                profile["temps"] = {
+                    name: [round(entry.current, 2) for entry in entries]
+                    for name, entries in temps.items()
+                }
 
         if _has_cuda():
             profile["vram_gb"] = _cuda_vram_gb()
@@ -118,10 +120,8 @@ def _cuda_vram_gb() -> float:
 
 
 def _load_psutil():
-    import importlib.util
-
-    if importlib.util.find_spec("psutil") is None:
+    try:
+        import psutil
+        return psutil
+    except ImportError:
         return None
-    import psutil
-
-    return psutil
