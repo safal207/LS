@@ -191,7 +191,11 @@ class UnifiedCognitiveLoop:
             choice=decision_context.choice,
             alternatives=decision_context.alternatives,
             reasons=decision_context.reasons,
-            consequences={"latency_s": latency, "success": memory_record.success},
+            consequences={
+                "latency_s": latency,
+                "success": memory_record.success,
+                "meta_forecast": self.memory_layer.engine.forecast_outcomes(ctx.constraints),
+            },
             system_state_before=state_before,
             system_state_after=state_after,
             thread_id=thread.thread_id,
