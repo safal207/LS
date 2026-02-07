@@ -121,6 +121,14 @@ class AdaptiveEngine:
         kernel_strategy = self._kernel_strategy(context)
         if kernel_strategy:
             return kernel_strategy
+        presence = context.get("presence", {}) if isinstance(context.get("presence", {}), dict) else {}
+        p_state = presence.get("state")
+        if p_state == "overloaded":
+            return "ultra_conservative"
+        if p_state == "diffuse":
+            return "conservative"
+        if p_state == "focused":
+            return "aggressive"
         lri = context.get("lri", {}) if isinstance(context.get("lri", {}), dict) else {}
         lri_value = lri.get("value")
         if isinstance(lri_value, (int, float)):

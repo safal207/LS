@@ -22,6 +22,7 @@ from .context import DecisionContext, LoopContext, TaskContext
 from .decision import DecisionMemoryProtocol
 from .hardware import HardwareMonitor
 from .kernel_sensors import KernelSensorMonitor
+from .lpi import LPIState
 from .lri import LRILayer
 from .identity import LivingIdentity
 from .narrative import NarrativeGenerator, NarrativeMemoryLayer
@@ -162,10 +163,19 @@ class UnifiedCognitiveLoop:
         hardware_state = HardwareMonitor.collect()
         kernel_state = KernelSensorMonitor.collect()
         lri = LRILayer.compute(hardware_state, kernel_state)
+        self.lpi = getattr(self, "lpi", LPIState())
+        self.lpi.update(
+            {
+                "lri": {"value": lri.value, "state": lri.state},
+                "kernel": kernel_state,
+                "hardware": hardware_state,
+            }
+        )
         constraints = dict(ctx.constraints or {})
         constraints["hardware"] = hardware_state
         constraints["kernel"] = kernel_state
         constraints["lri"] = {"value": lri.value, "state": lri.state, "tags": lri.tags}
+        constraints["presence"] = {"state": self.lpi.state, "confidence": self.lpi.confidence}
         ctx.constraints = constraints
 
         self.thread_scheduler.sync_threads(self.thread_factory.list_threads())
@@ -206,6 +216,7 @@ class UnifiedCognitiveLoop:
             **hardware_state,
             "kernel": kernel_state,
             "lri": {"value": lri.value, "state": lri.state, "tags": lri.tags},
+            "presence": {"state": self.lpi.state, "confidence": self.lpi.confidence},
         }
 
         memory_record = self._record_memory(
@@ -469,6 +480,8 @@ class UnifiedCognitiveLoop:
                 "hardware": hardware,
                 "metrics": metrics,
                 "ltp_state": ltp_state,
+                "presence_state": self.lpi.state,
+                "presence_confidence": self.lpi.confidence,
             },
         )
 

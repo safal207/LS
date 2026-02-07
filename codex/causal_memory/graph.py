@@ -149,6 +149,15 @@ class CausalGraph:
         if isinstance(lri_state, str):
             yield f"lri_state:{lri_state}"
 
+        presence = hardware.get("presence", {}) if isinstance(hardware.get("presence", {}), dict) else {}
+        presence_state = presence.get("state")
+        if isinstance(presence_state, str):
+            yield f"presence:{presence_state}"
+
+        ltp_state = metadata.get("ltp_state") if isinstance(metadata, dict) else None
+        if isinstance(ltp_state, str):
+            yield f"ltp:{ltp_state}"
+
         kernel = hardware.get("kernel", {}) if isinstance(hardware.get("kernel", {}), dict) else {}
         kernel_signals = kernel.get("signals") if isinstance(kernel.get("signals"), list) else []
         for signal in kernel_signals:

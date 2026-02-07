@@ -3,6 +3,7 @@ from .decision import DecisionMemoryProtocol, DecisionRecord
 from .hardware import HardwareMonitor
 from .kernel_runtime import KernelRuntime
 from .kernel_sensors import KernelSensorListener, KernelSensorMonitor
+from .lpi import LPIState
 from .ltp import LTPProfile
 from .lri import LRILayer, LRIResult
 from .visualization import render_attention, render_bar
@@ -20,6 +21,7 @@ __all__ = [
     "KernelSensorMonitor",
     "KernelSensorListener",
     "KernelRuntime",
+    "LPIState",
     "LTPProfile",
     "LRILayer",
     "LRIResult",
