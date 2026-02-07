@@ -21,6 +21,7 @@ from .agents import (
 from .context import DecisionContext, LoopContext, TaskContext
 from .decision import DecisionMemoryProtocol
 from .identity import LivingIdentity
+from .narrative import NarrativeGenerator
 from .presence import PresenceMonitor
 from .thread import ThreadFactory
 from .workspace import GlobalFrame, MeritEngine, WorkspaceAggregator, WorkspaceBus
@@ -98,6 +99,7 @@ class UnifiedCognitiveLoop:
     merit_engine: MeritEngine = field(default_factory=MeritEngine)
     workspace_bus: WorkspaceBus = field(default_factory=WorkspaceBus)
     agent_registry: AgentRegistry = field(default_factory=AgentRegistry)
+    narrative_generator: NarrativeGenerator | None = None
 
     def __post_init__(self) -> None:
         if not self.agent_registry.agents:
@@ -105,7 +107,9 @@ class UnifiedCognitiveLoop:
             self.agent_registry.register(StabilizerAgent(name="stabilizer"))
             self.agent_registry.register(PredictorAgent(name="predictor"))
             self.agent_registry.register(IntegratorAgent(name="integrator"))
+        self.narrative_generator = self.narrative_generator or NarrativeGenerator()
         self.workspace_bus.subscribe(self._on_global_frame)
+        self.workspace_bus.subscribe(self._on_agent_output)
 
     def run_task(self, ctx: TaskContext) -> LoopContext:
         identity_snapshot = self.identity.snapshot()
@@ -229,6 +233,25 @@ class UnifiedCognitiveLoop:
         agent_outputs = self.agent_registry.process_frame(asdict(frame))
         for output in agent_outputs:
             self.workspace_bus.publish(output)
+
+    def _on_agent_output(self, item: Any) -> None:
+        if not isinstance(item, dict) or "agent" not in item:
+            return
+
+        agent_outputs = {
+            output["agent"]: output
+            for output in self.workspace_bus.frames
+            if isinstance(output, dict) and "agent" in output
+        }
+        frame = next(
+            (candidate for candidate in reversed(self.workspace_bus.frames) if isinstance(candidate, GlobalFrame)),
+            None,
+        )
+        if frame is None:
+            return
+
+        narrative = self.narrative_generator.generate(asdict(frame), agent_outputs)
+        self.workspace_bus.publish(narrative)
 
     @staticmethod
     def _build_self_model(identity_snapshot: Dict[str, Any], state: str) -> Dict[str, Any]:
