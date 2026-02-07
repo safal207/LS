@@ -96,14 +96,14 @@ class UnifiedCognitiveLoop:
 
     selector: Selector | None = None
     capu_history: List[Dict[str, float]] = field(default_factory=list)
+    narrative_generator: NarrativeGenerator | None = None
+    narrative_memory: NarrativeMemoryLayer | None = None
 
     # Global Workspace Layer
     aggregator: WorkspaceAggregator = field(default_factory=WorkspaceAggregator)
     merit_engine: MeritEngine = field(default_factory=MeritEngine)
     workspace_bus: WorkspaceBus = field(default_factory=WorkspaceBus)
     agent_registry: AgentRegistry = field(default_factory=AgentRegistry)
-    narrative_generator: NarrativeGenerator | None = None
-    narrative_memory: NarrativeMemoryLayer | None = None
 
     def __post_init__(self) -> None:
         if not self.agent_registry.agents:

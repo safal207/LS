@@ -13,50 +13,50 @@ from typing import List, Dict, Tuple
 
 
 class BugPattern:
-    """Шаблоны для поиска багов"""
+    """Bug detection patterns"""
     
     PATTERNS = {
         'bare_except': {
             'pattern': r'except\s*:\s*$|except\s+Exception\s*:',
             'severity': 'MEDIUM',
-            'message': 'Bare except ловит KeyboardInterrupt и SystemExit',
-            'fix': 'Используйте конкретные исключения (except ValueError:)'
+            'message': 'Bare except catches KeyboardInterrupt and SystemExit',
+            'fix': 'Use specific exceptions (except ValueError:)'
         },
         'sys_exit': {
             'pattern': r'sys\.exit\([^)]*\)',
             'severity': 'HIGH',
-            'message': 'sys.exit() вне __main__ ломает импорты',
-            'fix': 'Проверяйте if __name__ == "__main__":'
+            'message': 'sys.exit() outside __main__ breaks imports',
+            'fix': 'Check if __name__ == "__main__":'
         },
         'index_access': {
             'pattern': r'\[0\]',
             'severity': 'MEDIUM',
-            'message': 'Потенциальный IndexError если список пустой',
-            'fix': 'Проверяйте if len(list) > 0 перед доступом'
+            'message': 'Potential IndexError if list is empty',
+            'fix': 'Check if len(list) > 0 before accessing'
         },
         'division': {
             'pattern': r'/\s*\w+|/\s*\d+',
             'severity': 'MEDIUM',
-            'message': 'Потенциальное деление на ноль',
-            'fix': 'Проверяйте знаменатель перед делением'
+            'message': 'Potential division by zero',
+            'fix': 'Check denominator before division'
         },
         'hardcoded_path': {
             'pattern': r'["\']/[\w/]+["\']|["\']\\[\w\\]+["\']',
             'severity': 'LOW',
-            'message': 'Жестко закодированный путь',
-            'fix': 'Используйте pathlib.Path или os.path'
+            'message': 'Hardcoded path',
+            'fix': 'Use pathlib.Path or os.path'
         },
         'print_debug': {
             'pattern': r'print\s*\(',
             'severity': 'LOW',
-            'message': 'Использование print вместо logging',
-            'fix': 'Замените на logger.info/debug/error'
+            'message': 'Using print instead of logging',
+            'fix': 'Replace with logger.info/debug/error'
         },
         'todo_fixme': {
             'pattern': r'#\s*(TODO|FIXME|XXX|HACK)',
             'severity': 'LOW',
-            'message': 'Незавершенная задача',
-            'fix': 'Создайте issue или завершите задачу'
+            'message': 'Unfinished task',
+            'fix': 'Create issue or complete the task'
         }
     }
 
@@ -120,8 +120,8 @@ def analyze_ast(filepath: Path) -> List[Dict]:
                                     'line': item.lineno,
                                     'type': 'dataclass_field_order',
                                     'severity': 'CRITICAL',
-                                    'message': 'Non-default поле после поля с default в dataclass',
-                                    'fix': 'Переупорядочите поля - сначала без default, потом с default',
+                                    'message': 'Non-default field after default field in dataclass',
+                                    'fix': 'Reorder fields - non-default first, then with defaults',
                                     'code': f'{item.target.id}: ... = {ast.dump(item.value)[:40]}'
                                 })
                             
@@ -138,8 +138,8 @@ def analyze_ast(filepath: Path) -> List[Dict]:
                         'line': stmt.lineno,
                         'type': 'unreachable_code',
                         'severity': 'HIGH',
-                        'message': 'Код после return недостижим',
-                        'fix': 'Удалите недостижимый код или переместите перед return',
+                        'message': 'Unreachable code after return statement',
+                        'fix': 'Remove unreachable code or move before return',
                         'code': ast.dump(stmt)[:60]
                     })
                 if isinstance(stmt, ast.Return):
@@ -149,14 +149,14 @@ def analyze_ast(filepath: Path) -> List[Dict]:
 
 
 def scan_directory(directory: Path, exclude_dirs: List[str] = None) -> List[Dict]:
-    """Сканирует директорию на баги"""
+    """Scan directory for bugs"""
     if exclude_dirs is None:
         exclude_dirs = ['__pycache__', '.git', 'venv', '.venv', 'node_modules']
     
     all_bugs = []
     
     for root, dirs, files in os.walk(directory):
-        # Исключаем ненужные директории
+        # Exclude unnecessary directories
         dirs[:] = [d for d in dirs if d not in exclude_dirs]
         
         for file in files:
@@ -180,21 +180,21 @@ def print_report(bugs: List[Dict]):
     bugs.sort(key=lambda x: severity_order.get(x['severity'], 99))
     
     print(f"\n{'='*80}")
-    print(f"НАЙДЕНО БАГОВ: {len(bugs)}")
+    print(f"BUGS FOUND: {len(bugs)}")
     print(f"{'='*80}\n")
     
     current_severity = None
     for bug in bugs:
         if bug['severity'] != current_severity:
             current_severity = bug['severity']
-            emoji = {'CRITICAL': '🔴', 'HIGH': '🟠', 'MEDIUM': '🟡', 'LOW': '🟢'}.get(current_severity, '⚪')
-            print(f"\n{emoji} {current_severity} SEVERITY\n")
+            marker = {'CRITICAL': '[!!!]', 'HIGH': '[!!]', 'MEDIUM': '[!]', 'LOW': '[i]'}.get(current_severity, '[?]')
+            print(f"\n{marker} {current_severity} SEVERITY\n")
         
-        print(f"📍 {bug['file']}:{bug['line']}")
-        print(f"   Тип: {bug['type']}")
-        print(f"   Проблема: {bug['message']}")
-        print(f"   Код: {bug['code']}")
-        print(f"   Решение: {bug['fix']}")
+        print(f"FILE: {bug['file']}:{bug['line']}")
+        print(f"   Type: {bug['type']}")
+        print(f"   Issue: {bug['message']}")
+        print(f"   Code: {bug['code']}")
+        print(f"   Fix: {bug['fix']}")
         print()
 
 
