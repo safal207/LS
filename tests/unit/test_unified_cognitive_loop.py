@@ -96,3 +96,46 @@ def test_unified_cognitive_loop_integrates_layers(tmp_path: Path) -> None:
     after_identity = identity.snapshot()
     assert after_identity != before_identity
     assert "dummy-llm" in after_identity["preferences"]
+
+
+def test_unified_cognitive_loop_emits_global_frame(tmp_path: Path) -> None:
+    registry = ModelRegistry(loader=DummyLoader())
+    registry.register("dummy-llm", {"type": "llm", "path": "dummy"})
+    memory_layer = CausalMemoryLayer(store_path=tmp_path / "memory.jsonl")
+    decision_protocol = DecisionMemoryProtocol()
+    presence_monitor = PresenceMonitor()
+    tracer = Tracer()
+    identity = LivingIdentity()
+    thread_factory = ThreadFactory()
+
+    loop = UnifiedCognitiveLoop(
+        registry=registry,
+        memory_layer=memory_layer,
+        decision_protocol=decision_protocol,
+        presence_monitor=presence_monitor,
+        tracer=tracer,
+        identity=identity,
+        thread_factory=thread_factory,
+    )
+
+    received_frames = []
+    loop.workspace_bus.subscribe(received_frames.append)
+
+    ctx = TaskContext(
+        task_type="chat",
+        input_payload={"prompt": "hello"},
+        constraints={},
+        candidates=["dummy-llm"],
+    )
+
+    result = loop.run_task(ctx)
+
+    assert loop.workspace_bus.frames
+    frame = loop.workspace_bus.frames[-1]
+    assert frame.task_type == ctx.task_type
+    assert frame.thread_id == result.thread_id
+    assert frame.system_state == result.state_after
+    assert frame.decision["choice"] == result.decision.choice
+    assert frame.memory_refs["decision_record_id"] == result.decision_record_id
+    assert frame.memory_refs["memory_record_id"] == result.memory_record_id
+    assert received_frames[-1] is frame
