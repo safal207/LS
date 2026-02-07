@@ -1,0 +1,59 @@
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any, Dict, List
+
+
+@dataclass(frozen=True)
+class ThreadEvent:
+    event_id: str
+    state_before: str
+    state_after: str
+    decision_record_id: str
+    memory_record_id: str
+    identity_snapshot: Dict[str, Any]
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    @property
+    def transition_label(self) -> str:
+        return f"{self.state_before}->{self.state_after}"
+
+
+@dataclass
+class LiminalThread:
+    thread_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    events: List[ThreadEvent] = field(default_factory=list)
+
+    def add_event(
+        self,
+        *,
+        state_before: str,
+        state_after: str,
+        decision_record_id: str,
+        memory_record_id: str,
+        identity_snapshot: Dict[str, Any],
+    ) -> ThreadEvent:
+        event = ThreadEvent(
+            event_id=str(uuid.uuid4()),
+            state_before=state_before,
+            state_after=state_after,
+            decision_record_id=decision_record_id,
+            memory_record_id=memory_record_id,
+            identity_snapshot=dict(identity_snapshot),
+        )
+        self.events.append(event)
+        return event
+
+
+class ThreadFactory:
+    def __init__(self) -> None:
+        self._threads: Dict[str, LiminalThread] = {}
+
+    def get_thread(self, thread_id: str | None = None) -> LiminalThread:
+        if thread_id and thread_id in self._threads:
+            return self._threads[thread_id]
+        thread = LiminalThread(thread_id=thread_id or str(uuid.uuid4()))
+        self._threads[thread.thread_id] = thread
+        return thread

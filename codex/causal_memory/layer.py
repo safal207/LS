@@ -42,6 +42,36 @@ class CausalMemoryLayer:
         self.graph.observe(record)
         return record
 
+    def record_task(
+        self,
+        *,
+        model: str,
+        model_type: str,
+        inputs: Dict[str, Any],
+        outputs: Dict[str, Any],
+        parameters: Dict[str, Any] | None = None,
+        hardware: Dict[str, Any] | None = None,
+        metrics: Dict[str, Any] | None = None,
+        success: bool = True,
+        error: str | None = None,
+        tags: list[str] | None = None,
+    ) -> MemoryRecord:
+        record = MemoryRecord.build(
+            model=model,
+            model_type=model_type,
+            inputs=dict(inputs),
+            outputs=dict(outputs),
+            parameters=dict(parameters or {}),
+            hardware=dict(hardware or {}),
+            metrics=dict(metrics or {}),
+            success=success,
+            error=error,
+            tags=list(tags or ["task"]),
+        )
+        self.store.add(record)
+        self.graph.observe(record)
+        return record
+
     @staticmethod
     def _collect_hardware_profile() -> Dict[str, Any]:
         profile: Dict[str, Any] = {"platform": platform.platform()}
