@@ -13,6 +13,7 @@ class WorkspaceBus:
 
     def publish(self, frame: GlobalFrame) -> None:
         self.frames.append(frame)
+        # Safe iteration in case listeners modify the list during callbacks
         for listener in list(self.listeners):
             listener(frame)
 

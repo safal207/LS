@@ -35,6 +35,7 @@ class Selector:
     def select(self, selection_input: SelectionInput, identity: LivingIdentity) -> DecisionContext:
         candidates = list(selection_input.candidates)
         reasons: List[str] = []
+
         if identity.preferences:
             preferred = sorted(identity.preferences, key=identity.preferences.get, reverse=True)
             for model in preferred:
@@ -50,7 +51,9 @@ class Selector:
                     candidates.remove(model)
                     reasons.append(f"avoided:{model}")
 
-        causal_recommendations = self.causal_memory.engine.recommend(candidates, context=selection_input.constraints)
+        causal_recommendations = self.causal_memory.engine.recommend(
+            candidates, context=selection_input.constraints
+        )
         if causal_recommendations:
             top = causal_recommendations[0]
             if top in candidates:
@@ -59,10 +62,7 @@ class Selector:
                 reasons.append(f"causal:{top}")
 
         if candidates:
-            best = max(
-                candidates,
-                key=lambda model: self.decision_protocol.success_rate(model),
-            )
+            best = max(candidates, key=lambda m: self.decision_protocol.success_rate(m))
             if best in candidates:
                 candidates.remove(best)
                 candidates.insert(0, best)
@@ -82,8 +82,11 @@ class UnifiedCognitiveLoop:
     tracer: Tracer
     identity: LivingIdentity
     thread_factory: ThreadFactory
+
     selector: Selector | None = None
     capu_history: List[Dict[str, float]] = field(default_factory=list)
+
+    # Global Workspace Layer
     aggregator: WorkspaceAggregator = field(default_factory=WorkspaceAggregator)
     merit_engine: MeritEngine = field(default_factory=MeritEngine)
     workspace_bus: WorkspaceBus = field(default_factory=WorkspaceBus)
@@ -155,6 +158,7 @@ class UnifiedCognitiveLoop:
 
         self.capu_history.append(capu_features)
 
+        # Build Global Workspace Frame
         identity_snapshot = self.identity.snapshot()
         self_model_snapshot = self._build_self_model(identity_snapshot, state_after)
         affective_snapshot = self._build_affective(state_after, metrics)
@@ -205,49 +209,30 @@ class UnifiedCognitiveLoop:
 
     @staticmethod
     def _build_self_model(identity_snapshot: Dict[str, Any], state: str) -> Dict[str, Any]:
-        if state == "stable":
-            fragmentation = 0.0
-        elif state == "uncertain":
-            fragmentation = 0.2
-        elif state == "overload":
-            fragmentation = 0.4
-        elif state == "fragmented":
-            fragmentation = 0.6
-        else:
-            fragmentation = 0.3
-
-        return {
-            "fragmentation": fragmentation,
-            "state": state,
-            "identity": identity_snapshot,
+        mapping = {
+            "stable": 0.0,
+            "uncertain": 0.2,
+            "overload": 0.4,
+            "fragmented": 0.6,
         }
+        fragmentation = mapping.get(state, 0.3)
+        return {"fragmentation": fragmentation, "state": state, "identity": identity_snapshot}
 
     @staticmethod
     def _build_affective(state: str, metrics: Dict[str, Any]) -> Dict[str, Any]:
-        if state == "stable":
-            energy = 1.0
-        elif state == "overload":
-            energy = 0.6
-        elif state == "fragmented":
-            energy = 0.4
-        elif state == "uncertain":
-            energy = 0.7
-        else:
-            energy = 0.5
-
+        base = {
+            "stable": 1.0,
+            "overload": 0.6,
+            "fragmented": 0.4,
+            "uncertain": 0.7,
+        }
+        energy = base.get(state, 0.5)
         latency = metrics.get("latency_s")
         if isinstance(latency, (int, float)) and latency > 2.0:
             energy = max(0.1, energy - 0.2)
-
         return {"energy": energy, "state": state}
 
-    def _execute_model(
-        self,
-        model_name: str,
-        model_type: str,
-        model: Any,
-        input_payload: Dict[str, Any],
-    ) -> tuple[Dict[str, Any], Dict[str, float]]:
+    def _execute_model(self, model_name: str, model_type: str, model: Any, input_payload: Dict[str, Any]):
         if model_type == "stt":
             hooks, wrapped = self.tracer.start_stt_session(model_name, model)
             output = {"result": self._run_stt(wrapped, input_payload)}
@@ -293,8 +278,4 @@ class UnifiedCognitiveLoop:
             model_type=model_type,
             inputs=input_payload,
             outputs=output_payload,
-            parameters={"capu_features": capu_features},
-            hardware=hardware,
-            metrics=metrics,
-            success=True,
-        )
+            parameters={"capu_features
