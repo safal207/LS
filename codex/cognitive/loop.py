@@ -39,10 +39,17 @@ class SelectionInput:
 class Selector:
     causal_memory: CausalMemoryLayer
     decision_protocol: DecisionMemoryProtocol
+    narrative_memory: NarrativeMemoryLayer | None = None
 
     def select(self, selection_input: SelectionInput, identity: LivingIdentity) -> DecisionContext:
         candidates = list(selection_input.candidates)
         reasons: List[str] = []
+        meta_risks = self.causal_memory.engine.forecast_model_risks(
+            candidates, context=selection_input.constraints
+        )
+        strategy = self.causal_memory.engine.recommend_strategy(
+            candidates, context=selection_input.constraints
+        )
 
         if identity.preferences:
             preferred = sorted(identity.preferences, key=identity.preferences.get, reverse=True)
@@ -58,6 +65,34 @@ class Selector:
                 if model in identity.aversions and len(candidates) > 1:
                     candidates.remove(model)
                     reasons.append(f"avoided:{model}")
+
+        if self.narrative_memory is not None:
+            narrative_context = self.narrative_memory.latest_context()
+            if (
+                narrative_context
+                and narrative_context.get("system_state") == "stable"
+                and narrative_context.get("decision_choice") in candidates
+            ):
+                choice = narrative_context["decision_choice"]
+                candidates.remove(choice)
+                candidates.insert(0, choice)
+                reasons.append(f"narrative_continuity:{choice}")
+
+        if len(candidates) > 1:
+            risky = [
+                (model, risk)
+                for model, risk in meta_risks.items()
+                if model in candidates and risk >= 0.4
+            ]
+            for model, risk in sorted(risky, key=lambda item: item[1], reverse=True):
+                if model in candidates and len(candidates) > 1:
+                    candidates.remove(model)
+                    candidates.append(model)
+                    reasons.append(f"meta_causal_risk:{model}:{risk:.2f}")
+
+        if strategy == "conservative" and meta_risks:
+            candidates.sort(key=lambda model: meta_risks.get(model, 0.0))
+            reasons.append("meta_strategy:conservative")
 
         causal_recommendations = self.causal_memory.engine.recommend(
             candidates, context=selection_input.constraints
@@ -126,7 +161,7 @@ class UnifiedCognitiveLoop:
             constraints=ctx.constraints,
             state=state_before,
         )
-        selector = self.selector or Selector(self.memory_layer, self.decision_protocol)
+        selector = self.selector or Selector(self.memory_layer, self.decision_protocol, self.narrative_memory)
         decision_context = selector.select(selection_input, self.identity)
 
         if not decision_context.choice:
@@ -163,7 +198,21 @@ class UnifiedCognitiveLoop:
             choice=decision_context.choice,
             alternatives=decision_context.alternatives,
             reasons=decision_context.reasons,
-            consequences={"latency_s": latency, "success": memory_record.success},
+            consequences={
+                "latency_s": latency,
+                "success": memory_record.success,
+                "meta_forecast": self.memory_layer.engine.forecast_outcomes(ctx.constraints),
+                "meta_causes": self.memory_layer.engine.explain_model_outcome(
+                    model_name,
+                    "failure" if not memory_record.success else "success",
+                    ctx.constraints,
+                ),
+                "meta_state": self.memory_layer.engine.predict_system_state(ctx.constraints),
+                "meta_summary": self.memory_layer.engine.summarize_context(
+                    ctx.candidates or self.registry.list_models(),
+                    ctx.constraints,
+                ),
+            },
             system_state_before=state_before,
             system_state_after=state_after,
             thread_id=thread.thread_id,
@@ -191,6 +240,7 @@ class UnifiedCognitiveLoop:
         self_model_snapshot = self._build_self_model(identity_snapshot, state_after)
         affective_snapshot = self._build_affective(state_after, metrics)
 
+        narrative_context = self.narrative_memory.timeline(limit=3) if self.narrative_memory else []
         aggregated = self.aggregator.aggregate(
             self_model=self_model_snapshot,
             affective=affective_snapshot,
@@ -201,6 +251,7 @@ class UnifiedCognitiveLoop:
                 "memory_record_id": memory_record.record_id,
                 "decision_record_id": decision_record.record_id,
             },
+            narrative={"timeline": narrative_context},
             state=state_after,
         )
 
@@ -265,6 +316,7 @@ class UnifiedCognitiveLoop:
             frame=asdict(frame),
             agent_outputs=agent_outputs,
         )
+        timeline = self.narrative_memory.timeline(limit=10)
         updated_frame = GlobalFrame(
             thread_id=frame.thread_id,
             task_type=frame.task_type,
@@ -275,7 +327,10 @@ class UnifiedCognitiveLoop:
             capu_features=frame.capu_features,
             decision=frame.decision,
             memory_refs=frame.memory_refs,
-            narrative_refs={"narrative_record_id": narrative_record.record_id},
+            narrative_refs={
+                "narrative_record_id": narrative_record.record_id,
+                "timeline": timeline,
+            },
             merit_scores=frame.merit_scores,
             timestamp=frame.timestamp,
         )
