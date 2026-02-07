@@ -65,6 +65,18 @@ class AdaptiveEngine:
         ranked = sorted(outcome_scores.items(), key=lambda item: item[1], reverse=True)
         return ranked[:top_k]
 
+    def predict_system_state(self, context: Dict[str, object] | None = None) -> str:
+        outcomes = self.forecast_outcomes(context)
+        if not outcomes:
+            return "stable"
+
+        success_score = sum(score for label, score in outcomes if label.startswith("success:"))
+        failure_score = sum(score for label, score in outcomes if label.startswith("failure:"))
+
+        if failure_score >= success_score and failure_score > 0:
+            return "uncertain"
+        return "stable"
+
     def explain_model_outcome(
         self,
         model: str,

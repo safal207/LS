@@ -200,6 +200,7 @@ class UnifiedCognitiveLoop:
                     "failure" if not memory_record.success else "success",
                     ctx.constraints,
                 ),
+                "meta_state": self.memory_layer.engine.predict_system_state(ctx.constraints),
             },
             system_state_before=state_before,
             system_state_after=state_after,
