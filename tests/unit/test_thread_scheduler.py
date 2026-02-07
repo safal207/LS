@@ -30,3 +30,12 @@ def test_thread_scheduler_updates_attention_and_selects_active() -> None:
     distribution = scheduler.update_attention(frame)
     assert distribution["t1"] == 1.0
     assert scheduler.select_active_thread() == "t1"
+
+
+def test_thread_scheduler_syncs_threads() -> None:
+    scheduler = ThreadScheduler()
+    thread = CognitiveThread(thread_id="t2", priority=1.0)
+
+    scheduler.sync_threads([thread])
+
+    assert scheduler.select_active_thread() == "t2"

@@ -15,6 +15,10 @@ class ThreadScheduler:
     def register_thread(self, thread: CognitiveThread) -> None:
         self.threads[thread.thread_id] = thread
 
+    def sync_threads(self, threads: Iterable[CognitiveThread]) -> None:
+        for thread in threads:
+            self.register_thread(thread)
+
     def pause_thread(self, thread_id: str) -> None:
         thread = self.threads.get(thread_id)
         if thread:

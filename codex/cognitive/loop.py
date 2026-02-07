@@ -169,6 +169,7 @@ class UnifiedCognitiveLoop:
         if not decision_context.choice:
             raise ValueError(f"No model selected for task {ctx.task_type}. Reasons: {decision_context.reasons}")
 
+        self.thread_scheduler.sync_threads(self.thread_factory.list_threads())
         thread_id = ctx.input_payload.get("thread_id") or self.thread_scheduler.select_active_thread()
         thread = self.thread_factory.get_thread(thread_id)
         self.thread_scheduler.register_thread(thread)
