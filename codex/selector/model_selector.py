@@ -6,6 +6,7 @@ from typing import Dict, Iterable, List, Optional
 from codex.benchmark.report import LOWER_IS_BETTER, BenchmarkReport, BenchmarkResult
 from codex.hardware.capabilities import HardwareCapabilities
 from codex.hardware.profiler import HardwareProfiler
+from codex.lpi import PresenceMonitor, SystemState
 from codex.registry.model_config import ModelConfig
 from codex.registry.model_registry import ModelRegistry
 
@@ -60,10 +61,12 @@ class AdaptiveModelSelector:
         registry: ModelRegistry,
         profiler: HardwareProfiler,
         benchmark_report: BenchmarkReport | None = None,
+        presence_monitor: PresenceMonitor | None = None,
     ) -> None:
         self.registry = registry
         self.profiler = profiler
         self.benchmark_report = benchmark_report
+        self.presence_monitor = presence_monitor
 
     def pick(self, task: str, priority: str | None = None) -> SelectionResult:
         profile = self.profiler.collect()
@@ -135,6 +138,7 @@ class AdaptiveModelSelector:
                 )
                 rank = next((idx for idx, (name, _) in enumerate(ordered) if name == model.name), len(model_list))
                 score += rank
+            score += self._apply_state_adjustment(model, benchmarks)
             return score
 
         return sorted(model_list, key=rank_score)
@@ -173,3 +177,41 @@ class AdaptiveModelSelector:
         if not highlights:
             return "Selected based on available benchmark data."
         return f"Best match for {priority} with " + ", ".join(highlights)
+
+    def _apply_state_adjustment(self, model: ModelConfig, benchmarks: Dict[str, BenchmarkResult]) -> float:
+        if not self.presence_monitor:
+            return 0.0
+        state = self.presence_monitor.current_state.state
+        adjustment = 0.0
+        if state == SystemState.OVERLOAD and self._is_heavy(model):
+            adjustment += 1.0
+        if state == SystemState.UNCERTAIN:
+            result = benchmarks.get(model.name)
+            if result:
+                margin = result.metrics.get("logits_confidence_margin")
+                if isinstance(margin, (int, float)):
+                    adjustment -= min(0.3, max(0.0, float(margin)))
+        return adjustment
+
+    @staticmethod
+    def _is_heavy(model: ModelConfig) -> bool:
+        size_gb = AdaptiveModelSelector._parse_size_gb(model.ram_required)
+        if size_gb is None:
+            return False
+        return size_gb >= 4.0
+
+    @staticmethod
+    def _parse_size_gb(value: str | None) -> float | None:
+        if not value:
+            return None
+        text = value.strip().lower()
+        try:
+            if text.endswith("gb"):
+                return float(text[:-2])
+            if text.endswith("mb"):
+                return float(text[:-2]) / 1024
+            if text.endswith("tb"):
+                return float(text[:-2]) * 1024
+        except ValueError:
+            return None
+        return None

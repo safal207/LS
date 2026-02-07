@@ -8,8 +8,6 @@ import shutil
 import subprocess
 from typing import Any, Dict, Optional
 
-import psutil
-
 
 @dataclass(frozen=True)
 class GPUInfo:
@@ -83,6 +81,7 @@ class HardwareProfiler:
         }
 
     def collect(self) -> HardwareProfile:
+        psutil = _psutil()
         memory = psutil.virtual_memory()
         cpu_freq = psutil.cpu_freq()
         cpu_freq_ghz = None
@@ -171,3 +170,9 @@ class HardwareProfiler:
             cuda=True,
             cuda_version=cuda_version,
         )
+
+
+def _psutil():
+    if importlib.util.find_spec("psutil") is None:
+        raise RuntimeError("psutil is required for hardware profiling.")
+    return importlib.import_module("psutil")
