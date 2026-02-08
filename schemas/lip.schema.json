@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lip.schema.json",
+  "title": "LIP Envelope",
+  "type": "object",
+  "required": ["lip", "msg_id", "type", "timestamp", "sender", "receiver", "source", "payload"],
+  "properties": {
+    "lip": { "const": "1.0" },
+    "msg_id": { "type": "string", "format": "uuid" },
+    "type": {
+      "type": "string",
+      "enum": [
+        "LIP_FETCH",
+        "LIP_EVIDENCE",
+        "LIP_CONFLICT",
+        "LIP_ACCEPT",
+        "LIP_REJECT"
+      ]
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "sender": {
+      "type": "object",
+      "required": ["agent_id", "fingerprint"],
+      "properties": {
+        "agent_id": { "type": "string" },
+        "fingerprint": { "type": "string" }
+      }
+    },
+    "receiver": {
+      "type": "object",
+      "required": ["agent_id", "fingerprint"],
+      "properties": {
+        "agent_id": { "type": "string" },
+        "fingerprint": { "type": "string" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["uri", "trust_tier", "retrieved_at"],
+      "properties": {
+        "uri": { "type": "string" },
+        "trust_tier": { "type": "string" },
+        "retrieved_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "payload": { "type": "object" },
+    "sign": {
+      "type": "object",
+      "properties": {
+        "algo": { "type": "string" },
+        "signature": { "type": "string" }
+      }
+    }
+  }
+}
