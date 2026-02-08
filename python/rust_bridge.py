@@ -27,6 +27,7 @@ class RustOptimizer:
         self.memory = None
         self.matcher = None
         self.storage = None
+        self.transport = None
 
         if ghostgpt_core is None:
             logger.warning("🦀 ghostgpt_core not available at module import time.")
@@ -38,6 +39,9 @@ class RustOptimizer:
 
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
             self.storage = ghostgpt_core.Storage(db_path)
+            self.transport = ghostgpt_core.TransportHandle(
+                ghostgpt_core.TransportConfig()
+            )
 
             self.available = True
             logger.info(f"🦀 Rust Core Loaded. DB: {db_path}")
@@ -121,3 +125,89 @@ class RustOptimizer:
                 self.storage.flush()
             except Exception:
                 pass
+
+    def transport_available(self) -> bool:
+        return self.available and self.transport is not None
+
+    def open_channel(self, kind: str) -> int | None:
+        if self.transport_available():
+            try:
+                return self.transport.open_channel(kind)
+            except Exception as e:
+                logger.error(f"Rust Transport open_channel error: {e}")
+        return None
+
+    def send(self, channel: int, payload: bytes) -> bool:
+        if self.transport_available():
+            try:
+                self.transport.send(channel, payload)
+                return True
+            except Exception as e:
+                logger.error(f"Rust Transport send error: {e}")
+        return False
+
+    def receive(self, channel: int) -> bytes | None:
+        if self.transport_available():
+            try:
+                return self.transport.receive(channel)
+            except Exception as e:
+                logger.error(f"Rust Transport receive error: {e}")
+        return None
+
+    def close_channel(self, channel: int) -> bool:
+        if self.transport_available():
+            try:
+                self.transport.close_channel(channel)
+                return True
+            except Exception as e:
+                logger.error(f"Rust Transport close_channel error: {e}")
+        return False
+
+    def create_session(self, peer_id: str) -> int | None:
+        if self.transport_available():
+            try:
+                return self.transport.create_session(peer_id)
+            except Exception as e:
+                logger.error(f"Rust Transport create_session error: {e}")
+        return None
+
+    def handshake(self, session_id: int, challenge: bytes) -> bytes | None:
+        if self.transport_available():
+            try:
+                return self.transport.handshake(session_id, challenge)
+            except Exception as e:
+                logger.error(f"Rust Transport handshake error: {e}")
+        return None
+
+    def heartbeat(self, session_id: int) -> bool:
+        if self.transport_available():
+            try:
+                return self.transport.heartbeat(session_id)
+            except Exception as e:
+                logger.error(f"Rust Transport heartbeat error: {e}")
+        return False
+
+    def session_info(self, session_id: int):
+        if self.transport_available():
+            try:
+                return self.transport.session_info(session_id)
+            except Exception as e:
+                logger.error(f"Rust Transport session_info error: {e}")
+        return None
+
+    def prune_sessions(self) -> int:
+        if self.transport_available():
+            try:
+                return self.transport.prune_sessions()
+            except Exception as e:
+                logger.error(f"Rust Transport prune_sessions error: {e}")
+        return 0
+
+    def close_session(self, session_id: int) -> bool:
+        if self.transport_available():
+            try:
+                self.transport.close_session(session_id)
+                return True
+            except Exception as e:
+                logger.error(f"Rust Transport close_session error: {e}")
+        return False
