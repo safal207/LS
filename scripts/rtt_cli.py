@@ -14,6 +14,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--channel-kind", default="control", help="Channel kind")
     parser.add_argument("--payload", default="hello-web4", help="Payload to send")
     parser.add_argument("--repeat", type=int, default=1, help="Number of sends")
+    parser.add_argument(
+        "--queue-test",
+        action="store_true",
+        help="Fill the channel queue until it rejects sends",
+    )
+    parser.add_argument(
+        "--queue-depth",
+        type=int,
+        default=1024,
+        help="Expected queue depth for queue-test (defaults to transport default)",
+    )
     return parser
 
 
@@ -41,11 +52,23 @@ def main() -> None:
         return
 
     payload = args.payload.encode("utf-8")
-    for _ in range(max(args.repeat, 1)):
-        if not optimizer.send(channel_id, payload):
-            logger.error("Send failed.")
-            return
-        _ = optimizer.receive(channel_id)
+    if args.queue_test:
+        failed_at = None
+        for idx in range(args.queue_depth + 1):
+            if not optimizer.send(channel_id, payload):
+                failed_at = idx
+                break
+        if failed_at is None:
+            logger.warning("Queue test did not hit a limit; depth may be higher than expected.")
+        else:
+            logger.info("Queue test failed as expected at index %s.", failed_at)
+        logger.info("Queue length after test: %s", optimizer.queue_len(channel_id))
+    else:
+        for _ in range(max(args.repeat, 1)):
+            if not optimizer.send(channel_id, payload):
+                logger.error("Send failed.")
+                return
+            _ = optimizer.receive(channel_id)
 
     logger.info("Channel stats: %s", optimizer.channel_stats(channel_id))
     logger.info("Transport snapshot: %s", optimizer.transport_snapshot())
