@@ -1,205 +1,195 @@
-# CIP Runtime Integration Layer (Python ↔ Rust) — Final Issue
+# Web4 Runtime Integration Milestone — Full Stack Implementation
 
 ## Контекст
-CIP остаётся центральным незавершённым узлом Web4‑архитектуры.
-Для завершения PR #88 и перехода Phase 4 → Phase 5 требуется рабочий runtime‑слой, который:
+LS выходит на критический рубеж Phase 4 → Phase 5. Для закрытия PR #88 и перехода к рабочему Web4‑стеку требуется единый milestone‑документ, описывающий интеграцию RTT, CIP, HCP, LIP, ProtocolRouter, TrustFSM и AgentLoop, а также тесты, CLI‑демо и наблюдаемость.
 
-- использует Rust‑транспорт (RTT),
-- валидирует CIP‑конверты,
-- выполняет handshake,
-- обновляет TrustFSM,
-- маршрутизирует сообщения через ProtocolRouter,
-- интегрируется в AgentLoop.
+## 🎯 Цель milestone
+Построить полностью рабочий Web4 Runtime, включающий:
 
-Этот issue формализует полный объём работ.
-
-## Цель
-Создать полностью рабочий CIP‑runtime, включающий:
-
-- envelope builder + canonical JSON + подписи,
-- envelope validator + error‑model,
-- handshake runtime (HELLO → VERIFY → TRUST GATE → STATE_UPDATE → INTENT),
-- интеграцию с Rust‑транспортом,
-- интеграцию с ProtocolRouter,
-- интеграционные тесты,
-- smoke‑test CLI.
+- RTT (Rust Transport Tunnel)
+- CIP Runtime (agent ↔ agent cognition exchange)
+- HCP Runtime (human ↔ agent mediation)
+- LIP Runtime (internet learning)
+- ProtocolRouter
+- TrustFSM
+- AgentLoop integration
+- Observability
+- End‑to‑End tests
+- CLI tools
 
 ## 📦 Scope (область работ)
 
-### 1. CIP Envelope Builder
-Реализовать модуль, который создаёт корректный CIP‑конверт.
+### 1. RTT Runtime Layer (Rust ↔ Python)
+Реализовать:
 
-**Требования**
-- canonical JSON (`sort_keys=True`, `separators=(",", ":")`)
-- подпись Ed25519 (подписывается envelope без блока `sign`)
-- верификация подписи
-- проверка fingerprint ↔ pubkey
-- проверка timestamp (±120 секунд)
-- проверка msg_id (UUID v4)
-- автоматическое заполнение:
-  - `cip: "1.0"`
-  - `timestamp`
-  - `msg_id`
-  - `sender`
-  - `trust.sender_view`
+- secure p2p handshake
+- multiplexed channels (state, knowledge, control)
+- heartbeat + reconnect
+- replay protection
+- Python binding via pyo3
+- async runtime loop
+- backpressure + queue limits
+- error model
 
-**Минимальная схема envelope (нормативная)**
-```json
-{
-  "cip": "1.0",
-  "msg_id": "uuid",
-  "type": "HELLO | INTENT | FACTPROPOSE | FACTCHALLENGE | FACTCONFIRM | FACTREJECT | DECISIONSHARE | STATEUPDATE",
-  "timestamp": "RFC3339",
-  "sender": {
-    "agent_id": "string",
-    "fingerprint": "hex",
-    "capabilities": ["string"],
-    "pubkey": "base64"
-  },
-  "receiver": {
-    "agent_id": "string",
-    "fingerprint": "hex"
-  },
-  "trust": {
-    "sender_view": "untrusted | probing | trusted | blacklisted",
-    "receiver_view": "unknown | untrusted | probing | trusted | blacklisted"
-  },
-  "state": {
-    "presence": "focused | diffuse | overloaded | engaged",
-    "lri": 0,
-    "kernel_signals": ["string"],
-    "intent": "string"
-  },
-  "payload": {},
-  "sign": {
-    "algo": "ed25519",
-    "signature": "base64"
-  }
-}
-```
-
-### 2. CIP Envelope Validator
-Реализовать строгий валидатор.
-
-**Проверки**
-- структура envelope
-- обязательные поля
-- корректность типов
-- корректность trust‑state
-- корректность state‑блока
-- корректность payload‑schema
-- подпись
-- timestamp
-- msg_id
-
-**Error‑model**
-```python
-class InvalidEnvelopeError(Exception): ...
-class SignatureMismatchError(Exception): ...
-class TimestampError(Exception): ...
-class TrustViolationError(Exception): ...
-class PayloadSchemaError(Exception): ...
-class TransportError(Exception): ...
-```
-
-### 3. CIP Handshake Runtime
-
-**FSM (нормативная)**
-```
-A → B: HELLO (nonce, challenge)
-B → A: HELLO (nonce, signed_challenge)
-A → B: VERIFY (signature, fingerprint)
-A → B: STATE_UPDATE (presence, lri)
-A → B: INTENT (goal)
-```
-
-**Требования**
-- проверка challenge‑response
-- проверка fingerprint
-- TrustFSM переходы:
-  - untrusted → probing
-  - probing → trusted (после VERIFY)
-- отправка первого STATE_UPDATE
-- отправка INTENT
-
-### 4. Интеграция с Rust‑транспортом (RTT)
-
-**RTT API (Python binding)**
+**API (Python)**
 ```python
 channel = transport.open_channel("control")
 transport.send(channel, bytes)
 raw = transport.receive(channel)
 ```
 
-**Требования**
-- encode envelope → bytes
-- decode bytes → envelope
-- validate → route
-- retry‑политика при ошибках транспорта
-- graceful shutdown
+### 2. CIP Runtime Layer (Python ↔ Rust)
+Реализовать:
 
-### 5. Интеграция в ProtocolRouter
-
-**Маршруты**
-- HELLO → handshake runtime
-- VERIFY → TrustFSM
-- STATE_UPDATE → Agent state
-- FACT_PROPOSE → Knowledge Exchange
-- FACT_CONFIRM → DMP‑trace
-- FACT_REJECT → dispute handling
-- INTENT → intent‑router
-
-### 6. Интеграционные тесты
-
-**Тесты**
-- handshake end‑to‑end
-- trust transitions
+- envelope builder
+- canonical JSON
+- Ed25519 signatures
+- envelope validator
+- handshake runtime
+- TrustFSM transitions
+- routing into ProtocolRouter
 - state update
-- fact propose → confirm
-- routing correctness
+- fact propose/confirm
+- DMP‑trace integration
 
-### 7. Smoke‑test CLI
+### 3. HCP Runtime Layer (Human ↔ Agent)
+Реализовать:
 
-**Файл:** `scripts/cip_demo.py`
+- HCP envelope builder
+- human‑state vector (presence, affect, clarity, pressure, consent)
+- consent gating
+- pacing rules
+- HCP_INTENT
+- HCP_DECISION
+- HCP_FEEDBACK
+- integration with AgentLoop
 
-**Поведение**
-- запускает RTT
-- открывает канал
-- выполняет HELLO → VERIFY → INTENT
-- выводит лог шагов
+### 4. LIP Runtime Layer (Internet ↔ Agent)
+Реализовать:
+
+- LIP_FETCH
+- LIP_EVIDENCE
+- LIP_CONFLICT
+- LIP_ACCEPT/REJECT
+- deferred acceptance queue
+- source trust tiers
+- cross‑agent corroboration
+
+### 5. ProtocolRouter (Unified Web4 Router)
+Реализовать:
+
+- CIP routing
+- HCP routing
+- LIP routing
+- TrustFSM updates
+- DMP‑trace updates
+- Knowledge Exchange
+- State updates
+- Intent routing
+
+### 6. AgentLoop Integration
+Добавить:
+
+- CIP/HCP/LIP events → AgentLoop
+- presence/lri updates
+- intent propagation
+- cognitive cycle hooks
+- mission drift detection
+- causal memory updates
+
+### 7. Observability Layer (Web4 Events)
+Добавить:
+
+- event sink for CIP/HCP/LIP
+- event contract v1.0
+- RTT telemetry
+- trust transitions
+- handshake logs
+- state updates
+- knowledge exchange logs
+
+### 8. End‑to‑End Tests
+Создать:
+
+**CIP tests**
+- handshake
+- trust transitions
+- fact propose/confirm
+- routing
+
+**HCP tests**
+- consent gating
+- pacing rules
+- human‑state updates
+
+**LIP tests**
+- deferred acceptance
+- conflict resolution
+- corroboration
+
+**RTT tests**
+- handshake
+- reconnect
+- multiplexing
+- queue limits
+
+### 9. CLI Tools
+
+**scripts/web4_demo.py**
+- запускает два агента
+- RTT handshake
+- CIP handshake
+- HCP intent
+- LIP fetch
+- выводит все события
+
+**scripts/web4meshdemo.py**
+- 3+ агентов
+- mesh routing
+- trust propagation
+- knowledge consensus
 
 ## 📁 Предлагаемая структура файлов
 
 ```
-python/cip/envelope.py
-python/cip/validator.py
-python/cip/handshake.py
-python/cip/runtime.py
-python/cip/router_adapter.py
-scripts/cip_demo.py
-tests/integration/testciphandshake.py
-tests/integration/testciptrust_transitions.py
+python/
+  cip/
+  hcp/
+  lip/
+  rtt/
+  router/
+  trust/
+  runtime/
+  agent/
+scripts/
+  web4_demo.py
+  web4meshdemo.py
+tests/
+  integration/
+    testcip*.py
+    testhcp*.py
+    testlip*.py
+    testrtt*.py
+    testrouter*.py
+    testagentloop*.py
 ```
 
-## 🧪 Тест‑план
+## 🧪 Acceptance Criteria
 
-**Handshake**
-- A и B обмениваются HELLO
-- A валидирует challenge‑response
-- TrustFSM: untrusted → probing → trusted
+- RTT работает стабильно 24 часа
+- CIP handshake проходит без ошибок
+- TrustFSM корректно обновляется
+- HCP соблюдает consent/pacing
+- LIP выполняет deferred acceptance
+- ProtocolRouter маршрутизирует все типы сообщений
+- AgentLoop получает и обрабатывает Web4 события
+- Все интеграционные тесты проходят
+- CLI демо работает
 
-**State Update**
-- отправка state‑блока
-- обновление состояния агента
+## ⚠️ Риски
 
-**Fact propose/confirm**
-- проверка payload‑schema
-- проверка DMP‑trace
-
-**Routing**
-- CIP → Router → subsystem
-
-## ⚠️ Риски и зависимости
-- Требуется готовый RTT Python binding
-- Требуется актуальная спецификация CIP
-- Требуется синхронизация с ProtocolRouter API
+- сложность синхронизации RTT ↔ CIP
+- необходимость строгой canonical JSON
+- необходимость корректной подписи/валидации
+- необходимость async runtime
+- необходимость согласованности между протоколами
