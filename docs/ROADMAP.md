@@ -35,6 +35,10 @@
 - Wire CIP/HCP/LIP helpers into the runtime loop.
 - Add protocol validation tests + minimal integration scenario.
 
+## Next step (after current focus)
+- Implement RTT telemetry snapshots in Python and use them in a minimal handshake/echo demo between two local sessions.
+- Add a small integration test that creates a session, opens channels, sends/receives, and asserts queue limits.
+
 ## Related roadmap documents
 - `ROADMAP_2025_2026.md` — long-term evolution phases for the cognitive system.
 - `ROADMAP_PHASE8.md` — cognitive flow layer design.
