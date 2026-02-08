@@ -148,6 +148,32 @@ impl TransportHandle {
         Ok(alive)
     }
 
+    fn session_info(&self, session_id: u64) -> PyResult<(String, u128, u128)> {
+        let sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+        let session = sessions
+            .get(&session_id)
+            .ok_or_else(|| PyValueError::new_err("unknown session"))?;
+        let now = Instant::now();
+        let age_ms = now.duration_since(session.created_at).as_millis();
+        let heartbeat_ms = now.duration_since(session.last_heartbeat).as_millis();
+        Ok((session.peer_id.clone(), age_ms, heartbeat_ms))
+    }
+
+    fn prune_sessions(&self) -> PyResult<usize> {
+        let mut sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+        let now = Instant::now();
+        let timeout = Duration::from_millis(self.config.heartbeat_ms * 2);
+        let before = sessions.len();
+        sessions.retain(|_, session| now.duration_since(session.last_heartbeat) <= timeout);
+        Ok(before.saturating_sub(sessions.len()))
+    }
+
     fn send(&self, channel: u64, payload: &[u8]) -> PyResult<()> {
         let channels = self
             .channels
