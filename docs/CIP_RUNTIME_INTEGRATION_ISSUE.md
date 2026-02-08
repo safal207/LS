@@ -1,7 +1,7 @@
-# Web4 Runtime Integration Milestone — Full Stack Implementation
+# Web4 Runtime Integration Milestone — Full Stack Implementation (Final)
 
 ## Контекст
-LS выходит на критический рубеж Phase 4 → Phase 5. Для закрытия PR #88 и перехода к рабочему Web4‑стеку требуется единый milestone‑документ, описывающий интеграцию RTT, CIP, HCP, LIP, ProtocolRouter, TrustFSM и AgentLoop, а также тесты, CLI‑демо и наблюдаемость.
+LS находится на критическом рубеже Phase 4 → Phase 5. Для закрытия PR #88 требуется единый, исчерпывающий milestone‑документ, который задаёт полный контракт на интеграцию RTT, CIP, HCP, LIP, ProtocolRouter, TrustFSM и AgentLoop, а также фиксирует требования к наблюдаемости, тестам и CLI‑демо.
 
 ## 🎯 Цель milestone
 Построить полностью рабочий Web4 Runtime, включающий:
@@ -17,11 +17,16 @@ LS выходит на критический рубеж Phase 4 → Phase 5. Д
 - End‑to‑End tests
 - CLI tools
 
+## ✅ Definition of Done
+- RTT, CIP, HCP, LIP работают в связке через ProtocolRouter и AgentLoop.
+- Handshake‑процедуры и TrustFSM переходы воспроизводимы и детерминированы.
+- Все интеграционные тесты и CLI‑демо проходят локально.
+- Наблюдаемость покрывает ключевые события (handshake, trust, routing, errors).
+
 ## 📦 Scope (область работ)
 
 ### 1. RTT Runtime Layer (Rust ↔ Python)
-Реализовать:
-
+**Реализовать**
 - secure p2p handshake
 - multiplexed channels (state, knowledge, control)
 - heartbeat + reconnect
@@ -36,11 +41,20 @@ LS выходит на критический рубеж Phase 4 → Phase 5. Д
 channel = transport.open_channel("control")
 transport.send(channel, bytes)
 raw = transport.receive(channel)
+transport.close_channel(channel)
+transport.shutdown()
+```
+
+**Error‑model (RTT)**
+```python
+class RTTHandshakeError(Exception): ...
+class RTTTransportError(Exception): ...
+class RTTBackpressureError(Exception): ...
+class RTTReplayError(Exception): ...
 ```
 
 ### 2. CIP Runtime Layer (Python ↔ Rust)
-Реализовать:
-
+**Реализовать**
 - envelope builder
 - canonical JSON
 - Ed25519 signatures
@@ -52,9 +66,52 @@ raw = transport.receive(channel)
 - fact propose/confirm
 - DMP‑trace integration
 
-### 3. HCP Runtime Layer (Human ↔ Agent)
-Реализовать:
+**Нормативный envelope (минимум)**
+```json
+{
+  "cip": "1.0",
+  "msg_id": "uuid",
+  "type": "HELLO | INTENT | FACTPROPOSE | FACTCHALLENGE | FACTCONFIRM | FACTREJECT | DECISIONSHARE | STATEUPDATE",
+  "timestamp": "RFC3339",
+  "sender": {
+    "agent_id": "string",
+    "fingerprint": "hex",
+    "capabilities": ["string"],
+    "pubkey": "base64"
+  },
+  "receiver": {
+    "agent_id": "string",
+    "fingerprint": "hex"
+  },
+  "trust": {
+    "sender_view": "untrusted | probing | trusted | blacklisted",
+    "receiver_view": "unknown | untrusted | probing | trusted | blacklisted"
+  },
+  "state": {
+    "presence": "focused | diffuse | overloaded | engaged",
+    "lri": 0,
+    "kernel_signals": ["string"],
+    "intent": "string"
+  },
+  "payload": {},
+  "sign": {
+    "algo": "ed25519",
+    "signature": "base64"
+  }
+}
+```
 
+**Error‑model (CIP)**
+```python
+class InvalidEnvelopeError(Exception): ...
+class SignatureMismatchError(Exception): ...
+class TimestampError(Exception): ...
+class TrustViolationError(Exception): ...
+class PayloadSchemaError(Exception): ...
+```
+
+### 3. HCP Runtime Layer (Human ↔ Agent)
+**Реализовать**
 - HCP envelope builder
 - human‑state vector (presence, affect, clarity, pressure, consent)
 - consent gating
@@ -64,9 +121,14 @@ raw = transport.receive(channel)
 - HCP_FEEDBACK
 - integration with AgentLoop
 
-### 4. LIP Runtime Layer (Internet ↔ Agent)
-Реализовать:
+**Минимальные события**
+- HCP_HELLO
+- HCP_INTENT
+- HCP_DECISION
+- HCP_FEEDBACK
 
+### 4. LIP Runtime Layer (Internet ↔ Agent)
+**Реализовать**
 - LIP_FETCH
 - LIP_EVIDENCE
 - LIP_CONFLICT
@@ -75,9 +137,15 @@ raw = transport.receive(channel)
 - source trust tiers
 - cross‑agent corroboration
 
-### 5. ProtocolRouter (Unified Web4 Router)
-Реализовать:
+**Минимальные события**
+- LIP_FETCH
+- LIP_EVIDENCE
+- LIP_CONFLICT
+- LIP_ACCEPT
+- LIP_REJECT
 
+### 5. ProtocolRouter (Unified Web4 Router)
+**Реализовать**
 - CIP routing
 - HCP routing
 - LIP routing
@@ -87,9 +155,22 @@ raw = transport.receive(channel)
 - State updates
 - Intent routing
 
-### 6. AgentLoop Integration
-Добавить:
+**Routing matrix (минимум)**
+- CIP.HELLO → Handshake
+- CIP.VERIFY → TrustFSM
+- CIP.STATEUPDATE → Agent state
+- CIP.FACTPROPOSE → Knowledge Exchange
+- HCP.INTENT → AgentLoop
+- LIP.EVIDENCE → Knowledge Exchange
 
+### 6. TrustFSM Integration
+**Реализовать**
+- переходы: untrusted → probing → trusted → blacklisted
+- правила эскалации/деградации
+- протоколирование всех trust‑событий
+
+### 7. AgentLoop Integration
+**Добавить**
 - CIP/HCP/LIP events → AgentLoop
 - presence/lri updates
 - intent propagation
@@ -97,9 +178,8 @@ raw = transport.receive(channel)
 - mission drift detection
 - causal memory updates
 
-### 7. Observability Layer (Web4 Events)
-Добавить:
-
+### 8. Observability Layer (Web4 Events)
+**Добавить**
 - event sink for CIP/HCP/LIP
 - event contract v1.0
 - RTT telemetry
@@ -108,8 +188,8 @@ raw = transport.receive(channel)
 - state updates
 - knowledge exchange logs
 
-### 8. End‑to‑End Tests
-Создать:
+### 9. End‑to‑End Tests
+**Создать**
 
 **CIP tests**
 - handshake
@@ -133,7 +213,7 @@ raw = transport.receive(channel)
 - multiplexing
 - queue limits
 
-### 9. CLI Tools
+### 10. CLI Tools
 
 **scripts/web4_demo.py**
 - запускает два агента
