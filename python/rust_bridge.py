@@ -129,13 +129,22 @@ class RustOptimizer:
     def transport_available(self) -> bool:
         return self.available and self.transport is not None
 
-    def open_channel(self, kind: str) -> int | None:
+    def open_channel(self, kind: str, session_id: int | None = None) -> int | None:
         if self.transport_available():
             try:
-                return self.transport.open_channel(kind)
+                return self.transport.open_channel(kind, session_id)
             except Exception as e:
                 logger.error(f"Rust Transport open_channel error: {e}")
         return None
+
+    def bind_channel(self, channel: int, session_id: int) -> bool:
+        if self.transport_available():
+            try:
+                self.transport.bind_channel(channel, session_id)
+                return True
+            except Exception as e:
+                logger.error(f"Rust Transport bind_channel error: {e}")
+        return False
 
     def send(self, channel: int, payload: bytes) -> bool:
         if self.transport_available():
@@ -194,6 +203,30 @@ class RustOptimizer:
             except Exception as e:
                 logger.error(f"Rust Transport session_info error: {e}")
         return None
+
+    def list_sessions(self):
+        if self.transport_available():
+            try:
+                return self.transport.list_sessions()
+            except Exception as e:
+                logger.error(f"Rust Transport list_sessions error: {e}")
+        return []
+
+    def channel_info(self, channel: int):
+        if self.transport_available():
+            try:
+                return self.transport.channel_info(channel)
+            except Exception as e:
+                logger.error(f"Rust Transport channel_info error: {e}")
+        return None
+
+    def list_channels(self):
+        if self.transport_available():
+            try:
+                return self.transport.list_channels()
+            except Exception as e:
+                logger.error(f"Rust Transport list_channels error: {e}")
+        return []
 
     def prune_sessions(self) -> int:
         if self.transport_available():
