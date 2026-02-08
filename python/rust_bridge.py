@@ -22,7 +22,7 @@ class RustOptimizer:
     Robust Wrapper around Rust modules.
     Falls back to 'Silent Mode' if Rust is not available.
     """
-    def __init__(self, memory_mb=2000, db_path="./data/patterns.db"):
+    def __init__(self, memory_mb=2000, db_path="./data/patterns.db", transport_config=None):
         self.available = False
         self.memory = None
         self.matcher = None
@@ -39,9 +39,14 @@ class RustOptimizer:
 
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
             self.storage = ghostgpt_core.Storage(db_path)
-            self.transport = ghostgpt_core.TransportHandle(
-                ghostgpt_core.TransportConfig()
+            transport_config = transport_config or {}
+            transport = ghostgpt_core.TransportConfig(
+                transport_config.get("heartbeat_ms"),
+                transport_config.get("max_channels"),
+                transport_config.get("max_queue_depth"),
+                transport_config.get("max_payload_bytes"),
             )
+            self.transport = ghostgpt_core.TransportHandle(transport)
 
             self.available = True
             logger.info(f"🦀 Rust Core Loaded. DB: {db_path}")

@@ -40,7 +40,8 @@
 - ✅ Build a tiny CLI harness to run the RTT demo with configurable payload sizes.
 - ✅ Add a small integration test that creates a session, opens channels, sends/receives, and asserts queue limits.
 - ✅ Expand RTT demo with a queue-limit scenario and documented expected failures.
-- Add a transport-configurable test that asserts queue limit behavior with a small depth.
+- ✅ Add a transport-configurable test that asserts queue limit behavior with a small depth.
+- Add a minimal RTT→CIP envelope roundtrip demo.
 
 ## Related roadmap documents
 - `ROADMAP_2025_2026.md` — long-term evolution phases for the cognitive system.
