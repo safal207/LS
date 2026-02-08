@@ -8,6 +8,14 @@ Web4 is an internet of cognitive agents. It enables state-aware communication, t
 - Current AI systems lack shared trust boundaries.
 - Human intention and consent are not enforceable at the protocol layer.
 
+## 1.1 Market pain Web4 solves
+- **Enterprise AI trust gaps:** teams cannot verify which model, data, and agent produced a decision, so outputs are hard to audit or reuse.
+- **Agent fragmentation:** each agent stack is a silo, making cross-agent coordination and knowledge transfer unreliable.
+- **Hallucination risk at scale:** knowledge cannot be collectively confirmed, so mistakes propagate across products and teams.
+- **No shared cognitive state:** systems cannot communicate load, focus, or intent, causing interruptions, overload, and poor UX.
+- **Missing human consent layer:** users lack a protocol-level control surface for intent, emotional state, and safety boundaries.
+- **Vendor lock-in:** centralized AI platforms control identity, trust, and routing, limiting autonomy and portability.
+
 ## 2. Thesis
 Web4 enables **agent networks** that:
 - exchange cognitive state and decisions
