@@ -36,8 +36,9 @@
 - Add protocol validation tests + minimal integration scenario.
 
 ## Next step (after current focus)
-- Implement RTT telemetry snapshots in Python and use them in a minimal handshake/echo demo between two local sessions.
+- ✅ Implement RTT telemetry snapshots in Python and a minimal handshake/echo demo script.
 - Add a small integration test that creates a session, opens channels, sends/receives, and asserts queue limits.
+- Build a tiny CLI harness to run the RTT demo with configurable payload sizes.
 
 ## Related roadmap documents
 - `ROADMAP_2025_2026.md` — long-term evolution phases for the cognitive system.

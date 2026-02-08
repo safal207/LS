@@ -268,6 +268,19 @@ class RustOptimizer:
                 logger.error(f"Rust Transport list_channel_stats error: {e}")
         return []
 
+    def transport_snapshot(self) -> dict:
+        if not self.transport_available():
+            return {"available": False, "sessions": [], "channels": []}
+        try:
+            return {
+                "available": True,
+                "sessions": self.transport.list_sessions(),
+                "channels": self.transport.list_channel_stats(),
+            }
+        except Exception as e:
+            logger.error(f"Rust Transport transport_snapshot error: {e}")
+            return {"available": False, "sessions": [], "channels": []}
+
     def prune_sessions(self) -> int:
         if self.transport_available():
             try:
