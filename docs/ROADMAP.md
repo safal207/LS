@@ -42,7 +42,8 @@
 - ✅ Expand RTT demo with a queue-limit scenario and documented expected failures.
 - ✅ Add a transport-configurable test that asserts queue limit behavior with a small depth.
 - ✅ Add a minimal RTT→CIP envelope roundtrip demo.
-- Add a router-backed RTT demo that validates and dispatches CIP messages.
+- ✅ Add a router-backed RTT demo that validates and dispatches CIP messages.
+- Add a combined demo that routes HELLO + FACT_CONFIRM with trust state transitions.
 
 ## Related roadmap documents
 - `ROADMAP_2025_2026.md` — long-term evolution phases for the cognitive system.
