@@ -163,6 +163,22 @@ class RustOptimizer:
                 logger.error(f"Rust Transport receive error: {e}")
         return None
 
+    def queue_len(self, channel: int) -> int:
+        if self.transport_available():
+            try:
+                return self.transport.queue_len(channel)
+            except Exception as e:
+                logger.error(f"Rust Transport queue_len error: {e}")
+        return 0
+
+    def drain(self, channel: int, max_items: int | None = None) -> list[bytes]:
+        if self.transport_available():
+            try:
+                return self.transport.drain(channel, max_items)
+            except Exception as e:
+                logger.error(f"Rust Transport drain error: {e}")
+        return []
+
     def close_channel(self, channel: int) -> bool:
         if self.transport_available():
             try:
@@ -171,6 +187,14 @@ class RustOptimizer:
             except Exception as e:
                 logger.error(f"Rust Transport close_channel error: {e}")
         return False
+
+    def clear_channel(self, channel: int) -> int:
+        if self.transport_available():
+            try:
+                return self.transport.clear_channel(channel)
+            except Exception as e:
+                logger.error(f"Rust Transport clear_channel error: {e}")
+        return 0
 
     def create_session(self, peer_id: str) -> int | None:
         if self.transport_available():

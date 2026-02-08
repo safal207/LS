@@ -14,15 +14,26 @@ pub struct TransportConfig {
     pub heartbeat_ms: u64,
     #[pyo3(get, set)]
     pub max_channels: u64,
+    #[pyo3(get, set)]
+    pub max_queue_depth: usize,
+    #[pyo3(get, set)]
+    pub max_payload_bytes: usize,
 }
 
 #[pymethods]
 impl TransportConfig {
     #[new]
-    fn new(heartbeat_ms: Option<u64>, max_channels: Option<u64>) -> Self {
+    fn new(
+        heartbeat_ms: Option<u64>,
+        max_channels: Option<u64>,
+        max_queue_depth: Option<usize>,
+        max_payload_bytes: Option<usize>,
+    ) -> Self {
         Self {
             heartbeat_ms: heartbeat_ms.unwrap_or(5_000),
             max_channels: max_channels.unwrap_or(64),
+            max_queue_depth: max_queue_depth.unwrap_or(1_024),
+            max_payload_bytes: max_payload_bytes.unwrap_or(256 * 1024),
         }
     }
 }
@@ -95,6 +106,16 @@ impl TransportHandle {
     #[getter]
     fn max_channels(&self) -> u64 {
         self.config.max_channels
+    }
+
+    #[getter]
+    fn max_queue_depth(&self) -> usize {
+        self.config.max_queue_depth
+    }
+
+    #[getter]
+    fn max_payload_bytes(&self) -> usize {
+        self.config.max_payload_bytes
     }
 
     fn open_channel(&self, kind: &str, session_id: Option<u64>) -> PyResult<u64> {
@@ -239,6 +260,9 @@ impl TransportHandle {
     }
 
     fn send(&self, channel: u64, payload: &[u8]) -> PyResult<()> {
+        if payload.len() > self.config.max_payload_bytes {
+            return Err(PyValueError::new_err("payload exceeds max_payload_bytes"));
+        }
         let channels = self
             .channels
             .lock()
@@ -264,6 +288,9 @@ impl TransportHandle {
             .lock()
             .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
         if let Some(queue) = queues.get_mut(&channel) {
+            if queue.len() >= self.config.max_queue_depth {
+                return Err(PyValueError::new_err("channel queue full"));
+            }
             queue.push_back(payload.to_vec());
             Ok(())
         } else {
@@ -303,6 +330,51 @@ impl TransportHandle {
         }
     }
 
+    fn queue_len(&self, channel: u64) -> PyResult<usize> {
+        let channels = self
+            .channels
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+        if !channels.contains_key(&channel) {
+            return Err(PyValueError::new_err("unknown channel"));
+        }
+        drop(channels);
+        let queues = self
+            .queues
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
+        queues
+            .get(&channel)
+            .map(|queue| queue.len())
+            .ok_or_else(|| PyValueError::new_err("channel queue missing"))
+    }
+
+    fn drain(&self, channel: u64, max_items: Option<usize>) -> PyResult<Vec<Vec<u8>>> {
+        let channels = self
+            .channels
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+        if !channels.contains_key(&channel) {
+            return Err(PyValueError::new_err("unknown channel"));
+        }
+        drop(channels);
+        let mut queues = self
+            .queues
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
+        let queue = queues
+            .get_mut(&channel)
+            .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
+        let limit = max_items.unwrap_or(queue.len());
+        let mut drained = Vec::with_capacity(limit.min(queue.len()));
+        for _ in 0..limit.min(queue.len()) {
+            if let Some(payload) = queue.pop_front() {
+                drained.push(payload);
+            }
+        }
+        Ok(drained)
+    }
+
     fn close_channel(&self, channel: u64) -> PyResult<()> {
         let mut channels = self
             .channels
@@ -315,6 +387,27 @@ impl TransportHandle {
             .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
         queues.remove(&channel);
         Ok(())
+    }
+
+    fn clear_channel(&self, channel: u64) -> PyResult<usize> {
+        let channels = self
+            .channels
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+        if !channels.contains_key(&channel) {
+            return Err(PyValueError::new_err("unknown channel"));
+        }
+        drop(channels);
+        let mut queues = self
+            .queues
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
+        let queue = queues
+            .get_mut(&channel)
+            .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
+        let cleared = queue.len();
+        queue.clear();
+        Ok(cleared)
     }
 
     fn channel_info(&self, channel: u64) -> PyResult<(String, Option<u64>)> {
