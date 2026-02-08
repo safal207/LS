@@ -1,109 +1,205 @@
-# CIP Runtime Integration Layer (Python ↔ Rust) — Issue Draft
+# CIP Runtime Integration Layer (Python ↔ Rust) — Final Issue
 
 ## Контекст
-CIP остаётся центральным незавершённым узлом: runtime‑интеграция, валидация конвертов, handshake и маршрутизация через ProtocolRouter пока не доведены до состояния MVP. Этот issue формализует следующий шаг для закрытия PR #88 и завершения перехода Phase 4 → Phase 5.
+CIP остаётся центральным незавершённым узлом Web4‑архитектуры.
+Для завершения PR #88 и перехода Phase 4 → Phase 5 требуется рабочий runtime‑слой, который:
+
+- использует Rust‑транспорт (RTT),
+- валидирует CIP‑конверты,
+- выполняет handshake,
+- обновляет TrustFSM,
+- маршрутизирует сообщения через ProtocolRouter,
+- интегрируется в AgentLoop.
+
+Этот issue формализует полный объём работ.
 
 ## Цель
-Построить рабочий CIP‑runtime, который:
-- использует Rust‑транспорт (RTT);
-- валидирует CIP‑envelope по спецификации;
-- выполняет handshake и TrustFSM‑гейтинг;
-- маршрутизирует сообщения через ProtocolRouter;
-- интегрируется в AgentLoop;
-- имеет интеграционные тесты и smoke‑test CLI.
+Создать полностью рабочий CIP‑runtime, включающий:
 
-## Область работ (Scope)
-1. **CIP envelope builder**
-   - canonical JSON;
-   - подпись, верификация подписи;
-   - проверка fingerprint;
-   - проверка timestamp;
-   - проверка msg_id;
-   - формирование envelope‑метаданных.
+- envelope builder + canonical JSON + подписи,
+- envelope validator + error‑model,
+- handshake runtime (HELLO → VERIFY → TRUST GATE → STATE_UPDATE → INTENT),
+- интеграцию с Rust‑транспортом,
+- интеграцию с ProtocolRouter,
+- интеграционные тесты,
+- smoke‑test CLI.
 
-2. **CIP envelope validator**
-   - структура и обязательные поля;
-   - тип сообщения и trust‑state;
-   - state‑block;
-   - payload‑schema;
-   - нормализация и отказоустойчивые ошибки.
+## 📦 Scope (область работ)
 
-3. **CIP handshake runtime**
-   - HELLO → HELLO;
-   - VERIFY → TRUST GATE;
-   - STATE_UPDATE;
-   - INTENT;
-   - интеграция с TrustFSM.
+### 1. CIP Envelope Builder
+Реализовать модуль, который создаёт корректный CIP‑конверт.
 
-4. **Интеграция с Rust‑транспортом**
-   - Python binding: `open_channel("control")`;
-   - отправка/получение envelope;
-   - decode → validate → route;
-   - контроль ошибок и retry‑политики.
+**Требования**
+- canonical JSON (`sort_keys=True`, `separators=(",", ":")`)
+- подпись Ed25519 (подписывается envelope без блока `sign`)
+- верификация подписи
+- проверка fingerprint ↔ pubkey
+- проверка timestamp (±120 секунд)
+- проверка msg_id (UUID v4)
+- автоматическое заполнение:
+  - `cip: "1.0"`
+  - `timestamp`
+  - `msg_id`
+  - `sender`
+  - `trust.sender_view`
 
-5. **Интеграция в ProtocolRouter**
-   - CIP → TrustFSM;
-   - CIP → StateUpdate;
-   - CIP → DMP‑trace;
-   - CIP → Knowledge Exchange.
-
-6. **Интеграционные тесты**
-   - handshake;
-   - state update;
-   - fact propose → confirm;
-   - trust transitions.
-
-7. **Smoke‑test CLI**
-   - `python scripts/cip_demo.py`;
-   - базовый маршрут: open → hello → verify → intent.
-
-## Acceptance Criteria
-- [ ] Envelope builder создаёт канонический JSON и подпись, пригодную для верификации на стороне runtime.
-- [ ] Validator отклоняет некорректные CIP‑конверты с диагностируемыми ошибками.
-- [ ] Handshake реализует полный маршрут HELLO → VERIFY → TRUST GATE → STATE_UPDATE → INTENT.
-- [ ] ProtocolRouter маршрутизирует валидные CIP‑сообщения в соответствующие подсистемы.
-- [ ] RTT канал используется для send/receive сообщений CIP.
-- [ ] Интеграционные тесты покрывают handshake и trust‑переходы.
-- [ ] `scripts/cip_demo.py` проходит без ошибок на локальной среде.
-
-## Предлагаемая структура файлов
-> Пример: подстройте под фактическую структуру репозитория.
-
-- `python/cip/envelope.py`
-- `python/cip/validator.py`
-- `python/cip/handshake.py`
-- `python/cip/runtime.py`
-- `python/cip/router_adapter.py`
-- `scripts/cip_demo.py`
-- `tests/integration/test_cip_handshake.py`
-- `tests/integration/test_cip_trust_transitions.py`
-
-## Скелет API (черновик)
-```python
-class CIPEnvelope:
-    def build(self, payload: dict, metadata: dict) -> dict:
-        """Create canonical JSON envelope and sign it."""
-
-class CIPValidator:
-    def validate(self, envelope: dict) -> None:
-        """Raise on invalid structure/signature/state."""
-
-class CIPHandshakeRuntime:
-    def run(self, channel) -> None:
-        """Perform HELLO → VERIFY → TRUST GATE → STATE_UPDATE → INTENT."""
-
-class CIPRuntime:
-    def open(self, transport, channel_name: str = "control") -> None:
-        """Open RTT channel and start runtime loop."""
+**Минимальная схема envelope (нормативная)**
+```json
+{
+  "cip": "1.0",
+  "msg_id": "uuid",
+  "type": "HELLO | INTENT | FACTPROPOSE | FACTCHALLENGE | FACTCONFIRM | FACTREJECT | DECISIONSHARE | STATEUPDATE",
+  "timestamp": "RFC3339",
+  "sender": {
+    "agent_id": "string",
+    "fingerprint": "hex",
+    "capabilities": ["string"],
+    "pubkey": "base64"
+  },
+  "receiver": {
+    "agent_id": "string",
+    "fingerprint": "hex"
+  },
+  "trust": {
+    "sender_view": "untrusted | probing | trusted | blacklisted",
+    "receiver_view": "unknown | untrusted | probing | trusted | blacklisted"
+  },
+  "state": {
+    "presence": "focused | diffuse | overloaded | engaged",
+    "lri": 0,
+    "kernel_signals": ["string"],
+    "intent": "string"
+  },
+  "payload": {},
+  "sign": {
+    "algo": "ed25519",
+    "signature": "base64"
+  }
+}
 ```
 
-## Тест‑план (черновик)
-- **Handshake**: имитация обмена HELLO и VERIFY; проверка TrustFSM‑переходов.
-- **State Update**: отправка валидного state‑block и проверка маршрутизации.
-- **Fact propose/confirm**: проверка соответствия payload‑schema и state‑изменений.
-- **Routing**: проверка маршрута CIP → Router → DMP/Knowledge Exchange.
+### 2. CIP Envelope Validator
+Реализовать строгий валидатор.
 
-## Риски и зависимости
-- Зависимость от готовности RTT Python binding.
-- Требуется актуальная спецификация CIP‑envelope и TrustFSM.
-- Необходима синхронизация с ProtocolRouter интерфейсом.
+**Проверки**
+- структура envelope
+- обязательные поля
+- корректность типов
+- корректность trust‑state
+- корректность state‑блока
+- корректность payload‑schema
+- подпись
+- timestamp
+- msg_id
+
+**Error‑model**
+```python
+class InvalidEnvelopeError(Exception): ...
+class SignatureMismatchError(Exception): ...
+class TimestampError(Exception): ...
+class TrustViolationError(Exception): ...
+class PayloadSchemaError(Exception): ...
+class TransportError(Exception): ...
+```
+
+### 3. CIP Handshake Runtime
+
+**FSM (нормативная)**
+```
+A → B: HELLO (nonce, challenge)
+B → A: HELLO (nonce, signed_challenge)
+A → B: VERIFY (signature, fingerprint)
+A → B: STATE_UPDATE (presence, lri)
+A → B: INTENT (goal)
+```
+
+**Требования**
+- проверка challenge‑response
+- проверка fingerprint
+- TrustFSM переходы:
+  - untrusted → probing
+  - probing → trusted (после VERIFY)
+- отправка первого STATE_UPDATE
+- отправка INTENT
+
+### 4. Интеграция с Rust‑транспортом (RTT)
+
+**RTT API (Python binding)**
+```python
+channel = transport.open_channel("control")
+transport.send(channel, bytes)
+raw = transport.receive(channel)
+```
+
+**Требования**
+- encode envelope → bytes
+- decode bytes → envelope
+- validate → route
+- retry‑политика при ошибках транспорта
+- graceful shutdown
+
+### 5. Интеграция в ProtocolRouter
+
+**Маршруты**
+- HELLO → handshake runtime
+- VERIFY → TrustFSM
+- STATE_UPDATE → Agent state
+- FACT_PROPOSE → Knowledge Exchange
+- FACT_CONFIRM → DMP‑trace
+- FACT_REJECT → dispute handling
+- INTENT → intent‑router
+
+### 6. Интеграционные тесты
+
+**Тесты**
+- handshake end‑to‑end
+- trust transitions
+- state update
+- fact propose → confirm
+- routing correctness
+
+### 7. Smoke‑test CLI
+
+**Файл:** `scripts/cip_demo.py`
+
+**Поведение**
+- запускает RTT
+- открывает канал
+- выполняет HELLO → VERIFY → INTENT
+- выводит лог шагов
+
+## 📁 Предлагаемая структура файлов
+
+```
+python/cip/envelope.py
+python/cip/validator.py
+python/cip/handshake.py
+python/cip/runtime.py
+python/cip/router_adapter.py
+scripts/cip_demo.py
+tests/integration/testciphandshake.py
+tests/integration/testciptrust_transitions.py
+```
+
+## 🧪 Тест‑план
+
+**Handshake**
+- A и B обмениваются HELLO
+- A валидирует challenge‑response
+- TrustFSM: untrusted → probing → trusted
+
+**State Update**
+- отправка state‑блока
+- обновление состояния агента
+
+**Fact propose/confirm**
+- проверка payload‑schema
+- проверка DMP‑trace
+
+**Routing**
+- CIP → Router → subsystem
+
+## ⚠️ Риски и зависимости
+- Требуется готовый RTT Python binding
+- Требуется актуальная спецификация CIP
+- Требуется синхронизация с ProtocolRouter API
