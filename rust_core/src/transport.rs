@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 #[pyclass]
 #[derive(Clone)]
@@ -50,6 +51,13 @@ pub struct TransportHandle {
     next_id: AtomicU64,
     channels: Mutex<HashMap<u64, ChannelKind>>,
     queues: Mutex<HashMap<u64, VecDeque<Vec<u8>>>>,
+    sessions: Mutex<HashMap<u64, PeerSession>>,
+}
+
+struct PeerSession {
+    peer_id: String,
+    created_at: Instant,
+    last_heartbeat: Instant,
 }
 
 #[pymethods]
@@ -61,6 +69,7 @@ impl TransportHandle {
             next_id: AtomicU64::new(1),
             channels: Mutex::new(HashMap::new()),
             queues: Mutex::new(HashMap::new()),
+            sessions: Mutex::new(HashMap::new()),
         }
     }
 
@@ -92,6 +101,51 @@ impl TransportHandle {
             .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
         queues.insert(channel_id, VecDeque::new());
         Ok(channel_id)
+    }
+
+    fn create_session(&self, peer_id: &str) -> PyResult<u64> {
+        let session_id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        let now = Instant::now();
+        let mut sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+        sessions.insert(
+            session_id,
+            PeerSession {
+                peer_id: peer_id.to_string(),
+                created_at: now,
+                last_heartbeat: now,
+            },
+        );
+        Ok(session_id)
+    }
+
+    fn handshake(&self, session_id: u64, challenge: &[u8]) -> PyResult<Vec<u8>> {
+        let mut sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+        let session = sessions
+            .get_mut(&session_id)
+            .ok_or_else(|| PyValueError::new_err("unknown session"))?;
+        session.last_heartbeat = Instant::now();
+        Ok(challenge.to_vec())
+    }
+
+    fn heartbeat(&self, session_id: u64) -> PyResult<bool> {
+        let mut sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+        let session = sessions
+            .get_mut(&session_id)
+            .ok_or_else(|| PyValueError::new_err("unknown session"))?;
+        let now = Instant::now();
+        let timeout = Duration::from_millis(self.config.heartbeat_ms);
+        let alive = now.duration_since(session.last_heartbeat) <= timeout * 2;
+        session.last_heartbeat = now;
+        Ok(alive)
     }
 
     fn send(&self, channel: u64, payload: &[u8]) -> PyResult<()> {
@@ -146,6 +200,15 @@ impl TransportHandle {
             .lock()
             .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
         queues.remove(&channel);
+        Ok(())
+    }
+
+    fn close_session(&self, session_id: u64) -> PyResult<()> {
+        let mut sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+        sessions.remove(&session_id);
         Ok(())
     }
 }
