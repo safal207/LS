@@ -41,7 +41,8 @@
 - ✅ Add a small integration test that creates a session, opens channels, sends/receives, and asserts queue limits.
 - ✅ Expand RTT demo with a queue-limit scenario and documented expected failures.
 - ✅ Add a transport-configurable test that asserts queue limit behavior with a small depth.
-- Add a minimal RTT→CIP envelope roundtrip demo.
+- ✅ Add a minimal RTT→CIP envelope roundtrip demo.
+- Add a router-backed RTT demo that validates and dispatches CIP messages.
 
 ## Related roadmap documents
 - `ROADMAP_2025_2026.md` — long-term evolution phases for the cognitive system.
