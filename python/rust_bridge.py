@@ -244,12 +244,28 @@ class RustOptimizer:
                 logger.error(f"Rust Transport channel_info error: {e}")
         return None
 
+    def channel_stats(self, channel: int):
+        if self.transport_available():
+            try:
+                return self.transport.channel_stats(channel)
+            except Exception as e:
+                logger.error(f"Rust Transport channel_stats error: {e}")
+        return None
+
     def list_channels(self):
         if self.transport_available():
             try:
                 return self.transport.list_channels()
             except Exception as e:
                 logger.error(f"Rust Transport list_channels error: {e}")
+        return []
+
+    def list_channel_stats(self):
+        if self.transport_available():
+            try:
+                return self.transport.list_channel_stats()
+            except Exception as e:
+                logger.error(f"Rust Transport list_channel_stats error: {e}")
         return []
 
     def prune_sessions(self) -> int:

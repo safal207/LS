@@ -73,10 +73,14 @@ pub struct TransportHandle {
     sessions: Mutex<HashMap<u64, PeerSession>>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct ChannelInfo {
     kind: ChannelKind,
     session_id: Option<u64>,
+    sent_count: u64,
+    recv_count: u64,
+    sent_bytes: u64,
+    recv_bytes: u64,
 }
 
 struct PeerSession {
@@ -143,6 +147,10 @@ impl TransportHandle {
             ChannelInfo {
                 kind: channel_kind,
                 session_id,
+                sent_count: 0,
+                recv_count: 0,
+                sent_bytes: 0,
+                recv_bytes: 0,
             },
         );
         let mut queues = self
@@ -292,6 +300,14 @@ impl TransportHandle {
                 return Err(PyValueError::new_err("channel queue full"));
             }
             queue.push_back(payload.to_vec());
+            let mut channels = self
+                .channels
+                .lock()
+                .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+            if let Some(info) = channels.get_mut(&channel) {
+                info.sent_count = info.sent_count.saturating_add(1);
+                info.sent_bytes = info.sent_bytes.saturating_add(payload.len() as u64);
+            }
             Ok(())
         } else {
             Err(PyValueError::new_err("channel queue missing"))
@@ -324,7 +340,18 @@ impl TransportHandle {
             .lock()
             .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
         if let Some(queue) = queues.get_mut(&channel) {
-            Ok(queue.pop_front().unwrap_or_default())
+            let payload = queue.pop_front().unwrap_or_default();
+            if !payload.is_empty() {
+                let mut channels = self
+                    .channels
+                    .lock()
+                    .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+                if let Some(info) = channels.get_mut(&channel) {
+                    info.recv_count = info.recv_count.saturating_add(1);
+                    info.recv_bytes = info.recv_bytes.saturating_add(payload.len() as u64);
+                }
+            }
+            Ok(payload)
         } else {
             Err(PyValueError::new_err("channel queue missing"))
         }
@@ -421,6 +448,43 @@ impl TransportHandle {
         Ok((info.kind.as_str().to_string(), info.session_id))
     }
 
+    fn channel_stats(
+        &self,
+        channel: u64,
+    ) -> PyResult<(String, Option<u64>, usize, u64, u64, u64, u64)> {
+        let channels = self
+            .channels
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+        let info = channels
+            .get(&channel)
+            .ok_or_else(|| PyValueError::new_err("unknown channel"))?;
+        let kind = info.kind.as_str().to_string();
+        let session_id = info.session_id;
+        let sent_count = info.sent_count;
+        let recv_count = info.recv_count;
+        let sent_bytes = info.sent_bytes;
+        let recv_bytes = info.recv_bytes;
+        drop(channels);
+        let queues = self
+            .queues
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
+        let queue_len = queues
+            .get(&channel)
+            .map(|queue| queue.len())
+            .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
+        Ok((
+            kind,
+            session_id,
+            queue_len,
+            sent_count,
+            recv_count,
+            sent_bytes,
+            recv_bytes,
+        ))
+    }
+
     fn list_channels(&self) -> PyResult<Vec<(u64, String, Option<u64>)>> {
         let channels = self
             .channels
@@ -429,6 +493,32 @@ impl TransportHandle {
         let mut snapshot = Vec::with_capacity(channels.len());
         for (channel_id, info) in channels.iter() {
             snapshot.push((*channel_id, info.kind.as_str().to_string(), info.session_id));
+        }
+        Ok(snapshot)
+    }
+
+    fn list_channel_stats(&self) -> PyResult<Vec<(u64, String, Option<u64>, usize, u64, u64, u64, u64)>> {
+        let channels = self
+            .channels
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+        let queues = self
+            .queues
+            .lock()
+            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
+        let mut snapshot = Vec::with_capacity(channels.len());
+        for (channel_id, info) in channels.iter() {
+            let queue_len = queues.get(channel_id).map(|queue| queue.len()).unwrap_or(0);
+            snapshot.push((
+                *channel_id,
+                info.kind.as_str().to_string(),
+                info.session_id,
+                queue_len,
+                info.sent_count,
+                info.recv_count,
+                info.sent_bytes,
+                info.recv_bytes,
+            ));
         }
         Ok(snapshot)
     }
