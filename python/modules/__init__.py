@@ -47,6 +47,20 @@ from .orientation import (
     OrientationSignals,
 )
 from .trajectory import TrajectoryLayer, TrajectoryPoint
+from .web4_runtime import (
+    AgentLoopAdapter,
+    CipRuntime,
+    HcpRuntime,
+    HcpPolicy,
+    LipRuntime,
+    ObservabilityHub,
+    ObservabilityEvent,
+    Web4ProtocolRouter,
+    RttConfig,
+    RttSession,
+    BackpressureError,
+    DisconnectedError,
+)
 
 __all__ = [
     "AgentLoop",
@@ -92,4 +106,16 @@ __all__ = [
     "OrientationSignals",
     "TrajectoryLayer",
     "TrajectoryPoint",
+    "AgentLoopAdapter",
+    "CipRuntime",
+    "HcpRuntime",
+    "HcpPolicy",
+    "LipRuntime",
+    "ObservabilityHub",
+    "ObservabilityEvent",
+    "Web4ProtocolRouter",
+    "RttConfig",
+    "RttSession",
+    "BackpressureError",
+    "DisconnectedError",
 ]

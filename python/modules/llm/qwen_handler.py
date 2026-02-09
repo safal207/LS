@@ -8,8 +8,8 @@ import requests
 import json
 import logging
 from typing import Optional
-from config import OLLAMA_HOST, LLM_MODEL_NAME
-from llm.errors import (
+from ..config import OLLAMA_HOST, LLM_MODEL_NAME
+from .errors import (
     LLMEmptyResponseError,
     LLMInvalidFormatError,
     LLMProviderError,

@@ -11,11 +11,11 @@ import logging
 import queue
 import threading
 from typing import Optional, Dict
-from llm.breaker import CircuitBreaker, CircuitOpenError
-from llm.cot_adapter import COTAdapter
-from llm.errors import LLMEmptyResponseError, LLMInvalidFormatError, as_llm_error
-from llm.qwen_handler import QwenHandler
-from config import (
+from .breaker import CircuitBreaker, CircuitOpenError
+from .cot_adapter import COTAdapter
+from .errors import LLMEmptyResponseError, LLMInvalidFormatError, as_llm_error
+from .qwen_handler import QwenHandler
+from ..config import (
     OLLAMA_HOST,
     LLM_MODEL_NAME,
     SYSTEM_PROMPT,
