@@ -1,5 +1,9 @@
 import pytest
-from ghostgpt_core import Web4RttBinding
+
+try:
+    from ghostgpt_core import Web4RttBinding
+except ImportError:
+    pytest.skip("Rust binding not built", allow_module_level=True)
 
 def test_rust_rtt_lifecycle() -> None:
     rtt = Web4RttBinding(10)
