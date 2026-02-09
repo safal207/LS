@@ -5,9 +5,9 @@ import threading
 import time
 from typing import Any, Callable, Optional
 
-from python.modules.llm.temporal import TemporalContext
-from python.modules.cognitive_flow import CognitiveFlow, PresenceState, TransitionEngine
-from python.modules.cognitive_flow.liminal import is_liminal_phase
+from ..llm.temporal import TemporalContext
+from ..cognitive_flow import CognitiveFlow, PresenceState, TransitionEngine
+from ..cognitive_flow.liminal import is_liminal_phase
 
 from .event_schema import build_observability_event
 from .events import AgentEvent, EventType

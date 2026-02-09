@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from typing import Any, Deque, Dict, List
 from collections import deque
 
-from python.modules.protocols.lip import LipIdentity, LipSource, build_envelope, validate_envelope
-from python.modules.protocols.trust import TrustState
+from ..protocols.lip import LipIdentity, LipSource, build_envelope, validate_envelope
+from ..protocols.trust import TrustState
 
 
 @dataclass

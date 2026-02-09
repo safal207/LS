@@ -1,8 +1,8 @@
-from python.modules.web4_bio.agent_roles import AgentRoles
-from python.modules.web4_bio.epigenesis import EpigenesisPrinciples
-from python.modules.web4_bio.models import BioAdaptiveEdge, BioAdaptiveNode, EpigenesisModel, MorphogenesisModel, TeleogenesisModel
-from python.modules.web4_bio.morphogenesis import MorphogenesisPrinciples
-from python.modules.web4_bio.teleogenesis import TeleogenesisPrinciples
+from modules.web4_bio.agent_roles import AgentRoles
+from modules.web4_bio.epigenesis import EpigenesisPrinciples
+from modules.web4_bio.models import BioAdaptiveEdge, BioAdaptiveNode, EpigenesisModel, MorphogenesisModel, TeleogenesisModel
+from modules.web4_bio.morphogenesis import MorphogenesisPrinciples
+from modules.web4_bio.teleogenesis import TeleogenesisPrinciples
 
 
 def test_morphogenesis_principles() -> None:

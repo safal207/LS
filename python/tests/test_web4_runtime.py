@@ -2,17 +2,17 @@ import queue
 
 import pytest
 
-from python.modules.agent.loop import AgentLoop
-from python.modules.protocols.cip import CipIdentity, CipState, build_envelope
-from python.modules.protocols.hcp import HcpHumanState, HcpIdentity
-from python.modules.protocols.lip import LipIdentity, LipSource
-from python.modules.protocols.trust import TrustFSM, TrustState
-from python.modules.web4_runtime.agent_integration import AgentLoopAdapter
-from python.modules.web4_runtime.cip_runtime import CipRuntime
-from python.modules.web4_runtime.hcp_runtime import HcpRuntime, HcpPolicy
-from python.modules.web4_runtime.lip_runtime import LipRuntime
-from python.modules.web4_runtime.protocol_router import Web4ProtocolRouter
-from python.modules.web4_runtime.rtt import BackpressureError, DisconnectedError, RttConfig, RttSession
+from modules.agent.loop import AgentLoop
+from modules.protocols.cip import CipIdentity, CipState, build_envelope
+from modules.protocols.hcp import HcpHumanState, HcpIdentity
+from modules.protocols.lip import LipIdentity, LipSource
+from modules.protocols.trust import TrustFSM, TrustState
+from modules.web4_runtime.agent_integration import AgentLoopAdapter
+from modules.web4_runtime.cip_runtime import CipRuntime
+from modules.web4_runtime.hcp_runtime import HcpRuntime, HcpPolicy
+from modules.web4_runtime.lip_runtime import LipRuntime
+from modules.web4_runtime.protocol_router import Web4ProtocolRouter
+from modules.web4_runtime.rtt import BackpressureError, DisconnectedError, RttConfig, RttSession
 
 
 def test_rtt_backpressure_and_reconnect() -> None:

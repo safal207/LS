@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from python.modules.protocols.cip import CipIdentity, CipState, build_envelope, validate_envelope
-from python.modules.protocols.trust import TrustFSM, TrustTransition
+from ..protocols.cip import CipIdentity, CipState, build_envelope, validate_envelope
+from ..protocols.trust import TrustFSM, TrustTransition
 
 
 @dataclass

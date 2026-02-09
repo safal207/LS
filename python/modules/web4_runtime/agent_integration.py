@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from python.modules.agent.loop import AgentLoop
+from ..agent.loop import AgentLoop
 from .observability import ObservabilityHub
 from .protocol_router import Web4ProtocolRouter
 

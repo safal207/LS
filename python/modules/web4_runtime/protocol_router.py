@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from python.modules.protocols.router import ProtocolRouter, RouterResult
-from python.modules.protocols.trust import TrustTransition
+from ..protocols.router import ProtocolRouter, RouterResult
+from ..protocols.trust import TrustTransition
 from .cip_runtime import CipRuntime
 from .hcp_runtime import HcpRuntime
 from .lip_runtime import LipRuntime

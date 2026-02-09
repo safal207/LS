@@ -1,11 +1,11 @@
 import pytest
 
-from python.modules.web4_mesh.mesh_envelope import MeshEnvelope
-from python.modules.web4_mesh.mesh_rtt import MeshRttConfig, MeshRttSession, MeshBackpressureError, MeshDisconnectedError
-from python.modules.web4_mesh.observability_mesh import MeshObservabilityHub
-from python.modules.web4_mesh.peers import Peer, PeerRegistry
-from python.modules.web4_mesh.router import MeshForwardingPolicy, MeshRouter
-from python.modules.web4_mesh.trust_mesh import DistributedTrustFSM, TrustLevel
+from modules.web4_mesh.mesh_envelope import MeshEnvelope
+from modules.web4_mesh.mesh_rtt import MeshRttConfig, MeshRttSession, MeshBackpressureError, MeshDisconnectedError
+from modules.web4_mesh.observability_mesh import MeshObservabilityHub
+from modules.web4_mesh.peers import Peer, PeerRegistry
+from modules.web4_mesh.router import MeshForwardingPolicy, MeshRouter
+from modules.web4_mesh.trust_mesh import DistributedTrustFSM, TrustLevel
 
 
 def test_mesh_router_routing() -> None:

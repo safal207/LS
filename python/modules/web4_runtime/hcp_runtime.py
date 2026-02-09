@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict
 
-from python.modules.protocols.hcp import HcpHumanState, HcpIdentity, build_envelope, validate_envelope
+from ..protocols.hcp import HcpHumanState, HcpIdentity, build_envelope, validate_envelope
 
 
 @dataclass(frozen=True)

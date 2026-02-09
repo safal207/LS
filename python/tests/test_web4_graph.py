@@ -1,9 +1,9 @@
-from python.modules.web4_graph.edge import GraphEdge
-from python.modules.web4_graph.graph_observability import GraphObservabilityHub
-from python.modules.web4_graph.graph_validator import Graph
-from python.modules.web4_graph.node import GraphNode
-from python.modules.web4_graph.routing_rules import RoutingPolicy, next_hop
-from python.modules.web4_graph.trust_graph import GraphTrustFSM, GraphTrustLevel
+from modules.web4_graph.edge import GraphEdge
+from modules.web4_graph.graph_observability import GraphObservabilityHub
+from modules.web4_graph.graph_validator import Graph
+from modules.web4_graph.node import GraphNode
+from modules.web4_graph.routing_rules import RoutingPolicy, next_hop
+from modules.web4_graph.trust_graph import GraphTrustFSM, GraphTrustLevel
 
 
 def test_graph_trust_transitions() -> None:
