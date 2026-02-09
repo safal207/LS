@@ -2,7 +2,7 @@
 
 ## Entry Point & Inputs
 
-- Primary milestone file: `docs/CIP_RUNTIME_INTEGRATION_ISSUE.md` (requested in spec; **not present in repo** at time of execution).  
+- Primary milestone file: `docs/CIPRUNTIMEINTEGRATION_ISSUE.md`.  
 - Generator contract: `WEB4EXECUTIONPLAN_GENERATOR.md`.  
 - Supplemental specs used: `docs/CIP_SPEC.md`, `docs/HCP_SPEC.md`, `docs/LIP_SPEC.md`.  
 
@@ -56,7 +56,6 @@
 
 ## Risks & Mitigations
 
-- **Missing CIP runtime issue file**: noted; used available specs instead. (Action: add the missing file or update generator if renamed.)
 - **CI lint/type-check scope**: restrict to new Web4 modules to avoid breaking existing code.
 
 ## Done Criteria

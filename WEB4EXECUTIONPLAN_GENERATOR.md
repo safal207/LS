@@ -1,7 +1,7 @@
 # WEB4EXECUTIONPLAN_GENERATOR.md — Autonomous Milestone Executor (Final)
 
 ## 🎯 Назначение
-Codex должен начать с чтения `docs/CIP_RUNTIME_INTEGRATION_ISSUE.md` и затем выполнить все шаги из этого файла.
+Codex должен начать с чтения `docs/CIPRUNTIMEINTEGRATION_ISSUE.md` и затем выполнить все шаги из этого файла.
 
 Этот документ определяет задание для Codex‑агента, который должен действовать как полностью автономный архитектор и исполнитель Web4 Runtime Milestone.
 
@@ -36,7 +36,7 @@ Codex должен выполнять milestone самостоятельно, б
 Codex должен:
 
 1. Прочитать milestone:
-   - `docs/CIP_RUNTIME_INTEGRATION_ISSUE.md`
+   - `docs/CIPRUNTIMEINTEGRATION_ISSUE.md`
    - `WEB4EXECUTIONPLAN_GENERATOR.md`
 
 2. Построить полный execution‑plan, включающий:
@@ -110,12 +110,12 @@ Codex должен:
 > Задание:  
 > Ты — автономный архитектор и исполнитель.  
 > 1. Прочитай файлы:  
->    - `docs/CIP_RUNTIME_INTEGRATION_ISSUE.md`  
+>    - `docs/CIPRUNTIMEINTEGRATION_ISSUE.md`  
 >    - `WEB4EXECUTIONPLAN_GENERATOR.md`  
 > 2. На основе этих документов:  
 >    - Построй `execution-plan.md` в корне репозитория (детальный план выполнения milestone).  
 >    - Разбей milestone на под‑issues (RTT, CIP, HCP, LIP, ProtocolRouter, TrustFSM, AgentLoop, Observability, Tests, CLI Tools) и опиши их в `execution-plan.md` отдельными секциями.  
->    - Создай scaffolding кода и директорий, как описано в `docs/CIP_RUNTIME_INTEGRATION_ISSUE.md`.  
+>    - Создай scaffolding кода и директорий, как описано в `docs/CIPRUNTIMEINTEGRATION_ISSUE.md`.  
 >    - Реализуй минимально рабочие версии RTT, CIP Runtime, HCP Runtime, LIP Runtime, ProtocolRouter, TrustFSM и их интеграцию с AgentLoop.  
 >    - Добавь интеграционные тесты и unit‑тесты, описанные в обоих документах.  
 >    - Добавь CLI‑демо `scripts/web4_demo.py` и `scripts/web4_mesh_demo.py`.  
@@ -174,7 +174,7 @@ Codex должен предоставить:
 
 Codex должен использовать:
 
-- `docs/CIP_RUNTIME_INTEGRATION_ISSUE.md`
+- `docs/CIPRUNTIMEINTEGRATION_ISSUE.md`
 - спецификации CIP/HCP/LIP
 - существующий код LS
 
