@@ -1,6 +1,7 @@
 name: Web4 Runtime CI
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - "python/modules/web4_runtime/**"
@@ -50,7 +51,10 @@ jobs:
       - name: Install Python tooling
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest ruff mypy requests PyYAML
+          python -m pip install pytest ruff mypy requests PyYAML maturin setuptools wheel
+
+      - name: Set PyO3 Python
+        run: echo "PYO3_PYTHON=$(which python3.11)" >> $GITHUB_ENV
 
       - name: Lint (ruff)
         run: |
@@ -68,7 +72,17 @@ jobs:
         run: |
           PYTHONPATH=. pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
 
-      - name: Rust build
+      - name: Build Rust extension (PyO3)
         working-directory: rust_core
         run: |
-          cargo build
+          maturin build --release --interpreter python3.11
+          python -m pip install target/wheels/*.whl
+
+      - name: Rust tests
+        working-directory: rust_core
+        run: |
+          cargo test
+
+      - name: Python tests for Rust binding
+        run: |
+          PYTHONPATH=. pytest python/tests/benchmark_rust.py
