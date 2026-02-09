@@ -55,3 +55,34 @@ impl Web4RttBinding {
         self.queue.len()
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::Web4RttBinding;
+
+    #[test]
+    fn send_receive_roundtrip() {
+        let mut binding = Web4RttBinding::new(2);
+        binding.send("hello".to_string()).unwrap();
+        assert_eq!(binding.receive(), Some("hello".to_string()));
+    }
+
+    #[test]
+    fn backpressure_rejects_when_full() {
+        let mut binding = Web4RttBinding::new(1);
+        binding.send("first".to_string()).unwrap();
+        let err = binding.send("second".to_string()).unwrap_err();
+        assert!(err.to_string().contains("backpressure"));
+    }
+
+    #[test]
+    fn reconnect_restores_sends() {
+        let mut binding = Web4RttBinding::new(2);
+        binding.disconnect();
+        assert!(binding.send("offline".to_string()).is_err());
+        binding.connect();
+        binding.send("online".to_string()).unwrap();
+        assert_eq!(binding.receive(), Some("online".to_string()));
+    }
+}

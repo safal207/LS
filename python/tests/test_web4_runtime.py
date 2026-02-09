@@ -88,3 +88,25 @@ def test_agent_loop_integration() -> None:
     result = adapter.handle_envelope(envelope)
     assert result["handled"] is True
     assert output.get(timeout=1) == "echo:{'handshake': 'hello'}"
+
+
+def test_rust_web4_rtt_binding() -> None:
+    ghostgpt_core = pytest.importorskip("ghostgpt_core")
+    Web4RttBinding = ghostgpt_core.Web4RttBinding
+
+    binding = Web4RttBinding(1)
+    binding.send("first")
+    assert binding.receive() == "first"
+
+    binding.send("buffered")
+    with pytest.raises(RuntimeError):
+        binding.send("overflow")
+
+    binding.disconnect()
+    with pytest.raises(RuntimeError):
+        binding.send("offline")
+    assert binding.receive() is None
+
+    binding.connect()
+    binding.send("reconnected")
+    assert binding.receive() == "reconnected"

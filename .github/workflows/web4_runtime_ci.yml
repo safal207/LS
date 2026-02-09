@@ -50,7 +50,7 @@ jobs:
       - name: Install Python tooling
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest ruff mypy requests PyYAML
+          python -m pip install pytest ruff mypy requests PyYAML maturin
 
       - name: Lint (ruff)
         run: |
@@ -72,3 +72,13 @@ jobs:
         working-directory: rust_core
         run: |
           cargo build
+
+      - name: Rust tests
+        working-directory: rust_core
+        run: |
+          cargo test
+
+      - name: Build Python bindings
+        working-directory: rust_core
+        run: |
+          maturin build --release
