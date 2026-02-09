@@ -32,9 +32,18 @@ class Web4ProtocolRouter:
         self._register_runtime_handlers()
 
     def _register_runtime_handlers(self) -> None:
-        self._router.on("HELLO", lambda env: self._cip.handle_envelope(env))
-        self._router.on("HUMAN_STATE", lambda env: self._hcp.handle_envelope(env))
-        self._router.on("SOURCE_UPDATE", lambda env: self._lip.defer_if_untrusted(env, self._cip.trust_fsm.state))
+        def _handle_hello(env: Dict[str, Any]) -> None:
+            self._cip.handle_envelope(env)
+
+        def _handle_human(env: Dict[str, Any]) -> None:
+            self._hcp.handle_envelope(env)
+
+        def _handle_source(env: Dict[str, Any]) -> None:
+            self._lip.defer_if_untrusted(env, self._cip.trust_fsm.state)
+
+        self._router.on("HELLO", _handle_hello)
+        self._router.on("HUMAN_STATE", _handle_human)
+        self._router.on("SOURCE_UPDATE", _handle_source)
 
     def dispatch(self, envelope: Dict[str, Any]) -> Web4DispatchResult:
         result = self._router.dispatch(envelope)

@@ -55,3 +55,33 @@ impl Web4RttBinding {
         self.queue.len()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rtt_send_receive() {
+        let mut rtt = Web4RttBinding::new(10);
+        assert!(rtt.send("hello".to_string()).is_ok());
+        assert_eq!(rtt.receive(), Some("hello".to_string()));
+        assert_eq!(rtt.receive(), None);
+    }
+
+    #[test]
+    fn test_rtt_backpressure() {
+        let mut rtt = Web4RttBinding::new(1);
+        rtt.send("one".to_string()).unwrap();
+        assert!(rtt.send("two".to_string()).is_err());
+    }
+
+    #[test]
+    fn test_rtt_disconnect() {
+        let mut rtt = Web4RttBinding::new(10);
+        rtt.disconnect();
+        assert!(rtt.send("fail".to_string()).is_err());
+        assert_eq!(rtt.receive(), None);
+        rtt.connect();
+        assert!(rtt.send("ok".to_string()).is_ok());
+    }
+}

@@ -1,25 +1,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import Tuple
 
 
 @dataclass(frozen=True)
 class MorphogenesisModel:
     description: str = "Structural evolution model"
-    signals: List[str] = field(default_factory=lambda: ["role_shift", "edge_strength", "topology_change"])
+    signals: Tuple[str, ...] = ("role_shift", "edge_strength", "topology_change")
 
 
 @dataclass(frozen=True)
 class EpigenesisModel:
     description: str = "Behavioral adaptation model"
-    signals: List[str] = field(default_factory=lambda: ["trust_transition", "routing_feedback", "observability"])
+    signals: Tuple[str, ...] = ("trust_transition", "routing_feedback", "observability")
 
 
 @dataclass(frozen=True)
 class TeleogenesisModel:
     description: str = "Goal-oriented evolution model"
-    goals: List[str] = field(default_factory=lambda: ["trust", "resilience", "human_support", "safety"])
+    goals: Tuple[str, ...] = ("trust", "resilience", "human_support", "safety")
 
 
 @dataclass(frozen=True)
