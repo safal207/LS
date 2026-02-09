@@ -58,7 +58,11 @@ jobs:
 
       - name: Type check (mypy)
         run: |
-          MYPYPATH=python mypy --explicit-package-bases python/modules/web4_runtime python/modules/web4_mesh python/modules/web4_graph python/modules/web4_bio
+          MYPYPATH=python mypy --explicit-package-bases \
+            -p python.modules.web4_runtime \
+            -p python.modules.web4_mesh \
+            -p python.modules.web4_graph \
+            -p python.modules.web4_bio
 
       - name: Run tests
         run: |
