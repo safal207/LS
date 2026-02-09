@@ -5,8 +5,10 @@ on:
     paths:
       - "python/modules/web4_runtime/**"
       - "python/modules/web4_mesh/**"
+      - "python/modules/web4_graph/**"
       - "python/tests/test_web4_runtime.py"
       - "python/tests/test_web4_mesh.py"
+      - "python/tests/test_web4_graph.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
       - "scripts/web4meshdemo.py"
@@ -18,8 +20,10 @@ on:
     paths:
       - "python/modules/web4_runtime/**"
       - "python/modules/web4_mesh/**"
+      - "python/modules/web4_graph/**"
       - "python/tests/test_web4_runtime.py"
       - "python/tests/test_web4_mesh.py"
+      - "python/tests/test_web4_graph.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
       - "scripts/web4meshdemo.py"
@@ -46,15 +50,15 @@ jobs:
 
       - name: Lint (ruff)
         run: |
-          ruff check python/modules/web4_runtime python/modules/web4_mesh scripts/web4_demo.py scripts/web4_mesh_demo.py scripts/web4meshdemo.py scripts/web4meshinspect.py scripts/web4meshtopology.py python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py
+          ruff check python/modules/web4_runtime python/modules/web4_mesh python/modules/web4_graph scripts/web4_demo.py scripts/web4_mesh_demo.py scripts/web4meshdemo.py scripts/web4meshinspect.py scripts/web4meshtopology.py python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py
 
       - name: Type check (mypy)
         run: |
-          mypy python/modules/web4_runtime python/modules/web4_mesh
+          mypy python/modules/web4_runtime python/modules/web4_mesh python/modules/web4_graph
 
       - name: Run tests
         run: |
-          pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py
+          pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py
 
       - name: Rust build
         working-directory: rust_core

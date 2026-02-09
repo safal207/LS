@@ -77,6 +77,19 @@ from .web4_mesh import (
     TrustLink,
     TrustLevel,
 )
+from .web4_graph import (
+    GraphEdge,
+    GraphObservabilityEvent,
+    GraphObservabilityHub,
+    Graph,
+    GraphNode,
+    RoutingPolicy,
+    should_route,
+    next_hop,
+    GraphTrustFSM,
+    GraphTrustLink,
+    GraphTrustLevel,
+)
 
 __all__ = [
     "AgentLoop",
@@ -148,4 +161,15 @@ __all__ = [
     "DistributedTrustFSM",
     "TrustLink",
     "TrustLevel",
+    "GraphEdge",
+    "GraphObservabilityEvent",
+    "GraphObservabilityHub",
+    "Graph",
+    "GraphNode",
+    "RoutingPolicy",
+    "should_route",
+    "next_hop",
+    "GraphTrustFSM",
+    "GraphTrustLink",
+    "GraphTrustLevel",
 ]
