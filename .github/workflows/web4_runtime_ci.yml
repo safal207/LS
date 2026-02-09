@@ -12,6 +12,7 @@ on:
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
       - "python/tests/test_web4_bio.py"
+      - "python/tests/test_rust_binding.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
       - "scripts/web4meshdemo.py"
@@ -29,6 +30,7 @@ on:
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
       - "python/tests/test_web4_bio.py"
+      - "python/tests/test_rust_binding.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
       - "scripts/web4meshdemo.py"
@@ -85,4 +87,4 @@ jobs:
 
       - name: Python tests for Rust binding
         run: |
-          PYTHONPATH=. python -c "import ghostgpt_core; from python.rust_bridge import RustOptimizer; print('rust binding ok:', RustOptimizer().available)"
+          PYTHONPATH=. pytest python/tests/test_rust_binding.py
