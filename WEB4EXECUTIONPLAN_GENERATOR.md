@@ -98,8 +98,8 @@ Codex должен:
    - event contract v1.0
 
 10. Создать CLI‑демо:
-    - `web4_demo.py`
-    - `web4meshdemo.py`
+    - `scripts/web4_demo.py`
+    - `scripts/web4meshdemo.py`
 
 11. Выполнить milestone полностью.
 
@@ -115,10 +115,10 @@ Codex должен:
 > 2. На основе этих документов:  
 >    - Построй `execution-plan.md` в корне репозитория (детальный план выполнения milestone).  
 >    - Разбей milestone на под‑issues (RTT, CIP, HCP, LIP, ProtocolRouter, TrustFSM, AgentLoop, Observability, Tests, CLI Tools) и опиши их в `execution-plan.md` отдельными секциями.  
->    - Создай scaffolding кода и директорий, как описано в `CIPRUNTIMEINTEGRATION_ISSUE.md`.  
+>    - Создай scaffolding кода и директорий, как описано в `docs/CIPRUNTIMEINTEGRATION_ISSUE.md`.  
 >    - Реализуй минимально рабочие версии RTT, CIP Runtime, HCP Runtime, LIP Runtime, ProtocolRouter, TrustFSM и их интеграцию с AgentLoop.  
 >    - Добавь интеграционные тесты и unit‑тесты, описанные в обоих документах.  
->    - Добавь CLI‑демо `scripts/web4demo.py` и `scripts/web4mesh_demo.py` (или `web4meshdemo.py`, но лучше унифицировать).  
+>    - Добавь CLI‑демо `scripts/web4_demo.py` и `scripts/web4meshdemo.py`.  
 >    - Настрой CI workflow, который гоняет линтеры, типизацию, юнит‑ и интеграционные тесты, а также сборку Rust+pyo3.  
 > 3. Считай задачу выполненной только тогда, когда:  
 >    - все тесты проходят локально,  
