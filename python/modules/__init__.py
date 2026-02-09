@@ -61,6 +61,22 @@ from .web4_runtime import (
     BackpressureError,
     DisconnectedError,
 )
+from .web4_mesh import (
+    MeshEnvelope,
+    MeshRttConfig,
+    MeshRttSession,
+    MeshBackpressureError,
+    MeshDisconnectedError,
+    MeshObservabilityEvent,
+    MeshObservabilityHub,
+    Peer,
+    PeerRegistry,
+    MeshRouter,
+    MeshForwardingPolicy,
+    DistributedTrustFSM,
+    TrustLink,
+    TrustLevel,
+)
 
 __all__ = [
     "AgentLoop",
@@ -118,4 +134,18 @@ __all__ = [
     "RttSession",
     "BackpressureError",
     "DisconnectedError",
+    "MeshEnvelope",
+    "MeshRttConfig",
+    "MeshRttSession",
+    "MeshBackpressureError",
+    "MeshDisconnectedError",
+    "MeshObservabilityEvent",
+    "MeshObservabilityHub",
+    "Peer",
+    "PeerRegistry",
+    "MeshRouter",
+    "MeshForwardingPolicy",
+    "DistributedTrustFSM",
+    "TrustLink",
+    "TrustLevel",
 ]

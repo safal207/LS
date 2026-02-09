@@ -4,17 +4,27 @@ on:
   push:
     paths:
       - "python/modules/web4_runtime/**"
+      - "python/modules/web4_mesh/**"
       - "python/tests/test_web4_runtime.py"
+      - "python/tests/test_web4_mesh.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
+      - "scripts/web4meshdemo.py"
+      - "scripts/web4meshinspect.py"
+      - "scripts/web4meshtopology.py"
       - "rust_core/**"
       - ".github/workflows/web4_runtime_ci.yml"
   pull_request:
     paths:
       - "python/modules/web4_runtime/**"
+      - "python/modules/web4_mesh/**"
       - "python/tests/test_web4_runtime.py"
+      - "python/tests/test_web4_mesh.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
+      - "scripts/web4meshdemo.py"
+      - "scripts/web4meshinspect.py"
+      - "scripts/web4meshtopology.py"
       - "rust_core/**"
       - ".github/workflows/web4_runtime_ci.yml"
 
@@ -36,15 +46,15 @@ jobs:
 
       - name: Lint (ruff)
         run: |
-          ruff check python/modules/web4_runtime scripts/web4_demo.py scripts/web4_mesh_demo.py python/tests/test_web4_runtime.py
+          ruff check python/modules/web4_runtime python/modules/web4_mesh scripts/web4_demo.py scripts/web4_mesh_demo.py scripts/web4meshdemo.py scripts/web4meshinspect.py scripts/web4meshtopology.py python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py
 
       - name: Type check (mypy)
         run: |
-          mypy python/modules/web4_runtime
+          mypy python/modules/web4_runtime python/modules/web4_mesh
 
       - name: Run tests
         run: |
-          pytest python/tests/test_web4_runtime.py
+          pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py
 
       - name: Rust build
         working-directory: rust_core
