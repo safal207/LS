@@ -1,11 +1,17 @@
-from .morphogenesis import MorphogenesisPrinciples
-from .epigenesis import EpigenesisPrinciples
-from .teleogenesis import TeleogenesisPrinciples
 from .agent_roles import AgentRoles
+from .epigenesis import EpigenesisPrinciples
+from .models import BioAdaptiveEdge, BioAdaptiveNode, EpigenesisModel, MorphogenesisModel, TeleogenesisModel
+from .morphogenesis import MorphogenesisPrinciples
+from .teleogenesis import TeleogenesisPrinciples
 
 __all__ = [
-    "MorphogenesisPrinciples",
-    "EpigenesisPrinciples",
-    "TeleogenesisPrinciples",
     "AgentRoles",
+    "EpigenesisPrinciples",
+    "MorphogenesisPrinciples",
+    "TeleogenesisPrinciples",
+    "MorphogenesisModel",
+    "EpigenesisModel",
+    "TeleogenesisModel",
+    "BioAdaptiveNode",
+    "BioAdaptiveEdge",
 ]

@@ -1,5 +1,6 @@
 from python.modules.web4_bio.agent_roles import AgentRoles
 from python.modules.web4_bio.epigenesis import EpigenesisPrinciples
+from python.modules.web4_bio.models import BioAdaptiveEdge, BioAdaptiveNode, EpigenesisModel, MorphogenesisModel, TeleogenesisModel
 from python.modules.web4_bio.morphogenesis import MorphogenesisPrinciples
 from python.modules.web4_bio.teleogenesis import TeleogenesisPrinciples
 
@@ -22,3 +23,19 @@ def test_teleogenesis_principles() -> None:
 def test_agent_roles() -> None:
     roles = AgentRoles()
     assert "guardian" in roles.roles
+
+
+def test_bio_models() -> None:
+    morph = MorphogenesisModel()
+    epi = EpigenesisModel()
+    telo = TeleogenesisModel()
+    assert "edge_strength" in morph.signals
+    assert "observability" in epi.signals
+    assert "human_support" in telo.goals
+
+
+def test_bio_adaptive_entities() -> None:
+    node = BioAdaptiveNode("node-a")
+    edge = BioAdaptiveEdge("edge-a-b")
+    assert node.node_id == "node-a"
+    assert edge.edge_id == "edge-a-b"

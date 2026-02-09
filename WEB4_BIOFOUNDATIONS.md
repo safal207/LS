@@ -96,8 +96,10 @@ Web4 поддерживает:
 
 ## 8) Связь с кодом
 
-Будущие концепты био‑слоя отражаются в модуле `python/modules/web4bio/`:
+Будущие концепты био‑слоя отражаются в модуле `python/modules/web4_bio/`:
 
 - `MorphogenesisModel`
 - `EpigenesisModel`
 - `TeleogenesisModel`
+- `BioAdaptiveNode`
+- `BioAdaptiveEdge`
