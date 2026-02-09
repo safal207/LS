@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
+from typing import Tuple
 
 
 @dataclass(frozen=True)
 class AgentRoles:
-    roles: List[str] = (
+    roles: Tuple[str, ...] = (
         "connector",
         "trust_carrier",
         "guardian",

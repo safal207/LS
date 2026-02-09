@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
+from typing import Tuple
 
 
 @dataclass(frozen=True)
 class TeleogenesisPrinciples:
     description: str = "Goal-oriented evolution of the network"
-    goals: List[str] = ("trust", "resilience", "human_support", "safety")
+    goals: Tuple[str, ...] = ("trust", "resilience", "human_support", "safety")
