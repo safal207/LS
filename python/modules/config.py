@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from shared.config_loader import get_config
+from .shared.config_loader import get_config
 
 _cfg = get_config()
 

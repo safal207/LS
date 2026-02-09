@@ -1,0 +1,74 @@
+name: Web4 Runtime CI
+
+on:
+  push:
+    paths:
+      - "python/modules/web4_runtime/**"
+      - "python/modules/web4_mesh/**"
+      - "python/modules/web4_graph/**"
+      - "python/modules/web4_bio/**"
+      - "python/tests/test_web4_runtime.py"
+      - "python/tests/test_web4_mesh.py"
+      - "python/tests/test_web4_graph.py"
+      - "python/tests/test_web4_bio.py"
+      - "scripts/web4_demo.py"
+      - "scripts/web4_mesh_demo.py"
+      - "scripts/web4meshdemo.py"
+      - "scripts/web4meshinspect.py"
+      - "scripts/web4meshtopology.py"
+      - "rust_core/**"
+      - ".github/workflows/web4_runtime_ci.yml"
+  pull_request:
+    paths:
+      - "python/modules/web4_runtime/**"
+      - "python/modules/web4_mesh/**"
+      - "python/modules/web4_graph/**"
+      - "python/modules/web4_bio/**"
+      - "python/tests/test_web4_runtime.py"
+      - "python/tests/test_web4_mesh.py"
+      - "python/tests/test_web4_graph.py"
+      - "python/tests/test_web4_bio.py"
+      - "scripts/web4_demo.py"
+      - "scripts/web4_mesh_demo.py"
+      - "scripts/web4meshdemo.py"
+      - "scripts/web4meshinspect.py"
+      - "scripts/web4meshtopology.py"
+      - "rust_core/**"
+      - ".github/workflows/web4_runtime_ci.yml"
+
+jobs:
+  web4-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest ruff mypy requests PyYAML
+
+      - name: Lint (ruff)
+        run: |
+          ruff check python/modules/web4_runtime python/modules/web4_mesh python/modules/web4_graph python/modules/web4_bio scripts/web4_demo.py scripts/web4_mesh_demo.py scripts/web4meshdemo.py scripts/web4meshinspect.py scripts/web4meshtopology.py python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
+
+      - name: Type check (mypy)
+        run: |
+          MYPYPATH=python mypy --explicit-package-bases --follow-imports=skip --ignore-missing-imports \
+            -p python.modules.web4_runtime \
+            -p python.modules.web4_mesh \
+            -p python.modules.web4_graph \
+            -p python.modules.web4_bio
+
+      - name: Run tests
+        run: |
+          PYTHONPATH=. pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
+
+      - name: Rust build
+        working-directory: rust_core
+        run: |
+          cargo build
