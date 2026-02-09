@@ -90,6 +90,12 @@ from .web4_graph import (
     GraphTrustLink,
     GraphTrustLevel,
 )
+from .web4_bio import (
+    MorphogenesisPrinciples,
+    EpigenesisPrinciples,
+    TeleogenesisPrinciples,
+    AgentRoles,
+)
 
 __all__ = [
     "AgentLoop",
@@ -172,4 +178,8 @@ __all__ = [
     "GraphTrustFSM",
     "GraphTrustLink",
     "GraphTrustLevel",
+    "MorphogenesisPrinciples",
+    "EpigenesisPrinciples",
+    "TeleogenesisPrinciples",
+    "AgentRoles",
 ]

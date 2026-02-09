@@ -6,9 +6,11 @@ on:
       - "python/modules/web4_runtime/**"
       - "python/modules/web4_mesh/**"
       - "python/modules/web4_graph/**"
+      - "python/modules/web4_bio/**"
       - "python/tests/test_web4_runtime.py"
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
+      - "python/tests/test_web4_bio.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
       - "scripts/web4meshdemo.py"
@@ -21,9 +23,11 @@ on:
       - "python/modules/web4_runtime/**"
       - "python/modules/web4_mesh/**"
       - "python/modules/web4_graph/**"
+      - "python/modules/web4_bio/**"
       - "python/tests/test_web4_runtime.py"
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
+      - "python/tests/test_web4_bio.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
       - "scripts/web4meshdemo.py"
@@ -50,15 +54,15 @@ jobs:
 
       - name: Lint (ruff)
         run: |
-          ruff check python/modules/web4_runtime python/modules/web4_mesh python/modules/web4_graph scripts/web4_demo.py scripts/web4_mesh_demo.py scripts/web4meshdemo.py scripts/web4meshinspect.py scripts/web4meshtopology.py python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py
+          ruff check python/modules/web4_runtime python/modules/web4_mesh python/modules/web4_graph python/modules/web4_bio scripts/web4_demo.py scripts/web4_mesh_demo.py scripts/web4meshdemo.py scripts/web4meshinspect.py scripts/web4meshtopology.py python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
 
       - name: Type check (mypy)
         run: |
-          mypy python/modules/web4_runtime python/modules/web4_mesh python/modules/web4_graph
+          mypy python/modules/web4_runtime python/modules/web4_mesh python/modules/web4_graph python/modules/web4_bio
 
       - name: Run tests
         run: |
-          pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py
+          pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
 
       - name: Rust build
         working-directory: rust_core

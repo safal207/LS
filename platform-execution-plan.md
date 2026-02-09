@@ -6,6 +6,7 @@
 - `mesh-execution-plan.md`
 - `WEB4PLATFORMEXECUTIONPLANGENERATOR.md`
 - `WEB4NETWORKGRAPH_SPEC.md`
+- `WEB4_BIOFOUNDATIONS.md`
 
 ## Architecture Overview
 
@@ -29,6 +30,9 @@
 
 ### Graph Integration
 - Minimal end-to-end flow: Agent A → Node C → Service B with deferred acceptance and observability.
+
+### Biofoundations Layer
+- Define biological principles and link them to graph/trust/service layers.
 
 ## Risks & Mitigations
 

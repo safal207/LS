@@ -5,6 +5,7 @@
 - Primary milestone file: `docs/CIPRUNTIMEINTEGRATION_ISSUE.md`.
 - Mesh generator contract: `WEB4MESHEXECUTIONPLANGENERATOR.md`.
 - Existing Web4 runtime modules in `python/modules/web4_runtime/`.
+- Biofoundations document: `WEB4_BIOFOUNDATIONS.md`.
 
 ## Architecture Overview
 
