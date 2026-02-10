@@ -20,4 +20,4 @@ pyo3 = { version = "0.20", features = ["auto-initialize"] }
 
 [lib]
 name = "ghostgpt_core"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
