@@ -20,13 +20,13 @@
     - минимум 1 тест на модуль;
     - тесты запускаются через `cargo test`.
 
-- [ ] **1.2 Включить cargo test в CI** (`IN PROGRESS`)
+- [x] **1.2 Включить cargo test в CI** (`DONE`)
   - Область: `.github/workflows/web4_runtime_ci.yml`.
   - Критерии:
     - добавлен шаг `cargo test --all --release`;
     - шаг обязателен для прохождения CI.
 
-- [ ] **1.3 Устранить Rust warnings** (`TODO`)
+- [ ] **1.3 Устранить Rust warnings** (`IN PROGRESS`)
   - Критерии:
     - исправлен `dead_code` для `max_size_mb`;
     - устранены предупреждения PyO3 (`non-local impl definition`).
