@@ -60,10 +60,19 @@ impl MemoryManager {
 
 #[cfg(test)]
 mod tests {
+    use pyo3::prepare_freethreaded_python;
+    use std::sync::Once;
+
+    fn init_python() {
+        static INIT: Once = Once::new();
+        INIT.call_once(prepare_freethreaded_python);
+    }
+
     use super::MemoryManager;
 
     #[test]
     fn cache_roundtrip_works() {
+        init_python();
         let mut manager = MemoryManager::new(1);
         manager.cache_pattern("alpha".to_string(), vec![0.1, 0.2, 0.3]);
 

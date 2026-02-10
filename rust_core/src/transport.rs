@@ -554,10 +554,19 @@ impl TransportHandle {
 
 #[cfg(test)]
 mod tests {
+    use pyo3::prepare_freethreaded_python;
+    use std::sync::Once;
+
+    fn init_python() {
+        static INIT: Once = Once::new();
+        INIT.call_once(prepare_freethreaded_python);
+    }
+
     use super::{TransportConfig, TransportHandle};
 
     #[test]
     fn open_send_receive_updates_stats() {
+        init_python();
         let config = TransportConfig::new(Some(1_000), Some(2), Some(4), Some(1024));
         let handle = TransportHandle::new(config);
 

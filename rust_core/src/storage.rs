@@ -47,6 +47,14 @@ impl Storage {
 
 #[cfg(test)]
 mod tests {
+    use pyo3::prepare_freethreaded_python;
+    use std::sync::Once;
+
+    fn init_python() {
+        static INIT: Once = Once::new();
+        INIT.call_once(prepare_freethreaded_python);
+    }
+
     use super::Storage;
     use std::fs;
     use std::path::PathBuf;
@@ -62,6 +70,7 @@ mod tests {
 
     #[test]
     fn save_and_load_roundtrip() {
+        init_python();
         let path = unique_db_path();
         let storage = Storage::new(path.to_string_lossy().to_string()).expect("storage open");
 

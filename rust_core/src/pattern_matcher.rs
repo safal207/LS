@@ -73,10 +73,19 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 
 #[cfg(test)]
 mod tests {
+    use pyo3::prepare_freethreaded_python;
+    use std::sync::Once;
+
+    fn init_python() {
+        static INIT: Once = Once::new();
+        INIT.call_once(prepare_freethreaded_python);
+    }
+
     use super::PatternMatcher;
 
     #[test]
     fn find_similar_returns_best_match_first() {
+        init_python();
         let mut matcher = PatternMatcher::new();
         matcher.add_patterns(vec![vec![1.0, 0.0], vec![0.0, 1.0]]);
 
