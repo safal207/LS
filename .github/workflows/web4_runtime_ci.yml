@@ -1,40 +1,19 @@
 name: Web4 Runtime CI
 
 on:
+  workflow_dispatch:
   push:
     paths:
-      - "python/modules/web4_runtime/**"
-      - "python/modules/web4_mesh/**"
-      - "python/modules/web4_graph/**"
-      - "python/modules/web4_bio/**"
-      - "python/tests/test_web4_runtime.py"
-      - "python/tests/test_web4_mesh.py"
-      - "python/tests/test_web4_graph.py"
-      - "python/tests/test_web4_bio.py"
+      - "python/**"
       - "python/tests/test_rust_binding.py"
-      - "scripts/web4_demo.py"
-      - "scripts/web4_mesh_demo.py"
-      - "scripts/web4meshdemo.py"
-      - "scripts/web4meshinspect.py"
-      - "scripts/web4meshtopology.py"
+      - "scripts/**"
       - "rust_core/**"
       - ".github/workflows/web4_runtime_ci.yml"
   pull_request:
     paths:
-      - "python/modules/web4_runtime/**"
-      - "python/modules/web4_mesh/**"
-      - "python/modules/web4_graph/**"
-      - "python/modules/web4_bio/**"
-      - "python/tests/test_web4_runtime.py"
-      - "python/tests/test_web4_mesh.py"
-      - "python/tests/test_web4_graph.py"
-      - "python/tests/test_web4_bio.py"
+      - "python/**"
       - "python/tests/test_rust_binding.py"
-      - "scripts/web4_demo.py"
-      - "scripts/web4_mesh_demo.py"
-      - "scripts/web4meshdemo.py"
-      - "scripts/web4meshinspect.py"
-      - "scripts/web4meshtopology.py"
+      - "scripts/**"
       - "rust_core/**"
       - ".github/workflows/web4_runtime_ci.yml"
 
@@ -55,42 +34,30 @@ jobs:
           python -m pip install pytest ruff mypy requests PyYAML
 
       - name: Lint (ruff)
-        run: |
-          ruff check python/modules/web4_runtime python/modules/web4_mesh python/modules/web4_graph python/modules/web4_bio scripts/web4_demo.py scripts/web4_mesh_demo.py scripts/web4meshdemo.py scripts/web4meshinspect.py scripts/web4meshtopology.py python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
+        run: ruff check python
 
       - name: Type check (mypy)
         run: |
-          MYPYPATH=python mypy --explicit-package-bases --follow-imports=skip --ignore-missing-imports \
-            -p python.modules.web4_runtime \
-            -p python.modules.web4_mesh \
-            -p python.modules.web4_graph \
-            -p python.modules.web4_bio
+          MYPYPATH=python mypy --explicit-package-bases --follow-imports=skip --ignore-missing-imports -p python.modules
 
       - name: Run tests
         run: |
-          PYTHONPATH=. pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
-
-      - name: Prepare virtual environment for maturin develop
-        run: |
-          python -m venv .venv
-          echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
-          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+          PYTHONPATH=. pytest python/tests
 
       - name: Configure PyO3 interpreter
         run: echo "PYO3_PYTHON=$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_ENV"
 
       - name: Install maturin
-        run: python -m pip install maturin pytest
+        run: python -m pip install maturin
 
       - name: Build PyO3 module (maturin develop)
         working-directory: rust_core
         run: |
-          maturin develop --release
+          maturin develop --release --interpreter "$PYO3_PYTHON"
 
       - name: Run Rust tests
         working-directory: rust_core
-        run: |
-          cargo test --features extension-module
+        run: cargo test --features extension-module
 
       - name: Run Python tests for Rust binding
         run: PYTHONPATH=. pytest python/tests/test_rust_binding.py
