@@ -70,7 +70,7 @@ jobs:
 
       - name: Lint (ruff)
         run: |
-          ruff check python/modules/web4_runtime python/modules/web4_mesh python/modules/web4_graph python/modules/web4_bio scripts/web4_demo.py scripts/web4_mesh_demo.py scripts/web4meshdemo.py scripts/web4meshinspect.py scripts/web4meshtopology.py python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
+          ruff check python/modules/web4_runtime python/modules/web4_mesh python/modules/web4_graph python/modules/web4_bio python/modules/hexagon_core scripts/web4_demo.py scripts/web4_mesh_demo.py scripts/web4meshdemo.py scripts/web4meshinspect.py scripts/web4meshtopology.py python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
 
       - name: Type check (mypy)
         run: |
@@ -78,7 +78,8 @@ jobs:
             -p python.modules.web4_runtime \
             -p python.modules.web4_mesh \
             -p python.modules.web4_graph \
-            -p python.modules.web4_bio
+            -p python.modules.web4_bio \
+            -p python.modules.hexagon_core
 
       - name: Run Python smoke tests
         run: |
