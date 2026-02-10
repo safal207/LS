@@ -13,7 +13,8 @@ def cosine_similarity_py(a, b):
     dot = sum(x * y for x, y in zip(a, b))
     norm_a = math.sqrt(sum(x * x for x in a))
     norm_b = math.sqrt(sum(x * x for x in b))
-    if norm_a == 0 or norm_b == 0: return 0.0
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
     return dot / (norm_a * norm_b)
 
 def benchmark_pattern_matching():
@@ -39,7 +40,7 @@ def benchmark_pattern_matching():
     # Benchmark Rust
     print("Running Rust search...")
     start_rust = time.time()
-    rust_results = rust.find_similar(query, k=5)
+    rust.find_similar(query, k=5)
     rust_time = time.time() - start_rust
     print(f"Rust Search Time: {rust_time:.4f}s")
 
@@ -52,7 +53,7 @@ def benchmark_pattern_matching():
         sim = cosine_similarity_py(query, p)
         results.append((i, sim))
     results.sort(key=lambda x: x[1], reverse=True)
-    py_results = results[:5]
+    _ = results[:5]
     py_time = time.time() - start_py
     print(f"Python Search Time: {py_time:.4f}s")
 
