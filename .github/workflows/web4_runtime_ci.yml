@@ -77,11 +77,11 @@ jobs:
       - name: Rust build
         working-directory: rust_core
         run: |
-          cargo build --release
+          cargo build --release --no-default-features --features python
 
       - name: Run Rust tests
         working-directory: rust_core
         env:
           PYO3_PYTHON: python3
         run: |
-          cargo test --all --release
+          cargo test --all --release --no-default-features --features python-embed
