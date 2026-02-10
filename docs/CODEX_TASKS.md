@@ -26,7 +26,7 @@
     - добавлен шаг `cargo test --all --release`;
     - шаг обязателен для прохождения CI.
 
-- [ ] **1.3 Устранить Rust warnings** (`IN PROGRESS`)
+- [x] **1.3 Устранить Rust warnings** (`DONE`)
   - Критерии:
     - исправлен `dead_code` для `max_size_mb`;
     - устранены предупреждения PyO3 (`non-local impl definition`).
