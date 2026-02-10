@@ -35,7 +35,7 @@
 
 ## 🔥 PRIORITY 2 — Python CI Expansion
 
-- [ ] **2.1 Расширить Python CI** (`TODO`)
+- [x] **2.1 Расширить Python CI** (`DONE`)
   - Критерии:
     - в CI добавлены smoke-тесты из `python/tests/`;
     - добавлены unit-тесты `hexagon_core`.

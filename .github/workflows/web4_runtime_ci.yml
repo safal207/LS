@@ -7,10 +7,15 @@ on:
       - "python/modules/web4_mesh/**"
       - "python/modules/web4_graph/**"
       - "python/modules/web4_bio/**"
+      - "python/modules/hexagon_core/**"
       - "python/tests/test_web4_runtime.py"
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
       - "python/tests/test_web4_bio.py"
+      - "python/tests/test_temporal_index.py"
+      - "python/tests/test_belief_system.py"
+      - "python/tests/test_circuit_breaker.py"
+      - "python/tests/test_mission_state.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
       - "scripts/web4meshdemo.py"
@@ -24,10 +29,15 @@ on:
       - "python/modules/web4_mesh/**"
       - "python/modules/web4_graph/**"
       - "python/modules/web4_bio/**"
+      - "python/modules/hexagon_core/**"
       - "python/tests/test_web4_runtime.py"
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
       - "python/tests/test_web4_bio.py"
+      - "python/tests/test_temporal_index.py"
+      - "python/tests/test_belief_system.py"
+      - "python/tests/test_circuit_breaker.py"
+      - "python/tests/test_mission_state.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
       - "scripts/web4meshdemo.py"
@@ -70,9 +80,13 @@ jobs:
             -p python.modules.web4_graph \
             -p python.modules.web4_bio
 
-      - name: Run tests
+      - name: Run Python smoke tests
         run: |
-          PYTHONPATH=. pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
+          PYTHONPATH=python python -m pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
+
+      - name: Run hexagon_core unit tests
+        run: |
+          PYTHONPATH=python:python/modules python -m pytest python/tests/test_temporal_index.py python/tests/test_belief_system.py python/tests/test_circuit_breaker.py python/tests/test_mission_state.py
 
       - name: Rust build
         working-directory: rust_core
