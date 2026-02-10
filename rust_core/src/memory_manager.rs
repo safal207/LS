@@ -1,5 +1,5 @@
-use pyo3::prelude::*;
 use lru::LruCache;
+use pyo3::prelude::*;
 use std::num::NonZeroUsize;
 
 #[pyclass]
@@ -35,6 +35,12 @@ impl MemoryManager {
         self.cache.get(&key).cloned()
     }
 
+    /// Get the configured memory limit in megabytes.
+    #[pyo3(name = "get_max_size_mb")]
+    pub fn get_max_size_mb(&self) -> usize {
+        self.max_size_mb
+    }
+
     #[pyo3(name = "optimize")]
     pub fn optimize(&mut self) -> usize {
         // In a real scenario with a custom allocator or more complex structures,
@@ -47,13 +53,37 @@ impl MemoryManager {
         let cap = self.cache.cap().get();
 
         if current_len > (cap * 9 / 10) {
-             // Prune 10%
-             let to_remove = cap / 10;
-             for _ in 0..to_remove {
-                 self.cache.pop_lru();
-             }
-             return to_remove * 1500; // approx bytes freed
+            // Prune 10%
+            let to_remove = cap / 10;
+            for _ in 0..to_remove {
+                self.cache.pop_lru();
+            }
+            return to_remove * 1500; // approx bytes freed
         }
         0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pyo3::prepare_freethreaded_python;
+    use std::sync::Once;
+
+    fn init_python() {
+        static INIT: Once = Once::new();
+        INIT.call_once(prepare_freethreaded_python);
+    }
+
+    use super::MemoryManager;
+
+    #[test]
+    fn cache_roundtrip_works() {
+        init_python();
+        let mut manager = MemoryManager::new(1);
+        manager.cache_pattern("alpha".to_string(), vec![0.1, 0.2, 0.3]);
+
+        let loaded = manager.get_pattern("alpha".to_string());
+        assert_eq!(loaded, Some(vec![0.1, 0.2, 0.3]));
+        assert_eq!(manager.get_max_size_mb(), 1);
     }
 }
