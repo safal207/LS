@@ -15,7 +15,7 @@
 ## 🔥 PRIORITY 1 — Rust Core Stability
 
 - [ ] **1.1 Добавить Rust unit-тесты** (`IN PROGRESS`)
-  - Область: `rust_core/src/memory_manager.rs`, `rust_core/src/pattern_matcher.rs`, `rust_core/src/storage.rs`, `rust_core/src/transport/*.rs`.
+  - Область: `rust_core/src/memory_manager.rs`, `rust_core/src/pattern_matcher.rs`, `rust_core/src/storage.rs`, `rust_core/src/transport.rs`.
   - Критерии:
     - минимум 1 тест на модуль;
     - тесты запускаются через `cargo test`.

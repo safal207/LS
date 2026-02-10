@@ -57,8 +57,16 @@ mod tests {
 
     use super::Storage;
     use std::fs;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TestDbGuard<'a>(&'a Path);
+
+    impl Drop for TestDbGuard<'_> {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(self.0);
+        }
+    }
 
     fn unique_db_path() -> PathBuf {
         let ts = SystemTime::now()
@@ -72,6 +80,7 @@ mod tests {
     fn save_and_load_roundtrip() {
         init_python();
         let path = unique_db_path();
+        let _guard = TestDbGuard(path.as_path());
         let storage = Storage::new(path.to_string_lossy().to_string()).expect("storage open");
 
         storage
@@ -81,7 +90,5 @@ mod tests {
 
         let loaded = storage.load("key-1".to_string()).expect("load payload");
         assert_eq!(loaded, Some(b"payload".to_vec()));
-
-        let _ = fs::remove_dir_all(&path);
     }
 }
