@@ -475,13 +475,7 @@ impl TransportHandle {
             .map(|queue| queue.len())
             .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
         Ok((
-            kind,
-            session_id,
-            queue_len,
-            sent_count,
-            recv_count,
-            sent_bytes,
-            recv_bytes,
+            kind, session_id, queue_len, sent_count, recv_count, sent_bytes, recv_bytes,
         ))
     }
 
@@ -497,7 +491,9 @@ impl TransportHandle {
         Ok(snapshot)
     }
 
-    fn list_channel_stats(&self) -> PyResult<Vec<(u64, String, Option<u64>, usize, u64, u64, u64, u64)>> {
+    fn list_channel_stats(
+        &self,
+    ) -> PyResult<Vec<(u64, String, Option<u64>, usize, u64, u64, u64, u64)>> {
         let channels = self
             .channels
             .lock()
@@ -553,5 +549,31 @@ impl TransportHandle {
             queues.remove(&channel_id);
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TransportConfig, TransportHandle};
+
+    #[test]
+    fn open_send_receive_updates_stats() {
+        let config = TransportConfig::new(Some(1_000), Some(2), Some(4), Some(1024));
+        let handle = TransportHandle::new(config);
+
+        let ch = handle.open_channel("state", None).expect("open channel");
+        handle.send(ch, b"hello").expect("send payload");
+
+        assert_eq!(handle.queue_len(ch).expect("queue len"), 1);
+        assert_eq!(
+            handle.receive(ch).expect("receive payload"),
+            b"hello".to_vec()
+        );
+
+        let stats = handle.channel_stats(ch).expect("channel stats");
+        assert_eq!(stats.3, 1);
+        assert_eq!(stats.4, 1);
+        assert_eq!(stats.5, 5);
+        assert_eq!(stats.6, 5);
     }
 }

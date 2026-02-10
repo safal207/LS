@@ -33,12 +33,9 @@ impl PatternMatcher {
     }
 
     #[pyo3(name = "find_similar")]
-    pub fn find_similar(
-        &self,
-        query: Vec<f32>,
-        top_k: usize
-    ) -> Vec<(usize, f32)> {
-        let mut results: Vec<(usize, f32)> = self.patterns
+    pub fn find_similar(&self, query: Vec<f32>, top_k: usize) -> Vec<(usize, f32)> {
+        let mut results: Vec<(usize, f32)> = self
+            .patterns
             .par_iter()
             .enumerate()
             .map(|(idx, pattern)| {
@@ -72,4 +69,21 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     }
 
     dot / (norm_a.sqrt() * norm_b.sqrt())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PatternMatcher;
+
+    #[test]
+    fn find_similar_returns_best_match_first() {
+        let mut matcher = PatternMatcher::new();
+        matcher.add_patterns(vec![vec![1.0, 0.0], vec![0.0, 1.0]]);
+
+        let results = matcher.find_similar(vec![1.0, 0.0], 1);
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0, 0);
+        assert!(results[0].1 > 0.99);
+    }
 }

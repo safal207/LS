@@ -1,5 +1,5 @@
-use pyo3::prelude::*;
 use lru::LruCache;
+use pyo3::prelude::*;
 use std::num::NonZeroUsize;
 
 #[pyclass]
@@ -47,13 +47,27 @@ impl MemoryManager {
         let cap = self.cache.cap().get();
 
         if current_len > (cap * 9 / 10) {
-             // Prune 10%
-             let to_remove = cap / 10;
-             for _ in 0..to_remove {
-                 self.cache.pop_lru();
-             }
-             return to_remove * 1500; // approx bytes freed
+            // Prune 10%
+            let to_remove = cap / 10;
+            for _ in 0..to_remove {
+                self.cache.pop_lru();
+            }
+            return to_remove * 1500; // approx bytes freed
         }
         0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MemoryManager;
+
+    #[test]
+    fn cache_roundtrip_works() {
+        let mut manager = MemoryManager::new(1);
+        manager.cache_pattern("alpha".to_string(), vec![0.1, 0.2, 0.3]);
+
+        let loaded = manager.get_pattern("alpha".to_string());
+        assert_eq!(loaded, Some(vec![0.1, 0.2, 0.3]));
     }
 }
