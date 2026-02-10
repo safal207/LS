@@ -53,7 +53,7 @@ jobs:
       - name: Build PyO3 module (maturin develop)
         working-directory: rust_core
         run: |
-          maturin develop --release --interpreter "$PYO3_PYTHON"
+          maturin develop --release --features extension-module
 
       - name: Run Rust tests
         working-directory: rust_core
