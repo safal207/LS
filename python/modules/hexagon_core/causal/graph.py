@@ -45,7 +45,7 @@ class CausalGraph:
         self._lock = threading.RLock()
         self._cycle_detector = CycleDetector()
 
-    def add_causal_link(self, cause_id: str, effect_id: str, weight: float, context: Dict[str, Any] = None, lifecycle: Optional['BeliefLifecycleManager'] = None) -> bool:
+    def add_causal_link(self, cause_id: str, effect_id: str, weight: float, context: Dict[str, Any] | None = None, lifecycle: Optional['BeliefLifecycleManager'] = None) -> bool:
         with self._lock:
             # Validate belief existence
             if lifecycle:

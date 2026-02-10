@@ -30,7 +30,7 @@ class CaPU:
         self.memory = memory_module
         self.facts: Dict[str, str] = {}
         self.logic: List[Dict[str, Any]] = []
-        self.history = deque(maxlen=HISTORY_BUFFER_SIZE)
+        self.history: deque[Dict[str, str]] = deque(maxlen=HISTORY_BUFFER_SIZE)
         self._loaded = False
         self.base_dir = self._resolve_data_dir()
 

@@ -157,8 +157,9 @@ class HomeostasisMonitor:
                 actions_taken.append("Injected variability (Exploration Tax)")
 
             elif rec.type == "restore_blind_spot":
-                RecoveryProtocols.restore_blind_spot(self.core, rec.target, rec.new_value)
-                actions_taken.append(f"Restored blind spot: {rec.target}")
+                if rec.new_value is not None:
+                    RecoveryProtocols.restore_blind_spot(self.core, rec.target, rec.new_value)
+                    actions_taken.append(f"Restored blind spot: {rec.target}")
 
             elif rec.type == "trigger_recovery":
                 if rec.target == "oscillation_lock":

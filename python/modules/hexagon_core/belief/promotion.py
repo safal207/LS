@@ -13,7 +13,7 @@ class PromotionCriteria:
     min_unique_sources: int = 2
 
 class BeliefPromotionSystem:
-    def __init__(self, criteria: PromotionCriteria = None):
+    def __init__(self, criteria: PromotionCriteria | None = None):
         if criteria is None:
             self.criteria = PromotionCriteria()
         else:

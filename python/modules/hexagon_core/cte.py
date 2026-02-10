@@ -97,7 +97,7 @@ class CognitiveTimelineEngine:
         window_size = 2 * self.oscillation_threshold
 
         # Extract recent decisions from anchors in trajectory
-        recent_decisions = []
+        recent_decisions: list[str] = []
         for node_id in reversed(self._trajectory):
             if node_id.startswith("anchor"):
                 anchor = self._anchors.get(node_id)
