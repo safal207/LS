@@ -20,8 +20,8 @@
     - минимум 1 тест на модуль;
     - тесты запускаются через `cargo test`.
 
-- [ ] **1.2 Включить cargo test в CI** (`TODO`)
-  - Область: `.github/workflows/web4runtimeci.yml`.
+- [ ] **1.2 Включить cargo test в CI** (`IN PROGRESS`)
+  - Область: `.github/workflows/web4_runtime_ci.yml`.
   - Критерии:
     - добавлен шаг `cargo test --all --release`;
     - шаг обязателен для прохождения CI.

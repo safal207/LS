@@ -71,4 +71,9 @@ jobs:
       - name: Rust build
         working-directory: rust_core
         run: |
-          cargo build
+          cargo build --release
+
+      - name: Run Rust tests
+        working-directory: rust_core
+        run: |
+          cargo test --all --release
