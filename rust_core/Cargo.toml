@@ -3,8 +3,12 @@ name = "ghostgpt_core"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["extension-module"]
+extension-module = ["pyo3/extension-module"]
+
 [dependencies]
-pyo3 = { version = "0.20", features = ["extension-module"] }
+pyo3 = { version = "0.20" }
 rayon = "1.8"
 sled = "0.34"
 bincode = "1.3"

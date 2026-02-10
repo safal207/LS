@@ -11,6 +11,7 @@ on:
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
       - "python/tests/test_web4_bio.py"
+      - "python/tests/test_rust_binding.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
       - "scripts/web4meshdemo.py"
@@ -28,6 +29,7 @@ on:
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
       - "python/tests/test_web4_bio.py"
+      - "python/tests/test_rust_binding.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
       - "scripts/web4meshdemo.py"
@@ -68,7 +70,27 @@ jobs:
         run: |
           PYTHONPATH=. pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
 
-      - name: Rust build
+      - name: Prepare virtual environment for maturin develop
+        run: |
+          python -m venv .venv
+          echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Configure PyO3 interpreter
+        run: echo "PYO3_PYTHON=$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_ENV"
+
+      - name: Install maturin
+        run: python -m pip install maturin pytest
+
+      - name: Build PyO3 module (maturin develop)
         working-directory: rust_core
         run: |
-          cargo build
+          maturin develop --release
+
+      - name: Run Rust tests
+        working-directory: rust_core
+        run: |
+          cargo test --features extension-module
+
+      - name: Run Python tests for Rust binding
+        run: PYTHONPATH=. pytest python/tests/test_rust_binding.py
