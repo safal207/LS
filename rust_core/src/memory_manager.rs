@@ -35,6 +35,12 @@ impl MemoryManager {
         self.cache.get(&key).cloned()
     }
 
+    /// Get the configured memory limit in megabytes.
+    #[pyo3(name = "get_max_size_mb")]
+    pub fn get_max_size_mb(&self) -> usize {
+        self.max_size_mb
+    }
+
     #[pyo3(name = "optimize")]
     pub fn optimize(&mut self) -> usize {
         // In a real scenario with a custom allocator or more complex structures,
@@ -78,5 +84,6 @@ mod tests {
 
         let loaded = manager.get_pattern("alpha".to_string());
         assert_eq!(loaded, Some(vec![0.1, 0.2, 0.3]));
+        assert_eq!(manager.get_max_size_mb(), 1);
     }
 }
