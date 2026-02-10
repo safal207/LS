@@ -1,5 +1,5 @@
 import time
-from typing import Dict, Any, List
+from typing import Dict, Any
 from ..mission.state import MissionState
 from ..causal.graph import CausalGraph
 
@@ -102,6 +102,7 @@ class AlignmentSystem:
             weighted_sum += edge.weight
             total_weight += 1.0
 
-        if total_weight == 0: return 0.5
+        if total_weight == 0:
+            return 0.5
 
         return weighted_sum / total_weight

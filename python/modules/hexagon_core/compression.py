@@ -1,6 +1,6 @@
 import logging
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Set, Optional
+from dataclasses import dataclass
+from typing import List, Dict, Any, Set
 
 logger = logging.getLogger("Compression")
 

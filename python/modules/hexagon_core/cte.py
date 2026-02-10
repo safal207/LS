@@ -2,7 +2,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any
 
 logger = logging.getLogger("CTE")
 
@@ -70,7 +70,8 @@ class CognitiveTimelineEngine:
 
         tokens_a = set(re.findall(r"\w+", a))
         tokens_b = set(re.findall(r"\w+", b))
-        if not tokens_a: return False # Avoid div by zero
+        if not tokens_a:
+            return False  # Avoid div by zero
 
         new_tokens = tokens_b - tokens_a
         ratio = len(new_tokens) / len(tokens_a)
@@ -134,7 +135,8 @@ class CognitiveTimelineEngine:
                 idx = len(check_sequence) - 3
                 while idx >= 0:
                     prev_B = check_sequence[idx]
-                    if idx - 1 < 0: break
+                    if idx == 0:
+                        break
                     prev_A = check_sequence[idx-1]
 
                     if prev_B == B and prev_A == A:
