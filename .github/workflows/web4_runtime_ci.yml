@@ -1,43 +1,24 @@
 name: Web4 Runtime CI
 
 on:
+  workflow_dispatch:
   push:
     paths:
-      - "python/modules/web4_runtime/**"
-      - "python/modules/web4_mesh/**"
-      - "python/modules/web4_graph/**"
-      - "python/modules/web4_bio/**"
-      - "python/tests/test_web4_runtime.py"
-      - "python/tests/test_web4_mesh.py"
-      - "python/tests/test_web4_graph.py"
-      - "python/tests/test_web4_bio.py"
-      - "scripts/web4_demo.py"
-      - "scripts/web4_mesh_demo.py"
-      - "scripts/web4meshdemo.py"
-      - "scripts/web4meshinspect.py"
-      - "scripts/web4meshtopology.py"
+      - "python/**"
       - "rust_core/**"
       - ".github/workflows/web4_runtime_ci.yml"
   pull_request:
     paths:
-      - "python/modules/web4_runtime/**"
-      - "python/modules/web4_mesh/**"
-      - "python/modules/web4_graph/**"
-      - "python/modules/web4_bio/**"
-      - "python/tests/test_web4_runtime.py"
-      - "python/tests/test_web4_mesh.py"
-      - "python/tests/test_web4_graph.py"
-      - "python/tests/test_web4_bio.py"
-      - "scripts/web4_demo.py"
-      - "scripts/web4_mesh_demo.py"
-      - "scripts/web4meshdemo.py"
-      - "scripts/web4meshinspect.py"
-      - "scripts/web4meshtopology.py"
+      - "python/**"
       - "rust_core/**"
       - ".github/workflows/web4_runtime_ci.yml"
 
+concurrency:
+  group: web4-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  web4-runtime:
+  python-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,21 +35,53 @@ jobs:
 
       - name: Lint (ruff)
         run: |
-          ruff check python/modules/web4_runtime python/modules/web4_mesh python/modules/web4_graph python/modules/web4_bio scripts/web4_demo.py scripts/web4_mesh_demo.py scripts/web4meshdemo.py scripts/web4meshinspect.py scripts/web4meshtopology.py python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
+          ruff check python
 
       - name: Type check (mypy)
         run: |
-          MYPYPATH=python mypy --explicit-package-bases --follow-imports=skip --ignore-missing-imports \
-            -p python.modules.web4_runtime \
-            -p python.modules.web4_mesh \
-            -p python.modules.web4_graph \
-            -p python.modules.web4_bio
+          MYPYPATH=python mypy --explicit-package-bases --follow-imports=skip --ignore-missing-imports -p python.modules
 
-      - name: Run tests
+      - name: Run Python tests
         run: |
-          PYTHONPATH=. pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
+          PYTHONPATH=. pytest python/tests
 
-      - name: Rust build
+  rust-pyo3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust_core
+
+      - name: Create virtual environment and install maturin
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install maturin
+
+      - name: Configure PyO3 interpreter
+        run: echo "PYO3_PYTHON=$GITHUB_WORKSPACE/.venv/bin/python" >> "$GITHUB_ENV"
+
+      - name: Build PyO3 module
         working-directory: rust_core
         run: |
-          cargo build
+          "$PYO3_PYTHON" -m maturin develop --release
+
+      - name: Run Rust tests with extension ABI
+        working-directory: rust_core
+        run: |
+          cargo test --features extension-module
+
+      - name: Run Python smoke test for Rust binding
+        run: |
+          PYTHONPATH=. "$PYO3_PYTHON" -c "from python.rust_bridge import RustOptimizer; r=RustOptimizer(db_path='./data/ci_patterns.db'); assert r.available, 'Rust binding is not available'; assert r.add_patterns([[0.1,0.2,0.3],[0.4,0.5,0.6]]); assert isinstance(r.find_similar([0.1,0.2,0.3], k=1), list); r.close()"
