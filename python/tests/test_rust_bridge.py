@@ -111,6 +111,48 @@ def test_web4_rtt_binding(ghostgpt_core_module):
         rtt.send("after-disconnect")
 
 
+
+
+def test_optimizer_init_uses_memory_manager_positional_arg(monkeypatch, tmp_path):
+    class FakeMemoryManager:
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
+    class FakePatternMatcher:
+        pass
+
+    class FakeStorage:
+        def __init__(self, _):
+            pass
+
+    class FakeTransportConfig:
+        def __init__(self, *args):
+            self.args = args
+
+    class FakeTransportHandle:
+        def __init__(self, _):
+            pass
+
+    fake_core = type(
+        "FakeCore",
+        (),
+        {
+            "MemoryManager": FakeMemoryManager,
+            "PatternMatcher": FakePatternMatcher,
+            "Storage": FakeStorage,
+            "TransportConfig": FakeTransportConfig,
+            "TransportHandle": FakeTransportHandle,
+        },
+    )
+
+    monkeypatch.setattr(rust_bridge, "ghostgpt_core", fake_core)
+    optimizer = rust_bridge.RustOptimizer(memory_mb=321, db_path=str(tmp_path / "x.db"))
+
+    assert optimizer.is_available() is True
+    assert optimizer.memory.args == (321,)
+    assert optimizer.memory.kwargs == {}
+
 def test_fallback_mechanism(monkeypatch):
     """Если Rust не загружен, RustOptimizer работает в fallback-режиме."""
     monkeypatch.setattr(rust_bridge, "ghostgpt_core", None)
@@ -118,6 +160,7 @@ def test_fallback_mechanism(monkeypatch):
     optimizer = rust_bridge.RustOptimizer()
 
     assert optimizer.is_available() is False
+    assert optimizer.bridge_health() == "FALLBACK"
     assert optimizer.cache_pattern("k", [0.1, 0.2]) is False
     assert optimizer.find_similar([0.1, 0.2], k=1) == []
     assert optimizer.save_to_storage("k", b"v") is False
@@ -125,3 +168,16 @@ def test_fallback_mechanism(monkeypatch):
     assert optimizer.optimize_memory() == 0
     assert optimizer.transport_available() is False
     assert optimizer.open_channel("test") is None
+
+
+def test_fallback_logs_silent_failures(monkeypatch, caplog):
+    monkeypatch.setattr(rust_bridge, "ghostgpt_core", None)
+    optimizer = rust_bridge.RustOptimizer()
+
+    with caplog.at_level("DEBUG"):
+        assert optimizer.cache_pattern("k", [0.1, 0.2]) is False
+        assert optimizer.open_channel("test") is None
+
+    messages = [record.message for record in caplog.records]
+    assert any("cache_pattern" in message and "fallback" in message.lower() for message in messages)
+    assert any("open_channel" in message and "fallback" in message.lower() for message in messages)
