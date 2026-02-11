@@ -134,12 +134,8 @@ fn aggregate_event(event: KernelEvent) -> KernelAggregate {
 fn normalize(value: f64) -> f64 {
     if value.is_nan() {
         0.0
-    } else if value < 0.0 {
-        0.0
-    } else if value > 1.0 {
-        1.0
     } else {
-        value
+        value.clamp(0.0, 1.0)
     }
 }
 

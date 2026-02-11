@@ -50,7 +50,7 @@
 
 ## 🔥 PRIORITY 3 — Improve Rust↔Python Integration
 
-- [ ] **3.1 Добавить health-метрики в `rust_bridge.py`** (`TODO`)
+- [x] **3.1 Добавить health-метрики в `rust_bridge.py`** (`DONE`)
   - Критерии:
     - логируется режим fallback;
     - добавлен флаг `bridge_health`;
@@ -65,12 +65,12 @@
 
 ## 🔥 PRIORITY 4 — CI & Workflow Hardening
 
-- [ ] **4.1 Ограничить ruff autofix** (`TODO`)
+- [x] **4.1 Ограничить ruff autofix** (`DONE`)
   - Варианты выполнения:
     - убрать `--unsafe-fixes`,
     - или добавить approval-gate (`label: autofix-approved`).
 
-- [ ] **4.2 Добавить `cargo clippy -- -D warnings`** (`TODO`)
+- [x] **4.2 Добавить `cargo clippy -- -D warnings`** (`DONE`)
   - Критерий:
     - предупреждения Rust переведены в критические.
 

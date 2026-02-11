@@ -29,7 +29,7 @@ jobs:
         run: python -m pip install ruff
 
       - name: Run ruff autofix
-        run: ruff check python --fix --unsafe-fixes
+        run: ruff check python --fix
 
       - name: Commit and push if changed
         run: |
