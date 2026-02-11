@@ -39,7 +39,7 @@ class RustOptimizer:
             return
 
         try:
-            self.memory = ghostgpt_core.MemoryManager(max_size_mb=memory_mb)
+            self.memory = ghostgpt_core.MemoryManager(memory_mb)
             self.matcher = ghostgpt_core.PatternMatcher()
 
             os.makedirs(os.path.dirname(db_path), exist_ok=True)

@@ -111,6 +111,48 @@ def test_web4_rtt_binding(ghostgpt_core_module):
         rtt.send("after-disconnect")
 
 
+
+
+def test_optimizer_init_uses_memory_manager_positional_arg(monkeypatch, tmp_path):
+    class FakeMemoryManager:
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
+    class FakePatternMatcher:
+        pass
+
+    class FakeStorage:
+        def __init__(self, _):
+            pass
+
+    class FakeTransportConfig:
+        def __init__(self, *args):
+            self.args = args
+
+    class FakeTransportHandle:
+        def __init__(self, _):
+            pass
+
+    fake_core = type(
+        "FakeCore",
+        (),
+        {
+            "MemoryManager": FakeMemoryManager,
+            "PatternMatcher": FakePatternMatcher,
+            "Storage": FakeStorage,
+            "TransportConfig": FakeTransportConfig,
+            "TransportHandle": FakeTransportHandle,
+        },
+    )
+
+    monkeypatch.setattr(rust_bridge, "ghostgpt_core", fake_core)
+    optimizer = rust_bridge.RustOptimizer(memory_mb=321, db_path=str(tmp_path / "x.db"))
+
+    assert optimizer.is_available() is True
+    assert optimizer.memory.args == (321,)
+    assert optimizer.memory.kwargs == {}
+
 def test_fallback_mechanism(monkeypatch):
     """Если Rust не загружен, RustOptimizer работает в fallback-режиме."""
     monkeypatch.setattr(rust_bridge, "ghostgpt_core", None)
