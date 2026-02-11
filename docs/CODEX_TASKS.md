@@ -40,7 +40,7 @@
     - в CI добавлены smoke-тесты из `python/tests/`;
     - добавлены unit-тесты `hexagon_core`.
 
-- [ ] **2.2 Добавить тесты Python↔Rust bridge** (`TODO`)
+- [x] **2.2 Добавить тесты Python↔Rust bridge** (`DONE`)
   - Критерии:
     - проверяется импорт `ghostgpt_core`;
     - проверяется доступность всех экспортируемых классов;
