@@ -101,8 +101,10 @@ class GhostCore(QObject):
 
         self._stop_event.set()
 
-        if hasattr(self.audio_module, 'stop'): self.audio_module.stop()
-        if hasattr(self.stt_module, 'stop'): self.stt_module.stop()
+        if hasattr(self.audio_module, 'stop'):
+            self.audio_module.stop()
+        if hasattr(self.stt_module, 'stop'):
+            self.stt_module.stop()
 
         # Give threads more time to finish cleanly; try a couple of joins
         for t in self.threads:

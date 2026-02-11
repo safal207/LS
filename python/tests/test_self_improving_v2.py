@@ -1,12 +1,8 @@
 import pytest
-import time
 import json
 import os
 import shutil
-import hashlib
-from unittest.mock import MagicMock, patch
 import sys
-import threading
 
 # Ensure python modules can be imported
 sys.path.append(os.getcwd())
