@@ -2,6 +2,8 @@ name: Web4 Runtime CI
 
 on:
   push:
+    branches:
+      - "main"
     paths:
       - "python/modules/web4_runtime/**"
       - "python/modules/web4_mesh/**"
@@ -26,6 +28,8 @@ on:
       - "rust_core/**"
       - ".github/workflows/web4_runtime_ci.yml"
   pull_request:
+    branches:
+      - "main"
     paths:
       - "python/modules/web4_runtime/**"
       - "python/modules/web4_mesh/**"
