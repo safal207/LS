@@ -2,9 +2,8 @@ import json
 import logging
 import re
 import copy
-import time
 from collections import deque
-from typing import Protocol, List, Optional, Dict, Any, Union, Tuple
+from typing import Protocol, List, Optional, Dict, Any, cast
 from dataclasses import dataclass, field
 from pathlib import Path
 from datetime import datetime, timezone
@@ -59,7 +58,7 @@ class CaPUv3:
         # Base Layers (Persistent/Session)
         self.facts: Dict[str, str] = {}
         self.logic: List[Dict[str, Any]] = []
-        self.history = deque(maxlen=HISTORY_BUFFER_SIZE)
+        self.history: deque[Dict[str, str]] = deque(maxlen=HISTORY_BUFFER_SIZE)
 
         # Cognitive Layers (Session/Working Memory)
         self._intent: Optional[Dict[str, Any]] = None
@@ -374,7 +373,7 @@ class CaPUv3:
         weights = self.mission.weights
 
         # --- 1. META-COGNITION ---
-        meta_lines = []
+        meta_lines: List[str | tuple[float, int, str]] = []
 
         # Intent (Always First)
         if ctx.intent:
@@ -425,7 +424,9 @@ class CaPUv3:
         # Sort META lines (except forced ones)
         # Separate forced (already strings) from weighted (tuples)
         meta_final = [line for line in meta_lines if isinstance(line, str)]
-        weighted_meta = [line for line in meta_lines if isinstance(line, tuple)]
+        weighted_meta: List[tuple[float, int, str]] = [
+            cast(tuple[float, int, str], line) for line in meta_lines if isinstance(line, tuple)
+        ]
         weighted_meta.sort(key=lambda x: (-x[0], x[1]))
         meta_final.extend([x[2] for x in weighted_meta])
 

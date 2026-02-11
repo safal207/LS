@@ -2,7 +2,7 @@ import unittest
 import sys
 import time
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 # Ensure python/ directory is in sys.path
 sys.path.append(str(Path(__file__).parent.parent))

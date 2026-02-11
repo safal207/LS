@@ -31,7 +31,7 @@ class BeliefAging:
         supports = [float(b.get("support", 0.0)) for b in beliefs]
 
         avg_age = safe_ratio(sum(ages), len(ages))
-        avg_support = safe_ratio(sum(supports), len(supports))
+        safe_ratio(sum(supports), len(supports))
 
         mature_count = 0
         for age, support in zip(ages, supports):

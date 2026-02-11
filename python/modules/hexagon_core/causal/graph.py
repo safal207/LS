@@ -1,7 +1,7 @@
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional, Set, TYPE_CHECKING
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
 import logging
 
 from .cycle_detector import CycleDetector
@@ -45,7 +45,7 @@ class CausalGraph:
         self._lock = threading.RLock()
         self._cycle_detector = CycleDetector()
 
-    def add_causal_link(self, cause_id: str, effect_id: str, weight: float, context: Dict[str, Any] = None, lifecycle: Optional['BeliefLifecycleManager'] = None) -> bool:
+    def add_causal_link(self, cause_id: str, effect_id: str, weight: float, context: Dict[str, Any] | None = None, lifecycle: Optional['BeliefLifecycleManager'] = None) -> bool:
         with self._lock:
             # Validate belief existence
             if lifecycle:
@@ -61,7 +61,8 @@ class CausalGraph:
                 logger.warning(f"⛔ Cycle detected: Cannot add {cause_id} -> {effect_id}")
                 return False
 
-            if context is None: context = {}
+            if context is None:
+                context = {}
 
             edge = CausalEdge(
                 cause_id=cause_id,
@@ -73,10 +74,12 @@ class CausalGraph:
 
             self._edges.append(edge)
 
-            if effect_id not in self._upstream: self._upstream[effect_id] = []
+            if effect_id not in self._upstream:
+                self._upstream[effect_id] = []
             self._upstream[effect_id].append(edge)
 
-            if cause_id not in self._downstream: self._downstream[cause_id] = []
+            if cause_id not in self._downstream:
+                self._downstream[cause_id] = []
             self._downstream[cause_id].append(edge)
 
             logger.info(f"🔗 Causal link added: {cause_id} -> {effect_id} (w={weight:.2f})")

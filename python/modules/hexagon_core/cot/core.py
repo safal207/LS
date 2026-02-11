@@ -1,9 +1,8 @@
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Dict, Any, List
 
-from ..belief.lifecycle import BeliefLifecycleManager, ConvictStatus
+from ..belief.lifecycle import BeliefLifecycleManager
 from ..causal.graph import CausalGraph
 from ..mission.state import MissionState
 from ..config import COTConfig

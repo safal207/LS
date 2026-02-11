@@ -1,7 +1,7 @@
 import logging
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from datetime import datetime, timezone
 
 logger = logging.getLogger("MissionState")

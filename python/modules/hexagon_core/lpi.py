@@ -1,6 +1,5 @@
 from PyQt6.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget, QPushButton, QHBoxLayout
 from PyQt6.QtCore import Qt, QPoint, pyqtSignal
-from PyQt6.QtGui import QFont
 
 class LPI(QMainWindow):
     """Liminal Presence Interface (The GUI)"""
@@ -27,7 +26,6 @@ class LPI(QMainWindow):
         layout = QVBoxLayout(self.central_widget)
 
         # Header (LRI Status)
-        header_layout = QVBoxLayout()
 
         # Close button
         self.btn_close = QPushButton("✕")

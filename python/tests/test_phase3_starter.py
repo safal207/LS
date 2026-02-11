@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 from hexagon_core.capu_v3 import CaPUv3
 from hexagon_core.belief.lifecycle import BeliefLifecycleManager
-from hexagon_core.belief.models import Convict, ConvictStatus, ReinforcementEvent
+from hexagon_core.belief.models import ConvictStatus, ReinforcementEvent
 from hexagon_core.belief.events import BeliefDeprecatedEvent
 from hexagon_core.causal.graph import CausalGraph
 from hexagon_core.cot.alignment import AlignmentSystem

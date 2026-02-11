@@ -1,8 +1,6 @@
 import time
 import logging
-import os
 import requests
-import json
 
 from ..rust_bridge import RustOptimizer
 

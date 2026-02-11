@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Tuple, Optional, Set
 
 from .models import Convict, ConvictStatus
@@ -13,7 +13,7 @@ class PromotionCriteria:
     min_unique_sources: int = 2
 
 class BeliefPromotionSystem:
-    def __init__(self, criteria: PromotionCriteria = None):
+    def __init__(self, criteria: PromotionCriteria | None = None):
         if criteria is None:
             self.criteria = PromotionCriteria()
         else:

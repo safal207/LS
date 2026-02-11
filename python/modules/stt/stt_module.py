@@ -11,7 +11,7 @@ import queue
 import os
 from typing import Optional
 from faster_whisper import WhisperModel
-from config import WHISPER_MODEL_SIZE, SAMPLE_RATE
+from config import WHISPER_MODEL_SIZE
 from shared.utils import is_question
 
 logger = logging.getLogger(__name__)
@@ -197,7 +197,7 @@ class SpeechToText:
         while not self.input_queue.empty():
             try:
                 self.input_queue.get_nowait()
-            except:
+            except Exception:
                 break
                 
         logger.info("Speech-to-Text module stopped")

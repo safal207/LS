@@ -1,5 +1,4 @@
 import pytest
-import time
 from datetime import datetime, timedelta, timezone
 from hexagon_core.belief.lifecycle import (
     BeliefLifecycleManager,

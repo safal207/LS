@@ -40,10 +40,14 @@ def load_config(config_path: str = "config/self_improving.yaml") -> Dict[str, An
                 val = val.split('#')[0].strip() # Remove comments
 
                 # Simple type casting
-                if val.isdigit(): val = int(val)
-                elif val.lower() == 'true': val = True
-                elif val.lower() == 'false': val = False
-                elif val.startswith('"') and val.endswith('"'): val = val[1:-1]
+                if val.isdigit():
+                    val = int(val)
+                elif val.lower() == 'true':
+                    val = True
+                elif val.lower() == 'false':
+                    val = False
+                elif val.startswith('"') and val.endswith('"'):
+                    val = val[1:-1]
 
                 if key in config:
                     config[key] = val
@@ -135,7 +139,8 @@ class SelfImprovingBrainV2:
         logger.info("V2 Stopped.")
 
     def learn_from_session(self, session_data: List[Dict]):
-        if self.stop_event.is_set(): return
+        if self.stop_event.is_set():
+            return
 
         dropped = 0
         for item in session_data:
@@ -177,7 +182,8 @@ class SelfImprovingBrainV2:
             self._process_batch(batch)
 
     def _process_batch(self, batch: List[Dict]):
-        if not batch: return
+        if not batch:
+            return
         try:
             texts = [f"Q: {i.get('question','')} A: {i.get('answer','')}" for i in batch]
             embeddings = self.embedder.embed(texts)
@@ -228,14 +234,16 @@ class SelfImprovingBrainV2:
         while not self.stop_event.is_set():
             # Sleep in small chunks to react to stop_event
             for _ in range(interval):
-                if self.stop_event.is_set(): return
+                if self.stop_event.is_set():
+                    return
                 time.sleep(1)
 
             if self.rust.available and hasattr(self.rust, 'reindex'):
                 try:
                     self.rust.reindex()
                     self.last_cluster_time = time.time()
-                except Exception: pass
+                except Exception:
+                    pass
 
     def flush(self):
         """Blocks until all items in queue are processed."""
@@ -251,11 +259,11 @@ class SelfImprovingBrainV2:
             }
 
     def search_similar(self, query: str, k: int = 5):
-        if not self.rust.available: return []
+        if not self.rust.available:
+            return []
         embedding = self.embedder.embed([f"{query}"])[0]
         results = self.rust.find_similar(embedding, k)
 
-        decoded = []
         # Mock decoding logic (assuming Rust returns IDs, need to fetch Data)
         # For now just return raw results or empty list if no data fetching implemented
         return results

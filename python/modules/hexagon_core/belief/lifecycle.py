@@ -1,11 +1,10 @@
 import logging
 import uuid
-import math
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any
 
 from .models import Convict, ConvictStatus, ReinforcementEvent, Contradiction, BeliefCluster
-from .events import BeliefEvent, BeliefDeprecatedEvent, BeliefConflictedEvent, BeliefRemovedEvent
+from .events import BeliefEvent, BeliefDeprecatedEvent, BeliefConflictedEvent
 from .promotion import BeliefPromotionSystem
 from .temporal_index import TemporalIndex
 
@@ -108,7 +107,8 @@ class ContradictionDetector:
     def _jaccard_similarity(self, s1: str, s2: str) -> float:
         set1 = set(s1.lower().split())
         set2 = set(s2.lower().split())
-        if not set1 or not set2: return 0.0
+        if not set1 or not set2:
+            return 0.0
         intersection = len(set1.intersection(set2))
         union = len(set1.union(set2))
         return intersection / union
@@ -147,8 +147,10 @@ class ContradictionDetector:
 
                 if is_explicit_negation or is_outcome_conflict:
                     severity = 0.5
-                    if is_explicit_negation: severity = 0.8
-                    if is_outcome_conflict: severity = 0.6
+                    if is_explicit_negation:
+                        severity = 0.8
+                    if is_outcome_conflict:
+                        severity = 0.6
 
                     contradictions.append(Contradiction(
                         id=f"conflict_{uuid.uuid4()}",
@@ -195,10 +197,12 @@ class SemanticClusterManager:
 
         set1 = tokenize(s1)
         set2 = tokenize(s2)
-        if not set1 or not set2: return 1.0
+        if not set1 or not set2:
+            return 1.0
         intersection = len(set1.intersection(set2))
         union = len(set1.union(set2))
-        if union == 0: return 1.0
+        if union == 0:
+            return 1.0
         return 1.0 - (intersection / union)
 
     def cluster(self, convicts: List[Convict]) -> List[BeliefCluster]:
@@ -266,7 +270,7 @@ class BeliefLifecycleManager:
         """Return True if a belief with this ID exists."""
         return convict_id in self._convicts
 
-    def register_belief(self, text: str, metadata: Dict[str, Any] = None) -> Convict:
+    def register_belief(self, text: str, metadata: Dict[str, Any] | None = None) -> Convict:
         for c in self._convicts.values():
             if c.belief == text:
                 if metadata:
@@ -274,7 +278,8 @@ class BeliefLifecycleManager:
                 return c
 
         new_id = f"convict_{uuid.uuid4()}"
-        if metadata is None: metadata = {}
+        if metadata is None:
+            metadata = {}
 
         now = datetime.now(timezone.utc)
         convict = Convict(
@@ -306,7 +311,8 @@ class BeliefLifecycleManager:
         return success
 
     def decay_all(self, now: Optional[datetime] = None) -> List[str]:
-        if now is None: now = datetime.now(timezone.utc)
+        if now is None:
+            now = datetime.now(timezone.utc)
         decayed_ids = []
 
         for c in self._convicts.values():
