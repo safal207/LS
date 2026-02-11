@@ -89,6 +89,10 @@ struct PeerSession {
     last_heartbeat: Instant,
 }
 
+
+type ChannelStats = (String, Option<u64>, usize, u64, u64, u64, u64);
+type ChannelStatsEntry = (u64, String, Option<u64>, usize, u64, u64, u64, u64);
+
 #[pymethods]
 impl TransportHandle {
     #[new]
@@ -451,7 +455,7 @@ impl TransportHandle {
     fn channel_stats(
         &self,
         channel: u64,
-    ) -> PyResult<(String, Option<u64>, usize, u64, u64, u64, u64)> {
+    ) -> PyResult<ChannelStats> {
         let channels = self
             .channels
             .lock()
@@ -493,7 +497,7 @@ impl TransportHandle {
 
     fn list_channel_stats(
         &self,
-    ) -> PyResult<Vec<(u64, String, Option<u64>, usize, u64, u64, u64, u64)>> {
+    ) -> PyResult<Vec<ChannelStatsEntry>> {
         let channels = self
             .channels
             .lock()
