@@ -17,6 +17,7 @@ on:
       - "python/tests/test_circuit_breaker.py"
       - "python/tests/test_mission_state.py"
       - "python/tests/test_rust_bridge.py"
+      - "python/tests/test_api_parity.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
       - "scripts/web4meshdemo.py"
@@ -40,6 +41,7 @@ on:
       - "python/tests/test_circuit_breaker.py"
       - "python/tests/test_mission_state.py"
       - "python/tests/test_rust_bridge.py"
+      - "python/tests/test_api_parity.py"
       - "scripts/web4_demo.py"
       - "scripts/web4_mesh_demo.py"
       - "scripts/web4meshdemo.py"
@@ -100,6 +102,10 @@ jobs:
       - name: Test Rust Python Bridge
         run: |
           PYTHONPATH=python:python/modules python -m pytest python/tests/test_rust_bridge.py
+
+      - name: Test API Parity (Rust vs Fallback)
+        run: |
+          PYTHONPATH=python:python/modules python -m pytest python/tests/test_api_parity.py
 
       - name: Run Rust tests
         working-directory: rust_core
