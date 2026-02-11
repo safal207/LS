@@ -2,8 +2,6 @@ import unittest
 import time
 import sys
 import os
-import threading
-import queue
 import tempfile
 import shutil
 from unittest.mock import MagicMock, patch
@@ -65,7 +63,7 @@ class TestGhostGPTKiller(unittest.TestCase):
     def test_core_flow(self):
         print("\n--- Testing Core Flow ---")
         if not QApplication.instance():
-            app = QApplication(sys.argv)
+            QApplication(sys.argv)
 
         # Use a fresh DB for core flow
         core = GhostCore()

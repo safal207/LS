@@ -1,13 +1,11 @@
 import unittest
-from unittest.mock import MagicMock
 import sys
-import os
 from pathlib import Path
 
 # Ensure python/ directory is in sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from modules.hexagon_core.capu_v3 import CaPUv3, CognitiveContext
+from modules.hexagon_core.capu_v3 import CaPUv3
 
 class TestCaPUv3(unittest.TestCase):
     def setUp(self):

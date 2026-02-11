@@ -11,7 +11,6 @@ import logging
 import queue
 import tempfile
 import os
-import threading
 from typing import Optional
 from config import SAMPLE_RATE, AUDIO_CHUNK_DURATION, VOLUME_THRESHOLD
 
