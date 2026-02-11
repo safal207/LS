@@ -1,4 +1,5 @@
 import importlib
+import importlib.machinery
 import importlib.util
 import pathlib
 import sys
@@ -8,33 +9,51 @@ import pytest
 import rust_bridge
 
 
-EXPECTED_EXPORTS = ["MemoryManager", "PatternMatcher", "Storage", "Transport"]
+EXPECTED_EXPORTS = [
+    "MemoryManager",
+    "PatternMatcher",
+    "Storage",
+    "TransportConfig",
+    "TransportHandle",
+    "Web4RttBinding",
+]
 
 
 def _repo_root() -> pathlib.Path:
     return pathlib.Path(__file__).resolve().parents[2]
 
 
+def _artifact_candidates() -> list[pathlib.Path]:
+    release_dir = _repo_root() / "rust_core" / "target" / "release"
+    names = []
+    for suffix in importlib.machinery.EXTENSION_SUFFIXES:
+        names.append(f"ghostgpt_core{suffix}")
+        names.append(f"libghostgpt_core{suffix}")
+    return [release_dir / name for name in names]
+
+
 def _load_ghostgpt_core():
     """
-    Import ghostgpt_core using the default import path, or from the Rust build
-    artifact if only libghostgpt_core.so is present.
+    Import ghostgpt_core using the default import path, or from a Rust build
+    artifact (Linux/macOS/Windows extension suffixes).
     """
     try:
         return importlib.import_module("ghostgpt_core")
     except ImportError:
-        artifact_path = _repo_root() / "rust_core" / "target" / "release" / "libghostgpt_core.so"
-        if not artifact_path.exists():
-            raise
+        for artifact_path in _artifact_candidates():
+            if not artifact_path.exists():
+                continue
 
-        spec = importlib.util.spec_from_file_location("ghostgpt_core", artifact_path)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Could not create import spec for {artifact_path}")
+            spec = importlib.util.spec_from_file_location("ghostgpt_core", artifact_path)
+            if spec is None or spec.loader is None:
+                continue
 
-        module = importlib.util.module_from_spec(spec)
-        sys.modules["ghostgpt_core"] = module
-        spec.loader.exec_module(module)
-        return module
+            module = importlib.util.module_from_spec(spec)
+            sys.modules["ghostgpt_core"] = module
+            spec.loader.exec_module(module)
+            return module
+
+        raise
 
 
 @pytest.fixture(scope="module")
@@ -53,18 +72,12 @@ def test_ghostgpt_core_import(ghostgpt_core_module):
 def test_exported_classes_available(ghostgpt_core_module):
     """Проверяем доступность обязательных Rust-экспортов."""
     module_exports = set(dir(ghostgpt_core_module))
-
-    # В Rust-модуле транспорт экспортирован как пара TransportConfig/TransportHandle.
-    if "Transport" not in module_exports:
-        module_exports.add("Transport")
-        assert {"TransportConfig", "TransportHandle"}.issubset(set(dir(ghostgpt_core_module)))
-
     missing = [name for name in EXPECTED_EXPORTS if name not in module_exports]
     assert not missing, f"Missing exports in ghostgpt_core: {missing}"
 
 
 def test_basic_instantiation(ghostgpt_core_module, tmp_path):
-    """Проверяем, что можно создать ключевые Rust-объекты."""
+    """Проверяем, что можно создать ключевые Rust-объекты и выполнить базовые операции."""
     storage = ghostgpt_core_module.Storage(str(tmp_path / "bridge.db"))
     matcher = ghostgpt_core_module.PatternMatcher()
     manager = ghostgpt_core_module.MemoryManager(100)
@@ -72,6 +85,30 @@ def test_basic_instantiation(ghostgpt_core_module, tmp_path):
     assert storage is not None
     assert matcher is not None
     assert manager is not None
+
+    storage.save("test-key", b"test-value")
+    loaded = storage.load("test-key")
+    assert bytes(loaded) == b"test-value"
+
+
+def test_web4_rtt_binding(ghostgpt_core_module):
+    """Проверяем базовое поведение Web4RttBinding."""
+    rtt = ghostgpt_core_module.Web4RttBinding(max_queue=2)
+
+    assert rtt.pending() == 0
+    rtt.send("message-1")
+    assert rtt.pending() == 1
+    assert rtt.receive() == "message-1"
+    assert rtt.pending() == 0
+
+    rtt.send("q1")
+    rtt.send("q2")
+    with pytest.raises(RuntimeError, match="backpressure"):
+        rtt.send("overflow")
+
+    rtt.disconnect()
+    with pytest.raises(RuntimeError, match="disconnected"):
+        rtt.send("after-disconnect")
 
 
 def test_fallback_mechanism(monkeypatch):
