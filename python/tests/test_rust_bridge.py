@@ -118,6 +118,7 @@ def test_fallback_mechanism(monkeypatch):
     optimizer = rust_bridge.RustOptimizer()
 
     assert optimizer.is_available() is False
+    assert optimizer.bridge_health() == "FALLBACK"
     assert optimizer.cache_pattern("k", [0.1, 0.2]) is False
     assert optimizer.find_similar([0.1, 0.2], k=1) == []
     assert optimizer.save_to_storage("k", b"v") is False
@@ -125,3 +126,16 @@ def test_fallback_mechanism(monkeypatch):
     assert optimizer.optimize_memory() == 0
     assert optimizer.transport_available() is False
     assert optimizer.open_channel("test") is None
+
+
+def test_fallback_logs_silent_failures(monkeypatch, caplog):
+    monkeypatch.setattr(rust_bridge, "ghostgpt_core", None)
+    optimizer = rust_bridge.RustOptimizer()
+
+    with caplog.at_level("DEBUG"):
+        assert optimizer.cache_pattern("k", [0.1, 0.2]) is False
+        assert optimizer.open_channel("test") is None
+
+    messages = [record.message for record in caplog.records]
+    assert any("cache_pattern" in message and "fallback" in message.lower() for message in messages)
+    assert any("open_channel" in message and "fallback" in message.lower() for message in messages)
