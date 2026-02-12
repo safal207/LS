@@ -1,4 +1,6 @@
 import queue
+import threading
+import time
 
 import pytest
 
@@ -16,7 +18,7 @@ from modules.web4_runtime.rtt import BackpressureError, DisconnectedError, RttCo
 
 
 def test_rtt_backpressure_and_reconnect() -> None:
-    session = RttSession[str](config=RttConfig(max_queue=1))
+    session = RttSession[str](config=RttConfig(max_queue=1, backpressure_policy="error"))
     session.send("first")
     with pytest.raises(BackpressureError):
         session.send("second")
@@ -26,6 +28,49 @@ def test_rtt_backpressure_and_reconnect() -> None:
     session.reconnect()
     session.send("third")
     assert session.receive() == "third"
+
+
+def test_rtt_backpressure_policies_and_stats() -> None:
+    drop_oldest = RttSession[str](config=RttConfig(max_queue=2, backpressure_policy="dropoldest"))
+    drop_oldest.send_batch(["a", "b", "c"])
+    assert drop_oldest.receive() == "b"
+    assert drop_oldest.receive() == "c"
+    assert drop_oldest.stats.dropped_oldest == 1
+    assert drop_oldest.stats.accepted == 3
+
+    drop_newest = RttSession[str](config=RttConfig(max_queue=2, backpressure_policy="dropnewest"))
+    drop_newest.send_batch(["a", "b", "c"])
+    assert drop_newest.receive() == "a"
+    assert drop_newest.receive() == "b"
+    assert drop_newest.receive() is None
+    assert drop_newest.stats.dropped_newest == 1
+    assert drop_newest.stats.accepted == 2
+
+
+def test_rtt_block_policy_waits_for_space() -> None:
+    session = RttSession[str](config=RttConfig(max_queue=1, backpressure_policy="block", block_timeout_s=0.2))
+    session.send("a")
+
+    def delayed_receive() -> None:
+        time.sleep(0.05)
+        assert session.receive() == "a"
+
+    worker = threading.Thread(target=delayed_receive)
+    worker.start()
+    session.send("b")
+    worker.join(timeout=1)
+
+    assert session.receive() == "b"
+    assert session.stats.blocked == 1
+
+
+def test_rtt_block_policy_timeout_updates_stats() -> None:
+    session = RttSession[str](config=RttConfig(max_queue=1, backpressure_policy="block", block_timeout_s=0.01))
+    session.send("a")
+    with pytest.raises(BackpressureError, match="timeout"):
+        session.send("b")
+    assert session.stats.errors == 1
+    assert session.stats.blocked == 1
 
 
 def test_cip_handshake_trust_fsm() -> None:
