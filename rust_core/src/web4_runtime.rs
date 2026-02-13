@@ -1,43 +1,166 @@
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
+use std::collections::VecDeque;
+use std::thread;
+use std::time::{Duration, Instant};
+
+#[derive(Clone, Copy)]
+enum BackpressurePolicy {
+    DropOldest,
+    DropNewest,
+    Block,
+    Error,
+}
+
+impl BackpressurePolicy {
+    fn parse(value: Option<&str>) -> PyResult<Self> {
+        match value.unwrap_or("error").to_ascii_lowercase().as_str() {
+            "dropoldest" => Ok(Self::DropOldest),
+            "dropnewest" => Ok(Self::DropNewest),
+            "block" => Ok(Self::Block),
+            "error" => Ok(Self::Error),
+            other => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Unknown backpressure policy: {other}"
+            ))),
+        }
+    }
+}
+
+#[derive(Default)]
+struct RttStats {
+    attempted: usize,
+    enqueued: usize,
+    dropped_oldest: usize,
+    dropped_newest: usize,
+    blocked: usize,
+    errors: usize,
+    overflow_events: usize,
+    max_queue_len: usize,
+}
 
 #[pyclass]
 pub struct Web4RttBinding {
     connected: bool,
-    queue: Vec<String>,
+    queue: VecDeque<String>,
     max_queue: usize,
+    policy: BackpressurePolicy,
+    block_timeout_ms: u64,
+    session_id: u64,
+    heartbeat_timeout_ms: u64,
+    last_heartbeat_at: Instant,
+    on_session_open: Vec<PyObject>,
+    on_session_close: Vec<PyObject>,
+    on_heartbeat_timeout: Vec<PyObject>,
+    stats: RttStats,
 }
 
 #[pymethods]
 impl Web4RttBinding {
     #[new]
-    fn new(max_queue: usize) -> Self {
-        Self {
+    #[pyo3(signature = (max_queue, backpressure_policy=None, block_timeout_ms=100, session_id=0, heartbeat_timeout_ms=1000))]
+    fn new(
+        max_queue: usize,
+        backpressure_policy: Option<&str>,
+        block_timeout_ms: u64,
+        session_id: u64,
+        heartbeat_timeout_ms: u64,
+    ) -> PyResult<Self> {
+        Ok(Self {
             connected: true,
-            queue: Vec::new(),
+            queue: VecDeque::new(),
             max_queue: max_queue.max(1),
+            policy: BackpressurePolicy::parse(backpressure_policy)?,
+            block_timeout_ms,
+            session_id,
+            heartbeat_timeout_ms,
+            last_heartbeat_at: Instant::now(),
+            on_session_open: Vec::new(),
+            on_session_close: Vec::new(),
+            on_heartbeat_timeout: Vec::new(),
+            stats: RttStats::default(),
+        })
+    }
+
+    fn connect(&mut self, py: Python<'_>) -> PyResult<()> {
+        if self.connected {
+            return Ok(());
         }
-    }
-
-    fn connect(&mut self) {
         self.connected = true;
+        self.last_heartbeat_at = Instant::now();
+        self.emit(py, &self.on_session_open)?;
+        Ok(())
     }
 
-    fn disconnect(&mut self) {
+    #[pyo3(signature = (reason=None))]
+    fn disconnect(&mut self, py: Python<'_>, reason: Option<&str>) -> PyResult<()> {
+        if !self.connected {
+            return Ok(());
+        }
         self.connected = false;
+        let _ = reason; // reserved for future observability metadata bridge
+        self.emit(py, &self.on_session_close)?;
+        Ok(())
     }
 
     fn send(&mut self, message: String) -> PyResult<()> {
         if !self.connected {
+            self.stats.errors += 1;
             return Err(pyo3::exceptions::PyRuntimeError::new_err(
                 "RTT binding disconnected",
             ));
         }
+        self.stats.attempted += 1;
+
         if self.queue.len() >= self.max_queue {
-            return Err(pyo3::exceptions::PyRuntimeError::new_err(
-                "RTT binding backpressure",
-            ));
+            self.stats.overflow_events += 1;
+            match self.policy {
+                BackpressurePolicy::DropOldest => {
+                    let _ = self.queue.pop_front();
+                    self.queue.push_back(message);
+                    self.stats.enqueued += 1;
+                    self.stats.dropped_oldest += 1;
+                    self.update_max_queue_len();
+                    return Ok(());
+                }
+                BackpressurePolicy::DropNewest => {
+                    self.stats.dropped_newest += 1;
+                    return Ok(());
+                }
+                BackpressurePolicy::Block => {
+                    self.stats.blocked += 1;
+                    let deadline = Instant::now() + Duration::from_millis(self.block_timeout_ms);
+                    while self.queue.len() >= self.max_queue && self.connected {
+                        if Instant::now() >= deadline {
+                            self.stats.errors += 1;
+                            return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                                "RTT binding backpressure: block timeout",
+                            ));
+                        }
+                        thread::sleep(Duration::from_millis(1));
+                    }
+                    if !self.connected {
+                        self.stats.errors += 1;
+                        return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                            "RTT binding disconnected",
+                        ));
+                    }
+                    self.queue.push_back(message);
+                    self.stats.enqueued += 1;
+                    self.update_max_queue_len();
+                    return Ok(());
+                }
+                BackpressurePolicy::Error => {
+                    self.stats.errors += 1;
+                    return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                        "RTT binding backpressure",
+                    ));
+                }
+            }
         }
-        self.queue.push(message);
+
+        self.queue.push_back(message);
+        self.stats.enqueued += 1;
+        self.update_max_queue_len();
         Ok(())
     }
 
@@ -45,13 +168,72 @@ impl Web4RttBinding {
         if !self.connected {
             return None;
         }
-        if self.queue.is_empty() {
-            return None;
-        }
-        Some(self.queue.remove(0))
+        self.queue.pop_front()
     }
 
     fn pending(&self) -> usize {
         self.queue.len()
+    }
+
+    fn heartbeat(&mut self) {
+        self.last_heartbeat_at = Instant::now();
+    }
+
+    fn check_heartbeat_timeout(&mut self, py: Python<'_>) -> PyResult<bool> {
+        if !self.connected {
+            return Ok(false);
+        }
+        if self.last_heartbeat_at.elapsed() < Duration::from_millis(self.heartbeat_timeout_ms) {
+            return Ok(false);
+        }
+        self.emit(py, &self.on_heartbeat_timeout)?;
+        self.connected = false;
+        self.emit(py, &self.on_session_close)?;
+        Ok(true)
+    }
+
+    fn register_on_session_open(&mut self, py: Python<'_>, callback: PyObject) -> PyResult<()> {
+        self.on_session_open.push(callback.clone_ref(py));
+        if self.connected {
+            callback.call1(py, (self.session_id,))?;
+        }
+        Ok(())
+    }
+
+    fn register_on_session_close(&mut self, py: Python<'_>, callback: PyObject) {
+        self.on_session_close.push(callback.clone_ref(py));
+    }
+
+    fn register_on_heartbeat_timeout(&mut self, py: Python<'_>, callback: PyObject) {
+        self.on_heartbeat_timeout.push(callback.clone_ref(py));
+    }
+
+    fn stats<'py>(&self, py: Python<'py>) -> &'py PyDict {
+        let stats = PyDict::new(py);
+        let _ = stats.set_item("attempted", self.stats.attempted);
+        let _ = stats.set_item("enqueued", self.stats.enqueued);
+        let _ = stats.set_item("accepted", self.stats.enqueued);
+        let _ = stats.set_item("dropped_oldest", self.stats.dropped_oldest);
+        let _ = stats.set_item("dropped_newest", self.stats.dropped_newest);
+        let _ = stats.set_item("dropped", self.stats.dropped_oldest + self.stats.dropped_newest);
+        let _ = stats.set_item("blocked", self.stats.blocked);
+        let _ = stats.set_item("errors", self.stats.errors);
+        let _ = stats.set_item("overflow_events", self.stats.overflow_events);
+        let _ = stats.set_item("max_queue_len", self.stats.max_queue_len);
+        stats
+    }
+}
+
+impl Web4RttBinding {
+    fn update_max_queue_len(&mut self) {
+        self.stats.max_queue_len = self.stats.max_queue_len.max(self.queue.len());
+    }
+
+    fn emit(&self, py: Python<'_>, callbacks: &[PyObject]) -> PyResult<()> {
+        let callbacks: Vec<PyObject> = callbacks.iter().map(|c| c.clone_ref(py)).collect();
+        for callback in callbacks {
+            callback.call1(py, (self.session_id,))?;
+        }
+        Ok(())
     }
 }
