@@ -146,6 +146,23 @@ def test_hook_reentrancy_guard_prevents_recursive_emit() -> None:
 
     assert events == [("close", 77)]
 
+def test_hook_reentrancy_guard_is_released_on_exception() -> None:
+    session = RttSession[str](config=RttConfig(session_id=88))
+
+    def flaky_close(_: int) -> None:
+        raise RuntimeError("boom")
+
+    session.register_on_session_close(flaky_close)
+    with pytest.raises(RuntimeError, match="boom"):
+        session.disconnect(reason="manual")
+
+    # guard should be released after exception, allowing later emits
+    session.unregister_on_session_close(flaky_close)
+    events: list[tuple[str, int]] = []
+    session.register_on_session_open(lambda sid: events.append(("open", sid)))
+    session.reconnect()
+    assert events == [("open", 88)]
+
 def test_session_lifecycle_hooks_and_observability() -> None:
     hub = ObservabilityHub()
     events: list[tuple[str, int]] = []

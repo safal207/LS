@@ -1,5 +1,7 @@
 # Web4 Runtime QoS & Backpressure Policies
 
+Compatibility alias: `docs/WEB4RUNTIMEQOS.md` (symlink for legacy links).
+
 Web4 RTT queue supports overflow strategies configured by `RttConfig.backpressure_policy`:
 
 - `error` — fail fast with `BackpressureError` when queue is full.
