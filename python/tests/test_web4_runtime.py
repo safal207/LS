@@ -86,9 +86,51 @@ def test_rtt_block_policy_waits_for_space() -> None:
     assert session.receive() == "b"
     assert session.stats.blocked == 1
 
+def test_block_policy_spurious_wakeup_resilience() -> None:
+    session = RttSession[str](
+        config=RttConfig(max_queue=1, backpressure_policy="block", block_timeout_s=0.5)
+    )
+
+    session.send("a")
+
+    def consumer() -> None:
+        time.sleep(0.1)
+        assert session.receive() == "a"
+
+    worker = threading.Thread(target=consumer)
+    worker.start()
+
+    with session._condition:
+        session._condition.notify_all()
+
+    session.send("b")
+    worker.join(timeout=1)
+
+    assert session.receive() == "b"
+    assert session.stats.blocked == 1
+    assert session.stats.errors == 0
 
 
+def test_unregister_and_clear_session_hooks() -> None:
+    session = RttSession[str](config=RttConfig(session_id=9))
+    events: list[tuple[str, int]] = []
 
+    def on_open(sid: int) -> None:
+        events.append(("open", sid))
+
+    def on_close(sid: int) -> None:
+        events.append(("close", sid))
+
+    session.register_on_session_open(on_open)
+    assert events == [("open", 9)]
+    session.unregister_on_session_open(on_open)
+    session.register_on_session_close(on_close)
+    session.clear_session_hooks()
+
+    session.disconnect()
+    session.reconnect()
+
+    assert events == [("open", 9)]
 def test_session_lifecycle_hooks_and_observability() -> None:
     hub = ObservabilityHub()
     events: list[tuple[str, int]] = []

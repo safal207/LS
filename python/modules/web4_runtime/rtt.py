@@ -66,6 +66,7 @@ class RttSession(Generic[MessageT]):
     _on_session_close: list[LifecycleHook] = field(default_factory=list, init=False)
     _on_heartbeat_timeout: list[LifecycleHook] = field(default_factory=list, init=False)
     reconnects: int = field(default=0, init=False)
+    _emitting: bool = field(default=False, init=False)
 
     @property
     def connected(self) -> bool:
@@ -87,14 +88,32 @@ class RttSession(Generic[MessageT]):
         if connected:
             hook(session_id)
 
+    def unregister_on_session_open(self, hook: LifecycleHook) -> None:
+        with self._condition:
+            if hook in self._on_session_open:
+                self._on_session_open.remove(hook)
     def register_on_session_close(self, hook: LifecycleHook) -> None:
         with self._condition:
             self._on_session_close.append(hook)
 
+    def unregister_on_session_close(self, hook: LifecycleHook) -> None:
+        with self._condition:
+            if hook in self._on_session_close:
+                self._on_session_close.remove(hook)
     def register_on_heartbeat_timeout(self, hook: LifecycleHook) -> None:
         with self._condition:
             self._on_heartbeat_timeout.append(hook)
 
+    def unregister_on_heartbeat_timeout(self, hook: LifecycleHook) -> None:
+        with self._condition:
+            if hook in self._on_heartbeat_timeout:
+                self._on_heartbeat_timeout.remove(hook)
+
+    def clear_session_hooks(self) -> None:
+        with self._condition:
+            self._on_session_open.clear()
+            self._on_session_close.clear()
+            self._on_heartbeat_timeout.clear()
     def send(self, message: MessageT) -> None:
         with self._condition:
             if not self._connected:
@@ -121,15 +140,16 @@ class RttSession(Generic[MessageT]):
         if self.config.backpressure_policy == "block":
             self._bump(blocked=1)
             deadline = monotonic() + max(0.0, self.config.block_timeout_s)
-            while len(self._queue) >= self.config.max_queue and self._connected:
-                remaining = deadline - monotonic()
-                if remaining <= 0:
-                    self._bump(errors=1)
-                    raise BackpressureError("RTT backpressure: block timeout")
-                self._condition.wait(timeout=remaining)
-            if not self._connected:
+            def can_enqueue() -> bool:
+                return (not self._connected) or (len(self._queue) < self.config.max_queue)
+
+            remaining = max(0.0, deadline - monotonic())
+            ok = self._condition.wait_for(can_enqueue, timeout=remaining)
+            if not ok or not self._connected:
                 self._bump(errors=1)
-                raise DisconnectedError("RTT session is disconnected")
+                if not self._connected:
+                    raise DisconnectedError("RTT session is disconnected")
+                raise BackpressureError("RTT backpressure: block timeout")
             self._queue.append(message)
             self._bump(enqueued=1)
             return
@@ -192,13 +212,21 @@ class RttSession(Generic[MessageT]):
         self._emit("session_open", open_hooks, reconnects=reconnects)
 
     def _emit(self, event_type: str, hooks: list[LifecycleHook], **metadata: Any) -> None:
-        if self.observability is not None:
-            self.observability.record(
-                event_type,
-                {"session_id": self.config.session_id, **metadata},
-            )
-        for hook in hooks:
-            hook(self.config.session_id)
+        with self._condition:
+            if self._emitting:
+                return
+            self._emitting = True
+        try:
+            if self.observability is not None:
+                self.observability.record(
+                    event_type,
+                    {"session_id": self.config.session_id, **metadata},
+                )
+            for hook in hooks:
+                hook(self.config.session_id)
+        finally:
+            with self._condition:
+                self._emitting = False
 
     def _bump(
         self,

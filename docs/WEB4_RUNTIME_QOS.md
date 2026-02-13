@@ -7,6 +7,13 @@ Web4 RTT queue now supports four overflow strategies configured via `RttConfig.b
 - `dropnewest` — keep queued messages, discard the incoming message.
 - `block` — wait for free slot up to `RttConfig.block_timeout_s`, then fail with timeout.
 
+## Block policy guarantees
+
+- Spurious wakeups are handled via predicate-based waiting (`wait_for`).
+- Disconnect during wait aborts immediately with `DisconnectedError`.
+- Multiple concurrent senders wait independently.
+- No fairness guarantee between waiting senders.
+- Queue availability is rechecked atomically after wakeup.
 ## Stats (`RttStats`)
 
 `RttSession.stats` exposes queue behavior counters:
