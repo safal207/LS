@@ -124,6 +124,7 @@ def test_web4_rtt_binding_policies_and_stats(ghostgpt_core_module):
     assert rtt.receive() == "c"
     stats = rtt.stats()
     assert stats["attempted"] == 3
+    assert stats["enqueued"] == 3
     assert stats["accepted"] == 3
     assert stats["dropped_oldest"] == 1
 
@@ -137,10 +138,12 @@ def test_web4_rtt_binding_policies_and_stats(ghostgpt_core_module):
 
     blocked = ghostgpt_core_module.Web4RttBinding(max_queue=1, backpressure_policy="block")
     blocked.send("a")
-    with pytest.raises(RuntimeError, match="would block"):
+    with pytest.raises(RuntimeError, match="timeout"):
         blocked.send("b")
     bstats = blocked.stats()
     assert bstats["blocked"] == 1
+    assert bstats["overflow_events"] == 1
+    assert bstats["max_queue_len"] >= 1
 def test_optimizer_init_uses_memory_manager_positional_arg(monkeypatch, tmp_path):
     class FakeMemoryManager:
         def __init__(self, *args, **kwargs):

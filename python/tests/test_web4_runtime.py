@@ -17,6 +17,44 @@ from modules.web4_runtime.protocol_router import Web4ProtocolRouter
 from modules.web4_runtime.rtt import BackpressureError, DisconnectedError, RttConfig, RttSession
 
 
+def test_qos_dropoldest_overflow() -> None:
+    session = RttSession[str](config=RttConfig(max_queue=2, backpressure_policy="dropoldest"))
+    session.send_batch(["a", "b", "c"])
+    assert session.receive() == "b"
+    assert session.receive() == "c"
+    assert session.stats.dropped_oldest == 1
+    assert session.stats.enqueued == 3
+
+
+def test_qos_dropnewest_overflow() -> None:
+    session = RttSession[str](config=RttConfig(max_queue=2, backpressure_policy="dropnewest"))
+    session.send_batch(["a", "b", "c"])
+    assert session.receive() == "a"
+    assert session.receive() == "b"
+    assert session.receive() is None
+    assert session.stats.dropped_newest == 1
+    assert session.stats.enqueued == 2
+
+
+def test_qos_block_timeout() -> None:
+    session = RttSession[str](config=RttConfig(max_queue=1, backpressure_policy="block", block_timeout_s=0.01))
+    session.send("a")
+    with pytest.raises(BackpressureError, match="timeout"):
+        session.send("b")
+    assert session.stats.errors == 1
+    assert session.stats.blocked == 1
+
+
+def test_rtt_stats_consistency() -> None:
+    session = RttSession[str](config=RttConfig(max_queue=2, backpressure_policy="dropoldest"))
+    session.send_batch(["a", "b", "c", "d"])
+    stats = session.stats
+    assert stats.attempted == 4
+    assert stats.enqueued == 4
+    assert stats.overflow_events == 2
+    assert stats.max_queue_len >= session.pending
+
+
 def test_rtt_backpressure_and_reconnect() -> None:
     session = RttSession[str](config=RttConfig(max_queue=1, backpressure_policy="error"))
     session.send("first")
@@ -28,23 +66,6 @@ def test_rtt_backpressure_and_reconnect() -> None:
     session.reconnect()
     session.send("third")
     assert session.receive() == "third"
-
-
-def test_rtt_backpressure_policies_and_stats() -> None:
-    drop_oldest = RttSession[str](config=RttConfig(max_queue=2, backpressure_policy="dropoldest"))
-    drop_oldest.send_batch(["a", "b", "c"])
-    assert drop_oldest.receive() == "b"
-    assert drop_oldest.receive() == "c"
-    assert drop_oldest.stats.dropped_oldest == 1
-    assert drop_oldest.stats.accepted == 3
-
-    drop_newest = RttSession[str](config=RttConfig(max_queue=2, backpressure_policy="dropnewest"))
-    drop_newest.send_batch(["a", "b", "c"])
-    assert drop_newest.receive() == "a"
-    assert drop_newest.receive() == "b"
-    assert drop_newest.receive() is None
-    assert drop_newest.stats.dropped_newest == 1
-    assert drop_newest.stats.accepted == 2
 
 
 def test_rtt_block_policy_waits_for_space() -> None:
@@ -61,15 +82,6 @@ def test_rtt_block_policy_waits_for_space() -> None:
     worker.join(timeout=1)
 
     assert session.receive() == "b"
-    assert session.stats.blocked == 1
-
-
-def test_rtt_block_policy_timeout_updates_stats() -> None:
-    session = RttSession[str](config=RttConfig(max_queue=1, backpressure_policy="block", block_timeout_s=0.01))
-    session.send("a")
-    with pytest.raises(BackpressureError, match="timeout"):
-        session.send("b")
-    assert session.stats.errors == 1
     assert session.stats.blocked == 1
 
 

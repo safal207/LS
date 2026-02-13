@@ -30,11 +30,21 @@ class RttConfig:
 @dataclass(frozen=True)
 class RttStats:
     attempted: int = 0
-    accepted: int = 0
+    enqueued: int = 0
     dropped_oldest: int = 0
     dropped_newest: int = 0
     blocked: int = 0
     errors: int = 0
+    overflow_events: int = 0
+    max_queue_len: int = 0
+
+    @property
+    def accepted(self) -> int:
+        return self.enqueued
+
+    @property
+    def dropped(self) -> int:
+        return self.dropped_oldest + self.dropped_newest
 
 
 @dataclass
@@ -68,14 +78,15 @@ class RttSession(Generic[MessageT]):
                 self._on_overflow(message)
                 return
             self._queue.append(message)
-            self._bump(accepted=1)
+            self._bump(enqueued=1)
             self._condition.notify_all()
 
     def _on_overflow(self, message: MessageT) -> None:
+        self._bump(overflow_events=1)
         if self.config.backpressure_policy == "dropoldest":
             self._queue.popleft()
             self._queue.append(message)
-            self._bump(accepted=1, dropped_oldest=1)
+            self._bump(enqueued=1, dropped_oldest=1)
             return
         if self.config.backpressure_policy == "dropnewest":
             self._bump(dropped_newest=1)
@@ -93,7 +104,7 @@ class RttSession(Generic[MessageT]):
                 self._bump(errors=1)
                 raise DisconnectedError("RTT session is disconnected")
             self._queue.append(message)
-            self._bump(accepted=1)
+            self._bump(enqueued=1)
             return
         self._bump(errors=1)
         raise BackpressureError("RTT backpressure: queue is full")
@@ -130,18 +141,22 @@ class RttSession(Generic[MessageT]):
         self,
         *,
         attempted: int = 0,
-        accepted: int = 0,
+        enqueued: int = 0,
         dropped_oldest: int = 0,
         dropped_newest: int = 0,
         blocked: int = 0,
         errors: int = 0,
+        overflow_events: int = 0,
     ) -> None:
         current = self._stats
+        max_queue_len = max(current.max_queue_len, len(self._queue))
         self._stats = RttStats(
             attempted=current.attempted + attempted,
-            accepted=current.accepted + accepted,
+            enqueued=current.enqueued + enqueued,
             dropped_oldest=current.dropped_oldest + dropped_oldest,
             dropped_newest=current.dropped_newest + dropped_newest,
             blocked=current.blocked + blocked,
             errors=current.errors + errors,
+            overflow_events=current.overflow_events + overflow_events,
+            max_queue_len=max_queue_len,
         )
