@@ -131,6 +131,7 @@ def test_unregister_and_clear_session_hooks() -> None:
     session.reconnect()
 
     assert events == [("open", 9)]
+
 def test_session_lifecycle_hooks_and_observability() -> None:
     hub = ObservabilityHub()
     events: list[tuple[str, int]] = []

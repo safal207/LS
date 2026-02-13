@@ -92,6 +92,7 @@ class RttSession(Generic[MessageT]):
         with self._condition:
             if hook in self._on_session_open:
                 self._on_session_open.remove(hook)
+
     def register_on_session_close(self, hook: LifecycleHook) -> None:
         with self._condition:
             self._on_session_close.append(hook)
@@ -100,6 +101,7 @@ class RttSession(Generic[MessageT]):
         with self._condition:
             if hook in self._on_session_close:
                 self._on_session_close.remove(hook)
+
     def register_on_heartbeat_timeout(self, hook: LifecycleHook) -> None:
         with self._condition:
             self._on_heartbeat_timeout.append(hook)
@@ -114,6 +116,7 @@ class RttSession(Generic[MessageT]):
             self._on_session_open.clear()
             self._on_session_close.clear()
             self._on_heartbeat_timeout.clear()
+
     def send(self, message: MessageT) -> None:
         with self._condition:
             if not self._connected:
@@ -140,6 +143,7 @@ class RttSession(Generic[MessageT]):
         if self.config.backpressure_policy == "block":
             self._bump(blocked=1)
             deadline = monotonic() + max(0.0, self.config.block_timeout_s)
+
             def can_enqueue() -> bool:
                 return (not self._connected) or (len(self._queue) < self.config.max_queue)
 
@@ -150,6 +154,7 @@ class RttSession(Generic[MessageT]):
                 if not self._connected:
                     raise DisconnectedError("RTT session is disconnected")
                 raise BackpressureError("RTT backpressure: block timeout")
+
             self._queue.append(message)
             self._bump(enqueued=1)
             return
