@@ -1,5 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use std::collections::VecDeque;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -40,7 +41,7 @@ struct RttStats {
 #[pyclass]
 pub struct Web4RttBinding {
     connected: bool,
-    queue: Vec<String>,
+    queue: VecDeque<String>,
     max_queue: usize,
     policy: BackpressurePolicy,
     block_timeout_ms: u64,
@@ -66,7 +67,7 @@ impl Web4RttBinding {
     ) -> PyResult<Self> {
         Ok(Self {
             connected: true,
-            queue: Vec::new(),
+            queue: VecDeque::new(),
             max_queue: max_queue.max(1),
             policy: BackpressurePolicy::parse(backpressure_policy)?,
             block_timeout_ms,
@@ -86,7 +87,7 @@ impl Web4RttBinding {
         }
         self.connected = true;
         self.last_heartbeat_at = Instant::now();
-        self.emit(py, "session_open", &self.on_session_open, None)?;
+        self.emit(py, &self.on_session_open)?;
         Ok(())
     }
 
@@ -96,7 +97,8 @@ impl Web4RttBinding {
             return Ok(());
         }
         self.connected = false;
-        self.emit(py, "session_close", &self.on_session_close, reason)?;
+        let _ = reason; // reserved for future observability metadata bridge
+        self.emit(py, &self.on_session_close)?;
         Ok(())
     }
 
@@ -113,8 +115,8 @@ impl Web4RttBinding {
             self.stats.overflow_events += 1;
             match self.policy {
                 BackpressurePolicy::DropOldest => {
-                    self.queue.remove(0);
-                    self.queue.push(message);
+                    let _ = self.queue.pop_front();
+                    self.queue.push_back(message);
                     self.stats.enqueued += 1;
                     self.stats.dropped_oldest += 1;
                     self.update_max_queue_len();
@@ -142,7 +144,7 @@ impl Web4RttBinding {
                             "RTT binding disconnected",
                         ));
                     }
-                    self.queue.push(message);
+                    self.queue.push_back(message);
                     self.stats.enqueued += 1;
                     self.update_max_queue_len();
                     return Ok(());
@@ -156,7 +158,7 @@ impl Web4RttBinding {
             }
         }
 
-        self.queue.push(message);
+        self.queue.push_back(message);
         self.stats.enqueued += 1;
         self.update_max_queue_len();
         Ok(())
@@ -166,10 +168,7 @@ impl Web4RttBinding {
         if !self.connected {
             return None;
         }
-        if self.queue.is_empty() {
-            return None;
-        }
-        Some(self.queue.remove(0))
+        self.queue.pop_front()
     }
 
     fn pending(&self) -> usize {
@@ -187,9 +186,9 @@ impl Web4RttBinding {
         if self.last_heartbeat_at.elapsed() < Duration::from_millis(self.heartbeat_timeout_ms) {
             return Ok(false);
         }
-        self.emit(py, "heartbeat_timeout", &self.on_heartbeat_timeout, None)?;
+        self.emit(py, &self.on_heartbeat_timeout)?;
         self.connected = false;
-        self.emit(py, "session_close", &self.on_session_close, Some("heartbeat_timeout"))?;
+        self.emit(py, &self.on_session_close)?;
         Ok(true)
     }
 
@@ -230,13 +229,8 @@ impl Web4RttBinding {
         self.stats.max_queue_len = self.stats.max_queue_len.max(self.queue.len());
     }
 
-    fn emit(
-        &self,
-        py: Python<'_>,
-        _event_name: &str,
-        callbacks: &[PyObject],
-        _reason: Option<&str>,
-    ) -> PyResult<()> {
+    fn emit(&self, py: Python<'_>, callbacks: &[PyObject]) -> PyResult<()> {
+        let callbacks: Vec<PyObject> = callbacks.iter().map(|c| c.clone_ref(py)).collect();
         for callback in callbacks {
             callback.call1(py, (self.session_id,))?;
         }

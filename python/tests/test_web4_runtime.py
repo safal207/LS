@@ -16,6 +16,7 @@ from modules.web4_runtime.lip_runtime import LipRuntime
 from modules.web4_runtime.observability import ObservabilityHub
 from modules.web4_runtime.protocol_router import Web4ProtocolRouter
 from modules.web4_runtime.rtt import BackpressureError, DisconnectedError, RttConfig, RttSession
+from time import monotonic
 
 
 def test_qos_dropoldest_overflow() -> None:
@@ -92,7 +93,7 @@ def test_session_lifecycle_hooks_and_observability() -> None:
     hub = ObservabilityHub()
     events: list[tuple[str, int]] = []
     session = RttSession[str](
-        config=RttConfig(session_id=42, heartbeat_timeout_s=0.01),
+        config=RttConfig(session_id=42, heartbeat_timeout_s=1.0),
         observability=hub,
     )
 
@@ -102,12 +103,13 @@ def test_session_lifecycle_hooks_and_observability() -> None:
 
     session.disconnect()
     session.reconnect()
-    time.sleep(0.02)
+    session._heartbeat_at = monotonic() - 2.0
     assert session.check_heartbeat_timeout() is True
 
-    assert events == [("close", 42), ("open", 42), ("timeout", 42), ("close", 42)]
+    assert events == [("open", 42), ("close", 42), ("open", 42), ("timeout", 42), ("close", 42)]
     observed = [(evt.event_type, evt.payload["session_id"]) for evt in hub.snapshot()]
     assert observed == [("session_close", 42), ("session_open", 42), ("heartbeat_timeout", 42), ("session_close", 42)]
+
 
 def test_cip_handshake_trust_fsm() -> None:
     trust = TrustFSM()

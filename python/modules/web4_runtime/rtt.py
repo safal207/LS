@@ -80,13 +80,20 @@ class RttSession(Generic[MessageT]):
         return self._stats
 
     def register_on_session_open(self, hook: LifecycleHook) -> None:
-        self._on_session_open.append(hook)
+        with self._condition:
+            self._on_session_open.append(hook)
+            connected = self._connected
+            session_id = self.config.session_id
+        if connected:
+            hook(session_id)
 
     def register_on_session_close(self, hook: LifecycleHook) -> None:
-        self._on_session_close.append(hook)
+        with self._condition:
+            self._on_session_close.append(hook)
 
     def register_on_heartbeat_timeout(self, hook: LifecycleHook) -> None:
-        self._on_heartbeat_timeout.append(hook)
+        with self._condition:
+            self._on_heartbeat_timeout.append(hook)
 
     def send(self, message: MessageT) -> None:
         with self._condition:
@@ -144,16 +151,22 @@ class RttSession(Generic[MessageT]):
             return item
 
     def heartbeat(self) -> None:
-        self._heartbeat_at = monotonic()
+        with self._condition:
+            self._heartbeat_at = monotonic()
 
     def check_heartbeat_timeout(self) -> bool:
-        if not self._connected:
-            return False
-        timed_out = monotonic() - self._heartbeat_at >= max(0.0, self.config.heartbeat_timeout_s)
-        if not timed_out:
-            return False
-        self._emit("heartbeat_timeout", self._on_heartbeat_timeout)
-        self.disconnect(reason="heartbeat_timeout")
+        with self._condition:
+            if not self._connected:
+                return False
+            timed_out = monotonic() - self._heartbeat_at >= max(0.0, self.config.heartbeat_timeout_s)
+            if not timed_out:
+                return False
+            self._connected = False
+            self._condition.notify_all()
+            timeout_hooks = list(self._on_heartbeat_timeout)
+            close_hooks = list(self._on_session_close)
+        self._emit("heartbeat_timeout", timeout_hooks)
+        self._emit("session_close", close_hooks, reason="heartbeat_timeout")
         return True
 
     def disconnect(self, reason: str = "manual") -> None:
@@ -162,7 +175,8 @@ class RttSession(Generic[MessageT]):
                 return
             self._connected = False
             self._condition.notify_all()
-        self._emit("session_close", self._on_session_close, reason=reason)
+            close_hooks = list(self._on_session_close)
+        self._emit("session_close", close_hooks, reason=reason)
 
     def reconnect(self) -> None:
         with self._condition:
@@ -172,8 +186,10 @@ class RttSession(Generic[MessageT]):
             self._queue.clear()
             self._heartbeat_at = monotonic()
             self.reconnects += 1
+            reconnects = self.reconnects
             self._condition.notify_all()
-        self._emit("session_open", self._on_session_open, reconnects=self.reconnects)
+            open_hooks = list(self._on_session_open)
+        self._emit("session_open", open_hooks, reconnects=reconnects)
 
     def _emit(self, event_type: str, hooks: list[LifecycleHook], **metadata: Any) -> None:
         if self.observability is not None:

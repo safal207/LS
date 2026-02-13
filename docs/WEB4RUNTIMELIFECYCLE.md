@@ -46,3 +46,6 @@ session.reconnect()
 - `heartbeat_timeout`
 
 Each event payload contains `session_id` and optional metadata (e.g. close reason).
+
+
+Registering `onsessionopen` on an already connected session triggers the callback immediately.
