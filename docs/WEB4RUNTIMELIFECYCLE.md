@@ -1,21 +1,40 @@
 # Web4 Runtime Session Lifecycle Hooks
 
-Web4 Runtime now supports lifecycle hooks for session state transitions:
+This document reflects the current Python runtime behavior in `python/modules/web4_runtime/rtt.py`.
 
-- `onsessionopen(session_id)`
-- `onsessionclose(session_id)`
-- `onheartbeattimeout(session_id)`
+## Hook API (current names)
 
-## Event order guarantees
+Use explicit register/unregister methods:
 
-For timeout-driven failures, the runtime emits:
+- `register_on_session_open(hook)`
+- `register_on_session_close(hook)`
+- `register_on_heartbeat_timeout(hook)`
+- `unregister_on_session_open(hook)`
+- `unregister_on_session_close(hook)`
+- `unregister_on_heartbeat_timeout(hook)`
+- `clear_session_hooks()`
 
-1. `onheartbeattimeout(session_id)`
-2. `onsessionclose(session_id)`
+Legacy names like `onsessionopen` are obsolete and should not be used.
 
-For reconnect:
+## Event ordering guarantees
 
-1. `onsessionopen(session_id)`
+For heartbeat timeout flow, ordering is deterministic:
+
+1. `heartbeat_timeout`
+2. `session_close` (with `reason="heartbeat_timeout"`)
+
+For reconnect flow:
+
+1. `session_open` (with reconnect metadata)
+
+For manual disconnect flow:
+
+1. `session_close` (with `reason="manual"` by default)
+
+## Smart-hook behavior
+
+- Registering `register_on_session_open` on an already connected session invokes the hook immediately.
+- Hook recursion is guarded by an internal emission guard (`_emitting`) to prevent nested re-entrant callback loops.
 
 ## Python usage
 
@@ -29,23 +48,33 @@ session = RttSession[str](
     observability=hub,
 )
 
-session.register_on_session_open(lambda sid: print("open", sid))
-session.register_on_session_close(lambda sid: print("close", sid))
-session.register_on_heartbeat_timeout(lambda sid: print("timeout", sid))
+def on_open(sid: int) -> None:
+    print("open", sid)
+
+def on_close(sid: int) -> None:
+    print("close", sid)
+
+def on_timeout(sid: int) -> None:
+    print("timeout", sid)
+
+session.register_on_session_open(on_open)
+session.register_on_session_close(on_close)
+session.register_on_heartbeat_timeout(on_timeout)
+
+session.unregister_on_session_close(on_close)
+session.register_on_session_close(on_close)
 
 session.disconnect()
 session.reconnect()
+session.clear_session_hooks()
 ```
 
-## Observability integration
+## Observability event names
 
-`RttSession` records lifecycle events to `ObservabilityHub` (if provided):
+`RttSession` records lifecycle events to `ObservabilityHub`:
 
 - `session_open`
 - `session_close`
 - `heartbeat_timeout`
 
-Each event payload contains `session_id` and optional metadata (e.g. close reason).
-
-
-Registering `onsessionopen` on an already connected session triggers the callback immediately.
+Each payload includes `session_id` and optional metadata (`reason`, `reconnects`, etc.).

@@ -175,3 +175,5 @@ python main.py
 3. Начать работу над GUI (Phase 2)
 
 Приложение оптимизировано под твой Ryzen 5700U и будет работать эффективно даже во время Zoom звонков!
+
+Note: Internal links may be outdated. This document is preserved for historical reference.

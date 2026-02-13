@@ -128,6 +128,7 @@ impl Web4RttBinding {
                 }
                 BackpressurePolicy::Block => {
                     self.stats.blocked += 1;
+                    // TODO(6.4): Replace busy-wait loop with Condvar-based waiting for efficient block policy parity.
                     let deadline = Instant::now() + Duration::from_millis(self.block_timeout_ms);
                     while self.queue.len() >= self.max_queue && self.connected {
                         if Instant::now() >= deadline {
@@ -207,6 +208,8 @@ impl Web4RttBinding {
     fn register_on_heartbeat_timeout(&mut self, py: Python<'_>, callback: PyObject) {
         self.on_heartbeat_timeout.push(callback.clone_ref(py));
     }
+
+    // TODO(6.4): Add unregister_* lifecycle hooks to reach Python runtime parity.
 
     fn stats<'py>(&self, py: Python<'py>) -> &'py PyDict {
         let stats = PyDict::new(py);

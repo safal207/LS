@@ -1,13 +1,12 @@
 # Archive
 
-Этот каталог хранит устаревшие или исторические планы/черновики, которые больше не являются источником истины для текущей реализации Web4 Runtime.
+Archived: 2026-02-13
+Reason: Consolidation into unified `docs/WEB4_ROADMAP.md`.
 
-## Что перенесено
+This directory stores deprecated or historical plans/drafts that are no longer the primary source of truth.
 
-- Исторические execution plans ранних этапов runtime/mesh/platform.
-- Ранние phase-roadmap документы и валидационные заметки.
+## Rule
 
-## Правило
-
-- Актуальный план развития: `docs/WEB4_ROADMAP.md`.
-- Архив используется как справка и не должен расходиться с текущей реализацией.
+- Current source of truth: `docs/WEB4_ROADMAP.md`.
+- Archived documents are preserved for historical reference.
+- Note: Internal links may be outdated. This document set is preserved for historical reference.

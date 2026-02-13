@@ -63,3 +63,6 @@
 - Execution plan, scaffolding, CLI demos, tests, and CI workflow are present.
 - Tests pass locally (`pytest python/tests/test_web4_runtime.py`).
 - Rust build passes in CI (`cargo build` in `rust_core`).
+
+
+Note: Internal links may be outdated. This document is preserved for historical reference.

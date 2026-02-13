@@ -256,3 +256,6 @@ Phase 4 Roadmap v5 — это:
 - и с ясной архитектурной логикой.
 
 Это документ уровня senior/staff architect.
+
+
+Note: Internal links may be outdated. This document is preserved for historical reference.

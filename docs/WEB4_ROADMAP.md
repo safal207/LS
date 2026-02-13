@@ -7,6 +7,7 @@
 - **6.1 Runtime hardening**: backpressure политики RTT, QoS-метрики, lifecycle hooks, safety/hotfix улучшения.
 - **6.2 Protocol-runtime integration**: CIP/HCP/LIP runtime интеграции и router path.
 - **6.3 Multi-transport foundation**: абстракция транспорта, registry и transport-agnostic session слой.
+- **6.3.1 Hotfix/Docs sync**: lifecycle/QoS корректировки, cleanup документации, архивирование legacy-планов.
 - **CI/Quality sync**: ruff/mypy/pytest контуры для web4 модулей, autofix workflow, API parity и bridge test coverage.
 
 ## 2. Текущий этап
@@ -34,9 +35,13 @@
 
 Исторические документы (старые execution plans и phase-драфты) вынесены в `docs/archive/`:
 
-- runtime/mesh/platform execution plans;
-- phase4 roadmap v5 и связанные circuit breaker review/validation документы;
-- завершённые phase-статусы.
+- [execution-plan.md](archive/execution-plan.md)
+- [mesh-execution-plan.md](archive/mesh-execution-plan.md)
+- [platform-execution-plan.md](archive/platform-execution-plan.md)
+- [PHASE4_ROADMAP_V5.md](archive/PHASE4_ROADMAP_V5.md)
+- [PHASE4_1_CIRCUIT_BREAKER_API_VALIDATION.md](archive/PHASE4_1_CIRCUIT_BREAKER_API_VALIDATION.md)
+- [PHASE4_1_SMART_CIRCUIT_BREAKER_REVIEW.md](archive/PHASE4_1_SMART_CIRCUIT_BREAKER_REVIEW.md)
+- [PHASE1_COMPLETE.md](archive/PHASE1_COMPLETE.md)
 
 ## 5. Долгосрочные цели
 

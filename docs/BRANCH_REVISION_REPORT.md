@@ -1,44 +1,42 @@
 # Web4 Runtime — Branch Revision Report
 
-Дата ревизии: 2026-02-13
+Revision date: 2026-02-13
 
-## Ограничения среды
+## Environment limitation
 
-В текущем локальном git-клоне доступна только ветка `work`; remotes и полный удалённый список веток не настроены. Поэтому таблица ниже разделена на:
+Only one local branch (`work`) is available in this clone, and no remote is configured. As a result, a full live scan of `main`, `codex/*`, `feature/*`, `plan/*`, `experiment/*` and old PR branches cannot be executed directly from refs.
 
-1. **Наблюдаемые ветки** (точно доступны локально).
-2. **Исторические ветки (inferred)** — восстановлены по merge-коммитам в `git log --all`.
+To compensate, historical branch names were inferred from merge history (`git log --all`).
 
-## 1) Наблюдаемые ветки
+## Observable branches
 
-| Ветка | Статус | Что содержит | Что делать |
+| Branch | Status | Contains | Action |
 |---|---|---|---|
-| work | active | Текущий интегрированный state после PR #110 (QoS, Lifecycle, Multi-Transport, CI sync) | оставить как рабочую ветку; держать в синхронизации с основной интеграционной веткой |
+| work | active | Integrated state after PR #110 (QoS, lifecycle, multi-transport, CI sync) | keep |
 
-## 2) Исторические ветки (inferred из merge history)
+## Historical branches (inferred)
 
-| Ветка | Статус | Что содержит | Что делать |
+| Branch | Status | Contains | Action |
 |---|---|---|---|
-| codex/prepare-pr-plan-for-6.1 | merged | QoS, lifecycle hooks, multi-transport, hotfix 6.3.1 | считать завершённой и закрытой |
-| codex/update-codex_tasks.md-status | merged | обновление статусов задач и веточной модели | оставить в истории, не восстанавливать |
-| codex/add-api-parity-contract-tests | merged | API parity тесты Python↔Rust | завершено |
-| codex/add-health-metrics-to-rust_bridge.py | merged | health metrics + fallback logging | завершено |
-| codex/add-tests-for-pythonrust-bridge | merged | тесты rust bridge | завершено |
-| codex/expand-python-ci-in-workflow | merged | расширение CI на python подсистемы | завершено |
-| codex/create-formal-task-list-for-codex | merged | формализация backlog/тасков | завершено |
-| codex/fix-pyo3-ci-linking-issue | merged | фиксы линковки PyO3 в CI | завершено |
-| codex/analyze-current-state-of-main-branch | merged | отчёт о состоянии ветки | контент сохранён в docs |
-| codex/create-new-pr-for-add-automatic-ruff-autofix-job | merged | workflow автофикса | завершено |
-| codex/merge-ruff-autofix-workflow-into-main | merged | добавление autofix workflow | завершено |
-| codex/create-autonomous-execution-plan-for-codex | merged | генераторы и ранние execution планы runtime/mesh/platform | исходные планы перенесены в `docs/archive/` |
+| codex/prepare-pr-plan-for-6.1 | merged | QoS, lifecycle hooks, multi-transport, 6.3.1 hotfix | can delete on remote if still present |
+| codex/update-codex_tasks.md-status | merged | backlog/branch model updates | can delete on remote if still present |
+| codex/add-api-parity-contract-tests | merged | Python↔Rust API parity tests | can delete on remote if still present |
+| codex/add-health-metrics-to-rust_bridge.py | merged | bridge health metrics/fallback logging | can delete on remote if still present |
+| codex/add-tests-for-pythonrust-bridge | merged | rust bridge tests | can delete on remote if still present |
+| codex/expand-python-ci-in-workflow | merged | expanded CI checks | can delete on remote if still present |
+| codex/create-formal-task-list-for-codex | merged | formalized task backlog | can delete on remote if still present |
+| codex/fix-pyo3-ci-linking-issue | merged | PyO3 CI linking fixes | can delete on remote if still present |
+| codex/analyze-current-state-of-main-branch | merged | status report generation | can delete on remote if still present |
+| codex/create-new-pr-for-add-automatic-ruff-autofix-job | merged | ruff autofix workflow updates | can delete on remote if still present |
+| codex/merge-ruff-autofix-workflow-into-main | merged | autofix workflow integration | can delete on remote if still present |
+| codex/create-autonomous-execution-plan-for-codex | merged | runtime/mesh/platform execution plans | content archived in `docs/archive/` |
 
-## Рекомендации по удалению веток
+## Branches safe to delete (if they still exist remotely)
 
-С учётом локально доступных данных, **к удалению рекомендованы все исторические `codex/*` ветки, уже влитые через PR**, если они ещё существуют на remote.
+All merged historical `codex/*` branches listed above are candidates for deletion.
 
-Минимальный набор веток, который стоит оставлять:
+## Branches to keep
 
-- `main` (или другой canonical integration branch в remote)
-- `work` (локальная рабочая, если используется)
-- активные feature-ветки с незавершёнными задачами (при наличии)
-
+- `main` (canonical integration branch)
+- `work` (active local working branch)
+- any active, not-yet-merged `feature/*`, `plan/*`, `experiment/*` branches

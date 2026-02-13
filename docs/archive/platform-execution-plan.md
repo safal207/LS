@@ -44,3 +44,6 @@
 - Graph spec and reference implementation present.
 - End-to-end flow tested.
 - Tests pass locally and in CI.
+
+
+Note: Internal links may be outdated. This document is preserved for historical reference.

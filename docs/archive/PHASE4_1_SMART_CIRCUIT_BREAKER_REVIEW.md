@@ -200,3 +200,6 @@ Phase 4.1 requirements are not implemented yet; only a Phase 3.x-level latch exi
 
 ## Final Verdict
 Phase 4.1 Smart Circuit Breaker is **missing**. The project currently contains only a minimal, non-recovering breaker in `COTCore`, which is insufficient for production resilience and does not satisfy the roadmap.
+
+
+Note: Internal links may be outdated. This document is preserved for historical reference.
