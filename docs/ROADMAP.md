@@ -1,6 +1,7 @@
 # Web4 Roadmap
 
-> Canonical roadmap moved to `docs/WEB4_ROADMAP.md`. This file is retained as historical context.
+> ⚠️ Statuses in this file are historical and are no longer updated.
+> Canonical roadmap: `docs/WEB4_ROADMAP.md`.
 
 
 ## v1.0 — Local agent core (in progress)

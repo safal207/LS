@@ -12,19 +12,18 @@
 
 ## 2. Текущий этап
 
-- **6.3.1 Docs & Repo Sync**
-  - синхронизация документации runtime lifecycle/QoS/multi-transport;
-  - ревизия веток по merge history;
-  - перенос устаревших execution/phase планов в `docs/archive/`;
-  - выравнивание roadmap в единый документ.
-
-## 3. Следующий этап
-
 - **6.4 Runtime Consolidation**
   - унификация runtime observability по transport backends;
   - контрактные тесты на transport interchangeability;
+  - миграция Rust block policy с busy-wait на Condvar-подход;
+  - parity lifecycle API (включая unregister hooks) между Rust и Python.
+
+## 3. Следующий этап
+
+- **6.5 Runtime Hardening+**
   - документирование migration-guide от RTT-specific path к fully transport-agnostic path;
-  - расширение CI до более широкого regression-набора.
+  - расширение CI до более широкого regression-набора;
+  - стабилизация cross-transport observability контрактов.
 
 - **7.0 Platform Expansion**
   - устойчивый mesh/graph interoperability слой;
