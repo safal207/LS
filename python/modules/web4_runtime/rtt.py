@@ -219,7 +219,7 @@ class RttSession(Generic[MessageT]):
     def _emit(self, event_type: str, hooks: list[LifecycleHook], **metadata: Any) -> None:
         # Re-entrancy guard for nested lifecycle callbacks (thread-safe under condition lock).
         with self._condition:
-            if getattr(self, "_emitting", False):
+            if self._emitting:
                 return
             self._emitting = True
         try:
