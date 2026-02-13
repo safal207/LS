@@ -144,6 +144,36 @@ def test_web4_rtt_binding_policies_and_stats(ghostgpt_core_module):
     assert bstats["blocked"] == 1
     assert bstats["overflow_events"] == 1
     assert bstats["max_queue_len"] >= 1
+
+
+def test_web4_rtt_binding_lifecycle_hooks(ghostgpt_core_module):
+    events: list[tuple[str, int]] = []
+
+    def on_open(session_id: int) -> None:
+        events.append(("open", session_id))
+
+    def on_close(session_id: int) -> None:
+        events.append(("close", session_id))
+
+    def on_timeout(session_id: int) -> None:
+        events.append(("timeout", session_id))
+
+    rtt = ghostgpt_core_module.Web4RttBinding(max_queue=2, session_id=7, heartbeat_timeout_ms=5)
+    rtt.register_on_session_open(on_open)
+    rtt.register_on_session_close(on_close)
+    rtt.register_on_heartbeat_timeout(on_timeout)
+
+    rtt.disconnect()
+    rtt.connect()
+    assert rtt.check_heartbeat_timeout() is False
+
+    import time
+
+    time.sleep(0.01)
+    assert rtt.check_heartbeat_timeout() is True
+
+    assert events == [("open", 7), ("close", 7), ("open", 7), ("timeout", 7), ("close", 7)]
+
 def test_optimizer_init_uses_memory_manager_positional_arg(monkeypatch, tmp_path):
     class FakeMemoryManager:
         def __init__(self, *args, **kwargs):

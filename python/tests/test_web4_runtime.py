@@ -13,6 +13,7 @@ from modules.web4_runtime.agent_integration import AgentLoopAdapter
 from modules.web4_runtime.cip_runtime import CipRuntime
 from modules.web4_runtime.hcp_runtime import HcpRuntime, HcpPolicy
 from modules.web4_runtime.lip_runtime import LipRuntime
+from modules.web4_runtime.observability import ObservabilityHub
 from modules.web4_runtime.protocol_router import Web4ProtocolRouter
 from modules.web4_runtime.rtt import BackpressureError, DisconnectedError, RttConfig, RttSession
 
@@ -84,6 +85,29 @@ def test_rtt_block_policy_waits_for_space() -> None:
     assert session.receive() == "b"
     assert session.stats.blocked == 1
 
+
+
+
+def test_session_lifecycle_hooks_and_observability() -> None:
+    hub = ObservabilityHub()
+    events: list[tuple[str, int]] = []
+    session = RttSession[str](
+        config=RttConfig(session_id=42, heartbeat_timeout_s=0.01),
+        observability=hub,
+    )
+
+    session.register_on_session_open(lambda sid: events.append(("open", sid)))
+    session.register_on_session_close(lambda sid: events.append(("close", sid)))
+    session.register_on_heartbeat_timeout(lambda sid: events.append(("timeout", sid)))
+
+    session.disconnect()
+    session.reconnect()
+    time.sleep(0.02)
+    assert session.check_heartbeat_timeout() is True
+
+    assert events == [("close", 42), ("open", 42), ("timeout", 42), ("close", 42)]
+    observed = [(evt.event_type, evt.payload["session_id"]) for evt in hub.snapshot()]
+    assert observed == [("session_close", 42), ("session_open", 42), ("heartbeat_timeout", 42), ("session_close", 42)]
 
 def test_cip_handshake_trust_fsm() -> None:
     trust = TrustFSM()

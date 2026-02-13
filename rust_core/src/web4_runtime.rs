@@ -44,17 +44,25 @@ pub struct Web4RttBinding {
     max_queue: usize,
     policy: BackpressurePolicy,
     block_timeout_ms: u64,
+    session_id: u64,
+    heartbeat_timeout_ms: u64,
+    last_heartbeat_at: Instant,
+    on_session_open: Vec<PyObject>,
+    on_session_close: Vec<PyObject>,
+    on_heartbeat_timeout: Vec<PyObject>,
     stats: RttStats,
 }
 
 #[pymethods]
 impl Web4RttBinding {
     #[new]
-    #[pyo3(signature = (max_queue, backpressure_policy=None, block_timeout_ms=100))]
+    #[pyo3(signature = (max_queue, backpressure_policy=None, block_timeout_ms=100, session_id=0, heartbeat_timeout_ms=1000))]
     fn new(
         max_queue: usize,
         backpressure_policy: Option<&str>,
         block_timeout_ms: u64,
+        session_id: u64,
+        heartbeat_timeout_ms: u64,
     ) -> PyResult<Self> {
         Ok(Self {
             connected: true,
@@ -62,16 +70,34 @@ impl Web4RttBinding {
             max_queue: max_queue.max(1),
             policy: BackpressurePolicy::parse(backpressure_policy)?,
             block_timeout_ms,
+            session_id,
+            heartbeat_timeout_ms,
+            last_heartbeat_at: Instant::now(),
+            on_session_open: Vec::new(),
+            on_session_close: Vec::new(),
+            on_heartbeat_timeout: Vec::new(),
             stats: RttStats::default(),
         })
     }
 
-    fn connect(&mut self) {
+    fn connect(&mut self, py: Python<'_>) -> PyResult<()> {
+        if self.connected {
+            return Ok(());
+        }
         self.connected = true;
+        self.last_heartbeat_at = Instant::now();
+        self.emit(py, "session_open", &self.on_session_open, None)?;
+        Ok(())
     }
 
-    fn disconnect(&mut self) {
+    #[pyo3(signature = (reason=None))]
+    fn disconnect(&mut self, py: Python<'_>, reason: Option<&str>) -> PyResult<()> {
+        if !self.connected {
+            return Ok(());
+        }
         self.connected = false;
+        self.emit(py, "session_close", &self.on_session_close, reason)?;
+        Ok(())
     }
 
     fn send(&mut self, message: String) -> PyResult<()> {
@@ -150,6 +176,39 @@ impl Web4RttBinding {
         self.queue.len()
     }
 
+    fn heartbeat(&mut self) {
+        self.last_heartbeat_at = Instant::now();
+    }
+
+    fn check_heartbeat_timeout(&mut self, py: Python<'_>) -> PyResult<bool> {
+        if !self.connected {
+            return Ok(false);
+        }
+        if self.last_heartbeat_at.elapsed() < Duration::from_millis(self.heartbeat_timeout_ms) {
+            return Ok(false);
+        }
+        self.emit(py, "heartbeat_timeout", &self.on_heartbeat_timeout, None)?;
+        self.connected = false;
+        self.emit(py, "session_close", &self.on_session_close, Some("heartbeat_timeout"))?;
+        Ok(true)
+    }
+
+    fn register_on_session_open(&mut self, py: Python<'_>, callback: PyObject) -> PyResult<()> {
+        self.on_session_open.push(callback.clone_ref(py));
+        if self.connected {
+            callback.call1(py, (self.session_id,))?;
+        }
+        Ok(())
+    }
+
+    fn register_on_session_close(&mut self, py: Python<'_>, callback: PyObject) {
+        self.on_session_close.push(callback.clone_ref(py));
+    }
+
+    fn register_on_heartbeat_timeout(&mut self, py: Python<'_>, callback: PyObject) {
+        self.on_heartbeat_timeout.push(callback.clone_ref(py));
+    }
+
     fn stats<'py>(&self, py: Python<'py>) -> &'py PyDict {
         let stats = PyDict::new(py);
         let _ = stats.set_item("attempted", self.stats.attempted);
@@ -170,46 +229,17 @@ impl Web4RttBinding {
     fn update_max_queue_len(&mut self) {
         self.stats.max_queue_len = self.stats.max_queue_len.max(self.queue.len());
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn qos_dropoldest() {
-        let mut rtt = Web4RttBinding::new(2, Some("dropoldest"), 10).unwrap();
-        rtt.send("a".into()).unwrap();
-        rtt.send("b".into()).unwrap();
-        rtt.send("c".into()).unwrap();
-
-        assert_eq!(rtt.receive().as_deref(), Some("b"));
-        assert_eq!(rtt.receive().as_deref(), Some("c"));
-        assert_eq!(rtt.stats.dropped_oldest, 1);
-        assert_eq!(rtt.stats.overflow_events, 1);
-    }
-
-    #[test]
-    fn qos_dropnewest() {
-        let mut rtt = Web4RttBinding::new(1, Some("dropnewest"), 10).unwrap();
-        rtt.send("a".into()).unwrap();
-        rtt.send("b".into()).unwrap();
-
-        assert_eq!(rtt.receive().as_deref(), Some("a"));
-        assert_eq!(rtt.receive(), None);
-        assert_eq!(rtt.stats.dropped_newest, 1);
-    }
-
-    #[test]
-    fn qos_block_and_stats() {
-        let mut rtt = Web4RttBinding::new(1, Some("block"), 5).unwrap();
-        rtt.send("a".into()).unwrap();
-        let err = rtt.send("b".into()).err();
-
-        assert!(err.is_some());
-        assert_eq!(rtt.stats.blocked, 1);
-        assert_eq!(rtt.stats.errors, 1);
-        assert_eq!(rtt.stats.overflow_events, 1);
-        assert!(rtt.stats.max_queue_len >= 1);
+    fn emit(
+        &self,
+        py: Python<'_>,
+        _event_name: &str,
+        callbacks: &[PyObject],
+        _reason: Option<&str>,
+    ) -> PyResult<()> {
+        for callback in callbacks {
+            callback.call1(py, (self.session_id,))?;
+        }
+        Ok(())
     }
 }

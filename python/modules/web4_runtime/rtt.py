@@ -4,11 +4,15 @@ from collections import deque
 from dataclasses import dataclass, field
 from threading import Condition
 from time import monotonic
-from typing import Deque, Generic, Iterable, Literal, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Deque, Generic, Iterable, Literal, Optional, TypeVar
+
+if TYPE_CHECKING:
+    from .observability import ObservabilityHub
 
 
 MessageT = TypeVar("MessageT")
 BackpressurePolicy = Literal["dropoldest", "dropnewest", "block", "error"]
+LifecycleHook = Callable[[int], None]
 
 
 class BackpressureError(RuntimeError):
@@ -25,6 +29,8 @@ class RttConfig:
     reconnect_backoff_s: float = 0.1
     backpressure_policy: BackpressurePolicy = "error"
     block_timeout_s: float = 0.1
+    session_id: int = 0
+    heartbeat_timeout_s: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -50,10 +56,15 @@ class RttStats:
 @dataclass
 class RttSession(Generic[MessageT]):
     config: RttConfig = field(default_factory=RttConfig)
+    observability: Optional["ObservabilityHub"] = None
     _queue: Deque[MessageT] = field(default_factory=deque, init=False)
     _connected: bool = field(default=True, init=False)
     _stats: RttStats = field(default_factory=RttStats, init=False)
     _condition: Condition = field(default_factory=Condition, init=False)
+    _heartbeat_at: float = field(default_factory=monotonic, init=False)
+    _on_session_open: list[LifecycleHook] = field(default_factory=list, init=False)
+    _on_session_close: list[LifecycleHook] = field(default_factory=list, init=False)
+    _on_heartbeat_timeout: list[LifecycleHook] = field(default_factory=list, init=False)
     reconnects: int = field(default=0, init=False)
 
     @property
@@ -67,6 +78,15 @@ class RttSession(Generic[MessageT]):
     @property
     def stats(self) -> RttStats:
         return self._stats
+
+    def register_on_session_open(self, hook: LifecycleHook) -> None:
+        self._on_session_open.append(hook)
+
+    def register_on_session_close(self, hook: LifecycleHook) -> None:
+        self._on_session_close.append(hook)
+
+    def register_on_heartbeat_timeout(self, hook: LifecycleHook) -> None:
+        self._on_heartbeat_timeout.append(hook)
 
     def send(self, message: MessageT) -> None:
         with self._condition:
@@ -123,10 +143,26 @@ class RttSession(Generic[MessageT]):
             self._condition.notify_all()
             return item
 
-    def disconnect(self) -> None:
+    def heartbeat(self) -> None:
+        self._heartbeat_at = monotonic()
+
+    def check_heartbeat_timeout(self) -> bool:
+        if not self._connected:
+            return False
+        timed_out = monotonic() - self._heartbeat_at >= max(0.0, self.config.heartbeat_timeout_s)
+        if not timed_out:
+            return False
+        self._emit("heartbeat_timeout", self._on_heartbeat_timeout)
+        self.disconnect(reason="heartbeat_timeout")
+        return True
+
+    def disconnect(self, reason: str = "manual") -> None:
         with self._condition:
+            if not self._connected:
+                return
             self._connected = False
             self._condition.notify_all()
+        self._emit("session_close", self._on_session_close, reason=reason)
 
     def reconnect(self) -> None:
         with self._condition:
@@ -134,8 +170,19 @@ class RttSession(Generic[MessageT]):
                 return
             self._connected = True
             self._queue.clear()
+            self._heartbeat_at = monotonic()
             self.reconnects += 1
             self._condition.notify_all()
+        self._emit("session_open", self._on_session_open, reconnects=self.reconnects)
+
+    def _emit(self, event_type: str, hooks: list[LifecycleHook], **metadata: Any) -> None:
+        if self.observability is not None:
+            self.observability.record(
+                event_type,
+                {"session_id": self.config.session_id, **metadata},
+            )
+        for hook in hooks:
+            hook(self.config.session_id)
 
     def _bump(
         self,
