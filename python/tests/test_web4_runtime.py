@@ -132,6 +132,20 @@ def test_unregister_and_clear_session_hooks() -> None:
 
     assert events == [("open", 9)]
 
+def test_hook_reentrancy_guard_prevents_recursive_emit() -> None:
+    session = RttSession[str](config=RttConfig(session_id=77))
+    events: list[tuple[str, int]] = []
+
+    def on_close(sid: int) -> None:
+        events.append(("close", sid))
+        # would recurse into session_close emit if no guard exists
+        session.disconnect(reason="nested")
+
+    session.register_on_session_close(on_close)
+    session.disconnect(reason="manual")
+
+    assert events == [("close", 77)]
+
 def test_session_lifecycle_hooks_and_observability() -> None:
     hub = ObservabilityHub()
     events: list[tuple[str, int]] = []

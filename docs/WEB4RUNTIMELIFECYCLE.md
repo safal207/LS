@@ -78,3 +78,10 @@ session.clear_session_hooks()
 - `heartbeat_timeout`
 
 Each payload includes `session_id` and optional metadata (`reason`, `reconnects`, etc.).
+
+
+## Implementation parity checklist
+
+- Hook API is implemented in `python/modules/web4_runtime/rtt.py` (`register_*`, `unregister_*`, `clear_session_hooks`).
+- Re-entrancy guard uses `_emitting` protected by `self._condition` to keep callback emission thread-safe.
+- Behavior is covered by runtime tests in `python/tests/test_web4_runtime.py`.
