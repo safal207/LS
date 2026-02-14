@@ -14,6 +14,8 @@ class MetaReport:
     uncertainty: float
     drift: float
     micro_goals_status: dict[str, Any]
+    causal_risk: bool = False
+    causal_score: float = 0.0
     signals_emitted: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -23,6 +25,7 @@ class MetaObserver:
 
     drift_threshold: int = 2
     self_consistency_threshold: float = 0.45
+    causal_alert_threshold: float = 0.4
     analysis_history: list[MetaReport] = field(default_factory=list)
 
     def analyze(self, state: AgentState, orientation: OrientationCenter) -> dict[str, Any]:
@@ -39,11 +42,19 @@ class MetaObserver:
         self_consistency = orientation.compute_self_consistency(state)
         uncertainty = float(current_world.get("observation_uncertainty", 0.0)) if isinstance(current_world, dict) else 0.0
 
+        causal_scores = [float(item.get("causal_score", 0.0)) for item in state.history[-6:] if "causal_score" in item]
+        causal_score = sum(causal_scores) / len(causal_scores) if causal_scores else 0.0
+        causal_risk = causal_score < self.causal_alert_threshold
+        causal_drift = sum(1 for item in causal_scores if item < 0) >= 2
+
         return {
             "identity_drift_risk": drift_count >= self.drift_threshold,
             "drift_count": drift_count,
             "self_consistency": self_consistency,
             "uncertainty": uncertainty,
+            "causal_score": causal_score,
+            "causal_risk": causal_risk,
+            "causal_drift": causal_drift,
         }
 
     def stabilize(self, orientation: OrientationCenter, analysis: dict[str, Any]) -> None:
@@ -96,6 +107,39 @@ class MetaObserver:
             signal_bus.emit(sig)
             emitted.append({"type": sig.signal_type, "payload": sig.payload})
 
+        if analysis.get("causal_risk"):
+            sig = InternalSignal(
+                signal_type="causalriskdetected",
+                t=state.t,
+                payload={
+                    "causal_score": analysis.get("causal_score", 0.0),
+                    "threshold": self.causal_alert_threshold,
+                },
+            )
+            signal_bus.emit(sig)
+            emitted.append({"type": sig.signal_type, "payload": sig.payload})
+
+        if analysis.get("causal_drift"):
+            sig = InternalSignal(
+                signal_type="causal_drift",
+                t=state.t,
+                payload={"causal_score": analysis.get("causal_score", 0.0)},
+            )
+            signal_bus.emit(sig)
+            emitted.append({"type": sig.signal_type, "payload": sig.payload})
+
+        if analysis.get("causal_risk") and analysis.get("self_consistency", 1.0) < self.self_consistency_threshold:
+            sig = InternalSignal(
+                signal_type="causal_inconsistency",
+                t=state.t,
+                payload={
+                    "causal_score": analysis.get("causal_score", 0.0),
+                    "self_consistency": analysis.get("self_consistency", 0.0),
+                },
+            )
+            signal_bus.emit(sig)
+            emitted.append({"type": sig.signal_type, "payload": sig.payload})
+
         return emitted
 
     def generate_report(
@@ -110,6 +154,8 @@ class MetaObserver:
             self_consistency=analysis["self_consistency"],
             uncertainty=analysis["uncertainty"],
             drift=float(analysis.get("drift_count", 0)),
+            causal_risk=bool(analysis.get("causal_risk", False)),
+            causal_score=float(analysis.get("causal_score", 0.0)),
             micro_goals_status={
                 "count": len(state.self_state.get("micro_goals", [])),
                 "items": list(state.self_state.get("micro_goals", [])),
@@ -132,3 +178,8 @@ class MetaObserver:
             **analysis,
             "report": report,
         }
+
+    # Compatibility alias for requested naming.
+    @property
+    def causalalertthreshold(self) -> float:
+        return self.causal_alert_threshold

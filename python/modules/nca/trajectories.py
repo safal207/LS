@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .assembly import AgentState
+from .causal import CausalGraph
 from .world import GridWorld
 
 
@@ -16,25 +17,47 @@ class TrajectoryOption:
     details: dict[str, Any]
     uncertainty: float = 0.0
     confidence: float = 1.0
+    causal_score: float = 0.0
 
 
 class TrajectoryPlanner:
     """Generates and ranks action trajectories for the next agent step."""
+
+    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3) -> None:
+        self.causal_graph = causal_graph or CausalGraph()
+        self.causal_weight = causal_weight
 
     def generate(self, world: GridWorld, state: AgentState) -> list[TrajectoryOption]:
         options: list[TrajectoryOption] = []
         for action in world.available_actions():
             projected = world.project(action)
             uncertainty = self.estimate_uncertainty(state, [action])
+            causal_score = self.evaluate_causal_score(action, state)
             options.append(
                 TrajectoryOption(
                     action=action,
                     score=0.0,
                     uncertainty=uncertainty,
-                    details={"projected_position": projected},
+                    causal_score=causal_score,
+                    details={"projected_position": projected, "causal_score": causal_score},
                 )
             )
         return options
+
+    def evaluate_causal_score(self, option: str, state: AgentState) -> float:
+        world_features = state.world_state.get("causal_features", {}) if isinstance(state.world_state, dict) else {}
+        feature_for_action = world_features.get(option, {}) if isinstance(world_features, dict) else {}
+        success = float(feature_for_action.get("success_probability", 0.5))
+        error = float(feature_for_action.get("error_probability", 0.0))
+        drift = float(feature_for_action.get("deviation_probability", 0.0))
+
+        effect = self.causal_graph.estimate_causal_effect(option)
+        predicted = self.causal_graph.predict_outcome(option)
+        historical_success = float(predicted.get("success_probability", 0.0))
+        historical_drift = float(predicted.get("drift_probability", 0.0))
+
+        # Reward historically progressive actions and penalize drift-prone ones.
+        return (0.45 * effect) + (0.25 * (success - error - drift)) + (0.2 * historical_success) - (0.3 * historical_drift)
 
     def estimate_uncertainty(self, state: AgentState, actions: list[str]) -> float:
         world_noise = float(state.world_state.get("noise_level", 0.0))
@@ -79,7 +102,8 @@ class TrajectoryPlanner:
                 + (exploration_ratio * (0.2 if option.action != "idle" else -0.1))
             )
             uncertainty_penalty = option.uncertainty * (1.0 - risk_tolerance)
-            score = base_score - uncertainty_penalty
+            causal_score = option.causal_score
+            score = base_score - uncertainty_penalty + (causal_score * self.causal_weight)
 
             invariant_fit = 1.0
             invariants = state.self_state.get("invariants", {})
@@ -103,6 +127,7 @@ class TrajectoryPlanner:
             details = dict(option.details)
             details["confidence"] = confidence
             details["uncertainty_penalty"] = uncertainty_penalty
+            details["causal_score"] = causal_score
             evaluated.append(
                 TrajectoryOption(
                     action=option.action,
@@ -110,6 +135,7 @@ class TrajectoryPlanner:
                     details=details,
                     uncertainty=option.uncertainty,
                     confidence=confidence,
+                    causal_score=causal_score,
                 )
             )
         return evaluated
@@ -122,3 +148,6 @@ class TrajectoryPlanner:
     # Compatibility alias for requested naming.
     def estimateuncertainty(self, state: AgentState, actions: list[str]) -> float:
         return self.estimate_uncertainty(state, actions)
+
+    def evaluatecausalscore(self, option: str, state: AgentState) -> float:
+        return self.evaluate_causal_score(option, state)
