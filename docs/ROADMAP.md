@@ -1,5 +1,9 @@
 # Web4 Roadmap
 
+> ⚠️ Statuses in this file are historical and are no longer updated.
+> Canonical roadmap: `docs/WEB4_ROADMAP.md`.
+
+
 ## v1.0 — Local agent core (in progress)
 - Local cognition loop
 - LPI/LRI/LTP primitives

@@ -1,26 +1,38 @@
-# Web4 Runtime Multi-Transport Abstraction (Priority 6.3)
+# Web4 Runtime Multi-Transport Abstraction
 
-This step introduces a transport abstraction layer so runtime sessions are no longer bound directly to RTT internals.
+This document reflects current transport abstraction in:
 
-## New core pieces
+- `python/modules/web4_runtime/transport.py`
+- `python/modules/web4_runtime/transport_registry.py`
+- `python/modules/web4_runtime/web4_session.py`
 
-- `TransportBackend` protocol: unified transport contract (`connect`, `disconnect`, `send`, `receive`, `pending`, `stats`, `heartbeat`, `check_heartbeat_timeout`).
-- `RttTransport`: adapter that implements `TransportBackend` on top of existing `RttSession`.
-- `TransportRegistry`: factory registry for selecting transport backends by name.
-- `Web4Session`: transport-agnostic session wrapper that delegates delivery to selected backend and records transport-level observability events.
+## Core components
 
-## Migration path
+- `TransportBackend` protocol with methods:
+  - `connect`, `disconnect`, `send`, `receive`, `pending`, `stats`, `heartbeat`, `check_heartbeat_timeout`
+- `RttTransport` adapter for `RttSession`
+- `TransportRegistry` factory registry for backend selection
+- `Web4Session` transport-agnostic facade that emits transport-level observability events
 
-- Existing code using `RttSession` directly remains valid.
-- New transport-agnostic path:
+## Behavior notes
+
+- Existing RTT-direct usage remains valid.
+- New paths should prefer `Web4Session` + selected `TransportBackend`.
+- `Web4Session` records transport events with `transport_type` payload.
+
+## Example
 
 ```python
+from modules.web4_runtime.rtt import RttSession
+from modules.web4_runtime.transport import RttTransport
+from modules.web4_runtime.transport_registry import TransportRegistry
+from modules.web4_runtime.web4_session import Web4Session
+
 registry = TransportRegistry[str]()
 registry.register("rtt", lambda: RttTransport(RttSession[str]()))
 transport = registry.create("rtt")
 session = Web4Session[str](transport=transport)
+
+session.send("hello")
+print(session.receive())
 ```
-
-## Observability
-
-`Web4Session` emits transport-layer events with `transport_type` payload for unified cross-transport telemetry.
