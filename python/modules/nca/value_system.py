@@ -27,6 +27,9 @@ class ValueSystem:
     )
     preference_drift: float = 0.0
     value_conflicts: list[dict[str, Any]] = field(default_factory=list)
+    collectivevaluealignment: float = 1.0
+    collectiveethicalconflict: float = 0.0
+    groupvaluemap: dict[str, dict[str, Any]] = field(default_factory=dict)
     value_trace: list[dict[str, Any]] = field(default_factory=list)
 
     def update_from_identity(self, identity_core: Any) -> None:
@@ -74,6 +77,22 @@ class ValueSystem:
         self.valuealignmentscore = max(
             0.0,
             min(1.0, (0.65 * self.valuealignmentscore) + (0.35 * ethical_alignment)),
+        )
+
+
+    def update_from_collective(self, collective_state: dict[str, Any] | None) -> None:
+        collective_state = collective_state or {}
+        self.groupvaluemap = dict(collective_state.get("collectivevaluemap", self.groupvaluemap))
+        self.collectivevaluealignment = float(collective_state.get("collectivevaluealignment", self.collectivevaluealignment))
+        self.collectiveethicalconflict = float(collective_state.get("collectiveethicalconflict", self.collectiveethicalconflict))
+
+        self.core_values["collective_good"] = max(
+            0.0,
+            min(1.0, (0.6 * self.core_values.get("collective_good", 0.65)) + (0.4 * self.collectivevaluealignment)),
+        )
+        self.valuealignmentscore = max(
+            0.0,
+            min(1.0, self.valuealignmentscore - (0.18 * self.collectiveethicalconflict) + (0.12 * self.collectivevaluealignment)),
         )
 
     def evaluate_value_alignment(
@@ -139,6 +158,8 @@ class ValueSystem:
         self.value_trace.append(
             {
                 "t": len(self.value_trace),
+                "collectivevaluealignment": self.collectivevaluealignment,
+                "collectiveethicalconflict": self.collectiveethicalconflict,
                 "core_values": dict(self.core_values),
                 "valuealignmentscore": self.valuealignmentscore,
                 "preference_drift": self.preference_drift,
@@ -157,6 +178,9 @@ class ValueSystem:
 
     def updatefromautonomy(self, autonomy_engine: Any) -> None:
         self.update_from_autonomy(autonomy_engine)
+
+    def updatefromcollective(self, collective_state: dict[str, Any] | None) -> None:
+        self.update_from_collective(collective_state)
 
     def evaluatevaluealignment(self, action: dict[str, Any] | None, intent: dict[str, Any] | None, strategy: dict[str, Any] | None) -> float:
         return self.evaluate_value_alignment(action, intent, strategy)

@@ -11,6 +11,7 @@ from .meta_cognition import MetaCognitionEngine
 from .identity_core import IdentityCore
 from .intent_engine import IntentEngine
 from .orientation import OrientationCenter
+from .social_cognition import SocialCognitionEngine
 from .self_model import SelfModel
 from .signals import InternalSignal, SignalBus
 from .trajectories import TrajectoryPlanner
@@ -38,6 +39,7 @@ class NCAAgent:
     intentengine: IntentEngine = field(default_factory=IntentEngine)
     autonomy: AutonomyEngine = field(default_factory=AutonomyEngine)
     values: ValueSystem = field(default_factory=ValueSystem)
+    social: SocialCognitionEngine = field(default_factory=SocialCognitionEngine)
 
     def __post_init__(self) -> None:
         self.planner.causal_graph = self.causal_graph
@@ -112,12 +114,24 @@ class NCAAgent:
         strategies = self.autonomy.generate_strategies(self.identitycore, self.intentengine, self.metacognition, values=self.values)
         primary_strategy = self.autonomy.select_strategy()
 
-        intents = self.intentengine.generate_intents(state, self.identitycore, self.self_model, strategy=primary_strategy, values=self.values)
+        intents = self.intentengine.generate_intents(state, self.identitycore, self.self_model, strategy=primary_strategy, values=self.values, social=self.social, collective_state=self.collective_state)
         primary_intent = self.intentengine.select_primary_intent()
 
         self.values.update_from_identity(self.identitycore)
         self.values.update_from_intents(self.intentengine)
         self.values.update_from_autonomy(self.autonomy)
+        self.values.update_from_collective(self.collective_state)
+
+        self.social.update_from_collective_state(self.collective_state)
+        collective_events = list(self.collective_state.get("recent_events", [])) if isinstance(self.collective_state, dict) else []
+        self.social.infer_other_agents_intents(collective_events)
+        self.social.infer_other_agents_values(collective_events)
+        socialalignment = self.social.evaluate_social_alignment(self, self.collective_state)
+        cooperativeadjustments = self.social.generate_cooperative_adjustments()
+
+        self.intentengine.apply_social_influence(self.social, self.collective_state)
+        self.autonomy.apply_cooperative_regulation(self.social, self.collective_state)
+        self.identitycore.evaluate_social_compatibility(self.social)
 
         preferred_actions = list((initiative or {}).get("preferred_actions", []))
         if not preferred_actions and isinstance(primary_intent, dict):
@@ -135,6 +149,7 @@ class NCAAgent:
             intent=primary_intent,
             strategy=primary_strategy,
             values=self.values,
+            social=self.social,
         )
         evaluated = self.planner.evaluate(
             candidates,
@@ -146,6 +161,7 @@ class NCAAgent:
             intent=primary_intent,
             strategy=primary_strategy,
             values=self.values,
+            social=self.social,
         )
         choice = self.planner.choose(evaluated)
 
@@ -155,6 +171,7 @@ class NCAAgent:
         self.autonomy.update_autonomy_metrics()
         self.self_model.update_autonomy_metrics(self.autonomy)
         self.self_model.update_value_metrics(self.values)
+        self.self_model.update_social_metrics(self.social)
 
         self.self_model.update_cognitive_trace(
             state,
@@ -196,12 +213,18 @@ class NCAAgent:
             "strategies": strategies,
             "primary_strategy": primary_strategy,
             "value_alignment": valuealignment,
+            "social_alignment": socialalignment,
+            "cooperative_adjustments": cooperativeadjustments,
+            "social_prediction": self.social.predict_group_behavior(),
             "values": {
                 "core_values": dict(self.values.core_values),
                 "valuealignmentscore": self.values.valuealignmentscore,
                 "ethical_constraints": dict(self.values.ethical_constraints),
                 "preference_drift": self.values.preference_drift,
                 "value_conflicts": [dict(c) for c in self.values.value_conflicts],
+                "collectivevaluealignment": self.values.collectivevaluealignment,
+                "collectiveethicalconflict": self.values.collectiveethicalconflict,
+                "groupvaluemap": dict(self.values.groupvaluemap),
                 "value_trace": list(self.values.value_trace[-20:]),
             },
             "autonomy": {
@@ -212,6 +235,8 @@ class NCAAgent:
                 "autonomy_trace": list(self.autonomy.autonomy_trace[-20:]),
                 "ethicalalignmentscore": self.autonomy.ethicalalignmentscore,
                 "selfregulationstrength": self.autonomy.selfregulationstrength,
+                "cooperativealignmentscore": self.autonomy.cooperativealignmentscore,
+                "groupstrategyadjustment": dict(self.autonomy.groupstrategyadjustment),
             },
             "identity_core": {
                 "core_traits": dict(self.identitycore.core_traits),
@@ -227,6 +252,17 @@ class NCAAgent:
                 "valuealignmentscore": self.identitycore.valuealignmentscore,
                 "value_resistance": self.identitycore.value_resistance,
                 "valuepreferenceprofile": dict(self.identitycore.valuepreferenceprofile),
+                "socialalignmentscore": self.identitycore.socialalignmentscore,
+                "social_resistance": self.identitycore.social_resistance,
+                "socialpreferenceprofile": dict(self.identitycore.socialpreferenceprofile),
+            },
+            "social": {
+                "social_models": dict(self.social.social_models),
+                "collectivevaluealignment": self.social.collectivevaluealignment,
+                "collectiveintentalignment": self.social.collectiveintentalignment,
+                "socialconflictscore": self.social.socialconflictscore,
+                "cooperation_score": self.social.cooperation_score,
+                "social_trace": list(self.social.social_trace[-20:]),
             },
             "signals": [
                 {"type": s.signal_type, "payload": s.payload}

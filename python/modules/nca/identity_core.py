@@ -32,6 +32,8 @@ class IdentityCore:
     autonomy_resistance: float = 0.45
     valuealignmentscore: float = 1.0
     value_resistance: float = 0.4
+    socialalignmentscore: float = 1.0
+    social_resistance: float = 0.35
     selfdirectionpreference: dict[str, float] = field(
         default_factory=lambda: {
             "stabilize": 0.7,
@@ -45,6 +47,14 @@ class IdentityCore:
             "progress": 0.75,
             "collective": 0.6,
             "exploration": 0.55,
+        }
+    )
+    socialpreferenceprofile: dict[str, float] = field(
+        default_factory=lambda: {
+            "stability": 0.72,
+            "cooperation": 0.78,
+            "exploration": 0.58,
+            "balanced": 0.8,
         }
     )
     valuepreferenceprofile: dict[str, float] = field(
@@ -194,6 +204,34 @@ class IdentityCore:
         return self.valuealignmentscore
 
 
+    def evaluate_social_compatibility(self, social_engine: Any) -> float:
+        if social_engine is None:
+            self.socialalignmentscore = 0.5
+            return self.socialalignmentscore
+
+        cooperation = float(getattr(social_engine, "cooperation_score", 0.5))
+        conflict = float(getattr(social_engine, "socialconflictscore", 0.0))
+        intent_alignment = float(getattr(social_engine, "collectiveintentalignment", 0.5))
+
+        preference_fit = (
+            0.45 * float(self.socialpreferenceprofile.get("cooperation", 0.7))
+            + 0.3 * float(self.socialpreferenceprofile.get("balanced", 0.7))
+            + 0.25 * float(self.socialpreferenceprofile.get("stability", 0.7))
+        )
+        resistance_penalty = self.social_resistance * max(0.0, conflict - cooperation)
+        self.socialalignmentscore = max(
+            0.0,
+            min(
+                1.0,
+                (0.35 * cooperation) + (0.3 * intent_alignment) + (0.2 * self.identity_integrity) + (0.15 * preference_fit) - (0.2 * resistance_penalty),
+            ),
+        )
+        return self.socialalignmentscore
+
+    def evaluatesocialcompatibility(self, social_engine: Any) -> float:
+        return self.evaluate_social_compatibility(social_engine)
+
+
     # Compatibility aliases requested by specification.
     def updatefromselfmodel(self, selfmodel: Any) -> None:
         self.update_from_self_model(selfmodel)
@@ -218,3 +256,6 @@ class IdentityCore:
 
     def evaluatevaluecompatibility(self, values: Any) -> float:
         return self.evaluate_value_compatibility(values)
+
+    def evaluatesocialcompatibilityalias(self, social_engine: Any) -> float:
+        return self.evaluate_social_compatibility(social_engine)

@@ -11,6 +11,7 @@ from .intent_engine import IntentEngine
 from .multiagent import MultiAgentSystem
 from .shared_causal import SharedCausalGraph
 from .orientation import OrientationCenter
+from .social_cognition import SocialCognitionEngine
 from .self_model import SelfModel
 from .signals import CollectiveSignalBus, InternalSignal, SignalBus
 from .trajectories import TrajectoryOption, TrajectoryPlanner
@@ -30,6 +31,7 @@ __all__ = [
     "MultiAgentSystem",
     "MetaReport",
     "OrientationCenter",
+    "SocialCognitionEngine",
     "SelfModel",
     "InternalSignal",
     "CollectiveSignalBus",
