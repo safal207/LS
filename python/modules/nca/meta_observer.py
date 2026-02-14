@@ -1,10 +1,20 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .assembly import AgentState
 from .orientation import OrientationCenter
+from .signals import InternalSignal, SignalBus
+
+
+@dataclass
+class MetaReport:
+    self_consistency: float
+    uncertainty: float
+    drift: float
+    micro_goals_status: dict[str, Any]
+    signals_emitted: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -12,9 +22,10 @@ class MetaObserver:
     """Monitors state for drift and emits orientation feedback."""
 
     drift_threshold: int = 2
+    self_consistency_threshold: float = 0.45
+    analysis_history: list[MetaReport] = field(default_factory=list)
 
-    def analyze(self, state: AgentState) -> dict[str, Any]:
-        """Return analysis signals from current state and recent behavior."""
+    def analyze(self, state: AgentState, orientation: OrientationCenter) -> dict[str, Any]:
         drift_count = 0
         current_world = state.world_state
         current_pos = current_world.get("agent_position") if isinstance(current_world, dict) else None
@@ -25,13 +36,17 @@ class MetaObserver:
             if current_pos is not None and event.get("position_before") == current_pos:
                 drift_count += 1
 
+        self_consistency = orientation.compute_self_consistency(state)
+        uncertainty = float(current_world.get("observation_uncertainty", 0.0)) if isinstance(current_world, dict) else 0.0
+
         return {
             "identity_drift_risk": drift_count >= self.drift_threshold,
             "drift_count": drift_count,
+            "self_consistency": self_consistency,
+            "uncertainty": uncertainty,
         }
 
     def stabilize(self, orientation: OrientationCenter, analysis: dict[str, Any]) -> None:
-        """Apply corrective feedback to reduce identity drift risk."""
         if not analysis.get("identity_drift_risk"):
             return
         orientation.update_from_feedback(
@@ -41,8 +56,79 @@ class MetaObserver:
             }
         )
 
-    def observe_and_correct(self, state: AgentState, orientation: OrientationCenter) -> dict[str, Any]:
-        """Convenience wrapper: analyze state and apply correction if needed."""
-        analysis = self.analyze(state)
+    def _emit_analysis_signals(
+        self,
+        analysis: dict[str, Any],
+        signal_bus: SignalBus | None,
+        state: AgentState,
+    ) -> list[dict[str, Any]]:
+        emitted: list[dict[str, Any]] = []
+        if signal_bus is None:
+            return emitted
+
+        if analysis["self_consistency"] < self.self_consistency_threshold:
+            sig = InternalSignal(
+                signal_type="identitydriftdetected",
+                t=state.t,
+                payload={
+                    "score": analysis["self_consistency"],
+                    "threshold": self.self_consistency_threshold,
+                },
+            )
+            signal_bus.emit(sig)
+            emitted.append({"type": sig.signal_type, "payload": sig.payload})
+
+        if analysis["uncertainty"] >= 0.6:
+            sig = InternalSignal(
+                signal_type="world_uncertainty",
+                t=state.t,
+                payload={"uncertainty": analysis["uncertainty"]},
+            )
+            signal_bus.emit(sig)
+            emitted.append({"type": sig.signal_type, "payload": sig.payload})
+
+        if analysis.get("identity_drift_risk"):
+            sig = InternalSignal(
+                signal_type="orientationfeedbackrequired",
+                t=state.t,
+                payload={"drift_count": analysis.get("drift_count", 0)},
+            )
+            signal_bus.emit(sig)
+            emitted.append({"type": sig.signal_type, "payload": sig.payload})
+
+        return emitted
+
+    def generate_report(
+        self,
+        state: AgentState,
+        orientation: OrientationCenter,
+        signal_bus: SignalBus | None = None,
+    ) -> MetaReport:
+        analysis = self.analyze(state, orientation)
+        emitted = self._emit_analysis_signals(analysis, signal_bus, state)
+        report = MetaReport(
+            self_consistency=analysis["self_consistency"],
+            uncertainty=analysis["uncertainty"],
+            drift=float(analysis.get("drift_count", 0)),
+            micro_goals_status={
+                "count": len(state.self_state.get("micro_goals", [])),
+                "items": list(state.self_state.get("micro_goals", [])),
+            },
+            signals_emitted=emitted,
+        )
+        self.analysis_history.append(report)
+        return report
+
+    def observe_and_correct(
+        self,
+        state: AgentState,
+        orientation: OrientationCenter,
+        signal_bus: SignalBus | None = None,
+    ) -> dict[str, Any]:
+        analysis = self.analyze(state, orientation)
         self.stabilize(orientation, analysis)
-        return analysis
+        report = self.generate_report(state, orientation, signal_bus)
+        return {
+            **analysis,
+            "report": report,
+        }

@@ -1,14 +1,10 @@
-"""NCA Phase 1 prototype components.
-
-This package contains a minimal implementation of the NCA architecture:
-orientation center, assembly point, meta-observer, trajectory planner,
-a toy world model, and a composed single-agent runtime.
-"""
+"""NCA Phase 1.5 prototype components."""
 
 from .agent import NCAAgent
 from .assembly import AgentState, AssemblyPoint
-from .meta_observer import MetaObserver
+from .meta_observer import MetaObserver, MetaReport
 from .orientation import OrientationCenter
+from .signals import InternalSignal, SignalBus
 from .trajectories import TrajectoryOption, TrajectoryPlanner
 from .world import GridWorld
 
@@ -17,7 +13,10 @@ __all__ = [
     "AgentState",
     "AssemblyPoint",
     "MetaObserver",
+    "MetaReport",
     "OrientationCenter",
+    "InternalSignal",
+    "SignalBus",
     "TrajectoryOption",
     "TrajectoryPlanner",
     "GridWorld",
