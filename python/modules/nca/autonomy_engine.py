@@ -87,9 +87,6 @@ class AutonomyEngine:
             "civilizationalignmentscore": self.civilizationalignmentscore,
             "normcompliancefactor": self.normcompliancefactor,
             "culturalstrategyadjustment": self.culturalstrategyadjustment,
-            "civilizationalignmentscore": self.civilizationalignmentscore,
-            "normcompliancefactor": self.normcompliancefactor,
-            "culturalstrategyadjustment": self.culturalstrategyadjustment,
         }
         self.evaluate_autonomy_alignment(identitycore)
         return strategies
