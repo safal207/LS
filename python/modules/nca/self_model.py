@@ -29,6 +29,9 @@ class SelfModel:
     value_trace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
     valuestabilityscore: float = 1.0
     ethical_markers: list[dict[str, Any]] = field(default_factory=list)
+    social_trace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
+    socialstabilityscore: float = 1.0
+    cooperation_markers: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Ensure deque length follows configured max_history.
@@ -44,6 +47,8 @@ class SelfModel:
             self.autonomy_trace = deque(self.autonomy_trace, maxlen=self.max_history)
         if self.value_trace.maxlen != self.max_history:
             self.value_trace = deque(self.value_trace, maxlen=self.max_history)
+        if self.social_trace.maxlen != self.max_history:
+            self.social_trace = deque(self.social_trace, maxlen=self.max_history)
 
     def _extract_snapshot(self, agent_state: Any) -> dict[str, Any]:
         if hasattr(agent_state, "self_state"):
@@ -381,6 +386,42 @@ class SelfModel:
         return entry
 
 
+
+    def update_social_metrics(self, social_engine: Any) -> dict[str, Any]:
+        entry = {
+            "t": len(self.social_trace),
+            "cooperation_score": float(getattr(social_engine, "cooperation_score", 0.0)),
+            "socialconflictscore": float(getattr(social_engine, "socialconflictscore", 0.0)),
+            "collectivevaluealignment": float(getattr(social_engine, "collectivevaluealignment", 1.0)),
+            "collectiveintentalignment": float(getattr(social_engine, "collectiveintentalignment", 1.0)),
+        }
+        self.social_trace.append(entry)
+
+        recent = list(self.social_trace)[-8:]
+        if recent:
+            self.socialstabilityscore = max(
+                0.0,
+                min(
+                    1.0,
+                    sum(
+                        max(0.0, min(1.0, float(item.get("cooperation_score", 0.0)) - (0.25 * float(item.get("socialconflictscore", 0.0)))))
+                        for item in recent
+                    )
+                    / len(recent),
+                ),
+            )
+
+        self.cooperation_markers.append(
+            {
+                "t": entry["t"],
+                "cooperation_signal": "high" if entry["cooperation_score"] > 0.7 else "moderate" if entry["cooperation_score"] > 0.45 else "low",
+                "social_conflict": entry["socialconflictscore"] > 0.35,
+            }
+        )
+        if len(self.cooperation_markers) > self.max_history:
+            self.cooperation_markers = self.cooperation_markers[-self.max_history :]
+        return entry
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "max_history": self.max_history,
@@ -415,6 +456,9 @@ class SelfModel:
             "value_trace": list(self.value_trace),
             "valuestabilityscore": self.valuestabilityscore,
             "ethical_markers": list(self.ethical_markers),
+            "social_trace": list(self.social_trace),
+            "socialstabilityscore": self.socialstabilityscore,
+            "cooperation_markers": list(self.cooperation_markers),
         }
 
     # Compatibility aliases requested by specification.
@@ -448,3 +492,6 @@ class SelfModel:
 
     def updatevaluemetrics(self, value_system: Any) -> dict[str, Any]:
         return self.update_value_metrics(value_system)
+
+    def updatesocialmetrics(self, social_engine: Any) -> dict[str, Any]:
+        return self.update_social_metrics(social_engine)

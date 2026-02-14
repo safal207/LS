@@ -6,6 +6,7 @@ from typing import Any
 from .assembly import AgentState
 from .causal import CausalGraph
 from .world import GridWorld
+from .social_cognition import SocialCognitionEngine
 from .value_system import ValueSystem
 
 
@@ -24,7 +25,7 @@ class TrajectoryOption:
 class TrajectoryPlanner:
     """Generates and ranks action trajectories for the next agent step."""
 
-    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2, meta_alignment_weight: float = 0.15, initiative_weight: float = 0.12, intent_weight: float = 0.18, strategy_weight: float = 0.22, value_weight: float = 0.25) -> None:
+    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2, meta_alignment_weight: float = 0.15, initiative_weight: float = 0.12, intent_weight: float = 0.18, strategy_weight: float = 0.22, value_weight: float = 0.25, social_weight: float = 0.28) -> None:
         self.causal_graph = causal_graph or CausalGraph()
         self.causal_weight = causal_weight
         self.self_alignment_weight = self_alignment_weight
@@ -33,8 +34,9 @@ class TrajectoryPlanner:
         self.intent_weight = intent_weight
         self.strategy_weight = strategy_weight
         self.value_weight = value_weight
+        self.social_weight = social_weight
 
-    def generate(self, world: GridWorld, state: AgentState, initiative: dict[str, Any] | None = None, intent: dict[str, Any] | None = None, strategy: dict[str, Any] | None = None, values: ValueSystem | None = None) -> list[TrajectoryOption]:
+    def generate(self, world: GridWorld, state: AgentState, initiative: dict[str, Any] | None = None, intent: dict[str, Any] | None = None, strategy: dict[str, Any] | None = None, values: ValueSystem | None = None, social: SocialCognitionEngine | None = None) -> list[TrajectoryOption]:
         options: list[TrajectoryOption] = []
         for action in world.available_actions():
             projected = world.project(action)
@@ -46,7 +48,7 @@ class TrajectoryPlanner:
                     score=0.0,
                     uncertainty=uncertainty,
                     causal_score=causal_score,
-                    details={"projected_position": projected, "causal_score": causal_score, "initiative": dict(initiative or {}), "intent": dict(intent or {}), "strategy": dict(strategy or {}), "values": dict(getattr(values, "core_values", {}))},
+                    details={"projected_position": projected, "causal_score": causal_score, "initiative": dict(initiative or {}), "intent": dict(intent or {}), "strategy": dict(strategy or {}), "values": dict(getattr(values, "core_values", {})), "social": {"cooperation_score": float(getattr(social, "cooperation_score", 0.0)), "socialconflictscore": float(getattr(social, "socialconflictscore", 0.0))}},
                 )
             )
         return options
@@ -91,6 +93,7 @@ class TrajectoryPlanner:
         intent: dict[str, Any] | None = None,
         strategy: dict[str, Any] | None = None,
         values: ValueSystem | None = None,
+        social: SocialCognitionEngine | None = None,
     ) -> list[TrajectoryOption]:
         prefs = state.self_state.get("preferences", {})
         personality = state.self_state.get("personality", {})
@@ -128,6 +131,7 @@ class TrajectoryPlanner:
             intent_score = self.evaluate_intent(option, intent)
             strategy_score = self.evaluate_strategy(option, strategy)
             value_score = self.evaluate_value_alignment(option, values)
+            social_score = self.evaluate_social_alignment(option, social)
             score = (
                 base_score
                 + (causal_score * self.causal_weight)
@@ -138,6 +142,7 @@ class TrajectoryPlanner:
                 + (intent_score * self.intent_weight)
                 + (strategy_score * self.strategy_weight)
                 + (value_score * self.value_weight)
+                + (social_score * self.social_weight)
                 - uncertainty_penalty
             )
 
@@ -171,6 +176,7 @@ class TrajectoryPlanner:
             details["intent_score"] = intent_score
             details["strategy_score"] = strategy_score
             details["value_score"] = value_score
+            details["social_score"] = social_score
             evaluated.append(
                 TrajectoryOption(
                     action=option.action,
@@ -182,6 +188,24 @@ class TrajectoryPlanner:
                 )
             )
         return evaluated
+
+
+    def evaluate_social_alignment(self, option: TrajectoryOption, social: SocialCognitionEngine | None) -> float:
+        if social is None:
+            return 0.0
+        cooperative = float(getattr(social, "cooperation_score", 0.0))
+        conflict = float(getattr(social, "socialconflictscore", 0.0))
+        preferred = set((social.generate_cooperative_adjustments() or {}).get("shared_action_preference", []))
+
+        score = (0.6 * cooperative) - (0.5 * conflict)
+        if option.action in preferred:
+            score += 0.12
+        if option.action in ("left", "right") and conflict > 0.45:
+            score -= 0.1
+        return score
+
+    def evaluatesocial_alignment(self, option: TrajectoryOption, social: SocialCognitionEngine | None) -> float:
+        return self.evaluate_social_alignment(option, social)
 
     def evaluate_value_alignment(self, option: TrajectoryOption, values: ValueSystem | None) -> float:
         if values is None:

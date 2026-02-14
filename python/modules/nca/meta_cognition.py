@@ -21,6 +21,9 @@ class MetaCognitionEngine:
     value_drift: float = 0.0
     value_bias: float = 0.0
     ethicalconflictscore: float = 0.0
+    social_drift: float = 0.0
+    cooperation_bias: float = 0.0
+    groupconflictscore: float = 0.0
 
     def analyze_cognition(self, state: Any, self_model: Any, meta_report: Any) -> dict[str, Any]:
         model_dict = self_model.to_dict() if hasattr(self_model, "to_dict") else {}
@@ -37,6 +40,8 @@ class MetaCognitionEngine:
         longterm_stability_score = float(model_dict.get("longterm_stability_score", model_dict.get("longtermstability_score", 1.0))) if isinstance(model_dict, dict) else 1.0
         value_trace = model_dict.get("value_trace", []) if isinstance(model_dict, dict) else []
         ethical_markers = model_dict.get("ethical_markers", []) if isinstance(model_dict, dict) else []
+        social_trace = model_dict.get("social_trace", []) if isinstance(model_dict, dict) else []
+        cooperation_markers = model_dict.get("cooperation_markers", []) if isinstance(model_dict, dict) else []
         self_consistency = float(report_dict.get("self_consistency", 1.0))
         observer_bias_score = float(report_dict.get("observerbiasscore", 0.0))
         observer_meta_drift = float(report_dict.get("meta_drift", 0.0))
@@ -88,6 +93,18 @@ class MetaCognitionEngine:
             warning_ratio = sum(1 for marker in recent_markers if str(marker.get("ethical_signal", "stable")) == "warning") / max(1, len(recent_markers))
             self.value_bias = max(self.value_bias, warning_ratio)
 
+        self.social_drift = 0.0
+        self.cooperation_bias = 0.0
+        self.groupconflictscore = 0.0
+        if social_trace:
+            recent_social = social_trace[-8:]
+            self.social_drift = sum(max(0.0, 1.0 - float(v.get("cooperation_score", 1.0))) for v in recent_social) / max(1, len(recent_social))
+            self.groupconflictscore = sum(float(v.get("socialconflictscore", 0.0)) for v in recent_social) / max(1, len(recent_social))
+        if cooperation_markers:
+            recent_coop = cooperation_markers[-8:]
+            low_signals = sum(1 for marker in recent_coop if str(marker.get("cooperation_signal", "moderate")) == "low")
+            self.cooperation_bias = low_signals / max(1, len(recent_coop))
+
         biases = self.detect_cognitive_biases(
             {
                 "state": state,
@@ -107,6 +124,9 @@ class MetaCognitionEngine:
                 "value_drift": self.value_drift,
                 "value_bias": self.value_bias,
                 "ethicalconflictscore": self.ethicalconflictscore,
+                "social_drift": self.social_drift,
+                "cooperation_bias": self.cooperation_bias,
+                "groupconflictscore": self.groupconflictscore,
             }
         )
 
@@ -159,6 +179,9 @@ class MetaCognitionEngine:
             "value_drift": self.value_drift,
             "value_bias": self.value_bias,
             "ethicalconflictscore": self.ethicalconflictscore,
+            "social_drift": self.social_drift,
+            "cooperation_bias": self.cooperation_bias,
+            "groupconflictscore": self.groupconflictscore,
         }
 
         feedback = {
@@ -179,6 +202,9 @@ class MetaCognitionEngine:
             "value_drift": self.value_drift,
             "value_bias": self.value_bias,
             "ethicalconflictscore": self.ethicalconflictscore,
+            "social_drift": self.social_drift,
+            "cooperation_bias": self.cooperation_bias,
+            "groupconflictscore": self.groupconflictscore,
         }
         self.latest_feedback = feedback
         self.history.append(feedback)
@@ -211,6 +237,9 @@ class MetaCognitionEngine:
             value_drift = float(history.get("value_drift", 0.0))
             value_bias = float(history.get("value_bias", 0.0))
             ethicalconflictscore = float(history.get("ethicalconflictscore", 0.0))
+            social_drift = float(history.get("social_drift", 0.0))
+            cooperation_bias = float(history.get("cooperation_bias", 0.0))
+            groupconflictscore = float(history.get("groupconflictscore", 0.0))
         else:
             trace = {}
             report = {}
@@ -228,6 +257,9 @@ class MetaCognitionEngine:
             value_drift = 0.0
             value_bias = 0.0
             ethicalconflictscore = 0.0
+            social_drift = 0.0
+            cooperation_bias = 0.0
+            groupconflictscore = 0.0
 
         biases: list[str] = []
         if float(trace.get("impulsiveness_spikes", 0.0)) > 0.18:
@@ -264,6 +296,12 @@ class MetaCognitionEngine:
             biases.append("value_bias")
         if ethicalconflictscore > 0.3:
             biases.append("ethical_conflict")
+        if social_drift > 0.3:
+            biases.append("social_drift")
+        if cooperation_bias > 0.5:
+            biases.append("cooperation_bias")
+        if groupconflictscore > 0.35:
+            biases.append("group_conflict")
 
         for pattern in patterns[-6:]:
             label = str(pattern.get("pattern", "")).lower()

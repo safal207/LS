@@ -15,6 +15,8 @@ class AutonomyEngine:
     autonomy_trace: list[dict[str, Any]] = field(default_factory=list)
     ethicalalignmentscore: float = 1.0
     selfregulationstrength: float = 0.5
+    cooperativealignmentscore: float = 1.0
+    groupstrategyadjustment: dict[str, Any] = field(default_factory=dict)
 
     def generate_strategies(self, identitycore: Any, intentengine: Any, metacognition: Any, values: Any | None = None) -> list[dict[str, Any]]:
         integrity = float(getattr(identitycore, "identity_integrity", 1.0))
@@ -123,6 +125,22 @@ class AutonomyEngine:
             self.autonomy_trace = self.autonomy_trace[-200:]
         return entry
 
+
+    def apply_cooperative_regulation(self, social: Any | None, collective_state: dict[str, Any] | None = None) -> dict[str, Any]:
+        collective_state = collective_state or {}
+        cooperation = float(getattr(social, "cooperation_score", 0.6)) if social is not None else float(collective_state.get("collectivecooperation", 0.6))
+        conflict = float(getattr(social, "socialconflictscore", 0.0)) if social is not None else float(collective_state.get("collectivesocialconflict", 0.0))
+
+        self.cooperativealignmentscore = max(0.0, min(1.0, (0.55 * cooperation) + (0.45 * (1.0 - conflict))))
+        self.groupstrategyadjustment = {
+            "mode_bias": "balanced" if conflict > 0.4 else "explore" if cooperation > 0.7 else "stabilize",
+            "strength_delta": (0.14 * cooperation) - (0.18 * conflict),
+            "conflict_mitigation": conflict > 0.35,
+        }
+
+        self.autonomy_level = max(0.0, min(1.0, self.autonomy_level + float(self.groupstrategyadjustment["strength_delta"] * 0.2)))
+        return dict(self.groupstrategyadjustment)
+
     # Compatibility aliases requested by specification.
     def generatestrategies(self, identitycore: Any, intentengine: Any, metacognition: Any, values: Any | None = None) -> list[dict[str, Any]]:
         return self.generate_strategies(identitycore, intentengine, metacognition, values=values)
@@ -135,4 +153,7 @@ class AutonomyEngine:
 
     def updateautonomymetrics(self) -> dict[str, Any]:
         return self.update_autonomy_metrics()
+
+    def applycooperativeregulation(self, social: Any | None, collective_state: dict[str, Any] | None = None) -> dict[str, Any]:
+        return self.apply_cooperative_regulation(social, collective_state)
 

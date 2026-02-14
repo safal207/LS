@@ -14,7 +14,7 @@ class IntentEngine:
     intent_strength: float = 0.0
     intent_alignment: float = 1.0
 
-    def generate_intents(self, state: Any, identity_core: Any, self_model: Any, strategy: dict[str, Any] | None = None, values: Any | None = None) -> list[dict[str, Any]]:
+    def generate_intents(self, state: Any, identity_core: Any, self_model: Any, strategy: dict[str, Any] | None = None, values: Any | None = None, social: Any | None = None, collective_state: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         world_state = getattr(state, "world_state", {}) if hasattr(state, "world_state") else {}
         if not isinstance(world_state, dict):
             world_state = {}
@@ -92,6 +92,9 @@ class IntentEngine:
                 base_strength += 0.1
             intent["strength"] = max(0.0, min(1.0, base_strength))
 
+        if social is not None or collective_state is not None:
+            self._apply_social_norms(intents, social, collective_state or {})
+
         self.active_intents = intents
         self.resolve_conflicts()
 
@@ -141,6 +144,34 @@ class IntentEngine:
 
         return self.intent_conflicts
 
+
+    def _apply_social_norms(self, intents: list[dict[str, Any]], social: Any | None, collective_state: dict[str, Any]) -> None:
+        collective_alignment = float(collective_state.get("collectiveintentalignment", getattr(social, "collectiveintentalignment", 1.0)))
+        conflict = float(collective_state.get("collectivesocialconflict", getattr(social, "socialconflictscore", 0.0)))
+        cooperation = float(getattr(social, "cooperation_score", 0.6))
+
+        for intent in intents:
+            intent_type = str(intent.get("type", "progress")).lower()
+            desired_mode = str(intent.get("desired_mode", "balanced")).lower()
+
+            if intent_type == "collective":
+                intent["strength"] = max(0.0, min(1.0, float(intent.get("strength", 0.0)) + (0.15 * collective_alignment) + (0.1 * cooperation)))
+            if desired_mode == "explore" and conflict > 0.4:
+                intent["strength"] = max(0.0, float(intent.get("strength", 0.0)) - (0.2 * conflict))
+                intent["alignment"] = max(0.0, float(intent.get("alignment", 0.0)) - (0.12 * conflict))
+            if desired_mode in ("balanced", "stabilize") and collective_alignment > 0.6:
+                intent["alignment"] = min(1.0, float(intent.get("alignment", 0.0)) + (0.08 * collective_alignment))
+
+    def apply_social_influence(self, social: Any | None, collective_state: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        if not self.active_intents:
+            return []
+        self._apply_social_norms(self.active_intents, social, collective_state or {})
+        self.resolve_conflicts()
+        if self.active_intents:
+            self.intent_strength = sum(float(i.get("strength", 0.0)) for i in self.active_intents) / len(self.active_intents)
+            self.intent_alignment = sum(float(i.get("alignment", 0.0)) for i in self.active_intents) / len(self.active_intents)
+        return self.active_intents
+
     def select_primary_intent(self) -> dict[str, Any] | None:
         if not self.active_intents:
             return None
@@ -150,11 +181,14 @@ class IntentEngine:
         )
 
     # Compatibility aliases requested by specification.
-    def generateintents(self, state: Any, identitycore: Any, self_model: Any, strategy: dict[str, Any] | None = None, values: Any | None = None) -> list[dict[str, Any]]:
-        return self.generate_intents(state, identitycore, self_model, strategy=strategy, values=values)
+    def generateintents(self, state: Any, identitycore: Any, self_model: Any, strategy: dict[str, Any] | None = None, values: Any | None = None, social: Any | None = None, collective_state: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        return self.generate_intents(state, identitycore, self_model, strategy=strategy, values=values, social=social, collective_state=collective_state)
 
     def evaluateintentalignment(self, intent: dict[str, Any], identity_core: Any) -> float:
         return self.evaluate_intent_alignment(intent, identity_core)
 
     def selectprimaryintent(self) -> dict[str, Any] | None:
         return self.select_primary_intent()
+
+    def applysocialinfluence(self, social: Any | None, collective_state: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        return self.apply_social_influence(social, collective_state)
