@@ -1,15 +1,8 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[3]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from modules.nca.agent import NCAAgent
-from modules.nca.orientation import OrientationCenter
-from modules.nca.world import GridWorld
+from ..agent import NCAAgent
+from ..orientation import OrientationCenter
+from ..world import GridWorld
 
 
 def run_demo(steps: int = 30) -> list[dict[str, object]]:
