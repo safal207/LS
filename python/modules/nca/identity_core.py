@@ -34,6 +34,15 @@ class IdentityCore:
     value_resistance: float = 0.4
     socialalignmentscore: float = 1.0
     social_resistance: float = 0.35
+    culturalidentityscore: float = 1.0
+    cultural_resistance: float = 0.3
+    culturalpreferenceprofile: dict[str, float] = field(
+        default_factory=lambda: {
+            "cooperation": 0.75,
+            "stability": 0.72,
+            "tradition": 0.62,
+        }
+    )
     selfdirectionpreference: dict[str, float] = field(
         default_factory=lambda: {
             "stabilize": 0.7,
@@ -230,6 +239,28 @@ class IdentityCore:
 
     def evaluatesocialcompatibility(self, social_engine: Any) -> float:
         return self.evaluate_social_compatibility(social_engine)
+
+
+    def evaluate_cultural_compatibility(self, culture_engine: Any) -> float:
+        if culture_engine is None:
+            self.culturalidentityscore = 0.5
+            return self.culturalidentityscore
+
+        norms = dict(getattr(culture_engine, "norms", {}))
+        traditions = dict(getattr(culture_engine, "traditions", {}))
+        conflict = min(1.0, len(list(getattr(culture_engine, "norm_conflicts", []))) / 5.0)
+
+        cooperation_fit = float(norms.get("cooperation", self.culturalpreferenceprofile.get("cooperation", 0.7)))
+        stability_fit = float(norms.get("stability", self.culturalpreferenceprofile.get("stability", 0.7)))
+        tradition_fit = 1.0 if traditions else self.culturalpreferenceprofile.get("tradition", 0.6)
+
+        base = (0.35 * cooperation_fit) + (0.3 * stability_fit) + (0.2 * tradition_fit) + (0.15 * self.identity_integrity)
+        penalty = 0.2 * self.cultural_resistance * conflict
+        self.culturalidentityscore = max(0.0, min(1.0, base - penalty))
+        return self.culturalidentityscore
+
+    def evaluateculturalcompatibility(self, culture_engine: Any) -> float:
+        return self.evaluate_cultural_compatibility(culture_engine)
 
 
     # Compatibility aliases requested by specification.

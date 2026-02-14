@@ -17,8 +17,11 @@ class AutonomyEngine:
     selfregulationstrength: float = 0.5
     cooperativealignmentscore: float = 1.0
     groupstrategyadjustment: dict[str, Any] = field(default_factory=dict)
+    civilizationalignmentscore: float = 1.0
+    normcompliancefactor: float = 1.0
+    culturalstrategyadjustment: dict[str, Any] = field(default_factory=dict)
 
-    def generate_strategies(self, identitycore: Any, intentengine: Any, metacognition: Any, values: Any | None = None) -> list[dict[str, Any]]:
+    def generate_strategies(self, identitycore: Any, intentengine: Any, metacognition: Any, values: Any | None = None, culture: Any | None = None) -> list[dict[str, Any]]:
         integrity = float(getattr(identitycore, "identity_integrity", 1.0))
         agency = float(getattr(identitycore, "agency_level", 0.0))
         drift_resistance = float(getattr(identitycore, "drift_resistance", 1.0))
@@ -72,6 +75,14 @@ class AutonomyEngine:
             {"name": "maintain_meta_stability", "priority": max(0.3, 1.0 - meta_drift)},
         ]
 
+        culture_alignment = float(getattr(culture, "culturalalignmentscore", 1.0)) if culture is not None else 1.0
+        self.civilizationalignmentscore = culture_alignment
+        self.normcompliancefactor = max(0.0, min(1.0, 1.0 - min(1.0, len(getattr(culture, "norm_conflicts", [])) / 5.0))) if culture is not None else 1.0
+        self.culturalstrategyadjustment = {
+            "stability_bias": 0.1 if culture_alignment < 0.55 else 0.0,
+            "cooperation_bias": 0.12 if culture_alignment > 0.7 else 0.04,
+        }
+
         self.strategy_profile = {
             "strategies": [dict(s) for s in strategies],
             "autonomy_level": self.autonomy_level,
@@ -79,6 +90,9 @@ class AutonomyEngine:
             "meta_drift": meta_drift,
             "ethicalalignmentscore": self.ethicalalignmentscore,
             "selfregulationstrength": self.selfregulationstrength,
+            "civilizationalignmentscore": self.civilizationalignmentscore,
+            "normcompliancefactor": self.normcompliancefactor,
+            "culturalstrategyadjustment": dict(self.culturalstrategyadjustment),
         }
         self.evaluate_autonomy_alignment(identitycore)
         return strategies
@@ -118,6 +132,9 @@ class AutonomyEngine:
             "autonomy_alignment": max(0.0, alignment),
             "ethicalalignmentscore": self.ethicalalignmentscore,
             "selfregulationstrength": self.selfregulationstrength,
+            "civilizationalignmentscore": self.civilizationalignmentscore,
+            "normcompliancefactor": self.normcompliancefactor,
+            "culturalstrategyadjustment": dict(self.culturalstrategyadjustment),
             "conflicts": [dict(c) for c in self.autonomy_conflicts],
         }
         self.autonomy_trace.append(entry)
@@ -142,8 +159,8 @@ class AutonomyEngine:
         return dict(self.groupstrategyadjustment)
 
     # Compatibility aliases requested by specification.
-    def generatestrategies(self, identitycore: Any, intentengine: Any, metacognition: Any, values: Any | None = None) -> list[dict[str, Any]]:
-        return self.generate_strategies(identitycore, intentengine, metacognition, values=values)
+    def generatestrategies(self, identitycore: Any, intentengine: Any, metacognition: Any, values: Any | None = None, culture: Any | None = None) -> list[dict[str, Any]]:
+        return self.generate_strategies(identitycore, intentengine, metacognition, values=values, culture=culture)
 
     def selectstrategy(self) -> dict[str, Any] | None:
         return self.select_strategy()

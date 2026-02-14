@@ -6,6 +6,7 @@ from typing import Any
 from .assembly import AgentState
 from .causal import CausalGraph
 from .world import GridWorld
+from .culture_engine import CultureEngine
 from .social_cognition import SocialCognitionEngine
 from .value_system import ValueSystem
 
@@ -25,7 +26,7 @@ class TrajectoryOption:
 class TrajectoryPlanner:
     """Generates and ranks action trajectories for the next agent step."""
 
-    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2, meta_alignment_weight: float = 0.15, initiative_weight: float = 0.12, intent_weight: float = 0.18, strategy_weight: float = 0.22, value_weight: float = 0.25, social_weight: float = 0.28) -> None:
+    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2, meta_alignment_weight: float = 0.15, initiative_weight: float = 0.12, intent_weight: float = 0.18, strategy_weight: float = 0.22, value_weight: float = 0.25, social_weight: float = 0.28, culture_weight: float = 0.24) -> None:
         self.causal_graph = causal_graph or CausalGraph()
         self.causal_weight = causal_weight
         self.self_alignment_weight = self_alignment_weight
@@ -35,8 +36,9 @@ class TrajectoryPlanner:
         self.strategy_weight = strategy_weight
         self.value_weight = value_weight
         self.social_weight = social_weight
+        self.culture_weight = culture_weight
 
-    def generate(self, world: GridWorld, state: AgentState, initiative: dict[str, Any] | None = None, intent: dict[str, Any] | None = None, strategy: dict[str, Any] | None = None, values: ValueSystem | None = None, social: SocialCognitionEngine | None = None) -> list[TrajectoryOption]:
+    def generate(self, world: GridWorld, state: AgentState, initiative: dict[str, Any] | None = None, intent: dict[str, Any] | None = None, strategy: dict[str, Any] | None = None, values: ValueSystem | None = None, social: SocialCognitionEngine | None = None, culture: CultureEngine | None = None) -> list[TrajectoryOption]:
         options: list[TrajectoryOption] = []
         for action in world.available_actions():
             projected = world.project(action)
@@ -48,7 +50,7 @@ class TrajectoryPlanner:
                     score=0.0,
                     uncertainty=uncertainty,
                     causal_score=causal_score,
-                    details={"projected_position": projected, "causal_score": causal_score, "initiative": dict(initiative or {}), "intent": dict(intent or {}), "strategy": dict(strategy or {}), "values": dict(getattr(values, "core_values", {})), "social": {"cooperation_score": float(getattr(social, "cooperation_score", 0.0)), "socialconflictscore": float(getattr(social, "socialconflictscore", 0.0))}},
+                    details={"projected_position": projected, "causal_score": causal_score, "initiative": dict(initiative or {}), "intent": dict(intent or {}), "strategy": dict(strategy or {}), "values": dict(getattr(values, "core_values", {})), "social": {"cooperation_score": float(getattr(social, "cooperation_score", 0.0)), "socialconflictscore": float(getattr(social, "socialconflictscore", 0.0))}, "culture": {"culturalalignmentscore": float(getattr(culture, "culturalalignmentscore", 0.0))}},
                 )
             )
         return options
@@ -94,6 +96,7 @@ class TrajectoryPlanner:
         strategy: dict[str, Any] | None = None,
         values: ValueSystem | None = None,
         social: SocialCognitionEngine | None = None,
+        culture: CultureEngine | None = None,
     ) -> list[TrajectoryOption]:
         prefs = state.self_state.get("preferences", {})
         personality = state.self_state.get("personality", {})
@@ -132,6 +135,7 @@ class TrajectoryPlanner:
             strategy_score = self.evaluate_strategy(option, strategy)
             value_score = self.evaluate_value_alignment(option, values)
             social_score = self.evaluate_social_alignment(option, social)
+            culture_score = self.evaluate_culture_alignment(option, culture)
             score = (
                 base_score
                 + (causal_score * self.causal_weight)
@@ -143,6 +147,7 @@ class TrajectoryPlanner:
                 + (strategy_score * self.strategy_weight)
                 + (value_score * self.value_weight)
                 + (social_score * self.social_weight)
+                + (culture_score * self.culture_weight)
                 - uncertainty_penalty
             )
 
@@ -177,6 +182,7 @@ class TrajectoryPlanner:
             details["strategy_score"] = strategy_score
             details["value_score"] = value_score
             details["social_score"] = social_score
+            details["culture_score"] = culture_score
             evaluated.append(
                 TrajectoryOption(
                     action=option.action,
@@ -241,6 +247,20 @@ class TrajectoryPlanner:
         return score
 
 
+    def evaluate_culture_alignment(self, option: TrajectoryOption, culture: CultureEngine | None) -> float:
+        if culture is None:
+            return 0.0
+        base = float(getattr(culture, "culturalalignmentscore", 0.0))
+        conflict = min(1.0, len(getattr(culture, "norm_conflicts", [])) / 5.0)
+        norms = dict(getattr(culture, "norms", {}))
+        if option.action == "idle" and float(norms.get("stability", 0.5)) > 0.6:
+            base += 0.08
+        if option.action in ("left", "right") and conflict > 0.4:
+            base -= 0.08
+        return base - (0.25 * conflict)
+
+    def evaluateculture_alignment(self, option: TrajectoryOption, culture: CultureEngine | None) -> float:
+        return self.evaluate_culture_alignment(option, culture)
 
 
     def evaluate_intent(self, option: TrajectoryOption, intent: dict[str, Any] | None) -> float:

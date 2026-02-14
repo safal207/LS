@@ -6,6 +6,7 @@ from .autonomy_engine import AutonomyEngine
 from .causal import CausalGraph
 from .meta_observer import MetaObserver, MetaReport
 from .meta_cognition import MetaCognitionEngine
+from .culture_engine import CultureEngine
 from .identity_core import IdentityCore
 from .intent_engine import IntentEngine
 from .multiagent import MultiAgentSystem
@@ -26,6 +27,7 @@ __all__ = [
     "CausalGraph",
     "MetaObserver",
     "MetaCognitionEngine",
+    "CultureEngine",
     "IdentityCore",
     "IntentEngine",
     "MultiAgentSystem",

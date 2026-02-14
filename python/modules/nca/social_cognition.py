@@ -13,6 +13,11 @@ class SocialCognitionEngine:
     collectiveintentalignment: float = 1.0
     socialconflictscore: float = 0.0
     cooperation_score: float = 0.6
+    group_norms: dict[str, float] = field(default_factory=dict)
+    tradition_patterns: dict[str, Any] = field(default_factory=dict)
+    culturalsimilarityscore: float = 0.6
+    collaboration_index: float = 0.6
+    conflict_index: float = 0.0
     social_trace: list[dict[str, Any]] = field(default_factory=list)
 
     def update_from_collective_state(self, collective: dict[str, Any] | None) -> dict[str, Any]:
@@ -39,12 +44,27 @@ class SocialCognitionEngine:
                 + (0.25 * (1.0 - self.socialconflictscore)),
             ),
         )
+        self.group_norms = {
+            "cooperation": self.cooperation_score,
+            "stability": 1.0 - self.socialconflictscore,
+            "coordination": self.collectiveintentalignment,
+        }
+        self.tradition_patterns = dict(collective.get("collectivetraditionpatterns", self.tradition_patterns))
+        self.culturalsimilarityscore = max(
+            0.0,
+            min(1.0, (0.45 * self.collectivevaluealignment) + (0.35 * self.collectiveintentalignment) + (0.2 * (1.0 - self.socialconflictscore))),
+        )
+        self.collaboration_index = self.cooperation_score
+        self.conflict_index = self.socialconflictscore
         snapshot = {
             "t": len(self.social_trace),
             "collectivevaluealignment": self.collectivevaluealignment,
             "collectiveintentalignment": self.collectiveintentalignment,
             "socialconflictscore": self.socialconflictscore,
             "cooperation_score": self.cooperation_score,
+            "group_norms": dict(self.group_norms),
+            "tradition_patterns": dict(self.tradition_patterns),
+            "culturalsimilarityscore": self.culturalsimilarityscore,
             "model_count": len(self.social_models),
         }
         self.social_trace.append(snapshot)
