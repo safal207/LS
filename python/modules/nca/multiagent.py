@@ -15,6 +15,9 @@ class MultiAgentSystem:
     agents: list[NCAAgent] = field(default_factory=list)
     shared_causal_graph: SharedCausalGraph = field(default_factory=SharedCausalGraph)
     collective_signal_bus: CollectiveSignalBus = field(default_factory=CollectiveSignalBus)
+    collectiveagencylevel: float = 0.0
+    collectiveidentityintegrity: float = 1.0
+    collective_initiative: dict[str, Any] = field(default_factory=dict)
 
     def add_agent(self, agent: NCAAgent, *, agent_id: str | None = None) -> None:
         resolved_id = agent_id or getattr(agent.orientation, "identity", None) or f"agent-{len(self.agents)}"
@@ -71,6 +74,22 @@ class MultiAgentSystem:
                 )
             )
 
+        if collective.get("collectiveagencyshift"):
+            self.collective_signal_bus.emit_broadcast(
+                InternalSignal(
+                    signal_type="collectiveagencyshift",
+                    payload={"collectiveagencylevel": collective.get("collectiveagencylevel", 0.0)},
+                )
+            )
+
+        if collective.get("collectiveidentityintegritydrop"):
+            self.collective_signal_bus.emit_broadcast(
+                InternalSignal(
+                    signal_type="collectiveidentityintegritydrop",
+                    payload={"collectiveidentityintegrity": collective.get("collectiveidentityintegrity", 1.0)},
+                )
+            )
+
         if collective.get("collectiveidentityshift"):
             self.collective_signal_bus.emit_broadcast(
                 InternalSignal(
@@ -104,6 +123,22 @@ class MultiAgentSystem:
         collective_meta_alignment = max(0.0, min(1.0, 1.0 - collective_meta_drift))
         collective_meta_stabilization = collective_meta_alignment >= 0.65
 
+        identity_cores = {
+            getattr(agent, "agent_id", f"agent-{idx}"): {
+                "agency_level": float(getattr(agent.identitycore, "agency_level", 0.0)),
+                "identity_integrity": float(getattr(agent.identitycore, "identity_integrity", 1.0)),
+            }
+            for idx, agent in enumerate(self.agents)
+        }
+        agency_values = [item["agency_level"] for item in identity_cores.values()]
+        integrity_values = [item["identity_integrity"] for item in identity_cores.values()]
+        self.collectiveagencylevel = sum(agency_values) / max(1, len(agency_values))
+        self.collectiveidentityintegrity = sum(integrity_values) / max(1, len(integrity_values))
+        self.collective_initiative = {
+            "mode": "explore" if self.collectiveagencylevel > 0.6 else "stabilize" if self.collectiveidentityintegrity < 0.55 else "balanced",
+            "priority": "identity" if self.collectiveidentityintegrity < 0.6 else "progress",
+        }
+
         return {
             "agent_positions": positions,
             "collective_progress_score": -float(collective_score),
@@ -114,6 +149,11 @@ class MultiAgentSystem:
             "collectivemetadrift": collective_meta_drift,
             "collectivemetaalignment": collective_meta_alignment,
             "collectivemetastabilization": collective_meta_stabilization,
+            "collectiveagencylevel": self.collectiveagencylevel,
+            "collectiveidentityintegrity": self.collectiveidentityintegrity,
+            "collective_initiative": dict(self.collective_initiative),
+            "collectiveagencyshift": self.collectiveagencylevel > 0.65,
+            "collectiveidentityintegritydrop": self.collectiveidentityintegrity < 0.55,
             "recent_signals": [
                 {"type": s.signal_type, "payload": dict(s.payload), "t": s.t}
                 for s in self.collective_signal_bus.get_recent(clear=False)[-20:]

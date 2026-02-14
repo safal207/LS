@@ -23,13 +23,14 @@ class TrajectoryOption:
 class TrajectoryPlanner:
     """Generates and ranks action trajectories for the next agent step."""
 
-    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2, meta_alignment_weight: float = 0.15) -> None:
+    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2, meta_alignment_weight: float = 0.15, initiative_weight: float = 0.12) -> None:
         self.causal_graph = causal_graph or CausalGraph()
         self.causal_weight = causal_weight
         self.self_alignment_weight = self_alignment_weight
         self.meta_alignment_weight = meta_alignment_weight
+        self.initiative_weight = initiative_weight
 
-    def generate(self, world: GridWorld, state: AgentState) -> list[TrajectoryOption]:
+    def generate(self, world: GridWorld, state: AgentState, initiative: dict[str, Any] | None = None) -> list[TrajectoryOption]:
         options: list[TrajectoryOption] = []
         for action in world.available_actions():
             projected = world.project(action)
@@ -41,7 +42,7 @@ class TrajectoryPlanner:
                     score=0.0,
                     uncertainty=uncertainty,
                     causal_score=causal_score,
-                    details={"projected_position": projected, "causal_score": causal_score},
+                    details={"projected_position": projected, "causal_score": causal_score, "initiative": dict(initiative or {})},
                 )
             )
         return options
@@ -82,6 +83,7 @@ class TrajectoryPlanner:
         collective_state: dict[str, Any] | None = None,
         self_model: Any | None = None,
         metafeedback: dict[str, Any] | None = None,
+        initiative: dict[str, Any] | None = None,
     ) -> list[TrajectoryOption]:
         prefs = state.self_state.get("preferences", {})
         personality = state.self_state.get("personality", {})
@@ -115,12 +117,14 @@ class TrajectoryPlanner:
             collective_score = self.evaluate_collective_score(option, state, collective_state or {})
             self_alignment_score = self.evaluate_self_alignment(option, state, self_model)
             meta_alignment_score = self.evaluate_meta_alignment(option, state, self_model, metafeedback or {})
+            initiative_score = self.evaluate_initiative(option, initiative)
             score = (
                 base_score
                 + (causal_score * self.causal_weight)
                 + (collective_score * 0.25)
                 + (self_alignment_score * self.self_alignment_weight)
                 + (meta_alignment_score * self.meta_alignment_weight)
+                + (initiative_score * self.initiative_weight)
                 - uncertainty_penalty
             )
 
@@ -150,6 +154,7 @@ class TrajectoryPlanner:
             details["collective_score"] = collective_score
             details["self_alignment_score"] = self_alignment_score
             details["meta_alignment_score"] = meta_alignment_score
+            details["initiative_score"] = initiative_score
             evaluated.append(
                 TrajectoryOption(
                     action=option.action,
@@ -163,6 +168,31 @@ class TrajectoryPlanner:
         return evaluated
 
 
+
+    def evaluate_initiative(self, option: TrajectoryOption, initiative: dict[str, Any] | None) -> float:
+        if not initiative:
+            return 0.0
+
+        preferred = initiative.get("preferred_actions", [])
+        mode = str(initiative.get("mode", "balanced"))
+        agency_level = float(initiative.get("agency_level", 0.0))
+        integrity = float(initiative.get("identity_integrity", 1.0))
+
+        score = 0.0
+        if option.action in preferred:
+            score += 0.5
+
+        if mode == "stabilize" and option.action == "idle":
+            score += 0.2
+        if mode == "explore" and option.action in ("left", "right", "forward"):
+            score += 0.2
+
+        score += 0.2 * agency_level
+        score += 0.1 * integrity
+        return score
+
+    def evaluateinitiative(self, option: TrajectoryOption, initiative: dict[str, Any] | None) -> float:
+        return self.evaluate_initiative(option, initiative)
 
     def evaluate_meta_alignment(
         self,

@@ -123,6 +123,20 @@ class OrientationCenter:
         if impulsiveness_damp > 0:
             self.impulsiveness = max(0.0, self.impulsiveness - impulsiveness_damp)
 
+    def update_from_identity_core(self, identity_core: Any) -> None:
+        integrity = float(getattr(identity_core, "identity_integrity", 1.0))
+        drift_resistance = float(getattr(identity_core, "drift_resistance", 1.0))
+        agency_level = float(getattr(identity_core, "agency_level", 0.0))
+
+        if integrity < 0.55:
+            self.stability_preference = min(1.0, self.stability_preference + 0.1)
+
+        if drift_resistance < 0.5:
+            self.impulsiveness = max(0.0, self.impulsiveness - 0.08)
+
+        if agency_level > 0.6:
+            self.exploration_ratio = min(1.0, self.exploration_ratio + 0.08)
+
     def personality_profile(self) -> dict[str, float]:
         return {
             "risk_tolerance": self.risk_tolerance,
@@ -146,3 +160,6 @@ class OrientationCenter:
 
     def updatefrommetacognition(self, metafeedback: dict[str, Any]) -> None:
         self.update_from_metacognition(metafeedback)
+
+    def updatefromidentitycore(self, identitycore: Any) -> None:
+        self.update_from_identity_core(identitycore)
