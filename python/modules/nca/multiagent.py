@@ -49,6 +49,28 @@ class MultiAgentSystem:
         collective = self.collective_state()
         collective["distributed_signals"] = distributed
 
+        meta_feedback_map = {
+            getattr(agent, "agent_id", f"agent-{idx}"): dict(getattr(agent.metacognition, "latest_feedback", {}))
+            for idx, agent in enumerate(self.agents)
+        }
+        collective["meta_feedback"] = meta_feedback_map
+
+        if collective.get("collectivemetadrift", 0.0) >= 0.4:
+            self.collective_signal_bus.emit_broadcast(
+                InternalSignal(
+                    signal_type="collectivemetadrift",
+                    payload={"collectivemetadrift": collective.get("collectivemetadrift", 0.0)},
+                )
+            )
+
+        if collective.get("collectivemetastabilization"):
+            self.collective_signal_bus.emit_broadcast(
+                InternalSignal(
+                    signal_type="collectivemetastabilization",
+                    payload={"collectivemetaalignment": collective.get("collectivemetaalignment", 1.0)},
+                )
+            )
+
         if collective.get("collectiveidentityshift"):
             self.collective_signal_bus.emit_broadcast(
                 InternalSignal(
@@ -77,6 +99,11 @@ class MultiAgentSystem:
         collective_self_alignment = max(0.0, min(1.0, 1.0 - (sum(drift_values) / max(1, len(drift_values)))))
         collective_identity_shift = any(drift >= 0.5 for drift in drift_values)
 
+        meta_drifts = [float(model.get("meta_drift_score", 0.0)) for model in self_models.values()]
+        collective_meta_drift = sum(meta_drifts) / max(1, len(meta_drifts))
+        collective_meta_alignment = max(0.0, min(1.0, 1.0 - collective_meta_drift))
+        collective_meta_stabilization = collective_meta_alignment >= 0.65
+
         return {
             "agent_positions": positions,
             "collective_progress_score": -float(collective_score),
@@ -84,6 +111,9 @@ class MultiAgentSystem:
             "self_models": self_models,
             "collective_self_alignment": collective_self_alignment,
             "collectiveidentityshift": collective_identity_shift,
+            "collectivemetadrift": collective_meta_drift,
+            "collectivemetaalignment": collective_meta_alignment,
+            "collectivemetastabilization": collective_meta_stabilization,
             "recent_signals": [
                 {"type": s.signal_type, "payload": dict(s.payload), "t": s.t}
                 for s in self.collective_signal_bus.get_recent(clear=False)[-20:]

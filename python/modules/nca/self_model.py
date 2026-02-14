@@ -14,11 +14,16 @@ class SelfModel:
     identity_nodes: list[dict[str, Any]] = field(default_factory=list)
     identity_edges: list[dict[str, Any]] = field(default_factory=list)
     last_prediction: dict[str, Any] = field(default_factory=dict)
+    cognitive_patterns: list[dict[str, Any]] = field(default_factory=list)
+    bias_history: list[dict[str, Any]] = field(default_factory=list)
+    cognitive_trace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
 
     def __post_init__(self) -> None:
         # Ensure deque length follows configured max_history.
         if self.history.maxlen != self.max_history:
             self.history = deque(self.history, maxlen=self.max_history)
+        if self.cognitive_trace.maxlen != self.max_history:
+            self.cognitive_trace = deque(self.cognitive_trace, maxlen=self.max_history)
 
     def _extract_snapshot(self, agent_state: Any) -> dict[str, Any]:
         if hasattr(agent_state, "self_state"):
@@ -146,6 +151,64 @@ class SelfModel:
         }
         return result
 
+    def meta_drift_score(self) -> float:
+        if not self.cognitive_trace:
+            return 0.0
+        recent = list(self.cognitive_trace)[-8:]
+        avg = sum(float(item.get("meta_drift", 0.0)) for item in recent) / len(recent)
+        return max(0.0, min(1.0, avg))
+
+    def update_cognitive_trace(self, state: Any, decision: dict[str, Any], analysis: dict[str, Any]) -> dict[str, Any]:
+        self_state = getattr(state, "self_state", {}) if hasattr(state, "self_state") else {}
+        personality = self_state.get("personality", {}) if isinstance(self_state, dict) else {}
+        impulsiveness = float(personality.get("impulsiveness", 0.0))
+
+        recent = list(self.cognitive_trace)[-1] if self.cognitive_trace else {}
+        prev_impulsiveness = float(recent.get("impulsiveness", impulsiveness))
+        impulsiveness_spikes = max(0.0, impulsiveness - prev_impulsiveness)
+        over_correction = float(max(0.0, analysis.get("meta_drift", 0.0) - analysis.get("selfmodeldrift", 0.0)))
+        oscillation = float(abs(analysis.get("self_consistency", 1.0) - analysis.get("predictedselfconsistency", 1.0)))
+        repeated_drift = float(analysis.get("selfmodeldrift", 0.0))
+        meta_drift = float(analysis.get("meta_drift", 0.0))
+
+        entry = {
+            "t": int(getattr(state, "t", len(self.cognitive_trace))),
+            "decision": dict(decision or {}),
+            "impulsiveness": impulsiveness,
+            "impulsiveness_spikes": impulsiveness_spikes,
+            "over_correction": over_correction,
+            "oscillation": oscillation,
+            "repeated_drift": repeated_drift,
+            "meta_drift": meta_drift,
+        }
+        self.cognitive_trace.append(entry)
+
+        pattern_scores = {
+            "impulsiveness_spike": impulsiveness_spikes,
+            "over_correction": over_correction,
+            "oscillation": oscillation,
+            "repeated_drift": repeated_drift,
+            "meta_drift": meta_drift,
+        }
+        dominant_pattern = max(pattern_scores, key=pattern_scores.get)
+        self.cognitive_patterns.append(
+            {
+                "t": entry["t"],
+                "pattern": dominant_pattern,
+                "score": float(pattern_scores[dominant_pattern]),
+            }
+        )
+        if len(self.cognitive_patterns) > self.max_history:
+            self.cognitive_patterns = self.cognitive_patterns[-self.max_history :]
+
+        bias_labels = [name for name, value in pattern_scores.items() if value > 0.15]
+        if bias_labels:
+            self.bias_history.append({"t": entry["t"], "biases": bias_labels})
+            if len(self.bias_history) > self.max_history:
+                self.bias_history = self.bias_history[-self.max_history :]
+
+        return entry
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "max_history": self.max_history,
@@ -156,6 +219,17 @@ class SelfModel:
             },
             "identity_drift_score": self.identity_drift_score(),
             "predicted_state": self.last_prediction or self.predict_future_state(horizon=3),
+            "cognitive_patterns": list(self.cognitive_patterns),
+            "bias_history": list(self.bias_history),
+            "cognitive_trace": {
+                "entries": list(self.cognitive_trace),
+                "impulsiveness_spikes": max([float(e.get("impulsiveness_spikes", 0.0)) for e in self.cognitive_trace], default=0.0),
+                "over_correction": max([float(e.get("over_correction", 0.0)) for e in self.cognitive_trace], default=0.0),
+                "oscillation": max([float(e.get("oscillation", 0.0)) for e in self.cognitive_trace], default=0.0),
+                "repeated_drift": max([float(e.get("repeated_drift", 0.0)) for e in self.cognitive_trace], default=0.0),
+                "meta_drift": self.meta_drift_score(),
+            },
+            "meta_drift_score": self.meta_drift_score(),
         }
 
     # Compatibility aliases requested by specification.
@@ -170,3 +244,9 @@ class SelfModel:
 
     def addidentitynode(self, state: dict[str, Any]) -> dict[str, Any]:
         return self.add_identity_node(state)
+
+    def metadriftscore(self) -> float:
+        return self.meta_drift_score()
+
+    def updatecognitivetrace(self, state: Any, decision: dict[str, Any], analysis: dict[str, Any]) -> dict[str, Any]:
+        return self.update_cognitive_trace(state, decision, analysis)
