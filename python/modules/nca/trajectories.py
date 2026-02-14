@@ -73,7 +73,12 @@ class TrajectoryPlanner:
         risk /= max(1, len(actions))
         return max(0.0, min(1.0, (0.45 * world_noise) + (0.35 * observation_uncertainty) + (0.2 * risk)))
 
-    def evaluate(self, options: list[TrajectoryOption], state: AgentState) -> list[TrajectoryOption]:
+    def evaluate(
+        self,
+        options: list[TrajectoryOption],
+        state: AgentState,
+        collective_state: dict[str, Any] | None = None,
+    ) -> list[TrajectoryOption]:
         prefs = state.self_state.get("preferences", {})
         personality = state.self_state.get("personality", {})
         micro_goals = state.self_state.get("micro_goals", [])
@@ -103,7 +108,8 @@ class TrajectoryPlanner:
             )
             uncertainty_penalty = option.uncertainty * (1.0 - risk_tolerance)
             causal_score = option.causal_score
-            score = base_score - uncertainty_penalty + (causal_score * self.causal_weight)
+            collective_score = self.evaluate_collective_score(option, state, collective_state or {})
+            score = base_score - uncertainty_penalty + (causal_score * self.causal_weight) + (collective_score * 0.25)
 
             invariant_fit = 1.0
             invariants = state.self_state.get("invariants", {})
@@ -128,6 +134,7 @@ class TrajectoryPlanner:
             details["confidence"] = confidence
             details["uncertainty_penalty"] = uncertainty_penalty
             details["causal_score"] = causal_score
+            details["collective_score"] = collective_score
             evaluated.append(
                 TrajectoryOption(
                     action=option.action,
@@ -139,6 +146,43 @@ class TrajectoryPlanner:
                 )
             )
         return evaluated
+
+
+    def evaluate_collective_score(
+        self,
+        option: TrajectoryOption,
+        agent_state: AgentState,
+        collective_state: dict[str, Any],
+    ) -> float:
+        if not collective_state:
+            return 0.0
+
+        positions = collective_state.get("agent_positions", {})
+        projected_pos = int(option.details.get("projected_position", 0))
+        self_pos = int(agent_state.world_state.get("agent_position", projected_pos)) if isinstance(agent_state.world_state, dict) else projected_pos
+
+        collision_penalty = 0.0
+        for agent_id, position in positions.items():
+            _ = agent_id
+            if int(position) == projected_pos and projected_pos != self_pos:
+                collision_penalty -= 0.6
+
+        progress_boost = 0.2 if option.action != "idle" else -0.1
+        shared = collective_state.get("shared_causal", {})
+        by_action = shared.get("by_action", {}) if isinstance(shared, dict) else {}
+        shared_action = by_action.get(option.action, {}) if isinstance(by_action, dict) else {}
+        effect = float(shared_action.get("collective_effect", 0.0))
+        drift = float(shared_action.get("collective_drift", 0.0))
+
+        return progress_boost + (0.35 * effect) - (0.5 * drift) + collision_penalty
+
+    def evaluatecollectivescore(
+        self,
+        option: TrajectoryOption,
+        agentstate: AgentState,
+        collectivestate: dict[str, Any],
+    ) -> float:
+        return self.evaluate_collective_score(option, agentstate, collectivestate)
 
     def choose(self, evaluated: list[TrajectoryOption]) -> TrajectoryOption:
         if not evaluated:

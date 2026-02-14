@@ -25,6 +25,7 @@ class NCAAgent:
     signal_bus: SignalBus = field(default_factory=SignalBus)
     signal_log: list[dict[str, Any]] = field(default_factory=list)
     low_confidence_threshold: float = 0.35
+    collective_state: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.planner.causal_graph = self.causal_graph
@@ -56,6 +57,22 @@ class NCAAgent:
             )
             self.orientation.stability_preference = min(1.0, self.orientation.stability_preference + 0.05)
             self.orientation.impulsiveness = max(0.0, self.orientation.impulsiveness - 0.05)
+        if signal.signal_type in ("multiagent_drift", "coordination_required"):
+            feedback_signal = self.orientation.update_from_collective_feedback(
+                {
+                    "collective_drift": signal.signal_type == "multiagent_drift",
+                    "collective_progress": float(signal.payload.get("collective_score", 0.0)),
+                    "goal_conflict": signal.signal_type == "coordination_required",
+                }
+            )
+            if feedback_signal:
+                self.signal_bus.emit(
+                    InternalSignal(
+                        signal_type=feedback_signal["signal_type"],
+                        t=signal.t,
+                        payload=feedback_signal["payload"],
+                    )
+                )
 
     def build_state(self) -> AgentState:
         return self.assembly.build(
@@ -72,7 +89,7 @@ class NCAAgent:
         analysis = self.meta_observer.observe_and_correct(state, self.orientation, self.signal_bus)
 
         candidates = self.planner.generate(self.world, state)
-        evaluated = self.planner.evaluate(candidates, state)
+        evaluated = self.planner.evaluate(candidates, state, collective_state=self.collective_state)
         choice = self.planner.choose(evaluated)
 
         if choice.confidence < self.low_confidence_threshold:
