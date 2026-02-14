@@ -14,7 +14,7 @@ class IntentEngine:
     intent_strength: float = 0.0
     intent_alignment: float = 1.0
 
-    def generate_intents(self, state: Any, identity_core: Any, self_model: Any) -> list[dict[str, Any]]:
+    def generate_intents(self, state: Any, identity_core: Any, self_model: Any, strategy: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         world_state = getattr(state, "world_state", {}) if hasattr(state, "world_state") else {}
         if not isinstance(world_state, dict):
             world_state = {}
@@ -51,10 +51,26 @@ class IntentEngine:
             },
         ]
 
+        strategy_mode = str((strategy or {}).get("mode", "balanced")).lower()
+        strategy_strength = float((strategy or {}).get("strength", 0.0))
+        strategy_alignment = float((strategy or {}).get("alignment", 0.5))
+        strategy_actions = set((strategy or {}).get("preferred_actions", []))
+
         for intent in intents:
             alignment = self.evaluate_intent_alignment(intent, identity_core)
+            if strategy:
+                if intent.get("desired_mode") == strategy_mode:
+                    alignment = min(1.0, alignment + (0.12 * strategy_alignment))
+                elif {str(intent.get("desired_mode", "balanced")), strategy_mode} == {"stabilize", "explore"}:
+                    alignment = max(0.0, alignment - (0.14 * strategy_strength))
+                overlap = len(strategy_actions.intersection(set(intent.get("preferred_actions", []))))
+                if overlap:
+                    alignment = min(1.0, alignment + (0.05 * overlap))
             intent["alignment"] = alignment
-            intent["strength"] = max(0.0, min(1.0, float(intent["priority"]) * (0.6 + (0.4 * alignment))))
+            base_strength = float(intent["priority"]) * (0.6 + (0.4 * alignment))
+            if strategy and intent.get("desired_mode") == strategy_mode:
+                base_strength += 0.16 * strategy_strength
+            intent["strength"] = max(0.0, min(1.0, base_strength))
 
         self.active_intents = intents
         self.resolve_conflicts()
@@ -114,8 +130,8 @@ class IntentEngine:
         )
 
     # Compatibility aliases requested by specification.
-    def generateintents(self, state: Any, identitycore: Any, self_model: Any) -> list[dict[str, Any]]:
-        return self.generate_intents(state, identitycore, self_model)
+    def generateintents(self, state: Any, identitycore: Any, self_model: Any, strategy: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        return self.generate_intents(state, identitycore, self_model, strategy=strategy)
 
     def evaluateintentalignment(self, intent: dict[str, Any], identity_core: Any) -> float:
         return self.evaluate_intent_alignment(intent, identity_core)

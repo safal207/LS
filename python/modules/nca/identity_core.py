@@ -28,6 +28,15 @@ class IdentityCore:
     agency_level: float = 0.45
     intentalignmentscore: float = 1.0
     intent_resistance: float = 0.55
+    autonomyalignmentscore: float = 1.0
+    autonomy_resistance: float = 0.45
+    selfdirectionpreference: dict[str, float] = field(
+        default_factory=lambda: {
+            "stabilize": 0.7,
+            "explore": 0.6,
+            "balanced": 0.75,
+        }
+    )
     intentpreferenceprofile: dict[str, float] = field(
         default_factory=lambda: {
             "stability": 0.7,
@@ -134,6 +143,24 @@ class IdentityCore:
         self.intentalignmentscore = score
         return score
 
+    def evaluate_strategy_compatibility(self, strategy: dict[str, Any] | None) -> float:
+        if not strategy:
+            self.autonomyalignmentscore = 0.5
+            return self.autonomyalignmentscore
+
+        mode = str(strategy.get("mode", "balanced")).lower()
+        preference = float(self.selfdirectionpreference.get(mode, 0.6))
+        alignment = float(strategy.get("alignment", 0.5))
+        strength = float(strategy.get("strength", 0.5))
+        consistency = float(self.core_traits.get("consistency", 0.6))
+        adaptability = float(self.core_traits.get("adaptability", 0.6))
+
+        mode_fit = 0.6 * consistency + 0.4 * self.drift_resistance if mode == "stabilize" else 0.55 * adaptability + 0.45 * self.agency_level if mode == "explore" else 0.4 * consistency + 0.3 * adaptability + 0.3 * self.identity_integrity
+        resistance_penalty = self.autonomy_resistance * max(0.0, strength - self.agency_level)
+
+        self.autonomyalignmentscore = max(0.0, min(1.0, (0.35 * preference) + (0.3 * alignment) + (0.2 * mode_fit) + (0.15 * self.identity_integrity) - (0.2 * resistance_penalty)))
+        return self.autonomyalignmentscore
+
     # Compatibility aliases requested by specification.
     def updatefromselfmodel(self, selfmodel: Any) -> None:
         self.update_from_self_model(selfmodel)
@@ -152,3 +179,6 @@ class IdentityCore:
 
     def evaluateintentcompatibility(self, intent: dict[str, Any]) -> float:
         return self.evaluate_intent_compatibility(intent)
+
+    def evaluatestrategycompatibility(self, strategy: dict[str, Any] | None) -> float:
+        return self.evaluate_strategy_compatibility(strategy)

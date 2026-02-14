@@ -15,6 +15,9 @@ class MetaCognitionEngine:
     intent_drift: float = 0.0
     intent_bias: float = 0.0
     intentconflictscore: float = 0.0
+    autonomy_drift: float = 0.0
+    autonomy_bias: float = 0.0
+    selfdirectionconflict: float = 0.0
 
     def analyze_cognition(self, state: Any, self_model: Any, meta_report: Any) -> dict[str, Any]:
         model_dict = self_model.to_dict() if hasattr(self_model, "to_dict") else {}
@@ -26,6 +29,8 @@ class MetaCognitionEngine:
         agency_markers = model_dict.get("agency_markers", []) if isinstance(model_dict, dict) else []
         intent_trace = model_dict.get("intent_trace", []) if isinstance(model_dict, dict) else []
         intent_conflicts = model_dict.get("intentconflictmarkers", []) if isinstance(model_dict, dict) else []
+        autonomy_trace = model_dict.get("autonomy_trace", []) if isinstance(model_dict, dict) else []
+        selfdirection_markers = model_dict.get("selfdirectionmarkers", []) if isinstance(model_dict, dict) else []
         longterm_stability_score = float(model_dict.get("longterm_stability_score", model_dict.get("longtermstability_score", 1.0))) if isinstance(model_dict, dict) else 1.0
         self_consistency = float(report_dict.get("self_consistency", 1.0))
         observer_bias_score = float(report_dict.get("observerbiasscore", 0.0))
@@ -53,6 +58,18 @@ class MetaCognitionEngine:
             recent_conflicts = intent_conflicts[-8:]
             self.intentconflictscore = sum(float(i.get("conflict_score", 0.0)) for i in recent_conflicts) / max(1, len(recent_conflicts))
 
+        self.autonomy_drift = 0.0
+        self.autonomy_bias = 0.0
+        self.selfdirectionconflict = 0.0
+        if autonomy_trace:
+            recent_autonomy = autonomy_trace[-8:]
+            self.autonomy_drift = sum(max(0.0, 1.0 - float(a.get("autonomy_level", 1.0))) for a in recent_autonomy) / max(1, len(recent_autonomy))
+            self.selfdirectionconflict = sum(min(1.0, float(a.get("conflict_count", 0.0)) / 3.0) for a in recent_autonomy) / max(1, len(recent_autonomy))
+        if selfdirection_markers:
+            recent_markers = selfdirection_markers[-8:]
+            low_signals = sum(1 for m in recent_markers if str(m.get("autonomy_signal", "")) == "low")
+            self.autonomy_bias = low_signals / max(1, len(recent_markers))
+
         biases = self.detect_cognitive_biases(
             {
                 "state": state,
@@ -66,6 +83,9 @@ class MetaCognitionEngine:
                 "intent_drift": self.intent_drift,
                 "intent_bias": self.intent_bias,
                 "intent_conflict_score": self.intentconflictscore,
+                "autonomy_drift": self.autonomy_drift,
+                "autonomy_bias": self.autonomy_bias,
+                "selfdirectionconflict": self.selfdirectionconflict,
             }
         )
 
@@ -79,7 +99,9 @@ class MetaCognitionEngine:
                 + (0.15 * identity_integrity_drift)
                 + (0.1 * initiative_conflict)
                 + (0.08 * self.intent_drift)
-                + (0.07 * self.intentconflictscore),
+                + (0.07 * self.intentconflictscore)
+                + (0.08 * self.autonomy_drift)
+                + (0.06 * self.selfdirectionconflict)
             ),
         )
 
@@ -90,6 +112,7 @@ class MetaCognitionEngine:
             "exploration_damp": 0.08 if "oscillation_bias" in biases else 0.0,
             "initiative_damp": 0.08 if initiative_conflict > 0.45 else 0.0,
             "intent_damp": 0.1 if self.intentconflictscore > 0.35 else 0.0,
+            "autonomy_damp": 0.1 if self.selfdirectionconflict > 0.35 else 0.0,
         }
         observer_corrections = {
             "raise_thresholds": metadrift > 0.55,
@@ -106,6 +129,9 @@ class MetaCognitionEngine:
             "intent_drift": self.intent_drift,
             "intent_bias": self.intent_bias,
             "intentconflictscore": self.intentconflictscore,
+            "autonomy_drift": self.autonomy_drift,
+            "autonomy_bias": self.autonomy_bias,
+            "selfdirectionconflict": self.selfdirectionconflict,
         }
 
         feedback = {
@@ -120,6 +146,9 @@ class MetaCognitionEngine:
             "intent_drift": self.intent_drift,
             "intent_bias": self.intent_bias,
             "intentconflictscore": self.intentconflictscore,
+            "autonomy_drift": self.autonomy_drift,
+            "autonomy_bias": self.autonomy_bias,
+            "selfdirectionconflict": self.selfdirectionconflict,
         }
         self.latest_feedback = feedback
         self.history.append(feedback)
@@ -146,6 +175,9 @@ class MetaCognitionEngine:
             intent_drift = float(history.get("intent_drift", 0.0))
             intent_bias = float(history.get("intent_bias", 0.0))
             intent_conflict_score = float(history.get("intent_conflict_score", history.get("intentconflictscore", 0.0)))
+            autonomy_drift = float(history.get("autonomy_drift", 0.0))
+            autonomy_bias = float(history.get("autonomy_bias", 0.0))
+            selfdirectionconflict = float(history.get("selfdirectionconflict", 0.0))
         else:
             trace = {}
             report = {}
@@ -157,6 +189,9 @@ class MetaCognitionEngine:
             intent_drift = 0.0
             intent_bias = 0.0
             intent_conflict_score = 0.0
+            autonomy_drift = 0.0
+            autonomy_bias = 0.0
+            selfdirectionconflict = 0.0
 
         biases: list[str] = []
         if float(trace.get("impulsiveness_spikes", 0.0)) > 0.18:
@@ -181,6 +216,12 @@ class MetaCognitionEngine:
             biases.append("intent_conflict")
         if intent_bias > 0.75:
             biases.append("intent_bias")
+        if autonomy_drift > 0.3:
+            biases.append("autonomy_drift")
+        if autonomy_bias > 0.5:
+            biases.append("autonomy_bias")
+        if selfdirectionconflict > 0.35:
+            biases.append("selfdirection_conflict")
 
         for pattern in patterns[-6:]:
             label = str(pattern.get("pattern", "")).lower()

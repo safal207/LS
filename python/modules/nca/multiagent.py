@@ -21,6 +21,9 @@ class MultiAgentSystem:
     collectiveintentmap: dict[str, dict[str, Any]] = field(default_factory=dict)
     collectiveintentalignment: float = 1.0
     collectiveintentconflict: float = 0.0
+    collectiveautonomylevel: float = 0.0
+    collectivestrategymap: dict[str, dict[str, Any]] = field(default_factory=dict)
+    collectiveautonomyconflict: float = 0.0
 
     def add_agent(self, agent: NCAAgent, *, agent_id: str | None = None) -> None:
         resolved_id = agent_id or getattr(agent.orientation, "identity", None) or f"agent-{len(self.agents)}"
@@ -109,6 +112,22 @@ class MultiAgentSystem:
                 )
             )
 
+        if collective.get("collectiveautonomyshift"):
+            self.collective_signal_bus.emit_broadcast(
+                InternalSignal(
+                    signal_type="collectiveautonomyshift",
+                    payload={"collectiveautonomylevel": collective.get("collectiveautonomylevel", 0.0)},
+                )
+            )
+
+        if collective.get("collectiveautonomyconflict") > 0.35:
+            self.collective_signal_bus.emit_broadcast(
+                InternalSignal(
+                    signal_type="collectiveautonomyconflict",
+                    payload={"collectiveautonomyconflict": collective.get("collectiveautonomyconflict", 0.0)},
+                )
+            )
+
         if collective.get("collectiveidentityshift"):
             self.collective_signal_bus.emit_broadcast(
                 InternalSignal(
@@ -157,6 +176,20 @@ class MultiAgentSystem:
         self.collectiveintentalignment = sum(alignment_values) / max(1, len(alignment_values))
         self.collectiveintentconflict = sum(conflict_values) / max(1, len(conflict_values))
 
+        autonomy_map = {
+            getattr(agent, "agent_id", f"agent-{idx}"): {
+                "autonomy_level": float(getattr(agent.autonomy, "autonomy_level", 0.0)),
+                "primary_strategy": dict(getattr(agent.autonomy, "select_strategy")() or {}),
+                "autonomy_conflicts": list(getattr(agent.autonomy, "autonomy_conflicts", [])),
+            }
+            for idx, agent in enumerate(self.agents)
+        }
+        self.collectivestrategymap = autonomy_map
+        autonomy_levels = [float(v.get("autonomy_level", 0.0)) for v in autonomy_map.values()]
+        autonomy_conflicts = [min(1.0, len(v.get("autonomy_conflicts", [])) / 3.0) for v in autonomy_map.values()]
+        self.collectiveautonomylevel = sum(autonomy_levels) / max(1, len(autonomy_levels))
+        self.collectiveautonomyconflict = sum(autonomy_conflicts) / max(1, len(autonomy_conflicts))
+
         identity_cores = {
             getattr(agent, "agent_id", f"agent-{idx}"): {
                 "agency_level": float(getattr(agent.identitycore, "agency_level", 0.0)),
@@ -187,10 +220,14 @@ class MultiAgentSystem:
             "collectiveintentmap": dict(self.collectiveintentmap),
             "collectiveintentalignment": self.collectiveintentalignment,
             "collectiveintentconflict": self.collectiveintentconflict,
+            "collectiveautonomylevel": self.collectiveautonomylevel,
+            "collectivestrategymap": dict(self.collectivestrategymap),
+            "collectiveautonomyconflict": self.collectiveautonomyconflict,
             "collectiveidentityintegrity": self.collectiveidentityintegrity,
             "collective_initiative": dict(self.collective_initiative),
             "collectiveagencyshift": self.collectiveagencylevel > 0.65,
             "collectiveintentshift": self.collectiveintentalignment < 0.6,
+            "collectiveautonomyshift": self.collectiveautonomylevel > 0.62,
             "collectiveidentityintegritydrop": self.collectiveidentityintegrity < 0.55,
             "recent_signals": [
                 {"type": s.signal_type, "payload": dict(s.payload), "t": s.t}
