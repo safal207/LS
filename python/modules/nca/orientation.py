@@ -85,6 +85,22 @@ class OrientationCenter:
             }
         return signal
 
+
+    def update_from_self_model(self, self_model: Any) -> None:
+        model_dict = self_model.to_dict() if hasattr(self_model, "to_dict") else {}
+        drift = float(model_dict.get("identity_drift_score", 0.0))
+        predicted = model_dict.get("predicted_state", {}) if isinstance(model_dict, dict) else {}
+        predicted_consistency = float(predicted.get("predictedselfconsistency", 1.0)) if isinstance(predicted, dict) else 1.0
+
+        if drift >= 0.35:
+            self.stability_preference = min(1.0, self.stability_preference + 0.08)
+
+        if predicted_consistency < 0.45:
+            self.impulsiveness = max(0.0, self.impulsiveness - 0.07)
+
+        if drift >= 0.5:
+            self.invariants["identity_shift_detected"] = True
+
     def personality_profile(self) -> dict[str, float]:
         return {
             "risk_tolerance": self.risk_tolerance,
@@ -96,6 +112,9 @@ class OrientationCenter:
     # Compatibility with requested interface naming.
     def updatefromfeedback(self, feedback: dict[str, Any]) -> None:
         self.update_from_feedback(feedback)
+
+    def updatefromselfmodel(self, selfmodel: Any) -> None:
+        self.update_from_self_model(selfmodel)
 
     def computeselfconsistency(self, state: AgentState) -> float:
         return self.compute_self_consistency(state)

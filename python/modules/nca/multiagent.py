@@ -49,6 +49,14 @@ class MultiAgentSystem:
         collective = self.collective_state()
         collective["distributed_signals"] = distributed
 
+        if collective.get("collectiveidentityshift"):
+            self.collective_signal_bus.emit_broadcast(
+                InternalSignal(
+                    signal_type="collectiveidentityshift",
+                    payload={"collective_self_alignment": collective.get("collective_self_alignment", 1.0)},
+                )
+            )
+
         for agent in self.agents:
             agent.collective_state = collective
         return step_events
@@ -60,10 +68,22 @@ class MultiAgentSystem:
         }
         collective_score = sum(abs(agent.world.goal_position - agent.world.agent_position) for agent in self.agents)
         shared = self.shared_causal_graph.snapshot()
+
+        self_models = {
+            getattr(agent, "agent_id", f"agent-{idx}"): agent.self_model.to_dict()
+            for idx, agent in enumerate(self.agents)
+        }
+        drift_values = [float(model.get("identity_drift_score", 0.0)) for model in self_models.values()]
+        collective_self_alignment = max(0.0, min(1.0, 1.0 - (sum(drift_values) / max(1, len(drift_values)))))
+        collective_identity_shift = any(drift >= 0.5 for drift in drift_values)
+
         return {
             "agent_positions": positions,
             "collective_progress_score": -float(collective_score),
             "shared_causal": shared,
+            "self_models": self_models,
+            "collective_self_alignment": collective_self_alignment,
+            "collectiveidentityshift": collective_identity_shift,
             "recent_signals": [
                 {"type": s.signal_type, "payload": dict(s.payload), "t": s.t}
                 for s in self.collective_signal_bus.get_recent(clear=False)[-20:]
