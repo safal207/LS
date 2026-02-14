@@ -118,7 +118,13 @@ class NCAAgent:
         self.values.update_from_identity(self.identitycore)
         self.values.update_from_intents(self.intentengine)
         self.values.update_from_autonomy(self.autonomy)
-        valuealignment = self.values.evaluate_value_alignment(primary_intent, primary_intent, primary_strategy)
+
+        preferred_actions = list((initiative or {}).get("preferred_actions", []))
+        if not preferred_actions and isinstance(primary_intent, dict):
+            preferred_actions = list(primary_intent.get("preferred_actions", []))
+        value_action = {"action": preferred_actions[0] if preferred_actions else "idle"}
+        valuealignment = self.values.evaluate_value_alignment(value_action, primary_intent, primary_strategy)
+
         self.values.evolve_preferences()
         self.identitycore.evaluate_value_compatibility(self.values)
 
