@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sys
-
-ROOT = Path(__file__).resolve().parents[3]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+from pathlib import Path
 
 from modules.nca.agent import NCAAgent
 from modules.nca.meta_observer import MetaObserver
 from modules.nca.multiagent import MultiAgentSystem
 from modules.nca.orientation import OrientationCenter
 from modules.nca.world import GridWorld
+
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def run_demo(steps: int = 8) -> dict[str, object]:
