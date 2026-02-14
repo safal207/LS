@@ -12,6 +12,9 @@ class MetaCognitionEngine:
     correction_strength: float = 0.06
     history: list[dict[str, Any]] = field(default_factory=list)
     latest_feedback: dict[str, Any] = field(default_factory=dict)
+    intent_drift: float = 0.0
+    intent_bias: float = 0.0
+    intentconflictscore: float = 0.0
 
     def analyze_cognition(self, state: Any, self_model: Any, meta_report: Any) -> dict[str, Any]:
         model_dict = self_model.to_dict() if hasattr(self_model, "to_dict") else {}
@@ -21,6 +24,8 @@ class MetaCognitionEngine:
 
         report_dict = self._normalize_report(meta_report)
         agency_markers = model_dict.get("agency_markers", []) if isinstance(model_dict, dict) else []
+        intent_trace = model_dict.get("intent_trace", []) if isinstance(model_dict, dict) else []
+        intent_conflicts = model_dict.get("intentconflictmarkers", []) if isinstance(model_dict, dict) else []
         longterm_stability_score = float(model_dict.get("longterm_stability_score", model_dict.get("longtermstability_score", 1.0))) if isinstance(model_dict, dict) else 1.0
         self_consistency = float(report_dict.get("self_consistency", 1.0))
         observer_bias_score = float(report_dict.get("observerbiasscore", 0.0))
@@ -37,6 +42,17 @@ class MetaCognitionEngine:
 
         identity_integrity_drift = max(0.0, min(1.0, 1.0 - longterm_stability_score))
 
+        self.intent_drift = 0.0
+        self.intent_bias = 0.0
+        self.intentconflictscore = 0.0
+        if intent_trace:
+            recent_intents = intent_trace[-8:]
+            self.intent_drift = sum(max(0.0, 1.0 - float(i.get("intent_alignment", 1.0))) for i in recent_intents) / max(1, len(recent_intents))
+            self.intent_bias = sum(float(i.get("intent_strength", 0.0)) for i in recent_intents) / max(1, len(recent_intents))
+        if intent_conflicts:
+            recent_conflicts = intent_conflicts[-8:]
+            self.intentconflictscore = sum(float(i.get("conflict_score", 0.0)) for i in recent_conflicts) / max(1, len(recent_conflicts))
+
         biases = self.detect_cognitive_biases(
             {
                 "state": state,
@@ -47,6 +63,9 @@ class MetaCognitionEngine:
                 "agency_bias": agency_bias,
                 "initiative_conflict": initiative_conflict,
                 "identity_integrity_drift": identity_integrity_drift,
+                "intent_drift": self.intent_drift,
+                "intent_bias": self.intent_bias,
+                "intent_conflict_score": self.intentconflictscore,
             }
         )
 
@@ -58,7 +77,9 @@ class MetaCognitionEngine:
                 + (0.25 * observer_meta_drift)
                 + (0.15 * max(0.0, 1.0 - self_consistency))
                 + (0.15 * identity_integrity_drift)
-                + (0.1 * initiative_conflict),
+                + (0.1 * initiative_conflict)
+                + (0.08 * self.intent_drift)
+                + (0.07 * self.intentconflictscore),
             ),
         )
 
@@ -68,6 +89,7 @@ class MetaCognitionEngine:
             "idle_penalty": 0.12 if "impulsiveness_spike" in biases else 0.0,
             "exploration_damp": 0.08 if "oscillation_bias" in biases else 0.0,
             "initiative_damp": 0.08 if initiative_conflict > 0.45 else 0.0,
+            "intent_damp": 0.1 if self.intentconflictscore > 0.35 else 0.0,
         }
         observer_corrections = {
             "raise_thresholds": metadrift > 0.55,
@@ -81,6 +103,9 @@ class MetaCognitionEngine:
             "stability_boost": 0.08 if metadrift > 0.4 else 0.02,
             "impulsiveness_damp": 0.06 if observer_bias_score > 0.45 else 0.0,
             "initiative_conflict": initiative_conflict,
+            "intent_drift": self.intent_drift,
+            "intent_bias": self.intent_bias,
+            "intentconflictscore": self.intentconflictscore,
         }
 
         feedback = {
@@ -92,6 +117,9 @@ class MetaCognitionEngine:
             "agency_bias": agency_bias,
             "initiative_conflict": initiative_conflict,
             "identity_integrity_drift": identity_integrity_drift,
+            "intent_drift": self.intent_drift,
+            "intent_bias": self.intent_bias,
+            "intentconflictscore": self.intentconflictscore,
         }
         self.latest_feedback = feedback
         self.history.append(feedback)
@@ -115,6 +143,9 @@ class MetaCognitionEngine:
             agency_bias = float(history.get("agency_bias", 0.0))
             initiative_conflict = float(history.get("initiative_conflict", 0.0))
             identity_integrity_drift = float(history.get("identity_integrity_drift", 0.0))
+            intent_drift = float(history.get("intent_drift", 0.0))
+            intent_bias = float(history.get("intent_bias", 0.0))
+            intent_conflict_score = float(history.get("intent_conflict_score", history.get("intentconflictscore", 0.0)))
         else:
             trace = {}
             report = {}
@@ -123,6 +154,9 @@ class MetaCognitionEngine:
             agency_bias = 0.0
             initiative_conflict = 0.0
             identity_integrity_drift = 0.0
+            intent_drift = 0.0
+            intent_bias = 0.0
+            intent_conflict_score = 0.0
 
         biases: list[str] = []
         if float(trace.get("impulsiveness_spikes", 0.0)) > 0.18:
@@ -141,6 +175,12 @@ class MetaCognitionEngine:
             biases.append("initiative_conflict")
         if identity_integrity_drift > 0.35:
             biases.append("identity_integrity_drift")
+        if intent_drift > 0.3:
+            biases.append("intent_drift")
+        if intent_conflict_score > 0.3:
+            biases.append("intent_conflict")
+        if intent_bias > 0.75:
+            biases.append("intent_bias")
 
         for pattern in patterns[-6:]:
             label = str(pattern.get("pattern", "")).lower()

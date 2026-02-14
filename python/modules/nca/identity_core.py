@@ -26,6 +26,16 @@ class IdentityCore:
     identity_integrity: float = 0.85
     drift_resistance: float = 0.7
     agency_level: float = 0.45
+    intentalignmentscore: float = 1.0
+    intent_resistance: float = 0.55
+    intentpreferenceprofile: dict[str, float] = field(
+        default_factory=lambda: {
+            "stability": 0.7,
+            "progress": 0.75,
+            "collective": 0.6,
+            "exploration": 0.55,
+        }
+    )
 
     def update_from_self_model(self, self_model: Any) -> None:
         payload = self_model.to_dict() if hasattr(self_model, "to_dict") else {}
@@ -53,6 +63,7 @@ class IdentityCore:
         self.identity_integrity = max(0.0, min(1.0, self.identity_integrity - (0.25 * metadrift) - (0.35 * identity_integrity_drift)))
         self.drift_resistance = max(0.0, min(1.0, self.drift_resistance - (0.2 * metadrift) - (0.3 * initiative_conflict)))
         self.agency_level = max(0.0, min(1.0, self.agency_level + (0.2 * (1.0 - agency_bias)) - (0.2 * initiative_conflict)))
+        self.intent_resistance = max(0.0, min(1.0, self.intent_resistance + (0.1 * metadrift) + (0.15 * initiative_conflict)))
 
     def stabilize_identity(self) -> None:
         if self.identity_integrity < 0.55:
@@ -93,6 +104,36 @@ class IdentityCore:
             "primary_goal": goal.get("name", "maintain"),
         }
 
+    def evaluate_intent_compatibility(self, intent: dict[str, Any]) -> float:
+        intent_type = str(intent.get("type", "progress")).lower()
+        preferred = float(self.intentpreferenceprofile.get(intent_type, 0.6))
+        desired_mode = str(intent.get("desired_mode", "balanced")).lower()
+        priority = float(intent.get("priority", 0.5))
+
+        consistency = float(self.core_traits.get("consistency", 0.6))
+        adaptability = float(self.core_traits.get("adaptability", 0.6))
+        cooperation = float(self.core_traits.get("cooperation", 0.6))
+        curiosity = float(self.core_traits.get("curiosity", 0.5))
+
+        mode_fit = 0.6
+        if desired_mode == "stabilize":
+            mode_fit = 0.5 * consistency + 0.5 * self.drift_resistance
+        elif desired_mode == "explore":
+            mode_fit = 0.55 * curiosity + 0.45 * adaptability
+        elif desired_mode == "balanced":
+            mode_fit = 0.4 * consistency + 0.3 * adaptability + 0.3 * cooperation
+
+        resistance_penalty = self.intent_resistance * max(0.0, priority - self.agency_level)
+        score = max(
+            0.0,
+            min(
+                1.0,
+                (0.4 * preferred) + (0.4 * mode_fit) + (0.2 * self.identity_integrity) - (0.2 * resistance_penalty),
+            ),
+        )
+        self.intentalignmentscore = score
+        return score
+
     # Compatibility aliases requested by specification.
     def updatefromselfmodel(self, selfmodel: Any) -> None:
         self.update_from_self_model(selfmodel)
@@ -108,3 +149,6 @@ class IdentityCore:
 
     def generateinitiative(self) -> dict[str, Any]:
         return self.generate_initiative()
+
+    def evaluateintentcompatibility(self, intent: dict[str, Any]) -> float:
+        return self.evaluate_intent_compatibility(intent)

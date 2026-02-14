@@ -18,6 +18,9 @@ class MultiAgentSystem:
     collectiveagencylevel: float = 0.0
     collectiveidentityintegrity: float = 1.0
     collective_initiative: dict[str, Any] = field(default_factory=dict)
+    collectiveintentmap: dict[str, dict[str, Any]] = field(default_factory=dict)
+    collectiveintentalignment: float = 1.0
+    collectiveintentconflict: float = 0.0
 
     def add_agent(self, agent: NCAAgent, *, agent_id: str | None = None) -> None:
         resolved_id = agent_id or getattr(agent.orientation, "identity", None) or f"agent-{len(self.agents)}"
@@ -90,6 +93,22 @@ class MultiAgentSystem:
                 )
             )
 
+        if collective.get("collectiveintentshift"):
+            self.collective_signal_bus.emit_broadcast(
+                InternalSignal(
+                    signal_type="collectiveintentshift",
+                    payload={"collectiveintentalignment": collective.get("collectiveintentalignment", 1.0)},
+                )
+            )
+
+        if collective.get("collectiveintentconflict"):
+            self.collective_signal_bus.emit_broadcast(
+                InternalSignal(
+                    signal_type="collectiveintentconflict",
+                    payload={"collectiveintentconflict": collective.get("collectiveintentconflict", 0.0)},
+                )
+            )
+
         if collective.get("collectiveidentityshift"):
             self.collective_signal_bus.emit_broadcast(
                 InternalSignal(
@@ -123,6 +142,21 @@ class MultiAgentSystem:
         collective_meta_alignment = max(0.0, min(1.0, 1.0 - collective_meta_drift))
         collective_meta_stabilization = collective_meta_alignment >= 0.65
 
+        intent_map = {
+            getattr(agent, "agent_id", f"agent-{idx}"): {
+                "primary_intent": dict(getattr(agent.intentengine, "select_primary_intent")() or {}),
+                "intent_strength": float(getattr(agent.intentengine, "intent_strength", 0.0)),
+                "intent_alignment": float(getattr(agent.intentengine, "intent_alignment", 1.0)),
+                "conflicts": list(getattr(agent.intentengine, "intent_conflicts", [])),
+            }
+            for idx, agent in enumerate(self.agents)
+        }
+        self.collectiveintentmap = intent_map
+        alignment_values = [float(v.get("intent_alignment", 1.0)) for v in intent_map.values()]
+        conflict_values = [min(1.0, len(v.get("conflicts", [])) / 3.0) for v in intent_map.values()]
+        self.collectiveintentalignment = sum(alignment_values) / max(1, len(alignment_values))
+        self.collectiveintentconflict = sum(conflict_values) / max(1, len(conflict_values))
+
         identity_cores = {
             getattr(agent, "agent_id", f"agent-{idx}"): {
                 "agency_level": float(getattr(agent.identitycore, "agency_level", 0.0)),
@@ -150,9 +184,13 @@ class MultiAgentSystem:
             "collectivemetaalignment": collective_meta_alignment,
             "collectivemetastabilization": collective_meta_stabilization,
             "collectiveagencylevel": self.collectiveagencylevel,
+            "collectiveintentmap": dict(self.collectiveintentmap),
+            "collectiveintentalignment": self.collectiveintentalignment,
+            "collectiveintentconflict": self.collectiveintentconflict,
             "collectiveidentityintegrity": self.collectiveidentityintegrity,
             "collective_initiative": dict(self.collective_initiative),
             "collectiveagencyshift": self.collectiveagencylevel > 0.65,
+            "collectiveintentshift": self.collectiveintentalignment < 0.6,
             "collectiveidentityintegritydrop": self.collectiveidentityintegrity < 0.55,
             "recent_signals": [
                 {"type": s.signal_type, "payload": dict(s.payload), "t": s.t}
