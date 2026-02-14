@@ -6,12 +6,14 @@ from typing import Any
 from .assembly import AgentState, AssemblyPoint
 from .autonomy_engine import AutonomyEngine
 from .causal import CausalGraph
+from .culture_engine import CultureEngine
 from .meta_observer import MetaObserver
 from .meta_cognition import MetaCognitionEngine
 from .identity_core import IdentityCore
 from .intent_engine import IntentEngine
 from .orientation import OrientationCenter
 from .self_model import SelfModel
+from .social_cognition import SocialCognitionEngine
 from .signals import InternalSignal, SignalBus
 from .trajectories import TrajectoryPlanner
 from .value_system import ValueSystem
@@ -38,6 +40,8 @@ class NCAAgent:
     intentengine: IntentEngine = field(default_factory=IntentEngine)
     autonomy: AutonomyEngine = field(default_factory=AutonomyEngine)
     values: ValueSystem = field(default_factory=ValueSystem)
+    social: SocialCognitionEngine = field(default_factory=SocialCognitionEngine)
+    culture: CultureEngine = field(default_factory=CultureEngine)
 
     def __post_init__(self) -> None:
         self.planner.causal_graph = self.causal_graph
@@ -112,12 +116,35 @@ class NCAAgent:
         strategies = self.autonomy.generate_strategies(self.identitycore, self.intentengine, self.metacognition, values=self.values)
         primary_strategy = self.autonomy.select_strategy()
 
-        intents = self.intentengine.generate_intents(state, self.identitycore, self.self_model, strategy=primary_strategy, values=self.values)
+        intents = self.intentengine.generate_intents(state, self.identitycore, self.self_model, strategy=primary_strategy, values=self.values, culture=self.culture)
         primary_intent = self.intentengine.select_primary_intent()
 
         self.values.update_from_identity(self.identitycore)
         self.values.update_from_intents(self.intentengine)
         self.values.update_from_autonomy(self.autonomy)
+
+        self.social.update_from_identity(self.identitycore)
+        self.social.update_from_values(self.values)
+        self.social.update_from_collective(self.collective_state)
+
+        self.culture.updatefromsocial(self.social)
+        self.culture.updatefromvalues(self.values)
+        self.culture.updatefromcollective(self.collective_state)
+        collectiveevents = list(self.collective_state.get("recent_events", [])) if isinstance(self.collective_state, dict) else []
+        self.culture.infernorms(collectiveevents)
+        self.culture.evolve_norms()
+        culturalalignment = self.culture.evaluate_cultural_alignment(self)
+        civilizationadjustments = self.culture.generate_civilization_adjustments()
+        self.identitycore.evaluate_cultural_compatibility(self.culture)
+
+        strategies = self.autonomy.generate_strategies(
+            self.identitycore,
+            self.intentengine,
+            self.metacognition,
+            values=self.values,
+            civilization_adjustments=civilizationadjustments,
+        )
+        primary_strategy = self.autonomy.select_strategy()
 
         preferred_actions = list((initiative or {}).get("preferred_actions", []))
         if not preferred_actions and isinstance(primary_intent, dict):
@@ -135,6 +162,8 @@ class NCAAgent:
             intent=primary_intent,
             strategy=primary_strategy,
             values=self.values,
+            social=self.social,
+            culture=self.culture,
         )
         evaluated = self.planner.evaluate(
             candidates,
@@ -146,6 +175,8 @@ class NCAAgent:
             intent=primary_intent,
             strategy=primary_strategy,
             values=self.values,
+            social=self.social,
+            culture=self.culture,
         )
         choice = self.planner.choose(evaluated)
 
@@ -155,6 +186,7 @@ class NCAAgent:
         self.autonomy.update_autonomy_metrics()
         self.self_model.update_autonomy_metrics(self.autonomy)
         self.self_model.update_value_metrics(self.values)
+        self.self_model.update_culture_metrics(self.culture)
 
         self.self_model.update_cognitive_trace(
             state,
@@ -196,6 +228,23 @@ class NCAAgent:
             "strategies": strategies,
             "primary_strategy": primary_strategy,
             "value_alignment": valuealignment,
+            "cultural_alignment": culturalalignment,
+            "civilization_adjustments": civilizationadjustments,
+            "social": {
+                "group_norms": dict(self.social.group_norms),
+                "tradition_patterns": [dict(p) for p in self.social.tradition_patterns[-20:]],
+                "culturalsimilarityscore": self.social.culturalsimilarityscore,
+                "collaboration_index": self.social.collaboration_index,
+                "conflict_index": self.social.conflict_index,
+            },
+            "culture": {
+                "norms": dict(self.culture.norms),
+                "culturalalignmentscore": self.culture.culturalalignmentscore,
+                "norm_conflicts": [dict(c) for c in self.culture.norm_conflicts],
+                "traditions": [dict(t) for t in self.culture.traditions[-20:]],
+                "civilization_state": dict(self.culture.civilization_state),
+                "culture_trace": list(self.culture.culture_trace[-20:]),
+            },
             "values": {
                 "core_values": dict(self.values.core_values),
                 "valuealignmentscore": self.values.valuealignmentscore,
@@ -203,6 +252,9 @@ class NCAAgent:
                 "preference_drift": self.values.preference_drift,
                 "value_conflicts": [dict(c) for c in self.values.value_conflicts],
                 "value_trace": list(self.values.value_trace[-20:]),
+                "culturalvaluealignment": self.values.culturalvaluealignment,
+                "normethicsmap": dict(self.values.normethicsmap),
+                "traditionvaluemap": dict(self.values.traditionvaluemap),
             },
             "autonomy": {
                 "autonomy_level": self.autonomy.autonomy_level,
@@ -212,6 +264,9 @@ class NCAAgent:
                 "autonomy_trace": list(self.autonomy.autonomy_trace[-20:]),
                 "ethicalalignmentscore": self.autonomy.ethicalalignmentscore,
                 "selfregulationstrength": self.autonomy.selfregulationstrength,
+                "civilizationalignmentscore": self.autonomy.civilizationalignmentscore,
+                "normcompliancefactor": self.autonomy.normcompliancefactor,
+                "culturalstrategyadjustment": self.autonomy.culturalstrategyadjustment,
             },
             "identity_core": {
                 "core_traits": dict(self.identitycore.core_traits),
@@ -227,6 +282,9 @@ class NCAAgent:
                 "valuealignmentscore": self.identitycore.valuealignmentscore,
                 "value_resistance": self.identitycore.value_resistance,
                 "valuepreferenceprofile": dict(self.identitycore.valuepreferenceprofile),
+                "culturalidentityscore": self.identitycore.culturalidentityscore,
+                "cultural_resistance": self.identitycore.cultural_resistance,
+                "culturalpreferenceprofile": dict(self.identitycore.culturalpreferenceprofile),
             },
             "signals": [
                 {"type": s.signal_type, "payload": s.payload}

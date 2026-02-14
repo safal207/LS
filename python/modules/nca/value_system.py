@@ -28,6 +28,9 @@ class ValueSystem:
     preference_drift: float = 0.0
     value_conflicts: list[dict[str, Any]] = field(default_factory=list)
     value_trace: list[dict[str, Any]] = field(default_factory=list)
+    culturalvaluealignment: float = 0.5
+    normethicsmap: dict[str, float] = field(default_factory=dict)
+    traditionvaluemap: dict[str, float] = field(default_factory=dict)
 
     def update_from_identity(self, identity_core: Any) -> None:
         integrity = float(getattr(identity_core, "identity_integrity", 1.0))
@@ -75,6 +78,7 @@ class ValueSystem:
             0.0,
             min(1.0, (0.65 * self.valuealignmentscore) + (0.35 * ethical_alignment)),
         )
+        self.culturalvaluealignment = max(0.0, min(1.0, (0.6 * self.culturalvaluealignment) + (0.4 * self.valuealignmentscore)))
 
     def evaluate_value_alignment(
         self,
@@ -100,6 +104,16 @@ class ValueSystem:
             score -= 0.04
 
         self.valuealignmentscore = max(0.0, min(1.0, score))
+        self.normethicsmap = {
+            "stability_norm": self.core_values.get("ethical_stability", 0.8),
+            "progress_norm": self.core_values.get("goal_progress", 0.7),
+            "collective_norm": self.core_values.get("collective_good", 0.65),
+        }
+        self.traditionvaluemap = {
+            "identity_ritual": self.core_values.get("identity_preservation", 0.75),
+            "adaptive_ritual": self.core_values.get("adaptive_learning", 0.55),
+        }
+        self.culturalvaluealignment = max(0.0, min(1.0, (0.5 * self.culturalvaluealignment) + (0.5 * self.valuealignmentscore)))
         return self.valuealignmentscore
 
     def resolve_value_conflicts(self) -> list[dict[str, Any]]:
@@ -143,6 +157,9 @@ class ValueSystem:
                 "valuealignmentscore": self.valuealignmentscore,
                 "preference_drift": self.preference_drift,
                 "value_conflicts": [dict(c) for c in self.value_conflicts],
+                "culturalvaluealignment": self.culturalvaluealignment,
+                "normethicsmap": dict(self.normethicsmap),
+                "traditionvaluemap": dict(self.traditionvaluemap),
             }
         )
         if len(self.value_trace) > 200:

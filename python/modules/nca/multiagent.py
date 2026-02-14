@@ -27,6 +27,11 @@ class MultiAgentSystem:
     collectivevaluemap: dict[str, dict[str, Any]] = field(default_factory=dict)
     collectivevaluealignment: float = 1.0
     collectiveethicalconflict: float = 0.0
+    collectiveculturemap: dict[str, dict[str, Any]] = field(default_factory=dict)
+    collectivenorms: dict[str, float] = field(default_factory=dict)
+    collectivetraditionpatterns: list[dict[str, Any]] = field(default_factory=list)
+    civilizationmaturityscore: float = 0.0
+    culturalconflictscore: float = 0.0
 
     def add_agent(self, agent: NCAAgent, *, agent_id: str | None = None) -> None:
         resolved_id = agent_id or getattr(agent.orientation, "identity", None) or f"agent-{len(self.agents)}"
@@ -60,6 +65,7 @@ class MultiAgentSystem:
         distributed = self.broadcast_signals()
         collective = self.collective_state()
         collective["distributed_signals"] = distributed
+        collective["recent_events"] = [{"agent_id": e.get("agent_id"), "action": e.get("action"), "score": e.get("score", 0.0)} for e in step_events[-len(self.agents):]]
 
         meta_feedback_map = {
             getattr(agent, "agent_id", f"agent-{idx}"): dict(getattr(agent.metacognition, "latest_feedback", {}))
@@ -226,6 +232,36 @@ class MultiAgentSystem:
         self.collectivevaluealignment = sum(value_alignments) / max(1, len(value_alignments))
         self.collectiveethicalconflict = sum(value_conflicts) / max(1, len(value_conflicts))
 
+        culture_map = {
+            getattr(agent, "agent_id", f"agent-{idx}"): {
+                "culturalalignmentscore": float(getattr(agent.culture, "culturalalignmentscore", 0.5)),
+                "norms": dict(getattr(agent.culture, "norms", {})),
+                "norm_conflicts": list(getattr(agent.culture, "norm_conflicts", [])),
+                "traditions": [dict(t) for t in list(getattr(agent.culture, "traditions", []))[-5:]],
+            }
+            for idx, agent in enumerate(self.agents)
+        }
+        self.collectiveculturemap = culture_map
+        culture_alignments = [float(v.get("culturalalignmentscore", 0.5)) for v in culture_map.values()]
+        conflict_levels = [min(1.0, len(v.get("norm_conflicts", [])) / 4.0) for v in culture_map.values()]
+        self.culturalconflictscore = sum(conflict_levels) / max(1, len(conflict_levels)) if conflict_levels else 0.0
+
+        norm_accum: dict[str, float] = {}
+        norm_count: dict[str, int] = {}
+        for item in culture_map.values():
+            for key, val in dict(item.get("norms", {})).items():
+                norm_accum[key] = norm_accum.get(key, 0.0) + float(val)
+                norm_count[key] = norm_count.get(key, 0) + 1
+        self.collectivenorms = {k: norm_accum[k] / max(1, norm_count[k]) for k in norm_accum}
+
+        tradition_bag: list[dict[str, Any]] = []
+        for item in culture_map.values():
+            tradition_bag.extend([dict(t) for t in item.get("traditions", [])])
+        self.collectivetraditionpatterns = tradition_bag[-20:]
+
+        collective_culture_alignment = sum(culture_alignments) / max(1, len(culture_alignments)) if culture_alignments else 0.0
+        self.civilizationmaturityscore = max(0.0, min(1.0, collective_culture_alignment - (0.35 * self.culturalconflictscore)))
+
         identity_cores = {
             getattr(agent, "agent_id", f"agent-{idx}"): {
                 "agency_level": float(getattr(agent.identitycore, "agency_level", 0.0)),
@@ -262,6 +298,12 @@ class MultiAgentSystem:
             "collectivevaluemap": dict(self.collectivevaluemap),
             "collectivevaluealignment": self.collectivevaluealignment,
             "collectiveethicalconflict": self.collectiveethicalconflict,
+            "collectiveculturemap": dict(self.collectiveculturemap),
+            "collectivenorms": dict(self.collectivenorms),
+            "collectivetraditionpatterns": [dict(t) for t in self.collectivetraditionpatterns],
+            "collectiveculturealignment": collective_culture_alignment,
+            "civilizationmaturityscore": self.civilizationmaturityscore,
+            "culturalconflictscore": self.culturalconflictscore,
             "collectiveidentityintegrity": self.collectiveidentityintegrity,
             "collective_initiative": dict(self.collective_initiative),
             "collectiveagencyshift": self.collectiveagencylevel > 0.65,
@@ -269,6 +311,9 @@ class MultiAgentSystem:
             "collectiveautonomyshift": self.collectiveautonomylevel > 0.62,
             "collectiveidentityintegritydrop": self.collectiveidentityintegrity < 0.55,
             "collectivevalueshift": self.collectivevaluealignment < 0.62,
+            "collectivecultureshift": collective_culture_alignment < 0.6,
+            "collectivenormformation": len(self.collectivenorms) >= 3,
+            "collectivecivilizationevent": self.civilizationmaturityscore > 0.68 or self.culturalconflictscore > 0.45,
             "recent_signals": [
                 {"type": s.signal_type, "payload": dict(s.payload), "t": s.t}
                 for s in self.collective_signal_bus.get_recent(clear=False)[-20:]

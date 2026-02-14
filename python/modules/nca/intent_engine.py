@@ -14,7 +14,7 @@ class IntentEngine:
     intent_strength: float = 0.0
     intent_alignment: float = 1.0
 
-    def generate_intents(self, state: Any, identity_core: Any, self_model: Any, strategy: dict[str, Any] | None = None, values: Any | None = None) -> list[dict[str, Any]]:
+    def generate_intents(self, state: Any, identity_core: Any, self_model: Any, strategy: dict[str, Any] | None = None, values: Any | None = None, culture: Any | None = None) -> list[dict[str, Any]]:
         world_state = getattr(state, "world_state", {}) if hasattr(state, "world_state") else {}
         if not isinstance(world_state, dict):
             world_state = {}
@@ -58,6 +58,8 @@ class IntentEngine:
 
         value_map = dict(getattr(values, "core_values", {})) if values is not None else {}
         ethical_constraints = dict(getattr(values, "ethical_constraints", {})) if values is not None else {}
+        norms = dict(getattr(culture, "norms", {})) if culture is not None else {}
+        cultural_alignment = float(getattr(culture, "culturalalignmentscore", 0.5)) if culture is not None else 0.5
 
         for intent in intents:
             alignment = self.evaluate_intent_alignment(intent, identity_core)
@@ -90,6 +92,14 @@ class IntentEngine:
                 base_strength -= 0.12
             if float(value_map.get("identity_preservation", 0.7)) > 0.72 and intent.get("name") == "preserve_identity":
                 base_strength += 0.1
+            if norms:
+                mode = str(intent.get("desired_mode", "balanced"))
+                compliant_bonus = 0.12 if (mode == "stabilize" and norms.get("prefer_idle", 0.0) > 0.45) or (mode in ("explore", "balanced") and (norms.get("prefer_forward", 0.0) + norms.get("prefer_left", 0.0) + norms.get("prefer_right", 0.0)) > 0.45) else 0.0
+                violation_penalty = 0.1 if (mode == "explore" and norms.get("prefer_idle", 0.0) > 0.65) else 0.0
+                alignment = max(0.0, min(1.0, alignment + compliant_bonus - violation_penalty + (0.08 * cultural_alignment)))
+                base_strength = base_strength + compliant_bonus - violation_penalty
+                intent["alignment"] = alignment
+
             intent["strength"] = max(0.0, min(1.0, base_strength))
 
         self.active_intents = intents
@@ -150,8 +160,8 @@ class IntentEngine:
         )
 
     # Compatibility aliases requested by specification.
-    def generateintents(self, state: Any, identitycore: Any, self_model: Any, strategy: dict[str, Any] | None = None, values: Any | None = None) -> list[dict[str, Any]]:
-        return self.generate_intents(state, identitycore, self_model, strategy=strategy, values=values)
+    def generateintents(self, state: Any, identitycore: Any, self_model: Any, strategy: dict[str, Any] | None = None, values: Any | None = None, culture: Any | None = None) -> list[dict[str, Any]]:
+        return self.generate_intents(state, identitycore, self_model, strategy=strategy, values=values, culture=culture)
 
     def evaluateintentalignment(self, intent: dict[str, Any], identity_core: Any) -> float:
         return self.evaluate_intent_alignment(intent, identity_core)

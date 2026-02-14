@@ -4,6 +4,7 @@ from .agent import NCAAgent
 from .assembly import AgentState, AssemblyPoint
 from .autonomy_engine import AutonomyEngine
 from .causal import CausalGraph
+from .culture_engine import CultureEngine
 from .meta_observer import MetaObserver, MetaReport
 from .meta_cognition import MetaCognitionEngine
 from .identity_core import IdentityCore
@@ -12,6 +13,7 @@ from .multiagent import MultiAgentSystem
 from .shared_causal import SharedCausalGraph
 from .orientation import OrientationCenter
 from .self_model import SelfModel
+from .social_cognition import SocialCognitionEngine
 from .signals import CollectiveSignalBus, InternalSignal, SignalBus
 from .trajectories import TrajectoryOption, TrajectoryPlanner
 from .world import GridWorld
@@ -23,6 +25,7 @@ __all__ = [
     "AssemblyPoint",
     "AutonomyEngine",
     "CausalGraph",
+    "CultureEngine",
     "MetaObserver",
     "MetaCognitionEngine",
     "IdentityCore",
@@ -31,6 +34,7 @@ __all__ = [
     "MetaReport",
     "OrientationCenter",
     "SelfModel",
+    "SocialCognitionEngine",
     "InternalSignal",
     "CollectiveSignalBus",
     "SignalBus",

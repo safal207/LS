@@ -47,6 +47,15 @@ class IdentityCore:
             "exploration": 0.55,
         }
     )
+    culturalidentityscore: float = 0.5
+    cultural_resistance: float = 0.45
+    culturalpreferenceprofile: dict[str, float] = field(
+        default_factory=lambda: {
+            "norm_compliance": 0.62,
+            "tradition_affinity": 0.58,
+            "civilizational_coherence": 0.66,
+        }
+    )
     valuepreferenceprofile: dict[str, float] = field(
         default_factory=lambda: {
             "identity_preservation": 0.78,
@@ -194,6 +203,27 @@ class IdentityCore:
         return self.valuealignmentscore
 
 
+
+    def evaluate_cultural_compatibility(self, culture_engine: Any) -> float:
+        norms = dict(getattr(culture_engine, "norms", {}))
+        alignment = float(getattr(culture_engine, "culturalalignmentscore", 0.5))
+        compliance_pref = float(self.culturalpreferenceprofile.get("norm_compliance", 0.6))
+        tradition_pref = float(self.culturalpreferenceprofile.get("tradition_affinity", 0.55))
+        tradition_strength = 0.0
+        traditions = list(getattr(culture_engine, "traditions", []))
+        if traditions:
+            tradition_strength = sum(float(t.get("strength", 0.0)) for t in traditions[-5:]) / max(1, len(traditions[-5:]))
+
+        self.culturalidentityscore = max(0.0, min(1.0, (0.45 * alignment) + (0.3 * compliance_pref) + (0.25 * tradition_pref * tradition_strength)))
+        self.cultural_resistance = max(0.0, min(1.0, 1.0 - self.culturalidentityscore + 0.15))
+
+        if norms.get("prefer_idle", 0.0) > 0.7 and self.core_traits.get("curiosity", 0.5) > 0.7:
+            self.cultural_resistance = min(1.0, self.cultural_resistance + 0.1)
+
+        return self.culturalidentityscore
+
+    def evaluateculturalcompatibility(self, culture_engine: Any) -> float:
+        return self.evaluate_cultural_compatibility(culture_engine)
     # Compatibility aliases requested by specification.
     def updatefromselfmodel(self, selfmodel: Any) -> None:
         self.update_from_self_model(selfmodel)
