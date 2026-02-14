@@ -5,6 +5,7 @@ from .assembly import AgentState, AssemblyPoint
 from .causal import CausalGraph
 from .meta_observer import MetaObserver, MetaReport
 from .meta_cognition import MetaCognitionEngine
+from .identity_core import IdentityCore
 from .multiagent import MultiAgentSystem
 from .shared_causal import SharedCausalGraph
 from .orientation import OrientationCenter
@@ -20,6 +21,7 @@ __all__ = [
     "CausalGraph",
     "MetaObserver",
     "MetaCognitionEngine",
+    "IdentityCore",
     "MultiAgentSystem",
     "MetaReport",
     "OrientationCenter",

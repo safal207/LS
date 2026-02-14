@@ -7,6 +7,7 @@ from .assembly import AgentState, AssemblyPoint
 from .causal import CausalGraph
 from .meta_observer import MetaObserver
 from .meta_cognition import MetaCognitionEngine
+from .identity_core import IdentityCore
 from .orientation import OrientationCenter
 from .self_model import SelfModel
 from .signals import InternalSignal, SignalBus
@@ -30,6 +31,7 @@ class NCAAgent:
     collective_state: dict[str, Any] = field(default_factory=dict)
     self_model: SelfModel = field(default_factory=SelfModel)
     metacognition: MetaCognitionEngine = field(default_factory=MetaCognitionEngine)
+    identitycore: IdentityCore = field(default_factory=IdentityCore)
 
     def __post_init__(self) -> None:
         self.planner.causal_graph = self.causal_graph
@@ -96,15 +98,24 @@ class NCAAgent:
 
         metafeedback = self.metacognition.analyze_cognition(state, self.self_model, analysis["report"])
 
-        candidates = self.planner.generate(self.world, state)
+        self.identitycore.update_from_self_model(self.self_model)
+        self.identitycore.update_from_meta(metafeedback)
+        self.identitycore.stabilize_identity()
+        initiative = self.identitycore.generate_initiative()
+
+        candidates = self.planner.generate(self.world, state, initiative=initiative)
         evaluated = self.planner.evaluate(
             candidates,
             state,
             collective_state=self.collective_state,
             self_model=self.self_model,
             metafeedback=metafeedback,
+            initiative=initiative,
         )
         choice = self.planner.choose(evaluated)
+
+        self.orientation.update_from_identity_core(self.identitycore)
+        self.self_model.update_identity_metrics(self.identitycore)
 
         self.self_model.update_cognitive_trace(
             state,
@@ -139,6 +150,14 @@ class NCAAgent:
             "self_model": self.self_model.to_dict(),
             "self_model_snapshot": self_snapshot,
             "metacognition": metafeedback,
+            "initiative": initiative,
+            "identity_core": {
+                "core_traits": dict(self.identitycore.core_traits),
+                "longtermgoals": list(self.identitycore.longtermgoals),
+                "identity_integrity": self.identitycore.identity_integrity,
+                "drift_resistance": self.identitycore.drift_resistance,
+                "agency_level": self.identitycore.agency_level,
+            },
             "signals": [
                 {"type": s.signal_type, "payload": s.payload}
                 for s in self.signal_bus.get_recent(clear=True)

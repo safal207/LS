@@ -20,9 +20,22 @@ class MetaCognitionEngine:
         cognitive_patterns = model_dict.get("cognitive_patterns", []) if isinstance(model_dict, dict) else []
 
         report_dict = self._normalize_report(meta_report)
+        agency_markers = model_dict.get("agency_markers", []) if isinstance(model_dict, dict) else []
+        longterm_stability_score = float(model_dict.get("longterm_stability_score", model_dict.get("longtermstability_score", 1.0))) if isinstance(model_dict, dict) else 1.0
         self_consistency = float(report_dict.get("self_consistency", 1.0))
         observer_bias_score = float(report_dict.get("observerbiasscore", 0.0))
         observer_meta_drift = float(report_dict.get("meta_drift", 0.0))
+
+        agency_bias = 0.0
+        if agency_markers:
+            low_markers = sum(1 for m in agency_markers[-8:] if str(m.get("agency_signal", "")) == "low")
+            agency_bias = low_markers / max(1, len(agency_markers[-8:]))
+
+        initiative_conflict = 0.0
+        if observer_meta_drift > 0.45 and model_drift > 0.4:
+            initiative_conflict = min(1.0, (observer_meta_drift + model_drift) / 2.0)
+
+        identity_integrity_drift = max(0.0, min(1.0, 1.0 - longterm_stability_score))
 
         biases = self.detect_cognitive_biases(
             {
@@ -31,6 +44,9 @@ class MetaCognitionEngine:
                 "meta_report": report_dict,
                 "cognitive_trace": cognitive_trace,
                 "cognitive_patterns": cognitive_patterns,
+                "agency_bias": agency_bias,
+                "initiative_conflict": initiative_conflict,
+                "identity_integrity_drift": identity_integrity_drift,
             }
         )
 
@@ -38,9 +54,11 @@ class MetaCognitionEngine:
             0.0,
             min(
                 1.0,
-                (0.45 * model_drift)
-                + (0.35 * observer_meta_drift)
-                + (0.2 * max(0.0, 1.0 - self_consistency)),
+                (0.35 * model_drift)
+                + (0.25 * observer_meta_drift)
+                + (0.15 * max(0.0, 1.0 - self_consistency))
+                + (0.15 * identity_integrity_drift)
+                + (0.1 * initiative_conflict),
             ),
         )
 
@@ -49,6 +67,7 @@ class MetaCognitionEngine:
             "risk_penalty": 0.1 if metadrift > 0.45 else 0.0,
             "idle_penalty": 0.12 if "impulsiveness_spike" in biases else 0.0,
             "exploration_damp": 0.08 if "oscillation_bias" in biases else 0.0,
+            "initiative_damp": 0.08 if initiative_conflict > 0.45 else 0.0,
         }
         observer_corrections = {
             "raise_thresholds": metadrift > 0.55,
@@ -61,6 +80,7 @@ class MetaCognitionEngine:
             "biases": list(biases),
             "stability_boost": 0.08 if metadrift > 0.4 else 0.02,
             "impulsiveness_damp": 0.06 if observer_bias_score > 0.45 else 0.0,
+            "initiative_conflict": initiative_conflict,
         }
 
         feedback = {
@@ -69,6 +89,9 @@ class MetaCognitionEngine:
             "planner_corrections": planner_corrections,
             "observer_corrections": observer_corrections,
             "orientation_corrections": orientation_corrections,
+            "agency_bias": agency_bias,
+            "initiative_conflict": initiative_conflict,
+            "identity_integrity_drift": identity_integrity_drift,
         }
         self.latest_feedback = feedback
         self.history.append(feedback)
@@ -89,11 +112,17 @@ class MetaCognitionEngine:
             report = history.get("meta_report", {})
             model_drift = float(history.get("selfmodeldrift", 0.0))
             patterns = history.get("cognitive_patterns", [])
+            agency_bias = float(history.get("agency_bias", 0.0))
+            initiative_conflict = float(history.get("initiative_conflict", 0.0))
+            identity_integrity_drift = float(history.get("identity_integrity_drift", 0.0))
         else:
             trace = {}
             report = {}
             model_drift = 0.0
             patterns = []
+            agency_bias = 0.0
+            initiative_conflict = 0.0
+            identity_integrity_drift = 0.0
 
         biases: list[str] = []
         if float(trace.get("impulsiveness_spikes", 0.0)) > 0.18:
@@ -106,6 +135,12 @@ class MetaCognitionEngine:
             biases.append("repeated_drift")
         if float(report.get("meta_drift", 0.0)) > 0.35:
             biases.append("meta_drift")
+        if agency_bias > 0.5:
+            biases.append("agency_bias")
+        if initiative_conflict > 0.4:
+            biases.append("initiative_conflict")
+        if identity_integrity_drift > 0.35:
+            biases.append("identity_integrity_drift")
 
         for pattern in patterns[-6:]:
             label = str(pattern.get("pattern", "")).lower()

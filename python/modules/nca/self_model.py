@@ -17,6 +17,9 @@ class SelfModel:
     cognitive_patterns: list[dict[str, Any]] = field(default_factory=list)
     bias_history: list[dict[str, Any]] = field(default_factory=list)
     cognitive_trace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
+    identityintegritytrace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
+    longtermstability_score: float = 1.0
+    agency_markers: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Ensure deque length follows configured max_history.
@@ -24,6 +27,8 @@ class SelfModel:
             self.history = deque(self.history, maxlen=self.max_history)
         if self.cognitive_trace.maxlen != self.max_history:
             self.cognitive_trace = deque(self.cognitive_trace, maxlen=self.max_history)
+        if self.identityintegritytrace.maxlen != self.max_history:
+            self.identityintegritytrace = deque(self.identityintegritytrace, maxlen=self.max_history)
 
     def _extract_snapshot(self, agent_state: Any) -> dict[str, Any]:
         if hasattr(agent_state, "self_state"):
@@ -209,6 +214,37 @@ class SelfModel:
 
         return entry
 
+    def update_identity_metrics(self, identity_core: Any) -> dict[str, Any]:
+        integrity = float(getattr(identity_core, "identity_integrity", 1.0))
+        agency_level = float(getattr(identity_core, "agency_level", 0.0))
+        drift_resistance = float(getattr(identity_core, "drift_resistance", 1.0))
+
+        t = len(self.identityintegritytrace)
+        entry = {
+            "t": t,
+            "identity_integrity": integrity,
+            "agency_level": agency_level,
+            "drift_resistance": drift_resistance,
+        }
+        self.identityintegritytrace.append(entry)
+
+        recent = list(self.identityintegritytrace)[-8:]
+        if recent:
+            self.longtermstability_score = max(
+                0.0,
+                min(1.0, sum(float(item.get("identity_integrity", 1.0)) for item in recent) / len(recent)),
+            )
+
+        marker = {
+            "t": t,
+            "agency_signal": "high" if agency_level > 0.65 else "moderate" if agency_level > 0.35 else "low",
+            "initiative_ready": agency_level > 0.5 and integrity > 0.55,
+        }
+        self.agency_markers.append(marker)
+        if len(self.agency_markers) > self.max_history:
+            self.agency_markers = self.agency_markers[-self.max_history :]
+        return entry
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "max_history": self.max_history,
@@ -230,6 +266,10 @@ class SelfModel:
                 "meta_drift": self.meta_drift_score(),
             },
             "meta_drift_score": self.meta_drift_score(),
+            "identityintegritytrace": list(self.identityintegritytrace),
+            "longterm_stability_score": self.longtermstability_score,
+            "longtermstability_score": self.longtermstability_score,
+            "agency_markers": list(self.agency_markers),
         }
 
     # Compatibility aliases requested by specification.
@@ -250,3 +290,6 @@ class SelfModel:
 
     def updatecognitivetrace(self, state: Any, decision: dict[str, Any], analysis: dict[str, Any]) -> dict[str, Any]:
         return self.update_cognitive_trace(state, decision, analysis)
+
+    def updateidentitymetrics(self, identity_core: Any) -> dict[str, Any]:
+        return self.update_identity_metrics(identity_core)
