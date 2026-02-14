@@ -16,6 +16,7 @@ class AgentState:
     world_state: Any
     self_state: dict[str, Any]
     history: list[dict[str, Any]] = field(default_factory=list)
+    causal_context: dict[str, Any] = field(default_factory=dict)
 
 
 class AssemblyPoint:
@@ -99,4 +100,23 @@ class AssemblyPoint:
             "personality": orientation.personality_profile(),
             "micro_goals": micro_goals,
         }
-        return AgentState(t=t, world_state=world_state, self_state=self_state, history=list(self.history))
+        recent = list(self.history)[-10:]
+        causal_context = {
+            "recent_transitions": [
+                {
+                    "action": item.get("action"),
+                    "position_before": item.get("position_before"),
+                    "position_after": item.get("position_after"),
+                }
+                for item in recent
+            ],
+            "recent_causal_scores": [float(item.get("causal_score", 0.0)) for item in recent],
+            "causal_risk": any(float(item.get("causal_score", 0.0)) < 0 for item in recent),
+        }
+        return AgentState(
+            t=t,
+            world_state=world_state,
+            self_state=self_state,
+            history=list(self.history),
+            causal_context=causal_context,
+        )

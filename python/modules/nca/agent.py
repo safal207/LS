@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .assembly import AgentState, AssemblyPoint
+from .causal import CausalGraph
 from .meta_observer import MetaObserver
 from .orientation import OrientationCenter
 from .signals import InternalSignal, SignalBus
@@ -20,11 +21,13 @@ class NCAAgent:
     assembly: AssemblyPoint = field(default_factory=AssemblyPoint)
     meta_observer: MetaObserver = field(default_factory=MetaObserver)
     planner: TrajectoryPlanner = field(default_factory=TrajectoryPlanner)
+    causal_graph: CausalGraph = field(default_factory=CausalGraph)
     signal_bus: SignalBus = field(default_factory=SignalBus)
     signal_log: list[dict[str, Any]] = field(default_factory=list)
     low_confidence_threshold: float = 0.35
 
     def __post_init__(self) -> None:
+        self.planner.causal_graph = self.causal_graph
         self.signal_bus.subscribe(self._log_signal)
         self.signal_bus.subscribe(self._orientation_signal_handler)
 
@@ -45,6 +48,14 @@ class NCAAgent:
                     "preference_updates": {"stability": 0.05},
                 }
             )
+        if signal.signal_type == "causal_drift":
+            self.orientation.update_from_feedback(
+                {
+                    "preference_updates": {"stability": 0.08},
+                }
+            )
+            self.orientation.stability_preference = min(1.0, self.orientation.stability_preference + 0.05)
+            self.orientation.impulsiveness = max(0.0, self.orientation.impulsiveness - 0.05)
 
     def build_state(self) -> AgentState:
         return self.assembly.build(
@@ -73,7 +84,10 @@ class NCAAgent:
                 )
             )
 
+        state_before = state.world_state if isinstance(state.world_state, dict) else {}
         transition = self.world.step(choice.action)
+        state_after = self.world.state()
+        self.causal_graph.record_transition(state_before, choice.action, state_after)
 
         event = {
             "t": transition["t"],
@@ -82,6 +96,8 @@ class NCAAgent:
             "analysis": analysis,
             "confidence": choice.confidence,
             "uncertainty": choice.uncertainty,
+            "causal_score": choice.causal_score,
+            "causal_graph": self.causal_graph.to_dict(),
             "signals": [
                 {"type": s.signal_type, "payload": s.payload}
                 for s in self.signal_bus.get_recent(clear=True)

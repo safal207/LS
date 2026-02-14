@@ -6,6 +6,10 @@ from typing import Any, Callable
 
 SignalHandler = Callable[["InternalSignal"], None]
 
+CAUSAL_RISK_DETECTED = "causalriskdetected"
+CAUSAL_DRIFT = "causal_drift"
+CAUSAL_INCONSISTENCY = "causal_inconsistency"
+
 
 @dataclass
 class InternalSignal:

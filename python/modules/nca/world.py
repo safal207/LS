@@ -13,6 +13,9 @@ class GridWorld:
     start_position: int = 0
     goal_position: int = 9
     noise_level: float = 0.0
+    slippery_zone: tuple[int, ...] = ()
+    blocked_zone: tuple[int, ...] = ()
+    reward_zone: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         self.agent_position = max(0, min(self.size - 1, self.start_position))
@@ -20,6 +23,12 @@ class GridWorld:
         self.t = 0
         self._rng = random.Random(42)
         self._last_position = self.agent_position
+        if not self.slippery_zone:
+            self.slippery_zone = (max(1, self.size // 3),)
+        if not self.blocked_zone:
+            self.blocked_zone = (max(2, (self.size // 2) - 1),)
+        if not self.reward_zone:
+            self.reward_zone = (max(1, self.goal_position - 1), self.goal_position)
 
     def available_actions(self) -> list[str]:
         return ["left", "right", "idle"]
@@ -33,7 +42,12 @@ class GridWorld:
 
     def step(self, action: str) -> dict[str, int | bool]:
         before = self.agent_position
-        self.agent_position = self.project(action)
+        projected = self.project(action)
+        if projected in self.blocked_zone and action != "idle":
+            projected = before
+        elif projected in self.slippery_zone and action != "idle" and self._rng.random() < 0.35:
+            projected = max(0, min(self.size - 1, projected + self._rng.choice([-1, 1])))
+        self.agent_position = projected
         self._last_position = before
         self.t += 1
         return {
@@ -42,6 +56,33 @@ class GridWorld:
             "position_after": self.agent_position,
             "goal_reached": self.agent_position == self.goal_position,
         }
+
+    def causal_features(self) -> dict[str, dict[str, float]]:
+        features: dict[str, dict[str, float]] = {}
+        for action in self.available_actions():
+            projected = self.project(action)
+            success_probability = 0.75
+            error_probability = 0.05
+            deviation_probability = 0.05
+
+            if action == "idle":
+                success_probability = 0.15
+                deviation_probability = 0.2
+            if projected in self.slippery_zone:
+                success_probability -= 0.2
+                deviation_probability += 0.35
+            if projected in self.blocked_zone and action != "idle":
+                success_probability -= 0.45
+                error_probability += 0.35
+            if projected in self.reward_zone:
+                success_probability += 0.2
+
+            features[action] = {
+                "success_probability": max(0.0, min(1.0, success_probability)),
+                "error_probability": max(0.0, min(1.0, error_probability)),
+                "deviation_probability": max(0.0, min(1.0, deviation_probability)),
+            }
+        return features
 
     def apply_noise(self, observations: dict[str, Any]) -> dict[str, Any]:
         noisy = dict(observations)
@@ -70,9 +111,16 @@ class GridWorld:
             "size": self.size,
             "noise_level": self.noise_level,
             "previous_agent_position": self._last_position,
+            "slippery_zone": list(self.slippery_zone),
+            "blocked_zone": list(self.blocked_zone),
+            "reward_zone": list(self.reward_zone),
+            "causal_features": self.causal_features(),
         }
         return self.apply_noise(base)
 
     # Compatibility alias for requested naming.
     def applynoise(self, observations: dict[str, Any]) -> dict[str, Any]:
         return self.apply_noise(observations)
+
+    def causalfeatures(self) -> dict[str, dict[str, float]]:
+        return self.causal_features()

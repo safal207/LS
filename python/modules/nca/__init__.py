@@ -2,6 +2,7 @@
 
 from .agent import NCAAgent
 from .assembly import AgentState, AssemblyPoint
+from .causal import CausalGraph
 from .meta_observer import MetaObserver, MetaReport
 from .orientation import OrientationCenter
 from .signals import InternalSignal, SignalBus
@@ -12,6 +13,7 @@ __all__ = [
     "NCAAgent",
     "AgentState",
     "AssemblyPoint",
+    "CausalGraph",
     "MetaObserver",
     "MetaReport",
     "OrientationCenter",
