@@ -20,6 +20,9 @@ class SelfModel:
     identityintegritytrace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
     longtermstability_score: float = 1.0
     agency_markers: list[dict[str, Any]] = field(default_factory=list)
+    intent_trace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
+    intentstabilityscore: float = 1.0
+    intentconflictmarkers: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Ensure deque length follows configured max_history.
@@ -29,6 +32,8 @@ class SelfModel:
             self.cognitive_trace = deque(self.cognitive_trace, maxlen=self.max_history)
         if self.identityintegritytrace.maxlen != self.max_history:
             self.identityintegritytrace = deque(self.identityintegritytrace, maxlen=self.max_history)
+        if self.intent_trace.maxlen != self.max_history:
+            self.intent_trace = deque(self.intent_trace, maxlen=self.max_history)
 
     def _extract_snapshot(self, agent_state: Any) -> dict[str, Any]:
         if hasattr(agent_state, "self_state"):
@@ -245,6 +250,48 @@ class SelfModel:
             self.agency_markers = self.agency_markers[-self.max_history :]
         return entry
 
+
+    def update_intent_metrics(self, intent_engine: Any) -> dict[str, Any]:
+        active = list(getattr(intent_engine, "active_intents", []))
+        conflicts = list(getattr(intent_engine, "intent_conflicts", []))
+        strength = float(getattr(intent_engine, "intent_strength", 0.0))
+        alignment = float(getattr(intent_engine, "intent_alignment", 1.0))
+
+        entry = {
+            "t": len(self.intent_trace),
+            "intents": [dict(i) for i in active],
+            "intent_strength": strength,
+            "intent_alignment": alignment,
+            "conflict_count": len(conflicts),
+        }
+        self.intent_trace.append(entry)
+
+        self.intentconflictmarkers.append(
+            {
+                "t": entry["t"],
+                "conflicts": [dict(c) for c in conflicts],
+                "conflict_score": min(1.0, len(conflicts) / 3.0),
+            }
+        )
+        if len(self.intentconflictmarkers) > self.max_history:
+            self.intentconflictmarkers = self.intentconflictmarkers[-self.max_history :]
+
+        recent = list(self.intent_trace)[-8:]
+        if recent:
+            self.intentstabilityscore = max(
+                0.0,
+                min(
+                    1.0,
+                    sum(
+                        max(0.0, min(1.0, float(item.get("intent_alignment", 0.0)) - (0.15 * float(item.get("conflict_count", 0.0)))))
+                        for item in recent
+                    )
+                    / len(recent),
+                ),
+            )
+
+        return entry
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "max_history": self.max_history,
@@ -270,6 +317,9 @@ class SelfModel:
             "longterm_stability_score": self.longtermstability_score,
             "longtermstability_score": self.longtermstability_score,
             "agency_markers": list(self.agency_markers),
+            "intent_trace": list(self.intent_trace),
+            "intentstabilityscore": self.intentstabilityscore,
+            "intentconflictmarkers": list(self.intentconflictmarkers),
         }
 
     # Compatibility aliases requested by specification.
@@ -293,3 +343,7 @@ class SelfModel:
 
     def updateidentitymetrics(self, identity_core: Any) -> dict[str, Any]:
         return self.update_identity_metrics(identity_core)
+
+
+    def updateintentmetrics(self, intent_engine: Any) -> dict[str, Any]:
+        return self.update_intent_metrics(intent_engine)

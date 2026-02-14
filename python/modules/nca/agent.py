@@ -8,6 +8,7 @@ from .causal import CausalGraph
 from .meta_observer import MetaObserver
 from .meta_cognition import MetaCognitionEngine
 from .identity_core import IdentityCore
+from .intent_engine import IntentEngine
 from .orientation import OrientationCenter
 from .self_model import SelfModel
 from .signals import InternalSignal, SignalBus
@@ -32,6 +33,7 @@ class NCAAgent:
     self_model: SelfModel = field(default_factory=SelfModel)
     metacognition: MetaCognitionEngine = field(default_factory=MetaCognitionEngine)
     identitycore: IdentityCore = field(default_factory=IdentityCore)
+    intentengine: IntentEngine = field(default_factory=IntentEngine)
 
     def __post_init__(self) -> None:
         self.planner.causal_graph = self.causal_graph
@@ -103,7 +105,10 @@ class NCAAgent:
         self.identitycore.stabilize_identity()
         initiative = self.identitycore.generate_initiative()
 
-        candidates = self.planner.generate(self.world, state, initiative=initiative)
+        intents = self.intentengine.generate_intents(state, self.identitycore, self.self_model)
+        primary_intent = self.intentengine.select_primary_intent()
+
+        candidates = self.planner.generate(self.world, state, initiative=initiative, intent=primary_intent)
         evaluated = self.planner.evaluate(
             candidates,
             state,
@@ -111,11 +116,13 @@ class NCAAgent:
             self_model=self.self_model,
             metafeedback=metafeedback,
             initiative=initiative,
+            intent=primary_intent,
         )
         choice = self.planner.choose(evaluated)
 
         self.orientation.update_from_identity_core(self.identitycore)
         self.self_model.update_identity_metrics(self.identitycore)
+        self.self_model.update_intent_metrics(self.intentengine)
 
         self.self_model.update_cognitive_trace(
             state,
@@ -151,12 +158,16 @@ class NCAAgent:
             "self_model_snapshot": self_snapshot,
             "metacognition": metafeedback,
             "initiative": initiative,
+            "intents": intents,
+            "primary_intent": primary_intent,
             "identity_core": {
                 "core_traits": dict(self.identitycore.core_traits),
                 "longtermgoals": list(self.identitycore.longtermgoals),
                 "identity_integrity": self.identitycore.identity_integrity,
                 "drift_resistance": self.identitycore.drift_resistance,
                 "agency_level": self.identitycore.agency_level,
+                "intentalignmentscore": self.identitycore.intentalignmentscore,
+                "intent_resistance": self.identitycore.intent_resistance,
             },
             "signals": [
                 {"type": s.signal_type, "payload": s.payload}
