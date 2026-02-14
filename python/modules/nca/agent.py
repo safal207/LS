@@ -113,7 +113,13 @@ class NCAAgent:
         self.identitycore.stabilize_identity()
         initiative = self.identitycore.generate_initiative()
 
-        strategies = self.autonomy.generate_strategies(self.identitycore, self.intentengine, self.metacognition, values=self.values)
+        strategies = self.autonomy.generate_strategies(
+            self.identitycore,
+            self.intentengine,
+            self.metacognition,
+            values=self.values,
+            civilization_adjustments={},
+        )
         primary_strategy = self.autonomy.select_strategy()
 
         intents = self.intentengine.generate_intents(state, self.identitycore, self.self_model, strategy=primary_strategy, values=self.values, culture=self.culture)
