@@ -30,6 +30,8 @@ class IdentityCore:
     intent_resistance: float = 0.55
     autonomyalignmentscore: float = 1.0
     autonomy_resistance: float = 0.45
+    valuealignmentscore: float = 1.0
+    value_resistance: float = 0.4
     selfdirectionpreference: dict[str, float] = field(
         default_factory=lambda: {
             "stabilize": 0.7,
@@ -43,6 +45,15 @@ class IdentityCore:
             "progress": 0.75,
             "collective": 0.6,
             "exploration": 0.55,
+        }
+    )
+    valuepreferenceprofile: dict[str, float] = field(
+        default_factory=lambda: {
+            "identity_preservation": 0.78,
+            "collective_good": 0.66,
+            "goal_progress": 0.72,
+            "ethical_stability": 0.82,
+            "adaptive_learning": 0.58,
         }
     )
 
@@ -161,6 +172,28 @@ class IdentityCore:
         self.autonomyalignmentscore = max(0.0, min(1.0, (0.35 * preference) + (0.3 * alignment) + (0.2 * mode_fit) + (0.15 * self.identity_integrity) - (0.2 * resistance_penalty)))
         return self.autonomyalignmentscore
 
+    def evaluate_value_compatibility(self, values: Any) -> float:
+        if values is None:
+            self.valuealignmentscore = 0.5
+            return self.valuealignmentscore
+
+        core_values = dict(getattr(values, "core_values", {}))
+        if not core_values:
+            self.valuealignmentscore = 0.5
+            return self.valuealignmentscore
+
+        combined = 0.0
+        total = 0.0
+        for name, preference in self.valuepreferenceprofile.items():
+            combined += float(preference) * float(core_values.get(name, preference))
+            total += float(preference)
+
+        normalized = combined / total if total > 0 else 0.5
+        resistance_penalty = self.value_resistance * max(0.0, 1.0 - normalized)
+        self.valuealignmentscore = max(0.0, min(1.0, normalized - (0.2 * resistance_penalty)))
+        return self.valuealignmentscore
+
+
     # Compatibility aliases requested by specification.
     def updatefromselfmodel(self, selfmodel: Any) -> None:
         self.update_from_self_model(selfmodel)
@@ -182,3 +215,6 @@ class IdentityCore:
 
     def evaluatestrategycompatibility(self, strategy: dict[str, Any] | None) -> float:
         return self.evaluate_strategy_compatibility(strategy)
+
+    def evaluatevaluecompatibility(self, values: Any) -> float:
+        return self.evaluate_value_compatibility(values)

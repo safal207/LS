@@ -26,6 +26,9 @@ class SelfModel:
     autonomy_trace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
     autonomystabilityscore: float = 1.0
     selfdirectionmarkers: list[dict[str, Any]] = field(default_factory=list)
+    value_trace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
+    valuestabilityscore: float = 1.0
+    ethical_markers: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Ensure deque length follows configured max_history.
@@ -39,6 +42,8 @@ class SelfModel:
             self.intent_trace = deque(self.intent_trace, maxlen=self.max_history)
         if self.autonomy_trace.maxlen != self.max_history:
             self.autonomy_trace = deque(self.autonomy_trace, maxlen=self.max_history)
+        if self.value_trace.maxlen != self.max_history:
+            self.value_trace = deque(self.value_trace, maxlen=self.max_history)
 
     def _extract_snapshot(self, agent_state: Any) -> dict[str, Any]:
         if hasattr(agent_state, "self_state"):
@@ -339,6 +344,43 @@ class SelfModel:
 
         return entry
 
+    def update_value_metrics(self, value_system: Any) -> dict[str, Any]:
+        entry = {
+            "t": len(self.value_trace),
+            "core_values": dict(getattr(value_system, "core_values", {})),
+            "valuealignmentscore": float(getattr(value_system, "valuealignmentscore", 1.0)),
+            "preference_drift": float(getattr(value_system, "preference_drift", 0.0)),
+            "ethical_constraints": dict(getattr(value_system, "ethical_constraints", {})),
+            "conflict_count": len(list(getattr(value_system, "value_conflicts", []))),
+        }
+        self.value_trace.append(entry)
+
+        recent = list(self.value_trace)[-8:]
+        if recent:
+            self.valuestabilityscore = max(
+                0.0,
+                min(
+                    1.0,
+                    sum(
+                        max(0.0, min(1.0, float(item.get("valuealignmentscore", 0.0)) - (0.2 * float(item.get("preference_drift", 0.0)))))
+                        for item in recent
+                    )
+                    / len(recent),
+                ),
+            )
+
+        self.ethical_markers.append(
+            {
+                "t": entry["t"],
+                "ethical_signal": "stable" if entry["valuealignmentscore"] > 0.7 else "warning",
+                "ethical_conflict": entry["conflict_count"] > 0,
+            }
+        )
+        if len(self.ethical_markers) > self.max_history:
+            self.ethical_markers = self.ethical_markers[-self.max_history :]
+        return entry
+
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "max_history": self.max_history,
@@ -370,6 +412,9 @@ class SelfModel:
             "autonomy_trace": list(self.autonomy_trace),
             "autonomystabilityscore": self.autonomystabilityscore,
             "selfdirectionmarkers": list(self.selfdirectionmarkers),
+            "value_trace": list(self.value_trace),
+            "valuestabilityscore": self.valuestabilityscore,
+            "ethical_markers": list(self.ethical_markers),
         }
 
     # Compatibility aliases requested by specification.
@@ -400,3 +445,6 @@ class SelfModel:
 
     def updateautonomymetrics(self, autonomy_engine: Any) -> dict[str, Any]:
         return self.update_autonomy_metrics(autonomy_engine)
+
+    def updatevaluemetrics(self, value_system: Any) -> dict[str, Any]:
+        return self.update_value_metrics(value_system)
