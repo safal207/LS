@@ -6,6 +6,7 @@ from typing import Any
 from .assembly import AgentState
 from .causal import CausalGraph
 from .world import GridWorld
+from .value_system import ValueSystem
 
 
 @dataclass
@@ -23,7 +24,7 @@ class TrajectoryOption:
 class TrajectoryPlanner:
     """Generates and ranks action trajectories for the next agent step."""
 
-    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2, meta_alignment_weight: float = 0.15, initiative_weight: float = 0.12, intent_weight: float = 0.18, strategy_weight: float = 0.22) -> None:
+    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2, meta_alignment_weight: float = 0.15, initiative_weight: float = 0.12, intent_weight: float = 0.18, strategy_weight: float = 0.22, value_weight: float = 0.25) -> None:
         self.causal_graph = causal_graph or CausalGraph()
         self.causal_weight = causal_weight
         self.self_alignment_weight = self_alignment_weight
@@ -31,8 +32,9 @@ class TrajectoryPlanner:
         self.initiative_weight = initiative_weight
         self.intent_weight = intent_weight
         self.strategy_weight = strategy_weight
+        self.value_weight = value_weight
 
-    def generate(self, world: GridWorld, state: AgentState, initiative: dict[str, Any] | None = None, intent: dict[str, Any] | None = None, strategy: dict[str, Any] | None = None) -> list[TrajectoryOption]:
+    def generate(self, world: GridWorld, state: AgentState, initiative: dict[str, Any] | None = None, intent: dict[str, Any] | None = None, strategy: dict[str, Any] | None = None, values: ValueSystem | None = None) -> list[TrajectoryOption]:
         options: list[TrajectoryOption] = []
         for action in world.available_actions():
             projected = world.project(action)
@@ -44,7 +46,7 @@ class TrajectoryPlanner:
                     score=0.0,
                     uncertainty=uncertainty,
                     causal_score=causal_score,
-                    details={"projected_position": projected, "causal_score": causal_score, "initiative": dict(initiative or {}), "intent": dict(intent or {}), "strategy": dict(strategy or {})},
+                    details={"projected_position": projected, "causal_score": causal_score, "initiative": dict(initiative or {}), "intent": dict(intent or {}), "strategy": dict(strategy or {}), "values": dict(getattr(values, "core_values", {}))},
                 )
             )
         return options
@@ -88,6 +90,7 @@ class TrajectoryPlanner:
         initiative: dict[str, Any] | None = None,
         intent: dict[str, Any] | None = None,
         strategy: dict[str, Any] | None = None,
+        values: ValueSystem | None = None,
     ) -> list[TrajectoryOption]:
         prefs = state.self_state.get("preferences", {})
         personality = state.self_state.get("personality", {})
@@ -124,6 +127,7 @@ class TrajectoryPlanner:
             initiative_score = self.evaluate_initiative(option, initiative)
             intent_score = self.evaluate_intent(option, intent)
             strategy_score = self.evaluate_strategy(option, strategy)
+            value_score = self.evaluate_value_alignment(option, values)
             score = (
                 base_score
                 + (causal_score * self.causal_weight)
@@ -133,6 +137,7 @@ class TrajectoryPlanner:
                 + (initiative_score * self.initiative_weight)
                 + (intent_score * self.intent_weight)
                 + (strategy_score * self.strategy_weight)
+                + (value_score * self.value_weight)
                 - uncertainty_penalty
             )
 
@@ -165,6 +170,7 @@ class TrajectoryPlanner:
             details["initiative_score"] = initiative_score
             details["intent_score"] = intent_score
             details["strategy_score"] = strategy_score
+            details["value_score"] = value_score
             evaluated.append(
                 TrajectoryOption(
                     action=option.action,
@@ -176,6 +182,17 @@ class TrajectoryPlanner:
                 )
             )
         return evaluated
+
+    def evaluate_value_alignment(self, option: TrajectoryOption, values: ValueSystem | None) -> float:
+        if values is None:
+            return 0.0
+        proxy_action = {"action": option.action}
+        intent = option.details.get("intent", {}) if isinstance(option.details, dict) else {}
+        strategy = option.details.get("strategy", {}) if isinstance(option.details, dict) else {}
+        return float(values.evaluate_value_alignment(proxy_action, intent, strategy))
+
+    def evaluatevalue_alignment(self, option: TrajectoryOption, values: ValueSystem | None) -> float:
+        return self.evaluate_value_alignment(option, values)
 
     def evaluate_strategy(self, option: TrajectoryOption, strategy: dict[str, Any] | None) -> float:
         if not strategy:

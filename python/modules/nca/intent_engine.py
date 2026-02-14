@@ -14,7 +14,7 @@ class IntentEngine:
     intent_strength: float = 0.0
     intent_alignment: float = 1.0
 
-    def generate_intents(self, state: Any, identity_core: Any, self_model: Any, strategy: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    def generate_intents(self, state: Any, identity_core: Any, self_model: Any, strategy: dict[str, Any] | None = None, values: Any | None = None) -> list[dict[str, Any]]:
         world_state = getattr(state, "world_state", {}) if hasattr(state, "world_state") else {}
         if not isinstance(world_state, dict):
             world_state = {}
@@ -56,6 +56,9 @@ class IntentEngine:
         strategy_alignment = float((strategy or {}).get("alignment", 0.5))
         strategy_actions = set((strategy or {}).get("preferred_actions", []))
 
+        value_map = dict(getattr(values, "core_values", {})) if values is not None else {}
+        ethical_constraints = dict(getattr(values, "ethical_constraints", {})) if values is not None else {}
+
         for intent in intents:
             alignment = self.evaluate_intent_alignment(intent, identity_core)
             if strategy:
@@ -66,10 +69,27 @@ class IntentEngine:
                 overlap = len(strategy_actions.intersection(set(intent.get("preferred_actions", []))))
                 if overlap:
                     alignment = min(1.0, alignment + (0.05 * overlap))
+
+            value_boost = 0.0
+            intent_type = str(intent.get("type", "progress")).lower()
+            if intent_type == "stability":
+                value_boost += 0.2 * float(value_map.get("ethical_stability", 0.6))
+            elif intent_type == "progress":
+                value_boost += 0.2 * float(value_map.get("goal_progress", 0.6))
+            elif intent_type == "collective":
+                value_boost += 0.2 * float(value_map.get("collective_good", 0.6))
+
+            alignment = max(0.0, min(1.0, alignment + value_boost - (0.08 * float(getattr(values, "preference_drift", 0.0)))))
             intent["alignment"] = alignment
+
             base_strength = float(intent["priority"]) * (0.6 + (0.4 * alignment))
             if strategy and intent.get("desired_mode") == strategy_mode:
                 base_strength += 0.16 * strategy_strength
+
+            if ethical_constraints.get("avoid_harm", 0.8) > 0.75 and intent.get("desired_mode") == "explore":
+                base_strength -= 0.12
+            if float(value_map.get("identity_preservation", 0.7)) > 0.72 and intent.get("name") == "preserve_identity":
+                base_strength += 0.1
             intent["strength"] = max(0.0, min(1.0, base_strength))
 
         self.active_intents = intents
@@ -130,8 +150,8 @@ class IntentEngine:
         )
 
     # Compatibility aliases requested by specification.
-    def generateintents(self, state: Any, identitycore: Any, self_model: Any, strategy: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-        return self.generate_intents(state, identitycore, self_model, strategy=strategy)
+    def generateintents(self, state: Any, identitycore: Any, self_model: Any, strategy: dict[str, Any] | None = None, values: Any | None = None) -> list[dict[str, Any]]:
+        return self.generate_intents(state, identitycore, self_model, strategy=strategy, values=values)
 
     def evaluateintentalignment(self, intent: dict[str, Any], identity_core: Any) -> float:
         return self.evaluate_intent_alignment(intent, identity_core)

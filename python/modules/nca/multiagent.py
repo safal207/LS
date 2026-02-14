@@ -24,6 +24,9 @@ class MultiAgentSystem:
     collectiveautonomylevel: float = 0.0
     collectivestrategymap: dict[str, dict[str, Any]] = field(default_factory=dict)
     collectiveautonomyconflict: float = 0.0
+    collectivevaluemap: dict[str, dict[str, Any]] = field(default_factory=dict)
+    collectivevaluealignment: float = 1.0
+    collectiveethicalconflict: float = 0.0
 
     def add_agent(self, agent: NCAAgent, *, agent_id: str | None = None) -> None:
         resolved_id = agent_id or getattr(agent.orientation, "identity", None) or f"agent-{len(self.agents)}"
@@ -120,6 +123,22 @@ class MultiAgentSystem:
                 )
             )
 
+        if collective.get("collectivevalueshift"):
+            self.collective_signal_bus.emit_broadcast(
+                InternalSignal(
+                    signal_type="collectivevalueshift",
+                    payload={"collectivevaluealignment": collective.get("collectivevaluealignment", 1.0)},
+                )
+            )
+
+        if collective.get("collectiveethicalconflict") > 0.35:
+            self.collective_signal_bus.emit_broadcast(
+                InternalSignal(
+                    signal_type="collectiveethicalconflict",
+                    payload={"collectiveethicalconflict": collective.get("collectiveethicalconflict", 0.0)},
+                )
+            )
+
         if collective.get("collectiveautonomyconflict") > 0.35:
             self.collective_signal_bus.emit_broadcast(
                 InternalSignal(
@@ -190,6 +209,23 @@ class MultiAgentSystem:
         self.collectiveautonomylevel = sum(autonomy_levels) / max(1, len(autonomy_levels))
         self.collectiveautonomyconflict = sum(autonomy_conflicts) / max(1, len(autonomy_conflicts))
 
+
+        value_map = {
+            getattr(agent, "agent_id", f"agent-{idx}"): {
+                "core_values": dict(getattr(agent.values, "core_values", {})),
+                "valuealignmentscore": float(getattr(agent.values, "valuealignmentscore", 1.0)),
+                "ethical_constraints": dict(getattr(agent.values, "ethical_constraints", {})),
+                "preference_drift": float(getattr(agent.values, "preference_drift", 0.0)),
+                "value_conflicts": list(getattr(agent.values, "value_conflicts", [])),
+            }
+            for idx, agent in enumerate(self.agents)
+        }
+        self.collectivevaluemap = value_map
+        value_alignments = [float(v.get("valuealignmentscore", 1.0)) for v in value_map.values()]
+        value_conflicts = [min(1.0, len(v.get("value_conflicts", [])) / 3.0) for v in value_map.values()]
+        self.collectivevaluealignment = sum(value_alignments) / max(1, len(value_alignments))
+        self.collectiveethicalconflict = sum(value_conflicts) / max(1, len(value_conflicts))
+
         identity_cores = {
             getattr(agent, "agent_id", f"agent-{idx}"): {
                 "agency_level": float(getattr(agent.identitycore, "agency_level", 0.0)),
@@ -223,12 +259,16 @@ class MultiAgentSystem:
             "collectiveautonomylevel": self.collectiveautonomylevel,
             "collectivestrategymap": dict(self.collectivestrategymap),
             "collectiveautonomyconflict": self.collectiveautonomyconflict,
+            "collectivevaluemap": dict(self.collectivevaluemap),
+            "collectivevaluealignment": self.collectivevaluealignment,
+            "collectiveethicalconflict": self.collectiveethicalconflict,
             "collectiveidentityintegrity": self.collectiveidentityintegrity,
             "collective_initiative": dict(self.collective_initiative),
             "collectiveagencyshift": self.collectiveagencylevel > 0.65,
             "collectiveintentshift": self.collectiveintentalignment < 0.6,
             "collectiveautonomyshift": self.collectiveautonomylevel > 0.62,
             "collectiveidentityintegritydrop": self.collectiveidentityintegrity < 0.55,
+            "collectivevalueshift": self.collectivevaluealignment < 0.62,
             "recent_signals": [
                 {"type": s.signal_type, "payload": dict(s.payload), "t": s.t}
                 for s in self.collective_signal_bus.get_recent(clear=False)[-20:]

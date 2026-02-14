@@ -15,6 +15,7 @@ from .self_model import SelfModel
 from .signals import CollectiveSignalBus, InternalSignal, SignalBus
 from .trajectories import TrajectoryOption, TrajectoryPlanner
 from .world import GridWorld
+from .value_system import ValueSystem
 
 __all__ = [
     "NCAAgent",
@@ -37,4 +38,5 @@ __all__ = [
     "TrajectoryPlanner",
     "SharedCausalGraph",
     "GridWorld",
+    "ValueSystem",
 ]

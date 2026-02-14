@@ -13,29 +13,36 @@ class AutonomyEngine:
     selfdirectedgoals: list[dict[str, Any]] = field(default_factory=list)
     autonomy_conflicts: list[dict[str, Any]] = field(default_factory=list)
     autonomy_trace: list[dict[str, Any]] = field(default_factory=list)
+    ethicalalignmentscore: float = 1.0
+    selfregulationstrength: float = 0.5
 
-    def generate_strategies(self, identitycore: Any, intentengine: Any, metacognition: Any) -> list[dict[str, Any]]:
+    def generate_strategies(self, identitycore: Any, intentengine: Any, metacognition: Any, values: Any | None = None) -> list[dict[str, Any]]:
         integrity = float(getattr(identitycore, "identity_integrity", 1.0))
         agency = float(getattr(identitycore, "agency_level", 0.0))
         drift_resistance = float(getattr(identitycore, "drift_resistance", 1.0))
         intent_alignment = float(getattr(intentengine, "intent_alignment", 1.0))
         intent_strength = float(getattr(intentengine, "intent_strength", 0.0))
         meta_drift = float(getattr(metacognition, "latest_feedback", {}).get("meta_drift", 0.0))
+        value_alignment = float(getattr(values, "valuealignmentscore", 1.0)) if values is not None else 1.0
+        value_map = dict(getattr(values, "core_values", {})) if values is not None else {}
 
         self.autonomy_level = max(
             0.0,
             min(
                 1.0,
-                (0.3 * integrity) + (0.28 * agency) + (0.16 * drift_resistance) + (0.16 * intent_alignment) + (0.1 * (1.0 - meta_drift)),
+                (0.27 * integrity) + (0.24 * agency) + (0.14 * drift_resistance) + (0.15 * intent_alignment) + (0.1 * (1.0 - meta_drift)) + (0.1 * value_alignment),
             ),
         )
+
+        self.ethicalalignmentscore = max(0.0, min(1.0, value_alignment))
+        self.selfregulationstrength = max(0.0, min(1.0, (0.5 * drift_resistance) + (0.5 * self.ethicalalignmentscore)))
 
         strategies = [
             {
                 "name": "identity_guard",
                 "mode": "stabilize",
                 "preferred_actions": ["idle", "forward"],
-                "strength": max(0.2, 0.5 + (0.35 * (1.0 - integrity)) + (0.2 * meta_drift)),
+                "strength": max(0.2, 0.5 + (0.35 * (1.0 - integrity)) + (0.2 * meta_drift) + (0.1 * value_map.get("ethical_stability", 0.6))),
                 "alignment": max(0.0, min(1.0, 0.6 * drift_resistance + 0.4 * integrity)),
                 "selfdirected": True,
             },
@@ -43,7 +50,7 @@ class AutonomyEngine:
                 "name": "adaptive_exploration",
                 "mode": "explore",
                 "preferred_actions": ["forward", "left", "right"],
-                "strength": max(0.2, 0.4 + (0.4 * agency) + (0.2 * intent_strength)),
+                "strength": max(0.2, 0.35 + (0.35 * agency) + (0.2 * intent_strength) + (0.12 * value_map.get("adaptive_learning", 0.5))),
                 "alignment": max(0.0, min(1.0, 0.5 * integrity + 0.5 * intent_alignment)),
                 "selfdirected": True,
             },
@@ -51,7 +58,7 @@ class AutonomyEngine:
                 "name": "collective_stability",
                 "mode": "balanced",
                 "preferred_actions": ["forward", "idle"],
-                "strength": max(0.2, 0.35 + (0.4 * intent_alignment) + (0.2 * drift_resistance)),
+                "strength": max(0.2, 0.35 + (0.4 * intent_alignment) + (0.2 * drift_resistance) + (0.1 * value_map.get("collective_good", 0.5))),
                 "alignment": max(0.0, min(1.0, 0.45 * integrity + 0.3 * intent_alignment + 0.25 * drift_resistance)),
                 "selfdirected": True,
             },
@@ -68,6 +75,8 @@ class AutonomyEngine:
             "autonomy_level": self.autonomy_level,
             "intent_alignment": intent_alignment,
             "meta_drift": meta_drift,
+            "ethicalalignmentscore": self.ethicalalignmentscore,
+            "selfregulationstrength": self.selfregulationstrength,
         }
         self.evaluate_autonomy_alignment(identitycore)
         return strategies
@@ -105,6 +114,8 @@ class AutonomyEngine:
             "selected_strategy": dict(selected),
             "selfdirectedgoals": [dict(g) for g in self.selfdirectedgoals],
             "autonomy_alignment": max(0.0, alignment),
+            "ethicalalignmentscore": self.ethicalalignmentscore,
+            "selfregulationstrength": self.selfregulationstrength,
             "conflicts": [dict(c) for c in self.autonomy_conflicts],
         }
         self.autonomy_trace.append(entry)
@@ -113,8 +124,8 @@ class AutonomyEngine:
         return entry
 
     # Compatibility aliases requested by specification.
-    def generatestrategies(self, identitycore: Any, intentengine: Any, metacognition: Any) -> list[dict[str, Any]]:
-        return self.generate_strategies(identitycore, intentengine, metacognition)
+    def generatestrategies(self, identitycore: Any, intentengine: Any, metacognition: Any, values: Any | None = None) -> list[dict[str, Any]]:
+        return self.generate_strategies(identitycore, intentengine, metacognition, values=values)
 
     def selectstrategy(self) -> dict[str, Any] | None:
         return self.select_strategy()

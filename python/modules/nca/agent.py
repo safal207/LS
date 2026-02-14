@@ -14,6 +14,7 @@ from .orientation import OrientationCenter
 from .self_model import SelfModel
 from .signals import InternalSignal, SignalBus
 from .trajectories import TrajectoryPlanner
+from .value_system import ValueSystem
 from .world import GridWorld
 
 
@@ -36,6 +37,7 @@ class NCAAgent:
     identitycore: IdentityCore = field(default_factory=IdentityCore)
     intentengine: IntentEngine = field(default_factory=IntentEngine)
     autonomy: AutonomyEngine = field(default_factory=AutonomyEngine)
+    values: ValueSystem = field(default_factory=ValueSystem)
 
     def __post_init__(self) -> None:
         self.planner.causal_graph = self.causal_graph
@@ -107,13 +109,33 @@ class NCAAgent:
         self.identitycore.stabilize_identity()
         initiative = self.identitycore.generate_initiative()
 
-        strategies = self.autonomy.generate_strategies(self.identitycore, self.intentengine, self.metacognition)
+        strategies = self.autonomy.generate_strategies(self.identitycore, self.intentengine, self.metacognition, values=self.values)
         primary_strategy = self.autonomy.select_strategy()
 
-        intents = self.intentengine.generate_intents(state, self.identitycore, self.self_model, strategy=primary_strategy)
+        intents = self.intentengine.generate_intents(state, self.identitycore, self.self_model, strategy=primary_strategy, values=self.values)
         primary_intent = self.intentengine.select_primary_intent()
 
-        candidates = self.planner.generate(self.world, state, initiative=initiative, intent=primary_intent, strategy=primary_strategy)
+        self.values.update_from_identity(self.identitycore)
+        self.values.update_from_intents(self.intentengine)
+        self.values.update_from_autonomy(self.autonomy)
+
+        preferred_actions = list((initiative or {}).get("preferred_actions", []))
+        if not preferred_actions and isinstance(primary_intent, dict):
+            preferred_actions = list(primary_intent.get("preferred_actions", []))
+        value_action = {"action": preferred_actions[0] if preferred_actions else "idle"}
+        valuealignment = self.values.evaluate_value_alignment(value_action, primary_intent, primary_strategy)
+
+        self.values.evolve_preferences()
+        self.identitycore.evaluate_value_compatibility(self.values)
+
+        candidates = self.planner.generate(
+            self.world,
+            state,
+            initiative=initiative,
+            intent=primary_intent,
+            strategy=primary_strategy,
+            values=self.values,
+        )
         evaluated = self.planner.evaluate(
             candidates,
             state,
@@ -123,6 +145,7 @@ class NCAAgent:
             initiative=initiative,
             intent=primary_intent,
             strategy=primary_strategy,
+            values=self.values,
         )
         choice = self.planner.choose(evaluated)
 
@@ -131,6 +154,7 @@ class NCAAgent:
         self.self_model.update_intent_metrics(self.intentengine)
         self.autonomy.update_autonomy_metrics()
         self.self_model.update_autonomy_metrics(self.autonomy)
+        self.self_model.update_value_metrics(self.values)
 
         self.self_model.update_cognitive_trace(
             state,
@@ -171,12 +195,23 @@ class NCAAgent:
             "primary_intent": primary_intent,
             "strategies": strategies,
             "primary_strategy": primary_strategy,
+            "value_alignment": valuealignment,
+            "values": {
+                "core_values": dict(self.values.core_values),
+                "valuealignmentscore": self.values.valuealignmentscore,
+                "ethical_constraints": dict(self.values.ethical_constraints),
+                "preference_drift": self.values.preference_drift,
+                "value_conflicts": [dict(c) for c in self.values.value_conflicts],
+                "value_trace": list(self.values.value_trace[-20:]),
+            },
             "autonomy": {
                 "autonomy_level": self.autonomy.autonomy_level,
                 "strategy_profile": dict(self.autonomy.strategy_profile),
                 "selfdirectedgoals": [dict(g) for g in self.autonomy.selfdirectedgoals],
                 "autonomy_conflicts": [dict(c) for c in self.autonomy.autonomy_conflicts],
                 "autonomy_trace": list(self.autonomy.autonomy_trace[-20:]),
+                "ethicalalignmentscore": self.autonomy.ethicalalignmentscore,
+                "selfregulationstrength": self.autonomy.selfregulationstrength,
             },
             "identity_core": {
                 "core_traits": dict(self.identitycore.core_traits),
@@ -189,6 +224,9 @@ class NCAAgent:
                 "autonomyalignmentscore": self.identitycore.autonomyalignmentscore,
                 "autonomy_resistance": self.identitycore.autonomy_resistance,
                 "selfdirectionpreference": dict(self.identitycore.selfdirectionpreference),
+                "valuealignmentscore": self.identitycore.valuealignmentscore,
+                "value_resistance": self.identitycore.value_resistance,
+                "valuepreferenceprofile": dict(self.identitycore.valuepreferenceprofile),
             },
             "signals": [
                 {"type": s.signal_type, "payload": s.payload}
