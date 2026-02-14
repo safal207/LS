@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .assembly import AgentState, AssemblyPoint
+from .autonomy_engine import AutonomyEngine
 from .causal import CausalGraph
 from .meta_observer import MetaObserver
 from .meta_cognition import MetaCognitionEngine
@@ -34,6 +35,7 @@ class NCAAgent:
     metacognition: MetaCognitionEngine = field(default_factory=MetaCognitionEngine)
     identitycore: IdentityCore = field(default_factory=IdentityCore)
     intentengine: IntentEngine = field(default_factory=IntentEngine)
+    autonomy: AutonomyEngine = field(default_factory=AutonomyEngine)
 
     def __post_init__(self) -> None:
         self.planner.causal_graph = self.causal_graph
@@ -105,10 +107,13 @@ class NCAAgent:
         self.identitycore.stabilize_identity()
         initiative = self.identitycore.generate_initiative()
 
-        intents = self.intentengine.generate_intents(state, self.identitycore, self.self_model)
+        strategies = self.autonomy.generate_strategies(self.identitycore, self.intentengine, self.metacognition)
+        primary_strategy = self.autonomy.select_strategy()
+
+        intents = self.intentengine.generate_intents(state, self.identitycore, self.self_model, strategy=primary_strategy)
         primary_intent = self.intentengine.select_primary_intent()
 
-        candidates = self.planner.generate(self.world, state, initiative=initiative, intent=primary_intent)
+        candidates = self.planner.generate(self.world, state, initiative=initiative, intent=primary_intent, strategy=primary_strategy)
         evaluated = self.planner.evaluate(
             candidates,
             state,
@@ -117,12 +122,15 @@ class NCAAgent:
             metafeedback=metafeedback,
             initiative=initiative,
             intent=primary_intent,
+            strategy=primary_strategy,
         )
         choice = self.planner.choose(evaluated)
 
         self.orientation.update_from_identity_core(self.identitycore)
         self.self_model.update_identity_metrics(self.identitycore)
         self.self_model.update_intent_metrics(self.intentengine)
+        self.autonomy.update_autonomy_metrics()
+        self.self_model.update_autonomy_metrics(self.autonomy)
 
         self.self_model.update_cognitive_trace(
             state,
@@ -149,6 +157,7 @@ class NCAAgent:
             "t": transition["t"],
             "action": choice.action,
             "score": choice.score,
+            "details": dict(choice.details),
             "analysis": analysis,
             "confidence": choice.confidence,
             "uncertainty": choice.uncertainty,
@@ -160,6 +169,15 @@ class NCAAgent:
             "initiative": initiative,
             "intents": intents,
             "primary_intent": primary_intent,
+            "strategies": strategies,
+            "primary_strategy": primary_strategy,
+            "autonomy": {
+                "autonomy_level": self.autonomy.autonomy_level,
+                "strategy_profile": dict(self.autonomy.strategy_profile),
+                "selfdirectedgoals": [dict(g) for g in self.autonomy.selfdirectedgoals],
+                "autonomy_conflicts": [dict(c) for c in self.autonomy.autonomy_conflicts],
+                "autonomy_trace": list(self.autonomy.autonomy_trace[-20:]),
+            },
             "identity_core": {
                 "core_traits": dict(self.identitycore.core_traits),
                 "longtermgoals": list(self.identitycore.longtermgoals),
@@ -168,6 +186,9 @@ class NCAAgent:
                 "agency_level": self.identitycore.agency_level,
                 "intentalignmentscore": self.identitycore.intentalignmentscore,
                 "intent_resistance": self.identitycore.intent_resistance,
+                "autonomyalignmentscore": self.identitycore.autonomyalignmentscore,
+                "autonomy_resistance": self.identitycore.autonomy_resistance,
+                "selfdirectionpreference": dict(self.identitycore.selfdirectionpreference),
             },
             "signals": [
                 {"type": s.signal_type, "payload": s.payload}

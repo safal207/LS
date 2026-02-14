@@ -2,6 +2,7 @@
 
 from .agent import NCAAgent
 from .assembly import AgentState, AssemblyPoint
+from .autonomy_engine import AutonomyEngine
 from .causal import CausalGraph
 from .meta_observer import MetaObserver, MetaReport
 from .meta_cognition import MetaCognitionEngine
@@ -19,6 +20,7 @@ __all__ = [
     "NCAAgent",
     "AgentState",
     "AssemblyPoint",
+    "AutonomyEngine",
     "CausalGraph",
     "MetaObserver",
     "MetaCognitionEngine",

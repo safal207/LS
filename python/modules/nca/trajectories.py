@@ -23,15 +23,16 @@ class TrajectoryOption:
 class TrajectoryPlanner:
     """Generates and ranks action trajectories for the next agent step."""
 
-    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2, meta_alignment_weight: float = 0.15, initiative_weight: float = 0.12, intent_weight: float = 0.18) -> None:
+    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2, meta_alignment_weight: float = 0.15, initiative_weight: float = 0.12, intent_weight: float = 0.18, strategy_weight: float = 0.22) -> None:
         self.causal_graph = causal_graph or CausalGraph()
         self.causal_weight = causal_weight
         self.self_alignment_weight = self_alignment_weight
         self.meta_alignment_weight = meta_alignment_weight
         self.initiative_weight = initiative_weight
         self.intent_weight = intent_weight
+        self.strategy_weight = strategy_weight
 
-    def generate(self, world: GridWorld, state: AgentState, initiative: dict[str, Any] | None = None, intent: dict[str, Any] | None = None) -> list[TrajectoryOption]:
+    def generate(self, world: GridWorld, state: AgentState, initiative: dict[str, Any] | None = None, intent: dict[str, Any] | None = None, strategy: dict[str, Any] | None = None) -> list[TrajectoryOption]:
         options: list[TrajectoryOption] = []
         for action in world.available_actions():
             projected = world.project(action)
@@ -43,7 +44,7 @@ class TrajectoryPlanner:
                     score=0.0,
                     uncertainty=uncertainty,
                     causal_score=causal_score,
-                    details={"projected_position": projected, "causal_score": causal_score, "initiative": dict(initiative or {}), "intent": dict(intent or {})},
+                    details={"projected_position": projected, "causal_score": causal_score, "initiative": dict(initiative or {}), "intent": dict(intent or {}), "strategy": dict(strategy or {})},
                 )
             )
         return options
@@ -86,6 +87,7 @@ class TrajectoryPlanner:
         metafeedback: dict[str, Any] | None = None,
         initiative: dict[str, Any] | None = None,
         intent: dict[str, Any] | None = None,
+        strategy: dict[str, Any] | None = None,
     ) -> list[TrajectoryOption]:
         prefs = state.self_state.get("preferences", {})
         personality = state.self_state.get("personality", {})
@@ -121,6 +123,7 @@ class TrajectoryPlanner:
             meta_alignment_score = self.evaluate_meta_alignment(option, state, self_model, metafeedback or {})
             initiative_score = self.evaluate_initiative(option, initiative)
             intent_score = self.evaluate_intent(option, intent)
+            strategy_score = self.evaluate_strategy(option, strategy)
             score = (
                 base_score
                 + (causal_score * self.causal_weight)
@@ -129,6 +132,7 @@ class TrajectoryPlanner:
                 + (meta_alignment_score * self.meta_alignment_weight)
                 + (initiative_score * self.initiative_weight)
                 + (intent_score * self.intent_weight)
+                + (strategy_score * self.strategy_weight)
                 - uncertainty_penalty
             )
 
@@ -160,6 +164,7 @@ class TrajectoryPlanner:
             details["meta_alignment_score"] = meta_alignment_score
             details["initiative_score"] = initiative_score
             details["intent_score"] = intent_score
+            details["strategy_score"] = strategy_score
             evaluated.append(
                 TrajectoryOption(
                     action=option.action,
@@ -171,6 +176,28 @@ class TrajectoryPlanner:
                 )
             )
         return evaluated
+
+    def evaluate_strategy(self, option: TrajectoryOption, strategy: dict[str, Any] | None) -> float:
+        if not strategy:
+            return 0.0
+        preferred_actions = strategy.get("preferred_actions", [])
+        mode = str(strategy.get("mode", "balanced")).lower()
+        strength = float(strategy.get("strength", 0.0))
+        alignment = float(strategy.get("alignment", 0.5))
+
+        score = 0.0
+        if option.action in preferred_actions:
+            score += 0.5
+        if mode == "stabilize" and option.action == "idle":
+            score += 0.18
+        elif mode == "explore" and option.action in ("forward", "left", "right"):
+            score += 0.18
+        elif mode == "balanced" and option.action in ("forward", "idle"):
+            score += 0.12
+
+        score += 0.2 * strength
+        score += 0.12 * alignment
+        return score
 
 
 
@@ -199,6 +226,9 @@ class TrajectoryPlanner:
 
     def evaluateintent(self, option: TrajectoryOption, intent: dict[str, Any] | None) -> float:
         return self.evaluate_intent(option, intent)
+
+    def evaluatestrategy(self, option: TrajectoryOption, strategy: dict[str, Any] | None) -> float:
+        return self.evaluate_strategy(option, strategy)
 
     def evaluate_initiative(self, option: TrajectoryOption, initiative: dict[str, Any] | None) -> float:
         if not initiative:

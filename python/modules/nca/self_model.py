@@ -23,6 +23,9 @@ class SelfModel:
     intent_trace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
     intentstabilityscore: float = 1.0
     intentconflictmarkers: list[dict[str, Any]] = field(default_factory=list)
+    autonomy_trace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
+    autonomystabilityscore: float = 1.0
+    selfdirectionmarkers: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Ensure deque length follows configured max_history.
@@ -34,6 +37,8 @@ class SelfModel:
             self.identityintegritytrace = deque(self.identityintegritytrace, maxlen=self.max_history)
         if self.intent_trace.maxlen != self.max_history:
             self.intent_trace = deque(self.intent_trace, maxlen=self.max_history)
+        if self.autonomy_trace.maxlen != self.max_history:
+            self.autonomy_trace = deque(self.autonomy_trace, maxlen=self.max_history)
 
     def _extract_snapshot(self, agent_state: Any) -> dict[str, Any]:
         if hasattr(agent_state, "self_state"):
@@ -292,6 +297,48 @@ class SelfModel:
 
         return entry
 
+    def update_autonomy_metrics(self, autonomy_engine: Any) -> dict[str, Any]:
+        level = float(getattr(autonomy_engine, "autonomy_level", 0.0))
+        selected = getattr(autonomy_engine, "select_strategy", lambda: None)() or {}
+        conflicts = list(getattr(autonomy_engine, "autonomy_conflicts", []))
+        goals = list(getattr(autonomy_engine, "selfdirectedgoals", []))
+
+        entry = {
+            "t": len(self.autonomy_trace),
+            "autonomy_level": level,
+            "selected_strategy": dict(selected),
+            "conflict_count": len(conflicts),
+            "selfdirectedgoals": [dict(g) for g in goals],
+        }
+        self.autonomy_trace.append(entry)
+
+        self.selfdirectionmarkers.append(
+            {
+                "t": entry["t"],
+                "mode": str(selected.get("mode", "balanced")),
+                "autonomy_signal": "high" if level > 0.65 else "moderate" if level > 0.4 else "low",
+                "conflict_score": min(1.0, len(conflicts) / 3.0),
+            }
+        )
+        if len(self.selfdirectionmarkers) > self.max_history:
+            self.selfdirectionmarkers = self.selfdirectionmarkers[-self.max_history :]
+
+        recent = list(self.autonomy_trace)[-8:]
+        if recent:
+            self.autonomystabilityscore = max(
+                0.0,
+                min(
+                    1.0,
+                    sum(
+                        max(0.0, min(1.0, float(item.get("autonomy_level", 0.0)) - (0.12 * float(item.get("conflict_count", 0.0)))))
+                        for item in recent
+                    )
+                    / len(recent),
+                ),
+            )
+
+        return entry
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "max_history": self.max_history,
@@ -320,6 +367,9 @@ class SelfModel:
             "intent_trace": list(self.intent_trace),
             "intentstabilityscore": self.intentstabilityscore,
             "intentconflictmarkers": list(self.intentconflictmarkers),
+            "autonomy_trace": list(self.autonomy_trace),
+            "autonomystabilityscore": self.autonomystabilityscore,
+            "selfdirectionmarkers": list(self.selfdirectionmarkers),
         }
 
     # Compatibility aliases requested by specification.
@@ -347,3 +397,6 @@ class SelfModel:
 
     def updateintentmetrics(self, intent_engine: Any) -> dict[str, Any]:
         return self.update_intent_metrics(intent_engine)
+
+    def updateautonomymetrics(self, autonomy_engine: Any) -> dict[str, Any]:
+        return self.update_autonomy_metrics(autonomy_engine)
