@@ -29,6 +29,9 @@ class MetaReport:
     self_model_snapshot: dict[str, Any] = field(default_factory=dict)
     identity_drift_score: float = 0.0
     predicted_self_consistency: float = 1.0
+    meta_consistency: float = 1.0
+    observerbiasscore: float = 0.0
+    meta_drift: float = 0.0
 
 
 @dataclass
@@ -73,6 +76,19 @@ class MetaObserver:
         predicted_state = self_model_snapshot.get("predicted_state", {}) if isinstance(self_model_snapshot, dict) else {}
         predicted_self_consistency = float(predicted_state.get("predictedselfconsistency", 1.0)) if isinstance(predicted_state, dict) else 1.0
         identity_stability = max(0.0, min(1.0, 1.0 - min(1.0, self_model_drift)))
+        meta_drift = max(0.0, min(1.0, (0.5 * self_model_drift) + (0.3 * uncertainty) + (0.2 * max(0.0, 1.0 - self_consistency))))
+        observer_bias_score = max(0.0, min(1.0, abs(predicted_self_consistency - self_consistency) + (0.2 if collective_drift else 0.0)))
+        meta_consistency = max(0.0, min(1.0, 1.0 - max(meta_drift, observer_bias_score * 0.8)))
+        cognitive_conflict = causal_score >= self.causal_alert_threshold and self_consistency < self.self_consistency_threshold
+        oscillation_bias = False
+        if len(state.history) >= 3:
+            impulses = [
+                float(item.get("self_model", {}).get("history", [{}])[-1].get("impulsiveness", 0.0))
+                for item in state.history[-3:]
+                if isinstance(item.get("self_model"), dict) and item.get("self_model", {}).get("history")
+            ]
+            if len(impulses) >= 3:
+                oscillation_bias = max(impulses) - min(impulses) > 0.2
 
         return {
             "identity_drift_risk": drift_count >= self.drift_threshold,
@@ -92,6 +108,12 @@ class MetaObserver:
             "predictedselfconsistency": predicted_self_consistency,
             "identityshiftdetected": self_model_drift >= 0.5,
             "self_model_snapshot": self_model_snapshot,
+            "meta_consistency": meta_consistency,
+            "observerbiasscore": observer_bias_score,
+            "meta_drift": meta_drift,
+            "cognitive_conflict": cognitive_conflict,
+            "oscillation_bias": oscillation_bias,
+            "thinking_error_detected": self_model_drift < 0.2 and meta_drift > 0.45,
         }
 
     def stabilize(self, orientation: OrientationCenter, analysis: dict[str, Any]) -> None:
@@ -244,6 +266,9 @@ class MetaObserver:
             self_model_snapshot=dict(analysis.get("self_model_snapshot", {})),
             identity_drift_score=float(analysis.get("selfmodeldrift", 0.0)),
             predicted_self_consistency=float(analysis.get("predictedselfconsistency", 1.0)),
+            meta_consistency=float(analysis.get("meta_consistency", 1.0)),
+            observerbiasscore=float(analysis.get("observerbiasscore", 0.0)),
+            meta_drift=float(analysis.get("meta_drift", 0.0)),
         )
         self.analysis_history.append(report)
         return report

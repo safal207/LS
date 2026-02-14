@@ -23,10 +23,11 @@ class TrajectoryOption:
 class TrajectoryPlanner:
     """Generates and ranks action trajectories for the next agent step."""
 
-    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2) -> None:
+    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2, meta_alignment_weight: float = 0.15) -> None:
         self.causal_graph = causal_graph or CausalGraph()
         self.causal_weight = causal_weight
         self.self_alignment_weight = self_alignment_weight
+        self.meta_alignment_weight = meta_alignment_weight
 
     def generate(self, world: GridWorld, state: AgentState) -> list[TrajectoryOption]:
         options: list[TrajectoryOption] = []
@@ -80,6 +81,7 @@ class TrajectoryPlanner:
         state: AgentState,
         collective_state: dict[str, Any] | None = None,
         self_model: Any | None = None,
+        metafeedback: dict[str, Any] | None = None,
     ) -> list[TrajectoryOption]:
         prefs = state.self_state.get("preferences", {})
         personality = state.self_state.get("personality", {})
@@ -112,11 +114,13 @@ class TrajectoryPlanner:
             causal_score = option.causal_score
             collective_score = self.evaluate_collective_score(option, state, collective_state or {})
             self_alignment_score = self.evaluate_self_alignment(option, state, self_model)
+            meta_alignment_score = self.evaluate_meta_alignment(option, state, self_model, metafeedback or {})
             score = (
                 base_score
                 + (causal_score * self.causal_weight)
                 + (collective_score * 0.25)
                 + (self_alignment_score * self.self_alignment_weight)
+                + (meta_alignment_score * self.meta_alignment_weight)
                 - uncertainty_penalty
             )
 
@@ -145,6 +149,7 @@ class TrajectoryPlanner:
             details["causal_score"] = causal_score
             details["collective_score"] = collective_score
             details["self_alignment_score"] = self_alignment_score
+            details["meta_alignment_score"] = meta_alignment_score
             evaluated.append(
                 TrajectoryOption(
                     action=option.action,
@@ -157,6 +162,35 @@ class TrajectoryPlanner:
             )
         return evaluated
 
+
+
+    def evaluate_meta_alignment(
+        self,
+        option: TrajectoryOption,
+        state: AgentState,
+        self_model: Any | None,
+        metafeedback: dict[str, Any],
+    ) -> float:
+        _ = state
+        _ = self_model
+        if not metafeedback:
+            return 0.0
+
+        metadrift = float(metafeedback.get("meta_drift", 0.0))
+        observer_bias = float(metafeedback.get("orientation_corrections", {}).get("observerbiasscore", 0.0))
+        biases = metafeedback.get("biases", [])
+
+        score = 0.4 * (1.0 - metadrift) - 0.25 * observer_bias
+        if option.action == "idle" and "repeated_drift" in biases:
+            score -= 0.25
+        if option.action in ("left", "right") and "oscillation_bias" in biases:
+            score -= 0.1
+        if option.action == "forward" and metadrift < 0.3:
+            score += 0.08
+        return score
+
+    def evaluatemetaalignment(self, option: TrajectoryOption, state: AgentState, selfmodel: Any | None, metafeedback: dict[str, Any]) -> float:
+        return self.evaluate_meta_alignment(option, state, selfmodel, metafeedback)
 
     def evaluate_self_alignment(self, option: TrajectoryOption, agent_state: AgentState, self_model: Any | None) -> float:
         if self_model is None:

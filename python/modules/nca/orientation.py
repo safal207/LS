@@ -101,6 +101,28 @@ class OrientationCenter:
         if drift >= 0.5:
             self.invariants["identity_shift_detected"] = True
 
+    def update_from_metacognition(self, metafeedback: dict[str, Any]) -> None:
+        metadrift = float(metafeedback.get("metadrift", metafeedback.get("meta_drift", 0.0)))
+        observer_bias_score = float(metafeedback.get("observerbiasscore", 0.0))
+        biases = metafeedback.get("biases", [])
+
+        if metadrift > 0.4:
+            self.stability_preference = min(1.0, self.stability_preference + 0.08)
+
+        if observer_bias_score > 0.45:
+            self.impulsiveness = max(0.0, self.impulsiveness - 0.08)
+
+        if "oscillation_bias" in biases or "oscillation" in biases:
+            self.invariants["meta_stabilizer"] = True
+
+        stability_boost = float(metafeedback.get("stability_boost", 0.0))
+        if stability_boost > 0:
+            self.stability_preference = min(1.0, self.stability_preference + stability_boost)
+
+        impulsiveness_damp = float(metafeedback.get("impulsiveness_damp", 0.0))
+        if impulsiveness_damp > 0:
+            self.impulsiveness = max(0.0, self.impulsiveness - impulsiveness_damp)
+
     def personality_profile(self) -> dict[str, float]:
         return {
             "risk_tolerance": self.risk_tolerance,
@@ -121,3 +143,6 @@ class OrientationCenter:
 
     def updatefromcollective_feedback(self, feedback: dict[str, Any]) -> dict[str, Any]:
         return self.update_from_collective_feedback(feedback)
+
+    def updatefrommetacognition(self, metafeedback: dict[str, Any]) -> None:
+        self.update_from_metacognition(metafeedback)

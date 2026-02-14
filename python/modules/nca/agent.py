@@ -6,6 +6,7 @@ from typing import Any
 from .assembly import AgentState, AssemblyPoint
 from .causal import CausalGraph
 from .meta_observer import MetaObserver
+from .meta_cognition import MetaCognitionEngine
 from .orientation import OrientationCenter
 from .self_model import SelfModel
 from .signals import InternalSignal, SignalBus
@@ -28,6 +29,7 @@ class NCAAgent:
     low_confidence_threshold: float = 0.35
     collective_state: dict[str, Any] = field(default_factory=dict)
     self_model: SelfModel = field(default_factory=SelfModel)
+    metacognition: MetaCognitionEngine = field(default_factory=MetaCognitionEngine)
 
     def __post_init__(self) -> None:
         self.planner.causal_graph = self.causal_graph
@@ -92,9 +94,24 @@ class NCAAgent:
         analysis = self.meta_observer.observe_and_correct(state, self.orientation, self.signal_bus, self_model=self.self_model)
         self.orientation.update_from_self_model(self.self_model)
 
+        metafeedback = self.metacognition.analyze_cognition(state, self.self_model, analysis["report"])
+
         candidates = self.planner.generate(self.world, state)
-        evaluated = self.planner.evaluate(candidates, state, collective_state=self.collective_state, self_model=self.self_model)
+        evaluated = self.planner.evaluate(
+            candidates,
+            state,
+            collective_state=self.collective_state,
+            self_model=self.self_model,
+            metafeedback=metafeedback,
+        )
         choice = self.planner.choose(evaluated)
+
+        self.self_model.update_cognitive_trace(
+            state,
+            {"action": choice.action, "score": choice.score, "confidence": choice.confidence},
+            {**analysis, "meta_drift": metafeedback.get("meta_drift", 0.0)},
+        )
+        self.metacognition.apply_corrections(self)
 
         if choice.confidence < self.low_confidence_threshold:
             self.signal_bus.emit(
@@ -121,6 +138,7 @@ class NCAAgent:
             "causal_graph": self.causal_graph.to_dict(),
             "self_model": self.self_model.to_dict(),
             "self_model_snapshot": self_snapshot,
+            "metacognition": metafeedback,
             "signals": [
                 {"type": s.signal_type, "payload": s.payload}
                 for s in self.signal_bus.get_recent(clear=True)
