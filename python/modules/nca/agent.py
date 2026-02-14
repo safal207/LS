@@ -49,11 +49,38 @@ class NCAAgent:
         self.signal_bus.subscribe(self._orientation_signal_handler)
 
     def _log_signal(self, signal: InternalSignal) -> None:
-        self.signal_log.append({"t": signal.t, "type": signal.signal_type, "payload": dict(signal.payload), "timestamp": signal.timestamp})
+        self.signal_log.append(
+            {
+                "t": signal.t,
+                "type": signal.signal_type,
+                "payload": dict(signal.payload),
+                "timestamp": signal.timestamp,
+            }
+        )
 
     def _orientation_signal_handler(self, signal: InternalSignal) -> None:
-        if signal.signal_type in ("orientationfeedbackrequired", "causal_drift"):
+        if signal.signal_type == "orientationfeedbackrequired":
             self.orientation.update_from_feedback({"preference_updates": {"stability": 0.05}})
+        if signal.signal_type == "causal_drift":
+            self.orientation.update_from_feedback({"preference_updates": {"stability": 0.08}})
+            self.orientation.stability_preference = min(1.0, self.orientation.stability_preference + 0.05)
+            self.orientation.impulsiveness = max(0.0, self.orientation.impulsiveness - 0.05)
+        if signal.signal_type in ("multiagent_drift", "coordination_required"):
+            feedback_signal = self.orientation.update_from_collective_feedback(
+                {
+                    "collective_drift": signal.signal_type == "multiagent_drift",
+                    "collective_progress": float(signal.payload.get("collective_score", 0.0)),
+                    "goal_conflict": signal.signal_type == "coordination_required",
+                }
+            )
+            if feedback_signal:
+                self.signal_bus.emit(
+                    InternalSignal(
+                        signal_type=feedback_signal["signal_type"],
+                        t=signal.t,
+                        payload=feedback_signal["payload"],
+                    )
+                )
 
     def build_state(self) -> AgentState:
         return self.assembly.build(t=self.world.t, world_state=self.world.state(), orientation=self.orientation, signal_bus=self.signal_bus)
@@ -92,7 +119,11 @@ class NCAAgent:
         self.culture.update_from_collective(self.collective_state)
         self.culture.infer_norms(collective_events)
         self.culture.evolve_norms()
-        cultural_alignment = self.culture.evaluate_cultural_alignment(self)
+        cultural_alignment = self.culture.evaluate_cultural_alignment(
+            self.identitycore.culturalidentityscore,
+            self.values.culturalvaluealignment,
+            self.social.culturalsimilarityscore,
+        )
         civilization_adjustments = self.culture.generate_civilization_adjustments()
         self.identitycore.evaluate_cultural_compatibility(self.culture)
 
@@ -112,9 +143,14 @@ class NCAAgent:
             collective_state=self.collective_state,
         )
         primary_intent = self.intentengine.select_primary_intent()
+        self.intentengine.apply_social_influence(self.social, self.collective_state)
         self.values.update_from_intents(self.intentengine)
         self.values.update_from_autonomy(self.autonomy)
-        valuealignment = self.values.evaluate_value_alignment({"action": "forward"}, primary_intent, primary_strategy)
+        preferred_actions = list((initiative or {}).get("preferred_actions", []))
+        if not preferred_actions and isinstance(primary_intent, dict):
+            preferred_actions = list(primary_intent.get("preferred_actions", []))
+        value_action = {"action": preferred_actions[0] if preferred_actions else "idle"}
+        valuealignment = self.values.evaluate_value_alignment(value_action, primary_intent, primary_strategy)
         self.values.evolve_preferences()
         self.identitycore.evaluate_value_compatibility(self.values)
 
@@ -145,6 +181,15 @@ class NCAAgent:
         self.self_model.update_culture_metrics(self.culture)
         self.self_model.update_cognitive_trace(state, {"action": choice.action, "score": choice.score, "confidence": choice.confidence}, {**analysis, "meta_drift": metafeedback.get("meta_drift", 0.0)})
         self.metacognition.apply_corrections(self)
+
+        if choice.confidence < self.low_confidence_threshold:
+            self.signal_bus.emit(
+                InternalSignal(
+                    signal_type="low_confidence",
+                    t=state.t,
+                    payload={"confidence": choice.confidence, "action": choice.action},
+                )
+            )
 
         state_before = state.world_state if isinstance(state.world_state, dict) else {}
         transition = self.world.step(choice.action)

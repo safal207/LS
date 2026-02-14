@@ -92,18 +92,23 @@ class CultureEngine:
 
         return dict(self.norms)
 
-    def evaluate_cultural_alignment(self, agent: Any) -> float:
-        identity = getattr(agent, "identitycore", None)
-        values = getattr(agent, "values", None)
-        social = getattr(agent, "social", None)
-        identity_score = float(getattr(identity, "culturalidentityscore", 0.6))
-        value_score = float(getattr(values, "culturalvaluealignment", 0.6))
-        social_score = float(getattr(social, "culturalsimilarityscore", 0.6))
+    def evaluate_cultural_alignment(
+        self,
+        identity_score: float,
+        value_score: float,
+        social_score: float,
+    ) -> float:
         conflict_penalty = float(self.civilization_state.get("collectiveculturalconflict", 0.0))
 
         self.culturalalignmentscore = max(
             0.0,
-            min(1.0, (0.35 * identity_score) + (0.35 * value_score) + (0.3 * social_score) - (0.2 * conflict_penalty)),
+            min(
+                1.0,
+                (0.35 * float(identity_score))
+                + (0.35 * float(value_score))
+                + (0.3 * float(social_score))
+                - (0.2 * conflict_penalty),
+            ),
         )
         return self.culturalalignmentscore
 
@@ -147,8 +152,14 @@ class CultureEngine:
     def evolve_norms_alias(self) -> dict[str, float]:
         return self.evolve_norms()
 
-    def evaluateculturalalignment(self, agent: Any) -> float:
-        return self.evaluate_cultural_alignment(agent)
+    def infernorms(self, events: list[dict[str, Any]] | None) -> dict[str, float]:
+        return self.infer_norms(events)
+
+    def evolvenorms(self) -> dict[str, float]:
+        return self.evolve_norms()
+
+    def evaluateculturalalignment(self, identity_score: float, value_score: float, social_score: float) -> float:
+        return self.evaluate_cultural_alignment(identity_score, value_score, social_score)
 
     def generatecivilizationadjustments(self) -> dict[str, Any]:
         return self.generate_civilization_adjustments()

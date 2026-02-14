@@ -155,9 +155,12 @@ class MultiAgentSystem:
             for k, v in item.get("norms", {}).items():
                 norm_acc.setdefault(str(k), []).append(float(v))
         self.collectivenorms = {k: sum(v)/max(1, len(v)) for k, v in norm_acc.items()}
-        self.collectivetraditionpatterns = {}
+        tradition_acc: dict[str, list[float]] = {}
         for item in culture_map.values():
-            self.collectivetraditionpatterns.update(dict(item.get("traditions", {})))
+            for k, v in dict(item.get("traditions", {})).items():
+                if isinstance(v, (int, float)):
+                    tradition_acc.setdefault(str(k), []).append(float(v))
+        self.collectivetraditionpatterns = {k: sum(v) / max(1, len(v)) for k, v in tradition_acc.items()}
         ca = [float(v.get("culturalalignmentscore", 1.0)) for v in culture_map.values()]
         cc = [min(1.0, len(v.get("norm_conflicts", []))/5.0) for v in culture_map.values()]
         self.collectiveculturealignment = sum(ca) / max(1, len(ca))

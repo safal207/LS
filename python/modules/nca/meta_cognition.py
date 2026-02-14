@@ -133,9 +133,9 @@ class MetaCognitionEngine:
                 "ethicalconflictscore": self.ethicalconflictscore,
                 "social_drift": self.social_drift,
                 "cooperation_bias": self.cooperation_bias,
-            "cultural_drift": self.cultural_drift,
-            "culturalconflictbias": self.culturalconflictbias,
-            "civilizationstabilityscore": self.civilizationstabilityscore,
+                "cultural_drift": self.cultural_drift,
+                "culturalconflictbias": self.culturalconflictbias,
+                "civilizationstabilityscore": self.civilizationstabilityscore,
                 "groupconflictscore": self.groupconflictscore,
             }
         )
@@ -155,6 +155,7 @@ class MetaCognitionEngine:
                 + (0.06 * self.selfdirectionconflict)
                 + (0.08 * self.value_drift)
                 + (0.07 * self.ethicalconflictscore)
+                + (0.08 * self.cultural_drift)
             ),
         )
 

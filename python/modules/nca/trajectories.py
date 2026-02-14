@@ -259,7 +259,7 @@ class TrajectoryPlanner:
             base -= 0.08
         return base - (0.25 * conflict)
 
-    def evaluateculture_alignment(self, option: TrajectoryOption, culture: CultureEngine | None) -> float:
+    def evaluateculturealignment(self, option: TrajectoryOption, culture: CultureEngine | None) -> float:
         return self.evaluate_culture_alignment(option, culture)
 
 
