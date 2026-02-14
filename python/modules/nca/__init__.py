@@ -7,6 +7,7 @@ from .meta_observer import MetaObserver, MetaReport
 from .multiagent import MultiAgentSystem
 from .shared_causal import SharedCausalGraph
 from .orientation import OrientationCenter
+from .self_model import SelfModel
 from .signals import CollectiveSignalBus, InternalSignal, SignalBus
 from .trajectories import TrajectoryOption, TrajectoryPlanner
 from .world import GridWorld
@@ -20,6 +21,7 @@ __all__ = [
     "MultiAgentSystem",
     "MetaReport",
     "OrientationCenter",
+    "SelfModel",
     "InternalSignal",
     "CollectiveSignalBus",
     "SignalBus",

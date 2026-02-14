@@ -23,9 +23,10 @@ class TrajectoryOption:
 class TrajectoryPlanner:
     """Generates and ranks action trajectories for the next agent step."""
 
-    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3) -> None:
+    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2) -> None:
         self.causal_graph = causal_graph or CausalGraph()
         self.causal_weight = causal_weight
+        self.self_alignment_weight = self_alignment_weight
 
     def generate(self, world: GridWorld, state: AgentState) -> list[TrajectoryOption]:
         options: list[TrajectoryOption] = []
@@ -78,6 +79,7 @@ class TrajectoryPlanner:
         options: list[TrajectoryOption],
         state: AgentState,
         collective_state: dict[str, Any] | None = None,
+        self_model: Any | None = None,
     ) -> list[TrajectoryOption]:
         prefs = state.self_state.get("preferences", {})
         personality = state.self_state.get("personality", {})
@@ -109,7 +111,14 @@ class TrajectoryPlanner:
             uncertainty_penalty = option.uncertainty * (1.0 - risk_tolerance)
             causal_score = option.causal_score
             collective_score = self.evaluate_collective_score(option, state, collective_state or {})
-            score = base_score - uncertainty_penalty + (causal_score * self.causal_weight) + (collective_score * 0.25)
+            self_alignment_score = self.evaluate_self_alignment(option, state, self_model)
+            score = (
+                base_score
+                + (causal_score * self.causal_weight)
+                + (collective_score * 0.25)
+                + (self_alignment_score * self.self_alignment_weight)
+                - uncertainty_penalty
+            )
 
             invariant_fit = 1.0
             invariants = state.self_state.get("invariants", {})
@@ -135,6 +144,7 @@ class TrajectoryPlanner:
             details["uncertainty_penalty"] = uncertainty_penalty
             details["causal_score"] = causal_score
             details["collective_score"] = collective_score
+            details["self_alignment_score"] = self_alignment_score
             evaluated.append(
                 TrajectoryOption(
                     action=option.action,
@@ -147,6 +157,28 @@ class TrajectoryPlanner:
             )
         return evaluated
 
+
+    def evaluate_self_alignment(self, option: TrajectoryOption, agent_state: AgentState, self_model: Any | None) -> float:
+        if self_model is None:
+            return 0.0
+
+        model_dict = self_model.to_dict() if hasattr(self_model, "to_dict") else {}
+        drift = float(model_dict.get("identity_drift_score", 0.0))
+        predicted = model_dict.get("predicted_state", {}) if isinstance(model_dict, dict) else {}
+        predicted_consistency = float(predicted.get("predictedselfconsistency", 1.0)) if isinstance(predicted, dict) else 1.0
+
+        action_penalty = 0.0
+        if option.action == "idle" and drift > 0.2:
+            action_penalty -= drift
+        if option.action in ("left", "right") and predicted_consistency < 0.5:
+            action_penalty -= 0.2
+
+        consistency_reward = (predicted_consistency - 0.5) * 0.8
+        drift_penalty = -0.7 * drift
+        return consistency_reward + drift_penalty + action_penalty
+
+    def evaluateselfalignment(self, option: TrajectoryOption, agentstate: AgentState, selfmodel: Any | None) -> float:
+        return self.evaluate_self_alignment(option, agentstate, selfmodel)
 
     def evaluate_collective_score(
         self,

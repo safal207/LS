@@ -5,6 +5,7 @@ from typing import Any
 
 from .assembly import AgentState
 from .orientation import OrientationCenter
+from .self_model import SelfModel
 from .signals import (
     COORDINATION_REQUIRED,
     MULTIAGENT_DRIFT,
@@ -25,6 +26,9 @@ class MetaReport:
     collective_score: float = 0.0
     collective_risk: float = 0.0
     collective_alignment: float = 1.0
+    self_model_snapshot: dict[str, Any] = field(default_factory=dict)
+    identity_drift_score: float = 0.0
+    predicted_self_consistency: float = 1.0
 
 
 @dataclass
@@ -36,7 +40,7 @@ class MetaObserver:
     causal_alert_threshold: float = 0.4
     analysis_history: list[MetaReport] = field(default_factory=list)
 
-    def analyze(self, state: AgentState, orientation: OrientationCenter) -> dict[str, Any]:
+    def analyze(self, state: AgentState, orientation: OrientationCenter, self_model: SelfModel | None = None) -> dict[str, Any]:
         drift_count = 0
         current_world = state.world_state
         current_pos = current_world.get("agent_position") if isinstance(current_world, dict) else None
@@ -64,6 +68,12 @@ class MetaObserver:
         collective_consistency = max(0.0, min(1.0, (self_consistency + (1.0 - min(1.0, abs(collective_score)) * 0.25)) / 2))
         collective_risk = max(0.0, min(1.0, (1.0 - collective_consistency) + (0.25 if collective_drift else 0.0)))
 
+        self_model_snapshot = self_model.to_dict() if self_model is not None else {}
+        self_model_drift = float(self_model_snapshot.get("identity_drift_score", 0.0)) if isinstance(self_model_snapshot, dict) else 0.0
+        predicted_state = self_model_snapshot.get("predicted_state", {}) if isinstance(self_model_snapshot, dict) else {}
+        predicted_self_consistency = float(predicted_state.get("predictedselfconsistency", 1.0)) if isinstance(predicted_state, dict) else 1.0
+        identity_stability = max(0.0, min(1.0, 1.0 - min(1.0, self_model_drift)))
+
         return {
             "identity_drift_risk": drift_count >= self.drift_threshold,
             "drift_count": drift_count,
@@ -77,6 +87,11 @@ class MetaObserver:
             "collective_risk": collective_risk,
             "collective_score": collective_score,
             "collective_alignment": collective_consistency,
+            "selfmodeldrift": self_model_drift,
+            "identity_stability": identity_stability,
+            "predictedselfconsistency": predicted_self_consistency,
+            "identityshiftdetected": self_model_drift >= 0.5,
+            "self_model_snapshot": self_model_snapshot,
         }
 
     def stabilize(self, orientation: OrientationCenter, analysis: dict[str, Any]) -> None:
@@ -125,6 +140,24 @@ class MetaObserver:
                 signal_type="orientationfeedbackrequired",
                 t=state.t,
                 payload={"drift_count": analysis.get("drift_count", 0)},
+            )
+            signal_bus.emit(sig)
+            emitted.append({"type": sig.signal_type, "payload": sig.payload})
+
+        if analysis.get("selfmodeldrift", 0.0) >= 0.35:
+            sig = InternalSignal(
+                signal_type="selfmodel_drift",
+                t=state.t,
+                payload={"identity_drift_score": analysis.get("selfmodeldrift", 0.0)},
+            )
+            signal_bus.emit(sig)
+            emitted.append({"type": sig.signal_type, "payload": sig.payload})
+
+        if analysis.get("identityshiftdetected"):
+            sig = InternalSignal(
+                signal_type="identityshiftdetected",
+                t=state.t,
+                payload={"identity_drift_score": analysis.get("selfmodeldrift", 0.0)},
             )
             signal_bus.emit(sig)
             emitted.append({"type": sig.signal_type, "payload": sig.payload})
@@ -190,8 +223,9 @@ class MetaObserver:
         state: AgentState,
         orientation: OrientationCenter,
         signal_bus: SignalBus | None = None,
+        self_model: SelfModel | None = None,
     ) -> MetaReport:
-        analysis = self.analyze(state, orientation)
+        analysis = self.analyze(state, orientation, self_model=self_model)
         emitted = self._emit_analysis_signals(analysis, signal_bus, state)
         report = MetaReport(
             self_consistency=analysis["self_consistency"],
@@ -207,6 +241,9 @@ class MetaObserver:
             collective_score=float(analysis.get("collective_score", 0.0)),
             collective_risk=float(analysis.get("collective_risk", 0.0)),
             collective_alignment=float(analysis.get("collective_alignment", 1.0)),
+            self_model_snapshot=dict(analysis.get("self_model_snapshot", {})),
+            identity_drift_score=float(analysis.get("selfmodeldrift", 0.0)),
+            predicted_self_consistency=float(analysis.get("predictedselfconsistency", 1.0)),
         )
         self.analysis_history.append(report)
         return report
@@ -216,10 +253,11 @@ class MetaObserver:
         state: AgentState,
         orientation: OrientationCenter,
         signal_bus: SignalBus | None = None,
+        self_model: SelfModel | None = None,
     ) -> dict[str, Any]:
-        analysis = self.analyze(state, orientation)
+        analysis = self.analyze(state, orientation, self_model=self_model)
         self.stabilize(orientation, analysis)
-        report = self.generate_report(state, orientation, signal_bus)
+        report = self.generate_report(state, orientation, signal_bus, self_model=self_model)
         return {
             **analysis,
             "report": report,

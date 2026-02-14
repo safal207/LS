@@ -7,6 +7,7 @@ from .assembly import AgentState, AssemblyPoint
 from .causal import CausalGraph
 from .meta_observer import MetaObserver
 from .orientation import OrientationCenter
+from .self_model import SelfModel
 from .signals import InternalSignal, SignalBus
 from .trajectories import TrajectoryPlanner
 from .world import GridWorld
@@ -26,6 +27,7 @@ class NCAAgent:
     signal_log: list[dict[str, Any]] = field(default_factory=list)
     low_confidence_threshold: float = 0.35
     collective_state: dict[str, Any] = field(default_factory=dict)
+    self_model: SelfModel = field(default_factory=SelfModel)
 
     def __post_init__(self) -> None:
         self.planner.causal_graph = self.causal_graph
@@ -86,10 +88,12 @@ class NCAAgent:
         """Execute one decision cycle and return structured step output."""
         state = self.build_state()
 
-        analysis = self.meta_observer.observe_and_correct(state, self.orientation, self.signal_bus)
+        self_snapshot = self.self_model.update_from_state(state)
+        analysis = self.meta_observer.observe_and_correct(state, self.orientation, self.signal_bus, self_model=self.self_model)
+        self.orientation.update_from_self_model(self.self_model)
 
         candidates = self.planner.generate(self.world, state)
-        evaluated = self.planner.evaluate(candidates, state, collective_state=self.collective_state)
+        evaluated = self.planner.evaluate(candidates, state, collective_state=self.collective_state, self_model=self.self_model)
         choice = self.planner.choose(evaluated)
 
         if choice.confidence < self.low_confidence_threshold:
@@ -115,6 +119,8 @@ class NCAAgent:
             "uncertainty": choice.uncertainty,
             "causal_score": choice.causal_score,
             "causal_graph": self.causal_graph.to_dict(),
+            "self_model": self.self_model.to_dict(),
+            "self_model_snapshot": self_snapshot,
             "signals": [
                 {"type": s.signal_type, "payload": s.payload}
                 for s in self.signal_bus.get_recent(clear=True)
