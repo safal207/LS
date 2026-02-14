@@ -16,6 +16,9 @@ class GridWorld:
     slippery_zone: tuple[int, ...] = ()
     blocked_zone: tuple[int, ...] = ()
     reward_zone: tuple[int, ...] = ()
+    shared_zones: tuple[int, ...] = ()
+    shared_events: tuple[str, ...] = ()
+    cooperative_tasks: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         self.agent_position = max(0, min(self.size - 1, self.start_position))
@@ -29,6 +32,12 @@ class GridWorld:
             self.blocked_zone = (max(2, (self.size // 2) - 1),)
         if not self.reward_zone:
             self.reward_zone = (max(1, self.goal_position - 1), self.goal_position)
+        if not self.shared_zones:
+            self.shared_zones = (max(1, self.size // 4), max(1, (self.size // 4) * 2))
+        if not self.shared_events:
+            self.shared_events = ("traffic-wave", "resource-window")
+        if not self.cooperative_tasks:
+            self.cooperative_tasks = (self.goal_position,)
 
     def available_actions(self) -> list[str]:
         return ["left", "right", "idle"]
@@ -103,6 +112,32 @@ class GridWorld:
         noisy["observation_uncertainty"] = min(1.0, self.noise_level + self._rng.random() * 0.2)
         return noisy
 
+    def multiagent_features(self, agent_positions: dict[str, int]) -> dict[str, Any]:
+        positions = {agent_id: max(0, min(self.size - 1, int(pos))) for agent_id, pos in agent_positions.items()}
+        collisions: list[dict[str, Any]] = []
+        values = list(positions.items())
+        for idx, (agent_a, pos_a) in enumerate(values):
+            for agent_b, pos_b in values[idx + 1 :]:
+                if pos_a == pos_b:
+                    collisions.append({"agents": (agent_a, agent_b), "position": pos_a})
+
+        shared_presence = {
+            zone: [agent_id for agent_id, pos in positions.items() if pos == zone]
+            for zone in self.shared_zones
+        }
+        group_reward = sum(1.0 for zone, members in shared_presence.items() if members and zone in self.reward_zone)
+        cooperative_progress = sum(1.0 for pos in positions.values() if pos in self.cooperative_tasks)
+
+        return {
+            "shared_zones": list(self.shared_zones),
+            "shared_events": list(self.shared_events),
+            "group_rewards": group_reward,
+            "collisions": collisions,
+            "cooperative_tasks": list(self.cooperative_tasks),
+            "cooperative_progress": cooperative_progress,
+            "shared_presence": shared_presence,
+        }
+
     def state(self) -> dict[str, Any]:
         base = {
             "t": self.t,
@@ -114,6 +149,9 @@ class GridWorld:
             "slippery_zone": list(self.slippery_zone),
             "blocked_zone": list(self.blocked_zone),
             "reward_zone": list(self.reward_zone),
+            "shared_zones": list(self.shared_zones),
+            "shared_events": list(self.shared_events),
+            "cooperative_tasks": list(self.cooperative_tasks),
             "causal_features": self.causal_features(),
         }
         return self.apply_noise(base)
@@ -124,3 +162,6 @@ class GridWorld:
 
     def causalfeatures(self) -> dict[str, dict[str, float]]:
         return self.causal_features()
+
+    def multiagentfeatures(self, agentpositions: dict[str, int]) -> dict[str, Any]:
+        return self.multiagent_features(agentpositions)

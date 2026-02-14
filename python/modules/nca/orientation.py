@@ -62,6 +62,29 @@ class OrientationCenter:
         )
         return max(0.0, min(1.0, weighted))
 
+
+    def update_from_collective_feedback(self, feedback: dict[str, Any]) -> dict[str, Any]:
+        collective_drift = bool(feedback.get("collective_drift", False))
+        collective_progress = float(feedback.get("collective_progress", 0.0))
+        goal_conflict = bool(feedback.get("goal_conflict", False))
+
+        if collective_drift:
+            self.impulsiveness = max(0.0, self.impulsiveness - 0.08)
+
+        if collective_progress > 0:
+            self.stability_preference = min(1.0, self.stability_preference + 0.06)
+
+        signal: dict[str, Any] = {}
+        if goal_conflict:
+            signal = {
+                "signal_type": "collectivegoalconflict",
+                "payload": {
+                    "identity": self.identity,
+                    "collective_progress": collective_progress,
+                },
+            }
+        return signal
+
     def personality_profile(self) -> dict[str, float]:
         return {
             "risk_tolerance": self.risk_tolerance,
@@ -76,3 +99,6 @@ class OrientationCenter:
 
     def computeselfconsistency(self, state: AgentState) -> float:
         return self.compute_self_consistency(state)
+
+    def updatefromcollective_feedback(self, feedback: dict[str, Any]) -> dict[str, Any]:
+        return self.update_from_collective_feedback(feedback)

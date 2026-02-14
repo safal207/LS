@@ -5,7 +5,12 @@ from typing import Any
 
 from .assembly import AgentState
 from .orientation import OrientationCenter
-from .signals import InternalSignal, SignalBus
+from .signals import (
+    COORDINATION_REQUIRED,
+    MULTIAGENT_DRIFT,
+    InternalSignal,
+    SignalBus,
+)
 
 
 @dataclass
@@ -17,6 +22,9 @@ class MetaReport:
     causal_risk: bool = False
     causal_score: float = 0.0
     signals_emitted: list[dict[str, Any]] = field(default_factory=list)
+    collective_score: float = 0.0
+    collective_risk: float = 0.0
+    collective_alignment: float = 1.0
 
 
 @dataclass
@@ -47,6 +55,15 @@ class MetaObserver:
         causal_risk = causal_score < self.causal_alert_threshold
         causal_drift = sum(1 for item in causal_scores if item < 0) >= 2
 
+        collective_scores = [
+            float(item.get("collective_score", item.get("analysis", {}).get("collective_score", 0.0)))
+            for item in state.history[-8:]
+        ]
+        collective_score = sum(collective_scores) / len(collective_scores) if collective_scores else 0.0
+        collective_drift = sum(1 for score in collective_scores if score < 0) >= 2
+        collective_consistency = max(0.0, min(1.0, (self_consistency + (1.0 - min(1.0, abs(collective_score)) * 0.25)) / 2))
+        collective_risk = max(0.0, min(1.0, (1.0 - collective_consistency) + (0.25 if collective_drift else 0.0)))
+
         return {
             "identity_drift_risk": drift_count >= self.drift_threshold,
             "drift_count": drift_count,
@@ -55,6 +72,11 @@ class MetaObserver:
             "causal_score": causal_score,
             "causal_risk": causal_risk,
             "causal_drift": causal_drift,
+            "collective_consistency": collective_consistency,
+            "collective_drift": collective_drift,
+            "collective_risk": collective_risk,
+            "collective_score": collective_score,
+            "collective_alignment": collective_consistency,
         }
 
     def stabilize(self, orientation: OrientationCenter, analysis: dict[str, Any]) -> None:
@@ -128,6 +150,27 @@ class MetaObserver:
             signal_bus.emit(sig)
             emitted.append({"type": sig.signal_type, "payload": sig.payload})
 
+        if analysis.get("collective_drift"):
+            sig = InternalSignal(
+                signal_type=MULTIAGENT_DRIFT,
+                t=state.t,
+                payload={"collective_score": analysis.get("collective_score", 0.0)},
+            )
+            signal_bus.emit(sig)
+            emitted.append({"type": sig.signal_type, "payload": sig.payload})
+
+        if analysis.get("collective_risk", 0.0) >= 0.5:
+            sig = InternalSignal(
+                signal_type=COORDINATION_REQUIRED,
+                t=state.t,
+                payload={
+                    "collective_risk": analysis.get("collective_risk", 0.0),
+                    "collective_alignment": analysis.get("collective_alignment", 0.0),
+                },
+            )
+            signal_bus.emit(sig)
+            emitted.append({"type": sig.signal_type, "payload": sig.payload})
+
         if analysis.get("causal_risk") and analysis.get("self_consistency", 1.0) < self.self_consistency_threshold:
             sig = InternalSignal(
                 signal_type="causal_inconsistency",
@@ -161,6 +204,9 @@ class MetaObserver:
                 "items": list(state.self_state.get("micro_goals", [])),
             },
             signals_emitted=emitted,
+            collective_score=float(analysis.get("collective_score", 0.0)),
+            collective_risk=float(analysis.get("collective_risk", 0.0)),
+            collective_alignment=float(analysis.get("collective_alignment", 1.0)),
         )
         self.analysis_history.append(report)
         return report
