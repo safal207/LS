@@ -113,19 +113,7 @@ class NCAAgent:
         self.identitycore.stabilize_identity()
         initiative = self.identitycore.generate_initiative()
 
-        intents = self.intentengine.generate_intents(
-            state,
-            self.identitycore,
-            self.self_model,
-            strategy=None,
-            values=self.values,
-            culture=self.culture,
-        )
-        primary_intent = self.intentengine.select_primary_intent()
-
         self.values.update_from_identity(self.identitycore)
-        self.values.update_from_intents(self.intentengine)
-        self.values.update_from_autonomy(self.autonomy)
 
         self.social.update_from_identity(self.identitycore)
         self.social.update_from_values(self.values)
@@ -149,6 +137,7 @@ class NCAAgent:
             civilization_adjustments=civilizationadjustments,
         )
         primary_strategy = self.autonomy.select_strategy()
+
         intents = self.intentengine.generate_intents(
             state,
             self.identitycore,
@@ -158,6 +147,9 @@ class NCAAgent:
             culture=self.culture,
         )
         primary_intent = self.intentengine.select_primary_intent()
+
+        self.values.update_from_intents(self.intentengine)
+        self.values.update_from_autonomy(self.autonomy)
 
         preferred_actions = list((initiative or {}).get("preferred_actions", []))
         if not preferred_actions and isinstance(primary_intent, dict):
