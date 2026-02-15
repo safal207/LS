@@ -17,8 +17,20 @@ class AutonomyEngine:
     selfregulationstrength: float = 0.5
     cooperativealignmentscore: float = 1.0
     groupstrategyadjustment: dict[str, Any] = field(default_factory=dict)
+    civilizationalignmentscore: float = 1.0
+    normcompliancefactor: float = 1.0
+    culturalstrategyadjustment: dict[str, Any] = field(default_factory=dict)
 
-    def generate_strategies(self, identitycore: Any, intentengine: Any, metacognition: Any, values: Any | None = None) -> list[dict[str, Any]]:
+    def generate_strategies(
+        self,
+        identitycore: Any,
+        intentengine: Any,
+        metacognition: Any,
+        values: Any | None = None,
+        culture: Any | None = None,
+        militocracy: Any | None = None,
+        synergy: Any | None = None,
+    ) -> list[dict[str, Any]]:
         integrity = float(getattr(identitycore, "identity_integrity", 1.0))
         agency = float(getattr(identitycore, "agency_level", 0.0))
         drift_resistance = float(getattr(identitycore, "drift_resistance", 1.0))
@@ -32,12 +44,30 @@ class AutonomyEngine:
             0.0,
             min(
                 1.0,
-                (0.27 * integrity) + (0.24 * agency) + (0.14 * drift_resistance) + (0.15 * intent_alignment) + (0.1 * (1.0 - meta_drift)) + (0.1 * value_alignment),
+                (0.27 * integrity)
+                + (0.24 * agency)
+                + (0.14 * drift_resistance)
+                + (0.15 * intent_alignment)
+                + (0.1 * (1.0 - meta_drift))
+                + (0.1 * value_alignment),
             ),
         )
 
         self.ethicalalignmentscore = max(0.0, min(1.0, value_alignment))
         self.selfregulationstrength = max(0.0, min(1.0, (0.5 * drift_resistance) + (0.5 * self.ethicalalignmentscore)))
+
+        culture_alignment = float(getattr(culture, "culturalalignmentscore", 1.0)) if culture is not None else 1.0
+        conflicts = getattr(culture, "norm_conflicts", getattr(culture, "normconflicts", [])) if culture is not None else []
+        self.civilizationalignmentscore = culture_alignment
+        self.normcompliancefactor = max(0.0, min(1.0, 1.0 - min(1.0, len(list(conflicts)) / 5.0)))
+        self.culturalstrategyadjustment = {
+            "stability_bias": 0.1 if culture_alignment < 0.55 else 0.0,
+            "cooperation_bias": 0.12 if culture_alignment > 0.7 else 0.04,
+        }
+
+        discipline = float(getattr(militocracy, "militarydisciplinescore", 0.5)) if militocracy is not None else 0.5
+        command = float(getattr(militocracy, "command_coherence", 0.5)) if militocracy is not None else 0.5
+        synergy_index = float(getattr(synergy, "synergy_index", 0.5)) if synergy is not None else 0.5
 
         strategies = [
             {
@@ -64,6 +94,14 @@ class AutonomyEngine:
                 "alignment": max(0.0, min(1.0, 0.45 * integrity + 0.3 * intent_alignment + 0.25 * drift_resistance)),
                 "selfdirected": True,
             },
+            {
+                "name": "coordinated_command",
+                "mode": "balanced",
+                "preferred_actions": ["forward", "idle"],
+                "strength": max(0.2, (0.35 * discipline) + (0.35 * command) + (0.3 * synergy_index)),
+                "alignment": max(0.0, min(1.0, (0.4 * discipline) + (0.3 * command) + (0.3 * self.normcompliancefactor))),
+                "selfdirected": True,
+            },
         ]
 
         self.selfdirectedgoals = [
@@ -79,6 +117,9 @@ class AutonomyEngine:
             "meta_drift": meta_drift,
             "ethicalalignmentscore": self.ethicalalignmentscore,
             "selfregulationstrength": self.selfregulationstrength,
+            "civilizationalignmentscore": self.civilizationalignmentscore,
+            "normcompliancefactor": self.normcompliancefactor,
+            "culturalstrategyadjustment": dict(self.culturalstrategyadjustment),
         }
         self.evaluate_autonomy_alignment(identitycore)
         return strategies
@@ -118,13 +159,15 @@ class AutonomyEngine:
             "autonomy_alignment": max(0.0, alignment),
             "ethicalalignmentscore": self.ethicalalignmentscore,
             "selfregulationstrength": self.selfregulationstrength,
+            "civilizationalignmentscore": self.civilizationalignmentscore,
+            "normcompliancefactor": self.normcompliancefactor,
+            "culturalstrategyadjustment": dict(self.culturalstrategyadjustment),
             "conflicts": [dict(c) for c in self.autonomy_conflicts],
         }
         self.autonomy_trace.append(entry)
         if len(self.autonomy_trace) > 200:
             self.autonomy_trace = self.autonomy_trace[-200:]
         return entry
-
 
     def apply_cooperative_regulation(self, social: Any | None, collective_state: dict[str, Any] | None = None) -> dict[str, Any]:
         collective_state = collective_state or {}
@@ -142,8 +185,25 @@ class AutonomyEngine:
         return dict(self.groupstrategyadjustment)
 
     # Compatibility aliases requested by specification.
-    def generatestrategies(self, identitycore: Any, intentengine: Any, metacognition: Any, values: Any | None = None) -> list[dict[str, Any]]:
-        return self.generate_strategies(identitycore, intentengine, metacognition, values=values)
+    def generatestrategies(
+        self,
+        identitycore: Any,
+        intentengine: Any,
+        metacognition: Any,
+        values: Any | None = None,
+        culture: Any | None = None,
+        militocracy: Any | None = None,
+        synergy: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        return self.generate_strategies(
+            identitycore,
+            intentengine,
+            metacognition,
+            values=values,
+            culture=culture,
+            militocracy=militocracy,
+            synergy=synergy,
+        )
 
     def selectstrategy(self) -> dict[str, Any] | None:
         return self.select_strategy()
@@ -156,4 +216,3 @@ class AutonomyEngine:
 
     def applycooperativeregulation(self, social: Any | None, collective_state: dict[str, Any] | None = None) -> dict[str, Any]:
         return self.apply_cooperative_regulation(social, collective_state)
-
