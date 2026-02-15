@@ -160,6 +160,7 @@ class NCAAgent:
         self.autonomy.apply_cooperative_regulation(self.social, self.collective_state)
         primary_strategy = self.autonomy.select_strategy()
 
+        self.intentengine.apply_social_influence(self.social, self.collective_state)
         intents = self.intentengine.generate_intents(
             state,
             self.identitycore,
@@ -169,7 +170,6 @@ class NCAAgent:
             social=self.social,
             collective_state=self.collective_state,
         )
-        self.intentengine.apply_social_influence(self.social, self.collective_state)
         primary_intent = self.intentengine.select_primary_intent()
         self.values.update_from_intents(self.intentengine)
         self.values.update_from_autonomy(self.autonomy)
