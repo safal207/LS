@@ -6,6 +6,7 @@ from typing import Any
 from .agent import NCAAgent
 from .shared_causal import SharedCausalGraph
 from .signals import CollectiveSignalBus, InternalSignal
+from .utils import normalize_traditions
 
 
 @dataclass
@@ -157,8 +158,7 @@ class MultiAgentSystem:
             if culture is None:
                 continue
 
-            from .culture_engine import CultureEngine
-            traditions = CultureEngine.normalize_traditions(getattr(culture, "traditions", {}))
+            traditions = normalize_traditions(getattr(culture, "traditions", {}))
 
             conflicts = getattr(culture, "norm_conflicts", getattr(culture, "normconflicts", []))
             culture_map[getattr(agent, "agent_id", f"agent-{idx}")] = {

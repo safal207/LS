@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .utils import normalize_traditions, MAX_TRACE_LENGTH
+
 
 @dataclass
 class SocialCognitionEngine:
@@ -24,6 +26,8 @@ class SocialCognitionEngine:
         collective = collective or {}
         self.collectivevaluealignment = float(collective.get("collectivevaluealignment", self.collectivevaluealignment))
         self.collectiveintentalignment = float(collective.get("collectiveintentalignment", self.collectiveintentalignment))
+
+        # Determine social conflict score first as it's used in cooperation inference
         self.socialconflictscore = max(
             0.0,
             min(
@@ -35,12 +39,15 @@ class SocialCognitionEngine:
                 ),
             ),
         )
+
+        # Use normalized key collectivecooperationscore, fallback only to self
         collective_cooperation = float(
             collective.get(
                 "collectivecooperationscore",
-                collective.get("collectivecooperation", collective.get("collectivecollaboration", self.cooperation_score)),
+                self.cooperation_score
             )
         )
+
         inferred_cooperation = max(
             0.0,
             min(
@@ -50,13 +57,19 @@ class SocialCognitionEngine:
                 + (0.25 * (1.0 - self.socialconflictscore)),
             ),
         )
+
+        # Update cooperation score based on pre-calculated inputs
         self.cooperation_score = max(0.0, min(1.0, 0.6 * collective_cooperation + 0.4 * inferred_cooperation))
+
         self.group_norms = {
             "cooperation": self.cooperation_score,
             "stability": 1.0 - self.socialconflictscore,
             "coordination": self.collectiveintentalignment,
         }
-        self.tradition_patterns = dict(collective.get("collectivetraditionpatterns", self.tradition_patterns))
+
+        # Normalize incoming traditions
+        self.tradition_patterns = normalize_traditions(collective.get("collectivetraditionpatterns", {}))
+
         self.culturalsimilarityscore = max(
             0.0,
             min(1.0, (0.45 * self.collectivevaluealignment) + (0.35 * self.collectiveintentalignment) + (0.2 * (1.0 - self.socialconflictscore))),
@@ -75,8 +88,8 @@ class SocialCognitionEngine:
             "model_count": len(self.social_models),
         }
         self.social_trace.append(snapshot)
-        if len(self.social_trace) > 200:
-            self.social_trace = self.social_trace[-200:]
+        if len(self.social_trace) > MAX_TRACE_LENGTH:
+            self.social_trace = self.social_trace[-MAX_TRACE_LENGTH:]
         return snapshot
 
     def infer_other_agents_intents(self, events: list[dict[str, Any]] | None) -> dict[str, dict[str, Any]]:

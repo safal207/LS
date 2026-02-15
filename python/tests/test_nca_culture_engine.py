@@ -13,6 +13,7 @@ from modules.nca.orientation import OrientationCenter  # noqa: E402
 from modules.nca.signals import InternalSignal  # noqa: E402
 from modules.nca.trajectories import TrajectoryOption  # noqa: E402
 from modules.nca.world import GridWorld  # noqa: E402
+from modules.nca.utils import normalize_traditions, MAX_NORM_CONFLICTS, MAX_TRACE_LENGTH  # noqa: E402
 
 
 def _make_agent(identity: str = "t-agent") -> NCAAgent:
@@ -266,3 +267,16 @@ def test_phase_11_collective_norms() -> None:
 
     # 0.6 is the average of 0.8 and 0.4
     assert 0.55 < collective["collectivenorms"]["honesty"] < 0.65
+
+def test_normalize_traditions_utility() -> None:
+    # Dict input
+    assert normalize_traditions({"a": 0.5}) == {"a": 0.5}
+    # List input
+    assert normalize_traditions([{"pattern": "a", "strength": 0.5}]) == {"a": 0.5}
+    # Empty input
+    assert normalize_traditions(None) == {}
+    assert normalize_traditions([]) == {}
+
+def test_constants_exposed() -> None:
+    assert MAX_NORM_CONFLICTS == 5.0
+    assert MAX_TRACE_LENGTH == 200

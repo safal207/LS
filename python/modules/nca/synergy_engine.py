@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .utils import MAX_TRACE_LENGTH
+
 
 @dataclass
 class SynergyEngine:
@@ -54,6 +56,10 @@ class SynergyEngine:
     def update_from_collective(self, multi: Any) -> dict[str, float]:
         # Cleanly read from the pre-computed collective state in MultiAgentSystem
         # This resolves the semantic discrepancy noted in code review.
+        # Note: In a synchronous step model, this reads the collective state computed AFTER
+        # the current step's actions, so it effectively reflects the state at time t
+        # which will be used for decision making at time t+1. There is a 1-step lag
+        # relative to the immediate action, which is standard for multi-agent systems.
         self.collective_synergy = float(getattr(multi, "collectivesynergy", 0.5))
         return {
             "synergy_index": self.synergy_index,
@@ -68,8 +74,8 @@ class SynergyEngine:
             "collective_synergy": self.collective_synergy,
         }
         self.synergy_trace.append(entry)
-        if len(self.synergy_trace) > 200:
-            self.synergy_trace = self.synergy_trace[-200:]
+        if len(self.synergy_trace) > MAX_TRACE_LENGTH:
+            self.synergy_trace = self.synergy_trace[-MAX_TRACE_LENGTH:]
         return entry
 
     # Compatibility aliases (camelCase delegates to snake_case primary)

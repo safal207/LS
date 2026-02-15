@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .utils import normalize_traditions, MAX_NORM_CONFLICTS
+
 
 @dataclass
 class IdentityCore:
@@ -249,11 +251,11 @@ class IdentityCore:
             return self.culturalidentityscore
 
         norms = dict(getattr(culture_engine, "norms", {}))
-        from .culture_engine import CultureEngine
-        traditions = CultureEngine.normalize_traditions(getattr(culture_engine, "traditions", {}))
+        # Use shared normalization
+        traditions = normalize_traditions(getattr(culture_engine, "traditions", {}))
 
         conflicts = getattr(culture_engine, "norm_conflicts", getattr(culture_engine, "normconflicts", []))
-        conflict = min(1.0, len(list(conflicts)) / 5.0)
+        conflict = min(1.0, len(list(conflicts)) / MAX_NORM_CONFLICTS)
 
         cooperation_fit = float(norms.get("cooperation", self.culturalpreferenceprofile.get("cooperation", 0.7)))
         stability_fit = float(norms.get("stability", self.culturalpreferenceprofile.get("stability", 0.7)))

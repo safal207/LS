@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .utils import MAX_TRACE_LENGTH, MAX_NORM_CONFLICTS
+
 
 @dataclass
 class AutonomyEngine:
@@ -57,9 +59,15 @@ class AutonomyEngine:
         self.selfregulationstrength = max(0.0, min(1.0, (0.5 * drift_resistance) + (0.5 * self.ethicalalignmentscore)))
 
         culture_alignment = float(getattr(culture, "culturalalignmentscore", 1.0)) if culture is not None else 1.0
-        conflicts = getattr(culture, "norm_conflicts", getattr(culture, "normconflicts", [])) if culture is not None else []
+
+        # Use property or fallback
+        if hasattr(culture, "conflicts"):
+            conflicts = culture.conflicts
+        else:
+            conflicts = getattr(culture, "norm_conflicts", getattr(culture, "normconflicts", [])) if culture is not None else []
+
         self.civilizationalignmentscore = culture_alignment
-        self.normcompliancefactor = max(0.0, min(1.0, 1.0 - min(1.0, len(list(conflicts)) / 5.0)))
+        self.normcompliancefactor = max(0.0, min(1.0, 1.0 - min(1.0, len(list(conflicts)) / MAX_NORM_CONFLICTS)))
         self.culturalstrategyadjustment = {
             "stability_bias": 0.1 if culture_alignment < 0.55 else 0.0,
             "cooperation_bias": 0.12 if culture_alignment > 0.7 else 0.04,
@@ -165,8 +173,8 @@ class AutonomyEngine:
             "conflicts": [dict(c) for c in self.autonomy_conflicts],
         }
         self.autonomy_trace.append(entry)
-        if len(self.autonomy_trace) > 200:
-            self.autonomy_trace = self.autonomy_trace[-200:]
+        if len(self.autonomy_trace) > MAX_TRACE_LENGTH:
+            self.autonomy_trace = self.autonomy_trace[-MAX_TRACE_LENGTH:]
         return entry
 
     def apply_cooperative_regulation(self, social: Any | None, collective_state: dict[str, Any] | None = None) -> dict[str, Any]:

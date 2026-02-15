@@ -4,6 +4,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
+from .utils import normalize_traditions, MAX_TRACE_LENGTH
+
 
 @dataclass
 class SelfModel:
@@ -299,8 +301,7 @@ class SelfModel:
         if recent:
             self.intentstabilityscore = max(
                 0.0,
-                min(
-                    1.0,
+                min(1.0,
                     sum(
                         max(0.0, min(1.0, float(item.get("intent_alignment", 0.0)) - (0.15 * float(item.get("conflict_count", 0.0)))))
                         for item in recent
@@ -430,8 +431,8 @@ class SelfModel:
         if culture_engine is None:
             return {}
 
-        from .culture_engine import CultureEngine
-        traditions = CultureEngine.normalize_traditions(getattr(culture_engine, "traditions", {}))
+        # Use utility instead of local import
+        traditions = normalize_traditions(getattr(culture_engine, "traditions", {}))
         tradition_count = len(traditions)
 
         conflicts = getattr(culture_engine, "norm_conflicts", getattr(culture_engine, "normconflicts", []))
@@ -449,8 +450,8 @@ class SelfModel:
             "cultural_signal": "aligned" if entry["culturalalignmentscore"] > 0.7 else "drifting",
             "conflict_pressure": entry["conflict_count"] > 0,
         })
-        if len(self.cultural_markers) > self.max_history:
-            self.cultural_markers = self.cultural_markers[-self.max_history :]
+        if len(self.cultural_markers) > MAX_TRACE_LENGTH:
+            self.cultural_markers = self.cultural_markers[-MAX_TRACE_LENGTH:]
         return entry
 
 
