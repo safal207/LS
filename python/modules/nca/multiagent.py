@@ -39,6 +39,8 @@ class MultiAgentSystem:
     collectivemilitarydiscipline: float = 0.5
     collectivecommandcoherence: float = 0.5
     collectivesynergyindex: float = 0.5
+    collectivesynergy: float = 0.5
+    collectivemilitocracy: float = 0.5
 
     def add_agent(self, agent: NCAAgent, *, agent_id: str | None = None) -> None:
         resolved_id = agent_id or getattr(agent.orientation, "identity", None) or f"agent-{len(self.agents)}"
@@ -189,7 +191,6 @@ class MultiAgentSystem:
         cc = [min(1.0, len(v.get("norm_conflicts", []))/5.0) for v in culture_map.values()]
         self.collectiveculturealignment = sum(ca) / max(1, len(ca))
         self.collectiveculturalconflict = sum(cc) / max(1, len(cc))
-        self.civilizationmaturityscore = max(0.0, min(1.0, (0.65 * self.collectiveculturealignment) + (0.35 * (1.0 - self.collectiveculturalconflict))))
 
         identity_cores = {
             getattr(agent, "agent_id", f"agent-{idx}"): {
@@ -220,6 +221,18 @@ class MultiAgentSystem:
         self.collectivemilitarydiscipline = sum(discipline_scores) / max(1, len(discipline_scores))
         self.collectivecommandcoherence = sum(coherence_scores) / max(1, len(coherence_scores))
         self.collectivesynergyindex = sum(synergy_scores) / max(1, len(synergy_scores))
+        self.collectivesynergy = self.collectivesynergyindex
+        self.collectivemilitocracy = self.collectivemilitarydiscipline
+
+        self.civilizationmaturityscore = max(
+            0.0,
+            min(
+                1.0,
+                (0.5 * self.collectiveculturealignment)
+                + (0.3 * (1.0 - self.collectiveculturalconflict))
+                + (0.2 * self.collectivesynergyindex),
+            ),
+        )
 
         return {
             "agent_positions": positions,
@@ -248,6 +261,8 @@ class MultiAgentSystem:
             "collectivemilitarydiscipline": self.collectivemilitarydiscipline,
             "collectivecommandcoherence": self.collectivecommandcoherence,
             "collectivesynergyindex": self.collectivesynergyindex,
+            "collectivesynergy": self.collectivesynergy,
+            "collectivemilitocracy": self.collectivemilitocracy,
             "collectiveagencyshift": self.collectiveagencylevel > 0.65,
             "collectiveintentshift": self.collectiveintentalignment < 0.6,
             "collectiveautonomyshift": self.collectiveautonomylevel > 0.62,

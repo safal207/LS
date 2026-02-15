@@ -197,6 +197,8 @@ def test_multiagent_collective_phase_11_1_metrics() -> None:
     assert 0.0 <= float(collective.get("collectivemilitarydiscipline", 0.0)) <= 1.0
     assert 0.0 <= float(collective.get("collectivecommandcoherence", 0.0)) <= 1.0
     assert 0.0 <= float(collective.get("collectivesynergyindex", 0.0)) <= 1.0
+    assert 0.0 <= float(collective.get("collectivesynergy", 0.0)) <= 1.0
+    assert 0.0 <= float(collective.get("collectivemilitocracy", 0.0)) <= 1.0
 
 
 def test_event_serialization_handles_list_traditions_shapes() -> None:

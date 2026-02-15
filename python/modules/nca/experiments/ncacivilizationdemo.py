@@ -36,12 +36,14 @@ class NCACivilizationDemo:
             events.extend(system.step_all())
 
         collective = system.collective_state()
-        print("=== NCA Civilization Demo (Phase 11) ===")
+        print("=== NCA Civilization Demo (Phase 11.1) ===")
         print("collective norms:", collective.get("collectivenorms", {}))
         print("collective traditions:", collective.get("collectivetraditionpatterns", {}))
         print("civilization maturity:", collective.get("civilizationmaturityscore", 0.0))
         print("collective culture alignment:", collective.get("collectiveculturealignment", 0.0))
         print("cultural conflicts:", collective.get("collectiveculturalconflict", 0.0))
+        print("collective synergy:", collective.get("collectivesynergy", collective.get("collectivesynergyindex", 0.0)))
+        print("collective militocracy:", collective.get("collectivemilitocracy", collective.get("collectivemilitarydiscipline", 0.0)))
 
         return {"events": events, "collective": collective}
 
