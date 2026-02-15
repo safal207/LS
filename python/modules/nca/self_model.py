@@ -427,13 +427,12 @@ class SelfModel:
         return entry
 
     def update_culture_metrics(self, culture_engine: Any) -> dict[str, Any]:
-        raw_traditions = getattr(culture_engine, "traditions", {})
-        if isinstance(raw_traditions, dict):
-            tradition_count = len(raw_traditions)
-        elif isinstance(raw_traditions, list):
-            tradition_count = len([item for item in raw_traditions if isinstance(item, dict)])
-        else:
-            tradition_count = 0
+        if culture_engine is None:
+            return {}
+
+        from .culture_engine import CultureEngine
+        traditions = CultureEngine.normalize_traditions(getattr(culture_engine, "traditions", {}))
+        tradition_count = len(traditions)
 
         conflicts = getattr(culture_engine, "norm_conflicts", getattr(culture_engine, "normconflicts", []))
 

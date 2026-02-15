@@ -249,13 +249,8 @@ class IdentityCore:
             return self.culturalidentityscore
 
         norms = dict(getattr(culture_engine, "norms", {}))
-        raw_traditions = getattr(culture_engine, "traditions", {})
-        if isinstance(raw_traditions, dict):
-            traditions = dict(raw_traditions)
-        elif isinstance(raw_traditions, list):
-            traditions = {str(item.get("pattern", f"tradition_{idx}")): float(item.get("strength", 0.5)) for idx, item in enumerate(raw_traditions) if isinstance(item, dict)}
-        else:
-            traditions = {}
+        from .culture_engine import CultureEngine
+        traditions = CultureEngine.normalize_traditions(getattr(culture_engine, "traditions", {}))
 
         conflicts = getattr(culture_engine, "norm_conflicts", getattr(culture_engine, "normconflicts", []))
         conflict = min(1.0, len(list(conflicts)) / 5.0)

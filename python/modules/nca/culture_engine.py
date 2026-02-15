@@ -8,6 +8,9 @@ from typing import Any
 class CultureEngine:
     """Phase 11 culture engine for norms, traditions, and civilizational adaptation."""
 
+    # Constant for normalization threshold
+    MAX_NORM_CONFLICTS: float = 5.0
+
     cultural_memory: list[dict[str, Any]] = field(default_factory=list)
     norms: dict[str, float] = field(default_factory=dict)
     traditions: dict[str, Any] = field(default_factory=dict)
@@ -15,6 +18,10 @@ class CultureEngine:
     civilization_state: dict[str, Any] = field(default_factory=dict)
     culturalalignmentscore: float = 1.0
     culture_trace: list[dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def conflicts(self) -> list[dict[str, Any]]:
+        return self.norm_conflicts
 
     @staticmethod
     def normalize_traditions(raw: Any) -> dict[str, Any]:

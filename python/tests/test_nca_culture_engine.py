@@ -130,10 +130,11 @@ def test_multiagent_and_self_model_support_list_traditions() -> None:
     assert metrics["tradition_count"] == 1
 
 
-def test_trajectory_culture_alignment_uses_normconflicts_alias() -> None:
+def test_trajectory_culture_alignment_uses_conflicts_property() -> None:
     agent = _make_agent("traj")
-    agent.culture.norm_conflicts = []
-    setattr(agent.culture, "normconflicts", [{"norm": "stability", "severity": 0.9}] * 3)
+    agent.culture.norm_conflicts = [{"norm": "stability", "severity": 0.9}] * 3
+    # Verify property access
+    assert len(agent.culture.conflicts) == 3
 
     planner = agent.planner
     opt = TrajectoryOption(

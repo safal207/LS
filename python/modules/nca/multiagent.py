@@ -157,17 +157,8 @@ class MultiAgentSystem:
             if culture is None:
                 continue
 
-            raw_traditions = getattr(culture, "traditions", {})
-            if isinstance(raw_traditions, dict):
-                traditions = dict(raw_traditions)
-            elif isinstance(raw_traditions, list):
-                traditions = {
-                    str(item.get("pattern", f"tradition_{i}")): float(item.get("strength", 0.0))
-                    for i, item in enumerate(raw_traditions)
-                    if isinstance(item, dict)
-                }
-            else:
-                traditions = {}
+            from .culture_engine import CultureEngine
+            traditions = CultureEngine.normalize_traditions(getattr(culture, "traditions", {}))
 
             conflicts = getattr(culture, "norm_conflicts", getattr(culture, "normconflicts", []))
             culture_map[getattr(agent, "agent_id", f"agent-{idx}")] = {
