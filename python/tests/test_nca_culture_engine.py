@@ -81,7 +81,7 @@ def test_collective_traditions_are_aggregated_not_last_write_wins() -> None:
     mas.add_agent(a2)
 
     collective = mas.collective_state()
-    assert collective["collectivetraditionpatterns"]["ritual"] == 0.5
+    assert abs(collective["collectivetraditionpatterns"]["ritual"] - 0.5) < 1e-9
 
 
 def test_culture_alignment_uses_explicit_scores() -> None:
@@ -124,7 +124,7 @@ def test_multiagent_and_self_model_support_list_traditions() -> None:
     mas.add_agent(a2)
     collective = mas.collective_state()
 
-    assert collective["collectivetraditionpatterns"]["ritual"] == 0.5
+    assert abs(collective["collectivetraditionpatterns"]["ritual"] - 0.5) < 1e-9
 
     metrics = a1.self_model.update_culture_metrics(a1.culture)
     assert metrics["tradition_count"] == 1
@@ -150,7 +150,7 @@ def test_trajectory_culture_alignment_uses_normconflicts_alias() -> None:
 
 
 
-def test_social_influence_applies_before_intent_generation() -> None:
+def test_social_influence_applies_after_intent_generation() -> None:
     agent = _make_agent("ordering")
     order: list[str] = []
 
@@ -171,7 +171,7 @@ def test_social_influence_applies_before_intent_generation() -> None:
     agent.step()
 
     assert "apply" in order and "generate" in order
-    assert order.index("apply") < order.index("generate")
+    assert order.index("generate") < order.index("apply")
 
 def test_phase_11_1_engines_are_emitted_in_agent_event() -> None:
     agent = _make_agent("phase11_1")

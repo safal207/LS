@@ -85,11 +85,6 @@ class MultiAgentSystem:
 
         for agent in self.agents:
             agent.collective_state = collective
-            synergy_engine = getattr(agent, "synergy", None)
-            if synergy_engine is not None and hasattr(synergy_engine, "update_from_collective"):
-                synergy_engine.update_from_collective(self)
-                if hasattr(synergy_engine, "update_trace"):
-                    synergy_engine.update_trace()
         return step_events
 
     def collective_state(self) -> dict[str, Any]:
@@ -233,6 +228,14 @@ class MultiAgentSystem:
                 + (0.2 * self.collectivesynergyindex),
             ),
         )
+
+        # Update synergy engines only after the full collective metrics are computed.
+        for agent in self.agents:
+            synergy_engine = getattr(agent, "synergy", None)
+            if synergy_engine is not None and hasattr(synergy_engine, "update_from_collective"):
+                synergy_engine.update_from_collective(self)
+                if hasattr(synergy_engine, "update_trace"):
+                    synergy_engine.update_trace()
 
         return {
             "agent_positions": positions,

@@ -95,6 +95,7 @@ class NCAAgent:
         )
 
     def step(self) -> dict[str, Any]:
+        """Execute one decision cycle and return structured step output."""
         state = self.build_state()
         self_snapshot = self.self_model.update_from_state(state)
         analysis = self.meta_observer.observe_and_correct(
@@ -160,7 +161,6 @@ class NCAAgent:
         self.autonomy.apply_cooperative_regulation(self.social, self.collective_state)
         primary_strategy = self.autonomy.select_strategy()
 
-        self.intentengine.apply_social_influence(self.social, self.collective_state)
         intents = self.intentengine.generate_intents(
             state,
             self.identitycore,
@@ -170,6 +170,7 @@ class NCAAgent:
             social=self.social,
             collective_state=self.collective_state,
         )
+        self.intentengine.apply_social_influence(self.social, self.collective_state)
         primary_intent = self.intentengine.select_primary_intent()
         self.values.update_from_intents(self.intentengine)
         self.values.update_from_autonomy(self.autonomy)
