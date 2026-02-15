@@ -22,6 +22,10 @@ class SocialCognitionEngine:
     conflict_index: float = 0.0
     social_trace: list[dict[str, Any]] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        if self.tradition_patterns:
+            self.tradition_patterns = normalize_traditions(self.tradition_patterns)
+
     def update_from_collective_state(self, collective: dict[str, Any] | None) -> dict[str, Any]:
         collective = collective or {}
         self.collectivevaluealignment = float(collective.get("collectivevaluealignment", self.collectivevaluealignment))

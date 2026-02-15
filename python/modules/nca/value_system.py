@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .utils import MAX_TRACE_LENGTH
+
 
 @dataclass
 class ValueSystem:
@@ -182,8 +184,8 @@ class ValueSystem:
                 "traditionvaluemap": dict(self.traditionvaluemap),
             }
         )
-        if len(self.value_trace) > 200:
-            self.value_trace = self.value_trace[-200:]
+        if len(self.value_trace) > MAX_TRACE_LENGTH:
+            self.value_trace = self.value_trace[-MAX_TRACE_LENGTH:]
         return dict(self.core_values)
 
     def updatefromidentity(self, identity_core: Any) -> None:
@@ -206,4 +208,3 @@ class ValueSystem:
 
     def resolvevalueconflicts(self) -> list[dict[str, Any]]:
         return self.resolve_value_conflicts()
-

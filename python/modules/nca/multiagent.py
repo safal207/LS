@@ -6,7 +6,7 @@ from typing import Any
 from .agent import NCAAgent
 from .shared_causal import SharedCausalGraph
 from .signals import CollectiveSignalBus, InternalSignal
-from .utils import normalize_traditions
+from .utils import normalize_traditions, get_norm_conflicts, MAX_NORM_CONFLICTS
 
 
 @dataclass
@@ -160,7 +160,7 @@ class MultiAgentSystem:
 
             traditions = normalize_traditions(getattr(culture, "traditions", {}))
 
-            conflicts = getattr(culture, "norm_conflicts", getattr(culture, "normconflicts", []))
+            conflicts = get_norm_conflicts(culture)
             culture_map[getattr(agent, "agent_id", f"agent-{idx}")] = {
                 "culturalalignmentscore": float(getattr(culture, "culturalalignmentscore", 1.0)),
                 "norms": dict(getattr(culture, "norms", {})),
@@ -179,7 +179,7 @@ class MultiAgentSystem:
                     tradition_acc.setdefault(str(k), []).append(float(v))
         self.collectivetraditionpatterns = {k: sum(v) / max(1, len(v)) for k, v in tradition_acc.items()}
         ca = [float(v.get("culturalalignmentscore", 1.0)) for v in culture_map.values()]
-        cc = [min(1.0, len(v.get("norm_conflicts", []))/5.0) for v in culture_map.values()]
+        cc = [min(1.0, len(v.get("norm_conflicts", []))/MAX_NORM_CONFLICTS) for v in culture_map.values()]
         self.collectiveculturealignment = sum(ca) / max(1, len(ca))
         self.collectiveculturalconflict = sum(cc) / max(1, len(cc))
 

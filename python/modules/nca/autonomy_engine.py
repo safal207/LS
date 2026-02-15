@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .utils import MAX_TRACE_LENGTH, MAX_NORM_CONFLICTS
+from .utils import MAX_TRACE_LENGTH, MAX_NORM_CONFLICTS, get_norm_conflicts
 
 
 @dataclass
@@ -60,11 +60,7 @@ class AutonomyEngine:
 
         culture_alignment = float(getattr(culture, "culturalalignmentscore", 1.0)) if culture is not None else 1.0
 
-        # Use property or fallback
-        if hasattr(culture, "conflicts"):
-            conflicts = culture.conflicts
-        else:
-            conflicts = getattr(culture, "norm_conflicts", getattr(culture, "normconflicts", [])) if culture is not None else []
+        conflicts = get_norm_conflicts(culture) if culture is not None else []
 
         self.civilizationalignmentscore = culture_alignment
         self.normcompliancefactor = max(0.0, min(1.0, 1.0 - min(1.0, len(list(conflicts)) / MAX_NORM_CONFLICTS)))
