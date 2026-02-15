@@ -212,3 +212,14 @@ def test_event_serialization_handles_list_traditions_shapes() -> None:
     assert isinstance(event["culture"]["traditions"], (list, dict))
     assert isinstance(event["militocracy"]["snapshot"], dict)
     assert isinstance(event["synergy"]["snapshot"], dict)
+
+
+def test_civilization_demo_exposes_phase_11_1_collective_metrics() -> None:
+    from modules.nca.experiments.ncacivilizationdemo import NCACivilizationDemo
+
+    result = NCACivilizationDemo(steps=1, agent_count=2).run()
+    collective = result.get("collective", {})
+
+    assert "collectivesynergy" in collective
+    assert "collectivemilitocracy" in collective
+    assert 0.0 <= float(collective.get("civilizationmaturityscore", 0.0)) <= 1.0
