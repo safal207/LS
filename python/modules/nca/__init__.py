@@ -1,4 +1,4 @@
-"""NCA Phase 1.5 prototype components."""
+"""NCA Phase 1.5 + Phase 11 components."""
 
 from .agent import NCAAgent
 from .assembly import AgentState, AssemblyPoint
