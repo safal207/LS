@@ -247,8 +247,16 @@ class IdentityCore:
             return self.culturalidentityscore
 
         norms = dict(getattr(culture_engine, "norms", {}))
-        traditions = dict(getattr(culture_engine, "traditions", {}))
-        conflict = min(1.0, len(list(getattr(culture_engine, "norm_conflicts", []))) / 5.0)
+        raw_traditions = getattr(culture_engine, "traditions", {})
+        if isinstance(raw_traditions, dict):
+            traditions = dict(raw_traditions)
+        elif isinstance(raw_traditions, list):
+            traditions = {str(item.get("pattern", f"tradition_{idx}")): float(item.get("strength", 0.5)) for idx, item in enumerate(raw_traditions) if isinstance(item, dict)}
+        else:
+            traditions = {}
+
+        conflicts = getattr(culture_engine, "norm_conflicts", getattr(culture_engine, "normconflicts", []))
+        conflict = min(1.0, len(list(conflicts)) / 5.0)
 
         cooperation_fit = float(norms.get("cooperation", self.culturalpreferenceprofile.get("cooperation", 0.7)))
         stability_fit = float(norms.get("stability", self.culturalpreferenceprofile.get("stability", 0.7)))

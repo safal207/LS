@@ -229,6 +229,11 @@ class MetaCognitionEngine:
             self.history = self.history[-self.max_history :]
         return feedback
 
+    @property
+    def latestfeedback(self) -> dict[str, Any]:
+        """Compatibility alias for compact-name integrations."""
+        return self.latest_feedback
+
     def _normalize_report(self, meta_report: Any) -> dict[str, Any]:
         if isinstance(meta_report, dict):
             return dict(meta_report)

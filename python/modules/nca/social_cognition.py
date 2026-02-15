@@ -35,7 +35,8 @@ class SocialCognitionEngine:
                 ),
             ),
         )
-        self.cooperation_score = max(
+        collective_cooperation = float(collective.get("collectivecooperation", collective.get("collectivecollaboration", self.cooperation_score)))
+        inferred_cooperation = max(
             0.0,
             min(
                 1.0,
@@ -44,6 +45,7 @@ class SocialCognitionEngine:
                 + (0.25 * (1.0 - self.socialconflictscore)),
             ),
         )
+        self.cooperation_score = max(0.0, min(1.0, 0.6 * collective_cooperation + 0.4 * inferred_cooperation))
         self.group_norms = {
             "cooperation": self.cooperation_score,
             "stability": 1.0 - self.socialconflictscore,
@@ -74,9 +76,9 @@ class SocialCognitionEngine:
 
     def infer_other_agents_intents(self, events: list[dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
         for event in events or []:
-            agent_id = str(event.get("agent_id", event.get("sourceagentid", "unknown")))
+            agent_id = str(event.get("agent_id", event.get("sourceagentid", event.get("agent", "unknown"))))
             model = self.social_models.setdefault(agent_id, {})
-            primary_intent = event.get("primary_intent", {}) if isinstance(event, dict) else {}
+            primary_intent = event.get("primary_intent", event.get("primaryintent", {})) if isinstance(event, dict) else {}
             if primary_intent:
                 model["intent"] = dict(primary_intent)
                 model["intent_alignment"] = float(primary_intent.get("alignment", model.get("intent_alignment", 0.6)))
@@ -85,12 +87,13 @@ class SocialCognitionEngine:
 
     def infer_other_agents_values(self, events: list[dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
         for event in events or []:
-            agent_id = str(event.get("agent_id", event.get("sourceagentid", "unknown")))
+            agent_id = str(event.get("agent_id", event.get("sourceagentid", event.get("agent", "unknown"))))
             model = self.social_models.setdefault(agent_id, {})
             value_block = event.get("values", {}) if isinstance(event, dict) else {}
             if value_block:
-                model["values"] = dict(value_block.get("core_values", {}))
-                model["valuealignmentscore"] = float(value_block.get("valuealignmentscore", model.get("valuealignmentscore", 0.6)))
+                core_values = value_block.get("core_values", value_block.get("corevalues", {}))
+                model["values"] = dict(core_values) if isinstance(core_values, dict) else {}
+                model["valuealignmentscore"] = float(value_block.get("valuealignmentscore", value_block.get("value_alignment", model.get("valuealignmentscore", 0.6))))
         return self.social_models
 
     def evaluate_social_alignment(self, self_agent: Any, others: dict[str, Any] | None) -> float:
@@ -151,6 +154,8 @@ class SocialCognitionEngine:
             "socialconflictscore": self.socialconflictscore,
             "collectivevaluealignment": self.collectivevaluealignment,
             "collectiveintentalignment": self.collectiveintentalignment,
+            "group_norms": dict(self.group_norms),
+            "tradition_patterns": dict(self.tradition_patterns),
         }
 
     # Compatibility aliases requested by specification.

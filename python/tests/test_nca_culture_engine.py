@@ -88,3 +88,25 @@ def test_culture_alignment_uses_explicit_scores() -> None:
     agent = _make_agent()
     score = agent.culture.evaluate_cultural_alignment(0.9, 0.8, 0.7)
     assert 0.0 <= score <= 1.0
+
+
+def test_social_and_identity_compatibility_fallback_inputs() -> None:
+    agent = _make_agent("compat")
+
+    events = [
+        {
+            "agent": "peer-1",
+            "primaryintent": {"desired_mode": "balanced", "alignment": 0.7, "strength": 0.6},
+            "values": {"corevalues": {"collective_good": 0.8}, "value_alignment": 0.75},
+        }
+    ]
+    agent.social.infer_other_agents_intents(events)
+    agent.social.infer_other_agents_values(events)
+    social_snapshot = agent.social.update_from_collective_state({"collectivecollaboration": 0.9})
+
+    assert "peer-1" in agent.social.social_models
+    assert social_snapshot["cooperation_score"] > 0.0
+
+    agent.culture.traditions = [{"pattern": "repeat_idle", "strength": 0.9}]
+    score = agent.identitycore.evaluate_cultural_compatibility(agent.culture)
+    assert 0.0 <= score <= 1.0
