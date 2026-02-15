@@ -223,3 +223,23 @@ def test_civilization_demo_exposes_phase_11_1_collective_metrics() -> None:
     assert "collectivesynergy" in collective
     assert "collectivemilitocracy" in collective
     assert 0.0 <= float(collective.get("civilizationmaturityscore", 0.0)) <= 1.0
+
+
+def test_collective_alias_metrics_match_canonical_values() -> None:
+    a1 = _make_agent("alias1")
+    a2 = _make_agent("alias2")
+
+    a1.step()
+    a2.step()
+
+    mas = MultiAgentSystem()
+    mas.add_agent(a1)
+    mas.add_agent(a2)
+    collective = mas.collective_state()
+
+    assert float(collective.get("collectivesynergy", -1.0)) == float(
+        collective.get("collectivesynergyindex", -2.0)
+    )
+    assert float(collective.get("collectivemilitocracy", -1.0)) == float(
+        collective.get("collectivemilitarydiscipline", -2.0)
+    )
