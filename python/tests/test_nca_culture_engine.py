@@ -7,12 +7,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from modules.nca.agent import NCAAgent
-from modules.nca.multiagent import MultiAgentSystem
-from modules.nca.orientation import OrientationCenter
-from modules.nca.signals import InternalSignal
-from modules.nca.trajectories import TrajectoryOption
-from modules.nca.world import GridWorld
+from modules.nca.agent import NCAAgent  # noqa: E402
+from modules.nca.multiagent import MultiAgentSystem  # noqa: E402
+from modules.nca.orientation import OrientationCenter  # noqa: E402
+from modules.nca.signals import InternalSignal  # noqa: E402
+from modules.nca.trajectories import TrajectoryOption  # noqa: E402
+from modules.nca.world import GridWorld  # noqa: E402
 
 
 def _make_agent(identity: str = "t-agent") -> NCAAgent:
