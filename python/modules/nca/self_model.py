@@ -427,12 +427,22 @@ class SelfModel:
         return entry
 
     def update_culture_metrics(self, culture_engine: Any) -> dict[str, Any]:
+        raw_traditions = getattr(culture_engine, "traditions", {})
+        if isinstance(raw_traditions, dict):
+            tradition_count = len(raw_traditions)
+        elif isinstance(raw_traditions, list):
+            tradition_count = len([item for item in raw_traditions if isinstance(item, dict)])
+        else:
+            tradition_count = 0
+
+        conflicts = getattr(culture_engine, "norm_conflicts", getattr(culture_engine, "normconflicts", []))
+
         entry = {
             "t": len(self.cultural_trace),
             "culturalalignmentscore": float(getattr(culture_engine, "culturalalignmentscore", 0.0)),
             "norm_count": len(dict(getattr(culture_engine, "norms", {}))),
-            "tradition_count": len(dict(getattr(culture_engine, "traditions", {}))),
-            "conflict_count": len(list(getattr(culture_engine, "norm_conflicts", []))),
+            "tradition_count": tradition_count,
+            "conflict_count": len(list(conflicts)),
         }
         self.cultural_trace.append(entry)
         self.cultural_markers.append({

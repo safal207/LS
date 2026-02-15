@@ -251,13 +251,14 @@ class TrajectoryPlanner:
         if culture is None:
             return 0.0
         base = float(getattr(culture, "culturalalignmentscore", 0.0))
-        conflict = min(1.0, len(getattr(culture, "norm_conflicts", [])) / 5.0)
+        conflicts = getattr(culture, "norm_conflicts", getattr(culture, "normconflicts", []))
+        conflict = min(1.0, len(list(conflicts)) / 5.0)
         norms = dict(getattr(culture, "norms", {}))
         if option.action == "idle" and float(norms.get("stability", 0.5)) > 0.6:
             base += 0.08
         if option.action in ("left", "right") and conflict > 0.4:
             base -= 0.08
-        return base - (0.25 * conflict)
+        return max(0.0, min(1.0, base - (0.25 * conflict)))
 
     def evaluateculturealignment(self, option: TrajectoryOption, culture: CultureEngine | None) -> float:
         return self.evaluate_culture_alignment(option, culture)

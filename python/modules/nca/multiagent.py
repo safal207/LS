@@ -141,15 +141,31 @@ class MultiAgentSystem:
         self.collectivesocialconflict = sum(sc) / max(1, len(sc))
         self.collectiveethicalalignment = max(0.0, min(1.0, (0.6 * self.collectivevaluealignment) + (0.4 * (1.0 - self.collectiveethicalconflict))))
 
-        culture_map = {
-            getattr(agent, "agent_id", f"agent-{idx}"): {
-                "culturalalignmentscore": float(getattr(agent.culture, "culturalalignmentscore", 1.0)),
-                "norms": dict(getattr(agent.culture, "norms", {})),
-                "traditions": dict(getattr(agent.culture, "traditions", {})),
-                "norm_conflicts": list(getattr(agent.culture, "norm_conflicts", [])),
+        culture_map: dict[str, dict[str, Any]] = {}
+        for idx, agent in enumerate(self.agents):
+            culture = getattr(agent, "culture", None)
+            if culture is None:
+                continue
+
+            raw_traditions = getattr(culture, "traditions", {})
+            if isinstance(raw_traditions, dict):
+                traditions = dict(raw_traditions)
+            elif isinstance(raw_traditions, list):
+                traditions = {
+                    str(item.get("pattern", f"tradition_{i}")): float(item.get("strength", 0.0))
+                    for i, item in enumerate(raw_traditions)
+                    if isinstance(item, dict)
+                }
+            else:
+                traditions = {}
+
+            conflicts = getattr(culture, "norm_conflicts", getattr(culture, "normconflicts", []))
+            culture_map[getattr(agent, "agent_id", f"agent-{idx}")] = {
+                "culturalalignmentscore": float(getattr(culture, "culturalalignmentscore", 1.0)),
+                "norms": dict(getattr(culture, "norms", {})),
+                "traditions": traditions,
+                "norm_conflicts": list(conflicts),
             }
-            for idx, agent in enumerate(self.agents)
-        }
         norm_acc: dict[str, list[float]] = {}
         for item in culture_map.values():
             for k, v in item.get("norms", {}).items():

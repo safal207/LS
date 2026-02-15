@@ -110,3 +110,39 @@ def test_social_and_identity_compatibility_fallback_inputs() -> None:
     agent.culture.traditions = [{"pattern": "repeat_idle", "strength": 0.9}]
     score = agent.identitycore.evaluate_cultural_compatibility(agent.culture)
     assert 0.0 <= score <= 1.0
+
+
+def test_multiagent_and_self_model_support_list_traditions() -> None:
+    a1 = _make_agent("m1")
+    a2 = _make_agent("m2")
+
+    a1.culture.traditions = [{"pattern": "ritual", "strength": 0.2}]
+    a2.culture.traditions = [{"pattern": "ritual", "strength": 0.8}]
+
+    mas = MultiAgentSystem()
+    mas.add_agent(a1)
+    mas.add_agent(a2)
+    collective = mas.collective_state()
+
+    assert collective["collectivetraditionpatterns"]["ritual"] == 0.5
+
+    metrics = a1.self_model.update_culture_metrics(a1.culture)
+    assert metrics["tradition_count"] == 1
+
+
+def test_trajectory_culture_alignment_uses_normconflicts_alias() -> None:
+    agent = _make_agent("traj")
+    agent.culture.norm_conflicts = []
+    setattr(agent.culture, "normconflicts", [{"norm": "stability", "severity": 0.9}] * 3)
+
+    planner = agent.planner
+    opt = TrajectoryOption(
+        action="left",
+        score=0.0,
+        details={},
+        uncertainty=0.0,
+        confidence=0.0,
+        causal_score=0.0,
+    )
+    score = planner.evaluate_culture_alignment(opt, agent.culture)
+    assert 0.0 <= score <= 1.0
