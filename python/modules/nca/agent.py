@@ -119,13 +119,13 @@ class NCAAgent:
         self.culture.update_from_collective(self.collective_state)
         self.culture.infer_norms(collective_events)
         self.culture.evolve_norms()
+        self.identitycore.evaluate_cultural_compatibility(self.culture)
         cultural_alignment = self.culture.evaluate_cultural_alignment(
             self.identitycore.culturalidentityscore,
             self.values.culturalvaluealignment,
             self.social.culturalsimilarityscore,
         )
         civilization_adjustments = self.culture.generate_civilization_adjustments()
-        self.identitycore.evaluate_cultural_compatibility(self.culture)
 
         # 6) autonomy
         strategies = self.autonomy.generate_strategies(self.identitycore, self.intentengine, self.metacognition, values=self.values, culture=self.culture)
@@ -142,8 +142,8 @@ class NCAAgent:
             social=self.social,
             collective_state=self.collective_state,
         )
-        primary_intent = self.intentengine.select_primary_intent()
         self.intentengine.apply_social_influence(self.social, self.collective_state)
+        primary_intent = self.intentengine.select_primary_intent()
         self.values.update_from_intents(self.intentengine)
         self.values.update_from_autonomy(self.autonomy)
         preferred_actions = list((initiative or {}).get("preferred_actions", []))
