@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .utils import normalize_traditions, MAX_TRACE_LENGTH
+
 
 @dataclass
 class SocialCognitionEngine:
@@ -13,12 +15,23 @@ class SocialCognitionEngine:
     collectiveintentalignment: float = 1.0
     socialconflictscore: float = 0.0
     cooperation_score: float = 0.6
+    group_norms: dict[str, float] = field(default_factory=dict)
+    tradition_patterns: dict[str, Any] = field(default_factory=dict)
+    culturalsimilarityscore: float = 0.6
+    collaboration_index: float = 0.6
+    conflict_index: float = 0.0
     social_trace: list[dict[str, Any]] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.tradition_patterns:
+            self.tradition_patterns = normalize_traditions(self.tradition_patterns)
 
     def update_from_collective_state(self, collective: dict[str, Any] | None) -> dict[str, Any]:
         collective = collective or {}
         self.collectivevaluealignment = float(collective.get("collectivevaluealignment", self.collectivevaluealignment))
         self.collectiveintentalignment = float(collective.get("collectiveintentalignment", self.collectiveintentalignment))
+
+        # Determine social conflict score first as it's used in cooperation inference
         self.socialconflictscore = max(
             0.0,
             min(
@@ -30,7 +43,16 @@ class SocialCognitionEngine:
                 ),
             ),
         )
-        self.cooperation_score = max(
+
+        # Use normalized key collectivecooperationscore, fallback only to self
+        collective_cooperation = float(
+            collective.get(
+                "collectivecooperationscore",
+                self.cooperation_score
+            )
+        )
+
+        inferred_cooperation = max(
             0.0,
             min(
                 1.0,
@@ -39,24 +61,46 @@ class SocialCognitionEngine:
                 + (0.25 * (1.0 - self.socialconflictscore)),
             ),
         )
+
+        # Update cooperation score based on pre-calculated inputs
+        self.cooperation_score = max(0.0, min(1.0, 0.6 * collective_cooperation + 0.4 * inferred_cooperation))
+
+        self.group_norms = {
+            "cooperation": self.cooperation_score,
+            "stability": 1.0 - self.socialconflictscore,
+            "coordination": self.collectiveintentalignment,
+        }
+
+        # Normalize incoming traditions
+        self.tradition_patterns = normalize_traditions(collective.get("collectivetraditionpatterns", {}))
+
+        self.culturalsimilarityscore = max(
+            0.0,
+            min(1.0, (0.45 * self.collectivevaluealignment) + (0.35 * self.collectiveintentalignment) + (0.2 * (1.0 - self.socialconflictscore))),
+        )
+        self.collaboration_index = self.cooperation_score
+        self.conflict_index = self.socialconflictscore
         snapshot = {
             "t": len(self.social_trace),
             "collectivevaluealignment": self.collectivevaluealignment,
             "collectiveintentalignment": self.collectiveintentalignment,
             "socialconflictscore": self.socialconflictscore,
             "cooperation_score": self.cooperation_score,
+            "group_norms": dict(self.group_norms),
+            "tradition_patterns": dict(self.tradition_patterns),
+            "culturalsimilarityscore": self.culturalsimilarityscore,
             "model_count": len(self.social_models),
         }
         self.social_trace.append(snapshot)
-        if len(self.social_trace) > 200:
-            self.social_trace = self.social_trace[-200:]
+        if len(self.social_trace) > MAX_TRACE_LENGTH:
+            self.social_trace = self.social_trace[-MAX_TRACE_LENGTH:]
         return snapshot
 
     def infer_other_agents_intents(self, events: list[dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
         for event in events or []:
-            agent_id = str(event.get("agent_id", event.get("sourceagentid", "unknown")))
+            agent_id = str(event.get("agent_id", event.get("sourceagentid", event.get("agent", "unknown"))))
             model = self.social_models.setdefault(agent_id, {})
-            primary_intent = event.get("primary_intent", {}) if isinstance(event, dict) else {}
+            primary_intent = event.get("primary_intent", event.get("primaryintent", {})) if isinstance(event, dict) else {}
             if primary_intent:
                 model["intent"] = dict(primary_intent)
                 model["intent_alignment"] = float(primary_intent.get("alignment", model.get("intent_alignment", 0.6)))
@@ -65,12 +109,13 @@ class SocialCognitionEngine:
 
     def infer_other_agents_values(self, events: list[dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
         for event in events or []:
-            agent_id = str(event.get("agent_id", event.get("sourceagentid", "unknown")))
+            agent_id = str(event.get("agent_id", event.get("sourceagentid", event.get("agent", "unknown"))))
             model = self.social_models.setdefault(agent_id, {})
             value_block = event.get("values", {}) if isinstance(event, dict) else {}
             if value_block:
-                model["values"] = dict(value_block.get("core_values", {}))
-                model["valuealignmentscore"] = float(value_block.get("valuealignmentscore", model.get("valuealignmentscore", 0.6)))
+                core_values = value_block.get("core_values", value_block.get("corevalues", {}))
+                model["values"] = dict(core_values) if isinstance(core_values, dict) else {}
+                model["valuealignmentscore"] = float(value_block.get("valuealignmentscore", value_block.get("value_alignment", model.get("valuealignmentscore", 0.6))))
         return self.social_models
 
     def evaluate_social_alignment(self, self_agent: Any, others: dict[str, Any] | None) -> float:
@@ -131,6 +176,8 @@ class SocialCognitionEngine:
             "socialconflictscore": self.socialconflictscore,
             "collectivevaluealignment": self.collectivevaluealignment,
             "collectiveintentalignment": self.collectiveintentalignment,
+            "group_norms": dict(self.group_norms),
+            "tradition_patterns": dict(self.tradition_patterns),
         }
 
     # Compatibility aliases requested by specification.

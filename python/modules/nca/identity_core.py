@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .utils import normalize_traditions, MAX_NORM_CONFLICTS
+
 
 @dataclass
 class IdentityCore:
@@ -34,6 +36,17 @@ class IdentityCore:
     value_resistance: float = 0.4
     socialalignmentscore: float = 1.0
     social_resistance: float = 0.35
+    culturalidentityscore: float = 1.0
+    cultural_resistance: float = 0.3
+    militocracyalignmentscore: float = 1.0
+    synergyalignmentscore: float = 1.0
+    culturalpreferenceprofile: dict[str, float] = field(
+        default_factory=lambda: {
+            "cooperation": 0.75,
+            "stability": 0.72,
+            "tradition": 0.62,
+        }
+    )
     selfdirectionpreference: dict[str, float] = field(
         default_factory=lambda: {
             "stabilize": 0.7,
@@ -231,6 +244,64 @@ class IdentityCore:
     def evaluatesocialcompatibility(self, social_engine: Any) -> float:
         return self.evaluate_social_compatibility(social_engine)
 
+
+    def evaluate_cultural_compatibility(self, culture_engine: Any) -> float:
+        if culture_engine is None:
+            self.culturalidentityscore = 0.5
+            return self.culturalidentityscore
+
+        norms = dict(getattr(culture_engine, "norms", {}))
+        # Use shared normalization
+        traditions = normalize_traditions(getattr(culture_engine, "traditions", {}))
+
+        conflicts = getattr(culture_engine, "norm_conflicts", getattr(culture_engine, "normconflicts", []))
+        conflict = min(1.0, len(list(conflicts)) / MAX_NORM_CONFLICTS)
+
+        cooperation_fit = float(norms.get("cooperation", self.culturalpreferenceprofile.get("cooperation", 0.7)))
+        stability_fit = float(norms.get("stability", self.culturalpreferenceprofile.get("stability", 0.7)))
+        tradition_fit = 1.0 if traditions else self.culturalpreferenceprofile.get("tradition", 0.6)
+
+        base = (0.35 * cooperation_fit) + (0.3 * stability_fit) + (0.2 * tradition_fit) + (0.15 * self.identity_integrity)
+        penalty = 0.2 * self.cultural_resistance * conflict
+        self.culturalidentityscore = max(0.0, min(1.0, base - penalty))
+        return self.culturalidentityscore
+
+    def evaluateculturalcompatibility(self, culture_engine: Any) -> float:
+        return self.evaluate_cultural_compatibility(culture_engine)
+
+
+    def evaluate_militocracy_compatibility(self, militocracy_engine: Any) -> float:
+        if militocracy_engine is None:
+            self.militocracyalignmentscore = 0.5
+            return self.militocracyalignmentscore
+
+        discipline = float(getattr(militocracy_engine, "militarydisciplinescore", 0.5))
+        command = float(getattr(militocracy_engine, "command_coherence", 0.5))
+        resistance_penalty = self.intent_resistance * max(0.0, command - self.agency_level)
+        self.militocracyalignmentscore = max(
+            0.0,
+            min(1.0, (0.45 * discipline) + (0.35 * command) + (0.2 * self.identity_integrity) - (0.15 * resistance_penalty)),
+        )
+        return self.militocracyalignmentscore
+
+    def evaluatemilitocracycompatibility(self, militocracy_engine: Any) -> float:
+        return self.evaluate_militocracy_compatibility(militocracy_engine)
+
+    def evaluate_synergy_compatibility(self, synergy_engine: Any) -> float:
+        if synergy_engine is None:
+            self.synergyalignmentscore = 0.5
+            return self.synergyalignmentscore
+
+        synergy_index = float(getattr(synergy_engine, "synergy_index", 0.5))
+        efficiency = float(getattr(synergy_engine, "cooperative_efficiency", 0.5))
+        self.synergyalignmentscore = max(
+            0.0,
+            min(1.0, (0.45 * synergy_index) + (0.35 * efficiency) + (0.2 * self.socialalignmentscore)),
+        )
+        return self.synergyalignmentscore
+
+    def evaluatesynergycompatibility(self, synergy_engine: Any) -> float:
+        return self.evaluate_synergy_compatibility(synergy_engine)
 
     # Compatibility aliases requested by specification.
     def updatefromselfmodel(self, selfmodel: Any) -> None:

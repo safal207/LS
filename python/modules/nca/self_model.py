@@ -4,6 +4,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
+from .utils import normalize_traditions, MAX_TRACE_LENGTH
+
 
 @dataclass
 class SelfModel:
@@ -32,6 +34,8 @@ class SelfModel:
     social_trace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
     socialstabilityscore: float = 1.0
     cooperation_markers: list[dict[str, Any]] = field(default_factory=list)
+    cultural_trace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
+    cultural_markers: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Ensure deque length follows configured max_history.
@@ -49,6 +53,8 @@ class SelfModel:
             self.value_trace = deque(self.value_trace, maxlen=self.max_history)
         if self.social_trace.maxlen != self.max_history:
             self.social_trace = deque(self.social_trace, maxlen=self.max_history)
+        if self.cultural_trace.maxlen != self.max_history:
+            self.cultural_trace = deque(self.cultural_trace, maxlen=self.max_history)
 
     def _extract_snapshot(self, agent_state: Any) -> dict[str, Any]:
         if hasattr(agent_state, "self_state"):
@@ -295,8 +301,7 @@ class SelfModel:
         if recent:
             self.intentstabilityscore = max(
                 0.0,
-                min(
-                    1.0,
+                min(1.0,
                     sum(
                         max(0.0, min(1.0, float(item.get("intent_alignment", 0.0)) - (0.15 * float(item.get("conflict_count", 0.0)))))
                         for item in recent
@@ -422,6 +427,34 @@ class SelfModel:
             self.cooperation_markers = self.cooperation_markers[-self.max_history :]
         return entry
 
+    def update_culture_metrics(self, culture_engine: Any) -> dict[str, Any]:
+        if culture_engine is None:
+            return {}
+
+        # Use utility instead of local import
+        traditions = normalize_traditions(getattr(culture_engine, "traditions", {}))
+        tradition_count = len(traditions)
+
+        conflicts = getattr(culture_engine, "norm_conflicts", getattr(culture_engine, "normconflicts", []))
+
+        entry = {
+            "t": len(self.cultural_trace),
+            "culturalalignmentscore": float(getattr(culture_engine, "culturalalignmentscore", 0.0)),
+            "norm_count": len(dict(getattr(culture_engine, "norms", {}))),
+            "tradition_count": tradition_count,
+            "conflict_count": len(list(conflicts)),
+        }
+        self.cultural_trace.append(entry)
+        self.cultural_markers.append({
+            "t": entry["t"],
+            "cultural_signal": "aligned" if entry["culturalalignmentscore"] > 0.7 else "drifting",
+            "conflict_pressure": entry["conflict_count"] > 0,
+        })
+        if len(self.cultural_markers) > MAX_TRACE_LENGTH:
+            self.cultural_markers = self.cultural_markers[-MAX_TRACE_LENGTH:]
+        return entry
+
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "max_history": self.max_history,
@@ -459,6 +492,8 @@ class SelfModel:
             "social_trace": list(self.social_trace),
             "socialstabilityscore": self.socialstabilityscore,
             "cooperation_markers": list(self.cooperation_markers),
+            "cultural_trace": list(self.cultural_trace),
+            "cultural_markers": list(self.cultural_markers),
         }
 
     # Compatibility aliases requested by specification.
@@ -495,3 +530,6 @@ class SelfModel:
 
     def updatesocialmetrics(self, social_engine: Any) -> dict[str, Any]:
         return self.update_social_metrics(social_engine)
+
+    def updateculturemetrics(self, culture_engine: Any) -> dict[str, Any]:
+        return self.update_culture_metrics(culture_engine)

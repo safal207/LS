@@ -24,6 +24,9 @@ class MetaCognitionEngine:
     social_drift: float = 0.0
     cooperation_bias: float = 0.0
     groupconflictscore: float = 0.0
+    cultural_drift: float = 0.0
+    culturalconflictbias: float = 0.0
+    civilizationstabilityscore: float = 1.0
 
     def analyze_cognition(self, state: Any, self_model: Any, meta_report: Any) -> dict[str, Any]:
         model_dict = self_model.to_dict() if hasattr(self_model, "to_dict") else {}
@@ -105,6 +108,10 @@ class MetaCognitionEngine:
             low_signals = sum(1 for marker in recent_coop if str(marker.get("cooperation_signal", "moderate")) == "low")
             self.cooperation_bias = low_signals / max(1, len(recent_coop))
 
+        self.cultural_drift = max(0.0, min(1.0, (0.5 * self.social_drift) + (0.5 * self.value_drift)))
+        self.culturalconflictbias = max(0.0, min(1.0, (0.6 * self.groupconflictscore) + (0.4 * self.ethicalconflictscore)))
+        self.civilizationstabilityscore = max(0.0, min(1.0, 1.0 - ((0.6 * self.cultural_drift) + (0.4 * self.culturalconflictbias))))
+
         biases = self.detect_cognitive_biases(
             {
                 "state": state,
@@ -126,6 +133,9 @@ class MetaCognitionEngine:
                 "ethicalconflictscore": self.ethicalconflictscore,
                 "social_drift": self.social_drift,
                 "cooperation_bias": self.cooperation_bias,
+                "cultural_drift": self.cultural_drift,
+                "culturalconflictbias": self.culturalconflictbias,
+                "civilizationstabilityscore": self.civilizationstabilityscore,
                 "groupconflictscore": self.groupconflictscore,
             }
         )
@@ -145,6 +155,7 @@ class MetaCognitionEngine:
                 + (0.06 * self.selfdirectionconflict)
                 + (0.08 * self.value_drift)
                 + (0.07 * self.ethicalconflictscore)
+                + (0.08 * self.cultural_drift)
             ),
         )
 
@@ -181,6 +192,9 @@ class MetaCognitionEngine:
             "ethicalconflictscore": self.ethicalconflictscore,
             "social_drift": self.social_drift,
             "cooperation_bias": self.cooperation_bias,
+            "cultural_drift": self.cultural_drift,
+            "culturalconflictbias": self.culturalconflictbias,
+            "civilizationstabilityscore": self.civilizationstabilityscore,
             "groupconflictscore": self.groupconflictscore,
         }
 
@@ -204,6 +218,9 @@ class MetaCognitionEngine:
             "ethicalconflictscore": self.ethicalconflictscore,
             "social_drift": self.social_drift,
             "cooperation_bias": self.cooperation_bias,
+            "cultural_drift": self.cultural_drift,
+            "culturalconflictbias": self.culturalconflictbias,
+            "civilizationstabilityscore": self.civilizationstabilityscore,
             "groupconflictscore": self.groupconflictscore,
         }
         self.latest_feedback = feedback
@@ -211,6 +228,11 @@ class MetaCognitionEngine:
         if len(self.history) > self.max_history:
             self.history = self.history[-self.max_history :]
         return feedback
+
+    @property
+    def latestfeedback(self) -> dict[str, Any]:
+        """Compatibility alias for compact-name integrations."""
+        return self.latest_feedback
 
     def _normalize_report(self, meta_report: Any) -> dict[str, Any]:
         if isinstance(meta_report, dict):

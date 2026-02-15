@@ -1,44 +1,50 @@
-"""NCA Phase 1.5 prototype components."""
+"""NCA Phase 1.5 + Phase 11 + Phase 11.1 components."""
 
 from .agent import NCAAgent
 from .assembly import AgentState, AssemblyPoint
 from .autonomy_engine import AutonomyEngine
 from .causal import CausalGraph
-from .meta_observer import MetaObserver, MetaReport
-from .meta_cognition import MetaCognitionEngine
+from .culture_engine import CultureEngine
 from .identity_core import IdentityCore
 from .intent_engine import IntentEngine
+from .meta_cognition import MetaCognitionEngine
+from .meta_observer import MetaObserver, MetaReport
+from .militocracy_engine import MilitocracyEngine
 from .multiagent import MultiAgentSystem
-from .shared_causal import SharedCausalGraph
 from .orientation import OrientationCenter
-from .social_cognition import SocialCognitionEngine
 from .self_model import SelfModel
+from .shared_causal import SharedCausalGraph
 from .signals import CollectiveSignalBus, InternalSignal, SignalBus
+from .social_cognition import SocialCognitionEngine
+from .synergy_engine import SynergyEngine
 from .trajectories import TrajectoryOption, TrajectoryPlanner
-from .world import GridWorld
 from .value_system import ValueSystem
+from .world import GridWorld
 
 __all__ = [
-    "NCAAgent",
     "AgentState",
     "AssemblyPoint",
     "AutonomyEngine",
     "CausalGraph",
-    "MetaObserver",
-    "MetaCognitionEngine",
+    "CollectiveSignalBus",
+    "CultureEngine",
+    "GridWorld",
     "IdentityCore",
     "IntentEngine",
-    "MultiAgentSystem",
-    "MetaReport",
-    "OrientationCenter",
-    "SocialCognitionEngine",
-    "SelfModel",
     "InternalSignal",
-    "CollectiveSignalBus",
+    "MetaCognitionEngine",
+    "MetaObserver",
+    "MetaReport",
+    "MilitocracyEngine",
+    "MultiAgentSystem",
+    "NCAAgent",
+    "OrientationCenter",
+    "SelfModel",
+    "SharedCausalGraph",
     "SignalBus",
+    "SocialCognitionEngine",
+    "SynergyEngine",
     "TrajectoryOption",
     "TrajectoryPlanner",
-    "SharedCausalGraph",
-    "GridWorld",
     "ValueSystem",
 ]

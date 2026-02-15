@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .utils import MAX_TRACE_LENGTH
+
 
 @dataclass
 class ValueSystem:
@@ -31,6 +33,9 @@ class ValueSystem:
     collectiveethicalconflict: float = 0.0
     groupvaluemap: dict[str, dict[str, Any]] = field(default_factory=dict)
     value_trace: list[dict[str, Any]] = field(default_factory=list)
+    culturalvaluealignment: float = 1.0
+    normethicsmap: dict[str, float] = field(default_factory=dict)
+    traditionvaluemap: dict[str, float] = field(default_factory=dict)
 
     def update_from_identity(self, identity_core: Any) -> None:
         integrity = float(getattr(identity_core, "identity_integrity", 1.0))
@@ -94,6 +99,16 @@ class ValueSystem:
             0.0,
             min(1.0, self.valuealignmentscore - (0.18 * self.collectiveethicalconflict) + (0.12 * self.collectivevaluealignment)),
         )
+        self.culturalvaluealignment = max(0.0, min(1.0, (0.6 * self.collectivevaluealignment) + (0.4 * self.core_values.get("collective_good", 0.65))))
+        self.normethicsmap = {
+            "cooperation": self.core_values.get("collective_good", 0.65),
+            "stability": self.core_values.get("ethical_stability", 0.8),
+            "identity": self.core_values.get("identity_preservation", 0.75),
+        }
+        self.traditionvaluemap = {
+            "learning": self.core_values.get("adaptive_learning", 0.55),
+            "progress": self.core_values.get("goal_progress", 0.7),
+        }
 
     def evaluate_value_alignment(
         self,
@@ -164,10 +179,13 @@ class ValueSystem:
                 "valuealignmentscore": self.valuealignmentscore,
                 "preference_drift": self.preference_drift,
                 "value_conflicts": [dict(c) for c in self.value_conflicts],
+                "culturalvaluealignment": self.culturalvaluealignment,
+                "normethicsmap": dict(self.normethicsmap),
+                "traditionvaluemap": dict(self.traditionvaluemap),
             }
         )
-        if len(self.value_trace) > 200:
-            self.value_trace = self.value_trace[-200:]
+        if len(self.value_trace) > MAX_TRACE_LENGTH:
+            self.value_trace = self.value_trace[-MAX_TRACE_LENGTH:]
         return dict(self.core_values)
 
     def updatefromidentity(self, identity_core: Any) -> None:
@@ -190,4 +208,3 @@ class ValueSystem:
 
     def resolvevalueconflicts(self) -> list[dict[str, Any]]:
         return self.resolve_value_conflicts()
-

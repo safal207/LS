@@ -6,6 +6,7 @@ from typing import Any
 from .agent import NCAAgent
 from .shared_causal import SharedCausalGraph
 from .signals import CollectiveSignalBus, InternalSignal
+from .utils import normalize_traditions, get_norm_conflicts, MAX_NORM_CONFLICTS
 
 
 @dataclass
@@ -31,6 +32,16 @@ class MultiAgentSystem:
     collectivecooperationscore: float = 0.0
     collectiveethicalalignment: float = 1.0
     collectivesocialconflict: float = 0.0
+    collectivenorms: dict[str, float] = field(default_factory=dict)
+    collectivetraditionpatterns: dict[str, Any] = field(default_factory=dict)
+    collectiveculturealignment: float = 1.0
+    collectiveculturalconflict: float = 0.0
+    civilizationmaturityscore: float = 0.5
+    collectivemilitarydiscipline: float = 0.5
+    collectivecommandcoherence: float = 0.5
+    collectivesynergyindex: float = 0.5
+    collectivesynergy: float = 0.5
+    collectivemilitocracy: float = 0.5
 
     def add_agent(self, agent: NCAAgent, *, agent_id: str | None = None) -> None:
         resolved_id = agent_id or getattr(agent.orientation, "identity", None) or f"agent-{len(self.agents)}"
@@ -75,6 +86,11 @@ class MultiAgentSystem:
 
         for agent in self.agents:
             agent.collective_state = collective
+            synergy_engine = getattr(agent, "synergy", None)
+            if synergy_engine is not None and hasattr(synergy_engine, "update_from_collective"):
+                synergy_engine.update_from_collective(self)
+                if hasattr(synergy_engine, "update_trace"):
+                    synergy_engine.update_trace()
         return step_events
 
     def collective_state(self) -> dict[str, Any]:
@@ -136,6 +152,37 @@ class MultiAgentSystem:
         self.collectivesocialconflict = sum(sc) / max(1, len(sc))
         self.collectiveethicalalignment = max(0.0, min(1.0, (0.6 * self.collectivevaluealignment) + (0.4 * (1.0 - self.collectiveethicalconflict))))
 
+        culture_map: dict[str, dict[str, Any]] = {}
+        for idx, agent in enumerate(self.agents):
+            culture = getattr(agent, "culture", None)
+            if culture is None:
+                continue
+
+            traditions = normalize_traditions(getattr(culture, "traditions", {}))
+
+            conflicts = get_norm_conflicts(culture)
+            culture_map[getattr(agent, "agent_id", f"agent-{idx}")] = {
+                "culturalalignmentscore": float(getattr(culture, "culturalalignmentscore", 1.0)),
+                "norms": dict(getattr(culture, "norms", {})),
+                "traditions": traditions,
+                "norm_conflicts": list(conflicts),
+            }
+        norm_acc: dict[str, list[float]] = {}
+        for item in culture_map.values():
+            for k, v in item.get("norms", {}).items():
+                norm_acc.setdefault(str(k), []).append(float(v))
+        self.collectivenorms = {k: sum(v)/max(1, len(v)) for k, v in norm_acc.items()}
+        tradition_acc: dict[str, list[float]] = {}
+        for item in culture_map.values():
+            for k, v in dict(item.get("traditions", {})).items():
+                if isinstance(v, (int, float)):
+                    tradition_acc.setdefault(str(k), []).append(float(v))
+        self.collectivetraditionpatterns = {k: sum(v) / max(1, len(v)) for k, v in tradition_acc.items()}
+        ca = [float(v.get("culturalalignmentscore", 1.0)) for v in culture_map.values()]
+        cc = [min(1.0, len(v.get("norm_conflicts", []))/MAX_NORM_CONFLICTS) for v in culture_map.values()]
+        self.collectiveculturealignment = sum(ca) / max(1, len(ca))
+        self.collectiveculturalconflict = sum(cc) / max(1, len(cc))
+
         identity_cores = {
             getattr(agent, "agent_id", f"agent-{idx}"): {
                 "agency_level": float(getattr(agent.identitycore, "agency_level", 0.0)),
@@ -147,6 +194,36 @@ class MultiAgentSystem:
         integrity_values = [item["identity_integrity"] for item in identity_cores.values()]
         self.collectiveagencylevel = sum(agency_values) / max(1, len(agency_values))
         self.collectiveidentityintegrity = sum(integrity_values) / max(1, len(integrity_values))
+
+
+        discipline_scores: list[float] = []
+        coherence_scores: list[float] = []
+        synergy_scores: list[float] = []
+        for agent in self.agents:
+            militocracy = getattr(agent, "militocracy", None)
+            if militocracy is not None:
+                discipline_scores.append(float(getattr(militocracy, "militarydisciplinescore", 0.5)))
+                coherence_scores.append(float(getattr(militocracy, "command_coherence", 0.5)))
+
+            synergy_engine = getattr(agent, "synergy", None)
+            if synergy_engine is not None:
+                synergy_scores.append(float(getattr(synergy_engine, "synergy_index", 0.5)))
+
+        self.collectivemilitarydiscipline = sum(discipline_scores) / max(1, len(discipline_scores))
+        self.collectivecommandcoherence = sum(coherence_scores) / max(1, len(coherence_scores))
+        self.collectivesynergyindex = sum(synergy_scores) / max(1, len(synergy_scores))
+        self.collectivesynergy = self.collectivesynergyindex
+        self.collectivemilitocracy = self.collectivemilitarydiscipline
+
+        self.civilizationmaturityscore = max(
+            0.0,
+            min(
+                1.0,
+                (0.5 * self.collectiveculturealignment)
+                + (0.3 * (1.0 - self.collectiveculturalconflict))
+                + (0.2 * self.collectivesynergyindex),
+            ),
+        )
 
         return {
             "agent_positions": positions,
@@ -167,6 +244,16 @@ class MultiAgentSystem:
             "collectiveethicalalignment": self.collectiveethicalalignment,
             "collectivesocialconflict": self.collectivesocialconflict,
             "collectiveidentityintegrity": self.collectiveidentityintegrity,
+            "collectivenorms": dict(self.collectivenorms),
+            "collectivetraditionpatterns": dict(self.collectivetraditionpatterns),
+            "collectiveculturealignment": self.collectiveculturealignment,
+            "collectiveculturalconflict": self.collectiveculturalconflict,
+            "civilizationmaturityscore": self.civilizationmaturityscore,
+            "collectivemilitarydiscipline": self.collectivemilitarydiscipline,
+            "collectivecommandcoherence": self.collectivecommandcoherence,
+            "collectivesynergyindex": self.collectivesynergyindex,
+            "collectivesynergy": self.collectivesynergy,
+            "collectivemilitocracy": self.collectivemilitocracy,
             "collectiveagencyshift": self.collectiveagencylevel > 0.65,
             "collectiveintentshift": self.collectiveintentalignment < 0.6,
             "collectiveautonomyshift": self.collectiveautonomylevel > 0.62,

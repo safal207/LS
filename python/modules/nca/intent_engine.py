@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .utils import MAX_TRACE_LENGTH
+
 
 @dataclass
 class IntentEngine:
@@ -113,8 +115,8 @@ class IntentEngine:
             "intent_conflicts": [dict(c) for c in self.intent_conflicts],
         }
         self.intent_history.append(snapshot)
-        if len(self.intent_history) > 200:
-            self.intent_history = self.intent_history[-200:]
+        if len(self.intent_history) > MAX_TRACE_LENGTH:
+            self.intent_history = self.intent_history[-MAX_TRACE_LENGTH:]
         return self.active_intents
 
     def evaluate_intent_alignment(self, intent: dict[str, Any], identity_core: Any) -> float:
