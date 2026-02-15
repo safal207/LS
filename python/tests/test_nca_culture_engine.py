@@ -148,6 +148,31 @@ def test_trajectory_culture_alignment_uses_normconflicts_alias() -> None:
     assert 0.0 <= score <= 1.0
 
 
+
+
+def test_social_influence_applies_before_intent_generation() -> None:
+    agent = _make_agent("ordering")
+    order: list[str] = []
+
+    original_apply = agent.intentengine.apply_social_influence
+    original_generate = agent.intentengine.generate_intents
+
+    def _apply(social, collective_state=None):
+        order.append("apply")
+        return original_apply(social, collective_state)
+
+    def _generate(*args, **kwargs):
+        order.append("generate")
+        return original_generate(*args, **kwargs)
+
+    agent.intentengine.apply_social_influence = _apply  # type: ignore[assignment]
+    agent.intentengine.generate_intents = _generate  # type: ignore[assignment]
+
+    agent.step()
+
+    assert "apply" in order and "generate" in order
+    assert order.index("apply") < order.index("generate")
+
 def test_phase_11_1_engines_are_emitted_in_agent_event() -> None:
     agent = _make_agent("phase11_1")
     event = agent.step()
