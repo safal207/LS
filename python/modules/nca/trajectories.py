@@ -26,8 +26,9 @@ class TrajectoryOption:
 class TrajectoryPlanner:
     """Generates and ranks action trajectories for the next agent step."""
 
-    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.3, self_alignment_weight: float = 0.2, meta_alignment_weight: float = 0.15, initiative_weight: float = 0.12, intent_weight: float = 0.18, strategy_weight: float = 0.22, value_weight: float = 0.25, social_weight: float = 0.28, culture_weight: float = 0.24) -> None:
+    def __init__(self, *, causal_graph: CausalGraph | None = None, causal_weight: float = 0.25, self_alignment_weight: float = 0.1, meta_alignment_weight: float = 0.08, initiative_weight: float = 0.07, intent_weight: float = 0.1, strategy_weight: float = 0.1, value_weight: float = 0.1, social_weight: float = 0.1, culture_weight: float = 0.1) -> None:
         self.causal_graph = causal_graph or CausalGraph()
+        # Weights normalized to sum approximately to 1.0 + base_score influence
         self.causal_weight = causal_weight
         self.self_alignment_weight = self_alignment_weight
         self.meta_alignment_weight = meta_alignment_weight
@@ -139,7 +140,7 @@ class TrajectoryPlanner:
             score = (
                 base_score
                 + (causal_score * self.causal_weight)
-                + (collective_score * 0.25)
+                + (collective_score * 0.1)  # Normalized from 0.25
                 + (self_alignment_score * self.self_alignment_weight)
                 + (meta_alignment_score * self.meta_alignment_weight)
                 + (initiative_score * self.initiative_weight)

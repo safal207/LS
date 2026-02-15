@@ -17,7 +17,7 @@ class CultureEngine:
     culture_trace: list[dict[str, Any]] = field(default_factory=list)
 
     @staticmethod
-    def _normalize_traditions(raw: Any) -> dict[str, Any]:
+    def normalize_traditions(raw: Any) -> dict[str, Any]:
         if isinstance(raw, dict):
             return dict(raw)
         if isinstance(raw, list):
@@ -28,16 +28,21 @@ class CultureEngine:
             }
         return {}
 
+    @staticmethod
+    def _normalize_traditions(raw: Any) -> dict[str, Any]:
+        # Backwards compatibility wrapper
+        return CultureEngine.normalize_traditions(raw)
+
     def _ensure_traditions_mapping(self) -> None:
         if not isinstance(self.traditions, dict):
-            self.traditions = self._normalize_traditions(self.traditions)
+            self.traditions = self.normalize_traditions(self.traditions)
 
     def update_from_social(self, social_engine: Any) -> dict[str, Any]:
         if social_engine is None:
             return self.civilization_state
 
         group_norms = dict(getattr(social_engine, "group_norms", {}))
-        tradition_patterns = self._normalize_traditions(getattr(social_engine, "tradition_patterns", {}))
+        tradition_patterns = self.normalize_traditions(getattr(social_engine, "tradition_patterns", {}))
         conflict_index = float(getattr(social_engine, "conflict_index", getattr(social_engine, "socialconflictscore", 0.0)))
         collaboration = float(getattr(social_engine, "collaboration_index", getattr(social_engine, "cooperation_score", 0.0)))
         similarity = float(getattr(social_engine, "culturalsimilarityscore", 0.5))
@@ -78,7 +83,7 @@ class CultureEngine:
             collective_state.get("civilizationmaturityscore", self.civilization_state.get("civilizationmaturityscore", 0.5))
         )
         self._ensure_traditions_mapping()
-        self.traditions.update(self._normalize_traditions(collective_state.get("collectivetraditionpatterns", {})))
+        self.traditions.update(self.normalize_traditions(collective_state.get("collectivetraditionpatterns", {})))
         self.norms.update({k: float(v) for k, v in dict(collective_state.get("collectivenorms", {})).items()})
         return dict(self.civilization_state)
 
@@ -145,7 +150,7 @@ class CultureEngine:
                 "t": len(self.culture_trace),
                 "culturalalignmentscore": self.culturalalignmentscore,
                 "norms": dict(self.norms),
-                "traditions": self._normalize_traditions(self.traditions),
+                "traditions": self.normalize_traditions(self.traditions),
                 "norm_conflicts": [dict(c) for c in self.norm_conflicts],
                 "civilization_state": dict(self.civilization_state),
                 "adjustments": dict(adjustment),
