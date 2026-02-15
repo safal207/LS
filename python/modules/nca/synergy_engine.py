@@ -6,68 +6,67 @@ from typing import Any
 
 @dataclass
 class SynergyEngine:
-    """Phase 11.1 layer for cooperative cognitive synergy."""
+    """
+    Phase 11.1: Synergy Engine
+    Models cooperative efficiency, synergy index, and collective synergy.
+    """
 
     synergy_index: float = 0.5
     cooperative_efficiency: float = 0.5
     collective_synergy: float = 0.5
     synergy_trace: list[dict[str, Any]] = field(default_factory=list)
 
-    def update_from_social(self, social_engine: Any) -> dict[str, float]:
-        cooperation = float(getattr(social_engine, "cooperation_score", 0.5))
-        conflict = float(getattr(social_engine, "socialconflictscore", 0.0))
+    def updatefromsocial(self, social: Any) -> None:
+        cooperation = float(getattr(social, "cooperation_score", 0.5))
+        conflict = float(getattr(social, "socialconflictscore", 0.0))
         self.cooperative_efficiency = max(
             0.0,
-            min(1.0, cooperation * (1.0 - (0.5 * conflict))),
+            min(1.0, cooperation * (1.0 - 0.5 * conflict)),
         )
-        return {
-            "synergy_index": self.synergy_index,
-            "cooperative_efficiency": self.cooperative_efficiency,
-            "collective_synergy": self.collective_synergy,
-        }
 
-    def update_from_culture(self, culture_engine: Any) -> dict[str, float]:
-        alignment = float(getattr(culture_engine, "culturalalignmentscore", 0.5))
-        civilization_state = dict(getattr(culture_engine, "civilization_state", {}))
+    def updatefromculture(self, culture: Any) -> None:
+        alignment = float(getattr(culture, "culturalalignmentscore", 0.5))
         # Note: civilizationmaturityscore defaults to 0.5 during cold start until collective update runs.
-        maturity = float(civilization_state.get("civilizationmaturityscore", 0.5))
+        maturity = float(
+            getattr(culture, "civilization_state", {}).get("civilizationmaturityscore", 0.5)
+        )
         self.synergy_index = max(
             0.0,
             min(
                 1.0,
-                (0.4 * alignment) + (0.3 * maturity) + (0.3 * self.cooperative_efficiency),
+                0.4 * alignment
+                + 0.3 * maturity
+                + 0.3 * self.cooperative_efficiency,
             ),
         )
-        return {
-            "synergy_index": self.synergy_index,
-            "cooperative_efficiency": self.cooperative_efficiency,
-            "collective_synergy": self.collective_synergy,
-        }
 
-    def update_from_collective(self, multiagent_system: Any) -> dict[str, float]:
-        values: list[float] = []
-        for agent in list(getattr(multiagent_system, "agents", [])):
-            engine = getattr(agent, "synergy", None)
-            if engine is None:
-                continue
-            values.append(float(getattr(engine, "synergy_index", 0.5)))
+    def updatefromcollective(self, multi: Any) -> None:
+        values = []
+        # Support both list (my previous implementation) and dict (user diff suggestion) for robustness
+        agents_collection = getattr(multi, "agents", [])
+        if isinstance(agents_collection, dict):
+            iterator = agents_collection.values()
+        else:
+            iterator = agents_collection
 
+        for agent in iterator:
+            culture = getattr(agent, "culture", None)
+            if culture:
+                values.append(
+                    float(
+                        getattr(culture, "civilization_state", {}).get(
+                            "civilizationmaturityscore", 0.5
+                        )
+                    )
+                )
         if values:
             self.collective_synergy = sum(values) / len(values)
-        else:
-            self.collective_synergy = self.synergy_index
-        return {
-            "synergy_index": self.synergy_index,
-            "cooperative_efficiency": self.cooperative_efficiency,
-            "collective_synergy": self.collective_synergy,
-        }
 
     def update_trace(self) -> dict[str, Any]:
         entry = {
-            "t": len(self.synergy_trace),
-            "synergy_index": self.synergy_index,
-            "cooperative_efficiency": self.cooperative_efficiency,
-            "collective_synergy": self.collective_synergy,
+            "synergyindex": self.synergy_index,
+            "cooperativeefficiency": self.cooperative_efficiency,
+            "collectivesynergy": self.collective_synergy,
         }
         self.synergy_trace.append(entry)
         if len(self.synergy_trace) > 200:
@@ -75,14 +74,14 @@ class SynergyEngine:
         return entry
 
     # Compatibility aliases
-    def updatefromsocial(self, social_engine: Any) -> dict[str, float]:
-        return self.update_from_social(social_engine)
+    def update_from_social(self, social: Any) -> dict[str, float]:
+        self.updatefromsocial(social)
+        return {"cooperative_efficiency": self.cooperative_efficiency}
 
-    def updatefromculture(self, culture_engine: Any) -> dict[str, float]:
-        return self.update_from_culture(culture_engine)
+    def update_from_culture(self, culture: Any) -> dict[str, float]:
+        self.updatefromculture(culture)
+        return {"synergy_index": self.synergy_index}
 
-    def updatefromcollective(self, multiagent_system: Any) -> dict[str, float]:
-        return self.update_from_collective(multiagent_system)
-
-    def updatetrace(self) -> dict[str, Any]:
-        return self.update_trace()
+    def update_from_collective(self, multi: Any) -> dict[str, float]:
+        self.updatefromcollective(multi)
+        return {"collective_synergy": self.collective_synergy}

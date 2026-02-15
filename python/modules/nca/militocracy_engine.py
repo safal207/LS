@@ -6,71 +6,61 @@ from typing import Any
 
 @dataclass
 class MilitocracyEngine:
-    """Phase 11.1 layer for cognitive discipline and command coherence."""
+    """
+    Phase 11.1: Militocracy Engine
+    Models cognitive discipline, command coherence, and structural bias.
+    """
 
     militarydisciplinescore: float = 0.5
     command_coherence: float = 0.5
     discipline_bias: float = 0.5
     discipline_trace: list[dict[str, Any]] = field(default_factory=list)
 
-    def update_from_identity(self, identity_core: Any) -> dict[str, float]:
-        integrity = float(getattr(identity_core, "identity_integrity", 0.5))
-        resistance = float(getattr(identity_core, "drift_resistance", 0.5))
-        self.militarydisciplinescore = max(0.0, min(1.0, (0.6 * integrity) + (0.4 * resistance)))
-        return {
-            "militarydisciplinescore": self.militarydisciplinescore,
-            "command_coherence": self.command_coherence,
-            "discipline_bias": self.discipline_bias,
-        }
+    def updatefromidentity(self, identitycore: Any) -> None:
+        integrity = float(getattr(identitycore, "identity_integrity", 0.5))
+        resistance = float(getattr(identitycore, "drift_resistance", 0.5))
+        self.militarydisciplinescore = max(
+            0.0,
+            min(1.0, 0.6 * integrity + 0.4 * resistance),
+        )
 
-    def update_from_autonomy(self, autonomy_engine: Any) -> dict[str, float]:
-        autonomy_level = float(getattr(autonomy_engine, "autonomy_level", 0.5))
-        regulation = float(getattr(autonomy_engine, "selfregulationstrength", 0.5))
+    def updatefromautonomy(self, autonomy: Any) -> None:
+        alignment = float(getattr(autonomy, "autonomy_level", 0.5))
         self.command_coherence = max(
             0.0,
-            min(1.0, (0.55 * self.command_coherence) + (0.3 * autonomy_level) + (0.15 * regulation)),
+            min(1.0, 0.7 * self.command_coherence + 0.3 * alignment),
         )
-        return {
-            "militarydisciplinescore": self.militarydisciplinescore,
-            "command_coherence": self.command_coherence,
-            "discipline_bias": self.discipline_bias,
-        }
 
-    def update_from_culture(self, culture_engine: Any) -> dict[str, float]:
-        conflicts = getattr(culture_engine, "norm_conflicts", getattr(culture_engine, "normconflicts", []))
-        alignment = float(getattr(culture_engine, "culturalalignmentscore", 0.5))
-        conflict_ratio = min(1.0, len(list(conflicts)) / 5.0)
-        self.discipline_bias = max(0.0, min(1.0, (0.6 * alignment) + (0.4 * (1.0 - conflict_ratio))))
-        return {
-            "militarydisciplinescore": self.militarydisciplinescore,
-            "command_coherence": self.command_coherence,
-            "discipline_bias": self.discipline_bias,
-        }
+    def updatefromculture(self, culture: Any) -> None:
+        conflicts = len(getattr(culture, "norm_conflicts", []))
+        self.discipline_bias = max(
+            0.0,
+            min(1.0, 1.0 - 0.15 * conflicts),
+        )
 
     def update_trace(self) -> dict[str, Any]:
         entry = {
-            "t": len(self.discipline_trace),
             "militarydisciplinescore": self.militarydisciplinescore,
-            "command_coherence": self.command_coherence,
-            "discipline_bias": self.discipline_bias,
+            "commandcoherence": self.command_coherence,
+            "disciplinebias": self.discipline_bias,
         }
         self.discipline_trace.append(entry)
         if len(self.discipline_trace) > 200:
             self.discipline_trace = self.discipline_trace[-200:]
         return entry
 
-    # Compatibility aliases
-    def updatefromidentity(self, identity_core: Any) -> dict[str, float]:
-        return self.update_from_identity(identity_core)
+    # Compatibility aliases (Part A implementation uses updatefrom*, existing code uses update_from_*)
+    def update_from_identity(self, identity_core: Any) -> dict[str, float]:
+        self.updatefromidentity(identity_core)
+        return {"militarydisciplinescore": self.militarydisciplinescore}
 
-    def updatefromautonomy(self, autonomy_engine: Any) -> dict[str, float]:
-        return self.update_from_autonomy(autonomy_engine)
+    def update_from_autonomy(self, autonomy_engine: Any) -> dict[str, float]:
+        self.updatefromautonomy(autonomy_engine)
+        return {"command_coherence": self.command_coherence}
 
-    def updatefromculture(self, culture_engine: Any) -> dict[str, float]:
-        return self.update_from_culture(culture_engine)
-
-    def updatetrace(self) -> dict[str, Any]:
-        return self.update_trace()
+    def update_from_culture(self, culture_engine: Any) -> dict[str, float]:
+        self.updatefromculture(culture_engine)
+        return {"discipline_bias": self.discipline_bias}
 
     @property
     def militarydiscipline(self) -> float:
