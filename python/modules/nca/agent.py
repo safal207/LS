@@ -95,59 +95,73 @@ class NCAAgent:
         )
 
     def step(self) -> dict[str, Any]:
+        """Phase 11.1 Agent Step: Self -> Meta -> Identity -> Autonomy -> Intent -> Value -> Social -> Culture -> Militocracy -> Synergy -> Action"""
         state = self.build_state()
+
+        # 1. Update Self Model (Observation)
+        self_snapshot = self._update_self_model(state)
+
+        # 2. Meta-Cognition (Reflection)
+        analysis, metafeedback = self._update_meta(state)
+
+        # 3. Identity Core (Will)
+        initiative = self._update_identity(metafeedback)
+
+        # 4. Autonomy Engine (Strategy) - Uses previous cultural context
+        strategies, primary_strategy = self._update_autonomy()
+
+        # 5. Intent Engine (Goal)
+        intents, primary_intent = self._update_intents(state, primary_strategy)
+
+        # 6. Value System (Ethics)
+        value_alignment, value_action = self._update_values(primary_intent, primary_strategy, initiative)
+
+        # 7. Social Cognition (Context)
+        social_alignment, cooperative_adjustments = self._update_social()
+
+        # 8. Culture Engine (Norms)
+        cultural_alignment, civilization_adjustments = self._update_culture()
+
+        # 9. Militocracy Engine (Phase 11.1 Discipline)
+        discipline_snapshot = self._update_militocracy()
+
+        # 10. Synergy Engine (Phase 11.1 Cooperation)
+        synergy_snapshot = self._update_synergy()
+
+        # 11. Trajectory Planner (Action)
+        choice, candidates, evaluated = self._plan_action(
+            state, initiative, primary_intent, primary_strategy, metafeedback
+        )
+
+        # Finalize
+        return self._finalize_step(
+            state, choice, analysis, metafeedback, self_snapshot,
+            initiative, intents, primary_intent, strategies, primary_strategy,
+            value_alignment, value_action,
+            social_alignment, cooperative_adjustments,
+            cultural_alignment, civilization_adjustments,
+            discipline_snapshot, synergy_snapshot
+        )
+
+    def _update_self_model(self, state: AgentState) -> dict[str, Any]:
         self_snapshot = self.self_model.update_from_state(state)
+        return self_snapshot
+
+    def _update_meta(self, state: AgentState) -> tuple[dict[str, Any], dict[str, Any]]:
         analysis = self.meta_observer.observe_and_correct(
             state, self.orientation, self.signal_bus, self_model=self.self_model
         )
         self.orientation.update_from_self_model(self.self_model)
-
         metafeedback = self.metacognition.analyze_cognition(state, self.self_model, analysis["report"])
+        return analysis, metafeedback
 
+    def _update_identity(self, metafeedback: dict[str, Any]) -> dict[str, Any]:
         self.identitycore.update_from_self_model(self.self_model)
         self.identitycore.update_from_meta(metafeedback)
         self.identitycore.stabilize_identity()
-        initiative = self.identitycore.generate_initiative()
+        return self.identitycore.generate_initiative()
 
-        self.values.update_from_identity(self.identitycore)
-        self.values.update_from_collective(self.collective_state)
-
-        self.social.update_from_collective_state(self.collective_state)
-        collective_events = (
-            list(self.collective_state.get("recent_events", []))
-            if isinstance(self.collective_state, dict)
-            else []
-        )
-        self.social.infer_other_agents_intents(collective_events)
-        self.social.infer_other_agents_values(collective_events)
-        socialalignment = self.social.evaluate_social_alignment(self, self.collective_state)
-        cooperativeadjustments = self.social.generate_cooperative_adjustments()
-        self.identitycore.evaluate_social_compatibility(self.social)
-
-        self.culture.update_from_social(self.social)
-        self.culture.update_from_values(self.values)
-        self.culture.update_from_collective(self.collective_state)
-        self.culture.infer_norms(collective_events)
-        self.culture.evolve_norms()
-        self.identitycore.evaluate_cultural_compatibility(self.culture)
-        cultural_alignment = self.culture.evaluate_cultural_alignment(
-            self.identitycore.culturalidentityscore,
-            self.values.culturalvaluealignment,
-            self.social.culturalsimilarityscore,
-        )
-        civilization_adjustments = self.culture.generate_civilization_adjustments()
-
-        self.militocracy.update_from_identity(self.identitycore)
-        self.militocracy.update_from_autonomy(self.autonomy)
-        self.militocracy.update_from_culture(self.culture)
-        discipline_snapshot = self.militocracy.update_trace() or {}
-        self.identitycore.evaluate_militocracy_compatibility(self.militocracy)
-
-        self.synergy.update_from_social(self.social)
-        self.synergy.update_from_culture(self.culture)
-        synergy_snapshot = self.synergy.update_trace() or {}
-        self.identitycore.evaluate_synergy_compatibility(self.synergy)
-
+    def _update_autonomy(self) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
         strategies = self.autonomy.generate_strategies(
             self.identitycore,
             self.intentengine,
@@ -159,7 +173,9 @@ class NCAAgent:
         )
         self.autonomy.apply_cooperative_regulation(self.social, self.collective_state)
         primary_strategy = self.autonomy.select_strategy()
+        return strategies, primary_strategy
 
+    def _update_intents(self, state: AgentState, primary_strategy: dict[str, Any] | None) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
         intents = self.intentengine.generate_intents(
             state,
             self.identitycore,
@@ -170,20 +186,93 @@ class NCAAgent:
             collective_state=self.collective_state,
         )
         primary_intent = self.intentengine.select_primary_intent()
+        return intents, primary_intent
+
+    def _update_values(
+        self,
+        primary_intent: dict[str, Any] | None,
+        primary_strategy: dict[str, Any] | None,
+        initiative: dict[str, Any]
+    ) -> tuple[float, dict[str, Any]]:
+        self.values.update_from_identity(self.identitycore)
+        self.values.update_from_collective(self.collective_state)
         self.values.update_from_intents(self.intentengine)
         self.values.update_from_autonomy(self.autonomy)
+
         preferred_actions = list((initiative or {}).get("preferred_actions", []))
         if not preferred_actions and isinstance(primary_intent, dict):
             preferred_actions = list(primary_intent.get("preferred_actions", []))
         value_action = {"action": preferred_actions[0] if preferred_actions else "idle"}
-        valuealignment = self.values.evaluate_value_alignment(
+
+        value_alignment = self.values.evaluate_value_alignment(
             value_action,
             primary_intent,
             primary_strategy,
         )
         self.values.evolve_preferences()
         self.identitycore.evaluate_value_compatibility(self.values)
+        return value_alignment, value_action
 
+    def _update_social(self) -> tuple[float, dict[str, Any]]:
+        self.social.update_from_collective_state(self.collective_state)
+        collective_events = (
+            list(self.collective_state.get("recent_events", []))
+            if isinstance(self.collective_state, dict)
+            else []
+        )
+        self.social.infer_other_agents_intents(collective_events)
+        self.social.infer_other_agents_values(collective_events)
+
+        social_alignment = self.social.evaluate_social_alignment(self, self.collective_state)
+        cooperative_adjustments = self.social.generate_cooperative_adjustments()
+        self.identitycore.evaluate_social_compatibility(self.social)
+        return social_alignment, cooperative_adjustments
+
+    def _update_culture(self) -> tuple[float, dict[str, Any]]:
+        self.culture.update_from_social(self.social)
+        self.culture.update_from_values(self.values)
+        self.culture.update_from_collective(self.collective_state)
+
+        collective_events = (
+            list(self.collective_state.get("recent_events", []))
+            if isinstance(self.collective_state, dict)
+            else []
+        )
+        self.culture.infer_norms(collective_events)
+        self.culture.evolve_norms()
+        self.identitycore.evaluate_cultural_compatibility(self.culture)
+
+        cultural_alignment = self.culture.evaluate_cultural_alignment(
+            self.identitycore.culturalidentityscore,
+            self.values.culturalvaluealignment,
+            self.social.culturalsimilarityscore,
+        )
+        civilization_adjustments = self.culture.generate_civilization_adjustments()
+        return cultural_alignment, civilization_adjustments
+
+    def _update_militocracy(self) -> dict[str, Any]:
+        self.militocracy.update_from_identity(self.identitycore)
+        self.militocracy.update_from_autonomy(self.autonomy)
+        self.militocracy.update_from_culture(self.culture)
+        discipline_snapshot = self.militocracy.update_trace() or {}
+        self.identitycore.evaluate_militocracy_compatibility(self.militocracy)
+        return discipline_snapshot
+
+    def _update_synergy(self) -> dict[str, Any]:
+        self.synergy.update_from_social(self.social)
+        self.synergy.update_from_culture(self.culture)
+        synergy_snapshot = self.synergy.update_trace() or {}
+        self.identitycore.evaluate_synergy_compatibility(self.synergy)
+        return synergy_snapshot
+
+    def _plan_action(
+        self,
+        state: AgentState,
+        initiative: dict[str, Any],
+        primary_intent: dict[str, Any] | None,
+        primary_strategy: dict[str, Any] | None,
+        metafeedback: dict[str, Any]
+    ) -> tuple[Any, list[Any], Any]:
         candidates = self.planner.generate(
             self.world,
             state,
@@ -208,6 +297,29 @@ class NCAAgent:
             culture=self.culture,
         )
         choice = self.planner.choose(evaluated)
+        return choice, candidates, evaluated
+
+    def _finalize_step(
+        self,
+        state: AgentState,
+        choice: Any,
+        analysis: dict[str, Any],
+        metafeedback: dict[str, Any],
+        self_snapshot: dict[str, Any],
+        initiative: dict[str, Any],
+        intents: list[dict[str, Any]],
+        primary_intent: dict[str, Any] | None,
+        strategies: list[dict[str, Any]],
+        primary_strategy: dict[str, Any] | None,
+        value_alignment: float,
+        value_action: dict[str, Any],
+        social_alignment: float,
+        cooperative_adjustments: dict[str, Any],
+        cultural_alignment: float,
+        civilization_adjustments: dict[str, Any],
+        discipline_snapshot: dict[str, Any],
+        synergy_snapshot: dict[str, Any]
+    ) -> dict[str, Any]:
 
         self.orientation.update_from_identity_core(self.identitycore)
         self.self_model.update_identity_metrics(self.identitycore)
@@ -217,6 +329,7 @@ class NCAAgent:
         self.self_model.update_value_metrics(self.values)
         self.self_model.update_social_metrics(self.social)
         self.self_model.update_culture_metrics(self.culture)
+
         self.self_model.update_cognitive_trace(
             state,
             {"action": choice.action, "score": choice.score, "confidence": choice.confidence},
@@ -256,9 +369,9 @@ class NCAAgent:
             "primary_intent": primary_intent,
             "strategies": strategies,
             "primary_strategy": primary_strategy,
-            "value_alignment": valuealignment,
-            "social_alignment": socialalignment,
-            "cooperative_adjustments": cooperativeadjustments,
+            "value_alignment": value_alignment,
+            "social_alignment": social_alignment,
+            "cooperative_adjustments": cooperative_adjustments,
             "cultural_alignment": cultural_alignment,
             "civilization_adjustments": civilization_adjustments,
             "social_prediction": self.social.predict_group_behavior(),

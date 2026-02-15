@@ -218,3 +218,50 @@ def test_collective_alias_metrics_match_canonical_values() -> None:
     assert float(collective.get("collectivemilitocracy", -1.0)) == float(
         collective.get("collectivemilitarydiscipline", -2.0)
     )
+
+
+def test_phase_11_identity_stability() -> None:
+    agent = _make_agent("stability")
+    agent.identitycore.identity_integrity = 0.4
+    agent.identitycore.drift_resistance = 0.4
+    agent.identitycore.stabilize_identity()
+    # Expect boosts due to low integrity
+    assert agent.identitycore.core_traits.get("consistency", 0.0) > 0.7
+    assert agent.identitycore.drift_resistance > 0.4
+
+
+def test_phase_11_culture_alignment() -> None:
+    agent = _make_agent("culture_align")
+    agent.culture.norms = {"cooperation": 0.8, "stability": 0.6}
+    agent.identitycore.culturalpreferenceprofile = {"cooperation": 0.8, "stability": 0.6, "tradition": 0.5}
+    score = agent.identitycore.evaluate_cultural_compatibility(agent.culture)
+    assert score > 0.6
+
+
+def test_phase_11_synergy_index() -> None:
+    agent = _make_agent("synergy")
+    agent.social.cooperation_score = 0.9
+    agent.culture.culturalalignmentscore = 0.8
+    # Ensure culture has valid civilization state for maturity check inside synergy
+    agent.culture.civilization_state["civilizationmaturityscore"] = 0.7
+
+    agent.synergy.update_from_social(agent.social)
+    agent.synergy.update_from_culture(agent.culture)
+
+    assert agent.synergy.synergy_index > 0.5
+    assert agent.synergy.cooperative_efficiency > 0.8
+
+
+def test_phase_11_collective_norms() -> None:
+    a1 = _make_agent("n1")
+    a2 = _make_agent("n2")
+    a1.culture.norms = {"honesty": 0.8}
+    a2.culture.norms = {"honesty": 0.4}
+
+    mas = MultiAgentSystem()
+    mas.add_agent(a1)
+    mas.add_agent(a2)
+    collective = mas.collective_state()
+
+    # 0.6 is the average of 0.8 and 0.4
+    assert 0.55 < collective["collectivenorms"]["honesty"] < 0.65
