@@ -29,6 +29,7 @@ class SynergyEngine:
     def update_from_culture(self, culture_engine: Any) -> dict[str, float]:
         alignment = float(getattr(culture_engine, "culturalalignmentscore", 0.5))
         civilization_state = dict(getattr(culture_engine, "civilization_state", {}))
+        # Note: civilizationmaturityscore defaults to 0.5 during cold start until collective update runs.
         maturity = float(civilization_state.get("civilizationmaturityscore", 0.5))
         self.synergy_index = max(
             0.0,

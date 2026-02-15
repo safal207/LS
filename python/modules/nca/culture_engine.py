@@ -164,12 +164,6 @@ class CultureEngine:
     def updatefromcollective(self, collective_state: dict[str, Any] | None) -> dict[str, Any]:
         return self.update_from_collective(collective_state)
 
-    def infer_norms_alias(self, events: list[dict[str, Any]] | None) -> dict[str, float]:
-        return self.infer_norms(events)
-
-    def evolve_norms_alias(self) -> dict[str, float]:
-        return self.evolve_norms()
-
     def infernorms(self, events: list[dict[str, Any]] | None) -> dict[str, float]:
         return self.infer_norms(events)
 

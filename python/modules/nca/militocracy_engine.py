@@ -71,3 +71,7 @@ class MilitocracyEngine:
 
     def updatetrace(self) -> dict[str, Any]:
         return self.update_trace()
+
+    @property
+    def militarydiscipline(self) -> float:
+        return self.militarydisciplinescore

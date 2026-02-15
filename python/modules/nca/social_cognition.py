@@ -35,7 +35,12 @@ class SocialCognitionEngine:
                 ),
             ),
         )
-        collective_cooperation = float(collective.get("collectivecooperation", collective.get("collectivecollaboration", self.cooperation_score)))
+        collective_cooperation = float(
+            collective.get(
+                "collectivecooperationscore",
+                collective.get("collectivecooperation", collective.get("collectivecollaboration", self.cooperation_score)),
+            )
+        )
         inferred_cooperation = max(
             0.0,
             min(
