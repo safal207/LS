@@ -140,12 +140,12 @@ class NCAAgent:
         self.militocracy.update_from_identity(self.identitycore)
         self.militocracy.update_from_autonomy(self.autonomy)
         self.militocracy.update_from_culture(self.culture)
-        discipline_snapshot = self.militocracy.update_trace()
+        discipline_snapshot = self.militocracy.update_trace() or {}
         self.identitycore.evaluate_militocracy_compatibility(self.militocracy)
 
         self.synergy.update_from_social(self.social)
         self.synergy.update_from_culture(self.culture)
-        synergy_snapshot = self.synergy.update_trace()
+        synergy_snapshot = self.synergy.update_trace() or {}
         self.identitycore.evaluate_synergy_compatibility(self.synergy)
 
         strategies = self.autonomy.generate_strategies(
@@ -293,12 +293,20 @@ class NCAAgent:
                 "socialconflictscore": self.social.socialconflictscore,
                 "cooperation_score": self.social.cooperation_score,
                 "group_norms": dict(self.social.group_norms),
-                "tradition_patterns": dict(self.social.tradition_patterns),
+                "tradition_patterns": (
+                    [dict(p) for p in self.social.tradition_patterns[-20:]]
+                    if isinstance(self.social.tradition_patterns, list)
+                    else dict(self.social.tradition_patterns)
+                ),
                 "culturalsimilarityscore": self.social.culturalsimilarityscore,
             },
             "culture": {
                 "norms": dict(self.culture.norms),
-                "traditions": dict(self.culture.traditions),
+                "traditions": (
+                    [dict(t) for t in self.culture.traditions[-20:]]
+                    if isinstance(self.culture.traditions, list)
+                    else dict(self.culture.traditions)
+                ),
                 "culture_trace": list(self.culture.culture_trace[-20:]),
                 "norm_conflicts": [dict(c) for c in self.culture.norm_conflicts],
                 "civilization_state": dict(self.culture.civilization_state),
@@ -308,14 +316,14 @@ class NCAAgent:
                 "command_coherence": self.militocracy.command_coherence,
                 "discipline_bias": self.militocracy.discipline_bias,
                 "discipline_trace": list(self.militocracy.discipline_trace[-20:]),
-                "snapshot": dict(discipline_snapshot),
+                "snapshot": discipline_snapshot,
             },
             "synergy": {
                 "synergy_index": self.synergy.synergy_index,
                 "cooperative_efficiency": self.synergy.cooperative_efficiency,
                 "collective_synergy": self.synergy.collective_synergy,
                 "synergy_trace": list(self.synergy.synergy_trace[-20:]),
-                "snapshot": dict(synergy_snapshot),
+                "snapshot": synergy_snapshot,
             },
             "signals": [
                 {"type": s.signal_type, "payload": s.payload}

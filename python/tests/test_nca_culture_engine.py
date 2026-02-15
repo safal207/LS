@@ -172,3 +172,16 @@ def test_multiagent_collective_phase_11_1_metrics() -> None:
     assert 0.0 <= float(collective.get("collectivemilitarydiscipline", 0.0)) <= 1.0
     assert 0.0 <= float(collective.get("collectivecommandcoherence", 0.0)) <= 1.0
     assert 0.0 <= float(collective.get("collectivesynergyindex", 0.0)) <= 1.0
+
+
+def test_event_serialization_handles_list_traditions_shapes() -> None:
+    agent = _make_agent("serial")
+    agent.social.tradition_patterns = [{"pattern": "repeat_idle", "strength": 0.7}]
+    agent.culture.traditions = [{"pattern": "ritual", "strength": 0.9}]
+
+    event = agent.step()
+
+    assert isinstance(event["social"]["tradition_patterns"], (list, dict))
+    assert isinstance(event["culture"]["traditions"], (list, dict))
+    assert isinstance(event["militocracy"]["snapshot"], dict)
+    assert isinstance(event["synergy"]["snapshot"], dict)
