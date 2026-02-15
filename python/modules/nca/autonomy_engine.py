@@ -171,7 +171,7 @@ class AutonomyEngine:
 
     def apply_cooperative_regulation(self, social: Any | None, collective_state: dict[str, Any] | None = None) -> dict[str, Any]:
         collective_state = collective_state or {}
-        cooperation = float(getattr(social, "cooperation_score", 0.6)) if social is not None else float(collective_state.get("collectivecooperation", 0.6))
+        cooperation = float(getattr(social, "cooperation_score", 0.6)) if social is not None else float(collective_state.get("collectivecooperationscore", 0.6))
         conflict = float(getattr(social, "socialconflictscore", 0.0)) if social is not None else float(collective_state.get("collectivesocialconflict", 0.0))
 
         self.cooperativealignmentscore = max(0.0, min(1.0, (0.55 * cooperation) + (0.45 * (1.0 - conflict))))
