@@ -146,3 +146,29 @@ def test_trajectory_culture_alignment_uses_normconflicts_alias() -> None:
     )
     score = planner.evaluate_culture_alignment(opt, agent.culture)
     assert 0.0 <= score <= 1.0
+
+
+def test_phase_11_1_engines_are_emitted_in_agent_event() -> None:
+    agent = _make_agent("phase11_1")
+    event = agent.step()
+
+    assert "militocracy" in event
+    assert "synergy" in event
+    assert "coordinated_command" in {s.get("name") for s in event.get("strategies", [])}
+
+
+def test_multiagent_collective_phase_11_1_metrics() -> None:
+    a1 = _make_agent("mc1")
+    a2 = _make_agent("mc2")
+
+    a1.step()
+    a2.step()
+
+    mas = MultiAgentSystem()
+    mas.add_agent(a1)
+    mas.add_agent(a2)
+    collective = mas.collective_state()
+
+    assert 0.0 <= float(collective.get("collectivemilitarydiscipline", 0.0)) <= 1.0
+    assert 0.0 <= float(collective.get("collectivecommandcoherence", 0.0)) <= 1.0
+    assert 0.0 <= float(collective.get("collectivesynergyindex", 0.0)) <= 1.0

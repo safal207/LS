@@ -36,6 +36,9 @@ class MultiAgentSystem:
     collectiveculturealignment: float = 1.0
     collectiveculturalconflict: float = 0.0
     civilizationmaturityscore: float = 0.5
+    collectivemilitarydiscipline: float = 0.5
+    collectivecommandcoherence: float = 0.5
+    collectivesynergyindex: float = 0.5
 
     def add_agent(self, agent: NCAAgent, *, agent_id: str | None = None) -> None:
         resolved_id = agent_id or getattr(agent.orientation, "identity", None) or f"agent-{len(self.agents)}"
@@ -80,6 +83,11 @@ class MultiAgentSystem:
 
         for agent in self.agents:
             agent.collective_state = collective
+            synergy_engine = getattr(agent, "synergy", None)
+            if synergy_engine is not None and hasattr(synergy_engine, "update_from_collective"):
+                synergy_engine.update_from_collective(self)
+                if hasattr(synergy_engine, "update_trace"):
+                    synergy_engine.update_trace()
         return step_events
 
     def collective_state(self) -> dict[str, Any]:
@@ -195,6 +203,24 @@ class MultiAgentSystem:
         self.collectiveagencylevel = sum(agency_values) / max(1, len(agency_values))
         self.collectiveidentityintegrity = sum(integrity_values) / max(1, len(integrity_values))
 
+
+        discipline_scores: list[float] = []
+        coherence_scores: list[float] = []
+        synergy_scores: list[float] = []
+        for agent in self.agents:
+            militocracy = getattr(agent, "militocracy", None)
+            if militocracy is not None:
+                discipline_scores.append(float(getattr(militocracy, "militarydisciplinescore", 0.5)))
+                coherence_scores.append(float(getattr(militocracy, "command_coherence", 0.5)))
+
+            synergy_engine = getattr(agent, "synergy", None)
+            if synergy_engine is not None:
+                synergy_scores.append(float(getattr(synergy_engine, "synergy_index", 0.5)))
+
+        self.collectivemilitarydiscipline = sum(discipline_scores) / max(1, len(discipline_scores))
+        self.collectivecommandcoherence = sum(coherence_scores) / max(1, len(coherence_scores))
+        self.collectivesynergyindex = sum(synergy_scores) / max(1, len(synergy_scores))
+
         return {
             "agent_positions": positions,
             "collective_progress_score": -float(collective_score),
@@ -219,6 +245,9 @@ class MultiAgentSystem:
             "collectiveculturealignment": self.collectiveculturealignment,
             "collectiveculturalconflict": self.collectiveculturalconflict,
             "civilizationmaturityscore": self.civilizationmaturityscore,
+            "collectivemilitarydiscipline": self.collectivemilitarydiscipline,
+            "collectivecommandcoherence": self.collectivecommandcoherence,
+            "collectivesynergyindex": self.collectivesynergyindex,
             "collectiveagencyshift": self.collectiveagencylevel > 0.65,
             "collectiveintentshift": self.collectiveintentalignment < 0.6,
             "collectiveautonomyshift": self.collectiveautonomylevel > 0.62,

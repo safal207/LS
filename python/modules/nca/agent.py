@@ -11,10 +11,12 @@ from .identity_core import IdentityCore
 from .intent_engine import IntentEngine
 from .meta_cognition import MetaCognitionEngine
 from .meta_observer import MetaObserver
+from .militocracy_engine import MilitocracyEngine
 from .orientation import OrientationCenter
 from .self_model import SelfModel
 from .signals import InternalSignal, SignalBus
 from .social_cognition import SocialCognitionEngine
+from .synergy_engine import SynergyEngine
 from .trajectories import TrajectoryPlanner
 from .value_system import ValueSystem
 from .world import GridWorld
@@ -22,7 +24,7 @@ from .world import GridWorld
 
 @dataclass
 class NCAAgent:
-    """Composable NCA agent with identity, social, and cultural layers."""
+    """Composable NCA agent with identity, social, cultural, and phase 11.1 layers."""
 
     world: GridWorld
     orientation: OrientationCenter
@@ -41,6 +43,8 @@ class NCAAgent:
     values: ValueSystem = field(default_factory=ValueSystem)
     social: SocialCognitionEngine = field(default_factory=SocialCognitionEngine)
     culture: CultureEngine = field(default_factory=CultureEngine)
+    militocracy: MilitocracyEngine = field(default_factory=MilitocracyEngine)
+    synergy: SynergyEngine = field(default_factory=SynergyEngine)
     intentengine: IntentEngine = field(default_factory=IntentEngine)
 
     def __post_init__(self) -> None:
@@ -83,37 +87,43 @@ class NCAAgent:
                 )
 
     def build_state(self) -> AgentState:
-        return self.assembly.build(t=self.world.t, world_state=self.world.state(), orientation=self.orientation, signal_bus=self.signal_bus)
+        return self.assembly.build(
+            t=self.world.t,
+            world_state=self.world.state(),
+            orientation=self.orientation,
+            signal_bus=self.signal_bus,
+        )
 
     def step(self) -> dict[str, Any]:
         state = self.build_state()
         self_snapshot = self.self_model.update_from_state(state)
-        analysis = self.meta_observer.observe_and_correct(state, self.orientation, self.signal_bus, self_model=self.self_model)
+        analysis = self.meta_observer.observe_and_correct(
+            state, self.orientation, self.signal_bus, self_model=self.self_model
+        )
         self.orientation.update_from_self_model(self.self_model)
 
         metafeedback = self.metacognition.analyze_cognition(state, self.self_model, analysis["report"])
 
-        # 1) identity
         self.identitycore.update_from_self_model(self.self_model)
         self.identitycore.update_from_meta(metafeedback)
         self.identitycore.stabilize_identity()
         initiative = self.identitycore.generate_initiative()
 
-        # 2) metacognition already computed above
-        # 3) values
         self.values.update_from_identity(self.identitycore)
         self.values.update_from_collective(self.collective_state)
 
-        # 4) social cognition
         self.social.update_from_collective_state(self.collective_state)
-        collective_events = list(self.collective_state.get("recent_events", [])) if isinstance(self.collective_state, dict) else []
+        collective_events = (
+            list(self.collective_state.get("recent_events", []))
+            if isinstance(self.collective_state, dict)
+            else []
+        )
         self.social.infer_other_agents_intents(collective_events)
         self.social.infer_other_agents_values(collective_events)
         socialalignment = self.social.evaluate_social_alignment(self, self.collective_state)
         cooperativeadjustments = self.social.generate_cooperative_adjustments()
         self.identitycore.evaluate_social_compatibility(self.social)
 
-        # 5) culture engine
         self.culture.update_from_social(self.social)
         self.culture.update_from_values(self.values)
         self.culture.update_from_collective(self.collective_state)
@@ -127,12 +137,29 @@ class NCAAgent:
         )
         civilization_adjustments = self.culture.generate_civilization_adjustments()
 
-        # 6) autonomy
-        strategies = self.autonomy.generate_strategies(self.identitycore, self.intentengine, self.metacognition, values=self.values, culture=self.culture)
+        self.militocracy.update_from_identity(self.identitycore)
+        self.militocracy.update_from_autonomy(self.autonomy)
+        self.militocracy.update_from_culture(self.culture)
+        discipline_snapshot = self.militocracy.update_trace()
+        self.identitycore.evaluate_militocracy_compatibility(self.militocracy)
+
+        self.synergy.update_from_social(self.social)
+        self.synergy.update_from_culture(self.culture)
+        synergy_snapshot = self.synergy.update_trace()
+        self.identitycore.evaluate_synergy_compatibility(self.synergy)
+
+        strategies = self.autonomy.generate_strategies(
+            self.identitycore,
+            self.intentengine,
+            self.metacognition,
+            values=self.values,
+            culture=self.culture,
+            militocracy=self.militocracy,
+            synergy=self.synergy,
+        )
         self.autonomy.apply_cooperative_regulation(self.social, self.collective_state)
         primary_strategy = self.autonomy.select_strategy()
 
-        # 7) intent engine
         intents = self.intentengine.generate_intents(
             state,
             self.identitycore,
@@ -150,12 +177,24 @@ class NCAAgent:
         if not preferred_actions and isinstance(primary_intent, dict):
             preferred_actions = list(primary_intent.get("preferred_actions", []))
         value_action = {"action": preferred_actions[0] if preferred_actions else "idle"}
-        valuealignment = self.values.evaluate_value_alignment(value_action, primary_intent, primary_strategy)
+        valuealignment = self.values.evaluate_value_alignment(
+            value_action,
+            primary_intent,
+            primary_strategy,
+        )
         self.values.evolve_preferences()
         self.identitycore.evaluate_value_compatibility(self.values)
 
-        # 8) planner
-        candidates = self.planner.generate(self.world, state, initiative=initiative, intent=primary_intent, strategy=primary_strategy, values=self.values, social=self.social, culture=self.culture)
+        candidates = self.planner.generate(
+            self.world,
+            state,
+            initiative=initiative,
+            intent=primary_intent,
+            strategy=primary_strategy,
+            values=self.values,
+            social=self.social,
+            culture=self.culture,
+        )
         evaluated = self.planner.evaluate(
             candidates,
             state,
@@ -179,7 +218,11 @@ class NCAAgent:
         self.self_model.update_value_metrics(self.values)
         self.self_model.update_social_metrics(self.social)
         self.self_model.update_culture_metrics(self.culture)
-        self.self_model.update_cognitive_trace(state, {"action": choice.action, "score": choice.score, "confidence": choice.confidence}, {**analysis, "meta_drift": metafeedback.get("meta_drift", 0.0)})
+        self.self_model.update_cognitive_trace(
+            state,
+            {"action": choice.action, "score": choice.score, "confidence": choice.confidence},
+            {**analysis, "meta_drift": metafeedback.get("meta_drift", 0.0)},
+        )
         self.metacognition.apply_corrections(self)
 
         if choice.confidence < self.low_confidence_threshold:
@@ -240,6 +283,8 @@ class NCAAgent:
                 "agency_level": self.identitycore.agency_level,
                 "socialalignmentscore": self.identitycore.socialalignmentscore,
                 "culturalidentityscore": self.identitycore.culturalidentityscore,
+                "militocracyalignmentscore": self.identitycore.militocracyalignmentscore,
+                "synergyalignmentscore": self.identitycore.synergyalignmentscore,
             },
             "social": {
                 "social_models": dict(self.social.social_models),
@@ -258,7 +303,24 @@ class NCAAgent:
                 "norm_conflicts": [dict(c) for c in self.culture.norm_conflicts],
                 "civilization_state": dict(self.culture.civilization_state),
             },
-            "signals": [{"type": s.signal_type, "payload": s.payload} for s in self.signal_bus.get_recent(clear=True)],
+            "militocracy": {
+                "militarydisciplinescore": self.militocracy.militarydisciplinescore,
+                "command_coherence": self.militocracy.command_coherence,
+                "discipline_bias": self.militocracy.discipline_bias,
+                "discipline_trace": list(self.militocracy.discipline_trace[-20:]),
+                "snapshot": dict(discipline_snapshot),
+            },
+            "synergy": {
+                "synergy_index": self.synergy.synergy_index,
+                "cooperative_efficiency": self.synergy.cooperative_efficiency,
+                "collective_synergy": self.synergy.collective_synergy,
+                "synergy_trace": list(self.synergy.synergy_trace[-20:]),
+                "snapshot": dict(synergy_snapshot),
+            },
+            "signals": [
+                {"type": s.signal_type, "payload": s.payload}
+                for s in self.signal_bus.get_recent(clear=True)
+            ],
             **transition,
         }
         self.assembly.append_history(event)
