@@ -180,7 +180,7 @@ class NCAAgent:
             values_snapshot=values_result["snapshot"],
             value_alignment=values_result["value_alignment"]
         )
-        # Note: value_alignment here is just the score, not the alignment calculation for action.
+        value_alignment = float(values_result.get("value_alignment", self.values.valuealignmentscore))
 
         # 8. Autonomy Layer
         autonomy_result = self.autonomy.update(context)
@@ -202,19 +202,6 @@ class NCAAgent:
         primary_intent = intent_result["primary_intent"]
         intents = intent_result["intents"]
 
-        # Evaluation metrics for logging (post-generation)
-        preferred_actions = list((initiative or {}).get("preferred_actions", []))
-        if not preferred_actions and isinstance(primary_intent, dict):
-            preferred_actions = list(primary_intent.get("preferred_actions", []))
-        value_action = {"action": preferred_actions[0] if preferred_actions else "idle"}
-
-        # Use updated values/intent/strategy
-        value_alignment = self.values.evaluate_value_alignment(
-            value_action,
-            primary_intent,
-            primary_strategy,
-        )
-
         # 10. Planning Layer
         choice, candidates, evaluated = self._plan_action(
             state, initiative, primary_intent, primary_strategy, metafeedback
@@ -230,7 +217,7 @@ class NCAAgent:
         return self._finalize_step(
             state, choice, analysis, metafeedback, self_snapshot,
             initiative, intents, primary_intent, strategies, primary_strategy,
-            value_alignment, value_action,
+            value_alignment,
             social_alignment, cooperative_adjustments,
             cultural_alignment, civilization_adjustments,
             discipline_snapshot, synergy_snapshot,
@@ -284,7 +271,6 @@ class NCAAgent:
         strategies: list[dict[str, Any]],
         primary_strategy: dict[str, Any] | None,
         value_alignment: float,
-        value_action: dict[str, Any],
         social_alignment: float,
         cooperative_adjustments: dict[str, Any],
         cultural_alignment: float,
@@ -301,9 +287,6 @@ class NCAAgent:
         self.self_model.update_value_metrics(self.values)
         self.self_model.update_social_metrics(self.social)
         self.self_model.update_culture_metrics(self.culture)
-
-        # Ensure values preference drift is updated
-        self.values.evolve_preferences()
 
         self.self_model.update_cognitive_trace(
             state,
