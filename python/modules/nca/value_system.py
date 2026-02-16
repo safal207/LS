@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from .utils import MAX_TRACE_LENGTH
+
+if TYPE_CHECKING:
+    from .update_context import UpdateContext
 
 
 @dataclass
@@ -37,10 +40,43 @@ class ValueSystem:
     normethicsmap: dict[str, float] = field(default_factory=dict)
     traditionvaluemap: dict[str, float] = field(default_factory=dict)
 
+    def update(self, context: UpdateContext) -> dict[str, Any]:
+        """Unified update method using deterministic context."""
+        # 1. Update from identity
+        self.update_from_identity(context.identity_snapshot)
+
+        # 2. Update from collective
+        self.update_from_collective(context.collective_state)
+
+        # Note: update_from_intents and update_from_autonomy are NOT called in NCAAgent.step() explicitly.
+        # They seem unused or implicit. I will leave them be.
+
+        return {
+            "snapshot": self.to_context_snapshot(),
+            "value_alignment": self.valuealignmentscore # Or just expose snapshot
+        }
+
+    def to_context_snapshot(self) -> dict[str, Any]:
+        """Export state for context propagation."""
+        return {
+            "core_values": dict(self.core_values),
+            "valuealignmentscore": self.valuealignmentscore,
+            "ethical_constraints": dict(self.ethical_constraints),
+            "culturalvaluealignment": self.culturalvaluealignment,
+            "normethicsmap": dict(self.normethicsmap),
+            "preference_drift": self.preference_drift,
+        }
+
+    def _get_attr(self, obj: Any, key: str, default: Any) -> Any:
+        """Helper to safely get attribute from object or dict."""
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
     def update_from_identity(self, identity_core: Any) -> None:
-        integrity = float(getattr(identity_core, "identity_integrity", 1.0))
-        drift_resistance = float(getattr(identity_core, "drift_resistance", 1.0))
-        agency_level = float(getattr(identity_core, "agency_level", 0.5))
+        integrity = float(self._get_attr(identity_core, "identity_integrity", 1.0))
+        drift_resistance = float(self._get_attr(identity_core, "drift_resistance", 1.0))
+        agency_level = float(self._get_attr(identity_core, "agency_level", 0.5))
 
         self.core_values["identity_preservation"] = max(
             0.0,
@@ -56,9 +92,9 @@ class ValueSystem:
         )
 
     def update_from_intents(self, intent_engine: Any) -> None:
-        intent_alignment = float(getattr(intent_engine, "intent_alignment", 1.0))
-        intent_strength = float(getattr(intent_engine, "intent_strength", 0.0))
-        conflicts = list(getattr(intent_engine, "intent_conflicts", []))
+        intent_alignment = float(self._get_attr(intent_engine, "intent_alignment", 1.0))
+        intent_strength = float(self._get_attr(intent_engine, "intent_strength", 0.0))
+        conflicts = list(self._get_attr(intent_engine, "intent_conflicts", []))
 
         self.core_values["goal_progress"] = max(
             0.0,
@@ -72,8 +108,8 @@ class ValueSystem:
         self.valuealignmentscore = max(0.0, min(1.0, self.valuealignmentscore - conflict_penalty))
 
     def update_from_autonomy(self, autonomy_engine: Any) -> None:
-        autonomy_level = float(getattr(autonomy_engine, "autonomy_level", 0.5))
-        ethical_alignment = float(getattr(autonomy_engine, "ethicalalignmentscore", 1.0))
+        autonomy_level = float(self._get_attr(autonomy_engine, "autonomy_level", 0.5))
+        ethical_alignment = float(self._get_attr(autonomy_engine, "ethicalalignmentscore", 1.0))
 
         self.core_values["adaptive_learning"] = max(
             0.0,

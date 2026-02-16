@@ -20,12 +20,7 @@ from .synergy_engine import SynergyEngine
 from .trajectories import TrajectoryPlanner
 from .value_system import ValueSystem
 from .world import GridWorld
-
-
-class CollectiveAdapter:
-    """Adapts collective_state dictionary to expected interface for SynergyEngine."""
-    def __init__(self, state: dict[str, Any]) -> None:
-        self.collectivesynergy = float(state.get("collectivesynergy", 0.5))
+from .update_context import UpdateContext
 
 
 @dataclass
@@ -106,6 +101,25 @@ class NCAAgent:
         # 1. Input Layer
         state = self.build_state()
 
+        # Phase 12.1: Deterministic Context Propagation
+        # Initialize Context with snapshots of current state for downstream dependencies
+        # Note: values_snapshot is from t-1. Culture (Step 5) uses this snapshot, creating a 1-step lag.
+        # This is standard for DCP in multi-agent systems to ensure determinism.
+        context = UpdateContext(
+            t=state.t,
+            state=state,
+            collective_state=self.collective_state,
+            values_snapshot=self.values.to_context_snapshot(),
+            autonomy_snapshot=self.autonomy.to_context_snapshot(),
+            intent_snapshot=self.intentengine.to_context_snapshot(),
+            primary_intent=self.intentengine.select_primary_intent(),
+            social_snapshot=self.social.to_context_snapshot(),
+            culture_snapshot=self.culture.to_context_snapshot(),
+            militocracy_snapshot=self.militocracy.to_context_snapshot(),
+            synergy_snapshot=self.synergy.to_context_snapshot(),
+            identity_snapshot=self.identitycore.to_context_snapshot(),
+        )
+
         # 2. Self-Model Layer
         self_snapshot = self.self_model.update_from_state(state)
         analysis = self.meta_observer.observe_and_correct(
@@ -114,79 +128,79 @@ class NCAAgent:
         self.orientation.update_from_self_model(self.self_model)
         metafeedback = self.metacognition.analyze_cognition(state, self.self_model, analysis["report"])
 
+        context = context.evolve(
+            self_snapshot=self_snapshot,
+            meta_report=analysis.get("report"),
+            metafeedback=metafeedback
+        )
+
         # 3. Identity Layer
-        self.identitycore.update_from_self_model(self.self_model)
-        self.identitycore.update_from_meta(metafeedback)
-        self.identitycore.stabilize_identity()
-        initiative = self.identitycore.generate_initiative()
+        identity_result = self.identitycore.update(context)
+        context = context.evolve(
+            identity_snapshot=identity_result["snapshot"],
+            initiative=identity_result["initiative"]
+        )
+        initiative = identity_result["initiative"]
 
         # 4. Social Layer
-        self.social.update_from_collective_state(self.collective_state)
-        collective_events = (
-            list(self.collective_state.get("recent_events", []))
-            if isinstance(self.collective_state, dict)
-            else []
+        social_result = self.social.update(context)
+        context = context.evolve(
+            social_snapshot=social_result["snapshot"],
+            social_alignment=social_result["alignment"],
+            cooperative_adjustments=social_result["adjustments"]
         )
-        self.social.infer_other_agents_intents(collective_events)
-        self.social.infer_other_agents_values(collective_events)
-        social_alignment = self.social.evaluate_social_alignment(self, self.collective_state)
-        cooperative_adjustments = self.social.generate_cooperative_adjustments()
+        social_alignment = social_result["alignment"]
+        cooperative_adjustments = social_result["adjustments"]
 
         # 5. Culture Layer
-        self.culture.update_from_social(self.social)
-        self.culture.update_from_values(self.values)
-        self.culture.update_from_collective(self.collective_state)
-        self.culture.infer_norms(collective_events)
-        self.culture.evolve_norms()
-        cultural_alignment = self.culture.evaluate_cultural_alignment(
-            self.identitycore.culturalidentityscore,
-            self.values.culturalvaluealignment,
-            self.social.culturalsimilarityscore,
+        culture_result = self.culture.update(context)
+        context = context.evolve(
+            culture_snapshot=culture_result["snapshot"],
+            cultural_alignment=culture_result["alignment"],
+            civilization_adjustments=culture_result["adjustments"]
         )
-        civilization_adjustments = self.culture.generate_civilization_adjustments()
+        cultural_alignment = culture_result["alignment"]
+        civilization_adjustments = culture_result["adjustments"]
 
         # 6. Derived Engines Layer
-        # Militocracy
-        self.militocracy.update_from_identity(self.identitycore)
-        self.militocracy.update_from_autonomy(self.autonomy)
-        self.militocracy.update_from_culture(self.culture)
-        discipline_snapshot = self.militocracy.update_trace() or {}
+        militocracy_result = self.militocracy.update(context)
+        synergy_result = self.synergy.update(context)
 
-        # Synergy
-        self.synergy.update_from_social(self.social)
-        self.synergy.update_from_culture(self.culture)
-        self.synergy.update_from_collective(CollectiveAdapter(self.collective_state))
-        synergy_snapshot = self.synergy.update_trace() or {}
+        context = context.evolve(
+            militocracy_snapshot=militocracy_result["snapshot"],
+            synergy_snapshot=synergy_result["snapshot"]
+        )
+
+        discipline_snapshot = militocracy_result["trace_snapshot"]
+        synergy_snapshot = synergy_result["trace_snapshot"]
 
         # 7. Values Layer
-        self.values.update_from_identity(self.identitycore)
-        self.values.update_from_collective(self.collective_state)
+        values_result = self.values.update(context)
+        context = context.evolve(
+            values_snapshot=values_result["snapshot"],
+            value_alignment=values_result["value_alignment"]
+        )
+        # Note: value_alignment here is just the score, not the alignment calculation for action.
 
         # 8. Autonomy Layer
-        strategies = self.autonomy.generate_strategies(
-            self.identitycore,
-            self.intentengine, # Passed as context
-            self.metacognition,
-            values=self.values,
-            culture=self.culture,
-            militocracy=self.militocracy,
-            synergy=self.synergy,
+        autonomy_result = self.autonomy.update(context)
+        context = context.evolve(
+            autonomy_snapshot=autonomy_result["snapshot"],
+            primary_strategy=autonomy_result["primary_strategy"],
+            strategies=autonomy_result["strategies"]
         )
-        self.autonomy.apply_cooperative_regulation(self.social, self.collective_state)
-        primary_strategy = self.autonomy.select_strategy()
+        primary_strategy = autonomy_result["primary_strategy"]
+        strategies = autonomy_result["strategies"]
 
         # 9. Intent Layer
-        intents = self.intentengine.generate_intents(
-            state,
-            self.identitycore,
-            self.self_model,
-            strategy=primary_strategy,
-            values=self.values,
-            social=None,
-            collective_state=None,
+        intent_result = self.intentengine.update(context)
+        context = context.evolve(
+            intent_snapshot=intent_result["snapshot"],
+            primary_intent=intent_result["primary_intent"],
+            intents=intent_result["intents"]
         )
-        self.intentengine.apply_social_influence(self.social, self.collective_state)
-        primary_intent = self.intentengine.select_primary_intent()
+        primary_intent = intent_result["primary_intent"]
+        intents = intent_result["intents"]
 
         # Evaluation metrics for logging (post-generation)
         preferred_actions = list((initiative or {}).get("preferred_actions", []))
@@ -194,6 +208,7 @@ class NCAAgent:
             preferred_actions = list(primary_intent.get("preferred_actions", []))
         value_action = {"action": preferred_actions[0] if preferred_actions else "idle"}
 
+        # Use updated values/intent/strategy
         value_alignment = self.values.evaluate_value_alignment(
             value_action,
             primary_intent,
@@ -282,7 +297,6 @@ class NCAAgent:
         self.orientation.update_from_identity_core(self.identitycore)
         self.self_model.update_identity_metrics(self.identitycore)
         self.self_model.update_intent_metrics(self.intentengine)
-        self.autonomy.update_autonomy_metrics()
         self.self_model.update_autonomy_metrics(self.autonomy)
         self.self_model.update_value_metrics(self.values)
         self.self_model.update_social_metrics(self.social)

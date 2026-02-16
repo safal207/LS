@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from .utils import MAX_TRACE_LENGTH, get_norm_conflicts
+
+if TYPE_CHECKING:
+    from .update_context import UpdateContext
 
 
 @dataclass
@@ -18,9 +21,42 @@ class MilitocracyEngine:
     discipline_bias: float = 0.5
     discipline_trace: list[dict[str, Any]] = field(default_factory=list)
 
+    def update(self, context: UpdateContext) -> dict[str, Any]:
+        """Unified update method using deterministic context."""
+        # 1. Update from identity
+        self.update_from_identity(context.identity_snapshot)
+
+        # 2. Update from autonomy (previous step's autonomy)
+        self.update_from_autonomy(context.autonomy_snapshot)
+
+        # 3. Update from culture
+        self.update_from_culture(context.culture_snapshot)
+
+        # 4. Update trace
+        snapshot = self.update_trace()
+
+        return {
+            "snapshot": self.to_context_snapshot(),
+            "trace_snapshot": snapshot
+        }
+
+    def to_context_snapshot(self) -> dict[str, Any]:
+        """Export state for context propagation."""
+        return {
+            "militarydisciplinescore": self.militarydisciplinescore,
+            "command_coherence": self.command_coherence,
+            "discipline_bias": self.discipline_bias,
+        }
+
+    def _get_attr(self, obj: Any, key: str, default: Any) -> Any:
+        """Helper to safely get attribute from object or dict."""
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
     def update_from_identity(self, identity_core: Any) -> dict[str, float]:
-        integrity = float(getattr(identity_core, "identity_integrity", 0.5))
-        resistance = float(getattr(identity_core, "drift_resistance", 0.5))
+        integrity = float(self._get_attr(identity_core, "identity_integrity", 0.5))
+        resistance = float(self._get_attr(identity_core, "drift_resistance", 0.5))
         self.militarydisciplinescore = max(
             0.0,
             min(1.0, 0.6 * integrity + 0.4 * resistance),
@@ -32,7 +68,7 @@ class MilitocracyEngine:
         }
 
     def update_from_autonomy(self, autonomy_engine: Any) -> dict[str, float]:
-        alignment = float(getattr(autonomy_engine, "autonomy_level", 0.5))
+        alignment = float(self._get_attr(autonomy_engine, "autonomy_level", 0.5))
         # Note: using self.command_coherence for inertia
         self.command_coherence = max(
             0.0,
@@ -45,11 +81,16 @@ class MilitocracyEngine:
         }
 
     def update_from_culture(self, culture_engine: Any) -> dict[str, float]:
-        conflicts = len(get_norm_conflicts(culture_engine))
+        if isinstance(culture_engine, dict):
+            conflicts = culture_engine.get("norm_conflicts", [])
+        else:
+            conflicts = get_norm_conflicts(culture_engine)
+
+        count = len(list(conflicts))
         # discipline decays linearly: 0 at ~7 conflicts
         self.discipline_bias = max(
             0.0,
-            min(1.0, 1.0 - 0.15 * conflicts),
+            min(1.0, 1.0 - 0.15 * count),
         )
         return {
             "militarydisciplinescore": self.militarydisciplinescore,

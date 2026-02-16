@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from .utils import normalize_traditions, MAX_TRACE_LENGTH
+
+if TYPE_CHECKING:
+    from .update_context import UpdateContext
 
 
 @dataclass
@@ -25,6 +28,47 @@ class SocialCognitionEngine:
     def __post_init__(self) -> None:
         if self.tradition_patterns:
             self.tradition_patterns = normalize_traditions(self.tradition_patterns)
+
+    def update(self, context: UpdateContext) -> dict[str, Any]:
+        """Unified update method using deterministic context."""
+        # 1. Update from collective state
+        self.update_from_collective_state(context.collective_state)
+
+        # 2. Infer from events
+        events = list(context.collective_state.get("recent_events", [])) if isinstance(context.collective_state, dict) else []
+        self.infer_other_agents_intents(events)
+        self.infer_other_agents_values(events)
+
+        # 3. Evaluate alignment
+        social_alignment = self.evaluate_social_alignment_from_context(context)
+
+        # 4. Generate adjustments
+        adjustments = self.generate_cooperative_adjustments()
+
+        return {
+            "snapshot": self.to_context_snapshot(),
+            "alignment": social_alignment,
+            "adjustments": adjustments,
+        }
+
+    def to_context_snapshot(self) -> dict[str, Any]:
+        """Export state for context propagation."""
+        traditions = self.tradition_patterns
+        if isinstance(traditions, list):
+            traditions = normalize_traditions(traditions)
+
+        return {
+            "group_norms": dict(self.group_norms),
+            "tradition_patterns": dict(traditions),
+            "socialconflictscore": self.socialconflictscore,
+            "cooperation_score": self.cooperation_score,
+            "culturalsimilarityscore": self.culturalsimilarityscore,
+            "collectivevaluealignment": self.collectivevaluealignment,
+            "collectiveintentalignment": self.collectiveintentalignment,
+            "collaboration_index": self.collaboration_index,
+            "conflict_index": self.conflict_index,
+            "social_models": dict(self.social_models),  # Needed for logging mainly
+        }
 
     def update_from_collective_state(self, collective: dict[str, Any] | None) -> dict[str, Any]:
         collective = collective or {}
@@ -118,7 +162,44 @@ class SocialCognitionEngine:
                 model["valuealignmentscore"] = float(value_block.get("valuealignmentscore", value_block.get("value_alignment", model.get("valuealignmentscore", 0.6))))
         return self.social_models
 
+    def evaluate_social_alignment_from_context(self, context: UpdateContext) -> float:
+        """Evaluate social alignment using context snapshots."""
+        values_snapshot = context.values_snapshot or {}
+        self_values = dict(values_snapshot.get("core_values", {}))
+
+        # Use primary_intent from context (previous step's intent initially, or current step's if generated)
+        # Note: In Step 4, context.primary_intent comes from previous step
+        self_intent = context.primary_intent or {}
+        self_intent_mode = str(self_intent.get("desired_mode", "balanced"))
+
+        value_fit_scores: list[float] = []
+        intent_fit_scores: list[float] = []
+
+        for model in self.social_models.values():
+            other_values = dict(model.get("values", {}))
+            if self_values and other_values:
+                overlap = [1.0 - abs(float(self_values.get(k, 0.5)) - float(v)) for k, v in other_values.items() if k in self_values]
+                if overlap:
+                    value_fit_scores.append(sum(overlap) / len(overlap))
+            other_mode = str(model.get("intent", {}).get("desired_mode", "balanced"))
+            if other_mode == self_intent_mode:
+                intent_fit_scores.append(1.0)
+            elif {self_intent_mode, other_mode} == {"stabilize", "explore"}:
+                intent_fit_scores.append(0.35)
+            else:
+                intent_fit_scores.append(0.65)
+
+        value_fit = sum(value_fit_scores) / max(1, len(value_fit_scores)) if value_fit_scores else self.collectivevaluealignment
+        intent_fit = sum(intent_fit_scores) / max(1, len(intent_fit_scores)) if intent_fit_scores else self.collectiveintentalignment
+
+        collective_penalty = float(context.collective_state.get("collectivesocialconflict", self.socialconflictscore))
+
+        alignment = max(0.0, min(1.0, (0.4 * value_fit) + (0.35 * intent_fit) + (0.25 * (1.0 - collective_penalty))))
+        self.cooperation_score = max(0.0, min(1.0, (0.65 * self.cooperation_score) + (0.35 * alignment)))
+        return alignment
+
     def evaluate_social_alignment(self, self_agent: Any, others: dict[str, Any] | None) -> float:
+        # Legacy method for backward compatibility if needed, but discouraged.
         others = others or {}
         self_values = dict(getattr(getattr(self_agent, "values", None), "core_values", {}))
         self_intent = getattr(getattr(self_agent, "intentengine", None), "select_primary_intent", lambda: {})() or {}

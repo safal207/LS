@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from .utils import normalize_traditions, MAX_NORM_CONFLICTS
+
+if TYPE_CHECKING:
+    from .update_context import UpdateContext
 
 
 @dataclass
@@ -80,8 +83,60 @@ class IdentityCore:
         }
     )
 
+    def update(self, context: UpdateContext) -> dict[str, Any]:
+        """Unified update method using deterministic context."""
+        # 1. Update from self model
+        self.update_from_self_model(context.self_snapshot)
+
+        # 2. Update from meta feedback
+        self.update_from_meta(context.metafeedback or {})
+
+        # 3. Stabilize
+        self.stabilize_identity()
+
+        # 4. Generate initiative
+        initiative = self.generate_initiative()
+
+        return {
+            "snapshot": self.to_context_snapshot(),
+            "initiative": initiative
+        }
+
+    def to_context_snapshot(self) -> dict[str, Any]:
+        """Export state for context propagation."""
+        return {
+            "identity_integrity": self.identity_integrity,
+            "drift_resistance": self.drift_resistance,
+            "agency_level": self.agency_level,
+            "culturalidentityscore": self.culturalidentityscore,
+            "militocracyalignmentscore": self.militocracyalignmentscore,
+            "synergyalignmentscore": self.synergyalignmentscore,
+            "intentalignmentscore": self.intentalignmentscore,
+            "autonomyalignmentscore": self.autonomyalignmentscore,
+            "valuealignmentscore": self.valuealignmentscore,
+            "socialalignmentscore": self.socialalignmentscore,
+
+            # Profiles needed by other engines for compatibility checks
+            "core_traits": dict(self.core_traits),
+            "intentpreferenceprofile": dict(self.intentpreferenceprofile),
+            "selfdirectionpreference": dict(self.selfdirectionpreference),
+            "intent_resistance": self.intent_resistance,
+            "autonomy_resistance": self.autonomy_resistance,
+            "value_resistance": self.value_resistance,
+            "social_resistance": self.social_resistance,
+            "cultural_resistance": self.cultural_resistance,
+            "valuepreferenceprofile": dict(self.valuepreferenceprofile),
+            "socialpreferenceprofile": dict(self.socialpreferenceprofile),
+            "culturalpreferenceprofile": dict(self.culturalpreferenceprofile),
+        }
+
     def update_from_self_model(self, self_model: Any) -> None:
-        payload = self_model.to_dict() if hasattr(self_model, "to_dict") else {}
+        payload = {}
+        if isinstance(self_model, dict):
+            payload = self_model
+        elif hasattr(self_model, "to_dict"):
+            payload = self_model.to_dict()
+
         drift = float(payload.get("identity_drift_score", 0.0))
         predicted = payload.get("predicted_state", {}) if isinstance(payload, dict) else {}
         predicted_consistency = float(predicted.get("predictedselfconsistency", 1.0)) if isinstance(predicted, dict) else 1.0
