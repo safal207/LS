@@ -41,19 +41,23 @@ class ValueSystem:
     traditionvaluemap: dict[str, float] = field(default_factory=dict)
 
     def update(self, context: UpdateContext) -> dict[str, Any]:
-        """Unified update method using deterministic context."""
-        # 1. Update from identity
-        self.update_from_identity(context.identity_snapshot)
+        """Phase 12.2 reference: single update(context) entrypoint."""
+        self._sync_from_identity(context.identity_snapshot)
+        self._sync_from_collective(context.collective_state)
+        self._sync_from_intents(context.intent_snapshot)
+        self._sync_from_autonomy(context.autonomy_snapshot)
 
-        # 2. Update from collective
-        self.update_from_collective(context.collective_state)
-
-        # Note: update_from_intents and update_from_autonomy are NOT called in NCAAgent.step() explicitly.
-        # They seem unused or implicit. I will leave them be.
+        action = self._derive_value_action(context.initiative, context.primary_intent)
+        value_alignment = self.evaluate_value_alignment(
+            action,
+            context.primary_intent,
+            context.primary_strategy,
+        )
+        self.evolve_preferences()
 
         return {
             "snapshot": self.to_context_snapshot(),
-            "value_alignment": self.valuealignmentscore # Or just expose snapshot
+            "value_alignment": value_alignment,
         }
 
     def to_context_snapshot(self) -> dict[str, Any]:
@@ -73,7 +77,17 @@ class ValueSystem:
             return obj.get(key, default)
         return getattr(obj, key, default)
 
-    def update_from_identity(self, identity_core: Any) -> None:
+    def _derive_value_action(
+        self,
+        initiative: dict[str, Any] | None,
+        primary_intent: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        preferred_actions = list((initiative or {}).get("preferred_actions", []))
+        if not preferred_actions and isinstance(primary_intent, dict):
+            preferred_actions = list(primary_intent.get("preferred_actions", []))
+        return {"action": preferred_actions[0] if preferred_actions else "idle"}
+
+    def _sync_from_identity(self, identity_core: Any) -> None:
         integrity = float(self._get_attr(identity_core, "identity_integrity", 1.0))
         drift_resistance = float(self._get_attr(identity_core, "drift_resistance", 1.0))
         agency_level = float(self._get_attr(identity_core, "agency_level", 0.5))
@@ -91,7 +105,7 @@ class ValueSystem:
             min(1.0, (0.5 * self.core_values.get("adaptive_learning", 0.55)) + (0.5 * agency_level)),
         )
 
-    def update_from_intents(self, intent_engine: Any) -> None:
+    def _sync_from_intents(self, intent_engine: Any) -> None:
         intent_alignment = float(self._get_attr(intent_engine, "intent_alignment", 1.0))
         intent_strength = float(self._get_attr(intent_engine, "intent_strength", 0.0))
         conflicts = list(self._get_attr(intent_engine, "intent_conflicts", []))
@@ -107,7 +121,7 @@ class ValueSystem:
         conflict_penalty = min(0.25, 0.08 * len(conflicts))
         self.valuealignmentscore = max(0.0, min(1.0, self.valuealignmentscore - conflict_penalty))
 
-    def update_from_autonomy(self, autonomy_engine: Any) -> None:
+    def _sync_from_autonomy(self, autonomy_engine: Any) -> None:
         autonomy_level = float(self._get_attr(autonomy_engine, "autonomy_level", 0.5))
         ethical_alignment = float(self._get_attr(autonomy_engine, "ethicalalignmentscore", 1.0))
 
@@ -121,7 +135,7 @@ class ValueSystem:
         )
 
 
-    def update_from_collective(self, collective_state: dict[str, Any] | None) -> None:
+    def _sync_from_collective(self, collective_state: dict[str, Any] | None) -> None:
         collective_state = collective_state or {}
         self.groupvaluemap = dict(collective_state.get("collectivevaluemap", self.groupvaluemap))
         self.collectivevaluealignment = float(collective_state.get("collectivevaluealignment", self.collectivevaluealignment))
@@ -145,6 +159,18 @@ class ValueSystem:
             "learning": self.core_values.get("adaptive_learning", 0.55),
             "progress": self.core_values.get("goal_progress", 0.7),
         }
+
+    def update_from_identity(self, identity_core: Any) -> None:
+        self._sync_from_identity(identity_core)
+
+    def update_from_intents(self, intent_engine: Any) -> None:
+        self._sync_from_intents(intent_engine)
+
+    def update_from_autonomy(self, autonomy_engine: Any) -> None:
+        self._sync_from_autonomy(autonomy_engine)
+
+    def update_from_collective(self, collective_state: dict[str, Any] | None) -> None:
+        self._sync_from_collective(collective_state)
 
     def evaluate_value_alignment(
         self,
