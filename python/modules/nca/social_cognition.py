@@ -53,9 +53,13 @@ class SocialCognitionEngine:
 
     def to_context_snapshot(self) -> dict[str, Any]:
         """Export state for context propagation."""
+        traditions = self.tradition_patterns
+        if isinstance(traditions, list):
+            traditions = normalize_traditions(traditions)
+
         return {
             "group_norms": dict(self.group_norms),
-            "tradition_patterns": dict(self.tradition_patterns),
+            "tradition_patterns": dict(traditions),
             "socialconflictscore": self.socialconflictscore,
             "cooperation_score": self.cooperation_score,
             "culturalsimilarityscore": self.culturalsimilarityscore,

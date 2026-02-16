@@ -23,12 +23,6 @@ from .world import GridWorld
 from .update_context import UpdateContext
 
 
-class CollectiveAdapter:
-    """Adapts collective_state dictionary to expected interface for SynergyEngine."""
-    def __init__(self, state: dict[str, Any]) -> None:
-        self.collectivesynergy = float(state.get("collectivesynergy", 0.5))
-
-
 @dataclass
 class NCAAgent:
     """Composable NCA agent with identity, social, cultural, and phase 11.1 layers."""
@@ -109,6 +103,8 @@ class NCAAgent:
 
         # Phase 12.1: Deterministic Context Propagation
         # Initialize Context with snapshots of current state for downstream dependencies
+        # Note: values_snapshot is from t-1. Culture (Step 5) uses this snapshot, creating a 1-step lag.
+        # This is standard for DCP in multi-agent systems to ensure determinism.
         context = UpdateContext(
             t=state.t,
             state=state,

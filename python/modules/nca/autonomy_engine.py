@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
 
-from .utils import MAX_TRACE_LENGTH, MAX_NORM_CONFLICTS, get_norm_conflicts
+from .utils import MAX_TRACE_LENGTH, MAX_NORM_CONFLICTS, get_norm_conflicts, evaluate_identity_compatibility
 
 if TYPE_CHECKING:
     from .update_context import UpdateContext
@@ -194,40 +194,13 @@ class AutonomyEngine:
             return None
         return max(strategies, key=lambda s: float(s.get("strength", 0.0)) * (0.65 + (0.35 * float(s.get("alignment", 0.0)))))
 
-    def _evaluate_strategy_compatibility_local(self, strategy: dict[str, Any] | None, identity_snapshot: dict[str, Any]) -> float:
-        """Local implementation of IdentityCore.evaluate_strategy_compatibility using snapshot."""
-        if not strategy:
-            return 0.5
-
-        mode = str(strategy.get("mode", "balanced")).lower()
-
-        # Access identity fields from snapshot
-        selfdirectionpreference = identity_snapshot.get("selfdirectionpreference", {})
-        core_traits = identity_snapshot.get("core_traits", {})
-        drift_resistance = float(identity_snapshot.get("drift_resistance", 0.7))
-        agency_level = float(identity_snapshot.get("agency_level", 0.45))
-        identity_integrity = float(identity_snapshot.get("identity_integrity", 0.85))
-        autonomy_resistance = float(identity_snapshot.get("autonomy_resistance", 0.45))
-
-        preference = float(selfdirectionpreference.get(mode, 0.6))
-        alignment = float(strategy.get("alignment", 0.5))
-        strength = float(strategy.get("strength", 0.5))
-        consistency = float(core_traits.get("consistency", 0.6))
-        adaptability = float(core_traits.get("adaptability", 0.6))
-
-        mode_fit = 0.6 * consistency + 0.4 * drift_resistance if mode == "stabilize" else 0.55 * adaptability + 0.45 * agency_level if mode == "explore" else 0.4 * consistency + 0.3 * adaptability + 0.3 * identity_integrity
-        resistance_penalty = autonomy_resistance * max(0.0, strength - agency_level)
-
-        score = max(0.0, min(1.0, (0.35 * preference) + (0.3 * alignment) + (0.2 * mode_fit) + (0.15 * identity_integrity) - (0.2 * resistance_penalty)))
-        return score
-
     def evaluate_autonomy_alignment(self, identitycore: Any) -> float:
         selected = self.select_strategy() or {}
         compatibility = 0.5
 
         # Check if identitycore is a dict (snapshot) or object
         if isinstance(identitycore, dict):
-             compatibility = self._evaluate_strategy_compatibility_local(selected, identitycore)
+             compatibility = evaluate_identity_compatibility(identitycore, selected, "strategy")
         elif hasattr(identitycore, "evaluate_strategy_compatibility"):
             compatibility = float(identitycore.evaluate_strategy_compatibility(selected))
 

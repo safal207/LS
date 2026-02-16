@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
 
-from .utils import MAX_TRACE_LENGTH
+from .utils import MAX_TRACE_LENGTH, evaluate_identity_compatibility
 
 if TYPE_CHECKING:
     from .update_context import UpdateContext
@@ -170,47 +170,9 @@ class IntentEngine:
             self.intent_history = self.intent_history[-MAX_TRACE_LENGTH:]
         return self.active_intents
 
-    def _evaluate_intent_compatibility_local(self, intent: dict[str, Any], identity_snapshot: dict[str, Any]) -> float:
-        """Local implementation of IdentityCore.evaluate_intent_compatibility using snapshot."""
-        intent_type = str(intent.get("type", "progress")).lower()
-        desired_mode = str(intent.get("desired_mode", "balanced")).lower()
-        priority = float(intent.get("priority", 0.5))
-
-        # Access identity fields from snapshot
-        intentpreferenceprofile = identity_snapshot.get("intentpreferenceprofile", {})
-        core_traits = identity_snapshot.get("core_traits", {})
-        drift_resistance = float(identity_snapshot.get("drift_resistance", 0.7))
-        agency_level = float(identity_snapshot.get("agency_level", 0.45))
-        identity_integrity = float(identity_snapshot.get("identity_integrity", 0.85))
-        intent_resistance = float(identity_snapshot.get("intent_resistance", 0.55))
-
-        preferred = float(intentpreferenceprofile.get(intent_type, 0.6))
-        consistency = float(core_traits.get("consistency", 0.6))
-        adaptability = float(core_traits.get("adaptability", 0.6))
-        cooperation = float(core_traits.get("cooperation", 0.6))
-        curiosity = float(core_traits.get("curiosity", 0.5))
-
-        mode_fit = 0.6
-        if desired_mode == "stabilize":
-            mode_fit = 0.5 * consistency + 0.5 * drift_resistance
-        elif desired_mode == "explore":
-            mode_fit = 0.55 * curiosity + 0.45 * adaptability
-        elif desired_mode == "balanced":
-            mode_fit = 0.4 * consistency + 0.3 * adaptability + 0.3 * cooperation
-
-        resistance_penalty = intent_resistance * max(0.0, priority - agency_level)
-        score = max(
-            0.0,
-            min(
-                1.0,
-                (0.4 * preferred) + (0.4 * mode_fit) + (0.2 * identity_integrity) - (0.2 * resistance_penalty),
-            ),
-        )
-        return score
-
     def evaluate_intent_alignment(self, intent: dict[str, Any], identity_core: Any) -> float:
         if isinstance(identity_core, dict):
-             return self._evaluate_intent_compatibility_local(intent, identity_core)
+             return evaluate_identity_compatibility(identity_core, intent, "intent")
         elif hasattr(identity_core, "evaluate_intent_compatibility"):
             return float(identity_core.evaluate_intent_compatibility(intent))
         return 0.5
