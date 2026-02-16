@@ -1,0 +1,63 @@
+rules:
+  - id: phase13-engine-update-legacy-prefix-debt
+    message: >-
+      BLOCKER: update(context) invokes legacy helper prefixes.
+      Legacy calls (update_from_, etc.) forbidden in Phase 13.
+    severity: ERROR
+    languages:
+      - python
+    paths:
+      include:
+        - python/modules/nca/identity_core.py
+        - python/modules/nca/social_cognition.py
+        - python/modules/nca/culture_engine.py
+        - python/modules/nca/militocracy_engine.py
+        - python/modules/nca/synergy_engine.py
+        - python/modules/nca/value_system.py
+        - python/modules/nca/autonomy_engine.py
+        - python/modules/nca/intent_engine.py
+        - python/modules/nca/self_model.py
+        - python/modules/nca/orientation.py
+    patterns:
+      - pattern-inside: |
+          def update(self, ...):
+              ...
+      - pattern: self.$METHOD(...)
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: "^(update_from_|generate_|select_|apply_|infer_|evaluate_).+"
+      - pattern-not: self.$METHOD(..., context, ...)
+      - pattern-not: self.$METHOD(context, ...)
+      - pattern-not-regex: ".*_from_context"
+
+  - id: phase13-self-layer-legacy-forbidden
+    message: >-
+      BLOCKER: SelfModel and Orientation must not use legacy update_from* methods.
+    severity: ERROR
+    languages:
+      - python
+    paths:
+      include:
+        - python/modules/nca/self_model.py
+        - python/modules/nca/orientation.py
+    patterns:
+      - pattern: self.update_from_$X(...)
+      - pattern-not-inside: |
+          # Allow internal implementations if prefixed with _
+          def _update_from_$X(self, ...): ...
+
+  - id: phase13-agent-updateself-layer-forbidden
+    message: >-
+      BLOCKER: _update_self_layer() helper is removed in Phase 13.
+      Use self_model.update(context) and orientation.update(context) directly in step().
+    severity: ERROR
+    languages:
+      - python
+    paths:
+      include:
+        - python/modules/nca/agent.py
+    patterns:
+      - pattern: self._update_self_layer(...)
+    metadata:
+      category: phase13
+      impact: high

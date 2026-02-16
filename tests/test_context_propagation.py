@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, ANY
 from dataclasses import FrozenInstanceError
 import sys
@@ -8,6 +9,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from python.modules.nca.agent import NCAAgent
+from python.modules.nca.orientation import OrientationCenter
 from python.modules.nca.update_context import UpdateContext
 
 class TestContextPropagation(unittest.TestCase):
@@ -40,17 +42,22 @@ class TestContextPropagation(unittest.TestCase):
         self.agent.militocracy = MagicMock()
         self.agent.synergy = MagicMock()
         self.agent.planner = MagicMock()
-        self.agent.metacognition = MagicMock()
+        # self.agent.metacognition = MagicMock() # Property, cannot set
         self.agent.self_model = MagicMock()
         self.agent.assembly = MagicMock()
-        self.agent.meta_observer = MagicMock()
+        # self.agent.meta_observer = MagicMock() # Property, cannot set
         self.agent.causal_graph = MagicMock()
 
         # Setup return values for mocks to satisfy flow
         self.agent.assembly.build.return_value = MagicMock(t=0, world_state={})
-        self.agent.self_model.update_from_state.return_value = {}
-        self.agent.meta_observer.observe_and_correct.return_value = {"report": {}}
-        self.agent.metacognition.analyze_cognition.return_value = {}
+        # Phase 13: Mock update(context) instead of legacy methods
+        self.agent.self_model.update.return_value = {
+            "snapshot": {"self_data": "test"},
+            "analysis": {"report": {}},
+            "metafeedback": {}
+        }
+        self.agent.orientation.update.return_value = {"snapshot": {"orientation_data": "test"}}
+        self.agent.orientation.to_snapshot.return_value = {}
 
         self.agent.identitycore.update.return_value = {"snapshot": {"id_data": "test"}, "initiative": {}}
         self.agent.social.update.return_value = {"snapshot": {"social_data": "test"}, "alignment": 0.5, "adjustments": {}}
@@ -81,6 +88,18 @@ class TestContextPropagation(unittest.TestCase):
         self.agent.step()
 
         # Verify calls
+
+        # Verify SelfModel update
+        self.agent.self_model.update.assert_called_with(ANY)
+        arg_self = self.agent.self_model.update.call_args[0][0]
+        self.assertIsInstance(arg_self, UpdateContext)
+        self.assertEqual(arg_self.orientation_snapshot, {}) # Mocked to_snapshot
+
+        # Verify Orientation update
+        self.agent.orientation.update.assert_called_with(ANY)
+        arg_orient = self.agent.orientation.update.call_args[0][0]
+        self.assertEqual(arg_orient.self_snapshot, {"self_data": "test"})
+
         self.agent.social.update.assert_called_with(ANY)
         arg_social = self.agent.social.update.call_args[0][0]
         self.assertIsInstance(arg_social, UpdateContext)
@@ -92,6 +111,17 @@ class TestContextPropagation(unittest.TestCase):
         self.assertIsInstance(arg_culture, UpdateContext)
         # Verify culture context has social snapshot
         self.assertEqual(arg_culture.social_snapshot, {"social_data": "test"})
+
+    def test_orientation_applies_object_meta_report(self):
+        orientation = OrientationCenter(identity="agent")
+        baseline_stability = orientation.stability_preference
+        baseline_impulsiveness = orientation.impulsiveness
+
+        report = SimpleNamespace(collective_drift=True, collective_score=0.4, causal_drift=True)
+        orientation._apply_meta_report(report)
+
+        self.assertGreater(orientation.stability_preference, baseline_stability)
+        self.assertLess(orientation.impulsiveness, baseline_impulsiveness)
 
 if __name__ == "__main__":
     unittest.main()

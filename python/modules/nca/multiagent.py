@@ -225,8 +225,26 @@ class MultiAgentSystem:
             ),
         )
 
+        self_models = {
+            getattr(agent, "agent_id", f"agent-{idx}"): agent.self_model.to_dict()
+            for idx, agent in enumerate(self.agents)
+        }
+        predicted_consistency = [
+            float((model.get("predicted_state", {}) or {}).get("predictedselfconsistency", 1.0))
+            for model in self_models.values()
+        ]
+        identity_drift_scores = [float(model.get("identity_drift_score", 0.0)) for model in self_models.values()]
+        meta_drift_scores = [float(model.get("meta_drift_score", 0.0)) for model in self_models.values()]
+
+        collective_self_alignment = sum(predicted_consistency) / max(1, len(predicted_consistency))
+        collective_identity_shift = (sum(identity_drift_scores) / max(1, len(identity_drift_scores))) > 0.35
+        collective_meta_drift = sum(meta_drift_scores) / max(1, len(meta_drift_scores))
+        collective_meta_alignment = max(0.0, min(1.0, 1.0 - collective_meta_drift))
+        collective_meta_stabilization = collective_meta_alignment >= 0.65 and collective_meta_drift <= 0.35
+
         return {
             "agent_positions": positions,
+            "self_models": self_models,
             "collective_progress_score": -float(collective_score),
             "shared_causal": shared,
             "collectiveagencylevel": self.collectiveagencylevel,
@@ -244,6 +262,11 @@ class MultiAgentSystem:
             "collectiveethicalalignment": self.collectiveethicalalignment,
             "collectivesocialconflict": self.collectivesocialconflict,
             "collectiveidentityintegrity": self.collectiveidentityintegrity,
+            "collective_self_alignment": collective_self_alignment,
+            "collectiveidentityshift": collective_identity_shift,
+            "collectivemetaalignment": collective_meta_alignment,
+            "collectivemetadrift": collective_meta_drift,
+            "collectivemetastabilization": collective_meta_stabilization,
             "collectivenorms": dict(self.collectivenorms),
             "collectivetraditionpatterns": dict(self.collectivetraditionpatterns),
             "collectiveculturealignment": self.collectiveculturealignment,
