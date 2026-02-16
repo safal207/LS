@@ -127,13 +127,21 @@ class OrientationCenter:
         """Normalizes meta-report shape from dict or object-style payloads."""
         if isinstance(report, dict):
             source = report
-            collective_drift = bool(source.get("collective_drift", False))
             collective_score = float(source.get("collective_score", 0.0))
+            collective_drift = bool(
+                source.get("collective_drift", False)
+                or float(source.get("collective_risk", 0.0)) > 0.5
+            )
             causal_drift = bool(source.get("causal_drift", False))
             return collective_drift, collective_score, causal_drift
 
-        collective_drift = bool(getattr(report, "collective_drift", False))
+        # MetaReport object path: derive drift from collective_risk when explicit
+        # collective_drift flag is absent.
         collective_score = float(getattr(report, "collective_score", 0.0))
+        collective_drift = bool(
+            getattr(report, "collective_drift", False)
+            or float(getattr(report, "collective_risk", 0.0)) > 0.5
+        )
         causal_drift = bool(getattr(report, "causal_drift", False))
         return collective_drift, collective_score, causal_drift
 

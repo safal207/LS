@@ -53,8 +53,8 @@ class NCAAgent:
     def __post_init__(self) -> None:
         self.planner.causal_graph = self.causal_graph
         self.signal_bus.subscribe(self._log_signal)
-        # Phase 13: Signal handling for orientation moved to closed-loop update(context)
-        # self.signal_bus.subscribe(self._orientation_signal_handler)
+        # Keep compatibility with existing signal-driven coordination loops.
+        self.signal_bus.subscribe(self._orientation_signal_handler)
 
         # Inject signal bus into self_model for meta-observer
         self.self_model.signal_bus = self.signal_bus
@@ -322,8 +322,21 @@ class NCAAgent:
              current = float(getattr(self.meta_observer, "self_consistency_threshold", 0.45))
              self.meta_observer.self_consistency_threshold = max(0.35, min(0.7, current + 0.06)) # correction_strength hardcoded to match MetaCognition default
 
-        # Phase 13: self_model.update(context) handles metric updates and cognitive trace in the next cycle
-        # by observing the history and snapshots.
+        # Keep same-step cognitive trace updates to avoid t+1 lag in meta drift signals.
+        self.self_model.update_cognitive_trace(
+            state,
+            {"action": choice.action, "score": choice.score, "confidence": choice.confidence},
+            {**analysis, "meta_drift": metafeedback.get("meta_drift", 0.0)},
+            t_override=transition["t"],
+        )
+
+        # Ensure full-fidelity metrics from live engines when snapshots are partial.
+        self.self_model.update_identity_metrics(self.identitycore)
+        self.self_model.update_intent_metrics(self.intentengine)
+        self.self_model.update_autonomy_metrics(self.autonomy, primary_strategy)
+        self.self_model.update_value_metrics(self.values)
+        self.self_model.update_social_metrics(self.social)
+        self.self_model.update_culture_metrics(self.culture)
 
         if choice.confidence < self.low_confidence_threshold:
             self.signal_bus.emit(

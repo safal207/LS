@@ -25,10 +25,10 @@ rules:
       - pattern: self.$METHOD(...)
       - metavariable-regex:
           metavariable: $METHOD
-          regex: "^(update_from_|generate_|select_|apply_|infer_|evaluate_).+"
+          regex: "^(update_from_|generate_from_|select_from_|apply_from_|infer_from_).+"
       - pattern-not: self.$METHOD(..., context, ...)
       - pattern-not: self.$METHOD(context, ...)
-      - pattern-not-regex: ".*_from_context"
+      - pattern-not-regex: ".*(?:_from_context|fromcontext)$"
 
   - id: phase13-self-layer-legacy-forbidden
     message: >-
