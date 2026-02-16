@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from .utils import MAX_TRACE_LENGTH
+
+if TYPE_CHECKING:
+    from .update_context import UpdateContext
 
 
 @dataclass
@@ -16,18 +19,65 @@ class IntentEngine:
     intent_strength: float = 0.0
     intent_alignment: float = 1.0
 
+    def update(self, context: UpdateContext) -> dict[str, Any]:
+        """Unified update method using deterministic context."""
+
+        # 1. Generate intents (raw)
+        # social=None, collective_state=None initially as per logic
+        self.generate_intents(
+            context.state,
+            context.identity_snapshot,
+            context.self_snapshot,
+            strategy=context.primary_strategy,
+            values=context.values_snapshot,
+            social=None,
+            collective_state=None
+        )
+
+        # 2. Apply social influence
+        self.apply_social_influence(context.social_snapshot, context.collective_state)
+
+        # 3. Select primary intent
+        primary_intent = self.select_primary_intent()
+
+        return {
+            "snapshot": self.to_context_snapshot(),
+            "primary_intent": primary_intent,
+            "intents": list(self.active_intents)
+        }
+
+    def to_context_snapshot(self) -> dict[str, Any]:
+        """Export state for context propagation."""
+        return {
+            "active_intents": [dict(i) for i in self.active_intents],
+            "intent_strength": self.intent_strength,
+            "intent_alignment": self.intent_alignment,
+            "intent_conflicts": [dict(c) for c in self.intent_conflicts],
+        }
+
+    def _get_attr(self, obj: Any, key: str, default: Any) -> Any:
+        """Helper to safely get attribute from object or dict."""
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
     def generate_intents(self, state: Any, identity_core: Any, self_model: Any, strategy: dict[str, Any] | None = None, values: Any | None = None, social: Any | None = None, collective_state: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-        world_state = getattr(state, "world_state", {}) if hasattr(state, "world_state") else {}
+        world_state = self._get_attr(state, "world_state", {})
         if not isinstance(world_state, dict):
             world_state = {}
 
-        model_payload = self_model.to_dict() if hasattr(self_model, "to_dict") else {}
+        model_payload = {}
+        if isinstance(self_model, dict):
+            model_payload = self_model
+        elif hasattr(self_model, "to_dict"):
+            model_payload = self_model.to_dict()
+
         drift = float(model_payload.get("identity_drift_score", 0.0))
         meta_drift = float(model_payload.get("meta_drift_score", 0.0))
 
         distance_to_goal = abs(int(world_state.get("goal_position", 0)) - int(world_state.get("agent_position", 0)))
-        integrity = float(getattr(identity_core, "identity_integrity", 1.0))
-        agency = float(getattr(identity_core, "agency_level", 0.0))
+        integrity = float(self._get_attr(identity_core, "identity_integrity", 1.0))
+        agency = float(self._get_attr(identity_core, "agency_level", 0.0))
 
         intents: list[dict[str, Any]] = [
             {
@@ -58,8 +108,9 @@ class IntentEngine:
         strategy_alignment = float((strategy or {}).get("alignment", 0.5))
         strategy_actions = set((strategy or {}).get("preferred_actions", []))
 
-        value_map = dict(getattr(values, "core_values", {})) if values is not None else {}
-        ethical_constraints = dict(getattr(values, "ethical_constraints", {})) if values is not None else {}
+        value_map = dict(self._get_attr(values, "core_values", {})) if values is not None else {}
+        ethical_constraints = dict(self._get_attr(values, "ethical_constraints", {})) if values is not None else {}
+        preference_drift = float(self._get_attr(values, "preference_drift", 0.0)) if values is not None else 0.0
 
         for intent in intents:
             alignment = self.evaluate_intent_alignment(intent, identity_core)
@@ -81,7 +132,7 @@ class IntentEngine:
             elif intent_type == "collective":
                 value_boost += 0.2 * float(value_map.get("collective_good", 0.6))
 
-            alignment = max(0.0, min(1.0, alignment + value_boost - (0.08 * float(getattr(values, "preference_drift", 0.0)))))
+            alignment = max(0.0, min(1.0, alignment + value_boost - (0.08 * preference_drift)))
             intent["alignment"] = alignment
 
             base_strength = float(intent["priority"]) * (0.6 + (0.4 * alignment))
@@ -119,8 +170,48 @@ class IntentEngine:
             self.intent_history = self.intent_history[-MAX_TRACE_LENGTH:]
         return self.active_intents
 
+    def _evaluate_intent_compatibility_local(self, intent: dict[str, Any], identity_snapshot: dict[str, Any]) -> float:
+        """Local implementation of IdentityCore.evaluate_intent_compatibility using snapshot."""
+        intent_type = str(intent.get("type", "progress")).lower()
+        desired_mode = str(intent.get("desired_mode", "balanced")).lower()
+        priority = float(intent.get("priority", 0.5))
+
+        # Access identity fields from snapshot
+        intentpreferenceprofile = identity_snapshot.get("intentpreferenceprofile", {})
+        core_traits = identity_snapshot.get("core_traits", {})
+        drift_resistance = float(identity_snapshot.get("drift_resistance", 0.7))
+        agency_level = float(identity_snapshot.get("agency_level", 0.45))
+        identity_integrity = float(identity_snapshot.get("identity_integrity", 0.85))
+        intent_resistance = float(identity_snapshot.get("intent_resistance", 0.55))
+
+        preferred = float(intentpreferenceprofile.get(intent_type, 0.6))
+        consistency = float(core_traits.get("consistency", 0.6))
+        adaptability = float(core_traits.get("adaptability", 0.6))
+        cooperation = float(core_traits.get("cooperation", 0.6))
+        curiosity = float(core_traits.get("curiosity", 0.5))
+
+        mode_fit = 0.6
+        if desired_mode == "stabilize":
+            mode_fit = 0.5 * consistency + 0.5 * drift_resistance
+        elif desired_mode == "explore":
+            mode_fit = 0.55 * curiosity + 0.45 * adaptability
+        elif desired_mode == "balanced":
+            mode_fit = 0.4 * consistency + 0.3 * adaptability + 0.3 * cooperation
+
+        resistance_penalty = intent_resistance * max(0.0, priority - agency_level)
+        score = max(
+            0.0,
+            min(
+                1.0,
+                (0.4 * preferred) + (0.4 * mode_fit) + (0.2 * identity_integrity) - (0.2 * resistance_penalty),
+            ),
+        )
+        return score
+
     def evaluate_intent_alignment(self, intent: dict[str, Any], identity_core: Any) -> float:
-        if hasattr(identity_core, "evaluate_intent_compatibility"):
+        if isinstance(identity_core, dict):
+             return self._evaluate_intent_compatibility_local(intent, identity_core)
+        elif hasattr(identity_core, "evaluate_intent_compatibility"):
             return float(identity_core.evaluate_intent_compatibility(intent))
         return 0.5
 
@@ -148,9 +239,9 @@ class IntentEngine:
 
 
     def _apply_social_norms(self, intents: list[dict[str, Any]], social: Any | None, collective_state: dict[str, Any]) -> None:
-        collective_alignment = float(collective_state.get("collectiveintentalignment", getattr(social, "collectiveintentalignment", 1.0)))
-        conflict = float(collective_state.get("collectivesocialconflict", getattr(social, "socialconflictscore", 0.0)))
-        cooperation = float(getattr(social, "cooperation_score", 0.6))
+        collective_alignment = float(collective_state.get("collectiveintentalignment", self._get_attr(social, "collectiveintentalignment", 1.0)))
+        conflict = float(collective_state.get("collectivesocialconflict", self._get_attr(social, "socialconflictscore", 0.0)))
+        cooperation = float(self._get_attr(social, "cooperation_score", 0.6))
 
         for intent in intents:
             intent_type = str(intent.get("type", "progress")).lower()

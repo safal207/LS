@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from .utils import MAX_TRACE_LENGTH, MAX_NORM_CONFLICTS, get_norm_conflicts
+
+if TYPE_CHECKING:
+    from .update_context import UpdateContext
 
 
 @dataclass
@@ -23,6 +26,56 @@ class AutonomyEngine:
     normcompliancefactor: float = 1.0
     culturalstrategyadjustment: dict[str, Any] = field(default_factory=dict)
 
+    def update(self, context: UpdateContext) -> dict[str, Any]:
+        """Unified update method using deterministic context."""
+
+        # 1. Generate strategies
+        # Uses identity, intent (previous), metacognition, values, culture, militocracy, synergy
+        self.generate_strategies(
+            context.identity_snapshot,
+            context.intent_snapshot, # Previous step's intent
+            context.metafeedback,
+            context.values_snapshot,
+            context.culture_snapshot,
+            context.militocracy_snapshot,
+            context.synergy_snapshot
+        )
+
+        # 2. Apply cooperative regulation
+        # Uses social, collective
+        self.apply_cooperative_regulation(context.social_snapshot, context.collective_state)
+
+        # 3. Select strategy
+        primary_strategy = self.select_strategy()
+
+        # 4. Update metrics
+        self.update_autonomy_metrics()
+
+        return {
+            "snapshot": self.to_context_snapshot(),
+            "primary_strategy": primary_strategy,
+            "strategies": self.strategy_profile.get("strategies", [])
+        }
+
+    def to_context_snapshot(self) -> dict[str, Any]:
+        """Export state for context propagation."""
+        return {
+            "autonomy_level": self.autonomy_level,
+            "strategy_profile": dict(self.strategy_profile),
+            "ethicalalignmentscore": self.ethicalalignmentscore,
+            "selfregulationstrength": self.selfregulationstrength,
+            "civilizationalignmentscore": self.civilizationalignmentscore,
+            "normcompliancefactor": self.normcompliancefactor,
+            "culturalstrategyadjustment": dict(self.culturalstrategyadjustment),
+            "strategies": list(self.strategy_profile.get("strategies", [])),
+        }
+
+    def _get_attr(self, obj: Any, key: str, default: Any) -> Any:
+        """Helper to safely get attribute from object or dict."""
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
     def generate_strategies(
         self,
         identitycore: Any,
@@ -33,14 +86,17 @@ class AutonomyEngine:
         militocracy: Any | None = None,
         synergy: Any | None = None,
     ) -> list[dict[str, Any]]:
-        integrity = float(getattr(identitycore, "identity_integrity", 1.0))
-        agency = float(getattr(identitycore, "agency_level", 0.0))
-        drift_resistance = float(getattr(identitycore, "drift_resistance", 1.0))
-        intent_alignment = float(getattr(intentengine, "intent_alignment", 1.0))
-        intent_strength = float(getattr(intentengine, "intent_strength", 0.0))
-        meta_drift = float(getattr(metacognition, "latest_feedback", {}).get("meta_drift", 0.0))
-        value_alignment = float(getattr(values, "valuealignmentscore", 1.0)) if values is not None else 1.0
-        value_map = dict(getattr(values, "core_values", {})) if values is not None else {}
+        integrity = float(self._get_attr(identitycore, "identity_integrity", 1.0))
+        agency = float(self._get_attr(identitycore, "agency_level", 0.0))
+        drift_resistance = float(self._get_attr(identitycore, "drift_resistance", 1.0))
+        intent_alignment = float(self._get_attr(intentengine, "intent_alignment", 1.0))
+        intent_strength = float(self._get_attr(intentengine, "intent_strength", 0.0))
+
+        meta_feedback_dict = metacognition if isinstance(metacognition, dict) else (getattr(metacognition, "latest_feedback", {}) or {})
+        meta_drift = float(meta_feedback_dict.get("meta_drift", 0.0))
+
+        value_alignment = float(self._get_attr(values, "valuealignmentscore", 1.0)) if values is not None else 1.0
+        value_map = dict(self._get_attr(values, "core_values", {})) if values is not None else {}
 
         self.autonomy_level = max(
             0.0,
@@ -58,9 +114,13 @@ class AutonomyEngine:
         self.ethicalalignmentscore = max(0.0, min(1.0, value_alignment))
         self.selfregulationstrength = max(0.0, min(1.0, (0.5 * drift_resistance) + (0.5 * self.ethicalalignmentscore)))
 
-        culture_alignment = float(getattr(culture, "culturalalignmentscore", 1.0)) if culture is not None else 1.0
+        culture_alignment = float(self._get_attr(culture, "culturalalignmentscore", 1.0)) if culture is not None else 1.0
 
-        conflicts = get_norm_conflicts(culture) if culture is not None else []
+        # Handle norm conflicts via util or dict access
+        if isinstance(culture, dict):
+            conflicts = culture.get("norm_conflicts", [])
+        else:
+            conflicts = get_norm_conflicts(culture) if culture is not None else []
 
         self.civilizationalignmentscore = culture_alignment
         self.normcompliancefactor = max(0.0, min(1.0, 1.0 - min(1.0, len(list(conflicts)) / MAX_NORM_CONFLICTS)))
@@ -69,9 +129,9 @@ class AutonomyEngine:
             "cooperation_bias": 0.12 if culture_alignment > 0.7 else 0.04,
         }
 
-        discipline = float(getattr(militocracy, "militarydisciplinescore", 0.5)) if militocracy is not None else 0.5
-        command = float(getattr(militocracy, "command_coherence", 0.5)) if militocracy is not None else 0.5
-        synergy_index = float(getattr(synergy, "synergy_index", 0.5)) if synergy is not None else 0.5
+        discipline = float(self._get_attr(militocracy, "militarydisciplinescore", 0.5)) if militocracy is not None else 0.5
+        command = float(self._get_attr(militocracy, "command_coherence", 0.5)) if militocracy is not None else 0.5
+        synergy_index = float(self._get_attr(synergy, "synergy_index", 0.5)) if synergy is not None else 0.5
 
         strategies = [
             {
@@ -134,10 +194,41 @@ class AutonomyEngine:
             return None
         return max(strategies, key=lambda s: float(s.get("strength", 0.0)) * (0.65 + (0.35 * float(s.get("alignment", 0.0)))))
 
+    def _evaluate_strategy_compatibility_local(self, strategy: dict[str, Any] | None, identity_snapshot: dict[str, Any]) -> float:
+        """Local implementation of IdentityCore.evaluate_strategy_compatibility using snapshot."""
+        if not strategy:
+            return 0.5
+
+        mode = str(strategy.get("mode", "balanced")).lower()
+
+        # Access identity fields from snapshot
+        selfdirectionpreference = identity_snapshot.get("selfdirectionpreference", {})
+        core_traits = identity_snapshot.get("core_traits", {})
+        drift_resistance = float(identity_snapshot.get("drift_resistance", 0.7))
+        agency_level = float(identity_snapshot.get("agency_level", 0.45))
+        identity_integrity = float(identity_snapshot.get("identity_integrity", 0.85))
+        autonomy_resistance = float(identity_snapshot.get("autonomy_resistance", 0.45))
+
+        preference = float(selfdirectionpreference.get(mode, 0.6))
+        alignment = float(strategy.get("alignment", 0.5))
+        strength = float(strategy.get("strength", 0.5))
+        consistency = float(core_traits.get("consistency", 0.6))
+        adaptability = float(core_traits.get("adaptability", 0.6))
+
+        mode_fit = 0.6 * consistency + 0.4 * drift_resistance if mode == "stabilize" else 0.55 * adaptability + 0.45 * agency_level if mode == "explore" else 0.4 * consistency + 0.3 * adaptability + 0.3 * identity_integrity
+        resistance_penalty = autonomy_resistance * max(0.0, strength - agency_level)
+
+        score = max(0.0, min(1.0, (0.35 * preference) + (0.3 * alignment) + (0.2 * mode_fit) + (0.15 * identity_integrity) - (0.2 * resistance_penalty)))
+        return score
+
     def evaluate_autonomy_alignment(self, identitycore: Any) -> float:
         selected = self.select_strategy() or {}
         compatibility = 0.5
-        if hasattr(identitycore, "evaluate_strategy_compatibility"):
+
+        # Check if identitycore is a dict (snapshot) or object
+        if isinstance(identitycore, dict):
+             compatibility = self._evaluate_strategy_compatibility_local(selected, identitycore)
+        elif hasattr(identitycore, "evaluate_strategy_compatibility"):
             compatibility = float(identitycore.evaluate_strategy_compatibility(selected))
 
         conflict = max(0.0, 1.0 - compatibility)
@@ -175,8 +266,8 @@ class AutonomyEngine:
 
     def apply_cooperative_regulation(self, social: Any | None, collective_state: dict[str, Any] | None = None) -> dict[str, Any]:
         collective_state = collective_state or {}
-        cooperation = float(getattr(social, "cooperation_score", 0.6)) if social is not None else float(collective_state.get("collectivecooperationscore", 0.6))
-        conflict = float(getattr(social, "socialconflictscore", 0.0)) if social is not None else float(collective_state.get("collectivesocialconflict", 0.0))
+        cooperation = float(self._get_attr(social, "cooperation_score", 0.6)) if social is not None else float(collective_state.get("collectivecooperationscore", 0.6))
+        conflict = float(self._get_attr(social, "socialconflictscore", 0.0)) if social is not None else float(collective_state.get("collectivesocialconflict", 0.0))
 
         self.cooperativealignmentscore = max(0.0, min(1.0, (0.55 * cooperation) + (0.45 * (1.0 - conflict))))
         self.groupstrategyadjustment = {

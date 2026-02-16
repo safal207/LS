@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from .utils import MAX_TRACE_LENGTH
+
+if TYPE_CHECKING:
+    from .update_context import UpdateContext
 
 
 @dataclass
@@ -18,9 +21,42 @@ class SynergyEngine:
     collective_synergy: float = 0.5
     synergy_trace: list[dict[str, Any]] = field(default_factory=list)
 
+    def update(self, context: UpdateContext) -> dict[str, Any]:
+        """Unified update method using deterministic context."""
+        # 1. Update from social
+        self.update_from_social(context.social_snapshot)
+
+        # 2. Update from culture
+        self.update_from_culture(context.culture_snapshot)
+
+        # 3. Update from collective
+        self.update_from_collective(context.collective_state)
+
+        # 4. Update trace
+        snapshot = self.update_trace()
+
+        return {
+            "snapshot": self.to_context_snapshot(),
+            "trace_snapshot": snapshot
+        }
+
+    def to_context_snapshot(self) -> dict[str, Any]:
+        """Export state for context propagation."""
+        return {
+            "synergy_index": self.synergy_index,
+            "cooperative_efficiency": self.cooperative_efficiency,
+            "collective_synergy": self.collective_synergy,
+        }
+
+    def _get_attr(self, obj: Any, key: str, default: Any) -> Any:
+        """Helper to safely get attribute from object or dict."""
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
     def update_from_social(self, social: Any) -> dict[str, float]:
-        cooperation = float(getattr(social, "cooperation_score", 0.5))
-        conflict = float(getattr(social, "socialconflictscore", 0.0))
+        cooperation = float(self._get_attr(social, "cooperation_score", 0.5))
+        conflict = float(self._get_attr(social, "socialconflictscore", 0.0))
         self.cooperative_efficiency = max(
             0.0,
             min(1.0, cooperation * (1.0 - 0.5 * conflict)),
@@ -32,10 +68,10 @@ class SynergyEngine:
         }
 
     def update_from_culture(self, culture: Any) -> dict[str, float]:
-        alignment = float(getattr(culture, "culturalalignmentscore", 0.5))
+        alignment = float(self._get_attr(culture, "culturalalignmentscore", 0.5))
         # Note: civilizationmaturityscore defaults to 0.5 during cold start until collective update runs.
         # Safe access to civilization_state which might be None in some contexts
-        civ_state = getattr(culture, "civilization_state", None) or {}
+        civ_state = self._get_attr(culture, "civilization_state", {}) or {}
         maturity = float(civ_state.get("civilizationmaturityscore", 0.5))
 
         self.synergy_index = max(
@@ -55,12 +91,7 @@ class SynergyEngine:
 
     def update_from_collective(self, multi: Any) -> dict[str, float]:
         # Cleanly read from the pre-computed collective state in MultiAgentSystem
-        # This resolves the semantic discrepancy noted in code review.
-        # Note: In a synchronous step model, this reads the collective state computed AFTER
-        # the current step's actions, so it effectively reflects the state at time t
-        # which will be used for decision making at time t+1. There is a 1-step lag
-        # relative to the immediate action, which is standard for multi-agent systems.
-        self.collective_synergy = float(getattr(multi, "collectivesynergy", 0.5))
+        self.collective_synergy = float(self._get_attr(multi, "collectivesynergy", 0.5))
         return {
             "synergy_index": self.synergy_index,
             "cooperative_efficiency": self.cooperative_efficiency,

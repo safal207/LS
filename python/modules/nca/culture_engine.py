@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from .utils import MAX_NORM_CONFLICTS, MAX_TRACE_LENGTH, normalize_traditions
+
+if TYPE_CHECKING:
+    from .update_context import UpdateContext
 
 
 @dataclass
@@ -39,15 +42,65 @@ class CultureEngine:
         if not isinstance(self.traditions, dict):
             self.traditions = normalize_traditions(self.traditions)
 
+    def update(self, context: UpdateContext) -> dict[str, Any]:
+        """Unified update method using deterministic context."""
+        # 1. Update from social
+        self.update_from_social(context.social_snapshot)
+
+        # 2. Update from values
+        self.update_from_values(context.values_snapshot)
+
+        # 3. Update from collective
+        self.update_from_collective(context.collective_state)
+
+        # 4. Infer norms from events
+        events = list(context.collective_state.get("recent_events", [])) if isinstance(context.collective_state, dict) else []
+        self.infer_norms(events)
+
+        # 5. Evolve norms
+        self.evolve_norms()
+
+        # 6. Evaluate alignment
+        identity_score = float(context.identity_snapshot.get("culturalidentityscore", 0.5)) if context.identity_snapshot else 0.5
+        value_score = float(context.values_snapshot.get("culturalvaluealignment", 0.5)) if context.values_snapshot else 0.5
+        social_score = float(context.social_snapshot.get("culturalsimilarityscore", 0.5)) if context.social_snapshot else 0.5
+
+        alignment = self.evaluate_cultural_alignment(identity_score, value_score, social_score)
+
+        # 7. Generate adjustments
+        adjustments = self.generate_civilization_adjustments()
+
+        return {
+            "snapshot": self.to_context_snapshot(),
+            "alignment": alignment,
+            "adjustments": adjustments,
+        }
+
+    def to_context_snapshot(self) -> dict[str, Any]:
+        """Export state for context propagation."""
+        return {
+            "norms": dict(self.norms),
+            "traditions": dict(self.traditions),
+            "civilization_state": dict(self.civilization_state),
+            "norm_conflicts": [dict(c) for c in self.norm_conflicts],
+            "culturalalignmentscore": self.culturalalignmentscore,
+        }
+
+    def _get_attr(self, obj: Any, key: str, default: Any) -> Any:
+        """Helper to safely get attribute from object or dict."""
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
     def update_from_social(self, social_engine: Any) -> dict[str, Any]:
         if social_engine is None:
             return self.civilization_state
 
-        group_norms = dict(getattr(social_engine, "group_norms", {}))
-        tradition_patterns = normalize_traditions(getattr(social_engine, "tradition_patterns", {}))
-        conflict_index = float(getattr(social_engine, "conflict_index", getattr(social_engine, "socialconflictscore", 0.0)))
-        collaboration = float(getattr(social_engine, "collaboration_index", getattr(social_engine, "cooperation_score", 0.0)))
-        similarity = float(getattr(social_engine, "culturalsimilarityscore", 0.5))
+        group_norms = dict(self._get_attr(social_engine, "group_norms", {}))
+        tradition_patterns = normalize_traditions(self._get_attr(social_engine, "tradition_patterns", {}))
+        conflict_index = float(self._get_attr(social_engine, "conflict_index", self._get_attr(social_engine, "socialconflictscore", 0.0)))
+        collaboration = float(self._get_attr(social_engine, "collaboration_index", self._get_attr(social_engine, "cooperation_score", 0.0)))
+        similarity = float(self._get_attr(social_engine, "culturalsimilarityscore", 0.5))
 
         self.norms.update({k: max(0.0, min(1.0, float(v))) for k, v in group_norms.items()})
         self._ensure_traditions_mapping()
@@ -66,9 +119,9 @@ class CultureEngine:
         if value_system is None:
             return self.civilization_state
 
-        alignment = float(getattr(value_system, "culturalvaluealignment", 0.6))
+        alignment = float(self._get_attr(value_system, "culturalvaluealignment", 0.6))
         self.civilization_state["value_alignment"] = max(0.0, min(1.0, alignment))
-        norm_map = dict(getattr(value_system, "normethicsmap", {}))
+        norm_map = dict(self._get_attr(value_system, "normethicsmap", {}))
         for norm, score in norm_map.items():
             self.norms[norm] = max(0.0, min(1.0, 0.6 * self.norms.get(norm, 0.5) + 0.4 * float(score)))
         return dict(self.civilization_state)
