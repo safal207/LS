@@ -1,0 +1,72 @@
+rules:
+  - id: phase12-3-agent-step-forbid-legacy-engine-prefixes
+    message: >-
+      BLOCKER: agent.step() must not call legacy prefix methods directly
+      (update_from_/generate_/select_/apply_/infer_/evaluate_).
+      Keep step() as orchestration only.
+    severity: ERROR
+    languages:
+      - python
+    paths:
+      include:
+        - /python/modules/nca/agent.py
+    patterns:
+      - pattern-inside: |
+          def step(self, ...):
+              ...
+      - pattern: self.$OBJ.$METHOD(...)
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: "^(update_from_|generate_|select_|apply_|infer_|evaluate_).+"
+    metadata:
+      category: phase12.3
+      impact: high
+      fix: Keep step() orchestration-only and call update(context) per layer.
+
+  - id: phase12-3-agent-step-world-step-outside-step
+    message: >-
+      BLOCKER: world.step(...) found outside agent.step(). Keep world mutation in world-step layer only.
+    severity: ERROR
+    languages:
+      - python
+    paths:
+      include:
+        - /python/modules/nca/agent.py
+    patterns:
+      - pattern: self.world.step(...)
+      - pattern-not-inside: |
+          def step(self, ...):
+              ...
+    metadata:
+      category: phase12.3
+      impact: high
+
+  - id: phase12-3-engine-update-legacy-prefix-debt
+    message: >-
+      WARNING: update(context) still invokes legacy helper prefixes.
+      Allowed temporarily in Phase 12.3 only as migration debt.
+    severity: WARNING
+    languages:
+      - python
+    paths:
+      include:
+        - /python/modules/nca/identity_core.py
+        - /python/modules/nca/social_cognition.py
+        - /python/modules/nca/culture_engine.py
+        - /python/modules/nca/militocracy_engine.py
+        - /python/modules/nca/synergy_engine.py
+        - /python/modules/nca/value_system.py
+        - /python/modules/nca/autonomy_engine.py
+        - /python/modules/nca/intent_engine.py
+    patterns:
+      - pattern-inside: |
+          def update(self, context, ...):
+              ...
+      - pattern: self.$METHOD(...)
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: "^(update_from_|generate_|select_|apply_|infer_|evaluate_).+"
+    metadata:
+      category: phase12.3
+      impact: medium
+      note: Promote to ERROR in Phase 13 when migration is complete.
