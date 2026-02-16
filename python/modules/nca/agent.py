@@ -114,6 +114,39 @@ class NCAAgent:
             signal_bus=self.signal_bus,
         )
 
+    def _update_self_layer(
+        self,
+        state: AgentState,
+        context: UpdateContext,
+    ) -> tuple[UpdateContext, dict[str, Any], dict[str, Any], dict[str, Any]]:
+        """DEPRECATED Phase 13: use self_model.update(context) + orientation.update(context)."""
+        import warnings
+
+        warnings.warn(
+            "_update_self_layer() is deprecated in Phase 13; use self_model.update(context) and orientation.update(context).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        self_result = self.self_model.update(context)
+        context = context.evolve(
+            self_snapshot=self_result["snapshot"],
+            meta_report=self_result.get("analysis"),
+            metafeedback=self_result.get("metafeedback"),
+        )
+        if context.self_snapshot is None:
+            raise RuntimeError("SelfModel.update() must return snapshot")
+
+        orientation_result = self.orientation.update(context)
+        context = context.evolve(orientation_snapshot=orientation_result["snapshot"])
+
+        return (
+            context,
+            self_result["snapshot"],
+            self_result.get("analysis", {}),
+            self_result.get("metafeedback", {}),
+        )
+
     def step(self) -> dict[str, Any]:
         """Unified Update Loop (UUL) v1.0 Agent Step"""
 
@@ -145,6 +178,9 @@ class NCAAgent:
             meta_report=self_result.get("analysis"),
             metafeedback=self_result.get("metafeedback"),
         )
+        if context.self_snapshot is None:
+            raise RuntimeError("SelfModel.update() must return snapshot")
+
         # Extract analysis/metafeedback for later use in step
         analysis = self_result.get("analysis", {})
         metafeedback = self_result.get("metafeedback", {})

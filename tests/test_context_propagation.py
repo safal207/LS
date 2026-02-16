@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, ANY
 from dataclasses import FrozenInstanceError
 import sys
 import os
+import subprocess
 
 # Add repo root to path to allow imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -122,6 +123,26 @@ class TestContextPropagation(unittest.TestCase):
 
         self.assertGreater(orientation.stability_preference, baseline_stability)
         self.assertLess(orientation.impulsiveness, baseline_impulsiveness)
+
+    def test_orientation_applies_dict_meta_report(self):
+        orientation = OrientationCenter(identity="agent")
+        baseline_stability = orientation.stability_preference
+        baseline_impulsiveness = orientation.impulsiveness
+
+        report = {"collective_drift": True, "collective_score": 0.4, "causal_drift": True}
+        orientation._apply_meta_report(report)
+
+        self.assertGreater(orientation.stability_preference, baseline_stability)
+        self.assertLess(orientation.impulsiveness, baseline_impulsiveness)
+
+    def test_no_circular_imports(self):
+        result = subprocess.run(
+            [sys.executable, "-c", "from python.modules.nca.agent import NCAAgent"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
 
 if __name__ == "__main__":
     unittest.main()

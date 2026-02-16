@@ -4,12 +4,12 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
 
+from .meta_cognition import MetaCognitionEngine
+from .meta_observer import MetaObserver
 from .utils import normalize_traditions, MAX_TRACE_LENGTH
 
 if TYPE_CHECKING:
     from .update_context import UpdateContext
-    from .meta_observer import MetaObserver
-    from .meta_cognition import MetaCognitionEngine
 
 
 @dataclass
@@ -58,18 +58,10 @@ class SelfModel:
         self.social_trace = self._resize_trace(self.social_trace)
         self.cultural_trace = self._resize_trace(self.cultural_trace)
 
-        # Lazy load meta components moved to module-level imports with TYPE_CHECKING
-        # However, they need to be instantiated at runtime if None.
-        # We handle this by importing inside methods or using safe import inside post_init
-        # to avoid circular dependency at module level during loading.
-        # But per Phase 13 request: "Move imports out of postinit_ to top-level with TYPE_CHECKING"
-        # and "Add defensive-checks for meta-layer".
-        # We'll use local imports here as a safe fallback if not injected.
+        # Instantiate default meta components when they are not injected.
         if self.meta_observer is None:
-            from .meta_observer import MetaObserver
             self.meta_observer = MetaObserver()
         if self.metacognition is None:
-            from .meta_cognition import MetaCognitionEngine
             self.metacognition = MetaCognitionEngine()
 
     def _resize_trace(self, trace: deque[dict[str, Any]]) -> deque[dict[str, Any]]:
