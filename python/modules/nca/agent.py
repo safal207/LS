@@ -30,7 +30,7 @@ class NCAAgent:
     world: GridWorld
     orientation: OrientationCenter
     assembly: AssemblyPoint = field(default_factory=AssemblyPoint)
-    meta_observer: MetaObserver = field(default_factory=MetaObserver)
+    # meta_observer and metacognition removed as fields (now in self_model)
     planner: TrajectoryPlanner = field(default_factory=TrajectoryPlanner)
     causal_graph: CausalGraph = field(default_factory=CausalGraph)
     signal_bus: SignalBus = field(default_factory=SignalBus)
@@ -38,7 +38,6 @@ class NCAAgent:
     low_confidence_threshold: float = 0.35
     collective_state: dict[str, Any] = field(default_factory=dict)
     self_model: SelfModel = field(default_factory=SelfModel)
-    metacognition: MetaCognitionEngine = field(default_factory=MetaCognitionEngine)
     identitycore: IdentityCore = field(default_factory=IdentityCore)
     autonomy: AutonomyEngine = field(default_factory=AutonomyEngine)
     values: ValueSystem = field(default_factory=ValueSystem)
@@ -48,10 +47,22 @@ class NCAAgent:
     synergy: SynergyEngine = field(default_factory=SynergyEngine)
     intentengine: IntentEngine = field(default_factory=IntentEngine)
 
+    @property
+    def meta_observer(self) -> MetaObserver:
+        return self.self_model.meta_observer
+
+    @property
+    def metacognition(self) -> MetaCognitionEngine:
+        return self.self_model.metacognition
+
     def __post_init__(self) -> None:
         self.planner.causal_graph = self.causal_graph
         self.signal_bus.subscribe(self._log_signal)
-        self.signal_bus.subscribe(self._orientation_signal_handler)
+        # Phase 13: Signal handling for orientation moved to closed-loop update(context)
+        # self.signal_bus.subscribe(self._orientation_signal_handler)
+
+        # Inject signal bus into self_model for meta-observer
+        self.self_model.signal_bus = self.signal_bus
 
     def _log_signal(self, signal: InternalSignal) -> None:
         self.signal_log.append(
@@ -63,59 +74,12 @@ class NCAAgent:
             }
         )
 
-    def _orientation_signal_handler(self, signal: InternalSignal) -> None:
-        if signal.signal_type == "orientationfeedbackrequired":
-            self.orientation.update_from_feedback({"preference_updates": {"stability": 0.05}})
-        if signal.signal_type == "causal_drift":
-            self.orientation.update_from_feedback({"preference_updates": {"stability": 0.08}})
-            self.orientation.stability_preference = min(1.0, self.orientation.stability_preference + 0.05)
-            self.orientation.impulsiveness = max(0.0, self.orientation.impulsiveness - 0.05)
-        if signal.signal_type in ("multiagent_drift", "coordination_required"):
-            feedback_signal = self.orientation.update_from_collective_feedback(
-                {
-                    "collective_drift": signal.signal_type == "multiagent_drift",
-                    "collective_progress": float(signal.payload.get("collective_score", 0.0)),
-                    "goal_conflict": signal.signal_type == "coordination_required",
-                }
-            )
-            if feedback_signal:
-                self.signal_bus.emit(
-                    InternalSignal(
-                        signal_type=feedback_signal["signal_type"],
-                        t=signal.t,
-                        payload=feedback_signal["payload"],
-                    )
-                )
-
     def build_state(self) -> AgentState:
         return self.assembly.build(
             t=self.world.t,
             world_state=self.world.state(),
             orientation=self.orientation,
             signal_bus=self.signal_bus,
-        )
-
-    def _update_self_layer(
-        self,
-        state: AgentState,
-        context: UpdateContext,
-    ) -> tuple[UpdateContext, dict[str, Any], dict[str, Any], dict[str, Any]]:
-        """Phase 12.3 migration helper for self-model/orientation legacy update calls."""
-        self_snapshot = self.self_model.update_from_state(state)
-        analysis = self.meta_observer.observe_and_correct(
-            state, self.orientation, self.signal_bus, self_model=self.self_model
-        )
-        self.orientation.update_from_self_model(self.self_model)
-        metafeedback = self.metacognition.analyze_cognition(state, self.self_model, analysis["report"])
-        return (
-            context.evolve(
-                self_snapshot=self_snapshot,
-                meta_report=analysis.get("report"),
-                metafeedback=metafeedback,
-            ),
-            self_snapshot,
-            analysis,
-            metafeedback,
         )
 
     def step(self) -> dict[str, Any]:
@@ -125,9 +89,6 @@ class NCAAgent:
         state = self.build_state()
 
         # Phase 12.1: Deterministic Context Propagation
-        # Initialize Context with snapshots of current state for downstream dependencies
-        # Note: values_snapshot is from t-1. Culture (Step 5) uses this snapshot, creating a 1-step lag.
-        # This is standard for DCP in multi-agent systems to ensure determinism.
         context = UpdateContext(
             t=state.t,
             state=state,
@@ -135,17 +96,33 @@ class NCAAgent:
             values_snapshot=self.values.to_context_snapshot(),
             autonomy_snapshot=self.autonomy.to_context_snapshot(),
             intent_snapshot=self.intentengine.to_context_snapshot(),
-            # Phase 12.3: primary intent is produced in Intent Layer via intentengine.update(context).
             primary_intent=None,
             social_snapshot=self.social.to_context_snapshot(),
             culture_snapshot=self.culture.to_context_snapshot(),
             militocracy_snapshot=self.militocracy.to_context_snapshot(),
             synergy_snapshot=self.synergy.to_context_snapshot(),
             identity_snapshot=self.identitycore.to_context_snapshot(),
+            # Phase 13: Orientation snapshot
+            orientation_snapshot=self.orientation.to_snapshot(),
         )
 
-        # 2. Self-Model Layer
-        context, self_snapshot, analysis, metafeedback = self._update_self_layer(state, context)
+        # 2. Self-Model Layer (Phase 13: Context-Native Update)
+        self_result = self.self_model.update(context)
+        context = context.evolve(
+            self_snapshot=self_result["snapshot"],
+            meta_report=self_result.get("analysis"),
+            metafeedback=self_result.get("metafeedback"),
+        )
+        # Extract analysis/metafeedback for later use in step
+        analysis = self_result.get("analysis", {})
+        metafeedback = self_result.get("metafeedback", {})
+        self_snapshot = self_result["snapshot"]
+
+        # Phase 13: Orientation update via context
+        orientation_result = self.orientation.update(context)
+        context = context.evolve(
+            orientation_snapshot=orientation_result["snapshot"]
+        )
 
         # 3. Identity Layer
         identity_result = self.identitycore.update(context)
@@ -293,20 +270,31 @@ class NCAAgent:
         transition: dict[str, Any]
     ) -> dict[str, Any]:
 
-        self.orientation.update_from_identity_core(self.identitycore)
-        self.self_model.update_identity_metrics(self.identitycore)
-        self.self_model.update_intent_metrics(self.intentengine)
-        self.self_model.update_autonomy_metrics(self.autonomy)
-        self.self_model.update_value_metrics(self.values)
-        self.self_model.update_social_metrics(self.social)
-        self.self_model.update_culture_metrics(self.culture)
+        # Phase 13: Manual application of corrections for non-self-layer components
+        # Orientation is already updated via update(context) using metafeedback
+        # SelfModel metrics are updated via update(context) in the next cycle (or handled internally)
 
-        self.self_model.update_cognitive_trace(
-            state,
-            {"action": choice.action, "score": choice.score, "confidence": choice.confidence},
-            {**analysis, "meta_drift": metafeedback.get("meta_drift", 0.0)},
-        )
-        self.metacognition.apply_corrections(self)
+        # Apply corrections to Planner and MetaObserver (thresholds)
+        # Using suggest_corrections to get values without side effects
+        corrections = self.metacognition.suggest_corrections()
+
+        # Apply Planner corrections
+        planner_patch = corrections.get("planner", {})
+        if planner_patch:
+             current_meta_weight = float(getattr(self.planner, "meta_alignment_weight", 0.15))
+             self.planner.meta_alignment_weight = float(planner_patch.get("metaalignmentweight", current_meta_weight))
+
+        # Apply MetaObserver corrections
+        observer_patch = corrections.get("observer", {})
+        if observer_patch.get("raise_thresholds"):
+             current = float(getattr(self.meta_observer, "self_consistency_threshold", 0.45))
+             self.meta_observer.self_consistency_threshold = max(0.35, min(0.7, current + 0.06)) # correction_strength hardcoded to match MetaCognition default
+
+        # Phase 13: self_model.update(context) handles metric updates and cognitive trace in the next cycle
+        # by observing the history and snapshots.
+        # We assume self_model.update() was called at start of step.
+        # But wait, cognitive trace for THIS action needs to be recorded?
+        # Yes, SelfModel.update() in the NEXT step will see the new history event appended below.
 
         if choice.confidence < self.low_confidence_threshold:
             self.signal_bus.emit(

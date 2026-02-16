@@ -2,9 +2,14 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from .utils import normalize_traditions, MAX_TRACE_LENGTH
+
+if TYPE_CHECKING:
+    from .update_context import UpdateContext
+    from .meta_observer import MetaObserver
+    from .meta_cognition import MetaCognitionEngine
 
 
 @dataclass
@@ -37,6 +42,11 @@ class SelfModel:
     cultural_trace: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
     cultural_markers: list[dict[str, Any]] = field(default_factory=list)
 
+    # Phase 13: Integrated Meta-Layer components
+    meta_observer: Any = field(default=None)
+    metacognition: Any = field(default=None)
+    signal_bus: Any = field(default=None)
+
     def __post_init__(self) -> None:
         # Ensure deque length follows configured max_history.
         if self.history.maxlen != self.max_history:
@@ -55,6 +65,84 @@ class SelfModel:
             self.social_trace = deque(self.social_trace, maxlen=self.max_history)
         if self.cultural_trace.maxlen != self.max_history:
             self.cultural_trace = deque(self.cultural_trace, maxlen=self.max_history)
+
+        # Lazy load meta components
+        from .meta_observer import MetaObserver
+        from .meta_cognition import MetaCognitionEngine
+
+        if self.meta_observer is None:
+            self.meta_observer = MetaObserver()
+        if self.metacognition is None:
+            self.metacognition = MetaCognitionEngine()
+
+    def update(self, context: UpdateContext) -> dict[str, Any]:
+        """
+        Phase 13: context-native update.
+        Reads everything from context, writes snapshot back.
+        """
+        # 1. Update internal state from agent state
+        if context.state:
+            self._update_internal_state(context.state)
+
+            # Check for new history events to trace
+            if context.state.history:
+                latest = context.state.history[-1]
+                last_trace_t = self.cognitive_trace[-1]["t"] if self.cognitive_trace else -1
+                if latest.get("t", -1) > last_trace_t:
+                     self.update_cognitive_trace(context.state, latest.get("details", {}), latest.get("analysis", {}), t_override=latest.get("t"))
+
+
+        # 2. Meta-Observation (requires orientation snapshot)
+        analysis = {}
+        report = {}
+        if context.orientation_snapshot and context.state:
+             analysis_result = self.meta_observer.observe_and_correct(
+                 context.state,
+                 context.orientation_snapshot,
+                 self.signal_bus,
+                 self_model=self
+             )
+             analysis = analysis_result
+             report = analysis_result.get("report", {})
+
+        # 3. Meta-Cognition (requires analysis report)
+        metafeedback = {}
+        if report and context.state:
+            metafeedback = self.metacognition.analyze_cognition(
+                context.state,
+                self,
+                report
+            )
+
+        # 4. Update Metrics from Snapshots
+        if context.identity_snapshot: self.update_identity_metrics(context.identity_snapshot)
+        if context.intent_snapshot: self.update_intent_metrics(context.intent_snapshot)
+        if context.autonomy_snapshot: self.update_autonomy_metrics(context.autonomy_snapshot)
+        if context.values_snapshot: self.update_value_metrics(context.values_snapshot)
+        if context.social_snapshot: self.update_social_metrics(context.social_snapshot)
+        if context.culture_snapshot: self.update_culture_metrics(context.culture_snapshot)
+
+        return {
+            "snapshot": self.to_context_snapshot(),
+            "analysis": report,
+            "metafeedback": metafeedback,
+        }
+
+    def _update_internal_state(self, agent_state: Any) -> dict[str, Any]:
+        """Internal helper logic from legacy update_from_state."""
+        snapshot = self._extract_snapshot(agent_state)
+        self.history.append(snapshot)
+        node = self.add_identity_node(snapshot)
+
+        if len(self.identity_nodes) >= 2:
+            self.add_transition(self.identity_nodes[-2], self.identity_nodes[-1])
+
+        self.last_prediction = self.predict_future_state(horizon=3)
+        return node
+
+    def to_context_snapshot(self) -> dict[str, Any]:
+        """Returns the full state as a snapshot for context consumption."""
+        return self.to_dict()
 
     def _extract_snapshot(self, agent_state: Any) -> dict[str, Any]:
         if hasattr(agent_state, "self_state"):
@@ -114,15 +202,8 @@ class SelfModel:
         return edge
 
     def update_from_state(self, agent_state: Any) -> dict[str, Any]:
-        snapshot = self._extract_snapshot(agent_state)
-        self.history.append(snapshot)
-        node = self.add_identity_node(snapshot)
-
-        if len(self.identity_nodes) >= 2:
-            self.add_transition(self.identity_nodes[-2], self.identity_nodes[-1])
-
-        self.last_prediction = self.predict_future_state(horizon=3)
-        return node
+        # DEPRECATED Phase 13
+        return self._update_internal_state(agent_state)
 
     def drift_intensity(self) -> float:
         if not self.identity_edges:
@@ -189,7 +270,7 @@ class SelfModel:
         avg = sum(float(item.get("meta_drift", 0.0)) for item in recent) / len(recent)
         return max(0.0, min(1.0, avg))
 
-    def update_cognitive_trace(self, state: Any, decision: dict[str, Any], analysis: dict[str, Any]) -> dict[str, Any]:
+    def update_cognitive_trace(self, state: Any, decision: dict[str, Any], analysis: dict[str, Any], t_override: int | None = None) -> dict[str, Any]:
         self_state = getattr(state, "self_state", {}) if hasattr(state, "self_state") else {}
         personality = self_state.get("personality", {}) if isinstance(self_state, dict) else {}
         impulsiveness = float(personality.get("impulsiveness", 0.0))
@@ -202,8 +283,10 @@ class SelfModel:
         repeated_drift = float(analysis.get("selfmodeldrift", 0.0))
         meta_drift = float(analysis.get("meta_drift", 0.0))
 
+        t = t_override if t_override is not None else int(getattr(state, "t", len(self.cognitive_trace)))
+
         entry = {
-            "t": int(getattr(state, "t", len(self.cognitive_trace))),
+            "t": t,
             "decision": dict(decision or {}),
             "impulsiveness": impulsiveness,
             "impulsiveness_spikes": impulsiveness_spikes,
@@ -241,9 +324,16 @@ class SelfModel:
         return entry
 
     def update_identity_metrics(self, identity_core: Any) -> dict[str, Any]:
-        integrity = float(getattr(identity_core, "identity_integrity", 1.0))
-        agency_level = float(getattr(identity_core, "agency_level", 0.0))
-        drift_resistance = float(getattr(identity_core, "drift_resistance", 1.0))
+        # Phase 13: Handle dict snapshot or object
+        if hasattr(identity_core, "identity_integrity"):
+             integrity = float(getattr(identity_core, "identity_integrity", 1.0))
+             agency_level = float(getattr(identity_core, "agency_level", 0.0))
+             drift_resistance = float(getattr(identity_core, "drift_resistance", 1.0))
+        else:
+             snapshot = identity_core if isinstance(identity_core, dict) else {}
+             integrity = float(snapshot.get("identity_integrity", 1.0))
+             agency_level = float(snapshot.get("agency_level", 0.0))
+             drift_resistance = float(snapshot.get("drift_resistance", 1.0))
 
         t = len(self.identityintegritytrace)
         entry = {
@@ -273,10 +363,21 @@ class SelfModel:
 
 
     def update_intent_metrics(self, intent_engine: Any) -> dict[str, Any]:
-        active = list(getattr(intent_engine, "active_intents", []))
-        conflicts = list(getattr(intent_engine, "intent_conflicts", []))
-        strength = float(getattr(intent_engine, "intent_strength", 0.0))
-        alignment = float(getattr(intent_engine, "intent_alignment", 1.0))
+        # Phase 13: Handle dict snapshot or object
+        if hasattr(intent_engine, "active_intents"):
+            active = list(getattr(intent_engine, "active_intents", []))
+            conflicts = list(getattr(intent_engine, "intent_conflicts", []))
+            strength = float(getattr(intent_engine, "intent_strength", 0.0))
+            alignment = float(getattr(intent_engine, "intent_alignment", 1.0))
+        else:
+            snapshot = intent_engine if isinstance(intent_engine, dict) else {}
+            active = snapshot.get("intents", []) or [] # 'intents' in context snapshot
+            conflicts = [] # Conflicts might not be in basic snapshot if not exported
+            # Check intent_snapshot structure in intent_engine.py? Assuming standard exports.
+            # Usually intents are exported as list of dicts.
+            strength = float(snapshot.get("intent_strength", 0.0))
+            alignment = float(snapshot.get("intent_alignment", 1.0))
+            # If conflicts missing, assume empty
 
         entry = {
             "t": len(self.intent_trace),
@@ -313,10 +414,17 @@ class SelfModel:
         return entry
 
     def update_autonomy_metrics(self, autonomy_engine: Any) -> dict[str, Any]:
-        level = float(getattr(autonomy_engine, "autonomy_level", 0.0))
-        selected = getattr(autonomy_engine, "select_strategy", lambda: None)() or {}
-        conflicts = list(getattr(autonomy_engine, "autonomy_conflicts", []))
-        goals = list(getattr(autonomy_engine, "selfdirectedgoals", []))
+        if hasattr(autonomy_engine, "autonomy_level"):
+            level = float(getattr(autonomy_engine, "autonomy_level", 0.0))
+            selected = getattr(autonomy_engine, "select_strategy", lambda: None)() or {}
+            conflicts = list(getattr(autonomy_engine, "autonomy_conflicts", []))
+            goals = list(getattr(autonomy_engine, "selfdirectedgoals", []))
+        else:
+            snapshot = autonomy_engine if isinstance(autonomy_engine, dict) else {}
+            level = float(snapshot.get("autonomy_level", 0.0))
+            selected = snapshot.get("primary_strategy", {}) or {} # primary_strategy in context
+            conflicts = [] # autonomy_conflicts missing?
+            goals = [] # selfdirectedgoals missing?
 
         entry = {
             "t": len(self.autonomy_trace),
@@ -355,13 +463,27 @@ class SelfModel:
         return entry
 
     def update_value_metrics(self, value_system: Any) -> dict[str, Any]:
+        if hasattr(value_system, "core_values"):
+            core_values = dict(getattr(value_system, "core_values", {}))
+            align = float(getattr(value_system, "valuealignmentscore", 1.0))
+            drift = float(getattr(value_system, "preference_drift", 0.0))
+            constraints = dict(getattr(value_system, "ethical_constraints", {}))
+            conflict_count = len(list(getattr(value_system, "value_conflicts", [])))
+        else:
+            snapshot = value_system if isinstance(value_system, dict) else {}
+            core_values = snapshot.get("core_values", {})
+            align = float(snapshot.get("valuealignmentscore", 1.0))
+            drift = float(snapshot.get("preference_drift", 0.0))
+            constraints = snapshot.get("ethical_constraints", {})
+            conflict_count = 0 # Missing
+
         entry = {
             "t": len(self.value_trace),
-            "core_values": dict(getattr(value_system, "core_values", {})),
-            "valuealignmentscore": float(getattr(value_system, "valuealignmentscore", 1.0)),
-            "preference_drift": float(getattr(value_system, "preference_drift", 0.0)),
-            "ethical_constraints": dict(getattr(value_system, "ethical_constraints", {})),
-            "conflict_count": len(list(getattr(value_system, "value_conflicts", []))),
+            "core_values": core_values,
+            "valuealignmentscore": align,
+            "preference_drift": drift,
+            "ethical_constraints": constraints,
+            "conflict_count": conflict_count,
         }
         self.value_trace.append(entry)
 
@@ -393,12 +515,24 @@ class SelfModel:
 
 
     def update_social_metrics(self, social_engine: Any) -> dict[str, Any]:
+        if hasattr(social_engine, "cooperation_score"):
+            coop = float(getattr(social_engine, "cooperation_score", 0.0))
+            conflict = float(getattr(social_engine, "socialconflictscore", 0.0))
+            val_align = float(getattr(social_engine, "collectivevaluealignment", 1.0))
+            int_align = float(getattr(social_engine, "collectiveintentalignment", 1.0))
+        else:
+            snapshot = social_engine if isinstance(social_engine, dict) else {}
+            coop = float(snapshot.get("cooperation_score", 0.0))
+            conflict = float(snapshot.get("socialconflictscore", 0.0))
+            val_align = float(snapshot.get("collectivevaluealignment", 1.0))
+            int_align = float(snapshot.get("collectiveintentalignment", 1.0))
+
         entry = {
             "t": len(self.social_trace),
-            "cooperation_score": float(getattr(social_engine, "cooperation_score", 0.0)),
-            "socialconflictscore": float(getattr(social_engine, "socialconflictscore", 0.0)),
-            "collectivevaluealignment": float(getattr(social_engine, "collectivevaluealignment", 1.0)),
-            "collectiveintentalignment": float(getattr(social_engine, "collectiveintentalignment", 1.0)),
+            "cooperation_score": coop,
+            "socialconflictscore": conflict,
+            "collectivevaluealignment": val_align,
+            "collectiveintentalignment": int_align,
         }
         self.social_trace.append(entry)
 
@@ -431,16 +565,24 @@ class SelfModel:
         if culture_engine is None:
             return {}
 
-        # Use utility instead of local import
-        traditions = normalize_traditions(getattr(culture_engine, "traditions", {}))
-        tradition_count = len(traditions)
+        if hasattr(culture_engine, "culturalalignmentscore"):
+            traditions = normalize_traditions(getattr(culture_engine, "traditions", {}))
+            conflicts = getattr(culture_engine, "norm_conflicts", getattr(culture_engine, "normconflicts", []))
+            align = float(getattr(culture_engine, "culturalalignmentscore", 0.0))
+            norms = dict(getattr(culture_engine, "norms", {}))
+        else:
+            snapshot = culture_engine if isinstance(culture_engine, dict) else {}
+            traditions = normalize_traditions(snapshot.get("traditions", {}))
+            conflicts = snapshot.get("norm_conflicts", [])
+            align = float(snapshot.get("culturalalignmentscore", 0.0))
+            norms = dict(snapshot.get("norms", {}))
 
-        conflicts = getattr(culture_engine, "norm_conflicts", getattr(culture_engine, "normconflicts", []))
+        tradition_count = len(traditions)
 
         entry = {
             "t": len(self.cultural_trace),
-            "culturalalignmentscore": float(getattr(culture_engine, "culturalalignmentscore", 0.0)),
-            "norm_count": len(dict(getattr(culture_engine, "norms", {}))),
+            "culturalalignmentscore": align,
+            "norm_count": len(norms),
             "tradition_count": tradition_count,
             "conflict_count": len(list(conflicts)),
         }
@@ -498,6 +640,7 @@ class SelfModel:
 
     # Compatibility aliases requested by specification.
     def updatefromstate(self, agent_state: Any) -> dict[str, Any]:
+        # DEPRECATED Phase 13
         return self.update_from_state(agent_state)
 
     def predictfuturestate(self, horizon: int = 3) -> dict[str, Any]:

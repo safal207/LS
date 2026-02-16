@@ -20,6 +20,7 @@ class UpdateContext:
 
     # Layer 1-2: Self-Model & Meta-Cognition
     self_snapshot: dict[str, Any] | None = None
+    orientation_snapshot: dict[str, Any] | None = None
     meta_report: dict[str, Any] | None = None
     metafeedback: dict[str, Any] | None = None
 
