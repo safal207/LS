@@ -328,7 +328,8 @@ class NCAAgent:
             "meta_drift": metafeedback.get("meta_drift", analysis.get("meta_drift", 0.0)),
             # Compatibility aliases expected by some analytics consumers.
             "identitydriftscore": analysis.get("selfmodeldrift", 0.0),
-            "collectivealignment": analysis.get("collective_alignment", 1.0),
+            "collective_alignment": analysis.get("collective_alignment", analysis.get("collectivealignment", 1.0)),
+            "collectivealignment": analysis.get("collectivealignment", analysis.get("collective_alignment", 1.0)),
         }
         self.self_model.update_cognitive_trace(
             state,
