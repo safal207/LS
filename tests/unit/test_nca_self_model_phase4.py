@@ -102,3 +102,37 @@ def test_meta_alignment_score_is_applied_to_trajectory_details() -> None:
     )
 
     assert "meta_alignment_score" in evaluated[0].details
+
+def test_meta_observer_generate_report_handles_non_mapping_snapshot() -> None:
+    world = GridWorld(size=6, start_position=0, goal_position=5)
+    orientation = OrientationCenter(identity="meta-report-agent")
+    agent = NCAAgent(world=world, orientation=orientation)
+    state = agent.build_state()
+
+    observer = MetaObserver()
+
+    class UnexpectedSnapshot:
+        pass
+
+    observer.analyze = lambda *_args, **_kwargs: {
+        "self_consistency": 0.8,
+        "uncertainty": 0.1,
+        "drift_count": 0,
+        "causal_risk": False,
+        "causal_score": 0.6,
+        "collective_score": 0.2,
+        "collective_risk": 0.1,
+        "collective_alignment": 0.9,
+        "self_model_snapshot": UnexpectedSnapshot(),
+        "selfmodeldrift": 0.05,
+        "predictedselfconsistency": 0.9,
+        "meta_consistency": 0.92,
+        "observerbiasscore": 0.08,
+        "meta_drift": 0.1,
+    }
+
+    report = observer.generate_report(state, agent.orientation.to_snapshot(), signal_bus=None, self_model=agent.self_model)
+
+    assert isinstance(report.self_model_snapshot, dict)
+    assert report.self_model_snapshot == {}
+

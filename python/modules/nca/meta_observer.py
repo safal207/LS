@@ -296,6 +296,17 @@ class MetaObserver:
     ) -> MetaReport:
         analysis = self.analyze(state, orientation, self_model=self_model)
         emitted = self._emit_analysis_signals(analysis, signal_bus, state)
+        raw_snapshot = analysis.get("self_model_snapshot", {})
+        if isinstance(raw_snapshot, dict):
+            self_model_snapshot = dict(raw_snapshot)
+        elif hasattr(raw_snapshot, "items"):
+            self_model_snapshot = dict(raw_snapshot.items())
+        elif raw_snapshot is None:
+            self_model_snapshot = {}
+        else:
+            # Last-resort safety fallback for unexpected payloads.
+            self_model_snapshot = {}
+
         report = MetaReport(
             self_consistency=analysis["self_consistency"],
             uncertainty=analysis["uncertainty"],
@@ -310,7 +321,7 @@ class MetaObserver:
             collective_score=float(analysis.get("collective_score", 0.0)),
             collective_risk=float(analysis.get("collective_risk", 0.0)),
             collective_alignment=float(analysis.get("collective_alignment", 1.0)),
-            self_model_snapshot=dict(analysis.get("self_model_snapshot", {})),
+            self_model_snapshot=self_model_snapshot,
             identity_drift_score=float(analysis.get("selfmodeldrift", 0.0)),
             predicted_self_consistency=float(analysis.get("predictedselfconsistency", 1.0)),
             meta_consistency=float(analysis.get("meta_consistency", 1.0)),

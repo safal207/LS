@@ -323,10 +323,17 @@ class NCAAgent:
              self.meta_observer.self_consistency_threshold = max(0.35, min(0.7, current + 0.06)) # correction_strength hardcoded to match MetaCognition default
 
         # Keep same-step cognitive trace updates to avoid t+1 lag in meta drift signals.
+        trace_analysis = {
+            **analysis,
+            "meta_drift": metafeedback.get("meta_drift", analysis.get("meta_drift", 0.0)),
+            # Compatibility aliases expected by some analytics consumers.
+            "identitydriftscore": analysis.get("selfmodeldrift", 0.0),
+            "collectivealignment": analysis.get("collective_alignment", 1.0),
+        }
         self.self_model.update_cognitive_trace(
             state,
             {"action": choice.action, "score": choice.score, "confidence": choice.confidence},
-            {**analysis, "meta_drift": metafeedback.get("meta_drift", 0.0)},
+            trace_analysis,
             t_override=transition["t"],
         )
 
