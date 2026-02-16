@@ -1,8 +1,9 @@
 rules:
   - id: phase12-3-agent-step-forbid-legacy-engine-prefixes
     message: >-
-      BLOCKER: agent.step() must not call legacy engine APIs directly.
-      Use engine.update(context) and context.evolve(...) orchestration only.
+      BLOCKER: agent.step() must not call legacy prefix methods directly
+      (update_from_/generate_/select_/apply_/infer_/evaluate_).
+      Keep step() as orchestration only.
     severity: ERROR
     languages:
       - python
@@ -13,10 +14,7 @@ rules:
       - pattern-inside: |
           def step(self, ...):
               ...
-      - pattern: self.$ENGINE.$METHOD(...)
-      - metavariable-regex:
-          metavariable: $ENGINE
-          regex: "^(identitycore|social|culture|militocracy|synergy|values|autonomy|intentengine)$"
+      - pattern: self.$OBJ.$METHOD(...)
       - metavariable-regex:
           metavariable: $METHOD
           regex: "^(update_from_|generate_|select_|apply_|infer_|evaluate_).+"

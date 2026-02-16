@@ -95,6 +95,29 @@ class NCAAgent:
             signal_bus=self.signal_bus,
         )
 
+    def _update_self_layer(
+        self,
+        state: AgentState,
+        context: UpdateContext,
+    ) -> tuple[UpdateContext, dict[str, Any], dict[str, Any], dict[str, Any]]:
+        """Phase 12.3 migration helper for self-model/orientation legacy update calls."""
+        self_snapshot = self.self_model.update_from_state(state)
+        analysis = self.meta_observer.observe_and_correct(
+            state, self.orientation, self.signal_bus, self_model=self.self_model
+        )
+        self.orientation.update_from_self_model(self.self_model)
+        metafeedback = self.metacognition.analyze_cognition(state, self.self_model, analysis["report"])
+        return (
+            context.evolve(
+                self_snapshot=self_snapshot,
+                meta_report=analysis.get("report"),
+                metafeedback=metafeedback,
+            ),
+            self_snapshot,
+            analysis,
+            metafeedback,
+        )
+
     def step(self) -> dict[str, Any]:
         """Unified Update Loop (UUL) v1.0 Agent Step"""
 
@@ -112,6 +135,7 @@ class NCAAgent:
             values_snapshot=self.values.to_context_snapshot(),
             autonomy_snapshot=self.autonomy.to_context_snapshot(),
             intent_snapshot=self.intentengine.to_context_snapshot(),
+            # Phase 12.3: primary intent is produced in Intent Layer via intentengine.update(context).
             primary_intent=None,
             social_snapshot=self.social.to_context_snapshot(),
             culture_snapshot=self.culture.to_context_snapshot(),
@@ -121,18 +145,7 @@ class NCAAgent:
         )
 
         # 2. Self-Model Layer
-        self_snapshot = self.self_model.update_from_state(state)
-        analysis = self.meta_observer.observe_and_correct(
-            state, self.orientation, self.signal_bus, self_model=self.self_model
-        )
-        self.orientation.update_from_self_model(self.self_model)
-        metafeedback = self.metacognition.analyze_cognition(state, self.self_model, analysis["report"])
-
-        context = context.evolve(
-            self_snapshot=self_snapshot,
-            meta_report=analysis.get("report"),
-            metafeedback=metafeedback
-        )
+        context, self_snapshot, analysis, metafeedback = self._update_self_layer(state, context)
 
         # 3. Identity Layer
         identity_result = self.identitycore.update(context)

@@ -2,16 +2,36 @@
 
 This note tracks remaining migration debt before strict Phase 13 enforcement.
 
-## 1) `agent.step()` legacy-adjacent calls
+## 1) `agent.step()` self-layer migration
 
-- `python/modules/nca/agent.py:124`
-  - `self.self_model.update_from_state(state)`
-- `python/modules/nca/agent.py:128`
-  - `self.orientation.update_from_self_model(self.self_model)`
+- `agent.step()` no longer calls `self_model.update_from_*` or `orientation.update_from_*` directly.
+- Legacy self/orientation update calls were moved to helper:
+  - `python/modules/nca/agent.py` -> `_update_self_layer(...)`
 
-These are not engine cross-calls, but still use `update_from_*` naming and should be reviewed for final orchestration purity.
+### Self-Model / Orientation (Deferred to Phase 13)
 
-## 2) Engine `update(context)` methods still using legacy-prefixed helpers
+- `self_model.update_from_state(state)`
+- `orientation.update_from_self_model(self.self_model)`
+
+Status:
+- moved out of `agent.step()` into `_update_self_layer()` migration helper,
+- not called directly in the step orchestration path,
+- planned for clean `update(context)` migration in Phase 13.
+
+## 2) `primary_intent` context semantics
+
+- `UpdateContext.primary_intent` is initialized to `None`.
+- Source of truth is `IntentEngine.update(context)` in Intent Layer.
+- After Intent Layer, step updates:
+  - `context.primary_intent`
+  - `context.intent_snapshot`
+  - `context.intents`
+
+Safety note:
+- `primary_intent` is not consumed as final intent before Intent Layer completion.
+- This keeps pre-intent context deterministic without stale direct selector calls.
+
+## 3) Engine `update(context)` methods still using legacy-prefixed helpers
 
 - `python/modules/nca/identity_core.py:89`
 - `python/modules/nca/social_cognition.py:35`
@@ -24,14 +44,13 @@ These are not engine cross-calls, but still use `update_from_*` naming and shoul
 
 Current status: acceptable as migration debt in 12.3 with warning-level policy.
 
-## 3) Context initialization cleanup opportunities
+## 4) Context initialization cleanup opportunities
 
 - `UpdateContext` carries broad snapshot fields to support staged migration.
 - Some fields may be pruned once all engines become fully context-native and stop reading backward-compat data.
 
-## 4) Policy posture
+## 5) Policy posture
 
 - Phase 12.1 rules: blocker (stable gate)
 - Phase 12.2 rules: strict migration guard
 - Phase 12.3 rules: blocker on step-level legacy engine calls, warning on engine-update debt
-
