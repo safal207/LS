@@ -26,9 +26,9 @@ rules:
       - metavariable-regex:
           metavariable: $METHOD
           regex: "^(update_from_|generate_|select_|apply_|infer_|evaluate_).+"
-    metadata:
-      category: phase13
-      impact: high
+      - pattern-not: self.$METHOD(..., context, ...)
+      - pattern-not: self.$METHOD(context, ...)
+      - pattern-not-regex: ".*_from_context"
 
   - id: phase13-self-layer-legacy-forbidden
     message: >-

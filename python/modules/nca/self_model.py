@@ -66,30 +66,49 @@ class SelfModel:
         if self.cultural_trace.maxlen != self.max_history:
             self.cultural_trace = deque(self.cultural_trace, maxlen=self.max_history)
 
-        # Lazy load meta components
-        from .meta_observer import MetaObserver
-        from .meta_cognition import MetaCognitionEngine
-
+        # Lazy load meta components moved to module-level imports with TYPE_CHECKING
+        # However, they need to be instantiated at runtime if None.
+        # We handle this by importing inside methods or using safe import inside post_init
+        # to avoid circular dependency at module level during loading.
+        # But per Phase 13 request: "Move imports out of postinit_ to top-level with TYPE_CHECKING"
+        # and "Add defensive-checks for meta-layer".
+        # We'll use local imports here as a safe fallback if not injected.
         if self.meta_observer is None:
+            from .meta_observer import MetaObserver
             self.meta_observer = MetaObserver()
         if self.metacognition is None:
+            from .meta_cognition import MetaCognitionEngine
             self.metacognition = MetaCognitionEngine()
 
     def update(self, context: UpdateContext) -> dict[str, Any]:
         """
         Phase 13: context-native update.
         Reads everything from context, writes snapshot back.
+
+        Note: This method reads snapshots from context which represent the state at step t-1
+        (or t, depending on DCP phase order). Specifically, snapshots for downstream engines
+        like Social/Culture are from t-1 if they haven't run yet in this step.
+        SelfModel runs early (Layer 2), so it sees t-1 state for most components.
+        This lag is intentional for stable self-reflection.
         """
         # 1. Update internal state from agent state
         if context.state:
             self._update_internal_state(context.state)
 
-            # Check for new history events to trace
+            # Check for new history events to trace.
+            # We look at the latest history event. Since SelfModel runs early in step(),
+            # context.state.history[-1] is from the PREVIOUS step (t-1).
+            # This aligns with the "Reflective" nature of SelfModel analyzing past actions.
             if context.state.history:
                 latest = context.state.history[-1]
                 last_trace_t = self.cognitive_trace[-1]["t"] if self.cognitive_trace else -1
+
+                # Only process if we haven't seen this timestamp yet
                 if latest.get("t", -1) > last_trace_t:
-                     self.update_cognitive_trace(context.state, latest.get("details", {}), latest.get("analysis", {}), t_override=latest.get("t"))
+                     # Access analysis from history event.
+                     # Note: analysis is populated in _finalize_step of previous cycle.
+                     analysis = latest.get("analysis", {})
+                     self.update_cognitive_trace(context.state, latest.get("details", {}), analysis, t_override=latest.get("t"))
 
 
         # 2. Meta-Observation (requires orientation snapshot)
@@ -114,10 +133,11 @@ class SelfModel:
                 report
             )
 
-        # 4. Update Metrics from Snapshots
+        # 4. Update Metrics from Snapshots (Phase 13: robust handling)
         if context.identity_snapshot: self.update_identity_metrics(context.identity_snapshot)
         if context.intent_snapshot: self.update_intent_metrics(context.intent_snapshot)
-        if context.autonomy_snapshot: self.update_autonomy_metrics(context.autonomy_snapshot)
+        # For autonomy, pass context to access primary_strategy if needed, or rely on snapshot updates
+        if context.autonomy_snapshot: self.update_autonomy_metrics(context.autonomy_snapshot, context.primary_strategy)
         if context.values_snapshot: self.update_value_metrics(context.values_snapshot)
         if context.social_snapshot: self.update_social_metrics(context.social_snapshot)
         if context.culture_snapshot: self.update_culture_metrics(context.culture_snapshot)
@@ -371,13 +391,11 @@ class SelfModel:
             alignment = float(getattr(intent_engine, "intent_alignment", 1.0))
         else:
             snapshot = intent_engine if isinstance(intent_engine, dict) else {}
-            active = snapshot.get("intents", []) or [] # 'intents' in context snapshot
-            conflicts = [] # Conflicts might not be in basic snapshot if not exported
-            # Check intent_snapshot structure in intent_engine.py? Assuming standard exports.
-            # Usually intents are exported as list of dicts.
+            # FIX: Use "active_intents" key as per IntentEngine.to_context_snapshot
+            active = snapshot.get("active_intents", []) or []
+            conflicts = snapshot.get("intent_conflicts", []) or []
             strength = float(snapshot.get("intent_strength", 0.0))
             alignment = float(snapshot.get("intent_alignment", 1.0))
-            # If conflicts missing, assume empty
 
         entry = {
             "t": len(self.intent_trace),
@@ -413,7 +431,7 @@ class SelfModel:
 
         return entry
 
-    def update_autonomy_metrics(self, autonomy_engine: Any) -> dict[str, Any]:
+    def update_autonomy_metrics(self, autonomy_engine: Any, primary_strategy: dict[str, Any] | None = None) -> dict[str, Any]:
         if hasattr(autonomy_engine, "autonomy_level"):
             level = float(getattr(autonomy_engine, "autonomy_level", 0.0))
             selected = getattr(autonomy_engine, "select_strategy", lambda: None)() or {}
@@ -422,9 +440,11 @@ class SelfModel:
         else:
             snapshot = autonomy_engine if isinstance(autonomy_engine, dict) else {}
             level = float(snapshot.get("autonomy_level", 0.0))
-            selected = snapshot.get("primary_strategy", {}) or {} # primary_strategy in context
-            conflicts = [] # autonomy_conflicts missing?
-            goals = [] # selfdirectedgoals missing?
+            # Prefer primary_strategy from context if provided, else snapshot (future-proof)
+            selected = primary_strategy or snapshot.get("selected_strategy", {}) or {}
+            # Note: We will add autonomy_conflicts and selfdirectedgoals to snapshot in AutonomyEngine
+            conflicts = snapshot.get("conflicts", []) or []
+            goals = snapshot.get("selfdirectedgoals", []) or []
 
         entry = {
             "t": len(self.autonomy_trace),
@@ -475,7 +495,9 @@ class SelfModel:
             align = float(snapshot.get("valuealignmentscore", 1.0))
             drift = float(snapshot.get("preference_drift", 0.0))
             constraints = snapshot.get("ethical_constraints", {})
-            conflict_count = 0 # Missing
+            # Note: We will add value_conflicts to snapshot in ValueSystem
+            conflicts = snapshot.get("value_conflicts", []) or []
+            conflict_count = len(conflicts)
 
         entry = {
             "t": len(self.value_trace),

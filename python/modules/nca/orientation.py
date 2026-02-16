@@ -111,16 +111,18 @@ class OrientationCenter:
 
     def _apply_meta_report(self, report: dict[str, Any] | Any) -> None:
         # Handle collective drift
-        if hasattr(report, "drift"): # Check if it's an object-like MetaReport
+        if hasattr(report, "drift") and not isinstance(report, dict): # Check if it's an object-like MetaReport
              # MetaReport has 'drift' (int), 'collective_drift' (implicit/explicit?), 'causal_drift'
              # Let's use safe access
              collective_drift = bool(getattr(report, "collective_drift", False))
              collective_score = float(getattr(report, "collective_score", 0.0))
              causal_drift = getattr(report, "causal_drift", False)
         else:
-             collective_drift = bool(report.get("collective_drift", False))
-             collective_score = float(report.get("collective_score", 0.0))
-             causal_drift = report.get("causal_drift")
+             # Assume dict
+             report_dict = report if isinstance(report, dict) else {}
+             collective_drift = bool(report_dict.get("collective_drift", False))
+             collective_score = float(report_dict.get("collective_score", 0.0))
+             causal_drift = report_dict.get("causal_drift")
 
         if collective_drift:
              self.impulsiveness = max(0.0, self.impulsiveness - 0.08)

@@ -49,10 +49,14 @@ class NCAAgent:
 
     @property
     def meta_observer(self) -> MetaObserver:
+        if self.self_model.meta_observer is None:
+             raise RuntimeError("SelfModel.meta_observer is not initialized.")
         return self.self_model.meta_observer
 
     @property
     def metacognition(self) -> MetaCognitionEngine:
+        if self.self_model.metacognition is None:
+             raise RuntimeError("SelfModel.metacognition is not initialized.")
         return self.self_model.metacognition
 
     def __post_init__(self) -> None:
@@ -292,9 +296,6 @@ class NCAAgent:
 
         # Phase 13: self_model.update(context) handles metric updates and cognitive trace in the next cycle
         # by observing the history and snapshots.
-        # We assume self_model.update() was called at start of step.
-        # But wait, cognitive trace for THIS action needs to be recorded?
-        # Yes, SelfModel.update() in the NEXT step will see the new history event appended below.
 
         if choice.confidence < self.low_confidence_threshold:
             self.signal_bus.emit(
