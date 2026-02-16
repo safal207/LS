@@ -112,7 +112,7 @@ class NCAAgent:
             values_snapshot=self.values.to_context_snapshot(),
             autonomy_snapshot=self.autonomy.to_context_snapshot(),
             intent_snapshot=self.intentengine.to_context_snapshot(),
-            primary_intent=self.intentengine.select_primary_intent(),
+            primary_intent=None,
             social_snapshot=self.social.to_context_snapshot(),
             culture_snapshot=self.culture.to_context_snapshot(),
             militocracy_snapshot=self.militocracy.to_context_snapshot(),
