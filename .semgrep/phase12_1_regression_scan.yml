@@ -2,13 +2,14 @@ rules:
   - id: phase12-duplicate-autonomy-metrics-in-agent-finalize
     message: >-
       BLOCKER: self.autonomy.update_autonomy_metrics() is called in _finalize_step().
-      If AutonomyEngine.update() also updates metrics, autonomy_trace is double-counted.
+      In Phase 12.1, autonomy metrics are already updated inside AutonomyEngine.update().
+      This causes autonomy_trace to be double-counted.
     severity: ERROR
     languages:
       - python
     paths:
       include:
-        - python/modules/nca/agent.py
+        - /python/modules/nca/agent.py
     patterns:
       - pattern-inside: |
           def _finalize_step(self, ...):
@@ -19,26 +20,6 @@ rules:
       impact: high
       fix: Remove one of the per-step update_autonomy_metrics() calls.
 
-  - id: phase12-duplicate-autonomy-metrics-in-autonomy-update
-    message: >-
-      BLOCKER: update_autonomy_metrics() is called inside AutonomyEngine.update().
-      If agent finalize also updates metrics, autonomy_trace is double-counted.
-    severity: ERROR
-    languages:
-      - python
-    paths:
-      include:
-        - python/modules/nca/autonomy_engine.py
-    patterns:
-      - pattern-inside: |
-          def update(self, ...):
-              ...
-      - pattern: self.update_autonomy_metrics()
-    metadata:
-      category: phase12.1
-      impact: high
-      fix: Keep exactly one metrics update per agent step.
-
   - id: phase12-ci-missing-nca-path-filter
     message: >-
       MEDIUM: Workflow has pull_request path filters but misses python/modules/nca/**.
@@ -48,8 +29,8 @@ rules:
       - generic
     paths:
       include:
-        - .github/workflows/*.yml
-        - .github/workflows/*.yaml
+        - /.github/workflows/*.yml
+        - /.github/workflows/*.yaml
     patterns:
       - pattern-regex: '(?s)\bon:\s*.*\bpull_request\s*:\s*.*\bpaths\s*:'
       - pattern-not-regex: 'python/modules/nca/\*\*'
@@ -67,8 +48,8 @@ rules:
       - generic
     paths:
       include:
-        - .github/workflows/*.yml
-        - .github/workflows/*.yaml
+        - /.github/workflows/*.yml
+        - /.github/workflows/*.yaml
     patterns:
       - pattern-regex: '(?s)\bon:\s*.*\bpull_request\s*:\s*.*\bpaths\s*:'
       - pattern-not-regex: '(tests/test_context_propagation\.py|tests/\*\*)'
@@ -86,7 +67,7 @@ rules:
       - python
     paths:
       include:
-        - python/modules/nca/**
+        - /python/modules/nca/**
     patterns:
       - pattern-inside: |
           def update(self, ...):

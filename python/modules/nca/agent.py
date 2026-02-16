@@ -297,7 +297,6 @@ class NCAAgent:
         self.orientation.update_from_identity_core(self.identitycore)
         self.self_model.update_identity_metrics(self.identitycore)
         self.self_model.update_intent_metrics(self.intentengine)
-        self.autonomy.update_autonomy_metrics()
         self.self_model.update_autonomy_metrics(self.autonomy)
         self.self_model.update_value_metrics(self.values)
         self.self_model.update_social_metrics(self.social)
