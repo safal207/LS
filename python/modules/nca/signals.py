@@ -4,6 +4,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from itertools import islice
 import logging
+import math
 from threading import Lock
 from time import time
 from typing import Any, Callable
@@ -19,6 +20,19 @@ MULTIAGENT_DRIFT = "multiagent_drift"
 COLLECTIVE_GOAL_CONFLICT = "collectivegoalconflict"
 
 logger = logging.getLogger(__name__)
+
+
+try:
+    from ncafuzzycore import PyBusConfig as RustPyBusConfig
+    from ncafuzzycore import PySignalMetrics as RustPySignalMetrics
+    from ncafuzzycore import compute_adjustments as rust_compute_adjustments
+
+    HAS_RUST_FUZZY = True
+except ImportError:
+    RustPyBusConfig = None
+    RustPySignalMetrics = None
+    rust_compute_adjustments = None
+    HAS_RUST_FUZZY = False
 
 
 @dataclass
@@ -118,6 +132,105 @@ class SignalBusMetrics:
     tickswithdropped_signals: int = 0
     avgbatchsize: float = 0.0
     queuepeakper_tick: int = 0
+    processed_ticks: int = 0
+
+
+class FuzzyLoadRegulator:
+    """Fuzzy regulator for adaptive deterministic bus capacity and priority tuning."""
+
+    def __init__(
+        self,
+        *,
+        min_signals_per_tick: int = 1_000,
+        max_signals_per_tick: int = 100_000,
+        min_queue_size: int = 10_000,
+        max_queue_size: int = 1_000_000,
+    ) -> None:
+        self.min_signals_per_tick = min_signals_per_tick
+        self.max_signals_per_tick = max_signals_per_tick
+        self.min_queue_size = min_queue_size
+        self.max_queue_size = max_queue_size
+
+    @staticmethod
+    def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
+        return max(low, min(high, value))
+
+    @staticmethod
+    def _ramp_up(value: float, start: float, end: float) -> float:
+        if value <= start:
+            return 0.0
+        if value >= end:
+            return 1.0
+        return (value - start) / (end - start)
+
+    @staticmethod
+    def _ramp_down(value: float, start: float, end: float) -> float:
+        if value <= start:
+            return 1.0
+        if value >= end:
+            return 0.0
+        return 1.0 - ((value - start) / (end - start))
+
+    @staticmethod
+    def _triangular(value: float, left: float, peak: float, right: float) -> float:
+        if value <= left or value >= right:
+            return 0.0
+        if math.isclose(value, peak):
+            return 1.0
+        if value < peak:
+            return (value - left) / (peak - left)
+        return (right - value) / (right - peak)
+
+    def compute_adjustments(
+        self,
+        metrics: SignalBusMetrics,
+        *,
+        current_max_signals_per_tick: int,
+        current_max_queue_size: int,
+    ) -> dict[str, float]:
+        queue_load = self._clamp(metrics.queue_size / max(1, current_max_queue_size))
+        batch_efficiency = self._clamp(metrics.avgbatchsize / max(1, current_max_signals_per_tick))
+        burst_pressure = self._clamp(metrics.queuepeakper_tick / max(1, current_max_queue_size))
+        drop_rate = self._clamp(metrics.total_dropped / max(1, metrics.total_emitted))
+
+        queue_low = self._ramp_down(queue_load, 0.0, 0.3)
+        queue_high = self._ramp_up(queue_load, 0.6, 1.0)
+        batch_underutilized = self._ramp_down(batch_efficiency, 0.0, 0.4)
+        batch_optimal = self._triangular(batch_efficiency, 0.3, 0.55, 0.8)
+        burst_storm = self._ramp_up(burst_pressure, 0.6, 1.0)
+        burst_calm = self._ramp_down(burst_pressure, 0.0, 0.2)
+        drop_low = self._ramp_down(drop_rate, 0.0, 0.05)
+        drop_critical = self._ramp_up(drop_rate, 0.05, 1.0)
+
+        throughput_increase = min(queue_high, batch_optimal)
+        throughput_decrease = min(queue_low, batch_underutilized)
+
+        throughput_factor = 1.0
+        throughput_factor += 0.35 * throughput_increase
+        throughput_factor -= 0.15 * throughput_decrease
+        throughput_factor -= 0.60 * drop_critical
+        throughput_factor = self._clamp(throughput_factor, 0.4, 1.6)
+
+        queue_factor = 1.0
+        queue_factor += 0.25 * min(burst_storm, drop_low)
+        queue_factor -= 0.10 * min(queue_low, burst_calm)
+        queue_factor = self._clamp(queue_factor, 0.7, 1.4)
+
+        priority_boost = 1.0
+        priority_boost += 1.5 * min(burst_storm, queue_high)
+        priority_boost -= 0.5 * queue_low
+        priority_boost = self._clamp(priority_boost, 0.5, 3.0)
+
+        new_max_signals = int(current_max_signals_per_tick * throughput_factor)
+        new_max_queue = int(current_max_queue_size * queue_factor)
+
+        return {
+            "max_signals_per_tick": float(
+                max(self.min_signals_per_tick, min(self.max_signals_per_tick, new_max_signals))
+            ),
+            "max_queue_size": float(max(self.min_queue_size, min(self.max_queue_size, new_max_queue))),
+            "priority_boost": priority_boost,
+        }
 
 
 class DeterministicSignalBus(CollectiveSignalBus):
@@ -149,7 +262,46 @@ class DeterministicSignalBus(CollectiveSignalBus):
         self._lock = Lock()
         self.max_signals_per_tick = max_signals_per_tick
         self.max_queue_size = max_queue_size
+        self.priority_boost = 1.0
+        self.regulator = FuzzyLoadRegulator(
+            min_signals_per_tick=max(100, max_signals_per_tick // 10),
+            max_signals_per_tick=max_signals_per_tick * 10,
+            min_queue_size=max(1000, max_queue_size // 10),
+            max_queue_size=max_queue_size * 10,
+        )
         self.metrics = SignalBusMetrics()
+
+    def _apply_regulator(self) -> None:
+        if HAS_RUST_FUZZY and rust_compute_adjustments and RustPySignalMetrics and RustPyBusConfig:
+            try:
+                rust_metrics = RustPySignalMetrics(
+                    queue_size=self.metrics.queue_size,
+                    avg_batch_size=float(self.metrics.avgbatchsize),
+                    queue_peak_per_tick=self.metrics.queuepeakper_tick,
+                    total_dropped=self.metrics.total_dropped,
+                    total_emitted=max(1, self.metrics.total_emitted),
+                )
+                rust_config = RustPyBusConfig(
+                    max_signals_per_tick=max(1, self.max_signals_per_tick),
+                    max_queue_size=max(1, self.max_queue_size),
+                    priority_boost=float(self.priority_boost),
+                )
+                rust_adjustments = rust_compute_adjustments(rust_metrics, rust_config)
+                self.max_signals_per_tick = int(rust_adjustments.max_signals_per_tick)
+                self.max_queue_size = int(rust_adjustments.max_queue_size)
+                self.priority_boost = float(rust_adjustments.priority_boost)
+                return
+            except Exception:
+                logger.exception("Falling back to Python fuzzy regulator due to Rust compute error")
+
+        adjustments = self.regulator.compute_adjustments(
+            self.metrics,
+            current_max_signals_per_tick=self.max_signals_per_tick,
+            current_max_queue_size=self.max_queue_size,
+        )
+        self.max_signals_per_tick = int(adjustments["max_signals_per_tick"])
+        self.max_queue_size = int(adjustments["max_queue_size"])
+        self.priority_boost = adjustments["priority_boost"]
 
     def _enqueue(self, mode: str, signal: InternalSignal, kwargs: dict[str, str]) -> None:
         with self._lock:
@@ -192,6 +344,7 @@ class DeterministicSignalBus(CollectiveSignalBus):
 
     def process_tick(self) -> list[InternalSignal]:
         if not self._pending:
+            self._apply_regulator()
             return []
 
         dropped_before_tick = 0
@@ -217,15 +370,16 @@ class DeterministicSignalBus(CollectiveSignalBus):
                     super().emit_broadcast(signal)
         finally:
             with self._lock:
-                total_processed_before = self.metrics.total_processed
                 if processed:
                     self.metrics.avgbatchsize = (
-                        (self.metrics.avgbatchsize * total_processed_before + len(processed))
-                        / (total_processed_before + len(processed))
-                    )
+                        self.metrics.avgbatchsize * self.metrics.processed_ticks + len(processed)
+                    ) / (self.metrics.processed_ticks + 1)
+                    self.metrics.processed_ticks += 1
                 self.metrics.total_processed += len(processed)
                 if self.metrics.total_dropped > dropped_before_tick:
                     self.metrics.tickswithdropped_signals += 1
                 self._processing = False
+
+            self._apply_regulator()
 
         return processed

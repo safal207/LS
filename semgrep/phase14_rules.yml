@@ -78,3 +78,18 @@ rules:
         - python/modules/nca/signals.py
     patterns:
       - pattern: "[$X.popleft() for ... in range($N)]"
+
+
+  - id: deterministic-bus-manual-max-signals-update
+    message: "Запрещено вручную изменять max_signals_per_tick вне FuzzyLoadRegulator application path."
+    severity: ERROR
+    languages: [python]
+    paths:
+      include:
+        - python/modules/nca/*.py
+    patterns:
+      - pattern: $BUS.max_signals_per_tick = $VALUE
+      - pattern-not-inside: |
+          def _apply_regulator(...):
+            ...
+      - pattern-not: self.max_signals_per_tick = max_signals_per_tick
