@@ -7,6 +7,8 @@ from threading import Condition
 from time import monotonic
 from typing import TYPE_CHECKING, Any, Callable, Deque, Generic, Iterable, Literal, Optional, TypeVar
 
+_PRIORITY_QUEUE_COMPACTION_RATIO = 2
+
 if TYPE_CHECKING:
     from .observability import ObservabilityHub
 
@@ -69,6 +71,7 @@ class RttSession(Generic[MessageT]):
     _priority_oldest_queue: list[tuple[int, int]] = field(default_factory=list, init=False)
     _priority_seq: int = field(default=0, init=False)
     _live_priority_seq: set[int] = field(default_factory=set, init=False)
+    _dropped_priority_count: int = field(default=0, init=False)
     _connected: bool = field(default=True, init=False)
     _stats: RttStats = field(default_factory=RttStats, init=False)
     _condition: Condition = field(default_factory=Condition, init=False)
@@ -158,8 +161,20 @@ class RttSession(Generic[MessageT]):
             sequence, _ = heapq.heappop(self._priority_oldest_queue)
             if sequence in self._live_priority_seq:
                 self._live_priority_seq.remove(sequence)
+                self._dropped_priority_count += 1
                 return True
         return False
+
+    def _maybe_compact_priority_queue(self) -> None:
+        """Remove stale lazy-deleted heap entries when stale dominates live entries."""
+        if not self._priority_queue:
+            return
+        stale_count = len(self._priority_queue) - len(self._live_priority_seq)
+        if stale_count <= len(self._live_priority_seq) * _PRIORITY_QUEUE_COMPACTION_RATIO:
+            return
+        self._priority_queue = [entry for entry in self._priority_queue if entry[1] in self._live_priority_seq]
+        heapq.heapify(self._priority_queue)
+        self._dropped_priority_count = 0
 
     def _on_overflow(self, message: MessageT, priority: Optional[int] = None) -> None:
         self._bump(overflow_events=1)
@@ -169,6 +184,7 @@ class RttSession(Generic[MessageT]):
                 if not dropped:
                     if self._queue:
                         self._queue.popleft()
+                self._maybe_compact_priority_queue()
             else:
                 self._queue.popleft()
             self._enqueue(message, priority)
@@ -259,6 +275,7 @@ class RttSession(Generic[MessageT]):
             self._priority_queue.clear()
             self._priority_oldest_queue.clear()
             self._live_priority_seq.clear()
+            self._dropped_priority_count = 0
             self._heartbeat_at = monotonic()
             self.reconnects += 1
             reconnects = self.reconnects

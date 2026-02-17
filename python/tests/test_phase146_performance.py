@@ -128,3 +128,27 @@ def test_priority_queue_overflow_with_none_priority() -> None:
     assert session.receive() == "first"
     assert session.receive() is None
     assert session.stats.dropped_newest == 1
+
+
+
+def test_priority_queue_dropoldest_no_heap_leak() -> None:
+    """_priority_queue must not grow unboundedly when receive is never called."""
+    max_queue = 10
+    session = RttSession[str](
+        config=RttConfig(
+            max_queue=max_queue,
+            enable_priority_queue=True,
+            backpressure_policy="dropoldest",
+        )
+    )
+
+    for i in range(max_queue):
+        session.send(f"seed-{i}", priority=1)
+
+    for i in range(500):
+        session.send(f"overflow-{i}", priority=1)
+
+    assert len(session._priority_queue) <= 2 * max_queue + 1, (
+        f"Heap leaked: {len(session._priority_queue)} entries for max_queue={max_queue}"
+    )
+    assert len(session._live_priority_seq) == max_queue
