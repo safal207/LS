@@ -24,3 +24,22 @@ Phase 14.2 focuses on performance polishing for the deterministic signal pipelin
 
 - Unit tests cover new metrics and processing behavior.
 - Added a performance regression guard for a 50k signal batch processing budget.
+
+
+## Phase 14.3 extension (adaptive control)
+
+Phase 14.2 telemetry is now consumed by the Phase 14.3 fuzzy regulator:
+
+- `queue_size` and `queuepeakper_tick` are used for load/burst fuzzy inputs.
+- `avgbatchsize` drives batch efficiency estimation.
+- `total_dropped / total_emitted` activates emergency throughput reduction.
+
+This preserves Phase 14.2 low-overhead processing while enabling bounded runtime self-tuning for Phase 15 governance scenarios.
+
+
+## Phase 14.4 prep notes
+
+To reduce adaptive oscillations and maintain long-run metric quality:
+
+- Regulator output application now uses EMA damping in the deterministic bus.
+- `avgbatchsize` is maintained as a fixed-window average (1000 recent processed ticks) instead of an unbounded cumulative average.

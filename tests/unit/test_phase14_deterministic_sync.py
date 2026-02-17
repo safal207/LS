@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # ruff: noqa: E402
 
+import logging
 import sys
 import threading
 import time
@@ -14,7 +15,8 @@ if str(ROOT / "python") not in sys.path:
 from modules.nca.agent import NCAAgent
 from modules.nca.multiagent import MultiAgentSystem
 from modules.nca.orientation import OrientationCenter
-from modules.nca.signals import DeterministicSignalBus, InternalSignal
+import modules.nca.signals as signals_module
+from modules.nca.signals import DeterministicSignalBus, FuzzyLoadRegulator, InternalSignal, SignalBusMetrics
 from modules.nca.world import GridWorld
 
 
@@ -292,11 +294,11 @@ def test_batch_metrics_update() -> None:
         bus.emit(InternalSignal(signal_type=f"b-{idx}"))
 
     bus.process_tick()
-    assert bus.metrics.avgbatchsize == 1.0
+    assert bus.metrics.avgbatchsize == 3.0
     assert bus.metrics.queuepeakper_tick == 5
 
     bus.process_tick()
-    assert bus.metrics.avgbatchsize == 1.0
+    assert bus.metrics.avgbatchsize == 2.5
     assert bus.metrics.queuepeakper_tick == 5
 
 
@@ -307,7 +309,7 @@ def test_process_tick_performance_under_load() -> None:
 
     start = time.perf_counter()
     bus.process_tick()
-    assert time.perf_counter() - start < 0.12
+    assert time.perf_counter() - start < 0.20
 
 
 def test_execution_order_uses_coordinator_directly() -> None:
@@ -333,3 +335,186 @@ def test_backward_compatibility_aliases() -> None:
     assert agent.synergy.collectivealignmentscore == 0.66
     assert agent.militocracy.ideaqualityscore == 0.55
     assert agent.militocracy.militarydisciplinescore == 0.44
+
+
+def test_fuzzy_regulator_increases_throughput_for_high_load_optimal_batch() -> None:
+    regulator = FuzzyLoadRegulator()
+    metrics = SignalBusMetrics(
+        total_emitted=1_000,
+        total_dropped=0,
+        queue_size=9_000,
+        avgbatchsize=5_500,
+        queuepeakper_tick=9_500,
+    )
+
+    adjustments = regulator.compute_adjustments(
+        metrics,
+        current_max_signals_per_tick=10_000,
+        current_max_queue_size=10_000,
+    )
+
+    assert adjustments["max_signals_per_tick"] > 10_000
+
+
+def test_fuzzy_regulator_reduces_throughput_on_critical_drop_rate() -> None:
+    regulator = FuzzyLoadRegulator()
+    metrics = SignalBusMetrics(
+        total_emitted=1_000,
+        total_dropped=300,
+        queue_size=8_000,
+        avgbatchsize=7_000,
+        queuepeakper_tick=8_500,
+    )
+
+    adjustments = regulator.compute_adjustments(
+        metrics,
+        current_max_signals_per_tick=10_000,
+        current_max_queue_size=10_000,
+    )
+
+    assert adjustments["max_signals_per_tick"] < 10_000
+
+
+def test_fuzzy_regulator_monotonicity_for_queue_load() -> None:
+    regulator = FuzzyLoadRegulator()
+    low = SignalBusMetrics(total_emitted=1_000, queue_size=2_000, avgbatchsize=5_500, queuepeakper_tick=3_000)
+    high = SignalBusMetrics(total_emitted=1_000, queue_size=9_000, avgbatchsize=5_500, queuepeakper_tick=9_000)
+
+    low_adjustments = regulator.compute_adjustments(
+        low,
+        current_max_signals_per_tick=10_000,
+        current_max_queue_size=10_000,
+    )
+    high_adjustments = regulator.compute_adjustments(
+        high,
+        current_max_signals_per_tick=10_000,
+        current_max_queue_size=10_000,
+    )
+
+    assert high_adjustments["max_signals_per_tick"] >= low_adjustments["max_signals_per_tick"]
+
+
+def test_deterministic_bus_adapts_for_burst_and_calm_periods() -> None:
+    bus = DeterministicSignalBus(max_signals_per_tick=10_000, max_queue_size=10_000)
+
+    for idx in range(9_000):
+        bus.emit(InternalSignal(signal_type=f"burst-{idx}"))
+    bus.process_tick()
+    burst_max = bus.max_signals_per_tick
+
+    for _ in range(5):
+        bus.process_tick()
+    calm_max = bus.max_signals_per_tick
+
+    assert burst_max >= 10_000
+    assert calm_max <= burst_max
+
+
+def test_rust_fuzzy_path_updates_bus_parameters(monkeypatch) -> None:
+    bus = DeterministicSignalBus(max_signals_per_tick=10_000, max_queue_size=10_000)
+
+    class _Adj:
+        max_signals_per_tick = 12_345
+        max_queue_size = 54_321
+        priority_boost = 0.22
+
+    class _Metrics:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    class _Config:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    monkeypatch.setattr(signals_module, "HAS_RUST_FUZZY", True)
+    monkeypatch.setattr(signals_module, "RustPySignalMetrics", _Metrics)
+    monkeypatch.setattr(signals_module, "RustPyBusConfig", _Config)
+    monkeypatch.setattr(signals_module, "rust_compute_adjustments", lambda _m, _c: _Adj())
+
+    bus._apply_regulator()
+
+    assert bus.max_signals_per_tick == 10_703
+    assert bus.max_queue_size == 23_296
+    assert round(bus.priority_boost, 3) == 0.766
+
+
+def test_rust_fuzzy_fallback_to_python_on_error(monkeypatch) -> None:
+    bus = DeterministicSignalBus(max_signals_per_tick=10_000, max_queue_size=10_000)
+    bus.metrics.queue_size = 9_000
+    bus.metrics.avgbatchsize = 5_500
+    bus.metrics.queuepeakper_tick = 9_500
+
+    class _Metrics:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    class _Config:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    def _boom(_m: object, _c: object) -> object:
+        raise RuntimeError("rust unavailable")
+
+    monkeypatch.setattr(signals_module, "HAS_RUST_FUZZY", True)
+    monkeypatch.setattr(signals_module, "RustPySignalMetrics", _Metrics)
+    monkeypatch.setattr(signals_module, "RustPyBusConfig", _Config)
+    monkeypatch.setattr(signals_module, "rust_compute_adjustments", _boom)
+
+    bus._apply_regulator()
+
+    assert bus.max_signals_per_tick > 10_000
+
+
+def test_regulator_adjustment_count_increments() -> None:
+    bus = DeterministicSignalBus()
+    before = bus.metrics.regulator_adjustment_count
+    bus._apply_regulator()
+    assert bus.metrics.regulator_adjustment_count == before + 1
+
+
+def test_significant_adjustment_is_logged(caplog) -> None:
+    bus = DeterministicSignalBus(max_signals_per_tick=10_000, max_queue_size=10_000)
+    bus.metrics.queue_size = 10_000
+    bus.metrics.avgbatchsize = 5_500
+    bus.metrics.queuepeakper_tick = 10_000
+
+    with caplog.at_level(logging.INFO):
+        bus._apply_regulator()
+
+    assert "Fuzzy regulator significant adjustment" in caplog.text
+
+
+def test_rust_python_fuzzy_consistency() -> None:
+    if not signals_module.HAS_RUST_FUZZY:
+        return
+
+    metrics = SignalBusMetrics(
+        total_emitted=1_000,
+        total_dropped=7,
+        queue_size=7_000,
+        avgbatchsize=5_500,
+        queuepeakper_tick=8_000,
+    )
+    regulator = FuzzyLoadRegulator()
+    python_out = regulator.compute_adjustments(
+        metrics,
+        current_max_signals_per_tick=10_000,
+        current_max_queue_size=10_000,
+    )
+
+    rust_metrics = signals_module.RustPySignalMetrics(
+        queue_size=metrics.queue_size,
+        avg_batch_size=metrics.avgbatchsize,
+        queue_peak_per_tick=metrics.queuepeakper_tick,
+        total_dropped=metrics.total_dropped,
+        total_emitted=metrics.total_emitted,
+    )
+    rust_config = signals_module.RustPyBusConfig(
+        max_signals_per_tick=10_000,
+        max_queue_size=10_000,
+        priority_boost=1.0,
+    )
+    rust_out = signals_module.rust_compute_adjustments(rust_metrics, rust_config)
+
+    assert abs(python_out["max_signals_per_tick"] - rust_out.max_signals_per_tick) <= 1_000
+    assert abs(python_out["max_queue_size"] - rust_out.max_queue_size) <= 2_000

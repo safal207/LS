@@ -7,7 +7,8 @@
 - запрет вызова `updatefrom*`;
 - запрет неконтролируемого `collective_state` mutation;
 - контроль вызовов `agent.step()`;
-- требование context-native обновлений.
+- требование context-native обновлений;
+- запрет ручного изменения `max_signals_per_tick` вне `_apply_regulator()`.
 
 Запуск:
 
