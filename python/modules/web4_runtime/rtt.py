@@ -45,6 +45,8 @@ class RttStats:
     errors: int = 0
     overflow_events: int = 0
     max_queue_len: int = 0
+    priority_inversions: int = 0
+    high_priority_dropped: int = 0
 
     @property
     def accepted(self) -> int:
@@ -156,6 +158,8 @@ class RttSession(Generic[MessageT]):
             return
         if self.config.backpressure_policy == "dropnewest":
             self._bump(dropped_newest=1)
+            if self.config.enable_priority_queue and priority >= 8:
+                self._bump(high_priority_dropped=1)
             return
         if self.config.backpressure_policy == "block":
             self._bump(blocked=1)
@@ -267,6 +271,8 @@ class RttSession(Generic[MessageT]):
         blocked: int = 0,
         errors: int = 0,
         overflow_events: int = 0,
+        priority_inversions: int = 0,
+        high_priority_dropped: int = 0,
     ) -> None:
         current = self._stats
         max_queue_len = max(current.max_queue_len, self.pending)
@@ -279,4 +285,6 @@ class RttSession(Generic[MessageT]):
             errors=current.errors + errors,
             overflow_events=current.overflow_events + overflow_events,
             max_queue_len=max_queue_len,
+            priority_inversions=current.priority_inversions + priority_inversions,
+            high_priority_dropped=current.high_priority_dropped + high_priority_dropped,
         )
