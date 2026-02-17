@@ -151,7 +151,8 @@ class RttSession(Generic[MessageT]):
             self._priority_seq += 1
             normalized_priority = priority if priority is not None else 0
             heapq.heappush(self._priority_queue, (-normalized_priority, self._priority_seq, message))
-            heapq.heappush(self._priority_oldest_queue, (self._priority_seq, -normalized_priority))
+            if self.config.backpressure_policy == "dropoldest":
+                heapq.heappush(self._priority_oldest_queue, (self._priority_seq, -normalized_priority))
             self._live_priority_seq.add(self._priority_seq)
             return
         self._queue.append(message)

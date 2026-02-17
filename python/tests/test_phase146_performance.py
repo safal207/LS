@@ -4,7 +4,7 @@ import pytest
 
 from modules.web4_runtime.governance import AdaptiveGovernor
 from modules.web4_runtime.metrics import MetricsCollector
-from modules.web4_runtime.rtt import RttConfig, RttSession
+from modules.web4_runtime.rtt import BackpressureError, RttConfig, RttSession
 from modules.web4_runtime.transport import TransportFailover
 
 
@@ -151,4 +151,30 @@ def test_priority_queue_dropoldest_no_heap_leak() -> None:
     assert len(session._priority_queue) <= 2 * max_queue + 1, (
         f"Heap leaked: {len(session._priority_queue)} entries for max_queue={max_queue}"
     )
+    assert len(session._priority_oldest_queue) <= 2 * max_queue + 1, (
+        f"Oldest heap leaked: {len(session._priority_oldest_queue)} entries for max_queue={max_queue}"
+    )
     assert len(session._live_priority_seq) == max_queue
+
+
+
+def test_priority_queue_no_oldest_leak_non_dropoldest_policies() -> None:
+    for policy in ("error", "dropnewest", "block"):
+        session = RttSession[str](
+            config=RttConfig(
+                max_queue=10,
+                enable_priority_queue=True,
+                backpressure_policy=policy,
+                block_timeout_s=0.0001,
+            )
+        )
+        for i in range(10):
+            session.send(f"seed-{i}", priority=1)
+
+        for i in range(20):
+            try:
+                session.send(f"overflow-{policy}-{i}", priority=1)
+            except BackpressureError:
+                pass
+
+        assert len(session._priority_oldest_queue) == 0

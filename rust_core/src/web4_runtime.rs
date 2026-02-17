@@ -143,6 +143,8 @@ impl Web4RttBinding {
             match self.policy {
                 BackpressurePolicy::DropOldest => {
                     if !self.priority_queue.is_empty() {
+                        // TODO(14.7): Replace full-heap rebuild with lazy deletion + auxiliary
+                        // min-sequence structure for O(log n) dropoldest parity.
                         if let Some(oldest_sequence) =
                             self.priority_queue.iter().map(|pm| pm.sequence).min()
                         {

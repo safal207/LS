@@ -2,12 +2,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from time import monotonic
-from typing import Generic, Optional, Protocol, TypeVar
+from typing import Any, Generic, Optional, Protocol, TypeVar, TypedDict
 
 from .rtt import RttSession, RttStats
 
 
 MessageT = TypeVar("MessageT")
+
+class TransportFailoverStats(TypedDict):
+    using_backup: bool
+    failover_count: int
+    error_count: int
+    recovery_success_count: int
+    active_transport: str
+    active_stats: Any
 
 
 class TransportBackend(Protocol, Generic[MessageT]):
@@ -131,7 +139,7 @@ class TransportFailover(Generic[MessageT]):
     def pending(self) -> int:
         return self.current_transport.pending()
 
-    def stats(self) -> object:
+    def stats(self) -> TransportFailoverStats:
         return {
             "using_backup": self._using_backup,
             "failover_count": self._failover_count,

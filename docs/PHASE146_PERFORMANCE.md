@@ -5,10 +5,10 @@
 Ранее: O(n) вставка через `deque.insert()`.
 Теперь: O(log n) вставка через `heapq`/`BinaryHeap`.
 
-## Incremental Volatility (Welford's Algorithm)
+## Incremental Volatility (Sliding Window)
 
 Ранее: O(n) пересчёт на каждом шаге.
-Теперь: O(1) инкрементальное обновление (`count`, `mean`, `m2`).
+Теперь: O(k) пересчёт по окну размера `k` (`volatility_window`, по умолчанию 100).
 
 ## Failover Recovery
 
