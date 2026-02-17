@@ -57,6 +57,7 @@ class MilitocracyEngine:
             "command_coherence": self.command_coherence,
             "discipline_bias": self.discipline_bias,
             "ideaqualityscore": self.ideaqualityscore,
+            "idea_quality_score": self.ideaqualityscore,
             "discipline_score": self.discipline_score,
             "execution_priority": self.execution_priority,
             "override_signal": self.override_signal,
@@ -80,6 +81,7 @@ class MilitocracyEngine:
             "command_coherence": self.command_coherence,
             "discipline_bias": self.discipline_bias,
             "ideaqualityscore": self.ideaqualityscore,
+            "idea_quality_score": self.ideaqualityscore,
             "discipline_score": self.discipline_score,
             "execution_priority": self.execution_priority,
             "override_signal": self.override_signal,
@@ -97,6 +99,7 @@ class MilitocracyEngine:
             "command_coherence": self.command_coherence,
             "discipline_bias": self.discipline_bias,
             "ideaqualityscore": self.ideaqualityscore,
+            "idea_quality_score": self.ideaqualityscore,
             "discipline_score": self.discipline_score,
             "execution_priority": self.execution_priority,
             "override_signal": self.override_signal,
@@ -119,6 +122,7 @@ class MilitocracyEngine:
             "command_coherence": self.command_coherence,
             "discipline_bias": self.discipline_bias,
             "ideaqualityscore": self.ideaqualityscore,
+            "idea_quality_score": self.ideaqualityscore,
             "discipline_score": self.discipline_score,
             "execution_priority": self.execution_priority,
             "override_signal": self.override_signal,
@@ -130,6 +134,7 @@ class MilitocracyEngine:
             "command_coherence": self.command_coherence,
             "discipline_bias": self.discipline_bias,
             "ideaqualityscore": self.ideaqualityscore,
+            "idea_quality_score": self.ideaqualityscore,
             "discipline_score": self.discipline_score,
             "execution_priority": self.execution_priority,
             "override_signal": self.override_signal,
@@ -151,6 +156,23 @@ class MilitocracyEngine:
 
     def updatetrace(self) -> dict[str, Any]:
         return self.update_trace()
+
+
+    @property
+    def idea_quality_score(self) -> float:
+        return self.ideaqualityscore
+
+    @idea_quality_score.setter
+    def idea_quality_score(self, value: float) -> None:
+        self.ideaqualityscore = float(value)
+
+    @property
+    def military_discipline_score(self) -> float:
+        return self.militarydisciplinescore
+
+    @military_discipline_score.setter
+    def military_discipline_score(self, value: float) -> None:
+        self.militarydisciplinescore = float(value)
 
     @property
     def militarydiscipline(self) -> float:

@@ -50,8 +50,10 @@ class SynergyEngine:
             "cooperative_efficiency": self.cooperative_efficiency,
             "collective_synergy": self.collective_synergy,
             "sharedgoalpressure": self.sharedgoalpressure,
+            "shared_goal_pressure": self.sharedgoalpressure,
             "cooperative_priority": self.cooperative_priority,
             "collectivealignmentscore": self.collectivealignmentscore,
+            "collective_alignment_score": self.collectivealignmentscore,
         }
 
     def _get_attr(self, obj: Any, key: str, default: Any) -> Any:
@@ -72,8 +74,10 @@ class SynergyEngine:
             "cooperative_efficiency": self.cooperative_efficiency,
             "collective_synergy": self.collective_synergy,
             "sharedgoalpressure": self.sharedgoalpressure,
+            "shared_goal_pressure": self.sharedgoalpressure,
             "cooperative_priority": self.cooperative_priority,
             "collectivealignmentscore": self.collectivealignmentscore,
+            "collective_alignment_score": self.collectivealignmentscore,
         }
 
     def update_from_culture(self, culture: Any) -> dict[str, float]:
@@ -97,8 +101,10 @@ class SynergyEngine:
             "cooperative_efficiency": self.cooperative_efficiency,
             "collective_synergy": self.collective_synergy,
             "sharedgoalpressure": self.sharedgoalpressure,
+            "shared_goal_pressure": self.sharedgoalpressure,
             "cooperative_priority": self.cooperative_priority,
             "collectivealignmentscore": self.collectivealignmentscore,
+            "collective_alignment_score": self.collectivealignmentscore,
         }
 
     def update_from_collective(self, multi: Any) -> dict[str, float]:
@@ -115,8 +121,10 @@ class SynergyEngine:
             "cooperative_efficiency": self.cooperative_efficiency,
             "collective_synergy": self.collective_synergy,
             "sharedgoalpressure": self.sharedgoalpressure,
+            "shared_goal_pressure": self.sharedgoalpressure,
             "cooperative_priority": self.cooperative_priority,
             "collectivealignmentscore": self.collectivealignmentscore,
+            "collective_alignment_score": self.collectivealignmentscore,
         }
 
     def update_trace(self) -> dict[str, Any]:
@@ -125,13 +133,32 @@ class SynergyEngine:
             "cooperative_efficiency": self.cooperative_efficiency,
             "collective_synergy": self.collective_synergy,
             "sharedgoalpressure": self.sharedgoalpressure,
+            "shared_goal_pressure": self.sharedgoalpressure,
             "cooperative_priority": self.cooperative_priority,
             "collectivealignmentscore": self.collectivealignmentscore,
+            "collective_alignment_score": self.collectivealignmentscore,
         }
         self.synergy_trace.append(entry)
         if len(self.synergy_trace) > MAX_TRACE_LENGTH:
             self.synergy_trace = self.synergy_trace[-MAX_TRACE_LENGTH:]
         return entry
+
+
+    @property
+    def shared_goal_pressure(self) -> float:
+        return self.sharedgoalpressure
+
+    @shared_goal_pressure.setter
+    def shared_goal_pressure(self, value: float) -> None:
+        self.sharedgoalpressure = float(value)
+
+    @property
+    def collective_alignment_score(self) -> float:
+        return self.collectivealignmentscore
+
+    @collective_alignment_score.setter
+    def collective_alignment_score(self, value: float) -> None:
+        self.collectivealignmentscore = float(value)
 
     # Compatibility aliases (camelCase delegates to snake_case primary)
     def updatefromsocial(self, social: Any) -> dict[str, float]:

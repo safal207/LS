@@ -71,15 +71,23 @@ class MultiAgentSystem:
         step_events: list[dict[str, Any]] = []
         prior_collective = self.collective_state()
         ordered_agents = self.coordinator.compute_execution_order(prior_collective)
-        tick_context = self.coordinator.prepare_tick(prior_collective)
-        self.execution_order = list(tick_context.execution_order)
+        self.execution_order = [str(getattr(agent, "agent_id", "unknown")) for agent in ordered_agents]
+        discipline_vector = {
+            str(getattr(agent, "agent_id", "unknown")): float(
+                getattr(getattr(agent, "militocracy", None), "discipline_score", 0.5)
+            )
+            for agent in self.coordinator.agents
+        }
+        shared_goal_pressure = float(prior_collective.get("sharedgoalpressure", prior_collective.get("shared_goal_pressure", 0.5)))
 
         for agent in ordered_agents:
             agent.collective_state = {
                 **prior_collective,
-                "execution_order": tick_context.execution_order,
-                "discipline_vector": tick_context.discipline_vector,
-                "sharedgoalpressure": tick_context.sharedgoalpressure,
+                "execution_order": list(self.execution_order),
+                "executionorder": list(self.execution_order),
+                "discipline_vector": discipline_vector,
+                "sharedgoalpressure": shared_goal_pressure,
+                "shared_goal_pressure": shared_goal_pressure,
             }
             event = agent.step()
             agent_id = getattr(agent, "agent_id", "unknown")
@@ -87,9 +95,10 @@ class MultiAgentSystem:
             step_events.append({"agent_id": agent_id, **event})
 
         distributed = self.broadcast_signals()
-        self.collective_signal_bus.process_tick()
         collective = self.collective_state()
         collective["execution_order"] = list(self.execution_order)
+        collective["executionorder"] = list(self.execution_order)
+        collective["queue_size"] = self.collective_signal_bus.metrics.queue_size
         collective["recent_events"] = [dict(e) for e in step_events[-20:]]
         collective["distributed_signals"] = distributed
 
@@ -284,7 +293,9 @@ class MultiAgentSystem:
             "collective_self_alignment": collective_self_alignment,
             "collectiveidentityshift": collective_identity_shift,
             "collectivemetaalignment": collective_meta_alignment,
+            "collective_meta_alignment": collective_meta_alignment,
             "collectivemetadrift": collective_meta_drift,
+            "collective_meta_drift": collective_meta_drift,
             "collectivemetastabilization": collective_meta_stabilization,
             "collectivenorms": dict(self.collectivenorms),
             "collectivetraditionpatterns": dict(self.collectivetraditionpatterns),
@@ -297,7 +308,10 @@ class MultiAgentSystem:
             "collectivesynergy": self.collectivesynergy,
             "collectivemilitocracy": self.collectivemilitocracy,
             "sharedgoalpressure": self.sharedgoalpressure,
+            "shared_goal_pressure": self.sharedgoalpressure,
             "execution_order": list(self.execution_order),
+            "executionorder": list(self.execution_order),
+            "queue_size": self.collective_signal_bus.metrics.queue_size,
             "collectiveagencyshift": self.collectiveagencylevel > 0.65,
             "collectiveintentshift": self.collectiveintentalignment < 0.6,
             "collectiveautonomyshift": self.collectiveautonomylevel > 0.62,

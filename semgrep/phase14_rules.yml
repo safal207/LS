@@ -55,3 +55,16 @@ rules:
       - pattern-not-inside: |
           class MilitocracyEngine:
             ...
+
+  - id: multiagent-must-use-deterministic-signal-bus
+    message: "MultiAgentSystem должен использовать DeterministicSignalBus в качестве collective_signal_bus."
+    severity: ERROR
+    languages: [python]
+    paths:
+      include:
+        - python/modules/nca/multiagent.py
+    patterns:
+      - pattern: collective_signal_bus: $T = field(default_factory=$F)
+      - metavariable-comparison:
+          metavariable: $F
+          comparison: str($F) != "DeterministicSignalBus"
