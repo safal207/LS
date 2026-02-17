@@ -93,9 +93,11 @@ def test_deterministic_signal_bus_no_reentrancy_loss() -> None:
 
     bus.subscribe(handler)
     bus.emit(InternalSignal(signal_type="one"))
-    processed = bus.process_tick()
+    first_tick = bus.process_tick()
+    second_tick = bus.process_tick()
 
-    assert [s.signal_type for s in processed] == ["one", "two"]
+    assert [s.signal_type for s in first_tick] == ["one"]
+    assert [s.signal_type for s in second_tick] == ["two"]
     assert received == ["one", "two"]
 
 
@@ -124,7 +126,9 @@ def test_deterministic_signal_bus_has_tick_guard() -> None:
 
     bus.subscribe(handler)
     bus.emit(InternalSignal(signal_type="loop"))
-    processed = bus.process_tick()
+    processed = []
+    for _ in range(3):
+        processed.extend(bus.process_tick())
 
     assert len(processed) == 3
 
@@ -239,3 +243,68 @@ def test_deterministic_signal_bus_queue_limit_drops_excess() -> None:
     processed = bus.process_tick()
     assert len(processed) == 3
     assert bus.metrics.total_dropped == 2
+
+
+def test_signal_order_is_deterministic() -> None:
+    bus = DeterministicSignalBus()
+
+    for name in ("alpha", "beta", "gamma"):
+        bus.emit(InternalSignal(signal_type=name))
+
+    first = [s.signal_type for s in bus.process_tick()]
+    for name in ("alpha", "beta", "gamma"):
+        bus.emit(InternalSignal(signal_type=name))
+    second = [s.signal_type for s in bus.process_tick()]
+
+    assert first == ["alpha", "beta", "gamma"]
+    assert second == first
+
+
+def test_process_tick_batch_processing() -> None:
+    bus = DeterministicSignalBus(max_signals_per_tick=3)
+    for idx in range(5):
+        bus.emit(InternalSignal(signal_type=f"s-{idx}"))
+
+    first_batch = [s.signal_type for s in bus.process_tick()]
+    assert first_batch == ["s-0", "s-1", "s-2"]
+    assert bus.metrics.queue_size == 2
+
+    second_batch = [s.signal_type for s in bus.process_tick()]
+    assert second_batch == ["s-3", "s-4"]
+    assert bus.metrics.queue_size == 0
+
+
+def test_queue_size_metric_updates() -> None:
+    bus = DeterministicSignalBus()
+    bus.emit(InternalSignal(signal_type="m-1"))
+    bus.emit(InternalSignal(signal_type="m-2"))
+
+    assert bus.metrics.queue_size == 2
+
+    bus.process_tick()
+    assert bus.metrics.queue_size == 0
+
+
+def test_execution_order_uses_coordinator_directly() -> None:
+    system = MultiAgentSystem()
+    system.add_agent(_agent("a"))
+
+    def _forbidden_prepare_tick(*args: object, **kwargs: object) -> object:
+        raise AssertionError("prepare_tick must not be called from step_all")
+
+    system.coordinator.prepare_tick = _forbidden_prepare_tick  # type: ignore[assignment]
+
+    system.step_all()
+
+
+def test_backward_compatibility_aliases() -> None:
+    agent = _agent("compat")
+    agent.synergy.shared_goal_pressure = 0.77
+    agent.synergy.collective_alignment_score = 0.66
+    agent.militocracy.idea_quality_score = 0.55
+    agent.militocracy.military_discipline_score = 0.44
+
+    assert agent.synergy.sharedgoalpressure == 0.77
+    assert agent.synergy.collectivealignmentscore == 0.66
+    assert agent.militocracy.ideaqualityscore == 0.55
+    assert agent.militocracy.militarydisciplinescore == 0.44

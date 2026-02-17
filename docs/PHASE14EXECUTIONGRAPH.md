@@ -14,3 +14,10 @@ agent outputs -> shared_causal merge -> signal distribution -> next tick
 
 
 - DeterministicSignalBus limits per-tick processing via `max_signals_per_tick` to avoid runaway re-entrancy loops.
+
+## Phase 14.1 updates
+
+- `step_all()` использует порядок напрямую из `compute_execution_order(...)`.
+- `process_tick()` переведён на batch drain под одной блокировкой.
+- `collective_state` теперь включает `executionorder` alias и `queue_size` для мониторинга.
+- Signal delivery остаётся пост-агентным барьером: доставка выполняется только после цикла всех агентов.

@@ -113,6 +113,8 @@ class SignalBusMetrics:
     total_processed: int = 0
     total_dropped: int = 0
     max_pending_seen: int = 0
+    queue_size: int = 0
+    tickswithdropped_signals: int = 0
 
 
 class DeterministicSignalBus(CollectiveSignalBus):
@@ -152,7 +154,13 @@ class DeterministicSignalBus(CollectiveSignalBus):
             if pending_size >= self.max_queue_size:
                 self.metrics.total_dropped += 1
                 return
-            if pending_size >= int(self.max_queue_size * 0.9):
+            if pending_size >= int(self.max_queue_size * 0.98):
+                logger.critical(
+                    "DeterministicSignalBus queue critically near capacity: %s/%s",
+                    pending_size,
+                    self.max_queue_size,
+                )
+            elif pending_size >= int(self.max_queue_size * 0.9):
                 logger.warning(
                     "DeterministicSignalBus queue near capacity: %s/%s",
                     pending_size,
@@ -160,7 +168,12 @@ class DeterministicSignalBus(CollectiveSignalBus):
                 )
             self.metrics.total_emitted += 1
             self._pending.append((mode, signal, kwargs))
-            self.metrics.max_pending_seen = max(self.metrics.max_pending_seen, len(self._pending))
+            self.metrics.queue_size = len(self._pending)
+            self.metrics.max_pending_seen = max(self.metrics.max_pending_seen, self.metrics.queue_size)
+
+    def pending_count(self) -> int:
+        with self._lock:
+            return len(self._pending)
 
     def emit_local(self, signal: InternalSignal, *, target_agent_id: str) -> None:
         self._enqueue("local", signal, {"target_agent_id": target_agent_id})
@@ -175,18 +188,19 @@ class DeterministicSignalBus(CollectiveSignalBus):
         self._enqueue("broadcast", signal, {})
 
     def process_tick(self) -> list[InternalSignal]:
+        dropped_before_tick = 0
         with self._lock:
             if self._processing:
                 return []
             self._processing = True
+            dropped_before_tick = self.metrics.total_dropped
+            batch_size = min(self.max_signals_per_tick, len(self._pending))
+            batch = [self._pending.popleft() for _ in range(batch_size)]
+            self.metrics.queue_size = len(self._pending)
 
         processed: list[InternalSignal] = []
         try:
-            while len(processed) < self.max_signals_per_tick:
-                with self._lock:
-                    if not self._pending:
-                        break
-                    mode, signal, kwargs = self._pending.popleft()
+            for mode, signal, kwargs in batch:
                 processed.append(signal)
                 if mode == "local":
                     super().emit_local(signal, target_agent_id=kwargs["target_agent_id"])
@@ -197,6 +211,8 @@ class DeterministicSignalBus(CollectiveSignalBus):
         finally:
             with self._lock:
                 self.metrics.total_processed += len(processed)
+                if self.metrics.total_dropped > dropped_before_tick:
+                    self.metrics.tickswithdropped_signals += 1
                 self._processing = False
 
         return processed

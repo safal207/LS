@@ -12,8 +12,10 @@ class MultiAgentContext:
 
     collective_alignment: float
     collectivemetadrift: float
+    collective_meta_drift: float
     collectiveidentityshift: bool
     sharedgoalpressure: float
+    shared_goal_pressure: float
     discipline_vector: dict[str, float] = field(default_factory=dict)
     execution_order: list[str] = field(default_factory=list)
     aggregated_signals: list[dict[str, Any]] = field(default_factory=list)
@@ -40,10 +42,10 @@ class SynergyMilitocracyArbitrationLayer:
         synergy = getattr(agent, "synergy", None)
         militocracy = getattr(agent, "militocracy", None)
 
-        collective_alignment = float(getattr(synergy, "collectivealignmentscore", 0.5))
+        collective_alignment = float(getattr(synergy, "collectivealignmentscore", getattr(synergy, "collective_alignment_score", 0.5)))
         discipline = float(getattr(militocracy, "discipline_score", getattr(militocracy, "militarydisciplinescore", 0.5)))
-        idea_quality = float(getattr(militocracy, "ideaqualityscore", 0.5))
-        shared_goal_pressure = float(collective_state.get("sharedgoalpressure", collective_state.get("collective_goal_pressure", 0.5)))
+        idea_quality = float(getattr(militocracy, "ideaqualityscore", getattr(militocracy, "idea_quality_score", 0.5)))
+        shared_goal_pressure = float(collective_state.get("sharedgoalpressure", collective_state.get("shared_goal_pressure", collective_state.get("collective_goal_pressure", 0.5))))
 
         base_score = (
             self.w_s * collective_alignment
@@ -85,6 +87,11 @@ class GlobalTickCoordinator:
         scored.sort(key=lambda item: (-item[0], item[1]))
         return [item[2] for item in scored]
 
+
+    def computeexecutionorder(self, collective_state: dict[str, Any]) -> list[NCAAgent]:
+        """Backward-compatible alias for compute_execution_order()."""
+        return self.compute_execution_order(collective_state)
+
     def prepare_tick(self, collective_state: dict[str, Any], aggregated_signals: list[dict[str, Any]] | None = None) -> MultiAgentContext:
         """Prepare deterministic context for the next global tick (without executing agents)."""
         ordered_agents = self.compute_execution_order(collective_state)
@@ -99,9 +106,11 @@ class GlobalTickCoordinator:
 
         return MultiAgentContext(
             collective_alignment=float(collective_state.get("collectivemetaalignment", 0.5)),
-            collectivemetadrift=float(collective_state.get("collectivemetadrift", 0.0)),
+            collectivemetadrift=float(collective_state.get("collectivemetadrift", collective_state.get("collective_meta_drift", 0.0))),
+            collective_meta_drift=float(collective_state.get("collective_meta_drift", collective_state.get("collectivemetadrift", 0.0))),
             collectiveidentityshift=bool(collective_state.get("collectiveidentityshift", False)),
-            sharedgoalpressure=float(collective_state.get("sharedgoalpressure", collective_state.get("collective_goal_pressure", 0.5))),
+            sharedgoalpressure=float(collective_state.get("sharedgoalpressure", collective_state.get("shared_goal_pressure", collective_state.get("collective_goal_pressure", 0.5)))),
+            shared_goal_pressure=float(collective_state.get("shared_goal_pressure", collective_state.get("sharedgoalpressure", collective_state.get("collective_goal_pressure", 0.5)))),
             discipline_vector=discipline_vector,
             execution_order=ordered_ids,
             aggregated_signals=list(aggregated_signals or []),
