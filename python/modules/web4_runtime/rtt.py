@@ -39,6 +39,10 @@ class RttConfig:
     regulator_alpha_max: float = 0.5
     regulator_volatility_window: int = 100
 
+    def __post_init__(self) -> None:
+        if self.max_queue < 1:
+            raise ValueError(f"RttConfig.max_queue must be >= 1, got {self.max_queue}")
+
 
 @dataclass(frozen=True)
 class RttStats:
@@ -81,12 +85,6 @@ class RttSession(Generic[MessageT]):
     _on_heartbeat_timeout: list[LifecycleHook] = field(default_factory=list, init=False)
     reconnects: int = field(default=0, init=False)
     _emitting: bool = field(default=False, init=False)
-
-    def __post_init__(self) -> None:
-        # Guard against invalid queue bounds that can otherwise trigger immediate
-        # overflow handling and crashes for dropoldest policy on an empty queue.
-        if self.config.max_queue < 1:
-            raise ValueError("RttConfig.max_queue must be >= 1")
 
     @property
     def connected(self) -> bool:
