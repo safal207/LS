@@ -91,7 +91,7 @@ impl Web4RttBinding {
     ) -> PyResult<Self> {
         if max_queue < 1 {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "max_queue must be >= 1",
+                format!("max_queue must be >= 1, got {}", max_queue),
             ));
         }
         Ok(Self {
