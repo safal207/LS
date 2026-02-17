@@ -12,20 +12,26 @@ def test_stress_dropoldest_policy() -> None:
 
     sent = 0
     received = 0
+    lock = threading.Lock()
 
     def sender() -> None:
         nonlocal sent
         for i in range(5000):
             session.send(f"msg-{i}")
-            sent += 1
+            with lock:
+                sent += 1
 
     def receiver() -> None:
         nonlocal received
         time.sleep(0.05)
-        while received < 100:
+        while True:
+            with lock:
+                if received >= 100:
+                    break
             item = session.receive()
             if item:
-                received += 1
+                with lock:
+                    received += 1
 
     sender_thread = threading.Thread(target=sender)
     receiver_thread = threading.Thread(target=receiver)
@@ -95,6 +101,9 @@ def test_stress_failover_recovery_time() -> None:
 
         def check_heartbeat_timeout(self) -> bool:
             return False
+
+        def health_check(self) -> bool:
+            return self.connected and self._fail_for == 0
 
     primary = FastMockTransport(fail_for=3)
     backup = FastMockTransport()

@@ -80,6 +80,9 @@ def test_failover_recovery_automatic() -> None:
         def check_heartbeat_timeout(self) -> bool:
             return False
 
+        def health_check(self) -> bool:
+            return self.connected and self._fail_count >= self._fail_after
+
     primary = MockTransport(fail_after=3, recover_after=1)
     backup = MockTransport()
 
@@ -132,3 +135,4 @@ def test_priority_queue_overflow_with_none_priority() -> None:
 
     assert session.receive() == "first"
     assert session.receive() is None
+    assert session.stats.dropped_newest == 1

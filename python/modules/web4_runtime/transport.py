@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from time import monotonic
-from typing import Generic, Optional, Protocol, TypeVar, cast
+from typing import Generic, Optional, Protocol, TypeVar
 
 from .rtt import RttSession, RttStats
 
@@ -29,6 +29,8 @@ class TransportBackend(Protocol, Generic[MessageT]):
     def heartbeat(self) -> None: ...
 
     def check_heartbeat_timeout(self) -> bool: ...
+
+    def health_check(self) -> bool: ...
 
 
 @dataclass
@@ -59,6 +61,9 @@ class RttTransport(Generic[MessageT]):
 
     def check_heartbeat_timeout(self) -> bool:
         return self.session.check_heartbeat_timeout()
+
+    def health_check(self) -> bool:
+        return self.session.connected
 
 
 @dataclass
@@ -143,12 +148,15 @@ class TransportFailover(Generic[MessageT]):
     def check_heartbeat_timeout(self) -> bool:
         return self.current_transport.check_heartbeat_timeout()
 
+    def health_check(self) -> bool:
+        return self.current_transport.health_check()
+
     def _attempt_recovery(self) -> None:
         try:
             self.primary.connect()
-            self.primary.send(cast(MessageT, "__recovery_test__"))
-            self._using_backup = False
-            self._recovery_success_count = 0
-            self._error_count = 0
+            if self.primary.health_check():
+                self._using_backup = False
+                self._recovery_success_count = 0
+                self._error_count = 0
         except Exception:
             return

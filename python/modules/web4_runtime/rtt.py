@@ -84,7 +84,7 @@ class RttSession(Generic[MessageT]):
     @property
     def pending(self) -> int:
         if self.config.enable_priority_queue:
-            return len(self._priority_queue)
+            return len(self._priority_queue) + len(self._queue)
         return len(self._queue)
 
     @property
@@ -152,8 +152,13 @@ class RttSession(Generic[MessageT]):
     def _on_overflow(self, message: MessageT, priority: Optional[int] = None) -> None:
         self._bump(overflow_events=1)
         if self.config.backpressure_policy == "dropoldest":
-            if self.config.enable_priority_queue:
-                heapq.heappop(self._priority_queue)
+            if self.config.enable_priority_queue and self._priority_queue:
+                oldest_idx = min(
+                    range(len(self._priority_queue)),
+                    key=lambda idx: self._priority_queue[idx][1],
+                )
+                self._priority_queue.pop(oldest_idx)
+                heapq.heapify(self._priority_queue)
             else:
                 self._queue.popleft()
             self._enqueue(message, priority)
