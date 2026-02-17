@@ -4,6 +4,8 @@ Compatibility alias: `docs/WEB4RUNTIMEQOS.md` (symlink for legacy links).
 
 Web4 RTT queue supports overflow strategies configured by `RttConfig.backpressure_policy`:
 
+**Config invariant:** `RttConfig.max_queue` must be `>= 1`. Invalid values now raise `ValueError` (Python) / `PyValueError` (Rust binding) instead of being silently clamped.
+
 - `error` — fail fast with `BackpressureError` when queue is full.
 - `dropoldest` — evict oldest queued message and accept the new one.
 - `dropnewest` — keep queued messages, drop incoming message.
