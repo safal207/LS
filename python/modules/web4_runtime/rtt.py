@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import heapq
 from collections import deque
 from dataclasses import dataclass, field
 from threading import Condition
@@ -31,6 +32,7 @@ class RttConfig:
     block_timeout_s: float = 0.1
     session_id: int = 0
     heartbeat_timeout_s: float = 1.0
+    enable_priority_queue: bool = False
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,7 @@ class RttStats:
     blocked: int = 0
     errors: int = 0
     overflow_events: int = 0
+    high_priority_dropped: int = 0
     max_queue_len: int = 0
 
     @property
@@ -58,6 +61,8 @@ class RttSession(Generic[MessageT]):
     config: RttConfig = field(default_factory=RttConfig)
     observability: Optional["ObservabilityHub"] = None
     _queue: Deque[MessageT] = field(default_factory=deque, init=False)
+    _priority_queue: list[tuple[int, int, MessageT]] = field(default_factory=list, init=False)
+    _priority_seq: int = field(default=0, init=False)
     _connected: bool = field(default=True, init=False)
     _stats: RttStats = field(default_factory=RttStats, init=False)
     _condition: Condition = field(default_factory=Condition, init=False)
@@ -74,6 +79,8 @@ class RttSession(Generic[MessageT]):
 
     @property
     def pending(self) -> int:
+        if self.config.enable_priority_queue:
+            return len(self._priority_queue)
         return len(self._queue)
 
     @property
@@ -117,35 +124,55 @@ class RttSession(Generic[MessageT]):
             self._on_session_close.clear()
             self._on_heartbeat_timeout.clear()
 
-    def send(self, message: MessageT) -> None:
+    def send(self, message: MessageT, priority: Optional[int] = None) -> None:
         with self._condition:
             if not self._connected:
                 self._bump(errors=1)
                 raise DisconnectedError("RTT session is disconnected")
             self._bump(attempted=1)
-            if len(self._queue) >= self.config.max_queue:
-                self._on_overflow(message)
+            if self.pending >= self.config.max_queue:
+                self._on_overflow(message, priority)
                 return
-            self._queue.append(message)
+            self._enqueue(message, priority)
             self._bump(enqueued=1)
             self._condition.notify_all()
 
-    def _on_overflow(self, message: MessageT) -> None:
+    def _enqueue_priority(self, message: MessageT, priority: Optional[int]) -> None:
+        self._priority_seq += 1
+        normalized_priority = priority if priority is not None else 0
+        heapq.heappush(self._priority_queue, (-normalized_priority, self._priority_seq, message))
+
+    def _enqueue(self, message: MessageT, priority: Optional[int]) -> None:
+        if self.config.enable_priority_queue:
+            self._enqueue_priority(message, priority)
+            return
+        self._queue.append(message)
+
+    def _on_overflow(self, message: MessageT, priority: Optional[int] = None) -> None:
         self._bump(overflow_events=1)
         if self.config.backpressure_policy == "dropoldest":
-            self._queue.popleft()
-            self._queue.append(message)
+            if self.config.enable_priority_queue:
+                heapq.heappop(self._priority_queue)
+                self._enqueue_priority(message, priority)
+                if priority is not None and priority >= 8:
+                    self._bump(high_priority_dropped=0)
+            else:
+                self._queue.popleft()
+                self._queue.append(message)
+                if priority is not None and priority >= 8:
+                    self._bump(high_priority_dropped=0)
             self._bump(enqueued=1, dropped_oldest=1)
             return
         if self.config.backpressure_policy == "dropnewest":
-            self._bump(dropped_newest=1)
+            dropped_high_priority = 1 if priority is not None and priority >= 8 else 0
+            self._bump(dropped_newest=1, high_priority_dropped=dropped_high_priority)
             return
         if self.config.backpressure_policy == "block":
             self._bump(blocked=1)
             deadline = monotonic() + max(0.0, self.config.block_timeout_s)
 
             def can_enqueue() -> bool:
-                return (not self._connected) or (len(self._queue) < self.config.max_queue)
+                return (not self._connected) or (self.pending < self.config.max_queue)
 
             remaining = max(0.0, deadline - monotonic())
             ok = self._condition.wait_for(can_enqueue, timeout=remaining)
@@ -155,7 +182,7 @@ class RttSession(Generic[MessageT]):
                     raise DisconnectedError("RTT session is disconnected")
                 raise BackpressureError("RTT backpressure: block timeout")
 
-            self._queue.append(message)
+            self._enqueue(message, priority)
             self._bump(enqueued=1)
             return
         self._bump(errors=1)
@@ -169,9 +196,14 @@ class RttSession(Generic[MessageT]):
         with self._condition:
             if not self._connected:
                 raise DisconnectedError("RTT session is disconnected")
-            if not self._queue:
-                return None
-            item = self._queue.popleft()
+            if self.config.enable_priority_queue:
+                if not self._priority_queue:
+                    return None
+                _, _, item = heapq.heappop(self._priority_queue)
+            else:
+                if not self._queue:
+                    return None
+                item = self._queue.popleft()
             self._condition.notify_all()
             return item
 
@@ -209,6 +241,7 @@ class RttSession(Generic[MessageT]):
                 return
             self._connected = True
             self._queue.clear()
+            self._priority_queue.clear()
             self._heartbeat_at = monotonic()
             self.reconnects += 1
             reconnects = self.reconnects
@@ -244,9 +277,10 @@ class RttSession(Generic[MessageT]):
         blocked: int = 0,
         errors: int = 0,
         overflow_events: int = 0,
+        high_priority_dropped: int = 0,
     ) -> None:
         current = self._stats
-        max_queue_len = max(current.max_queue_len, len(self._queue))
+        max_queue_len = max(current.max_queue_len, self.pending)
         self._stats = RttStats(
             attempted=current.attempted + attempted,
             enqueued=current.enqueued + enqueued,
@@ -255,5 +289,6 @@ class RttSession(Generic[MessageT]):
             blocked=current.blocked + blocked,
             errors=current.errors + errors,
             overflow_events=current.overflow_events + overflow_events,
+            high_priority_dropped=current.high_priority_dropped + high_priority_dropped,
             max_queue_len=max_queue_len,
         )
