@@ -4,6 +4,8 @@ from .hcp_runtime import HcpRuntime, HcpPolicy
 from .lip_runtime import LipRuntime
 from .governance import AdaptiveGovernor, AlertManager, GovernanceMetrics
 from .metrics import MetricsCollector, PerformanceMetrics
+from .async_rtt import AsyncRttSession
+from .flow import BackpressureStrategy, GlobalFlowController
 from .observability import ObservabilityHub, ObservabilityEvent
 from .protocol_router import Web4ProtocolRouter
 from .rtt import RttConfig, RttSession, RttStats, BackpressureError, DisconnectedError
@@ -24,6 +26,9 @@ __all__ = [
     "PerformanceMetrics",
     "MetricsCollector",
     "AlertManager",
+    "AsyncRttSession",
+    "GlobalFlowController",
+    "BackpressureStrategy",
     "Web4ProtocolRouter",
     "RttConfig",
     "RttSession",

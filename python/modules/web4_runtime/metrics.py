@@ -1,9 +1,77 @@
 from __future__ import annotations
 
-import bisect
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Deque
+
+
+class _P2QuantileEstimator:
+    """Constant-space online quantile estimator (P² algorithm)."""
+
+    def __init__(self, quantile: float) -> None:
+        self.quantile = min(1.0, max(0.0, quantile))
+        self._samples: list[float] = []
+        self._q: list[float] = []
+        self._n: list[int] = []
+        self._np: list[float] = []
+        self._dn = [0.0, self.quantile / 2.0, self.quantile, (1.0 + self.quantile) / 2.0, 1.0]
+
+    def add(self, value: float) -> None:
+        if len(self._samples) < 5:
+            self._samples.append(value)
+            if len(self._samples) == 5:
+                self._samples.sort()
+                self._q = self._samples.copy()
+                self._n = [1, 2, 3, 4, 5]
+                self._np = [1.0, 1.0 + 2.0 * self.quantile, 1.0 + 4.0 * self.quantile, 3.0 + 2.0 * self.quantile, 5.0]
+            return
+
+        if value < self._q[0]:
+            self._q[0] = value
+            k = 0
+        elif value >= self._q[4]:
+            self._q[4] = value
+            k = 3
+        else:
+            k = 0
+            for i in range(4):
+                if self._q[i] <= value < self._q[i + 1]:
+                    k = i
+                    break
+
+        for i in range(k + 1, 5):
+            self._n[i] += 1
+        for i in range(5):
+            self._np[i] += self._dn[i]
+
+        for i in range(1, 4):
+            d = self._np[i] - self._n[i]
+            if (d >= 1 and self._n[i + 1] - self._n[i] > 1) or (d <= -1 and self._n[i - 1] - self._n[i] < -1):
+                sign = 1 if d > 0 else -1
+                qn = self._parabolic(i, sign)
+                if self._q[i - 1] < qn < self._q[i + 1]:
+                    self._q[i] = qn
+                else:
+                    self._q[i] = self._linear(i, sign)
+                self._n[i] += sign
+
+    def value(self) -> float:
+        if len(self._samples) < 5:
+            if not self._samples:
+                return 0.0
+            ordered = sorted(self._samples)
+            idx = int((len(ordered) - 1) * self.quantile)
+            return ordered[idx]
+        return self._q[2]
+
+    def _parabolic(self, i: int, d: int) -> float:
+        return self._q[i] + (d / (self._n[i + 1] - self._n[i - 1])) * (
+            (self._n[i] - self._n[i - 1] + d) * (self._q[i + 1] - self._q[i]) / (self._n[i + 1] - self._n[i])
+            + (self._n[i + 1] - self._n[i] - d) * (self._q[i] - self._q[i - 1]) / (self._n[i] - self._n[i - 1])
+        )
+
+    def _linear(self, i: int, d: int) -> float:
+        return self._q[i] + d * (self._q[i + d] - self._q[i]) / (self._n[i + d] - self._n[i])
 
 
 @dataclass
@@ -21,7 +89,7 @@ class PerformanceMetrics:
 class MetricsCollector:
     _metrics: PerformanceMetrics = field(default_factory=PerformanceMetrics, init=False)
     _priority_wait_times: Deque[float] = field(default_factory=lambda: deque(maxlen=1000), init=False)
-    _sorted_wait_times: list[float] = field(default_factory=list, init=False)
+    _p99_estimator: _P2QuantileEstimator = field(default_factory=lambda: _P2QuantileEstimator(0.99), init=False)
     _volatility_times: Deque[int] = field(default_factory=lambda: deque(maxlen=100), init=False)
     _priority_insert_times: Deque[int] = field(default_factory=lambda: deque(maxlen=100), init=False)
     _failover_detection_times: Deque[float] = field(default_factory=lambda: deque(maxlen=100), init=False)
@@ -50,22 +118,9 @@ class MetricsCollector:
         self._metrics.adaptive_alpha_changes += 1
 
     def record_priority_wait_time(self, time_ms: float) -> None:
-        evicted: float | None = None
-        if len(self._priority_wait_times) == self._priority_wait_times.maxlen:
-            evicted = self._priority_wait_times[0]
-
         self._priority_wait_times.append(time_ms)
-        # Bounded to 1000 elements, so list shifting cost remains acceptable and predictable.
-        bisect.insort(self._sorted_wait_times, time_ms)
-
-        if evicted is not None:
-            evicted_idx = bisect.bisect_left(self._sorted_wait_times, evicted)
-            if evicted_idx < len(self._sorted_wait_times):
-                self._sorted_wait_times.pop(evicted_idx)
-
-        if self._sorted_wait_times:
-            p99_index = int((len(self._sorted_wait_times) - 1) * 0.99)
-            self._metrics.priority_queue_wait_time_p99_ms = self._sorted_wait_times[p99_index]
+        self._p99_estimator.add(time_ms)
+        self._metrics.priority_queue_wait_time_p99_ms = self._p99_estimator.value()
 
     def get_metrics(self) -> PerformanceMetrics:
         return self._metrics

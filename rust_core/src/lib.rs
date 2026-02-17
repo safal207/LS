@@ -2,6 +2,7 @@
 
 use pyo3::prelude::*;
 
+mod async_web4_runtime;
 mod governance;
 mod memory_manager;
 mod pattern_matcher;

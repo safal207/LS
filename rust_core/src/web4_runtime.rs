@@ -1,8 +1,8 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, VecDeque};
-use std::thread;
+use std::cmp::{Ordering, Reverse};
+use std::collections::{BinaryHeap, HashSet, VecDeque};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy)]
@@ -65,6 +65,8 @@ pub struct Web4RttBinding {
     connected: bool,
     queue: VecDeque<String>,
     priority_queue: BinaryHeap<PrioritizedMessage>,
+    priority_oldest: BinaryHeap<Reverse<u64>>,
+    live_sequences: HashSet<u64>,
     next_sequence: u64,
     max_queue: usize,
     policy: BackpressurePolicy,
@@ -76,6 +78,7 @@ pub struct Web4RttBinding {
     on_session_close: Vec<PyObject>,
     on_heartbeat_timeout: Vec<PyObject>,
     stats: RttStats,
+    condition: Arc<(Mutex<bool>, Condvar)>,
 }
 
 #[pymethods]
@@ -93,6 +96,8 @@ impl Web4RttBinding {
             connected: true,
             queue: VecDeque::new(),
             priority_queue: BinaryHeap::new(),
+            priority_oldest: BinaryHeap::new(),
+            live_sequences: HashSet::new(),
             next_sequence: 0,
             max_queue: max_queue.max(1),
             policy: BackpressurePolicy::parse(backpressure_policy)?,
@@ -104,6 +109,7 @@ impl Web4RttBinding {
             on_session_close: Vec::new(),
             on_heartbeat_timeout: Vec::new(),
             stats: RttStats::default(),
+            condition: Arc::new((Mutex::new(false), Condvar::new())),
         })
     }
 
@@ -113,7 +119,11 @@ impl Web4RttBinding {
         }
         self.connected = true;
         self.last_heartbeat_at = Instant::now();
+        let (_, cvar) = &*self.condition;
+        cvar.notify_all();
         self.emit(py, &self.on_session_open)?;
+        let (_, cvar) = &*self.condition;
+        cvar.notify_all();
         Ok(())
     }
 
@@ -125,6 +135,8 @@ impl Web4RttBinding {
         self.connected = false;
         let _ = reason;
         self.emit(py, &self.on_session_close)?;
+        let (_, cvar) = &*self.condition;
+        cvar.notify_all();
         Ok(())
     }
 
@@ -142,19 +154,7 @@ impl Web4RttBinding {
             self.stats.overflow_events += 1;
             match self.policy {
                 BackpressurePolicy::DropOldest => {
-                    if !self.priority_queue.is_empty() {
-                        // TODO(14.7): Replace full-heap rebuild with lazy deletion + auxiliary
-                        // min-sequence structure for O(log n) dropoldest parity.
-                        if let Some(oldest_sequence) =
-                            self.priority_queue.iter().map(|pm| pm.sequence).min()
-                        {
-                            self.priority_queue = self
-                                .priority_queue
-                                .drain()
-                                .filter(|pm| pm.sequence != oldest_sequence)
-                                .collect();
-                        }
-                    } else {
+                    if !self.drop_oldest_priority() {
                         let _ = self.queue.pop_front();
                     }
                     self.push_message(message, priority);
@@ -170,6 +170,10 @@ impl Web4RttBinding {
                 BackpressurePolicy::Block => {
                     self.stats.blocked += 1;
                     let deadline = Instant::now() + Duration::from_millis(self.block_timeout_ms);
+                    let (lock, cvar) = &*self.condition;
+                    let mut wait_token = lock.lock().map_err(|_| {
+                        pyo3::exceptions::PyRuntimeError::new_err("RTT binding lock poisoned")
+                    })?;
                     while self.pending() >= self.max_queue && self.connected {
                         if Instant::now() >= deadline {
                             self.stats.errors += 1;
@@ -177,8 +181,19 @@ impl Web4RttBinding {
                                 "RTT binding backpressure: block timeout",
                             ));
                         }
-                        thread::sleep(Duration::from_millis(1));
+                        let timeout = deadline.saturating_duration_since(Instant::now());
+                        let (new_wait_token, timeout_result) = cvar.wait_timeout(wait_token, timeout).map_err(|_| {
+                            pyo3::exceptions::PyRuntimeError::new_err("RTT binding lock poisoned")
+                        })?;
+                        wait_token = new_wait_token;
+                        if timeout_result.timed_out() && self.pending() >= self.max_queue {
+                            self.stats.errors += 1;
+                            return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                                "RTT binding backpressure: block timeout",
+                            ));
+                        }
                     }
+                    drop(wait_token);
                     if !self.connected {
                         self.stats.errors += 1;
                         return Err(pyo3::exceptions::PyRuntimeError::new_err(
@@ -209,18 +224,34 @@ impl Web4RttBinding {
         if !self.connected {
             return None;
         }
-        if !self.priority_queue.is_empty() {
-            return self.priority_queue.pop().map(|pm| pm.message);
+        while let Some(pm) = self.priority_queue.peek() {
+            if self.live_sequences.contains(&pm.sequence) {
+                break;
+            }
+            let _ = self.priority_queue.pop();
         }
-        self.queue.pop_front()
+        if let Some(pm) = self.priority_queue.pop() {
+            self.live_sequences.remove(&pm.sequence);
+            let (_, cvar) = &*self.condition;
+            cvar.notify_all();
+            return Some(pm.message);
+        }
+        let message = self.queue.pop_front();
+        if message.is_some() {
+            let (_, cvar) = &*self.condition;
+            cvar.notify_all();
+        }
+        message
     }
 
     fn pending(&self) -> usize {
-        self.queue.len() + self.priority_queue.len()
+        self.queue.len() + self.live_sequences.len()
     }
 
     fn heartbeat(&mut self) {
         self.last_heartbeat_at = Instant::now();
+        let (_, cvar) = &*self.condition;
+        cvar.notify_all();
     }
 
     fn check_heartbeat_timeout(&mut self, py: Python<'_>) -> PyResult<bool> {
@@ -233,6 +264,8 @@ impl Web4RttBinding {
         self.emit(py, &self.on_heartbeat_timeout)?;
         self.connected = false;
         self.emit(py, &self.on_session_close)?;
+        let (_, cvar) = &*self.condition;
+        cvar.notify_all();
         Ok(true)
     }
 
@@ -284,9 +317,20 @@ impl Web4RttBinding {
                 sequence: self.next_sequence,
                 message,
             });
+            self.priority_oldest.push(Reverse(self.next_sequence));
+            self.live_sequences.insert(self.next_sequence);
             return;
         }
         self.queue.push_back(message);
+    }
+
+    fn drop_oldest_priority(&mut self) -> bool {
+        while let Some(Reverse(sequence)) = self.priority_oldest.pop() {
+            if self.live_sequences.remove(&sequence) {
+                return true;
+            }
+        }
+        false
     }
 
     fn emit(&self, py: Python<'_>, callbacks: &[PyObject]) -> PyResult<()> {

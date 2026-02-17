@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable, Deque, Generic, Iterable, Liter
 _PRIORITY_QUEUE_COMPACTION_RATIO = 2
 
 if TYPE_CHECKING:
+    from .flow import GlobalFlowController
     from .observability import ObservabilityHub
 
 
@@ -66,6 +67,7 @@ class RttStats:
 class RttSession(Generic[MessageT]):
     config: RttConfig = field(default_factory=RttConfig)
     observability: Optional["ObservabilityHub"] = None
+    flow_controller: Optional["GlobalFlowController[MessageT]"] = None
     _queue: Deque[MessageT] = field(default_factory=deque, init=False)
     _priority_queue: list[tuple[int, int, MessageT]] = field(default_factory=list, init=False)
     _priority_oldest_queue: list[tuple[int, int]] = field(default_factory=list, init=False)
@@ -81,6 +83,10 @@ class RttSession(Generic[MessageT]):
     _on_heartbeat_timeout: list[LifecycleHook] = field(default_factory=list, init=False)
     reconnects: int = field(default=0, init=False)
     _emitting: bool = field(default=False, init=False)
+
+    def __post_init__(self) -> None:
+        if self.flow_controller is not None:
+            self.flow_controller.register_session(self)
 
     @property
     def connected(self) -> bool:
@@ -139,11 +145,39 @@ class RttSession(Generic[MessageT]):
                 self._bump(errors=1)
                 raise DisconnectedError("RTT session is disconnected")
             self._bump(attempted=1)
+
+            if self.flow_controller is not None and not self.flow_controller.can_enqueue(self):
+                self._bump(overflow_events=1)
+                if self.config.backpressure_policy == "dropnewest":
+                    self._bump(dropped_newest=1)
+                    return
+                if self.config.backpressure_policy == "block":
+                    self._bump(blocked=1)
+                    deadline = monotonic() + max(0.0, self.config.block_timeout_s)
+
+                    def can_enqueue_global() -> bool:
+                        return (not self._connected) or (
+                            self.flow_controller is not None and self.flow_controller.can_enqueue(self)
+                        )
+
+                    remaining = max(0.0, deadline - monotonic())
+                    ok = self._condition.wait_for(can_enqueue_global, timeout=remaining)
+                    if not ok or not self._connected:
+                        self._bump(errors=1)
+                        if not self._connected:
+                            raise DisconnectedError("RTT session is disconnected")
+                        raise BackpressureError("RTT backpressure: global block timeout")
+                elif self.config.backpressure_policy == "error":
+                    self._bump(errors=1)
+                    raise BackpressureError("RTT backpressure: global flow control")
+
             if self.pending >= self.config.max_queue:
                 self._on_overflow(message, priority)
                 return
             self._enqueue(message, priority)
             self._bump(enqueued=1)
+            if self.flow_controller is not None:
+                self.flow_controller.on_enqueue(self)
             self._condition.notify_all()
 
     def _enqueue(self, message: MessageT, priority: Optional[int]) -> None:
@@ -230,12 +264,16 @@ class RttSession(Generic[MessageT]):
                     _, sequence, item = heapq.heappop(self._priority_queue)
                     if sequence in self._live_priority_seq:
                         self._live_priority_seq.remove(sequence)
+                        if self.flow_controller is not None:
+                            self.flow_controller.on_dequeue(self)
                         self._condition.notify_all()
                         return item
                 return None
             if not self._queue:
                 return None
             item = self._queue.popleft()
+            if self.flow_controller is not None:
+                self.flow_controller.on_dequeue(self)
             self._condition.notify_all()
             return item
 
