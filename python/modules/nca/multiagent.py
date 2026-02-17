@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .agent import NCAAgent
+from .coordination import GlobalTickCoordinator
 from .shared_causal import SharedCausalGraph
 from .signals import CollectiveSignalBus, InternalSignal
 from .utils import normalize_traditions, get_norm_conflicts, MAX_NORM_CONFLICTS
@@ -42,11 +43,14 @@ class MultiAgentSystem:
     collectivesynergyindex: float = 0.5
     collectivesynergy: float = 0.5
     collectivemilitocracy: float = 0.5
+    sharedgoalpressure: float = 0.5
+    coordinator: GlobalTickCoordinator = field(default_factory=GlobalTickCoordinator)
 
     def add_agent(self, agent: NCAAgent, *, agent_id: str | None = None) -> None:
         resolved_id = agent_id or getattr(agent.orientation, "identity", None) or f"agent-{len(self.agents)}"
         setattr(agent, "agent_id", resolved_id)
         self.agents.append(agent)
+        self.coordinator.register_agent(agent)
         self.collective_signal_bus.subscribe_agent(resolved_id, agent._orientation_signal_handler)
 
     def broadcast_signals(self) -> list[dict[str, Any]]:
@@ -65,8 +69,22 @@ class MultiAgentSystem:
     def step_all(self) -> list[dict[str, Any]]:
         step_events: list[dict[str, Any]] = []
         prior_collective = self.collective_state()
-        for agent in self.agents:
-            agent.collective_state = prior_collective
+        tick_context = self.coordinator.tick(prior_collective)
+        execution_order = set(tick_context.execution_order)
+        ordered_agents = sorted(
+            self.agents,
+            key=lambda agent: tick_context.execution_order.index(getattr(agent, "agent_id", "unknown"))
+            if getattr(agent, "agent_id", "unknown") in execution_order
+            else len(self.agents),
+        )
+
+        for agent in ordered_agents:
+            agent.collective_state = {
+                **prior_collective,
+                "execution_order": tick_context.execution_order,
+                "discipline_vector": tick_context.discipline_vector,
+                "sharedgoalpressure": tick_context.sharedgoalpressure,
+            }
             event = agent.step()
             agent_id = getattr(agent, "agent_id", "unknown")
             self.shared_causal_graph.merge(agent.causal_graph, agent_id=agent_id)
@@ -74,6 +92,7 @@ class MultiAgentSystem:
 
         distributed = self.broadcast_signals()
         collective = self.collective_state()
+        collective["execution_order"] = tick_context.execution_order
         collective["recent_events"] = [dict(e) for e in step_events[-20:]]
         collective["distributed_signals"] = distributed
 
@@ -214,6 +233,7 @@ class MultiAgentSystem:
         self.collectivesynergyindex = sum(synergy_scores) / max(1, len(synergy_scores))
         self.collectivesynergy = self.collectivesynergyindex
         self.collectivemilitocracy = self.collectivemilitarydiscipline
+        self.sharedgoalpressure = max(0.0, min(1.0, 1.0 - self.collectiveintentconflict))
 
         self.civilizationmaturityscore = max(
             0.0,
@@ -277,6 +297,7 @@ class MultiAgentSystem:
             "collectivesynergyindex": self.collectivesynergyindex,
             "collectivesynergy": self.collectivesynergy,
             "collectivemilitocracy": self.collectivemilitocracy,
+            "sharedgoalpressure": self.sharedgoalpressure,
             "collectiveagencyshift": self.collectiveagencylevel > 0.65,
             "collectiveintentshift": self.collectiveintentalignment < 0.6,
             "collectiveautonomyshift": self.collectiveautonomylevel > 0.62,

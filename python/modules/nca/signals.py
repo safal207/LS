@@ -98,3 +98,45 @@ class CollectiveSignalBus(SignalBus):
         if source is None:
             signal.payload["sourceagentid"] = "system"
         self.emit_broadcast(signal)
+
+
+class DeterministicSignalBus(CollectiveSignalBus):
+    """Deterministic, FIFO, non-reentrant signal bus with per-tick batching."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._pending: list[tuple[str, InternalSignal, dict[str, str]]] = []
+        self._processing: bool = False
+
+    def emit_local(self, signal: InternalSignal, *, target_agent_id: str) -> None:
+        self._pending.append(("local", signal, {"target_agent_id": target_agent_id}))
+
+    def emit_group(self, signal: InternalSignal, *, group_id: str) -> None:
+        self._pending.append(("group", signal, {"group_id": group_id}))
+
+    def emit_broadcast(self, signal: InternalSignal) -> None:
+        self._pending.append(("broadcast", signal, {}))
+
+    def emit(self, signal: InternalSignal) -> None:
+        self._pending.append(("broadcast", signal, {}))
+
+    def process_tick(self) -> list[InternalSignal]:
+        if self._processing:
+            return []
+
+        self._processing = True
+        processed: list[InternalSignal] = []
+        try:
+            while self._pending:
+                mode, signal, kwargs = self._pending.pop(0)
+                processed.append(signal)
+                if mode == "local":
+                    super().emit_local(signal, target_agent_id=kwargs["target_agent_id"])
+                elif mode == "group":
+                    super().emit_group(signal, group_id=kwargs["group_id"])
+                else:
+                    super().emit_broadcast(signal)
+        finally:
+            self._processing = False
+
+        return processed

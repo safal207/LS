@@ -10,11 +10,12 @@ from .intent_engine import IntentEngine
 from .meta_cognition import MetaCognitionEngine
 from .meta_observer import MetaObserver, MetaReport
 from .militocracy_engine import MilitocracyEngine
+from .coordination import GlobalTickCoordinator, MultiAgentContext, SynergyMilitocracyArbitrationLayer
 from .multiagent import MultiAgentSystem
 from .orientation import OrientationCenter
 from .self_model import SelfModel
 from .shared_causal import SharedCausalGraph
-from .signals import CollectiveSignalBus, InternalSignal, SignalBus
+from .signals import CollectiveSignalBus, DeterministicSignalBus, InternalSignal, SignalBus
 from .social_cognition import SocialCognitionEngine
 from .synergy_engine import SynergyEngine
 from .trajectories import TrajectoryOption, TrajectoryPlanner
@@ -27,7 +28,9 @@ __all__ = [
     "AutonomyEngine",
     "CausalGraph",
     "CollectiveSignalBus",
+    "DeterministicSignalBus",
     "CultureEngine",
+    "GlobalTickCoordinator",
     "GridWorld",
     "IdentityCore",
     "IntentEngine",
@@ -36,6 +39,7 @@ __all__ = [
     "MetaObserver",
     "MetaReport",
     "MilitocracyEngine",
+    "MultiAgentContext",
     "MultiAgentSystem",
     "NCAAgent",
     "OrientationCenter",
@@ -43,6 +47,7 @@ __all__ = [
     "SharedCausalGraph",
     "SignalBus",
     "SocialCognitionEngine",
+    "SynergyMilitocracyArbitrationLayer",
     "SynergyEngine",
     "TrajectoryOption",
     "TrajectoryPlanner",

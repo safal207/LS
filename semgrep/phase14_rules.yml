@@ -1,0 +1,45 @@
+rules:
+  - id: nca-update-outside-global-coordinator
+    message: "NCAAgent.step() должен вызываться только через GlobalTickCoordinator/step_all deterministic flow."
+    severity: ERROR
+    languages: [python]
+    patterns:
+      - pattern: $AGENT.step(...)
+      - pattern-not-inside: |
+          def step_all(...):
+            ...
+      - pattern-not-inside: |
+          class GlobalTickCoordinator:
+            ...
+
+  - id: collective-state-write-outside-tick
+    message: "Изменение collective_state должно происходить внутри tick/step_all барьера."
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern: $AGENT.collective_state = $X
+      - pattern-not-inside: |
+          def step_all(...):
+            ...
+      - pattern-not-inside: |
+          def tick(...):
+            ...
+
+  - id: forbidden-updatefrom-calls
+    message: "Не использовать прямые updatefrom* вызовы в Phase 14; используйте update(context)."
+    severity: ERROR
+    languages: [python]
+    pattern-regex: "\\.updatefrom[a-zA-Z0-9_]*\\("
+
+  - id: engine-side-effects-without-context
+    message: "Engine update должен быть context-native (update(context))."
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern: $ENGINE.update_from_$X(...)
+      - pattern-not-inside: |
+          class SynergyEngine:
+            ...
+      - pattern-not-inside: |
+          class MilitocracyEngine:
+            ...
