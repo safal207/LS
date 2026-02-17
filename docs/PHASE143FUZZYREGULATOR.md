@@ -46,3 +46,11 @@ Adaptive outputs are bounded to avoid unstable oscillations:
 ## Phase 14.3-R optional acceleration
 
 A companion optional Rust layer (`ncafuzzycore`) can serve `compute_adjustments` for the same metrics contract. Python integration is best-effort with automatic fallback to this pure-Python regulator if Rust is not available.
+
+
+## Stability and observability updates
+
+- Regulator outputs are damped with EMA (`alpha=0.3`) before applying to bus runtime limits, reducing oscillations during rapidly changing load.
+- `SignalBusMetrics.regulator_adjustment_count` tracks how often the regulator applies updates.
+- Significant parameter shifts (>10% in throughput or queue limit) are logged for production monitoring.
+- `avgbatchsize` now uses a sliding window over the last 1000 processed ticks to limit long-run precision drift.

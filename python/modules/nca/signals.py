@@ -133,6 +133,7 @@ class SignalBusMetrics:
     avgbatchsize: float = 0.0
     queuepeakper_tick: int = 0
     processed_ticks: int = 0
+    regulator_adjustment_count: int = 0
 
 
 class FuzzyLoadRegulator:
@@ -270,8 +271,12 @@ class DeterministicSignalBus(CollectiveSignalBus):
             max_queue_size=max_queue_size * 10,
         )
         self.metrics = SignalBusMetrics()
+        self._regulator_alpha = 0.3
+        self._recent_batch_sizes: deque[int] = deque(maxlen=1000)
+        self._recent_batch_size_sum = 0
 
     def _apply_regulator(self) -> None:
+        adjustments: dict[str, float] | None = None
         if HAS_RUST_FUZZY and rust_compute_adjustments and RustPySignalMetrics and RustPyBusConfig:
             try:
                 rust_metrics = RustPySignalMetrics(
@@ -287,21 +292,51 @@ class DeterministicSignalBus(CollectiveSignalBus):
                     priority_boost=float(self.priority_boost),
                 )
                 rust_adjustments = rust_compute_adjustments(rust_metrics, rust_config)
-                self.max_signals_per_tick = int(rust_adjustments.max_signals_per_tick)
-                self.max_queue_size = int(rust_adjustments.max_queue_size)
-                self.priority_boost = float(rust_adjustments.priority_boost)
-                return
+                adjustments = {
+                    "max_signals_per_tick": float(rust_adjustments.max_signals_per_tick),
+                    "max_queue_size": float(rust_adjustments.max_queue_size),
+                    "priority_boost": float(rust_adjustments.priority_boost),
+                }
             except Exception:
                 logger.exception("Falling back to Python fuzzy regulator due to Rust compute error")
 
-        adjustments = self.regulator.compute_adjustments(
-            self.metrics,
-            current_max_signals_per_tick=self.max_signals_per_tick,
-            current_max_queue_size=self.max_queue_size,
-        )
-        self.max_signals_per_tick = int(adjustments["max_signals_per_tick"])
-        self.max_queue_size = int(adjustments["max_queue_size"])
-        self.priority_boost = adjustments["priority_boost"]
+        if adjustments is None:
+            adjustments = self.regulator.compute_adjustments(
+                self.metrics,
+                current_max_signals_per_tick=self.max_signals_per_tick,
+                current_max_queue_size=self.max_queue_size,
+            )
+
+        prev_signals = max(1, self.max_signals_per_tick)
+        prev_queue = max(1, self.max_queue_size)
+        prev_priority = self.priority_boost
+
+        target_signals = int(adjustments["max_signals_per_tick"])
+        target_queue = int(adjustments["max_queue_size"])
+        target_priority = float(adjustments["priority_boost"])
+
+        alpha = self._regulator_alpha
+        next_signals = int((alpha * target_signals) + ((1.0 - alpha) * prev_signals))
+        next_queue = int((alpha * target_queue) + ((1.0 - alpha) * prev_queue))
+        next_priority = (alpha * target_priority) + ((1.0 - alpha) * prev_priority)
+
+        self.max_signals_per_tick = max(1, next_signals)
+        self.max_queue_size = max(1, next_queue)
+        self.priority_boost = next_priority
+        self.metrics.regulator_adjustment_count += 1
+
+        signals_delta = abs(self.max_signals_per_tick - prev_signals) / prev_signals
+        queue_delta = abs(self.max_queue_size - prev_queue) / prev_queue
+        if signals_delta > 0.1 or queue_delta > 0.1:
+            logger.info(
+                "Fuzzy regulator significant adjustment: max_signals_per_tick %s->%s, max_queue_size %s->%s, priority_boost %.3f->%.3f",
+                prev_signals,
+                self.max_signals_per_tick,
+                prev_queue,
+                self.max_queue_size,
+                prev_priority,
+                self.priority_boost,
+            )
 
     def _enqueue(self, mode: str, signal: InternalSignal, kwargs: dict[str, str]) -> None:
         with self._lock:
@@ -371,9 +406,12 @@ class DeterministicSignalBus(CollectiveSignalBus):
         finally:
             with self._lock:
                 if processed:
-                    self.metrics.avgbatchsize = (
-                        self.metrics.avgbatchsize * self.metrics.processed_ticks + len(processed)
-                    ) / (self.metrics.processed_ticks + 1)
+                    if len(self._recent_batch_sizes) == self._recent_batch_sizes.maxlen:
+                        oldest = self._recent_batch_sizes.popleft()
+                        self._recent_batch_size_sum -= oldest
+                    self._recent_batch_sizes.append(len(processed))
+                    self._recent_batch_size_sum += len(processed)
+                    self.metrics.avgbatchsize = self._recent_batch_size_sum / len(self._recent_batch_sizes)
                     self.metrics.processed_ticks += 1
                 self.metrics.total_processed += len(processed)
                 if self.metrics.total_dropped > dropped_before_tick:
