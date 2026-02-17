@@ -124,13 +124,19 @@ class SelfModel:
             )
 
         # 4. Update Metrics from Snapshots (Phase 13: robust handling)
-        if context.identity_snapshot: self.update_identity_metrics(context.identity_snapshot)
-        if context.intent_snapshot: self.update_intent_metrics(context.intent_snapshot)
+        if context.identity_snapshot:
+            self.update_identity_metrics(context.identity_snapshot)
+        if context.intent_snapshot:
+            self.update_intent_metrics(context.intent_snapshot)
         # For autonomy, pass context to access primary_strategy if needed, or rely on snapshot updates
-        if context.autonomy_snapshot: self.update_autonomy_metrics(context.autonomy_snapshot, context.primary_strategy)
-        if context.values_snapshot: self.update_value_metrics(context.values_snapshot)
-        if context.social_snapshot: self.update_social_metrics(context.social_snapshot)
-        if context.culture_snapshot: self.update_culture_metrics(context.culture_snapshot)
+        if context.autonomy_snapshot:
+            self.update_autonomy_metrics(context.autonomy_snapshot, context.primary_strategy)
+        if context.values_snapshot:
+            self.update_value_metrics(context.values_snapshot)
+        if context.social_snapshot:
+            self.update_social_metrics(context.social_snapshot)
+        if context.culture_snapshot:
+            self.update_culture_metrics(context.culture_snapshot)
 
         return {
             "snapshot": self.to_context_snapshot(),
