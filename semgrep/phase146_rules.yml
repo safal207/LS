@@ -1,0 +1,22 @@
+rules:
+  - id: phase146-no-manual-priority-queue-sort
+    message: "Use heapq/BinaryHeap APIs for priority queues instead of manual sort in hot paths."
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - python/modules/web4_runtime/*.py
+    patterns:
+      - pattern: $X.sort(...)
+      - pattern-inside: |
+          def $F(...):
+            ...
+
+  - id: phase146-volatility-budget-threshold
+    message: "Avoid increasing critical volatility budget threshold above 5000ns."
+    severity: ERROR
+    languages: [python]
+    paths:
+      include:
+        - python/modules/web4_runtime/metrics.py
+    pattern-regex: 'volatility_computation_time_ns\"\,\s*\n\s*\"value\"\:.*\n\s*\"budget\"\:\s*(?:[6-9][0-9]{3}|[1-9][0-9]{4,})'
