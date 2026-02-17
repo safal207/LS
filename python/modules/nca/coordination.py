@@ -67,6 +67,11 @@ class GlobalTickCoordinator:
         agent_id = getattr(agent, "agent_id", None)
         if agent_id in (None, ""):
             raise ValueError("agent_id must be set before registering with coordinator")
+
+        existing_ids = {getattr(existing, "agent_id", None) for existing in self.agents}
+        if agent_id in existing_ids and agent not in self.agents:
+            raise ValueError(f"agent_id '{agent_id}' already registered")
+
         if agent not in self.agents:
             self.agents.append(agent)
 

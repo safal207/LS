@@ -31,3 +31,5 @@ score(agent) =
 4. Сигналы и агрегаты публикуются после барьера тик-обновления.
 
 Militocracy `override_signal` добавляет управляемый буст приоритета в арбитраже.
+
+DeterministicSignalBus поддерживает `max_signals_per_tick` и `max_queue_size` для контроля latency/memory trade-off.

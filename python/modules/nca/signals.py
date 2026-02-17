@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
+import logging
 from threading import Lock
 from time import time
 from typing import Any, Callable
@@ -15,6 +16,8 @@ COLLECTIVE_RISK_DETECTED = "collective_risk_detected"
 COORDINATION_REQUIRED = "coordination_required"
 MULTIAGENT_DRIFT = "multiagent_drift"
 COLLECTIVE_GOAL_CONFLICT = "collectivegoalconflict"
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -115,7 +118,12 @@ class SignalBusMetrics:
 class DeterministicSignalBus(CollectiveSignalBus):
     """Deterministic, FIFO, non-reentrant signal bus with per-tick batching."""
 
-    def __init__(self, *, max_signals_per_tick: int = 10_000) -> None:
+    def __init__(
+        self,
+        *,
+        max_signals_per_tick: int = 10_000,
+        max_queue_size: int = 100_000,
+    ) -> None:
         """Initialize deterministic bus with bounded per-tick processing.
 
         Args:
@@ -123,6 +131,8 @@ class DeterministicSignalBus(CollectiveSignalBus):
                 - 1_000: low-latency, small meshes (<100 agents)
                 - 10_000: default, medium meshes (100-1000 agents)
                 - 100_000: high-throughput, large meshes (1000+ agents)
+            max_queue_size: Hard queue bound for pending signals. New signals above this limit
+                are dropped and counted in `metrics.total_dropped`.
 
         Note:
             Signals over the per-tick limit remain queued for subsequent ticks.
@@ -133,10 +143,21 @@ class DeterministicSignalBus(CollectiveSignalBus):
         self._processing: bool = False
         self._lock = Lock()
         self.max_signals_per_tick = max_signals_per_tick
+        self.max_queue_size = max_queue_size
         self.metrics = SignalBusMetrics()
 
     def _enqueue(self, mode: str, signal: InternalSignal, kwargs: dict[str, str]) -> None:
         with self._lock:
+            pending_size = len(self._pending)
+            if pending_size >= self.max_queue_size:
+                self.metrics.total_dropped += 1
+                return
+            if pending_size >= int(self.max_queue_size * 0.9):
+                logger.warning(
+                    "DeterministicSignalBus queue near capacity: %s/%s",
+                    pending_size,
+                    self.max_queue_size,
+                )
             self.metrics.total_emitted += 1
             self._pending.append((mode, signal, kwargs))
             self.metrics.max_pending_seen = max(self.metrics.max_pending_seen, len(self._pending))

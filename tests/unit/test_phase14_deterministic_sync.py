@@ -217,3 +217,25 @@ def test_execution_order_stability_with_equal_scores() -> None:
     ]
 
     assert all(order == orders[0] for order in orders)
+
+
+def test_register_agent_rejects_duplicate_agent_id() -> None:
+    system = MultiAgentSystem()
+    system.add_agent(_agent("dup"))
+
+    try:
+        system.add_agent(_agent("dup"))
+    except ValueError as exc:
+        assert "already registered" in str(exc)
+    else:
+        raise AssertionError("Expected duplicate agent_id registration to fail")
+
+
+def test_deterministic_signal_bus_queue_limit_drops_excess() -> None:
+    bus = DeterministicSignalBus(max_queue_size=3)
+    for idx in range(5):
+        bus.emit(InternalSignal(signal_type=f"q-{idx}"))
+
+    processed = bus.process_tick()
+    assert len(processed) == 3
+    assert bus.metrics.total_dropped == 2
