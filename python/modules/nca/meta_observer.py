@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from .assembly import AgentState
-from .orientation import OrientationCenter
-from .self_model import SelfModel
+if TYPE_CHECKING:
+    from .assembly import AgentState
+    from .self_model import SelfModel
+    from .orientation import OrientationCenter
+    from .signals import SignalBus
+
 from .signals import (
     COORDINATION_REQUIRED,
     MULTIAGENT_DRIFT,
     InternalSignal,
-    SignalBus,
 )
 
 
@@ -43,7 +45,10 @@ class MetaObserver:
     causal_alert_threshold: float = 0.4
     analysis_history: list[MetaReport] = field(default_factory=list)
 
-    def analyze(self, state: AgentState, orientation: OrientationCenter, self_model: SelfModel | None = None) -> dict[str, Any]:
+    def analyze(self, state: AgentState, orientation: dict[str, Any] | OrientationCenter, self_model: SelfModel | dict[str, Any] | None = None) -> dict[str, Any]:
+        """
+        Phase 13: Supports orientation dict snapshot.
+        """
         drift_count = 0
         current_world = state.world_state
         current_pos = current_world.get("agent_position") if isinstance(current_world, dict) else None
@@ -54,7 +59,13 @@ class MetaObserver:
             if current_pos is not None and event.get("position_before") == current_pos:
                 drift_count += 1
 
-        self_consistency = orientation.compute_self_consistency(state)
+        if hasattr(orientation, "compute_self_consistency"):
+             # Legacy or Object passed
+             self_consistency = orientation.compute_self_consistency(state)
+        else:
+             # Snapshot dict passed
+             self_consistency = self._compute_self_consistency_from_snapshot(state, orientation) # type: ignore
+
         uncertainty = float(current_world.get("observation_uncertainty", 0.0)) if isinstance(current_world, dict) else 0.0
 
         causal_scores = [float(item.get("causal_score", 0.0)) for item in state.history[-6:] if "causal_score" in item]
@@ -71,7 +82,13 @@ class MetaObserver:
         collective_consistency = max(0.0, min(1.0, (self_consistency + (1.0 - min(1.0, abs(collective_score)) * 0.25)) / 2))
         collective_risk = max(0.0, min(1.0, (1.0 - collective_consistency) + (0.25 if collective_drift else 0.0)))
 
-        self_model_snapshot = self_model.to_dict() if self_model is not None else {}
+        if self_model is None:
+             self_model_snapshot = {}
+        elif hasattr(self_model, "to_dict"):
+             self_model_snapshot = self_model.to_dict()
+        else:
+             self_model_snapshot = dict(self_model) # type: ignore
+
         self_model_drift = float(self_model_snapshot.get("identity_drift_score", 0.0)) if isinstance(self_model_snapshot, dict) else 0.0
         predicted_state = self_model_snapshot.get("predicted_state", {}) if isinstance(self_model_snapshot, dict) else {}
         predicted_self_consistency = float(predicted_state.get("predictedselfconsistency", 1.0)) if isinstance(predicted_state, dict) else 1.0
@@ -103,9 +120,12 @@ class MetaObserver:
             "collective_risk": collective_risk,
             "collective_score": collective_score,
             "collective_alignment": collective_consistency,
+            "collectivealignment": collective_consistency,
             "selfmodeldrift": self_model_drift,
+            "identity_drift_score": self_model_drift,
             "identity_stability": identity_stability,
             "predictedselfconsistency": predicted_self_consistency,
+            "predicted_self_consistency": predicted_self_consistency,
             "identityshiftdetected": self_model_drift >= 0.5,
             "self_model_snapshot": self_model_snapshot,
             "meta_consistency": meta_consistency,
@@ -116,15 +136,45 @@ class MetaObserver:
             "thinking_error_detected": self_model_drift < 0.2 and meta_drift > 0.45,
         }
 
-    def stabilize(self, orientation: OrientationCenter, analysis: dict[str, Any]) -> None:
-        if not analysis.get("identity_drift_risk"):
-            return
-        orientation.update_from_feedback(
-            {
-                "preference_updates": {"progress": 0.2, "stability": 0.1},
-                "invariant_updates": {"avoid_idle_loops": True},
-            }
+    def _compute_self_consistency_from_snapshot(self, state: AgentState, orientation_snapshot: dict[str, Any]) -> float:
+        """Helper to compute self consistency from snapshot dict."""
+        invariants = state.self_state.get("invariants", {})
+        preferences = state.self_state.get("preferences", {})
+        history = state.history[-8:]
+
+        invariant_score = 1.0
+        if invariants.get("avoid_idle_loops"):
+            idle_count = sum(1 for event in history if event.get("action") == "idle")
+            invariant_score = max(0.0, 1.0 - (idle_count / max(1, len(history))))
+
+        progress_pref = float(preferences.get("progress", 1.0))
+        stability_pref = float(preferences.get("stability", 0.2))
+        preference_score = 0.5
+        if progress_pref + stability_pref > 0:
+            preference_score = max(0.0, min(1.0, progress_pref / (progress_pref + stability_pref)))
+
+        # Access snapshot fields
+        impulsiveness = float(orientation_snapshot.get("impulsiveness", 0.2))
+        stability_preference = float(orientation_snapshot.get("stability_preference", 0.8))
+
+        stability_score = 1.0
+        if len(history) >= 2:
+            actions = [event.get("action") for event in history]
+            switches = sum(1 for i in range(1, len(actions)) if actions[i] != actions[i - 1])
+            normalized_switches = switches / max(1, len(actions) - 1)
+            stability_score = max(0.0, 1.0 - normalized_switches * impulsiveness)
+
+        weighted = (
+            0.35 * invariant_score
+            + 0.25 * preference_score
+            + 0.25 * stability_score
+            + 0.15 * stability_preference
         )
+        return max(0.0, min(1.0, weighted))
+
+    def stabilize(self, orientation: OrientationCenter, analysis: dict[str, Any]) -> None:
+        """DEPRECATED Phase 13: Stabilization is now handled by Orientation.update(context)"""
+        pass
 
     def _emit_analysis_signals(
         self,
@@ -243,12 +293,23 @@ class MetaObserver:
     def generate_report(
         self,
         state: AgentState,
-        orientation: OrientationCenter,
+        orientation: dict[str, Any] | OrientationCenter,
         signal_bus: SignalBus | None = None,
-        self_model: SelfModel | None = None,
+        self_model: SelfModel | dict[str, Any] | None = None,
     ) -> MetaReport:
         analysis = self.analyze(state, orientation, self_model=self_model)
         emitted = self._emit_analysis_signals(analysis, signal_bus, state)
+        raw_snapshot = analysis.get("self_model_snapshot", {})
+        if isinstance(raw_snapshot, dict):
+            self_model_snapshot = dict(raw_snapshot)
+        elif hasattr(raw_snapshot, "items"):
+            self_model_snapshot = dict(raw_snapshot.items())
+        elif raw_snapshot is None:
+            self_model_snapshot = {}
+        else:
+            # Last-resort safety fallback for unexpected payloads.
+            self_model_snapshot = {}
+
         report = MetaReport(
             self_consistency=analysis["self_consistency"],
             uncertainty=analysis["uncertainty"],
@@ -263,9 +324,9 @@ class MetaObserver:
             collective_score=float(analysis.get("collective_score", 0.0)),
             collective_risk=float(analysis.get("collective_risk", 0.0)),
             collective_alignment=float(analysis.get("collective_alignment", 1.0)),
-            self_model_snapshot=dict(analysis.get("self_model_snapshot", {})),
-            identity_drift_score=float(analysis.get("selfmodeldrift", 0.0)),
-            predicted_self_consistency=float(analysis.get("predictedselfconsistency", 1.0)),
+            self_model_snapshot=self_model_snapshot,
+            identity_drift_score=float(analysis.get("identity_drift_score", analysis.get("selfmodeldrift", 0.0))),
+            predicted_self_consistency=float(analysis.get("predicted_self_consistency", analysis.get("predictedselfconsistency", 1.0))),
             meta_consistency=float(analysis.get("meta_consistency", 1.0)),
             observerbiasscore=float(analysis.get("observerbiasscore", 0.0)),
             meta_drift=float(analysis.get("meta_drift", 0.0)),
@@ -276,12 +337,13 @@ class MetaObserver:
     def observe_and_correct(
         self,
         state: AgentState,
-        orientation: OrientationCenter,
+        orientation: dict[str, Any] | OrientationCenter,
         signal_bus: SignalBus | None = None,
-        self_model: SelfModel | None = None,
+        self_model: SelfModel | dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         analysis = self.analyze(state, orientation, self_model=self_model)
-        self.stabilize(orientation, analysis)
+        # Phase 13: Stabilization is handled by Orientation.update(context) using the report
+        # self.stabilize(orientation, analysis) # Removed/Deprecated
         report = self.generate_report(state, orientation, signal_bus, self_model=self_model)
         return {
             **analysis,
