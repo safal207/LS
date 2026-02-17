@@ -161,3 +161,15 @@ def test_step_all_uses_coordinator_order() -> None:
     system.step_all()
 
     assert seen[0] == "second"
+
+
+def test_multi_agent_system_uses_deterministic_signal_bus() -> None:
+    system = MultiAgentSystem()
+    assert isinstance(system.collective_signal_bus, DeterministicSignalBus)
+
+    system.add_agent(_agent("a0"))
+    system.add_agent(_agent("a1"))
+    system.step_all()
+
+    # process_tick is called inside step_all, so pending queue must be empty here
+    assert system.collective_signal_bus.process_tick() == []

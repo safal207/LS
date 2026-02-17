@@ -6,7 +6,7 @@ from typing import Any
 from .agent import NCAAgent
 from .coordination import GlobalTickCoordinator
 from .shared_causal import SharedCausalGraph
-from .signals import CollectiveSignalBus, InternalSignal
+from .signals import DeterministicSignalBus, InternalSignal
 from .utils import normalize_traditions, get_norm_conflicts, MAX_NORM_CONFLICTS
 
 
@@ -16,7 +16,7 @@ class MultiAgentSystem:
 
     agents: list[NCAAgent] = field(default_factory=list)
     shared_causal_graph: SharedCausalGraph = field(default_factory=SharedCausalGraph)
-    collective_signal_bus: CollectiveSignalBus = field(default_factory=CollectiveSignalBus)
+    collective_signal_bus: DeterministicSignalBus = field(default_factory=DeterministicSignalBus)
     collectiveagencylevel: float = 0.0
     collectiveidentityintegrity: float = 1.0
     collective_initiative: dict[str, Any] = field(default_factory=dict)
@@ -87,6 +87,7 @@ class MultiAgentSystem:
             step_events.append({"agent_id": agent_id, **event})
 
         distributed = self.broadcast_signals()
+        self.collective_signal_bus.process_tick()
         collective = self.collective_state()
         collective["execution_order"] = list(self.execution_order)
         collective["recent_events"] = [dict(e) for e in step_events[-20:]]
@@ -98,6 +99,8 @@ class MultiAgentSystem:
             self.collective_signal_bus.emit_broadcast(InternalSignal(signal_type="collectivecooperation", payload={"collectivecooperationscore": collective.get("collectivecooperationscore", 0.0)}))
         if collective.get("collectivesocialconflict", 0.0) > 0.35:
             self.collective_signal_bus.emit_broadcast(InternalSignal(signal_type="collectivesocialconflict", payload={"collectivesocialconflict": collective.get("collectivesocialconflict", 0.0)}))
+
+        self.collective_signal_bus.process_tick()
 
         for agent in self.agents:
             agent.collective_state = collective
