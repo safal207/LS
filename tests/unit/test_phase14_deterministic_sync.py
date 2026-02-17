@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 import threading
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -283,6 +284,30 @@ def test_queue_size_metric_updates() -> None:
 
     bus.process_tick()
     assert bus.metrics.queue_size == 0
+
+
+def test_batch_metrics_update() -> None:
+    bus = DeterministicSignalBus(max_signals_per_tick=3)
+    for idx in range(5):
+        bus.emit(InternalSignal(signal_type=f"b-{idx}"))
+
+    bus.process_tick()
+    assert bus.metrics.avgbatchsize == 1.0
+    assert bus.metrics.queuepeakper_tick == 5
+
+    bus.process_tick()
+    assert bus.metrics.avgbatchsize == 1.0
+    assert bus.metrics.queuepeakper_tick == 5
+
+
+def test_process_tick_performance_under_load() -> None:
+    bus = DeterministicSignalBus(max_signals_per_tick=50_000)
+    for idx in range(50_000):
+        bus.emit(InternalSignal(signal_type=f"s-{idx}"))
+
+    start = time.perf_counter()
+    bus.process_tick()
+    assert time.perf_counter() - start < 0.12
 
 
 def test_execution_order_uses_coordinator_directly() -> None:
