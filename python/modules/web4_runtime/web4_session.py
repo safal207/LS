@@ -4,13 +4,23 @@ from dataclasses import dataclass
 from typing import Generic, Optional
 
 from .observability import ObservabilityHub
-from .transport import MessageT, TransportBackend
+from .transport import MessageT, TransportBackend, TransportFailover
 
 
 @dataclass
 class Web4Session(Generic[MessageT]):
     transport: TransportBackend[MessageT]
     observability: Optional[ObservabilityHub] = None
+    backup_transport: Optional[TransportBackend[MessageT]] = None
+    failover_threshold: int = 3
+
+    def __post_init__(self) -> None:
+        if self.backup_transport is not None:
+            self.transport = TransportFailover(
+                primary=self.transport,
+                backup=self.backup_transport,
+                failover_threshold=self.failover_threshold,
+            )
 
     def connect(self) -> None:
         self.transport.connect()
@@ -20,8 +30,11 @@ class Web4Session(Generic[MessageT]):
         self.transport.disconnect()
         self._record("transport_disconnect")
 
-    def send(self, message: MessageT) -> None:
-        self.transport.send(message)
+    def send(self, message: MessageT, priority: int = 5) -> None:
+        try:
+            self.transport.send(message, priority=priority)  # type: ignore[call-arg]
+        except TypeError:
+            self.transport.send(message)
         self._record("transport_send", pending=self.transport.pending())
 
     def receive(self) -> Optional[MessageT]:
