@@ -82,6 +82,12 @@ class RttSession(Generic[MessageT]):
     reconnects: int = field(default=0, init=False)
     _emitting: bool = field(default=False, init=False)
 
+    def __post_init__(self) -> None:
+        # Guard against invalid queue bounds that can otherwise trigger immediate
+        # overflow handling and crashes for dropoldest policy on an empty queue.
+        if self.config.max_queue < 1:
+            raise ValueError("RttConfig.max_queue must be >= 1")
+
     @property
     def connected(self) -> bool:
         return self._connected
