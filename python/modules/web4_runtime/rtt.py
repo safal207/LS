@@ -46,6 +46,8 @@ class RttStats:
     overflow_events: int = 0
     high_priority_dropped: int = 0
     max_queue_len: int = 0
+    priority_inversions: int = 0
+    high_priority_dropped: int = 0
 
     @property
     def accepted(self) -> int:
@@ -291,4 +293,6 @@ class RttSession(Generic[MessageT]):
             overflow_events=current.overflow_events + overflow_events,
             high_priority_dropped=current.high_priority_dropped + high_priority_dropped,
             max_queue_len=max_queue_len,
+            priority_inversions=current.priority_inversions + priority_inversions,
+            high_priority_dropped=current.high_priority_dropped + high_priority_dropped,
         )

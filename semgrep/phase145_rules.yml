@@ -1,0 +1,35 @@
+rules:
+  - id: governance-alert-threshold-violation
+    message: "Alert threshold violation detected. Review governance metrics."
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - python/modules/web4_runtime/*.py
+    patterns:
+      - pattern: $METRICS.regulator_volatility > $THRESHOLD
+      - metavariable-comparison:
+          metavariable: $THRESHOLD
+          comparison: float($THRESHOLD) > 0.8
+
+  - id: priority-queue-must-be-enabled-explicitly
+    message: "Priority queue must be explicitly enabled in RttConfig."
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - python/modules/web4_runtime/*.py
+    patterns:
+      - pattern: RttConfig(...)
+      - pattern-not: RttConfig(..., enable_priority_queue=True, ...)
+      - pattern-not: RttConfig(..., enable_priority_queue=False, ...)
+
+  - id: failover-transport-must-have-backup
+    message: "Failover transport requires backup transport."
+    severity: ERROR
+    languages: [python]
+    paths:
+      include:
+        - python/modules/web4_runtime/*.py
+    patterns:
+      - pattern: TransportFailover($PRIMARY, None, ...)
