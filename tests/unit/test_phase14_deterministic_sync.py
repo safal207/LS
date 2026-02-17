@@ -3,6 +3,7 @@ from __future__ import annotations
 # ruff: noqa: E402
 
 import sys
+import threading
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -173,3 +174,46 @@ def test_multi_agent_system_uses_deterministic_signal_bus() -> None:
 
     # process_tick is called inside step_all, so pending queue must be empty here
     assert system.collective_signal_bus.process_tick() == []
+
+
+def test_deterministic_signal_bus_thread_safety() -> None:
+    bus = DeterministicSignalBus()
+    received: list[str] = []
+    recv_lock = threading.Lock()
+
+    def handler(signal: InternalSignal) -> None:
+        with recv_lock:
+            received.append(signal.signal_type)
+
+    bus.subscribe(handler)
+
+    def emitter(idx: int) -> None:
+        for i in range(100):
+            bus.emit(InternalSignal(signal_type=f"t{idx}-{i}"))
+
+    threads = [threading.Thread(target=emitter, args=(idx,)) for idx in range(5)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    processed = bus.process_tick()
+    assert len(processed) == 500
+    assert len(received) == 500
+
+
+def test_execution_order_stability_with_equal_scores() -> None:
+    system = MultiAgentSystem()
+    for idx in range(5):
+        agent = _agent(f"agent-{idx}")
+        agent.militocracy.discipline_score = 0.5
+        agent.militocracy.ideaqualityscore = 0.5
+        agent.synergy.collectivealignmentscore = 0.5
+        system.add_agent(agent)
+
+    orders = [
+        system.coordinator.prepare_tick(system.collective_state()).execution_order
+        for _ in range(10)
+    ]
+
+    assert all(order == orders[0] for order in orders)

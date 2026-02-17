@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
+from threading import Lock
 from time import time
 from typing import Any, Callable
 
@@ -101,36 +102,70 @@ class CollectiveSignalBus(SignalBus):
         self.emit_broadcast(signal)
 
 
+@dataclass
+class SignalBusMetrics:
+    """Operational counters for deterministic signal processing."""
+
+    total_emitted: int = 0
+    total_processed: int = 0
+    total_dropped: int = 0
+    max_pending_seen: int = 0
+
+
 class DeterministicSignalBus(CollectiveSignalBus):
     """Deterministic, FIFO, non-reentrant signal bus with per-tick batching."""
 
     def __init__(self, *, max_signals_per_tick: int = 10_000) -> None:
+        """Initialize deterministic bus with bounded per-tick processing.
+
+        Args:
+            max_signals_per_tick: Maximum signals processed in a single `process_tick()` call.
+                - 1_000: low-latency, small meshes (<100 agents)
+                - 10_000: default, medium meshes (100-1000 agents)
+                - 100_000: high-throughput, large meshes (1000+ agents)
+
+        Note:
+            Signals over the per-tick limit remain queued for subsequent ticks.
+            Monitor `metrics.max_pending_seen` and pending queue size to tune capacity.
+        """
         super().__init__()
         self._pending: deque[tuple[str, InternalSignal, dict[str, str]]] = deque()
         self._processing: bool = False
+        self._lock = Lock()
         self.max_signals_per_tick = max_signals_per_tick
+        self.metrics = SignalBusMetrics()
+
+    def _enqueue(self, mode: str, signal: InternalSignal, kwargs: dict[str, str]) -> None:
+        with self._lock:
+            self.metrics.total_emitted += 1
+            self._pending.append((mode, signal, kwargs))
+            self.metrics.max_pending_seen = max(self.metrics.max_pending_seen, len(self._pending))
 
     def emit_local(self, signal: InternalSignal, *, target_agent_id: str) -> None:
-        self._pending.append(("local", signal, {"target_agent_id": target_agent_id}))
+        self._enqueue("local", signal, {"target_agent_id": target_agent_id})
 
     def emit_group(self, signal: InternalSignal, *, group_id: str) -> None:
-        self._pending.append(("group", signal, {"group_id": group_id}))
+        self._enqueue("group", signal, {"group_id": group_id})
 
     def emit_broadcast(self, signal: InternalSignal) -> None:
-        self._pending.append(("broadcast", signal, {}))
+        self._enqueue("broadcast", signal, {})
 
     def emit(self, signal: InternalSignal) -> None:
-        self._pending.append(("broadcast", signal, {}))
+        self._enqueue("broadcast", signal, {})
 
     def process_tick(self) -> list[InternalSignal]:
-        if self._processing:
-            return []
+        with self._lock:
+            if self._processing:
+                return []
+            self._processing = True
 
-        self._processing = True
         processed: list[InternalSignal] = []
         try:
-            while self._pending and len(processed) < self.max_signals_per_tick:
-                mode, signal, kwargs = self._pending.popleft()
+            while len(processed) < self.max_signals_per_tick:
+                with self._lock:
+                    if not self._pending:
+                        break
+                    mode, signal, kwargs = self._pending.popleft()
                 processed.append(signal)
                 if mode == "local":
                     super().emit_local(signal, target_agent_id=kwargs["target_agent_id"])
@@ -139,6 +174,8 @@ class DeterministicSignalBus(CollectiveSignalBus):
                 else:
                     super().emit_broadcast(signal)
         finally:
-            self._processing = False
+            with self._lock:
+                self.metrics.total_processed += len(processed)
+                self._processing = False
 
         return processed

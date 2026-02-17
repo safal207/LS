@@ -28,6 +28,14 @@ class SynergyMilitocracyArbitrationLayer:
     w_i: float = 0.2
     w_g: float = 0.1  # Keep in sync with docs/PHASE14_OVERVIEW.md
 
+    def __post_init__(self) -> None:
+        total = self.w_s + self.w_m + self.w_i + self.w_g
+        if abs(total - 1.0) > 0.001:
+            raise ValueError(
+                f"Arbitration weights must sum to 1.0, got {total}. "
+                f"w_s={self.w_s}, w_m={self.w_m}, w_i={self.w_i}, w_g={self.w_g}"
+            )
+
     def score(self, agent: NCAAgent, collective_state: dict[str, Any]) -> float:
         synergy = getattr(agent, "synergy", None)
         militocracy = getattr(agent, "militocracy", None)
@@ -43,9 +51,9 @@ class SynergyMilitocracyArbitrationLayer:
             + self.w_i * idea_quality
             + self.w_g * shared_goal_pressure
         )
-        # Phase 14: override_signal is an explicit command escalation hint from MilitocracyEngine.
-        override = bool(getattr(militocracy, "override_signal", False))
-        return min(1.0, base_score + (0.05 if override else 0.0))
+        execution_priority = float(getattr(militocracy, "execution_priority", 0.5))
+        override_boost = max(0.0, min(0.05, execution_priority * 0.05))
+        return min(1.0, base_score + override_boost)
 
 
 @dataclass
@@ -56,6 +64,9 @@ class GlobalTickCoordinator:
     agents: list[NCAAgent] = field(default_factory=list)
 
     def register_agent(self, agent: NCAAgent) -> None:
+        agent_id = getattr(agent, "agent_id", None)
+        if agent_id in (None, ""):
+            raise ValueError("agent_id must be set before registering with coordinator")
         if agent not in self.agents:
             self.agents.append(agent)
 
