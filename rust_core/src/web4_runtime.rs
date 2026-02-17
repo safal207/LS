@@ -254,6 +254,7 @@ impl Web4RttBinding {
         let stats = PyDict::new(py);
         let _ = stats.set_item("attempted", self.stats.attempted);
         let _ = stats.set_item("enqueued", self.stats.enqueued);
+        let _ = stats.set_item("accepted", self.stats.enqueued);
         let _ = stats.set_item("dropped_oldest", self.stats.dropped_oldest);
         let _ = stats.set_item("dropped_newest", self.stats.dropped_newest);
         let _ = stats.set_item("dropped", self.stats.dropped_oldest + self.stats.dropped_newest);
