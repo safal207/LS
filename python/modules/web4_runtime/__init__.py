@@ -3,6 +3,7 @@ from .cip_runtime import CipRuntime
 from .hcp_runtime import HcpRuntime, HcpPolicy
 from .lip_runtime import LipRuntime
 from .governance import AdaptiveGovernor, AlertManager, GovernanceMetrics
+from .metrics import MetricsCollector, PerformanceMetrics
 from .observability import ObservabilityHub, ObservabilityEvent
 from .protocol_router import Web4ProtocolRouter
 from .rtt import RttConfig, RttSession, RttStats, BackpressureError, DisconnectedError
@@ -20,6 +21,8 @@ __all__ = [
     "ObservabilityEvent",
     "GovernanceMetrics",
     "AdaptiveGovernor",
+    "PerformanceMetrics",
+    "MetricsCollector",
     "AlertManager",
     "Web4ProtocolRouter",
     "RttConfig",
