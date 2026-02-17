@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable, Deque, Generic, Iterable, Liter
 _PRIORITY_QUEUE_COMPACTION_RATIO = 2
 
 if TYPE_CHECKING:
+    from .flow import GlobalFlowController
     from .observability import ObservabilityHub
 
 
@@ -70,6 +71,7 @@ class RttStats:
 class RttSession(Generic[MessageT]):
     config: RttConfig = field(default_factory=RttConfig)
     observability: Optional["ObservabilityHub"] = None
+    flow_controller: Optional["GlobalFlowController[MessageT]"] = None
     _queue: Deque[MessageT] = field(default_factory=deque, init=False)
     _priority_queue: list[tuple[int, int, MessageT]] = field(default_factory=list, init=False)
     _priority_oldest_queue: list[tuple[int, int]] = field(default_factory=list, init=False)
@@ -85,6 +87,10 @@ class RttSession(Generic[MessageT]):
     _on_heartbeat_timeout: list[LifecycleHook] = field(default_factory=list, init=False)
     reconnects: int = field(default=0, init=False)
     _emitting: bool = field(default=False, init=False)
+
+    def __post_init__(self) -> None:
+        if self.flow_controller is not None:
+            self.flow_controller.register_session(self)
 
     @property
     def connected(self) -> bool:

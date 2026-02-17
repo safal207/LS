@@ -1,7 +1,9 @@
 from .agent_integration import AgentLoopAdapter
+from .async_rtt import AsyncRttSession
 from .cip_runtime import CipRuntime
 from .hcp_runtime import HcpRuntime, HcpPolicy
 from .lip_runtime import LipRuntime
+from .flow import BackpressureStrategy, GlobalFlowController
 from .governance import AdaptiveGovernor, AlertManager, GovernanceMetrics
 from .metrics import MetricsCollector, PerformanceMetrics
 from .observability import ObservabilityHub, ObservabilityEvent
@@ -17,6 +19,7 @@ __all__ = [
     "HcpRuntime",
     "HcpPolicy",
     "LipRuntime",
+    "AsyncRttSession",
     "ObservabilityHub",
     "ObservabilityEvent",
     "GovernanceMetrics",
@@ -24,6 +27,8 @@ __all__ = [
     "PerformanceMetrics",
     "MetricsCollector",
     "AlertManager",
+    "BackpressureStrategy",
+    "GlobalFlowController",
     "Web4ProtocolRouter",
     "RttConfig",
     "RttSession",
