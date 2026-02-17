@@ -41,11 +41,9 @@ def test_failover_recovery_automatic() -> None:
     class MockTransport:
         transport_type = "mock"
 
-        def __init__(self, fail_after: int = 0, recover_after: int = 0):
+        def __init__(self, fail_after: int = 0):
             self._fail_count = 0
             self._fail_after = fail_after
-            self._recover_after = recover_after
-            self._recovery_test_count = 0
             self.connected = False
 
         def connect(self) -> None:
@@ -55,12 +53,6 @@ def test_failover_recovery_automatic() -> None:
             self.connected = False
 
         def send(self, message: str) -> None:
-            if message == "__recovery_test__":
-                self._recovery_test_count += 1
-                if self._recovery_test_count < self._recover_after:
-                    raise RuntimeError("Primary not ready")
-                return
-
             self._fail_count += 1
             if self._fail_count <= self._fail_after:
                 raise RuntimeError("Transport error")
@@ -83,7 +75,7 @@ def test_failover_recovery_automatic() -> None:
         def health_check(self) -> bool:
             return self.connected and self._fail_count >= self._fail_after
 
-    primary = MockTransport(fail_after=3, recover_after=1)
+    primary = MockTransport(fail_after=3)
     backup = MockTransport()
 
     failover = TransportFailover(primary, backup, failover_threshold=3, recovery_success_threshold=3, recovery_check_interval_s=0)

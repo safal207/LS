@@ -93,7 +93,6 @@ class TransportFailover(Generic[MessageT]):
 
     def connect(self) -> None:
         self.primary.connect()
-        self.backup.connect()
         self._using_backup = False
         self._error_count = 0
         self._recovery_success_count = 0
@@ -158,5 +157,8 @@ class TransportFailover(Generic[MessageT]):
                 self._using_backup = False
                 self._recovery_success_count = 0
                 self._error_count = 0
+            else:
+                self._recovery_success_count = 0
         except Exception:
+            self._recovery_success_count = 0
             return

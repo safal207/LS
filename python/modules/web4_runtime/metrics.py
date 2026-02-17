@@ -24,6 +24,8 @@ class MetricsCollector:
     _sorted_wait_times: list[float] = field(default_factory=list, init=False)
     _volatility_times: Deque[int] = field(default_factory=lambda: deque(maxlen=100), init=False)
     _priority_insert_times: Deque[int] = field(default_factory=lambda: deque(maxlen=100), init=False)
+    _failover_detection_times: Deque[float] = field(default_factory=lambda: deque(maxlen=100), init=False)
+    _failover_recovery_times: Deque[float] = field(default_factory=lambda: deque(maxlen=100), init=False)
 
     def record_volatility_computation(self, time_ns: int) -> None:
         self._volatility_times.append(time_ns)
@@ -37,9 +39,11 @@ class MetricsCollector:
         self._metrics.priority_queue_pop_time_ns = time_ns
 
     def record_failover_detection(self, time_ms: float) -> None:
+        self._failover_detection_times.append(time_ms)
         self._metrics.failover_detection_time_ms = time_ms
 
     def record_failover_recovery(self, time_sec: float) -> None:
+        self._failover_recovery_times.append(time_sec)
         self._metrics.failover_recovery_time_sec = time_sec
 
     def record_adaptive_alpha_change(self) -> None:
@@ -51,6 +55,7 @@ class MetricsCollector:
             evicted = self._priority_wait_times[0]
 
         self._priority_wait_times.append(time_ms)
+        # Bounded to 1000 elements, so list shifting cost remains acceptable and predictable.
         bisect.insort(self._sorted_wait_times, time_ms)
 
         if evicted is not None:
@@ -88,21 +93,21 @@ class MetricsCollector:
                 }
             )
 
-        if self._metrics.failover_detection_time_ms > 500:
+        if self._failover_detection_times and max(self._failover_detection_times) > 500:
             violations.append(
                 {
                     "metric": "failover_detection_time_ms",
-                    "value": self._metrics.failover_detection_time_ms,
+                    "value": max(self._failover_detection_times),
                     "budget": 500,
                     "severity": "warning",
                 }
             )
 
-        if self._metrics.failover_recovery_time_sec > 30:
+        if self._failover_recovery_times and max(self._failover_recovery_times) > 30:
             violations.append(
                 {
                     "metric": "failover_recovery_time_sec",
-                    "value": self._metrics.failover_recovery_time_sec,
+                    "value": max(self._failover_recovery_times),
                     "budget": 30,
                     "severity": "critical",
                 }

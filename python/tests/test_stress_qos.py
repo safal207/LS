@@ -79,8 +79,6 @@ def test_stress_failover_recovery_time() -> None:
             self.connected = False
 
         def send(self, message: str) -> None:
-            if message == "__recovery_test__":
-                return
             if self._fail_for > 0:
                 self._fail_for -= 1
                 raise RuntimeError("fail")

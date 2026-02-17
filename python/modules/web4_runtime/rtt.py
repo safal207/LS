@@ -66,7 +66,9 @@ class RttSession(Generic[MessageT]):
     observability: Optional["ObservabilityHub"] = None
     _queue: Deque[MessageT] = field(default_factory=deque, init=False)
     _priority_queue: list[tuple[int, int, MessageT]] = field(default_factory=list, init=False)
+    _priority_oldest_queue: list[tuple[int, int]] = field(default_factory=list, init=False)
     _priority_seq: int = field(default=0, init=False)
+    _live_priority_seq: set[int] = field(default_factory=set, init=False)
     _connected: bool = field(default=True, init=False)
     _stats: RttStats = field(default_factory=RttStats, init=False)
     _condition: Condition = field(default_factory=Condition, init=False)
@@ -84,7 +86,7 @@ class RttSession(Generic[MessageT]):
     @property
     def pending(self) -> int:
         if self.config.enable_priority_queue:
-            return len(self._priority_queue) + len(self._queue)
+            return len(self._live_priority_seq) + len(self._queue)
         return len(self._queue)
 
     @property
@@ -146,19 +148,27 @@ class RttSession(Generic[MessageT]):
             self._priority_seq += 1
             normalized_priority = priority if priority is not None else 0
             heapq.heappush(self._priority_queue, (-normalized_priority, self._priority_seq, message))
+            heapq.heappush(self._priority_oldest_queue, (self._priority_seq, -normalized_priority))
+            self._live_priority_seq.add(self._priority_seq)
             return
         self._queue.append(message)
+
+    def _drop_oldest_priority(self) -> bool:
+        while self._priority_oldest_queue:
+            sequence, _ = heapq.heappop(self._priority_oldest_queue)
+            if sequence in self._live_priority_seq:
+                self._live_priority_seq.remove(sequence)
+                return True
+        return False
 
     def _on_overflow(self, message: MessageT, priority: Optional[int] = None) -> None:
         self._bump(overflow_events=1)
         if self.config.backpressure_policy == "dropoldest":
-            if self.config.enable_priority_queue and self._priority_queue:
-                oldest_idx = min(
-                    range(len(self._priority_queue)),
-                    key=lambda idx: self._priority_queue[idx][1],
-                )
-                self._priority_queue.pop(oldest_idx)
-                heapq.heapify(self._priority_queue)
+            if self.config.enable_priority_queue:
+                dropped = self._drop_oldest_priority()
+                if not dropped:
+                    if self._queue:
+                        self._queue.popleft()
             else:
                 self._queue.popleft()
             self._enqueue(message, priority)
@@ -199,13 +209,16 @@ class RttSession(Generic[MessageT]):
             if not self._connected:
                 raise DisconnectedError("RTT session is disconnected")
             if self.config.enable_priority_queue:
-                if not self._priority_queue:
-                    return None
-                _, _, item = heapq.heappop(self._priority_queue)
-            else:
-                if not self._queue:
-                    return None
-                item = self._queue.popleft()
+                while self._priority_queue:
+                    _, sequence, item = heapq.heappop(self._priority_queue)
+                    if sequence in self._live_priority_seq:
+                        self._live_priority_seq.remove(sequence)
+                        self._condition.notify_all()
+                        return item
+                return None
+            if not self._queue:
+                return None
+            item = self._queue.popleft()
             self._condition.notify_all()
             return item
 
@@ -244,6 +257,8 @@ class RttSession(Generic[MessageT]):
             self._connected = True
             self._queue.clear()
             self._priority_queue.clear()
+            self._priority_oldest_queue.clear()
+            self._live_priority_seq.clear()
             self._heartbeat_at = monotonic()
             self.reconnects += 1
             reconnects = self.reconnects

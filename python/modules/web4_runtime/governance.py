@@ -25,10 +25,11 @@ class AdaptiveGovernor:
     _window: Deque[float] = field(default_factory=deque, init=False)
     _alpha: float = field(default=0.3, init=False)
 
+    def __post_init__(self) -> None:
+        self._window = deque(maxlen=max(1, self.volatility_window))
+
     def compute_adaptive_alpha(self, current_throughput: float) -> float:
         self._window.append(current_throughput)
-        if len(self._window) > self.volatility_window:
-            self._window.popleft()
 
         if len(self._window) < 10:
             self._alpha = 0.3

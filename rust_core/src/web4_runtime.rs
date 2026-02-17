@@ -143,7 +143,15 @@ impl Web4RttBinding {
             match self.policy {
                 BackpressurePolicy::DropOldest => {
                     if !self.priority_queue.is_empty() {
-                        let _ = self.priority_queue.pop();
+                        if let Some(oldest_sequence) =
+                            self.priority_queue.iter().map(|pm| pm.sequence).min()
+                        {
+                            self.priority_queue = self
+                                .priority_queue
+                                .drain()
+                                .filter(|pm| pm.sequence != oldest_sequence)
+                                .collect();
+                        }
                     } else {
                         let _ = self.queue.pop_front();
                     }
