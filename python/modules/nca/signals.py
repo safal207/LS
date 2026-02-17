@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 from time import time
 from typing import Any, Callable
@@ -103,10 +104,11 @@ class CollectiveSignalBus(SignalBus):
 class DeterministicSignalBus(CollectiveSignalBus):
     """Deterministic, FIFO, non-reentrant signal bus with per-tick batching."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_signals_per_tick: int = 10_000) -> None:
         super().__init__()
-        self._pending: list[tuple[str, InternalSignal, dict[str, str]]] = []
+        self._pending: deque[tuple[str, InternalSignal, dict[str, str]]] = deque()
         self._processing: bool = False
+        self.max_signals_per_tick = max_signals_per_tick
 
     def emit_local(self, signal: InternalSignal, *, target_agent_id: str) -> None:
         self._pending.append(("local", signal, {"target_agent_id": target_agent_id}))
@@ -127,8 +129,8 @@ class DeterministicSignalBus(CollectiveSignalBus):
         self._processing = True
         processed: list[InternalSignal] = []
         try:
-            while self._pending:
-                mode, signal, kwargs = self._pending.pop(0)
+            while self._pending and len(processed) < self.max_signals_per_tick:
+                mode, signal, kwargs = self._pending.popleft()
                 processed.append(signal)
                 if mode == "local":
                     super().emit_local(signal, target_agent_id=kwargs["target_agent_id"])

@@ -35,14 +35,49 @@ def test_execution_order_is_deterministic() -> None:
     assert before == after
 
 
+def test_execution_order_changes_with_scores() -> None:
+    system = MultiAgentSystem()
+    low = _agent("a-low")
+    high = _agent("b-high")
+
+    low.militocracy.discipline_score = 0.1
+    low.militocracy.ideaqualityscore = 0.1
+    low.synergy.collectivealignmentscore = 0.1
+
+    high.militocracy.discipline_score = 0.9
+    high.militocracy.ideaqualityscore = 0.9
+    high.synergy.collectivealignmentscore = 0.9
+
+    system.add_agent(low)
+    system.add_agent(high)
+
+    order = system.coordinator.prepare_tick(system.collective_state()).execution_order
+    assert order[0] == "b-high"
+
+
+def test_execution_order_tie_breaks_by_agent_id() -> None:
+    system = MultiAgentSystem()
+    for agent_id in ("z-agent", "a-agent"):
+        agent = _agent(agent_id)
+        agent.militocracy.discipline_score = 0.5
+        agent.militocracy.ideaqualityscore = 0.5
+        agent.synergy.collectivealignmentscore = 0.5
+        system.add_agent(agent)
+
+    order = system.coordinator.prepare_tick(system.collective_state()).execution_order
+    assert order == ["a-agent", "z-agent"]
+
+
 def test_collective_state_includes_phase14_aggregates() -> None:
     system = MultiAgentSystem()
     for idx in range(3):
         system.add_agent(_agent(f"x-{idx}", start=idx))
 
+    _ = system.step_all()
     state = system.collective_state()
 
     assert "sharedgoalpressure" in state
+    assert "execution_order" in state
     assert 0.0 <= state["sharedgoalpressure"] <= 1.0
 
 
@@ -61,3 +96,68 @@ def test_deterministic_signal_bus_no_reentrancy_loss() -> None:
 
     assert [s.signal_type for s in processed] == ["one", "two"]
     assert received == ["one", "two"]
+
+
+def test_deterministic_signal_bus_local_and_group() -> None:
+    bus = DeterministicSignalBus()
+    received: list[str] = []
+
+    bus.subscribe_agent("a1", lambda s: received.append(f"agent:{s.signal_type}"))
+    bus.subscribe_group("g1", lambda s: received.append(f"group:{s.signal_type}"))
+
+    bus.emit_local(InternalSignal(signal_type="local"), target_agent_id="a1")
+    bus.emit_group(InternalSignal(signal_type="group"), group_id="g1")
+    out = bus.process_tick()
+
+    assert [s.signal_type for s in out] == ["local", "group"]
+    assert "agent:local" in received
+    assert "group:group" in received
+
+
+def test_deterministic_signal_bus_has_tick_guard() -> None:
+    bus = DeterministicSignalBus(max_signals_per_tick=3)
+
+    def handler(signal: InternalSignal) -> None:
+        if signal.signal_type.startswith("loop"):
+            bus.emit(InternalSignal(signal_type=f"loop-{len(signal.signal_type)}"))
+
+    bus.subscribe(handler)
+    bus.emit(InternalSignal(signal_type="loop"))
+    processed = bus.process_tick()
+
+    assert len(processed) == 3
+
+
+def test_step_all_uses_coordinator_order() -> None:
+    system = MultiAgentSystem()
+    seen: list[str] = []
+
+    first = _agent("first")
+    second = _agent("second")
+
+    first.militocracy.discipline_score = 0.1
+    first.militocracy.ideaqualityscore = 0.1
+    first.synergy.collectivealignmentscore = 0.1
+
+    second.militocracy.discipline_score = 0.9
+    second.militocracy.ideaqualityscore = 0.9
+    second.synergy.collectivealignmentscore = 0.9
+
+    def _wrap(agent: NCAAgent) -> None:
+        original = agent.step
+
+        def _tracked_step() -> dict[str, object]:
+            seen.append(getattr(agent, "agent_id", "unknown"))
+            return original()
+
+        agent.step = _tracked_step  # type: ignore[assignment]
+
+    _wrap(first)
+    _wrap(second)
+
+    system.add_agent(first)
+    system.add_agent(second)
+
+    system.step_all()
+
+    assert seen[0] == "second"

@@ -39,6 +39,7 @@ class MilitocracyEngine:
         self.discipline_score = max(0.0, min(1.0, 0.5 * self.militarydisciplinescore + 0.3 * self.command_coherence + 0.2 * self.discipline_bias))
         self.ideaqualityscore = max(0.0, min(1.0, 0.5 * self.command_coherence + 0.5 * self.discipline_bias))
         self.execution_priority = max(0.0, min(1.0, 0.6 * self.discipline_score + 0.4 * self.ideaqualityscore))
+        # TODO(Phase 15): use override_signal to drive explicit coordinator preemption policies.
         self.override_signal = self.execution_priority >= 0.85
 
         # 4. Update trace

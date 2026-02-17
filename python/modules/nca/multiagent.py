@@ -45,6 +45,7 @@ class MultiAgentSystem:
     collectivemilitocracy: float = 0.5
     sharedgoalpressure: float = 0.5
     coordinator: GlobalTickCoordinator = field(default_factory=GlobalTickCoordinator)
+    execution_order: list[str] = field(default_factory=list)
 
     def add_agent(self, agent: NCAAgent, *, agent_id: str | None = None) -> None:
         resolved_id = agent_id or getattr(agent.orientation, "identity", None) or f"agent-{len(self.agents)}"
@@ -69,14 +70,9 @@ class MultiAgentSystem:
     def step_all(self) -> list[dict[str, Any]]:
         step_events: list[dict[str, Any]] = []
         prior_collective = self.collective_state()
-        tick_context = self.coordinator.tick(prior_collective)
-        execution_order = set(tick_context.execution_order)
-        ordered_agents = sorted(
-            self.agents,
-            key=lambda agent: tick_context.execution_order.index(getattr(agent, "agent_id", "unknown"))
-            if getattr(agent, "agent_id", "unknown") in execution_order
-            else len(self.agents),
-        )
+        ordered_agents = self.coordinator.compute_execution_order(prior_collective)
+        tick_context = self.coordinator.prepare_tick(prior_collective)
+        self.execution_order = list(tick_context.execution_order)
 
         for agent in ordered_agents:
             agent.collective_state = {
@@ -92,7 +88,7 @@ class MultiAgentSystem:
 
         distributed = self.broadcast_signals()
         collective = self.collective_state()
-        collective["execution_order"] = tick_context.execution_order
+        collective["execution_order"] = list(self.execution_order)
         collective["recent_events"] = [dict(e) for e in step_events[-20:]]
         collective["distributed_signals"] = distributed
 
@@ -298,6 +294,7 @@ class MultiAgentSystem:
             "collectivesynergy": self.collectivesynergy,
             "collectivemilitocracy": self.collectivemilitocracy,
             "sharedgoalpressure": self.sharedgoalpressure,
+            "execution_order": list(self.execution_order),
             "collectiveagencyshift": self.collectiveagencylevel > 0.65,
             "collectiveintentshift": self.collectiveintentalignment < 0.6,
             "collectiveautonomyshift": self.collectiveautonomylevel > 0.62,
