@@ -156,18 +156,17 @@ class RttSession(Generic[MessageT]):
 
     def _on_overflow(self, message: MessageT, priority: int = 5) -> None:
         self._bump(overflow_events=1)
-        queue = self._priority_queue if self.config.enable_priority_queue else self._queue
         if self.config.backpressure_policy == "dropoldest":
-            queue.popleft()
             if self.config.enable_priority_queue:
-                queue.append((priority, message))
-                queue = deque(sorted(queue, key=lambda item: item[0], reverse=True))
-                self._priority_queue = queue
+                self._priority_queue.popleft()
+                self._enqueue_priority(message, priority)
                 if priority >= 8:
                     self._bump(high_priority_dropped=0)
             else:
-                queue.append(message)
-            self._bump(enqueued=1, dropped_oldest=1)
+                self._queue.popleft()
+                self._queue.append(message)
+                self._bump(enqueued=1)
+            self._bump(dropped_oldest=1)
             return
         if self.config.backpressure_policy == "dropnewest":
             self._bump(dropped_newest=1)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 import math
-from typing import Callable, Deque
+from typing import Any, Callable, Deque
 
 
 @dataclass
@@ -68,19 +68,19 @@ class AlertManager:
     """Пороговые алерты для метрик governance."""
 
     def __init__(self) -> None:
-        self._alert_handlers: list[Callable[[list[dict[str, float | str]]], None]] = []
-        self._thresholds = {
+        self._alert_handlers: list[Callable[[list[dict[str, Any]]], None]] = []
+        self._thresholds: dict[str, dict[str, float]] = {
             "regulator_volatility": {"warning": 0.5, "critical": 0.8},
             "transport_failover_count": {"warning": 5, "critical": 20},
             "priority_queue_backlog": {"warning": 100, "critical": 500},
             "transport_error_rate": {"warning": 0.01, "critical": 0.05},
         }
 
-    def register_alert_handler(self, handler: Callable[[list[dict[str, float | str]]], None]) -> None:
+    def register_alert_handler(self, handler: Callable[[list[dict[str, Any]]], None]) -> None:
         self._alert_handlers.append(handler)
 
-    def check_thresholds(self, metrics: GovernanceMetrics) -> list[dict[str, float | str]]:
-        alerts: list[dict[str, float | str]] = []
+    def check_thresholds(self, metrics: GovernanceMetrics) -> list[dict[str, Any]]:
+        alerts: list[dict[str, Any]] = []
 
         if metrics.regulator_volatility > self._thresholds["regulator_volatility"]["critical"]:
             alerts.append(
