@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
+from itertools import islice
 import logging
 from threading import Lock
 from time import time
@@ -115,6 +116,8 @@ class SignalBusMetrics:
     max_pending_seen: int = 0
     queue_size: int = 0
     tickswithdropped_signals: int = 0
+    avgbatchsize: float = 0.0
+    queuepeakper_tick: int = 0
 
 
 class DeterministicSignalBus(CollectiveSignalBus):
@@ -188,20 +191,24 @@ class DeterministicSignalBus(CollectiveSignalBus):
         self._enqueue("broadcast", signal, {})
 
     def process_tick(self) -> list[InternalSignal]:
+        if not self._pending:
+            return []
+
         dropped_before_tick = 0
         with self._lock:
             if self._processing:
                 return []
             self._processing = True
             dropped_before_tick = self.metrics.total_dropped
-            batch_size = min(self.max_signals_per_tick, len(self._pending))
-            batch = [self._pending.popleft() for _ in range(batch_size)]
+            self.metrics.queuepeakper_tick = max(self.metrics.queuepeakper_tick, len(self._pending))
+            batch = list(islice(self._pending, self.max_signals_per_tick))
+            for _ in range(len(batch)):
+                self._pending.popleft()
             self.metrics.queue_size = len(self._pending)
 
-        processed: list[InternalSignal] = []
+        processed = [signal for _, signal, _ in batch]
         try:
             for mode, signal, kwargs in batch:
-                processed.append(signal)
                 if mode == "local":
                     super().emit_local(signal, target_agent_id=kwargs["target_agent_id"])
                 elif mode == "group":
@@ -210,6 +217,12 @@ class DeterministicSignalBus(CollectiveSignalBus):
                     super().emit_broadcast(signal)
         finally:
             with self._lock:
+                total_processed_before = self.metrics.total_processed
+                if processed:
+                    self.metrics.avgbatchsize = (
+                        (self.metrics.avgbatchsize * total_processed_before + len(processed))
+                        / (total_processed_before + len(processed))
+                    )
                 self.metrics.total_processed += len(processed)
                 if self.metrics.total_dropped > dropped_before_tick:
                     self.metrics.tickswithdropped_signals += 1

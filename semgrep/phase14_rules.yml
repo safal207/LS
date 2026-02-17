@@ -68,3 +68,13 @@ rules:
       - metavariable-comparison:
           metavariable: $F
           comparison: str($F) != "DeterministicSignalBus"
+
+  - id: deterministic-bus-batch-must-use-islice
+    message: "Batch processing must use itertools.islice() for performance."
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - python/modules/nca/signals.py
+    patterns:
+      - pattern: "[$X.popleft() for ... in range($N)]"
