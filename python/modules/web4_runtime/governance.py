@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections import deque
-from dataclasses import dataclass
 import math
+from collections import deque
+from dataclasses import dataclass, field
 from typing import Any, Callable, Deque
 
 
@@ -17,51 +17,51 @@ class GovernanceMetrics:
     priority_inversion_count: int = 0
 
 
+@dataclass
 class AdaptiveGovernor:
-    """Динамическая настройка параметров регулятора на основе волатильности."""
-
-    def __init__(
-        self,
-        alpha_min: float = 0.2,
-        alpha_max: float = 0.5,
-        volatility_window: int = 100,
-    ) -> None:
-        self.alpha_min = alpha_min
-        self.alpha_max = alpha_max
-        self._throughput_history: Deque[float] = deque(maxlen=volatility_window)
-        self._prev_alpha = 0.3
+    alpha_min: float = 0.2
+    alpha_max: float = 0.5
+    volatility_window: int = 100
+    _window: Deque[float] = field(default_factory=deque, init=False)
+    _alpha: float = field(default=0.3, init=False)
+    _count: int = field(default=0, init=False)
+    _mean: float = field(default=0.0, init=False)
+    _m2: float = field(default=0.0, init=False)
 
     def compute_adaptive_alpha(self, current_throughput: float) -> float:
-        self._throughput_history.append(current_throughput)
+        self._count += 1
+        delta = current_throughput - self._mean
+        self._mean += delta / self._count
+        delta2 = current_throughput - self._mean
+        self._m2 += delta * delta2
 
-        if len(self._throughput_history) < 10:
-            return 0.3
+        self._window.append(current_throughput)
+        if len(self._window) > self.volatility_window:
+            self._window.popleft()
 
-        volatility = self._compute_volatility()
+        if self._count < 10:
+            self._alpha = 0.3
+            return self._alpha
 
-        if volatility > 0.5:
-            alpha = self.alpha_max
-        elif volatility < 0.2:
-            alpha = self.alpha_min
-        else:
-            alpha = self.alpha_min + (volatility - 0.2) * (self.alpha_max - self.alpha_min) / 0.3
+        variance = max(0.0, self._m2 / self._count)
+        volatility = math.sqrt(variance) / max(0.001, abs(self._mean))
 
-        self._prev_alpha = alpha
-        return alpha
+        target_alpha = self.alpha_max - (volatility * (self.alpha_max - self.alpha_min))
+        self._alpha = min(self.alpha_max, max(self.alpha_min, target_alpha))
+        return self._alpha
+
+    @property
+    def alpha(self) -> float:
+        return self._alpha
 
     def get_metrics(self) -> GovernanceMetrics:
+        variance = max(0.0, self._m2 / self._count) if self._count else 0.0
+        volatility = math.sqrt(variance) / max(0.001, abs(self._mean)) if self._count else 0.0
         return GovernanceMetrics(
-            regulator_volatility=self._compute_volatility(),
-            regulator_alpha_current=self._prev_alpha,
+            regulator_volatility=volatility,
+            regulator_alpha_current=self._alpha,
             regulator_adjustment_velocity=0.0,
         )
-
-    def _compute_volatility(self) -> float:
-        if len(self._throughput_history) < 10:
-            return 0.0
-        mean = sum(self._throughput_history) / len(self._throughput_history)
-        variance = sum((x - mean) ** 2 for x in self._throughput_history) / len(self._throughput_history)
-        return math.sqrt(variance) / max(0.001, mean)
 
 
 class AlertManager:

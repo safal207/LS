@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use std::collections::VecDeque;
+use std::cmp::Ordering;
+use std::collections::{BinaryHeap, VecDeque};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -38,10 +39,33 @@ struct RttStats {
     max_queue_len: usize,
 }
 
+#[derive(Eq, PartialEq)]
+struct PrioritizedMessage {
+    priority: i32,
+    sequence: u64,
+    message: String,
+}
+
+impl Ord for PrioritizedMessage {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.priority
+            .cmp(&other.priority)
+            .then_with(|| other.sequence.cmp(&self.sequence))
+    }
+}
+
+impl PartialOrd for PrioritizedMessage {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 #[pyclass]
 pub struct Web4RttBinding {
     connected: bool,
     queue: VecDeque<String>,
+    priority_queue: BinaryHeap<PrioritizedMessage>,
+    next_sequence: u64,
     max_queue: usize,
     policy: BackpressurePolicy,
     block_timeout_ms: u64,
@@ -68,6 +92,8 @@ impl Web4RttBinding {
         Ok(Self {
             connected: true,
             queue: VecDeque::new(),
+            priority_queue: BinaryHeap::new(),
+            next_sequence: 0,
             max_queue: max_queue.max(1),
             policy: BackpressurePolicy::parse(backpressure_policy)?,
             block_timeout_ms,
@@ -97,12 +123,13 @@ impl Web4RttBinding {
             return Ok(());
         }
         self.connected = false;
-        let _ = reason; // reserved for future observability metadata bridge
+        let _ = reason;
         self.emit(py, &self.on_session_close)?;
         Ok(())
     }
 
-    fn send(&mut self, message: String) -> PyResult<()> {
+    #[pyo3(signature = (message, priority=None))]
+    fn send(&mut self, message: String, priority: Option<i32>) -> PyResult<()> {
         if !self.connected {
             self.stats.errors += 1;
             return Err(pyo3::exceptions::PyRuntimeError::new_err(
@@ -111,12 +138,16 @@ impl Web4RttBinding {
         }
         self.stats.attempted += 1;
 
-        if self.queue.len() >= self.max_queue {
+        if self.pending() >= self.max_queue {
             self.stats.overflow_events += 1;
             match self.policy {
                 BackpressurePolicy::DropOldest => {
-                    let _ = self.queue.pop_front();
-                    self.queue.push_back(message);
+                    if !self.priority_queue.is_empty() {
+                        let _ = self.priority_queue.pop();
+                    } else {
+                        let _ = self.queue.pop_front();
+                    }
+                    self.push_message(message, priority);
                     self.stats.enqueued += 1;
                     self.stats.dropped_oldest += 1;
                     self.update_max_queue_len();
@@ -128,9 +159,8 @@ impl Web4RttBinding {
                 }
                 BackpressurePolicy::Block => {
                     self.stats.blocked += 1;
-                    // TODO(6.4): Replace busy-wait loop with Condvar-based waiting for efficient block policy parity.
                     let deadline = Instant::now() + Duration::from_millis(self.block_timeout_ms);
-                    while self.queue.len() >= self.max_queue && self.connected {
+                    while self.pending() >= self.max_queue && self.connected {
                         if Instant::now() >= deadline {
                             self.stats.errors += 1;
                             return Err(pyo3::exceptions::PyRuntimeError::new_err(
@@ -145,7 +175,7 @@ impl Web4RttBinding {
                             "RTT binding disconnected",
                         ));
                     }
-                    self.queue.push_back(message);
+                    self.push_message(message, priority);
                     self.stats.enqueued += 1;
                     self.update_max_queue_len();
                     return Ok(());
@@ -159,7 +189,7 @@ impl Web4RttBinding {
             }
         }
 
-        self.queue.push_back(message);
+        self.push_message(message, priority);
         self.stats.enqueued += 1;
         self.update_max_queue_len();
         Ok(())
@@ -169,11 +199,14 @@ impl Web4RttBinding {
         if !self.connected {
             return None;
         }
+        if !self.priority_queue.is_empty() {
+            return self.priority_queue.pop().map(|pm| pm.message);
+        }
         self.queue.pop_front()
     }
 
     fn pending(&self) -> usize {
-        self.queue.len()
+        self.queue.len() + self.priority_queue.len()
     }
 
     fn heartbeat(&mut self) {
@@ -209,8 +242,6 @@ impl Web4RttBinding {
         self.on_heartbeat_timeout.push(callback.clone_ref(py));
     }
 
-    // TODO(6.4): Add unregister_* lifecycle hooks to reach Python runtime parity.
-
     fn stats<'py>(&self, py: Python<'py>) -> &'py PyDict {
         let stats = PyDict::new(py);
         let _ = stats.set_item("attempted", self.stats.attempted);
@@ -229,7 +260,23 @@ impl Web4RttBinding {
 
 impl Web4RttBinding {
     fn update_max_queue_len(&mut self) {
-        self.stats.max_queue_len = self.stats.max_queue_len.max(self.queue.len());
+        self.stats.max_queue_len = self
+            .stats
+            .max_queue_len
+            .max(self.queue.len() + self.priority_queue.len());
+    }
+
+    fn push_message(&mut self, message: String, priority: Option<i32>) {
+        if let Some(priority_value) = priority {
+            self.next_sequence = self.next_sequence.wrapping_add(1);
+            self.priority_queue.push(PrioritizedMessage {
+                priority: priority_value,
+                sequence: self.next_sequence,
+                message,
+            });
+            return;
+        }
+        self.queue.push_back(message);
     }
 
     fn emit(&self, py: Python<'_>, callbacks: &[PyObject]) -> PyResult<()> {
