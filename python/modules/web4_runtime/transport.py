@@ -12,7 +12,8 @@ MessageT = TypeVar("MessageT")
 
 
 class TransportBackend(Protocol, Generic[MessageT]):
-    transport_type: str
+    @property
+    def transport_type(self) -> str: ...
 
     def connect(self) -> None: ...
 
