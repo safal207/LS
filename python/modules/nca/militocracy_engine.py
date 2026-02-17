@@ -19,6 +19,10 @@ class MilitocracyEngine:
     militarydisciplinescore: float = 0.5
     command_coherence: float = 0.5
     discipline_bias: float = 0.5
+    ideaqualityscore: float = 0.5
+    discipline_score: float = 0.5
+    execution_priority: float = 0.5
+    override_signal: bool = False
     discipline_trace: list[dict[str, Any]] = field(default_factory=list)
 
     def update(self, context: UpdateContext) -> dict[str, Any]:
@@ -31,6 +35,12 @@ class MilitocracyEngine:
 
         # 3. Update from culture
         self.update_from_culture(context.culture_snapshot)
+
+        self.discipline_score = max(0.0, min(1.0, 0.5 * self.militarydisciplinescore + 0.3 * self.command_coherence + 0.2 * self.discipline_bias))
+        self.ideaqualityscore = max(0.0, min(1.0, 0.5 * self.command_coherence + 0.5 * self.discipline_bias))
+        self.execution_priority = max(0.0, min(1.0, 0.6 * self.discipline_score + 0.4 * self.ideaqualityscore))
+        # TODO(Phase 15): use override_signal to drive explicit coordinator preemption policies.
+        self.override_signal = self.execution_priority >= 0.85
 
         # 4. Update trace
         snapshot = self.update_trace()
@@ -46,6 +56,10 @@ class MilitocracyEngine:
             "militarydisciplinescore": self.militarydisciplinescore,
             "command_coherence": self.command_coherence,
             "discipline_bias": self.discipline_bias,
+            "ideaqualityscore": self.ideaqualityscore,
+            "discipline_score": self.discipline_score,
+            "execution_priority": self.execution_priority,
+            "override_signal": self.override_signal,
         }
 
     def _get_attr(self, obj: Any, key: str, default: Any) -> Any:
@@ -65,6 +79,10 @@ class MilitocracyEngine:
             "militarydisciplinescore": self.militarydisciplinescore,
             "command_coherence": self.command_coherence,
             "discipline_bias": self.discipline_bias,
+            "ideaqualityscore": self.ideaqualityscore,
+            "discipline_score": self.discipline_score,
+            "execution_priority": self.execution_priority,
+            "override_signal": self.override_signal,
         }
 
     def update_from_autonomy(self, autonomy_engine: Any) -> dict[str, float]:
@@ -78,6 +96,10 @@ class MilitocracyEngine:
             "militarydisciplinescore": self.militarydisciplinescore,
             "command_coherence": self.command_coherence,
             "discipline_bias": self.discipline_bias,
+            "ideaqualityscore": self.ideaqualityscore,
+            "discipline_score": self.discipline_score,
+            "execution_priority": self.execution_priority,
+            "override_signal": self.override_signal,
         }
 
     def update_from_culture(self, culture_engine: Any) -> dict[str, float]:
@@ -96,6 +118,10 @@ class MilitocracyEngine:
             "militarydisciplinescore": self.militarydisciplinescore,
             "command_coherence": self.command_coherence,
             "discipline_bias": self.discipline_bias,
+            "ideaqualityscore": self.ideaqualityscore,
+            "discipline_score": self.discipline_score,
+            "execution_priority": self.execution_priority,
+            "override_signal": self.override_signal,
         }
 
     def update_trace(self) -> dict[str, Any]:
@@ -103,6 +129,10 @@ class MilitocracyEngine:
             "militarydisciplinescore": self.militarydisciplinescore,
             "command_coherence": self.command_coherence,
             "discipline_bias": self.discipline_bias,
+            "ideaqualityscore": self.ideaqualityscore,
+            "discipline_score": self.discipline_score,
+            "execution_priority": self.execution_priority,
+            "override_signal": self.override_signal,
         }
         self.discipline_trace.append(entry)
         if len(self.discipline_trace) > MAX_TRACE_LENGTH:

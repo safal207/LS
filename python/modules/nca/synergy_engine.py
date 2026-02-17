@@ -19,6 +19,9 @@ class SynergyEngine:
     synergy_index: float = 0.5
     cooperative_efficiency: float = 0.5
     collective_synergy: float = 0.5
+    sharedgoalpressure: float = 0.5
+    cooperative_priority: float = 0.5
+    collectivealignmentscore: float = 0.5
     synergy_trace: list[dict[str, Any]] = field(default_factory=list)
 
     def update(self, context: UpdateContext) -> dict[str, Any]:
@@ -46,6 +49,9 @@ class SynergyEngine:
             "synergy_index": self.synergy_index,
             "cooperative_efficiency": self.cooperative_efficiency,
             "collective_synergy": self.collective_synergy,
+            "sharedgoalpressure": self.sharedgoalpressure,
+            "cooperative_priority": self.cooperative_priority,
+            "collectivealignmentscore": self.collectivealignmentscore,
         }
 
     def _get_attr(self, obj: Any, key: str, default: Any) -> Any:
@@ -65,6 +71,9 @@ class SynergyEngine:
             "synergy_index": self.synergy_index,
             "cooperative_efficiency": self.cooperative_efficiency,
             "collective_synergy": self.collective_synergy,
+            "sharedgoalpressure": self.sharedgoalpressure,
+            "cooperative_priority": self.cooperative_priority,
+            "collectivealignmentscore": self.collectivealignmentscore,
         }
 
     def update_from_culture(self, culture: Any) -> dict[str, float]:
@@ -87,15 +96,27 @@ class SynergyEngine:
             "synergy_index": self.synergy_index,
             "cooperative_efficiency": self.cooperative_efficiency,
             "collective_synergy": self.collective_synergy,
+            "sharedgoalpressure": self.sharedgoalpressure,
+            "cooperative_priority": self.cooperative_priority,
+            "collectivealignmentscore": self.collectivealignmentscore,
         }
 
     def update_from_collective(self, multi: Any) -> dict[str, float]:
         # Cleanly read from the pre-computed collective state in MultiAgentSystem
         self.collective_synergy = float(self._get_attr(multi, "collectivesynergy", 0.5))
+        self.sharedgoalpressure = float(self._get_attr(multi, "sharedgoalpressure", 0.5))
+        self.collectivealignmentscore = float(self._get_attr(multi, "collectivemetaalignment", self.synergy_index))
+        self.cooperative_priority = max(
+            0.0,
+            min(1.0, 0.6 * self.cooperative_efficiency + 0.4 * self.sharedgoalpressure),
+        )
         return {
             "synergy_index": self.synergy_index,
             "cooperative_efficiency": self.cooperative_efficiency,
             "collective_synergy": self.collective_synergy,
+            "sharedgoalpressure": self.sharedgoalpressure,
+            "cooperative_priority": self.cooperative_priority,
+            "collectivealignmentscore": self.collectivealignmentscore,
         }
 
     def update_trace(self) -> dict[str, Any]:
@@ -103,6 +124,9 @@ class SynergyEngine:
             "synergy_index": self.synergy_index,
             "cooperative_efficiency": self.cooperative_efficiency,
             "collective_synergy": self.collective_synergy,
+            "sharedgoalpressure": self.sharedgoalpressure,
+            "cooperative_priority": self.cooperative_priority,
+            "collectivealignmentscore": self.collectivealignmentscore,
         }
         self.synergy_trace.append(entry)
         if len(self.synergy_trace) > MAX_TRACE_LENGTH:

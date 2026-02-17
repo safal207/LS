@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
+import logging
+from threading import Lock
 from time import time
 from typing import Any, Callable
 
@@ -13,6 +16,8 @@ COLLECTIVE_RISK_DETECTED = "collective_risk_detected"
 COORDINATION_REQUIRED = "coordination_required"
 MULTIAGENT_DRIFT = "multiagent_drift"
 COLLECTIVE_GOAL_CONFLICT = "collectivegoalconflict"
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -98,3 +103,100 @@ class CollectiveSignalBus(SignalBus):
         if source is None:
             signal.payload["sourceagentid"] = "system"
         self.emit_broadcast(signal)
+
+
+@dataclass
+class SignalBusMetrics:
+    """Operational counters for deterministic signal processing."""
+
+    total_emitted: int = 0
+    total_processed: int = 0
+    total_dropped: int = 0
+    max_pending_seen: int = 0
+
+
+class DeterministicSignalBus(CollectiveSignalBus):
+    """Deterministic, FIFO, non-reentrant signal bus with per-tick batching."""
+
+    def __init__(
+        self,
+        *,
+        max_signals_per_tick: int = 10_000,
+        max_queue_size: int = 100_000,
+    ) -> None:
+        """Initialize deterministic bus with bounded per-tick processing.
+
+        Args:
+            max_signals_per_tick: Maximum signals processed in a single `process_tick()` call.
+                - 1_000: low-latency, small meshes (<100 agents)
+                - 10_000: default, medium meshes (100-1000 agents)
+                - 100_000: high-throughput, large meshes (1000+ agents)
+            max_queue_size: Hard queue bound for pending signals. New signals above this limit
+                are dropped and counted in `metrics.total_dropped`.
+
+        Note:
+            Signals over the per-tick limit remain queued for subsequent ticks.
+            Monitor `metrics.max_pending_seen` and pending queue size to tune capacity.
+        """
+        super().__init__()
+        self._pending: deque[tuple[str, InternalSignal, dict[str, str]]] = deque()
+        self._processing: bool = False
+        self._lock = Lock()
+        self.max_signals_per_tick = max_signals_per_tick
+        self.max_queue_size = max_queue_size
+        self.metrics = SignalBusMetrics()
+
+    def _enqueue(self, mode: str, signal: InternalSignal, kwargs: dict[str, str]) -> None:
+        with self._lock:
+            pending_size = len(self._pending)
+            if pending_size >= self.max_queue_size:
+                self.metrics.total_dropped += 1
+                return
+            if pending_size >= int(self.max_queue_size * 0.9):
+                logger.warning(
+                    "DeterministicSignalBus queue near capacity: %s/%s",
+                    pending_size,
+                    self.max_queue_size,
+                )
+            self.metrics.total_emitted += 1
+            self._pending.append((mode, signal, kwargs))
+            self.metrics.max_pending_seen = max(self.metrics.max_pending_seen, len(self._pending))
+
+    def emit_local(self, signal: InternalSignal, *, target_agent_id: str) -> None:
+        self._enqueue("local", signal, {"target_agent_id": target_agent_id})
+
+    def emit_group(self, signal: InternalSignal, *, group_id: str) -> None:
+        self._enqueue("group", signal, {"group_id": group_id})
+
+    def emit_broadcast(self, signal: InternalSignal) -> None:
+        self._enqueue("broadcast", signal, {})
+
+    def emit(self, signal: InternalSignal) -> None:
+        self._enqueue("broadcast", signal, {})
+
+    def process_tick(self) -> list[InternalSignal]:
+        with self._lock:
+            if self._processing:
+                return []
+            self._processing = True
+
+        processed: list[InternalSignal] = []
+        try:
+            while len(processed) < self.max_signals_per_tick:
+                with self._lock:
+                    if not self._pending:
+                        break
+                    mode, signal, kwargs = self._pending.popleft()
+                processed.append(signal)
+                if mode == "local":
+                    super().emit_local(signal, target_agent_id=kwargs["target_agent_id"])
+                elif mode == "group":
+                    super().emit_group(signal, group_id=kwargs["group_id"])
+                else:
+                    super().emit_broadcast(signal)
+        finally:
+            with self._lock:
+                self.metrics.total_processed += len(processed)
+                self._processing = False
+
+        return processed
