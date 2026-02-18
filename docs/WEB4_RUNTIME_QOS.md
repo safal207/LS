@@ -4,6 +4,8 @@ Compatibility alias: `docs/WEB4RUNTIMEQOS.md` (symlink for legacy links).
 
 Web4 RTT queue supports overflow strategies configured by `RttConfig.backpressure_policy`:
 
+Sync (`RttSession`) and async (`AsyncRttSession`) both delegate queue mechanics to `modules.web4_runtime.rtt_queue.RttQueue` to keep ordering, overflow, and compaction behavior identical.
+
 **Config invariant:** `RttConfig.max_queue` must be `>= 1`. Invalid values now raise `ValueError` (Python) / `PyValueError` (Rust binding) instead of being silently clamped.
 
 - `error` — fail fast with `BackpressureError` when queue is full.

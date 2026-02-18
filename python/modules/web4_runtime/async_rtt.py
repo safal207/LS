@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import heapq
-from collections import deque
 from dataclasses import dataclass, field
 from time import monotonic
 from typing import TYPE_CHECKING, Deque, Generic, Optional, TypeVar
 
 from .rtt import BackpressureError, DisconnectedError, RttConfig, RttStats
+from .rtt_queue import RttQueue
 
 if TYPE_CHECKING:
     from .flow import GlobalFlowController
@@ -20,17 +19,17 @@ _PRIORITY_QUEUE_COMPACTION_RATIO = 2
 class AsyncRttSession(Generic[MessageT]):
     config: RttConfig = field(default_factory=RttConfig)
     flow_controller: Optional["GlobalFlowController[AsyncRttSession[MessageT]]"] = None
-    _queue: Deque[MessageT] = field(default_factory=deque, init=False)
-    _priority_queue: list[tuple[int, int, MessageT]] = field(default_factory=list, init=False)
-    _priority_oldest_queue: list[tuple[int, int]] = field(default_factory=list, init=False)
-    _priority_seq: int = field(default=0, init=False)
-    _live_priority_seq: set[int] = field(default_factory=set, init=False)
+    _message_queue: RttQueue[MessageT] = field(init=False)
     _stats: RttStats = field(default_factory=RttStats, init=False)
     _connected: bool = field(default=True, init=False)
     _heartbeat_at: float = field(default_factory=monotonic, init=False)
     _condition: Optional[asyncio.Condition] = field(default=None, init=False)
 
     def __post_init__(self) -> None:
+        self._message_queue = RttQueue(
+            enable_priority_queue=self.config.enable_priority_queue,
+            backpressure_policy=self.config.backpressure_policy,
+        )
         if self.flow_controller is not None:
             self.flow_controller.register_session(self)
 
@@ -45,9 +44,23 @@ class AsyncRttSession(Generic[MessageT]):
 
     @property
     def pending(self) -> int:
-        if self.config.enable_priority_queue:
-            return len(self._queue) + len(self._live_priority_seq)
-        return len(self._queue)
+        return self._message_queue.pending()
+
+    @property
+    def _queue(self) -> Deque[MessageT]:
+        return self._message_queue.fifo
+
+    @property
+    def _priority_queue(self) -> list[tuple[int, int, MessageT]]:
+        return self._message_queue.priority_heap
+
+    @property
+    def _priority_oldest_queue(self) -> list[tuple[int, int]]:
+        return self._message_queue.oldest_heap
+
+    @property
+    def _live_priority_seq(self) -> set[int]:
+        return self._message_queue.live_sequences
 
     @property
     def stats(self) -> RttStats:
@@ -126,10 +139,7 @@ class AsyncRttSession(Generic[MessageT]):
         condition = self._get_condition()
         async with condition:
             self._connected = True
-            self._queue.clear()
-            self._priority_queue.clear()
-            self._priority_oldest_queue.clear()
-            self._live_priority_seq.clear()
+            self._message_queue.clear()
             self._heartbeat_at = monotonic()
             if self.flow_controller is not None:
                 self.flow_controller.on_reset(self)
@@ -153,58 +163,16 @@ class AsyncRttSession(Generic[MessageT]):
             return True
 
     def _enqueue(self, message: MessageT, priority: Optional[int]) -> None:
-        if self.config.enable_priority_queue:
-            self._priority_seq += 1
-            normalized_priority = priority if priority is not None else 0
-            heapq.heappush(self._priority_queue, (-normalized_priority, self._priority_seq, message))
-            if self.config.backpressure_policy == "dropoldest":
-                heapq.heappush(self._priority_oldest_queue, (self._priority_seq, -normalized_priority))
-            self._live_priority_seq.add(self._priority_seq)
-            return
-        self._queue.append(message)
-
-    def _drop_oldest_priority(self) -> bool:
-        while self._priority_oldest_queue:
-            sequence, _ = heapq.heappop(self._priority_oldest_queue)
-            if sequence in self._live_priority_seq:
-                self._live_priority_seq.remove(sequence)
-                return True
-        return False
-
-    def _maybe_compact_priority_queue(self) -> None:
-        if not self._priority_queue:
-            return
-        stale_count = len(self._priority_queue) - len(self._live_priority_seq)
-        if stale_count <= len(self._live_priority_seq) * _PRIORITY_QUEUE_COMPACTION_RATIO:
-            return
-        self._priority_queue = [entry for entry in self._priority_queue if entry[1] in self._live_priority_seq]
-        heapq.heapify(self._priority_queue)
+        self._message_queue.enqueue(message, priority)
 
     def _receive_unlocked(self) -> Optional[MessageT]:
-        if self.config.enable_priority_queue:
-            while self._priority_queue:
-                _, sequence, item = heapq.heappop(self._priority_queue)
-                if sequence in self._live_priority_seq:
-                    self._live_priority_seq.remove(sequence)
-                    return item
-            return None
-        if not self._queue:
-            return None
-        return self._queue.popleft()
+        return self._message_queue.dequeue()
 
     async def _handle_overflow_async(self, *, is_global: bool, message: MessageT, priority: Optional[int]) -> None:
         self._bump(overflow_events=1)
         if self.config.backpressure_policy == "dropoldest":
-            dropped = False
-            if self.config.enable_priority_queue:
-                dropped = self._drop_oldest_priority()
-                if not dropped and self._queue:
-                    self._queue.popleft()
-                    dropped = True
-                self._maybe_compact_priority_queue()
-            elif self._queue:
-                self._queue.popleft()
-                dropped = True
+            dropped = self._message_queue.drop_oldest()
+            self._message_queue.maybe_compact(_PRIORITY_QUEUE_COMPACTION_RATIO)
             if not dropped:
                 self._bump(dropped_newest=1)
                 return

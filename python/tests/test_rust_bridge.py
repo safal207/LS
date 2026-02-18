@@ -90,14 +90,17 @@ def test_basic_instantiation(ghostgpt_core_module, tmp_path):
     loaded = storage.load("test-key")
     assert bytes(loaded) == b"test-value"
 
+@pytest.mark.parametrize("bad_value", [-100, -1, 0])
+def test_web4_rtt_binding_rejects_non_positive_max_queue(ghostgpt_core_module, bad_value):
+    if bad_value == 0:
+        with pytest.raises(ValueError, match=r"max_queue must be >= 1"):
+            ghostgpt_core_module.Web4RttBinding(max_queue=bad_value)
+        return
 
-
-
-def test_web4_rtt_binding_rejects_zero_max_queue(ghostgpt_core_module):
-    with pytest.raises(ValueError, match=r"max_queue must be >= 1"):
-        ghostgpt_core_module.Web4RttBinding(max_queue=0)
     with pytest.raises((TypeError, OverflowError, ValueError)):
-        ghostgpt_core_module.Web4RttBinding(max_queue=-1)
+        ghostgpt_core_module.Web4RttBinding(max_queue=bad_value)
+
+
 def test_web4_rtt_binding(ghostgpt_core_module):
     """Проверяем базовое поведение Web4RttBinding."""
     rtt = ghostgpt_core_module.Web4RttBinding(max_queue=2)

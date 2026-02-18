@@ -16,6 +16,7 @@ This phase introduces `AsyncRttSession` in `python/modules/web4_runtime/async_rt
 - `heartbeat()` / `check_heartbeat_timeout()`
 
 ## Notes
+- Queue semantics are shared with sync RTT via `modules.web4_runtime.rtt_queue.RttQueue`.
 - Uses `asyncio.Condition` (no busy-spin loops).
 - Disconnect notifies waiters to unblock blocked producers/consumers.
 - Global admission waits are synchronized via `GlobalFlowController.wait_for_available_space(...)`.

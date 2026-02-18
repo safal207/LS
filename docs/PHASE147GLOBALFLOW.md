@@ -53,3 +53,4 @@ Session.send -> local queue has room -> GlobalFlowController.try_enqueue=False -
 
 - `on_dequeue` and `on_reset` emit free-space notifications.
 - Notifications are exposed for both sync waiters and async waiters (`notify_available_space`).
+- Async notifications are dispatched through a controller-owned `asyncio.Condition` and loop-safe callbacks.

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import heapq
-from collections import deque
 from dataclasses import dataclass, field
 from threading import Condition
 from time import monotonic
-from typing import TYPE_CHECKING, Any, Callable, Deque, Generic, Iterable, Literal, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Deque, Generic, Iterable, Optional, TypeVar
+
+from .rtt_queue import BackpressurePolicy, RttQueue
 
 _PRIORITY_QUEUE_COMPACTION_RATIO = 2
 
@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 
 
 MessageT = TypeVar("MessageT")
-BackpressurePolicy = Literal["dropoldest", "dropnewest", "block", "error"]
 LifecycleHook = Callable[[int], None]
 
 
@@ -72,12 +71,7 @@ class RttSession(Generic[MessageT]):
     config: RttConfig = field(default_factory=RttConfig)
     observability: Optional["ObservabilityHub"] = None
     flow_controller: Optional["GlobalFlowController[RttSession[MessageT]]"] = None
-    _queue: Deque[MessageT] = field(default_factory=deque, init=False)
-    _priority_queue: list[tuple[int, int, MessageT]] = field(default_factory=list, init=False)
-    _priority_oldest_queue: list[tuple[int, int]] = field(default_factory=list, init=False)
-    _priority_seq: int = field(default=0, init=False)
-    _live_priority_seq: set[int] = field(default_factory=set, init=False)
-    _dropped_priority_count: int = field(default=0, init=False)
+    _message_queue: RttQueue[MessageT] = field(init=False)
     _connected: bool = field(default=True, init=False)
     _stats: RttStats = field(default_factory=RttStats, init=False)
     _condition: Condition = field(default_factory=Condition, init=False)
@@ -89,6 +83,10 @@ class RttSession(Generic[MessageT]):
     _emitting: bool = field(default=False, init=False)
 
     def __post_init__(self) -> None:
+        self._message_queue = RttQueue(
+            enable_priority_queue=self.config.enable_priority_queue,
+            backpressure_policy=self.config.backpressure_policy,
+        )
         if self.flow_controller is not None:
             self.flow_controller.register_session(self)
 
@@ -98,9 +96,23 @@ class RttSession(Generic[MessageT]):
 
     @property
     def pending(self) -> int:
-        if self.config.enable_priority_queue:
-            return len(self._live_priority_seq) + len(self._queue)
-        return len(self._queue)
+        return self._message_queue.pending()
+
+    @property
+    def _queue(self) -> Deque[MessageT]:
+        return self._message_queue.fifo
+
+    @property
+    def _priority_queue(self) -> list[tuple[int, int, MessageT]]:
+        return self._message_queue.priority_heap
+
+    @property
+    def _priority_oldest_queue(self) -> list[tuple[int, int]]:
+        return self._message_queue.oldest_heap
+
+    @property
+    def _live_priority_seq(self) -> set[int]:
+        return self._message_queue.live_sequences
 
     @property
     def stats(self) -> RttStats:
@@ -160,49 +172,13 @@ class RttSession(Generic[MessageT]):
             self._condition.notify_all()
 
     def _enqueue(self, message: MessageT, priority: Optional[int]) -> None:
-        if self.config.enable_priority_queue:
-            self._priority_seq += 1
-            normalized_priority = priority if priority is not None else 0
-            heapq.heappush(self._priority_queue, (-normalized_priority, self._priority_seq, message))
-            if self.config.backpressure_policy == "dropoldest":
-                heapq.heappush(self._priority_oldest_queue, (self._priority_seq, -normalized_priority))
-            self._live_priority_seq.add(self._priority_seq)
-            return
-        self._queue.append(message)
-
-    def _drop_oldest_priority(self) -> bool:
-        while self._priority_oldest_queue:
-            sequence, _ = heapq.heappop(self._priority_oldest_queue)
-            if sequence in self._live_priority_seq:
-                self._live_priority_seq.remove(sequence)
-                self._dropped_priority_count += 1
-                return True
-        return False
-
-    def _maybe_compact_priority_queue(self) -> None:
-        """Remove stale lazy-deleted heap entries when stale dominates live entries."""
-        if not self._priority_queue:
-            return
-        stale_count = len(self._priority_queue) - len(self._live_priority_seq)
-        if stale_count <= len(self._live_priority_seq) * _PRIORITY_QUEUE_COMPACTION_RATIO:
-            return
-        self._priority_queue = [entry for entry in self._priority_queue if entry[1] in self._live_priority_seq]
-        heapq.heapify(self._priority_queue)
-        self._dropped_priority_count = 0
+        self._message_queue.enqueue(message, priority)
 
     def _handle_overflow(self, *, is_global: bool, message: MessageT, priority: Optional[int] = None) -> None:
         self._bump(overflow_events=1)
         if self.config.backpressure_policy == "dropoldest":
-            actually_dropped = False
-            if self.config.enable_priority_queue:
-                actually_dropped = self._drop_oldest_priority()
-                if not actually_dropped and self._queue:
-                    self._queue.popleft()
-                    actually_dropped = True
-                self._maybe_compact_priority_queue()
-            elif self._queue:
-                self._queue.popleft()
-                actually_dropped = True
+            actually_dropped = self._message_queue.drop_oldest()
+            self._message_queue.maybe_compact(_PRIORITY_QUEUE_COMPACTION_RATIO)
 
             if not actually_dropped:
                 self._bump(dropped_newest=1)
@@ -277,19 +253,9 @@ class RttSession(Generic[MessageT]):
         with self._condition:
             if not self._connected:
                 raise DisconnectedError("RTT session is disconnected")
-            if self.config.enable_priority_queue:
-                while self._priority_queue:
-                    _, sequence, item = heapq.heappop(self._priority_queue)
-                    if sequence in self._live_priority_seq:
-                        self._live_priority_seq.remove(sequence)
-                        if self.flow_controller is not None:
-                            self.flow_controller.on_dequeue(self)
-                        self._condition.notify_all()
-                        return item
+            item = self._message_queue.dequeue()
+            if item is None:
                 return None
-            if not self._queue:
-                return None
-            item = self._queue.popleft()
             if self.flow_controller is not None:
                 self.flow_controller.on_dequeue(self)
             self._condition.notify_all()
@@ -328,11 +294,7 @@ class RttSession(Generic[MessageT]):
             if self._connected:
                 return
             self._connected = True
-            self._queue.clear()
-            self._priority_queue.clear()
-            self._priority_oldest_queue.clear()
-            self._live_priority_seq.clear()
-            self._dropped_priority_count = 0
+            self._message_queue.clear()
             self._heartbeat_at = monotonic()
             if self.flow_controller is not None:
                 self.flow_controller.on_reset(self)
