@@ -11,11 +11,11 @@ Sync (`RttSession`) and async (`AsyncRttSession`) both delegate queue mechanics 
 - `error` — fail fast with `BackpressureError` when queue is full.
 - `dropoldest` — evict oldest queued message and accept the new one.
 - `dropnewest` — keep queued messages, drop incoming message.
-- `block` — wait for free slot via `Condition.wait_for(...)` up to `RttConfig.block_timeout_s`.
+- `block` — wait for free slot via condition wait up to `RttConfig.block_timeout_s`.
 
 ## Block policy behavior
 
-- Uses predicate-based `wait_for` (no busy spin in Python implementation).
+- Uses blocking condition waits (no fixed 10ms polling loop).
 - Handles spurious wakeups safely.
 - Disconnect during blocking wait exits with `DisconnectedError`.
 - Timeout exits with `BackpressureError("RTT backpressure: block timeout")`.

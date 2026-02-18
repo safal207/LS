@@ -12,6 +12,13 @@ class _SessionRef:
     pass
 
 
+class _NonWeakrefSession:
+    __slots__ = ("marker",)
+
+    def __init__(self, marker: str) -> None:
+        self.marker = marker
+
+
 def test_global_flow_fixed_limits() -> None:
     flow = GlobalFlowController(total_limit=3, per_session_limit=2, strategy="fixed")
     s1 = _SessionRef()
@@ -215,3 +222,62 @@ def test_flow_cleanup_stress_threadsafe() -> None:
 
     assert errors == []
     assert flow.total_pending == 0
+
+
+def test_managed_session_unregisters_non_weakrefable_session() -> None:
+    flow = GlobalFlowController(total_limit=8, per_session_limit=4)
+    session = _NonWeakrefSession("s")
+
+    with flow.managed_session(session):
+        assert flow.active_sessions == 1
+        assert flow.can_enqueue(session) is True
+        assert flow.try_enqueue(session) is True
+        assert flow.total_pending == 1
+
+    assert flow.active_sessions == 0
+    assert flow.total_pending == 0
+
+
+def test_wait_for_available_space_observes_epoch_changes() -> None:
+    async def scenario() -> None:
+        flow = GlobalFlowController(total_limit=2, per_session_limit=2)
+        session = _SessionRef()
+        flow.register_session(session)
+        assert flow.try_enqueue(session) is True
+
+        before = flow.current_space_epoch()
+        flow.on_dequeue(session)
+        woke = await flow.wait_for_available_space(0.05, after_epoch=before)
+        assert woke is True
+
+    import asyncio
+
+    asyncio.run(scenario())
+
+
+def test_total_pending_tolerates_weakref_gc_churn() -> None:
+    flow = GlobalFlowController(total_limit=2_000, per_session_limit=2_000)
+    sessions = [_SessionRef() for _ in range(600)]
+    for session in sessions:
+        flow.register_session(session)
+        assert flow.try_enqueue(session) is True
+
+    errors: list[BaseException] = []
+    stop = threading.Event()
+
+    def reader() -> None:
+        try:
+            while not stop.is_set():
+                _ = flow.total_pending
+        except BaseException as exc:  # pragma: no cover - diagnostic path
+            errors.append(exc)
+
+    worker = threading.Thread(target=reader)
+    worker.start()
+    del sessions
+    gc.collect()
+    time.sleep(0.03)
+    stop.set()
+    worker.join(timeout=1.0)
+
+    assert errors == []

@@ -221,10 +221,15 @@ class AsyncRttSession(Generic[MessageT]):
                 if remaining <= 0:
                     break
                 if is_global and self.flow_controller is not None:
-                    # Wait on global free-slot notifications without polling.
+                    # Capture the current notification epoch to avoid missed wakeups
+                    # if a free-slot signal happens between local unlock and wait start.
+                    epoch = self.flow_controller.current_space_epoch()
                     condition.release()
                     try:
-                        woke = await self.flow_controller.wait_for_available_space(remaining)
+                        woke = await self.flow_controller.wait_for_available_space(
+                            remaining,
+                            after_epoch=epoch,
+                        )
                     finally:
                         await condition.acquire()
                     if not woke:

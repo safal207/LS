@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from threading import Condition, RLock
-from typing import Generic, Literal, TypeVar
+from typing import Generic, Iterator, Literal, TypeVar
 from weakref import WeakKeyDictionary
 
 SessionT = TypeVar("SessionT")
@@ -12,6 +13,8 @@ BackpressureStrategy = Literal["fixed", "proportional"]
 
 @dataclass
 class GlobalFlowController(Generic[SessionT]):
+    """Thread-safe global admission controller shared across RTT sessions."""
+
     total_limit: int = 10_000
     per_session_limit: int = 1_000
     strategy: BackpressureStrategy = "fixed"
@@ -24,6 +27,7 @@ class GlobalFlowController(Generic[SessionT]):
     _space_available: Condition = field(init=False)
     _async_space_available: asyncio.Condition | None = field(default=None, init=False)
     _async_loop: asyncio.AbstractEventLoop | None = field(default=None, init=False)
+    _space_epoch: int = field(default=0, init=False)
 
     def __post_init__(self) -> None:
         self._space_available = Condition(self._lock)
@@ -40,7 +44,16 @@ class GlobalFlowController(Generic[SessionT]):
             return len(self._session_pending) + len(self._strong_pending)
 
     def _total_pending_unlocked(self) -> int:
-        return sum(self._session_pending.values()) + sum(self._strong_pending.values())
+        attempts = 0
+        while attempts < 3:
+            try:
+                weak_values = tuple(self._session_pending.values())
+                break
+            except RuntimeError:
+                attempts += 1
+        else:
+            weak_values = ()
+        return sum(weak_values) + sum(self._strong_pending.values())
 
     def _schedule_async_notify(self) -> None:
         if self._async_space_available is None:
@@ -51,6 +64,7 @@ class GlobalFlowController(Generic[SessionT]):
         loop.create_task(self.notify_available_space())
 
     def _notify_available_space_locked(self) -> None:
+        self._space_epoch += 1
         self._space_available.notify_all()
         loop = self._async_loop
         if loop is None or loop.is_closed():
@@ -75,13 +89,25 @@ class GlobalFlowController(Generic[SessionT]):
         async with condition:
             condition.notify_all()
 
-    async def wait_for_available_space(self, timeout_s: float) -> bool:
+    def current_space_epoch(self) -> int:
+        with self._lock:
+            return self._space_epoch
+
+    async def wait_for_available_space(self, timeout_s: float, *, after_epoch: int | None = None) -> bool:
         condition = self._ensure_async_condition()
+        timeout_s = max(0.0, timeout_s)
         try:
             async with condition:
-                await asyncio.wait_for(condition.wait(), timeout=max(0.0, timeout_s))
+                if after_epoch is not None:
+                    with self._lock:
+                        if self._space_epoch != after_epoch:
+                            return True
+                await asyncio.wait_for(condition.wait(), timeout=timeout_s)
             return True
         except asyncio.TimeoutError:
+            if after_epoch is not None:
+                with self._lock:
+                    return self._space_epoch != after_epoch
             return False
 
     def _cleanup_sid_locked(self, sid: int) -> None:
@@ -159,6 +185,14 @@ class GlobalFlowController(Generic[SessionT]):
             self._refresh_total_pending_locked()
             if pending > 0:
                 self._notify_available_space_locked()
+
+    @contextmanager
+    def managed_session(self, session: SessionT) -> Iterator[SessionT]:
+        self.register_session(session)
+        try:
+            yield session
+        finally:
+            self.unregister_session(session)
 
     def _can_enqueue_unlocked(self, session: SessionT) -> bool:
         current = self._session_pending_locked(session)

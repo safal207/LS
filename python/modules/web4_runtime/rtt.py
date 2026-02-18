@@ -235,7 +235,7 @@ class RttSession(Generic[MessageT]):
                 remaining = max(0.0, deadline - monotonic())
                 if remaining <= 0:
                     break
-                self._condition.wait(timeout=min(remaining, 0.01))
+                self._condition.wait(timeout=remaining)
 
             self._bump(errors=1)
             if not self._connected:

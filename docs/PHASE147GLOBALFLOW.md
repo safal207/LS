@@ -47,6 +47,7 @@ Session.send -> local queue has room -> GlobalFlowController.try_enqueue=False -
 
 - `register_session` / `unregister_session` are explicit lifecycle boundaries.
 - Non-weakref session objects are retained strongly until `unregister_session` is called.
+- `managed_session(session)` is available as a context-manager helper to guarantee unregister on exit.
 - `can_enqueue` is side-effect free and does not auto-register unknown sessions.
 
 ## Space Notifications
@@ -54,3 +55,4 @@ Session.send -> local queue has room -> GlobalFlowController.try_enqueue=False -
 - `on_dequeue` and `on_reset` emit free-space notifications.
 - Notifications are exposed for both sync waiters and async waiters (`notify_available_space`).
 - Async notifications are dispatched through a controller-owned `asyncio.Condition` and loop-safe callbacks.
+- Async waiters use a notification epoch (`current_space_epoch`) to avoid missed wakeups.
