@@ -120,10 +120,10 @@ class GlobalFlowController(Generic[SessionT]):
                 return True
             if timeout_s <= 0:
                 return False
-            self._space_available.wait(timeout=timeout_s)
+            notified = self._space_available.wait(timeout=timeout_s)
             if after_epoch is not None:
                 return self._space_epoch != after_epoch
-            return True
+            return bool(notified)
 
     def _cleanup_sid_locked(self, sid: int) -> None:
         pending = self._strong_pending.pop(sid, 0)
