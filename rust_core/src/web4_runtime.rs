@@ -90,9 +90,10 @@ impl Web4RttBinding {
         heartbeat_timeout_ms: u64,
     ) -> PyResult<Self> {
         if max_queue < 1 {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("RttConfig.max_queue must be >= 1, got {}", max_queue),
-            ));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "RttConfig.max_queue must be >= 1, got {}",
+                max_queue
+            )));
         }
         Ok(Self {
             connected: true,
@@ -249,12 +250,30 @@ impl Web4RttBinding {
         Ok(())
     }
 
+    fn unregister_on_session_open(&mut self, py: Python<'_>, callback: PyObject) {
+        Self::remove_callback(py, &mut self.on_session_open, &callback);
+    }
+
     fn register_on_session_close(&mut self, py: Python<'_>, callback: PyObject) {
         self.on_session_close.push(callback.clone_ref(py));
     }
 
+    fn unregister_on_session_close(&mut self, py: Python<'_>, callback: PyObject) {
+        Self::remove_callback(py, &mut self.on_session_close, &callback);
+    }
+
     fn register_on_heartbeat_timeout(&mut self, py: Python<'_>, callback: PyObject) {
         self.on_heartbeat_timeout.push(callback.clone_ref(py));
+    }
+
+    fn unregister_on_heartbeat_timeout(&mut self, py: Python<'_>, callback: PyObject) {
+        Self::remove_callback(py, &mut self.on_heartbeat_timeout, &callback);
+    }
+
+    fn clear_session_hooks(&mut self) {
+        self.on_session_open.clear();
+        self.on_session_close.clear();
+        self.on_heartbeat_timeout.clear();
     }
 
     fn stats<'py>(&self, py: Python<'py>) -> &'py PyDict {
@@ -264,7 +283,10 @@ impl Web4RttBinding {
         let _ = stats.set_item("accepted", self.stats.enqueued);
         let _ = stats.set_item("dropped_oldest", self.stats.dropped_oldest);
         let _ = stats.set_item("dropped_newest", self.stats.dropped_newest);
-        let _ = stats.set_item("dropped", self.stats.dropped_oldest + self.stats.dropped_newest);
+        let _ = stats.set_item(
+            "dropped",
+            self.stats.dropped_oldest + self.stats.dropped_newest,
+        );
         let _ = stats.set_item("blocked", self.stats.blocked);
         let _ = stats.set_item("errors", self.stats.errors);
         let _ = stats.set_item("overflow_events", self.stats.overflow_events);
@@ -300,5 +322,9 @@ impl Web4RttBinding {
             callback.call1(py, (self.session_id,))?;
         }
         Ok(())
+    }
+
+    fn remove_callback(py: Python<'_>, callbacks: &mut Vec<PyObject>, callback: &PyObject) {
+        callbacks.retain(|existing| !existing.as_ref(py).is(callback.as_ref(py)));
     }
 }

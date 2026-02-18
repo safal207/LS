@@ -179,6 +179,46 @@ def test_web4_rtt_binding_lifecycle_hooks(ghostgpt_core_module):
 
     assert events == [("open", 7), ("close", 7), ("open", 7), ("timeout", 7), ("close", 7)]
 
+
+def test_web4_rtt_binding_unregister_and_clear_hooks(ghostgpt_core_module):
+    events: list[tuple[str, int]] = []
+
+    def on_open(session_id: int) -> None:
+        events.append(("open", session_id))
+
+    def on_close(session_id: int) -> None:
+        events.append(("close", session_id))
+
+    def on_timeout(session_id: int) -> None:
+        events.append(("timeout", session_id))
+
+    rtt = ghostgpt_core_module.Web4RttBinding(max_queue=2, session_id=11, heartbeat_timeout_ms=0)
+    rtt.register_on_session_open(on_open)
+    rtt.register_on_session_close(on_close)
+    rtt.register_on_heartbeat_timeout(on_timeout)
+
+    rtt.unregister_on_session_open(on_open)
+    rtt.unregister_on_session_close(on_close)
+    rtt.unregister_on_heartbeat_timeout(on_timeout)
+
+    rtt.disconnect()
+    rtt.connect()
+    assert rtt.check_heartbeat_timeout() is True
+    assert events == [("open", 11)]
+
+    # Re-register and clear all hooks in one call.
+    rtt = ghostgpt_core_module.Web4RttBinding(max_queue=2, session_id=12, heartbeat_timeout_ms=0)
+    rtt.register_on_session_open(on_open)
+    rtt.register_on_session_close(on_close)
+    rtt.register_on_heartbeat_timeout(on_timeout)
+    rtt.clear_session_hooks()
+
+    # Trigger all lifecycle paths; no new events should be appended.
+    rtt.disconnect()
+    rtt.connect()
+    assert rtt.check_heartbeat_timeout() is True
+    assert events == [("open", 11), ("open", 12)]
+
 def test_optimizer_init_uses_memory_manager_positional_arg(monkeypatch, tmp_path):
     class FakeMemoryManager:
         def __init__(self, *args, **kwargs):
