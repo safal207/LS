@@ -116,7 +116,7 @@ def _run_phase1_sync(config: LoadTestConfig) -> _ScenarioResult:
     errors: list[str] = []
     wakeup_latencies_ms: list[float] = []
 
-    flow = GlobalFlowController(total_limit=1, per_session_limit=1)
+    flow: GlobalFlowController[RttSession[str]] = GlobalFlowController(total_limit=1, per_session_limit=1)
     owner = RttSession[str](
         config=RttConfig(max_queue=2, backpressure_policy="error"),
         flow_controller=flow,
@@ -198,7 +198,10 @@ def _run_phase2_sync(config: LoadTestConfig) -> _ScenarioResult:
     started_at = perf_counter()
     errors: list[str] = []
     rng = Random(config.random_seed)
-    flow = GlobalFlowController(total_limit=config.total_limit, per_session_limit=config.per_session_limit)
+    flow: GlobalFlowController[RttSession[str]] = GlobalFlowController(
+        total_limit=config.total_limit,
+        per_session_limit=config.per_session_limit,
+    )
     sessions = [
         RttSession[str](
             config=RttConfig(
@@ -281,7 +284,7 @@ def _run_phase1_async(config: LoadTestConfig) -> _ScenarioResult:
 
     async def scenario() -> None:
         nonlocal max_total_pending, max_session_pending
-        flow = GlobalFlowController(total_limit=1, per_session_limit=1)
+        flow: GlobalFlowController[AsyncRttSession[str]] = GlobalFlowController(total_limit=1, per_session_limit=1)
         owner = AsyncRttSession[str](
             config=RttConfig(max_queue=2, backpressure_policy="error"),
             flow_controller=flow,
@@ -359,7 +362,10 @@ def _run_phase2_async(config: LoadTestConfig) -> _ScenarioResult:
 
     async def scenario() -> None:
         nonlocal max_total_pending, max_session_pending
-        flow = GlobalFlowController(total_limit=config.total_limit, per_session_limit=config.per_session_limit)
+        flow: GlobalFlowController[AsyncRttSession[str]] = GlobalFlowController(
+            total_limit=config.total_limit,
+            per_session_limit=config.per_session_limit,
+        )
         sessions = [
             AsyncRttSession[str](
                 config=RttConfig(
