@@ -149,10 +149,16 @@ class RttSession(Generic[MessageT]):
                 self._bump(errors=1)
                 raise DisconnectedError("RTT session is disconnected")
             self._bump(attempted=1)
+            flow_blocked = self.flow_controller is not None and not self.flow_controller.can_enqueue(self)
             if self.pending >= self.config.max_queue:
                 self._on_overflow(message, priority)
                 return
+            if flow_blocked:
+                self._on_flow_overflow(message, priority)
+                return
             self._enqueue(message, priority)
+            if self.flow_controller is not None:
+                self.flow_controller.on_enqueue(self)
             self._bump(enqueued=1)
             self._condition.notify_all()
 
@@ -187,6 +193,56 @@ class RttSession(Generic[MessageT]):
         heapq.heapify(self._priority_queue)
         self._dropped_priority_count = 0
 
+    def _on_flow_overflow(self, message: MessageT, priority: Optional[int] = None) -> None:
+        self._bump(overflow_events=1)
+        if self.config.backpressure_policy == "dropoldest":
+            dropped = False
+            if self.config.enable_priority_queue:
+                dropped = self._drop_oldest_priority()
+                self._maybe_compact_priority_queue()
+            elif self._queue:
+                self._queue.popleft()
+                dropped = True
+            if dropped:
+                if self.flow_controller is not None:
+                    self.flow_controller.on_dequeue(self)
+                self._enqueue(message, priority)
+                if self.flow_controller is not None:
+                    self.flow_controller.on_enqueue(self)
+                self._bump(enqueued=1, dropped_oldest=1)
+                return
+            self._bump(dropped_newest=1)
+            return
+        if self.config.backpressure_policy == "dropnewest":
+            self._bump(dropped_newest=1)
+            if priority is not None and priority >= 8:
+                self._bump(high_priority_dropped=1)
+            return
+        if self.config.backpressure_policy == "block":
+            self._bump(blocked=1)
+            deadline = monotonic() + max(0.0, self.config.block_timeout_s)
+
+            def can_enqueue_flow() -> bool:
+                return (not self._connected) or (
+                    self.flow_controller is None or self.flow_controller.can_enqueue(self)
+                )
+
+            remaining = max(0.0, deadline - monotonic())
+            ok = self._condition.wait_for(can_enqueue_flow, timeout=remaining)
+            if not ok or not self._connected:
+                self._bump(errors=1)
+                if not self._connected:
+                    raise DisconnectedError("RTT session is disconnected")
+                raise BackpressureError("RTT backpressure: block timeout")
+
+            self._enqueue(message, priority)
+            if self.flow_controller is not None:
+                self.flow_controller.on_enqueue(self)
+            self._bump(enqueued=1)
+            return
+        self._bump(errors=1)
+        raise BackpressureError("RTT backpressure: queue is full")
+
     def _on_overflow(self, message: MessageT, priority: Optional[int] = None) -> None:
         self._bump(overflow_events=1)
         if self.config.backpressure_policy == "dropoldest":
@@ -197,8 +253,13 @@ class RttSession(Generic[MessageT]):
                         self._queue.popleft()
                 self._maybe_compact_priority_queue()
             else:
-                self._queue.popleft()
+                if self._queue:
+                    self._queue.popleft()
+            if self.flow_controller is not None:
+                self.flow_controller.on_dequeue(self)
             self._enqueue(message, priority)
+            if self.flow_controller is not None:
+                self.flow_controller.on_enqueue(self)
             self._bump(enqueued=1, dropped_oldest=1)
             return
         if self.config.backpressure_policy == "dropnewest":
@@ -211,7 +272,8 @@ class RttSession(Generic[MessageT]):
             deadline = monotonic() + max(0.0, self.config.block_timeout_s)
 
             def can_enqueue() -> bool:
-                return (not self._connected) or (self.pending < self.config.max_queue)
+                flow_ready = self.flow_controller is None or self.flow_controller.can_enqueue(self)
+                return (not self._connected) or (self.pending < self.config.max_queue and flow_ready)
 
             remaining = max(0.0, deadline - monotonic())
             ok = self._condition.wait_for(can_enqueue, timeout=remaining)
@@ -222,6 +284,8 @@ class RttSession(Generic[MessageT]):
                 raise BackpressureError("RTT backpressure: block timeout")
 
             self._enqueue(message, priority)
+            if self.flow_controller is not None:
+                self.flow_controller.on_enqueue(self)
             self._bump(enqueued=1)
             return
         self._bump(errors=1)
@@ -240,12 +304,16 @@ class RttSession(Generic[MessageT]):
                     _, sequence, item = heapq.heappop(self._priority_queue)
                     if sequence in self._live_priority_seq:
                         self._live_priority_seq.remove(sequence)
+                        if self.flow_controller is not None:
+                            self.flow_controller.on_dequeue(self)
                         self._condition.notify_all()
                         return item
                 return None
             if not self._queue:
                 return None
             item = self._queue.popleft()
+            if self.flow_controller is not None:
+                self.flow_controller.on_dequeue(self)
             self._condition.notify_all()
             return item
 
@@ -288,6 +356,8 @@ class RttSession(Generic[MessageT]):
             self._live_priority_seq.clear()
             self._dropped_priority_count = 0
             self._heartbeat_at = monotonic()
+            if self.flow_controller is not None:
+                self.flow_controller.on_reset(self)
             self.reconnects += 1
             reconnects = self.reconnects
             self._condition.notify_all()
