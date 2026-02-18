@@ -2,21 +2,12 @@
 
 This note tracks remaining migration debt before strict Phase 13 enforcement.
 
-## 1) `agent.step()` self-layer migration
+## 1) `agent.step()` self-layer migration (resolved in Phase 13)
 
-- `agent.step()` no longer calls `self_model.update_from_*` or `orientation.update_from_*` directly.
-- Legacy self/orientation update calls were moved to helper:
-  - `python/modules/nca/agent.py` -> `_update_self_layer(...)`
-
-### Self-Model / Orientation (Deferred to Phase 13)
-
-- `self_model.update_from_state(state)`
-- `orientation.update_from_self_model(self.self_model)`
-
-Status:
-- moved out of `agent.step()` into `_update_self_layer()` migration helper,
-- not called directly in the step orchestration path,
-- planned for clean `update(context)` migration in Phase 13.
+- `agent.step()` now calls `self_model.update(context)` directly.
+- `agent.step()` now calls `orientation.update(context)` directly.
+- `_update_self_layer(...)` helper was removed from `python/modules/nca/agent.py`.
+- No `update_from_*` calls remain in orchestration.
 
 ## 2) `primary_intent` context semantics
 
