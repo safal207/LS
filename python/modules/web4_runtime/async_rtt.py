@@ -16,7 +16,7 @@ MessageT = TypeVar("MessageT")
 _PRIORITY_QUEUE_COMPACTION_RATIO = 2
 
 
-@dataclass
+@dataclass(eq=False)
 class AsyncRttSession(Generic[MessageT]):
     config: RttConfig = field(default_factory=RttConfig)
     flow_controller: Optional["GlobalFlowController[AsyncRttSession[MessageT]]"] = None
@@ -286,6 +286,9 @@ class AsyncRttSession(Generic[MessageT]):
         priority_inversions: int = 0,
         high_priority_dropped: int = 0,
     ) -> None:
+        condition = self._get_condition()
+        if not condition.locked():
+            raise RuntimeError("AsyncRttSession._bump must run under condition lock")
         current = self._stats
         self._stats = RttStats(
             attempted=current.attempted + attempted,

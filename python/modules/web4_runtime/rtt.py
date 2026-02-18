@@ -67,7 +67,7 @@ class RttStats:
         return self.dropped_oldest + self.dropped_newest
 
 
-@dataclass
+@dataclass(eq=False)
 class RttSession(Generic[MessageT]):
     config: RttConfig = field(default_factory=RttConfig)
     observability: Optional["ObservabilityHub"] = None
