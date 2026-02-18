@@ -1,8 +1,7 @@
-**Версия:** 0.3 (финальный черновик, готов к коммиту)
+# BOOTSTRAPPING_MECHANISM.md
+**Версия:** 0.5 (готов к коммиту)
 **Дата:** 18 февраля 2026
 **Автор:** Главный архитектор LS
-
----
 
 ### 1. Назначение
 
@@ -33,7 +32,7 @@
 - Начальный Merit = **500** (фиксировано).
 - Временный **Trusted Flag** (действует ровно 90 дней).
 
-### 5. Progressive Merit Accrual (v0.3)
+### 5. Progressive Merit Accrual (v0.5)
 
 ```python
 def initial_merit(age_days: int, performance: float, is_genesis: bool) -> int:
@@ -52,9 +51,17 @@ def initial_merit(age_days: int, performance: float, is_genesis: bool) -> int:
     else:
         multiplier = 1.00
 
-    # performance = successful_tasks / total_tasks за последние min(20, available) задач
-    # Если задач < 5 → фиксировано 0.50 (нейтральный старт)
-    return max(10, int(base * multiplier * performance))
+    raw = base * multiplier * performance
+    return max(10, int(raw))
+```
+
+**performance** = successful_tasks / total_tasks за последние min(20, available) задач.
+Если задач < 5 → фиксировано 0.50.
+
+**Cap на суммарный Merit** (применяется после каждого accrual):
+```python
+if not is_genesis and completed_tasks < 50:
+    merit = min(100, merit)
 ```
 
 ### 6. Initial Routing (Bootstrap Routing)
@@ -69,13 +76,12 @@ def initial_merit(age_days: int, performance: float, is_genesis: bool) -> int:
 - **Social Proof rate limit**: один узел может выдать максимум **5 рекомендаций** за любые 30 дней (+40 Merit новому узлу). Рекомендатель теряет 10 Merit при fraud на рекомендованном узле.
 - Behavioral fingerprinting первых 50 задач.
 
-### 8. Safety Invariants (v0.3)
+### 8. Safety Invariants (v0.5)
 
 1. Суммарный Merit всей сети растёт **только** через реально выполненные и валидированные задачи.
-2. Ни один **не-Genesis** узел не может превысить **Merit = 100 через per-task accrual** без минимум 50 выполненных задач.
-   *(Genesis Nodes — явное исключение с фиксированным стартом 500)*
+2. Ни один **не-Genesis** узел не может превысить Merit = 100 через per-task accrual без минимум 50 выполненных задач (cap применяется к суммарному Merit).
 3. Genesis Nodes автоматически теряют Trusted Flag через 90 дней.
-4. Все изменения правил bootstrap после Phase 1 требуют **минимум 3 из 5 подписей** от публично известных ключей Core Team (ключи опубликованы в `docs/GOVERNANCE_KEYS.md`).
+4. Все изменения правил bootstrap после Phase 1 требуют минимум 3 из 5 подписей от публично известных ключей Core Team.
 
 ### 9. Критерии перехода в Full Meritocracy
 
@@ -91,10 +97,3 @@ def initial_merit(age_days: int, performance: float, is_genesis: bool) -> int:
 - HCP — источник human attestation.
 - Merit Score Engine — вызывается только после завершения bootstrap для конкретного узла.
 - Web4 Mesh Router — получает флаг `is_bootstrapping_mode`.
-
----
-
-**Документ готов.**
-Все 5 блокеров предыдущей версии закрыты, логика согласована, governance имеет минимальную, но реальную семантику.
-
-Можем коммитить как есть или сразу переходить к **MERIT_LEDGER_CONSENSUS.md**.

@@ -1,20 +1,11 @@
-**Версия:** 0.1 (полный черновик)
+# MERIT_LEDGER_CONSENSUS.md
+**Версия:** 0.3 (полный текст)
 **Дата:** 18 февраля 2026
 **Автор:** Главный архитектор LS
-**Статус:** Первый production-ready черновик. Готов к обсуждению и интеграции в Phase 22.
-
----
 
 ### 1. Назначение
 
-Определить распределённый консенсус-протокол для **Global Merit Ledger**, который гарантирует:
-
-- сильную eventual consistency Merit Score при геораспределённых узлах
-- честный и проверяемый расчёт **NetworkEffectBonus** (главный механизм поощрения синергии)
-- защиту от Sybil, fraud и partition-атак
-- прозрачное и предсказуемое поощрение узлов, которые активно делятся данными (LoRA, beliefs, synthetic data)
-
-Протокол специально спроектирован так, чтобы **самое выгодное поведение** в сети — активная синергия.
+Определить распределённый консенсус-протокол для **Global Merit Ledger**, который гарантирует сильную eventual consistency, честный расчёт NetworkEffectBonus и прозрачное поощрение синергии.
 
 ### 2. Threat Model
 
@@ -25,58 +16,48 @@
 - Spam синергии (фейковые обмены)
 - Replay-атаки на gossip
 
-### 3. Design Principles (ключевые)
+### 3. Design Principles
 
-1. **Synergy-first** — узлы, которые активно обмениваются проверенными данными, получают приоритет в консенсусе и больший NetworkEffectBonus.
-2. **Strong eventual consistency** — все узлы в конечном итоге соглашаются с одним и тем же состоянием ledger.
-3. **Economic incentive alignment** — честная синергия всегда выгоднее эгоизма.
-4. **Minimal trust** — протокол работает даже если 70 % узлов ведут себя честно.
+1. Synergy-first — активная синергия даёт приоритет в консенсусе и больший бонус.
+2. Strong eventual consistency.
+3. Economic incentive alignment — честная синергия всегда выгоднее эгоизма.
+4. Minimal trust (работает при ≥70 % честных узлов).
 
-### 4. Общая архитектура протокола
+### 4. Общая архитектура
 
-**Двухслойная модель:**
-
-- **Layer 1 (Soft)** — Gossip (каждые 60 сек) — быстрый обмен deltas
-- **Layer 2 (Strong)** — Periodic Merkle-root Broadcast (каждые 300 сек) — сильная фиксация состояния
+Двухслойная модель:
+- Layer 1 (Soft) — Gossip каждые 60 сек
+- Layer 2 (Strong) — Merkle-root Broadcast каждые 300 сек
 
 ### 5. Формальный протокол
 
 #### 5.1 Gossip Layer
 
-Каждый узел каждые 60 сек рассылает своему neighbour set (20–30 случайных узлов + 5 high-Merit):
-
+Каждые 60 сек узел рассылает neighbour set (20–30 случайных + 5 high-Merit):
 ```python
 message = {
     "node_id": "...",
-    "merit_delta": {...},           # изменения Merit
-    "synergy_proofs": [list of signed exchanges],
+    "merit_delta": {...},
+    "synergy_proofs": [signed exchanges],
     "timestamp": ts,
     "signature": sig
 }
 ```
 
-#### 5.2 Merkle-root Broadcast (Strong Layer)
+#### 5.2 Merkle-root Broadcast
 
-Каждые 300 сек узлы с Merit ≥ 750 становятся **candidate validators**.
-Из них выбирается **leader** по формуле:
-
+Каждые 300 сек выбирается leader:
 ```python
 leader_score = merit * (1 + 2.0 * recent_synergy_ratio)
 ```
 
-**recent_synergy_ratio** = (отданные + подтверждённые адаптеры) / (всего задач за последние 24 ч)
-
-→ Узлы, которые активно участвуют в синергии, имеют **значительно выше шанс** стать leader и получить дополнительный NetworkEffectBonus.
-
 #### 5.3 Conflict Resolution
 
-При получении двух разных Merkle-roots:
+1. Наибольший суммарный Merit подписавших узлов.
+2. Наибольший Synergy Score.
+3. Timestamp как tie-breaker только если разница ≤ 30 секунд (drift проверяется относительно медианы последних 20 gossip-сообщений).
 
-1. Выбирается root с **наибольшим timestamp**.
-2. При равенстве — root с **наибольшим суммарным Merit** подписавших узлов.
-3. При равенстве — root с **наибольшим Synergy Score** (количество подтверждённых обменов внутри root).
-
-### 6. NetworkEffectBonus — как считается (формально)
+### 6. NetworkEffectBonus
 
 ```python
 NetworkEffectBonus = min(0.15,
@@ -85,32 +66,21 @@ NetworkEffectBonus = min(0.15,
 )
 ```
 
-- `verified_given` — адаптеры, которые были приняты и использованы минимум 3 другими узлами
-- `verified_received` — адаптеры от других, которые узел подтвердил и успешно применил
-
-**Поощрение синергии:**
-Узел, который отдал 8 проверенных адаптеров и принял 5, получает почти максимальный бонус + приоритет в выборе leader.
-
 ### 7. Safety Invariants
 
-1. NetworkEffectBonus может быть начислен только за **верифицированные** обмены (подтверждены минимум 3 независимыми узлами).
-2. Узел не может получить > 30 % своего Merit за счёт синергии (защита от «синергия-ферм»).
-3. Все Synergy Proofs хранятся в Merkle-tree и могут быть аудитированы любым узлом.
+1. NetworkEffectBonus начисляется только за верифицированные обмены (3 случайных узла с Merit ≥ 300, выбранных VRF).
+2. Узел не может получить > 30 % Merit за счёт синергии.
+3. Все Synergy Proofs хранятся в Merkle-tree и аудитируемы.
 
 ### 8. Failure Modes и Mitigation
 
-- **Partition > 300 сек** → узлы переходят в local-only mode, используют последний известный Merkle-root.
-- **Sybil flood** → fraud penalty = -200 Merit + 30-дневный quarantine.
-- **Greedy node** (только потребляет) → автоматический -0.12 к NetworkEffectBonus.
+- Partition > 300 сек → local-only mode с последним валидным Merkle-root.
+- Sybil flood → -200 Merit + 30-дневный quarantine.
+- Greedy node → -0.12 к NetworkEffectBonus.
+- Clock skew → сообщения с drift > 30 сек от медианы последних 20 gossip отвергаются.
 
 ### 9. Интеграция с другими компонентами
 
 - Bootstrapping Mechanism — в фазе 1–2 NetworkEffectBonus снижен в 3 раза.
 - Merit Score Engine — вызывает расчёт NetworkEffectBonus после каждой задачи.
 - GlobalFlowController — ограничивает трафик для узлов с низким Synergy Score.
-
----
-
-**Документ готов.**
-
-Теперь консенсус **явно и математически поощряет синергию** — это не декларация, а встроенный экономический механизм.
