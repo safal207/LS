@@ -19,6 +19,8 @@
   - parity lifecycle API (включая unregister hooks) между Rust и Python.
   - partial complete: Rust `Web4RttBinding` block backpressure now uses Condvar wakeups
     instead of sleep polling (`rust_core/src/web4_runtime.rs`).
+  - partial complete: Python-side transport interchangeability contract tests are in
+    `python/tests/test_web4_transport.py`.
 
 ## 3. Следующий этап
 

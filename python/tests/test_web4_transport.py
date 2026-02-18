@@ -11,6 +11,77 @@ from modules.web4_runtime import (
 from modules.web4_runtime.transport import TransportFailover
 
 
+class _InMemoryTransport:
+    def __init__(self, *, transport_type: str = "memory", supports_priority: bool = False) -> None:
+        self.transport_type = transport_type
+        self._supports_priority = supports_priority
+        self._connected = True
+        self._queue: list[str] = []
+        self._heartbeats = 0
+        self._timeouts = 0
+        self._sent = 0
+
+    def connect(self) -> None:
+        self._connected = True
+
+    def disconnect(self) -> None:
+        self._connected = False
+
+    def send(self, message: str, priority: int | None = None) -> None:
+        if not self._supports_priority and priority is not None:
+            raise TypeError("priority not supported")
+        if not self._connected:
+            raise RuntimeError("transport disconnected")
+        self._sent += 1
+        self._queue.append(message)
+
+    def receive(self) -> str | None:
+        if not self._queue:
+            return None
+        return self._queue.pop(0)
+
+    def pending(self) -> int:
+        return len(self._queue)
+
+    def stats(self) -> object:
+        return {
+            "sent": self._sent,
+            "heartbeats": self._heartbeats,
+            "timeouts": self._timeouts,
+        }
+
+    def heartbeat(self) -> None:
+        self._heartbeats += 1
+
+    def check_heartbeat_timeout(self) -> bool:
+        self._timeouts += 1
+        return False
+
+    def health_check(self) -> bool:
+        return self._connected
+
+
+def _run_session_contract(session: Web4Session[str]) -> None:
+    assert session.pending() == 0
+
+    session.send("m1")
+    session.send("m2")
+    assert session.pending() == 2
+    assert session.receive() == "m1"
+    assert session.receive() == "m2"
+    assert session.receive() is None
+    assert session.pending() == 0
+
+    session.disconnect()
+    with pytest.raises(RuntimeError, match="disconnect"):
+        session.send("after-disconnect")
+
+    session.connect()
+    session.send("m3")
+    assert session.receive() == "m3"
+    assert session.pending() == 0
+
+
 def test_transport_registry_create_and_available() -> None:
     registry: TransportRegistry[str] = TransportRegistry()
     registry.register("rtt", lambda: RttTransport(RttSession[str](config=RttConfig(session_id=1))))
@@ -112,3 +183,24 @@ def test_priority_queue_ordering() -> None:
     assert session.receive() == "high"
     assert session.receive() == "medium"
     assert session.receive() == "low"
+
+
+@pytest.mark.parametrize(
+    ("transport_name", "factory"),
+    [
+        ("rtt", lambda: RttTransport(RttSession[str](config=RttConfig(session_id=21, max_queue=8)))),
+        ("memory", lambda: _InMemoryTransport(transport_type="memory", supports_priority=False)),
+        ("memory-priority", lambda: _InMemoryTransport(transport_type="memory-priority", supports_priority=True)),
+    ],
+)
+def test_transport_interchangeability_contract(
+    transport_name: str,
+    factory,
+) -> None:
+    """All transport backends must satisfy Web4Session contract semantics."""
+    registry: TransportRegistry[str] = TransportRegistry()
+    registry.register(transport_name, factory)
+    transport = registry.create(transport_name)
+    session = Web4Session[str](transport=transport)
+
+    _run_session_contract(session)
