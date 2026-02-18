@@ -17,6 +17,8 @@
   - контрактные тесты на transport interchangeability;
   - миграция Rust block policy с busy-wait на Condvar-подход;
   - parity lifecycle API (включая unregister hooks) между Rust и Python.
+  - partial complete: Rust `Web4RttBinding` block backpressure now uses Condvar wakeups
+    instead of sleep polling (`rust_core/src/web4_runtime.rs`).
 
 ## 3. Следующий этап
 
