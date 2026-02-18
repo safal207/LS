@@ -149,16 +149,13 @@ class RttSession(Generic[MessageT]):
                 self._bump(errors=1)
                 raise DisconnectedError("RTT session is disconnected")
             self._bump(attempted=1)
-            flow_blocked = self.flow_controller is not None and not self.flow_controller.can_enqueue(self)
             if self.pending >= self.config.max_queue:
-                self._on_overflow(message, priority)
+                self._handle_overflow(is_global=False, message=message, priority=priority)
                 return
-            if flow_blocked:
-                self._on_flow_overflow(message, priority)
+            if self.flow_controller is not None and not self.flow_controller.try_enqueue(self):
+                self._handle_overflow(is_global=True, message=message, priority=priority)
                 return
             self._enqueue(message, priority)
-            if self.flow_controller is not None:
-                self.flow_controller.on_enqueue(self)
             self._bump(enqueued=1)
             self._condition.notify_all()
 
@@ -193,101 +190,66 @@ class RttSession(Generic[MessageT]):
         heapq.heapify(self._priority_queue)
         self._dropped_priority_count = 0
 
-    def _on_flow_overflow(self, message: MessageT, priority: Optional[int] = None) -> None:
+    def _handle_overflow(self, *, is_global: bool, message: MessageT, priority: Optional[int] = None) -> None:
         self._bump(overflow_events=1)
         if self.config.backpressure_policy == "dropoldest":
-            dropped = False
+            actually_dropped = False
             if self.config.enable_priority_queue:
-                dropped = self._drop_oldest_priority()
+                actually_dropped = self._drop_oldest_priority()
+                if not actually_dropped and self._queue:
+                    self._queue.popleft()
+                    actually_dropped = True
                 self._maybe_compact_priority_queue()
             elif self._queue:
                 self._queue.popleft()
-                dropped = True
-            if dropped:
-                if self.flow_controller is not None:
-                    self.flow_controller.on_dequeue(self)
-                self._enqueue(message, priority)
-                if self.flow_controller is not None:
-                    self.flow_controller.on_enqueue(self)
-                self._bump(enqueued=1, dropped_oldest=1)
+                actually_dropped = True
+
+            if not actually_dropped:
+                self._bump(dropped_newest=1)
                 return
-            self._bump(dropped_newest=1)
-            return
-        if self.config.backpressure_policy == "dropnewest":
-            self._bump(dropped_newest=1)
-            if priority is not None and priority >= 8:
-                self._bump(high_priority_dropped=1)
-            return
-        if self.config.backpressure_policy == "block":
-            self._bump(blocked=1)
-            deadline = monotonic() + max(0.0, self.config.block_timeout_s)
 
-            def can_enqueue_flow() -> bool:
-                return (not self._connected) or (
-                    self.flow_controller is None or self.flow_controller.can_enqueue(self)
-                )
-
-            remaining = max(0.0, deadline - monotonic())
-            ok = self._condition.wait_for(can_enqueue_flow, timeout=remaining)
-            if not ok or not self._connected:
-                self._bump(errors=1)
-                if not self._connected:
-                    raise DisconnectedError("RTT session is disconnected")
-                raise BackpressureError("RTT backpressure: block timeout")
-
+            # Net pending count does not change for drop-oldest swap, so we do not
+            # mutate flow-controller counters here.
             self._enqueue(message, priority)
-            if self.flow_controller is not None:
-                self.flow_controller.on_enqueue(self)
-            self._bump(enqueued=1)
-            return
-        self._bump(errors=1)
-        raise BackpressureError("RTT backpressure: queue is full")
-
-    def _on_overflow(self, message: MessageT, priority: Optional[int] = None) -> None:
-        self._bump(overflow_events=1)
-        if self.config.backpressure_policy == "dropoldest":
-            if self.config.enable_priority_queue:
-                dropped = self._drop_oldest_priority()
-                if not dropped:
-                    if self._queue:
-                        self._queue.popleft()
-                self._maybe_compact_priority_queue()
-            else:
-                if self._queue:
-                    self._queue.popleft()
-            if self.flow_controller is not None:
-                self.flow_controller.on_dequeue(self)
-            self._enqueue(message, priority)
-            if self.flow_controller is not None:
-                self.flow_controller.on_enqueue(self)
             self._bump(enqueued=1, dropped_oldest=1)
             return
+
         if self.config.backpressure_policy == "dropnewest":
             self._bump(dropped_newest=1)
             if priority is not None and priority >= 8:
                 self._bump(high_priority_dropped=1)
             return
+
         if self.config.backpressure_policy == "block":
             self._bump(blocked=1)
             deadline = monotonic() + max(0.0, self.config.block_timeout_s)
 
-            def can_enqueue() -> bool:
-                flow_ready = self.flow_controller is None or self.flow_controller.can_enqueue(self)
-                return (not self._connected) or (self.pending < self.config.max_queue and flow_ready)
+            while self._connected:
+                if not is_global and self.pending < self.config.max_queue:
+                    if self.flow_controller is None:
+                        self._enqueue(message, priority)
+                        self._bump(enqueued=1)
+                        return
+                    if self.flow_controller.try_enqueue(self):
+                        self._enqueue(message, priority)
+                        self._bump(enqueued=1)
+                        return
+                elif is_global:
+                    if self.flow_controller is None or self.flow_controller.try_enqueue(self):
+                        self._enqueue(message, priority)
+                        self._bump(enqueued=1)
+                        return
 
-            remaining = max(0.0, deadline - monotonic())
-            ok = self._condition.wait_for(can_enqueue, timeout=remaining)
-            if not ok or not self._connected:
-                self._bump(errors=1)
-                if not self._connected:
-                    raise DisconnectedError("RTT session is disconnected")
-                raise BackpressureError("RTT backpressure: block timeout")
+                remaining = max(0.0, deadline - monotonic())
+                if remaining <= 0:
+                    break
+                self._condition.wait(timeout=remaining)
 
-            self._enqueue(message, priority)
-            if self.flow_controller is not None:
-                self.flow_controller.on_enqueue(self)
-            self._bump(enqueued=1)
-            return
+            self._bump(errors=1)
+            if not self._connected:
+                raise DisconnectedError("RTT session is disconnected")
+            raise BackpressureError("RTT backpressure: block timeout")
+
         self._bump(errors=1)
         raise BackpressureError("RTT backpressure: queue is full")
 

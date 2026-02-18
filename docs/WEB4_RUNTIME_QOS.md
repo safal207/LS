@@ -50,3 +50,13 @@ session.send("m3")  # evicts m1
 print(session.receive())  # m2
 print(session.stats.dropped_oldest)  # 1
 ```
+
+
+## Admission order with `GlobalFlowController`
+
+When `RttSession.flow_controller` is configured, admission is evaluated in this order:
+
+1. Local queue bound (`RttConfig.max_queue`).
+2. Global controller bound (`GlobalFlowController.total_limit` / per-session strategy).
+
+This means global pressure can reject new messages even when a local session queue still has free slots.

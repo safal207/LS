@@ -16,3 +16,22 @@ This phase introduces `GlobalFlowController` in `python/modules/web4_runtime/flo
 ## Policy
 - `fixed`: use `per_session_limit` directly.
 - `proportional`: use `min(per_session_limit, total_limit // active_sessions)`.
+
+
+## Sequence (send success)
+
+```text
+Session.send -> local max_queue check -> GlobalFlowController.try_enqueue -> queue append
+```
+
+## Sequence (send local overflow)
+
+```text
+Session.send -> local max_queue reached -> overflow policy handler (dropoldest/dropnewest/block/error)
+```
+
+## Sequence (send global overflow)
+
+```text
+Session.send -> local queue has room -> GlobalFlowController.try_enqueue=False -> overflow policy handler
+```

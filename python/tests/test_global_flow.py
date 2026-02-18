@@ -1,34 +1,90 @@
+import gc
+import threading
+
 import pytest
 
 from modules.web4_runtime.flow import GlobalFlowController
 from modules.web4_runtime.rtt import BackpressureError, RttConfig, RttSession
 
 
+class _SessionRef:
+    pass
+
+
 def test_global_flow_fixed_limits() -> None:
     flow = GlobalFlowController(total_limit=3, per_session_limit=2, strategy="fixed")
-    s1 = object()
+    s1 = _SessionRef()
     flow.register_session(s1)
 
     assert flow.can_enqueue(s1) is True
-    flow.on_enqueue(s1)
+    assert flow.try_enqueue(s1) is True
     assert flow.can_enqueue(s1) is True
-    flow.on_enqueue(s1)
+    assert flow.try_enqueue(s1) is True
     assert flow.can_enqueue(s1) is False
 
 
 def test_global_flow_proportional_uses_min_limit() -> None:
     flow = GlobalFlowController(total_limit=4, per_session_limit=10, strategy="proportional")
-    s1 = object()
-    s2 = object()
+    s1 = _SessionRef()
+    s2 = _SessionRef()
     flow.register_session(s1)
     flow.register_session(s2)
 
-    # proportional limit = total_limit // active_sessions = 2
-    assert flow.can_enqueue(s1) is True
-    flow.on_enqueue(s1)
-    assert flow.can_enqueue(s1) is True
-    flow.on_enqueue(s1)
+    assert flow.try_enqueue(s1) is True
+    assert flow.try_enqueue(s1) is True
     assert flow.can_enqueue(s1) is False
+
+
+def test_global_flow_edge_limits_zero() -> None:
+    flow = GlobalFlowController(total_limit=0, per_session_limit=0)
+    s1 = _SessionRef()
+    flow.register_session(s1)
+    assert flow.can_enqueue(s1) is False
+    assert flow.try_enqueue(s1) is False
+
+
+def test_global_flow_concurrent_try_enqueue_respects_total_limit() -> None:
+    flow = GlobalFlowController(total_limit=1, per_session_limit=1)
+    s1 = _SessionRef()
+    s2 = _SessionRef()
+    flow.register_session(s1)
+    flow.register_session(s2)
+
+    results: list[bool] = []
+    lock = threading.Lock()
+
+    def worker(session: _SessionRef) -> None:
+        value = flow.try_enqueue(session)
+        with lock:
+            results.append(value)
+
+    t1 = threading.Thread(target=worker, args=(s1,))
+    t2 = threading.Thread(target=worker, args=(s2,))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    assert sum(1 for x in results if x) == 1
+    assert flow.total_pending == 1
+
+
+def test_global_flow_weakref_cleanup_after_gc() -> None:
+    flow = GlobalFlowController(total_limit=100, per_session_limit=10)
+
+    session = _SessionRef()
+    flow.register_session(session)
+    assert flow.try_enqueue(session) is True
+    assert flow.total_pending == 1
+    assert flow.active_sessions == 1
+
+    del session
+    gc.collect()
+
+    # Trigger stale cleanup path.
+    probe = _SessionRef()
+    flow.register_session(probe)
+    assert flow.total_pending == 0
 
 
 def test_rtt_session_registers_with_flow_controller() -> None:

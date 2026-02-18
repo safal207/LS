@@ -6,6 +6,7 @@ This phase introduces `AsyncRttSession` in `python/modules/web4_runtime/async_rt
 - Async-first send/receive API for Web4 RTT.
 - Preserve semantics of sync backpressure modes (`error`, `dropoldest`, `dropnewest`, `block`).
 - Keep compatibility with existing `RttConfig` / `RttStats`.
+- Supports optional `GlobalFlowController` admission control.
 
 ## API
 - `send_async(message, priority=None)`
