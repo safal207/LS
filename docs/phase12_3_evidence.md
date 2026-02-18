@@ -17,7 +17,14 @@ def step(self):
 def step(self):
     state = self.build_state()
     context = UpdateContext(..., primary_intent=None, ...)
-    context, self_snapshot, analysis, metafeedback = self._update_self_layer(state, context)
+    self_result = self.self_model.update(context)
+    context = context.evolve(
+        self_snapshot=self_result["snapshot"],
+        meta_report=self_result.get("analysis"),
+        metafeedback=self_result.get("metafeedback"),
+    )
+    orientation_result = self.orientation.update(context)
+    context = context.evolve(orientation_snapshot=orientation_result["snapshot"])
     identity_result = self.identitycore.update(context)
     ...
     intent_result = self.intentengine.update(context)
@@ -31,8 +38,8 @@ def step(self):
 ## Removed legacy calls from `step()` path
 
 - `intentengine.select_primary_intent()` removed from context initialization in `step()`.
-- `self_model.update_from_state(...)` moved into `_update_self_layer(...)`.
-- `orientation.update_from_self_model(...)` moved into `_update_self_layer(...)`.
+- `self_model.update_from_state(...)` removed from `step()` orchestration.
+- `orientation.update_from_self_model(...)` removed from `step()` orchestration.
 
 ## Test Results
 
@@ -79,13 +86,10 @@ Blocked prefixes:
 - `infer_*`
 - `evaluate_*`
 
-## About `_update_self_layer()`
+## Phase 13 completion note
 
-`_update_self_layer()` returns `(context, self_snapshot, analysis, metafeedback)` to preserve compatibility with the existing finalize/event path while keeping legacy self/orientation calls out of `step()` orchestration.
-
-Phase plan:
-- Phase 12.3: helper-based containment of self/orientation legacy operations.
-- Phase 13: migrate self/orientation to pure context-native engine updates and remove helper compatibility shape.
+`_update_self_layer()` compatibility helper has been removed.
+Self-model and orientation updates now run directly in `step()` via `update(context)` and are propagated through `context.evolve(...)`.
 
 ## Why `primary_intent=None` is safe
 
@@ -97,6 +101,6 @@ Phase plan:
 ## Phase 13 Roadmap
 
 1. Migrate self-model and orientation to context-native `update(context)` APIs.
-2. Remove `_update_self_layer()` helper and compatibility tuple return pattern.
+2. Remove `_update_self_layer()` helper and compatibility tuple return pattern. ✅
 3. Promote engine legacy-prefix warning rule (12.3) from `WARNING` to `ERROR`.
 4. Remove legacy-prefixed helper methods after external API consumers are verified.
