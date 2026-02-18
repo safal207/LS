@@ -162,3 +162,24 @@ def test_async_block_sender_wakes_on_global_dequeue() -> None:
         assert flow.total_pending == 0
 
     asyncio.run(scenario())
+
+
+def test_async_notify_tasks_are_executed_and_do_not_leak() -> None:
+    async def scenario() -> None:
+        flow = GlobalFlowController(total_limit=2, per_session_limit=2)
+        session = AsyncRttSession[str](
+            config=RttConfig(max_queue=2, backpressure_policy="error"),
+            flow_controller=flow,
+        )
+
+        await session.send_async("seed")
+        assert await session.receive_async() == "seed"
+
+        session._notify_global_space_available()
+        for _ in range(10):
+            if len(session._notify_tasks) == 0:
+                break
+            await asyncio.sleep(0)
+        assert len(session._notify_tasks) == 0
+
+    asyncio.run(scenario())

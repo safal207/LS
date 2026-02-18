@@ -300,3 +300,43 @@ def test_total_pending_fallback_keeps_last_stable_value(monkeypatch: pytest.Monk
 
     monkeypatch.setattr(flow, "_weak_pending_values_unlocked", _raise_runtime_error)
     assert flow.total_pending == 1
+
+
+def test_on_enqueue_returns_correct_result() -> None:
+    flow = GlobalFlowController(total_limit=1, per_session_limit=1)
+    session = _SessionRef()
+    flow.register_session(session)
+
+    assert flow.on_enqueue(session) is True
+    assert flow.on_enqueue(session) is False
+
+
+def test_async_event_initialized_once() -> None:
+    import asyncio
+
+    flow = GlobalFlowController(total_limit=4, per_session_limit=2)
+
+    async def scenario() -> None:
+        assert await flow.wait_for_available_space(0.001) is False
+        first_id = id(flow._async_space_event)
+        assert await flow.wait_for_available_space(0.001) is False
+        second_id = id(flow._async_space_event)
+        assert first_id == second_id
+
+    asyncio.run(scenario())
+
+
+def test_async_event_rejects_cross_loop_usage() -> None:
+    import asyncio
+
+    flow = GlobalFlowController(total_limit=4, per_session_limit=2)
+
+    async def first_loop() -> None:
+        assert await flow.wait_for_available_space(0.001) is False
+
+    async def second_loop() -> None:
+        with pytest.raises(RuntimeError, match="single event loop"):
+            await flow.wait_for_available_space(0.001)
+
+    asyncio.run(first_loop())
+    asyncio.run(second_loop())
