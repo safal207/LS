@@ -9,7 +9,7 @@ def test_adaptive_governor_low_volatility() -> None:
 
     metrics = governor.get_metrics()
     assert metrics.regulator_volatility < 0.2
-    assert metrics.regulator_alpha_current <= 0.3
+    assert metrics.regulator_alpha_current >= 0.4
 
 
 def test_adaptive_governor_high_volatility() -> None:
@@ -21,7 +21,7 @@ def test_adaptive_governor_high_volatility() -> None:
 
     metrics = governor.get_metrics()
     assert metrics.regulator_volatility >= 0.5
-    assert metrics.regulator_alpha_current >= 0.4
+    assert metrics.regulator_alpha_current <= 0.3
 
 
 def test_alert_manager_thresholds() -> None:

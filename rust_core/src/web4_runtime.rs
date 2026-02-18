@@ -89,12 +89,17 @@ impl Web4RttBinding {
         session_id: u64,
         heartbeat_timeout_ms: u64,
     ) -> PyResult<Self> {
+        if max_queue < 1 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                format!("RttConfig.max_queue must be >= 1, got {}", max_queue),
+            ));
+        }
         Ok(Self {
             connected: true,
             queue: VecDeque::new(),
             priority_queue: BinaryHeap::new(),
             next_sequence: 0,
-            max_queue: max_queue.max(1),
+            max_queue,
             policy: BackpressurePolicy::parse(backpressure_policy)?,
             block_timeout_ms,
             session_id,
