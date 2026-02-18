@@ -318,12 +318,30 @@ impl Web4RttBinding {
         Ok(())
     }
 
+    fn unregister_on_session_open(&mut self, py: Python<'_>, callback: PyObject) {
+        Self::remove_callback(py, &mut self.on_session_open, &callback);
+    }
+
     fn register_on_session_close(&mut self, py: Python<'_>, callback: PyObject) {
         self.on_session_close.push(callback.clone_ref(py));
     }
 
+    fn unregister_on_session_close(&mut self, py: Python<'_>, callback: PyObject) {
+        Self::remove_callback(py, &mut self.on_session_close, &callback);
+    }
+
     fn register_on_heartbeat_timeout(&mut self, py: Python<'_>, callback: PyObject) {
         self.on_heartbeat_timeout.push(callback.clone_ref(py));
+    }
+
+    fn unregister_on_heartbeat_timeout(&mut self, py: Python<'_>, callback: PyObject) {
+        Self::remove_callback(py, &mut self.on_heartbeat_timeout, &callback);
+    }
+
+    fn clear_session_hooks(&mut self) {
+        self.on_session_open.clear();
+        self.on_session_close.clear();
+        self.on_heartbeat_timeout.clear();
     }
 
     fn stats<'py>(&self, py: Python<'py>) -> &'py PyDict {
@@ -377,5 +395,9 @@ impl Web4RttBinding {
     fn notify_block_waiters(&self) {
         let (_lock, cvar) = &*self.block_wait;
         cvar.notify_all();
+    }
+
+    fn remove_callback(py: Python<'_>, callbacks: &mut Vec<PyObject>, callback: &PyObject) {
+        callbacks.retain(|existing| !existing.as_ref(py).is(callback.as_ref(py)));
     }
 }
