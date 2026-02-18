@@ -21,5 +21,5 @@ This phase introduces `AsyncRttSession` in `python/modules/web4_runtime/async_rt
 - Disconnect notifies waiters to unblock blocked producers/consumers.
 - Global admission waits are synchronized via `GlobalFlowController.wait_for_available_space(...)`.
 - After successful dequeue, async sessions call `flow_controller.notify_available_space()` to wake global waiters.
-- Global wait path uses `current_space_epoch` + `after_epoch` to prevent missed notify races.
+- Global wait path uses `current_space_epoch` + `after_epoch` + `asyncio.Event` to prevent missed notify races.
 - Block mode re-checks both global admission and local `max_queue` before enqueueing.

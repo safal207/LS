@@ -200,7 +200,7 @@ class AsyncRttSession(Generic[MessageT]):
                         self._enqueue(message, priority)
                         self._bump(enqueued=1)
                         return
-                    if self.flow_controller.can_enqueue(self) and self.flow_controller.try_enqueue(self):
+                    if self.flow_controller.try_enqueue(self):
                         self._enqueue(message, priority)
                         self._bump(enqueued=1)
                         return
@@ -210,7 +210,7 @@ class AsyncRttSession(Generic[MessageT]):
                             self._enqueue(message, priority)
                             self._bump(enqueued=1)
                             return
-                        if self.flow_controller.can_enqueue(self) and self.flow_controller.try_enqueue(self):
+                        if self.flow_controller.try_enqueue(self):
                             if self.pending < self.config.max_queue:
                                 self._enqueue(message, priority)
                                 self._bump(enqueued=1)

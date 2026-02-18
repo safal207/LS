@@ -71,6 +71,7 @@ This means global pressure can reject new messages even when a local session que
 
 ## Global Waiter Wakeups
 
+- Sync producers blocked by global limits wait on controller-level free-space signals.
 - Async producers waiting on global pressure are woken by flow-controller free-space notifications.
 - Dequeue/reset paths trigger these notifications so blocked senders can retry before timeout.
 

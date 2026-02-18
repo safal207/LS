@@ -224,7 +224,7 @@ class RttSession(Generic[MessageT]):
                             self._enqueue(message, priority)
                             self._bump(enqueued=1)
                             return
-                        if self.flow_controller.can_enqueue(self) and self.flow_controller.try_enqueue(self):
+                        if self.flow_controller.try_enqueue(self):
                             # Preserve local queue invariants even under concurrent global changes.
                             if self.pending < self.config.max_queue:
                                 self._enqueue(message, priority)
@@ -235,7 +235,17 @@ class RttSession(Generic[MessageT]):
                 remaining = max(0.0, deadline - monotonic())
                 if remaining <= 0:
                     break
-                self._condition.wait(timeout=remaining)
+                if is_global and self.flow_controller is not None:
+                    epoch = self.flow_controller.current_space_epoch()
+                    self._condition.release()
+                    try:
+                        woke = self.flow_controller.wait_for_available_space_sync(remaining, after_epoch=epoch)
+                    finally:
+                        self._condition.acquire()
+                    if not woke:
+                        break
+                else:
+                    self._condition.wait(timeout=remaining)
 
             self._bump(errors=1)
             if not self._connected:

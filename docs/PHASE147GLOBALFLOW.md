@@ -11,6 +11,7 @@ This phase introduces `GlobalFlowController` in `python/modules/web4_runtime/flo
 - `GlobalFlowController`
   - `register_session` / `unregister_session`
   - `on_enqueue` / `on_dequeue` / `on_reset`
+  - `wait_for_available_space_sync` / `wait_for_available_space`
   - `can_enqueue`
 
 ## Policy
@@ -54,5 +55,6 @@ Session.send -> local queue has room -> GlobalFlowController.try_enqueue=False -
 
 - `on_dequeue` and `on_reset` emit free-space notifications.
 - Notifications are exposed for both sync waiters and async waiters (`notify_available_space`).
-- Async notifications are dispatched through a controller-owned `asyncio.Condition` and loop-safe callbacks.
+- Async notifications are dispatched through a controller-owned `asyncio.Event`.
 - Async waiters use a notification epoch (`current_space_epoch`) to avoid missed wakeups.
+- Sync waiters use `wait_for_available_space_sync(..., after_epoch=...)` to wake on global free-slot without timeout polling.

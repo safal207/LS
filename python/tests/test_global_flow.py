@@ -167,7 +167,7 @@ def test_block_policy_wakes_when_global_slot_is_freed() -> None:
         flow_controller=flow,
     )
     blocked = RttSession[str](
-        config=RttConfig(max_queue=2, backpressure_policy="block", block_timeout_s=0.3),
+        config=RttConfig(max_queue=2, backpressure_policy="block", block_timeout_s=0.8),
         flow_controller=flow,
     )
 
@@ -176,10 +176,13 @@ def test_block_policy_wakes_when_global_slot_is_freed() -> None:
 
     result: list[str] = []
     error: list[BaseException] = []
+    elapsed: list[float] = []
 
     def sender() -> None:
+        started_at = time.perf_counter()
         try:
             blocked.send("second")
+            elapsed.append(time.perf_counter() - started_at)
             result.append("ok")
         except BaseException as exc:  # pragma: no cover - diagnostic path
             error.append(exc)
@@ -193,6 +196,8 @@ def test_block_policy_wakes_when_global_slot_is_freed() -> None:
 
     assert error == []
     assert result == ["ok"]
+    # Sender should wake promptly on global free-slot, not at timeout boundary.
+    assert elapsed and elapsed[0] < 0.35
     assert blocked.receive() == "second"
     assert flow.total_pending == 0
 
@@ -281,3 +286,17 @@ def test_total_pending_tolerates_weakref_gc_churn() -> None:
     worker.join(timeout=1.0)
 
     assert errors == []
+
+
+def test_total_pending_fallback_keeps_last_stable_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    flow = GlobalFlowController(total_limit=32, per_session_limit=32)
+    session = _SessionRef()
+    flow.register_session(session)
+    assert flow.try_enqueue(session) is True
+    assert flow.total_pending == 1
+
+    def _raise_runtime_error() -> tuple[int, ...]:
+        raise RuntimeError("WeakKeyDictionary changed size during iteration")
+
+    monkeypatch.setattr(flow, "_weak_pending_values_unlocked", _raise_runtime_error)
+    assert flow.total_pending == 1

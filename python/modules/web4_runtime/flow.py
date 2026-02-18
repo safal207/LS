@@ -25,7 +25,7 @@ class GlobalFlowController(Generic[SessionT]):
     _total_pending: int = field(default=0, init=False)
     _lock: RLock = field(default_factory=RLock, init=False)
     _space_available: Condition = field(init=False)
-    _async_space_available: asyncio.Condition | None = field(default=None, init=False)
+    _async_space_event: asyncio.Event | None = field(default=None, init=False)
     _async_loop: asyncio.AbstractEventLoop | None = field(default=None, init=False)
     _space_epoch: int = field(default=0, init=False)
 
@@ -43,72 +43,87 @@ class GlobalFlowController(Generic[SessionT]):
         with self._lock:
             return len(self._session_pending) + len(self._strong_pending)
 
+    def _weak_pending_values_unlocked(self) -> tuple[int, ...]:
+        return tuple(self._session_pending.values())
+
     def _total_pending_unlocked(self) -> int:
         attempts = 0
         while attempts < 3:
             try:
-                weak_values = tuple(self._session_pending.values())
-                break
+                weak_values = self._weak_pending_values_unlocked()
+                return sum(weak_values) + sum(self._strong_pending.values())
             except RuntimeError:
                 attempts += 1
-        else:
-            weak_values = ()
-        return sum(weak_values) + sum(self._strong_pending.values())
+        # Preserve last stable value rather than collapsing to a false zero.
+        return self._total_pending
 
-    def _schedule_async_notify(self) -> None:
-        if self._async_space_available is None:
+    def _notify_async_space_available(self) -> None:
+        if self._async_space_event is None:
             return
-        loop = self._async_loop
-        if loop is None or loop.is_closed():
-            return
-        loop.create_task(self.notify_available_space())
+        self._async_space_event.set()
 
     def _notify_available_space_locked(self) -> None:
         self._space_epoch += 1
         self._space_available.notify_all()
         loop = self._async_loop
-        if loop is None or loop.is_closed():
+        if loop is None or loop.is_closed() or self._async_space_event is None:
             return
-        loop.call_soon_threadsafe(self._schedule_async_notify)
+        loop.call_soon_threadsafe(self._notify_async_space_available)
 
-    def _ensure_async_condition(self) -> asyncio.Condition:
+    def _ensure_async_event(self) -> asyncio.Event:
         loop = asyncio.get_running_loop()
-        if self._async_space_available is None:
-            self._async_space_available = asyncio.Condition()
+        if self._async_space_event is None:
+            self._async_space_event = asyncio.Event()
             self._async_loop = loop
-            return self._async_space_available
+            return self._async_space_event
         if self._async_loop is None:
             self._async_loop = loop
-            return self._async_space_available
+            return self._async_space_event
         if self._async_loop is not loop:
             raise RuntimeError("GlobalFlowController async waiters must run on a single event loop")
-        return self._async_space_available
+        return self._async_space_event
 
     async def notify_available_space(self) -> None:
-        condition = self._ensure_async_condition()
-        async with condition:
-            condition.notify_all()
+        event = self._ensure_async_event()
+        event.set()
 
     def current_space_epoch(self) -> int:
-        with self._lock:
-            return self._space_epoch
+        return self._space_epoch
 
     async def wait_for_available_space(self, timeout_s: float, *, after_epoch: int | None = None) -> bool:
-        condition = self._ensure_async_condition()
+        event = self._ensure_async_event()
         timeout_s = max(0.0, timeout_s)
-        try:
-            async with condition:
-                if after_epoch is not None:
-                    with self._lock:
-                        if self._space_epoch != after_epoch:
-                            return True
-                await asyncio.wait_for(condition.wait(), timeout=timeout_s)
+        if after_epoch is not None and self._space_epoch != after_epoch:
             return True
-        except asyncio.TimeoutError:
+
+        deadline = asyncio.get_running_loop().time() + timeout_s
+        while True:
+            event.clear()
+            if after_epoch is not None and self._space_epoch != after_epoch:
+                return True
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                return after_epoch is not None and self._space_epoch != after_epoch
+            try:
+                await asyncio.wait_for(event.wait(), timeout=remaining)
+            except asyncio.TimeoutError:
+                return after_epoch is not None and self._space_epoch != after_epoch
+            if after_epoch is None:
+                return True
+            if self._space_epoch != after_epoch:
+                return True
+
+    def wait_for_available_space_sync(self, timeout_s: float, *, after_epoch: int | None = None) -> bool:
+        timeout_s = max(0.0, timeout_s)
+        with self._space_available:
+            if after_epoch is not None and self._space_epoch != after_epoch:
+                return True
+            if timeout_s <= 0:
+                return False
+            self._space_available.wait(timeout=timeout_s)
             if after_epoch is not None:
-                with self._lock:
-                    return self._space_epoch != after_epoch
-            return False
+                return self._space_epoch != after_epoch
+            return True
 
     def _cleanup_sid_locked(self, sid: int) -> None:
         pending = self._strong_pending.pop(sid, 0)
@@ -225,8 +240,8 @@ class GlobalFlowController(Generic[SessionT]):
             self._refresh_total_pending_locked()
             return True
 
-    def on_enqueue(self, session: SessionT) -> None:
-        _ = self.try_enqueue(session)
+    def on_enqueue(self, session: SessionT) -> bool:
+        return self.try_enqueue(session)
 
     def on_dequeue(self, session: SessionT) -> None:
         with self._lock:

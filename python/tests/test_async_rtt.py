@@ -143,17 +143,21 @@ def test_async_block_sender_wakes_on_global_dequeue() -> None:
             flow_controller=flow,
         )
         blocked = AsyncRttSession[str](
-            config=RttConfig(max_queue=2, backpressure_policy="block", block_timeout_s=0.5),
+            config=RttConfig(max_queue=2, backpressure_policy="block", block_timeout_s=1.0),
             flow_controller=flow,
         )
 
         await owner.send_async("first")
+        loop = asyncio.get_running_loop()
+        started_at = loop.time()
         task = asyncio.create_task(blocked.send_async("second"))
         await asyncio.sleep(0.05)
         assert task.done() is False
 
         assert await owner.receive_async() == "first"
         await task
+        elapsed = loop.time() - started_at
+        assert elapsed < 0.45
         assert await blocked.receive_async() == "second"
         assert flow.total_pending == 0
 
