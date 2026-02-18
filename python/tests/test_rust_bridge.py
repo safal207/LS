@@ -3,6 +3,9 @@ import importlib.machinery
 import importlib.util
 import pathlib
 import sys
+import threading
+import time
+from queue import Queue
 
 import pytest
 
@@ -178,6 +181,35 @@ def test_web4_rtt_binding_lifecycle_hooks(ghostgpt_core_module):
     assert rtt.check_heartbeat_timeout() is True
 
     assert events == [("open", 7), ("close", 7), ("open", 7), ("timeout", 7), ("close", 7)]
+
+
+def test_web4_rtt_binding_block_wakes_on_receive(ghostgpt_core_module):
+    rtt = ghostgpt_core_module.Web4RttBinding(
+        max_queue=1,
+        backpressure_policy="block",
+        block_timeout_ms=800,
+    )
+    rtt.send("first")
+
+    errors: Queue[BaseException] = Queue()
+
+    def producer() -> None:
+        try:
+            rtt.send("second")
+        except BaseException as exc:  # pragma: no cover - asserted via queue content
+            errors.put(exc)
+
+    worker = threading.Thread(target=producer, daemon=True)
+    worker.start()
+    time.sleep(0.05)
+    assert worker.is_alive(), "producer should be blocked while queue is full"
+
+    assert rtt.receive() == "first"
+
+    worker.join(timeout=1.0)
+    assert not worker.is_alive(), "producer should wake after receive() frees queue space"
+    assert errors.empty(), f"unexpected send error: {errors.get()!r}" if not errors.empty() else ""
+    assert rtt.receive() == "second"
 
 def test_optimizer_init_uses_memory_manager_positional_arg(monkeypatch, tmp_path):
     class FakeMemoryManager:

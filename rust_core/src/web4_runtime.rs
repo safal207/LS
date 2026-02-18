@@ -1,8 +1,9 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use pyo3::PyCell;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, VecDeque};
-use std::thread;
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy)]
@@ -75,6 +76,7 @@ pub struct Web4RttBinding {
     on_session_open: Vec<PyObject>,
     on_session_close: Vec<PyObject>,
     on_heartbeat_timeout: Vec<PyObject>,
+    block_wait: Arc<(Mutex<()>, Condvar)>,
     stats: RttStats,
 }
 
@@ -90,9 +92,10 @@ impl Web4RttBinding {
         heartbeat_timeout_ms: u64,
     ) -> PyResult<Self> {
         if max_queue < 1 {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("RttConfig.max_queue must be >= 1, got {}", max_queue),
-            ));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "RttConfig.max_queue must be >= 1, got {}",
+                max_queue
+            )));
         }
         Ok(Self {
             connected: true,
@@ -108,6 +111,7 @@ impl Web4RttBinding {
             on_session_open: Vec::new(),
             on_session_close: Vec::new(),
             on_heartbeat_timeout: Vec::new(),
+            block_wait: Arc::new((Mutex::new(()), Condvar::new())),
             stats: RttStats::default(),
         })
     }
@@ -118,6 +122,7 @@ impl Web4RttBinding {
         }
         self.connected = true;
         self.last_heartbeat_at = Instant::now();
+        self.notify_block_waiters();
         self.emit(py, &self.on_session_open)?;
         Ok(())
     }
@@ -129,95 +134,158 @@ impl Web4RttBinding {
         }
         self.connected = false;
         let _ = reason;
+        self.notify_block_waiters();
         self.emit(py, &self.on_session_close)?;
         Ok(())
     }
 
     #[pyo3(signature = (message, priority=None))]
-    fn send(&mut self, message: String, priority: Option<i32>) -> PyResult<()> {
-        if !self.connected {
-            self.stats.errors += 1;
-            return Err(pyo3::exceptions::PyRuntimeError::new_err(
-                "RTT binding disconnected",
-            ));
-        }
-        self.stats.attempted += 1;
+    fn send(
+        slf: &PyCell<Self>,
+        py: Python<'_>,
+        message: String,
+        priority: Option<i32>,
+    ) -> PyResult<()> {
+        let mut message_slot = Some(message);
+        let mut block_deadline: Option<Instant> = None;
+        let mut block_counted = false;
 
-        if self.pending() >= self.max_queue {
-            self.stats.overflow_events += 1;
-            match self.policy {
+        {
+            let mut this = slf.borrow_mut();
+            if !this.connected {
+                this.stats.errors += 1;
+                return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                    "RTT binding disconnected",
+                ));
+            }
+            this.stats.attempted += 1;
+        }
+
+        loop {
+            let mut this = slf.borrow_mut();
+
+            if !this.connected {
+                this.stats.errors += 1;
+                return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                    "RTT binding disconnected",
+                ));
+            }
+
+            if this.pending() < this.max_queue {
+                let msg = message_slot
+                    .take()
+                    .expect("message must be available until enqueue");
+                this.push_message(msg, priority);
+                this.stats.enqueued += 1;
+                this.update_max_queue_len();
+                return Ok(());
+            }
+
+            this.stats.overflow_events += 1;
+            match this.policy {
                 BackpressurePolicy::DropOldest => {
-                    if !self.priority_queue.is_empty() {
+                    if !this.priority_queue.is_empty() {
                         // TODO(14.7): Replace full-heap rebuild with lazy deletion + auxiliary
                         // min-sequence structure for O(log n) dropoldest parity.
                         if let Some(oldest_sequence) =
-                            self.priority_queue.iter().map(|pm| pm.sequence).min()
+                            this.priority_queue.iter().map(|pm| pm.sequence).min()
                         {
-                            self.priority_queue = self
+                            this.priority_queue = this
                                 .priority_queue
                                 .drain()
                                 .filter(|pm| pm.sequence != oldest_sequence)
                                 .collect();
                         }
                     } else {
-                        let _ = self.queue.pop_front();
+                        let _ = this.queue.pop_front();
                     }
-                    self.push_message(message, priority);
-                    self.stats.enqueued += 1;
-                    self.stats.dropped_oldest += 1;
-                    self.update_max_queue_len();
+                    let msg = message_slot
+                        .take()
+                        .expect("message must be available until enqueue");
+                    this.push_message(msg, priority);
+                    this.stats.enqueued += 1;
+                    this.stats.dropped_oldest += 1;
+                    this.update_max_queue_len();
                     return Ok(());
                 }
                 BackpressurePolicy::DropNewest => {
-                    self.stats.dropped_newest += 1;
+                    this.stats.dropped_newest += 1;
                     return Ok(());
                 }
                 BackpressurePolicy::Block => {
-                    self.stats.blocked += 1;
-                    let deadline = Instant::now() + Duration::from_millis(self.block_timeout_ms);
-                    while self.pending() >= self.max_queue && self.connected {
-                        if Instant::now() >= deadline {
-                            self.stats.errors += 1;
+                    if !block_counted {
+                        this.stats.blocked += 1;
+                        block_counted = true;
+                    }
+
+                    let deadline = match block_deadline {
+                        Some(existing) => existing,
+                        None => {
+                            let created =
+                                Instant::now() + Duration::from_millis(this.block_timeout_ms);
+                            block_deadline = Some(created);
+                            created
+                        }
+                    };
+
+                    let now = Instant::now();
+                    if now >= deadline {
+                        this.stats.errors += 1;
+                        return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                            "RTT binding backpressure: block timeout",
+                        ));
+                    }
+
+                    let remaining = deadline.saturating_duration_since(now);
+                    let block_wait = Arc::clone(&this.block_wait);
+                    drop(this);
+
+                    let timed_out = py.allow_threads(move || {
+                        let (lock, cvar) = &*block_wait;
+                        let guard = match lock.lock() {
+                            Ok(guard) => guard,
+                            Err(poisoned) => poisoned.into_inner(),
+                        };
+                        let (_guard, wait_state) = match cvar.wait_timeout(guard, remaining) {
+                            Ok(result) => result,
+                            Err(poisoned) => poisoned.into_inner(),
+                        };
+                        wait_state.timed_out()
+                    });
+
+                    if timed_out {
+                        let mut this = slf.borrow_mut();
+                        if this.pending() >= this.max_queue {
+                            this.stats.errors += 1;
                             return Err(pyo3::exceptions::PyRuntimeError::new_err(
                                 "RTT binding backpressure: block timeout",
                             ));
                         }
-                        thread::sleep(Duration::from_millis(1));
                     }
-                    if !self.connected {
-                        self.stats.errors += 1;
-                        return Err(pyo3::exceptions::PyRuntimeError::new_err(
-                            "RTT binding disconnected",
-                        ));
-                    }
-                    self.push_message(message, priority);
-                    self.stats.enqueued += 1;
-                    self.update_max_queue_len();
-                    return Ok(());
                 }
                 BackpressurePolicy::Error => {
-                    self.stats.errors += 1;
+                    this.stats.errors += 1;
                     return Err(pyo3::exceptions::PyRuntimeError::new_err(
                         "RTT binding backpressure",
                     ));
                 }
             }
         }
-
-        self.push_message(message, priority);
-        self.stats.enqueued += 1;
-        self.update_max_queue_len();
-        Ok(())
     }
 
     fn receive(&mut self) -> Option<String> {
         if !self.connected {
             return None;
         }
-        if !self.priority_queue.is_empty() {
-            return self.priority_queue.pop().map(|pm| pm.message);
+        let item = if !self.priority_queue.is_empty() {
+            self.priority_queue.pop().map(|pm| pm.message)
+        } else {
+            self.queue.pop_front()
+        };
+        if item.is_some() {
+            self.notify_block_waiters();
         }
-        self.queue.pop_front()
+        item
     }
 
     fn pending(&self) -> usize {
@@ -237,6 +305,7 @@ impl Web4RttBinding {
         }
         self.emit(py, &self.on_heartbeat_timeout)?;
         self.connected = false;
+        self.notify_block_waiters();
         self.emit(py, &self.on_session_close)?;
         Ok(true)
     }
@@ -264,7 +333,10 @@ impl Web4RttBinding {
         let _ = stats.set_item("accepted", self.stats.enqueued);
         let _ = stats.set_item("dropped_oldest", self.stats.dropped_oldest);
         let _ = stats.set_item("dropped_newest", self.stats.dropped_newest);
-        let _ = stats.set_item("dropped", self.stats.dropped_oldest + self.stats.dropped_newest);
+        let _ = stats.set_item(
+            "dropped",
+            self.stats.dropped_oldest + self.stats.dropped_newest,
+        );
         let _ = stats.set_item("blocked", self.stats.blocked);
         let _ = stats.set_item("errors", self.stats.errors);
         let _ = stats.set_item("overflow_events", self.stats.overflow_events);
@@ -300,5 +372,10 @@ impl Web4RttBinding {
             callback.call1(py, (self.session_id,))?;
         }
         Ok(())
+    }
+
+    fn notify_block_waiters(&self) {
+        let (_lock, cvar) = &*self.block_wait;
+        cvar.notify_all();
     }
 }
