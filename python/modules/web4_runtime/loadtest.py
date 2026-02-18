@@ -310,7 +310,10 @@ def _run_phase3_sync(config: LoadTestConfig) -> _ScenarioResult:
     errors: list[str] = []
     rng = Random(config.random_seed)
 
-    flow = GlobalFlowController(total_limit=config.total_limit, per_session_limit=config.per_session_limit)
+    flow: GlobalFlowController[RttSession[str]] = GlobalFlowController(
+        total_limit=config.total_limit,
+        per_session_limit=config.per_session_limit,
+    )
     sessions = [
         RttSession[str](
             config=RttConfig(
@@ -428,7 +431,10 @@ def _run_phase4_sync(config: LoadTestConfig) -> _ScenarioResult:
     started_at = perf_counter()
     errors: list[str] = []
     rng = Random(config.random_seed)
-    flow = GlobalFlowController(total_limit=config.total_limit, per_session_limit=config.per_session_limit)
+    flow: GlobalFlowController[RttSession[str]] = GlobalFlowController(
+        total_limit=config.total_limit,
+        per_session_limit=config.per_session_limit,
+    )
     sessions = [
         RttSession[str](
             config=RttConfig(
@@ -723,7 +729,10 @@ def _run_phase3_async(config: LoadTestConfig) -> _ScenarioResult:
 
     async def scenario() -> None:
         nonlocal max_total_pending, max_session_pending
-        flow = GlobalFlowController(total_limit=config.total_limit, per_session_limit=config.per_session_limit)
+        flow: GlobalFlowController[AsyncRttSession[str]] = GlobalFlowController(
+            total_limit=config.total_limit,
+            per_session_limit=config.per_session_limit,
+        )
         sessions = [
             AsyncRttSession[str](
                 config=RttConfig(
@@ -849,7 +858,10 @@ def _run_phase4_async(config: LoadTestConfig) -> _ScenarioResult:
 
     async def scenario() -> None:
         nonlocal max_total_pending, max_session_pending
-        flow = GlobalFlowController(total_limit=config.total_limit, per_session_limit=config.per_session_limit)
+        flow: GlobalFlowController[AsyncRttSession[str]] = GlobalFlowController(
+            total_limit=config.total_limit,
+            per_session_limit=config.per_session_limit,
+        )
         sessions = [
             AsyncRttSession[str](
                 config=RttConfig(
