@@ -24,6 +24,8 @@ class AsyncRttSession(Generic[MessageT]):
     _connected: bool = field(default=True, init=False)
     _heartbeat_at: float = field(default_factory=monotonic, init=False)
     _condition: Optional[asyncio.Condition] = field(default=None, init=False)
+    _condition_loop: Optional[asyncio.AbstractEventLoop] = field(default=None, init=False)
+    _notify_tasks: set[asyncio.Task[None]] = field(default_factory=set, init=False)
 
     def __post_init__(self) -> None:
         self._message_queue = RttQueue(
@@ -34,9 +36,30 @@ class AsyncRttSession(Generic[MessageT]):
             self.flow_controller.register_session(self)
 
     def _get_condition(self) -> asyncio.Condition:
+        loop = asyncio.get_running_loop()
         if self._condition is None:
             self._condition = asyncio.Condition()
+            self._condition_loop = loop
+        elif self._condition_loop is not None and self._condition_loop is not loop:
+            raise RuntimeError("AsyncRttSession condition must be used from a single event loop")
         return self._condition
+
+    def _notify_global_space_available(self) -> None:
+        condition = self._condition
+        loop = self._condition_loop
+        if condition is None or loop is None or loop.is_closed():
+            return
+
+        def _schedule_notify() -> None:
+            async def _notify() -> None:
+                async with condition:
+                    condition.notify_all()
+
+            task = loop.create_task(_notify())
+            self._notify_tasks.add(task)
+            task.add_done_callback(self._notify_tasks.discard)
+
+        loop.call_soon_threadsafe(_schedule_notify)
 
     @property
     def connected(self) -> bool:
@@ -220,25 +243,10 @@ class AsyncRttSession(Generic[MessageT]):
                 remaining = deadline - monotonic()
                 if remaining <= 0:
                     break
-                if is_global and self.flow_controller is not None:
-                    # Capture the current notification epoch to avoid missed wakeups
-                    # if a free-slot signal happens between local unlock and wait start.
-                    epoch = self.flow_controller.current_space_epoch()
-                    condition.release()
-                    try:
-                        woke = await self.flow_controller.wait_for_available_space(
-                            remaining,
-                            after_epoch=epoch,
-                        )
-                    finally:
-                        await condition.acquire()
-                    if not woke:
-                        break
-                else:
-                    try:
-                        await asyncio.wait_for(condition.wait(), timeout=remaining)
-                    except asyncio.TimeoutError:
-                        break
+                try:
+                    await asyncio.wait_for(condition.wait(), timeout=remaining)
+                except asyncio.TimeoutError:
+                    break
             self._bump(errors=1)
             if not self._connected:
                 raise DisconnectedError("RTT session is disconnected")

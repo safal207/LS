@@ -174,6 +174,10 @@ class RttSession(Generic[MessageT]):
     def _enqueue(self, message: MessageT, priority: Optional[int]) -> None:
         self._message_queue.enqueue(message, priority)
 
+    def _notify_global_space_available(self) -> None:
+        with self._condition:
+            self._condition.notify_all()
+
     def _handle_overflow(self, *, is_global: bool, message: MessageT, priority: Optional[int] = None) -> None:
         self._bump(overflow_events=1)
         if self.config.backpressure_policy == "dropoldest":
@@ -235,17 +239,7 @@ class RttSession(Generic[MessageT]):
                 remaining = max(0.0, deadline - monotonic())
                 if remaining <= 0:
                     break
-                if is_global and self.flow_controller is not None:
-                    epoch = self.flow_controller.current_space_epoch()
-                    self._condition.release()
-                    try:
-                        woke = self.flow_controller.wait_for_available_space_sync(remaining, after_epoch=epoch)
-                    finally:
-                        self._condition.acquire()
-                    if not woke:
-                        break
-                else:
-                    self._condition.wait(timeout=remaining)
+                self._condition.wait(timeout=remaining)
 
             self._bump(errors=1)
             if not self._connected:

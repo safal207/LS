@@ -4,7 +4,7 @@ import asyncio
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from threading import Condition, RLock
-from typing import Generic, Iterator, Literal, TypeVar
+from typing import Callable, Generic, Iterator, Literal, TypeVar
 from weakref import WeakKeyDictionary
 
 SessionT = TypeVar("SessionT")
@@ -132,6 +132,27 @@ class GlobalFlowController(Generic[SessionT]):
         if pending > 0:
             self._notify_available_space_locked()
 
+    def _collect_session_notifiers_locked(self) -> list[Callable[[], None]]:
+        notifiers: list[Callable[[], None]] = []
+        sessions: list[object] = []
+        try:
+            sessions.extend(tuple(self._session_pending.keys()))
+        except RuntimeError:
+            pass
+        sessions.extend(self._strong_sessions.values())
+        for session in sessions:
+            callback = getattr(session, "_notify_global_space_available", None)
+            if callable(callback):
+                notifiers.append(callback)
+        return notifiers
+
+    def _emit_session_notifiers(self, notifiers: list[Callable[[], None]]) -> None:
+        for notify in notifiers:
+            try:
+                notify()
+            except Exception:
+                continue
+
     def _refresh_total_pending_locked(self) -> None:
         self._total_pending = self._total_pending_unlocked()
 
@@ -184,6 +205,7 @@ class GlobalFlowController(Generic[SessionT]):
             self._refresh_total_pending_locked()
 
     def unregister_session(self, session: SessionT) -> None:
+        notifiers: list[Callable[[], None]] = []
         with self._lock:
             pending = 0
             removed = False
@@ -200,6 +222,8 @@ class GlobalFlowController(Generic[SessionT]):
             self._refresh_total_pending_locked()
             if pending > 0:
                 self._notify_available_space_locked()
+                notifiers = self._collect_session_notifiers_locked()
+        self._emit_session_notifiers(notifiers)
 
     @contextmanager
     def managed_session(self, session: SessionT) -> Iterator[SessionT]:
@@ -244,6 +268,7 @@ class GlobalFlowController(Generic[SessionT]):
         return self.try_enqueue(session)
 
     def on_dequeue(self, session: SessionT) -> None:
+        notifiers: list[Callable[[], None]] = []
         with self._lock:
             current = self._session_pending_locked(session)
             if current is None:
@@ -252,8 +277,11 @@ class GlobalFlowController(Generic[SessionT]):
                 self._set_session_pending_locked(session, current - 1)
                 self._refresh_total_pending_locked()
                 self._notify_available_space_locked()
+                notifiers = self._collect_session_notifiers_locked()
+        self._emit_session_notifiers(notifiers)
 
     def on_reset(self, session: SessionT) -> None:
+        notifiers: list[Callable[[], None]] = []
         with self._lock:
             if not self._is_registered_locked(session):
                 self._register_session_locked(session)
@@ -262,3 +290,5 @@ class GlobalFlowController(Generic[SessionT]):
             self._refresh_total_pending_locked()
             if prev > 0:
                 self._notify_available_space_locked()
+                notifiers = self._collect_session_notifiers_locked()
+        self._emit_session_notifiers(notifiers)
