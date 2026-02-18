@@ -1,10 +1,12 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::PyCell;
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, VecDeque};
+use std::cmp::{Ordering, Reverse};
+use std::collections::{BinaryHeap, HashSet, VecDeque};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
+
+const PRIORITY_QUEUE_COMPACTION_RATIO: usize = 2;
 
 #[derive(Clone, Copy)]
 enum BackpressurePolicy {
@@ -66,6 +68,8 @@ pub struct Web4RttBinding {
     connected: bool,
     queue: VecDeque<String>,
     priority_queue: BinaryHeap<PrioritizedMessage>,
+    oldest_priority_queue: BinaryHeap<Reverse<u64>>,
+    live_priority_sequences: HashSet<u64>,
     next_sequence: u64,
     max_queue: usize,
     policy: BackpressurePolicy,
@@ -101,6 +105,8 @@ impl Web4RttBinding {
             connected: true,
             queue: VecDeque::new(),
             priority_queue: BinaryHeap::new(),
+            oldest_priority_queue: BinaryHeap::new(),
+            live_priority_sequences: HashSet::new(),
             next_sequence: 0,
             max_queue,
             policy: BackpressurePolicy::parse(backpressure_policy)?,
@@ -184,28 +190,37 @@ impl Web4RttBinding {
             this.stats.overflow_events += 1;
             match this.policy {
                 BackpressurePolicy::DropOldest => {
-                    if !this.priority_queue.is_empty() {
-                        // TODO(14.7): Replace full-heap rebuild with lazy deletion + auxiliary
-                        // min-sequence structure for O(log n) dropoldest parity.
-                        if let Some(oldest_sequence) =
-                            this.priority_queue.iter().map(|pm| pm.sequence).min()
+                    let mut dropped = false;
+
+                    if !this.live_priority_sequences.is_empty() {
+                        while let Some(Reverse(oldest_sequence)) = this.oldest_priority_queue.pop()
                         {
-                            this.priority_queue = this
-                                .priority_queue
-                                .drain()
-                                .filter(|pm| pm.sequence != oldest_sequence)
-                                .collect();
+                            if this.live_priority_sequences.remove(&oldest_sequence) {
+                                dropped = true;
+                                break;
+                            }
                         }
-                    } else {
-                        let _ = this.queue.pop_front();
+
+                        if dropped {
+                            this.maybe_compact_priority_structures();
+                        }
                     }
-                    let msg = message_slot
-                        .take()
-                        .expect("message must be available until enqueue");
-                    this.push_message(msg, priority);
-                    this.stats.enqueued += 1;
-                    this.stats.dropped_oldest += 1;
-                    this.update_max_queue_len();
+
+                    if !dropped {
+                        dropped = this.queue.pop_front().is_some();
+                    }
+
+                    if dropped {
+                        let msg = message_slot
+                            .take()
+                            .expect("message must be available until enqueue");
+                        this.push_message(msg, priority);
+                        this.stats.enqueued += 1;
+                        this.stats.dropped_oldest += 1;
+                        this.update_max_queue_len();
+                    } else {
+                        this.stats.dropped_newest += 1;
+                    }
                     return Ok(());
                 }
                 BackpressurePolicy::DropNewest => {
@@ -278,7 +293,17 @@ impl Web4RttBinding {
             return None;
         }
         let item = if !self.priority_queue.is_empty() {
-            self.priority_queue.pop().map(|pm| pm.message)
+            let mut priority_item = None;
+            while let Some(pm) = self.priority_queue.pop() {
+                if self.live_priority_sequences.remove(&pm.sequence) {
+                    priority_item = Some(pm.message);
+                    break;
+                }
+            }
+            if priority_item.is_some() {
+                self.maybe_compact_priority_structures();
+            }
+            priority_item.or_else(|| self.queue.pop_front())
         } else {
             self.queue.pop_front()
         };
@@ -289,7 +314,7 @@ impl Web4RttBinding {
     }
 
     fn pending(&self) -> usize {
-        self.queue.len() + self.priority_queue.len()
+        self.queue.len() + self.live_priority_sequences.len()
     }
 
     fn heartbeat(&mut self) {
@@ -368,20 +393,65 @@ impl Web4RttBinding {
         self.stats.max_queue_len = self
             .stats
             .max_queue_len
-            .max(self.queue.len() + self.priority_queue.len());
+            .max(self.queue.len() + self.live_priority_sequences.len());
     }
 
     fn push_message(&mut self, message: String, priority: Option<i32>) {
         if let Some(priority_value) = priority {
             self.next_sequence = self.next_sequence.wrapping_add(1);
+            let sequence = self.next_sequence;
             self.priority_queue.push(PrioritizedMessage {
                 priority: priority_value,
-                sequence: self.next_sequence,
+                sequence,
                 message,
             });
+            self.oldest_priority_queue.push(Reverse(sequence));
+            self.live_priority_sequences.insert(sequence);
             return;
         }
         self.queue.push_back(message);
+    }
+
+    fn maybe_compact_priority_structures(&mut self) {
+        self.maybe_compact_priority_queue();
+        self.maybe_compact_oldest_priority_queue();
+    }
+
+    fn maybe_compact_priority_queue(&mut self) {
+        if self.priority_queue.is_empty() {
+            return;
+        }
+        let live = self.live_priority_sequences.len();
+        let stale = self.priority_queue.len().saturating_sub(live);
+        if stale <= live.saturating_mul(PRIORITY_QUEUE_COMPACTION_RATIO) {
+            return;
+        }
+
+        let mut rebuilt = BinaryHeap::new();
+        while let Some(item) = self.priority_queue.pop() {
+            if self.live_priority_sequences.contains(&item.sequence) {
+                rebuilt.push(item);
+            }
+        }
+        self.priority_queue = rebuilt;
+    }
+
+    fn maybe_compact_oldest_priority_queue(&mut self) {
+        if self.oldest_priority_queue.is_empty() {
+            return;
+        }
+        let live = self.live_priority_sequences.len();
+        let stale = self.oldest_priority_queue.len().saturating_sub(live);
+        if stale <= live.saturating_mul(PRIORITY_QUEUE_COMPACTION_RATIO) {
+            return;
+        }
+
+        self.oldest_priority_queue = self
+            .live_priority_sequences
+            .iter()
+            .copied()
+            .map(Reverse)
+            .collect();
     }
 
     fn emit(&self, py: Python<'_>, callbacks: &[PyObject]) -> PyResult<()> {
@@ -398,6 +468,11 @@ impl Web4RttBinding {
     }
 
     fn remove_callback(py: Python<'_>, callbacks: &mut Vec<PyObject>, callback: &PyObject) {
-        callbacks.retain(|existing| !existing.as_ref(py).is(callback.as_ref(py)));
+        if let Some(index) = callbacks
+            .iter()
+            .position(|existing| existing.as_ref(py).is(callback.as_ref(py)))
+        {
+            callbacks.remove(index);
+        }
     }
 }

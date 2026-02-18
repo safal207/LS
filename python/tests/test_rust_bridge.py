@@ -251,6 +251,28 @@ def test_web4_rtt_binding_unregister_and_clear_hooks(ghostgpt_core_module):
     assert rtt.check_heartbeat_timeout() is True
     assert events == [("open", 11), ("open", 12)]
 
+
+def test_web4_rtt_binding_unregister_removes_single_registration(ghostgpt_core_module):
+    events: list[tuple[str, int]] = []
+
+    def on_open(session_id: int) -> None:
+        events.append(("open", session_id))
+
+    rtt = ghostgpt_core_module.Web4RttBinding(max_queue=2, session_id=21, heartbeat_timeout_ms=1_000_000)
+
+    # register_on_session_open calls hook immediately for connected session.
+    rtt.register_on_session_open(on_open)
+    rtt.register_on_session_open(on_open)
+    assert events == [("open", 21), ("open", 21)]
+
+    # Python path removes one instance per unregister call; Rust must match.
+    rtt.unregister_on_session_open(on_open)
+
+    rtt.disconnect()
+    rtt.connect()
+    assert events == [("open", 21), ("open", 21), ("open", 21)]
+
+
 def test_optimizer_init_uses_memory_manager_positional_arg(monkeypatch, tmp_path):
     class FakeMemoryManager:
         def __init__(self, *args, **kwargs):
