@@ -71,7 +71,7 @@ class RttStats:
 class RttSession(Generic[MessageT]):
     config: RttConfig = field(default_factory=RttConfig)
     observability: Optional["ObservabilityHub"] = None
-    flow_controller: Optional["GlobalFlowController[MessageT]"] = None
+    flow_controller: Optional["GlobalFlowController[RttSession[MessageT]]"] = None
     _queue: Deque[MessageT] = field(default_factory=deque, init=False)
     _priority_queue: list[tuple[int, int, MessageT]] = field(default_factory=list, init=False)
     _priority_oldest_queue: list[tuple[int, int]] = field(default_factory=list, init=False)
@@ -208,10 +208,18 @@ class RttSession(Generic[MessageT]):
                 self._bump(dropped_newest=1)
                 return
 
-            # Net pending count does not change for drop-oldest swap, so we do not
-            # mutate flow-controller counters here.
+            if self.flow_controller is not None:
+                # Remove the evicted message from global accounting first.
+                self.flow_controller.on_dequeue(self)
+                # Re-acquire admission for the replacement message.
+                if not self.flow_controller.try_enqueue(self):
+                    self._bump(dropped_oldest=1)
+                    self._condition.notify_all()
+                    return
+
             self._enqueue(message, priority)
             self._bump(enqueued=1, dropped_oldest=1)
+            self._condition.notify_all()
             return
 
         if self.config.backpressure_policy == "dropnewest":
@@ -235,15 +243,23 @@ class RttSession(Generic[MessageT]):
                         self._bump(enqueued=1)
                         return
                 elif is_global:
-                    if self.flow_controller is None or self.flow_controller.try_enqueue(self):
-                        self._enqueue(message, priority)
-                        self._bump(enqueued=1)
-                        return
+                    if self.pending < self.config.max_queue:
+                        if self.flow_controller is None:
+                            self._enqueue(message, priority)
+                            self._bump(enqueued=1)
+                            return
+                        if self.flow_controller.can_enqueue(self) and self.flow_controller.try_enqueue(self):
+                            # Preserve local queue invariants even under concurrent global changes.
+                            if self.pending < self.config.max_queue:
+                                self._enqueue(message, priority)
+                                self._bump(enqueued=1)
+                                return
+                            self.flow_controller.on_dequeue(self)
 
                 remaining = max(0.0, deadline - monotonic())
                 if remaining <= 0:
                     break
-                self._condition.wait(timeout=remaining)
+                self._condition.wait(timeout=min(remaining, 0.01))
 
             self._bump(errors=1)
             if not self._connected:

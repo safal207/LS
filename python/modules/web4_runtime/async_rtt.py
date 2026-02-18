@@ -19,7 +19,7 @@ _PRIORITY_QUEUE_COMPACTION_RATIO = 2
 @dataclass
 class AsyncRttSession(Generic[MessageT]):
     config: RttConfig = field(default_factory=RttConfig)
-    flow_controller: Optional["GlobalFlowController[MessageT]"] = None
+    flow_controller: Optional["GlobalFlowController[AsyncRttSession[MessageT]]"] = None
     _queue: Deque[MessageT] = field(default_factory=deque, init=False)
     _priority_queue: list[tuple[int, int, MessageT]] = field(default_factory=list, init=False)
     _priority_oldest_queue: list[tuple[int, int]] = field(default_factory=list, init=False)
@@ -72,19 +72,26 @@ class AsyncRttSession(Generic[MessageT]):
 
     async def receive_async(self) -> Optional[MessageT]:
         condition = self._get_condition()
+        notify_flow = False
+        item: Optional[MessageT] = None
         async with condition:
             if not self._connected:
                 raise DisconnectedError("RTT session is disconnected")
             item = self._receive_unlocked()
             if item is not None and self.flow_controller is not None:
                 self.flow_controller.on_dequeue(self)
+                notify_flow = True
             if item is not None:
                 condition.notify_all()
-            return item
+        if notify_flow and self.flow_controller is not None:
+            await self.flow_controller.notify_available_space()
+        return item
 
     async def wait_message(self, timeout_s: float = 1.0) -> Optional[MessageT]:
         deadline = monotonic() + max(0.0, timeout_s)
         condition = self._get_condition()
+        notify_flow = False
+        item: Optional[MessageT] = None
         async with condition:
             while True:
                 if not self._connected:
@@ -94,7 +101,9 @@ class AsyncRttSession(Generic[MessageT]):
                 if item is not None:
                     if self.flow_controller is not None:
                         self.flow_controller.on_dequeue(self)
-                    return item
+                        notify_flow = True
+                    condition.notify_all()
+                    break
 
                 remaining = deadline - monotonic()
                 if remaining <= 0:
@@ -103,6 +112,9 @@ class AsyncRttSession(Generic[MessageT]):
                     await asyncio.wait_for(condition.wait(), timeout=remaining)
                 except asyncio.TimeoutError:
                     return None
+        if notify_flow and self.flow_controller is not None:
+            await self.flow_controller.notify_available_space()
+        return item
 
     async def disconnect(self) -> None:
         condition = self._get_condition()
@@ -196,8 +208,16 @@ class AsyncRttSession(Generic[MessageT]):
             if not dropped:
                 self._bump(dropped_newest=1)
                 return
+            if self.flow_controller is not None:
+                # Eviction frees one global slot; replacement must reacquire.
+                self.flow_controller.on_dequeue(self)
+                if not self.flow_controller.try_enqueue(self):
+                    self._bump(dropped_oldest=1)
+                    self._get_condition().notify_all()
+                    return
             self._enqueue(message, priority)
             self._bump(enqueued=1, dropped_oldest=1)
+            self._get_condition().notify_all()
             return
         if self.config.backpressure_policy == "dropnewest":
             self._bump(dropped_newest=1)
@@ -208,23 +228,44 @@ class AsyncRttSession(Generic[MessageT]):
             condition = self._get_condition()
             while self._connected:
                 if not is_global and self.pending < self.config.max_queue:
-                    if self.flow_controller is None or self.flow_controller.try_enqueue(self):
+                    if self.flow_controller is None:
+                        self._enqueue(message, priority)
+                        self._bump(enqueued=1)
+                        return
+                    if self.flow_controller.can_enqueue(self) and self.flow_controller.try_enqueue(self):
                         self._enqueue(message, priority)
                         self._bump(enqueued=1)
                         return
                 elif is_global:
-                    if self.flow_controller is None or self.flow_controller.try_enqueue(self):
-                        self._enqueue(message, priority)
-                        self._bump(enqueued=1)
-                        return
+                    if self.pending < self.config.max_queue:
+                        if self.flow_controller is None:
+                            self._enqueue(message, priority)
+                            self._bump(enqueued=1)
+                            return
+                        if self.flow_controller.can_enqueue(self) and self.flow_controller.try_enqueue(self):
+                            if self.pending < self.config.max_queue:
+                                self._enqueue(message, priority)
+                                self._bump(enqueued=1)
+                                return
+                            self.flow_controller.on_dequeue(self)
 
                 remaining = deadline - monotonic()
                 if remaining <= 0:
                     break
-                try:
-                    await asyncio.wait_for(condition.wait(), timeout=remaining)
-                except asyncio.TimeoutError:
-                    break
+                if is_global and self.flow_controller is not None:
+                    # Wait on global free-slot notifications without polling.
+                    condition.release()
+                    try:
+                        woke = await self.flow_controller.wait_for_available_space(remaining)
+                    finally:
+                        await condition.acquire()
+                    if not woke:
+                        break
+                else:
+                    try:
+                        await asyncio.wait_for(condition.wait(), timeout=remaining)
+                    except asyncio.TimeoutError:
+                        break
             self._bump(errors=1)
             if not self._connected:
                 raise DisconnectedError("RTT session is disconnected")

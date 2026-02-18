@@ -37,7 +37,13 @@ class AdaptiveGovernor:
 
         volatility = self._compute_window_volatility()
 
-        target_alpha = self.alpha_max - (volatility * (self.alpha_max - self.alpha_min))
+        if volatility > 0.5:
+            target_alpha = self.alpha_max
+        elif volatility < 0.2:
+            target_alpha = self.alpha_min
+        else:
+            span = max(1e-9, 0.5 - 0.2)
+            target_alpha = self.alpha_min + ((volatility - 0.2) * (self.alpha_max - self.alpha_min) / span)
         self._alpha = min(self.alpha_max, max(self.alpha_min, target_alpha))
         return self._alpha
 

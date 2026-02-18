@@ -113,3 +113,48 @@ def test_async_rtt_with_global_flow_controller() -> None:
         assert await session.receive_async() == "third"
 
     asyncio.run(scenario())
+
+
+def test_async_dropoldest_swap_keeps_global_pending_consistent() -> None:
+    async def scenario() -> None:
+        flow = GlobalFlowController(total_limit=10, per_session_limit=10)
+        session = AsyncRttSession[str](
+            config=RttConfig(max_queue=1, backpressure_policy="dropoldest"),
+            flow_controller=flow,
+        )
+
+        await session.send_async("first")
+        assert flow.total_pending == 1
+
+        await session.send_async("second")
+        assert session.pending == 1
+        assert flow.total_pending == 1
+        assert await session.receive_async() == "second"
+        assert flow.total_pending == 0
+
+    asyncio.run(scenario())
+
+
+def test_async_block_sender_wakes_on_global_dequeue() -> None:
+    async def scenario() -> None:
+        flow = GlobalFlowController(total_limit=1, per_session_limit=1)
+        owner = AsyncRttSession[str](
+            config=RttConfig(max_queue=2, backpressure_policy="error"),
+            flow_controller=flow,
+        )
+        blocked = AsyncRttSession[str](
+            config=RttConfig(max_queue=2, backpressure_policy="block", block_timeout_s=0.5),
+            flow_controller=flow,
+        )
+
+        await owner.send_async("first")
+        task = asyncio.create_task(blocked.send_async("second"))
+        await asyncio.sleep(0.05)
+        assert task.done() is False
+
+        assert await owner.receive_async() == "first"
+        await task
+        assert await blocked.receive_async() == "second"
+        assert flow.total_pending == 0
+
+    asyncio.run(scenario())

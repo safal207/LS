@@ -60,3 +60,19 @@ When `RttSession.flow_controller` is configured, admission is evaluated in this 
 2. Global controller bound (`GlobalFlowController.total_limit` / per-session strategy).
 
 This means global pressure can reject new messages even when a local session queue still has free slots.
+
+## DropOldest With Global Flow
+
+- Eviction is accounted as a real dequeue in `GlobalFlowController`.
+- Replacement enqueue is admitted only after a successful `try_enqueue`.
+- If global admission fails after eviction, the new message is dropped and local/global counters remain consistent.
+
+## Global Waiter Wakeups
+
+- Async producers waiting on global pressure are woken by flow-controller free-space notifications.
+- Dequeue/reset paths trigger these notifications so blocked senders can retry before timeout.
+
+## Non-Weakref Session Ownership
+
+- Sessions that cannot be weak-referenced are stored strongly by the flow controller.
+- Call `unregister_session(session)` to release those strong references explicitly.

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
-from threading import Lock
+from threading import Condition, RLock
 from typing import Generic, Literal, TypeVar
 from weakref import ref
 
@@ -20,7 +21,12 @@ class GlobalFlowController(Generic[SessionT]):
     _strong_sessions: dict[int, object] = field(default_factory=dict, init=False)
     _next_session_id: int = field(default=1, init=False)
     _total_pending: int = field(default=0, init=False)
-    _lock: Lock = field(default_factory=Lock, init=False)
+    _lock: RLock = field(default_factory=RLock, init=False)
+    _space_available: Condition = field(init=False)
+    _async_space_available: asyncio.Condition | None = field(default=None, init=False)
+
+    def __post_init__(self) -> None:
+        self._space_available = Condition(self._lock)
 
     @property
     def total_pending(self) -> int:
@@ -32,21 +38,47 @@ class GlobalFlowController(Generic[SessionT]):
         with self._lock:
             return len(self._session_pending)
 
+    def _notify_available_space_locked(self) -> None:
+        self._space_available.notify_all()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        loop.create_task(self.notify_available_space())
+
+    async def notify_available_space(self) -> None:
+        if self._async_space_available is None:
+            self._async_space_available = asyncio.Condition()
+        async with self._async_space_available:
+            self._async_space_available.notify_all()
+
+    async def wait_for_available_space(self, timeout_s: float) -> bool:
+        if self._async_space_available is None:
+            self._async_space_available = asyncio.Condition()
+        try:
+            async with self._async_space_available:
+                await asyncio.wait_for(self._async_space_available.wait(), timeout=max(0.0, timeout_s))
+            return True
+        except asyncio.TimeoutError:
+            return False
+
     def _cleanup_sid_locked(self, sid: int) -> None:
         pending = self._session_pending.pop(sid, 0)
         self._total_pending = max(0, self._total_pending - pending)
         self._session_refs.pop(sid, None)
+        if pending > 0:
+            self._notify_available_space_locked()
 
     def _cleanup_stale_locked(self) -> None:
         stale_objids: list[int] = []
-        for obj_id, sid in self._session_ids_by_objid.items():
+        for obj_id, sid in list(self._session_ids_by_objid.items()):
             session_ref = self._session_refs.get(sid)
             if session_ref is not None and session_ref() is None:
                 stale_objids.append(obj_id)
         for obj_id in stale_objids:
-            sid = self._session_ids_by_objid.pop(obj_id, None)
+            sid = self._session_ids_by_objid.pop(obj_id, -1)
             self._strong_sessions.pop(obj_id, None)
-            if sid is not None:
+            if sid != -1:
                 self._cleanup_sid_locked(sid)
 
     def _session_sid_locked(self, session: SessionT) -> int:
@@ -95,7 +127,9 @@ class GlobalFlowController(Generic[SessionT]):
     def can_enqueue(self, session: SessionT) -> bool:
         with self._lock:
             self._cleanup_stale_locked()
-            sid = self._session_sid_locked(session)
+            sid = self._session_ids_by_objid.get(id(session))
+            if sid is None or sid not in self._session_pending:
+                return False
             return self._can_enqueue_unlocked(sid)
 
     def try_enqueue(self, session: SessionT) -> bool:
@@ -113,13 +147,13 @@ class GlobalFlowController(Generic[SessionT]):
 
     def on_dequeue(self, session: SessionT) -> None:
         with self._lock:
-            self._cleanup_stale_locked()
             sid = self._session_ids_by_objid.get(id(session))
             if sid is None or sid not in self._session_pending:
                 return
             if self._session_pending[sid] > 0:
                 self._session_pending[sid] -= 1
                 self._total_pending = max(0, self._total_pending - 1)
+                self._notify_available_space_locked()
 
     def on_reset(self, session: SessionT) -> None:
         with self._lock:
@@ -130,3 +164,5 @@ class GlobalFlowController(Generic[SessionT]):
             prev = self._session_pending.get(sid, 0)
             self._session_pending[sid] = 0
             self._total_pending = max(0, self._total_pending - prev)
+            if prev > 0:
+                self._notify_available_space_locked()

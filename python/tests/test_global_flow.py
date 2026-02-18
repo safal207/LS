@@ -1,5 +1,6 @@
 import gc
 import threading
+import time
 
 import pytest
 
@@ -87,6 +88,16 @@ def test_global_flow_weakref_cleanup_after_gc() -> None:
     assert flow.total_pending == 0
 
 
+def test_can_enqueue_is_pure_for_unknown_session() -> None:
+    flow = GlobalFlowController(total_limit=10, per_session_limit=5)
+    ghost = _SessionRef()
+
+    assert flow.active_sessions == 0
+    assert flow.can_enqueue(ghost) is False
+    assert flow.active_sessions == 0
+    assert flow.total_pending == 0
+
+
 def test_rtt_session_registers_with_flow_controller() -> None:
     flow = GlobalFlowController(total_limit=10, per_session_limit=5)
     session = RttSession[str](config=RttConfig(max_queue=2), flow_controller=flow)
@@ -123,3 +134,84 @@ def test_rtt_session_reconnect_resets_global_flow_counters() -> None:
     session.disconnect()
     session.reconnect()
     assert flow.can_enqueue(session) is True
+
+
+def test_dropoldest_swap_keeps_global_pending_consistent() -> None:
+    flow = GlobalFlowController(total_limit=10, per_session_limit=10)
+    session = RttSession[str](
+        config=RttConfig(max_queue=1, backpressure_policy="dropoldest"),
+        flow_controller=flow,
+    )
+
+    session.send("a")
+    assert flow.total_pending == 1
+
+    session.send("b")
+    assert session.pending == 1
+    assert flow.total_pending == 1
+    assert session.receive() == "b"
+    assert flow.total_pending == 0
+
+
+def test_block_policy_wakes_when_global_slot_is_freed() -> None:
+    flow = GlobalFlowController(total_limit=1, per_session_limit=1)
+    producer = RttSession[str](
+        config=RttConfig(max_queue=2, backpressure_policy="error"),
+        flow_controller=flow,
+    )
+    blocked = RttSession[str](
+        config=RttConfig(max_queue=2, backpressure_policy="block", block_timeout_s=0.3),
+        flow_controller=flow,
+    )
+
+    producer.send("first")
+    assert flow.total_pending == 1
+
+    result: list[str] = []
+    error: list[BaseException] = []
+
+    def sender() -> None:
+        try:
+            blocked.send("second")
+            result.append("ok")
+        except BaseException as exc:  # pragma: no cover - diagnostic path
+            error.append(exc)
+
+    worker = threading.Thread(target=sender)
+    worker.start()
+    time.sleep(0.05)
+
+    assert producer.receive() == "first"
+    worker.join(timeout=1.0)
+
+    assert error == []
+    assert result == ["ok"]
+    assert blocked.receive() == "second"
+    assert flow.total_pending == 0
+
+
+def test_flow_cleanup_stress_threadsafe() -> None:
+    flow = GlobalFlowController(total_limit=256, per_session_limit=32)
+    errors: list[BaseException] = []
+    lock = threading.Lock()
+
+    def worker() -> None:
+        try:
+            for _ in range(200):
+                session = _SessionRef()
+                flow.register_session(session)
+                flow.try_enqueue(session)
+                flow.on_dequeue(session)
+                flow.unregister_session(session)
+        except BaseException as exc:  # pragma: no cover - diagnostic path
+            with lock:
+                errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert flow.total_pending == 0
