@@ -11,6 +11,9 @@ on:
       - "python/modules/web4_bio/**"
       - "python/modules/hexagon_core/**"
       - "python/tests/test_web4_runtime.py"
+      - "python/tests/test_web4_transport.py"
+      - "python/tests/test_global_flow.py"
+      - "python/tests/test_async_rtt.py"
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
       - "python/tests/test_web4_bio.py"
@@ -37,6 +40,9 @@ on:
       - "python/modules/web4_bio/**"
       - "python/modules/hexagon_core/**"
       - "python/tests/test_web4_runtime.py"
+      - "python/tests/test_web4_transport.py"
+      - "python/tests/test_global_flow.py"
+      - "python/tests/test_async_rtt.py"
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
       - "python/tests/test_web4_bio.py"
@@ -92,6 +98,10 @@ jobs:
       - name: Run Python smoke tests
         run: |
           PYTHONPATH=python python -m pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
+
+      - name: Run Web4 runtime contract tests
+        run: |
+          PYTHONPATH=python:python/modules python -m pytest python/tests/test_web4_transport.py python/tests/test_global_flow.py python/tests/test_async_rtt.py
 
       - name: Run hexagon_core unit tests
         run: |
