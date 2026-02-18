@@ -75,6 +75,7 @@ Run phases in order. Do not start next phase until current phase passes.
 
 ### Phase 3 Exit Criteria
 - Stable completion with no hangs and bounded memory/task growth.
+- Implemented chaos profile: `scripts/web4_runtime_load.py --phase phase3 --mode both`.
 
 ## Phase 4: Soak Test (Long Run)
 ### Parameters
@@ -94,6 +95,7 @@ Run phases in order. Do not start next phase until current phase passes.
 
 ### Phase 4 Exit Criteria
 - No degradation trends and no deadlocks through full soak window.
+- Implemented soak profile: `scripts/web4_runtime_load.py --phase phase4 --mode both --soak-duration-s <seconds>`.
 
 ## Phase 5: Promote to Git (CI-Friendly)
 ### Keep in CI

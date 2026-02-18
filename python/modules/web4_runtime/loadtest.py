@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+import gc
+from dataclasses import dataclass, field
 from random import Random
 from threading import Thread
 from time import perf_counter, sleep
@@ -9,9 +10,9 @@ from typing import Any, Literal
 
 from .async_rtt import AsyncRttSession
 from .flow import GlobalFlowController
-from .rtt import RttConfig, RttSession
+from .rtt import BackpressureError, DisconnectedError, RttConfig, RttSession
 
-Phase = Literal["phase1", "phase2"]
+Phase = Literal["phase1", "phase2", "phase3", "phase4"]
 Mode = Literal["sync", "async", "both"]
 
 
@@ -26,6 +27,12 @@ class LoadTestConfig:
     per_session_limit: int = 64
     block_timeout_s: float = 0.8
     random_seed: int = 42
+    chaos_disconnect_rate: float = 0.08
+    burst_probability: float = 0.12
+    burst_size: int = 16
+    soak_duration_s: float = 30.0
+    target_messages_per_s: int = 200
+    gc_pressure: bool = False
 
     def __post_init__(self) -> None:
         if self.sessions < 1:
@@ -40,6 +47,16 @@ class LoadTestConfig:
             raise ValueError("per_session_limit must be >= 1")
         if self.block_timeout_s <= 0:
             raise ValueError("block_timeout_s must be > 0")
+        if not 0.0 <= self.chaos_disconnect_rate <= 1.0:
+            raise ValueError("chaos_disconnect_rate must be between 0.0 and 1.0")
+        if not 0.0 <= self.burst_probability <= 1.0:
+            raise ValueError("burst_probability must be between 0.0 and 1.0")
+        if self.burst_size < 1:
+            raise ValueError("burst_size must be >= 1")
+        if self.soak_duration_s <= 0:
+            raise ValueError("soak_duration_s must be > 0")
+        if self.target_messages_per_s < 1:
+            raise ValueError("target_messages_per_s must be >= 1")
 
 
 @dataclass
@@ -56,6 +73,7 @@ class _ScenarioResult:
     duration_s: float
     wakeup_latencies_ms: list[float]
     errors: list[str]
+    extra: dict[str, Any] = field(default_factory=dict)
 
     @property
     def passed(self) -> bool:
@@ -80,6 +98,7 @@ class _ScenarioResult:
                 "p95": _percentile(self.wakeup_latencies_ms, 95.0),
                 "p99": _percentile(self.wakeup_latencies_ms, 99.0),
             },
+            "extra": self.extra,
             "errors": self.errors,
         }
 
@@ -102,13 +121,26 @@ def run_load_test(config: LoadTestConfig) -> dict[str, Any]:
 def _run_sync(config: LoadTestConfig) -> _ScenarioResult:
     if config.phase == "phase1":
         return _run_phase1_sync(config)
-    return _run_phase2_sync(config)
+    if config.phase == "phase2":
+        return _run_phase2_sync(config)
+    if config.phase == "phase3":
+        return _run_phase3_sync(config)
+    return _run_phase4_sync(config)
 
 
 def _run_async(config: LoadTestConfig) -> _ScenarioResult:
     if config.phase == "phase1":
         return _run_phase1_async(config)
-    return _run_phase2_async(config)
+    if config.phase == "phase2":
+        return _run_phase2_async(config)
+    if config.phase == "phase3":
+        return _run_phase3_async(config)
+    return _run_phase4_async(config)
+
+
+def _append_error(errors: list[str], message: str) -> None:
+    if len(errors) < 40:
+        errors.append(message)
 
 
 def _run_phase1_sync(config: LoadTestConfig) -> _ScenarioResult:
@@ -270,6 +302,244 @@ def _run_phase2_sync(config: LoadTestConfig) -> _ScenarioResult:
         duration_s=perf_counter() - started_at,
         wakeup_latencies_ms=[],
         errors=errors,
+    )
+
+
+def _run_phase3_sync(config: LoadTestConfig) -> _ScenarioResult:
+    started_at = perf_counter()
+    errors: list[str] = []
+    rng = Random(config.random_seed)
+
+    flow = GlobalFlowController(total_limit=config.total_limit, per_session_limit=config.per_session_limit)
+    sessions = [
+        RttSession[str](
+            config=RttConfig(
+                max_queue=config.max_queue,
+                backpressure_policy="dropoldest",
+                block_timeout_s=config.block_timeout_s,
+                enable_priority_queue=True,
+            ),
+            flow_controller=flow,
+        )
+        for _ in range(config.sessions)
+    ]
+
+    max_total_pending = 0
+    max_session_pending = 0
+    received_count = 0
+    disconnect_events = 0
+    reconnect_events = 0
+    burst_rounds = 0
+
+    def observe() -> None:
+        nonlocal max_total_pending, max_session_pending
+        total_pending = flow.total_pending
+        local_pending_sum = sum(session.pending for session in sessions)
+        max_total_pending = max(max_total_pending, total_pending)
+        local_max_pending = max((session.pending for session in sessions), default=0)
+        max_session_pending = max(max_session_pending, local_max_pending)
+        if total_pending != local_pending_sum:
+            _append_error(
+                errors,
+                f"sync-phase3 invariant failed: total_pending={total_pending} sum_pending={local_pending_sum}",
+            )
+        if total_pending > flow.total_limit:
+            _append_error(
+                errors,
+                f"sync-phase3 invariant failed: total_pending {total_pending} exceeds total_limit {flow.total_limit}",
+            )
+        if local_max_pending > config.max_queue:
+            _append_error(errors, "sync-phase3 invariant failed: session.pending exceeded max_queue")
+
+    steps = config.sessions * config.messages_per_session
+    for step in range(steps):
+        if rng.random() < config.chaos_disconnect_rate:
+            toggled = sessions[rng.randrange(config.sessions)]
+            if toggled.connected:
+                toggled.disconnect("chaos")
+                disconnect_events += 1
+            else:
+                toggled.reconnect()
+                reconnect_events += 1
+
+        burst = config.burst_size if rng.random() < config.burst_probability else 1
+        if burst > 1:
+            burst_rounds += 1
+        for burst_index in range(burst):
+            session = sessions[rng.randrange(config.sessions)]
+            if not session.connected:
+                if rng.random() < 0.6:
+                    session.reconnect()
+                    reconnect_events += 1
+                else:
+                    continue
+
+            priority = rng.randint(1, 9) if rng.random() < 0.5 else None
+            try:
+                session.send(f"chaos-{step}-{burst_index}", priority=priority)
+            except (BackpressureError, DisconnectedError) as exc:
+                _append_error(errors, f"sync-phase3 unexpected send failure: {exc!r}")
+                continue
+
+            if rng.random() < 0.45:
+                sink = sessions[rng.randrange(config.sessions)]
+                if sink.connected:
+                    item = sink.receive()
+                    if item is not None:
+                        received_count += 1
+
+        if config.gc_pressure and step % 20 == 0:
+            gc.collect()
+        observe()
+
+    for session in sessions:
+        if not session.connected:
+            session.reconnect()
+            reconnect_events += 1
+        while True:
+            item = session.receive()
+            if item is None:
+                break
+            received_count += 1
+        observe()
+
+    return _ScenarioResult(
+        scenario="phase3_chaos_validation",
+        phase=config.phase,
+        mode="sync",
+        total_limit=flow.total_limit,
+        attempted=sum(session.stats.attempted for session in sessions),
+        enqueued=sum(session.stats.enqueued for session in sessions),
+        received=received_count,
+        max_total_pending=max_total_pending,
+        max_session_pending=max_session_pending,
+        duration_s=perf_counter() - started_at,
+        wakeup_latencies_ms=[],
+        errors=errors,
+        extra={
+            "disconnect_events": disconnect_events,
+            "reconnect_events": reconnect_events,
+            "burst_rounds": burst_rounds,
+        },
+    )
+
+
+def _run_phase4_sync(config: LoadTestConfig) -> _ScenarioResult:
+    started_at = perf_counter()
+    errors: list[str] = []
+    rng = Random(config.random_seed)
+    flow = GlobalFlowController(total_limit=config.total_limit, per_session_limit=config.per_session_limit)
+    sessions = [
+        RttSession[str](
+            config=RttConfig(
+                max_queue=config.max_queue,
+                backpressure_policy="dropoldest",
+                block_timeout_s=config.block_timeout_s,
+                enable_priority_queue=True,
+            ),
+            flow_controller=flow,
+        )
+        for _ in range(config.sessions)
+    ]
+
+    max_total_pending = 0
+    max_session_pending = 0
+    received_count = 0
+    duration_target = max(0.05, config.soak_duration_s)
+    target_interval = 1.0 / max(1, config.target_messages_per_s)
+    next_emit = perf_counter()
+    steps = 0
+
+    def observe() -> None:
+        nonlocal max_total_pending, max_session_pending
+        total_pending = flow.total_pending
+        local_pending_sum = sum(session.pending for session in sessions)
+        max_total_pending = max(max_total_pending, total_pending)
+        local_max_pending = max((session.pending for session in sessions), default=0)
+        max_session_pending = max(max_session_pending, local_max_pending)
+        if total_pending != local_pending_sum:
+            _append_error(
+                errors,
+                f"sync-phase4 invariant failed: total_pending={total_pending} sum_pending={local_pending_sum}",
+            )
+        if total_pending > flow.total_limit:
+            _append_error(
+                errors,
+                f"sync-phase4 invariant failed: total_pending {total_pending} exceeds total_limit {flow.total_limit}",
+            )
+        if local_max_pending > config.max_queue:
+            _append_error(errors, "sync-phase4 invariant failed: session.pending exceeded max_queue")
+
+    while perf_counter() - started_at < duration_target:
+        if steps % max(2, config.sessions) == 0 and rng.random() < (config.chaos_disconnect_rate * 0.5):
+            toggled = sessions[rng.randrange(config.sessions)]
+            if toggled.connected:
+                toggled.disconnect("soak")
+            else:
+                toggled.reconnect()
+
+        burst = config.burst_size if rng.random() < (config.burst_probability * 0.35) else 1
+        for burst_index in range(burst):
+            session = sessions[rng.randrange(config.sessions)]
+            if not session.connected:
+                if rng.random() < 0.6:
+                    session.reconnect()
+                else:
+                    continue
+            priority = rng.randint(1, 9) if rng.random() < 0.5 else None
+            try:
+                session.send(f"soak-{steps}-{burst_index}", priority=priority)
+            except (BackpressureError, DisconnectedError) as exc:
+                _append_error(errors, f"sync-phase4 unexpected send failure: {exc!r}")
+                continue
+
+            if rng.random() < 0.55:
+                sink = sessions[rng.randrange(config.sessions)]
+                if sink.connected:
+                    item = sink.receive()
+                    if item is not None:
+                        received_count += 1
+
+        if config.gc_pressure and steps % 50 == 0:
+            gc.collect()
+        observe()
+
+        steps += 1
+        next_emit += target_interval
+        delay = next_emit - perf_counter()
+        if delay > 0:
+            sleep(min(delay, 0.01))
+        else:
+            next_emit = perf_counter()
+
+    for session in sessions:
+        if not session.connected:
+            session.reconnect()
+        while True:
+            item = session.receive()
+            if item is None:
+                break
+            received_count += 1
+        observe()
+
+    return _ScenarioResult(
+        scenario="phase4_soak_stability",
+        phase=config.phase,
+        mode="sync",
+        total_limit=flow.total_limit,
+        attempted=sum(session.stats.attempted for session in sessions),
+        enqueued=sum(session.stats.enqueued for session in sessions),
+        received=received_count,
+        max_total_pending=max_total_pending,
+        max_session_pending=max_session_pending,
+        duration_s=perf_counter() - started_at,
+        wakeup_latencies_ms=[],
+        errors=errors,
+        extra={
+            "target_messages_per_s": config.target_messages_per_s,
+            "duration_target_s": duration_target,
+            "loop_steps": steps,
+        },
     )
 
 
@@ -438,6 +708,266 @@ def _run_phase2_async(config: LoadTestConfig) -> _ScenarioResult:
         duration_s=perf_counter() - started_at,
         wakeup_latencies_ms=[],
         errors=errors,
+    )
+
+
+def _run_phase3_async(config: LoadTestConfig) -> _ScenarioResult:
+    started_at = perf_counter()
+    errors: list[str] = []
+    rng = Random(config.random_seed)
+
+    stats: dict[str, int] = {"attempted": 0, "enqueued": 0, "received": 0}
+    meta: dict[str, int] = {"disconnect_events": 0, "reconnect_events": 0, "burst_rounds": 0}
+    max_total_pending = 0
+    max_session_pending = 0
+
+    async def scenario() -> None:
+        nonlocal max_total_pending, max_session_pending
+        flow = GlobalFlowController(total_limit=config.total_limit, per_session_limit=config.per_session_limit)
+        sessions = [
+            AsyncRttSession[str](
+                config=RttConfig(
+                    max_queue=config.max_queue,
+                    backpressure_policy="dropoldest",
+                    block_timeout_s=config.block_timeout_s,
+                    enable_priority_queue=True,
+                ),
+                flow_controller=flow,
+            )
+            for _ in range(config.sessions)
+        ]
+
+        def observe() -> None:
+            nonlocal max_total_pending, max_session_pending
+            total_pending = flow.total_pending
+            local_pending_sum = sum(session.pending for session in sessions)
+            max_total_pending = max(max_total_pending, total_pending)
+            local_max_pending = max((session.pending for session in sessions), default=0)
+            max_session_pending = max(max_session_pending, local_max_pending)
+            if total_pending != local_pending_sum:
+                _append_error(
+                    errors,
+                    f"async-phase3 invariant failed: total_pending={total_pending} sum_pending={local_pending_sum}",
+                )
+            if total_pending > flow.total_limit:
+                _append_error(
+                    errors,
+                    f"async-phase3 invariant failed: total_pending {total_pending} exceeds total_limit {flow.total_limit}",
+                )
+            if local_max_pending > config.max_queue:
+                _append_error(errors, "async-phase3 invariant failed: session.pending exceeded max_queue")
+
+        steps = config.sessions * config.messages_per_session
+        attempted = 0
+        received = 0
+        for step in range(steps):
+            if rng.random() < config.chaos_disconnect_rate:
+                toggled = sessions[rng.randrange(config.sessions)]
+                if toggled.connected:
+                    await toggled.disconnect()
+                    meta["disconnect_events"] += 1
+                else:
+                    await toggled.reconnect()
+                    meta["reconnect_events"] += 1
+
+            burst = config.burst_size if rng.random() < config.burst_probability else 1
+            if burst > 1:
+                meta["burst_rounds"] += 1
+
+            for burst_index in range(burst):
+                session = sessions[rng.randrange(config.sessions)]
+                if not session.connected:
+                    if rng.random() < 0.6:
+                        await session.reconnect()
+                        meta["reconnect_events"] += 1
+                    else:
+                        continue
+
+                priority = rng.randint(1, 9) if rng.random() < 0.5 else None
+                attempted += 1
+                try:
+                    await session.send_async(f"chaos-{step}-{burst_index}", priority=priority)
+                except (BackpressureError, DisconnectedError) as exc:
+                    _append_error(errors, f"async-phase3 unexpected send failure: {exc!r}")
+                    continue
+
+                if rng.random() < 0.45:
+                    sink = sessions[rng.randrange(config.sessions)]
+                    if sink.connected:
+                        item = await sink.receive_async()
+                        if item is not None:
+                            received += 1
+            if config.gc_pressure and step % 20 == 0:
+                gc.collect()
+            observe()
+            if step % 20 == 0:
+                await asyncio.sleep(0)
+
+        for session in sessions:
+            if not session.connected:
+                await session.reconnect()
+                meta["reconnect_events"] += 1
+            while True:
+                item = await session.receive_async()
+                if item is None:
+                    break
+                received += 1
+            observe()
+
+        stats["attempted"] = attempted
+        stats["enqueued"] = sum(session.stats.enqueued for session in sessions)
+        stats["received"] = received
+
+    asyncio.run(scenario())
+    return _ScenarioResult(
+        scenario="phase3_chaos_validation",
+        phase=config.phase,
+        mode="async",
+        total_limit=config.total_limit,
+        attempted=stats["attempted"],
+        enqueued=stats["enqueued"],
+        received=stats["received"],
+        max_total_pending=max_total_pending,
+        max_session_pending=max_session_pending,
+        duration_s=perf_counter() - started_at,
+        wakeup_latencies_ms=[],
+        errors=errors,
+        extra=meta,
+    )
+
+
+def _run_phase4_async(config: LoadTestConfig) -> _ScenarioResult:
+    started_at = perf_counter()
+    errors: list[str] = []
+    rng = Random(config.random_seed)
+
+    stats: dict[str, int] = {"attempted": 0, "enqueued": 0, "received": 0, "loop_steps": 0}
+    max_total_pending = 0
+    max_session_pending = 0
+    duration_target = max(0.05, config.soak_duration_s)
+    target_interval = 1.0 / max(1, config.target_messages_per_s)
+
+    async def scenario() -> None:
+        nonlocal max_total_pending, max_session_pending
+        flow = GlobalFlowController(total_limit=config.total_limit, per_session_limit=config.per_session_limit)
+        sessions = [
+            AsyncRttSession[str](
+                config=RttConfig(
+                    max_queue=config.max_queue,
+                    backpressure_policy="dropoldest",
+                    block_timeout_s=config.block_timeout_s,
+                    enable_priority_queue=True,
+                ),
+                flow_controller=flow,
+            )
+            for _ in range(config.sessions)
+        ]
+
+        def observe() -> None:
+            nonlocal max_total_pending, max_session_pending
+            total_pending = flow.total_pending
+            local_pending_sum = sum(session.pending for session in sessions)
+            max_total_pending = max(max_total_pending, total_pending)
+            local_max_pending = max((session.pending for session in sessions), default=0)
+            max_session_pending = max(max_session_pending, local_max_pending)
+            if total_pending != local_pending_sum:
+                _append_error(
+                    errors,
+                    f"async-phase4 invariant failed: total_pending={total_pending} sum_pending={local_pending_sum}",
+                )
+            if total_pending > flow.total_limit:
+                _append_error(
+                    errors,
+                    f"async-phase4 invariant failed: total_pending {total_pending} exceeds total_limit {flow.total_limit}",
+                )
+            if local_max_pending > config.max_queue:
+                _append_error(errors, "async-phase4 invariant failed: session.pending exceeded max_queue")
+
+        attempted = 0
+        received = 0
+        loop = asyncio.get_running_loop()
+        phase_started = loop.time()
+        next_emit = phase_started
+        steps = 0
+
+        while loop.time() - phase_started < duration_target:
+            if steps % max(2, config.sessions) == 0 and rng.random() < (config.chaos_disconnect_rate * 0.5):
+                toggled = sessions[rng.randrange(config.sessions)]
+                if toggled.connected:
+                    await toggled.disconnect()
+                else:
+                    await toggled.reconnect()
+
+            burst = config.burst_size if rng.random() < (config.burst_probability * 0.35) else 1
+            for burst_index in range(burst):
+                session = sessions[rng.randrange(config.sessions)]
+                if not session.connected:
+                    if rng.random() < 0.6:
+                        await session.reconnect()
+                    else:
+                        continue
+                priority = rng.randint(1, 9) if rng.random() < 0.5 else None
+                attempted += 1
+                try:
+                    await session.send_async(f"soak-{steps}-{burst_index}", priority=priority)
+                except (BackpressureError, DisconnectedError) as exc:
+                    _append_error(errors, f"async-phase4 unexpected send failure: {exc!r}")
+                    continue
+
+                if rng.random() < 0.55:
+                    sink = sessions[rng.randrange(config.sessions)]
+                    if sink.connected:
+                        item = await sink.receive_async()
+                        if item is not None:
+                            received += 1
+
+            if config.gc_pressure and steps % 50 == 0:
+                gc.collect()
+            observe()
+
+            steps += 1
+            next_emit += target_interval
+            remaining = next_emit - loop.time()
+            if remaining > 0:
+                await asyncio.sleep(min(remaining, 0.01))
+            else:
+                next_emit = loop.time()
+                await asyncio.sleep(0)
+
+        for session in sessions:
+            if not session.connected:
+                await session.reconnect()
+            while True:
+                item = await session.receive_async()
+                if item is None:
+                    break
+                received += 1
+            observe()
+
+        stats["attempted"] = attempted
+        stats["enqueued"] = sum(session.stats.enqueued for session in sessions)
+        stats["received"] = received
+        stats["loop_steps"] = steps
+
+    asyncio.run(scenario())
+    return _ScenarioResult(
+        scenario="phase4_soak_stability",
+        phase=config.phase,
+        mode="async",
+        total_limit=config.total_limit,
+        attempted=stats["attempted"],
+        enqueued=stats["enqueued"],
+        received=stats["received"],
+        max_total_pending=max_total_pending,
+        max_session_pending=max_session_pending,
+        duration_s=perf_counter() - started_at,
+        wakeup_latencies_ms=[],
+        errors=errors,
+        extra={
+            "target_messages_per_s": config.target_messages_per_s,
+            "duration_target_s": duration_target,
+            "loop_steps": stats["loop_steps"],
+        },
     )
 
 
