@@ -14,6 +14,7 @@ on:
       - "python/tests/test_web4_transport.py"
       - "python/tests/test_global_flow.py"
       - "python/tests/test_async_rtt.py"
+      - "python/tests/test_web4_runtime_loadtest.py"
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
       - "python/tests/test_web4_bio.py"
@@ -28,6 +29,7 @@ on:
       - "scripts/web4meshdemo.py"
       - "scripts/web4meshinspect.py"
       - "scripts/web4meshtopology.py"
+      - "scripts/web4_runtime_load.py"
       - "rust_core/**"
       - ".github/workflows/web4_runtime_ci.yml"
   pull_request:
@@ -43,6 +45,7 @@ on:
       - "python/tests/test_web4_transport.py"
       - "python/tests/test_global_flow.py"
       - "python/tests/test_async_rtt.py"
+      - "python/tests/test_web4_runtime_loadtest.py"
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
       - "python/tests/test_web4_bio.py"
@@ -57,6 +60,7 @@ on:
       - "scripts/web4meshdemo.py"
       - "scripts/web4meshinspect.py"
       - "scripts/web4meshtopology.py"
+      - "scripts/web4_runtime_load.py"
       - "rust_core/**"
       - ".github/workflows/web4_runtime_ci.yml"
 
@@ -99,9 +103,9 @@ jobs:
         run: |
           PYTHONPATH=python python -m pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
 
-      - name: Run Web4 runtime contract tests
+      - name: Run Web4 runtime contract and load-smoke tests
         run: |
-          PYTHONPATH=python:python/modules python -m pytest python/tests/test_web4_transport.py python/tests/test_global_flow.py python/tests/test_async_rtt.py
+          PYTHONPATH=python:python/modules python -m pytest python/tests/test_web4_transport.py python/tests/test_global_flow.py python/tests/test_async_rtt.py python/tests/test_web4_runtime_loadtest.py
 
       - name: Run hexagon_core unit tests
         run: |

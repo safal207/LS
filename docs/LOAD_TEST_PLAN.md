@@ -3,6 +3,11 @@
 ## Goal
 Validate correctness and resilience of `GlobalFlowController` + RTT runtime in local stress conditions, then promote stable coverage into CI-safe tests.
 
+## Reference Harness
+- Runtime harness module: `python/modules/web4_runtime/loadtest.py`
+- CLI entrypoint: `scripts/web4_runtime_load.py`
+- Lightweight CI tests: `python/tests/test_web4_runtime_loadtest.py`
+
 ## Scope
 - Sync RTT (`RttSession`)
 - Async RTT (`AsyncRttSession`)
@@ -33,6 +38,7 @@ Run phases in order. Do not start next phase until current phase passes.
 
 ### Phase 1 Exit Criteria
 - All checks pass with no flakes in 3 repeated runs.
+- Implemented baseline harness profile: `scripts/web4_runtime_load.py --phase phase1 --mode both`.
 
 ## Phase 2: Local Stress (Sanity Under Load)
 ### Scenario
@@ -50,6 +56,7 @@ Run phases in order. Do not start next phase until current phase passes.
 
 ### Phase 2 Exit Criteria
 - No invariant violations and no deadlocks across at least 3 runs.
+- Implemented stress-sanity profile: `scripts/web4_runtime_load.py --phase phase2 --mode both`.
 
 ## Phase 3: Chaos Validation (Local)
 ### Chaos Inputs
@@ -96,6 +103,7 @@ Run phases in order. Do not start next phase until current phase passes.
 - Notify task cleanup
 - GC-race fallback invariants
 - Lightweight fairness checks
+- Load harness smoke checks (`python/tests/test_web4_runtime_loadtest.py`)
 
 ### Keep Out of CI
 - Long soak tests
