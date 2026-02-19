@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from time import monotonic
-from typing import TYPE_CHECKING, Deque, Generic, Optional, TypeVar
+from typing import TYPE_CHECKING, Awaitable, Callable, Deque, Generic, Optional, TypeVar
 
+from .fuzzy import smooth_coherence
 from .rtt import BackpressureError, DisconnectedError, RttConfig, RttStats
 from .rtt_queue import RttQueue
 
@@ -26,6 +27,9 @@ class AsyncRttSession(Generic[MessageT]):
     _condition: Optional[asyncio.Condition] = field(default=None, init=False)
     _condition_loop: Optional[asyncio.AbstractEventLoop] = field(default=None, init=False)
     _notify_tasks: set[asyncio.Task[None]] = field(default_factory=set, init=False)
+    _coherence: float = field(default_factory=lambda: 1.0, init=False)
+    _coherence_version: int = field(default=0, init=False)
+    _coherence_yield_hook: Optional[Callable[[], Awaitable[None]]] = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._message_queue = RttQueue(
@@ -60,6 +64,34 @@ class AsyncRttSession(Generic[MessageT]):
             task.add_done_callback(self._notify_tasks.discard)
 
         loop.call_soon_threadsafe(_schedule_notify)
+
+
+    @property
+    def coherence(self) -> float:
+        return self._coherence
+
+    async def update_lce_coherence(self, measured_coherence: float, *, drift: float = 0.0, noise: float = 0.0) -> float:
+        condition = self._get_condition()
+
+        async with condition:
+            baseline = self._coherence
+            version = self._coherence_version
+
+        candidate = smooth_coherence(baseline, measured_coherence, drift, noise)
+        hook = self._coherence_yield_hook
+        if hook is not None:
+            await hook()
+
+        async with condition:
+            if self._coherence_version == version:
+                self._coherence = candidate
+                self._coherence_version += 1
+                return candidate
+
+            fresh = smooth_coherence(self._coherence, measured_coherence, drift, noise)
+            self._coherence = fresh
+            self._coherence_version += 1
+            return fresh
 
     @property
     def connected(self) -> bool:

@@ -3,6 +3,7 @@
 use pyo3::prelude::*;
 
 mod governance;
+mod fuzzy_coherence;
 mod memory_manager;
 mod pattern_matcher;
 mod storage;
@@ -10,6 +11,9 @@ mod transport;
 mod web4_runtime;
 
 use governance::AdaptiveGovernor;
+use fuzzy_coherence::{
+    smooth_coherence, tune_backpressure_limits, FuzzyBackpressureConfig, FuzzyCoherenceConfig,
+};
 use memory_manager::MemoryManager;
 use pattern_matcher::PatternMatcher;
 use storage::Storage;
@@ -19,11 +23,15 @@ use web4_runtime::Web4RttBinding;
 #[pymodule]
 fn ghostgpt_core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<AdaptiveGovernor>()?;
+    m.add_class::<FuzzyCoherenceConfig>()?;
+    m.add_class::<FuzzyBackpressureConfig>()?;
     m.add_class::<MemoryManager>()?;
     m.add_class::<PatternMatcher>()?;
     m.add_class::<Storage>()?;
     m.add_class::<TransportConfig>()?;
     m.add_class::<TransportHandle>()?;
     m.add_class::<Web4RttBinding>()?;
+    m.add_function(wrap_pyfunction!(smooth_coherence, m)?)?;
+    m.add_function(wrap_pyfunction!(tune_backpressure_limits, m)?)?;
     Ok(())
 }
