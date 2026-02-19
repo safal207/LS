@@ -43,6 +43,28 @@ graph TD
 
 Метафора «Шести Путей» фиксирует ключевой принцип LS: сила системы не должна быть заперта в одном узле. Она должна распределяться, передаваться и усиливаться через сеть.
 
+```mermaid
+graph TD
+    subgraph "Мудрец Шести Путей — LS"
+        Center[Hexagon Core<br>Центр Силы]
+
+        P1[Путь Разума<br>intent + meaning]
+        P2[Путь Эмоций<br>affect]
+        P3[Путь Памяти<br>thread_id + t]
+        P4[Путь Согласия<br>policy.consent]
+        P5[Путь Качества<br>qos.coherence]
+        P6[Путь Синергии<br>merit_context + synergy_hint + trajectory_hint]
+
+        Center --- P1 & P2 & P3 & P4 & P5 & P6
+    end
+
+    Human[Человек] --> LCE[LCE — Чакра Присутствия]
+    LCE --> Center
+
+    style Center fill:#4a00e0,stroke:#fff,color:#fff
+    style LCE fill:#ff00ff,stroke:#fff,color:#fff
+```
+
 | Путь                  | Поле LCE                     | Что передаёт дальше |
 |-----------------------|------------------------------|---------------------|
 | Путь Разума           | `intent` + `meaning`         | Цель и семантика |
@@ -82,7 +104,30 @@ graph TD
 }
 ```
 
-### 6. Глубокий архитектурный разбор Hexagon Core
+### 6. Техническая схема потока LCE через архитектуру LS
+
+```mermaid
+graph TD
+    Human[Человек] --> RTT[Web4 RTT Message<br>+ встроенный LCE]
+    RTT --> Runtime[Web4 Runtime]
+
+    Runtime --> Hub[ObservabilityHub + LSS]
+    Runtime --> Flow[GlobalFlowController]
+
+    Hub --> Hex[Hexagon Core<br>Шесть Граней]
+    Hub --> Shad[Shadow Layer]
+    Hub --> Gov[AdaptiveGovernor]
+
+    Flow --> Merit[Merit Score Engine]
+    Merit --> Mesh[Web4 Mesh Router]
+
+    Mesh --> Other[Другие узлы сети<br>Синергия]
+    Gov --> HumanApproval[Human-in-the-loop approval]
+
+    style RTT fill:#00ffcc,stroke:#000
+```
+
+### 7. Глубокий архитектурный разбор Hexagon Core
 
 Hexagon Core — центральный когнитивный движок LS, построенный как шестигранная архитектура взаимосвязанных граней.
 
@@ -108,7 +153,7 @@ Hexagon Core — центральный когнитивный движок LS, 
 - Trajectory memory — ключевой фокус эволюции на ближайшие фазы.
 - Ключевой фокус эволюции: усиление trajectory memory через `trajectory_hint`.
 
-### 7. План внедрения (Phase 15–16)
+### 8. План внедрения (Phase 15–16)
 
 1. Добавить обязательное поле `lce` в RTT Message (Rust + Python).
 2. Обновить сериализацию/подпись RTT.
@@ -116,7 +161,7 @@ Hexagon Core — центральный когнитивный движок LS, 
 4. Подключить чтение LCE в Shadow Layer и AdaptiveGovernor.
 5. Включить `synergy_hint` и `trajectory_hint` в логику Mesh/learning loop.
 
-### 8. Definition of Done
+### 9. Definition of Done
 
 - Все RTT-сообщения содержат валидный `lce` блок.
 - Корреляция по `trace_id` и `thread_id` работает end-to-end.
