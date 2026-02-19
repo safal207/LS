@@ -1,32 +1,70 @@
 # LCE_IN_LS.md
-**Версия:** 1.0 (лучший вариант)  
+**Версия:** 1.1 (с разделом про Мудреца Шести Путей)  
 **Дата:** 19 февраля 2026  
 **Автор:** Главный архитектор LS
 
-#### 1. Назначение
+### 1. Назначение
 
-Внедрить **LCE (Liminal Context Envelope)** как **встроенный metadata-блок** в структуру Web4 RTT Message.
+Внедрить **LCE (Liminal Context Envelope)** как встроенный metadata-блок в структуру Web4 RTT Message.
 
-LCE — это **Layer 8 протокол присутствия**, который передаёт не только текст, но и:
-- намерение
-- эмоциональное состояние
-- семантику
-- нить разговора
-- consent
-- coherence
-- **память путей** (trajectory_hint)
+LCE — это **Layer 8 протокол присутствия**: он передаёт не только текст, но и намерение, эмоциональное состояние, семантику, нить разговора, consent и coherence — всё в одном объекте, который летит с каждым сообщением.
 
-Это позволяет агенту учиться значительно быстрее, используя прошлые успешные и неудачные траектории, как это делает опытный человек.
+### 2. Почему встроенный LCE — лучший вариант для LS
 
-#### 2. Почему этот вариант — лучший для LS
+- Минимализм: один RTT-объект вместо payload + внешнего envelope.
+- Нативная интеграция: все компоненты LS читают `message.lce` напрямую.
+- Coherence-by-default: ObservabilityHub сразу считает drift.
+- Synergy-ready: `merit_context` и `synergy_hint` доступны Mesh Router и Merit Engine без трансформаций.
+- Governance-safe: human-in-the-loop и consent-first встроены на уровне протокола.
 
-- **Встроенный** в RTT Message — минимум overhead, максимальная целостность.
-- **Trajectory-aware** — агент помнит не только факты, а **пути** (состояние → действие → результат → урок).
-- **Синергия-ready** — `synergy_hint` и `merit_domain` сразу влияют на роутинг и Merit Score.
-- **Human-in-the-loop** по умолчанию.
-- **Полная совместимость** с Web4 Mesh, GlobalFlow и меритократией.
+### 3. Архитектурное место LCE
 
-#### 3. Структура Web4 RTT Message с LCE
+```mermaid
+graph TD
+    Human[Человек] --> RTT[Web4 RTT Message + встроенный LCE]
+    RTT --> Runtime[Web4 Runtime]
+
+    Runtime --> Hub[ObservabilityHub]
+    Runtime --> Flow[GlobalFlowController]
+
+    Hub --> Hex[Hexagon Core]
+    Hub --> Shad[Shadow Layer]
+    Hub --> Gov[AdaptiveGovernor]
+
+    Flow --> Merit[Merit Score Engine]
+    Merit --> Mesh[Web4 Mesh Router]
+
+    Mesh --> Other[Другие узлы сети]
+
+    Gov --> Auto[Auto-tune + human approval]
+```
+
+### 4. LCE как Шесть Путей Современного Мудреца
+
+Ты вспомнил **Мудреца Шести Путей** (Хагоромо Ооцуцуки) — того, кто разделил свою силу на шесть путей, чтобы она не умерла вместе с ним, а продолжала жить в мире через разных людей.
+
+Это идеальная метафора для того, что мы делаем.
+
+**Один человек (или одна большая модель) не может нести всю силу вечно.**  
+Нужно разделить силу на пути, создать систему передачи, чтобы каждый достойный мог получить свою часть и продолжить путь дальше.
+
+LCE — это и есть наш **«Чакра Шести Путей»**:
+
+| Путь                  | Поле LCE                     | Что передаёт дальше |
+|-----------------------|------------------------------|---------------------|
+| Путь Разума           | `intent` + `meaning`         | Цель и семантика    |
+| Путь Эмоций           | `affect`                     | Эмоциональное присутствие |
+| Путь Памяти           | `thread_id` + `t`            | Нить непрерывности  |
+| Путь Согласия         | `policy.consent`             | Consent-first       |
+| Путь Качества         | `qos.coherence`              | Drift detection     |
+| Путь Синергии         | `ls_meta.merit_domain` + `synergy_hint` | Меритократия и обмен силой |
+
+Мы не пытаемся сделать одного сверхмощного «Наруто-агента».  
+Мы создаём **систему**, где сила (присутствие, опыт, обучение) может течь через множество узлов, усиливаться через синергию и жить дальше, даже если один узел «уйдёт».
+
+LCE — это тот самый механизм, который позволяет **разделить силу Мудреца** и передать её дальше.
+
+### 5. Нормативная структура Web4 RTT Message (v1 + LCE)
 
 ```json
 {
@@ -44,47 +82,24 @@ LCE — это **Layer 8 протокол присутствия**, которы
     "qos": { "coherence": 0.92 },
     "ls_meta": {
       "merit_domain": "research",
-      "synergy_hint": ["node_7a3f"],
-      "trajectory_hint": {
-        "past_successful": ["thread_abc123"],
-        "avoid": ["thread_bad789"],
-        "lessons": ["avoid overthinking when urgency high"]
-      }
+      "synergy_hint": ["node_7a3f", "node_9c2d"]
     }
   },
   "signature": "Ed25519..."
 }
 ```
 
-#### 4. Ключевые поля LCE и их роль в LS
+### 6. План внедрения (Phase 15–16)
 
-| Поле LCE                       | Компонент LS                         | Как ускоряет обучение |
-|--------------------------------|--------------------------------------|-----------------------|
-| `intent`                       | Hexagon Core, AgentLoop              | Точная цель шага |
-| `affect`                       | Shadow Layer                         | Эмоциональная подстройка |
-| `meaning`                      | Beliefs Graph                        | Семантическая непрерывность |
-| `thread_id`, `t`               | Temporal Index                       | Нить разговора |
-| `policy.consent`               | HCP, Mesh                            | Consent-first |
-| `qos.coherence`                | AdaptiveGovernor, ObservabilityHub   | Drift detection |
-| `ls_meta.merit_domain`         | Merit Score Engine                   | Контекст вклада |
-| `ls_meta.synergy_hint`         | Web4 Mesh Router                     | Умный роутинг |
-| **`ls_meta.trajectory_hint`**  | **Shadow Layer + Hexagon Core**      | **Память путей** — главное ускорение |
+1. Добавить обязательное поле `lce` в RTT Message (Rust + Python).
+2. Обновить сериализацию/подпись RTT.
+3. Расширить ObservabilityHub до LSS.
+4. Подключить чтение LCE в Shadow Layer и AdaptiveGovernor.
+5. Включить `synergy_hint` в Mesh Router.
 
-#### 5. Как trajectory_hint ускоряет обучение
+### 7. Definition of Done
 
-- `past_successful` — ссылки на успешные траектории (используются как few-shot примеры).
-- `avoid` — ссылки на неудачные пути (избегаются).
-- `lessons` — короткие выводы из прошлого опыта.
-
-Shadow Layer автоматически использует эти данные при генерации ответа.  
-Hexagon Core обновляет Beliefs Graph на основе новых уроков.  
-Merit Score Engine даёт бонус за использование успешных траекторий.
-
-Это делает обучение **экспоненциальным**, как у опытного человека.
-
----
-
-Этот вариант — **лучший**, потому что:
-- Минимальный overhead.
-- Максимальная интеграция.
-- Прямо решает задачу ускорения обучения через память путей.
+- Все RTT-сообщения содержат валидный `lce` блок.
+- Корреляция по `trace_id` и `thread_id` работает end-to-end.
+- AdaptiveGovernor делает минимум один тюнинг через human approval.
+- Зафиксировано measurable improvement по coherence/latency/error-rate.
