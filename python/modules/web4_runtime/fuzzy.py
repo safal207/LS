@@ -80,13 +80,21 @@ def tune_backpressure_limits(
     if ghostgpt_core is not None and hasattr(ghostgpt_core, "tune_backpressure_limits"):
         rust_cfg = None
         if hasattr(ghostgpt_core, "FuzzyBackpressureConfig"):
-            rust_cfg = ghostgpt_core.FuzzyBackpressureConfig(
-                cfg.min_factor,
-                cfg.max_factor,
-                cfg.queue_pressure_threshold,
-                cfg.drop_pressure_threshold,
-                cfg.hysteresis_ratio,
-            )
+            try:
+                rust_cfg = ghostgpt_core.FuzzyBackpressureConfig(
+                    cfg.min_factor,
+                    cfg.max_factor,
+                    cfg.queue_pressure_threshold,
+                    cfg.drop_pressure_threshold,
+                    cfg.hysteresis_ratio,
+                )
+            except TypeError:
+                rust_cfg = ghostgpt_core.FuzzyBackpressureConfig(
+                    cfg.min_factor,
+                    cfg.max_factor,
+                    cfg.queue_pressure_threshold,
+                    cfg.drop_pressure_threshold,
+                )
         tuned = ghostgpt_core.tune_backpressure_limits(per_session_limit, total_limit, queue_pressure, drop_ratio, rust_cfg)
         return int(tuned[0]), int(tuned[1])
 

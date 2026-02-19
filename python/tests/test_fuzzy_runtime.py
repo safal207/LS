@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import time
 
 from modules.web4_runtime.async_rtt import AsyncRttSession
 from modules.web4_runtime.flow import GlobalFlowController
@@ -49,15 +50,21 @@ def test_backpressure_limits_keep_total_above_per_session() -> None:
 
 
 def test_global_flow_fuzzy_strategy_adapts_limits() -> None:
-    flow = GlobalFlowController(total_limit=20, per_session_limit=10, strategy="fuzzy")
+    flow = GlobalFlowController(total_limit=4, per_session_limit=4, strategy="fuzzy")
     s1, s2 = object(), object()
     flow.register_session(s1)
     flow.register_session(s2)
-    for _ in range(12):
-        if flow.can_enqueue(s1):
-            flow.try_enqueue(s1)
-    assert flow._fuzzy_total_limit <= flow.total_limit
-    assert flow._fuzzy_per_session_limit <= flow.per_session_limit
+
+    baseline_total = flow._fuzzy_total_limit
+    baseline_per_session = flow._fuzzy_per_session_limit
+
+    for _ in range(8):
+        flow.try_enqueue(s1)
+
+    time.sleep(0.06)
+    flow.can_enqueue(s2)
+
+    assert (flow._fuzzy_total_limit, flow._fuzzy_per_session_limit) != (baseline_total, baseline_per_session)
 
 
 def test_async_rtt_lce_coherence_update() -> None:

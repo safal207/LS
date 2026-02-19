@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from threading import Lock
 from dataclasses import dataclass, field
 from time import monotonic
 from typing import TYPE_CHECKING, Deque, Generic, Optional, TypeVar
@@ -29,7 +28,6 @@ class AsyncRttSession(Generic[MessageT]):
     _condition_loop: Optional[asyncio.AbstractEventLoop] = field(default=None, init=False)
     _notify_tasks: set[asyncio.Task[None]] = field(default_factory=set, init=False)
     _coherence: float = field(default_factory=lambda: 1.0, init=False)
-    _coherence_lock: Lock = field(default_factory=Lock, init=False)
 
     def __post_init__(self) -> None:
         self._message_queue = RttQueue(
@@ -68,18 +66,14 @@ class AsyncRttSession(Generic[MessageT]):
 
     @property
     def coherence(self) -> float:
-        with self._coherence_lock:
-            return self._coherence
+        return self._coherence
 
     async def update_lce_coherence(self, measured_coherence: float, *, drift: float = 0.0, noise: float = 0.0) -> float:
-        with self._coherence_lock:
-            current = self._coherence
-        new_coherence = smooth_coherence(current, measured_coherence, drift, noise)
+        new_coherence = smooth_coherence(self._coherence, measured_coherence, drift, noise)
 
         condition = self._get_condition()
         async with condition:
-            with self._coherence_lock:
-                self._coherence = new_coherence
+            self._coherence = new_coherence
             condition.notify_all()
         return new_coherence
 
