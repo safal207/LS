@@ -126,11 +126,24 @@ def test_async_lce_coherence_updates_are_serialized(monkeypatch) -> None:
 
     async def scenario() -> None:
         session = AsyncRttSession[str]()
+        gate = asyncio.Event()
+        entered = 0
+
+        async def yield_hook() -> None:
+            nonlocal entered
+            entered += 1
+            if entered >= 2:
+                gate.set()
+            await gate.wait()
+
+        session._coherence_yield_hook = yield_hook
 
         async def worker() -> None:
             await session.update_lce_coherence(0.0)
 
         await asyncio.gather(worker(), worker())
+        assert entered == 2
         assert session.coherence == 3.0
+        assert session._coherence_version == 2
 
     asyncio.run(scenario())
