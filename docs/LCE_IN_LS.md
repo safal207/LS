@@ -1,5 +1,5 @@
 # LCE_IN_LS.md
-**Версия:** 1.2 (с архитектурным разбором Hexagon Core)  
+**Версия:** 1.3 (лучшая финальная)  
 **Дата:** 19 февраля 2026  
 **Автор:** Главный архитектор LS
 
@@ -41,29 +41,10 @@ graph TD
 
 ### 4. LCE как Шесть Путей Современного Мудреца
 
-Метафора «Шести Путей» фиксирует ключевой принцип LS: сила системы не должна быть заперта в одном узле. Она должна распределяться, передаваться и усиливаться через сеть.
+Метафора «Шести Путей» фиксирует ключевой принцип LS:  
+**сила системы не должна быть заперта в одном узле**. Она должна распределяться, передаваться и усиливаться через сеть.
 
-```mermaid
-graph TD
-    subgraph "Мудрец Шести Путей — LS"
-        Center[Hexagon Core<br>Центр Силы]
-
-        P1[Путь Разума<br>intent + meaning]
-        P2[Путь Эмоций<br>affect]
-        P3[Путь Памяти<br>thread_id + t]
-        P4[Путь Согласия<br>policy.consent]
-        P5[Путь Качества<br>qos.coherence]
-        P6[Путь Синергии<br>merit_context + synergy_hint + trajectory_hint]
-
-        Center --- P1 & P2 & P3 & P4 & P5 & P6
-    end
-
-    Human[Человек] --> LCE[LCE — Чакра Присутствия]
-    LCE --> Center
-
-    style Center fill:#4a00e0,stroke:#fff,color:#fff
-    style LCE fill:#ff00ff,stroke:#fff,color:#fff
-```
+Как Мудрец Шести Путей разделил свою силу, чтобы она жила дальше, так и мы делаем LCE носителем присутствия, которое течёт через всю систему.
 
 | Путь                  | Поле LCE                     | Что передаёт дальше |
 |-----------------------|------------------------------|---------------------|
@@ -72,7 +53,7 @@ graph TD
 | Путь Памяти           | `thread_id` + `t`            | Нить непрерывности |
 | Путь Согласия         | `policy.consent`             | Consent-first |
 | Путь Качества         | `qos.coherence`              | Drift detection |
-| Путь Синергии         | `merit_context` + `synergy_hint` + `trajectory_hint` | Меритократия, обмен вкладом и память путей |
+| Путь Синергии         | `merit_context` + `synergy_hint` + `trajectory_hint` | Меритократия и память путей |
 
 ### 5. Нормативная структура Web4 RTT Message (v1 + LCE)
 
@@ -104,64 +85,29 @@ graph TD
 }
 ```
 
-### 6. Техническая схема потока LCE через архитектуру LS
+### 6. Поля LCE и маршрутизация
 
-```mermaid
-graph TD
-    Human[Человек] --> RTT[Web4 RTT Message<br>+ встроенный LCE]
-    RTT --> Runtime[Web4 Runtime]
+| Поле LCE               | Компонент LS                  | Эффект |
+|------------------------|-------------------------------|--------|
+| `intent`               | Hexagon Core, AgentLoop       | Точная целевая интерпретация |
+| `affect`               | Shadow Layer                  | Эмоциональная калибровка ответа |
+| `meaning`              | Beliefs Graph                 | Семантическая непрерывность |
+| `thread_id`, `t`       | Temporal Index                | Непрерывность между сессиями |
+| `policy.consent`       | HCP, Hub, Mesh                | Consent-first enforcement |
+| `qos.coherence`        | ObservabilityHub, AdaptiveGovernor | Drift detection |
+| `ls_meta.merit_domain` | Merit Score Engine            | Контекстная оценка вклада |
+| `ls_meta.synergy_hint` | Web4 Mesh Router              | Soft-priority роутинга |
+| `ls_meta.trajectory_hint` | Shadow Layer + Hexagon Core | Память путей и ускорение обучения |
 
-    Runtime --> Hub[ObservabilityHub + LSS]
-    Runtime --> Flow[GlobalFlowController]
-
-    Hub --> Hex[Hexagon Core<br>Шесть Граней]
-    Hub --> Shad[Shadow Layer]
-    Hub --> Gov[AdaptiveGovernor]
-
-    Flow --> Merit[Merit Score Engine]
-    Merit --> Mesh[Web4 Mesh Router]
-
-    Mesh --> Other[Другие узлы сети<br>Синергия]
-    Gov --> HumanApproval[Human-in-the-loop approval]
-
-    style RTT fill:#00ffcc,stroke:#000
-```
-
-### 7. Глубокий архитектурный разбор Hexagon Core
-
-Hexagon Core — центральный когнитивный движок LS, построенный как шестигранная архитектура взаимосвязанных граней.
-
-| Грань | Компонент / Папка | Функция | Связь с LCE/LS |
-|------|--------------------|---------|----------------|
-| Beliefs Graph | `beliefs`, `field` | Убеждения, факты, отношения | `meaning`, `intent` |
-| Causality Engine | `causality`, `cognitive_flow` | Причинно-следственные цепочки | trajectory + temporal continuity |
-| Mission Tree | `mission`, `coordinator` | Иерархия целей/приоритетов | AdaptiveGovernor, HCP |
-| Temporal Index | `trajectory`, `retrospective` | Хронологическая память | `thread_id`, `t` |
-| Orientation Layer | `orientation`, `field` | Контекстная ориентация системы | `qos.coherence` |
-| Reflection / Shadow | `retrospective`, `shadow` | Саморефлексия и коррекция | `affect`, Shadow Layer |
-
-Текущий поток данных:
-1. Входящее RTT-сообщение поступает с `lce`.
-2. Beliefs/Causality/Temporal/Orientation обновляются параллельно.
-3. Reflection/Shadow проверяет согласованность с миссией и состоянием.
-4. AdaptiveGovernor принимает решение по тюнингу или маршрутизации.
-5. Результат уходит в Mesh + обновляются observability и merit-сигналы.
-
-Текущее состояние:
-- Сильные стороны: модульность, сильная temporal/causal линия, интеграция через observability.
-- Ограничения: часть граней ещё в skeleton-стадии, оркестрация не полностью централизована.
-- Trajectory memory — ключевой фокус эволюции на ближайшие фазы.
-- Ключевой фокус эволюции: усиление trajectory memory через `trajectory_hint`.
-
-### 8. План внедрения (Phase 15–16)
+### 7. План внедрения (Phase 15–16)
 
 1. Добавить обязательное поле `lce` в RTT Message (Rust + Python).
 2. Обновить сериализацию/подпись RTT.
 3. Расширить ObservabilityHub до LSS.
 4. Подключить чтение LCE в Shadow Layer и AdaptiveGovernor.
-5. Включить `synergy_hint` и `trajectory_hint` в логику Mesh/learning loop.
+5. Включить `synergy_hint` и `trajectory_hint` в Mesh Router.
 
-### 9. Definition of Done
+### 8. Definition of Done
 
 - Все RTT-сообщения содержат валидный `lce` блок.
 - Корреляция по `trace_id` и `thread_id` работает end-to-end.
