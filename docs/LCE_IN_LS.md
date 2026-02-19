@@ -1,5 +1,5 @@
 # LCE_IN_LS.md
-**Версия:** 0.1 (draft, ready for review)
+**Версия:** 0.2 (готов к коммиту)
 **Дата:** 19 февраля 2026
 **Автор:** Архитектура LS
 
@@ -7,189 +7,148 @@
 
 ## 1. Назначение
 
-Определить спецификацию **LCE (Liminal Context Envelope)** как Layer 8-протокол присутствия в LS:
+Определить интеграцию **LCE (Liminal Context Envelope)** как **встроенный metadata layer** внутри `Web4 RTT Message`.
 
-- сохранение непрерывности намерения, смысла и тона между сессиями;
-- безопасная передача контекстного снимка между компонентами LS и узлами Web4 Mesh;
-- улучшение coherence, routing и мерит-синергии без нарушения consent-first принципа.
+Ключевой принцип v0.2:
+- LCE не передаётся «рядом» (не отдельный envelope/header-only путь),
+- LCE является обязательным блоком `message.lce` в структуре RTT-сообщения.
 
-LCE не заменяет память/knowledge graph. LCE — это **моментальный envelope присутствия**, который связывает Human ↔ LPI ↔ Mesh.
+Это даёт единый источник правды для presence/coherence/synergy в LS.
 
 ---
 
-## 2. Место в архитектуре LS
+## 2. Архитектурный подход
 
 ```mermaid
 graph TD
-    subgraph "Human → LPI"
-        H[Человек] -->|сообщение| LCE[LCE v1\nintent + affect + meaning + thread + coherence + merit_context]
-    end
+    Human[Человек] --> RTT[Web4 RTT Message + встроенный LCE]
+    RTT --> Runtime[Web4 Runtime]
 
-    LCE --> W[Web4 Runtime RTT]
-    W --> Hub[ObservabilityHub]
+    Runtime --> Hub[ObservabilityHub]
+    Runtime --> Flow[GlobalFlowController]
 
-    subgraph "LS Core"
-        Hub --> Hex[Hexagon Core + Beliefs Graph]
-        Hub --> Shad[Shadow Layer]
-        Hub --> Gov[AdaptiveGovernor]
-        Hub --> Merit[Merit Score Engine]
-    end
+    Hub --> Hex[Hexagon Core]
+    Hub --> Shad[Shadow Layer]
+    Hub --> Gov[AdaptiveGovernor]
 
-    Hex --> Temp[Temporal Index]
-    Shad --> HCP[HCP + Consent]
-    Gov --> Flow[GlobalFlowController]
+    Flow --> Merit[Merit Score Engine]
     Merit --> Mesh[Web4 Mesh Router]
 
-    Mesh -->|синергия| Other[Другие узлы сети]
+    Mesh --> Other[Другие узлы сети]
+
+    Gov --> Auto[Auto-tune + human approval]
 ```
 
 ---
 
-## 3. Поля LCE и интеграция
+## 3. Почему встроенный LCE лучше для LS
 
-| Поле LCE | Компонент LS | Назначение |
-|---|---|---|
-| `intent` | Hexagon Core, AgentLoop | Цель и ожидаемый outcome текущего шага |
-| `affect` | Shadow Layer | Аффективная калибровка тона/ответа |
-| `meaning` | Beliefs Graph + Ontology | Семантическая непрерывность и disambiguation |
-| `memory.thread`, `memory.t` | Temporal Index | Связность long-gap диалогов |
-| `policy.consent` | HCP | Consent-first enforcement |
-| `qos.coherence` | ObservabilityHub, AdaptiveGovernor | Drift detection и стабилизация качества |
-| `merit_context` | Merit Score Engine | Контекст для синергии и NetworkEffectBonus |
-| `synergy_hint` | Web4 Mesh Router | Интеллектуальный выбор соседей/маршрута |
+1. **Минимализм:** один RTT-объект вместо payload + внешнего envelope.
+2. **Нативная интеграция:** все компоненты LS читают `message.lce` напрямую без дополнительного протокола заголовков.
+3. **Coherence-by-default:** ObservabilityHub может считать coherence и drift по каждому сообщению в едином формате.
+4. **Synergy-ready:** `lce.ls_meta.synergy_hint` и `lce.ls_meta.merit_domain` доступны роутеру и merit-контуру без трансформаций.
+5. **Governance-safe:** human-in-the-loop для тюнинга и изменения траектории поведения.
 
 ---
 
-## 4. LCE v1 JSON shape (normative)
+## 4. Нормативная структура Web4 RTT Message (v1 + LCE)
 
 ```json
 {
-  "lce_version": "1.0",
-  "trace_id": "01HR...",
-  "session_id": "sess_...",
-  "node_id": "ls-node-...",
-  "intent": {
-    "goal": "string",
-    "priority": "low|normal|high|critical",
-    "horizon": "single_turn|multi_turn|long_horizon"
+  "rtt_version": "1.0",
+  "message_id": "msg_9f8a3b2e...",
+  "trace_id": "trace_...",
+  "payload": {},
+  "lce": {
+    "thread_id": "thread_550e8400...",
+    "t": 1740003432,
+    "intent": { "type": "ask", "goal": "..." },
+    "affect": { "pad": [0.7, 0.4, 0.6], "tags": ["curious"] },
+    "meaning": { "topic": "quantum", "ontology": "..." },
+    "policy": { "consent": "full" },
+    "qos": { "coherence": 0.92 },
+    "ls_meta": {
+      "merit_domain": "research",
+      "synergy_hint": ["node_7a3f", "node_9c2d"]
+    }
   },
-  "affect": {
-    "tone": "neutral|warm|supportive|strict",
-    "urgency": 0.0,
-    "sensitivity": "low|medium|high"
-  },
-  "meaning": {
-    "topic_tags": ["string"],
-    "entities": ["string"],
-    "constraints": ["string"],
-    "confidence": 0.0
-  },
-  "memory": {
-    "thread": "thread_...",
-    "t": "2026-02-19T12:00:00Z",
-    "continuity_anchor": "hash_or_pointer"
-  },
-  "policy": {
-    "consent": "required|granted|revoked",
-    "retention": "ephemeral|short|standard|extended",
-    "redaction": ["pii", "secrets"]
-  },
-  "qos": {
-    "coherence": 0.0,
-    "drift_risk": 0.0,
-    "latency_budget_ms": 1200
-  },
-  "merit_context": {
-    "task_type": "reasoning|routing|adapter_eval|synthesis",
-    "synergy_weight": 0.0,
-    "expected_validation_peers": 3
-  },
-  "synergy_hint": {
-    "preferred_peers": ["node_a", "node_b"],
-    "region_bias": "eu-west",
-    "capabilities": ["lora-eval", "belief-sync"]
-  },
-  "signature": "ed25519:..."
+  "signature": "Ed25519..."
 }
 ```
 
-### 4.1 Validation constraints (v1)
+### 4.1 Обязательные требования
 
-- `lce_version` MUST be `1.0`.
-- `trace_id`, `session_id`, `node_id` MUST be present.
-- `policy.consent` MUST gate downstream actions requiring memory persistence or cross-node sharing.
-- `qos.coherence` and `qos.drift_risk` MUST be within `[0.0, 1.0]`.
-- Envelope MUST be signed (`signature`) before cross-node propagation.
-
----
-
-## 5. Transport integration (Web4 Runtime)
-
-LCE передаётся в RTT как отдельный заголовок/метаполе:
-
-- Header name: `x-ls-lce` (base64url(JSON)) для lightweight path;
-- или `lce_ref` (pointer) при крупном envelope и вынесенном storage.
-
-### 5.1 TTL и размер
-
-- Max inline size: 8 KB.
-- Recommended TTL: 15 минут для realtime-контуров.
-- При истечении TTL узел MUST rehydrate envelope через `continuity_anchor`.
+- `message.lce` MUST присутствовать во всех RTT-сообщениях уровня task/reasoning/synergy.
+- `message.trace_id` MUST совпадать с trace-контекстом observability pipeline.
+- `lce.thread_id` MUST быть стабилен в пределах одной нити диалога.
+- `lce.policy.consent` MUST проверяться перед cross-node репликацией и persistence.
+- `lce.qos.coherence` MUST быть в диапазоне `[0.0, 1.0]`.
+- RTT `signature` MUST покрывать и `payload`, и `lce`.
 
 ---
 
-## 6. Observability integration
+## 5. Поля LCE и маршрутизация по LS-компонентам
 
-ObservabilityHub должен фиксировать LCE-события:
-
-- `lce_ingested`
-- `lce_drift_detected`
-- `lce_consent_blocked`
-- `lce_routing_applied`
-- `lce_coherence_improved`
-
-Минимальные индексы:
-
-- `trace_id`
-- `session_id`
-- `memory.thread`
-- `node_id`
-- `policy.consent`
+| Поле LCE | Компоненты-потребители | Эффект |
+|---|---|---|
+| `intent` | Hexagon Core, AgentLoop | Точная целевая интерпретация шага |
+| `affect` | Shadow Layer | Эмоционально корректная генерация ответа |
+| `meaning` | Beliefs Graph, Ontology | Семантическая непрерывность |
+| `thread_id`, `t` | Temporal Index, ObservabilityHub | Непрерывность между сессиями |
+| `policy.consent` | HCP, Hub, Mesh | Consent-first enforcement |
+| `qos.coherence` | ObservabilityHub, AdaptiveGovernor | Drift detection и адаптивный тюнинг |
+| `ls_meta.merit_domain` | Merit Score Engine | Контекстная оценка вклада |
+| `ls_meta.synergy_hint` | Web4 Mesh Router | Soft-priority при выборе узлов |
 
 ---
 
-## 7. Governance & safety
+## 6. Observability и LSS (Liminal Session Store)
 
-1. **Human-in-the-loop**: действия типа auto-tune/route override, влияющие на пользовательскую траекторию, требуют approval при `sensitivity=high`.
-2. **Consent-first**: `policy.consent != granted` блокирует кросс-узловую репликацию LCE.
-3. **Redaction-first**: перед экспортом в mesh MUST применяться `policy.redaction`.
-4. **Replay protection**: использовать `(trace_id, t, signature)` + окно допустимого skew.
+ObservabilityHub расширяется до **LSS**:
 
----
+- хранение агрегатов coherence по `thread_id`;
+- корреляция `trace_id` → RTT → reasoning → routing outcome;
+- события:
+  - `lce_ingested`,
+  - `lce_coherence_drift`,
+  - `lce_consent_blocked`,
+  - `lce_synergy_route_applied`.
 
-## 8. Merit & synergy semantics
-
-- `merit_context.synergy_weight` влияет на приоритет задач синергии в пределах допустимых bootstrap/consensus правил.
-- `synergy_hint` используется как soft-signal для роутера; не может обходить safety/consent/policy ограничения.
-- Любое merit-влияние LCE должно быть аудируемо через trace linkage в Merkle-учётных событиях.
-
----
-
-## 9. Минимальный rollout план (Phase 15–16)
-
-1. **Spec lock**: утвердить LCE v1 поля и валидации.
-2. **Runtime**: добавить `x-ls-lce` / `lce_ref` поддержку в Web4 RTT.
-3. **Hub**: добавить ingest + индексацию + drift events в ObservabilityHub.
-4. **Governor**: подключить `qos.coherence/drift_risk` как входы тюнинга.
-5. **Mesh**: включить `synergy_hint` как soft routing signal.
-6. **Audit**: добавить журнал consent/redaction/replay-check решений.
+Минимальные ключи индексации: `trace_id`, `message_id`, `thread_id`, `node_id`, `policy.consent`.
 
 ---
 
-## 10. Open questions
+## 7. Safety, governance и human approval
 
-- Нужен ли бинарный формат (CBOR/MessagePack) для hot path вместо JSON?
-- Где хранить `continuity_anchor` (локально vs distributed KV)?
-- Как нормализовать `affect.tone` между языками/культурами?
-- Нужен ли отдельный LCE schema registry с version negotiation?
+1. **Human-in-the-loop mandatory:** AdaptiveGovernor не применяет high-impact изменения без human approval.
+2. **Canary + rollback gates:** любое изменение, инициированное на основе LCE-drift, идёт через canary и rollback-порог.
+3. **Consent-first:** при `policy.consent != full` cross-node sharing ограничивается политикой.
+4. **Replay protection:** `(message_id, thread_id, t, signature)` + окно допустимого времени.
+
+---
+
+## 8. Влияние на Merit и Synergy
+
+- `ls_meta.merit_domain` используется как контекст при подсчёте сигналов качества задачи.
+- `ls_meta.synergy_hint` — soft-signal для роутера, не обходящий safety/policy ограничения.
+- Любое влияние LCE на merit-решения должно быть трассируемо через `trace_id` и журнал решений.
+
+---
+
+## 9. План внедрения (Phase 15–16)
+
+1. Добавить обязательное поле `lce` в структуры RTT (Rust + Python bindings).
+2. Обновить сериализацию/подпись RTT для покрытия `payload+lce`.
+3. Расширить ObservabilityHub до LSS и добавить coherence drift events.
+4. Подключить чтение LCE в Shadow Layer и AdaptiveGovernor.
+5. Включить `synergy_hint` в Web4 Mesh Router как soft-priority сигнал.
+
+---
+
+## 10. Definition of Done
+
+- Все RTT-сообщения содержат валидный `lce` блок.
+- Корреляция по `trace_id` и `thread_id` работает end-to-end.
+- AdaptiveGovernor делает минимум один успешный тюнинг через human approval.
+- Зафиксировано measurable improvement по coherence/latency/error-rate на workload re-run.
 
