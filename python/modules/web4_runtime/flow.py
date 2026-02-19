@@ -5,10 +5,12 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from threading import Condition, RLock
 from typing import Callable, Generic, Iterator, Literal, TypeVar
+
+from .fuzzy import tune_backpressure_limits
 from weakref import WeakKeyDictionary
 
 SessionT = TypeVar("SessionT")
-BackpressureStrategy = Literal["fixed", "proportional"]
+BackpressureStrategy = Literal["fixed", "proportional", "fuzzy"]
 
 
 @dataclass
@@ -28,9 +30,13 @@ class GlobalFlowController(Generic[SessionT]):
     _async_space_event: asyncio.Event | None = field(default=None, init=False)
     _async_loop: asyncio.AbstractEventLoop | None = field(default=None, init=False)
     _space_epoch: int = field(default=0, init=False)
+    _fuzzy_per_session_limit: int = field(default=0, init=False)
+    _fuzzy_total_limit: int = field(default=0, init=False)
 
     def __post_init__(self) -> None:
         self._space_available = Condition(self._lock)
+        self._fuzzy_per_session_limit = self.per_session_limit
+        self._fuzzy_total_limit = self.total_limit
 
     @property
     def total_pending(self) -> int:
@@ -124,6 +130,29 @@ class GlobalFlowController(Generic[SessionT]):
             if after_epoch is not None:
                 return self._space_epoch != after_epoch
             return bool(notified)
+
+
+    def _effective_limits_unlocked(self) -> tuple[int, int]:
+        if self.strategy == "fuzzy":
+            return max(0, self._fuzzy_total_limit), max(0, self._fuzzy_per_session_limit)
+        return self.total_limit, self.per_session_limit
+
+    def _update_fuzzy_limits_locked(self) -> None:
+        if self.strategy != "fuzzy":
+            return
+        baseline_total = max(1, self.total_limit)
+        baseline_per_session = max(1, self.per_session_limit)
+        pressure = min(1.0, self._total_pending_unlocked() / baseline_total)
+        active = max(1, len(self._session_pending) + len(self._strong_pending))
+        drop_ratio = max(0.0, (pressure - 0.80) / max(1.0, active))
+        tuned_per, tuned_total = tune_backpressure_limits(
+            baseline_per_session,
+            baseline_total,
+            pressure,
+            drop_ratio,
+        )
+        self._fuzzy_per_session_limit = max(1, tuned_per)
+        self._fuzzy_total_limit = max(self._fuzzy_per_session_limit, tuned_total)
 
     def _cleanup_sid_locked(self, sid: int) -> None:
         pending = self._strong_pending.pop(sid, 0)
@@ -237,16 +266,18 @@ class GlobalFlowController(Generic[SessionT]):
         current = self._session_pending_locked(session)
         if current is None:
             return False
+        self._update_fuzzy_limits_locked()
+        total_limit, per_session_limit = self._effective_limits_unlocked()
         total_pending = self._total_pending_unlocked()
-        if total_pending >= self.total_limit:
+        if total_pending >= total_limit:
             return False
 
         if self.strategy == "proportional":
             active_sessions = max(1, len(self._session_pending) + len(self._strong_pending))
-            proportional_limit = max(1, self.total_limit // active_sessions)
-            effective_limit = min(self.per_session_limit, proportional_limit)
+            proportional_limit = max(1, total_limit // active_sessions)
+            effective_limit = min(per_session_limit, proportional_limit)
         else:
-            effective_limit = self.per_session_limit
+            effective_limit = per_session_limit
         return current < effective_limit
 
     def can_enqueue(self, session: SessionT) -> bool:

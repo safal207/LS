@@ -79,3 +79,20 @@ This means global pressure can reject new messages even when a local session que
 
 - Sessions that cannot be weak-referenced are stored strongly by the flow controller.
 - Call `unregister_session(session)` to release those strong references explicitly.
+
+
+## Fuzzy QoS extensions (Phase 14.3 integration)
+
+`GlobalFlowController.strategy` now supports `"fuzzy"` in addition to `"fixed"` and `"proportional"`.
+
+- Fuzzy strategy continuously adapts effective `per_session_limit` and `total_limit` from live queue pressure.
+- Adaptation uses `ncafuzzycore`-inspired membership functions, exposed in Python via:
+  - `modules.web4_runtime.fuzzy.tune_backpressure_limits`
+  - Rust bindings: `ghostgpt_core.tune_backpressure_limits`
+- If Rust extension is unavailable, Python fallback keeps the same formula and API.
+
+`AsyncRttSession` also exposes LCE-oriented coherence smoothing:
+
+- `await session.update_lce_coherence(measured_coherence, drift=..., noise=...)`
+- helper function: `modules.web4_runtime.fuzzy.smooth_coherence`
+- Rust binding: `ghostgpt_core.smooth_coherence`

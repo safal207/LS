@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from time import monotonic
 from typing import TYPE_CHECKING, Deque, Generic, Optional, TypeVar
 
+from .fuzzy import smooth_coherence
 from .rtt import BackpressureError, DisconnectedError, RttConfig, RttStats
 from .rtt_queue import RttQueue
 
@@ -26,6 +27,7 @@ class AsyncRttSession(Generic[MessageT]):
     _condition: Optional[asyncio.Condition] = field(default=None, init=False)
     _condition_loop: Optional[asyncio.AbstractEventLoop] = field(default=None, init=False)
     _notify_tasks: set[asyncio.Task[None]] = field(default_factory=set, init=False)
+    _coherence: float = field(default=1.0, init=False)
 
     def __post_init__(self) -> None:
         self._message_queue = RttQueue(
@@ -60,6 +62,17 @@ class AsyncRttSession(Generic[MessageT]):
             task.add_done_callback(self._notify_tasks.discard)
 
         loop.call_soon_threadsafe(_schedule_notify)
+
+
+    @property
+    def coherence(self) -> float:
+        return self._coherence
+
+    async def update_lce_coherence(self, measured_coherence: float, *, drift: float = 0.0, noise: float = 0.0) -> float:
+        condition = self._get_condition()
+        async with condition:
+            self._coherence = smooth_coherence(self._coherence, measured_coherence, drift, noise)
+            return self._coherence
 
     @property
     def connected(self) -> bool:

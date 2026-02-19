@@ -4,6 +4,12 @@ from .cip_runtime import CipRuntime
 from .hcp_runtime import HcpRuntime, HcpPolicy
 from .lip_runtime import LipRuntime
 from .flow import BackpressureStrategy, GlobalFlowController
+from .fuzzy import (
+    FuzzyBackpressureConfig,
+    FuzzyCoherenceConfig,
+    smooth_coherence,
+    tune_backpressure_limits,
+)
 from .governance import AdaptiveGovernor, AlertManager, GovernanceMetrics
 from .metrics import MetricsCollector, PerformanceMetrics
 from .observability import ObservabilityHub, ObservabilityEvent
@@ -30,6 +36,10 @@ __all__ = [
     "BackpressureStrategy",
     "GlobalFlowController",
     "Web4ProtocolRouter",
+    "FuzzyCoherenceConfig",
+    "FuzzyBackpressureConfig",
+    "smooth_coherence",
+    "tune_backpressure_limits",
     "RttConfig",
     "RttSession",
     "RttStats",

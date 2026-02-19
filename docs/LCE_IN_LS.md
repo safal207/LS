@@ -115,4 +115,6 @@ graph TD
 - Корреляция по `trace_id` и `thread_id` работает end-to-end.
 - AdaptiveGovernor делает минимум один тюнинг через human approval.
 - Зафиксировано measurable improvement по coherence/latency/error-rate.
+- В Web4 Runtime включён fuzzy smoothing (`smooth_coherence` / `update_lce_coherence`) для стабилизации `qos.coherence` в шумных условиях.
+- GlobalFlowController поддерживает adaptive режим `strategy="fuzzy"` для мягкого backpressure-тюнинга без жёстких порогов.
 - Trajectory memory используется как центр ориентации путей и снижает повтор ошибок.
