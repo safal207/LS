@@ -73,7 +73,7 @@ graph TD
 | `meaning`              | Beliefs Graph                 | Семантическая непрерывность |
 | `thread_id`, `t`       | Temporal Index                | Непрерывность между сессиями |
 | `policy.consent`       | HCP, Hub, Mesh                | Consent-first enforcement |
-| `qos.coherence`        | ObservabilityHub, AdaptiveGovernor | Drift detection |
+| `qos.coherence`        | ObservabilityHub, AdaptiveGovernor, Liminal Session Store (LSS) | Drift detection + session-level coherence tracking |
 | `ls_meta.merit_domain` | Merit Score Engine            | Контекстная оценка вклада |
 | `ls_meta.synergy_hint` | Web4 Mesh Router              | Soft-priority роутинга |
 
@@ -103,3 +103,4 @@ ObservabilityHub расширяется до **Liminal Session Store (LSS)**:
 - Корреляция по `trace_id` и `thread_id` работает end-to-end.
 - AdaptiveGovernor делает минимум один тюнинг через human approval.
 - Зафиксировано measurable improvement по coherence/latency/error-rate.
+- LCE проходит валидацию по JSON Schema v1.0 во всех RTT-сообщениях.
