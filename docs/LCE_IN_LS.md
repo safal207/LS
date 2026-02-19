@@ -1,45 +1,32 @@
 # LCE_IN_LS.md
-**Версия:** 1.0 (production-ready)  
+**Версия:** 1.0 (лучший вариант)  
 **Дата:** 19 февраля 2026  
 **Автор:** Главный архитектор LS
 
-### 1. Назначение
+#### 1. Назначение
 
-Внедрить **LCE (Liminal Context Envelope)** как встроенный metadata-блок в структуру Web4 RTT Message.  
+Внедрить **LCE (Liminal Context Envelope)** как **встроенный metadata-блок** в структуру Web4 RTT Message.
 
-LCE — это **Layer 8 протокол присутствия**: он передаёт не только текст, но и намерение, эмоциональное состояние, семантику, нить разговора, consent и coherence — всё в одном объекте, который летит с каждым сообщением.
+LCE — это **Layer 8 протокол присутствия**, который передаёт не только текст, но и:
+- намерение
+- эмоциональное состояние
+- семантику
+- нить разговора
+- consent
+- coherence
+- **память путей** (trajectory_hint)
 
-### 2. Почему встроенный LCE — лучший вариант для LS
+Это позволяет агенту учиться значительно быстрее, используя прошлые успешные и неудачные траектории, как это делает опытный человек.
 
-- Минимализм: один RTT-объект вместо payload + внешнего envelope.
-- Нативная интеграция: все компоненты LS читают `message.lce` напрямую.
-- Coherence-by-default: ObservabilityHub сразу считает drift.
-- Synergy-ready: `merit_context` и `synergy_hint` доступны Mesh Router и Merit Engine без трансформаций.
-- Governance-safe: human-in-the-loop и consent-first встроены на уровне протокола.
+#### 2. Почему этот вариант — лучший для LS
 
-### 3. Архитектурное место LCE
+- **Встроенный** в RTT Message — минимум overhead, максимальная целостность.
+- **Trajectory-aware** — агент помнит не только факты, а **пути** (состояние → действие → результат → урок).
+- **Синергия-ready** — `synergy_hint` и `merit_domain` сразу влияют на роутинг и Merit Score.
+- **Human-in-the-loop** по умолчанию.
+- **Полная совместимость** с Web4 Mesh, GlobalFlow и меритократией.
 
-```mermaid
-graph TD
-    Human[Человек] --> RTT[Web4 RTT Message + встроенный LCE]
-    RTT --> Runtime[Web4 Runtime]
-
-    Runtime --> Hub[ObservabilityHub]
-    Runtime --> Flow[GlobalFlowController]
-
-    Hub --> Hex[Hexagon Core]
-    Hub --> Shad[Shadow Layer]
-    Hub --> Gov[AdaptiveGovernor]
-
-    Flow --> Merit[Merit Score Engine]
-    Merit --> Mesh[Web4 Mesh Router]
-
-    Mesh --> Other[Другие узлы сети]
-
-    Gov --> Auto[Auto-tune + human approval]
-```
-
-### 4. Нормативная структура Web4 RTT Message (v1 + LCE)
+#### 3. Структура Web4 RTT Message с LCE
 
 ```json
 {
@@ -57,50 +44,47 @@ graph TD
     "qos": { "coherence": 0.92 },
     "ls_meta": {
       "merit_domain": "research",
-      "synergy_hint": ["node_7a3f", "node_9c2d"]
+      "synergy_hint": ["node_7a3f"],
+      "trajectory_hint": {
+        "past_successful": ["thread_abc123"],
+        "avoid": ["thread_bad789"],
+        "lessons": ["avoid overthinking when urgency high"]
+      }
     }
   },
   "signature": "Ed25519..."
 }
 ```
 
-### 5. Поля LCE и маршрутизация
+#### 4. Ключевые поля LCE и их роль в LS
 
-| Поле LCE               | Компонент LS                  | Эффект |
-|------------------------|-------------------------------|--------|
-| `intent`               | Hexagon Core, AgentLoop       | Точная целевая интерпретация |
-| `affect`               | Shadow Layer                  | Эмоциональная калибровка ответа |
-| `meaning`              | Beliefs Graph                 | Семантическая непрерывность |
-| `thread_id`, `t`       | Temporal Index                | Непрерывность между сессиями |
-| `policy.consent`       | HCP, Hub, Mesh                | Consent-first enforcement |
-| `qos.coherence`        | ObservabilityHub, AdaptiveGovernor, Liminal Session Store (LSS) | Drift detection + session-level coherence tracking |
-| `ls_meta.merit_domain` | Merit Score Engine            | Контекстная оценка вклада |
-| `ls_meta.synergy_hint` | Web4 Mesh Router              | Soft-priority роутинга |
+| Поле LCE                       | Компонент LS                         | Как ускоряет обучение |
+|--------------------------------|--------------------------------------|-----------------------|
+| `intent`                       | Hexagon Core, AgentLoop              | Точная цель шага |
+| `affect`                       | Shadow Layer                         | Эмоциональная подстройка |
+| `meaning`                      | Beliefs Graph                        | Семантическая непрерывность |
+| `thread_id`, `t`               | Temporal Index                       | Нить разговора |
+| `policy.consent`               | HCP, Mesh                            | Consent-first |
+| `qos.coherence`                | AdaptiveGovernor, ObservabilityHub   | Drift detection |
+| `ls_meta.merit_domain`         | Merit Score Engine                   | Контекст вклада |
+| `ls_meta.synergy_hint`         | Web4 Mesh Router                     | Умный роутинг |
+| **`ls_meta.trajectory_hint`**  | **Shadow Layer + Hexagon Core**      | **Память путей** — главное ускорение |
 
-### 6. Observability и LSS
+#### 5. Как trajectory_hint ускоряет обучение
 
-ObservabilityHub расширяется до **Liminal Session Store (LSS)**:
-- Хранит агрегаты coherence по `thread_id`.
-- Генерирует события: `lce_ingested`, `lce_coherence_drift`, `lce_synergy_route_applied`.
+- `past_successful` — ссылки на успешные траектории (используются как few-shot примеры).
+- `avoid` — ссылки на неудачные пути (избегаются).
+- `lessons` — короткие выводы из прошлого опыта.
 
-### 7. Safety и governance
+Shadow Layer автоматически использует эти данные при генерации ответа.  
+Hexagon Core обновляет Beliefs Graph на основе новых уроков.  
+Merit Score Engine даёт бонус за использование успешных траекторий.
 
-- Human-in-the-loop обязателен для high-impact изменений.
-- Consent-first: при `policy.consent != full` cross-node sharing блокируется.
-- Replay protection: `(message_id, thread_id, t, signature)`.
+Это делает обучение **экспоненциальным**, как у опытного человека.
 
-### 8. План внедрения (Phase 15–16)
+---
 
-1. Добавить обязательное поле `lce` в RTT Message (Rust + Python).
-2. Обновить сериализацию/подпись RTT.
-3. Расширить ObservabilityHub до LSS.
-4. Подключить чтение LCE в Shadow Layer и AdaptiveGovernor.
-5. Включить `synergy_hint` в Mesh Router.
-
-### 9. Definition of Done
-
-- Все RTT-сообщения содержат валидный `lce` блок.
-- Корреляция по `trace_id` и `thread_id` работает end-to-end.
-- AdaptiveGovernor делает минимум один тюнинг через human approval.
-- Зафиксировано measurable improvement по coherence/latency/error-rate.
-- LCE проходит валидацию по JSON Schema v1.0 во всех RTT-сообщениях.
+Этот вариант — **лучший**, потому что:
+- Минимальный overhead.
+- Максимальная интеграция.
+- Прямо решает задачу ускорения обучения через память путей.
