@@ -333,8 +333,6 @@ class GlobalFlowController(Generic[SessionT]):
         with self._lock:
             if not self._is_registered_locked(session):
                 self._register_session_locked(session)
-            now = monotonic()
-            self._maybe_reset_fuzzy_window_locked(now)
             if not self._can_enqueue_unlocked(session):
                 self._record_admission_attempt_locked(False)
                 return False

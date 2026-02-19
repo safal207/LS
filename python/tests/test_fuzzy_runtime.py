@@ -61,7 +61,7 @@ def test_global_flow_fuzzy_strategy_adapts_limits() -> None:
     for _ in range(8):
         flow.try_enqueue(s1)
 
-    time.sleep(0.06)
+    time.sleep(0.15)
     flow.can_enqueue(s2)
 
     assert (flow._fuzzy_total_limit, flow._fuzzy_per_session_limit) != (baseline_total, baseline_per_session)

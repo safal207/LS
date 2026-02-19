@@ -70,10 +70,20 @@ class AsyncRttSession(Generic[MessageT]):
 
     async def update_lce_coherence(self, measured_coherence: float, *, drift: float = 0.0, noise: float = 0.0) -> float:
         condition = self._get_condition()
+
         async with condition:
-            new_coherence = smooth_coherence(self._coherence, measured_coherence, drift, noise)
-            self._coherence = new_coherence
-            return new_coherence
+            baseline = self._coherence
+
+        candidate = smooth_coherence(baseline, measured_coherence, drift, noise)
+
+        async with condition:
+            if self._coherence == baseline:
+                self._coherence = candidate
+                return candidate
+
+            fresh = smooth_coherence(self._coherence, measured_coherence, drift, noise)
+            self._coherence = fresh
+            return fresh
 
     @property
     def connected(self) -> bool:
