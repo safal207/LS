@@ -153,12 +153,14 @@ class GlobalFlowController(Generic[SessionT]):
         if now - self._last_fuzzy_update < 0.05:
             return
         self._last_fuzzy_update = now
-        self._maybe_reset_fuzzy_window_locked(now)
 
         baseline_total = max(1, self.total_limit)
         baseline_per_session = max(1, self.per_session_limit)
         pressure = min(1.0, self._total_pending_unlocked() / baseline_total)
-        drop_ratio = self._dropped_recent / max(1, self._attempted_recent)
+        attempted_recent = self._attempted_recent
+        dropped_recent = self._dropped_recent
+        drop_ratio = dropped_recent / max(1, attempted_recent)
+        self._maybe_reset_fuzzy_window_locked(now)
         tuned_per, tuned_total = tune_backpressure_limits(
             baseline_per_session,
             baseline_total,

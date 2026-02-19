@@ -113,3 +113,24 @@ def test_tune_backpressure_hysteresis_deadband() -> None:
     per, total = tune_backpressure_limits(100, 1000, queue_pressure=0.45, drop_ratio=0.0, config=cfg)
     assert per == 100
     assert total == 1000
+
+
+def test_async_lce_coherence_updates_are_serialized(monkeypatch) -> None:
+    from modules.web4_runtime import async_rtt
+
+    def _bump(prev: float, measured: float, drift: float, noise: float) -> float:
+        _ = (measured, drift, noise)
+        return prev + 1.0
+
+    monkeypatch.setattr(async_rtt, "smooth_coherence", _bump)
+
+    async def scenario() -> None:
+        session = AsyncRttSession[str]()
+
+        async def worker() -> None:
+            await session.update_lce_coherence(0.0)
+
+        await asyncio.gather(worker(), worker())
+        assert session.coherence == 3.0
+
+    asyncio.run(scenario())
