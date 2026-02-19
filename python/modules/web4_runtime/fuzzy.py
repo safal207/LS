@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 try:
     import ghostgpt_core  # type: ignore
-except Exception:  # pragma: no cover - optional Rust extension
+except (ImportError, ModuleNotFoundError):  # pragma: no cover - optional Rust extension
     ghostgpt_core = None
 
 
@@ -43,6 +43,7 @@ class FuzzyBackpressureConfig:
     max_factor: float = 1.4
     queue_pressure_threshold: float = 0.75
     drop_pressure_threshold: float = 0.20
+    hysteresis_ratio: float = 0.05
 
 
 def smooth_coherence(prev_coherence: float, measured_coherence: float, drift: float, noise: float, config: FuzzyCoherenceConfig | None = None) -> float:
@@ -84,6 +85,7 @@ def tune_backpressure_limits(
                 cfg.max_factor,
                 cfg.queue_pressure_threshold,
                 cfg.drop_pressure_threshold,
+                cfg.hysteresis_ratio,
             )
         tuned = ghostgpt_core.tune_backpressure_limits(per_session_limit, total_limit, queue_pressure, drop_ratio, rust_cfg)
         return int(tuned[0]), int(tuned[1])
@@ -95,6 +97,8 @@ def tune_backpressure_limits(
     drop_stress = _ramp_up(drops, cfg.drop_pressure_threshold, 1.0)
     stable = _ramp_down(pressure, 0.0, cfg.queue_pressure_threshold * 0.5)
     factor = _clamp(1.0 + (0.25 * stable) - (0.35 * high_pressure) - (0.45 * critical_pressure) - (0.30 * drop_stress), cfg.min_factor, cfg.max_factor)
+    if abs(factor - 1.0) < max(0.0, cfg.hysteresis_ratio):
+        factor = 1.0
     next_per_session = max(1, round(per_session_limit * factor))
     next_total = max(next_per_session, round(total_limit * factor))
     return next_per_session, next_total

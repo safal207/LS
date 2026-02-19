@@ -88,3 +88,21 @@ def test_integration_global_flow_stability_under_noise() -> None:
     assert flow.total_pending >= 0
     assert flow._fuzzy_total_limit > 0
     assert accepted > 0
+
+
+def test_flow_fuzzy_records_attempt_drop_ratio() -> None:
+    flow = GlobalFlowController(total_limit=1, per_session_limit=1, strategy="fuzzy")
+    s = object()
+    flow.register_session(s)
+
+    assert flow.try_enqueue(s) is True
+    assert flow.try_enqueue(s) is False
+    assert flow._attempted_recent >= 2
+    assert flow._dropped_recent >= 1
+
+
+def test_tune_backpressure_hysteresis_deadband() -> None:
+    cfg = FuzzyBackpressureConfig(hysteresis_ratio=0.20)
+    per, total = tune_backpressure_limits(100, 1000, queue_pressure=0.45, drop_ratio=0.0, config=cfg)
+    assert per == 100
+    assert total == 1000

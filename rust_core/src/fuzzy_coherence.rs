@@ -1,11 +1,6 @@
 use pyo3::prelude::*;
 
 #[inline]
-fn clamp(value: f64, low: f64, high: f64) -> f64 {
-    value.max(low).min(high)
-}
-
-#[inline]
 fn ramp_up(value: f64, start: f64, end: f64) -> f64 {
     if value <= start {
         return 0.0;
@@ -85,21 +80,18 @@ pub fn smooth_coherence(
     config: Option<FuzzyCoherenceConfig>,
 ) -> f64 {
     let cfg = config.unwrap_or_default();
-    let prev = clamp(prev_coherence, cfg.min_coherence, cfg.max_coherence);
-    let measured = clamp(measured_coherence, cfg.min_coherence, cfg.max_coherence);
+    let prev = prev_coherence.clamp(cfg.min_coherence, cfg.max_coherence);
+    let measured = measured_coherence.clamp(cfg.min_coherence, cfg.max_coherence);
 
     let drift_level = ramp_up(drift.abs(), cfg.drift_threshold * 0.5, cfg.drift_threshold);
     let noise_level = ramp_up(noise.abs(), cfg.noise_threshold * 0.5, cfg.noise_threshold);
     let stable = ramp_down((drift.abs() + noise.abs()) * 0.5, 0.0, cfg.noise_threshold.max(0.01));
 
-    let adaptive_gain = clamp(
-        cfg.smoothing_gain + 0.35 * drift_level + 0.20 * noise_level - 0.10 * stable,
-        0.02,
-        0.95,
-    );
+    let adaptive_gain =
+        (cfg.smoothing_gain + 0.35 * drift_level + 0.20 * noise_level - 0.10 * stable).clamp(0.02, 0.95);
 
     let next = prev + adaptive_gain * (measured - prev);
-    clamp(next, cfg.min_coherence, cfg.max_coherence)
+    next.clamp(cfg.min_coherence, cfg.max_coherence)
 }
 
 #[pyclass]
@@ -113,6 +105,8 @@ pub struct FuzzyBackpressureConfig {
     pub queue_pressure_threshold: f64,
     #[pyo3(get, set)]
     pub drop_pressure_threshold: f64,
+    #[pyo3(get, set)]
+    pub hysteresis_ratio: f64,
 }
 
 impl Default for FuzzyBackpressureConfig {
@@ -122,6 +116,7 @@ impl Default for FuzzyBackpressureConfig {
             max_factor: 1.4,
             queue_pressure_threshold: 0.75,
             drop_pressure_threshold: 0.20,
+            hysteresis_ratio: 0.05,
         }
     }
 }
@@ -129,18 +124,20 @@ impl Default for FuzzyBackpressureConfig {
 #[pymethods]
 impl FuzzyBackpressureConfig {
     #[new]
-    #[pyo3(signature=(min_factor=0.6, max_factor=1.4, queue_pressure_threshold=0.75, drop_pressure_threshold=0.20))]
+    #[pyo3(signature=(min_factor=0.6, max_factor=1.4, queue_pressure_threshold=0.75, drop_pressure_threshold=0.20, hysteresis_ratio=0.05))]
     fn new(
         min_factor: f64,
         max_factor: f64,
         queue_pressure_threshold: f64,
         drop_pressure_threshold: f64,
+        hysteresis_ratio: f64,
     ) -> Self {
         Self {
             min_factor,
             max_factor,
             queue_pressure_threshold,
             drop_pressure_threshold,
+            hysteresis_ratio,
         }
     }
 }
@@ -155,19 +152,23 @@ pub fn tune_backpressure_limits(
     config: Option<FuzzyBackpressureConfig>,
 ) -> (usize, usize) {
     let cfg = config.unwrap_or_default();
-    let pressure = clamp(queue_pressure, 0.0, 1.0);
-    let drops = clamp(drop_ratio, 0.0, 1.0);
+    let pressure = queue_pressure.clamp(0.0, 1.0);
+    let drops = drop_ratio.clamp(0.0, 1.0);
 
     let high_pressure = ramp_up(pressure, cfg.queue_pressure_threshold * 0.7, cfg.queue_pressure_threshold);
     let critical_pressure = ramp_up(pressure, cfg.queue_pressure_threshold, 1.0);
     let drop_stress = ramp_up(drops, cfg.drop_pressure_threshold, 1.0);
     let stable = ramp_down(pressure, 0.0, cfg.queue_pressure_threshold * 0.5);
 
-    let factor = clamp(
-        1.0 + (0.25 * stable) - (0.35 * high_pressure) - (0.45 * critical_pressure) - (0.30 * drop_stress),
-        cfg.min_factor,
-        cfg.max_factor,
-    );
+    let mut factor = (1.0 + (0.25 * stable)
+        - (0.35 * high_pressure)
+        - (0.45 * critical_pressure)
+        - (0.30 * drop_stress))
+        .clamp(cfg.min_factor, cfg.max_factor);
+
+    if (factor - 1.0).abs() < cfg.hysteresis_ratio.max(0.0) {
+        factor = 1.0;
+    }
 
     let next_per_session = ((per_session_limit as f64) * factor).round().max(1.0) as usize;
     let next_total = ((total_limit as f64) * factor).round().max(next_per_session as f64) as usize;
