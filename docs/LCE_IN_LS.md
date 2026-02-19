@@ -89,15 +89,15 @@ graph TD
 
 В репозитории уже лежит много скрытого золота. Вот самые перспективные компоненты, которые можно вытащить и интегрировать в текущую архитектуру (LCE + Meritocracy Mesh + Observability closed-loop). Расположены по убыванию ценности и лёгкости интеграции:
 
-| № | Компонент / Идея | Где лежит | Почему ценно для нас | Уровень усилий | Рекомендация |
-|---|------------------|-----------|----------------------|----------------|--------------|
-| 1 | **ncafuzzycore** (Rust fuzzy regulator) | `ncafuzzycore/` + Phase 14.3 | Адаптивное управление неопределённостью, smoothing coherence в LCE, мягкий тюнинг AdaptiveGovernor | Низкий | **Приоритет №1** — интегрировать в Web4 Runtime |
-| 2 | **CaPU v2 + AdaptiveBrain** | `data/` | Продвинутая память с experience replay и adaptive learning — идеально для trajectory_hint в LCE | Средний | Добавить в Hexagon Core как слой долгосрочной памяти |
-| 3 | **WEB4_BIOFOUNDATIONS.md** | `docs/` | Био-инспирированные принципы (нейрон-подобные сети, самоорганизация) — отличная база для Mesh эволюции | Низкий (документ) | Использовать как вдохновение для Meritocracy + LCE |
-| 4 | **PHASE145_GOVERNANCE.md** | `docs/` | Модель governance для децентрализованных систем — готовый блок для Meritocracy Mesh | Средний | Интегрировать в MERIT_LEDGER_CONSENSUS.md |
-| 5 | **META_LOGOS_PRINCIPLES + META_ONTOLOGICAL_MAPPING** | `docs/` | Мета-онтология и принципы смысла — усилит Beliefs Graph и meaning в LCE | Средний | Добавить в Hexagon Core как слой мета-уровня |
-| 6 | **FIELD_AWARE_BIAS + FIELD_RESONANCE** | `docs/` (Phase 17–21) | Field-based cognitive architecture — динамическое взаимодействие агентов | Высокий | Рассмотреть для Phase 23+ (после Mesh) |
-| 7 | **codex/** (advanced agent logic) | `codex/` | Экспериментальные алгоритмы планирования и self-improvement | Средний | Cherry-pick полезные части в AgentLoop |
+| № | Компонент / Идея | Где лежит | Почему ценно для нас | Связь с LCE | Уровень усилий | Рекомендация |
+|---|------------------|-----------|----------------------|--------------|----------------|--------------|
+| 1 | **ncafuzzycore** (Rust fuzzy regulator) | `ncafuzzycore/` + Phase 14.3 | Адаптивное управление неопределённостью, smoothing coherence в LCE, мягкий тюнинг AdaptiveGovernor | `qos.coherence` smoothing + adaptive tuning | Низкий | **Приоритет №1** — интегрировать в Web4 Runtime |
+| 2 | **CaPU v2 + AdaptiveBrain** | `data/` | Продвинутая память с experience replay и adaptive learning — идеально для trajectory_hint в LCE | `trajectory_hint` и долговременная память путей | Средний | Добавить в Hexagon Core как слой долгосрочной памяти |
+| 3 | **WEB4_BIOFOUNDATIONS.md** | `docs/` | Био-инспирированные принципы (нейрон-подобные сети, самоорганизация) — отличная база для Mesh эволюции | Принципы для эволюции LCE-aware Mesh | Низкий (документ) | Использовать как вдохновение для Meritocracy + LCE |
+| 4 | **PHASE145_GOVERNANCE.md** | `docs/` | Модель governance для децентрализованных систем — готовый блок для Meritocracy Mesh | `policy.consent` и human-in-the-loop governance | Средний | Интегрировать в MERIT_LEDGER_CONSENSUS.md |
+| 5 | **META_LOGOS_PRINCIPLES + META_ONTOLOGICAL_MAPPING** | `docs/` | Мета-онтология и принципы смысла — усилит Beliefs Graph и meaning в LCE | Углубление `meaning`/semantics для LCE | Средний | Добавить в Hexagon Core как слой мета-уровня |
+| 6 | **FIELD_AWARE_BIAS + FIELD_RESONANCE** | `docs/` (Phase 17–21) | Field-based cognitive architecture — динамическое взаимодействие агентов | Усиление affect/coherence динамики между узлами | Высокий | Рассмотреть для Phase 23+ (после Mesh) |
+| 7 | **codex/** (advanced agent logic) | `codex/` | Экспериментальные алгоритмы планирования и self-improvement | Улучшение decision-loop вокруг LCE сигналов | Средний | Cherry-pick полезные части в AgentLoop |
 
 ### 7. План внедрения (Phase 15–16)
 
@@ -107,6 +107,7 @@ graph TD
 4. Подключить чтение LCE в Shadow Layer и AdaptiveGovernor.
 5. Включить `synergy_hint` и `trajectory_hint` в Mesh Router.
 6. Начать интеграцию топ-3 компонентов из таблицы выше.
+7. Создать placeholder `GOVERNANCE_KEYS.md` для закрытия forward reference по governance.
 
 ### 8. Definition of Done
 
