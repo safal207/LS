@@ -1,5 +1,5 @@
 # LCE_IN_LS.md
-**Версия:** 1.3 (лучшая финальная)  
+**Версия:** 1.4 (лучшая финальная)  
 **Дата:** 19 февраля 2026  
 **Автор:** Главный архитектор LS
 
@@ -85,19 +85,19 @@ graph TD
 }
 ```
 
-### 6. Поля LCE и маршрутизация
+### 6. Ценные компоненты из репо для интеграции (топ-7)
 
-| Поле LCE               | Компонент LS                  | Эффект |
-|------------------------|-------------------------------|--------|
-| `intent`               | Hexagon Core, AgentLoop       | Точная целевая интерпретация |
-| `affect`               | Shadow Layer                  | Эмоциональная калибровка ответа |
-| `meaning`              | Beliefs Graph                 | Семантическая непрерывность |
-| `thread_id`, `t`       | Temporal Index                | Непрерывность между сессиями |
-| `policy.consent`       | HCP, Hub, Mesh                | Consent-first enforcement |
-| `qos.coherence`        | ObservabilityHub, AdaptiveGovernor | Drift detection |
-| `ls_meta.merit_domain` | Merit Score Engine            | Контекстная оценка вклада |
-| `ls_meta.synergy_hint` | Web4 Mesh Router              | Soft-priority роутинга |
-| `ls_meta.trajectory_hint` | Shadow Layer + Hexagon Core | Память путей и ускорение обучения |
+В репозитории уже лежит много скрытого золота. Вот самые перспективные компоненты, которые можно вытащить и интегрировать в текущую архитектуру (LCE + Meritocracy Mesh + Observability closed-loop). Расположены по убыванию ценности и лёгкости интеграции:
+
+| № | Компонент / Идея | Где лежит | Почему ценно для нас | Уровень усилий | Рекомендация |
+|---|------------------|-----------|----------------------|----------------|--------------|
+| 1 | **ncafuzzycore** (Rust fuzzy regulator) | `ncafuzzycore/` + Phase 14.3 | Адаптивное управление неопределённостью, smoothing coherence в LCE, мягкий тюнинг AdaptiveGovernor | Низкий | **Приоритет №1** — интегрировать в Web4 Runtime |
+| 2 | **CaPU v2 + AdaptiveBrain** | `data/` | Продвинутая память с experience replay и adaptive learning — идеально для trajectory_hint в LCE | Средний | Добавить в Hexagon Core как слой долгосрочной памяти |
+| 3 | **WEB4_BIOFOUNDATIONS.md** | `docs/` | Био-инспирированные принципы (нейрон-подобные сети, самоорганизация) — отличная база для Mesh эволюции | Низкий (документ) | Использовать как вдохновение для Meritocracy + LCE |
+| 4 | **PHASE145_GOVERNANCE.md** | `docs/` | Модель governance для децентрализованных систем — готовый блок для Meritocracy Mesh | Средний | Интегрировать в MERIT_LEDGER_CONSENSUS.md |
+| 5 | **META_LOGOS_PRINCIPLES + META_ONTOLOGICAL_MAPPING** | `docs/` | Мета-онтология и принципы смысла — усилит Beliefs Graph и meaning в LCE | Средний | Добавить в Hexagon Core как слой мета-уровня |
+| 6 | **FIELD_AWARE_BIAS + FIELD_RESONANCE** | `docs/` (Phase 17–21) | Field-based cognitive architecture — динамическое взаимодействие агентов | Высокий | Рассмотреть для Phase 23+ (после Mesh) |
+| 7 | **codex/** (advanced agent logic) | `codex/` | Экспериментальные алгоритмы планирования и self-improvement | Средний | Cherry-pick полезные части в AgentLoop |
 
 ### 7. План внедрения (Phase 15–16)
 
@@ -106,6 +106,7 @@ graph TD
 3. Расширить ObservabilityHub до LSS.
 4. Подключить чтение LCE в Shadow Layer и AdaptiveGovernor.
 5. Включить `synergy_hint` и `trajectory_hint` в Mesh Router.
+6. Начать интеграцию топ-3 компонентов из таблицы выше.
 
 ### 8. Definition of Done
 
