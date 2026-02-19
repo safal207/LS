@@ -50,7 +50,7 @@ graph TD
 | Путь Памяти           | `thread_id` + `t`            | Нить непрерывности |
 | Путь Согласия         | `policy.consent`             | Consent-first |
 | Путь Качества         | `qos.coherence`              | Drift detection |
-| Путь Синергии         | `ls_meta.merit_domain` + `synergy_hint` | Меритократия и обмен вкладом |
+| Путь Синергии         | `merit_context` + `synergy_hint` + `trajectory_hint` | Меритократия, обмен вкладом и память путей |
 
 ### 5. Нормативная структура Web4 RTT Message (v1 + LCE)
 
@@ -105,6 +105,7 @@ Hexagon Core — центральный когнитивный движок LS, 
 Текущее состояние:
 - Сильные стороны: модульность, сильная temporal/causal линия, интеграция через observability.
 - Ограничения: часть граней ещё в skeleton-стадии, оркестрация не полностью централизована.
+- Trajectory memory — ключевой фокус эволюции на ближайшие фазы.
 - Ключевой фокус эволюции: усиление trajectory memory через `trajectory_hint`.
 
 ### 7. План внедрения (Phase 15–16)
