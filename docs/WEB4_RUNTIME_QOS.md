@@ -2,6 +2,8 @@
 
 Compatibility alias: `docs/WEB4RUNTIMEQOS.md` (symlink for legacy links).
 
+Local Rust bridge setup: `docs/RUST_BRIDGE_LOCAL_SETUP.md`.
+
 Web4 RTT queue supports overflow strategies configured by `RttConfig.backpressure_policy`:
 
 Sync (`RttSession`) and async (`AsyncRttSession`) both delegate queue mechanics to `modules.web4_runtime.rtt_queue.RttQueue` to keep ordering, overflow, and compaction behavior identical.

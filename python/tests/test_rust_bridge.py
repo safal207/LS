@@ -1,6 +1,7 @@
 import importlib
 import importlib.machinery
 import importlib.util
+import os
 import pathlib
 import sys
 import threading
@@ -35,6 +36,14 @@ def _artifact_candidates() -> list[pathlib.Path]:
     return [release_dir / name for name in names]
 
 
+def _running_in_ci() -> bool:
+    return os.getenv("CI", "").strip().lower() in {"1", "true", "yes"}
+
+
+def _has_local_ghostgpt_artifact() -> bool:
+    return any(path.exists() for path in _artifact_candidates())
+
+
 def _load_ghostgpt_core():
     """
     Import ghostgpt_core using the default import path, or from a Rust build
@@ -64,6 +73,11 @@ def ghostgpt_core_module():
     try:
         return _load_ghostgpt_core()
     except ImportError as exc:
+        if not _running_in_ci() and not _has_local_ghostgpt_artifact():
+            pytest.skip(
+                "Rust module 'ghostgpt_core' not found in local environment. "
+                "Build rust_core extension to run bridge binding tests."
+            )
         pytest.fail(f"Rust module 'ghostgpt_core' not found. Build might have failed: {exc}")
 
 
