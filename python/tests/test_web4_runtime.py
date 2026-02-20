@@ -463,7 +463,10 @@ def test_observability_hub_exports_federation_metrics_json() -> None:
 
     assert compact_payload["window_size"] == 5
     assert compact_payload["metrics"]["denied"] == 1
-    assert pretty_payload == compact_payload
+    assert isinstance(compact_payload["generated_at"], str)
+    assert isinstance(pretty_payload["generated_at"], str)
+    assert pretty_payload["window_size"] == compact_payload["window_size"]
+    assert pretty_payload["metrics"] == compact_payload["metrics"]
     assert "\n" in pretty_json
     assert "\n" not in compact_json
 
