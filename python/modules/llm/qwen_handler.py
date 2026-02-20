@@ -7,6 +7,9 @@ Supports both Ollama Qwen and Alibaba Cloud Qwen API
 import requests
 import json
 import logging
+import importlib
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 from ..config import OLLAMA_HOST, LLM_MODEL_NAME
 from .errors import (
@@ -19,7 +22,94 @@ from .errors import (
 
 logger = logging.getLogger(__name__)
 
+
 DEFAULT_TIMEOUT = 30
+
+_CODEX_WINDOWS_PATH = Path("codex/events/windows")
+_CODEX_INDEX_PATH = Path("codex/index.json")
+_MAX_CODEX_EVENTS = 20
+
+
+def _get_focus_tracker():
+    if importlib.util.find_spec("rust_core") is None:
+        return None
+    rust_core_module = importlib.import_module("rust_core")
+    tracker_module = getattr(rust_core_module, "focus_tracker", None)
+    if tracker_module is None:
+        return None
+    tracker_cls = getattr(tracker_module, "FocusTracker", None)
+    return tracker_cls() if tracker_cls is not None else None
+
+
+def save_to_codex(event_data: dict) -> Optional[Path]:
+    if not isinstance(event_data, dict):
+        return None
+
+    _CODEX_WINDOWS_PATH.mkdir(parents=True, exist_ok=True)
+
+    timestamp = event_data.get("timestamp") or datetime.now(timezone.utc).isoformat()
+    safe_ts = timestamp.replace(":", "").replace("-", "")
+    event_file = _CODEX_WINDOWS_PATH / f"focus_event_{safe_ts}.json"
+    event_file.write_text(json.dumps(event_data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    index_payload = {
+        "provider": "windows_context_v1",
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "max_in_memory": 10,
+        "max_index_entries": _MAX_CODEX_EVENTS,
+        "events": []
+    }
+    if _CODEX_INDEX_PATH.exists():
+        existing = json.loads(_CODEX_INDEX_PATH.read_text(encoding="utf-8"))
+        if isinstance(existing, dict):
+            index_payload.update(existing)
+
+    events = index_payload.get("events", [])
+    if not isinstance(events, list):
+        events = []
+
+    events = [
+        {
+            "timestamp": timestamp,
+            "event_type": event_data.get("event_type", "focus_change"),
+            "path": str(event_file)
+        }
+    ] + events
+
+    index_payload["events"] = events[:_MAX_CODEX_EVENTS]
+    index_payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+    _CODEX_INDEX_PATH.write_text(json.dumps(index_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return event_file
+
+
+def collect_windows_context(session_id: str = "default") -> Optional[dict]:
+    tracker = _get_focus_tracker()
+    if tracker is None:
+        return None
+
+    active_window = tracker.get_active_window()
+    if not isinstance(active_window, dict):
+        return None
+
+    event = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "event_type": "focus_change",
+        "session_id": session_id,
+        "active_window": active_window,
+        "text_snippet": active_window.get("text_snippet", ""),
+        "cursor_position": active_window.get("cursor_position", {"line": 0, "column": 0}),
+        "confusion_score": float(active_window.get("confusion_score", 0.0)),
+        "fuzzy_factors": active_window.get("fuzzy_factors", {}),
+        "confidence": float(active_window.get("confidence", 0.9)),
+        "source": "rust_core::focus_tracker",
+    }
+
+    if event["confusion_score"] > 0.7:
+        event["event_type"] = "confusion_ping"
+
+    save_to_codex(event)
+    return event
+
 
 class QwenHandler:
     def __init__(self, use_cloud_api: bool = False, api_key: str = "", *, raise_on_error: bool = False):
