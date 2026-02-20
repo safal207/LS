@@ -6,6 +6,11 @@ This document reflects current transport abstraction in:
 - `python/modules/web4_runtime/transport_registry.py`
 - `python/modules/web4_runtime/web4_session.py`
 
+Related docs:
+
+- `docs/WEB4_RUNTIME_MIGRATION_GUIDE.md`
+- `docs/WEB4_RUNTIME_CI_CHECKLIST.md`
+
 ## Core components
 
 - `TransportBackend` protocol with methods:
