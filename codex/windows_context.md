@@ -30,3 +30,5 @@ def save_to_codex(event_data):
 - [ ] Тест: 40 секунд сидишь в VS Code → GhostGPT должен мягко подсветить overlay
 
 **Статус:** В работе | Приоритет: MUST HAVE | Владелец: safal207
+
+Config source: Hybrid Registry (v1.0)

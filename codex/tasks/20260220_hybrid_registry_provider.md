@@ -90,3 +90,5 @@ reg.enable_auto_start(sys.executable + " apps/ghostgpt/ghost_gui.py --stealth")
 После выполнения — отметь в этом файле [DONE] и кинь мне сигнал.
 
 Codex Agent, вперёд. Строй нервную систему.
+
+[DONE] 2026-02-20 — implementation landed in repo.

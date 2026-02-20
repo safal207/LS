@@ -8,6 +8,18 @@ MODULES = ROOT / "python" / "modules"
 if str(MODULES) not in sys.path:
     sys.path.insert(0, str(MODULES))
 
-from llm.qwen_handler import collect_windows_context, save_to_codex  # noqa: F401
+from llm.qwen_handler import (  # noqa: F401
+    collect_windows_context,
+    get_registry_manager,
+    save_to_codex,
+)
 
-__all__ = ["collect_windows_context", "save_to_codex"]
+__all__ = ["collect_windows_context", "save_to_codex", "get_registry_manager", "init_stealth"]
+
+
+def init_stealth():
+    reg = get_registry_manager()
+    if reg:
+        cmd = f'{sys.executable} {ROOT / "apps" / "ghostgpt" / "ghost_gui.py"} --stealth'
+        reg.enable_auto_start(cmd)
+    return reg

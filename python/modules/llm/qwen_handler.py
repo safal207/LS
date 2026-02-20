@@ -25,20 +25,35 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30
 
-_CODEX_WINDOWS_PATH = Path("codex/events/windows")
-_CODEX_INDEX_PATH = Path("codex/index.json")
+_CODEX_ROOT = Path("codex")
+_CODEX_WINDOWS_PATH = _CODEX_ROOT / "events" / "windows"
+_CODEX_INDEX_PATH = _CODEX_ROOT / "index.json"
 _MAX_CODEX_EVENTS = 20
 
 
+def _load_rust_module():
+    for module_name in ("rust_core", "ghostgpt_core"):
+        if importlib.util.find_spec(module_name) is not None:
+            return importlib.import_module(module_name)
+    return None
+
+
 def _get_focus_tracker():
-    if importlib.util.find_spec("rust_core") is None:
+    rust_module = _load_rust_module()
+    if rust_module is None:
         return None
-    rust_core_module = importlib.import_module("rust_core")
-    tracker_module = getattr(rust_core_module, "focus_tracker", None)
-    if tracker_module is None:
-        return None
-    tracker_cls = getattr(tracker_module, "FocusTracker", None)
+
+    tracker_cls = getattr(rust_module, "FocusTracker", None)
     return tracker_cls() if tracker_cls is not None else None
+
+
+def get_registry_manager(yaml_path: str = "config/base.yaml"):
+    rust_module = _load_rust_module()
+    if rust_module is None:
+        return None
+
+    manager_cls = getattr(rust_module, "RegistryManager", None)
+    return manager_cls(yaml_path) if manager_cls is not None else None
 
 
 def save_to_codex(event_data: dict) -> Optional[Path]:
@@ -48,7 +63,7 @@ def save_to_codex(event_data: dict) -> Optional[Path]:
     _CODEX_WINDOWS_PATH.mkdir(parents=True, exist_ok=True)
 
     timestamp = event_data.get("timestamp") or datetime.now(timezone.utc).isoformat()
-    safe_ts = timestamp.replace(":", "").replace("-", "")
+    safe_ts = timestamp.replace(":", "").replace("-", "").replace(".", "")
     event_file = _CODEX_WINDOWS_PATH / f"focus_event_{safe_ts}.json"
     event_file.write_text(json.dumps(event_data, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -60,21 +75,24 @@ def save_to_codex(event_data: dict) -> Optional[Path]:
         "events": []
     }
     if _CODEX_INDEX_PATH.exists():
-        existing = json.loads(_CODEX_INDEX_PATH.read_text(encoding="utf-8"))
-        if isinstance(existing, dict):
-            index_payload.update(existing)
+        try:
+            existing = json.loads(_CODEX_INDEX_PATH.read_text(encoding="utf-8"))
+            if isinstance(existing, dict):
+                index_payload.update(existing)
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            logger.warning("Failed to parse codex index, rebuilding from scratch")
 
     events = index_payload.get("events", [])
     if not isinstance(events, list):
         events = []
 
-    events = [
-        {
-            "timestamp": timestamp,
-            "event_type": event_data.get("event_type", "focus_change"),
-            "path": str(event_file)
-        }
-    ] + events
+    events.insert(0, {
+        "timestamp": timestamp,
+        "event_type": event_data.get("event_type", "focus_change"),
+        "path": str(event_file),
+        "confusion_score": event_data.get("confusion_score", 0.0),
+        "confidence": event_data.get("confidence", 0.9),
+    })
 
     index_payload["events"] = events[:_MAX_CODEX_EVENTS]
     index_payload["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -91,23 +109,37 @@ def collect_windows_context(session_id: str = "default") -> Optional[dict]:
     if not isinstance(active_window, dict):
         return None
 
+    reg = get_registry_manager()
+    raw_threshold = reg.get_config("confusion_threshold") if reg else "0.75"
+    try:
+        confusion_threshold = float(raw_threshold or "0.75")
+    except (TypeError, ValueError):
+        confusion_threshold = 0.75
+
     event = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "event_type": "focus_change",
         "session_id": session_id,
-        "active_window": active_window,
+        "active_window": {
+            "title": active_window.get("title", ""),
+            "class_name": active_window.get("class_name", ""),
+            "hwnd": active_window.get("hwnd", "0x0"),
+            "process_name": active_window.get("process_name", ""),
+        },
         "text_snippet": active_window.get("text_snippet", ""),
         "cursor_position": active_window.get("cursor_position", {"line": 0, "column": 0}),
         "confusion_score": float(active_window.get("confusion_score", 0.0)),
         "fuzzy_factors": active_window.get("fuzzy_factors", {}),
         "confidence": float(active_window.get("confidence", 0.9)),
-        "source": "rust_core::focus_tracker",
+        "source": "ghostgpt_core::focus_tracker",
     }
 
-    if event["confusion_score"] > 0.7:
+    if event["confusion_score"] > confusion_threshold:
         event["event_type"] = "confusion_ping"
 
     save_to_codex(event)
+    if reg:
+        reg.save_last_event_id(f"event_{int(datetime.now(timezone.utc).timestamp())}")
     return event
 
 

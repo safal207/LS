@@ -27,3 +27,6 @@ rand = "0.8"
 [lib]
 name = "ghostgpt_core"
 crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
