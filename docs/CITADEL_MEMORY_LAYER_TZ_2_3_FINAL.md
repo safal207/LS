@@ -3,7 +3,7 @@
 ## Changelog
 | Версия | Дата       | Изменения |
 |--------|------------|-----------|
-| 2.3    | 19.02.2026 | Добавлен Changelog, Glossary, benchmark-чекбокс, унификация заголовков, финальная шлифовка |
+| 2.3    | 20.02.2026 | Финальный polish: унификация Acceptance Criteria, улучшение читаемости |
 | 2.2    | 19.02.2026 | Полная интеграция CaPU + VCML, Mermaid-диаграммы |
 | 2.1    | 19.02.2026 | Базовая версия Citadel Memory Layer |
 
@@ -11,7 +11,7 @@
 - **Проект:** Укрепление фундамента памяти Hexagon Core
 - **Стадия:** ТЗ-2.2 → ТЗ-2.3 «Final»
 - **Версия:** 2.3
-- **Дата:** 19 февраля 2026
+- **Дата:** 20 февраля 2026
 - **Автор:** Главный Архитектор
 - **Статус:** Production-ready к передаче в Codex Agent
 
@@ -91,7 +91,7 @@ Trajectory с relevance < 0.18 понижается по весу/удаляет
   "success_score": 0.0,
   "lessons": ["..."],
   "trace_events": ["..."],
-  "timestamp": "2026-02-19T00:00:00Z"
+  "timestamp": "2026-02-20T00:00:00Z"
 }
 ```
 
@@ -129,8 +129,7 @@ Experience replay: `top-k=6` по causal relevance ≥ 0.75 + приоритиз
 
 ## Acceptance Criteria
 - [ ] Каждая trajectory проходит CaPU lifecycle и сохраняется в VCML.
-- [ ] Causal relevance retrieval ≥ 0.75 точности.
-- [ ] **Benchmark causal relevance ≥ 0.75 на 3 реальных сценариях из docs/**
+- [ ] Causal relevance retrieval ≥ 0.75 на 3 реальных сценариях из docs/.
 - [ ] Повторные causal-ошибки снижены ≥ 40 %.
 - [ ] Shadow Layer использует VCML lessons + permissions в 100 % рефлексий.
 - [ ] Падение производительности Core ≤ 5 % (benchmark до/после).

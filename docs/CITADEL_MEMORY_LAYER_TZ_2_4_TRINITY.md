@@ -109,7 +109,7 @@
 
 ## Acceptance Criteria
 - [ ] Полный Trinity lifecycle (`LTP → CaPU → VCML`) для каждой trajectory.
-- [ ] Causal relevance ≥ 0.78 на 3 реальных сценариях из `docs/`.
+- [ ] Causal relevance ≥ 0.78 на 3 реальных сценариях из docs/.
 - [ ] Повторные causal-ошибки снижены ≥ 45 %.
 - [ ] Shadow Layer использует VCML + LRE presence в 100 % рефлексий.
 - [ ] Падение производительности ≤ 4 % (benchmark до/после).

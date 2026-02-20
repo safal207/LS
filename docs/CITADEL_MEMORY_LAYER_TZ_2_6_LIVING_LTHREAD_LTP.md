@@ -57,6 +57,7 @@
 
 ### 2) L-THREAD LTP как контрольный слой
 - Каждая `trajectory_hint` оборачивается в LTP Thread (`trace.jsonl`).
+- Формат идентификатора: `thread_id = ltp-{uuid-v7}` (time-ordered).
 - Проверка 5–7 Orientation Invariants на Gate.
 - Drift measurement после каждого шага.
 - Admissible Branching для experience replay.
@@ -112,7 +113,7 @@
 
 ## Acceptance Criteria
 - [ ] Полный LTP Thread lifecycle (`LCE → LTP → CaPU → VCML + golden trace`).
-- [ ] Drift-aware relevance ≥ 0.82 на 3 реальных сценариях из `docs/`.
+- [ ] Drift-aware relevance ≥ 0.82 на 3 реальных сценариях из docs/.
 - [ ] Повторные causal-ошибки снижены ≥ 55 %.
 - [ ] Orientation invariants и drift control работают в 100 % случаев.
 - [ ] Deterministic replay идентичен оригиналу (byte-perfect).

@@ -105,7 +105,7 @@
 
 ## Acceptance Criteria
 - [ ] Полный Living lifecycle (`LCE → LHS → CaPU → VCML + LSS`).
-- [ ] Coherence-aware relevance ≥ 0.80 на 3 реальных сценариях.
+- [ ] Coherence-aware relevance ≥ 0.80 на 3 реальных сценариях из docs/.
 - [ ] Повторные causal-ошибки снижены ≥ 50 %.
 - [ ] `LSS.suggestInterventions` используются в 100 % low-coherence случаев.
 - [ ] Падение производительности ≤ 3.5 % (benchmark).
