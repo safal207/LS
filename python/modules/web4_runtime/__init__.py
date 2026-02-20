@@ -4,6 +4,12 @@ from .cip_runtime import CipRuntime
 from .hcp_runtime import HcpRuntime, HcpPolicy
 from .lip_runtime import LipRuntime
 from .flow import BackpressureStrategy, GlobalFlowController
+from .federation_policy import (
+    AllowAllFederationPolicy,
+    DenylistFederationPolicy,
+    FederationDecision,
+    FederationPolicy,
+)
 from .fuzzy import (
     FuzzyBackpressureConfig,
     FuzzyCoherenceConfig,
@@ -35,6 +41,10 @@ __all__ = [
     "AlertManager",
     "BackpressureStrategy",
     "GlobalFlowController",
+    "FederationDecision",
+    "FederationPolicy",
+    "AllowAllFederationPolicy",
+    "DenylistFederationPolicy",
     "Web4ProtocolRouter",
     "FuzzyCoherenceConfig",
     "FuzzyBackpressureConfig",

@@ -11,6 +11,7 @@ from modules.protocols.lip import LipIdentity, LipSource
 from modules.protocols.trust import TrustFSM, TrustState
 from modules.web4_runtime.agent_integration import AgentLoopAdapter
 from modules.web4_runtime.cip_runtime import CipRuntime
+from modules.web4_runtime.federation_policy import DenylistFederationPolicy
 from modules.web4_runtime.hcp_runtime import HcpRuntime, HcpPolicy
 from modules.web4_runtime.lip_runtime import LipRuntime
 from modules.web4_runtime.observability import ObservabilityHub
@@ -231,6 +232,24 @@ def test_protocol_router_routing() -> None:
     assert result.router_result.handled is True
 
 
+def test_protocol_router_blocks_envelope_via_federation_policy() -> None:
+    trust = TrustFSM()
+    cip = CipRuntime(CipIdentity("a", "fp-a"), trust)
+    hcp = HcpRuntime(HcpIdentity("a", "fp-a"))
+    lip = LipRuntime(LipIdentity("a", "fp-a"))
+    policy = DenylistFederationPolicy.from_iterables(blocked_senders=["a"])
+    router = Web4ProtocolRouter(cip=cip, hcp=hcp, lip=lip, federation_policy=policy)
+
+    receiver = CipIdentity("b", "fp-b")
+    hello = cip.build_hello(receiver)
+    result = router.dispatch(hello)
+
+    assert result.router_result.handled is False
+    assert result.federation_decision.allowed is False
+    assert result.federation_decision.reason.startswith("blocked_sender:")
+    assert trust.state == TrustState.UNTRUSTED
+
+
 def test_agent_loop_integration() -> None:
     trust = TrustFSM()
     cip = CipRuntime(CipIdentity("a", "fp-a"), trust)
@@ -244,4 +263,29 @@ def test_agent_loop_integration() -> None:
     envelope = cip.build_hello(receiver)
     result = adapter.handle_envelope(envelope)
     assert result["handled"] is True
+    assert result["federation_allowed"] is True
     assert output.get(timeout=1) == "echo:{'handshake': 'hello'}"
+
+
+def test_agent_loop_adapter_skips_handler_when_federation_policy_denies() -> None:
+    trust = TrustFSM()
+    cip = CipRuntime(CipIdentity("a", "fp-a"), trust)
+    hcp = HcpRuntime(HcpIdentity("a", "fp-a"))
+    lip = LipRuntime(LipIdentity("a", "fp-a"))
+    policy = DenylistFederationPolicy.from_iterables(blocked_message_types=["HELLO"])
+    router = Web4ProtocolRouter(cip=cip, hcp=hcp, lip=lip, federation_policy=policy)
+
+    output: "queue.Queue[str]" = queue.Queue()
+    agent_loop = AgentLoop(handler=lambda text: f"echo:{text}", output_queue=output)
+    adapter = AgentLoopAdapter(agent_loop=agent_loop, router=router)
+
+    receiver = CipIdentity("b", "fp-b")
+    envelope = cip.build_hello(receiver)
+    result = adapter.handle_envelope(envelope)
+
+    assert result["handled"] is False
+    assert result["response"] is None
+    assert result["federation_allowed"] is False
+    assert result["federation_reason"].startswith("blocked_message_type:")
+    with pytest.raises(queue.Empty):
+        output.get_nowait()
