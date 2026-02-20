@@ -71,6 +71,8 @@ Rolling and export helpers:
 
 - `ObservabilityHub.federation_metrics_window(window_size=...)` for last-N decision slices.
 - `ObservabilityHub.export_federation_metrics(window_size=...)` for diagnostics/CI payload export.
+- `ObservabilityHub.export_federation_metrics_json(window_size=...)` for JSON sink output.
+- `ObservabilityHub.export_federation_metrics_prometheus(window_size=...)` for Prometheus text exposition.
 
 ## Usage examples
 

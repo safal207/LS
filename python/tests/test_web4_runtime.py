@@ -1,3 +1,4 @@
+import json
 import queue
 import threading
 import time
@@ -442,3 +443,55 @@ def test_observability_hub_exports_federation_metrics() -> None:
     assert exported["metrics"]["total"] == 1
     assert exported["metrics"]["allowed"] == 0
     assert exported["metrics"]["denied"] == 1
+
+
+def test_observability_hub_exports_federation_metrics_json() -> None:
+    hub = ObservabilityHub()
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": False,
+            "federation_reason": 'blocked_sender:agent-"a"',
+            "federation_policy": "denylist",
+        },
+    )
+
+    compact_json = hub.export_federation_metrics_json(window_size=5)
+    pretty_json = hub.export_federation_metrics_json(window_size=5, pretty=True)
+    compact_payload = json.loads(compact_json)
+    pretty_payload = json.loads(pretty_json)
+
+    assert compact_payload["window_size"] == 5
+    assert compact_payload["metrics"]["denied"] == 1
+    assert pretty_payload == compact_payload
+    assert "\n" in pretty_json
+    assert "\n" not in compact_json
+
+
+def test_observability_hub_exports_federation_metrics_prometheus() -> None:
+    hub = ObservabilityHub()
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": True,
+            "federation_reason": "allowed",
+            "federation_policy": "allow_all",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": False,
+            "federation_reason": 'blocked_sender:agent-"a"',
+            "federation_policy": "denylist",
+        },
+    )
+
+    exported = hub.export_federation_metrics_prometheus(window_size=10)
+
+    assert "# HELP web4_federation_total" in exported
+    assert "web4_federation_total 2" in exported
+    assert 'web4_federation_by_policy{policy="allow_all"} 1' in exported
+    assert 'web4_federation_by_policy{policy="denylist"} 1' in exported
+    assert 'web4_federation_denied_by_reason{reason="blocked_sender:agent-\\"a\\""} 1' in exported
+    assert "web4_federation_window_size 10" in exported
