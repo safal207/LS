@@ -115,6 +115,93 @@ def test_web4_session_observability_includes_transport_type() -> None:
     assert events[1].payload["transport_type"] == "rtt"
 
 
+@pytest.mark.parametrize(
+    ("transport_name", "factory", "expect_timeout"),
+    [
+        (
+            "rtt",
+            lambda: RttTransport(RttSession[str](config=RttConfig(session_id=31, heartbeat_timeout_s=0.0))),
+            True,
+        ),
+        ("memory", lambda: _InMemoryTransport(transport_type="memory", supports_priority=False), False),
+        (
+            "memory-priority",
+            lambda: _InMemoryTransport(transport_type="memory-priority", supports_priority=True),
+            False,
+        ),
+    ],
+)
+def test_web4_session_observability_contract_across_transports(
+    transport_name: str,
+    factory,
+    expect_timeout: bool,
+) -> None:
+    _ = transport_name
+    hub = ObservabilityHub()
+    session = Web4Session[str](transport=factory(), observability=hub)
+
+    session.connect()
+    session.send("m1")
+    assert session.receive() == "m1"
+    if expect_timeout:
+        assert session.check_heartbeat_timeout() is True
+    else:
+        assert session.check_heartbeat_timeout() is False
+    session.disconnect()
+
+    events = hub.snapshot()
+    assert events, "expected observability events to be recorded"
+    event_types = [event.event_type for event in events]
+
+    assert event_types[0] == "transport_connect"
+    assert "transport_send" in event_types
+    assert "transport_receive" in event_types
+    assert event_types[-1] == "transport_disconnect"
+    assert ("transport_heartbeat_timeout" in event_types) is expect_timeout
+
+    for event in events:
+        assert "transport_type" in event.payload
+        assert isinstance(event.payload["transport_type"], str)
+        assert event.payload["transport_type"]
+
+
+def test_web4_session_observability_tracks_failover_transport_type() -> None:
+    class FlakyTransport(_InMemoryTransport):
+        def __init__(self, *, transport_type: str, fail_count: int) -> None:
+            super().__init__(transport_type=transport_type)
+            self._fail_count = fail_count
+
+        def send(self, message: str, priority: int | None = None) -> None:
+            if self._fail_count > 0:
+                self._fail_count -= 1
+                raise RuntimeError("primary send failure")
+            super().send(message, priority=priority)
+
+    hub = ObservabilityHub()
+    primary = FlakyTransport(transport_type="primary", fail_count=2)
+    backup = _InMemoryTransport(transport_type="backup", supports_priority=False)
+
+    session = Web4Session[str](
+        transport=primary,
+        backup_transport=backup,
+        failover_threshold=2,
+        observability=hub,
+    )
+    session.connect()
+
+    with pytest.raises(RuntimeError, match="primary send failure"):
+        session.send("x1")
+    with pytest.raises(RuntimeError, match="primary send failure"):
+        session.send("x2")
+
+    session.send("x3")
+
+    events = hub.snapshot()
+    send_events = [event for event in events if event.event_type == "transport_send"]
+    assert send_events, "expected at least one successful send event"
+    assert send_events[-1].payload["transport_type"] == "failover:backup"
+
+
 def test_web4_session_timeout_delegation() -> None:
     transport = RttTransport(RttSession[str](config=RttConfig(session_id=4, heartbeat_timeout_s=0.0)))
     session = Web4Session[str](transport=transport)
