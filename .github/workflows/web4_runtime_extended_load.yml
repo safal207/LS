@@ -1,0 +1,87 @@
+name: Web4 Runtime Extended Load
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase4_duration_s:
+        description: "Phase 4 soak duration in seconds"
+        required: false
+        default: "120"
+      sessions:
+        description: "Number of sessions for phase3/phase4 runs"
+        required: false
+        default: "20"
+      target_messages_per_s:
+        description: "Target aggregate throughput for phase4"
+        required: false
+        default: "200"
+  schedule:
+    - cron: "30 3 * * *"
+
+jobs:
+  phase3-chaos:
+    runs-on: ubuntu-latest
+    env:
+      RUN_SESSIONS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.sessions || '20' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Run phase3 chaos profile
+        run: |
+          PYTHONPATH=python:python/modules python scripts/web4_runtime_load.py \
+            --phase phase3 \
+            --mode both \
+            --sessions "${RUN_SESSIONS}" \
+            --messages-per-session 120 \
+            --max-queue 64 \
+            --total-limit 768 \
+            --per-session-limit 64 \
+            --chaos-disconnect-rate 0.12 \
+            --burst-probability 0.2 \
+            --burst-size 24 \
+            --gc-pressure
+
+  phase4-soak:
+    runs-on: ubuntu-latest
+    needs: phase3-chaos
+    env:
+      RUN_SESSIONS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.sessions || '20' }}
+      PHASE4_DURATION_S: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.phase4_duration_s || '120' }}
+      TARGET_MESSAGES_PER_S: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_messages_per_s || '200' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Run phase4 soak profile
+        run: |
+          PYTHONPATH=python:python/modules python scripts/web4_runtime_load.py \
+            --phase phase4 \
+            --mode both \
+            --sessions "${RUN_SESSIONS}" \
+            --max-queue 64 \
+            --total-limit 768 \
+            --per-session-limit 64 \
+            --soak-duration-s "${PHASE4_DURATION_S}" \
+            --target-messages-per-s "${TARGET_MESSAGES_PER_S}" \
+            --chaos-disconnect-rate 0.08 \
+            --burst-probability 0.15 \
+            --burst-size 16
