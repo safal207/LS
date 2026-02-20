@@ -29,13 +29,32 @@ class ObservabilityHub:
         return list(self._events)
 
     def federation_metrics(self) -> Dict[str, Any]:
+        return self._federation_metrics_for_events(self._events)
+
+    def federation_metrics_window(self, window_size: int) -> Dict[str, Any]:
+        if window_size <= 0:
+            return self._federation_metrics_for_events([])
+        return self._federation_metrics_for_events(self._events[-window_size:])
+
+    def export_federation_metrics(self, *, window_size: int | None = None) -> Dict[str, Any]:
+        if window_size is None:
+            metrics = self.federation_metrics()
+        else:
+            metrics = self.federation_metrics_window(window_size)
+        return {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "window_size": window_size,
+            "metrics": metrics,
+        }
+
+    def _federation_metrics_for_events(self, events: List[ObservabilityEvent]) -> Dict[str, Any]:
         total = 0
         allowed = 0
         denied = 0
         by_policy: Dict[str, int] = {}
         denied_by_reason: Dict[str, int] = {}
 
-        for event in self._events:
+        for event in events:
             payload = event.payload
             raw_allowed = payload.get("federation_allowed")
             if not isinstance(raw_allowed, bool):

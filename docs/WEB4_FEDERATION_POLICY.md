@@ -67,6 +67,11 @@ This is required for diagnostics in cross-domain routing scenarios.
 - `by_policy`
 - `denied_by_reason`
 
+Rolling and export helpers:
+
+- `ObservabilityHub.federation_metrics_window(window_size=...)` for last-N decision slices.
+- `ObservabilityHub.export_federation_metrics(window_size=...)` for diagnostics/CI payload export.
+
 ## Usage examples
 
 Default (allow all):
@@ -92,7 +97,7 @@ router = Web4ProtocolRouter(cip=cip, hcp=hcp, lip=lip, federation_policy=policy)
 Core tests:
 
 - `python/tests/test_web4_federation_policy.py`
-- `python/tests/test_web4_runtime.py` (router enforcement + adapter behavior + observability fields)
+- `python/tests/test_web4_runtime.py` (router enforcement + adapter behavior + observability fields + federation metrics aggregation/export)
 - `python/tests/test_web4_interoperability.py` (mesh/graph contract checks)
 
 ## Merge DoD checklist
@@ -109,4 +114,4 @@ Core tests:
 
 - Add allowlist and domain-scope policy variants.
 - Add policy composition (AND/OR chains).
-- Add rolling-window federation policy metrics and export adapters.
+- Add policy metrics sink adapters (Prometheus/OpenTelemetry).

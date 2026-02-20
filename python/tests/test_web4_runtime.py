@@ -369,3 +369,76 @@ def test_observability_hub_aggregates_federation_metrics() -> None:
         "blocked_message_type:HELLO": 1,
         "blocked_sender:agent-a": 2,
     }
+
+
+def test_observability_hub_rolling_window_federation_metrics() -> None:
+    hub = ObservabilityHub()
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": True,
+            "federation_reason": "allowed",
+            "federation_policy": "allow_all",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": False,
+            "federation_reason": "blocked_sender:legacy",
+            "federation_policy": "denylist",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": True,
+            "federation_reason": "allowed",
+            "federation_policy": "allow_all",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": False,
+            "federation_reason": "blocked_message_type:HELLO",
+            "federation_policy": "denylist",
+        },
+    )
+
+    full_metrics = hub.federation_metrics()
+    window_metrics = hub.federation_metrics_window(2)
+
+    assert full_metrics["total"] == 4
+    assert full_metrics["allowed"] == 2
+    assert full_metrics["denied"] == 2
+    assert full_metrics["denied_by_reason"] == {
+        "blocked_message_type:HELLO": 1,
+        "blocked_sender:legacy": 1,
+    }
+
+    assert window_metrics["total"] == 2
+    assert window_metrics["allowed"] == 1
+    assert window_metrics["denied"] == 1
+    assert window_metrics["allow_ratio"] == pytest.approx(0.5)
+    assert window_metrics["by_policy"] == {"allow_all": 1, "denylist": 1}
+    assert window_metrics["denied_by_reason"] == {"blocked_message_type:HELLO": 1}
+
+
+def test_observability_hub_exports_federation_metrics() -> None:
+    hub = ObservabilityHub()
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": False,
+            "federation_reason": "blocked_sender:agent-a",
+            "federation_policy": "denylist",
+        },
+    )
+    exported = hub.export_federation_metrics(window_size=10)
+
+    assert isinstance(exported["generated_at"], str)
+    assert exported["window_size"] == 10
+    assert exported["metrics"]["total"] == 1
+    assert exported["metrics"]["allowed"] == 0
+    assert exported["metrics"]["denied"] == 1
