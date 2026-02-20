@@ -49,6 +49,25 @@ def test_backpressure_limits_keep_total_above_per_session() -> None:
     assert total >= per
 
 
+def test_smooth_coherence_adapts_faster_under_stress() -> None:
+    stable = smooth_coherence(0.2, 0.9, drift=0.0, noise=0.0)
+    stressed = smooth_coherence(0.2, 0.9, drift=1.0, noise=1.0)
+    assert stressed > stable
+
+
+def test_tune_backpressure_limits_clamp_out_of_range_inputs() -> None:
+    clamped = tune_backpressure_limits(100, 1000, queue_pressure=1.0, drop_ratio=0.0)
+    out_of_range = tune_backpressure_limits(100, 1000, queue_pressure=5.0, drop_ratio=-3.0)
+    assert out_of_range == clamped
+
+
+def test_tune_backpressure_hysteresis_can_freeze_extreme_changes() -> None:
+    cfg = FuzzyBackpressureConfig(hysteresis_ratio=1.0)
+    per, total = tune_backpressure_limits(100, 1000, queue_pressure=1.0, drop_ratio=1.0, config=cfg)
+    assert per == 100
+    assert total == 1000
+
+
 def test_global_flow_fuzzy_strategy_adapts_limits() -> None:
     flow = GlobalFlowController(total_limit=4, per_session_limit=4, strategy="fuzzy")
     s1, s2 = object(), object()
