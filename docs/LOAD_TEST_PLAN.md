@@ -14,7 +14,7 @@ Validate correctness and resilience of `GlobalFlowController` + RTT runtime in l
 ## CI Coverage Status
 - `web4-runtime` workflow runs deterministic runtime regression, including `test_fuzzy_runtime.py`.
 - `web4_runtime_extended_load` runs:
-  - `pr-load-smoke` on pull requests (short phase3/phase4 profiles),
+  - `phase3-chaos` + `phase4-soak` on pull requests with PR-safe profile values,
   - full `phase3-chaos` + `phase4-soak` on schedule/manual dispatch.
 
 ## Scope

@@ -31,7 +31,7 @@
   - partial complete: migration guide published in `docs/WEB4_RUNTIME_MIGRATION_GUIDE.md`.
   - partial complete: CI-safe checklist published in `docs/WEB4_RUNTIME_CI_CHECKLIST.md`.
   - partial complete: `web4_runtime_ci` regression suite now includes `python/tests/test_fuzzy_runtime.py`.
-  - partial complete: `web4_runtime_extended_load` now runs `pr-load-smoke` on pull requests.
+  - partial complete: `web4_runtime_extended_load` now runs `phase3-chaos` + `phase4-soak` on pull requests using PR-safe profile values.
 
 - **7.0 Platform Expansion**
   - in progress: mesh/graph interoperability contract tests in `python/tests/test_web4_interoperability.py`.
