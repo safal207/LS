@@ -30,6 +30,8 @@
   - стабилизация cross-transport observability контрактов.
   - partial complete: migration guide published in `docs/WEB4_RUNTIME_MIGRATION_GUIDE.md`.
   - partial complete: CI-safe checklist published in `docs/WEB4_RUNTIME_CI_CHECKLIST.md`.
+  - partial complete: `web4_runtime_ci` regression suite now includes `python/tests/test_fuzzy_runtime.py`.
+  - partial complete: `web4_runtime_extended_load` now runs `pr-load-smoke` on pull requests.
 
 - **7.0 Platform Expansion**
   - устойчивый mesh/graph interoperability слой;
