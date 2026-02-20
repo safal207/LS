@@ -61,6 +61,49 @@ class _InMemoryTransport:
         return self._connected
 
 
+class _SwitchableTransport:
+    def __init__(self, *, transport_type: str, fail_sends: int = 0, healthy: bool = True) -> None:
+        self.transport_type = transport_type
+        self._fail_sends = fail_sends
+        self._healthy = healthy
+        self.connected = False
+        self.connect_calls = 0
+        self.sent: list[str] = []
+
+    def connect(self) -> None:
+        self.connected = True
+        self.connect_calls += 1
+
+    def disconnect(self) -> None:
+        self.connected = False
+
+    def send(self, message: str) -> None:
+        if not self.connected:
+            raise RuntimeError("transport disconnected")
+        if self._fail_sends > 0:
+            self._fail_sends -= 1
+            raise RuntimeError("Transport error")
+        self.sent.append(message)
+
+    def receive(self) -> None:
+        return None
+
+    def pending(self) -> int:
+        return 0
+
+    def stats(self) -> object:
+        return {"sent": len(self.sent)}
+
+    def heartbeat(self) -> None:
+        pass
+
+    def check_heartbeat_timeout(self) -> bool:
+        return False
+
+    def health_check(self) -> bool:
+        return self._healthy and self.connected
+
+
 def _run_session_contract(session: Web4Session[str]) -> None:
     assert session.pending() == 0
 
@@ -256,6 +299,68 @@ def test_transport_failover_automatic_switch() -> None:
     failover.send("msg")
     assert failover._using_backup is True
     assert backup.connected is True
+
+
+def test_transport_failover_recovers_to_primary_after_backup_stability() -> None:
+    primary = _SwitchableTransport(transport_type="primary", fail_sends=2, healthy=True)
+    backup = _SwitchableTransport(transport_type="backup", fail_sends=0, healthy=True)
+
+    failover = TransportFailover(
+        primary,
+        backup,
+        failover_threshold=2,
+        recovery_check_interval_s=0,
+        recovery_success_threshold=2,
+    )
+    failover.connect()
+
+    with pytest.raises(RuntimeError, match="Transport error"):
+        failover.send("p1")
+    with pytest.raises(RuntimeError, match="Transport error"):
+        failover.send("p2")
+
+    assert failover._using_backup is True
+    assert failover.stats()["active_transport"] == "backup"
+
+    failover.send("b1")
+    assert failover._using_backup is True
+
+    # Second stable backup send hits the recovery threshold and flips back.
+    failover.send("b2")
+    assert failover._using_backup is False
+    assert failover.stats()["active_transport"] == "primary"
+
+    failover.send("p3")
+    assert "p3" in primary.sent
+
+
+def test_transport_failover_stays_on_backup_when_primary_recovery_fails() -> None:
+    primary = _SwitchableTransport(transport_type="primary", fail_sends=2, healthy=False)
+    backup = _SwitchableTransport(transport_type="backup", fail_sends=0, healthy=True)
+
+    failover = TransportFailover(
+        primary,
+        backup,
+        failover_threshold=2,
+        recovery_check_interval_s=0,
+        recovery_success_threshold=1,
+    )
+    failover.connect()
+
+    with pytest.raises(RuntimeError, match="Transport error"):
+        failover.send("p1")
+    with pytest.raises(RuntimeError, match="Transport error"):
+        failover.send("p2")
+
+    assert failover._using_backup is True
+
+    # Recovery attempt runs, but health_check() rejects primary.
+    failover.send("b1")
+    assert failover._using_backup is True
+    stats = failover.stats()
+    assert stats["active_transport"] == "backup"
+    assert stats["recovery_success_count"] == 0
+    assert primary.connect_calls >= 2  # initial connect + recovery attempt
 
 
 def test_priority_queue_ordering() -> None:
