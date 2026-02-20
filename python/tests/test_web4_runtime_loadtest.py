@@ -1,3 +1,5 @@
+import pytest
+
 from modules.web4_runtime.loadtest import LoadTestConfig, run_load_test
 
 
@@ -40,6 +42,31 @@ def test_phase2_load_harness_sync_mode() -> None:
 
     assert report["phase"] == "phase2"
     assert report["mode"] == "sync"
+    assert report["overall_passed"] is True
+    assert len(report["results"]) == 1
+
+    result = report["results"][0]
+    assert result["scenario"] == "phase2_stress_sanity"
+    assert result["attempted"] == config.sessions * config.messages_per_session
+    assert result["max_total_pending"] <= config.total_limit
+    assert result["errors"] == []
+
+
+def test_phase2_load_harness_async_mode() -> None:
+    config = LoadTestConfig(
+        phase="phase2",
+        mode="async",
+        sessions=3,
+        messages_per_session=14,
+        max_queue=12,
+        total_limit=36,
+        per_session_limit=12,
+        random_seed=17,
+    )
+    report = run_load_test(config)
+
+    assert report["phase"] == "phase2"
+    assert report["mode"] == "async"
     assert report["overall_passed"] is True
     assert len(report["results"]) == 1
 
@@ -100,3 +127,79 @@ def test_phase4_load_harness_async_mode() -> None:
     assert result["max_total_pending"] <= config.total_limit
     assert result["errors"] == []
     assert result["extra"]["loop_steps"] > 0
+
+
+def test_phase4_load_harness_sync_mode() -> None:
+    config = LoadTestConfig(
+        phase="phase4",
+        mode="sync",
+        sessions=2,
+        messages_per_session=8,
+        max_queue=10,
+        total_limit=20,
+        per_session_limit=10,
+        random_seed=19,
+        soak_duration_s=0.12,
+        target_messages_per_s=120,
+        burst_probability=0.1,
+        burst_size=3,
+        chaos_disconnect_rate=0.1,
+    )
+    report = run_load_test(config)
+
+    assert report["overall_passed"] is True
+    result = report["results"][0]
+    assert result["scenario"] == "phase4_soak_stability"
+    assert result["mode"] == "sync"
+    assert result["max_total_pending"] <= config.total_limit
+    assert result["errors"] == []
+    assert result["extra"]["loop_steps"] > 0
+
+
+def test_phase2_sync_is_deterministic_for_seed() -> None:
+    config = LoadTestConfig(
+        phase="phase2",
+        mode="sync",
+        sessions=3,
+        messages_per_session=18,
+        max_queue=12,
+        total_limit=36,
+        per_session_limit=12,
+        random_seed=23,
+    )
+
+    first = run_load_test(config)
+    second = run_load_test(config)
+    first_result = first["results"][0]
+    second_result = second["results"][0]
+
+    assert first_result["attempted"] == second_result["attempted"]
+    assert first_result["enqueued"] == second_result["enqueued"]
+    assert first_result["received"] == second_result["received"]
+    assert first_result["max_total_pending"] == second_result["max_total_pending"]
+    assert first_result["max_session_pending"] == second_result["max_session_pending"]
+    assert first_result["errors"] == second_result["errors"] == []
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("sessions", 0),
+        ("messages_per_session", 0),
+        ("max_queue", 0),
+        ("total_limit", 0),
+        ("per_session_limit", 0),
+        ("block_timeout_s", 0.0),
+        ("chaos_disconnect_rate", -0.1),
+        ("chaos_disconnect_rate", 1.1),
+        ("burst_probability", -0.1),
+        ("burst_probability", 1.1),
+        ("burst_size", 0),
+        ("soak_duration_s", 0.0),
+        ("target_messages_per_s", 0),
+    ],
+)
+def test_load_test_config_validation(field: str, value: int | float) -> None:
+    kwargs: dict[str, int | float | str] = {field: value}
+    with pytest.raises(ValueError):
+        LoadTestConfig(**kwargs)
