@@ -18,6 +18,7 @@ on:
       - "python/tests/test_web4_runtime_loadtest.py"
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
+      - "python/tests/test_web4_interoperability.py"
       - "python/tests/test_web4_bio.py"
       - "python/tests/test_temporal_index.py"
       - "python/tests/test_belief_system.py"
@@ -50,6 +51,7 @@ on:
       - "python/tests/test_web4_runtime_loadtest.py"
       - "python/tests/test_web4_mesh.py"
       - "python/tests/test_web4_graph.py"
+      - "python/tests/test_web4_interoperability.py"
       - "python/tests/test_web4_bio.py"
       - "python/tests/test_temporal_index.py"
       - "python/tests/test_belief_system.py"
@@ -103,7 +105,7 @@ jobs:
 
       - name: Run Python smoke tests
         run: |
-          PYTHONPATH=python python -m pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
+          PYTHONPATH=python python -m pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_interoperability.py python/tests/test_web4_bio.py
 
       - name: Run Web4 runtime contract and load-smoke tests
         run: |
