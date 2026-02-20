@@ -7,6 +7,8 @@ Validate correctness and resilience of `GlobalFlowController` + RTT runtime in l
 - Runtime harness module: `python/modules/web4_runtime/loadtest.py`
 - CLI entrypoint: `scripts/web4_runtime_load.py`
 - Lightweight CI tests: `python/tests/test_web4_runtime_loadtest.py`
+- Migration guide: `docs/WEB4_RUNTIME_MIGRATION_GUIDE.md`
+- CI-safe checklist: `docs/WEB4_RUNTIME_CI_CHECKLIST.md`
 - Extended load workflow: `.github/workflows/web4_runtime_extended_load.yml`
 
 ## Scope
