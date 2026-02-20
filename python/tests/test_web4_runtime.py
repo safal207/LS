@@ -289,3 +289,30 @@ def test_agent_loop_adapter_skips_handler_when_federation_policy_denies() -> Non
     assert result["federation_reason"].startswith("blocked_message_type:")
     with pytest.raises(queue.Empty):
         output.get_nowait()
+
+
+def test_agent_loop_adapter_observability_includes_federation_fields() -> None:
+    trust = TrustFSM()
+    cip = CipRuntime(CipIdentity("a", "fp-a"), trust)
+    hcp = HcpRuntime(HcpIdentity("a", "fp-a"))
+    lip = LipRuntime(LipIdentity("a", "fp-a"))
+    policy = DenylistFederationPolicy.from_iterables(blocked_message_types=["HELLO"])
+    router = Web4ProtocolRouter(cip=cip, hcp=hcp, lip=lip, federation_policy=policy)
+    hub = ObservabilityHub()
+
+    output: "queue.Queue[str]" = queue.Queue()
+    agent_loop = AgentLoop(handler=lambda text: f"echo:{text}", output_queue=output)
+    adapter = AgentLoopAdapter(agent_loop=agent_loop, router=router, observability=hub)
+
+    receiver = CipIdentity("b", "fp-b")
+    envelope = cip.build_hello(receiver)
+    result = adapter.handle_envelope(envelope)
+    assert result["handled"] is False
+
+    events = hub.snapshot()
+    assert events
+    payload = events[-1].payload
+    assert payload["handled"] is False
+    assert payload["federation_allowed"] is False
+    assert payload["federation_policy"] == "denylist"
+    assert payload["federation_reason"].startswith("blocked_message_type:")
