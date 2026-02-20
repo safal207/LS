@@ -316,3 +316,56 @@ def test_agent_loop_adapter_observability_includes_federation_fields() -> None:
     assert payload["federation_allowed"] is False
     assert payload["federation_policy"] == "denylist"
     assert payload["federation_reason"].startswith("blocked_message_type:")
+
+
+def test_observability_hub_aggregates_federation_metrics() -> None:
+    hub = ObservabilityHub()
+    hub.record("session_open", {"session_id": 42})
+    hub.record(
+        "envelope_routed",
+        {
+            "handled": True,
+            "federation_allowed": True,
+            "federation_reason": "allowed",
+            "federation_policy": "allow_all",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "handled": False,
+            "federation_allowed": False,
+            "federation_reason": "blocked_sender:agent-a",
+            "federation_policy": "denylist",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "handled": False,
+            "federation_allowed": False,
+            "federation_reason": "blocked_sender:agent-a",
+            "federation_policy": "denylist",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "handled": False,
+            "federation_allowed": False,
+            "federation_reason": "blocked_message_type:HELLO",
+            "federation_policy": "denylist",
+        },
+    )
+
+    metrics = hub.federation_metrics()
+
+    assert metrics["total"] == 4
+    assert metrics["allowed"] == 1
+    assert metrics["denied"] == 3
+    assert metrics["allow_ratio"] == pytest.approx(0.25)
+    assert metrics["by_policy"] == {"allow_all": 1, "denylist": 3}
+    assert metrics["denied_by_reason"] == {
+        "blocked_message_type:HELLO": 1,
+        "blocked_sender:agent-a": 2,
+    }

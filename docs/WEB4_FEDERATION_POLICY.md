@@ -61,6 +61,12 @@ Enforcement happens in `Web4ProtocolRouter.dispatch()` before protocol-router an
 
 This is required for diagnostics in cross-domain routing scenarios.
 
+`ObservabilityHub.federation_metrics()` provides aggregate counters for federation decisions:
+
+- `total`, `allowed`, `denied`, `allow_ratio`
+- `by_policy`
+- `denied_by_reason`
+
 ## Usage examples
 
 Default (allow all):
@@ -103,4 +109,4 @@ Core tests:
 
 - Add allowlist and domain-scope policy variants.
 - Add policy composition (AND/OR chains).
-- Add federation policy metrics aggregation in observability hub.
+- Add rolling-window federation policy metrics and export adapters.
