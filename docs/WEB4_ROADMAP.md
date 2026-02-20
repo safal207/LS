@@ -34,6 +34,9 @@
   - partial complete: `web4_runtime_extended_load` now runs `pr-load-smoke` on pull requests.
 
 - **7.0 Platform Expansion**
+  - in progress: mesh/graph interoperability contract tests in `python/tests/test_web4_interoperability.py`.
+  - in progress: federation policy enforcement in `python/modules/web4_runtime/federation_policy.py` and `python/modules/web4_runtime/protocol_router.py`.
+  - in progress: federation policy specification and merge DoD in `docs/WEB4_FEDERATION_POLICY.md`.
   - устойчивый mesh/graph interoperability слой;
   - federation primitives и cross-domain policy enforcement;
   - масштабируемая observability/diagnostics модель для multi-node среды.
