@@ -80,6 +80,34 @@ class AgentLoop:
         self._phase_durations: dict[str, float] = {}
         self._phase_transitions = 0
         self._liminal_transitions = 0
+        self._context_poll_interval_s = 5.0
+        self._next_context_poll_at = 0.0
+
+
+    def _maybe_collect_windows_context(self, *, session_id: str) -> None:
+        now = time.time()
+        if now < self._next_context_poll_at:
+            return
+
+        self._next_context_poll_at = now + self._context_poll_interval_s
+        try:
+            from ..llm.qwen_handler import collect_windows_context
+
+            context_event = collect_windows_context(session_id=session_id)
+            if isinstance(context_event, dict):
+                event_type = context_event.get("event_type")
+                payload = {
+                    "event_type": event_type,
+                    "confusion_score": context_event.get("confusion_score"),
+                    "source": context_event.get("source"),
+                }
+                if event_type == "confusion_ping":
+                    self._emit("liminal_transition", payload)
+                else:
+                    self._emit_observability("text_update", payload)
+        except Exception:
+            # context provider is best-effort and must not break main loop
+            pass
 
     def _next_task_id(self) -> int:
         with self._task_lock:
@@ -277,6 +305,7 @@ class AgentLoop:
 
             question = item.get("text", "")
             self._remember_question(question)
+            self._maybe_collect_windows_context(session_id=str(task_id))
 
             if cancel_event.is_set():
                 self._emit("cancelled", {"question": question}, task_id=task_id)
@@ -370,6 +399,7 @@ class AgentLoop:
 
         self.running = True
         while self.running:
+            self._maybe_collect_windows_context(session_id="agent_loop")
             if self._active_thread and self._active_thread.is_alive():
                 if not self.cancel_on_new_input:
                     time.sleep(0.05)
