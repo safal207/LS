@@ -20,6 +20,12 @@ try:
 except Exception:  # optional for replay/context helpers
     OLLAMA_HOST = "http://localhost:11434"
     LLM_MODEL_NAME = "qwen2.5:latest"
+from .causal_memory import (
+    handle_replay_command as _handle_replay_command,
+    replay_thread as _replay_thread_impl,
+    replay_thread_ui as _replay_thread_ui_impl,
+    save_causal_trace as _save_causal_trace_impl,
+)
 from .errors import (
     LLMEmptyResponseError,
     LLMInvalidFormatError,
@@ -172,72 +178,27 @@ def collect_windows_context(session_id: str = "default") -> Optional[dict]:
 
 
 def save_causal_trace(cause: str, solution: str, lce: dict, ltp_trace: dict, lri_core: dict, confidence: float = 0.92) -> None:
-    reg = get_registry_manager()
-    if reg is None:
-        return
-
-    reg.save_causal_trace(cause, solution, lce, ltp_trace, lri_core, confidence)
-    save_to_codex({
-        **(lce if isinstance(lce, dict) else {}),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "event_type": "causal_trace",
-        "cause": cause,
-        "solution": solution,
-        "ltp_trace": ltp_trace,
-        "lri_core": lri_core,
-        "confidence": confidence,
-        "source": "registry::causal_memory",
-    })
+    _save_causal_trace_impl(
+        cause,
+        solution,
+        lce,
+        ltp_trace,
+        lri_core,
+        confidence=confidence,
+        get_registry_manager=get_registry_manager,
+        save_to_codex=save_to_codex,
+    )
 
 
 def replay_thread(thread_id: str) -> list:
-    reg = get_registry_manager()
-    if reg is None:
-        return []
-    try:
-        result = reg.replay_thread(thread_id)
-        return result if isinstance(result, list) else []
-    except Exception:
-        return []
-
-
-def _extract_replay_thread_id(user_input: str) -> Optional[str]:
-    for raw in user_input.split():
-        token = raw.strip().strip(".,!?;:()[]{}<>\"'")
-        lower = token.lower()
-        if lower.startswith("thread-") and len(token) > 7:
-            return token
-        if lower.startswith("test-") and len(token) > 5:
-            return token
-    return None
+    return _replay_thread_impl(thread_id, get_registry_manager=get_registry_manager)
 
 
 def replay_thread_ui(thread_id: str) -> str:
     """Replay UI — formatted replay output for end users."""
-    trace = replay_thread(thread_id)
-    if not trace:
-        return f"❌ Тред {thread_id} не найден."
+    return _replay_thread_ui_impl(thread_id, replay_loader=replay_thread)
 
-    output = [f"🔄 Replay тред **{thread_id}** ({len(trace)} записей):"]
-    for entry in trace:
-        if not isinstance(entry, dict):
-            continue
-        ts = entry.get("ts", "—")
-        cause = str(entry.get("cause", "—"))[:80]
-        solution = str(entry.get("solution", "—"))[:80]
-        drift = float(entry.get("ltp_trace", {}).get("drift", 0.0) or 0.0)
-        coherence = float(entry.get("lce", {}).get("qos", {}).get("coherence", 0.0) or 0.0)
-        lri_core = entry.get("lri_core", {}) if isinstance(entry.get("lri_core", {}), dict) else {}
-        emotional_drift = float(lri_core.get("emotional_drift", 0.0) or 0.0)
-        stabilizer = lri_core.get("stabilizer", "—")
-        resonance_focus = float(lri_core.get("resonance_map", {}).get("focus", 0.0) or 0.0)
-        invariants = lri_core.get("invariants", [])
-        inv_preview = ", ".join(str(v) for v in invariants[:2]) if isinstance(invariants, list) else "—"
-        output.append(f"• {ts} | drift:{drift:.2f} | emo_drift:{emotional_drift:.2f} | coherence:{coherence:.2f}")
-        output.append(f"  LRI: stabilizer={stabilizer} | resonance.focus={resonance_focus:.2f} | invariants={inv_preview}")
-        output.append(f"  Причина: {cause}")
-        output.append(f"  Решение: {solution}\n")
-    return "\n".join(output)
+
 
 
 class QwenHandler:
@@ -380,14 +341,7 @@ class QwenHandler:
 
     def handle_replay_command(self, user_input: str) -> Optional[str]:
         """Replay UI command helper for AgentLoop/GUI integration."""
-        lower = user_input.lower()
-        if "replay" not in lower and "переиграй" not in lower:
-            return None
-
-        thread_id = _extract_replay_thread_id(user_input)
-        if thread_id is None:
-            return None
-        return replay_thread_ui(thread_id)
+        return _handle_replay_command(user_input, replay_ui_renderer=replay_thread_ui)
 
 
 # Test function
