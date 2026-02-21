@@ -11,10 +11,12 @@ if str(MODULES) not in sys.path:
 from llm.qwen_handler import (  # noqa: F401
     collect_windows_context,
     get_registry_manager,
+    replay_thread,
+    save_causal_trace,
     save_to_codex,
 )
 
-__all__ = ["collect_windows_context", "save_to_codex", "get_registry_manager", "init_stealth"]
+__all__ = ["collect_windows_context", "save_to_codex", "get_registry_manager", "save_causal_trace", "replay_thread", "init_stealth"]
 
 
 def init_stealth():

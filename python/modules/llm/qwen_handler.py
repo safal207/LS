@@ -175,6 +175,17 @@ def save_causal_trace(cause: str, solution: str, lce: dict, ltp_trace: dict, con
     })
 
 
+def replay_thread(thread_id: str) -> list:
+    reg = get_registry_manager()
+    if reg is None:
+        return []
+    try:
+        result = reg.replay_thread(thread_id)
+        return result if isinstance(result, list) else []
+    except Exception:
+        return []
+
+
 class QwenHandler:
     def __init__(self, use_cloud_api: bool = False, api_key: str = "", *, raise_on_error: bool = False):
         self.use_cloud_api = use_cloud_api

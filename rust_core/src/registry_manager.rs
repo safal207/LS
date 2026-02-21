@@ -198,4 +198,66 @@ impl RegistryManager {
             Ok(())
         }
     }
+
+    fn replay_thread(&self, thread_id: String) -> PyResult<Vec<PyObject>> {
+        let mut raw_entries: Vec<String> = Vec::new();
+
+        #[cfg(windows)]
+        {
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            if let Ok(key) = hkcu.open_subkey(r"Software\LS\GhostGPT\CausalMemory") {
+                raw_entries = key.get_value("entries").unwrap_or_default();
+            }
+        }
+
+        #[cfg(not(windows))]
+        {
+            let path = self.yaml_fallback.with_file_name("causal_memory.yaml");
+            if path.exists() {
+                let content = fs::read_to_string(&path)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+                raw_entries = content
+                    .lines()
+                    .filter_map(|line| line.trim().strip_prefix("- ").map(ToOwned::to_owned))
+                    .collect();
+            }
+        }
+
+        Python::with_gil(|py| -> PyResult<Vec<PyObject>> {
+            let json = py.import("json")?;
+            let mut out: Vec<PyObject> = Vec::new();
+
+            for entry in raw_entries {
+                let parsed: serde_json::Value = match serde_json::from_str(&entry) {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+
+                let ltp_thread = parsed
+                    .get("ltp_trace")
+                    .and_then(|v| v.get("thread_id"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+
+                let lce_thread = parsed
+                    .get("lce")
+                    .and_then(|v| v.get("memory"))
+                    .and_then(|v| v.get("thread"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+
+                if !(entry.contains(&thread_id)
+                    || ltp_thread == thread_id
+                    || lce_thread == thread_id)
+                {
+                    continue;
+                }
+
+                let obj = json.call_method1("loads", (entry.as_str(),))?;
+                out.push(obj.to_object(py));
+            }
+
+            Ok(out)
+        })
+    }
 }
