@@ -216,8 +216,14 @@ def replay_thread_ui(thread_id: str) -> str:
         solution = str(entry.get("solution", "—"))[:80]
         drift = float(entry.get("ltp_trace", {}).get("drift", 0.0) or 0.0)
         coherence = float(entry.get("lce", {}).get("qos", {}).get("coherence", 0.0) or 0.0)
-        emotional_drift = float(entry.get("lri_core", {}).get("emotional_drift", 0.0) or 0.0)
+        lri_core = entry.get("lri_core", {}) if isinstance(entry.get("lri_core", {}), dict) else {}
+        emotional_drift = float(lri_core.get("emotional_drift", 0.0) or 0.0)
+        stabilizer = lri_core.get("stabilizer", "—")
+        resonance_focus = float(lri_core.get("resonance_map", {}).get("focus", 0.0) or 0.0)
+        invariants = lri_core.get("invariants", [])
+        inv_preview = ", ".join(str(v) for v in invariants[:2]) if isinstance(invariants, list) else "—"
         output.append(f"• {ts} | drift:{drift:.2f} | emo_drift:{emotional_drift:.2f} | coherence:{coherence:.2f}")
+        output.append(f"  LRI: stabilizer={stabilizer} | resonance.focus={resonance_focus:.2f} | invariants={inv_preview}")
         output.append(f"  Причина: {cause}")
         output.append(f"  Решение: {solution}\n")
     return "\n".join(output)
