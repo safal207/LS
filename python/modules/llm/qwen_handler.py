@@ -4,14 +4,22 @@ Qwen API Integration Module
 Supports both Ollama Qwen and Alibaba Cloud Qwen API
 """
 
-import requests
+try:
+    import requests
+except ImportError:  # optional for replay/context helpers
+    requests = None
 import json
 import logging
 import importlib
+import importlib.util
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
-from ..config import OLLAMA_HOST, LLM_MODEL_NAME
+try:
+    from ..config import OLLAMA_HOST, LLM_MODEL_NAME
+except Exception:  # optional for replay/context helpers
+    OLLAMA_HOST = "http://localhost:11434"
+    LLM_MODEL_NAME = "qwen2.5:latest"
 from .errors import (
     LLMEmptyResponseError,
     LLMInvalidFormatError,
@@ -32,6 +40,12 @@ _CODEX_CAUSAL_PATH = _CODEX_ROOT / "causal_memory"
 _CODEX_CAUSAL_INDEX_PATH = _CODEX_CAUSAL_PATH / "index.json"
 _MAX_CODEX_EVENTS = 20
 
+
+
+
+def _ensure_requests_available() -> None:
+    if requests is None:
+        raise LLMProviderError("requests dependency is required for Qwen HTTP provider")
 
 def _load_rust_module():
     for module_name in ("rust_core", "ghostgpt_core"):
@@ -191,6 +205,7 @@ class QwenHandler:
         self.use_cloud_api = use_cloud_api
         self.api_key = api_key
         self.raise_on_error = raise_on_error
+        _ensure_requests_available()
         self.session = requests.Session()
         self.session.timeout = 30
         
