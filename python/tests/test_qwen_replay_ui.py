@@ -41,3 +41,11 @@ def test_handle_replay_command_requires_thread_token(monkeypatch):
 
     assert handler.handle_replay_command("replay please now") is None
     assert handler.handle_replay_command("replay thread-123") == "replay:thread-123"
+
+
+def test_handle_replay_command_supports_russian_and_punctuation(monkeypatch):
+    handler = qwen_handler.QwenHandler.__new__(qwen_handler.QwenHandler)
+    monkeypatch.setattr(qwen_handler, "replay_thread_ui", lambda tid: f"replay:{tid}")
+
+    assert handler.handle_replay_command("переиграй thread-777,") == "replay:thread-777"
+    assert handler.handle_replay_command("thread-777") is None
