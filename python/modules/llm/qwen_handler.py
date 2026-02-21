@@ -28,6 +28,8 @@ DEFAULT_TIMEOUT = 30
 _CODEX_ROOT = Path("codex")
 _CODEX_WINDOWS_PATH = _CODEX_ROOT / "events" / "windows"
 _CODEX_INDEX_PATH = _CODEX_ROOT / "index.json"
+_CODEX_CAUSAL_PATH = _CODEX_ROOT / "causal_memory"
+_CODEX_CAUSAL_INDEX_PATH = _CODEX_CAUSAL_PATH / "index.json"
 _MAX_CODEX_EVENTS = 20
 
 
@@ -60,23 +62,35 @@ def save_to_codex(event_data: dict) -> Optional[Path]:
     if not isinstance(event_data, dict):
         return None
 
-    _CODEX_WINDOWS_PATH.mkdir(parents=True, exist_ok=True)
-
     timestamp = event_data.get("timestamp") or datetime.now(timezone.utc).isoformat()
     safe_ts = timestamp.replace(":", "").replace("-", "").replace(".", "")
-    event_file = _CODEX_WINDOWS_PATH / f"focus_event_{safe_ts}.json"
+    event_type = str(event_data.get("event_type", "focus_change"))
+
+    if event_type.startswith("causal_"):
+        target_dir = _CODEX_CAUSAL_PATH
+        index_path = _CODEX_CAUSAL_INDEX_PATH
+        prefix = "causal_trace"
+        provider = "causal_memory_v1"
+    else:
+        target_dir = _CODEX_WINDOWS_PATH
+        index_path = _CODEX_INDEX_PATH
+        prefix = "focus_event"
+        provider = "windows_context_v1"
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    event_file = target_dir / f"{prefix}_{safe_ts}.json"
     event_file.write_text(json.dumps(event_data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     index_payload = {
-        "provider": "windows_context_v1",
+        "provider": provider,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "max_in_memory": 10,
         "max_index_entries": _MAX_CODEX_EVENTS,
         "events": []
     }
-    if _CODEX_INDEX_PATH.exists():
+    if index_path.exists():
         try:
-            existing = json.loads(_CODEX_INDEX_PATH.read_text(encoding="utf-8"))
+            existing = json.loads(index_path.read_text(encoding="utf-8"))
             if isinstance(existing, dict):
                 index_payload.update(existing)
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
@@ -88,7 +102,7 @@ def save_to_codex(event_data: dict) -> Optional[Path]:
 
     events.insert(0, {
         "timestamp": timestamp,
-        "event_type": event_data.get("event_type", "focus_change"),
+        "event_type": event_type,
         "path": str(event_file),
         "confusion_score": event_data.get("confusion_score", 0.0),
         "confidence": event_data.get("confidence", 0.9),
@@ -96,7 +110,7 @@ def save_to_codex(event_data: dict) -> Optional[Path]:
 
     index_payload["events"] = events[:_MAX_CODEX_EVENTS]
     index_payload["updated_at"] = datetime.now(timezone.utc).isoformat()
-    _CODEX_INDEX_PATH.write_text(json.dumps(index_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    index_path.write_text(json.dumps(index_payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return event_file
 
 
