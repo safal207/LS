@@ -1,0 +1,7 @@
+{
+  "provider": "windows_context_v1",
+  "updated_at": null,
+  "max_in_memory": 10,
+  "max_index_entries": 20,
+  "events": []
+}

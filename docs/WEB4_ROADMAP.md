@@ -28,6 +28,10 @@
   - документирование migration-guide от RTT-specific path к fully transport-agnostic path;
   - расширение CI до более широкого regression-набора;
   - стабилизация cross-transport observability контрактов.
+  - Windows Context Provider v1.0: единая codex-шина событий фокуса/текста/confusion
+    (`codex/events/windows/`, `codex/schema/windows_focus_event.json`, `codex/index.json`).
+  - [x] Hybrid Windows Registry Provider.
+  - [ ] Causal Temporal Memory v1.2 + LCE + LTP Integration (verifiable thread + replay)
   - partial complete: migration guide published in `docs/WEB4_RUNTIME_MIGRATION_GUIDE.md`.
   - partial complete: CI-safe checklist published in `docs/WEB4_RUNTIME_CI_CHECKLIST.md`.
   - partial complete: `web4_runtime_ci` regression suite now includes `python/tests/test_fuzzy_runtime.py`.
