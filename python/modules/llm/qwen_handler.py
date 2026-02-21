@@ -200,6 +200,27 @@ def replay_thread(thread_id: str) -> list:
         return []
 
 
+def replay_thread_ui(thread_id: str) -> str:
+    """Replay UI — formatted replay output for end users."""
+    trace = replay_thread(thread_id)
+    if not trace:
+        return f"❌ Тред {thread_id} не найден."
+
+    output = [f"🔄 Replay тред **{thread_id}** ({len(trace)} записей):"]
+    for entry in trace:
+        if not isinstance(entry, dict):
+            continue
+        ts = entry.get("ts", "—")
+        cause = str(entry.get("cause", "—"))[:80]
+        solution = str(entry.get("solution", "—"))[:80]
+        drift = float(entry.get("ltp_trace", {}).get("drift", 0.0) or 0.0)
+        coherence = float(entry.get("lce", {}).get("qos", {}).get("coherence", 0.0) or 0.0)
+        output.append(f"• {ts} | drift:{drift:.2f} | coherence:{coherence:.2f}")
+        output.append(f"  Причина: {cause}")
+        output.append(f"  Решение: {solution}\n")
+    return "\n".join(output)
+
+
 class QwenHandler:
     def __init__(self, use_cloud_api: bool = False, api_key: str = "", *, raise_on_error: bool = False):
         self.use_cloud_api = use_cloud_api
@@ -337,6 +358,18 @@ class QwenHandler:
             return self.generate_with_cloud_api(prompt)
         else:
             return self.generate_with_ollama(prompt)
+
+    def handle_replay_command(self, user_input: str) -> Optional[str]:
+        """Replay UI command helper for AgentLoop/GUI integration."""
+        lower = user_input.lower()
+        if "replay" in lower or "переиграй" in lower:
+            parts = user_input.split()
+            for part in parts:
+                token = part.strip()
+                if token.startswith("thread-") or (token.isalnum() and len(token) > 5):
+                    return replay_thread_ui(token)
+        return None
+
 
 # Test function
 def test_qwen_integration():
