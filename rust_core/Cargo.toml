@@ -30,3 +30,4 @@ crate-type = ["cdylib", "rlib"]
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
+chrono = { version = "0.4", features = ["serde"] }

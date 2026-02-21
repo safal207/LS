@@ -3,6 +3,7 @@ from __future__ import annotations
 import queue
 import threading
 import time
+from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from ..llm.temporal import TemporalContext
@@ -329,6 +330,26 @@ class AgentLoop:
                 "duration": duration,
                 "success": result is not None,
             }, task_id=task_id)
+
+            if result is not None:
+                lce = {
+                    "v": 1,
+                    "intent": {"type": "answer", "goal": question},
+                    "affect": {"pad": [0.4, 0.2, 0.1], "tags": ["focused"]},
+                    "memory": {"thread": str(task_id), "t": datetime.now(timezone.utc).isoformat()},
+                    "qos": {"coherence": 0.92},
+                }
+                ltp_trace = {
+                    "thread_id": str(task_id),
+                    "drift": 0.08,
+                    "admissible_futures": ["A", "B"],
+                }
+                try:
+                    from ..llm.qwen_handler import save_causal_trace
+
+                    save_causal_trace(question, str(result), lce, ltp_trace, 0.92)
+                except Exception:
+                    pass
 
             if result is not None or self.handler is not None:
                 self._transition("responding", task_id=task_id)

@@ -5,6 +5,8 @@ use std::fs;
 use std::path::PathBuf;
 
 #[cfg(windows)]
+use chrono::Utc;
+#[cfg(windows)]
 use winreg::enums::*;
 #[cfg(windows)]
 use winreg::RegKey;
@@ -20,6 +22,22 @@ impl RegistryManager {
         let content = fs::read_to_string(&self.yaml_fallback).ok()?;
         let parsed = parse_simple_yaml(&content);
         parsed.get(key).cloned()
+    }
+
+    fn now_iso() -> String {
+        #[cfg(windows)]
+        {
+            Utc::now().to_rfc3339()
+        }
+        #[cfg(not(windows))]
+        {
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let secs = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or_default();
+            format!("{}", secs)
+        }
     }
 }
 
@@ -118,5 +136,66 @@ impl RegistryManager {
 
     fn get_last_event_id(&self) -> PyResult<String> {
         self.get_config("LastEventId".to_string())
+    }
+
+    fn save_causal_trace(
+        &self,
+        cause: String,
+        solution: String,
+        lce: PyObject,
+        ltp_trace: PyObject,
+        confidence: f32,
+    ) -> PyResult<()> {
+        let (lce_str, ltp_str) = Python::with_gil(|py| -> PyResult<(String, String)> {
+            let json = py.import("json")?;
+            let lce_dump: String = json.call_method1("dumps", (lce.as_ref(py),))?.extract()?;
+            let ltp_dump: String = json
+                .call_method1("dumps", (ltp_trace.as_ref(py),))?
+                .extract()?;
+            Ok((lce_dump, ltp_dump))
+        })?;
+
+        let entry = format!(
+            r#"{{"ts":"{}","cause":"{}","solution":"{}","confidence":{},"lce":{},"ltp_trace":{}}}"#,
+            Self::now_iso(),
+            cause.replace('"', r#"\""#),
+            solution.replace('"', r#"\""#),
+            confidence,
+            lce_str,
+            ltp_str
+        );
+
+        #[cfg(windows)]
+        {
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            let (key, _) = hkcu
+                .create_subkey(r"Software\LS\GhostGPT\CausalMemory")
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            let mut entries: Vec<String> = key.get_value("entries").unwrap_or_default();
+            entries.insert(0, entry);
+            if entries.len() > 50 {
+                entries.truncate(50);
+            }
+            key.set_value("entries", &entries)
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            key.set_value("last_timestamp", &Self::now_iso())
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            return Ok(());
+        }
+
+        #[cfg(not(windows))]
+        {
+            let path = self.yaml_fallback.with_file_name("causal_memory.yaml");
+            let mut content = if path.exists() {
+                fs::read_to_string(&path).map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+            } else {
+                String::new()
+            };
+            content.push_str("- ");
+            content.push_str(&entry);
+            content.push('\n');
+            fs::write(path, content).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            Ok(())
+        }
     }
 }

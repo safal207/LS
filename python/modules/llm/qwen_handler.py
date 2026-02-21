@@ -143,6 +143,24 @@ def collect_windows_context(session_id: str = "default") -> Optional[dict]:
     return event
 
 
+def save_causal_trace(cause: str, solution: str, lce: dict, ltp_trace: dict, confidence: float = 0.92) -> None:
+    reg = get_registry_manager()
+    if reg is None:
+        return
+
+    reg.save_causal_trace(cause, solution, lce, ltp_trace, confidence)
+    save_to_codex({
+        **(lce if isinstance(lce, dict) else {}),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "event_type": "causal_trace",
+        "cause": cause,
+        "solution": solution,
+        "ltp_trace": ltp_trace,
+        "confidence": confidence,
+        "source": "registry::causal_memory",
+    })
+
+
 class QwenHandler:
     def __init__(self, use_cloud_api: bool = False, api_key: str = "", *, raise_on_error: bool = False):
         self.use_cloud_api = use_cloud_api
