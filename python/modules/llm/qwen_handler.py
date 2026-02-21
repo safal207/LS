@@ -171,12 +171,12 @@ def collect_windows_context(session_id: str = "default") -> Optional[dict]:
     return event
 
 
-def save_causal_trace(cause: str, solution: str, lce: dict, ltp_trace: dict, confidence: float = 0.92) -> None:
+def save_causal_trace(cause: str, solution: str, lce: dict, ltp_trace: dict, lri_core: dict, confidence: float = 0.92) -> None:
     reg = get_registry_manager()
     if reg is None:
         return
 
-    reg.save_causal_trace(cause, solution, lce, ltp_trace, confidence)
+    reg.save_causal_trace(cause, solution, lce, ltp_trace, lri_core, confidence)
     save_to_codex({
         **(lce if isinstance(lce, dict) else {}),
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -184,6 +184,7 @@ def save_causal_trace(cause: str, solution: str, lce: dict, ltp_trace: dict, con
         "cause": cause,
         "solution": solution,
         "ltp_trace": ltp_trace,
+        "lri_core": lri_core,
         "confidence": confidence,
         "source": "registry::causal_memory",
     })
@@ -215,7 +216,8 @@ def replay_thread_ui(thread_id: str) -> str:
         solution = str(entry.get("solution", "—"))[:80]
         drift = float(entry.get("ltp_trace", {}).get("drift", 0.0) or 0.0)
         coherence = float(entry.get("lce", {}).get("qos", {}).get("coherence", 0.0) or 0.0)
-        output.append(f"• {ts} | drift:{drift:.2f} | coherence:{coherence:.2f}")
+        emotional_drift = float(entry.get("lri_core", {}).get("emotional_drift", 0.0) or 0.0)
+        output.append(f"• {ts} | drift:{drift:.2f} | emo_drift:{emotional_drift:.2f} | coherence:{coherence:.2f}")
         output.append(f"  Причина: {cause}")
         output.append(f"  Решение: {solution}\n")
     return "\n".join(output)

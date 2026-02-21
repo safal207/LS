@@ -144,25 +144,31 @@ impl RegistryManager {
         solution: String,
         lce: PyObject,
         ltp_trace: PyObject,
+        lri_core: PyObject,
         confidence: f32,
     ) -> PyResult<()> {
-        let (lce_str, ltp_str) = Python::with_gil(|py| -> PyResult<(String, String)> {
-            let json = py.import("json")?;
-            let lce_dump: String = json.call_method1("dumps", (lce.as_ref(py),))?.extract()?;
-            let ltp_dump: String = json
-                .call_method1("dumps", (ltp_trace.as_ref(py),))?
-                .extract()?;
-            Ok((lce_dump, ltp_dump))
-        })?;
+        let (lce_str, ltp_str, lri_str) =
+            Python::with_gil(|py| -> PyResult<(String, String, String)> {
+                let json = py.import("json")?;
+                let lce_dump: String = json.call_method1("dumps", (lce.as_ref(py),))?.extract()?;
+                let ltp_dump: String = json
+                    .call_method1("dumps", (ltp_trace.as_ref(py),))?
+                    .extract()?;
+                let lri_dump: String = json
+                    .call_method1("dumps", (lri_core.as_ref(py),))?
+                    .extract()?;
+                Ok((lce_dump, ltp_dump, lri_dump))
+            })?;
 
         let entry = format!(
-            r#"{{"ts":"{}","cause":"{}","solution":"{}","confidence":{},"lce":{},"ltp_trace":{}}}"#,
+            r#"{{"ts":"{}","cause":"{}","solution":"{}","confidence":{},"lce":{},"ltp_trace":{},"lri_core":{}}}"#,
             Self::now_iso(),
             cause.replace('"', r#"\""#),
             solution.replace('"', r#"\""#),
             confidence,
             lce_str,
-            ltp_str
+            ltp_str,
+            lri_str
         );
 
         #[cfg(windows)]

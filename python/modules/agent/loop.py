@@ -344,10 +344,16 @@ class AgentLoop:
                     "drift": 0.08,
                     "admissible_futures": ["A", "B"],
                 }
+                lri_core = {
+                    "invariants": ["non_reductive", "consent_first"],
+                    "emotional_drift": 0.12,
+                    "resonance_map": {"focus": 0.88},
+                    "stabilizer": "active",
+                }
                 try:
                     from ..llm.qwen_handler import save_causal_trace
 
-                    save_causal_trace(question, str(result), lce, ltp_trace, 0.92)
+                    save_causal_trace(question, str(result), lce, ltp_trace, lri_core, 0.92)
                 except Exception:
                     pass
 
