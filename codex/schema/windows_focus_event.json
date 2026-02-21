@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Windows Focus Event",
+  "type": "object",
+  "required": ["timestamp", "event_type", "session_id", "active_window", "confidence", "source"],
+  "properties": {
+    "timestamp": {"type": "string", "format": "date-time"},
+    "event_type": {"type": "string", "enum": ["focus_change", "text_update", "confusion_ping"]},
+    "session_id": {"type": "string"},
+    "active_window": {
+      "type": "object",
+      "required": ["title", "class_name", "hwnd", "process_name"],
+      "properties": {
+        "title": {"type": "string"},
+        "class_name": {"type": "string"},
+        "hwnd": {"type": "string"},
+        "process_name": {"type": "string"}
+      }
+    },
+    "text_snippet": {"type": "string"},
+    "cursor_position": {
+      "type": "object",
+      "properties": {"line": {"type": "integer", "minimum": 0}, "column": {"type": "integer", "minimum": 0}}
+    },
+    "confusion_score": {"type": "number", "minimum": 0, "maximum": 1},
+    "fuzzy_factors": {"type": "object"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "source": {"type": "string"}
+  },
+  "additionalProperties": false
+}
