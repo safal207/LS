@@ -201,6 +201,17 @@ def replay_thread(thread_id: str) -> list:
         return []
 
 
+def _extract_replay_thread_id(user_input: str) -> Optional[str]:
+    for raw in user_input.split():
+        token = raw.strip().strip(".,!?;:()[]{}<>\"'")
+        lower = token.lower()
+        if lower.startswith("thread-") and len(token) > 7:
+            return token
+        if lower.startswith("test-") and len(token) > 5:
+            return token
+    return None
+
+
 def replay_thread_ui(thread_id: str) -> str:
     """Replay UI — formatted replay output for end users."""
     trace = replay_thread(thread_id)
@@ -370,13 +381,13 @@ class QwenHandler:
     def handle_replay_command(self, user_input: str) -> Optional[str]:
         """Replay UI command helper for AgentLoop/GUI integration."""
         lower = user_input.lower()
-        if "replay" in lower or "переиграй" in lower:
-            parts = user_input.split()
-            for part in parts:
-                token = part.strip()
-                if token.startswith("thread-") or (token.isalnum() and len(token) > 5):
-                    return replay_thread_ui(token)
-        return None
+        if "replay" not in lower and "переиграй" not in lower:
+            return None
+
+        thread_id = _extract_replay_thread_id(user_input)
+        if thread_id is None:
+            return None
+        return replay_thread_ui(thread_id)
 
 
 # Test function

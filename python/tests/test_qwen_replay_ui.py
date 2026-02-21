@@ -33,3 +33,11 @@ def test_replay_thread_ui_renders_lri_fields(monkeypatch):
 def test_handle_replay_command_returns_none_for_regular_text():
     handler = qwen_handler.QwenHandler.__new__(qwen_handler.QwenHandler)
     assert handler.handle_replay_command("just answer normally") is None
+
+
+def test_handle_replay_command_requires_thread_token(monkeypatch):
+    handler = qwen_handler.QwenHandler.__new__(qwen_handler.QwenHandler)
+    monkeypatch.setattr(qwen_handler, "replay_thread_ui", lambda tid: f"replay:{tid}")
+
+    assert handler.handle_replay_command("replay please now") is None
+    assert handler.handle_replay_command("replay thread-123") == "replay:thread-123"
