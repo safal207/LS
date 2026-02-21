@@ -10,6 +10,7 @@ Related docs:
 
 - `docs/WEB4_RUNTIME_MIGRATION_GUIDE.md`
 - `docs/WEB4_RUNTIME_CI_CHECKLIST.md`
+- `docs/WEB4_FEDERATION_POLICY.md`
 
 ## Core components
 

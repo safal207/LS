@@ -35,9 +35,12 @@
   - partial complete: migration guide published in `docs/WEB4_RUNTIME_MIGRATION_GUIDE.md`.
   - partial complete: CI-safe checklist published in `docs/WEB4_RUNTIME_CI_CHECKLIST.md`.
   - partial complete: `web4_runtime_ci` regression suite now includes `python/tests/test_fuzzy_runtime.py`.
-  - partial complete: `web4_runtime_extended_load` now runs `pr-load-smoke` on pull requests.
+  - partial complete: `web4_runtime_extended_load` now runs `phase3-chaos` + `phase4-soak` on pull requests using PR-safe profile values.
 
 - **7.0 Platform Expansion**
+  - in progress: mesh/graph interoperability contract tests in `python/tests/test_web4_interoperability.py`.
+  - in progress: federation policy enforcement in `python/modules/web4_runtime/federation_policy.py` and `python/modules/web4_runtime/protocol_router.py`.
+  - in progress: federation policy specification and merge DoD in `docs/WEB4_FEDERATION_POLICY.md`.
   - устойчивый mesh/graph interoperability слой;
   - federation primitives и cross-domain policy enforcement;
   - масштабируемая observability/diagnostics модель для multi-node среды.

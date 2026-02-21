@@ -29,10 +29,14 @@ on:
 
 jobs:
   phase3-chaos:
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     env:
-      RUN_SESSIONS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.sessions || '20' }}
+      RUN_SESSIONS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.sessions || github.event_name == 'pull_request' && '8' || '20' }}
+      PHASE3_MESSAGES_PER_SESSION: ${{ github.event_name == 'pull_request' && '60' || '120' }}
+      PHASE3_MAX_QUEUE: ${{ github.event_name == 'pull_request' && '32' || '64' }}
+      PHASE3_TOTAL_LIMIT: ${{ github.event_name == 'pull_request' && '256' || '768' }}
+      PHASE3_PER_SESSION_LIMIT: ${{ github.event_name == 'pull_request' && '32' || '64' }}
+      PHASE3_BURST_SIZE: ${{ github.event_name == 'pull_request' && '12' || '24' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -52,23 +56,26 @@ jobs:
             --phase phase3 \
             --mode both \
             --sessions "${RUN_SESSIONS}" \
-            --messages-per-session 120 \
-            --max-queue 64 \
-            --total-limit 768 \
-            --per-session-limit 64 \
+            --messages-per-session "${PHASE3_MESSAGES_PER_SESSION}" \
+            --max-queue "${PHASE3_MAX_QUEUE}" \
+            --total-limit "${PHASE3_TOTAL_LIMIT}" \
+            --per-session-limit "${PHASE3_PER_SESSION_LIMIT}" \
             --chaos-disconnect-rate 0.12 \
             --burst-probability 0.2 \
-            --burst-size 24 \
+            --burst-size "${PHASE3_BURST_SIZE}" \
             --gc-pressure
 
   phase4-soak:
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     needs: phase3-chaos
     env:
-      RUN_SESSIONS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.sessions || '20' }}
-      PHASE4_DURATION_S: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.phase4_duration_s || '120' }}
-      TARGET_MESSAGES_PER_S: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_messages_per_s || '200' }}
+      RUN_SESSIONS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.sessions || github.event_name == 'pull_request' && '8' || '20' }}
+      PHASE4_MAX_QUEUE: ${{ github.event_name == 'pull_request' && '32' || '64' }}
+      PHASE4_TOTAL_LIMIT: ${{ github.event_name == 'pull_request' && '256' || '768' }}
+      PHASE4_PER_SESSION_LIMIT: ${{ github.event_name == 'pull_request' && '32' || '64' }}
+      PHASE4_DURATION_S: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.phase4_duration_s || github.event_name == 'pull_request' && '20' || '120' }}
+      TARGET_MESSAGES_PER_S: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_messages_per_s || github.event_name == 'pull_request' && '160' || '200' }}
+      PHASE4_BURST_SIZE: ${{ github.event_name == 'pull_request' && '10' || '16' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -88,56 +95,11 @@ jobs:
             --phase phase4 \
             --mode both \
             --sessions "${RUN_SESSIONS}" \
-            --max-queue 64 \
-            --total-limit 768 \
-            --per-session-limit 64 \
+            --max-queue "${PHASE4_MAX_QUEUE}" \
+            --total-limit "${PHASE4_TOTAL_LIMIT}" \
+            --per-session-limit "${PHASE4_PER_SESSION_LIMIT}" \
             --soak-duration-s "${PHASE4_DURATION_S}" \
             --target-messages-per-s "${TARGET_MESSAGES_PER_S}" \
             --chaos-disconnect-rate 0.08 \
             --burst-probability 0.15 \
-            --burst-size 16
-
-  pr-load-smoke:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Python tooling
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pytest
-
-      - name: Run phase3 chaos smoke profile
-        run: |
-          PYTHONPATH=python:python/modules python scripts/web4_runtime_load.py \
-            --phase phase3 \
-            --mode both \
-            --sessions 8 \
-            --messages-per-session 60 \
-            --max-queue 32 \
-            --total-limit 256 \
-            --per-session-limit 32 \
-            --chaos-disconnect-rate 0.10 \
-            --burst-probability 0.15 \
-            --burst-size 12
-
-      - name: Run phase4 soak smoke profile
-        run: |
-          PYTHONPATH=python:python/modules python scripts/web4_runtime_load.py \
-            --phase phase4 \
-            --mode both \
-            --sessions 8 \
-            --max-queue 32 \
-            --total-limit 256 \
-            --per-session-limit 32 \
-            --soak-duration-s 20 \
-            --target-messages-per-s 160 \
-            --chaos-disconnect-rate 0.06 \
-            --burst-probability 0.10 \
-            --burst-size 10
+            --burst-size "${PHASE4_BURST_SIZE}"

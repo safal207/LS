@@ -12,6 +12,7 @@ on:
       - "python/modules/hexagon_core/**"
       - "python/tests/test_web4_runtime.py"
       - "python/tests/test_web4_transport.py"
+      - "python/tests/test_web4_federation_policy.py"
       - "python/tests/test_global_flow.py"
       - "python/tests/test_async_rtt.py"
       - "python/tests/test_fuzzy_runtime.py"
@@ -45,6 +46,7 @@ on:
       - "python/modules/hexagon_core/**"
       - "python/tests/test_web4_runtime.py"
       - "python/tests/test_web4_transport.py"
+      - "python/tests/test_web4_federation_policy.py"
       - "python/tests/test_global_flow.py"
       - "python/tests/test_async_rtt.py"
       - "python/tests/test_fuzzy_runtime.py"
@@ -109,7 +111,7 @@ jobs:
 
       - name: Run Web4 runtime contract and load-smoke tests
         run: |
-          PYTHONPATH=python:python/modules python -m pytest python/tests/test_web4_transport.py python/tests/test_global_flow.py python/tests/test_async_rtt.py python/tests/test_fuzzy_runtime.py python/tests/test_web4_runtime_loadtest.py
+          PYTHONPATH=python:python/modules python -m pytest python/tests/test_web4_transport.py python/tests/test_web4_federation_policy.py python/tests/test_global_flow.py python/tests/test_async_rtt.py python/tests/test_fuzzy_runtime.py python/tests/test_web4_runtime_loadtest.py
 
       - name: Run hexagon_core unit tests
         run: |

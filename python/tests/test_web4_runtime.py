@@ -1,3 +1,4 @@
+import json
 import queue
 import threading
 import time
@@ -11,6 +12,7 @@ from modules.protocols.lip import LipIdentity, LipSource
 from modules.protocols.trust import TrustFSM, TrustState
 from modules.web4_runtime.agent_integration import AgentLoopAdapter
 from modules.web4_runtime.cip_runtime import CipRuntime
+from modules.web4_runtime.federation_policy import DenylistFederationPolicy
 from modules.web4_runtime.hcp_runtime import HcpRuntime, HcpPolicy
 from modules.web4_runtime.lip_runtime import LipRuntime
 from modules.web4_runtime.observability import ObservabilityHub
@@ -231,6 +233,24 @@ def test_protocol_router_routing() -> None:
     assert result.router_result.handled is True
 
 
+def test_protocol_router_blocks_envelope_via_federation_policy() -> None:
+    trust = TrustFSM()
+    cip = CipRuntime(CipIdentity("a", "fp-a"), trust)
+    hcp = HcpRuntime(HcpIdentity("a", "fp-a"))
+    lip = LipRuntime(LipIdentity("a", "fp-a"))
+    policy = DenylistFederationPolicy.from_iterables(blocked_senders=["a"])
+    router = Web4ProtocolRouter(cip=cip, hcp=hcp, lip=lip, federation_policy=policy)
+
+    receiver = CipIdentity("b", "fp-b")
+    hello = cip.build_hello(receiver)
+    result = router.dispatch(hello)
+
+    assert result.router_result.handled is False
+    assert result.federation_decision.allowed is False
+    assert result.federation_decision.reason.startswith("blocked_sender:")
+    assert trust.state == TrustState.UNTRUSTED
+
+
 def test_agent_loop_integration() -> None:
     trust = TrustFSM()
     cip = CipRuntime(CipIdentity("a", "fp-a"), trust)
@@ -244,4 +264,237 @@ def test_agent_loop_integration() -> None:
     envelope = cip.build_hello(receiver)
     result = adapter.handle_envelope(envelope)
     assert result["handled"] is True
+    assert result["federation_allowed"] is True
     assert output.get(timeout=1) == "echo:{'handshake': 'hello'}"
+
+
+def test_agent_loop_adapter_skips_handler_when_federation_policy_denies() -> None:
+    trust = TrustFSM()
+    cip = CipRuntime(CipIdentity("a", "fp-a"), trust)
+    hcp = HcpRuntime(HcpIdentity("a", "fp-a"))
+    lip = LipRuntime(LipIdentity("a", "fp-a"))
+    policy = DenylistFederationPolicy.from_iterables(blocked_message_types=["HELLO"])
+    router = Web4ProtocolRouter(cip=cip, hcp=hcp, lip=lip, federation_policy=policy)
+
+    output: "queue.Queue[str]" = queue.Queue()
+    agent_loop = AgentLoop(handler=lambda text: f"echo:{text}", output_queue=output)
+    adapter = AgentLoopAdapter(agent_loop=agent_loop, router=router)
+
+    receiver = CipIdentity("b", "fp-b")
+    envelope = cip.build_hello(receiver)
+    result = adapter.handle_envelope(envelope)
+
+    assert result["handled"] is False
+    assert result["response"] is None
+    assert result["federation_allowed"] is False
+    assert result["federation_reason"].startswith("blocked_message_type:")
+    with pytest.raises(queue.Empty):
+        output.get_nowait()
+
+
+def test_agent_loop_adapter_observability_includes_federation_fields() -> None:
+    trust = TrustFSM()
+    cip = CipRuntime(CipIdentity("a", "fp-a"), trust)
+    hcp = HcpRuntime(HcpIdentity("a", "fp-a"))
+    lip = LipRuntime(LipIdentity("a", "fp-a"))
+    policy = DenylistFederationPolicy.from_iterables(blocked_message_types=["HELLO"])
+    router = Web4ProtocolRouter(cip=cip, hcp=hcp, lip=lip, federation_policy=policy)
+    hub = ObservabilityHub()
+
+    output: "queue.Queue[str]" = queue.Queue()
+    agent_loop = AgentLoop(handler=lambda text: f"echo:{text}", output_queue=output)
+    adapter = AgentLoopAdapter(agent_loop=agent_loop, router=router, observability=hub)
+
+    receiver = CipIdentity("b", "fp-b")
+    envelope = cip.build_hello(receiver)
+    result = adapter.handle_envelope(envelope)
+    assert result["handled"] is False
+
+    events = hub.snapshot()
+    assert events
+    payload = events[-1].payload
+    assert payload["handled"] is False
+    assert payload["federation_allowed"] is False
+    assert payload["federation_policy"] == "denylist"
+    assert payload["federation_reason"].startswith("blocked_message_type:")
+
+
+def test_observability_hub_aggregates_federation_metrics() -> None:
+    hub = ObservabilityHub()
+    hub.record("session_open", {"session_id": 42})
+    hub.record(
+        "envelope_routed",
+        {
+            "handled": True,
+            "federation_allowed": True,
+            "federation_reason": "allowed",
+            "federation_policy": "allow_all",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "handled": False,
+            "federation_allowed": False,
+            "federation_reason": "blocked_sender:agent-a",
+            "federation_policy": "denylist",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "handled": False,
+            "federation_allowed": False,
+            "federation_reason": "blocked_sender:agent-a",
+            "federation_policy": "denylist",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "handled": False,
+            "federation_allowed": False,
+            "federation_reason": "blocked_message_type:HELLO",
+            "federation_policy": "denylist",
+        },
+    )
+
+    metrics = hub.federation_metrics()
+
+    assert metrics["total"] == 4
+    assert metrics["allowed"] == 1
+    assert metrics["denied"] == 3
+    assert metrics["allow_ratio"] == pytest.approx(0.25)
+    assert metrics["by_policy"] == {"allow_all": 1, "denylist": 3}
+    assert metrics["denied_by_reason"] == {
+        "blocked_message_type:HELLO": 1,
+        "blocked_sender:agent-a": 2,
+    }
+
+
+def test_observability_hub_rolling_window_federation_metrics() -> None:
+    hub = ObservabilityHub()
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": True,
+            "federation_reason": "allowed",
+            "federation_policy": "allow_all",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": False,
+            "federation_reason": "blocked_sender:legacy",
+            "federation_policy": "denylist",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": True,
+            "federation_reason": "allowed",
+            "federation_policy": "allow_all",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": False,
+            "federation_reason": "blocked_message_type:HELLO",
+            "federation_policy": "denylist",
+        },
+    )
+
+    full_metrics = hub.federation_metrics()
+    window_metrics = hub.federation_metrics_window(2)
+
+    assert full_metrics["total"] == 4
+    assert full_metrics["allowed"] == 2
+    assert full_metrics["denied"] == 2
+    assert full_metrics["denied_by_reason"] == {
+        "blocked_message_type:HELLO": 1,
+        "blocked_sender:legacy": 1,
+    }
+
+    assert window_metrics["total"] == 2
+    assert window_metrics["allowed"] == 1
+    assert window_metrics["denied"] == 1
+    assert window_metrics["allow_ratio"] == pytest.approx(0.5)
+    assert window_metrics["by_policy"] == {"allow_all": 1, "denylist": 1}
+    assert window_metrics["denied_by_reason"] == {"blocked_message_type:HELLO": 1}
+
+
+def test_observability_hub_exports_federation_metrics() -> None:
+    hub = ObservabilityHub()
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": False,
+            "federation_reason": "blocked_sender:agent-a",
+            "federation_policy": "denylist",
+        },
+    )
+    exported = hub.export_federation_metrics(window_size=10)
+
+    assert isinstance(exported["generated_at"], str)
+    assert exported["window_size"] == 10
+    assert exported["metrics"]["total"] == 1
+    assert exported["metrics"]["allowed"] == 0
+    assert exported["metrics"]["denied"] == 1
+
+
+def test_observability_hub_exports_federation_metrics_json() -> None:
+    hub = ObservabilityHub()
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": False,
+            "federation_reason": 'blocked_sender:agent-"a"',
+            "federation_policy": "denylist",
+        },
+    )
+
+    compact_json = hub.export_federation_metrics_json(window_size=5)
+    pretty_json = hub.export_federation_metrics_json(window_size=5, pretty=True)
+    compact_payload = json.loads(compact_json)
+    pretty_payload = json.loads(pretty_json)
+
+    assert compact_payload["window_size"] == 5
+    assert compact_payload["metrics"]["denied"] == 1
+    assert isinstance(compact_payload["generated_at"], str)
+    assert isinstance(pretty_payload["generated_at"], str)
+    assert pretty_payload["window_size"] == compact_payload["window_size"]
+    assert pretty_payload["metrics"] == compact_payload["metrics"]
+    assert "\n" in pretty_json
+    assert "\n" not in compact_json
+
+
+def test_observability_hub_exports_federation_metrics_prometheus() -> None:
+    hub = ObservabilityHub()
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": True,
+            "federation_reason": "allowed",
+            "federation_policy": "allow_all",
+        },
+    )
+    hub.record(
+        "envelope_routed",
+        {
+            "federation_allowed": False,
+            "federation_reason": 'blocked_sender:agent-"a"',
+            "federation_policy": "denylist",
+        },
+    )
+
+    exported = hub.export_federation_metrics_prometheus(window_size=10)
+
+    assert "# HELP web4_federation_total" in exported
+    assert "web4_federation_total 2" in exported
+    assert 'web4_federation_by_policy{policy="allow_all"} 1' in exported
+    assert 'web4_federation_by_policy{policy="denylist"} 1' in exported
+    assert 'web4_federation_denied_by_reason{reason="blocked_sender:agent-\\"a\\""} 1' in exported
+    assert "web4_federation_window_size 10" in exported
