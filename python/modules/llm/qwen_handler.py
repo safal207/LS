@@ -17,6 +17,7 @@ except Exception:  # optional for replay/context helpers
     OLLAMA_HOST = "http://localhost:11434"
     LLM_MODEL_NAME = "qwen2.5:latest"
 from .causal_memory import (
+    build_default_trace_payloads as _build_default_trace_payloads_impl,
     handle_replay_command as _handle_replay_command,
     replay_thread as _replay_thread_impl,
     replay_thread_ui as _replay_thread_ui_impl,
@@ -56,6 +57,10 @@ def save_to_codex(event_data: dict) -> Optional[object]:
 
 def collect_windows_context(session_id: str = "default") -> Optional[dict]:
     return _collect_windows_context_impl(session_id=session_id)
+
+
+def build_default_trace_payloads(question: str, thread_id: str) -> tuple[dict, dict, dict]:
+    return _build_default_trace_payloads_impl(question, thread_id)
 
 
 def save_causal_trace(cause: str, solution: str, lce: dict, ltp_trace: dict, lri_core: dict, confidence: float = 0.92) -> None:

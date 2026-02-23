@@ -4,6 +4,29 @@ from datetime import datetime, timezone
 from typing import Callable, Optional
 
 
+def build_default_trace_payloads(question: str, thread_id: str) -> tuple[dict, dict, dict]:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    lce = {
+        "v": 1,
+        "intent": {"type": "answer", "goal": question},
+        "affect": {"pad": [0.4, 0.2, 0.1], "tags": ["focused"]},
+        "memory": {"thread": thread_id, "t": now_iso},
+        "qos": {"coherence": 0.92},
+    }
+    ltp_trace = {
+        "thread_id": thread_id,
+        "drift": 0.08,
+        "admissible_futures": ["A", "B"],
+    }
+    lri_core = {
+        "invariants": ["non_reductive", "consent_first"],
+        "emotional_drift": 0.12,
+        "resonance_map": {"focus": 0.88},
+        "stabilizer": "active",
+    }
+    return lce, ltp_trace, lri_core
+
+
 def save_causal_trace(
     cause: str,
     solution: str,

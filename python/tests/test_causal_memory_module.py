@@ -46,3 +46,12 @@ def test_replay_thread_and_command_parser():
     assert causal_memory.extract_replay_thread_id("replay thread-123") == "thread-123"
     assert causal_memory.extract_replay_thread_id("переиграй test-xyz,") == "test-xyz"
     assert causal_memory.extract_replay_thread_id("replay please") is None
+
+
+def test_build_default_trace_payloads():
+    lce, ltp_trace, lri_core = causal_memory.build_default_trace_payloads("hello", "thread-7")
+
+    assert lce["intent"]["goal"] == "hello"
+    assert lce["memory"]["thread"] == "thread-7"
+    assert ltp_trace["thread_id"] == "thread-7"
+    assert lri_core["stabilizer"] == "active"

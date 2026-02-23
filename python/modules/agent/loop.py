@@ -3,7 +3,6 @@ from __future__ import annotations
 import queue
 import threading
 import time
-from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from ..llm.temporal import TemporalContext
@@ -332,27 +331,10 @@ class AgentLoop:
             }, task_id=task_id)
 
             if result is not None:
-                lce = {
-                    "v": 1,
-                    "intent": {"type": "answer", "goal": question},
-                    "affect": {"pad": [0.4, 0.2, 0.1], "tags": ["focused"]},
-                    "memory": {"thread": str(task_id), "t": datetime.now(timezone.utc).isoformat()},
-                    "qos": {"coherence": 0.92},
-                }
-                ltp_trace = {
-                    "thread_id": str(task_id),
-                    "drift": 0.08,
-                    "admissible_futures": ["A", "B"],
-                }
-                lri_core = {
-                    "invariants": ["non_reductive", "consent_first"],
-                    "emotional_drift": 0.12,
-                    "resonance_map": {"focus": 0.88},
-                    "stabilizer": "active",
-                }
                 try:
-                    from ..llm.qwen_handler import save_causal_trace
+                    from ..llm.qwen_handler import build_default_trace_payloads, save_causal_trace
 
+                    lce, ltp_trace, lri_core = build_default_trace_payloads(question, str(task_id))
                     save_causal_trace(question, str(result), lce, ltp_trace, lri_core, 0.92)
                 except Exception:
                     pass
