@@ -10,28 +10,45 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-_CODEX_ROOT = Path("codex")
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_CODEX_ROOT = _REPO_ROOT / "codex"
 _CODEX_WINDOWS_PATH = _CODEX_ROOT / "events" / "windows"
 _CODEX_INDEX_PATH = _CODEX_ROOT / "index.json"
 _CODEX_CAUSAL_PATH = _CODEX_ROOT / "causal_memory"
 _CODEX_CAUSAL_INDEX_PATH = _CODEX_CAUSAL_PATH / "index.json"
 _MAX_CODEX_EVENTS = 20
 
+_RUST_MODULE = None
+_TRACKER = None
+
 
 def load_rust_module():
+    global _RUST_MODULE
+    if _RUST_MODULE is not None:
+        return _RUST_MODULE
+
     for module_name in ("rust_core", "ghostgpt_core"):
         if importlib.util.find_spec(module_name) is not None:
-            return importlib.import_module(module_name)
+            _RUST_MODULE = importlib.import_module(module_name)
+            return _RUST_MODULE
     return None
 
 
 def get_focus_tracker():
+    global _TRACKER
+    if _TRACKER is not None:
+        return _TRACKER
+
     rust_module = load_rust_module()
     if rust_module is None:
         return None
 
     tracker_cls = getattr(rust_module, "FocusTracker", None)
-    return tracker_cls() if tracker_cls is not None else None
+    if tracker_cls is None:
+        return None
+
+    _TRACKER = tracker_cls()
+    return _TRACKER
 
 
 def get_registry_manager(yaml_path: str = "config/base.yaml"):

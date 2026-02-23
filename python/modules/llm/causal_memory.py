@@ -5,6 +5,7 @@ from typing import Callable, Optional
 
 
 def build_default_trace_payloads(question: str, thread_id: str) -> tuple[dict, dict, dict]:
+    """Stub payload builder until real LTP/LRI metrics are wired from runtime context."""
     now_iso = datetime.now(timezone.utc).isoformat()
     lce = {
         "v": 1,

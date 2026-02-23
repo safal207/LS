@@ -62,6 +62,16 @@ def collect_windows_context(session_id: str = "default") -> Optional[dict]:
 def build_default_trace_payloads(question: str, thread_id: str) -> tuple[dict, dict, dict]:
     return _build_default_trace_payloads_impl(question, thread_id)
 
+def get_causal_trace_confidence(default: float = 0.92) -> float:
+    reg = get_registry_manager()
+    if reg is None:
+        return default
+    try:
+        raw = reg.get_config("causal_trace_confidence")
+        return float(raw or default)
+    except (TypeError, ValueError, AttributeError):
+        return default
+
 
 def save_causal_trace(cause: str, solution: str, lce: dict, ltp_trace: dict, lri_core: dict, confidence: float = 0.92) -> None:
     _save_causal_trace_impl(
@@ -83,9 +93,6 @@ def replay_thread(thread_id: str) -> list:
 def replay_thread_ui(thread_id: str) -> str:
     """Replay UI — formatted replay output for end users."""
     return _replay_thread_ui_impl(thread_id, replay_loader=replay_thread)
-
-
-
 
 class QwenHandler:
     def __init__(self, use_cloud_api: bool = False, api_key: str = "", *, raise_on_error: bool = False):

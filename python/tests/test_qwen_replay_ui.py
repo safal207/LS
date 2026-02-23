@@ -49,3 +49,22 @@ def test_handle_replay_command_supports_russian_and_punctuation(monkeypatch):
 
     assert handler.handle_replay_command("переиграй thread-777,") == "replay:thread-777"
     assert handler.handle_replay_command("thread-777") is None
+
+
+def test_get_causal_trace_confidence(monkeypatch):
+    class _Reg:
+        def get_config(self, key):
+            assert key == "causal_trace_confidence"
+            return "0.77"
+
+    monkeypatch.setattr(qwen_handler, "get_registry_manager", lambda: _Reg())
+    assert qwen_handler.get_causal_trace_confidence() == 0.77
+
+
+def test_get_causal_trace_confidence_default_on_bad_value(monkeypatch):
+    class _Reg:
+        def get_config(self, key):
+            return "not-a-number"
+
+    monkeypatch.setattr(qwen_handler, "get_registry_manager", lambda: _Reg())
+    assert qwen_handler.get_causal_trace_confidence(0.91) == 0.91

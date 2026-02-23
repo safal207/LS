@@ -82,14 +82,15 @@ class AgentLoop:
         self._liminal_transitions = 0
         self._context_poll_interval_s = 5.0
         self._next_context_poll_at = 0.0
+        self._context_poll_lock = threading.Lock()
 
 
     def _maybe_collect_windows_context(self, *, session_id: str) -> None:
         now = time.time()
-        if now < self._next_context_poll_at:
-            return
-
-        self._next_context_poll_at = now + self._context_poll_interval_s
+        with self._context_poll_lock:
+            if now < self._next_context_poll_at:
+                return
+            self._next_context_poll_at = now + self._context_poll_interval_s
         try:
             from ..llm.qwen_handler import collect_windows_context
 
@@ -332,10 +333,15 @@ class AgentLoop:
 
             if result is not None:
                 try:
-                    from ..llm.qwen_handler import build_default_trace_payloads, save_causal_trace
+                    from ..llm.qwen_handler import (
+                        build_default_trace_payloads,
+                        get_causal_trace_confidence,
+                        save_causal_trace,
+                    )
 
                     lce, ltp_trace, lri_core = build_default_trace_payloads(question, str(task_id))
-                    save_causal_trace(question, str(result), lce, ltp_trace, lri_core, 0.92)
+                    trace_confidence = get_causal_trace_confidence()
+                    save_causal_trace(question, str(result), lce, ltp_trace, lri_core, trace_confidence)
                 except Exception:
                     pass
 
