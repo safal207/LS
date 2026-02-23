@@ -3,16 +3,22 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
+from ..web4_runtime.fuzzy import smooth_coherence
+
 
 def build_default_trace_payloads(question: str, thread_id: str) -> tuple[dict, dict, dict]:
     """Stub payload builder until real LTP/LRI metrics are wired from runtime context."""
     now_iso = datetime.now(timezone.utc).isoformat()
+    emotional_drift = 0.12
+    # coherence influenced by emotional_drift
+    coherence = smooth_coherence(0.95, 0.90, drift=emotional_drift, noise=0.05)
+
     lce = {
         "v": 1,
         "intent": {"type": "answer", "goal": question},
         "affect": {"pad": [0.4, 0.2, 0.1], "tags": ["focused"]},
         "memory": {"thread": thread_id, "t": now_iso},
-        "qos": {"coherence": 0.92},
+        "qos": {"coherence": coherence},
     }
     ltp_trace = {
         "thread_id": thread_id,
@@ -21,7 +27,7 @@ def build_default_trace_payloads(question: str, thread_id: str) -> tuple[dict, d
     }
     lri_core = {
         "invariants": ["non_reductive", "consent_first"],
-        "emotional_drift": 0.12,
+        "emotional_drift": emotional_drift,
         "resonance_map": {"focus": 0.88},
         "stabilizer": "active",
     }

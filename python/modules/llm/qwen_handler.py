@@ -10,6 +10,7 @@ except ImportError:  # optional for replay/context helpers
     requests = None
 import json
 import logging
+from pathlib import Path
 from typing import Optional
 try:
     from ..config import OLLAMA_HOST, LLM_MODEL_NAME
@@ -51,7 +52,7 @@ def get_registry_manager(yaml_path: str = "config/base.yaml"):
     return _get_registry_manager_impl(yaml_path)
 
 
-def save_to_codex(event_data: dict) -> Optional[object]:
+def save_to_codex(event_data: dict) -> Optional[Path]:
     return _save_to_codex_impl(event_data)
 
 
