@@ -79,9 +79,13 @@ def test_coherence_influence_and_prev_value():
 def test_smooth_coherence_fallback_logic():
     # Verify fallback logic if we can't import the real one
     # We can test the function directly from the module
-    res = causal_memory.smooth_coherence(0.8, 0.9, drift=0.1, noise=0.0)
+    res = causal_memory.smooth_coherence(0.8, 0.9, drift=0.1, noise=0.01)
     assert 0.8 < res < 0.9
 
-    res_high_drift = causal_memory.smooth_coherence(0.8, 0.9, drift=0.5, noise=0.0)
+    res_high_drift = causal_memory.smooth_coherence(0.8, 0.9, drift=0.5, noise=0.01)
     # Higher drift should lead to higher gain, so closer to measured (0.9)
     assert res_high_drift > res
+
+    res_high_noise = causal_memory.smooth_coherence(0.8, 0.9, drift=0.1, noise=0.1)
+    # Higher noise should lead to higher gain in our simple fallback formula
+    assert res_high_noise > res

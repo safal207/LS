@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Callable, Optional
 
 try:
@@ -8,7 +9,11 @@ try:
 except (ImportError, ValueError):
     def smooth_coherence(prev: float, measured: float, drift: float, noise: float) -> float:
         """Fallback coherence smoothing if web4_runtime is unavailable."""
-        gain = 0.12 + 0.35 * min(1.0, abs(drift) / 0.30)
+        # Simplified adaptive gain: base (0.12) + drift influence + noise influence
+        drift_factor = min(1.0, abs(drift) / 0.30)
+        noise_factor = min(1.0, abs(noise) / 0.08)
+        gain = 0.12 + 0.35 * drift_factor + 0.20 * noise_factor
+        gain = max(0.02, min(0.95, gain))
         return max(0.0, min(1.0, prev + gain * (measured - prev)))
 
 
@@ -56,7 +61,7 @@ def save_causal_trace(
     *,
     confidence: float = 0.92,
     get_registry_manager: Callable[[], object | None],
-    save_to_codex: Callable[[dict], object],
+    save_to_codex: Callable[[dict], Optional[Path]],
 ) -> None:
     reg = get_registry_manager()
     if reg is None:

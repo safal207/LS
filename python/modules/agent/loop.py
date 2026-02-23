@@ -332,6 +332,10 @@ class AgentLoop:
             }, task_id=task_id)
 
             if result is not None:
+                # Track coherence across iterations via self.memory (best-effort statefulness)
+                memory = getattr(self, "memory", None)
+                last_coherence = memory.get("last_coherence", 0.95) if isinstance(memory, dict) else 0.95
+
                 try:
                     from ..llm.qwen_handler import (
                         build_default_trace_payloads,
@@ -339,16 +343,17 @@ class AgentLoop:
                         save_causal_trace,
                     )
 
-                    last_coherence = self.memory.get("last_coherence", 0.95)
                     lce, ltp_trace, lri_core = build_default_trace_payloads(
                         question, str(task_id), prev_coherence=last_coherence
                     )
-                    # Update memory with the new coherence value for the next iteration
-                    self.memory["last_coherence"] = float(lce.get("qos", {}).get("coherence", 0.95))
+
+                    if isinstance(memory, dict):
+                        memory["last_coherence"] = float(lce.get("qos", {}).get("coherence", 0.95))
 
                     trace_confidence = get_causal_trace_confidence()
                     save_causal_trace(question, str(result), lce, ltp_trace, lri_core, trace_confidence)
                 except Exception:
+                    # trace persistence is best-effort
                     pass
 
             if result is not None or self.handler is not None:
