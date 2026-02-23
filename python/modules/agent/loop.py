@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 import time
@@ -12,6 +13,8 @@ from ..cognitive_flow.liminal import is_liminal_phase
 from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
+
+logger = logging.getLogger(__name__)
 
 
 class AgentLoop:
@@ -91,24 +94,25 @@ class AgentLoop:
             if now < self._next_context_poll_at:
                 return
             self._next_context_poll_at = now + self._context_poll_interval_s
-        try:
-            from ..llm.qwen_handler import collect_windows_context
 
-            context_event = collect_windows_context(session_id=session_id)
-            if isinstance(context_event, dict):
-                event_type = context_event.get("event_type")
-                payload = {
-                    "event_type": event_type,
-                    "confusion_score": context_event.get("confusion_score"),
-                    "source": context_event.get("source"),
-                }
-                if event_type == "confusion_ping":
-                    self._emit("liminal_transition", payload)
-                else:
-                    self._emit_observability("text_update", payload)
-        except Exception:
-            # context provider is best-effort and must not break main loop
-            pass
+            try:
+                from ..llm.qwen_handler import collect_windows_context
+
+                context_event = collect_windows_context(session_id=session_id)
+                if isinstance(context_event, dict):
+                    event_type = context_event.get("event_type")
+                    payload = {
+                        "event_type": event_type,
+                        "confusion_score": context_event.get("confusion_score"),
+                        "source": context_event.get("source"),
+                    }
+                    if event_type == "confusion_ping":
+                        self._emit("liminal_transition", payload)
+                    else:
+                        self._emit_observability("text_update", payload)
+            except Exception as e:
+                # context provider is best-effort and must not break main loop
+                logger.debug(f"Failed to collect windows context: {e}")
 
     def _next_task_id(self) -> int:
         with self._task_lock:
@@ -352,9 +356,9 @@ class AgentLoop:
 
                     trace_confidence = get_causal_trace_confidence()
                     save_causal_trace(question, str(result), lce, ltp_trace, lri_core, trace_confidence)
-                except Exception:
-                    # trace persistence is best-effort
-                    pass
+                except Exception as e:
+                    # trace persistence is best-effort, but log failures for observability
+                    logger.warning(f"Failed to save causal trace: {e}", exc_info=True)
 
             if result is not None or self.handler is not None:
                 self._transition("responding", task_id=task_id)

@@ -89,3 +89,20 @@ def test_smooth_coherence_fallback_logic():
     res_high_noise = causal_memory.smooth_coherence(0.8, 0.9, drift=0.1, noise=0.1)
     # Higher noise should lead to higher gain in our simple fallback formula
     assert res_high_noise > res
+
+
+def test_replay_thread_ui_handles_none_fields():
+    # If fields are None instead of dict, it should not crash and use defaults
+    trace = [{
+        "ts": "2026-02-23",
+        "cause": "C",
+        "solution": "S",
+        "ltp_trace": None,
+        "lce": None,
+        "lri_core": None
+    }]
+    rendered = causal_memory.replay_thread_ui("thread-1", replay_loader=lambda _: trace)
+    assert "drift:0.00" in rendered
+    assert "emo_drift:0.00" in rendered
+    assert "coherence:0.00" in rendered
+    assert "LRI: stabilizer=—" in rendered

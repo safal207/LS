@@ -1,4 +1,4 @@
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::fs;
@@ -147,6 +147,13 @@ impl RegistryManager {
         lri_core: PyObject,
         confidence: f32,
     ) -> PyResult<()> {
+        if !(0.0..=1.0).contains(&confidence) {
+            return Err(PyValueError::new_err(format!(
+                "confidence must be in [0.0, 1.0], got {}",
+                confidence
+            )));
+        }
+
         let (lce_value, ltp_value, lri_value) =
             Python::with_gil(|py| -> PyResult<(serde_json::Value, serde_json::Value, serde_json::Value)> {
                 let json = py.import("json")?;
@@ -200,15 +207,29 @@ impl RegistryManager {
         #[cfg(not(windows))]
         {
             let path = self.yaml_fallback.with_file_name("causal_memory.yaml");
-            let mut content = if path.exists() {
-                fs::read_to_string(&path).map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+            let mut entries = if path.exists() {
+                let content =
+                    fs::read_to_string(&path).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+                content
+                    .lines()
+                    .filter_map(|line| line.trim().strip_prefix("- ").map(ToOwned::to_owned))
+                    .collect::<Vec<String>>()
             } else {
-                String::new()
+                Vec::new()
             };
-            content.push_str("- ");
-            content.push_str(&entry);
-            content.push('\n');
-            fs::write(path, content).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+            entries.insert(0, entry);
+            if entries.len() > 50 {
+                entries.truncate(50);
+            }
+
+            let mut out = String::new();
+            for e in entries {
+                out.push_str("- ");
+                out.push_str(&e);
+                out.push('\n');
+            }
+            fs::write(path, out).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
             Ok(())
         }
     }

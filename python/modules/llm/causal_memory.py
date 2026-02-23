@@ -4,16 +4,26 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 
+# Coherence smoothing constants (fallback defaults)
+_DRIFT_NORMALIZATION = 0.30
+_NOISE_NORMALIZATION = 0.08
+_BASE_GAIN = 0.12
+_DRIFT_GAIN_WEIGHT = 0.35
+_NOISE_GAIN_WEIGHT = 0.20
+_MIN_GAIN = 0.02
+_MAX_GAIN = 0.95
+
+
 try:
     from ..web4_runtime.fuzzy import smooth_coherence
 except (ImportError, ValueError):
     def smooth_coherence(prev: float, measured: float, drift: float, noise: float) -> float:
         """Fallback coherence smoothing if web4_runtime is unavailable."""
-        # Simplified adaptive gain: base (0.12) + drift influence + noise influence
-        drift_factor = min(1.0, abs(drift) / 0.30)
-        noise_factor = min(1.0, abs(noise) / 0.08)
-        gain = 0.12 + 0.35 * drift_factor + 0.20 * noise_factor
-        gain = max(0.02, min(0.95, gain))
+        # Simplified adaptive gain matching web4_runtime.fuzzy logic
+        drift_factor = min(1.0, abs(drift) / _DRIFT_NORMALIZATION)
+        noise_factor = min(1.0, abs(noise) / _NOISE_NORMALIZATION)
+        gain = _BASE_GAIN + (_DRIFT_GAIN_WEIGHT * drift_factor) + (_NOISE_GAIN_WEIGHT * noise_factor)
+        gain = max(_MIN_GAIN, min(_MAX_GAIN, gain))
         return max(0.0, min(1.0, prev + gain * (measured - prev)))
 
 
@@ -115,13 +125,21 @@ def replay_thread_ui(thread_id: str, *, replay_loader: Callable[[str], list]) ->
         ts = entry.get("ts", "—")
         cause = str(entry.get("cause", "—"))[:80]
         solution = str(entry.get("solution", "—"))[:80]
-        drift = float(entry.get("ltp_trace", {}).get("drift", 0.0) or 0.0)
-        coherence = float(entry.get("lce", {}).get("qos", {}).get("coherence", 0.0) or 0.0)
-        lri_core = entry.get("lri_core", {}) if isinstance(entry.get("lri_core", {}), dict) else {}
+
+        ltp_trace = entry.get("ltp_trace") or {}
+        drift = float(ltp_trace.get("drift", 0.0) or 0.0)
+
+        lce = entry.get("lce") or {}
+        qos = lce.get("qos") or {}
+        coherence = float(qos.get("coherence", 0.0) or 0.0)
+
+        lri_core = entry.get("lri_core") or {}
         emotional_drift = float(lri_core.get("emotional_drift", 0.0) or 0.0)
         stabilizer = lri_core.get("stabilizer", "—")
-        resonance_focus = float(lri_core.get("resonance_map", {}).get("focus", 0.0) or 0.0)
+        resonance_map = lri_core.get("resonance_map") or {}
+        resonance_focus = float(resonance_map.get("focus", 0.0) or 0.0)
         invariants = lri_core.get("invariants", [])
+
         inv_preview = ", ".join(str(v) for v in invariants[:2]) if isinstance(invariants, list) else "—"
         output.append(f"• {ts} | drift:{drift:.2f} | emo_drift:{emotional_drift:.2f} | coherence:{coherence:.2f}")
         output.append(f"  LRI: stabilizer={stabilizer} | resonance.focus={resonance_focus:.2f} | invariants={inv_preview}")
