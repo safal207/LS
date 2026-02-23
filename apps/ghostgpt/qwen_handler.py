@@ -8,7 +8,7 @@ MODULES = ROOT / "python" / "modules"
 if str(MODULES) not in sys.path:
     sys.path.insert(0, str(MODULES))
 
-from llm.qwen_handler import (  # noqa: F401
+from llm.qwen_handler import (  # noqa: F401, E402
     collect_windows_context,
     get_registry_manager,
     replay_thread,

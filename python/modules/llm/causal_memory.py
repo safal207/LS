@@ -3,11 +3,20 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
-from ..web4_runtime.fuzzy import smooth_coherence
+try:
+    from ..web4_runtime.fuzzy import smooth_coherence
+except (ImportError, ValueError):
+    def smooth_coherence(prev: float, measured: float, drift: float, noise: float) -> float:
+        """Fallback coherence smoothing if web4_runtime is unavailable."""
+        gain = 0.12 + 0.35 * min(1.0, abs(drift) / 0.30)
+        return max(0.0, min(1.0, prev + gain * (measured - prev)))
 
 
-def build_default_trace_payloads(question: str, thread_id: str) -> tuple[dict, dict, dict]:
-    """Stub payload builder until real LTP/LRI metrics are wired from runtime context."""
+def build_default_trace_payloads(question: str, thread_id: str, prev_coherence: float = 0.95) -> tuple[dict, dict, dict]:
+    """
+    Stub payload builder for LTP/LRI metrics.
+    Coherence is partially wired to emotional_drift (LRI).
+    """
     now_iso = datetime.now(timezone.utc).isoformat()
 
     lri_core = {
@@ -18,7 +27,8 @@ def build_default_trace_payloads(question: str, thread_id: str) -> tuple[dict, d
     }
 
     # coherence is derived from emotional_drift (LRI) using smooth_coherence
-    coherence = smooth_coherence(0.95, 0.90, drift=lri_core["emotional_drift"], noise=0.05)
+    # we use measured_coherence=0.90 as a base for this stub
+    coherence = smooth_coherence(prev_coherence, 0.90, drift=lri_core["emotional_drift"], noise=0.05)
 
     lce = {
         "v": 1,

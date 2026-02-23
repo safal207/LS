@@ -60,8 +60,8 @@ def collect_windows_context(session_id: str = "default") -> Optional[dict]:
     return _collect_windows_context_impl(session_id=session_id)
 
 
-def build_default_trace_payloads(question: str, thread_id: str) -> tuple[dict, dict, dict]:
-    return _build_default_trace_payloads_impl(question, thread_id)
+def build_default_trace_payloads(question: str, thread_id: str, prev_coherence: float = 0.95) -> tuple[dict, dict, dict]:
+    return _build_default_trace_payloads_impl(question, thread_id, prev_coherence=prev_coherence)
 
 def get_causal_trace_confidence(default: float = 0.92) -> float:
     reg = get_registry_manager()
