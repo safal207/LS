@@ -9,9 +9,16 @@ from ..web4_runtime.fuzzy import smooth_coherence
 def build_default_trace_payloads(question: str, thread_id: str) -> tuple[dict, dict, dict]:
     """Stub payload builder until real LTP/LRI metrics are wired from runtime context."""
     now_iso = datetime.now(timezone.utc).isoformat()
-    emotional_drift = 0.12
-    # coherence influenced by emotional_drift
-    coherence = smooth_coherence(0.95, 0.90, drift=emotional_drift, noise=0.05)
+
+    lri_core = {
+        "invariants": ["non_reductive", "consent_first"],
+        "emotional_drift": 0.12,
+        "resonance_map": {"focus": 0.88},
+        "stabilizer": "active",
+    }
+
+    # coherence is derived from emotional_drift (LRI) using smooth_coherence
+    coherence = smooth_coherence(0.95, 0.90, drift=lri_core["emotional_drift"], noise=0.05)
 
     lce = {
         "v": 1,
@@ -20,17 +27,13 @@ def build_default_trace_payloads(question: str, thread_id: str) -> tuple[dict, d
         "memory": {"thread": thread_id, "t": now_iso},
         "qos": {"coherence": coherence},
     }
+
     ltp_trace = {
         "thread_id": thread_id,
         "drift": 0.08,
         "admissible_futures": ["A", "B"],
     }
-    lri_core = {
-        "invariants": ["non_reductive", "consent_first"],
-        "emotional_drift": emotional_drift,
-        "resonance_map": {"focus": 0.88},
-        "stabilizer": "active",
-    }
+
     return lce, ltp_trace, lri_core
 
 
