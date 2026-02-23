@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 # Coherence smoothing constants (fallback defaults)
 _DRIFT_NORMALIZATION = 0.30
@@ -60,6 +60,20 @@ def build_default_trace_payloads(question: str, thread_id: str, prev_coherence: 
     }
 
     return lce, ltp_trace, lri_core
+
+
+def get_causal_trace_confidence(
+    get_registry_manager: Callable[[], Any | None],
+    default: float = 0.92,
+) -> float:
+    reg = get_registry_manager()
+    if reg is None:
+        return default
+    try:
+        raw = reg.get_config("causal_trace_confidence")
+        return float(raw or default)
+    except (TypeError, ValueError, AttributeError):
+        return default
 
 
 def save_causal_trace(

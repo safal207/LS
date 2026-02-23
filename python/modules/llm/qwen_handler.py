@@ -21,6 +21,7 @@ except Exception:  # optional for replay/context helpers
 
 from .causal_memory import (  # noqa: F401
     build_default_trace_payloads,
+    get_causal_trace_confidence as _get_causal_trace_confidence_impl,
     handle_replay_command,
     replay_thread,
     replay_thread_ui,
@@ -51,14 +52,7 @@ def _ensure_requests_available() -> None:
 
 
 def get_causal_trace_confidence(default: float = 0.92) -> float:
-    reg = get_registry_manager()
-    if reg is None:
-        return default
-    try:
-        raw = reg.get_config("causal_trace_confidence")
-        return float(raw or default)
-    except (TypeError, ValueError, AttributeError):
-        return default
+    return _get_causal_trace_confidence_impl(get_registry_manager, default=default)
 
 
 class QwenHandler:

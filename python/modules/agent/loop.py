@@ -96,7 +96,7 @@ class AgentLoop:
             self._next_context_poll_at = now + self._context_poll_interval_s
 
             try:
-                from ..llm.qwen_handler import collect_windows_context
+                from ..llm.context_provider import collect_windows_context
 
                 context_event = collect_windows_context(session_id=session_id)
                 if isinstance(context_event, dict):
@@ -341,11 +341,12 @@ class AgentLoop:
                 last_coherence = memory.get("last_coherence", 0.95) if isinstance(memory, dict) else 0.95
 
                 try:
-                    from ..llm.qwen_handler import (
+                    from ..llm.causal_memory import (
                         build_default_trace_payloads,
                         get_causal_trace_confidence,
                         save_causal_trace,
                     )
+                    from ..llm.context_provider import get_registry_manager, save_to_codex
 
                     lce, ltp_trace, lri_core = build_default_trace_payloads(
                         question, str(task_id), prev_coherence=last_coherence
@@ -354,8 +355,17 @@ class AgentLoop:
                     if isinstance(memory, dict):
                         memory["last_coherence"] = float(lce.get("qos", {}).get("coherence", 0.95))
 
-                    trace_confidence = get_causal_trace_confidence()
-                    save_causal_trace(question, str(result), lce, ltp_trace, lri_core, trace_confidence)
+                    trace_confidence = get_causal_trace_confidence(get_registry_manager=get_registry_manager)
+                    save_causal_trace(
+                        question,
+                        str(result),
+                        lce,
+                        ltp_trace,
+                        lri_core,
+                        confidence=trace_confidence,
+                        get_registry_manager=get_registry_manager,
+                        save_to_codex=save_to_codex,
+                    )
                 except Exception as e:
                     # trace persistence is best-effort, but log failures for observability
                     logger.warning(f"Failed to save causal trace: {e}", exc_info=True)
