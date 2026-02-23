@@ -10,7 +10,7 @@ except ImportError:  # optional for replay/context helpers
     requests = None
 import json
 import logging
-from pathlib import Path
+from pathlib import Path  # noqa: F401
 from typing import Optional
 
 try:
@@ -19,17 +19,17 @@ except Exception:  # optional for replay/context helpers
     OLLAMA_HOST = "http://localhost:11434"
     LLM_MODEL_NAME = "qwen2.5:latest"
 
-from .causal_memory import (
-    build_default_trace_payloads as _build_default_trace_payloads_impl,
-    handle_replay_command as _handle_replay_command,
-    replay_thread as _replay_thread_impl,
-    replay_thread_ui as _replay_thread_ui_impl,
-    save_causal_trace as _save_causal_trace_impl,
+from .causal_memory import (  # noqa: F401
+    build_default_trace_payloads,
+    handle_replay_command,
+    replay_thread,
+    replay_thread_ui,
+    save_causal_trace,
 )
-from .context_provider import (
-    collect_windows_context as _collect_windows_context_impl,
-    get_registry_manager as _get_registry_manager_impl,
-    save_to_codex as _save_to_codex_impl,
+from .context_provider import (  # noqa: F401
+    collect_windows_context,
+    get_registry_manager,
+    save_to_codex,
 )
 from .errors import (
     LLMEmptyResponseError,
@@ -50,22 +50,6 @@ def _ensure_requests_available() -> None:
         raise LLMProviderError("requests dependency is required for Qwen HTTP provider")
 
 
-def get_registry_manager(yaml_path: str = "config/base.yaml"):
-    return _get_registry_manager_impl(yaml_path)
-
-
-def save_to_codex(event_data: dict) -> Optional[Path]:
-    return _save_to_codex_impl(event_data)
-
-
-def collect_windows_context(session_id: str = "default") -> Optional[dict]:
-    return _collect_windows_context_impl(session_id=session_id)
-
-
-def build_default_trace_payloads(question: str, thread_id: str, prev_coherence: float = 0.95) -> tuple[dict, dict, dict]:
-    return _build_default_trace_payloads_impl(question, thread_id, prev_coherence=prev_coherence)
-
-
 def get_causal_trace_confidence(default: float = 0.92) -> float:
     reg = get_registry_manager()
     if reg is None:
@@ -75,28 +59,6 @@ def get_causal_trace_confidence(default: float = 0.92) -> float:
         return float(raw or default)
     except (TypeError, ValueError, AttributeError):
         return default
-
-
-def save_causal_trace(cause: str, solution: str, lce: dict, ltp_trace: dict, lri_core: dict, confidence: float = 0.92) -> None:
-    _save_causal_trace_impl(
-        cause,
-        solution,
-        lce,
-        ltp_trace,
-        lri_core,
-        confidence=confidence,
-        get_registry_manager=get_registry_manager,
-        save_to_codex=save_to_codex,
-    )
-
-
-def replay_thread(thread_id: str) -> list:
-    return _replay_thread_impl(thread_id, get_registry_manager=get_registry_manager)
-
-
-def replay_thread_ui(thread_id: str) -> str:
-    """Replay UI — formatted replay output for end users."""
-    return _replay_thread_ui_impl(thread_id, replay_loader=replay_thread)
 
 
 class QwenHandler:
@@ -239,7 +201,7 @@ class QwenHandler:
 
     def handle_replay_command(self, user_input: str) -> Optional[str]:
         """Replay UI command helper for AgentLoop/GUI integration."""
-        return _handle_replay_command(user_input, replay_ui_renderer=replay_thread_ui)
+        return handle_replay_command(user_input, replay_ui_renderer=replay_thread_ui)
 
 
 # Test function
@@ -257,11 +219,11 @@ def test_qwen_integration():
     response = handler.generate_response(test_prompt)
 
     if response:
-        print("âœ… Ollama Qwen working!")
+        print("✅ Ollama Qwen working!")
         print(f"Question: {test_prompt}")
         print(f"Answer: {response}\n")
     else:
-        print("â Œ Ollama Qwen not available\n")
+        print("❌ Ollama Qwen not available\n")
 
     # Test Cloud API if key provided
     api_key = os.getenv("QWEN_API_KEY", "")
@@ -271,10 +233,10 @@ def test_qwen_integration():
         cloud_response = cloud_handler.generate_response(test_prompt)
 
         if cloud_response:
-            print("âœ… Qwen Cloud API working!")
+            print("✅ Qwen Cloud API working!")
             print(f"Answer: {cloud_response}\n")
         else:
-            print("â Œ Qwen Cloud API not working\n")
+            print("❌ Qwen Cloud API not working\n")
     else:
         print("2. Qwen Cloud API key not provided (skip test)\n")
 

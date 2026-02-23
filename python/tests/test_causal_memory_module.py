@@ -91,6 +91,20 @@ def test_smooth_coherence_fallback_logic():
     assert res_high_noise > res
 
 
+def test_save_causal_trace_rejects_invalid_confidence():
+    reg = _DummyReg()
+    # We should test that it raises if we add validation in Python too,
+    # but currently it's in Rust. Let's assume we want to catch it early.
+    # If causal_memory doesn't validate, this test might fail until we add it.
+    import pytest
+    with pytest.raises(ValueError, match="confidence must be in"):
+        causal_memory.save_causal_trace(
+            "c", "s", {}, {}, {}, confidence=-0.5,
+            get_registry_manager=lambda: reg,
+            save_to_codex=lambda _: None
+        )
+
+
 def test_replay_thread_ui_handles_none_fields():
     # If fields are None instead of dict, it should not crash and use defaults
     trace = [{
@@ -106,3 +120,20 @@ def test_replay_thread_ui_handles_none_fields():
     assert "emo_drift:0.00" in rendered
     assert "coherence:0.00" in rendered
     assert "LRI: stabilizer=—" in rendered
+
+
+def test_replay_thread_ui_handles_empty_lri_core():
+    # Test for High Priority point 9: lri_core = {}
+    trace = [{
+        "ts": "2026-02-23",
+        "cause": "C",
+        "solution": "S",
+        "ltp_trace": {"drift": 0.05},
+        "lce": {"qos": {"coherence": 0.85}},
+        "lri_core": {}
+    }]
+    rendered = causal_memory.replay_thread_ui("t", replay_loader=lambda _: trace)
+    assert "drift:0.05" in rendered
+    assert "coherence:0.85" in rendered
+    assert "emo_drift:0.00" in rendered
+    assert "stabilizer=—" in rendered

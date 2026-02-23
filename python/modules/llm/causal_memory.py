@@ -73,6 +73,9 @@ def save_causal_trace(
     get_registry_manager: Callable[[], object | None],
     save_to_codex: Callable[[dict], Optional[Path]],
 ) -> None:
+    if not (0.0 <= confidence <= 1.0):
+        raise ValueError(f"confidence must be in [0.0, 1.0], got {confidence}")
+
     reg = get_registry_manager()
     if reg is None:
         return
