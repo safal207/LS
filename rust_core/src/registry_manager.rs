@@ -144,26 +144,40 @@ impl RegistryManager {
         solution: String,
         lce: PyObject,
         ltp_trace: PyObject,
+        lri_core: PyObject,
         confidence: f32,
     ) -> PyResult<()> {
-        let (lce_str, ltp_str) = Python::with_gil(|py| -> PyResult<(String, String)> {
-            let json = py.import("json")?;
-            let lce_dump: String = json.call_method1("dumps", (lce.as_ref(py),))?.extract()?;
-            let ltp_dump: String = json
-                .call_method1("dumps", (ltp_trace.as_ref(py),))?
-                .extract()?;
-            Ok((lce_dump, ltp_dump))
-        })?;
+        let (lce_value, ltp_value, lri_value) =
+            Python::with_gil(|py| -> PyResult<(serde_json::Value, serde_json::Value, serde_json::Value)> {
+                let json = py.import("json")?;
+                let lce_dump: String = json.call_method1("dumps", (lce.as_ref(py),))?.extract()?;
+                let ltp_dump: String = json
+                    .call_method1("dumps", (ltp_trace.as_ref(py),))?
+                    .extract()?;
+                let lri_dump: String = json
+                    .call_method1("dumps", (lri_core.as_ref(py),))?
+                    .extract()?;
 
-        let entry = format!(
-            r#"{{"ts":"{}","cause":"{}","solution":"{}","confidence":{},"lce":{},"ltp_trace":{}}}"#,
-            Self::now_iso(),
-            cause.replace('"', r#"\""#),
-            solution.replace('"', r#"\""#),
-            confidence,
-            lce_str,
-            ltp_str
-        );
+                let lce_value = serde_json::from_str::<serde_json::Value>(&lce_dump)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+                let ltp_value = serde_json::from_str::<serde_json::Value>(&ltp_dump)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+                let lri_value = serde_json::from_str::<serde_json::Value>(&lri_dump)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+                Ok((lce_value, ltp_value, lri_value))
+            })?;
+
+        let entry = serde_json::json!({
+            "ts": Self::now_iso(),
+            "cause": cause,
+            "solution": solution,
+            "confidence": confidence,
+            "lce": lce_value,
+            "ltp_trace": ltp_value,
+            "lri_core": lri_value,
+        })
+        .to_string();
 
         #[cfg(windows)]
         {
@@ -246,10 +260,7 @@ impl RegistryManager {
                     .and_then(|v| v.as_str())
                     .unwrap_or_default();
 
-                if !(entry.contains(&thread_id)
-                    || ltp_thread == thread_id
-                    || lce_thread == thread_id)
-                {
+                if ltp_thread != thread_id && lce_thread != thread_id {
                     continue;
                 }
 

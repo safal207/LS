@@ -33,3 +33,4 @@ def save_to_codex(event_data):
 
 Config source: Hybrid Registry (v1.0)
 + Causal Temporal Memory v1.2 + LCE + LTP
++ Causal Temporal Memory v1.3 + LCE + LTP + LRI

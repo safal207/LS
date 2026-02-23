@@ -3,7 +3,6 @@ from __future__ import annotations
 import queue
 import threading
 import time
-from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from ..llm.temporal import TemporalContext
@@ -83,14 +82,15 @@ class AgentLoop:
         self._liminal_transitions = 0
         self._context_poll_interval_s = 5.0
         self._next_context_poll_at = 0.0
+        self._context_poll_lock = threading.Lock()
 
 
     def _maybe_collect_windows_context(self, *, session_id: str) -> None:
         now = time.time()
-        if now < self._next_context_poll_at:
-            return
-
-        self._next_context_poll_at = now + self._context_poll_interval_s
+        with self._context_poll_lock:
+            if now < self._next_context_poll_at:
+                return
+            self._next_context_poll_at = now + self._context_poll_interval_s
         try:
             from ..llm.qwen_handler import collect_windows_context
 
@@ -332,22 +332,16 @@ class AgentLoop:
             }, task_id=task_id)
 
             if result is not None:
-                lce = {
-                    "v": 1,
-                    "intent": {"type": "answer", "goal": question},
-                    "affect": {"pad": [0.4, 0.2, 0.1], "tags": ["focused"]},
-                    "memory": {"thread": str(task_id), "t": datetime.now(timezone.utc).isoformat()},
-                    "qos": {"coherence": 0.92},
-                }
-                ltp_trace = {
-                    "thread_id": str(task_id),
-                    "drift": 0.08,
-                    "admissible_futures": ["A", "B"],
-                }
                 try:
-                    from ..llm.qwen_handler import save_causal_trace
+                    from ..llm.qwen_handler import (
+                        build_default_trace_payloads,
+                        get_causal_trace_confidence,
+                        save_causal_trace,
+                    )
 
-                    save_causal_trace(question, str(result), lce, ltp_trace, 0.92)
+                    lce, ltp_trace, lri_core = build_default_trace_payloads(question, str(task_id))
+                    trace_confidence = get_causal_trace_confidence()
+                    save_causal_trace(question, str(result), lce, ltp_trace, lri_core, trace_confidence)
                 except Exception:
                     pass
 
