@@ -27,6 +27,7 @@ impl RegistryManager {
         Utc::now().to_rfc3339()
     }
 
+    // === LRI-Core железная валидация (Rust-side guard) ===
     fn validate_lri_core(&self, lri: &serde_json::Value) -> PyResult<()> {
         if let Some(drift) = lri.get("emotional_drift").and_then(|v| v.as_f64()) {
             if !(0.0..=1.0).contains(&drift) {
@@ -56,20 +57,7 @@ impl RegistryManager {
         Ok(())
     }
 
-    fn trim_causal_memory(&self) -> PyResult<()> {
-        let path = self.yaml_fallback.with_file_name("causal_memory.yaml");
-        if !path.exists() {
-            return Ok(());
-        }
-
-        let content =
-            fs::read_to_string(&path).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-
-        let mut entries: Vec<String> = content
-            .lines()
-            .filter_map(|line| line.trim().strip_prefix("- ").map(ToOwned::to_owned))
-            .collect();
-
+    fn trim_entries(entries: &mut Vec<String>) {
         let now = Utc::now();
         let max_age = chrono::Duration::days(90);
 
@@ -89,13 +77,29 @@ impl RegistryManager {
         if entries.len() > 50 {
             entries.truncate(50);
         }
+    }
 
-        let mut out = String::new();
-        for e in entries {
-            out.push_str("- ");
-            out.push_str(&e);
-            out.push('\n');
+    // === Умная ротация: max 50 + старше 90 дней (YAML) ===
+    fn trim_causal_memory(&self) -> PyResult<()> {
+        let path = self.yaml_fallback.with_file_name("causal_memory.yaml");
+        if !path.exists() {
+            return Ok(());
         }
+
+        let content =
+            fs::read_to_string(&path).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+        let mut entries: Vec<String> = content
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("- ").map(ToOwned::to_owned))
+            .collect();
+
+        Self::trim_entries(&mut entries);
+
+        let out = entries
+            .iter()
+            .map(|e| format!("- {}\n", e))
+            .collect::<String>();
         fs::write(&path, out).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
         Ok(())
     }
@@ -225,10 +229,6 @@ impl RegistryManager {
                     .call_method1("dumps", (lri_core.as_ref(py),))?
                     .extract()?;
 
-                let lce_value = serde_json::from_str::<serde_json::Value>(&lce_dump)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-                let ltp_value = serde_json::from_str::<serde_json::Value>(&ltp_dump)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
                 let lri_value = serde_json::from_str::<serde_json::Value>(&lri_dump)
                     .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
@@ -239,8 +239,8 @@ impl RegistryManager {
                     "cause": cause,
                     "solution": solution,
                     "confidence": confidence,
-                    "lce": lce_value,
-                    "ltp_trace": ltp_value,
+                    "lce": serde_json::from_str::<serde_json::Value>(&lce_dump).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                    "ltp_trace": serde_json::from_str::<serde_json::Value>(&ltp_dump).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
                     "lri_core": lri_value,
                 })
                 .to_string();
@@ -248,6 +248,7 @@ impl RegistryManager {
                 Ok(entry)
             })?;
 
+        // Registry = Single Source of Truth
         #[cfg(windows)]
         {
             let hkcu = RegKey::predef(HKEY_CURRENT_USER);
@@ -256,23 +257,9 @@ impl RegistryManager {
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
             let mut entries: Vec<String> = key.get_value("entries").unwrap_or_default();
             entries.insert(0, entry);
-            if entries.len() > 50 {
-                entries.retain(|line| {
-                    if let Some(ts_pos) = line.find(r#""ts":""#) {
-                        let start = ts_pos + 7;
-                        if let Some(ts_end) = line[start..].find('"') {
-                            if let Ok(ts) = chrono::DateTime::parse_from_rfc3339(&line[start..start + ts_end])
-                            {
-                                return Utc::now().signed_duration_since(ts.with_timezone(&Utc)) < chrono::Duration::days(90);
-                            }
-                        }
-                    }
-                    true
-                });
-                if entries.len() > 50 {
-                    entries.truncate(50);
-                }
-            }
+
+            Self::trim_entries(&mut entries);
+
             key.set_value("entries", &entries)
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
             key.set_value("last_timestamp", &Self::now_iso())
@@ -282,29 +269,15 @@ impl RegistryManager {
 
         #[cfg(not(windows))]
         {
+            use std::io::Write;
             let path = self.yaml_fallback.with_file_name("causal_memory.yaml");
-            let mut entries: Vec<String> = if path.exists() {
-                fs::read_to_string(&path)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
-                    .lines()
-                    .filter_map(|line| line.trim().strip_prefix("- ").map(ToOwned::to_owned))
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            entries.insert(0, entry.clone());
-
-            // Pre-save to ensure entry is added even if trim fails
-            let mut out = String::new();
-            for e in entries {
-                out.push_str("- ");
-                out.push_str(&e);
-                out.push('\n');
-            }
-            fs::write(&path, out).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-
-            // Apply smart trim (retention + max entries)
-            self.trim_causal_memory()?;
+            let mut file = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&path)
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            writeln!(file, "- {}", entry).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            self.trim_causal_memory()?; // then unified trim
         }
         Ok(())
     }
