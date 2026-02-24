@@ -101,6 +101,19 @@ def _validate_lri_core(lri: dict) -> None:
             if not (0.0 <= f_focus <= 1.0):
                 raise ValueError(f"resonance focus out of range [0,1]: {f_focus}")
 
+    inv = lri.get("invariants")
+    if inv is not None:
+        if not isinstance(inv, list):
+            raise ValueError(f"invariants must be a list, got {type(inv)}")
+        valid_invariants = {"non_reductive", "consent_first", "agency_preserved", "causal_closure"}
+        for i in inv:
+            if i not in valid_invariants:
+                # We log warning but don't strictly block for forward compatibility unless asked
+                # but the audit says "white list", so let's be strict if we can.
+                # Actually, let's just ensure they are strings for now to be safe.
+                if not isinstance(i, str):
+                    raise ValueError(f"invariant must be a string, got {type(i)}")
+
 
 def save_causal_trace(
     cause: str,

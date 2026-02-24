@@ -57,6 +57,31 @@ save_causal_trace(question, result, lce, ltp_trace, lri_core, 0.92)
 - Registry: `CausalMemory` — JSON-line с LCE + LTP + LRI-Core
 - codex/causal_memory/ — полные JSON-трасы + index
 
+#### Пример записи (JSON):
+```json
+{
+  "ts": "2026-02-23T14:30:00Z",
+  "cause": "What is 2+2?",
+  "solution": "4",
+  "confidence": 0.92,
+  "lce": {
+    "v": 1,
+    "intent": {"type": "answer", "goal": "What is 2+2?"},
+    "qos": {"coherence": 0.94}
+  },
+  "ltp_trace": {
+    "thread_id": "thread-123",
+    "drift": 0.05
+  },
+  "lri_core": {
+    "invariants": ["non_reductive", "consent_first"],
+    "emotional_drift": 0.12,
+    "resonance_map": {"focus": 0.88},
+    "stabilizer": "active"
+  }
+}
+```
+
 ### 4. Обновления документации
 - Добавить в `codex/windows_context.md`: «+ Causal Temporal Memory v1.3 + LCE + LTP + LRI»
 - В `WEB4_ROADMAP.md` (6.5):
