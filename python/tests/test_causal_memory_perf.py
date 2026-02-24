@@ -1,5 +1,4 @@
 import time
-import pytest
 from modules.llm import causal_memory
 
 class _DummyReg:
