@@ -89,30 +89,34 @@ class AgentLoop:
 
 
     def _maybe_collect_windows_context(self, *, session_id: str) -> None:
+        now = time.time()
+        if now < self._next_context_poll_at:
+            return
+
         with self._context_poll_lock:
-            now = time.time()
+            # Re-check inside lock to prevent race conditions
             if now < self._next_context_poll_at:
                 return
             self._next_context_poll_at = now + self._context_poll_interval_s
 
-            try:
-                from ..llm.context_provider import collect_windows_context
+        try:
+            from ..llm.context_provider import collect_windows_context
 
-                context_event = collect_windows_context(session_id=session_id)
-                if isinstance(context_event, dict):
-                    event_type = context_event.get("event_type")
-                    payload = {
-                        "event_type": event_type,
-                        "confusion_score": context_event.get("confusion_score"),
-                        "source": context_event.get("source"),
-                    }
-                    if event_type == "confusion_ping":
-                        self._emit("liminal_transition", payload)
-                    else:
-                        self._emit_observability("text_update", payload)
-            except Exception as e:
-                # context provider is best-effort and must not break main loop
-                logger.debug(f"Failed to collect windows context: {e}")
+            context_event = collect_windows_context(session_id=session_id)
+            if isinstance(context_event, dict):
+                event_type = context_event.get("event_type")
+                payload = {
+                    "event_type": event_type,
+                    "confusion_score": context_event.get("confusion_score"),
+                    "source": context_event.get("source"),
+                }
+                if event_type == "confusion_ping":
+                    self._emit("liminal_transition", payload)
+                else:
+                    self._emit_observability("text_update", payload)
+        except Exception as e:
+            # context provider is best-effort and must not break main loop
+            logger.debug(f"Failed to collect windows context: {e}")
 
     def _next_task_id(self) -> int:
         with self._task_lock:

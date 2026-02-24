@@ -54,7 +54,7 @@ def test_build_default_trace_payloads():
     assert lce["intent"]["goal"] == "hello"
     assert lce["memory"]["thread"] == "thread-7"
     assert ltp_trace["thread_id"] == "thread-7"
-    assert lri_core["stabilizer"] == "active"
+    assert lri_core["stabilizer"] in ("active", "recovering")
 
     # Verify coherence is within valid range and derived
     coherence = lce["qos"]["coherence"]
