@@ -77,8 +77,8 @@ impl RegistryManager {
             if let Some(ts_pos) = line.find(r#""ts":""#) {
                 let start = ts_pos + 7;
                 if let Some(ts_end) = line[start..].find('"') {
-                    if let Ok(ts) = chrono::DateTime::parse_from_rfc3339(&line[start..start + ts_end])
-                    {
+                    let ts_str = &line[start..start + ts_end];
+                    if let Ok(ts) = chrono::DateTime::parse_from_rfc3339(ts_str) {
                         return now.signed_duration_since(ts.with_timezone(&Utc)) < max_age;
                     }
                 }
