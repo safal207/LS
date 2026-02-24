@@ -21,6 +21,7 @@ _MAX_CODEX_EVENTS = 20
 
 _RUST_MODULE = None
 _TRACKER = None
+_REGISTRY_MANAGER = None
 
 
 def load_rust_module():
@@ -54,13 +55,15 @@ def get_focus_tracker():
 
 @lru_cache(maxsize=1)
 def get_registry_manager(yaml_path: str = "config/base.yaml"):
-    """Singleton-style cache for RegistryManager. One instance per process."""
-    rust_module = load_rust_module()
-    if rust_module is None:
-        return None
-
-    manager_cls = getattr(rust_module, "RegistryManager", None)
-    return manager_cls(yaml_path) if manager_cls is not None else None
+    """Singleton + lru_cache. One RegistryManager instance per process."""
+    global _REGISTRY_MANAGER
+    if _REGISTRY_MANAGER is None:
+        rust_module = load_rust_module()
+        if rust_module is None:
+            return None
+        manager_cls = getattr(rust_module, "RegistryManager", None)
+        _REGISTRY_MANAGER = manager_cls(yaml_path) if manager_cls is not None else None
+    return _REGISTRY_MANAGER
 
 
 def save_to_codex(event_data: dict) -> Optional[Path]:
