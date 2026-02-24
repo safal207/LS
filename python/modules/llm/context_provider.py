@@ -70,6 +70,11 @@ def save_to_codex(event_data: dict) -> Optional[Path]:
     if not isinstance(event_data, dict):
         return None
 
+    # Codex mirror can be disabled via registry config (registry is SOT)
+    reg = get_registry_manager()
+    if reg and reg.get_config("enable_codex_mirror") != "true":
+        return None
+
     timestamp = event_data.get("timestamp") or datetime.now(timezone.utc).isoformat()
     safe_ts = timestamp.replace(":", "").replace("-", "").replace(".", "")
     event_type = str(event_data.get("event_type", "focus_change"))

@@ -150,7 +150,10 @@ def save_causal_trace(
     if reg is None:
         return
 
+    # Registry first — the single source of truth
     reg.save_causal_trace(cause, solution, lce, ltp_trace, lri_core, confidence)
+
+    # Codex second — acts as a mirror/trace store
     save_to_codex({
         **(lce if isinstance(lce, dict) else {}),
         "timestamp": datetime.now(timezone.utc).isoformat(),
