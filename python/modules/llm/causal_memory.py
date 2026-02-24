@@ -13,6 +13,8 @@ _NOISE_GAIN_WEIGHT = 0.20
 _MIN_GAIN = 0.02
 _MAX_GAIN = 0.95
 
+DEFAULT_CAUSAL_CONFIDENCE = 0.92
+
 
 try:
     from ..web4_runtime.fuzzy import smooth_coherence
@@ -64,7 +66,7 @@ def build_default_trace_payloads(question: str, thread_id: str, prev_coherence: 
 
 def get_causal_trace_confidence(
     get_registry_manager: Callable[[], Any | None],
-    default: float = 0.92,
+    default: float = DEFAULT_CAUSAL_CONFIDENCE,
 ) -> float:
     reg = get_registry_manager()
     if reg is None:
@@ -76,6 +78,30 @@ def get_causal_trace_confidence(
         return default
 
 
+def _validate_lri_core(lri: dict) -> None:
+    if not isinstance(lri, dict):
+        return
+    drift = lri.get("emotional_drift")
+    if drift is not None:
+        try:
+            f_drift = float(drift)
+        except (TypeError, ValueError):
+            raise ValueError(f"emotional_drift must be a float, got {type(drift)}")
+        if not (0.0 <= f_drift <= 1.0):
+            raise ValueError(f"emotional_drift out of range [0,1]: {f_drift}")
+
+    res = lri.get("resonance_map")
+    if isinstance(res, dict):
+        focus = res.get("focus")
+        if focus is not None:
+            try:
+                f_focus = float(focus)
+            except (TypeError, ValueError):
+                raise ValueError(f"resonance focus must be a float, got {type(focus)}")
+            if not (0.0 <= f_focus <= 1.0):
+                raise ValueError(f"resonance focus out of range [0,1]: {f_focus}")
+
+
 def save_causal_trace(
     cause: str,
     solution: str,
@@ -83,12 +109,14 @@ def save_causal_trace(
     ltp_trace: dict,
     lri_core: dict,
     *,
-    confidence: float = 0.92,
+    confidence: float = DEFAULT_CAUSAL_CONFIDENCE,
     get_registry_manager: Callable[[], object | None],
     save_to_codex: Callable[[dict], Optional[Path]],
 ) -> None:
     if not (0.0 <= confidence <= 1.0):
         raise ValueError(f"confidence must be in [0.0, 1.0], got {confidence}")
+
+    _validate_lri_core(lri_core)
 
     reg = get_registry_manager()
     if reg is None:

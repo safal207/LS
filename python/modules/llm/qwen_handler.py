@@ -20,6 +20,7 @@ except Exception:  # optional for replay/context helpers
     LLM_MODEL_NAME = "qwen2.5:latest"
 
 from .causal_memory import (  # noqa: F401
+    DEFAULT_CAUSAL_CONFIDENCE,
     build_default_trace_payloads,
     get_causal_trace_confidence as _get_causal_trace_confidence_impl,
     handle_replay_command,
@@ -51,7 +52,7 @@ def _ensure_requests_available() -> None:
         raise LLMProviderError("requests dependency is required for Qwen HTTP provider")
 
 
-def get_causal_trace_confidence(default: float = 0.92) -> float:
+def get_causal_trace_confidence(default: float = DEFAULT_CAUSAL_CONFIDENCE) -> float:
     return _get_causal_trace_confidence_impl(get_registry_manager, default=default)
 
 

@@ -89,8 +89,8 @@ class AgentLoop:
 
 
     def _maybe_collect_windows_context(self, *, session_id: str) -> None:
-        now = time.time()
         with self._context_poll_lock:
+            now = time.time()
             if now < self._next_context_poll_at:
                 return
             self._next_context_poll_at = now + self._context_poll_interval_s

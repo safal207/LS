@@ -91,6 +91,17 @@ def test_smooth_coherence_fallback_logic():
     assert res_high_noise > res
 
 
+def test_smooth_coherence_measured_less_than_prev():
+    # If measured < prev, result should be between them, not below measured
+    prev = 0.9
+    measured = 0.5
+    res = causal_memory.smooth_coherence(prev, measured, drift=0.5, noise=0.5)
+    # result = prev + gain * (measured - prev)
+    # since gain is max 0.95, result = prev + 0.95*(measured - prev) = 0.05*prev + 0.95*measured
+    # which is always > measured
+    assert measured < res < prev
+
+
 def test_save_causal_trace_rejects_invalid_confidence():
     reg = _DummyReg()
     # We should test that it raises if we add validation in Python too,
@@ -137,3 +148,24 @@ def test_replay_thread_ui_handles_empty_lri_core():
     assert "coherence:0.85" in rendered
     assert "emo_drift:0.00" in rendered
     assert "stabilizer=—" in rendered
+
+
+def test_save_causal_trace_rejects_invalid_lri_core():
+    import pytest
+    reg = _DummyReg()
+
+    # Invalid emotional_drift
+    with pytest.raises(ValueError, match="emotional_drift out of range"):
+        causal_memory.save_causal_trace(
+            "c", "s", {}, {}, {"emotional_drift": 1.5},
+            get_registry_manager=lambda: reg,
+            save_to_codex=lambda _: None
+        )
+
+    # Invalid resonance focus
+    with pytest.raises(ValueError, match="resonance focus out of range"):
+        causal_memory.save_causal_trace(
+            "c", "s", {}, {}, {"resonance_map": {"focus": -0.1}},
+            get_registry_manager=lambda: reg,
+            save_to_codex=lambda _: None
+        )
