@@ -34,7 +34,7 @@ def build_default_trace_payloads(
 ) -> tuple[dict, dict, dict]:
     """
     Dynamic payload builder for LTP/LRI metrics.
-    Coherence is wired to emotional_drift (LRI) using real-time entropy.
+    Generates realistic metrics with a deterministic drifting seed (1-min steps).
     """
     import random
     import time
@@ -42,19 +42,20 @@ def build_default_trace_payloads(
     now = time.time()
     now_iso = datetime.fromtimestamp(now, tz=timezone.utc).isoformat()
 
-    # Deterministic seed based on thread and time for reproducibility within trace
-    seed = hash(str(thread_id)) + int(now * 1000) % 10000
-    random.seed(seed)
+    # Deterministic seed + smooth drift over time (once per minute)
+    base_seed = hash(str(thread_id)) + int(now / 60)
+    random.seed(base_seed)
 
-    emotional_drift = round(random.uniform(0.0, 0.45), 3)
-    resonance_focus = round(random.uniform(0.70, 0.98), 3)
-    ltp_drift = round(random.uniform(0.01, 0.22), 3)
+    # Realistic metric ranges following architect's refinement
+    emotional_drift = round(0.05 + random.random() * 0.40, 3)  # 0.05..0.45
+    resonance_focus = round(0.72 + random.random() * 0.26, 3)  # 0.72..0.98
+    ltp_drift = round(0.02 + random.random() * 0.20, 3)        # 0.02..0.22
 
     lri_core = {
         "invariants": ["non_reductive", "consent_first", "agency_preserved"],
         "emotional_drift": emotional_drift,
         "resonance_map": {"focus": resonance_focus},
-        "stabilizer": "active" if random.random() > 0.12 else "recovering",
+        "stabilizer": "active" if random.random() > 0.08 else "recovering",
     }
 
     # coherence is derived from emotional_drift (LRI) using smooth_coherence

@@ -5,6 +5,7 @@ import importlib.util
 import json
 import logging
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -20,7 +21,6 @@ _MAX_CODEX_EVENTS = 20
 
 _RUST_MODULE = None
 _TRACKER = None
-_REGISTRY_MANAGER = None
 
 
 def load_rust_module():
@@ -52,19 +52,15 @@ def get_focus_tracker():
     return _TRACKER
 
 
+@lru_cache(maxsize=1)
 def get_registry_manager(yaml_path: str = "config/base.yaml"):
-    global _REGISTRY_MANAGER
-    if _REGISTRY_MANAGER is not None:
-        return _REGISTRY_MANAGER
-
+    """Singleton-style cache for RegistryManager. One instance per process."""
     rust_module = load_rust_module()
     if rust_module is None:
         return None
 
     manager_cls = getattr(rust_module, "RegistryManager", None)
-    if manager_cls is not None:
-        _REGISTRY_MANAGER = manager_cls(yaml_path)
-    return _REGISTRY_MANAGER
+    return manager_cls(yaml_path) if manager_cls is not None else None
 
 
 def save_to_codex(event_data: dict) -> Optional[Path]:
