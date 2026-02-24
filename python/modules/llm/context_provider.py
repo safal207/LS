@@ -20,7 +20,7 @@ _MAX_CODEX_EVENTS = 20
 
 _RUST_MODULE = None
 _TRACKER = None
-_REGISTRY_MANAGER_CACHE = None
+_REGISTRY_MANAGER = None
 
 
 def load_rust_module():
@@ -53,9 +53,9 @@ def get_focus_tracker():
 
 
 def get_registry_manager(yaml_path: str = "config/base.yaml"):
-    global _REGISTRY_MANAGER_CACHE
-    if _REGISTRY_MANAGER_CACHE is not None:
-        return _REGISTRY_MANAGER_CACHE
+    global _REGISTRY_MANAGER
+    if _REGISTRY_MANAGER is not None:
+        return _REGISTRY_MANAGER
 
     rust_module = load_rust_module()
     if rust_module is None:
@@ -63,8 +63,8 @@ def get_registry_manager(yaml_path: str = "config/base.yaml"):
 
     manager_cls = getattr(rust_module, "RegistryManager", None)
     if manager_cls is not None:
-        _REGISTRY_MANAGER_CACHE = manager_cls(yaml_path)
-    return _REGISTRY_MANAGER_CACHE
+        _REGISTRY_MANAGER = manager_cls(yaml_path)
+    return _REGISTRY_MANAGER
 
 
 def save_to_codex(event_data: dict) -> Optional[Path]:

@@ -43,18 +43,18 @@ def build_default_trace_payloads(
     now_iso = datetime.fromtimestamp(now, tz=timezone.utc).isoformat()
 
     # Deterministic seed based on thread and time for reproducibility within trace
-    seed = hash(thread_id) + int(now)
+    seed = hash(str(thread_id)) + int(now * 1000) % 10000
     random.seed(seed)
 
-    emotional_drift = round(random.uniform(0.0, 0.35), 3)
-    resonance_focus = round(random.uniform(0.65, 0.97), 3)
-    ltp_drift = round(random.uniform(0.02, 0.18), 3)
+    emotional_drift = round(random.uniform(0.0, 0.45), 3)
+    resonance_focus = round(random.uniform(0.70, 0.98), 3)
+    ltp_drift = round(random.uniform(0.01, 0.22), 3)
 
     lri_core = {
         "invariants": ["non_reductive", "consent_first", "agency_preserved"],
         "emotional_drift": emotional_drift,
         "resonance_map": {"focus": resonance_focus},
-        "stabilizer": "active" if random.random() > 0.15 else "recovering",
+        "stabilizer": "active" if random.random() > 0.12 else "recovering",
     }
 
     # coherence is derived from emotional_drift (LRI) using smooth_coherence
