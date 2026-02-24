@@ -294,6 +294,7 @@ impl RegistryManager {
             };
             entries.insert(0, entry.clone());
 
+            // Pre-save to ensure entry is added even if trim fails
             let mut out = String::new();
             for e in entries {
                 out.push_str("- ");
@@ -301,6 +302,8 @@ impl RegistryManager {
                 out.push('\n');
             }
             fs::write(&path, out).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+            // Apply smart trim (retention + max entries)
             self.trim_causal_memory()?;
         }
         Ok(())
