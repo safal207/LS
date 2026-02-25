@@ -96,39 +96,6 @@ def get_causal_trace_confidence(
         return default
 
 
-def _validate_lri_core(lri: dict) -> None:
-    if not isinstance(lri, dict):
-        return
-    drift = lri.get("emotional_drift")
-    if drift is not None:
-        try:
-            f_drift = float(drift)
-        except (TypeError, ValueError):
-            raise ValueError(f"emotional_drift must be a float, got {type(drift)}")
-        if not (0.0 <= f_drift <= 1.0):
-            raise ValueError(f"emotional_drift out of range [0,1]: {f_drift}")
-
-    res = lri.get("resonance_map")
-    if isinstance(res, dict):
-        focus = res.get("focus")
-        if focus is not None:
-            try:
-                f_focus = float(focus)
-            except (TypeError, ValueError):
-                raise ValueError(f"resonance focus must be a float, got {type(focus)}")
-            if not (0.0 <= f_focus <= 1.0):
-                raise ValueError(f"resonance focus out of range [0,1]: {f_focus}")
-
-    inv = lri.get("invariants")
-    if inv is not None:
-        if not isinstance(inv, list):
-            raise ValueError(f"invariants must be a list, got {type(inv)}")
-        valid_invariants = {"non_reductive", "consent_first", "agency_preserved", "causal_closure"}
-        for i in inv:
-            if i not in valid_invariants:
-                raise ValueError(f"invalid invariant: {i}. Must be one of {valid_invariants}")
-
-
 def save_causal_trace(
     cause: str,
     solution: str,
@@ -140,11 +107,6 @@ def save_causal_trace(
     get_registry_manager: Callable[[], object | None],
     save_to_codex: Callable[[dict], Optional[Path]],
 ) -> None:
-    if not (0.0 <= confidence <= 1.0):
-        raise ValueError(f"confidence must be in [0.0, 1.0], got {confidence}")
-
-    _validate_lri_core(lri_core)
-
     reg = get_registry_manager()
     if reg is None:
         return

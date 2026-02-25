@@ -112,12 +112,9 @@ class AgentLoop:
                     self._emit("liminal_transition", payload)
                 else:
                     self._emit_observability("text_update", payload)
-        except (ImportError, AttributeError, RuntimeError) as e:
-            # context provider is best-effort and must not break main loop
-            logger.debug(f"Configuration or runtime issue in context collection: {e}")
         except Exception as e:
-            # Unexpected errors should be logged with more detail for observability
-            logger.error(f"Unexpected error in context collection: {e}", exc_info=True)
+            # context provider is best-effort and must not break main loop
+            logger.debug(f"Failed to collect windows context: {e}")
 
     def _next_task_id(self) -> int:
         with self._task_lock:
@@ -341,12 +338,7 @@ class AgentLoop:
             }, task_id=task_id)
 
             if result is not None:
-                # Track coherence across iterations via self.memory (best-effort statefulness)
-                memory = getattr(self, "memory", None)
-                if not isinstance(memory, dict):
-                    self.memory = {}
-                    memory = self.memory
-                last_coherence = memory.get("last_coherence", 0.95)
+                last_coherence = self.memory.get("last_coherence", 0.95)
 
                 try:
                     from ..llm.causal_memory import (
@@ -360,7 +352,7 @@ class AgentLoop:
                         question, str(task_id), prev_coherence=last_coherence
                     )
 
-                    memory["last_coherence"] = float(lce.get("qos", {}).get("coherence", 0.95))
+                    self.memory["last_coherence"] = float(lce.get("qos", {}).get("coherence", 0.95))
 
                     trace_confidence = get_causal_trace_confidence(get_registry_manager=get_registry_manager)
                     save_causal_trace(

@@ -5,7 +5,6 @@ import importlib.util
 import json
 import logging
 from datetime import datetime, timezone
-from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -53,9 +52,7 @@ def get_focus_tracker():
     return _TRACKER
 
 
-@lru_cache(maxsize=1)
 def get_registry_manager(yaml_path: str = "config/base.yaml"):
-    """Singleton-style cache for RegistryManager. One instance per process and path."""
     rust_module = load_rust_module()
     if rust_module is None:
         return None
@@ -66,11 +63,6 @@ def get_registry_manager(yaml_path: str = "config/base.yaml"):
 
 def save_to_codex(event_data: dict) -> Optional[Path]:
     if not isinstance(event_data, dict):
-        return None
-
-    # Codex mirror can be disabled via registry config (registry is SOT)
-    reg = get_registry_manager()
-    if reg and reg.get_config("enable_codex_mirror") == "false":
         return None
 
     timestamp = event_data.get("timestamp") or datetime.now(timezone.utc).isoformat()
