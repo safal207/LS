@@ -116,8 +116,13 @@ impl RegistryManager {
             .map(|e| format!("- {}\n", e))
             .collect::<String>();
         let tmp_path = path.with_extension("yaml.tmp");
-        fs::write(&tmp_path, out).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-        fs::rename(&tmp_path, &path).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        fs::write(&tmp_path, out)
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+        if let Err(e) = fs::rename(&tmp_path, &path) {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(PyRuntimeError::new_err(e.to_string()));
+        }
         Ok(())
     }
 }
