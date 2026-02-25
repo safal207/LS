@@ -112,9 +112,12 @@ class AgentLoop:
                     self._emit("liminal_transition", payload)
                 else:
                     self._emit_observability("text_update", payload)
-        except Exception as e:
+        except (ImportError, AttributeError, RuntimeError) as e:
             # context provider is best-effort and must not break main loop
-            logger.debug(f"Failed to collect windows context: {e}")
+            logger.debug(f"Configuration or runtime issue in context collection: {e}")
+        except Exception as e:
+            # Unexpected errors should be logged with more detail for observability
+            logger.error(f"Unexpected error in context collection: {e}", exc_info=True)
 
     def _next_task_id(self) -> int:
         with self._task_lock:
