@@ -112,8 +112,8 @@ def save_causal_trace(
 
     if isinstance(lri_core, dict):
         emotional_drift = float(lri_core.get("emotional_drift", 0.0) or 0.0)
-        if not (-1.0 <= emotional_drift <= 1.0):
-            raise ValueError(f"emotional_drift out of range [-1,1]: {emotional_drift}")
+        if not (0.0 <= emotional_drift <= 1.0):
+            raise ValueError(f"emotional_drift out of range [0.0, 1.0]: {emotional_drift}")
 
         resonance_map = lri_core.get("resonance_map") or {}
         if isinstance(resonance_map, dict) and "focus" in resonance_map:
