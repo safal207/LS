@@ -35,6 +35,7 @@ def build_default_trace_payloads(
     """
     Dynamic payload builder for LTP/LRI metrics.
     Generates realistic metrics with a deterministic drifting seed (30-sec steps).
+    Uses a local random instance to avoid side effects.
     """
     import random
     import time
@@ -44,18 +45,18 @@ def build_default_trace_payloads(
 
     # Deterministic seed + smooth drift over time (every 30 seconds)
     base_seed = hash(str(thread_id)) + int(now / 30)
-    random.seed(base_seed)
+    rng = random.Random(base_seed)
 
     # Realistic metric ranges following Version 2.0 architect's refinement
-    emotional_drift = round(random.uniform(0.03, 0.47), 3)
-    resonance_focus = round(random.uniform(0.68, 0.97), 3)
-    ltp_drift = round(random.uniform(0.01, 0.25), 3)
+    emotional_drift = round(rng.uniform(0.03, 0.47), 3)
+    resonance_focus = round(rng.uniform(0.68, 0.97), 3)
+    ltp_drift = round(rng.uniform(0.01, 0.25), 3)
 
     lri_core = {
         "invariants": ["non_reductive", "consent_first", "agency_preserved"],
         "emotional_drift": emotional_drift,
         "resonance_map": {"focus": resonance_focus},
-        "stabilizer": "active" if random.random() > 0.10 else "recovering",
+        "stabilizer": "active" if rng.random() > 0.10 else "recovering",
     }
 
     # coherence is derived from emotional_drift (LRI) using smooth_coherence
@@ -123,11 +124,7 @@ def _validate_lri_core(lri: dict) -> None:
         valid_invariants = {"non_reductive", "consent_first", "agency_preserved", "causal_closure"}
         for i in inv:
             if i not in valid_invariants:
-                # We log warning but don't strictly block for forward compatibility unless asked
-                # but the audit says "white list", so let's be strict if we can.
-                # Actually, let's just ensure they are strings for now to be safe.
-                if not isinstance(i, str):
-                    raise ValueError(f"invariant must be a string, got {type(i)}")
+                raise ValueError(f"invalid invariant: {i}. Must be one of {valid_invariants}")
 
 
 def save_causal_trace(

@@ -63,7 +63,7 @@ impl RegistryManager {
 
         entries.retain(|line| {
             if let Some(ts_pos) = line.find(r#""ts":""#) {
-                let start = ts_pos + 7;
+                let start = ts_pos + 6;
                 if let Some(ts_end) = line[start..].find('"') {
                     let ts_str = &line[start..start + ts_end];
                     if let Ok(ts) = chrono::DateTime::parse_from_rfc3339(ts_str) {

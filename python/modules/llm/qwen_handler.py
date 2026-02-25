@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """
 Qwen API Integration Module
-Supports both Ollama Qwen and Alibaba Cloud Qwen API
+Supports both Ollama Qwen and Alibaba Cloud Qwen API.
+
+Note: Causal Memory and Context Provider functions are re-exported here for
+backward compatibility. Canonical imports should use .causal_memory and
+.context_provider directly.
 """
 
 try:

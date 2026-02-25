@@ -339,8 +339,6 @@ class AgentLoop:
 
             if result is not None:
                 # Track coherence across iterations via self.memory (best-effort statefulness)
-                if not isinstance(getattr(self, "memory", None), dict):
-                    self.memory = {}
                 memory = self.memory
                 last_coherence = memory.get("last_coherence", 0.95)
 

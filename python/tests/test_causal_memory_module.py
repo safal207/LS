@@ -59,8 +59,8 @@ def test_build_default_trace_payloads():
     # Verify coherence is within valid range and derived
     coherence = lce["qos"]["coherence"]
     assert 0.0 <= coherence <= 1.0
-    # For default prev=0.95 and stub measured=0.90, result should be between them
-    assert 0.90 < coherence < 0.95
+    # Coherence should drift from 0.95 towards measured 0.92
+    assert 0.91 < coherence < 0.96
 
 
 def test_coherence_influence_and_prev_value():

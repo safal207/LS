@@ -55,15 +55,13 @@ def get_focus_tracker():
 
 @lru_cache(maxsize=1)
 def get_registry_manager(yaml_path: str = "config/base.yaml"):
-    """Singleton + lru_cache. One RegistryManager instance per process."""
-    global _REGISTRY_MANAGER
-    if _REGISTRY_MANAGER is None:
-        rust_module = load_rust_module()
-        if rust_module is None:
-            return None
-        manager_cls = getattr(rust_module, "RegistryManager", None)
-        _REGISTRY_MANAGER = manager_cls(yaml_path) if manager_cls is not None else None
-    return _REGISTRY_MANAGER
+    """Singleton-style cache for RegistryManager. One instance per process and path."""
+    rust_module = load_rust_module()
+    if rust_module is None:
+        return None
+
+    manager_cls = getattr(rust_module, "RegistryManager", None)
+    return manager_cls(yaml_path) if manager_cls is not None else None
 
 
 def save_to_codex(event_data: dict) -> Optional[Path]:
@@ -72,7 +70,7 @@ def save_to_codex(event_data: dict) -> Optional[Path]:
 
     # Codex mirror can be disabled via registry config (registry is SOT)
     reg = get_registry_manager()
-    if reg and reg.get_config("enable_codex_mirror") != "true":
+    if reg and reg.get_config("enable_codex_mirror") == "false":
         return None
 
     timestamp = event_data.get("timestamp") or datetime.now(timezone.utc).isoformat()

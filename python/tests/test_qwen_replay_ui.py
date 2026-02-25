@@ -22,7 +22,7 @@ def test_replay_thread_ui_renders_lri_fields(monkeypatch):
         ],
     )
 
-    rendered = qwen_handler.replay_thread_ui("thread-123")
+    rendered = qwen_handler.replay_thread_ui("thread-123", replay_loader=qwen_handler.replay_thread)
     assert "Replay тред **thread-123**" in rendered
     assert "emo_drift:0.12" in rendered
     assert "stabilizer=active" in rendered

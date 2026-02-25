@@ -26,6 +26,8 @@ def init_stealth(*, enable_auto_start: bool = True):
         raise TypeError(f"enable_auto_start must be a bool, got {type(enable_auto_start)}")
     reg = get_registry_manager()
     if reg and enable_auto_start:
-        cmd = f'{sys.executable} {ROOT / "apps" / "ghostgpt" / "ghost_gui.py"} --stealth'
+        # Wrap paths in quotes to handle spaces
+        script_path = ROOT / "apps" / "ghostgpt" / "ghost_gui.py"
+        cmd = f'"{sys.executable}" "{script_path}" --stealth'
         reg.enable_auto_start(cmd)
     return reg
