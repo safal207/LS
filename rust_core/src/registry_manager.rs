@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+use crate::temporal_graph::{parse_causal_memory_yaml, TemporalGraph};
 use chrono::Utc;
 #[cfg(windows)]
 use winreg::enums::*;
@@ -109,20 +110,46 @@ impl RegistryManager {
         let before = entries.len();
         Self::trim_entries(&mut entries);
         let after = entries.len();
-        eprintln!("[trim_causal_memory] trimmed {} → {} entries", before, after);
+        eprintln!(
+            "[trim_causal_memory] trimmed {} → {} entries",
+            before, after
+        );
 
         let out = entries
             .iter()
             .map(|e| format!("- {}\n", e))
             .collect::<String>();
         let tmp_path = path.with_extension("yaml.tmp");
-        fs::write(&tmp_path, out)
-            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        fs::write(&tmp_path, out).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
         if let Err(e) = fs::rename(&tmp_path, &path) {
             let _ = fs::remove_file(&tmp_path);
             return Err(PyRuntimeError::new_err(e.to_string()));
         }
+        Ok(())
+    }
+
+    fn update_temporal_graph_snapshot(&self) -> PyResult<()> {
+        let causal_path = self.yaml_fallback.with_file_name("causal_memory.yaml");
+        if !causal_path.exists() {
+            return Ok(());
+        }
+
+        let content =
+            fs::read_to_string(&causal_path).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        let entries = parse_causal_memory_yaml(&content);
+        let graph = TemporalGraph::build_from_causal_memory(&entries);
+        let json = serde_json::to_string_pretty(&graph.export_json())
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+        let output_dir = self
+            .yaml_fallback
+            .parent()
+            .map(|p| p.join("codex/temporal_graph"))
+            .unwrap_or_else(|| PathBuf::from("codex/temporal_graph"));
+        fs::create_dir_all(&output_dir).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        fs::write(output_dir.join("graph.json"), json)
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
         Ok(())
     }
 }
@@ -240,23 +267,22 @@ impl RegistryManager {
             )));
         }
 
-        let entry =
-            Python::with_gil(|py| -> PyResult<String> {
-                let json = py.import("json")?;
-                let lce_dump: String = json.call_method1("dumps", (lce.as_ref(py),))?.extract()?;
-                let ltp_dump: String = json
-                    .call_method1("dumps", (ltp_trace.as_ref(py),))?
-                    .extract()?;
-                let lri_dump: String = json
-                    .call_method1("dumps", (lri_core.as_ref(py),))?
-                    .extract()?;
+        let entry = Python::with_gil(|py| -> PyResult<String> {
+            let json = py.import("json")?;
+            let lce_dump: String = json.call_method1("dumps", (lce.as_ref(py),))?.extract()?;
+            let ltp_dump: String = json
+                .call_method1("dumps", (ltp_trace.as_ref(py),))?
+                .extract()?;
+            let lri_dump: String = json
+                .call_method1("dumps", (lri_core.as_ref(py),))?
+                .extract()?;
 
-                let lri_value = serde_json::from_str::<serde_json::Value>(&lri_dump)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            let lri_value = serde_json::from_str::<serde_json::Value>(&lri_dump)
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
-                self.validate_lri_core(&lri_value)?;
+            self.validate_lri_core(&lri_value)?;
 
-                let entry = serde_json::json!({
+            let entry = serde_json::json!({
                     "ts": Self::now_iso(),
                     "cause": cause,
                     "solution": solution,
@@ -267,8 +293,8 @@ impl RegistryManager {
                 })
                 .to_string();
 
-                Ok(entry)
-            })?;
+            Ok(entry)
+        })?;
 
         // Registry = Single Source of Truth
         #[cfg(windows)]
@@ -300,6 +326,7 @@ impl RegistryManager {
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
             writeln!(file, "- {}", entry).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
             self.trim_causal_memory()?; // then unified trim
+            self.update_temporal_graph_snapshot()?;
         }
         Ok(())
     }
