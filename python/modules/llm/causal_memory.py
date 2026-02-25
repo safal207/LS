@@ -107,6 +107,20 @@ def save_causal_trace(
     get_registry_manager: Callable[[], object | None],
     save_to_codex: Callable[[dict], Optional[Path]],
 ) -> None:
+    if not (0.0 <= confidence <= 1.0):
+        raise ValueError(f"confidence must be in [0.0, 1.0], got {confidence}")
+
+    if isinstance(lri_core, dict):
+        emotional_drift = float(lri_core.get("emotional_drift", 0.0) or 0.0)
+        if not (-1.0 <= emotional_drift <= 1.0):
+            raise ValueError(f"emotional_drift out of range [-1,1]: {emotional_drift}")
+
+        resonance_map = lri_core.get("resonance_map") or {}
+        if isinstance(resonance_map, dict) and "focus" in resonance_map:
+            focus = float(resonance_map.get("focus", 0.0) or 0.0)
+            if not (0.0 <= focus <= 1.0):
+                raise ValueError(f"resonance focus out of range [0,1]: {focus}")
+
     reg = get_registry_manager()
     if reg is None:
         return
