@@ -1,10 +1,9 @@
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
-#[cfg(windows)]
 use chrono::Utc;
 #[cfg(windows)]
 use winreg::enums::*;
@@ -25,19 +24,96 @@ impl RegistryManager {
     }
 
     fn now_iso() -> String {
-        #[cfg(windows)]
-        {
-            Utc::now().to_rfc3339()
+        Utc::now().to_rfc3339()
+    }
+
+    // === LRI-Core железная валидация (Rust-side guard) ===
+    fn validate_lri_core(&self, lri: &serde_json::Value) -> PyResult<()> {
+        if let Some(drift) = lri.get("emotional_drift").and_then(|v| v.as_f64()) {
+            if !(0.0..=1.0).contains(&drift) {
+                return Err(PyValueError::new_err(format!(
+                    "emotional_drift out of range [0.0, 1.0]: {}",
+                    drift
+                )));
+            }
         }
-        #[cfg(not(windows))]
-        {
-            use std::time::{SystemTime, UNIX_EPOCH};
-            let secs = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or_default();
-            format!("{}", secs)
+        if let Some(res) = lri.get("resonance_map").and_then(|v| v.as_object()) {
+            if let Some(focus) = res.get("focus").and_then(|v| v.as_f64()) {
+                if !(0.0..=1.0).contains(&focus) {
+                    return Err(PyValueError::new_err(format!(
+                        "resonance focus out of range [0.0, 1.0]: {}",
+                        focus
+                    )));
+                }
+            }
         }
+        if let Some(inv) = lri.get("invariants").and_then(|v| v.as_array()) {
+            let valid_invariants = [
+                "non_reductive",
+                "consent_first",
+                "agency_preserved",
+                "causal_closure",
+            ];
+            for item in inv {
+                match item.as_str() {
+                    Some(s) if valid_invariants.contains(&s) => {}
+                    Some(s) => {
+                        return Err(PyValueError::new_err(format!("invalid invariant: {}", s)));
+                    }
+                    None => {
+                        return Err(PyValueError::new_err("all invariants must be strings"));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn trim_entries(entries: &mut Vec<String>) {
+        let now = Utc::now();
+        let max_age = chrono::Duration::days(90);
+
+        entries.retain(|line| {
+            if let Some(ts_pos) = line.find(r#""ts":""#) {
+                let start = ts_pos + 6;
+                if let Some(ts_end) = line[start..].find('"') {
+                    let ts_str = &line[start..start + ts_end];
+                    if let Ok(ts) = chrono::DateTime::parse_from_rfc3339(ts_str) {
+                        return now.signed_duration_since(ts.with_timezone(&Utc)) < max_age;
+                    }
+                }
+            }
+            true
+        });
+
+        if entries.len() > 50 {
+            entries.truncate(50);
+        }
+    }
+
+    // === Умная ротация: max 50 + старше 90 дней (YAML) ===
+    fn trim_causal_memory(&self) -> PyResult<()> {
+        let path = self.yaml_fallback.with_file_name("causal_memory.yaml");
+        if !path.exists() {
+            return Ok(());
+        }
+
+        let content =
+            fs::read_to_string(&path).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+        let mut entries: Vec<String> = content
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("- ").map(ToOwned::to_owned))
+            .collect();
+
+        Self::trim_entries(&mut entries);
+
+        let out = entries
+            .iter()
+            .map(|e| format!("- {}\n", e))
+            .collect::<String>();
+        fs::write(&path, out).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        Ok(())
     }
 }
 
@@ -144,27 +220,47 @@ impl RegistryManager {
         solution: String,
         lce: PyObject,
         ltp_trace: PyObject,
+        lri_core: PyObject,
         confidence: f32,
     ) -> PyResult<()> {
-        let (lce_str, ltp_str) = Python::with_gil(|py| -> PyResult<(String, String)> {
-            let json = py.import("json")?;
-            let lce_dump: String = json.call_method1("dumps", (lce.as_ref(py),))?.extract()?;
-            let ltp_dump: String = json
-                .call_method1("dumps", (ltp_trace.as_ref(py),))?
-                .extract()?;
-            Ok((lce_dump, ltp_dump))
-        })?;
+        if !(0.0..=1.0).contains(&confidence) {
+            return Err(PyValueError::new_err(format!(
+                "confidence must be in [0.0, 1.0], got {}",
+                confidence
+            )));
+        }
 
-        let entry = format!(
-            r#"{{"ts":"{}","cause":"{}","solution":"{}","confidence":{},"lce":{},"ltp_trace":{}}}"#,
-            Self::now_iso(),
-            cause.replace('"', r#"\""#),
-            solution.replace('"', r#"\""#),
-            confidence,
-            lce_str,
-            ltp_str
-        );
+        let entry =
+            Python::with_gil(|py| -> PyResult<String> {
+                let json = py.import("json")?;
+                let lce_dump: String = json.call_method1("dumps", (lce.as_ref(py),))?.extract()?;
+                let ltp_dump: String = json
+                    .call_method1("dumps", (ltp_trace.as_ref(py),))?
+                    .extract()?;
+                let lri_dump: String = json
+                    .call_method1("dumps", (lri_core.as_ref(py),))?
+                    .extract()?;
 
+                let lri_value = serde_json::from_str::<serde_json::Value>(&lri_dump)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+                self.validate_lri_core(&lri_value)?;
+
+                let entry = serde_json::json!({
+                    "ts": Self::now_iso(),
+                    "cause": cause,
+                    "solution": solution,
+                    "confidence": confidence,
+                    "lce": serde_json::from_str::<serde_json::Value>(&lce_dump).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                    "ltp_trace": serde_json::from_str::<serde_json::Value>(&ltp_dump).map_err(|e| PyRuntimeError::new_err(e.to_string()))?,
+                    "lri_core": lri_value,
+                })
+                .to_string();
+
+                Ok(entry)
+            })?;
+
+        // Registry = Single Source of Truth
         #[cfg(windows)]
         {
             let hkcu = RegKey::predef(HKEY_CURRENT_USER);
@@ -173,9 +269,9 @@ impl RegistryManager {
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
             let mut entries: Vec<String> = key.get_value("entries").unwrap_or_default();
             entries.insert(0, entry);
-            if entries.len() > 50 {
-                entries.truncate(50);
-            }
+
+            Self::trim_entries(&mut entries);
+
             key.set_value("entries", &entries)
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
             key.set_value("last_timestamp", &Self::now_iso())
@@ -185,18 +281,17 @@ impl RegistryManager {
 
         #[cfg(not(windows))]
         {
+            use std::io::Write;
             let path = self.yaml_fallback.with_file_name("causal_memory.yaml");
-            let mut content = if path.exists() {
-                fs::read_to_string(&path).map_err(|e| PyRuntimeError::new_err(e.to_string()))?
-            } else {
-                String::new()
-            };
-            content.push_str("- ");
-            content.push_str(&entry);
-            content.push('\n');
-            fs::write(path, content).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-            Ok(())
+            let mut file = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&path)
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            writeln!(file, "- {}", entry).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            self.trim_causal_memory()?; // then unified trim
         }
+        Ok(())
     }
 
     fn replay_thread(&self, thread_id: String) -> PyResult<Vec<PyObject>> {
@@ -246,10 +341,7 @@ impl RegistryManager {
                     .and_then(|v| v.as_str())
                     .unwrap_or_default();
 
-                if !(entry.contains(&thread_id)
-                    || ltp_thread == thread_id
-                    || lce_thread == thread_id)
-                {
+                if ltp_thread != thread_id && lce_thread != thread_id {
                     continue;
                 }
 

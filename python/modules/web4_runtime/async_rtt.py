@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from time import monotonic
-from typing import TYPE_CHECKING, Awaitable, Callable, Deque, Generic, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Deque, Generic, Optional, TypeVar
 
 from .fuzzy import smooth_coherence
 from .rtt import BackpressureError, DisconnectedError, RttConfig, RttStats
@@ -31,13 +31,21 @@ class AsyncRttSession(Generic[MessageT]):
     _coherence_version: int = field(default=0, init=False)
     _coherence_yield_hook: Optional[Callable[[], Awaitable[None]]] = field(default=None, init=False, repr=False)
 
+    async def __aenter__(self) -> AsyncRttSession[MessageT]:
+        if self.flow_controller is not None:
+            self.flow_controller.register_session(self)
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if self.flow_controller is not None:
+            self.flow_controller.unregister_session(self)
+        await self.disconnect()
+
     def __post_init__(self) -> None:
         self._message_queue = RttQueue(
             enable_priority_queue=self.config.enable_priority_queue,
             backpressure_policy=self.config.backpressure_policy,
         )
-        if self.flow_controller is not None:
-            self.flow_controller.register_session(self)
 
     def _get_condition(self) -> asyncio.Condition:
         loop = asyncio.get_running_loop()

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 import time
-from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from ..llm.temporal import TemporalContext
@@ -13,6 +13,8 @@ from ..cognitive_flow.liminal import is_liminal_phase
 from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
+
+logger = logging.getLogger(__name__)
 
 
 class AgentLoop:
@@ -83,16 +85,20 @@ class AgentLoop:
         self._liminal_transitions = 0
         self._context_poll_interval_s = 5.0
         self._next_context_poll_at = 0.0
+        self._context_poll_lock = threading.Lock()
 
 
     def _maybe_collect_windows_context(self, *, session_id: str) -> None:
         now = time.time()
-        if now < self._next_context_poll_at:
-            return
 
-        self._next_context_poll_at = now + self._context_poll_interval_s
+        # Atomic timer update under lock, but collection remains outside
+        with self._context_poll_lock:
+            if now < self._next_context_poll_at:
+                return
+            self._next_context_poll_at = now + self._context_poll_interval_s
+
         try:
-            from ..llm.qwen_handler import collect_windows_context
+            from ..llm.context_provider import collect_windows_context
 
             context_event = collect_windows_context(session_id=session_id)
             if isinstance(context_event, dict):
@@ -106,9 +112,9 @@ class AgentLoop:
                     self._emit("liminal_transition", payload)
                 else:
                     self._emit_observability("text_update", payload)
-        except Exception:
+        except Exception as e:
             # context provider is best-effort and must not break main loop
-            pass
+            logger.debug(f"Failed to collect windows context: {e}")
 
     def _next_task_id(self) -> int:
         with self._task_lock:
@@ -332,24 +338,41 @@ class AgentLoop:
             }, task_id=task_id)
 
             if result is not None:
-                lce = {
-                    "v": 1,
-                    "intent": {"type": "answer", "goal": question},
-                    "affect": {"pad": [0.4, 0.2, 0.1], "tags": ["focused"]},
-                    "memory": {"thread": str(task_id), "t": datetime.now(timezone.utc).isoformat()},
-                    "qos": {"coherence": 0.92},
-                }
-                ltp_trace = {
-                    "thread_id": str(task_id),
-                    "drift": 0.08,
-                    "admissible_futures": ["A", "B"],
-                }
-                try:
-                    from ..llm.qwen_handler import save_causal_trace
+                # Track coherence across iterations via self.memory (best-effort statefulness)
+                memory = getattr(self, "memory", None)
+                if not isinstance(memory, dict):
+                    self.memory = {}
+                    memory = self.memory
+                last_coherence = memory.get("last_coherence", 0.95)
 
-                    save_causal_trace(question, str(result), lce, ltp_trace, 0.92)
-                except Exception:
-                    pass
+                try:
+                    from ..llm.causal_memory import (
+                        build_default_trace_payloads,
+                        get_causal_trace_confidence,
+                        save_causal_trace,
+                    )
+                    from ..llm.context_provider import get_registry_manager, save_to_codex
+
+                    lce, ltp_trace, lri_core = build_default_trace_payloads(
+                        question, str(task_id), prev_coherence=last_coherence
+                    )
+
+                    memory["last_coherence"] = float(lce.get("qos", {}).get("coherence", 0.95))
+
+                    trace_confidence = get_causal_trace_confidence(get_registry_manager=get_registry_manager)
+                    save_causal_trace(
+                        question,
+                        str(result),
+                        lce,
+                        ltp_trace,
+                        lri_core,
+                        confidence=trace_confidence,
+                        get_registry_manager=get_registry_manager,
+                        save_to_codex=save_to_codex,
+                    )
+                except Exception as e:
+                    # trace persistence is best-effort, but log failures for observability
+                    logger.warning(f"Failed to save causal trace: {e}", exc_info=True)
 
             if result is not None or self.handler is not None:
                 self._transition("responding", task_id=task_id)
