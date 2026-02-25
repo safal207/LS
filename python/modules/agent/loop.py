@@ -338,7 +338,12 @@ class AgentLoop:
             }, task_id=task_id)
 
             if result is not None:
-                last_coherence = self.memory.get("last_coherence", 0.95)
+                # Track coherence across iterations via self.memory (best-effort statefulness)
+                memory = getattr(self, "memory", None)
+                if not isinstance(memory, dict):
+                    self.memory = {}
+                    memory = self.memory
+                last_coherence = memory.get("last_coherence", 0.95)
 
                 try:
                     from ..llm.causal_memory import (
@@ -352,7 +357,7 @@ class AgentLoop:
                         question, str(task_id), prev_coherence=last_coherence
                     )
 
-                    self.memory["last_coherence"] = float(lce.get("qos", {}).get("coherence", 0.95))
+                    memory["last_coherence"] = float(lce.get("qos", {}).get("coherence", 0.95))
 
                     trace_confidence = get_causal_trace_confidence(get_registry_manager=get_registry_manager)
                     save_causal_trace(

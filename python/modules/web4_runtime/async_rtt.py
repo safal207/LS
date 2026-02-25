@@ -46,7 +46,6 @@ class AsyncRttSession(Generic[MessageT]):
             enable_priority_queue=self.config.enable_priority_queue,
             backpressure_policy=self.config.backpressure_policy,
         )
-        # registration is handled by __aenter__ to avoid double-register
 
     def _get_condition(self) -> asyncio.Condition:
         loop = asyncio.get_running_loop()
