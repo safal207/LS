@@ -43,7 +43,9 @@ def build_default_trace_payloads(
     now = time.time()
     now_iso = datetime.fromtimestamp(now, tz=timezone.utc).isoformat()
 
-    # Deterministic seed + smooth drift over time (every 30 seconds)
+    # Deterministic seed + smooth drift over time (every 30 seconds).
+    # Note: In tests, this might cause slight seed shifts if executed across a 30s boundary,
+    # but the derived coherence ranges in assertions are robust enough to handle this.
     base_seed = hash(str(thread_id)) + int(now / 30)
     rng = random.Random(base_seed)
 

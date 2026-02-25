@@ -48,9 +48,21 @@ impl RegistryManager {
             }
         }
         if let Some(inv) = lri.get("invariants").and_then(|v| v.as_array()) {
+            let valid_invariants = [
+                "non_reductive",
+                "consent_first",
+                "agency_preserved",
+                "causal_closure",
+            ];
             for item in inv {
-                if !item.is_string() {
-                    return Err(PyValueError::new_err("all invariants must be strings"));
+                match item.as_str() {
+                    Some(s) if valid_invariants.contains(&s) => {}
+                    Some(s) => {
+                        return Err(PyValueError::new_err(format!("invalid invariant: {}", s)));
+                    }
+                    None => {
+                        return Err(PyValueError::new_err("all invariants must be strings"));
+                    }
                 }
             }
         }
