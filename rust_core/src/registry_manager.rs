@@ -106,13 +106,23 @@ impl RegistryManager {
             .filter_map(|line| line.trim().strip_prefix("- ").map(ToOwned::to_owned))
             .collect();
 
+        let before = entries.len();
         Self::trim_entries(&mut entries);
+        let after = entries.len();
+        eprintln!("[trim_causal_memory] trimmed {} → {} entries", before, after);
 
         let out = entries
             .iter()
             .map(|e| format!("- {}\n", e))
             .collect::<String>();
-        fs::write(&path, out).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        let tmp_path = path.with_extension("yaml.tmp");
+        fs::write(&tmp_path, out)
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+        if let Err(e) = fs::rename(&tmp_path, &path) {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(PyRuntimeError::new_err(e.to_string()));
+        }
         Ok(())
     }
 }
