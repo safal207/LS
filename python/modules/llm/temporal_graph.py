@@ -11,6 +11,26 @@ from .causal_memory import with_file_lock
 
 
 _tfidf_cache: dict[int, tuple[dict[str, int], list[float], list[list[float]], list[str]]] = {}
+_embedding_cache: dict[str, list[float]] = {}
+
+try:
+    from sentence_transformers import SentenceTransformer
+
+    _embedder: SentenceTransformer | None = None
+    USE_SENTENCE_TRANSFORMERS = True
+except ImportError:
+    SentenceTransformer = None
+    _embedder = None
+    USE_SENTENCE_TRANSFORMERS = False
+
+
+def _get_embedder() -> Any:
+    global _embedder
+    if _embedder is None:
+        if SentenceTransformer is None:
+            raise RuntimeError("sentence-transformers is not available")
+        _embedder = SentenceTransformer("all-MiniLM-L6-v2")
+    return _embedder
 
 
 def _parse_ts(raw: str | None) -> datetime:
@@ -261,6 +281,28 @@ def _get_or_build_tfidf(
     return _tfidf_cache[cache_key]
 
 
+def get_embedding(text: str) -> list[float]:
+    """Text embedding with sentence-transformers when available, otherwise TF-IDF fallback."""
+    clean_text = text.strip()
+    if not clean_text:
+        return [0.0] * 384
+
+    if clean_text in _embedding_cache:
+        return _embedding_cache[clean_text]
+
+    if USE_SENTENCE_TRANSFORMERS:
+        encoded = _get_embedder().encode(clean_text, normalize_embeddings=True)
+        embedding = encoded.tolist() if hasattr(encoded, "tolist") else list(encoded)
+    else:
+        temp_graph = {"nodes": {"__query__:0": {"cause": clean_text, "solution": ""}}}
+        vocabulary, idf, _matrix, _node_ids = _get_or_build_tfidf(temp_graph)
+        embedding = _vectorize_query(clean_text, vocabulary, idf)
+        embedding = embedding[:384] + [0.0] * max(0, 384 - len(embedding))
+
+    _embedding_cache[clean_text] = embedding
+    return embedding
+
+
 def _score_related_threads(
     graph: dict[str, Any], thread_id: str, max_depth: int = 2
 ) -> dict[str, float]:
@@ -307,13 +349,18 @@ def find_vector_related(
     if not query_text.strip():
         return {}
 
-    vocabulary, idf, matrix, cached_node_ids = _get_or_build_tfidf(graph)
-    query_vec = _vectorize_query(query_text, vocabulary, idf)
+    cached_node_ids = sorted(nodes.keys())
+    query_vec = get_embedding(query_text)
+    matrix = [
+        get_embedding(f"{nodes[node_id].get('cause', '')} {nodes[node_id].get('solution', '')}")
+        for node_id in cached_node_ids
+    ]
     similarities = _cosine_similarity(query_vec, matrix)
 
     ranked = sorted(enumerate(similarities), key=lambda item: item[1], reverse=True)
     related: dict[str, float] = {}
     for idx, similarity in ranked[:top_k]:
+        similarity = max(0.0, min(1.0, float(similarity)))
         if similarity < min_similarity:
             continue
         node_id = cached_node_ids[idx]
