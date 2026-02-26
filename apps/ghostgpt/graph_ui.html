@@ -287,14 +287,22 @@
     function exportVisibleGraphAsPng() {
       const svgEl = document.getElementById("graph");
       const serializer = new XMLSerializer();
-      const svgMarkup = serializer.serializeToString(svgEl);
-      const blob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
+      // Клонируем SVG и применяем текущий zoom/pan для экспорта
+      const clone = svgEl.cloneNode(true);
+      const g = clone.querySelector("g");
+      const currentTransform = d3.zoomTransform(svgEl);
+      g.setAttribute("transform", currentTransform.toString());
+
+      const svgMarkup = serializer.serializeToString(clone);
+      const blob = new Blob([`<?xml version="1.0" encoding="UTF-8"?>${svgMarkup}`], { type: "image/svg+xml;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const image = new Image();
       image.onload = () => {
         const canvas = document.createElement("canvas");
-        canvas.width = Math.max(1, Math.floor(width));
-        canvas.height = Math.max(1, Math.floor(height));
+        // Учитываем текущий масштаб для чёткости
+        const scale = Math.max(1, currentTransform.k);
+        canvas.width = Math.floor(width * scale);
+        canvas.height = Math.floor(height * scale);
         const ctx = canvas.getContext("2d");
         ctx.fillStyle = "#11111b";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -304,11 +312,11 @@
         const pngUrl = canvas.toDataURL("image/png");
         const link = document.createElement("a");
         link.href = pngUrl;
-        link.download = `temporal-graph-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
+        link.download = `temporal-graph-${new Date().toISOString().slice(0,19).replace(/[:T]/g, "-")}.png`;
         document.body.appendChild(link);
         link.click();
         link.remove();
-        showToast("PNG экспортирован");
+        showToast("PNG экспортирован (с учётом зума)");
       };
       image.onerror = () => {
         URL.revokeObjectURL(url);
