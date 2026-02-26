@@ -148,8 +148,10 @@
   <div class="toolbar">
     <button id="refresh-btn" type="button">Refresh Graph</button>
     <button id="reset-btn" type="button">Reset View</button>
+    <button id="reset-saved-btn" type="button">Reset saved view</button>
     <button id="export-btn" type="button">Export PNG</button>
     <input id="search-input" class="toolbar-input" type="text" placeholder="Поиск по thread_id или cause..." />
+    <button id="clear-filter-btn" type="button">Clear filter</button>
     <div class="legend" id="legend"></div>
   </div>
   <svg id="graph"></svg>
@@ -173,21 +175,71 @@
 
     const refreshBtn = document.getElementById("refresh-btn");
     const resetBtn = document.getElementById("reset-btn");
+    const resetSavedBtn = document.getElementById("reset-saved-btn");
     const exportBtn = document.getElementById("export-btn");
+    const clearFilterBtn = document.getElementById("clear-filter-btn");
     const searchInput = document.getElementById("search-input");
     const toast = document.getElementById("toast");
     const legend = document.getElementById("legend");
     const toolbar = document.querySelector(".toolbar");
     const svg = d3.select("#graph");
+    const STORAGE_KEY = "temporalGraphView";
     let width = window.innerWidth;
     let height = window.innerHeight - toolbar.offsetHeight;
     let simulation = null;
+    let nodeRadiusById = new Map();
+    let connectedNodeIdsById = new Map();
+    let isLegendHidden = false;
+    let currentMatchedIds = new Set();
+
+    function saveViewState(patch = {}) {
+      const currentTransform = d3.zoomTransform(svg.node());
+      const nextState = {
+        transform: { x: currentTransform.x, y: currentTransform.y, k: currentTransform.k },
+        filter: searchInput.value || "",
+        legendHidden: isLegendHidden,
+        ...patch
+      };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+      } catch (error) {
+        console.warn("Не удалось сохранить вид графа", error);
+      }
+    }
+
+    function loadViewState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) {
+          return {};
+        }
+        return JSON.parse(saved);
+      } catch (error) {
+        console.warn("Не удалось восстановить сохранённый вид", error);
+        return {};
+      }
+    }
+
+    function toggleLegend(forceHidden) {
+      isLegendHidden = typeof forceHidden === "boolean" ? forceHidden : !isLegendHidden;
+      legend.style.display = isLegendHidden ? "none" : "flex";
+      saveViewState({ legendHidden: isLegendHidden });
+    }
+
+    function resetView(animate = true) {
+      const action = animate ? svg.transition().duration(750) : svg;
+      action.call(zoomBehavior.transform, d3.zoomIdentity);
+      if (simulation) {
+        simulation.alpha(0.4).restart();
+      }
+    }
 
     svg.attr("viewBox", [0, 0, width, height]).style("height", `${height}px`);
 
     const container = svg.append("g");
     const zoomBehavior = d3.zoom().scaleExtent([0.15, 5]).on("zoom", (event) => {
       container.attr("transform", event.transform);
+      saveViewState({ transform: { x: event.transform.x, y: event.transform.y, k: event.transform.k } });
     });
     svg.call(zoomBehavior);
 
@@ -241,6 +293,7 @@
       const { node, link, labels } = graphElements;
 
       if (!normalized) {
+        currentMatchedIds = new Set();
         node
           .style("display", null)
           .classed("glow-match", false)
@@ -252,11 +305,13 @@
 
       const matchedIds = new Set();
       node.each(function(d) {
-        const haystack = `${d.thread_id ?? ""} ${d.cause ?? ""}`.toLowerCase();
+        const haystack = `${d.thread_id ?? ""} ${d.cause ?? ""} ${d.solution ?? ""}`.toLowerCase();
         if (haystack.includes(normalized)) {
           matchedIds.add(d.id);
         }
       });
+
+      currentMatchedIds = matchedIds;
 
       node
         .style("display", (d) => (matchedIds.has(d.id) ? null : "none"))
@@ -270,6 +325,12 @@
           ? null
           : "none"
       ));
+    }
+
+    function clearFilter() {
+      searchInput.value = "";
+      applyFilter("");
+      saveViewState({ filter: "" });
     }
 
     async function copyThreadId(threadId) {
@@ -367,6 +428,49 @@
         .style("top", `${event.pageY + 12}px`);
     }
 
+    function highlightConnectedNode(nodeDatum) {
+      if (!graphElements) {
+        return;
+      }
+      const { node, link } = graphElements;
+      const activeIds = connectedNodeIdsById.get(nodeDatum.id) || new Set([nodeDatum.id]);
+
+      node
+        .attr("stroke-width", (d) => (activeIds.has(d.id) ? 4 : (currentMatchedIds.has(d.id) ? 4 : 1.5)))
+        .attr("r", (d) => {
+          const baseRadius = nodeRadiusById.get(d.id) || 11;
+          return activeIds.has(d.id) ? baseRadius * 1.15 : baseRadius;
+        })
+        .style("opacity", (d) => (activeIds.has(d.id) ? 1 : 0.5));
+
+      link
+        .attr("stroke-width", (d) => {
+          const sourceId = d.source.id ?? d.source;
+          const targetId = d.target.id ?? d.target;
+          return (sourceId === nodeDatum.id || targetId === nodeDatum.id) ? 3.5 : 2;
+        })
+        .style("opacity", (d) => {
+          const sourceId = d.source.id ?? d.source;
+          const targetId = d.target.id ?? d.target;
+          return (sourceId === nodeDatum.id || targetId === nodeDatum.id) ? 1 : 0.2;
+        });
+    }
+
+    function resetHoverHighlight() {
+      if (!graphElements) {
+        return;
+      }
+      const { node, link } = graphElements;
+      node
+        .attr("stroke-width", (d) => (currentMatchedIds.has(d.id) ? 4 : 1.5))
+        .attr("r", (d) => nodeRadiusById.get(d.id) || 11)
+        .style("opacity", 1);
+
+      link
+        .attr("stroke-width", 2)
+        .style("opacity", 0.9);
+    }
+
     function hideTooltip() {
       tooltip.style("opacity", 0);
     }
@@ -404,6 +508,20 @@
         }
         const links = normalizeLinks(data.edges);
 
+        const degreeById = new Map(nodes.map((n) => [n.id, 0]));
+        const neighborsById = new Map(nodes.map((n) => [n.id, new Set([n.id])]));
+        links.forEach((edge) => {
+          degreeById.set(edge.source, (degreeById.get(edge.source) || 0) + 1);
+          degreeById.set(edge.target, (degreeById.get(edge.target) || 0) + 1);
+          neighborsById.get(edge.source)?.add(edge.target);
+          neighborsById.get(edge.target)?.add(edge.source);
+        });
+        connectedNodeIdsById = neighborsById;
+
+        const maxDegree = Math.max(...degreeById.values(), 1);
+        const radiusScale = d3.scaleLinear().domain([0, maxDegree]).range([9, 18]);
+        nodeRadiusById = new Map([...degreeById.entries()].map(([nodeId, degree]) => [nodeId, radiusScale(degree)]));
+
         container.selectAll("*").remove();
 
         const link = container
@@ -420,7 +538,7 @@
           .selectAll("circle")
           .data(nodes)
           .join("circle")
-          .attr("r", 11)
+          .attr("r", (d) => nodeRadiusById.get(d.id) || 11)
           .attr("fill", (d) => {
             const drift = d.lri_core?.emotional_drift ?? 0;
             const hue = (drift + 1) * 60;
@@ -429,9 +547,15 @@
           .attr("stroke", "#1e66f5")
           .attr("stroke-width", 1.5)
           .on("click", (_, d) => copyThreadId(d.thread_id))
-          .on("mouseover", showTooltip)
+          .on("mouseover", (event, d) => {
+            showTooltip(event, d);
+            highlightConnectedNode(d);
+          })
           .on("mousemove", showTooltip)
-          .on("mouseout", hideTooltip);
+          .on("mouseout", () => {
+            hideTooltip();
+            resetHoverHighlight();
+          });
 
         const labels = container
           .append("g")
@@ -442,18 +566,38 @@
           .attr("dy", "0.1em")
           .text((d) => d.thread_id || "");
 
+        const manyNodes = nodes.length > 100;
+        const linkDistance = manyNodes ? 80 : 120;
+        const chargeStrength = manyNodes ? -180 : -300;
+        const collideRadius = manyNodes ? 12 : 16;
+
         simulation = d3.forceSimulation(nodes)
-          .force("link", d3.forceLink(links).id((d) => d.id).distance(120))
-          .force("charge", d3.forceManyBody().strength(-300))
+          .force("link", d3.forceLink(links).id((d) => d.id).distance(linkDistance).strength(manyNodes ? 0.3 : 0.8))
+          .force("charge", d3.forceManyBody().strength(chargeStrength))
           .force("center", d3.forceCenter(width / 2, height / 2))
-          .force("collide", d3.forceCollide().radius(16))
-          .force("x", d3.forceX(width / 2).strength(0.05))
-          .force("y", d3.forceY(height / 2).strength(0.05));
+          .force("collide", d3.forceCollide().radius(collideRadius))
+          .force("x", d3.forceX(width / 2).strength(manyNodes ? 0.02 : 0.05))
+          .force("y", d3.forceY(height / 2).strength(manyNodes ? 0.02 : 0.05));
 
         node.call(drag(simulation));
 
         graphElements = { node, link, labels };
+        const savedState = loadViewState();
+        if (savedState?.filter && !searchInput.value) {
+          searchInput.value = savedState.filter;
+        }
         applyFilter(searchInput.value || "");
+
+        if (savedState?.transform) {
+          const restored = d3.zoomIdentity
+            .translate(savedState.transform.x || 0, savedState.transform.y || 0)
+            .scale(savedState.transform.k || 1);
+          svg.call(zoomBehavior.transform, restored);
+        }
+
+        if (typeof savedState?.legendHidden === "boolean") {
+          toggleLegend(savedState.legendHidden);
+        }
 
         simulation.on("tick", () => {
           link
@@ -499,14 +643,62 @@
     searchInput.addEventListener("input", (event) => {
       clearTimeout(filterTimeout);
       filterTimeout = setTimeout(() => {
-        applyFilter(event.target.value || "");
+        const nextFilter = event.target.value || "";
+        applyFilter(nextFilter);
+        saveViewState({ filter: nextFilter });
       }, 120);
     });
+    clearFilterBtn.addEventListener("click", clearFilter);
     exportBtn.addEventListener("click", exportVisibleGraphAsPng);
-    resetBtn.addEventListener("click", () => {
-      svg.transition().duration(750).call(zoomBehavior.transform, d3.zoomIdentity);
-      if (simulation) {
-        simulation.alpha(0.4).restart();
+    resetBtn.addEventListener("click", () => resetView(true));
+    resetSavedBtn.addEventListener("click", () => {
+      localStorage.removeItem(STORAGE_KEY);
+      clearFilter();
+      resetView(true);
+      toggleLegend(false);
+      showToast("Сохранённый вид сброшен");
+    });
+
+    document.addEventListener("keydown", (event) => {
+      const target = event.target;
+      const isTyping = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+
+      if (event.key === "/" && !isTyping) {
+        event.preventDefault();
+        searchInput.focus();
+        searchInput.select();
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        clearFilter();
+        return;
+      }
+
+      if (isTyping) {
+        return;
+      }
+
+      switch (event.key.toLowerCase()) {
+        case "r":
+          event.preventDefault();
+          loadGraph();
+          break;
+        case "e":
+          event.preventDefault();
+          exportVisibleGraphAsPng();
+          break;
+        case "f":
+          event.preventDefault();
+          resetView(true);
+          break;
+        case "h":
+          event.preventDefault();
+          toggleLegend();
+          break;
+        default:
+          break;
       }
     });
     loadGraph();
