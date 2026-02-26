@@ -296,7 +296,7 @@ def get_embedding(text: str) -> list[float]:
         _embedding_cache.move_to_end(clean_text)
         return _embedding_cache[clean_text]
 
-    logger.debug("Embedding cache miss for text: %s...", clean_text[:50])
+    logger.debug("Embedding cache miss for text (first 50 chars): %s...", clean_text[:50])
 
     if USE_SENTENCE_TRANSFORMERS:
         encoded = _get_embedder().encode(clean_text, normalize_embeddings=True)

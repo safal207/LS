@@ -228,6 +228,7 @@ def test_fallback_to_tfidf(monkeypatch):
     emb = temporal_graph.get_embedding("database pool exhausted")
 
     assert len(emb) == 384
+    assert any(value > 0.0 for value in emb[:100])
     assert any(value > 0.0 for value in emb)
 
 
