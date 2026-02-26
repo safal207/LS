@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import time
 
 from modules.llm.causal_memory import with_file_lock
 from modules.llm.temporal_graph import merge_or_append_entry
@@ -99,8 +100,12 @@ def test_flock_recovers_from_stale_lock(tmp_path):
     with open(lock_path, "w") as f:
         f.write("stale")
 
+    start = time.monotonic()
     result = []
     with_file_lock(file_path, lambda: result.append(1), timeout=0.5)
+    duration = time.monotonic() - start
 
     assert result == [1]
     assert not os.path.exists(lock_path)
+    assert duration >= 0.01
+    assert duration < 1.0
