@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Temporal Graph UI</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: #11111b;
+      color: #cdd6f4;
+      overflow: hidden;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #313244;
+      background: #181825;
+      position: relative;
+      z-index: 2;
+    }
+
+    button {
+      background: #89b4fa;
+      color: #11111b;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .legend {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-left: auto;
+      font-size: 13px;
+      color: #bac2de;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+
+    #graph {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+
+    .tooltip {
+      background: #1e1e2e;
+      color: #cdd6f4;
+      border: 1px solid #45475a;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 13px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      max-width: 300px;
+    }
+
+    .node-label {
+      font-size: 10px;
+      fill: #cdd6f4;
+      pointer-events: none;
+      text-anchor: middle;
+      dominant-baseline: central;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button id="refresh-btn" type="button">Refresh Graph</button>
+    <button id="reset-btn" type="button">Reset View</button>
+    <div class="legend" id="legend"></div>
+  </div>
+  <svg id="graph"></svg>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <script>
+    const EDGE_COLORS = {
+      temporal: "#3b82f6",
+      causal: "#ef4444",
+      resonance: "#10b981"
+    };
+
+    const tooltip = d3.select("body")
+      .append("div")
+      .attr("class", "tooltip")
+      .style("white-space", "pre-line")
+      .style("opacity", 0)
+      .style("position", "absolute")
+      .style("pointer-events", "none");
+
+    const refreshBtn = document.getElementById("refresh-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const legend = document.getElementById("legend");
+    const toolbar = document.querySelector(".toolbar");
+    const svg = d3.select("#graph");
+    let width = window.innerWidth;
+    let height = window.innerHeight - toolbar.offsetHeight;
+    let simulation = null;
+
+    svg.attr("viewBox", [0, 0, width, height]).style("height", `${height}px`);
+
+    const container = svg.append("g");
+    const zoomBehavior = d3.zoom().scaleExtent([0.15, 5]).on("zoom", (event) => {
+      container.attr("transform", event.transform);
+    });
+    svg.call(zoomBehavior);
+
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight - toolbar.offsetHeight;
+      svg.attr("viewBox", [0, 0, width, height]).style("height", `${height}px`);
+      if (simulation) {
+        simulation
+          .force("center", d3.forceCenter(width / 2, height / 2))
+          .force("x", d3.forceX(width / 2).strength(0.05))
+          .force("y", d3.forceY(height / 2).strength(0.05))
+          .alpha(0.3)
+          .restart();
+      }
+    }
+
+    window.addEventListener("resize", resize);
+    setTimeout(resize, 0);
+
+    Object.entries(EDGE_COLORS).forEach(([name, color]) => {
+      const item = document.createElement("div");
+      item.className = "legend-item";
+      item.innerHTML = `<span class="legend-color" style="background:${color}"></span><span>${name}</span>`;
+      legend.appendChild(item);
+    });
+
+    let loading = false;
+
+    function drag(simulation) {
+      function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+      }
+
+      function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+      }
+
+      function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      }
+
+      return d3.drag()
+        .on("start", dragstarted)
+        .on("drag", dragged)
+        .on("end", dragended);
+    }
+
+    function showTooltip(event, d) {
+      const emotionalDrift = d.lri_core && typeof d.lri_core.emotional_drift !== "undefined"
+        ? d.lri_core.emotional_drift
+        : "n/a";
+      tooltip
+        .style("opacity", 1)
+        .html(`
+          <div><strong>thread_id:</strong> ${d.thread_id ?? ""}</div>
+          <div><strong>event_id:</strong> ${d.id ?? ""}</div>
+          <div><strong>cause:</strong> ${d.cause ?? ""}</div>
+          <div><strong>solution:</strong> ${d.solution ?? ""}</div>
+          <div><strong>ts:</strong> ${d.ts ?? ""}</div>
+          <div><strong>emotional_drift:</strong> ${emotionalDrift}</div>
+        `)
+        .style("left", `${event.pageX + 12}px`)
+        .style("top", `${event.pageY + 12}px`);
+    }
+
+    function hideTooltip() {
+      tooltip.style("opacity", 0);
+    }
+
+    function normalizeLinks(edges) {
+      return (edges || []).filter((edge) => edge.source && edge.target)
+        .map((edge) => ({ source: edge.source, target: edge.target, relation: edge.type }));
+    }
+
+    async function loadGraph() {
+      if (loading) {
+        return;
+      }
+      loading = true;
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = "Loading…";
+      container.selectAll("*").remove();
+
+      try {
+        const res = await fetch("/graph.json", { cache: "no-store" });
+        if (!res.ok) {
+          throw new Error(`Failed to load graph: ${res.status}`);
+        }
+        const data = await res.json();
+
+        const nodes = Object.values(data.nodes || {});
+        if (nodes.length === 0) {
+          container.append("text")
+            .attr("x", width / 2)
+            .attr("y", height / 2)
+            .attr("text-anchor", "middle")
+            .style("fill", "#f38ba8")
+            .text("Граф пуст или данные отсутствуют");
+          return;
+        }
+        const links = normalizeLinks(data.edges);
+
+        container.selectAll("*").remove();
+
+        const link = container
+          .append("g")
+          .attr("stroke-opacity", 0.9)
+          .selectAll("line")
+          .data(links)
+          .join("line")
+          .attr("stroke-width", 2)
+          .attr("stroke", (d) => EDGE_COLORS[d.relation] || "#6c7086");
+
+        const node = container
+          .append("g")
+          .selectAll("circle")
+          .data(nodes)
+          .join("circle")
+          .attr("r", 11)
+          .attr("fill", "#89b4fa")
+          .attr("stroke", "#1e66f5")
+          .attr("stroke-width", 1.5)
+          .on("mouseover", showTooltip)
+          .on("mousemove", showTooltip)
+          .on("mouseout", hideTooltip);
+
+        const labels = container
+          .append("g")
+          .selectAll("text")
+          .data(nodes)
+          .join("text")
+          .attr("class", "node-label")
+          .attr("dy", "0.1em")
+          .text((d) => d.thread_id || "");
+
+        simulation = d3.forceSimulation(nodes)
+          .force("link", d3.forceLink(links).id((d) => d.id).distance(120))
+          .force("charge", d3.forceManyBody().strength(-300))
+          .force("center", d3.forceCenter(width / 2, height / 2))
+          .force("collide", d3.forceCollide().radius(16))
+          .force("x", d3.forceX(width / 2).strength(0.05))
+          .force("y", d3.forceY(height / 2).strength(0.05));
+
+        node.call(drag(simulation));
+
+        simulation.on("tick", () => {
+          link
+            .attr("x1", (d) => d.source.x)
+            .attr("y1", (d) => d.source.y)
+            .attr("x2", (d) => d.target.x)
+            .attr("y2", (d) => d.target.y);
+
+          node
+            .attr("cx", (d) => d.x)
+            .attr("cy", (d) => d.y);
+
+          labels
+            .attr("x", (d) => d.x)
+            .attr("y", (d) => d.y);
+        });
+      } catch (error) {
+        console.error("Ошибка загрузки графа:", error);
+        container.append("text")
+          .attr("x", width / 2)
+          .attr("y", height / 2)
+          .attr("text-anchor", "middle")
+          .attr("dy", "-1em")
+          .style("fill", "#f38ba8")
+          .text("Не удалось загрузить граф");
+        container.append("text")
+          .attr("x", width / 2)
+          .attr("y", (height / 2) + 24)
+          .attr("text-anchor", "middle")
+          .style("fill", "#94e2d5")
+          .style("font-size", "14px")
+          .text(error.message || "Проверьте, существует ли graph.json");
+      } finally {
+        loading = false;
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = "Refresh Graph";
+      }
+    }
+
+    refreshBtn.addEventListener("click", loadGraph);
+    resetBtn.addEventListener("click", () => {
+      svg.transition().duration(750).call(zoomBehavior.transform, d3.zoomIdentity);
+      if (simulation) {
+        simulation.alpha(0.4).restart();
+      }
+    });
+    loadGraph();
+  </script>
+</body>
+</html>
