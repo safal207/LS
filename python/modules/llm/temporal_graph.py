@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 
+_tfidf_cache: dict[int, tuple[dict[str, int], list[float], list[list[float]], list[str]]] = {}
+
 
 def _parse_ts(raw: str | None) -> datetime:
     if not raw:
@@ -207,7 +209,7 @@ def _build_tfidf_matrix(texts: list[str]) -> tuple[list[list[float]], dict[str, 
 def _vectorize_query(query: str, vocabulary: dict[str, int], idf: list[float]) -> list[float]:
     vector = [0.0 for _ in range(len(vocabulary))]
     tokens = _tokenize(query)
-    if not tokens:
+    if len(tokens) < 3:
         return vector
 
     token_counts: dict[str, int] = defaultdict(int)
@@ -222,18 +224,38 @@ def _vectorize_query(query: str, vocabulary: dict[str, int], idf: list[float]) -
     for token, count in token_counts.items():
         col_idx = vocabulary[token]
         vector[col_idx] = (count / token_total) * idf[col_idx]
+
+    norm = math.sqrt(sum(value * value for value in vector)) or 1.0
+    for idx, value in enumerate(vector):
+        vector[idx] = value / norm
     return vector
 
 
 def _cosine_similarity(query_vector: list[float], matrix: list[list[float]]) -> list[float]:
-    query_norm = math.sqrt(sum(value * value for value in query_vector))
+    query_norm = math.sqrt(sum(value * value for value in query_vector)) or 1.0
     similarities: list[float] = []
     for row in matrix:
-        row_norm = math.sqrt(sum(value * value for value in row))
-        denom = max(row_norm * query_norm, 1e-12)
+        row_norm = math.sqrt(sum(value * value for value in row)) or 1.0
         dot_product = sum(left * right for left, right in zip(row, query_vector))
-        similarities.append(dot_product / denom)
+        similarities.append(dot_product / (row_norm * query_norm))
     return similarities
+
+
+def _get_or_build_tfidf(
+    graph: dict[str, Any],
+) -> tuple[dict[str, int], list[float], list[list[float]], list[str]]:
+    nodes = graph.get("nodes", {})
+    node_ids = sorted(nodes.keys())
+    cache_key = hash(tuple(node_ids))
+    if cache_key not in _tfidf_cache:
+        texts = [
+            f"{nodes[node_id].get('cause', '')} {nodes[node_id].get('solution', '')}"
+            for node_id in node_ids
+        ]
+        matrix, vocabulary, idf = _build_tfidf_matrix(texts)
+        _tfidf_cache.clear()
+        _tfidf_cache[cache_key] = (vocabulary, idf, matrix, node_ids)
+    return _tfidf_cache[cache_key]
 
 
 def _score_related_threads(
@@ -276,12 +298,13 @@ def find_vector_related(
     min_similarity: float = 0.2,
 ) -> dict[str, float]:
     nodes = graph.get("nodes", {})
-    node_ids = list(nodes.keys())
-    if not node_ids:
+    if not nodes:
         return {}
 
-    texts = [f"{nodes[node_id].get('cause', '')} {nodes[node_id].get('solution', '')}" for node_id in node_ids]
-    matrix, vocabulary, idf = _build_tfidf_matrix(texts)
+    if not query_text.strip():
+        return {}
+
+    vocabulary, idf, matrix, cached_node_ids = _get_or_build_tfidf(graph)
     query_vec = _vectorize_query(query_text, vocabulary, idf)
     similarities = _cosine_similarity(query_vec, matrix)
 
@@ -290,7 +313,7 @@ def find_vector_related(
     for idx, similarity in ranked[:top_k]:
         if similarity < min_similarity:
             continue
-        node_id = node_ids[idx]
+        node_id = cached_node_ids[idx]
         if node_id.split(":", 1)[0] == thread_id:
             continue
         related[node_id] = float(similarity)
@@ -330,6 +353,8 @@ def get_context_for_question(
     replay_loader: Callable[[], list[dict[str, Any]]],
     max_depth: int = 2,
     max_entries: int = 3,
+    graph_weight: float = 0.6,
+    vector_weight: float = 0.4,
 ) -> str:
     """
     Строит граф, находит похожие треды, возвращает контекст для LLM.
@@ -343,9 +368,9 @@ def get_context_for_question(
 
     combined_scores: dict[str, float] = defaultdict(float)
     for node_id, score in graph_scores.items():
-        combined_scores[node_id] += score
+        combined_scores[node_id] += score * graph_weight
     for node_id, score in vector_scores.items():
-        combined_scores[node_id] += score
+        combined_scores[node_id] += score * vector_weight
 
     if not combined_scores:
         return ""
