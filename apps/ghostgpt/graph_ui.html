@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -63,7 +63,7 @@
 
     #graph {
       width: 100vw;
-      height: calc(100vh - 58px);
+      height: 100vh;
       display: block;
     }
 
@@ -91,6 +91,7 @@
 <body>
   <div class="toolbar">
     <button id="refresh-btn" type="button">Refresh Graph</button>
+    <button id="reset-btn" type="button">Reset View</button>
     <div class="legend" id="legend"></div>
   </div>
   <svg id="graph"></svg>
@@ -112,17 +113,38 @@
       .style("pointer-events", "none");
 
     const refreshBtn = document.getElementById("refresh-btn");
+    const resetBtn = document.getElementById("reset-btn");
     const legend = document.getElementById("legend");
+    const toolbar = document.querySelector(".toolbar");
     const svg = d3.select("#graph");
-    const width = window.innerWidth;
-    const height = window.innerHeight - 58;
+    let width = window.innerWidth;
+    let height = window.innerHeight - toolbar.offsetHeight;
+    let simulation = null;
 
-    svg.attr("viewBox", [0, 0, width, height]);
+    svg.attr("viewBox", [0, 0, width, height]).style("height", `${height}px`);
 
     const container = svg.append("g");
-    svg.call(d3.zoom().scaleExtent([0.2, 4]).on("zoom", (event) => {
+    const zoomBehavior = d3.zoom().scaleExtent([0.15, 5]).on("zoom", (event) => {
       container.attr("transform", event.transform);
-    }));
+    });
+    svg.call(zoomBehavior);
+
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight - toolbar.offsetHeight;
+      svg.attr("viewBox", [0, 0, width, height]).style("height", `${height}px`);
+      if (simulation) {
+        simulation
+          .force("center", d3.forceCenter(width / 2, height / 2))
+          .force("x", d3.forceX(width / 2).strength(0.05))
+          .force("y", d3.forceY(height / 2).strength(0.05))
+          .alpha(0.3)
+          .restart();
+      }
+    }
+
+    window.addEventListener("resize", resize);
+    setTimeout(resize, 0);
 
     Object.entries(EDGE_COLORS).forEach(([name, color]) => {
       const item = document.createElement("div");
@@ -242,9 +264,10 @@
           .data(nodes)
           .join("text")
           .attr("class", "node-label")
+          .attr("dy", "0.1em")
           .text((d) => d.thread_id || "");
 
-        const simulation = d3.forceSimulation(nodes)
+        simulation = d3.forceSimulation(nodes)
           .force("link", d3.forceLink(links).id((d) => d.id).distance(120))
           .force("charge", d3.forceManyBody().strength(-300))
           .force("center", d3.forceCenter(width / 2, height / 2))
@@ -293,6 +316,12 @@
     }
 
     refreshBtn.addEventListener("click", loadGraph);
+    resetBtn.addEventListener("click", () => {
+      svg.transition().duration(750).call(zoomBehavior.transform, d3.zoomIdentity);
+      if (simulation) {
+        simulation.alpha(0.4).restart();
+      }
+    });
     loadGraph();
   </script>
 </body>
