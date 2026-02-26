@@ -1,3 +1,4 @@
+from modules.llm import temporal_graph
 from modules.llm.temporal_graph import (
     build_graph,
     find_related,
@@ -102,3 +103,103 @@ def test_context_includes_vector_matches():
 
     assert "[Из памяти системы — похожие ситуации]" in context
     assert "tune query plan" in context
+
+
+def test_vector_related_handles_empty_query():
+    graph = build_graph(_semantic_entries)
+
+    related = find_vector_related(
+        graph,
+        thread_id="thread-db",
+        query_text="   ",
+    )
+
+    assert related == {}
+
+
+def test_vector_related_handles_empty_graph():
+    related = find_vector_related(
+        graph={"nodes": {}, "edges": []},
+        thread_id="thread-db",
+        query_text="database pool",
+    )
+
+    assert related == {}
+
+
+def test_normalization_affects_similarity():
+    graph = build_graph(_semantic_entries)
+
+    related = find_vector_related(
+        graph,
+        thread_id="thread-android",
+        query_text="database postgres tuning pool",  # 4 tokens to avoid short-query guard
+        top_k=5,
+        min_similarity=0.0,
+    )
+
+    assert related
+    assert all(0.0 <= similarity <= 1.0 for similarity in related.values())
+
+
+def test_weighted_combination_prioritizes_graph():
+    entries = [
+        {
+            "ts": "2026-02-25T10:00:01Z",
+            "cause": "primary issue",
+            "solution": "reboot node",
+            "ltp_trace": {"thread_id": "thread-main"},
+        },
+        {
+            "ts": "2026-02-25T10:00:02Z",
+            "cause": "reboot node resolved downstream failures",
+            "solution": "monitor alerts",
+            "ltp_trace": {"thread_id": "thread-graph"},
+        },
+        {
+            "ts": "2026-02-25T10:00:03Z",
+            "cause": "database postgres pool timeout",
+            "solution": "increase pool",
+            "ltp_trace": {"thread_id": "thread-vector"},
+        },
+    ]
+
+    context = get_context_for_question(
+        "database postgres pool timeout",
+        "thread-main",
+        replay_loader=lambda: entries,
+        max_depth=1,
+        max_entries=1,
+        graph_weight=1.0,
+        vector_weight=0.0,
+    )
+
+    assert "resolved downstream failures" in context
+
+
+def test_tfidf_cache_invalidation():
+    temporal_graph._tfidf_cache.clear()
+
+    graph_one = build_graph(_semantic_entries)
+    temporal_graph.find_vector_related(graph_one, "thread-db", "database pool postgres")
+
+    first_key = next(iter(temporal_graph._tfidf_cache))
+    first_cached = temporal_graph._tfidf_cache[first_key]
+
+    graph_two_entries = _semantic_entries() + [
+        {
+            "ts": "2026-02-25T10:00:04Z",
+            "cause": "cache invalidation check record",
+            "solution": "add new node",
+            "ltp_trace": {"thread_id": "thread-cache"},
+        }
+    ]
+    graph_two = build_graph(lambda: graph_two_entries)
+    temporal_graph.find_vector_related(graph_two, "thread-db", "database pool postgres")
+
+    second_key = next(iter(temporal_graph._tfidf_cache))
+    second_cached = temporal_graph._tfidf_cache[second_key]
+
+    assert len(temporal_graph._tfidf_cache) == 1
+    assert first_key != second_key
+    assert first_cached[3] != second_cached[3]
