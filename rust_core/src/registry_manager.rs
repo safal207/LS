@@ -129,18 +129,11 @@ impl RegistryManager {
         Ok(())
     }
 
-    fn update_temporal_graph_snapshot(&self) -> PyResult<()> {
+    fn update_temporal_graph_snapshot(&self, new_entry: &serde_json::Value) -> PyResult<()> {
         let causal_path = self.yaml_fallback.with_file_name("causal_memory.yaml");
         if !causal_path.exists() {
             return Ok(());
         }
-
-        let content =
-            fs::read_to_string(&causal_path).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-        let entries = parse_causal_memory_yaml(&content);
-        let graph = TemporalGraph::build_from_causal_memory(&entries);
-        let json = serde_json::to_string_pretty(&graph.export_json())
-            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
         let output_dir = self
             .yaml_fallback
@@ -148,8 +141,38 @@ impl RegistryManager {
             .map(|p| p.join("codex/temporal_graph"))
             .unwrap_or_else(|| PathBuf::from("codex/temporal_graph"));
         fs::create_dir_all(&output_dir).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-        fs::write(output_dir.join("graph.json"), json)
+
+        let graph_path = output_dir.join("graph.json");
+        let mut graph = if graph_path.exists() {
+            let graph_raw = fs::read_to_string(&graph_path)
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            serde_json::from_str::<TemporalGraph>(&graph_raw)
+                .or_else(|_| {
+                    serde_json::from_str::<serde_json::Value>(&graph_raw)
+                        .and_then(|v| serde_json::from_value::<TemporalGraph>(v))
+                })
+                .unwrap_or_else(|_| {
+                    let content = fs::read_to_string(&causal_path).unwrap_or_default();
+                    let entries = parse_causal_memory_yaml(&content);
+                    TemporalGraph::build_from_causal_memory(&entries)
+                })
+        } else {
+            let content = fs::read_to_string(&causal_path)
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            let entries = parse_causal_memory_yaml(&content);
+            TemporalGraph::build_from_causal_memory(&entries)
+        };
+
+        graph.add_entry(new_entry);
+        let json = serde_json::to_string_pretty(&graph.export_json())
             .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+        let tmp_path = output_dir.join("graph.json.tmp");
+        fs::write(&tmp_path, json).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        if let Err(e) = fs::rename(&tmp_path, &graph_path) {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(PyRuntimeError::new_err(e.to_string()));
+        }
         Ok(())
     }
 }
@@ -295,6 +318,8 @@ impl RegistryManager {
 
             Ok(entry)
         })?;
+        let entry_value = serde_json::from_str::<serde_json::Value>(&entry)
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
         // Registry = Single Source of Truth
         #[cfg(windows)]
@@ -326,7 +351,7 @@ impl RegistryManager {
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
             writeln!(file, "- {}", entry).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
             self.trim_causal_memory()?; // then unified trim
-            self.update_temporal_graph_snapshot()?;
+            self.update_temporal_graph_snapshot(&entry_value)?;
         }
         Ok(())
     }
