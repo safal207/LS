@@ -200,16 +200,23 @@
         legendHidden: isLegendHidden,
         ...patch
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+      } catch (error) {
+        console.warn("Не удалось сохранить вид графа", error);
+      }
     }
 
     function loadViewState() {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? JSON.parse(saved) : null;
+        if (!saved) {
+          return {};
+        }
+        return JSON.parse(saved);
       } catch (error) {
         console.warn("Не удалось восстановить сохранённый вид", error);
-        return null;
+        return {};
       }
     }
 
