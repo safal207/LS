@@ -205,7 +205,6 @@ def get_context_for_question(
     max_depth: максимальная дистанция в графе (по умолчанию 2)
     max_entries: сколько причин+решений показывать (по умолчанию 3)
     """
-    del question
     graph = build_temporal_graph(replay_loader)
     related_ids = find_related_threads(graph, thread_id, max_depth)
     if not related_ids:
