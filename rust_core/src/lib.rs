@@ -9,6 +9,7 @@ mod memory_manager;
 mod pattern_matcher;
 mod registry_manager;
 mod storage;
+mod temporal_graph;
 mod transport;
 mod web4_runtime;
 
