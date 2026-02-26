@@ -152,3 +152,62 @@ def visualize_ascii(graph: dict[str, Any]) -> str:
         for edge_repr in sorted(edges_by_src.get(node_id, [])):
             lines.append(f"  └─ {edge_repr}")
     return "\n".join(lines)
+
+
+def build_temporal_graph(
+    replay_loader: Callable[[], list[dict[str, Any]]]
+) -> dict[str, Any]:
+    return build_graph(replay_loader)
+
+
+def find_related_threads(
+    graph: dict[str, Any],
+    thread_id: str,
+    max_depth: int = 2,
+) -> set[str]:
+    return set(find_related(graph, thread_id, max_depth=max_depth))
+
+
+def format_memory_context(
+    related_thread_ids: set[str],
+    graph: dict[str, Any],
+    max_entries: int = 3,
+) -> str:
+    nodes = graph.get("nodes", {})
+    lines = ["[Из памяти системы — похожие ситуации]", ""]
+    count = 0
+    for node_id, node in nodes.items():
+        node_thread = node.get("thread_id") or node_id.split(":", 1)[0]
+        if node_thread not in related_thread_ids:
+            continue
+        cause = str(node.get("cause", ""))[:80]
+        solution = str(node.get("solution", ""))[:80]
+        lines.append(f"Причина: {cause}")
+        lines.append(f"Решение: {solution}")
+        lines.append("")
+        count += 1
+        if count >= max_entries:
+            break
+    return "\n".join(lines).strip() if count > 0 else ""
+
+
+def get_context_for_question(
+    question: str,
+    thread_id: str,
+    *,
+    replay_loader: Callable[[], list[dict[str, Any]]],
+    max_depth: int = 2,
+    max_entries: int = 3,
+) -> str:
+    """
+    Строит граф, находит похожие треды, возвращает контекст для LLM.
+
+    max_depth: максимальная дистанция в графе (по умолчанию 2)
+    max_entries: сколько причин+решений показывать (по умолчанию 3)
+    """
+    del question
+    graph = build_temporal_graph(replay_loader)
+    related_ids = find_related_threads(graph, thread_id, max_depth)
+    if not related_ids:
+        return ""
+    return format_memory_context(related_ids, graph, max_entries)
