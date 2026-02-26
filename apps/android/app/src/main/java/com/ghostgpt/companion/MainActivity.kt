@@ -8,6 +8,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -60,6 +61,22 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.graph_btn).setOnClickListener {
             startActivity(Intent(this, GraphActivity::class.java))
+        }
+
+        findViewById<Button>(R.id.clear_chat_btn).setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Очистить чат?")
+                .setMessage("Все сообщения будут удалены")
+                .setPositiveButton("Да") { _, _ ->
+                    adapter.clear()
+                    getSharedPreferences("ghostgpt", MODE_PRIVATE)
+                        .edit()
+                        .remove("chat_history")
+                        .apply()
+                    Toast.makeText(this, "Чат очищен", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
         }
     }
 
