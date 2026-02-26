@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import math
+import os
 import re
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 from typing import Any, Callable
+
+from .causal_memory import with_file_lock
 
 
 _tfidf_cache: dict[int, tuple[dict[str, int], list[float], list[list[float]], list[str]]] = {}
@@ -318,6 +321,77 @@ def find_vector_related(
             continue
         related[node_id] = float(similarity)
     return related
+
+
+def _entry_to_node(entry: dict[str, Any]) -> dict[str, Any]:
+    ts = _parse_ts(entry.get("ts")).isoformat()
+    thread_id = _extract_thread_id(entry)
+    return {
+        "cause": str(entry.get("cause", "")),
+        "solution": str(entry.get("solution", "")),
+        "ts": ts,
+        "thread_id": thread_id,
+        "lri_core": entry.get("lri_core", {}),
+        "edges": [],
+    }
+
+
+def compute_consent(
+    new_node: dict[str, Any],
+    graph: dict[str, Any],
+    min_similarity: float = 0.35,
+) -> str | None:
+    query_text = f"{new_node.get('cause', '')} {new_node.get('solution', '')}".strip()
+    related = find_vector_related(
+        graph,
+        thread_id="__consent__",
+        query_text=query_text,
+        top_k=1,
+        min_similarity=min_similarity,
+    )
+    return next(iter(related.keys()), None)
+
+
+def merge_or_append_entry(new_entry: dict[str, Any], graph: dict[str, Any]) -> None:
+    """Consent + merge или append."""
+    graph.setdefault("nodes", {})
+    graph.setdefault("edges", [])
+
+    new_node = _entry_to_node(new_entry)
+    existing_id = compute_consent(new_node, graph)
+
+    if existing_id and existing_id in graph["nodes"]:
+        existing = graph["nodes"][existing_id]
+        existing["cause"] = f"{existing.get('cause', '')} | {new_node['cause']}".strip(" |")
+        existing["solution"] = f"{existing.get('solution', '')} | {new_node['solution']}".strip(" |")
+        existing["ts"] = new_node["ts"]
+        existing["lri_core"] = new_node.get("lri_core", {})
+        existing.setdefault("thread_id", new_node["thread_id"])
+        existing.setdefault("edges", [])
+        return
+
+    node_id = f"{new_node['thread_id']}:{len(graph['nodes'])}"
+    graph["nodes"][node_id] = {"id": node_id, **new_node}
+
+
+def append_event(
+    graph_path: str,
+    new_entry: dict[str, Any],
+    *,
+    loader: Callable[[str], dict[str, Any]],
+    saver: Callable[[str, dict[str, Any]], None],
+    timeout: float = 15.0,
+) -> None:
+    os.makedirs(os.path.dirname(graph_path) or ".", exist_ok=True)
+
+    def _write() -> None:
+        graph = loader(graph_path)
+        if not isinstance(graph, dict):
+            graph = {"nodes": {}, "edges": []}
+        merge_or_append_entry(new_entry, graph)
+        saver(graph_path, graph)
+
+    with_file_lock(graph_path, _write, timeout=timeout)
 
 
 def format_memory_context(

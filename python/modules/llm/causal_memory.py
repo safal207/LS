@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -27,6 +29,38 @@ except (ImportError, ValueError):
         gain = _BASE_GAIN + (_DRIFT_GAIN_WEIGHT * drift_factor) + (_NOISE_GAIN_WEIGHT * noise_factor)
         gain = max(_MIN_GAIN, min(_MAX_GAIN, gain))
         return max(0.0, min(1.0, prev + gain * (measured - prev)))
+
+
+def with_file_lock(file_path: str, callback: Callable[[], Any], timeout: float = 10.0) -> Any:
+    """Кросс-платформенный эксклюзивный lock через .lock-файл с таймаутом."""
+    lock_path = file_path + ".lock"
+    lock_dir = os.path.dirname(lock_path)
+    if lock_dir:
+        os.makedirs(lock_dir, exist_ok=True)
+
+    deadline = time.monotonic() + timeout
+    fd = None
+    while True:
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_RDWR)
+            break
+        except OSError:
+            if time.monotonic() > deadline:
+                try:
+                    os.unlink(lock_path)
+                except OSError:
+                    pass
+            time.sleep(0.05)
+
+    try:
+        return callback()
+    finally:
+        if fd is not None:
+            os.close(fd)
+        try:
+            os.unlink(lock_path)
+        except OSError:
+            pass
 
 
 def build_default_trace_payloads(
@@ -106,6 +140,7 @@ def save_causal_trace(
     confidence: float = DEFAULT_CAUSAL_CONFIDENCE,
     get_registry_manager: Callable[[], object | None],
     save_to_codex: Callable[[dict], Optional[Path]],
+    lock_path: str | None = None,
 ) -> None:
     if not (0.0 <= confidence <= 1.0):
         raise ValueError(f"confidence must be in [0.0, 1.0], got {confidence}")
@@ -125,21 +160,25 @@ def save_causal_trace(
     if reg is None:
         return
 
-    # Registry first — the single source of truth
-    reg.save_causal_trace(cause, solution, lce, ltp_trace, lri_core, confidence)
+    def _write_trace() -> None:
+        # Registry first — the single source of truth
+        reg.save_causal_trace(cause, solution, lce, ltp_trace, lri_core, confidence)
 
-    # Codex second — acts as a mirror/trace store
-    save_to_codex({
-        **(lce if isinstance(lce, dict) else {}),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "event_type": "causal_trace",
-        "cause": cause,
-        "solution": solution,
-        "ltp_trace": ltp_trace,
-        "lri_core": lri_core,
-        "confidence": confidence,
-        "source": "registry::causal_memory",
-    })
+        # Codex second — acts as a mirror/trace store
+        save_to_codex({
+            **(lce if isinstance(lce, dict) else {}),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "event_type": "causal_trace",
+            "cause": cause,
+            "solution": solution,
+            "ltp_trace": ltp_trace,
+            "lri_core": lri_core,
+            "confidence": confidence,
+            "source": "registry::causal_memory",
+        })
+
+    target_lock_path = lock_path or f".codex/causal_memory/{cause[:32] or 'trace'}"
+    with_file_lock(target_lock_path, _write_trace, timeout=15.0)
 
 
 def replay_thread(thread_id: str, *, get_registry_manager: Callable[[], object | None]) -> list:
