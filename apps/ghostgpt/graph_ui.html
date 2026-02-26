@@ -34,6 +34,22 @@
       cursor: pointer;
     }
 
+    .toolbar-input {
+      min-width: 300px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #45475a;
+      background: #11111b;
+      color: #cdd6f4;
+      outline: none;
+      font-size: 14px;
+    }
+
+    .toolbar-input:focus {
+      border-color: #89b4fa;
+      box-shadow: 0 0 0 2px rgba(137, 180, 250, 0.2);
+    }
+
     button:disabled {
       opacity: 0.6;
       cursor: wait;
@@ -86,15 +102,58 @@
       dominant-baseline: central;
       font-weight: 700;
     }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      background: rgba(30, 30, 46, 0.95);
+      border: 1px solid #585b70;
+      color: #cdd6f4;
+      border-radius: 10px;
+      padding: 10px 14px;
+      z-index: 1000;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+    }
+
+    .toast.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .drift-scale {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: 6px;
+    }
+
+    .drift-bar {
+      width: 130px;
+      height: 10px;
+      border-radius: 8px;
+      background: linear-gradient(90deg, hsl(0, 85%, 58%), hsl(60, 85%, 58%), hsl(120, 85%, 58%));
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .glow-match {
+      filter: drop-shadow(0 0 6px rgba(250, 225, 137, 0.8));
+    }
   </style>
 </head>
 <body>
   <div class="toolbar">
     <button id="refresh-btn" type="button">Refresh Graph</button>
     <button id="reset-btn" type="button">Reset View</button>
+    <button id="export-btn" type="button">Export PNG</button>
+    <input id="search-input" class="toolbar-input" type="text" placeholder="Поиск по thread_id или cause..." />
     <div class="legend" id="legend"></div>
   </div>
   <svg id="graph"></svg>
+  <div id="toast" class="toast"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
   <script>
@@ -114,6 +173,9 @@
 
     const refreshBtn = document.getElementById("refresh-btn");
     const resetBtn = document.getElementById("reset-btn");
+    const exportBtn = document.getElementById("export-btn");
+    const searchInput = document.getElementById("search-input");
+    const toast = document.getElementById("toast");
     const legend = document.getElementById("legend");
     const toolbar = document.querySelector(".toolbar");
     const svg = d3.select("#graph");
@@ -153,7 +215,115 @@
       legend.appendChild(item);
     });
 
+    const driftLegend = document.createElement("div");
+    driftLegend.className = "legend-item drift-scale";
+    driftLegend.innerHTML = '<span>drift:</span><span>-1</span><span class="drift-bar"></span><span>0</span><span>+1</span>';
+    legend.appendChild(driftLegend);
+
     let loading = false;
+    let hideToastTimer = null;
+    let graphElements = null;
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("visible");
+      clearTimeout(hideToastTimer);
+      hideToastTimer = setTimeout(() => {
+        toast.classList.remove("visible");
+      }, 1600);
+    }
+
+    function applyFilter(query) {
+      if (!graphElements) {
+        return;
+      }
+      const normalized = query.trim().toLowerCase();
+      const { node, link, labels } = graphElements;
+
+      if (!normalized) {
+        node
+          .style("display", null)
+          .classed("glow-match", false)
+          .attr("stroke-width", 1.5);
+        link.style("display", null);
+        labels.style("display", null);
+        return;
+      }
+
+      const matchedIds = new Set();
+      node.each(function(d) {
+        const haystack = `${d.thread_id ?? ""} ${d.cause ?? ""}`.toLowerCase();
+        if (haystack.includes(normalized)) {
+          matchedIds.add(d.id);
+        }
+      });
+
+      node
+        .style("display", (d) => (matchedIds.has(d.id) ? null : "none"))
+        .classed("glow-match", (d) => matchedIds.has(d.id))
+        .attr("stroke-width", (d) => (matchedIds.has(d.id) ? 4 : 1.5));
+
+      labels.style("display", (d) => (matchedIds.has(d.id) ? null : "none"));
+
+      link.style("display", (d) => (
+        matchedIds.has(d.source.id ?? d.source) && matchedIds.has(d.target.id ?? d.target)
+          ? null
+          : "none"
+      ));
+    }
+
+    async function copyThreadId(threadId) {
+      if (!threadId) {
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(threadId);
+        showToast("thread_id скопирован");
+      } catch (error) {
+        console.warn("Не удалось скопировать thread_id", error);
+      }
+    }
+
+    function exportVisibleGraphAsPng() {
+      const svgEl = document.getElementById("graph");
+      const serializer = new XMLSerializer();
+      // Клонируем SVG и применяем текущий zoom/pan для экспорта
+      const clone = svgEl.cloneNode(true);
+      const g = clone.querySelector("g");
+      const currentTransform = d3.zoomTransform(svgEl);
+      g.setAttribute("transform", currentTransform.toString());
+
+      const svgMarkup = serializer.serializeToString(clone);
+      const blob = new Blob([`<?xml version="1.0" encoding="UTF-8"?>${svgMarkup}`], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        // Учитываем текущий масштаб для чёткости
+        const scale = Math.max(1, currentTransform.k);
+        canvas.width = Math.floor(width * scale);
+        canvas.height = Math.floor(height * scale);
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#11111b";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+
+        const pngUrl = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.href = pngUrl;
+        link.download = `temporal-graph-${new Date().toISOString().slice(0,19).replace(/[:T]/g, "-")}.png`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        showToast("PNG экспортирован (с учётом зума)");
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        showToast("Ошибка экспорта PNG");
+      };
+      image.src = url;
+    }
 
     function drag(simulation) {
       function dragstarted(event, d) {
@@ -251,9 +421,14 @@
           .data(nodes)
           .join("circle")
           .attr("r", 11)
-          .attr("fill", "#89b4fa")
+          .attr("fill", (d) => {
+            const drift = d.lri_core?.emotional_drift ?? 0;
+            const hue = (drift + 1) * 60;
+            return `hsl(${hue}, 85%, 58%)`;
+          })
           .attr("stroke", "#1e66f5")
           .attr("stroke-width", 1.5)
+          .on("click", (_, d) => copyThreadId(d.thread_id))
           .on("mouseover", showTooltip)
           .on("mousemove", showTooltip)
           .on("mouseout", hideTooltip);
@@ -276,6 +451,9 @@
           .force("y", d3.forceY(height / 2).strength(0.05));
 
         node.call(drag(simulation));
+
+        graphElements = { node, link, labels };
+        applyFilter(searchInput.value || "");
 
         simulation.on("tick", () => {
           link
@@ -315,7 +493,16 @@
       }
     }
 
+    let filterTimeout = null;
+
     refreshBtn.addEventListener("click", loadGraph);
+    searchInput.addEventListener("input", (event) => {
+      clearTimeout(filterTimeout);
+      filterTimeout = setTimeout(() => {
+        applyFilter(event.target.value || "");
+      }, 120);
+    });
+    exportBtn.addEventListener("click", exportVisibleGraphAsPng);
     resetBtn.addEventListener("click", () => {
       svg.transition().duration(750).call(zoomBehavior.transform, d3.zoomIdentity);
       if (simulation) {
