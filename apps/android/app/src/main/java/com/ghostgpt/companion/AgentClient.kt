@@ -6,6 +6,7 @@ import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URL
 
 class AgentClient(private val baseUrl: String) {
@@ -15,8 +16,8 @@ class AgentClient(private val baseUrl: String) {
             val endpoint = URL("$baseUrl/api/agent/loop")
             val conn = endpoint.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
-            conn.connectTimeout = 8_000
-            conn.readTimeout = 25_000
+            conn.connectTimeout = 10_000
+            conn.readTimeout = 30_000
             conn.setRequestProperty("Content-Type", "application/json")
             conn.doOutput = true
 
@@ -35,6 +36,11 @@ class AgentClient(private val baseUrl: String) {
                 json.has("response") -> json.getString("response")
                 json.has("message") -> json.getString("message")
                 else -> body
+            }
+        }.recoverCatching { error ->
+            when (error) {
+                is SocketTimeoutException -> throw Exception("Сервер не отвечает (таймаут 30 сек)")
+                else -> throw error
             }
         }
     }
