@@ -177,29 +177,75 @@ def test_weighted_combination_prioritizes_graph():
     assert "resolved downstream failures" in context
 
 
-def test_tfidf_cache_invalidation():
-    temporal_graph._tfidf_cache.clear()
+def test_sentence_transformers_vs_tfidf_quality(monkeypatch):
+    graph = build_graph(_semantic_entries)
 
-    graph_one = build_graph(_semantic_entries)
-    temporal_graph.find_vector_related(graph_one, "thread-db", "database pool postgres")
+    monkeypatch.setattr(temporal_graph, "USE_SENTENCE_TRANSFORMERS", False)
+    temporal_graph._embedding_cache.clear()
+    tfidf_related = find_vector_related(
+        graph,
+        thread_id="thread-db",
+        query_text="postgres database pool exhausted",
+        top_k=5,
+        min_similarity=0.0,
+    )
 
-    first_key = next(iter(temporal_graph._tfidf_cache))
-    first_cached = temporal_graph._tfidf_cache[first_key]
+    monkeypatch.setattr(temporal_graph, "USE_SENTENCE_TRANSFORMERS", True)
 
-    graph_two_entries = _semantic_entries() + [
-        {
-            "ts": "2026-02-25T10:00:04Z",
-            "cause": "cache invalidation check record",
-            "solution": "add new node",
-            "ltp_trace": {"thread_id": "thread-cache"},
-        }
-    ]
-    graph_two = build_graph(lambda: graph_two_entries)
-    temporal_graph.find_vector_related(graph_two, "thread-db", "database pool postgres")
+    class _StubEmbedder:
+        def encode(self, text, normalize_embeddings=True):
+            vec = [0.0] * 384
+            data = text.lower()
+            if "postgres" in data or "database" in data or "pool" in data:
+                vec[0] = 1.0
+            if "android" in data or "null" in data:
+                vec[1] = 1.0
+            return vec
 
-    second_key = next(iter(temporal_graph._tfidf_cache))
-    second_cached = temporal_graph._tfidf_cache[second_key]
+    monkeypatch.setattr(temporal_graph, "_embedder", _StubEmbedder())
+    temporal_graph._embedding_cache.clear()
 
-    assert len(temporal_graph._tfidf_cache) == 1
-    assert first_key != second_key
-    assert first_cached[3] != second_cached[3]
+    st_related = find_vector_related(
+        graph,
+        thread_id="thread-db",
+        query_text="postgres database pool exhausted",
+        top_k=5,
+        min_similarity=0.0,
+    )
+
+    st_top = next(iter(st_related.keys()), "")
+
+    assert st_top.startswith("thread-postgres:")
+    tfidf_score = tfidf_related.get(st_top, 0.0)
+    st_score = st_related.get(st_top, 0.0)
+    assert st_score >= tfidf_score
+
+
+def test_fallback_to_tfidf(monkeypatch):
+    monkeypatch.setattr(temporal_graph, "USE_SENTENCE_TRANSFORMERS", False)
+    temporal_graph._embedding_cache.clear()
+
+    emb = temporal_graph.get_embedding("database pool exhausted")
+
+    assert len(emb) == 384
+    assert any(value > 0.0 for value in emb)
+
+
+def test_embedding_cache_hit(monkeypatch):
+    monkeypatch.setattr(temporal_graph, "USE_SENTENCE_TRANSFORMERS", True)
+
+    calls = {"count": 0}
+
+    class _StubEmbedder:
+        def encode(self, text, normalize_embeddings=True):
+            calls["count"] += 1
+            return [1.0] * 384
+
+    monkeypatch.setattr(temporal_graph, "_embedder", _StubEmbedder())
+    temporal_graph._embedding_cache.clear()
+
+    first = temporal_graph.get_embedding("same text")
+    second = temporal_graph.get_embedding("same text")
+
+    assert calls["count"] == 1
+    assert first is second

@@ -8,4 +8,5 @@ PyQt6==6.10.2
 psutil==5.9.0
 pyinstaller==6.18.0
 soundfile==0.12.1
-
+sentence-transformers>=2.2.2
+torch>=2.0.0
