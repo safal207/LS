@@ -9,6 +9,8 @@ const MAX_AGE_DAYS: i64 = 30;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemporalNode {
     pub id: String,
+    #[serde(default)]
+    pub thread_id: String,
     pub cause: String,
     pub solution: String,
     pub ts: String,
@@ -78,6 +80,7 @@ impl TemporalGraph {
                 node_id.clone(),
                 TemporalNode {
                     id: node_id.clone(),
+                    thread_id: thread_id.to_string(),
                     cause: cause.clone(),
                     solution: solution.clone(),
                     ts: ts.to_rfc3339(),
@@ -145,6 +148,7 @@ impl TemporalGraph {
             node_id.clone(),
             TemporalNode {
                 id: node_id.clone(),
+                thread_id: thread_id.clone(),
                 cause: cause.clone(),
                 solution: solution.clone(),
                 ts: ts.to_rfc3339(),
@@ -157,9 +161,11 @@ impl TemporalGraph {
             .nodes
             .values()
             .filter_map(|node| {
-                parse_node_thread_id(&node.id)
-                    .filter(|candidate| *candidate == thread_id)
-                    .and_then(|_| parse_ts(&node.ts).map(|node_ts| (node.id.clone(), node_ts)))
+                if node.thread_id == thread_id {
+                    parse_ts(&node.ts).map(|node_ts| (node.id.clone(), node_ts))
+                } else {
+                    None
+                }
             })
             .collect();
         same_thread.sort_by(|a, b| a.1.cmp(&b.1));
@@ -303,7 +309,7 @@ impl TemporalGraph {
         }
     }
 
-    fn apply_rolling_window(&mut self) {
+    pub(crate) fn apply_rolling_window(&mut self) {
         let cutoff = Utc::now() - chrono::Duration::days(MAX_AGE_DAYS);
         let mut dated_nodes: Vec<(String, DateTime<Utc>)> = self
             .nodes
@@ -389,10 +395,6 @@ fn parse_entry(
 
     let node_id = format!("{}:{}", thread_id, ts.timestamp_millis());
     Some((node_id, ts, thread_id, cause, solution, lri_core))
-}
-
-fn parse_node_thread_id(node_id: &str) -> Option<&str> {
-    node_id.rsplit_once(':').map(|(thread_id, _)| thread_id)
 }
 
 fn parse_ts(raw: &str) -> Option<DateTime<Utc>> {
