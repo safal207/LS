@@ -14,6 +14,13 @@ from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
 
+try:
+    from ..llm.temporal_graph import get_context_for_question
+
+    _TEMPORAL_GRAPH_ENABLED = True
+except ImportError:
+    _TEMPORAL_GRAPH_ENABLED = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -318,6 +325,29 @@ class AgentLoop:
                 self._emit("cancelled", {"question": question}, task_id=task_id)
                 self._track_cancellation(cancel_event)
                 return
+
+            memory_context = ""
+            if _TEMPORAL_GRAPH_ENABLED:
+                try:
+                    from ..llm.causal_memory import replay_thread
+                    from ..llm.context_provider import get_registry_manager
+
+                    thread_id = str(task_id)
+                    memory_context = get_context_for_question(
+                        question,
+                        thread_id,
+                        replay_loader=lambda: replay_thread(
+                            thread_id,
+                            get_registry_manager=get_registry_manager,
+                        ),
+                        max_depth=2,
+                        max_entries=3,
+                    )
+                except Exception as exc:
+                    logger.warning("Temporal graph context fetch failed", exc_info=exc)
+
+            if memory_context:
+                question = f"{memory_context}\n\n{question}"
 
             self._emit("llm_started", {"question": question}, task_id=task_id)
             self._transition("thinking", task_id=task_id)
