@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">GhostGPT Companion</string>
+    <string name="send">Отправить</string>
+    <string name="input_hint">Введите сообщение…</string>
+    <string name="open_graph">Граф</string>
+    <string name="settings">Настройки</string>
+</resources>
