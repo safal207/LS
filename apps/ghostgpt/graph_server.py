@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -21,7 +22,9 @@ class GraphHandler(BaseHTTPRequestHandler):
         if not path.exists():
             self.send_response(404)
             self.end_headers()
+            self.wfile.write(b"File not found")
             return
+
         data = path.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", content_type)
@@ -31,12 +34,13 @@ class GraphHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def log_message(self, *args):
-        pass
+        pass  # silence
 
 
 def run(host: str = "127.0.0.1", port: int = 8765) -> None:
     server = HTTPServer((host, port), GraphHandler)
-    print(f"Temporal Graph UI → http://{host}:{port}")
+    print(f"🚀 Temporal Graph UI → http://{host}:{port}")
+    print(f"   Graph: {GRAPH_PATH.resolve()}")
     server.serve_forever()
 
 

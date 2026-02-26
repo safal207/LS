@@ -10,6 +10,7 @@
       font-family: Inter, Arial, sans-serif;
       background: #11111b;
       color: #cdd6f4;
+      overflow: hidden;
     }
 
     .toolbar {
@@ -19,15 +20,17 @@
       padding: 12px 16px;
       border-bottom: 1px solid #313244;
       background: #181825;
+      position: relative;
+      z-index: 2;
     }
 
     button {
       background: #89b4fa;
       color: #11111b;
       border: none;
-      border-radius: 6px;
-      padding: 8px 12px;
-      font-weight: 600;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-weight: 700;
       cursor: pointer;
     }
 
@@ -76,17 +79,18 @@
     }
 
     .node-label {
-      font-size: 12px;
+      font-size: 10px;
       fill: #cdd6f4;
       pointer-events: none;
       text-anchor: middle;
       dominant-baseline: central;
+      font-weight: 700;
     }
   </style>
 </head>
 <body>
   <div class="toolbar">
-    <button id="refresh-btn" type="button">Refresh</button>
+    <button id="refresh-btn" type="button">Refresh Graph</button>
     <div class="legend" id="legend"></div>
   </div>
   <svg id="graph"></svg>
@@ -160,6 +164,7 @@
         .style("opacity", 1)
         .html(`
           <div><strong>thread_id:</strong> ${d.thread_id ?? ""}</div>
+          <div><strong>event_id:</strong> ${d.id ?? ""}</div>
           <div><strong>cause:</strong> ${d.cause ?? ""}</div>
           <div><strong>solution:</strong> ${d.solution ?? ""}</div>
           <div><strong>ts:</strong> ${d.ts ?? ""}</div>
@@ -171,6 +176,19 @@
 
     function hideTooltip() {
       tooltip.style("opacity", 0);
+    }
+
+    function normalizeLinks(edges) {
+      return (edges || []).map((edge) => {
+        const source = edge.source ?? edge.from;
+        const target = edge.target ?? edge.to;
+        const relation = edge.type ?? edge.relation;
+        return {
+          source,
+          target,
+          relation
+        };
+      }).filter((edge) => edge.source && edge.target);
     }
 
     async function loadGraph() {
@@ -189,12 +207,7 @@
         const data = await res.json();
 
         const nodes = Object.values(data.nodes || {});
-        const links = (data.edges || []).map((edge) => ({
-          source: edge.from,
-          target: edge.to,
-          relation: edge.relation,
-          weight: edge.weight
-        }));
+        const links = normalizeLinks(data.edges);
 
         container.selectAll("*").remove();
 
@@ -204,7 +217,7 @@
           .selectAll("line")
           .data(links)
           .join("line")
-          .attr("stroke-width", (d) => 1 + ((d.weight || 0) * 2))
+          .attr("stroke-width", 2)
           .attr("stroke", (d) => EDGE_COLORS[d.relation] || "#6c7086");
 
         const node = container
@@ -212,7 +225,7 @@
           .selectAll("circle")
           .data(nodes)
           .join("circle")
-          .attr("r", 18)
+          .attr("r", 11)
           .attr("fill", "#89b4fa")
           .attr("stroke", "#1e66f5")
           .attr("stroke-width", 2)
@@ -252,12 +265,11 @@
             .attr("y", (d) => d.y);
         });
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.error(error);
       } finally {
         loading = false;
         refreshBtn.disabled = false;
-        refreshBtn.textContent = "Refresh";
+        refreshBtn.textContent = "Refresh Graph";
       }
     }
 
