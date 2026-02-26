@@ -3,7 +3,8 @@ from __future__ import annotations
 import math
 import os
 import re
-from collections import defaultdict, deque
+import logging
+from collections import OrderedDict, defaultdict, deque
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -11,7 +12,9 @@ from .causal_memory import with_file_lock
 
 
 _tfidf_cache: dict[int, tuple[dict[str, int], list[float], list[list[float]], list[str]]] = {}
-_embedding_cache: dict[str, list[float]] = {}
+_embedding_cache: OrderedDict[str, list[float]] = OrderedDict()
+CACHE_MAX_SIZE = 10000
+logger = logging.getLogger(__name__)
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -29,7 +32,9 @@ def _get_embedder() -> Any:
     if _embedder is None:
         if SentenceTransformer is None:
             raise RuntimeError("sentence-transformers is not available")
+        logger.info("Loading sentence-transformers model 'all-MiniLM-L6-v2'...")
         _embedder = SentenceTransformer("all-MiniLM-L6-v2")
+        logger.info("Sentence-transformers model loaded successfully")
     return _embedder
 
 
@@ -288,7 +293,10 @@ def get_embedding(text: str) -> list[float]:
         return [0.0] * 384
 
     if clean_text in _embedding_cache:
+        _embedding_cache.move_to_end(clean_text)
         return _embedding_cache[clean_text]
+
+    logger.debug("Embedding cache miss for text (first 50 chars): %s...", clean_text[:50])
 
     if USE_SENTENCE_TRANSFORMERS:
         encoded = _get_embedder().encode(clean_text, normalize_embeddings=True)
@@ -300,6 +308,8 @@ def get_embedding(text: str) -> list[float]:
         embedding = embedding[:384] + [0.0] * max(0, 384 - len(embedding))
 
     _embedding_cache[clean_text] = embedding
+    if len(_embedding_cache) > CACHE_MAX_SIZE:
+        _embedding_cache.popitem(last=False)
     return embedding
 
 
@@ -340,7 +350,7 @@ def find_vector_related(
     thread_id: str,
     query_text: str,
     top_k: int = 5,
-    min_similarity: float = 0.2,
+    min_similarity: float = 0.35,
 ) -> dict[str, float]:
     nodes = graph.get("nodes", {})
     if not nodes:
@@ -476,6 +486,7 @@ def get_context_for_question(
     max_entries: int = 3,
     graph_weight: float = 0.6,
     vector_weight: float = 0.4,
+    min_vector_similarity: float = 0.35,
 ) -> str:
     """
     Строит граф, находит похожие треды, возвращает контекст для LLM.
@@ -485,7 +496,12 @@ def get_context_for_question(
     """
     graph = build_temporal_graph(replay_loader)
     graph_scores = _score_related_threads(graph, thread_id, max_depth=max_depth)
-    vector_scores = find_vector_related(graph, thread_id, question)
+    vector_scores = find_vector_related(
+        graph,
+        thread_id,
+        question,
+        min_similarity=min_vector_similarity,
+    )
 
     combined_scores: dict[str, float] = defaultdict(float)
     for node_id, score in graph_scores.items():

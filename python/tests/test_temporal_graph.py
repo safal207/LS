@@ -228,6 +228,7 @@ def test_fallback_to_tfidf(monkeypatch):
     emb = temporal_graph.get_embedding("database pool exhausted")
 
     assert len(emb) == 384
+    assert any(value > 0.0 for value in emb[:100])
     assert any(value > 0.0 for value in emb)
 
 
@@ -249,3 +250,60 @@ def test_embedding_cache_hit(monkeypatch):
 
     assert calls["count"] == 1
     assert first is second
+
+
+def test_embedding_cache_persistence(monkeypatch):
+    monkeypatch.setattr(temporal_graph, "USE_SENTENCE_TRANSFORMERS", True)
+
+    calls = {"count": 0}
+
+    class _StubEmbedder:
+        def encode(self, text, normalize_embeddings=True):
+            calls["count"] += 1
+            return [0.5] * 384
+
+    monkeypatch.setattr(temporal_graph, "_embedder", _StubEmbedder())
+    temporal_graph._embedding_cache.clear()
+
+    temporal_graph.get_embedding("persistent text")
+    temporal_graph.get_embedding("persistent text")
+
+    assert calls["count"] == 1
+
+
+def test_embedding_lru_cache_eviction(monkeypatch):
+    monkeypatch.setattr(temporal_graph, "USE_SENTENCE_TRANSFORMERS", True)
+
+    class _StubEmbedder:
+        def encode(self, text, normalize_embeddings=True):
+            return [1.0] * 384
+
+    monkeypatch.setattr(temporal_graph, "_embedder", _StubEmbedder())
+    temporal_graph._embedding_cache.clear()
+
+    for idx in range(temporal_graph.CACHE_MAX_SIZE + 1):
+        temporal_graph.get_embedding(f"unique text {idx}")
+
+    assert len(temporal_graph._embedding_cache) == temporal_graph.CACHE_MAX_SIZE
+    assert "unique text 0" not in temporal_graph._embedding_cache
+
+
+def test_min_similarity_filter():
+    graph = build_graph(_semantic_entries)
+
+    low_threshold = find_vector_related(
+        graph,
+        thread_id="thread-db",
+        query_text="postgres database pool exhausted",
+        top_k=5,
+        min_similarity=0.2,
+    )
+    high_threshold = find_vector_related(
+        graph,
+        thread_id="thread-db",
+        query_text="postgres database pool exhausted",
+        top_k=5,
+        min_similarity=0.8,
+    )
+
+    assert len(high_threshold) <= len(low_threshold)
