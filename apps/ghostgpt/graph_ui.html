@@ -493,9 +493,14 @@
       }
     }
 
+    let filterTimeout = null;
+
     refreshBtn.addEventListener("click", loadGraph);
     searchInput.addEventListener("input", (event) => {
-      applyFilter(event.target.value || "");
+      clearTimeout(filterTimeout);
+      filterTimeout = setTimeout(() => {
+        applyFilter(event.target.value || "");
+      }, 120);
     });
     exportBtn.addEventListener("click", exportVisibleGraphAsPng);
     resetBtn.addEventListener("click", () => {
