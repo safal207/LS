@@ -106,6 +106,7 @@
     const tooltip = d3.select("body")
       .append("div")
       .attr("class", "tooltip")
+      .style("white-space", "pre-line")
       .style("opacity", 0)
       .style("position", "absolute")
       .style("pointer-events", "none");
@@ -179,16 +180,8 @@
     }
 
     function normalizeLinks(edges) {
-      return (edges || []).map((edge) => {
-        const source = edge.source ?? edge.from;
-        const target = edge.target ?? edge.to;
-        const relation = edge.type ?? edge.relation;
-        return {
-          source,
-          target,
-          relation
-        };
-      }).filter((edge) => edge.source && edge.target);
+      return (edges || []).filter((edge) => edge.source && edge.target)
+        .map((edge) => ({ source: edge.source, target: edge.target, relation: edge.type }));
     }
 
     async function loadGraph() {
@@ -198,6 +191,7 @@
       loading = true;
       refreshBtn.disabled = true;
       refreshBtn.textContent = "Loading…";
+      container.selectAll("*").remove();
 
       try {
         const res = await fetch("/graph.json", { cache: "no-store" });
@@ -207,6 +201,15 @@
         const data = await res.json();
 
         const nodes = Object.values(data.nodes || {});
+        if (nodes.length === 0) {
+          container.append("text")
+            .attr("x", width / 2)
+            .attr("y", height / 2)
+            .attr("text-anchor", "middle")
+            .style("fill", "#f38ba8")
+            .text("Граф пуст или данные отсутствуют");
+          return;
+        }
         const links = normalizeLinks(data.edges);
 
         container.selectAll("*").remove();
@@ -228,7 +231,7 @@
           .attr("r", 11)
           .attr("fill", "#89b4fa")
           .attr("stroke", "#1e66f5")
-          .attr("stroke-width", 2)
+          .attr("stroke-width", 1.5)
           .on("mouseover", showTooltip)
           .on("mousemove", showTooltip)
           .on("mouseout", hideTooltip);
@@ -245,7 +248,9 @@
           .force("link", d3.forceLink(links).id((d) => d.id).distance(120))
           .force("charge", d3.forceManyBody().strength(-300))
           .force("center", d3.forceCenter(width / 2, height / 2))
-          .force("collide", d3.forceCollide(30));
+          .force("collide", d3.forceCollide().radius(16))
+          .force("x", d3.forceX(width / 2).strength(0.05))
+          .force("y", d3.forceY(height / 2).strength(0.05));
 
         node.call(drag(simulation));
 
@@ -265,7 +270,21 @@
             .attr("y", (d) => d.y);
         });
       } catch (error) {
-        console.error(error);
+        console.error("Ошибка загрузки графа:", error);
+        container.append("text")
+          .attr("x", width / 2)
+          .attr("y", height / 2)
+          .attr("text-anchor", "middle")
+          .attr("dy", "-1em")
+          .style("fill", "#f38ba8")
+          .text("Не удалось загрузить граф");
+        container.append("text")
+          .attr("x", width / 2)
+          .attr("y", (height / 2) + 24)
+          .attr("text-anchor", "middle")
+          .style("fill", "#94e2d5")
+          .style("font-size", "14px")
+          .text(error.message || "Проверьте, существует ли graph.json");
       } finally {
         loading = false;
         refreshBtn.disabled = false;
