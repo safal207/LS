@@ -144,3 +144,82 @@ def test_fuzzy_soft_protection_boundary() -> None:
     assert decision.protection_level == "mild_protection"
     assert 0.30 <= decision.protection_score <= 0.61
     assert decision.allowed is True
+
+
+def test_fuzzy_strong_protection_raises_state_floor() -> None:
+    amygdala = Amygdala()
+
+    # Warm-up transition keeps baseline state history similar to runtime path.
+    amygdala.evaluate(
+        new_resonance=1.0,
+        axis_position=-0.33,
+        delta_axis=0.67,
+        affect=0.0,
+    )
+
+    # Mild transition that typically lowers state before overload phase.
+    amygdala.evaluate(
+        new_resonance=0.923,
+        axis_position=0.33,
+        delta_axis=0.66,
+        affect=-0.2,
+    )
+
+    decision = amygdala.evaluate(
+        new_resonance=0.965,
+        axis_position=1.0,
+        delta_axis=0.67,
+        affect=0.0,
+    )
+
+    assert decision.protection_level == "strong_protection"
+    assert decision.protection_score >= 0.66
+    assert decision.state >= 0.55
+
+
+def test_personality_axis_learns_from_outcome() -> None:
+    amygdala = Amygdala()
+
+    start = amygdala.personality_p
+    for _ in range(5):
+        amygdala.learn_from_outcome(stable_interaction=True, user_engaged=True)
+
+    assert amygdala.personality_p > start
+
+    high = amygdala.personality_p
+    for _ in range(5):
+        amygdala.learn_from_outcome(stable_interaction=False, user_engaged=False)
+
+    assert amygdala.personality_p < high
+
+
+def test_personality_axis_softens_protection_when_high() -> None:
+    low_empathy = Amygdala()
+    high_empathy = Amygdala()
+    high_empathy.personality_p = 1.0
+
+    low = low_empathy.evaluate(
+        new_resonance=0.52,
+        axis_position=0.78,
+        delta_axis=0.58,
+        affect=-0.15,
+    )
+    high = high_empathy.evaluate(
+        new_resonance=0.52,
+        axis_position=0.78,
+        delta_axis=0.58,
+        affect=-0.15,
+    )
+
+    assert high.pressure < low.pressure
+    assert high.protection_score < low.protection_score
+
+
+def test_personality_axis_can_grow_under_engaged_stress() -> None:
+    amygdala = Amygdala()
+    start = amygdala.personality_p
+
+    for _ in range(5):
+        amygdala.learn_from_outcome(stable_interaction=False, user_engaged=True)
+
+    assert amygdala.personality_p > start
