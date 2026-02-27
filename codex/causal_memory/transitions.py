@@ -78,18 +78,15 @@ class CausalMemoryTransitions:
         )
         if not decision.allowed and decision.reason is not None:
             logger.warning(
-                "Amygdala blocked transition: %s (resonance=%.3f, affect=%.3f, delta_axis=%.3f)",
-                decision.reason.value,
-                effective_resonance,
-                affect,
-                delta_axis,
-            )
-            logger.warning(
-                "Blocked by Amygdala on text: '%s...' | reason: %s | resonance=%.3f | affect=%.3f",
+                "Amygdala blocked transition from %s to %s on text: '%s...' | reason: %s | "
+                "resonance=%.3f | affect=%.3f | delta_axis=%.3f",
+                current_layer,
+                target_layer,
                 text[:80],
                 decision.reason.value,
                 effective_resonance,
                 affect,
+                delta_axis,
             )
             raise AmygdalaBlockError(decision.reason)
 

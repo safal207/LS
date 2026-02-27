@@ -133,7 +133,7 @@ def test_mixed_affect_phrase_priority():
         delta_axis=0.1,
     )
 
-    assert node.affect == -0.4
+    assert node.affect == -0.4  # phrase-level rule has priority over individual keyword averaging
 
 
 def test_amygdala_sharp_drop_logs_reason(caplog):

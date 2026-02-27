@@ -55,11 +55,17 @@ class Amygdala:
         self._recent_resonance.append(new_resonance)
         if len(self._recent_resonance) > 1:
             delta_res = self._recent_resonance[-1] - self._recent_resonance[-2]
-            if delta_res < self.threshold_delta_res:
-                logger.warning("Amygdala blocked transition due to sharp resonance drop: %.3f", delta_res)
+            if len(self._recent_resonance) >= 2 and delta_res < self.threshold_delta_res:
+                logger.warning(
+                    "Amygdala blocked: sharp resonance drop %.3f (from %.3f to %.3f)",
+                    delta_res,
+                    self._recent_resonance[-2],
+                    new_resonance,
+                )
                 return AmygdalaDecision(False, BlockReason.LOW_RESONANCE)
 
-        avg_resonance = sum(self._recent_resonance) / len(self._recent_resonance)
+        # Keep startup safe even with an empty history buffer.
+        avg_resonance = sum(self._recent_resonance) / len(self._recent_resonance) if self._recent_resonance else 1.0
 
         if affect < self.threat_affect:
             logger.warning("Amygdala blocked transition due to affect threat: %.3f", affect)
