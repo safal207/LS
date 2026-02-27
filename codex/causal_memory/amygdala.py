@@ -75,6 +75,16 @@ class Amygdala:
         self.adaptive_bias = 0.0
         self.personality_p = 0.5
         self.protection_shift = 0.0
+        self.visceral_memory = {
+            "phantom_pain": 0.0,
+            "resolution_strength": 0.0,
+            "last_trigger_intensity": 0.0,
+        }
+
+    @property
+    def phantom_pain(self) -> float:
+        """Уровень фантомной боли / перегрузки из висцеральной памяти"""
+        return self.visceral_memory["phantom_pain"]
 
     def evaluate(
         self,
@@ -103,6 +113,10 @@ class Amygdala:
         if protection_score > 0.6:
             protection_floor = 0.55 + (((protection_score - 0.6) / 0.4) * 0.25)
             self.state = max(self.state, min(0.8, protection_floor))
+
+        if protection_score > 0.65 and affect < -0.4:
+            self.visceral_memory["phantom_pain"] = min(1.0, self.visceral_memory["phantom_pain"] + 0.25)
+            self.visceral_memory["last_trigger_intensity"] = max(abs(affect), abs(delta_axis))
 
         centering_force = self.adaptation_rate * (0.18 if protection_score > 0.6 else 0.10)
         self.state = max(0.0, min(1.0, self.state + ((0.5 - self.state) * centering_force)))
@@ -167,6 +181,10 @@ class Amygdala:
             self.personality_p = min(1.0, self.personality_p + 0.003)
         else:
             self.personality_p = max(0.0, self.personality_p - 0.01)
+
+        if stable_interaction:
+            self.visceral_memory["phantom_pain"] = max(0.0, self.visceral_memory["phantom_pain"] - 0.3)
+            self.visceral_memory["resolution_strength"] = min(1.0, self.visceral_memory["resolution_strength"] + 0.25)
 
     def _adapt_parameters(self) -> None:
         if len(self.history) < 10:
@@ -239,6 +257,11 @@ class Amygdala:
             axis_overload=axis_overload,
             base_pressure=pressure,
         )
+
+        phantom_pain = self.visceral_memory["phantom_pain"]
+        if phantom_pain > 0.3:
+            pressure = min(1.0, pressure + (0.15 * phantom_pain))
+            fuzzy_score = min(1.0, fuzzy_score + (0.1 * phantom_pain))
 
         if axis_overload >= 0.55:
             fuzzy_score = max(fuzzy_score, 0.66)

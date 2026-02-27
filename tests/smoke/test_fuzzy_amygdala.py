@@ -144,3 +144,66 @@ def test_fuzzy_soft_protection_boundary() -> None:
     assert decision.protection_level == "mild_protection"
     assert 0.30 <= decision.protection_score <= 0.61
     assert decision.allowed is True
+
+
+def test_visceral_pain_accumulation() -> None:
+    amygdala = Amygdala()
+
+    amygdala.evaluate(
+        new_resonance=0.2,
+        axis_position=0.9,
+        delta_axis=0.75,
+        affect=-0.9,
+    )
+
+    assert amygdala.phantom_pain == 0.25
+    assert amygdala.visceral_memory["last_trigger_intensity"] == 0.9
+
+
+def test_visceral_resolution_reduces_pain() -> None:
+    amygdala = Amygdala()
+
+    for _ in range(2):
+        amygdala.evaluate(
+            new_resonance=0.22,
+            axis_position=0.9,
+            delta_axis=0.7,
+            affect=-0.88,
+        )
+
+    assert amygdala.phantom_pain == 0.5
+
+    amygdala.learn_from_outcome(stable_interaction=True)
+
+    assert amygdala.phantom_pain == 0.2
+    assert amygdala.visceral_memory["resolution_strength"] == 0.25
+
+
+def test_visceral_influences_protection_strength() -> None:
+    baseline = Amygdala()
+    baseline_decision = baseline.evaluate(
+        new_resonance=0.58,
+        axis_position=0.5,
+        delta_axis=0.2,
+        affect=-0.3,
+    )
+
+    sensitized = Amygdala()
+    for _ in range(2):
+        sensitized.evaluate(
+            new_resonance=0.2,
+            axis_position=0.92,
+            delta_axis=0.72,
+            affect=-0.9,
+        )
+
+    sensitized_decision = sensitized.evaluate(
+        new_resonance=0.58,
+        axis_position=0.5,
+        delta_axis=0.2,
+        affect=-0.3,
+    )
+
+    assert sensitized.phantom_pain > 0.3
+    assert sensitized_decision.protection_score > baseline_decision.protection_score
+    assert sensitized_decision.pressure > baseline_decision.pressure
