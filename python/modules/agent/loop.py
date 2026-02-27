@@ -9,6 +9,7 @@ from typing import Any, Callable, Optional
 from ..llm.temporal import TemporalContext
 from ..cognitive_flow import CognitiveFlow, PresenceState, TransitionEngine
 from ..cognitive_flow.liminal import is_liminal_phase
+from ..memory.causal import CausalMemory
 
 from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
@@ -59,6 +60,7 @@ class AgentLoop:
         self.cognitive_flow = CognitiveFlow(self.presence, TransitionEngine())
 
         self.memory: dict[str, Any] = {}
+        self.causal_memory = CausalMemory()
         self._task_lock = threading.Lock()
         self._task_counter = 0
         self._active_task_id = 0
@@ -319,6 +321,21 @@ class AgentLoop:
 
             question = item.get("text", "")
             self._remember_question(question)
+
+            stability_ok = None
+            try:
+                customer_id = self.causal_memory.add_intent(question)
+                consumer_id = self.causal_memory.transition_down(customer_id, question, "Consumer")
+                execution_plan = f"plan: {question}"
+                execution_id = self.causal_memory.transition_down(consumer_id, execution_plan, "Execution")
+                stability_note = f"monitor: {question}"
+                stability_id = self.causal_memory.transition_down(execution_id, stability_note, "Stability")
+                stability_ok = self.causal_memory.stabilize(stability_id)
+                self.memory["causal_resonance"] = self.causal_memory.check_resonance(stability_id)
+                self.memory["causal_stability_ok"] = stability_ok
+            except Exception as exc:
+                logger.debug("Causal memory update failed: %s", exc)
+
             self._maybe_collect_windows_context(session_id=str(task_id))
 
             if cancel_event.is_set():
@@ -419,6 +436,9 @@ class AgentLoop:
                     "generation_time": duration,
                     "timestamp": time.time(),
                 }
+                if stability_ok is not None:
+                    payload["causal_stability_ok"] = stability_ok
+                    payload["causal_resonance"] = self.memory.get("causal_resonance")
 
             if payload is not None:
                 self._increment_metric("outputs", 1)

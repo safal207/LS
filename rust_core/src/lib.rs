@@ -2,6 +2,7 @@
 
 use pyo3::prelude::*;
 
+mod causal;
 mod focus_tracker;
 mod fuzzy_coherence;
 mod governance;
@@ -13,6 +14,7 @@ mod temporal_graph;
 mod transport;
 mod web4_runtime;
 
+use causal::memory::RustCausalMemory;
 use focus_tracker::FocusTracker;
 use fuzzy_coherence::{
     smooth_coherence, tune_backpressure_limits, FuzzyBackpressureConfig, FuzzyCoherenceConfig,
@@ -38,6 +40,7 @@ fn ghostgpt_core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<TransportConfig>()?;
     m.add_class::<TransportHandle>()?;
     m.add_class::<Web4RttBinding>()?;
+    m.add_class::<RustCausalMemory>()?;
     m.add_function(wrap_pyfunction!(smooth_coherence, m)?)?;
     m.add_function(wrap_pyfunction!(tune_backpressure_limits, m)?)?;
     Ok(())
