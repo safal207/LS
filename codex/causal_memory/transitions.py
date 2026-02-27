@@ -9,12 +9,15 @@ logger = logging.getLogger(__name__)
 
 AFFECT_KEYWORDS: dict[str, float] = {
     "страх": -0.8,
+    "страшно": -0.8,
     "опас": -0.7,
     "угроз": -0.7,
+    "давлен": -0.6,
     "боязн": -0.6,
     "опасность": -0.75,
     "риск": -0.6,
     "паника": -0.7,
+    "теряем": -0.7,
     "радость": 0.6,
     "счаст": 0.6,
     "круто": 0.5,
@@ -69,6 +72,17 @@ class CausalMemoryTransitions:
         affect = self._compute_affect(text) if current_layer.lower() == "consumer" else 0.0
         effective_resonance = self._effective_resonance(resonance, affect)
         normalized_axis = self._normalize_axis_position(axis_position)
+
+        logger.info(
+            "Transition %s → %s | text='%s...' | raw_res=%.3f | affect=%.3f | effective_res=%.3f | axis=%.3f",
+            current_layer,
+            target_layer,
+            text[:80],
+            resonance,
+            affect,
+            effective_resonance,
+            normalized_axis,
+        )
 
         decision = self.amygdala.allow_transition(
             new_resonance=effective_resonance,
