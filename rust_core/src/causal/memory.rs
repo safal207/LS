@@ -347,33 +347,47 @@ mod tests {
     fn allows_linear_transitions_and_stabilization() {
         let mut memory = RustCausalMemory::new();
         let customer = memory
-            .add_intent("Customer".to_string(), "mission care balance".to_string())
+            .add_intent(
+                "Customer".to_string(),
+                "mission resonance care balance self-love".to_string(),
+            )
             .expect("add intent");
         let consumer = memory
             .transition_down(
                 customer.clone(),
-                "mission care balance user need".to_string(),
+                "mission resonance care balance desire".to_string(),
                 "Consumer".to_string(),
             )
             .expect("consumer transition");
         let execution = memory
             .transition_down(
-                consumer,
-                "plan mission care balance execution".to_string(),
+                consumer.clone(),
+                "mission resonance care balance execution plan".to_string(),
                 "Execution".to_string(),
             )
             .expect("execution transition");
         let stability = memory
             .transition_down(
                 execution.clone(),
-                "monitor mission care balance plan".to_string(),
+                "mission resonance care balance stability monitor".to_string(),
                 "Stability".to_string(),
             )
             .expect("stability transition");
 
-        let score = memory.check_resonance(execution).expect("resonance");
+        let score = memory
+            .check_resonance(execution.clone())
+            .expect("resonance");
         assert!(score > 0.0);
         assert!(memory.stabilize(stability.clone()).expect("stabilize"));
+        assert_eq!(memory.get_axis_position(customer).expect("customer axis"), -1.0);
+        assert_eq!(
+            memory.get_axis_position(consumer).expect("consumer axis"),
+            -0.33
+        );
+        assert_eq!(
+            memory.get_axis_position(execution).expect("execution axis"),
+            0.33
+        );
         assert_eq!(memory.get_axis_position(stability).expect("axis"), 1.0);
     }
 
