@@ -234,6 +234,7 @@ dependencies = [
  "bincode",
  "chrono",
  "crossbeam",
+ "log",
  "lru",
  "pyo3",
  "rand",
