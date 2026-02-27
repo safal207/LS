@@ -325,7 +325,7 @@ class Amygdala:
         ]
         weighted_sum = sum(strength * output for strength, output in rules)
         strength_sum = sum(strength for strength, _ in rules)
-        fuzzy_output = weighted_sum / max(strength_sum, 1e-6) if strength_sum > 0 else base_pressure
+        fuzzy_output = weighted_sum / max(strength_sum, 1e-10) if strength_sum > 0 else base_pressure
 
         blended = (0.75 * fuzzy_output) + (0.25 * base_pressure)
         centered = blended + ((self.state - 0.5) * 0.08)
