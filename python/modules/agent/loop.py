@@ -328,6 +328,8 @@ class AgentLoop:
             stability_ok = None
             amygdala_reason: str | None = None
             amygdala_affect = 0.0
+            amygdala_state = 0.5
+            rollback_layer = "Customer"
             try:
                 customer_id = self.causal_memory.add_intent(question)
                 customer_axis = self.causal_memory.get_axis_position(customer_id)
@@ -335,7 +337,7 @@ class AgentLoop:
                 consumer_id = self.causal_memory.transition_down(customer_id, question, "Consumer")
                 consumer_resonance = self.causal_memory.check_resonance(consumer_id)
                 consumer_axis = self.causal_memory.get_axis_position(consumer_id)
-                self.causal_transitions.transition_down(
+                consumer_node = self.causal_transitions.transition_down(
                     current_layer="Customer",
                     target_layer="Consumer",
                     text=question,
@@ -343,6 +345,8 @@ class AgentLoop:
                     axis_position=consumer_axis,
                     delta_axis=consumer_axis - customer_axis,
                 )
+                amygdala_state = consumer_node.amygdala_state
+                rollback_layer = "Customer"
 
                 execution_plan = f"plan: {question}"
                 execution_id = self.causal_memory.transition_down(consumer_id, execution_plan, "Execution")
@@ -356,9 +360,24 @@ class AgentLoop:
                     axis_position=execution_axis,
                     delta_axis=execution_axis - consumer_axis,
                 )
+                amygdala_state = execution_node.amygdala_state
+                rollback_layer = "Consumer"
 
                 stability_note = f"monitor: {question}"
                 stability_id = self.causal_memory.transition_down(execution_id, stability_note, "Stability")
+                stability_resonance = self.causal_memory.check_resonance(stability_id)
+                stability_axis = self.causal_memory.get_axis_position(stability_id)
+                stability_node = self.causal_transitions.transition_down(
+                    current_layer="Execution",
+                    target_layer="Stability",
+                    text=stability_note,
+                    resonance=stability_resonance,
+                    axis_position=stability_axis,
+                    delta_axis=stability_axis - execution_axis,
+                )
+                amygdala_state = stability_node.amygdala_state
+                rollback_layer = "Execution"
+
                 stability_ok = self.causal_memory.stabilize(stability_id)
                 self.memory["causal_resonance"] = self.causal_memory.check_resonance(stability_id)
                 self.memory["causal_stability_ok"] = stability_ok
@@ -367,10 +386,15 @@ class AgentLoop:
                 self.memory["amygdala_status"] = "stable"
                 self.memory["amygdala_reason"] = None
                 self.memory["amygdala_affect"] = amygdala_affect
+                self.memory["amygdala_state"] = amygdala_state
+                self.memory["causal_rollback_layer"] = None
             except AmygdalaBlockError as exc:
                 amygdala_reason = exc.reason.value
+                amygdala_state = float(exc.state if exc.state is not None else amygdala_state)
                 self.memory["amygdala_status"] = "blocked"
                 self.memory["amygdala_reason"] = amygdala_reason
+                self.memory["amygdala_state"] = amygdala_state
+                self.memory["causal_rollback_layer"] = rollback_layer
                 if exc.reason == BlockReason.THREAT and self.llm is not None:
                     breaker = getattr(self.llm, "breaker", None)
                     if breaker is not None and hasattr(breaker, "after_failure"):
@@ -427,6 +451,8 @@ class AgentLoop:
                     "amygdala_status": "blocked",
                     "amygdala_reason": amygdala_reason,
                     "amygdala_affect": amygdala_affect,
+                    "amygdala_state": amygdala_state,
+                    "causal_rollback_layer": rollback_layer,
                 }
                 self._increment_metric("outputs", 1)
                 with self._task_lock:
@@ -444,6 +470,10 @@ class AgentLoop:
                 else:
                     self._emit("output_ready", payload, task_id=task_id)
                 self._publish_metrics()
+                self.causal_transitions.amygdala.learn_from_outcome(
+                    stable_interaction=False,
+                    user_engaged=False,
+                )
                 return
 
             self._emit("llm_started", {"question": question}, task_id=task_id)
@@ -518,6 +548,7 @@ class AgentLoop:
                     "amygdala_status": self.memory.get("amygdala_status", "stable"),
                     "amygdala_reason": self.memory.get("amygdala_reason"),
                     "amygdala_affect": self.memory.get("amygdala_affect", 0.0),
+                    "amygdala_state": self.memory.get("amygdala_state", 0.5),
                 }
                 if stability_ok is not None:
                     payload["causal_stability_ok"] = stability_ok
@@ -541,6 +572,11 @@ class AgentLoop:
                 else:
                     self._emit("output_ready", payload, task_id=task_id)
                 self._publish_metrics()
+
+            self.causal_transitions.amygdala.learn_from_outcome(
+                stable_interaction=result is not None,
+                user_engaged=not cancel_event.is_set(),
+            )
 
         except Exception as exc:
             self._emit("error", {"message": str(exc)}, task_id=task_id)
