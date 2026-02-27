@@ -14,6 +14,7 @@ from .breaker import CircuitBreaker, CircuitOpenError
 from .cot_adapter import COTAdapter
 from .errors import LLMEmptyResponseError, LLMInvalidFormatError, as_llm_error
 from .qwen_handler import QwenHandler
+from .ram_model_selector import get_available_ram_gb, select_model
 from ..config import (
     OLLAMA_HOST,
     SYSTEM_PROMPT,
@@ -21,6 +22,8 @@ from ..config import (
     GROQ_API_KEY,
     USE_COTCORE,
     USE_BREAKER,
+    LLM_RAM_AWARE,
+    LLM_MODEL_NAME,
     BREAKER_THRESHOLD,
     BREAKER_COOLDOWN,
 )
@@ -40,11 +43,27 @@ class LanguageModel:
         # Initialize Qwen handler
         import os
         qwen_api_key = os.getenv("QWEN_API_KEY", "")
+        self.primary_model, self.fallback_model = self._resolve_models()
         self.qwen_handler = QwenHandler(
             use_cloud_api=USE_CLOUD_LLM,
             api_key=qwen_api_key,
+            model_name=self.primary_model,
             raise_on_error=True,
         )
+
+    def _resolve_models(self) -> tuple[str, str]:
+        if not LLM_RAM_AWARE:
+            return LLM_MODEL_NAME, LLM_MODEL_NAME
+
+        available_ram = get_available_ram_gb()
+        primary, fallback = select_model(available_ram)
+        logger.info(
+            "RAM-aware model selection: primary=%s, fallback=%s (available RAM: %.1f GB)",
+            primary,
+            fallback,
+            available_ram,
+        )
+        return primary, fallback
 
     def _compose_prompt(self, question: str) -> str:
         prompt = f"{SYSTEM_PROMPT}\n\n\u0412\u043e\u043f\u0440\u043e\u0441: {question}\n\u041e\u0442\u0432\u0435\u0442:"
@@ -72,6 +91,7 @@ class LanguageModel:
 
     def generate_response_local(self, question: str, cancel_event=None) -> Optional[str]:
         """Generate response using local Ollama Qwen"""
+        prompt = ""
         try:
             if self._is_cancelled(cancel_event):
                 return None
@@ -110,6 +130,24 @@ class LanguageModel:
                 logger.warning(str(err))
             else:
                 logger.error(f"Error generating local response ({err.kind}): {err}")
+
+            if self.fallback_model != self.primary_model:
+                current_model = self.qwen_handler.model_name
+                try:
+                    logger.warning(
+                        "Primary model %s failed, using fallback %s: %s",
+                        self.primary_model,
+                        self.fallback_model,
+                        err,
+                    )
+                    self.qwen_handler.model_name = self.fallback_model
+                    fallback_response = self.qwen_handler.generate_response(prompt)
+                    if isinstance(fallback_response, str) and fallback_response.strip():
+                        return fallback_response
+                except Exception as fallback_exc:
+                    logger.error("Fallback model %s failed: %s", self.fallback_model, fallback_exc)
+                finally:
+                    self.qwen_handler.model_name = current_model
             return None
     
     def generate_response_cloud(self, question: str, cancel_event=None) -> Optional[str]:

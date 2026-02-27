@@ -10,6 +10,10 @@ stt:
 
 llm:
   model_name: qwen2.5:7b
+  ram_aware: true
+  heavy_model: "qwen2.5:7b-instruct-q5_k_m"
+  light_model: "phi4:mini-q5_k_m"
+  ram_threshold_gb: 6.0
   use_cloud: false
   use_cotcore: false
   use_breaker: false

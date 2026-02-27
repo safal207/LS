@@ -2,6 +2,10 @@ audio:
   chunk_duration: 5
 
 llm:
+  ram_aware: true
+  heavy_model: "qwen2.5:7b-instruct-q5_k_m"
+  light_model: "phi4:mini-q5_k_m"
+  ram_threshold_gb: 6.0
   use_groq: true
   groq:
     model: qwen/qwen3-32b
