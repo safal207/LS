@@ -15,6 +15,11 @@ _tfidf_cache: dict[int, tuple[dict[str, int], list[float], list[list[float]], li
 _embedding_cache: OrderedDict[str, list[float]] = OrderedDict()
 CACHE_MAX_SIZE = 10000
 logger = logging.getLogger(__name__)
+ENABLE_QUERY_REWRITING = os.getenv("ENABLE_QUERY_REWRITING", "true").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -487,6 +492,8 @@ def get_context_for_question(
     graph_weight: float = 0.6,
     vector_weight: float = 0.4,
     min_vector_similarity: float = 0.35,
+    query_rewriter: Callable[[str], str] | None = None,
+    enable_rewriting: bool = ENABLE_QUERY_REWRITING,
 ) -> str:
     """
     Строит граф, находит похожие треды, возвращает контекст для LLM.
@@ -495,11 +502,15 @@ def get_context_for_question(
     max_entries: сколько причин+решений показывать (по умолчанию 3)
     """
     graph = build_temporal_graph(replay_loader)
+    effective_query = question
+    if enable_rewriting and query_rewriter is not None:
+        effective_query = query_rewriter(question)
+
     graph_scores = _score_related_threads(graph, thread_id, max_depth=max_depth)
     vector_scores = find_vector_related(
         graph,
         thread_id,
-        question,
+        effective_query,
         min_similarity=min_vector_similarity,
     )
 

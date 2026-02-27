@@ -307,3 +307,56 @@ def test_min_similarity_filter():
     )
 
     assert len(high_threshold) <= len(low_threshold)
+
+
+def test_get_context_uses_rewritten_query_when_enabled(monkeypatch):
+    observed: dict[str, str] = {}
+
+    def _stub_graph_scores(graph, thread_id, max_depth=2):
+        observed["graph_thread_id"] = thread_id
+        return {}
+
+    def _stub_vector_related(graph, thread_id, query_text, top_k=5, min_similarity=0.35):
+        observed["vector_query"] = query_text
+        observed["vector_thread_id"] = thread_id
+        return {}
+
+    monkeypatch.setattr(temporal_graph, "_score_related_threads", _stub_graph_scores)
+    monkeypatch.setattr(temporal_graph, "find_vector_related", _stub_vector_related)
+
+    original_question = "502 error"
+    rewritten_question = "HTTP 502 gateway error from upstream service"
+
+    get_context_for_question(
+        original_question,
+        "thread-db",
+        replay_loader=lambda: _semantic_entries(),
+        query_rewriter=lambda question: rewritten_question,
+        enable_rewriting=True,
+    )
+
+    assert observed["vector_query"] == rewritten_question
+    assert observed["graph_thread_id"] == "thread-db"
+    assert observed["vector_thread_id"] == "thread-db"
+
+
+def test_rewrite_query_does_not_change_when_disabled(monkeypatch):
+    observed: dict[str, str] = {}
+
+    def _stub_vector_related(graph, thread_id, query_text, top_k=5, min_similarity=0.35):
+        observed["vector_query"] = query_text
+        return {}
+
+    monkeypatch.setattr(temporal_graph, "find_vector_related", _stub_vector_related)
+
+    original_question = "502 error"
+
+    get_context_for_question(
+        original_question,
+        "thread-db",
+        replay_loader=lambda: _semantic_entries(),
+        query_rewriter=lambda question: "this should not be used",
+        enable_rewriting=False,
+    )
+
+    assert observed["vector_query"] == original_question

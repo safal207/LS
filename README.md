@@ -130,6 +130,9 @@ config/local.example.yaml
 ```
 Скопируйте его в `config/local.yaml` и внесите свои значения (ключи, модели и т.п.).
 
+Переменная окружения `ENABLE_QUERY_REWRITING` управляет переписыванием пользовательского запроса перед векторным поиском (`true/1/yes` по умолчанию).
+Для полного отключения set `ENABLE_QUERY_REWRITING=false` (полезно для локальной отладки и тестов).
+
 ## Режимы (в т.ч. Interview Mode)
 
 Поведение системы в первую очередь задаётся `llm.system_prompt` (см. `config/base.yaml` и overrides в `config/local.yaml`).
