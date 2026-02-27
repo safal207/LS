@@ -117,3 +117,16 @@ def test_fuzzy_mild_protection() -> None:
 
     assert decision.protection_level == "mild_protection"
     assert 0.35 < decision.protection_score < 0.62
+
+
+def test_fuzzy_zero_strength_fallback() -> None:
+    amygdala = Amygdala()
+    decision = amygdala.evaluate(
+        new_resonance=1.0,
+        axis_position=0.1,
+        delta_axis=0.0,
+        affect=1.0,
+    )
+
+    assert decision.protection_level == "open"
+    assert decision.protection_score == 0.0
