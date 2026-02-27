@@ -104,3 +104,16 @@ def test_fuzzy_strong_threat_protection() -> None:
 
     assert decision.protection_level in {"strong_protection", "full_protection"}
     assert decision.protection_score > 0.75
+
+
+def test_fuzzy_mild_protection() -> None:
+    amygdala = Amygdala()
+    decision = amygdala.evaluate(
+        new_resonance=0.55,
+        axis_position=0.35,
+        delta_axis=0.12,
+        affect=-0.25,
+    )
+
+    assert decision.protection_level == "mild_protection"
+    assert 0.35 < decision.protection_score < 0.62

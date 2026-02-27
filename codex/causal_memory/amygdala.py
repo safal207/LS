@@ -321,6 +321,7 @@ class Amygdala:
             (min(resonance_very_low, affect_neutral, overload_low), 0.12),
             (min(affect_negative_mild, resonance_medium), 0.58),
             (min(resonance_low, overload_low), 0.32),
+            (min(affect_neutral, resonance_medium, overload_low), 0.35),
         ]
         weighted_sum = sum(strength * output for strength, output in rules)
         strength_sum = sum(strength for strength, _ in rules)
