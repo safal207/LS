@@ -8,14 +8,22 @@ from pathlib import Path
 import os
 import sys
 
+# Добавляем корневой python/ в sys.path, чтобы все относительные импорты работали
+# независимо от того, откуда запускается скрипт (из apps/, из корня, из IDE и т.д.)
+PYTHON_ROOT = Path(__file__).resolve().parents[2] / "python"
+if str(PYTHON_ROOT) not in sys.path:
+    sys.path.insert(0, str(PYTHON_ROOT))
+
+MODULES_ROOT = PYTHON_ROOT / "modules"
+if str(MODULES_ROOT) not in sys.path:
+    sys.path.insert(0, str(MODULES_ROOT))
+
+
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-MODULES = ROOT / "python" / "modules"
-if str(MODULES) not in sys.path:
-    sys.path.insert(0, str(MODULES))
 
-from shared.config_loader import load_config
+from modules.shared.config_loader import load_config
 
 os.environ.setdefault("LS_APP", "console")
 cfg = load_config("console")
@@ -27,12 +35,12 @@ import time
 import logging
 from typing import Optional
 
-import config
-from agent.loop import AgentLoop
-from agent.sinks import build_event_sink
-from audio_module import AudioIngestion
-from stt_module import SpeechToText
-from llm_module import LanguageModel
+from modules import config
+from modules.agent.loop import AgentLoop
+from modules.agent.sinks import build_event_sink
+from modules.audio.audio_module import AudioIngestion
+from modules.stt.stt_module import SpeechToText
+from modules.llm.llm_module import LanguageModel
 from utils import check_system_resources
 
 # Configure logging
