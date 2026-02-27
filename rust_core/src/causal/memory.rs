@@ -5,6 +5,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const RESONANCE_THRESHOLD: f32 = 0.35;
 
+type NodeSnapshot = (String, i64, String, f32, f32, Option<String>, String);
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum LayerType {
     Customer,
@@ -209,10 +211,7 @@ impl RustCausalMemory {
     }
 
     #[pyo3(name = "get_node")]
-    pub fn get_node(
-        &self,
-        id: String,
-    ) -> PyResult<Option<(String, i64, String, f32, f32, Option<String>, String)>> {
+    pub fn get_node(&self, id: String) -> PyResult<Option<NodeSnapshot>> {
         let node_id = parse_id(&id)?;
         let maybe = self.nodes.get(&node_id).map(|n| {
             (
