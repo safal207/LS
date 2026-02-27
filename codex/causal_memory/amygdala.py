@@ -67,6 +67,7 @@ class Amygdala:
         self.adaptation_rate = max(0.01, min(0.35, adaptation_rate))
         self.state = 0.5
         self.adaptive_bias = 0.0
+        self.personality_p = 0.5
         self.protection_shift = 0.0
 
     def evaluate(
@@ -157,6 +158,16 @@ class Amygdala:
 
         self.adaptive_bias = max(-0.2, min(0.2, self.adaptive_bias + reward))
 
+        # Personality axis (P): attachment/empathy grows with stable, engaged sessions.
+        if stable_interaction and user_engaged:
+            self.personality_p = min(1.0, self.personality_p + 0.015)
+        elif not stable_interaction and user_engaged:
+            self.personality_p = min(1.0, self.personality_p + 0.003)
+        elif not stable_interaction and not user_engaged:
+            self.personality_p = max(0.0, self.personality_p - 0.01)
+        elif stable_interaction and not user_engaged:
+            self.personality_p = max(0.0, self.personality_p - 0.005)
+
     def _adapt_parameters(self) -> None:
         if len(self.history) < 10:
             return
@@ -222,6 +233,10 @@ class Amygdala:
         )
         pressure = max(0.0, min(1.0, pressure))
 
+        empathy_relief = max(0.0, self.personality_p - 0.7)
+        if empathy_relief > 0.0:
+            pressure *= max(0.7, 1.0 - (0.3 * empathy_relief / 0.3))
+
         reasons = {
             BlockReason.LOW_RESONANCE: max(resonance_drop, low_resonance_pressure),
             BlockReason.THREAT: affect_pressure,
@@ -258,10 +273,13 @@ class Amygdala:
             reason = BlockReason.THREAT
         if affect <= -0.85:
             fuzzy_score = max(fuzzy_score, 0.78)
+
+        if empathy_relief > 0.0:
+            fuzzy_score *= max(0.8, 1.0 - (0.2 * empathy_relief / 0.3))
         protection_level = self._label_protection_level(fuzzy_score)
 
         logger.debug(
-            "Amygdala pressure=%.3f fuzzy=%.3f level=%s state=%.3f reason=%s resonance=%.3f affect=%.3f axis=%.3f delta=%.3f bias=%.3f",
+            "Amygdala pressure=%.3f fuzzy=%.3f level=%s state=%.3f reason=%s resonance=%.3f affect=%.3f axis=%.3f delta=%.3f bias=%.3f p=%.3f",
             pressure,
             fuzzy_score,
             protection_level,
@@ -272,6 +290,7 @@ class Amygdala:
             axis_position,
             delta_axis,
             self.adaptive_bias,
+            self.personality_p,
         )
         return pressure, reason, fuzzy_score, protection_level
 
