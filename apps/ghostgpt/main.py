@@ -1,16 +1,24 @@
-﻿from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication
 import os
 import sys
 from pathlib import Path
 
+# Добавляем корневой python/ в sys.path, чтобы все относительные импорты работали
+# независимо от того, откуда запускается скрипт (из apps/, из корня, из IDE и т.д.)
+PYTHON_ROOT = Path(__file__).resolve().parents[2] / "python"
+if str(PYTHON_ROOT) not in sys.path:
+    sys.path.insert(0, str(PYTHON_ROOT))
+
+MODULES_ROOT = PYTHON_ROOT / "modules"
+if str(MODULES_ROOT) not in sys.path:
+    sys.path.insert(0, str(MODULES_ROOT))
+
+
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-MODULES = ROOT / "python" / "modules"
-if str(MODULES) not in sys.path:
-    sys.path.insert(0, str(MODULES))
 
-from shared.config_loader import load_config
+from modules.shared.config_loader import load_config
 
 os.environ.setdefault("LS_APP", "ghostgpt")
 cfg = load_config("ghostgpt")
@@ -19,9 +27,9 @@ import keyboard
 from GhostGPT.modules.gui import GhostWindow
 from GhostGPT.modules.audio import AudioWorker
 from GhostGPT.modules.access_protocol import AccessProtocol
-from agent.loop import AgentLoop
-from agent.sinks import build_event_sink
-import config
+from modules.agent.loop import AgentLoop
+from modules.agent.sinks import build_event_sink
+from modules import config
 
 
 class GhostGPT:
