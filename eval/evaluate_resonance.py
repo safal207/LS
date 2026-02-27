@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
+from eval.llm_judge import judge_response
+
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_ROOT = ROOT / "python"
 MODULES_ROOT = PYTHON_ROOT / "modules"
@@ -114,7 +116,7 @@ def _eval_context(
     }
 
 
-def evaluate(mode: str) -> dict[str, Any]:
+def evaluate(mode: str, judge_handler: Callable[[str], str] | None = None) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
 
     for question in TEST_QUESTIONS:
@@ -152,15 +154,27 @@ def evaluate(mode: str) -> dict[str, Any]:
 
         latency_ms = (time.time() - start_time) * 1000
 
-        results.append(
-            {
-                "question": question[:100],
-                "mode": mode,
-                "context_snippet": context[:200],
-                **metrics,
-                "latency_ms": latency_ms,
-            }
-        )
+        result = {
+            "question": question[:100],
+            "mode": mode,
+            "context_snippet": context[:200],
+            **metrics,
+            "latency_ms": latency_ms,
+        }
+
+        if judge_handler and context.strip():
+            judgment = judge_response(question, context, judge_handler)
+            result["relevance"] = judgment.get("relevance", 0)
+            result["hallucination_risk"] = judgment.get("hallucination_risk", 10)
+            result["judge_reasoning"] = judgment.get("reasoning", "")
+        else:
+            result["relevance"] = None
+            result["hallucination_risk"] = None
+            result["judge_reasoning"] = None
+
+        results.append(result)
+
+    judged = [r for r in results if r["relevance"] is not None]
 
     summary = {
         "avg_hit_rate": sum(r["hit_rate"] for r in results) / len(results),
@@ -168,6 +182,10 @@ def evaluate(mode: str) -> dict[str, Any]:
         "avg_similarity": sum(r["avg_similarity"] for r in results) / len(results),
         "avg_top_score": sum(r["top_score"] for r in results) / len(results),
         "avg_chunks_found": sum(r["chunks_found"] for r in results) / len(results),
+        "avg_relevance": sum(r["relevance"] for r in judged) / len(judged) if judged else None,
+        "avg_hallucination_risk": (
+            sum(r["hallucination_risk"] for r in judged) / len(judged) if judged else None
+        ),
         "worst_questions": [r["question"] for r in sorted(results, key=lambda x: x["hit_rate"])[:3]],
     }
 
