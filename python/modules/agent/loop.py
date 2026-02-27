@@ -333,6 +333,7 @@ class AgentLoop:
                 stability_ok = self.causal_memory.stabilize(stability_id)
                 self.memory["causal_resonance"] = self.causal_memory.check_resonance(stability_id)
                 self.memory["causal_stability_ok"] = stability_ok
+                self.memory["causal_axis_position"] = self.causal_memory.get_axis_position(stability_id)
             except Exception as exc:
                 logger.debug("Causal memory update failed: %s", exc)
 
@@ -439,6 +440,7 @@ class AgentLoop:
                 if stability_ok is not None:
                     payload["causal_stability_ok"] = stability_ok
                     payload["causal_resonance"] = self.memory.get("causal_resonance")
+                    payload["causal_axis_position"] = self.memory.get("causal_axis_position")
 
             if payload is not None:
                 self._increment_metric("outputs", 1)

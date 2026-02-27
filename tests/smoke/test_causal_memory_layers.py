@@ -2,6 +2,8 @@ import queue
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -27,6 +29,15 @@ def test_causal_memory_linear_layers() -> None:
 
     assert memory.check_resonance(stability_id) > 0.0
     assert memory.stabilize(stability_id) is True
+    assert memory.get_axis_position(stability_id) == pytest.approx(1.0)
+
+
+def test_causal_memory_blocks_low_resonance() -> None:
+    memory = CausalMemory()
+    customer_id = memory.add_intent("mission resonance care")
+
+    with pytest.raises(Exception):
+        memory.transition_down(customer_id, "banana quantum trumpet", "Consumer")
 
 
 def test_agent_loop_exposes_causal_metrics() -> None:
@@ -38,3 +49,4 @@ def test_agent_loop_exposes_causal_metrics() -> None:
 
     assert "causal_stability_ok" in payload
     assert "causal_resonance" in payload
+    assert "causal_axis_position" in payload

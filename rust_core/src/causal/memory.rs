@@ -49,6 +49,7 @@ struct Node {
     timestamp: i64,
     content: String,
     resonance_score: f32,
+    axis_position: f32,
     parent_id: Option<u64>,
     layer: LayerType,
 }
@@ -95,6 +96,7 @@ impl RustCausalMemory {
             timestamp: unix_ts(),
             content,
             resonance_score: 1.0,
+            axis_position: axis_position(LayerType::Customer),
             parent_id: None,
             layer: LayerType::Customer,
         };
@@ -114,6 +116,9 @@ impl RustCausalMemory {
         new_layer: String,
     ) -> PyResult<String> {
         let source_id = parse_id(&id)?;
+        if !self.nodes.contains_key(&source_id) {
+            return Err(PyValueError::new_err("Parent id not found"));
+        }
         let parent = self
             .nodes
             .get(&source_id)
@@ -129,6 +134,14 @@ impl RustCausalMemory {
         }
 
         let resonance = compute_resonance(parent.content.as_str(), new_content.as_str());
+        if resonance < 0.5 {
+            log::warn!(
+                "Low resonance on transition {} -> {}: {:.3}",
+                parent.layer.as_str(),
+                target_layer.as_str(),
+                resonance
+            );
+        }
         if resonance < RESONANCE_THRESHOLD {
             return Err(PyValueError::new_err(format!(
                 "ResonanceError: score {resonance:.3} is below threshold {RESONANCE_THRESHOLD:.3}"
@@ -143,6 +156,7 @@ impl RustCausalMemory {
             timestamp: unix_ts(),
             content: new_content,
             resonance_score: resonance,
+            axis_position: axis_position(target_layer),
             parent_id: Some(source_id),
             layer: target_layer,
         };
@@ -195,7 +209,7 @@ impl RustCausalMemory {
     pub fn get_node(
         &self,
         id: String,
-    ) -> PyResult<Option<(String, i64, String, f32, Option<String>, String)>> {
+    ) -> PyResult<Option<(String, i64, String, f32, f32, Option<String>, String)>> {
         let node_id = parse_id(&id)?;
         let maybe = self.nodes.get(&node_id).map(|n| {
             (
@@ -203,11 +217,22 @@ impl RustCausalMemory {
                 n.timestamp,
                 n.content.clone(),
                 n.resonance_score,
+                n.axis_position,
                 n.parent_id.map(|pid| pid.to_string()),
                 n.layer.as_str().to_string(),
             )
         });
         Ok(maybe)
+    }
+
+    #[pyo3(name = "get_axis_position")]
+    pub fn get_axis_position(&self, id: String) -> PyResult<f32> {
+        let node_id = parse_id(&id)?;
+        let node = self
+            .nodes
+            .get(&node_id)
+            .ok_or_else(|| PyValueError::new_err("Node id not found"))?;
+        Ok(node.axis_position)
     }
 }
 
@@ -231,12 +256,18 @@ fn compute_resonance(parent: &str, child: &str) -> f32 {
         return 0.0;
     }
 
-    let overlap = p_tokens.intersection(&c_tokens).count() as f32;
-    let denom = p_tokens.union(&c_tokens).count() as f32;
-    if denom == 0.0 {
-        0.0
+    let parent_len = parent.chars().count();
+    let child_len = child.chars().count();
+    if parent_len > 50 || child_len > 50 {
+        cosine_from_tokens(parent, child)
     } else {
-        overlap / denom
+        let overlap = p_tokens.intersection(&c_tokens).count() as f32;
+        let denom = p_tokens.union(&c_tokens).count() as f32;
+        if denom == 0.0 {
+            0.0
+        } else {
+            overlap / denom
+        }
     }
 }
 
@@ -248,6 +279,60 @@ fn normalize_tokens(text: &str) -> std::collections::HashSet<String> {
         })
         .filter(|t| !t.is_empty())
         .collect()
+}
+
+fn axis_position(layer: LayerType) -> f32 {
+    match layer {
+        LayerType::Customer => -1.0,
+        LayerType::Consumer => -0.33,
+        LayerType::Execution => 0.33,
+        LayerType::Stability => 1.0,
+    }
+}
+
+fn cosine_from_tokens(a: &str, b: &str) -> f32 {
+    let mut a_freq: HashMap<String, f32> = HashMap::new();
+    let mut b_freq: HashMap<String, f32> = HashMap::new();
+
+    for token in a
+        .split_whitespace()
+        .map(normalize_token)
+        .filter(|t| !t.is_empty())
+    {
+        *a_freq.entry(token).or_insert(0.0) += 1.0;
+    }
+    for token in b
+        .split_whitespace()
+        .map(normalize_token)
+        .filter(|t| !t.is_empty())
+    {
+        *b_freq.entry(token).or_insert(0.0) += 1.0;
+    }
+
+    if a_freq.is_empty() || b_freq.is_empty() {
+        return 0.0;
+    }
+
+    let mut dot = 0.0;
+    for (token, a_value) in &a_freq {
+        if let Some(b_value) = b_freq.get(token) {
+            dot += a_value * b_value;
+        }
+    }
+
+    let a_norm = a_freq.values().map(|v| v * v).sum::<f32>().sqrt();
+    let b_norm = b_freq.values().map(|v| v * v).sum::<f32>().sqrt();
+    if a_norm == 0.0 || b_norm == 0.0 {
+        0.0
+    } else {
+        (dot / (a_norm * b_norm)).clamp(0.0, 1.0)
+    }
+}
+
+fn normalize_token(token: &str) -> String {
+    token
+        .trim_matches(|c: char| !c.is_alphanumeric())
+        .to_lowercase()
 }
 
 #[cfg(test)]
@@ -284,7 +369,8 @@ mod tests {
 
         let score = memory.check_resonance(execution).expect("resonance");
         assert!(score > 0.0);
-        assert!(memory.stabilize(stability).expect("stabilize"));
+        assert!(memory.stabilize(stability.clone()).expect("stabilize"));
+        assert_eq!(memory.get_axis_position(stability).expect("axis"), 1.0);
     }
 
     #[test]

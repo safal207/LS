@@ -12,6 +12,12 @@ class _PythonFallbackCausalMemory:
     def __init__(self) -> None:
         self._next = 1
         self._nodes: dict[str, dict[str, Any]] = {}
+        self._axis_map = {
+            "Customer": -1.0,
+            "Consumer": -0.33,
+            "Execution": 0.33,
+            "Stability": 1.0,
+        }
 
     def add_intent(self, layer: str, content: str) -> str:
         if layer != "Customer":
@@ -23,6 +29,7 @@ class _PythonFallbackCausalMemory:
             "layer": layer,
             "parent": None,
             "resonance": 1.0,
+            "axis_position": self._axis_map["Customer"],
         }
         return node_id
 
@@ -42,6 +49,7 @@ class _PythonFallbackCausalMemory:
             "layer": new_layer,
             "parent": parent_id,
             "resonance": score,
+            "axis_position": self._axis_map.get(new_layer, 0.0),
         }
         return node_id
 
@@ -52,6 +60,10 @@ class _PythonFallbackCausalMemory:
     def stabilize(self, node_id: str) -> bool:
         node = self._nodes[node_id]
         return node["layer"] == "Stability" and float(node["resonance"]) >= 0.35
+
+    def get_axis_position(self, node_id: str) -> float:
+        node = self._nodes[node_id]
+        return float(node["axis_position"])
 
 
 class CausalMemory:
@@ -69,3 +81,6 @@ class CausalMemory:
 
     def stabilize(self, node_id: str) -> bool:
         return bool(self._rust.stabilize(node_id))
+
+    def get_axis_position(self, node_id: str) -> float:
+        return float(self._rust.get_axis_position(node_id))
