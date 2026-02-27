@@ -53,3 +53,24 @@ def test_agent_loop_exposes_causal_metrics() -> None:
     assert "causal_stability_ok" in payload
     assert "causal_resonance" in payload
     assert "causal_axis_position" in payload
+    assert payload["amygdala_status"] == "stable"
+    assert 0.0 <= payload["amygdala_state"] <= 1.0
+    assert payload["amygdala_history_size"] >= 1
+
+
+def test_agent_loop_blocks_threatening_transition() -> None:
+    output_queue: queue.Queue = queue.Queue()
+    loop = AgentLoop(output_queue=output_queue, llm=DummyLLM())
+
+    loop.causal_transitions.amygdala.state = 0.9
+    loop.causal_transitions.amygdala.adaptive_bias = 0.2
+
+    loop.handle_input("threat danger panic")
+    payload = output_queue.get_nowait()
+
+    assert payload["amygdala_status"] == "blocked"
+    assert payload["amygdala_reason"] in {"threat", "low_resonance", "overload"}
+    assert payload["causal_rollback_layer"] in {"Customer", "Consumer", "Execution"}
+    assert payload["amygdala_state"] >= 0.65
+    assert payload["amygdala_history_size"] >= 1
+    assert "спокойнее" in payload["response"].lower()
