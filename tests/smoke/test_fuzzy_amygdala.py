@@ -91,3 +91,16 @@ def test_fuzzy_adaptation_effect() -> None:
 
     assert -0.15 <= amygdala.protection_shift <= 0.15
     assert 0.1 <= amygdala.smoothing <= 0.95
+
+
+def test_fuzzy_strong_threat_protection() -> None:
+    amygdala = Amygdala()
+    decision = amygdala.evaluate(
+        new_resonance=0.35,
+        axis_position=0.4,
+        delta_axis=0.15,
+        affect=-0.9,
+    )
+
+    assert decision.protection_level in {"strong_protection", "full_protection"}
+    assert decision.protection_score > 0.75

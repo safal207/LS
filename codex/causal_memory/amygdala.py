@@ -251,6 +251,8 @@ class Amygdala:
         if affect <= -0.55:
             fuzzy_score = max(fuzzy_score, 0.62)
             reason = BlockReason.THREAT
+        if affect <= -0.85:
+            fuzzy_score = max(fuzzy_score, 0.78)
         protection_level = self._label_protection_level(fuzzy_score)
 
         logger.debug(
@@ -311,7 +313,7 @@ class Amygdala:
         rules = [
             (min(resonance_high, affect_negative_strong), 0.98),
             (min(resonance_low, affect_positive), 0.08),
-            (overload_high, 0.9),
+            (overload_high, 0.92),
             (min(resonance_medium, affect_neutral), 0.48),
             (resonance_high, 0.86),
             (min(affect_negative_strong, overload_medium), 0.9),
@@ -322,10 +324,7 @@ class Amygdala:
         ]
         weighted_sum = sum(strength * output for strength, output in rules)
         strength_sum = sum(strength for strength, _ in rules)
-        fuzzy_output = weighted_sum / max(strength_sum, 1e-6)
-
-        if strength_sum <= 1e-6:
-            fuzzy_output = base_pressure
+        fuzzy_output = weighted_sum / max(strength_sum, 1e-6) if strength_sum > 0 else base_pressure
 
         blended = (0.75 * fuzzy_output) + (0.25 * base_pressure)
         centered = blended + ((self.state - 0.5) * 0.08)
