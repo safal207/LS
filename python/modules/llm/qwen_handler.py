@@ -61,10 +61,11 @@ def get_causal_trace_confidence(default: float = DEFAULT_CAUSAL_CONFIDENCE) -> f
 
 
 class QwenHandler:
-    def __init__(self, use_cloud_api: bool = False, api_key: str = "", *, raise_on_error: bool = False):
+    def __init__(self, use_cloud_api: bool = False, api_key: str = "", model_name: Optional[str] = None, *, raise_on_error: bool = False):
         self.use_cloud_api = use_cloud_api
         self.api_key = api_key
         self.raise_on_error = raise_on_error
+        self.model_name = model_name or LLM_MODEL_NAME
         _ensure_requests_available()
         self.session = requests.Session()
         self.session.timeout = 30
@@ -75,7 +76,7 @@ class QwenHandler:
             url = f"{OLLAMA_HOST}/api/generate"
 
             payload = {
-                "model": LLM_MODEL_NAME,
+                "model": self.model_name,
                 "prompt": prompt,
                 "stream": False,
                 "options": {
