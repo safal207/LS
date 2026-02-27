@@ -6,9 +6,14 @@
 
 LS (Local Cognitive System) — локальная когнитивная система: архитектурный слой поверх LLM, который добавляет агентный цикл, временной контекст, устойчивость и наблюдаемость.
 
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](#quick-start)
+[![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
+[![Local--first](https://img.shields.io/badge/Architecture-Local--first-success.svg)](#ls--local-cognitive-system-lcs)
+
 Интервью‑копайлот (Ghost Mode) — **один из режимов/приложений**, а не “ядро” проекта.
 
 Документация:
+- `FINAL_PROJECT_REPORT.md` — основной итоговый отчёт по Golden Master
 - `docs/MANIFESTO.md` — позиционирование и принципы
 - `docs/ARCHITECTURE.md` — архитектура и поток данных
 - `docs/CIP_SPEC.md` — Cognitive Interlink Protocol (агент‑агент)
@@ -60,7 +65,12 @@ config/
 - **Слабый слой согласия человека**: нет протокольного уровня для intent/consent/safety, который уважает человека.
 - **Зависимость от централизованных платформ**: локальные команды теряют автономию и контроль над доверительной моделью.
 
-## Быстрый старт
+## Quick Start
+
+### Требования
+- Python 3.10+
+- [Ollama](https://ollama.com/) (локальная LLM-служба)
+- `pip install -r requirements.txt`
 
 ### 1) Установка зависимостей
 

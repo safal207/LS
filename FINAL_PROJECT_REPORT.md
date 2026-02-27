@@ -155,6 +155,11 @@ The Ghost Interview Copilot project has been successfully completed as a **Golde
 
 **Ready for Battle:** The application is fully prepared for real-world interview scenarios and represents a significant advancement in AI-assisted career development tools.
 
+
+**Release v1.0 (2026-02-27)**
+- Public release as Golden Master
+- PR #205: Release preparation & changelog
+
 ---
 *Project completed: January 26, 2026*
 *Architecture level: Senior System Engineer*
