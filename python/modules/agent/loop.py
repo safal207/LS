@@ -387,6 +387,7 @@ class AgentLoop:
                 self.memory["amygdala_reason"] = None
                 self.memory["amygdala_affect"] = amygdala_affect
                 self.memory["amygdala_state"] = amygdala_state
+                self.memory["amygdala_history_size"] = len(self.causal_transitions.amygdala.history)
                 self.memory["causal_rollback_layer"] = None
             except AmygdalaBlockError as exc:
                 amygdala_reason = exc.reason.value
@@ -394,6 +395,7 @@ class AgentLoop:
                 self.memory["amygdala_status"] = "blocked"
                 self.memory["amygdala_reason"] = amygdala_reason
                 self.memory["amygdala_state"] = amygdala_state
+                self.memory["amygdala_history_size"] = len(self.causal_transitions.amygdala.history)
                 self.memory["causal_rollback_layer"] = rollback_layer
                 if exc.reason == BlockReason.THREAT and self.llm is not None:
                     breaker = getattr(self.llm, "breaker", None)
@@ -452,6 +454,7 @@ class AgentLoop:
                     "amygdala_reason": amygdala_reason,
                     "amygdala_affect": amygdala_affect,
                     "amygdala_state": amygdala_state,
+                    "amygdala_history_size": len(self.causal_transitions.amygdala.history),
                     "causal_rollback_layer": rollback_layer,
                 }
                 self._increment_metric("outputs", 1)
@@ -549,6 +552,7 @@ class AgentLoop:
                     "amygdala_reason": self.memory.get("amygdala_reason"),
                     "amygdala_affect": self.memory.get("amygdala_affect", 0.0),
                     "amygdala_state": self.memory.get("amygdala_state", 0.5),
+                    "amygdala_history_size": self.memory.get("amygdala_history_size", 0),
                 }
                 if stability_ok is not None:
                     payload["causal_stability_ok"] = stability_ok

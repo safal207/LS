@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +43,7 @@ class Amygdala:
     def __init__(
         self,
         *,
-        window_size: int = 20,
+        window_size: int = 50,
         threshold_low: float = 0.4,
         threshold_overload: float = 0.7,
         max_axis_delta: float = 0.3,
@@ -49,9 +51,10 @@ class Amygdala:
         smoothing: float = 0.35,
         hysteresis: float = 0.08,
         close_threshold: float = 0.65,
+        adaptation_rate: float = 0.05,
     ) -> None:
         self._recent_resonance: deque[float] = deque(maxlen=window_size)
-        self.history: deque[tuple[float, float, float]] = deque(maxlen=window_size)
+        self.history: deque[dict[str, Any]] = deque(maxlen=window_size)
         self.threshold_low = threshold_low
         self.threshold_overload = threshold_overload
         self.max_axis_delta = max_axis_delta
@@ -59,6 +62,7 @@ class Amygdala:
         self.smoothing = max(0.05, min(0.95, smoothing))
         self.hysteresis = max(0.0, min(0.3, hysteresis))
         self.close_threshold = max(0.3, min(0.95, close_threshold))
+        self.adaptation_rate = max(0.001, min(0.2, adaptation_rate))
         self.state = 0.5
         self.adaptive_bias = 0.0
 
@@ -85,10 +89,27 @@ class Amygdala:
                 min(1.0, (self.smoothing * target_state) + ((1.0 - self.smoothing) * self.state)),
             )
 
-        self.history.append((self.state, affect, new_resonance))
+        # Temporal centering force keeps the regulator around harmony midpoint.
+        self.state = max(0.0, min(1.0, self.state + ((0.5 - self.state) * self.adaptation_rate * 0.08)))
+
         allowed = self.state < self.close_threshold
         if not allowed and reason is None:
             reason = BlockReason.OVERLOAD
+
+        history_record = {
+            "ts": time.time(),
+            "state": self.state,
+            "affect": affect,
+            "resonance": new_resonance,
+            "axis_position": axis_position,
+            "delta_axis": delta_axis,
+            "pressure": pressure,
+            "decision": "allow" if allowed else "block",
+            "outcome": "success" if allowed else "blocked",
+            "reason": reason.value if reason is not None else None,
+        }
+        self.history.append(history_record)
+        self._adapt_parameters()
 
         return AmygdalaDecision(
             allowed=allowed,
@@ -116,13 +137,45 @@ class Amygdala:
     def learn_from_outcome(self, *, stable_interaction: bool, user_engaged: bool = True) -> None:
         reward = 0.0
         if stable_interaction and user_engaged:
-            reward = -0.03
+            reward = -0.6 * self.adaptation_rate
         elif not stable_interaction:
-            reward = 0.04
+            reward = 0.8 * self.adaptation_rate
         elif stable_interaction and not user_engaged:
-            reward = 0.015
+            reward = 0.25 * self.adaptation_rate
 
         self.adaptive_bias = max(-0.2, min(0.2, self.adaptive_bias + reward))
+
+    def _adapt_parameters(self) -> None:
+        if len(self.history) < 10:
+            return
+
+        recent = list(self.history)[-10:]
+        states = [float(item["state"]) for item in recent]
+        blocked_ratio = sum(1 for item in recent if item["decision"] == "block") / len(recent)
+        threat_ratio = sum(1 for item in recent if item.get("reason") == BlockReason.THREAT.value) / len(recent)
+        avg_state = sum(states) / len(states)
+        volatility = sum(abs(states[i] - states[i - 1]) for i in range(1, len(states))) / max(len(states) - 1, 1)
+
+        # Centroorientation: softly pull behavior toward balanced median state.
+        center_error = 0.5 - avg_state
+        self.adaptive_bias = max(-0.2, min(0.2, self.adaptive_bias + (center_error * self.adaptation_rate * 0.3)))
+
+        # If system is jittery, make transitions less reactive.
+        if volatility > 0.18:
+            self.smoothing = max(0.1, self.smoothing - (self.adaptation_rate * 0.2))
+
+        # Frequent threat blocking means affect-gate is too strict: soften slightly.
+        if blocked_ratio > 0.5 and threat_ratio > 0.25:
+            self.threat_affect = max(-0.95, self.threat_affect - (self.adaptation_rate * 0.4))
+
+        # Frequent overload blocks: close earlier and keep calmer response dynamics.
+        if blocked_ratio > 0.55 and threat_ratio < 0.2:
+            self.close_threshold = max(0.55, self.close_threshold - (self.adaptation_rate * 0.25))
+            self.smoothing = max(0.1, self.smoothing - (self.adaptation_rate * 0.1))
+
+        # Almost never blocks and avg too open -> restore caution a bit.
+        if blocked_ratio < 0.1 and avg_state < 0.35:
+            self.close_threshold = min(0.75, self.close_threshold + (self.adaptation_rate * 0.15))
 
     def _calculate_pressure(
         self,

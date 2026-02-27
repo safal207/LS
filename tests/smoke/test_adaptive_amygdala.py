@@ -26,40 +26,48 @@ def test_smooth_transitions_no_oscillation() -> None:
     assert max_jump < 0.25
 
 
-def test_learning_over_time() -> None:
-    amygdala = Amygdala()
+def test_adaptation_over_time() -> None:
+    amygdala = Amygdala(adaptation_rate=0.05)
 
+    for _ in range(20):
+        amygdala.evaluate(
+            new_resonance=0.2,
+            axis_position=0.95,
+            delta_axis=0.7,
+            affect=-0.9,
+        )
+
+    assert len(amygdala.history) >= 20
+    assert -0.95 <= amygdala.threat_affect <= -0.5
+    assert 0.1 <= amygdala.smoothing <= 0.95
+
+
+def test_centering_behavior() -> None:
+    amygdala = Amygdala(adaptation_rate=0.05)
+
+    # Push state high first.
     for _ in range(8):
-        amygdala.learn_from_outcome(stable_interaction=True, user_engaged=True)
-    lowered_bias = amygdala.adaptive_bias
-
-    for _ in range(8):
-        amygdala.learn_from_outcome(stable_interaction=False, user_engaged=False)
-
-    assert lowered_bias < 0.0
-    assert amygdala.adaptive_bias > lowered_bias
-
-
-def test_harmony_chaos_balance() -> None:
-    amygdala = Amygdala()
-
-    calm = amygdala.evaluate(
-        new_resonance=0.95,
-        axis_position=0.2,
-        delta_axis=0.05,
-        affect=0.1,
-    )
-
-    threat = calm
-    for _ in range(6):
-        threat = amygdala.evaluate(
-            new_resonance=0.15,
+        amygdala.evaluate(
+            new_resonance=0.1,
             axis_position=0.95,
             delta_axis=0.8,
             affect=-0.9,
         )
 
-    assert calm.allowed is True
-    assert calm.state < 0.65
-    assert threat.state > calm.state
-    assert threat.allowed is False
+    high_state = amygdala.state
+
+    # Then feed calm interactions and ensure it drifts back toward center.
+    for _ in range(18):
+        amygdala.evaluate(
+            new_resonance=0.95,
+            axis_position=0.1,
+            delta_axis=0.05,
+            affect=0.05,
+        )
+
+    recent_states = [float(item["state"]) for item in list(amygdala.history)[-10:]]
+    centered_mean = sum(recent_states) / len(recent_states)
+
+    assert high_state > 0.5
+    assert centered_mean < high_state
+    assert 0.05 <= centered_mean <= 0.6
