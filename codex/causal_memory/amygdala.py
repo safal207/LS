@@ -258,7 +258,7 @@ class Amygdala:
             base_pressure=pressure,
         )
 
-        phantom_pain = self.visceral_memory["phantom_pain"]
+        phantom_pain = self.phantom_pain
         if phantom_pain > 0.3:
             pressure = min(1.0, pressure + (0.15 * phantom_pain))
             fuzzy_score = min(1.0, fuzzy_score + (0.1 * phantom_pain))
