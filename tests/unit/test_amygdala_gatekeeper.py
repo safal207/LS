@@ -119,3 +119,44 @@ def test_amygdala_blocks_sharp_resonance_drop():
         )
 
     assert exc.value.reason == BlockReason.LOW_RESONANCE
+
+
+def test_mixed_affect_phrase_priority():
+    transitions = CausalMemoryTransitions()
+
+    node = transitions.transition_down(
+        current_layer="Consumer",
+        target_layer="Execution",
+        text="мне страшно нужно это завершить",
+        resonance=0.8,
+        axis_position=0.1,
+        delta_axis=0.1,
+    )
+
+    assert node.affect == -0.4
+
+
+def test_amygdala_sharp_drop_logs_reason(caplog):
+    amygdala = Amygdala(window_size=3, threshold_low=0.1)
+    transitions = CausalMemoryTransitions(amygdala=amygdala)
+
+    transitions.transition_down(
+        current_layer="Consumer",
+        target_layer="Execution",
+        text="нейтрально",
+        resonance=0.9,
+        axis_position=0.3,
+        delta_axis=0.1,
+    )
+
+    with pytest.raises(AmygdalaBlockError):
+        transitions.transition_down(
+            current_layer="Consumer",
+            target_layer="Execution",
+            text="нейтрально",
+            resonance=0.2,
+            axis_position=0.4,
+            delta_axis=0.1,
+        )
+
+    assert "sharp resonance drop" in caplog.text

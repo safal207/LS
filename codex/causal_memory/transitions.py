@@ -38,6 +38,10 @@ AFFECT_KEYWORDS: dict[str, float] = {
     "important": 0.3,
 }
 
+MIXED_AFFECT_PHRASES: dict[str, float] = {
+    "страшно нужно": -0.4,
+}
+
 
 @dataclass(frozen=True)
 class CausalNode:
@@ -80,6 +84,13 @@ class CausalMemoryTransitions:
                 affect,
                 delta_axis,
             )
+            logger.warning(
+                "Blocked by Amygdala on text: '%s...' | reason: %s | resonance=%.3f | affect=%.3f",
+                text[:80],
+                decision.reason.value,
+                effective_resonance,
+                affect,
+            )
             raise AmygdalaBlockError(decision.reason)
 
         return CausalNode(
@@ -93,6 +104,9 @@ class CausalMemoryTransitions:
     @staticmethod
     def _compute_affect(text: str) -> float:
         lower = text.lower()
+        for phrase, score in MIXED_AFFECT_PHRASES.items():
+            if phrase in lower:
+                return score
         total = 0.0
         hits = 0
         for key, score in AFFECT_KEYWORDS.items():
