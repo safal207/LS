@@ -9,6 +9,12 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+"""
+Теория струн как метафора регулятора:
+Z-ось — причинность, T-ось — время, P-ось — частота привязанности/эмпатии.
+Fuzzy-регулятор — резонатор, protection_level — демпфер.
+"""
+
 
 class BlockReason(str, Enum):
     LOW_RESONANCE = "low_resonance"
@@ -64,9 +70,10 @@ class Amygdala:
         self.smoothing = max(0.05, min(0.95, smoothing))
         self.hysteresis = max(0.0, min(0.3, hysteresis))
         self.close_threshold = max(0.3, min(0.95, close_threshold))
-        self.adaptation_rate = max(0.001, min(0.2, adaptation_rate))
+        self.adaptation_rate = max(0.01, min(0.35, adaptation_rate))
         self.state = 0.5
         self.adaptive_bias = 0.0
+        self.personality_p = 0.5
         self.protection_shift = 0.0
 
     def evaluate(
@@ -78,6 +85,7 @@ class Amygdala:
         affect: float,
     ) -> AmygdalaDecision:
         self._recent_resonance.append(new_resonance)
+
         pressure, reason, protection_score, protection_level = self._calculate_pressure(
             new_resonance=new_resonance,
             axis_position=axis_position,
@@ -92,12 +100,14 @@ class Amygdala:
                 min(1.0, (self.smoothing * target_state) + ((1.0 - self.smoothing) * self.state)),
             )
 
-        # Temporal centering force keeps the regulator around harmony midpoint.
-        self.state = max(0.0, min(1.0, self.state + ((0.5 - self.state) * self.adaptation_rate * 0.08)))
+        if protection_score > 0.6:
+            protection_floor = 0.55 + (((protection_score - 0.6) / 0.4) * 0.25)
+            self.state = max(self.state, min(0.8, protection_floor))
+
+        centering_force = self.adaptation_rate * (0.18 if protection_score > 0.6 else 0.10)
+        self.state = max(0.0, min(1.0, self.state + ((0.5 - self.state) * centering_force)))
 
         allowed = protection_level in {"open", "mild_protection"}
-        if not allowed and reason is None:
-            reason = BlockReason.OVERLOAD
 
         history_record = {
             "ts": time.time(),
@@ -133,7 +143,6 @@ class Amygdala:
         delta_axis: float,
         affect: float,
     ) -> AmygdalaDecision:
-        # Backward-compatible API
         return self.evaluate(
             new_resonance=new_resonance,
             axis_position=axis_position,
@@ -152,6 +161,13 @@ class Amygdala:
 
         self.adaptive_bias = max(-0.2, min(0.2, self.adaptive_bias + reward))
 
+        if stable_interaction and user_engaged:
+            self.personality_p = min(1.0, self.personality_p + 0.015)
+        elif not stable_interaction and user_engaged:
+            self.personality_p = min(1.0, self.personality_p + 0.003)
+        else:
+            self.personality_p = max(0.0, self.personality_p - 0.01)
+
     def _adapt_parameters(self) -> None:
         if len(self.history) < 10:
             return
@@ -163,26 +179,21 @@ class Amygdala:
         avg_state = sum(states) / len(states)
         volatility = sum(abs(states[i] - states[i - 1]) for i in range(1, len(states))) / max(len(states) - 1, 1)
 
-        # Centroorientation: softly pull behavior toward balanced median state.
         center_error = 0.5 - avg_state
         self.adaptive_bias = max(-0.2, min(0.2, self.adaptive_bias + (center_error * self.adaptation_rate * 0.3)))
 
-        # If system is jittery, make transitions less reactive.
         if volatility > 0.18:
             self.smoothing = max(0.1, self.smoothing - (self.adaptation_rate * 0.2))
 
-        # Frequent threat blocking means affect-gate is too strict: soften slightly.
         if blocked_ratio > 0.5 and threat_ratio > 0.25:
             self.threat_affect = max(-0.95, self.threat_affect - (self.adaptation_rate * 0.4))
 
-        # Frequent overload blocks: keep calmer response dynamics.
         if blocked_ratio > 0.55 and threat_ratio < 0.2:
             self.smoothing = max(0.1, self.smoothing - (self.adaptation_rate * 0.1))
 
-        # Fuzzy output calibration after enough history: too strict => open up, too relaxed => protect more.
         if len(self.history) >= 20:
             if blocked_ratio > 0.6:
-                self.protection_shift = max(-0.15, self.protection_shift - (self.adaptation_rate * 0.35))
+                self.protection_shift = max(-0.25, self.protection_shift - (self.adaptation_rate * 0.45))
             elif blocked_ratio < 0.15 and avg_state < 0.4:
                 self.protection_shift = min(0.15, self.protection_shift + (self.adaptation_rate * 0.2))
 
@@ -217,27 +228,9 @@ class Amygdala:
         )
         pressure = max(0.0, min(1.0, pressure))
 
-        reasons = {
-            BlockReason.LOW_RESONANCE: max(resonance_drop, low_resonance_pressure),
-            BlockReason.THREAT: affect_pressure,
-            BlockReason.OVERLOAD: max(axis_pressure, delta_pressure),
-        }
-        reason = max(reasons, key=reasons.get)
-        if reasons[reason] <= 0:
-            reason = None
-
-        if affect_pressure >= 0.3:
-            reason = BlockReason.THREAT
-
-        if len(self._recent_resonance) >= 2:
-            prev_resonance = self._recent_resonance[-2]
-            if (prev_resonance - new_resonance) > 0.45:
-                logger.warning(
-                    "sharp resonance drop detected: prev=%.3f new=%.3f delta=%.3f",
-                    prev_resonance,
-                    new_resonance,
-                    prev_resonance - new_resonance,
-                )
+        empathy_relief = max(0.0, self.personality_p - 0.7)
+        if empathy_relief > 0.0:
+            pressure *= max(0.7, 1.0 - (0.3 * empathy_relief / 0.3))
 
         axis_overload = max(axis_pressure, delta_pressure)
         fuzzy_score = self._fuzzy_protection_level(
@@ -246,27 +239,28 @@ class Amygdala:
             axis_overload=axis_overload,
             base_pressure=pressure,
         )
+
         if axis_overload >= 0.55:
             fuzzy_score = max(fuzzy_score, 0.66)
         if affect <= -0.55:
             fuzzy_score = max(fuzzy_score, 0.62)
-            reason = BlockReason.THREAT
         if affect <= -0.85:
             fuzzy_score = max(fuzzy_score, 0.78)
+
+        if empathy_relief > 0.0:
+            fuzzy_score *= max(0.8, 1.0 - (0.2 * empathy_relief / 0.3))
+
         protection_level = self._label_protection_level(fuzzy_score)
+        reason = None
 
         logger.debug(
-            "Amygdala pressure=%.3f fuzzy=%.3f level=%s state=%.3f reason=%s resonance=%.3f affect=%.3f axis=%.3f delta=%.3f bias=%.3f",
+            "Amygdala pressure=%.3f fuzzy=%.3f level=%s state=%.3f reason=%s p=%.3f",
             pressure,
             fuzzy_score,
             protection_level,
             self.state,
             reason.value if reason else None,
-            new_resonance,
-            affect,
-            axis_position,
-            delta_axis,
-            self.adaptive_bias,
+            self.personality_p,
         )
         return pressure, reason, fuzzy_score, protection_level
 
@@ -325,7 +319,7 @@ class Amygdala:
         ]
         weighted_sum = sum(strength * output for strength, output in rules)
         strength_sum = sum(strength for strength, _ in rules)
-        fuzzy_output = weighted_sum / max(strength_sum, 1e-10) if strength_sum > 0 else base_pressure
+        fuzzy_output = weighted_sum / max(strength_sum, 1e-6) if strength_sum > 0 else base_pressure
 
         blended = (0.75 * fuzzy_output) + (0.25 * base_pressure)
         centered = blended + ((self.state - 0.5) * 0.08)
