@@ -160,3 +160,19 @@ def test_amygdala_sharp_drop_logs_reason(caplog):
         )
 
     assert "sharp resonance drop" in caplog.text
+
+
+def test_affect_detects_interview_stress_keywords():
+    transitions = CausalMemoryTransitions()
+
+    with pytest.raises(AmygdalaBlockError) as exc:
+        transitions.transition_down(
+            current_layer="Consumer",
+            target_layer="Execution",
+            text="мне страшно, теряем деньги каждую минуту, сильное давление",
+            resonance=0.75,
+            axis_position=0.4,
+            delta_axis=0.1,
+        )
+
+    assert exc.value.reason == BlockReason.THREAT
