@@ -286,6 +286,12 @@ class AgentLoop:
                 return response
         return response
 
+    def _blocked_response_text(self) -> str:
+        personality_p = float(getattr(self.causal_transitions.amygdala, "personality_p", 0.5))
+        if personality_p > 0.7:
+            return "Я с тобой. Давай спокойно и шаг за шагом — сейчас важно снизить перегрузку."
+        return "Давай разберёмся спокойнее и шаг за шагом — сейчас важно снизить перегрузку."
+
     def _process(self, question: str, cancel_event: threading.Event) -> Any:
         if self.llm:
             try:
@@ -447,7 +453,7 @@ class AgentLoop:
                 self._transition("responding", task_id=task_id)
                 payload = {
                     "question": question,
-                    "response": "Давай разберёмся спокойнее и шаг за шагом — сейчас важно снизить перегрузку.",
+                    "response": self._blocked_response_text(),
                     "generation_time": duration,
                     "timestamp": time.time(),
                     "amygdala_status": "blocked",
@@ -455,6 +461,7 @@ class AgentLoop:
                     "amygdala_affect": amygdala_affect,
                     "amygdala_state": amygdala_state,
                     "amygdala_history_size": len(self.causal_transitions.amygdala.history),
+                    "personality_p": float(getattr(self.causal_transitions.amygdala, "personality_p", 0.5)),
                     "causal_rollback_layer": rollback_layer,
                 }
                 self._increment_metric("outputs", 1)
@@ -553,6 +560,7 @@ class AgentLoop:
                     "amygdala_affect": self.memory.get("amygdala_affect", 0.0),
                     "amygdala_state": self.memory.get("amygdala_state", 0.5),
                     "amygdala_history_size": self.memory.get("amygdala_history_size", 0),
+                    "personality_p": float(getattr(self.causal_transitions.amygdala, "personality_p", 0.5)),
                 }
                 if stability_ok is not None:
                     payload["causal_stability_ok"] = stability_ok
