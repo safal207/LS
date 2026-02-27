@@ -7,14 +7,14 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-from eval.llm_judge import judge_response
-
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_ROOT = ROOT / "python"
 MODULES_ROOT = PYTHON_ROOT / "modules"
 for _path in (str(MODULES_ROOT), str(PYTHON_ROOT)):
     if _path not in sys.path:
         sys.path.insert(0, _path)
+
+from eval.llm_judge import judge_response
 
 from modules.llm.query_rewriter import rewrite_query
 from modules.llm.temporal_graph import build_temporal_graph, find_vector_related, get_context_for_question
@@ -195,6 +195,14 @@ def evaluate(mode: str, judge_handler: Callable[[str], str] | None = None) -> di
         idx = int(round((len(ordered) - 1) * q))
         return ordered[idx]
 
+    judged_with_attempt = [r for r in results if r["relevance"] is not None]
+
+    judged_success = sum(
+        1
+        for r in judged_with_attempt
+        if r["judge_reasoning"] not in {"Parse error", "Judge failed"}
+    )
+
     summary = {
         "avg_hit_rate": sum(r["hit_rate"] for r in results) / len(results),
         "avg_latency_ms": sum(r["latency_ms"] for r in results) / len(results),
@@ -209,6 +217,9 @@ def evaluate(mode: str, judge_handler: Callable[[str], str] | None = None) -> di
         ),
         "median_hallucination_risk": statistics.median(judged_hallucination) if judged else None,
         "p90_hallucination_risk": _percentile(judged_hallucination, 0.9),
+        "judge_success_rate": (
+            judged_success / len(judged_with_attempt) if judged_with_attempt else None
+        ),
         "worst_questions": [r["question"] for r in sorted(results, key=lambda x: x["hit_rate"])[:3]],
     }
 

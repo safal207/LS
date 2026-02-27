@@ -75,3 +75,37 @@ def test_evaluate_summary_averages(monkeypatch):
     assert summary["avg_similarity"] == 0.4
     assert summary["avg_top_score"] == 0.6
     assert summary["avg_chunks_found"] == 2.0
+
+
+def test_judge_success_rate_in_summary(monkeypatch):
+    monkeypatch.setattr(evaluate_resonance, "TEST_QUESTIONS", ["ok", "parse", "boom", "empty"])
+
+    def fake_context(question, *_args, **_kwargs):
+        if question == "empty":
+            return "   "
+        return "ctx"
+
+    def judge_handler(prompt: str) -> str:
+        if "Question: ok" in prompt:
+            return '{"relevance": 8, "hallucination_risk": 2, "reasoning": "Good"}'
+        if "Question: parse" in prompt:
+            return "not-json"
+        if "Question: boom" in prompt:
+            raise RuntimeError("boom")
+        return '{"relevance": 5, "hallucination_risk": 5, "reasoning": "fallback"}'
+
+    monkeypatch.setattr(evaluate_resonance, "_eval_context", lambda *args, **kwargs: {"hit_rate": 1, "avg_similarity": 0.5, "top_score": 0.5, "chunks_found": 1})
+    monkeypatch.setattr(evaluate_resonance, "get_context_for_question", fake_context)
+
+    report = evaluate_resonance.evaluate("original", judge_handler=judge_handler)
+
+    assert report["summary"]["judge_success_rate"] == 1 / 3
+
+
+def test_judge_success_rate_none_without_attempts(monkeypatch):
+    monkeypatch.setattr(evaluate_resonance, "TEST_QUESTIONS", ["q1"])
+    monkeypatch.setattr(evaluate_resonance, "_eval_context", lambda *args, **kwargs: {"hit_rate": 0, "avg_similarity": 0.0, "top_score": 0.0, "chunks_found": 0})
+
+    report = evaluate_resonance.evaluate("original", judge_handler=lambda _p: "{}")
+
+    assert report["summary"]["judge_success_rate"] is None

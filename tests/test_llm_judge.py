@@ -1,5 +1,7 @@
+import logging
+
 from eval.evaluate_resonance import evaluate
-from eval.llm_judge import judge_response
+from eval.llm_judge import MAX_JUDGE_CONTEXT_CHARS, judge_response
 
 
 def test_judge_returns_scores():
@@ -70,3 +72,30 @@ def test_evaluate_with_judge_adds_scores(monkeypatch):
     assert report["results"][0]["hallucination_risk"] == 1
     assert report["summary"]["avg_relevance"] == 9
     assert report["summary"]["avg_hallucination_risk"] == 1
+
+
+def test_judge_truncates_long_context():
+    captured_prompt = {}
+
+    def handler(prompt: str) -> str:
+        captured_prompt["value"] = prompt
+        return '{"relevance": 7, "hallucination_risk": 3, "reasoning": "ok"}'
+
+    long_context = "x" * 8001
+    result = judge_response("q", long_context, handler)
+
+    assert result["relevance"] == 7
+    assert "Context: " + ("x" * MAX_JUDGE_CONTEXT_CHARS) in captured_prompt["value"]
+    assert "Context: " + ("x" * (MAX_JUDGE_CONTEXT_CHARS + 1)) not in captured_prompt["value"]
+
+
+def test_judge_logs_warning_on_exception(caplog):
+    def failing_handler(_prompt: str) -> str:
+        raise RuntimeError("judge boom")
+
+    with caplog.at_level(logging.WARNING, logger="eval.llm_judge"):
+        result = judge_response("question with\nnewline", "ctx", failing_handler)
+
+    assert result["reasoning"] == "Judge failed"
+    assert "LLM judge failed for question" in caplog.text
+    assert "judge boom" in caplog.text
