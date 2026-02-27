@@ -133,7 +133,10 @@ impl RustCausalMemory {
             ));
         }
 
-        let resonance = compute_resonance(parent.content.as_str(), new_content.as_str());
+        let base_resonance = compute_resonance(parent.content.as_str(), new_content.as_str());
+        let target_axis = axis_position(target_layer);
+        let delta = (target_axis - parent.axis_position).abs();
+        let resonance = (base_resonance * (1.0 - delta * 0.4)).clamp(0.0, 1.0);
         if resonance < 0.5 {
             log::warn!(
                 "Low resonance on transition {} -> {}: {:.3}",
@@ -259,7 +262,7 @@ fn compute_resonance(parent: &str, child: &str) -> f32 {
     let parent_len = parent.chars().count();
     let child_len = child.chars().count();
     if parent_len > 50 || child_len > 50 {
-        cosine_from_tokens(parent, child)
+        cosine_from_tokens(parent, child, parent_len, child_len)
     } else {
         let overlap = p_tokens.intersection(&c_tokens).count() as f32;
         let denom = p_tokens.union(&c_tokens).count() as f32;
@@ -290,7 +293,7 @@ fn axis_position(layer: LayerType) -> f32 {
     }
 }
 
-fn cosine_from_tokens(a: &str, b: &str) -> f32 {
+fn cosine_from_tokens(a: &str, b: &str, a_len: usize, b_len: usize) -> f32 {
     let mut a_freq: HashMap<String, f32> = HashMap::new();
     let mut b_freq: HashMap<String, f32> = HashMap::new();
 
@@ -320,8 +323,10 @@ fn cosine_from_tokens(a: &str, b: &str) -> f32 {
         }
     }
 
-    let a_norm = a_freq.values().map(|v| v * v).sum::<f32>().sqrt();
-    let b_norm = b_freq.values().map(|v| v * v).sum::<f32>().sqrt();
+    let a_len_f = (a_len.max(1)) as f32;
+    let b_len_f = (b_len.max(1)) as f32;
+    let a_norm = (a_freq.values().map(|v| v * v).sum::<f32>() / a_len_f).sqrt();
+    let b_norm = (b_freq.values().map(|v| v * v).sum::<f32>() / b_len_f).sqrt();
     if a_norm == 0.0 || b_norm == 0.0 {
         0.0
     } else {

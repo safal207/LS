@@ -29,6 +29,9 @@ def test_causal_memory_linear_layers() -> None:
 
     assert memory.check_resonance(stability_id) > 0.0
     assert memory.stabilize(stability_id) is True
+    assert memory.get_axis_position(customer_id) == pytest.approx(-1.0)
+    assert memory.get_axis_position(consumer_id) == pytest.approx(-0.33)
+    assert memory.get_axis_position(execution_id) == pytest.approx(0.33)
     assert memory.get_axis_position(stability_id) == pytest.approx(1.0)
 
 
