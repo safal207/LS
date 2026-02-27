@@ -27,6 +27,18 @@ def test_judge_parse_error_fallback():
     assert result["reasoning"] == "Parse error"
 
 
+def test_judge_uses_last_json_object_when_multiple_present():
+    result = judge_response(
+        "q",
+        "ctx",
+        lambda _prompt: 'debug: {"relevance": 1, "hallucination_risk": 9, "reasoning": "bad"}\n'
+        '{"relevance": 8, "hallucination_risk": 2, "reasoning": "good"}',
+    )
+
+    assert result["relevance"] == 8
+    assert result["hallucination_risk"] == 2
+
+
 def test_judge_handler_exception():
     def failing_handler(_prompt: str) -> str:
         raise RuntimeError("judge boom")

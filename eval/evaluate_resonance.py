@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import statistics
 import sys
 import time
 from pathlib import Path
@@ -23,6 +24,13 @@ logger = logging.getLogger(__name__)
 # Конфиг (через env для гибкости)
 ENABLE_REWRITING = os.getenv("ENABLE_REWRITING_IN_EVAL", "true").lower() in ("true", "1", "yes")
 MIN_SIMILARITY = 0.35  # по умолчанию из resonance
+
+
+def _short_context_snippet(context: str, max_words: int = 40) -> str:
+    words = context.split()
+    if len(words) <= max_words:
+        return context.strip()
+    return f"{' '.join(words[:max_words])} ..."
 
 
 # Мок LLM handler (имитирует rewriting: возвращает расширенную версию вопроса на основе ключевых слов)
@@ -157,7 +165,7 @@ def evaluate(mode: str, judge_handler: Callable[[str], str] | None = None) -> di
         result = {
             "question": question[:100],
             "mode": mode,
-            "context_snippet": context[:200],
+            "context_snippet": _short_context_snippet(context),
             **metrics,
             "latency_ms": latency_ms,
         }
@@ -175,6 +183,17 @@ def evaluate(mode: str, judge_handler: Callable[[str], str] | None = None) -> di
         results.append(result)
 
     judged = [r for r in results if r["relevance"] is not None]
+    judged_relevance = [r["relevance"] for r in judged]
+    judged_hallucination = [r["hallucination_risk"] for r in judged]
+
+    def _percentile(values: list[float], q: float) -> float | None:
+        if not values:
+            return None
+        ordered = sorted(values)
+        if len(ordered) == 1:
+            return ordered[0]
+        idx = int(round((len(ordered) - 1) * q))
+        return ordered[idx]
 
     summary = {
         "avg_hit_rate": sum(r["hit_rate"] for r in results) / len(results),
@@ -182,10 +201,14 @@ def evaluate(mode: str, judge_handler: Callable[[str], str] | None = None) -> di
         "avg_similarity": sum(r["avg_similarity"] for r in results) / len(results),
         "avg_top_score": sum(r["top_score"] for r in results) / len(results),
         "avg_chunks_found": sum(r["chunks_found"] for r in results) / len(results),
-        "avg_relevance": sum(r["relevance"] for r in judged) / len(judged) if judged else None,
+        "avg_relevance": sum(judged_relevance) / len(judged_relevance) if judged else None,
+        "median_relevance": statistics.median(judged_relevance) if judged else None,
+        "p90_relevance": _percentile(judged_relevance, 0.9),
         "avg_hallucination_risk": (
-            sum(r["hallucination_risk"] for r in judged) / len(judged) if judged else None
+            sum(judged_hallucination) / len(judged_hallucination) if judged else None
         ),
+        "median_hallucination_risk": statistics.median(judged_hallucination) if judged else None,
+        "p90_hallucination_risk": _percentile(judged_hallucination, 0.9),
         "worst_questions": [r["question"] for r in sorted(results, key=lambda x: x["hit_rate"])[:3]],
     }
 
