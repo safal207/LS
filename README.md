@@ -181,3 +181,24 @@ python scripts/smoke.py
 - Настраиваемый `min_similarity` (по умолчанию 0.35)
 - Логи при загрузке модели и cache miss
 
+
+## Evaluation
+
+Запуск standalone-оценки Resonance v3:
+
+```bash
+python eval/evaluate_resonance.py
+```
+
+Вывод:
+- `eval/results/resonance_eval.json`
+
+Env:
+- `ENABLE_REWRITING_IN_EVAL=false` — отключить rewriting в режиме `rewritten`.
+
+Метрики:
+- `hit_rate` — доля вопросов, где найдены чанки выше `min_similarity`.
+- `avg_similarity` — средняя similarity по всем найденным score.
+- `top_score` — максимальный score среди найденных чанков.
+- `chunks_found` — число чанков выше порога.
+- `latency_ms` — задержка обработки вопроса.
