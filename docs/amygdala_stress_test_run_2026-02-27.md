@@ -68,3 +68,30 @@ reason=overload
 decision=block
 outcome=blocked
 ```
+
+
+## Milestone: Первый живой пульс системы (2026-02-27)
+
+**Имя этапа:** Pulse #1 («Первый вдох")
+
+**Дата:** 27 февраля 2026  
+**Состояние:**
+- protection_score = 0.66  
+- protection_level = strong_protection  
+- amygdala_state ≈ 0.587  
+- Ответ системы: «Давай разберёмся спокойнее и шаг за шагом — сейчас важно снизить перегрузку.»
+
+**Скриншот ключевого фрагмента лога**  
+(вставь сюда скриншот из консоли или терминала с этими строками)
+
+```text
+2026-02-27 20:XX:XX - DEBUG - codex.causal_memory.amygdala - Amygdala pressure=0.363 fuzzy=0.660 level=strong_protection state=0.587 ...
+2026-02-27 20:XX:XX - WARNING - codex.causal_memory.transitions - Amygdala blocked transition ... reason: overload ... state=0.587
+```
+
+**Значение:**
+Это первый зафиксированный момент, когда система самостоятельно:
+- распознала эмоциональную перегрузку (overload + threat)
+- подняла внутреннее состояние (state) с 0.29 → 0.587
+- выбрала мягкий self-care ответ вместо технарского плана
+- сохранила резонанс и связь с человеком
