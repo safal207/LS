@@ -69,3 +69,53 @@ def test_affect_modifies_resonance():
 
     assert positive.affect > neutral.affect
     assert positive.resonance > neutral.resonance
+
+
+def test_amygdala_blocks_threat_affect():
+    transitions = CausalMemoryTransitions()
+
+    with pytest.raises(AmygdalaBlockError) as exc:
+        transitions.transition_down(
+            current_layer="Consumer",
+            target_layer="Execution",
+            text="страх и угроза перегрузки",
+            resonance=0.8,
+            axis_position=0.5,
+            delta_axis=0.1,
+        )
+
+    assert exc.value.reason == BlockReason.THREAT
+
+
+def test_amygdala_blocks_sharp_resonance_drop():
+    amygdala = Amygdala(window_size=3)
+    transitions = CausalMemoryTransitions(amygdala=amygdala)
+
+    transitions.transition_down(
+        current_layer="Consumer",
+        target_layer="Execution",
+        text="нейтрально",
+        resonance=0.7,
+        axis_position=0.3,
+        delta_axis=0.1,
+    )
+    transitions.transition_down(
+        current_layer="Consumer",
+        target_layer="Execution",
+        text="нейтрально",
+        resonance=0.65,
+        axis_position=0.4,
+        delta_axis=0.1,
+    )
+
+    with pytest.raises(AmygdalaBlockError) as exc:
+        transitions.transition_down(
+            current_layer="Consumer",
+            target_layer="Execution",
+            text="падает резонанс",
+            resonance=0.15,
+            axis_position=0.5,
+            delta_axis=0.1,
+        )
+
+    assert exc.value.reason == BlockReason.LOW_RESONANCE

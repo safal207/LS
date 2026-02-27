@@ -33,12 +33,14 @@ class Amygdala:
         window_size: int = 5,
         threshold_low: float = 0.4,
         threshold_overload: float = 0.7,
+        threshold_delta_res: float = -0.4,
         max_axis_delta: float = 0.3,
         threat_affect: float = -0.5,
     ) -> None:
         self._recent_resonance: deque[float] = deque(maxlen=window_size)
         self.threshold_low = threshold_low
         self.threshold_overload = threshold_overload
+        self.threshold_delta_res = threshold_delta_res
         self.max_axis_delta = max_axis_delta
         self.threat_affect = threat_affect
 
@@ -51,6 +53,12 @@ class Amygdala:
         affect: float,
     ) -> AmygdalaDecision:
         self._recent_resonance.append(new_resonance)
+        if len(self._recent_resonance) > 1:
+            delta_res = self._recent_resonance[-1] - self._recent_resonance[-2]
+            if delta_res < self.threshold_delta_res:
+                logger.warning("Amygdala blocked transition due to sharp resonance drop: %.3f", delta_res)
+                return AmygdalaDecision(False, BlockReason.LOW_RESONANCE)
+
         avg_resonance = sum(self._recent_resonance) / len(self._recent_resonance)
 
         if affect < self.threat_affect:
