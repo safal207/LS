@@ -1,5 +1,5 @@
-﻿from modules.capu import CaPU
-from modules.brain import Brain
+﻿from .capu import CaPU
+from .brain import Brain
 
 
 class AccessProtocol:
