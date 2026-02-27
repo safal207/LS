@@ -37,6 +37,8 @@ class AmygdalaDecision:
     reason: BlockReason | None = None
     state: float = 0.5
     pressure: float = 0.5
+    protection_level: str = "mild_protection"
+    protection_score: float = 0.5
 
 
 class Amygdala:
@@ -65,6 +67,7 @@ class Amygdala:
         self.adaptation_rate = max(0.001, min(0.2, adaptation_rate))
         self.state = 0.5
         self.adaptive_bias = 0.0
+        self.protection_shift = 0.0
 
     def evaluate(
         self,
@@ -75,7 +78,7 @@ class Amygdala:
         affect: float,
     ) -> AmygdalaDecision:
         self._recent_resonance.append(new_resonance)
-        pressure, reason = self._calculate_pressure(
+        pressure, reason, protection_score, protection_level = self._calculate_pressure(
             new_resonance=new_resonance,
             axis_position=axis_position,
             delta_axis=delta_axis,
@@ -92,7 +95,7 @@ class Amygdala:
         # Temporal centering force keeps the regulator around harmony midpoint.
         self.state = max(0.0, min(1.0, self.state + ((0.5 - self.state) * self.adaptation_rate * 0.08)))
 
-        allowed = self.state < self.close_threshold
+        allowed = protection_level in {"open", "mild_protection"}
         if not allowed and reason is None:
             reason = BlockReason.OVERLOAD
 
@@ -104,6 +107,8 @@ class Amygdala:
             "axis_position": axis_position,
             "delta_axis": delta_axis,
             "pressure": pressure,
+            "protection_score": protection_score,
+            "protection_level": protection_level,
             "decision": "allow" if allowed else "block",
             "outcome": "success" if allowed else "blocked",
             "reason": reason.value if reason is not None else None,
@@ -116,6 +121,8 @@ class Amygdala:
             reason=reason if not allowed else None,
             state=self.state,
             pressure=pressure,
+            protection_level=protection_level,
+            protection_score=protection_score,
         )
 
     def allow_transition(
@@ -168,14 +175,16 @@ class Amygdala:
         if blocked_ratio > 0.5 and threat_ratio > 0.25:
             self.threat_affect = max(-0.95, self.threat_affect - (self.adaptation_rate * 0.4))
 
-        # Frequent overload blocks: close earlier and keep calmer response dynamics.
+        # Frequent overload blocks: keep calmer response dynamics.
         if blocked_ratio > 0.55 and threat_ratio < 0.2:
-            self.close_threshold = max(0.55, self.close_threshold - (self.adaptation_rate * 0.25))
             self.smoothing = max(0.1, self.smoothing - (self.adaptation_rate * 0.1))
 
-        # Almost never blocks and avg too open -> restore caution a bit.
-        if blocked_ratio < 0.1 and avg_state < 0.35:
-            self.close_threshold = min(0.75, self.close_threshold + (self.adaptation_rate * 0.15))
+        # Fuzzy output calibration after enough history: too strict => open up, too relaxed => protect more.
+        if len(self.history) >= 20:
+            if blocked_ratio > 0.6:
+                self.protection_shift = max(-0.15, self.protection_shift - (self.adaptation_rate * 0.35))
+            elif blocked_ratio < 0.15 and avg_state < 0.4:
+                self.protection_shift = min(0.15, self.protection_shift + (self.adaptation_rate * 0.2))
 
     def _calculate_pressure(
         self,
@@ -184,7 +193,7 @@ class Amygdala:
         axis_position: float,
         delta_axis: float,
         affect: float,
-    ) -> tuple[float, BlockReason | None]:
+    ) -> tuple[float, BlockReason | None, float, str]:
         resonance_drop = 1.0 - max(0.0, min(1.0, new_resonance))
         low_resonance_pressure = max(0.0, (self.threshold_low - new_resonance) / max(self.threshold_low, 1e-6))
         affect_pressure = 0.0
@@ -217,9 +226,38 @@ class Amygdala:
         if reasons[reason] <= 0:
             reason = None
 
+        if affect_pressure >= 0.3:
+            reason = BlockReason.THREAT
+
+        if len(self._recent_resonance) >= 2:
+            prev_resonance = self._recent_resonance[-2]
+            if (prev_resonance - new_resonance) > 0.45:
+                logger.warning(
+                    "sharp resonance drop detected: prev=%.3f new=%.3f delta=%.3f",
+                    prev_resonance,
+                    new_resonance,
+                    prev_resonance - new_resonance,
+                )
+
+        axis_overload = max(axis_pressure, delta_pressure)
+        fuzzy_score = self._fuzzy_protection_level(
+            resonance_drop=resonance_drop,
+            affect=affect,
+            axis_overload=axis_overload,
+            base_pressure=pressure,
+        )
+        if axis_overload >= 0.55:
+            fuzzy_score = max(fuzzy_score, 0.66)
+        if affect <= -0.55:
+            fuzzy_score = max(fuzzy_score, 0.62)
+            reason = BlockReason.THREAT
+        protection_level = self._label_protection_level(fuzzy_score)
+
         logger.debug(
-            "Amygdala pressure=%.3f state=%.3f reason=%s resonance=%.3f affect=%.3f axis=%.3f delta=%.3f bias=%.3f",
+            "Amygdala pressure=%.3f fuzzy=%.3f level=%s state=%.3f reason=%s resonance=%.3f affect=%.3f axis=%.3f delta=%.3f bias=%.3f",
             pressure,
+            fuzzy_score,
+            protection_level,
             self.state,
             reason.value if reason else None,
             new_resonance,
@@ -228,4 +266,78 @@ class Amygdala:
             delta_axis,
             self.adaptive_bias,
         )
-        return pressure, reason
+        return pressure, reason, fuzzy_score, protection_level
+
+    def _fuzzy_protection_level(
+        self,
+        *,
+        resonance_drop: float,
+        affect: float,
+        axis_overload: float,
+        base_pressure: float,
+    ) -> float:
+        def tri(value: float, left: float, center: float, right: float) -> float:
+            if value <= left or value >= right:
+                return 0.0
+            if value == center:
+                return 1.0
+            if value < center:
+                return (value - left) / max(center - left, 1e-6)
+            return (right - value) / max(right - center, 1e-6)
+
+        def trap(value: float, left: float, left_top: float, right_top: float, right: float) -> float:
+            if value <= left or value >= right:
+                return 0.0
+            if left_top <= value <= right_top:
+                return 1.0
+            if value < left_top:
+                return (value - left) / max(left_top - left, 1e-6)
+            return (right - value) / max(right - right_top, 1e-6)
+
+        resonance_very_low = trap(resonance_drop, 0.0, 0.0, 0.15, 0.3)
+        resonance_low = tri(resonance_drop, 0.1, 0.35, 0.55)
+        resonance_medium = tri(resonance_drop, 0.35, 0.6, 0.82)
+        resonance_high = trap(resonance_drop, 0.65, 0.8, 1.0, 1.0)
+
+        affect_negative_strong = trap(affect, -1.0, -1.0, -0.75, -0.35)
+        affect_negative_mild = tri(affect, -0.6, -0.25, 0.05)
+        affect_neutral = tri(affect, -0.2, 0.0, 0.2)
+        affect_positive = trap(affect, 0.0, 0.25, 1.0, 1.0)
+
+        overload_low = trap(axis_overload, 0.0, 0.0, 0.25, 0.45)
+        overload_medium = tri(axis_overload, 0.3, 0.55, 0.8)
+        overload_high = trap(axis_overload, 0.65, 0.82, 1.0, 1.0)
+
+        rules = [
+            (min(resonance_high, affect_negative_strong), 0.98),
+            (min(resonance_low, affect_positive), 0.08),
+            (overload_high, 0.9),
+            (min(resonance_medium, affect_neutral), 0.48),
+            (resonance_high, 0.86),
+            (min(affect_negative_strong, overload_medium), 0.9),
+            (affect_negative_strong, 0.76),
+            (min(resonance_very_low, affect_neutral, overload_low), 0.12),
+            (min(affect_negative_mild, resonance_medium), 0.58),
+            (min(resonance_low, overload_low), 0.32),
+        ]
+        weighted_sum = sum(strength * output for strength, output in rules)
+        strength_sum = sum(strength for strength, _ in rules)
+        fuzzy_output = weighted_sum / max(strength_sum, 1e-6)
+
+        if strength_sum <= 1e-6:
+            fuzzy_output = base_pressure
+
+        blended = (0.75 * fuzzy_output) + (0.25 * base_pressure)
+        centered = blended + ((self.state - 0.5) * 0.08)
+        calibrated = centered + self.protection_shift
+        return max(0.0, min(1.0, calibrated))
+
+    @staticmethod
+    def _label_protection_level(protection_score: float) -> str:
+        if protection_score < 0.3:
+            return "open"
+        if protection_score < 0.62:
+            return "mild_protection"
+        if protection_score < 0.82:
+            return "strong_protection"
+        return "full_protection"
