@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Callable
+
+logger = logging.getLogger(__name__)
+
+# Ограничиваем контекст для судьи, чтобы не превысить лимиты токенов большинства моделей (~4k–8k)
+MAX_JUDGE_CONTEXT_CHARS = 3500
 
 JUDGE_PROMPT = """You are an expert evaluator for a RAG system.
 Evaluate ONLY based on how well the provided context directly answers the question.
@@ -34,11 +40,17 @@ def judge_response(
     if not context.strip():
         return {"relevance": 0, "hallucination_risk": 10, "reasoning": "No context provided"}
 
+    context_for_judge = context[:MAX_JUDGE_CONTEXT_CHARS]
     try:
-        raw = llm_handler(JUDGE_PROMPT.format(question=question, context=context))
+        raw = llm_handler(JUDGE_PROMPT.format(question=question, context=context_for_judge))
         matches = re.findall(r"(\{.*?\})", raw, re.DOTALL | re.MULTILINE)
         if matches:
             return json.loads(matches[-1])
         return {"relevance": 0, "hallucination_risk": 10, "reasoning": "Parse error"}
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "LLM judge failed for question '%s...': %s",
+            question[:80].replace("\n", " "),
+            str(exc),
+        )
         return {"relevance": 0, "hallucination_risk": 10, "reasoning": "Judge failed"}
