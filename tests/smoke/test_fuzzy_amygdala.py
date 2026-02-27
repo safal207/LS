@@ -1,3 +1,4 @@
+import pytest
 import sys
 from pathlib import Path
 
@@ -5,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from codex.causal_memory.amygdala import Amygdala
+from codex.causal_memory.amygdala import Amygdala, VisceralMemory
 
 
 def test_fuzzy_smooth_transitions() -> None:
@@ -144,3 +145,86 @@ def test_fuzzy_soft_protection_boundary() -> None:
     assert decision.protection_level == "mild_protection"
     assert 0.30 <= decision.protection_score <= 0.61
     assert decision.allowed is True
+
+
+def test_visceral_pain_accumulation() -> None:
+    amygdala = Amygdala()
+
+    amygdala.evaluate(
+        new_resonance=0.2,
+        axis_position=0.9,
+        delta_axis=0.75,
+        affect=-0.9,
+    )
+
+    assert amygdala.phantom_pain == 0.25
+    assert amygdala.visceral.last_trigger_intensity == 0.25
+
+
+def test_visceral_resolution_reduces_pain() -> None:
+    amygdala = Amygdala()
+
+    for _ in range(2):
+        amygdala.evaluate(
+            new_resonance=0.22,
+            axis_position=0.9,
+            delta_axis=0.7,
+            affect=-0.88,
+        )
+
+    assert amygdala.phantom_pain == 0.5
+
+    amygdala.learn_from_outcome(stable_interaction=True)
+
+    assert amygdala.phantom_pain == 0.2
+    assert amygdala.visceral.resolution_strength == 0.25
+
+
+def test_visceral_influences_protection_strength() -> None:
+    baseline = Amygdala()
+    baseline_decision = baseline.evaluate(
+        new_resonance=0.58,
+        axis_position=0.5,
+        delta_axis=0.2,
+        affect=-0.3,
+    )
+
+    sensitized = Amygdala()
+    for _ in range(2):
+        sensitized.evaluate(
+            new_resonance=0.2,
+            axis_position=0.92,
+            delta_axis=0.72,
+            affect=-0.9,
+        )
+
+    sensitized_decision = sensitized.evaluate(
+        new_resonance=0.58,
+        axis_position=0.5,
+        delta_axis=0.2,
+        affect=-0.3,
+    )
+
+    assert sensitized.phantom_pain > 0.3
+    assert sensitized_decision.protection_score > baseline_decision.protection_score
+    assert sensitized_decision.pressure > baseline_decision.pressure
+
+
+def test_visceral_memory_records_and_resolves() -> None:
+    visceral = VisceralMemory()
+
+    visceral.record_pain(0.4)
+    assert visceral.phantom_pain == 0.4
+    assert visceral.last_trigger_intensity == 0.4
+    assert visceral.is_painful is True
+
+    visceral.resolve(strength=0.25)
+    assert visceral.phantom_pain == pytest.approx(0.1)
+    assert visceral.resolution_strength == 0.25
+
+
+def test_visceral_memory_influence_formula() -> None:
+    visceral = VisceralMemory()
+    visceral.record_pain(0.25)
+
+    assert visceral.get_influence() == 0.2
