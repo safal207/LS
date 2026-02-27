@@ -144,3 +144,34 @@ def test_fuzzy_soft_protection_boundary() -> None:
     assert decision.protection_level == "mild_protection"
     assert 0.30 <= decision.protection_score <= 0.61
     assert decision.allowed is True
+
+
+def test_fuzzy_strong_protection_raises_state_floor() -> None:
+    amygdala = Amygdala()
+
+    # Warm-up transition keeps baseline state history similar to runtime path.
+    amygdala.evaluate(
+        new_resonance=1.0,
+        axis_position=-0.33,
+        delta_axis=0.67,
+        affect=0.0,
+    )
+
+    # Mild transition that typically lowers state before overload phase.
+    amygdala.evaluate(
+        new_resonance=0.923,
+        axis_position=0.33,
+        delta_axis=0.66,
+        affect=-0.2,
+    )
+
+    decision = amygdala.evaluate(
+        new_resonance=0.965,
+        axis_position=1.0,
+        delta_axis=0.67,
+        affect=0.0,
+    )
+
+    assert decision.protection_level == "strong_protection"
+    assert decision.protection_score >= 0.66
+    assert decision.state >= 0.55

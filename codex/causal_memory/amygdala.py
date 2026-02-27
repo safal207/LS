@@ -64,7 +64,7 @@ class Amygdala:
         self.smoothing = max(0.05, min(0.95, smoothing))
         self.hysteresis = max(0.0, min(0.3, hysteresis))
         self.close_threshold = max(0.3, min(0.95, close_threshold))
-        self.adaptation_rate = max(0.001, min(0.2, adaptation_rate))
+        self.adaptation_rate = max(0.01, min(0.35, adaptation_rate))
         self.state = 0.5
         self.adaptive_bias = 0.0
         self.protection_shift = 0.0
@@ -92,8 +92,13 @@ class Amygdala:
                 min(1.0, (self.smoothing * target_state) + ((1.0 - self.smoothing) * self.state)),
             )
 
+        if protection_score > 0.6:
+            protection_floor = 0.55 + (((protection_score - 0.6) / 0.4) * 0.25)
+            self.state = max(self.state, min(0.8, protection_floor))
+
         # Temporal centering force keeps the regulator around harmony midpoint.
-        self.state = max(0.0, min(1.0, self.state + ((0.5 - self.state) * self.adaptation_rate * 0.08)))
+        centering_force = self.adaptation_rate * (0.18 if protection_score > 0.6 else 0.10)
+        self.state = max(0.0, min(1.0, self.state + ((0.5 - self.state) * centering_force)))
 
         allowed = protection_level in {"open", "mild_protection"}
         if not allowed and reason is None:
@@ -182,7 +187,7 @@ class Amygdala:
         # Fuzzy output calibration after enough history: too strict => open up, too relaxed => protect more.
         if len(self.history) >= 20:
             if blocked_ratio > 0.6:
-                self.protection_shift = max(-0.15, self.protection_shift - (self.adaptation_rate * 0.35))
+                self.protection_shift = max(-0.25, self.protection_shift - (self.adaptation_rate * 0.45))
             elif blocked_ratio < 0.15 and avg_state < 0.4:
                 self.protection_shift = min(0.15, self.protection_shift + (self.adaptation_rate * 0.2))
 
