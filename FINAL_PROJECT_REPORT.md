@@ -150,6 +150,7 @@ The Ghost Interview Copilot project has been successfully completed as a **Golde
 - Delivered intuitive user experience
 - Prepared foundation for future enhancements
 - Demonstrated full-stack engineering capabilities
+- Added RAM-aware LLM fallback (PR #201)
 
 **Ready for Battle:** The application is fully prepared for real-world interview scenarios and represents a significant advancement in AI-assisted career development tools.
 
