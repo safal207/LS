@@ -352,21 +352,21 @@ mod tests {
         let consumer = memory
             .transition_down(
                 customer.clone(),
-                "user wants mission balance".to_string(),
+                "mission care balance user need".to_string(),
                 "Consumer".to_string(),
             )
             .expect("consumer transition");
         let execution = memory
             .transition_down(
                 consumer,
-                "plan mission balance steps".to_string(),
+                "plan mission care balance execution".to_string(),
                 "Execution".to_string(),
             )
             .expect("execution transition");
         let stability = memory
             .transition_down(
                 execution.clone(),
-                "monitor mission balance".to_string(),
+                "monitor mission care balance plan".to_string(),
                 "Stability".to_string(),
             )
             .expect("stability transition");
