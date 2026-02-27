@@ -8,6 +8,17 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 sys.modules.setdefault("requests", MagicMock())
+class _FakeVMem:
+    available = 8 * (1024 ** 3)
+
+
+class _FakePsutil:
+    @staticmethod
+    def virtual_memory():
+        return _FakeVMem()
+
+
+sys.modules.setdefault("psutil", _FakePsutil())
 
 from python.modules.llm import llm_module
 from python.modules.llm.ram_model_selector import select_model
@@ -40,7 +51,8 @@ def test_fallback_on_primary_failure():
 
     response = model.generate_response_local("ping")
     assert response == "ok-from-light"
-    assert model.qwen_handler.model_name == "heavy"
+    assert model.qwen_handler.model_name == "light"
+    assert model.primary_model == "light"
 
 
 def test_e2e_in_ghostgpt(caplog, monkeypatch):

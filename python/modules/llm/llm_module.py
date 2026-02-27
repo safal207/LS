@@ -133,21 +133,24 @@ class LanguageModel:
 
             if self.fallback_model != self.primary_model:
                 current_model = self.qwen_handler.model_name
+                fallback_succeeded = False
                 try:
                     logger.warning(
-                        "Primary model %s failed, using fallback %s: %s",
+                        "Primary model %s failed, switching to fallback %s",
                         self.primary_model,
                         self.fallback_model,
-                        err,
                     )
                     self.qwen_handler.model_name = self.fallback_model
                     fallback_response = self.qwen_handler.generate_response(prompt)
                     if isinstance(fallback_response, str) and fallback_response.strip():
+                        self.primary_model = self.fallback_model
+                        fallback_succeeded = True
                         return fallback_response
                 except Exception as fallback_exc:
-                    logger.error("Fallback model %s failed: %s", self.fallback_model, fallback_exc)
+                    logger.error("Fallback model %s also failed: %s", self.fallback_model, fallback_exc)
                 finally:
-                    self.qwen_handler.model_name = current_model
+                    if not fallback_succeeded:
+                        self.qwen_handler.model_name = current_model
             return None
     
     def generate_response_cloud(self, question: str, cancel_event=None) -> Optional[str]:
