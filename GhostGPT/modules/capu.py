@@ -1,6 +1,6 @@
-from modules.dmp import DMP
-from modules.cml import CML
-from modules.lri import LRI
+from .dmp import DMP
+from .cml import CML
+from .lri import LRI
 
 class CaPU:
     def __init__(self):

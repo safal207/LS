@@ -62,11 +62,14 @@ class GhostGPT:
             self.audio.text_ready.connect(self.protocol.execute_cycle)
         self.audio.status_update.connect(self.window.update_status)
 
-        # Hotkey setup
-        keyboard.add_hotkey(config.KEY_HIDE, self.toggle_visibility)
-        keyboard.add_hotkey(config.KEY_LRI_HR, lambda: self.set_lri_mode("HR"))
-        keyboard.add_hotkey(config.KEY_LRI_DEV, lambda: self.set_lri_mode("TECH"))
-        keyboard.add_hotkey(config.KEY_LRI_CTO, lambda: self.set_lri_mode("CTO"))
+        # Hotkey setup (may be unavailable in headless/Linux containers)
+        try:
+            keyboard.add_hotkey(config.KEY_HIDE, self.toggle_visibility)
+            keyboard.add_hotkey(config.KEY_LRI_HR, lambda: self.set_lri_mode("HR"))
+            keyboard.add_hotkey(config.KEY_LRI_DEV, lambda: self.set_lri_mode("TECH"))
+            keyboard.add_hotkey(config.KEY_LRI_CTO, lambda: self.set_lri_mode("CTO"))
+        except Exception as exc:
+            self.window.update_status(f"Hotkeys unavailable: {exc}")
 
     def set_lri_mode(self, mode):
         if self.protocol.capu.lri.set_mode(mode):
