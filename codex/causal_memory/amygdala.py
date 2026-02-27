@@ -47,6 +47,35 @@ class AmygdalaDecision:
     protection_score: float = 0.5
 
 
+
+
+class VisceralMemory:
+    """Висцеральная память — слой телесных сигналов перегрузки и разрешения."""
+
+    def __init__(self, *, history_size: int = 20) -> None:
+        self.phantom_pain: float = 0.0
+        self.resolution_strength: float = 0.0
+        self.last_trigger_intensity: float = 0.0
+        self.history: deque[dict[str, float | str]] = deque(maxlen=history_size)
+
+    def record_pain(self, intensity: float) -> None:
+        self.phantom_pain = min(1.0, self.phantom_pain + intensity)
+        self.last_trigger_intensity = max(0.0, intensity)
+        self.history.append({"event": "pain", "intensity": self.last_trigger_intensity})
+
+    def resolve(self, *, strength: float = 0.25) -> None:
+        self.phantom_pain = max(0.0, self.phantom_pain - (strength * 1.2))
+        self.resolution_strength = min(1.0, self.resolution_strength + strength)
+        self.history.append({"event": "resolve", "strength": strength})
+
+    @property
+    def is_painful(self) -> bool:
+        return self.phantom_pain > 0.3
+
+    def get_influence(self) -> float:
+        return min(1.0, (self.phantom_pain * 0.5) + (self.last_trigger_intensity * 0.3))
+
+
 class Amygdala:
     def __init__(
         self,
@@ -75,16 +104,12 @@ class Amygdala:
         self.adaptive_bias = 0.0
         self.personality_p = 0.5
         self.protection_shift = 0.0
-        self.visceral_memory = {
-            "phantom_pain": 0.0,
-            "resolution_strength": 0.0,
-            "last_trigger_intensity": 0.0,
-        }
+        self.visceral = VisceralMemory()
 
     @property
     def phantom_pain(self) -> float:
         """Уровень фантомной боли / перегрузки из висцеральной памяти"""
-        return self.visceral_memory["phantom_pain"]
+        return self.visceral.phantom_pain
 
     def evaluate(
         self,
@@ -115,8 +140,8 @@ class Amygdala:
             self.state = max(self.state, min(0.8, protection_floor))
 
         if protection_score > 0.65 and affect < -0.4:
-            self.visceral_memory["phantom_pain"] = min(1.0, self.visceral_memory["phantom_pain"] + 0.25)
-            self.visceral_memory["last_trigger_intensity"] = max(abs(affect), abs(delta_axis))
+            trigger_intensity = max(abs(affect), abs(delta_axis))
+            self.visceral.record_pain(min(0.25, trigger_intensity))
 
         centering_force = self.adaptation_rate * (0.18 if protection_score > 0.6 else 0.10)
         self.state = max(0.0, min(1.0, self.state + ((0.5 - self.state) * centering_force)))
@@ -183,8 +208,7 @@ class Amygdala:
             self.personality_p = max(0.0, self.personality_p - 0.01)
 
         if stable_interaction:
-            self.visceral_memory["phantom_pain"] = max(0.0, self.visceral_memory["phantom_pain"] - 0.3)
-            self.visceral_memory["resolution_strength"] = min(1.0, self.visceral_memory["resolution_strength"] + 0.25)
+            self.visceral.resolve(strength=0.25)
 
     def _adapt_parameters(self) -> None:
         if len(self.history) < 10:
@@ -258,10 +282,10 @@ class Amygdala:
             base_pressure=pressure,
         )
 
-        phantom_pain = self.phantom_pain
-        if phantom_pain > 0.3:
-            pressure = min(1.0, pressure + (0.15 * phantom_pain))
-            fuzzy_score = min(1.0, fuzzy_score + (0.1 * phantom_pain))
+        visceral_influence = self.visceral.get_influence()
+        if visceral_influence > 0.0:
+            pressure = min(1.0, pressure + (0.15 * visceral_influence))
+            fuzzy_score = min(1.0, fuzzy_score + (0.1 * visceral_influence))
 
         if axis_overload >= 0.55:
             fuzzy_score = max(fuzzy_score, 0.66)

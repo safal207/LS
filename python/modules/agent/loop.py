@@ -287,9 +287,10 @@ class AgentLoop:
         return response
 
     def _blocked_response_text(self) -> str:
-        phantom_pain = float(getattr(self.causal_transitions.amygdala, "phantom_pain", 0.0))
+        visceral = getattr(self.causal_transitions.amygdala, "visceral", None)
+        visceral_influence = float(visceral.get_influence()) if visceral is not None else 0.0
         personality_p = float(getattr(self.causal_transitions.amygdala, "personality_p", 0.5))
-        if phantom_pain > 0.4:
+        if visceral_influence > 0.4:
             return "Я помню, как прошлый раз это было тяжело и больно. Давай не будем повторять цикл — я с тобой, спокойно и шаг за шагом."
         if personality_p > 0.7:
             return "Я с тобой. Давай спокойно и шаг за шагом — сейчас важно снизить перегрузку."
