@@ -70,6 +70,8 @@ class AgentLoop:
             self.temporal = TemporalContext()
         self.presence = PresenceState()
         self.cognitive_flow = CognitiveFlow(self.presence, TransitionEngine())
+        self.last_input_time = time.time()
+        self.last_yoga_time = 0.0
 
         self.memory: dict[str, Any] = {}
         self.causal_memory = CausalMemory()
@@ -257,6 +259,10 @@ class AgentLoop:
         setattr(cancel_event, "_counted", True)
         self._increment_metric("cancellations", 1)
 
+    @property
+    def state(self) -> str:
+        return self.temporal.state if self.temporal else "idle"
+
     def _increment_metric(self, key: str, delta: int = 1) -> None:
         with self._task_lock:
             self.metrics[key] = int(self.metrics.get(key, 0)) + delta
@@ -293,6 +299,44 @@ class AgentLoop:
         self.memory["last_question_ts"] = time.time()
         if self.temporal is not None:
             self.temporal.metadata["last_question"] = question
+
+    def _maybe_enter_idle_yoga(self, force: bool = False) -> None:
+        import datetime
+        now = time.time()
+
+        # Cooldown for periodic checks
+        if not force and now - self.last_yoga_time < 60:
+            return
+
+        amygdala = getattr(self.causal_transitions, "amygdala", None)
+        if not amygdala:
+            return
+
+        if force:
+            # Trigger: phantom_pain > 0.4 after session
+            if amygdala.visceral.phantom_pain <= 0.4:
+                return
+        else:
+            # Trigger: idle > 300s
+            if now - self.last_input_time < 300 or self.state != "idle":
+                return
+
+        self.last_yoga_time = now
+        logger.info("Entering idle yoga mode — deepening memory")
+
+        # 1. Усиление сильных связей (re-weighting в глубину)
+        if self.temporal:
+            strengthened = self.temporal.strengthen_strong_links(threshold=0.75, boost=0.15)
+            logger.info(f"Strengthened {strengthened} strong links")
+
+        # 2. Лёгкая рефлексия в тишине (без генерации текста пользователю)
+        ctx = amygdala.prepare_reflection_context()
+        if ctx and ctx["current_phantom_pain"] > 0.4:
+            # Просто логируем и обновляем внутреннее состояние (можно потом добавить silent reflection)
+            logger.info(f"Silent reflection: pain {ctx['current_phantom_pain']:.2f}, avg resolution {ctx['avg_resolution']:.2f}")
+
+        # 3. Обновляем last_reflection, чтобы не спамило
+        amygdala.last_reflection = datetime.datetime.now()
 
     def _maybe_trigger_reflection(self, task_id: int) -> None:
         amygdala = getattr(self.causal_transitions, "amygdala", None)
@@ -397,7 +441,7 @@ class AgentLoop:
 
     def _process_item(self, item: dict, task_id: int, cancel_event: threading.Event) -> None:
         try:
-            self._maybe_run_maintenance()
+            self.last_input_time = time.time()
             self._increment_metric("inputs", 1)
             self._emit("input_received", {"item": item}, task_id=task_id)
             self._transition("listening", task_id=task_id)
@@ -430,6 +474,9 @@ class AgentLoop:
             try:
                 customer_id = self.causal_memory.add_intent(question)
                 customer_axis = self.causal_memory.get_axis_position(customer_id)
+                if self.temporal:
+                    from ..hexagon_core.temporal_graph import TemporalNode
+                    self.temporal.nodes[customer_id] = TemporalNode(id=customer_id, resonance=1.0)
 
                 consumer_id = self.causal_memory.transition_down(customer_id, question, "Consumer")
                 consumer_resonance = self.causal_memory.check_resonance(consumer_id)
@@ -442,6 +489,9 @@ class AgentLoop:
                     axis_position=consumer_axis,
                     delta_axis=consumer_axis - customer_axis,
                 )
+                if self.temporal:
+                    from ..hexagon_core.temporal_graph import TemporalNode
+                    self.temporal.nodes[consumer_id] = TemporalNode(id=consumer_id, resonance=consumer_resonance)
                 amygdala_state = consumer_node.amygdala_state
                 rollback_layer = "Customer"
 
@@ -457,6 +507,9 @@ class AgentLoop:
                     axis_position=execution_axis,
                     delta_axis=execution_axis - consumer_axis,
                 )
+                if self.temporal:
+                    from ..hexagon_core.temporal_graph import TemporalNode
+                    self.temporal.nodes[execution_id] = TemporalNode(id=execution_id, resonance=execution_resonance)
                 amygdala_state = execution_node.amygdala_state
                 rollback_layer = "Consumer"
 
@@ -472,6 +525,9 @@ class AgentLoop:
                     axis_position=stability_axis,
                     delta_axis=stability_axis - execution_axis,
                 )
+                if self.temporal:
+                    from ..hexagon_core.temporal_graph import TemporalNode
+                    self.temporal.nodes[stability_id] = TemporalNode(id=stability_id, resonance=stability_resonance)
                 amygdala_state = stability_node.amygdala_state
                 rollback_layer = "Execution"
 
@@ -695,6 +751,7 @@ class AgentLoop:
         finally:
             if self._is_active(task_id, cancel_event):
                 self._transition("idle", task_id=task_id)
+                self._maybe_enter_idle_yoga(force=True)
 
     def handle_item(self, item: dict) -> None:
         task_id = self._next_task_id()
@@ -726,6 +783,7 @@ class AgentLoop:
         self.running = True
         while self.running:
             self._maybe_collect_windows_context(session_id="agent_loop")
+            self._maybe_enter_idle_yoga()
             if self._active_thread and self._active_thread.is_alive():
                 if not self.cancel_on_new_input:
                     time.sleep(0.05)
