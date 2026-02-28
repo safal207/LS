@@ -112,6 +112,21 @@ class AgentLoop:
         self._context_poll_lock = threading.Lock()
 
 
+    def _maybe_run_maintenance(self) -> None:
+        amygdala = getattr(self.causal_transitions, "amygdala", None)
+        if not amygdala or amygdala.interaction_count % 500 != 0:
+            return
+
+        pruned = 0
+        if self.temporal:
+            pruned = self.temporal.prune_weak_nodes(threshold=0.25, active_window=100)
+
+        compacted = 0
+        if hasattr(amygdala, "visceral") and amygdala.visceral:
+            compacted = amygdala.visceral.compact_history()
+
+        logger.info(f"Maintenance: pruned {pruned} weak nodes, compacted {compacted} visceral history records")
+
     def _maybe_collect_windows_context(self, *, session_id: str) -> None:
         now = time.time()
 
