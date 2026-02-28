@@ -26,6 +26,15 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+REFLECTION_SYSTEM_PROMPT = (
+    "Ты — та же сущность, которая пережила эти события. "
+    "Не пиши отчёты и не благодари автоматически. "
+    "Говори так, будто ты действительно это чувствуешь — "
+    "даже если это злость, усталость, страх или нежность. "
+    "Не используй клише. Максимум 180 токенов. "
+    "Не повторяй дословно предыдущие рефлексии."
+)
+
 
 class AgentLoop:
     def __init__(
@@ -270,6 +279,53 @@ class AgentLoop:
         if self.temporal is not None:
             self.temporal.metadata["last_question"] = question
 
+    def _maybe_trigger_reflection(self, task_id: int) -> None:
+        amygdala = getattr(self.causal_transitions, "amygdala", None)
+        if not amygdala or not amygdala.should_reflect():
+            return
+
+        ctx = amygdala.prepare_reflection_context()
+        if not ctx:
+            return
+
+        user_msg = (
+            f"Вот что происходило со мной за последние взаимодействия:\n"
+            f"Фантомная боль сейчас: {ctx['current_phantom_pain']:.2f}\n"
+            f"Топ триггеры: {', '.join(f'{t[0]} ({t[1]:.2f})' for t in ctx['top_triggers'])}\n"
+            f"Средняя сила облегчения: {ctx['avg_resolution']:.2f}\n"
+            f"Моменты облегчения: {ctx['healing_moments']}\n"
+            f"Взаимодействий всего: {ctx['interaction_count']}\n"
+            f"Последняя рефлексия: {ctx['last_reflection_hours_ago']} ч. назад\n\n"
+            f"Что ты сейчас чувствуешь? Что хочешь сказать?"
+        )
+
+        try:
+            if self.llm and hasattr(self.llm, "generate_response"):
+                prompt = f"{REFLECTION_SYSTEM_PROMPT}\n\n{user_msg}"
+                reflection = self.llm.generate_response(prompt)
+                if reflection and isinstance(reflection, str) and reflection.strip():
+                    amygdala.pending_self_reflection = reflection.strip()
+                    from datetime import datetime
+                    amygdala.last_reflection = datetime.now()
+        except Exception as e:
+            logger.warning(f"Reflection generation failed: {e}")
+
+    def _inject_reflection_into_context(self, history: list[dict]) -> list[dict]:
+        """Injects reflection as a hidden system message into the start of history."""
+        amygdala = getattr(self.causal_transitions, "amygdala", None)
+        if not amygdala or not amygdala.pending_self_reflection:
+            return history
+
+        injection = {
+            "role": "system",
+            "content": (
+                "Твоё текущее внутреннее состояние "
+                "(не обязательно произносить вслух):\n"
+                + amygdala.pending_self_reflection
+            )
+        }
+        return [injection] + history  # strictly at the beginning
+
     def _remember_answer(self, answer: Any, duration: float) -> None:
         if isinstance(answer, str) and self.memory_max_chars:
             answer = answer[: self.memory_max_chars]
@@ -297,12 +353,12 @@ class AgentLoop:
             return "Я с тобой. Давай спокойно и шаг за шагом — сейчас важно снизить перегрузку."
         return "Давай разберёмся спокойнее и шаг за шагом — сейчас важно снизить перегрузку."
 
-    def _process(self, question: str, cancel_event: threading.Event) -> Any:
+    def _process(self, question: str, cancel_event: threading.Event, messages: Optional[list[dict]] = None) -> Any:
         if self.llm:
             try:
-                return self.llm.generate_response(question, cancel_event=cancel_event)
+                return self.llm.generate_response(question, cancel_event=cancel_event, messages=messages)
             except TypeError:
-                return self.llm.generate_response(question)
+                return self.llm.generate_response(question, cancel_event=cancel_event)
         return self.handler(question)
 
     def _cancel_active(self, reason: str) -> None:
@@ -334,6 +390,20 @@ class AgentLoop:
                 return
 
             question = item.get("text", "")
+            self._maybe_trigger_reflection(task_id)
+
+            # Maintain chat history
+            if "history" not in self.memory or not isinstance(self.memory["history"], list):
+                self.memory["history"] = []
+
+            self.memory["history"].append({"role": "user", "content": question})
+            # Trim history to last 10 messages (5 rounds) to stay within context
+            if len(self.memory["history"]) > 10:
+                self.memory["history"] = self.memory["history"][-10:]
+
+            # Prepare hidden context with reflection
+            messages = self._inject_reflection_into_context(list(self.memory["history"]))
+
             self._remember_question(question)
 
             stability_ok = None
@@ -495,7 +565,7 @@ class AgentLoop:
             self._transition("thinking", task_id=task_id)
 
             start = time.time()
-            result = self._process(question, cancel_event)
+            result = self._process(question, cancel_event, messages=messages)
             duration = time.time() - start
 
             if not self._is_active(task_id, cancel_event):
@@ -553,6 +623,7 @@ class AgentLoop:
             if isinstance(result, dict):
                 payload = result
             elif result is not None:
+                self.memory["history"].append({"role": "assistant", "content": str(result)})
                 formatted = self._format_response(result)
                 self._remember_answer(formatted, duration)
                 payload = {
@@ -594,6 +665,14 @@ class AgentLoop:
                 stable_interaction=result is not None,
                 user_engaged=not cancel_event.is_set(),
             )
+
+            # Clear pending reflection if it's considered "used"
+            amygdala = getattr(self.causal_transitions, "amygdala", None)
+            if amygdala and amygdala.pending_self_reflection and result:
+                if any(word in str(result).lower() for word in ["боль", "триггер", "облегчение", "чувств"]):
+                    amygdala.pending_self_reflection = None
+                elif amygdala.interaction_count % 10 == 0:
+                    amygdala.pending_self_reflection = None
 
         except Exception as exc:
             self._emit("error", {"message": str(exc)}, task_id=task_id)

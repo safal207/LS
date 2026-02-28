@@ -89,7 +89,7 @@ class LanguageModel:
     def _is_cancelled(self, cancel_event) -> bool:
         return cancel_event is not None and getattr(cancel_event, "is_set", lambda: False)()
 
-    def generate_response_local(self, question: str, cancel_event=None) -> Optional[str]:
+    def generate_response_local(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None) -> Optional[str]:
         """Generate response using local Ollama Qwen"""
         prompt = ""
         try:
@@ -108,7 +108,7 @@ class LanguageModel:
             
             logger.debug(f"Sending to Qwen: {question[:50]}...")
             
-            response = self.qwen_handler.generate_response(prompt)
+            response = self.qwen_handler.generate_response(prompt, messages=messages)
             if response is None or (isinstance(response, str) and not response.strip()):
                 raise LLMEmptyResponseError()
             if not isinstance(response, str):
@@ -141,7 +141,7 @@ class LanguageModel:
                         self.fallback_model,
                     )
                     self.qwen_handler.model_name = self.fallback_model
-                    fallback_response = self.qwen_handler.generate_response(prompt)
+                    fallback_response = self.qwen_handler.generate_response(prompt, messages=messages)
                     if isinstance(fallback_response, str) and fallback_response.strip():
                         self.primary_model = self.fallback_model
                         fallback_succeeded = True
@@ -153,7 +153,7 @@ class LanguageModel:
                         self.qwen_handler.model_name = current_model
             return None
     
-    def generate_response_cloud(self, question: str, cancel_event=None) -> Optional[str]:
+    def generate_response_cloud(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None) -> Optional[str]:
         """Generate response using cloud Qwen API"""
         try:
             if self._is_cancelled(cancel_event):
@@ -171,7 +171,7 @@ class LanguageModel:
             
             logger.debug(f"Sending to Qwen Cloud: {question[:50]}...")
             
-            response = self.qwen_handler.generate_response(prompt)
+            response = self.qwen_handler.generate_response(prompt, messages=messages)
             if response is None or (isinstance(response, str) and not response.strip()):
                 raise LLMEmptyResponseError()
             if not isinstance(response, str):
@@ -195,14 +195,14 @@ class LanguageModel:
                 logger.error(f"Error generating cloud response ({err.kind}): {err}")
             return None
     
-    def generate_response(self, question: str, cancel_event=None) -> Optional[str]:
+    def generate_response(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None) -> Optional[str]:
         """Generate response using either local or cloud LLM"""
         if USE_CLOUD_LLM:
             logger.info("Using cloud LLM (Groq)")
-            return self.generate_response_cloud(question, cancel_event=cancel_event)
+            return self.generate_response_cloud(question, cancel_event=cancel_event, messages=messages)
         else:
             logger.info("Using local LLM (Ollama phi3)")
-            return self.generate_response_local(question, cancel_event=cancel_event)
+            return self.generate_response_local(question, cancel_event=cancel_event, messages=messages)
     
     def format_response(self, response: str) -> str:
         """Format response for display"""
