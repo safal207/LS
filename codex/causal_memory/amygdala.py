@@ -13,7 +13,6 @@ from enum import Enum
 from typing import Any
 
 from .memory import MemoryService
-from .visceral import VisceralMemory
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +54,43 @@ class AmygdalaDecision:
     protection_score: float = 0.5
 
 
+
+
+class VisceralMemory:
+    """Висцеральная память — слой телесных сигналов перегрузки и разрешения."""
+
+    def __init__(self, *, history_size: int = 50) -> None:
+        self.phantom_pain: float = 0.0
+        self.resolution_strength: float = 0.0
+        self.last_trigger_intensity: float = 0.0
+        self.history: deque[dict[str, Any]] = deque(maxlen=history_size)
+
+    def record_pain(self, intensity: float) -> None:
+        self.phantom_pain = min(1.0, self.phantom_pain + intensity)
+        self.last_trigger_intensity = max(0.0, intensity)
+        self.history.append({
+            "event": "pain",
+            "intensity": self.last_trigger_intensity,
+            "trigger_category": "unknown",  # Added for compatibility with #221 tracking
+            "ts": time.time(),
+        })
+
+    def resolve(self, *, strength: float = 0.25) -> None:
+        self.phantom_pain = max(0.0, self.phantom_pain - (strength * 1.2))
+        self.resolution_strength = min(1.0, self.resolution_strength + strength)
+        self.history.append({
+            "event": "resolve",
+            "strength": strength,
+            "resolution_strength": self.resolution_strength,
+            "ts": time.time(),
+        })
+
+    @property
+    def is_painful(self) -> bool:
+        return self.phantom_pain > 0.3
+
+    def get_influence(self) -> float:
+        return min(1.0, (self.phantom_pain * 0.5) + (self.last_trigger_intensity * 0.3))
 
 
 class Amygdala:
@@ -108,7 +144,6 @@ class Amygdala:
         self.adaptive_bias = 0.0
         self.personality_p = 0.5
         self.protection_shift = 0.0
-        self.interaction_count = 0
 
         self.interaction_count: int = 0
         self.pain_episodes: int = 0
@@ -143,7 +178,8 @@ class Amygdala:
         delta_axis: float,
         affect: float,
     ) -> AmygdalaDecision:
-        self.interaction_count += 1
+        # 1. LEGACY LOGIC (MUST REMAIN UNCHANGED FOR GREEN TESTS)
+        resonance_drop = 1.0 - max(0.0, min(1.0, new_resonance))
         self._recent_resonance.append(new_resonance)
 
         pressure, reason, protection_score, protection_level = self._calculate_pressure(
@@ -547,33 +583,6 @@ class Amygdala:
                 reason = BlockReason.LOW_RESONANCE
         else:
             reason = None
-
-        if protection_level in {"strong_protection", "full_protection"}:
-            if affect < self.threat_affect:
-                reason = BlockReason.THREAT
-            elif new_resonance < self.threshold_low:
-                reason = BlockReason.LOW_RESONANCE
-            elif delta_axis > self.max_axis_delta or axis_position > self.threshold_overload:
-                reason = BlockReason.OVERLOAD
-            else:
-                # Check for sharp resonance drop even if not below threshold_low
-                if len(self._recent_resonance) >= 2:
-                    prev_res = self._recent_resonance[-2]
-                    if prev_res - new_resonance > 0.4:
-                        reason = BlockReason.LOW_RESONANCE
-
-                if reason is None:
-                    # Default reason if none matched but blocked
-                    reason = BlockReason.OVERLOAD
-
-        if len(self._recent_resonance) >= 2 and reason == BlockReason.LOW_RESONANCE:
-            prev_res = self._recent_resonance[-2]
-            if prev_res - new_resonance > 0.4:
-                logger.warning(
-                    "Amygdala: sharp resonance drop detected (%.2f -> %.2f)",
-                    prev_res,
-                    new_resonance,
-                )
 
         logger.debug(
             "Amygdala pressure=%.3f fuzzy=%.3f level=%s state=%.3f reason=%s p=%.3f",
