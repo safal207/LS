@@ -4,11 +4,13 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, Literal
 
+from ..hexagon_core.temporal_graph import TemporalGraph
+
 State = Literal["idle", "listening", "thinking", "responding"]
 
 
 @dataclass
-class TemporalContext:
+class TemporalContext(TemporalGraph):
     state: State = "idle"
     last_transition: float = field(default_factory=time.time)
     metadata: Dict[str, Any] = field(default_factory=dict)
