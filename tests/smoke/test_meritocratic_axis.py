@@ -44,6 +44,7 @@ def test_self_proposal_generated_in_idle():
     loop._maybe_enter_idle_yoga()
 
     assert amygdala.last_proposal == "This is a very important self-proposal for the user."
+    assert loop.metrics["proposals_generated"] == 1
 
 def test_proposal_shown_on_open_question():
     amygdala = Amygdala(persist_state=False)
@@ -57,6 +58,7 @@ def test_proposal_shown_on_open_question():
 
     assert "Let's work on harmony." in new_history[0]["content"]
     assert amygdala.last_proposal is None # Cleared after show
+    assert loop.metrics["proposals_shown"] == 1
 
 def test_no_proposal_on_direct_task():
     amygdala = Amygdala(persist_state=False)
@@ -73,3 +75,4 @@ def test_no_proposal_on_direct_task():
         if msg["role"] == "system":
             assert "Let's work on harmony." not in msg["content"]
     assert amygdala.last_proposal == "Let's work on harmony." # Not cleared
+    assert loop.metrics["proposals_shown"] == 0

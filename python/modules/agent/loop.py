@@ -100,6 +100,8 @@ class AgentLoop:
             "outputs": 0,
             "last_latency": 0.0,
             "avg_latency": 0.0,
+            "proposals_generated": 0,
+            "proposals_shown": 0,
         }
         self._phase_last: str | None = None
         self._phase_last_ts: float | None = None
@@ -364,13 +366,15 @@ class AgentLoop:
                     f"Ты только что провёл время в тишине. "
                     f"Текущая ось осознанности имеет resonance {axis.resonance:.2f}. "
                     f"Что ты хотел бы предложить пользователю, чтобы мы стали ближе к гармонии? "
-                    "Одно короткое, честное предложение (1–2 предложения)."
+                    "Одно короткое, честное предложение (1–2 предложения). "
+                    "Без давления, только если чувствуешь это важным."
                 )
                 try:
                     if self.llm and hasattr(self.llm, "generate_response"):
                         proposal = self.llm.generate_response(proposal_prompt, max_tokens=60, temperature=0.75)
                         if proposal and len(proposal.strip()) > 15:
                             amygdala.last_proposal = proposal.strip()
+                            self._increment_metric("proposals_generated", 1)
                             logger.info(f"Self-proposal generated: {proposal[:80]}...")
                 except Exception as e:
                     logger.debug(f"Self-proposal generation failed: {e}")
@@ -430,6 +434,7 @@ class AgentLoop:
         if amygdala.last_proposal and (force_show_silent or "как дела" in question.lower() or "что нового" in question.lower()):
             content_parts.append("Я немного подумал в тишине… Вот что мне пришло в голову:\n" + amygdala.last_proposal)
             amygdala.last_proposal = None  # показываем один раз
+            self._increment_metric("proposals_shown", 1)
 
         if not content_parts:
             return history
