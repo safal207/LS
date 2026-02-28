@@ -114,6 +114,7 @@ class Amygdala:
         self.pain_episodes: int = 0
         self.last_reflection: datetime.datetime = datetime.datetime.min
         self.pending_self_reflection: str | None = None
+        self.last_silent_reflection: str | None = None
 
         self.visceral = VisceralMemory()
 
@@ -166,6 +167,7 @@ class Amygdala:
 
         if protection_score > 0.65 and affect < -0.4:
             trigger_intensity = max(abs(affect), abs(delta_axis))
+            resonance_drop = 1.0 - max(0.0, min(1.0, new_resonance))
             if resonance_drop > 0.7:
                 # sharp resonance drop — усиливает боль
                 self.visceral.record_pain(min(0.25, trigger_intensity * 1.3))
@@ -348,6 +350,7 @@ class Amygdala:
         self.pain_episodes = int(payload.get("pain_episodes", 0))
         self.last_reflection = datetime.datetime.fromisoformat(payload["last_reflection"]) if payload.get("last_reflection") else datetime.datetime.min
         self.pending_self_reflection = payload.get("pending_self_reflection")
+        self.last_silent_reflection = payload.get("last_silent_reflection")
         self.history = deque(payload.get("history", []), maxlen=self.history.maxlen)
 
         visceral = payload.get("visceral", {})
@@ -393,6 +396,7 @@ class Amygdala:
             self.last_reflection = datetime.datetime.fromisoformat(last_ref)
 
         self.pending_self_reflection = payload.get("pending_self_reflection")
+        self.last_silent_reflection = payload.get("last_silent_reflection")
         self.history = deque(payload.get("history", []), maxlen=self.history.maxlen)
 
         visceral = payload.get("visceral", {})
@@ -427,6 +431,7 @@ class Amygdala:
                 "pain_episodes": self.pain_episodes,
                 "last_reflection": self.last_reflection.isoformat() if self.last_reflection != datetime.datetime.min else None,
                 "pending_self_reflection": self.pending_self_reflection,
+                "last_silent_reflection": self.last_silent_reflection,
                 "history": list(self.history),
                 "visceral": {
                     "phantom_pain": self.visceral.phantom_pain,
