@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Literal
 from ..hexagon_core.temporal_graph import TemporalGraph
 
-from ..hexagon_core.temporal_graph import TemporalGraph
 
 State = Literal["idle", "listening", "thinking", "responding"]
 
