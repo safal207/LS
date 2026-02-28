@@ -29,10 +29,18 @@ from GhostGPT.modules.audio import AudioWorker
 from GhostGPT.modules.access_protocol import AccessProtocol
 from modules.agent.loop import AgentLoop
 from modules.agent.sinks import build_event_sink
+from modules.agent.events import AgentEvent
 from modules import config
 
 
 class GhostGPT:
+    def _on_agent_event(self, event: AgentEvent):
+        if event.type != "output_ready":
+            return
+        snapshot = getattr(self.agent_loop.causal_transitions.amygdala, "last_snapshot", None) if self.agent_loop else None
+        if isinstance(snapshot, dict):
+            self.window.update_amygdala_visual(snapshot)
+
     def __init__(self):
         self.app = QApplication(sys.argv)
         self.window = GhostWindow()
@@ -55,6 +63,7 @@ class GhostGPT:
             metrics_enabled=config.AGENT_METRICS_ENABLED,
             observability_enabled=config.AGENT_OBSERVABILITY_ENABLED,
             event_sink=event_sink,
+            on_event=self._on_agent_event,
         ) if config.AGENT_ENABLED else None
         if self.agent_loop:
             self.audio.text_ready.connect(self.agent_loop.handle_input)
