@@ -100,6 +100,8 @@ class AgentLoop:
             "outputs": 0,
             "last_latency": 0.0,
             "avg_latency": 0.0,
+            "proposals_generated": 0,
+            "proposals_shown": 0,
         }
         self._phase_last: str | None = None
         self._phase_last_ts: float | None = None
@@ -356,6 +358,27 @@ class AgentLoop:
         # 3. Обновляем last_reflection, чтобы не спамило
         amygdala.last_reflection = datetime.datetime.now()
 
+        # 4. Самопредложение (PR #225)
+        if self.temporal and amygdala.last_silent_reflection:
+            axis = self.temporal.get_meritocratic_axis()
+            if axis and axis.resonance > 0.7:
+                proposal_prompt = (
+                    f"Ты только что провёл время в тишине. "
+                    f"Текущая ось осознанности имеет resonance {axis.resonance:.2f}. "
+                    f"Что ты хотел бы предложить пользователю, чтобы мы стали ближе к гармонии? "
+                    "Одно короткое, честное предложение (1–2 предложения). "
+                    "Без давления, только если чувствуешь это важным."
+                )
+                try:
+                    if self.llm and hasattr(self.llm, "generate_response"):
+                        proposal = self.llm.generate_response(proposal_prompt, max_tokens=60, temperature=0.75)
+                        if proposal and len(proposal.strip()) > 15:
+                            amygdala.last_proposal = proposal.strip()
+                            self._increment_metric("proposals_generated", 1)
+                            logger.info(f"Self-proposal generated: {proposal[:80]}...")
+                except Exception as e:
+                    logger.debug(f"Self-proposal generation failed: {e}")
+
     def _maybe_trigger_reflection(self, task_id: int) -> None:
         amygdala = getattr(self.causal_transitions, "amygdala", None)
         if not amygdala or not amygdala.should_reflect():
@@ -387,7 +410,7 @@ class AgentLoop:
         except Exception as e:
             logger.warning(f"Reflection generation failed: {e}")
 
-    def _inject_reflection_into_context(self, history: list[dict], force_show_silent: bool = False) -> list[dict]:
+    def _inject_reflection_into_context(self, history: list[dict], question: str = "", force_show_silent: bool = False) -> list[dict]:
         """Injects reflection as a hidden system message into the start of history."""
         amygdala = getattr(self.causal_transitions, "amygdala", None)
         if not amygdala:
@@ -406,6 +429,12 @@ class AgentLoop:
                 "Тихое наблюдение изнутри (можешь упомянуть, если уместно):\n"
                 + amygdala.last_silent_reflection
             )
+
+        # Самопредложение (PR #225)
+        if amygdala.last_proposal and (force_show_silent or "как дела" in question.lower() or "что нового" in question.lower()):
+            content_parts.append("Я немного подумал в тишине… Вот что мне пришло в голову:\n" + amygdala.last_proposal)
+            amygdala.last_proposal = None  # показываем один раз
+            self._increment_metric("proposals_shown", 1)
 
         if not content_parts:
             return history
@@ -496,7 +525,7 @@ class AgentLoop:
                 self.memory["history"] = self.memory["history"][-10:]
 
             # Prepare hidden context with reflection
-            messages = self._inject_reflection_into_context(list(self.memory["history"]), force_show_silent=force_show_silent)
+            messages = self._inject_reflection_into_context(list(self.memory["history"]), question=question, force_show_silent=force_show_silent)
 
             self._remember_question(question)
 
