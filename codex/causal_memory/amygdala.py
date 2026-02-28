@@ -203,12 +203,10 @@ class Amygdala:
         if protection_score > 0.65 and affect < -0.4:
             trigger_intensity = max(abs(affect), abs(delta_axis))
             if resonance_drop > 0.7:
-                 # Original #213 behavior: resonance drop can trigger "pain"
-                 # but original code was intensity-based.
-                 # Restoring exact #213 logic line:
-                 self.visceral.record_pain(min(0.25, trigger_intensity))
+                # sharp resonance drop — усиливает боль
+                self.visceral.record_pain(min(0.25, trigger_intensity * 1.3))
             else:
-                 self.visceral.record_pain(min(0.25, trigger_intensity))
+                self.visceral.record_pain(min(0.25, trigger_intensity))
 
         centering_force = self.adaptation_rate * (0.18 if protection_score > 0.6 else 0.10)
         self.state = max(0.0, min(1.0, self.state + ((0.5 - self.state) * centering_force)))
