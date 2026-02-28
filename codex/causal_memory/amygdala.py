@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import logging
 import time
+from pathlib import Path
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
+
+from .memory_service import MemoryService
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +83,10 @@ class Amygdala:
     def __init__(
         self,
         *,
+        user_id: str = "default",
+        memory_service: MemoryService | None = None,
+        memory_dir: Path | None = None,
+        persist_state: bool = False,
         window_size: int = 50,
         threshold_low: float = 0.4,
         threshold_overload: float = 0.7,
@@ -90,6 +97,12 @@ class Amygdala:
         close_threshold: float = 0.65,
         adaptation_rate: float = 0.05,
     ) -> None:
+        self.user_id = user_id or "default"
+        self.persist_state = persist_state
+        self.memory_service = memory_service
+        if self.persist_state and self.memory_service is None:
+            self.memory_service = MemoryService(user_id=self.user_id, base_dir=memory_dir)
+
         self._recent_resonance: deque[float] = deque(maxlen=window_size)
         self.history: deque[dict[str, Any]] = deque(maxlen=window_size)
         self.threshold_low = threshold_low
@@ -114,6 +127,8 @@ class Amygdala:
             "resolution_strength": self.visceral.resolution_strength,
             "trigger": "none",
         }
+        if self.persist_state:
+            self._load_state()
 
     @property
     def phantom_pain(self) -> float:
@@ -193,6 +208,7 @@ class Amygdala:
         }
 
         self._adapt_parameters()
+        self._persist_state()
 
         return AmygdalaDecision(
             allowed=allowed,
@@ -245,6 +261,56 @@ class Amygdala:
                 "personality_p": self.personality_p,
                 "phantom_pain": self.phantom_pain,
                 "resolution_strength": self.visceral.resolution_strength,
+            }
+        )
+        self._persist_state()
+
+    def _load_state(self) -> None:
+        if not self.persist_state:
+            return
+
+        if self.memory_service is None:
+            return
+
+        payload = self.memory_service.load()
+        if not payload:
+            self._persist_state()
+            return
+
+        self.state = float(payload.get("state", self.state))
+        self.adaptive_bias = float(payload.get("adaptive_bias", self.adaptive_bias))
+        self.personality_p = float(payload.get("personality_p", self.personality_p))
+        self.protection_shift = float(payload.get("protection_shift", self.protection_shift))
+        self.visceral.phantom_pain = float(payload.get("phantom_pain", self.visceral.phantom_pain))
+        self.visceral.resolution_strength = float(payload.get("resolution_strength", self.visceral.resolution_strength))
+        self.visceral.last_trigger_intensity = float(
+            payload.get("last_trigger_intensity", self.visceral.last_trigger_intensity)
+        )
+        self.last_snapshot.update(
+            {
+                "state": self.state,
+                "personality_p": self.personality_p,
+                "phantom_pain": self.phantom_pain,
+                "resolution_strength": self.visceral.resolution_strength,
+            }
+        )
+
+    def _persist_state(self) -> None:
+        if not self.persist_state:
+            return
+
+        if self.memory_service is None:
+            return
+
+        self.memory_service.save(
+            {
+                "state": self.state,
+                "adaptive_bias": self.adaptive_bias,
+                "personality_p": self.personality_p,
+                "protection_shift": self.protection_shift,
+                "phantom_pain": self.visceral.phantom_pain,
+                "resolution_strength": self.visceral.resolution_strength,
+                "last_trigger_intensity": self.visceral.last_trigger_intensity,
             }
         )
 
