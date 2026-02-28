@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from pathlib import Path
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
@@ -82,6 +83,11 @@ class Amygdala:
     def __init__(
         self,
         *,
+        user_id: str = "default",
+        memory_service: MemoryService | None = None,
+        memory_dir: Path | str | None = None,
+        memory_base_dir: Path | str | None = None,
+        persist_state: bool | None = None,
         window_size: int = 50,
         threshold_low: float = 0.4,
         threshold_overload: float = 0.7,
@@ -91,9 +97,25 @@ class Amygdala:
         hysteresis: float = 0.08,
         close_threshold: float = 0.65,
         adaptation_rate: float = 0.05,
-        user_id: str = "default",
-        memory_base_dir: str = "~/.ghostgpt/memory",
     ) -> None:
+        self.user_id = user_id or "default"
+        # Determine if we should enable persistence.
+        if persist_state is not None:
+            self.persist_state = persist_state
+        else:
+            # For backward compatibility, if any directory/service is provided, enable persistence.
+            # However, keep it False by default if nothing is provided.
+            self.persist_state = (memory_service is not None) or (memory_dir is not None) or (memory_base_dir is not None)
+
+        if self.persist_state:
+            if memory_service:
+                self.memory_service = memory_service
+            else:
+                base_dir = str(memory_dir or memory_base_dir or "~/.ghostgpt/memory")
+                self.memory_service = MemoryService(user_id=self.user_id, base_dir=base_dir)
+        else:
+            self.memory_service = None
+
         self._recent_resonance: deque[float] = deque(maxlen=window_size)
         self.history: deque[dict[str, Any]] = deque(maxlen=window_size)
         self.threshold_low = threshold_low
@@ -108,26 +130,21 @@ class Amygdala:
         self.adaptive_bias = 0.0
         self.personality_p = 0.5
         self.protection_shift = 0.0
-        self.user_id = user_id
-        self.memory_service = MemoryService(user_id=user_id, base_dir=memory_base_dir)
-        self.visceral = VisceralMemory()
-        loaded = self.memory_service.load()
 
-        self.personality_p = float(loaded.get("personality_p", self.personality_p))
-        visceral = loaded.get("visceral", {}) if isinstance(loaded.get("visceral", {}), dict) else {}
-        self.visceral.phantom_pain = float(visceral.get("phantom_pain", 0.0))
-        self.visceral.resolution_strength = float(visceral.get("resolution_strength", 0.0))
-        self.visceral.last_trigger_intensity = float(visceral.get("last_trigger_intensity", 0.0))
-        self.visceral.history = deque(visceral.get("history", []), maxlen=20)
+        self.visceral = VisceralMemory()
+
         self.last_snapshot: dict[str, float | str] = {
             "state": self.state,
             "protection_level": "mild_protection",
             "protection_score": 0.5,
             "personality_p": self.personality_p,
-            "phantom_pain": self.phantom_pain,
-            "resolution_strength": self.visceral.resolution_strength,
+            "phantom_pain": 0.0,
+            "resolution_strength": 0.0,
             "trigger": "none",
         }
+
+        if self.persist_state and self.memory_service:
+            self._load_state()
 
     @property
     def phantom_pain(self) -> float:
@@ -207,6 +224,8 @@ class Amygdala:
         }
 
         self._adapt_parameters()
+        if self.persist_state:
+            self._persist_state()
 
         return AmygdalaDecision(
             allowed=allowed,
@@ -261,11 +280,62 @@ class Amygdala:
                 "resolution_strength": self.visceral.resolution_strength,
             }
         )
+        if self.persist_state:
+            self._persist_state()
+
+    def _load_state(self) -> None:
+        if not self.persist_state:
+            return
+
+        if self.memory_service is None:
+            return
+
+        payload = self.memory_service.load()
+        if not payload:
+            self._persist_state()
+            return
+
+        self.state = float(payload.get("state", self.state))
+        self.adaptive_bias = float(payload.get("adaptive_bias", self.adaptive_bias))
+        self.personality_p = float(payload.get("personality_p", self.personality_p))
+        self.protection_shift = float(payload.get("protection_shift", self.protection_shift))
+
+        visceral = payload.get("visceral", {})
+        if isinstance(visceral, dict):
+            self.visceral.phantom_pain = float(visceral.get("phantom_pain", self.visceral.phantom_pain))
+            self.visceral.resolution_strength = float(visceral.get("resolution_strength", self.visceral.resolution_strength))
+            self.visceral.last_trigger_intensity = float(
+                visceral.get("last_trigger_intensity", self.visceral.last_trigger_intensity)
+            )
+            self.visceral.history = deque(visceral.get("history", []), maxlen=20)
+        else:
+            # Fallback for old format if it was flat
+            self.visceral.phantom_pain = float(payload.get("phantom_pain", self.visceral.phantom_pain))
+            self.visceral.resolution_strength = float(payload.get("resolution_strength", self.visceral.resolution_strength))
+
+        self.last_snapshot.update(
+            {
+                "state": self.state,
+                "personality_p": self.personality_p,
+                "phantom_pain": self.phantom_pain,
+                "resolution_strength": self.visceral.resolution_strength,
+            }
+        )
+
+    def _persist_state(self) -> None:
+        if not self.persist_state:
+            return
+
+        if self.memory_service is None:
+            return
 
         self.memory_service.save(
             {
                 "user_id": self.user_id,
+                "state": self.state,
+                "adaptive_bias": self.adaptive_bias,
                 "personality_p": self.personality_p,
+                "protection_shift": self.protection_shift,
                 "visceral": {
                     "phantom_pain": self.visceral.phantom_pain,
                     "resolution_strength": self.visceral.resolution_strength,
