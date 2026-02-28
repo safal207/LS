@@ -115,6 +115,7 @@ class Amygdala:
         self.last_reflection: datetime.datetime = datetime.datetime.min
         self.pending_self_reflection: str | None = None
         self.last_silent_reflection: str | None = None
+        self.last_proposal: str | None = None
 
         self.visceral = VisceralMemory()
 
@@ -351,6 +352,7 @@ class Amygdala:
         self.last_reflection = datetime.datetime.fromisoformat(payload["last_reflection"]) if payload.get("last_reflection") else datetime.datetime.min
         self.pending_self_reflection = payload.get("pending_self_reflection")
         self.last_silent_reflection = payload.get("last_silent_reflection")
+        self.last_proposal = payload.get("last_proposal")
         self.history = deque(payload.get("history", []), maxlen=self.history.maxlen)
 
         visceral = payload.get("visceral", {})
@@ -397,6 +399,7 @@ class Amygdala:
 
         self.pending_self_reflection = payload.get("pending_self_reflection")
         self.last_silent_reflection = payload.get("last_silent_reflection")
+        self.last_proposal = payload.get("last_proposal")
         self.history = deque(payload.get("history", []), maxlen=self.history.maxlen)
 
         visceral = payload.get("visceral", {})
@@ -432,6 +435,7 @@ class Amygdala:
                 "last_reflection": self.last_reflection.isoformat() if self.last_reflection != datetime.datetime.min else None,
                 "pending_self_reflection": self.pending_self_reflection,
                 "last_silent_reflection": self.last_silent_reflection,
+                "last_proposal": self.last_proposal,
                 "history": list(self.history),
                 "visceral": {
                     "phantom_pain": self.visceral.phantom_pain,
