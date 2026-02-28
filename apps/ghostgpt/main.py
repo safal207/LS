@@ -31,10 +31,7 @@ from modules.agent.loop import AgentLoop
 from modules.agent.sinks import build_event_sink
 from modules.agent.events import AgentEvent
 from modules import config
-<<<<<<< HEAD
 from codex.causal_memory.amygdala import Amygdala
-=======
->>>>>>> main
 
 
 class GhostGPT:
@@ -68,15 +65,10 @@ class GhostGPT:
             observability_enabled=config.AGENT_OBSERVABILITY_ENABLED,
             event_sink=event_sink,
             on_event=self._on_agent_event,
-<<<<<<< HEAD
             amygdala=Amygdala(user_id=self.window.current_user_id, persist_state=True),
         ) if config.AGENT_ENABLED else None
         if self.agent_loop:
             self.window.agent_loop = self.agent_loop
-=======
-        ) if config.AGENT_ENABLED else None
-        if self.agent_loop:
->>>>>>> main
             self.audio.text_ready.connect(self.agent_loop.handle_input)
         else:
             self.audio.text_ready.connect(self.protocol.execute_cycle)

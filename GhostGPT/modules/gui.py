@@ -7,15 +7,10 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QGroupBox,
     QProgressBar,
-<<<<<<< HEAD
     QComboBox,
 )
 from PyQt6.QtCore import Qt, QPoint, QTimer
 from pathlib import Path
-=======
-)
-from PyQt6.QtCore import Qt, QPoint, QTimer
->>>>>>> main
 
 
 class GhostWindow(QMainWindow):
@@ -70,15 +65,12 @@ class GhostWindow(QMainWindow):
         self.lbl_status = QLabel("GhostGPT Ready")
         self.lbl_status.setStyleSheet("color: #00FF99; font-weight: bold; font-size: 10pt;")
 
-<<<<<<< HEAD
         self.current_user_id = "default"
         self.user_combo = QComboBox()
         self.user_combo.setStyleSheet("background-color: rgba(45, 45, 60, 220); color: #E6E6E6; border-radius: 6px; padding: 2px 8px;")
         self._populate_user_profiles()
         self.user_combo.currentTextChanged.connect(self.switch_user)
 
-=======
->>>>>>> main
         self.btn_mic_test = QPushButton("Test Mic")
         self.btn_mic_test.setFixedSize(80, 25)
         self.btn_mic_test.setStyleSheet(
@@ -109,10 +101,7 @@ class GhostWindow(QMainWindow):
         header_inner_layout = QVBoxLayout(header_container)
         header_inner_layout.addLayout(buttons_layout)
         header_inner_layout.addWidget(self.lbl_status)
-<<<<<<< HEAD
         header_inner_layout.addWidget(self.user_combo)
-=======
->>>>>>> main
         layout.addWidget(header_container)
 
         # Question
@@ -317,7 +306,6 @@ class GhostWindow(QMainWindow):
         self._heart_pulse_step += 1
         self._apply_snapshot_to_ui(self._last_snapshot)
 
-<<<<<<< HEAD
     def _populate_user_profiles(self) -> None:
         memory_dir = Path.home() / ".ghostgpt" / "memory"
         users = {"default"}
@@ -340,8 +328,6 @@ class GhostWindow(QMainWindow):
             self.update_amygdala_visual(snapshot)
         self.lbl_status.setText(f"Профиль: {selected_user}")
 
-=======
->>>>>>> main
     def update_ui(self, q, a, mode):
         self.lbl_q.setText(f"Q: {q}")
         self.lbl_a.setText(f"{a}")
