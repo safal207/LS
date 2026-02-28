@@ -10,7 +10,11 @@ from ..llm.temporal import TemporalContext
 from ..cognitive_flow import CognitiveFlow, PresenceState, TransitionEngine
 from ..cognitive_flow.liminal import is_liminal_phase
 from ..memory.causal import CausalMemory
+<<<<<<< HEAD
 from codex.causal_memory.amygdala import Amygdala, AmygdalaBlockError, BlockReason
+=======
+from codex.causal_memory.amygdala import AmygdalaBlockError, BlockReason
+>>>>>>> main
 from codex.causal_memory.transitions import CausalMemoryTransitions
 
 from .event_schema import build_observability_event
@@ -44,7 +48,10 @@ class AgentLoop:
         metrics_enabled: bool = True,
         event_sink: EventSink | None = None,
         observability_enabled: bool = True,
+<<<<<<< HEAD
         amygdala: Amygdala | None = None,
+=======
+>>>>>>> main
     ) -> None:
         if (llm is None) == (handler is None):
             raise ValueError("Provide exactly one of llm or handler")
@@ -64,7 +71,11 @@ class AgentLoop:
 
         self.memory: dict[str, Any] = {}
         self.causal_memory = CausalMemory()
+<<<<<<< HEAD
         self.causal_transitions = CausalMemoryTransitions(amygdala=amygdala)
+=======
+        self.causal_transitions = CausalMemoryTransitions()
+>>>>>>> main
         self._task_lock = threading.Lock()
         self._task_counter = 0
         self._active_task_id = 0

@@ -45,6 +45,10 @@ from .store import MemoryRecord, MemoryStore
 from .amygdala import Amygdala, AmygdalaBlockError, BlockReason
 from .memory import MemoryService
 from .transitions import CausalMemoryTransitions, CausalNode
+<<<<<<< HEAD
+from .memory_service import MemoryService
+=======
+>>>>>>> main
 
 __all__ = [
     "AdaptiveEngine",
@@ -59,5 +63,8 @@ __all__ = [
     "CausalMemoryTransitions",
     "CausalNode",
     "MemoryService",
+<<<<<<< HEAD
+=======
     "with_file_lock",
+>>>>>>> main
 ]
