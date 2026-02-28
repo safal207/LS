@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import logging
 import time
+import json
+import zipfile
+import shutil
+import datetime
 from pathlib import Path
-from collections import deque
+from collections import deque, defaultdict
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -106,6 +110,11 @@ class Amygdala:
         self.protection_shift = 0.0
         self.interaction_count = 0
 
+        self.interaction_count: int = 0
+        self.pain_episodes: int = 0
+        self.last_reflection: datetime.datetime = datetime.datetime.min
+        self.pending_self_reflection: str | None = None
+
         self.visceral = VisceralMemory()
 
         self.last_snapshot: dict[str, float | str] = {
@@ -157,7 +166,11 @@ class Amygdala:
 
         if protection_score > 0.65 and affect < -0.4:
             trigger_intensity = max(abs(affect), abs(delta_axis))
-            self.visceral.record_pain(min(0.25, trigger_intensity))
+            if resonance_drop > 0.7:
+                # sharp resonance drop — усиливает боль
+                self.visceral.record_pain(min(0.25, trigger_intensity * 1.3))
+            else:
+                self.visceral.record_pain(min(0.25, trigger_intensity))
 
         centering_force = self.adaptation_rate * (0.18 if protection_score > 0.6 else 0.10)
         self.state = max(0.0, min(1.0, self.state + ((0.5 - self.state) * centering_force)))
@@ -199,6 +212,16 @@ class Amygdala:
             "trigger": trigger,
         }
 
+        # 2. NEW ADDITIVE LOGIC (PR #221)
+        self.interaction_count += 1
+        if self.visceral.phantom_pain > 0.3:
+            self.pain_episodes = min(5, self.pain_episodes + 1)
+        else:
+            self.pain_episodes = max(0, self.pain_episodes - 1)
+
+        if self.should_reflect():
+            self.last_reflection = datetime.datetime.now()
+
         self._adapt_parameters()
         if self.persist_state:
             self._persist_state()
@@ -226,6 +249,55 @@ class Amygdala:
             delta_axis=delta_axis,
             affect=affect,
         )
+
+    def should_reflect(self) -> bool:
+        """Determines if enough time and interaction have passed to trigger reflection."""
+        now = datetime.datetime.now()
+        # Cooldown check: either first time (min) or > 1 hour
+        cooldown_ok = (self.last_reflection is None) or \
+                     (self.last_reflection == datetime.datetime.min) or \
+                     ((now - self.last_reflection).total_seconds() > 3600)
+
+        if not cooldown_ok:
+            return False
+        return (self.interaction_count > 0 and self.interaction_count % 50 == 0) or self.pain_episodes >= 3
+
+    def prepare_reflection_context(self) -> dict | None:
+        """Сырые данные для рефлексии. Только метрики, без LLM."""
+        if len(self.visceral.history) < 20:
+            return None
+
+        visceral_recent = list(self.visceral.history)[-50:]
+
+        pain_by_trigger: defaultdict[str, float] = defaultdict(float)
+        for entry in visceral_recent:
+            if entry.get("event") == "pain":
+                cat = entry.get("trigger_category", "unknown")
+                pain_by_trigger[cat] += float(entry.get("intensity", 0))
+
+        top_triggers = sorted(pain_by_trigger.items(), key=lambda x: x[1], reverse=True)[:3]
+
+        resolutions = [float(e.get("strength", 0)) for e in visceral_recent if e.get("event") == "resolve"]
+        avg_resolution = sum(resolutions) / max(1, len(resolutions)) if resolutions else 0.0
+
+        healing_moments = [
+            {"resolution_strength": e.get("resolution_strength", 0.0), "context": e.get("context_snippet", "")}
+            for e in visceral_recent[-5:] if e.get("event") == "resolve" and float(e.get("resolution_strength", 0.0)) > 0.4
+        ]
+
+        ago = (datetime.datetime.now() - self.last_reflection).total_seconds() / 3600
+        if self.last_reflection == datetime.datetime.min:
+             ago = 999.0
+
+        return {
+            "current_phantom_pain": self.visceral.phantom_pain,
+            "top_triggers": top_triggers,
+            "avg_resolution": round(avg_resolution, 2),
+            "healing_moments": healing_moments,
+            "interaction_count": self.interaction_count,
+            "last_reflection_hours_ago": round(ago, 1),
+            "recent_pain_episodes": self.pain_episodes,
+        }
 
     def learn_from_outcome(self, *, stable_interaction: bool, user_engaged: bool = True) -> None:
         reward = 0.0
@@ -260,10 +332,7 @@ class Amygdala:
             self._persist_state()
 
     def _load_state(self) -> None:
-        if not self.persist_state:
-            return
-
-        if self.memory_service is None:
+        if not self.persist_state or self.memory_service is None:
             return
 
         payload = self.memory_service.load()
@@ -275,11 +344,18 @@ class Amygdala:
         self.adaptive_bias = float(payload.get("adaptive_bias", self.adaptive_bias))
         self.personality_p = float(payload.get("personality_p", self.personality_p))
         self.protection_shift = float(payload.get("protection_shift", self.protection_shift))
+        self.interaction_count = int(payload.get("interaction_count", 0))
+        self.pain_episodes = int(payload.get("pain_episodes", 0))
+        self.last_reflection = datetime.datetime.fromisoformat(payload["last_reflection"]) if payload.get("last_reflection") else datetime.datetime.min
+        self.pending_self_reflection = payload.get("pending_self_reflection")
+        self.history = deque(payload.get("history", []), maxlen=self.history.maxlen)
 
         visceral = payload.get("visceral", {})
         if isinstance(visceral, dict):
             self.visceral.phantom_pain = float(visceral.get("phantom_pain", self.visceral.phantom_pain))
-            self.visceral.resolution_strength = float(visceral.get("resolution_strength", self.visceral.resolution_strength))
+            self.visceral.resolution_strength = float(
+                visceral.get("resolution_strength", self.visceral.resolution_strength)
+            )
             self.visceral.last_trigger_intensity = float(
                 visceral.get("last_trigger_intensity", self.visceral.last_trigger_intensity)
             )
@@ -287,7 +363,9 @@ class Amygdala:
         else:
             # Fallback for old format if it was flat
             self.visceral.phantom_pain = float(payload.get("phantom_pain", self.visceral.phantom_pain))
-            self.visceral.resolution_strength = float(payload.get("resolution_strength", self.visceral.resolution_strength))
+            self.visceral.resolution_strength = float(
+                payload.get("resolution_strength", self.visceral.resolution_strength)
+            )
 
         self.last_snapshot.update(
             {
@@ -297,6 +375,39 @@ class Amygdala:
                 "resolution_strength": self.visceral.resolution_strength,
             }
         )
+
+    def restore_state(self, payload: dict) -> None:
+        """Restores state from a provided dictionary (used during import)."""
+        if not payload:
+            return
+
+        self.state = float(payload.get("state", self.state))
+        self.adaptive_bias = float(payload.get("adaptive_bias", self.adaptive_bias))
+        self.personality_p = float(payload.get("personality_p", self.personality_p))
+        self.protection_shift = float(payload.get("protection_shift", self.protection_shift))
+        self.interaction_count = int(payload.get("interaction_count", self.interaction_count))
+        self.pain_episodes = int(payload.get("pain_episodes", self.pain_episodes))
+
+        last_ref = payload.get("last_reflection")
+        if last_ref:
+            self.last_reflection = datetime.datetime.fromisoformat(last_ref)
+
+        self.pending_self_reflection = payload.get("pending_self_reflection")
+        self.history = deque(payload.get("history", []), maxlen=self.history.maxlen)
+
+        visceral = payload.get("visceral", {})
+        if isinstance(visceral, dict):
+            self.visceral.phantom_pain = float(visceral.get("phantom_pain", self.visceral.phantom_pain))
+            self.visceral.resolution_strength = float(
+                visceral.get("resolution_strength", self.visceral.resolution_strength)
+            )
+            self.visceral.last_trigger_intensity = float(
+                visceral.get("last_trigger_intensity", self.visceral.last_trigger_intensity)
+            )
+            self.visceral.history = deque(visceral.get("history", []), maxlen=self.visceral.history.maxlen)
+
+        if self.persist_state:
+            self._persist_state()
 
     def _persist_state(self) -> None:
         if not self.persist_state:
@@ -312,6 +423,11 @@ class Amygdala:
                 "adaptive_bias": self.adaptive_bias,
                 "personality_p": self.personality_p,
                 "protection_shift": self.protection_shift,
+                "interaction_count": self.interaction_count,
+                "pain_episodes": self.pain_episodes,
+                "last_reflection": self.last_reflection.isoformat() if self.last_reflection != datetime.datetime.min else None,
+                "pending_self_reflection": self.pending_self_reflection,
+                "history": list(self.history),
                 "visceral": {
                     "phantom_pain": self.visceral.phantom_pain,
                     "resolution_strength": self.visceral.resolution_strength,
@@ -360,6 +476,16 @@ class Amygdala:
         affect: float,
     ) -> tuple[float, BlockReason | None, float, str]:
         resonance_drop = 1.0 - max(0.0, min(1.0, new_resonance))
+
+        # Original conditions for BlockReason
+        reason = None
+        if new_resonance < self.threshold_low:
+            reason = BlockReason.LOW_RESONANCE
+        if axis_position > self.threshold_overload or delta_axis > self.max_axis_delta:
+            reason = BlockReason.OVERLOAD
+        if affect < self.threat_affect:
+            reason = BlockReason.THREAT
+
         low_resonance_pressure = max(0.0, (self.threshold_low - new_resonance) / max(self.threshold_low, 1e-6))
         affect_pressure = 0.0
         if affect < self.threat_affect:
@@ -410,7 +536,17 @@ class Amygdala:
             fuzzy_score *= max(0.8, 1.0 - (0.2 * empathy_relief / 0.3))
 
         protection_level = self._label_protection_level(fuzzy_score)
-        reason = None
+
+        # Determine original BlockReason based on original rules
+        if protection_level in {"strong_protection", "full_protection"}:
+            if affect < self.threat_affect:
+                reason = BlockReason.THREAT
+            elif axis_position > self.threshold_overload or delta_axis > self.max_axis_delta:
+                reason = BlockReason.OVERLOAD
+            else:
+                reason = BlockReason.LOW_RESONANCE
+        else:
+            reason = None
 
         if protection_level in {"strong_protection", "full_protection"}:
             if affect < self.threat_affect:

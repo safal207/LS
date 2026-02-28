@@ -70,15 +70,26 @@ class QwenHandler:
         self.session = requests.Session()
         self.session.timeout = 30
 
-    def generate_with_ollama(self, prompt: str) -> Optional[str]:
-        """Generate response using Ollama Qwen model"""
+    def generate_with_ollama(self, prompt: str, messages: Optional[list[dict]] = None) -> Optional[str]:
+        """Generate response using Ollama Qwen model. Supports legacy prompt or chat history."""
         try:
-            url = f"{OLLAMA_HOST}/api/generate"
-
-            payload = {
-                "model": self.model_name,
-                "prompt": prompt,
-                "stream": False,
+            if messages:
+                url = f"{OLLAMA_HOST}/api/chat"
+                payload = {
+                    "model": self.model_name,
+                    "messages": messages,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.2,
+                        "num_predict": 150,
+                    }
+                }
+            else:
+                url = f"{OLLAMA_HOST}/api/generate"
+                payload = {
+                    "model": self.model_name,
+                    "prompt": prompt,
+                    "stream": False,
                 "options": {
                     "temperature": 0.2,
                     "top_k": 40,
@@ -95,7 +106,7 @@ class QwenHandler:
             result = response.json()
             if not isinstance(result, dict):
                 raise LLMInvalidFormatError("Invalid JSON payload from Ollama")
-            raw_answer = result.get("response", "")
+            raw_answer = result.get("message", {}).get("content") if messages else result.get("response", "")
             if raw_answer is None:
                 raw_answer = ""
             if not isinstance(raw_answer, str):
@@ -123,7 +134,7 @@ class QwenHandler:
             logger.error(f"Ollama Qwen error: {e}")
             return None
 
-    def generate_with_cloud_api(self, prompt: str) -> Optional[str]:
+    def generate_with_cloud_api(self, prompt: str, messages: Optional[list[dict]] = None) -> Optional[str]:
         """Generate response using Alibaba Cloud Qwen API"""
         if not self.api_key:
             if self.raise_on_error:
@@ -143,9 +154,7 @@ class QwenHandler:
             payload = {
                 "model": "qwen-max",  # or qwen-plus for faster response
                 "input": {
-                    "messages": [
-                        {"role": "user", "content": prompt}
-                    ]
+                    "messages": messages or [{"role": "user", "content": prompt}]
                 },
                 "parameters": {
                     "temperature": 0.2,
@@ -192,12 +201,12 @@ class QwenHandler:
             logger.error(f"Qwen Cloud API error: {e}")
             return None
 
-    def generate_response(self, prompt: str) -> Optional[str]:
+    def generate_response(self, prompt: str, messages: Optional[list[dict]] = None) -> Optional[str]:
         """Generate response using appropriate Qwen variant"""
         if self.use_cloud_api:
-            return self.generate_with_cloud_api(prompt)
+            return self.generate_with_cloud_api(prompt, messages=messages)
         else:
-            return self.generate_with_ollama(prompt)
+            return self.generate_with_ollama(prompt, messages=messages)
 
     def handle_replay_command(self, user_input: str) -> Optional[str]:
         """Replay UI command helper for AgentLoop/GUI integration."""
