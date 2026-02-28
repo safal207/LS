@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from .memory import MemoryService
+
 logger = logging.getLogger(__name__)
 
 """
@@ -89,6 +91,8 @@ class Amygdala:
         hysteresis: float = 0.08,
         close_threshold: float = 0.65,
         adaptation_rate: float = 0.05,
+        user_id: str = "default",
+        memory_base_dir: str = "~/.ghostgpt/memory",
     ) -> None:
         self._recent_resonance: deque[float] = deque(maxlen=window_size)
         self.history: deque[dict[str, Any]] = deque(maxlen=window_size)
@@ -104,7 +108,17 @@ class Amygdala:
         self.adaptive_bias = 0.0
         self.personality_p = 0.5
         self.protection_shift = 0.0
+        self.user_id = user_id
+        self.memory_service = MemoryService(user_id=user_id, base_dir=memory_base_dir)
         self.visceral = VisceralMemory()
+        loaded = self.memory_service.load()
+
+        self.personality_p = float(loaded.get("personality_p", self.personality_p))
+        visceral = loaded.get("visceral", {}) if isinstance(loaded.get("visceral", {}), dict) else {}
+        self.visceral.phantom_pain = float(visceral.get("phantom_pain", 0.0))
+        self.visceral.resolution_strength = float(visceral.get("resolution_strength", 0.0))
+        self.visceral.last_trigger_intensity = float(visceral.get("last_trigger_intensity", 0.0))
+        self.visceral.history = deque(visceral.get("history", []), maxlen=20)
         self.last_snapshot: dict[str, float | str] = {
             "state": self.state,
             "protection_level": "mild_protection",
@@ -245,6 +259,20 @@ class Amygdala:
                 "personality_p": self.personality_p,
                 "phantom_pain": self.phantom_pain,
                 "resolution_strength": self.visceral.resolution_strength,
+            }
+        )
+
+        self.memory_service.save(
+            {
+                "user_id": self.user_id,
+                "personality_p": self.personality_p,
+                "visceral": {
+                    "phantom_pain": self.visceral.phantom_pain,
+                    "resolution_strength": self.visceral.resolution_strength,
+                    "last_trigger_intensity": self.visceral.last_trigger_intensity,
+                    "history": list(self.visceral.history),
+                },
+                "last_session": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             }
         )
 
