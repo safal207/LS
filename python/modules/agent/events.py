@@ -14,6 +14,7 @@ EventType = Literal[
     "liminal_transition",
     "cancelled",
     "metrics",
+    "self_reflection",
     "error",
 ]
 

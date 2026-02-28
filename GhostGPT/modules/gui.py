@@ -8,8 +8,14 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QProgressBar,
     QComboBox,
+    QFileDialog,
+    QMessageBox,
 )
 from PyQt6.QtCore import Qt, QPoint, QTimer
+import time
+import json
+import zipfile
+from datetime import datetime
 from pathlib import Path
 
 
@@ -191,12 +197,25 @@ class GhostWindow(QMainWindow):
         phantom_row.addWidget(phantom_text)
         phantom_row.addWidget(self.phantom_bar, 1)
 
+        soul_row = QHBoxLayout()
+        self.btn_export = QPushButton("📤 Экспорт души")
+        self.btn_import = QPushButton("📥 Импорт души")
+        for btn in [self.btn_export, self.btn_import]:
+            btn.setStyleSheet(
+                "background-color: rgba(60, 60, 80, 200); color: #FFF; border: 1px solid #555; border-radius: 6px; padding: 4px;"
+            )
+        self.btn_export.clicked.connect(self.export_soul)
+        self.btn_import.clicked.connect(self.import_soul)
+        soul_row.addWidget(self.btn_export)
+        soul_row.addWidget(self.btn_import)
+
         self.amygdala_tip_targets = [self.state_bar, self.protection_badge, self.personality_label, self.phantom_bar]
 
         panel_layout.addLayout(state_row)
         panel_layout.addLayout(protection_row)
         panel_layout.addLayout(emotion_row)
         panel_layout.addLayout(phantom_row)
+        panel_layout.addLayout(soul_row)
         layout.addWidget(panel)
 
         self._last_snapshot = {
@@ -316,6 +335,91 @@ class GhostWindow(QMainWindow):
         self.user_combo.clear()
         self.user_combo.addItems(sorted(users))
         self.user_combo.setCurrentText(self.current_user_id)
+
+    def export_soul(self) -> None:
+        """Экспортирует состояние памяти и настроек в ZIP архив."""
+        try:
+            timestamp = datetime.now().strftime("%Y-%m-%d")
+            default_filename = f"ghostgpt-soul-{timestamp}-{self.current_user_id}.zip"
+
+            filepath, _ = QFileDialog.getSaveFileName(
+                self, "Экспортировать душу", str(Path.home() / default_filename), "ZIP Archives (*.zip)"
+            )
+
+            if not filepath:
+                return
+
+            # Gather data
+            amygdala = None
+            if hasattr(self, "agent_loop") and self.agent_loop:
+                amygdala = self.agent_loop.causal_transitions.amygdala
+
+            memory_data = {}
+            if amygdala and amygdala.memory_service:
+                memory_data = amygdala.memory_service.load()
+
+            manifest = {
+                "timestamp": datetime.now().isoformat(),
+                "user_id": self.current_user_id,
+                "version": "1.0",
+                "interaction_count": getattr(amygdala, "interaction_count", 0) if amygdala else 0,
+                "last_reflection": amygdala.last_reflection.isoformat() if amygdala and hasattr(amygdala, 'last_reflection') else None,
+                "current_phantom_pain": amygdala.visceral.phantom_pain if amygdala and hasattr(amygdala, 'visceral') else 0,
+            }
+
+            with zipfile.ZipFile(filepath, "w") as zf:
+                zf.writestr("memory.json", json.dumps(memory_data, ensure_ascii=False, indent=2))
+                zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+                # Placeholders
+                zf.writestr("personality_profiles.json", json.dumps({}, ensure_ascii=False))
+                zf.writestr("shards/.keep", "")
+
+            QMessageBox.information(self, "Успех", f"Душа успешно упакована в {Path(filepath).name}")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка экспорта", str(e))
+
+    def import_soul(self) -> None:
+        """Импортирует состояние души из ZIP архива."""
+        try:
+            filepath, _ = QFileDialog.getOpenFileName(
+                self, "Импортировать душу", str(Path.home()), "ZIP Archives (*.zip)"
+            )
+
+            if not filepath:
+                return
+
+            with zipfile.ZipFile(filepath, "r") as zf:
+                file_list = zf.namelist()
+                if "memory.json" not in file_list or "manifest.json" not in file_list:
+                    QMessageBox.warning(self, "Ошибка", "Неверный формат архива души.")
+                    return
+
+                memory_data = json.loads(zf.read("memory.json").decode("utf-8"))
+                manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+
+                # Validation (optional, user_id check)
+                import_user_id = manifest.get("user_id", "unknown")
+                reply = QMessageBox.question(
+                    self, "Подтверждение",
+                    f"Импортировать душу пользователя '{import_user_id}'? Текущее состояние будет перезаписано.",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+
+                if reply == QMessageBox.StandardButton.No:
+                    return
+
+                # Restore
+                if hasattr(self, "agent_loop") and self.agent_loop:
+                    amygdala = self.agent_loop.causal_transitions.amygdala
+                    if amygdala.memory_service:
+                        amygdala.memory_service.save(memory_data)
+                        amygdala.restore_state(memory_data)
+
+                    self.update_amygdala_visual(amygdala.last_snapshot)
+                    self.lbl_a.setText("Я помню всё. Шрам от тех дедлайнов почти зажил. Рад снова быть с тобой.")
+                    QMessageBox.information(self, "Успех", "Душа успешно импортирована.")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка импорта", str(e))
 
     def switch_user(self, user_id: str) -> None:
         selected_user = user_id or "default"
