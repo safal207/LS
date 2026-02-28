@@ -6,6 +6,7 @@ from .layer import CausalMemoryLayer
 from .store import MemoryRecord, MemoryStore
 from .amygdala import Amygdala, AmygdalaBlockError, BlockReason
 from .transitions import CausalMemoryTransitions, CausalNode
+from .memory_service import MemoryService
 
 __all__ = [
     "AdaptiveEngine",
@@ -19,4 +20,5 @@ __all__ = [
     "BlockReason",
     "CausalMemoryTransitions",
     "CausalNode",
+    "MemoryService",
 ]

@@ -7,8 +7,10 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QGroupBox,
     QProgressBar,
+    QComboBox,
 )
 from PyQt6.QtCore import Qt, QPoint, QTimer
+from pathlib import Path
 
 
 class GhostWindow(QMainWindow):
@@ -63,6 +65,12 @@ class GhostWindow(QMainWindow):
         self.lbl_status = QLabel("GhostGPT Ready")
         self.lbl_status.setStyleSheet("color: #00FF99; font-weight: bold; font-size: 10pt;")
 
+        self.current_user_id = "default"
+        self.user_combo = QComboBox()
+        self.user_combo.setStyleSheet("background-color: rgba(45, 45, 60, 220); color: #E6E6E6; border-radius: 6px; padding: 2px 8px;")
+        self._populate_user_profiles()
+        self.user_combo.currentTextChanged.connect(self.switch_user)
+
         self.btn_mic_test = QPushButton("Test Mic")
         self.btn_mic_test.setFixedSize(80, 25)
         self.btn_mic_test.setStyleSheet(
@@ -93,6 +101,7 @@ class GhostWindow(QMainWindow):
         header_inner_layout = QVBoxLayout(header_container)
         header_inner_layout.addLayout(buttons_layout)
         header_inner_layout.addWidget(self.lbl_status)
+        header_inner_layout.addWidget(self.user_combo)
         layout.addWidget(header_container)
 
         # Question
@@ -296,6 +305,28 @@ class GhostWindow(QMainWindow):
     def _tick_heart_pulse(self) -> None:
         self._heart_pulse_step += 1
         self._apply_snapshot_to_ui(self._last_snapshot)
+
+    def _populate_user_profiles(self) -> None:
+        memory_dir = Path.home() / ".ghostgpt" / "memory"
+        users = {"default"}
+        if memory_dir.exists():
+            for file in memory_dir.glob("user_*.json"):
+                users.add(file.stem.replace("user_", ""))
+
+        self.user_combo.clear()
+        self.user_combo.addItems(sorted(users))
+        self.user_combo.setCurrentText(self.current_user_id)
+
+    def switch_user(self, user_id: str) -> None:
+        selected_user = user_id or "default"
+        self.current_user_id = selected_user
+        if hasattr(self, "agent_loop") and self.agent_loop:
+            from codex.causal_memory.amygdala import Amygdala
+
+            self.agent_loop.causal_transitions.amygdala = Amygdala(user_id=selected_user, persist_state=True)
+            snapshot = self.agent_loop.causal_transitions.amygdala.last_snapshot
+            self.update_amygdala_visual(snapshot)
+        self.lbl_status.setText(f"Профиль: {selected_user}")
 
     def update_ui(self, q, a, mode):
         self.lbl_q.setText(f"Q: {q}")
