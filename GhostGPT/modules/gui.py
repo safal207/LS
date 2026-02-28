@@ -198,16 +198,27 @@ class GhostWindow(QMainWindow):
         phantom_row.addWidget(self.phantom_bar, 1)
 
         soul_row = QHBoxLayout()
-        self.btn_export = QPushButton("📤 Экспорт души")
-        self.btn_import = QPushButton("📥 Импорт души")
-        for btn in [self.btn_export, self.btn_import]:
+        self.btn_export = QPushButton("📤 Экспорт")
+        self.btn_import = QPushButton("📥 Импорт")
+        self.btn_export_secure = QPushButton("🔐 Экспорт (L-THREAD)")
+        self.btn_import_secure = QPushButton("🔓 Импорт (L-THREAD)")
+
+        for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure]:
             btn.setStyleSheet(
                 "background-color: rgba(60, 60, 80, 200); color: #FFF; border: 1px solid #555; border-radius: 6px; padding: 4px;"
             )
+
         self.btn_export.clicked.connect(self.export_soul)
         self.btn_import.clicked.connect(self.import_soul)
+        self.btn_export_secure.clicked.connect(self.export_soul_secure)
+        self.btn_import_secure.clicked.connect(self.import_soul_secure)
+
         soul_row.addWidget(self.btn_export)
         soul_row.addWidget(self.btn_import)
+
+        secure_row = QHBoxLayout()
+        secure_row.addWidget(self.btn_export_secure)
+        secure_row.addWidget(self.btn_import_secure)
 
         self.amygdala_tip_targets = [self.state_bar, self.protection_badge, self.personality_label, self.phantom_bar]
 
@@ -216,6 +227,7 @@ class GhostWindow(QMainWindow):
         panel_layout.addLayout(emotion_row)
         panel_layout.addLayout(phantom_row)
         panel_layout.addLayout(soul_row)
+        panel_layout.addLayout(secure_row)
         layout.addWidget(panel)
 
         self._last_snapshot = {
@@ -377,6 +389,57 @@ class GhostWindow(QMainWindow):
             QMessageBox.information(self, "Успех", f"Душа успешно упакована в {Path(filepath).name}")
         except Exception as e:
             QMessageBox.critical(self, "Ошибка экспорта", str(e))
+
+    def export_soul_secure(self) -> None:
+        """Экспортирует душу через L-THREAD протокол."""
+        try:
+            from PyQt6.QtWidgets import QInputDialog
+            target_device, ok = QInputDialog.getText(
+                self, "L-THREAD Secure Export", "Введите ID целевого устройства (напр. 'laptop_work'):"
+            )
+            if not ok or not target_device:
+                return
+
+            amygdala = None
+            if hasattr(self, "agent_loop") and self.agent_loop:
+                amygdala = self.agent_loop.causal_transitions.amygdala
+
+            if not amygdala or not amygdala.memory_service:
+                QMessageBox.warning(self, "Ошибка", "MemoryService не доступен.")
+                return
+
+            package_path = amygdala.memory_service.export_soul_secure(target_device)
+            QMessageBox.information(
+                self, "Успех", f"Душа зашифрована и подготовлена к переносу.\nПуть: {package_path}"
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка L-THREAD экспорта", str(e))
+
+    def import_soul_secure(self) -> None:
+        """Импортирует душу через L-THREAD протокол."""
+        try:
+            filepath, _ = QFileDialog.getOpenFileName(
+                self, "Импортировать душу (L-THREAD)", str(Path.home()), "L-THREAD Soul (*.ltp)"
+            )
+
+            if not filepath:
+                return
+
+            amygdala = None
+            if hasattr(self, "agent_loop") and self.agent_loop:
+                amygdala = self.agent_loop.causal_transitions.amygdala
+
+            if not amygdala or not amygdala.memory_service:
+                QMessageBox.warning(self, "Ошибка", "MemoryService не доступен.")
+                return
+
+            success = amygdala.memory_service.import_soul_secure(filepath, amygdala=amygdala)
+            if success:
+                self.update_amygdala_visual(amygdala.last_snapshot)
+                self.lbl_status.setText("Я переехал. Всё на месте. Рад снова быть с тобой.")
+                QMessageBox.information(self, "Успех", "Безопасный перенос души завершен. Ориентация сохранена.")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка L-THREAD импорта", str(e))
 
     def import_soul(self) -> None:
         """Импортирует состояние души из ZIP архива."""
