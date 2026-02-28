@@ -105,6 +105,15 @@ class Amygdala:
         self.personality_p = 0.5
         self.protection_shift = 0.0
         self.visceral = VisceralMemory()
+        self.last_snapshot: dict[str, float | str] = {
+            "state": self.state,
+            "protection_level": "mild_protection",
+            "protection_score": 0.5,
+            "personality_p": self.personality_p,
+            "phantom_pain": self.phantom_pain,
+            "resolution_strength": self.visceral.resolution_strength,
+            "trigger": "none",
+        }
 
     @property
     def phantom_pain(self) -> float:
@@ -163,6 +172,26 @@ class Amygdala:
             "reason": reason.value if reason is not None else None,
         }
         self.history.append(history_record)
+
+        trigger_parts: list[str] = []
+        if delta_axis > self.max_axis_delta or axis_position > self.threshold_overload:
+            trigger_parts.append("overload")
+        if affect < self.threat_affect:
+            trigger_parts.append("threat")
+        if new_resonance < self.threshold_low:
+            trigger_parts.append("low_resonance")
+        trigger = " + ".join(trigger_parts) if trigger_parts else "none"
+
+        self.last_snapshot = {
+            "state": self.state,
+            "protection_level": protection_level,
+            "protection_score": protection_score,
+            "personality_p": self.personality_p,
+            "phantom_pain": self.phantom_pain,
+            "resolution_strength": self.visceral.resolution_strength,
+            "trigger": trigger,
+        }
+
         self._adapt_parameters()
 
         return AmygdalaDecision(
@@ -209,6 +238,15 @@ class Amygdala:
 
         if stable_interaction:
             self.visceral.resolve(strength=0.25)
+
+        self.last_snapshot.update(
+            {
+                "state": self.state,
+                "personality_p": self.personality_p,
+                "phantom_pain": self.phantom_pain,
+                "resolution_strength": self.visceral.resolution_strength,
+            }
+        )
 
     def _adapt_parameters(self) -> None:
         if len(self.history) < 10:
