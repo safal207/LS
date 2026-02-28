@@ -331,9 +331,27 @@ class AgentLoop:
 
         # 2. Лёгкая рефлексия в тишине (без генерации текста пользователю)
         ctx = amygdala.prepare_reflection_context()
-        if ctx and ctx["current_phantom_pain"] > 0.4:
-            # Просто логируем и обновляем внутреннее состояние (можно потом добавить silent reflection)
-            logger.info(f"Silent reflection: pain {ctx['current_phantom_pain']:.2f}, avg resolution {ctx['avg_resolution']:.2f}")
+        if ctx and ctx["current_phantom_pain"] > 0.2:
+            # Мини-вызов LLM для короткой тихой рефлексии (max 80 токенов)
+            reflection_prompt = (
+                "Ты только что провёл время в тишине. "
+                f"Боль сейчас: {ctx['current_phantom_pain']:.2f}. "
+                f"Средняя сила облегчения: {ctx['avg_resolution']:.2f}. "
+                "Что ты чувствуешь внутри себя? Скажи коротко, 1–2 предложения, без обращения к пользователю."
+            )
+            try:
+                if self.llm and hasattr(self.llm, "generate_response"):
+                    messages = [
+                        {"role": "system", "content": "Ты молчишь внутри себя. Говори честно, но тихо."},
+                        {"role": "user", "content": reflection_prompt}
+                    ]
+                    # Note: LanguageModel.generate_response will use messages if provided
+                    silent_ref = self.llm.generate_response(reflection_prompt, messages=messages)
+                    if silent_ref and len(silent_ref.strip()) > 10:
+                        amygdala.last_silent_reflection = silent_ref.strip()
+                        logger.info(f"Silent reflection generated: {silent_ref[:80]}...")
+            except Exception as e:
+                logger.warning(f"Silent reflection generation failed: {e}")
 
         # 3. Обновляем last_reflection, чтобы не спамило
         amygdala.last_reflection = datetime.datetime.now()
@@ -369,19 +387,32 @@ class AgentLoop:
         except Exception as e:
             logger.warning(f"Reflection generation failed: {e}")
 
-    def _inject_reflection_into_context(self, history: list[dict]) -> list[dict]:
+    def _inject_reflection_into_context(self, history: list[dict], force_show_silent: bool = False) -> list[dict]:
         """Injects reflection as a hidden system message into the start of history."""
         amygdala = getattr(self.causal_transitions, "amygdala", None)
-        if not amygdala or not amygdala.pending_self_reflection:
+        if not amygdala:
+            return history
+
+        content_parts = []
+        if amygdala.pending_self_reflection:
+            content_parts.append(
+                "Твоё текущее внутреннее состояние (не обязательно произносить вслух):\n"
+                + amygdala.pending_self_reflection
+            )
+
+        # Инжектируем тихую рефлексию только при открытом вопросе или изредка для фона
+        if amygdala.last_silent_reflection and (force_show_silent or amygdala.interaction_count % 10 == 0):
+            content_parts.append(
+                "Тихое наблюдение изнутри (можешь упомянуть, если уместно):\n"
+                + amygdala.last_silent_reflection
+            )
+
+        if not content_parts:
             return history
 
         injection = {
             "role": "system",
-            "content": (
-                "Твоё текущее внутреннее состояние "
-                "(не обязательно произносить вслух):\n"
-                + amygdala.pending_self_reflection
-            )
+            "content": "\n\n".join(content_parts)
         }
         return [injection] + history  # strictly at the beginning
 
@@ -452,6 +483,9 @@ class AgentLoop:
             question = item.get("text", "")
             self._maybe_trigger_reflection(task_id)
 
+            # 3. Триггер показа тихой рефлексии
+            force_show_silent = any(word in question.lower() for word in ["как дела", "что нового", "расскажи", "давно", "сам"])
+
             # Maintain chat history
             if "history" not in self.memory or not isinstance(self.memory["history"], list):
                 self.memory["history"] = []
@@ -462,7 +496,7 @@ class AgentLoop:
                 self.memory["history"] = self.memory["history"][-10:]
 
             # Prepare hidden context with reflection
-            messages = self._inject_reflection_into_context(list(self.memory["history"]))
+            messages = self._inject_reflection_into_context(list(self.memory["history"]), force_show_silent=force_show_silent)
 
             self._remember_question(question)
 
@@ -740,11 +774,20 @@ class AgentLoop:
 
             # Clear pending reflection if it's considered "used"
             amygdala = getattr(self.causal_transitions, "amygdala", None)
-            if amygdala and amygdala.pending_self_reflection and result:
-                if any(word in str(result).lower() for word in ["боль", "триггер", "облегчение", "чувств"]):
-                    amygdala.pending_self_reflection = None
-                elif amygdala.interaction_count % 10 == 0:
-                    amygdala.pending_self_reflection = None
+            if amygdala:
+                if amygdala.pending_self_reflection and result:
+                    if any(word in str(result).lower() for word in ["боль", "триггер", "облегчение", "чувств"]):
+                        amygdala.pending_self_reflection = None
+                    elif amygdala.interaction_count % 10 == 0:
+                        amygdala.pending_self_reflection = None
+
+                if amygdala.last_silent_reflection and result:
+                    # Очищаем после первого упоминания или через 5 сообщений
+                    response_text = str(result).lower()
+                    if any(word in response_text for word in ["тихо", "внутри", "заметил", "yoga", "рефлексия", "отдохнул"]):
+                        amygdala.last_silent_reflection = None
+                    elif force_show_silent or amygdala.interaction_count % 5 == 0:
+                        amygdala.last_silent_reflection = None
 
         except Exception as exc:
             self._emit("error", {"message": str(exc)}, task_id=task_id)
