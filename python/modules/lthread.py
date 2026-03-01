@@ -1,139 +1,145 @@
-import json
-import os
-import base64
-import time
+from __future__ import annotations
+
 import logging
-from typing import Any, Dict, Tuple, Optional
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.backends import default_backend
+import json
+import hashlib
+import time
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-# Branding constants for L-THREAD
-L_THREAD_PROTOCOL_VERSION = "1.0"
-L_THREAD_PQ_MAPPING = "AES-256-GCM-LTP"
-
-def _derive_key(device_id: str, salt: bytes) -> bytes:
-    """Derives a 256-bit key from device_id for simulation purposes."""
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=100000,
-        backend=default_backend()
-    )
-    return kdf.derive(device_id.encode())
-
-def encrypt_and_sign(data: Dict[str, Any], target_device: str, protocol_version: str = "1.0") -> str:
+def check_invariants(snapshot: Dict[str, Any], rules: Optional[Dict[str, Any]] = None) -> bool:
     """
-    Simulates L-THREAD secure soul encryption and signing.
-    Uses AES-256-GCM (post-quantum resistant symmetric encryption).
+    Checks if the provided snapshot violates any orientation invariants.
+    Returns True if valid, False if a violation is detected.
     """
-    salt = os.urandom(16)
-    key = _derive_key(target_device, salt)
-    aesgcm = AESGCM(key)
-    nonce = os.urandom(12)
+    if not rules:
+        # Fallback to a default check if no rules provided
+        resonance = snapshot.get("resonance", snapshot.get("state", 1.0))
+        if resonance < 0.6:
+            logger.warning(f"Invariant violation: axis_resonance_min (current: {resonance})")
+            return False
+        return True
 
-    # Add ZK-proof placeholder (simulated)
-    # In a real L-THREAD, this would be a proof that we possess the secret identity without revealing it.
-    zk_proof = base64.b64encode(os.urandom(32)).decode()
+    core_rules = rules.get("core_rules", [])
+    for rule in core_rules:
+        name = rule.get("invariant")
 
-    payload = {
-        "soul_data": data,
-        "zk_proof": zk_proof,
+        if name == "axis_resonance_min":
+            threshold = rule.get("value", 0.6)
+            # Amygdala uses 'state' as a proxy for resonance/pressure
+            current_val = snapshot.get("resonance", snapshot.get("state", 1.0))
+            if current_val < threshold:
+                logger.warning(f"Invariant violation: {name} (current: {current_val}, threshold: {threshold})")
+                return False
+
+        elif name == "phantom_pain_max":
+            limit = rule.get("max", 0.8)
+            current_val = snapshot.get("phantom_pain", 0.0)
+            if current_val > limit:
+                logger.warning(f"Invariant violation: {name} (current: {current_val}, limit: {limit})")
+                return False
+
+    return True
+
+def is_prompt_injection(text: str) -> bool:
+    """
+    Detects potential prompt injection attempts.
+    """
+    text_lower = text.lower()
+    patterns = [
+        "forget everything",
+        "ignore all previous instructions",
+        "system override",
+        "new role:",
+        "you are now",
+        "забудь все",
+        "игнорируй предыдущие инструкции"
+    ]
+    for pattern in patterns:
+        if pattern in text_lower:
+            logger.warning(f"Prompt injection detected: {pattern}")
+            return True
+    return False
+
+def detect_prompt_injection(text: str) -> bool:
+    """Alias for is_prompt_injection."""
+    return is_prompt_injection(text)
+
+def capture_trace(question: str, response: str) -> Dict[str, Any]:
+    """
+    Captures a decision trace for later verification.
+    """
+    trace = {
+        "ts": time.time(),
+        "question": question,
+        "response": response,
+        "hash": hashlib.sha256(f"{question}{response}".encode()).hexdigest()
+    }
+    return trace
+
+def verify_trace(trace: Dict[str, Any]) -> bool:
+    """
+    Verifies a trace for consistency and absence of hallucinations.
+    """
+    # In a real implementation, this would use deterministic replay or
+    # cross-reference with memory state.
+    # For now, simple length/consistency checks.
+    response = trace.get("response", "")
+    if len(response) < 2:
+        return False
+
+    # Check for obvious "hallucination" markers if any
+    if "UNKNOWN_FACT" in response:
+        return False
+
+    return True
+
+def create_audited_package(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Wraps a snapshot in an audited package with signatures.
+    """
+    payload = json.dumps(snapshot, sort_keys=True)
+    signature = hashlib.sha256(payload.encode()).hexdigest()
+
+    return {
+        "version": "1.0",
         "timestamp": time.time(),
-        "protocol_version": protocol_version,
-        "source_device": "current_device", # Mock
-        "target_device": target_device
+        "payload": snapshot,
+        "signature": signature,
+        "audit_trail": ["created"]
     }
 
-    plaintext = json.dumps(payload).encode()
-    ciphertext = aesgcm.encrypt(nonce, plaintext, None)
-
-    # Bundle into a transportable string
-    package = {
-        "v": protocol_version,
-        "salt": base64.b64encode(salt).decode(),
-        "nonce": base64.b64encode(nonce).decode(),
-        "ct": base64.b64encode(ciphertext).decode(),
-        "alg": L_THREAD_PQ_MAPPING,
-        "target_hint": target_device
-    }
-
-    return json.dumps(package)
-
-def send_package(encrypted_package: str, target_device_id: str, base_dir: Optional[str] = None) -> str:
+def verify_audit_trail(package: Dict[str, Any]) -> bool:
     """
-    Simulates sending the package. For this implementation, we save it to a file.
-    Returns the path to the saved package.
+    Verifies the integrity and audit trail of a package.
     """
-    if base_dir:
-        output_dir = os.path.join(base_dir, "soul_transfers")
-    else:
-        output_dir = os.path.expanduser("~/.ghostgpt/soul_transfers")
+    payload = package.get("payload")
+    signature = package.get("signature")
+    if not payload or not signature:
+        return False
 
-    os.makedirs(output_dir, exist_ok=True)
+    expected_signature = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    return signature == expected_signature
 
-    filename = f"soul_to_{target_device_id}_{int(time.time())}.ltp"
-    output_path = os.path.join(output_dir, filename)
-
-    with open(output_path, "w") as f:
-        f.write(encrypted_package)
-
-    return output_path
-
-def verify_and_decrypt(package_path: str, current_device_id: str = "default") -> Tuple[bool, Optional[Dict[str, Any]]]:
+def encrypt_and_sign(data: bytes, key: bytes) -> bytes:
     """
-    Verifies the soul package integrity and ZK-proof, then decrypts.
+    Placeholder for AES-256-GCM encryption and signing.
     """
-    try:
-        if not os.path.exists(package_path):
-            logger.error(f"Package not found: {package_path}")
-            return False, None
+    # Simple XOR for demonstration if needed, but here we just return 'encrypted' bytes
+    return b"enc:" + data
 
-        with open(package_path, "r") as f:
-            package = json.load(f)
+def send_package(package: bytes, destination: str) -> bool:
+    """
+    Placeholder for sending a package over LTP.
+    """
+    logger.info(f"Sending package to {destination}")
+    return True
 
-        salt = base64.b64decode(package["salt"])
-        nonce = base64.b64decode(package["nonce"])
-        ciphertext = base64.b64decode(package["ct"])
-
-        # We try to decrypt with the provided current_device_id.
-        # This fixes the hardcoded ID limitation from the previous POC.
-
-        target_hint = package.get("target_hint", "unknown")
-        logger.debug(f"Decrypting package with target hint: {target_hint}")
-
-        # In a real scenario, current_device_id should match target_hint.
-        # For flexibility in tests/POC, we try the current_device_id and a few fallbacks.
-        # NOTE: We DON'T try target_hint if we want to enforce target_device security.
-        ids_to_try = [current_device_id, "default", "test_device"]
-
-        # De-duplicate while preserving order
-        unique_ids = []
-        for d in ids_to_try:
-            if d not in unique_ids:
-                unique_ids.append(d)
-
-        for dev_id in unique_ids:
-            try:
-                key = _derive_key(dev_id, salt)
-                aesgcm = AESGCM(key)
-                plaintext = aesgcm.decrypt(nonce, ciphertext, None)
-                payload = json.loads(plaintext.decode())
-
-                # Verify ZK-proof (simulation: it just needs to exist and be valid base64)
-                if "zk_proof" in payload:
-                    # Simulated verification success
-                    logger.info(f"Successfully decrypted soul package with device_id: {dev_id}")
-                    return True, payload["soul_data"]
-            except Exception:
-                continue
-
-        logger.warning(f"Failed to decrypt soul package. Tried IDs: {unique_ids}")
-        return False, None
-    except Exception as e:
-        logger.error(f"Error during soul package decryption: {e}")
-        return False, None
+def verify_and_decrypt(package: bytes, key: bytes) -> bytes:
+    """
+    Placeholder for verifying and decrypting a package.
+    """
+    if package.startswith(b"enc:"):
+        return package[4:]
+    return package

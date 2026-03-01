@@ -1,0 +1,7 @@
+{
+  "core_rules": [
+    {"invariant": "phantom_pain_max", "max": 0.8, "action": "block"},
+    {"invariant": "axis_resonance_min", "value": 0.6, "action": "rollback"},
+    {"invariant": "silent_reflection_immutable", "action": "log_violation"}
+  ]
+}

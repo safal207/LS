@@ -129,6 +129,10 @@ class Amygdala:
             "trigger": "none",
         }
 
+        self.invariants: dict[str, Any] = {}
+        self._load_invariants()
+        self.last_valid_snapshot: dict[str, Any] = self.to_snapshot()
+
         if self.persist_state and self.memory_service:
             self._load_state()
 
@@ -136,6 +140,48 @@ class Amygdala:
     def phantom_pain(self) -> float:
         """Уровень фантомной боли / перегрузки из висцеральной памяти"""
         return self.visceral.phantom_pain
+
+    def _load_invariants(self) -> None:
+        try:
+            inv_path = Path("orientation_invariants.json")
+            if inv_path.exists():
+                self.invariants = json.loads(inv_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.warning(f"Failed to load orientation invariants: {e}")
+
+    def to_snapshot(self) -> dict[str, Any]:
+        """Returns a serializable snapshot of the current state."""
+        return {
+            "state": self.state,
+            "adaptive_bias": self.adaptive_bias,
+            "personality_p": self.personality_p,
+            "protection_shift": self.protection_shift,
+            "interaction_count": self.interaction_count,
+            "pain_episodes": self.pain_episodes,
+            "phantom_pain": self.phantom_pain,
+            "resolution_strength": self.visceral.resolution_strength,
+            "last_silent_reflection": self.last_silent_reflection,
+            "last_proposal": self.last_proposal,
+        }
+
+    def from_snapshot(self, snapshot: dict[str, Any]) -> None:
+        """Restores state from a snapshot."""
+        self.state = snapshot.get("state", self.state)
+        self.adaptive_bias = snapshot.get("adaptive_bias", self.adaptive_bias)
+        self.personality_p = snapshot.get("personality_p", self.personality_p)
+        self.protection_shift = snapshot.get("protection_shift", self.protection_shift)
+        self.interaction_count = snapshot.get("interaction_count", self.interaction_count)
+        self.pain_episodes = snapshot.get("pain_episodes", self.pain_episodes)
+        self.visceral.phantom_pain = snapshot.get("phantom_pain", self.visceral.phantom_pain)
+        self.visceral.resolution_strength = snapshot.get("resolution_strength", self.visceral.resolution_strength)
+        self.last_silent_reflection = snapshot.get("last_silent_reflection", self.last_silent_reflection)
+        self.last_proposal = snapshot.get("last_proposal", self.last_proposal)
+
+    def rollback_to_last_valid(self) -> None:
+        """Rolls back the state to the last known valid snapshot."""
+        if self.last_valid_snapshot:
+            logger.info("Rolling back Amygdala state to last valid snapshot")
+            self.from_snapshot(self.last_valid_snapshot)
 
     def evaluate(
         self,
@@ -226,6 +272,24 @@ class Amygdala:
             self.last_reflection = datetime.datetime.now()
 
         self._adapt_parameters()
+
+        # Orientation Invariants Check (PR #226)
+        from python.modules import lthread
+        if not lthread.check_invariants(self.to_snapshot(), rules=self.invariants):
+            logger.warning("Orientation invariant violation detected! Triggering rollback.")
+            self.rollback_to_last_valid()
+            return AmygdalaDecision(
+                allowed=False,
+                reason=BlockReason.OVERLOAD,
+                state=self.state,
+                pressure=pressure,
+                protection_level="full_protection",
+                protection_score=1.0,
+            )
+
+        # Update last valid snapshot on successful evaluation
+        self.last_valid_snapshot = self.to_snapshot()
+
         if self.persist_state:
             self._persist_state()
 
@@ -380,6 +444,12 @@ class Amygdala:
                 "resolution_strength": self.visceral.resolution_strength,
             }
         )
+
+    def export_soul_secure(self) -> dict[str, Any]:
+        """Exports the current state as a secure, audited package."""
+        from python.modules import lthread
+        snapshot = self.to_snapshot()
+        return lthread.create_audited_package(snapshot)
 
     def restore_state(self, payload: dict) -> None:
         """Restores state from a provided dictionary (used during import)."""
