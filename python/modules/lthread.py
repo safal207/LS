@@ -104,6 +104,7 @@ def verify_and_decrypt(package_path: str, current_device_id: str = "default") ->
         # This fixes the hardcoded ID limitation from the previous POC.
 
         target_hint = package.get("target_hint", "unknown")
+        logger.debug(f"Decrypting package with target hint: {target_hint}")
 
         # In a real scenario, current_device_id should match target_hint.
         # For flexibility in tests/POC, we try the current_device_id and a few fallbacks.
