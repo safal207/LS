@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 import json
+import random
 import zipfile
 import shutil
 import datetime
@@ -46,6 +47,37 @@ class AmygdalaBlockError(RuntimeError):
         self.state = state
         self.pressure = pressure
         self.violations = violations or []
+
+
+class EndocrineSystem:
+    """Эндокринная система: управляет гормональным фоном и настроением."""
+    def __init__(self, hormones: dict[str, float] | None = None):
+        self.hormones = hormones or {
+            "dopamine": 0.5,
+            "serotonin": 0.5,
+            "oxytocin": 0.5,
+            "adrenaline": 0.5,
+            "cortisol": 0.5,
+        }
+        self.mood_index = 0.5
+        self._update_mood()
+
+    def _update_mood(self):
+        # Упрощенная модель: среднее позитивных минус среднее стрессовых
+        pos = (self.hormones["dopamine"] + self.hormones["serotonin"] + self.hormones["oxytocin"]) / 3
+        neg = (self.hormones["adrenaline"] + self.hormones["cortisol"]) / 2
+        self.mood_index = max(0.0, min(1.0, 0.5 + pos - neg))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"hormones": self.hormones.copy(), "mood_index": self.mood_index}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> 'EndocrineSystem':
+        if not data:
+            return cls()
+        obj = cls(hormones=data.get("hormones", {}).copy() or None)
+        obj.mood_index = data.get("mood_index", 0.5)
+        return obj
 
 
 @dataclass(frozen=True)
@@ -114,6 +146,8 @@ class Amygdala:
         self.personality_p = 0.5
         self.protection_shift = 0.0
         self.interaction_count = 0
+        self.endocrine = EndocrineSystem()
+        self.offspring_ids: list[str] = []
 
         self.interaction_count: int = 0
         self.pain_episodes: int = 0
@@ -170,6 +204,8 @@ class Amygdala:
             "endocrine": self.endocrine.to_dict(),
             "last_silent_reflection": self.last_silent_reflection,
             "last_proposal": self.last_proposal,
+            "endocrine": self.endocrine.to_dict(),
+            "offspring_ids": self.offspring_ids.copy(),
         }
 
     def from_snapshot(self, snapshot: dict[str, Any]) -> None:
@@ -186,6 +222,9 @@ class Amygdala:
             self.endocrine.from_dict(snapshot["endocrine"])
         self.last_silent_reflection = snapshot.get("last_silent_reflection", self.last_silent_reflection)
         self.last_proposal = snapshot.get("last_proposal", self.last_proposal)
+        if "endocrine" in snapshot:
+            self.endocrine = EndocrineSystem.from_dict(snapshot["endocrine"])
+        self.offspring_ids = snapshot.get("offspring_ids", []).copy()
 
     def rollback_to_last_valid(self) -> None:
         """Rolls back the state to the last known valid snapshot."""
@@ -494,7 +533,8 @@ class Amygdala:
         self.history = deque(payload.get("history", []), maxlen=self.history.maxlen)
 
         if "endocrine" in payload:
-            self.endocrine.from_dict(payload["endocrine"])
+            self.endocrine = EndocrineSystem.from_dict(payload["endocrine"])
+        self.offspring_ids = payload.get("offspring_ids", []).copy()
 
         visceral = payload.get("visceral", {})
         if isinstance(visceral, dict):
@@ -528,6 +568,42 @@ class Amygdala:
         snapshot = self.to_snapshot()
         return lthread.create_audited_package(snapshot)
 
+    def fork_self(self, fork_id: str, mutation_factor: float = 0.1) -> 'Amygdala':
+        """Создаёт дочернюю копию с мутацией."""
+        snapshot = self.to_snapshot()
+        child_user_id = f"{self.user_id}_fork_{fork_id}"
+
+        # Передаём настройки персистентности родителю
+        memory_kwargs = {}
+        if self.memory_service:
+            memory_kwargs["memory_base_dir"] = self.memory_service.base_dir
+
+        child = Amygdala(user_id=child_user_id, persist_state=self.persist_state, **memory_kwargs)
+
+        # Базовое копирование
+        child.from_snapshot(snapshot)
+        child.offspring_ids = []  # Потомок начинает с чистого листа (без детей родителя)
+
+        # Мутация (лёгкое изменение гормонов и resonance)
+        if child.endocrine:
+            for h in child.endocrine.hormones:
+                delta = (random.random() - 0.5) * mutation_factor
+                child.endocrine.hormones[h] = max(0.0, min(1.0, child.endocrine.hormones[h] + delta))
+            child.endocrine._update_mood()
+
+        # Лёгкая мутация оси
+        child.state = max(0.0, min(1.0, child.state + (random.random() - 0.5) * mutation_factor * 0.2))
+
+        child._persist_state()
+
+        # Регистрация потомка
+        if child_user_id not in self.offspring_ids:
+            self.offspring_ids.append(child_user_id)
+            if self.persist_state:
+                self._persist_state()
+
+        return child
+
     def restore_state(self, payload: dict) -> None:
         """Restores state from a provided dictionary (used during import)."""
         if not payload:
@@ -550,7 +626,8 @@ class Amygdala:
         self.history = deque(payload.get("history", []), maxlen=self.history.maxlen)
 
         if "endocrine" in payload:
-            self.endocrine.from_dict(payload["endocrine"])
+            self.endocrine = EndocrineSystem.from_dict(payload["endocrine"])
+        self.offspring_ids = payload.get("offspring_ids", []).copy()
 
         visceral = payload.get("visceral", {})
         if isinstance(visceral, dict):
@@ -586,6 +663,8 @@ class Amygdala:
                 "pending_self_reflection": self.pending_self_reflection,
                 "last_silent_reflection": self.last_silent_reflection,
                 "last_proposal": self.last_proposal,
+                "endocrine": self.endocrine.to_dict(),
+                "offspring_ids": self.offspring_ids,
                 "history": list(self.history),
                 "endocrine": self.endocrine.to_dict(),
                 "visceral": {
