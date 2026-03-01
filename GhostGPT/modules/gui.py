@@ -523,6 +523,19 @@ class GhostWindow(QMainWindow):
         self.lbl_a.setText(f"{a}")
         self.lbl_status.setText(f"Mode: {mode}")
 
+    def trigger_reflex_warning(self):
+        """Instantaneous visual reaction to threat."""
+        original_text = self.lbl_status.text()
+        self.lbl_status.setText("⚡ РЕФЛЕКС!")
+        self.lbl_status.setStyleSheet("color: #FF0000; font-weight: bold; font-size: 12pt;")
+
+        # Flash effect
+        def reset_status():
+            self.lbl_status.setText(original_text)
+            self.lbl_status.setStyleSheet("color: #00FF99; font-weight: bold; font-size: 10pt;")
+
+        QTimer.singleShot(3000, reset_status)
+
     def update_status(self, text: str):
         self.lbl_status.setText(text)
 

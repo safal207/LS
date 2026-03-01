@@ -12,6 +12,7 @@ from ..cognitive_flow.liminal import is_liminal_phase
 from ..memory.causal import CausalMemory
 from codex.causal_memory.amygdala import Amygdala, AmygdalaBlockError, BlockReason
 from codex.causal_memory.transitions import CausalMemoryTransitions
+from codex.causal_memory.reflex import ReflexArc
 
 from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
@@ -76,6 +77,7 @@ class AgentLoop:
         self.memory: dict[str, Any] = {}
         self.causal_memory = CausalMemory()
         self.causal_transitions = CausalMemoryTransitions(amygdala=amygdala)
+        self.reflex = ReflexArc(self.causal_transitions.amygdala)
         self._task_lock = threading.Lock()
         self._task_counter = 0
         self._active_task_id = 0
@@ -534,6 +536,28 @@ class AgentLoop:
                 return
 
             question = item.get("text", "")
+
+            # Reflex Arc (PR #233)
+            # Fast reaction before LLM
+            current_resonance = 1.0 - self.causal_transitions.amygdala.state
+            current_pain = self.causal_transitions.amygdala.phantom_pain
+            blocked, reflex_response = self.reflex.check_reflex(question, current_resonance, current_pain)
+
+            if blocked:
+                logger.info(f"Reflex triggered: danger_level={self.reflex.danger_level:.2f}")
+                self._emit("reflex_triggered", {"danger_level": self.reflex.danger_level}, task_id=task_id)
+                payload = {
+                    "question": question,
+                    "response": reflex_response,
+                    "generation_time": 0.0,
+                    "timestamp": time.time(),
+                    "reflex_triggered": True,
+                    "danger_level": self.reflex.danger_level
+                }
+                self._emit("output_ready", payload, task_id=task_id)
+                if self.output_queue:
+                    self.output_queue.put(payload)
+                return
 
             # Prompt Injection Protection (PR #226)
             from python.modules import lthread

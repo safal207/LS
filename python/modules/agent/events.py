@@ -15,6 +15,7 @@ EventType = Literal[
     "cancelled",
     "metrics",
     "self_reflection",
+    "reflex_triggered",
     "error",
 ]
 
