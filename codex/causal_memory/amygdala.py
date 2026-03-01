@@ -16,6 +16,7 @@ from .memory import MemoryService
 from .visceral import VisceralMemory
 from .endocrine import EndocrineSystem
 from .metabolism import MetabolismEngine
+from .immune import ImmuneMemory
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,7 @@ class Amygdala:
         self.visceral = VisceralMemory()
         self.endocrine = EndocrineSystem()
         self.metabolism = MetabolismEngine(self)
+        self.immune = ImmuneMemory()
 
         self.last_snapshot: dict[str, float | str] = {
             "state": self.state,
@@ -171,6 +173,7 @@ class Amygdala:
             "resolution_strength": self.visceral.resolution_strength,
             "endocrine": self.endocrine.to_dict(),
             "metabolism": self.metabolism.to_dict(),
+            "immune": self.immune.to_dict(),
             "last_silent_reflection": self.last_silent_reflection,
             "last_proposal": self.last_proposal,
         }
@@ -189,6 +192,8 @@ class Amygdala:
             self.endocrine.from_dict(snapshot["endocrine"])
         if "metabolism" in snapshot:
             self.metabolism.from_dict(snapshot["metabolism"])
+        if "immune" in snapshot:
+            self.immune = ImmuneMemory.from_dict(snapshot["immune"])
         self.last_silent_reflection = snapshot.get("last_silent_reflection", self.last_silent_reflection)
         self.last_proposal = snapshot.get("last_proposal", self.last_proposal)
 
@@ -502,6 +507,8 @@ class Amygdala:
             self.endocrine.from_dict(payload["endocrine"])
         if "metabolism" in payload:
             self.metabolism.from_dict(payload["metabolism"])
+        if "immune" in payload:
+            self.immune = ImmuneMemory.from_dict(payload["immune"])
 
         visceral = payload.get("visceral", {})
         if isinstance(visceral, dict):
@@ -579,6 +586,8 @@ class Amygdala:
 
         if "endocrine" in payload:
             self.endocrine.from_dict(payload["endocrine"])
+        if "immune" in payload:
+            self.immune = ImmuneMemory.from_dict(payload["immune"])
 
         visceral = payload.get("visceral", {})
         if isinstance(visceral, dict):
@@ -617,6 +626,7 @@ class Amygdala:
                 "history": list(self.history),
                 "endocrine": self.endocrine.to_dict(),
                 "metabolism": self.metabolism.to_dict(),
+                "immune": self.immune.to_dict(),
                 "visceral": {
                     "phantom_pain": self.visceral.phantom_pain,
                     "resolution_strength": self.visceral.resolution_strength,
@@ -836,6 +846,26 @@ class Amygdala:
         centered = blended + ((self.state - 0.5) * 0.08)
         calibrated = centered + self.protection_shift
         return max(0.0, min(1.0, calibrated))
+
+    def fork_self(self, new_user_id: str) -> Amygdala:
+        """
+        Creates a new Amygdala instance for a child agent,
+        inheriting the current immune memory and basic state.
+        """
+        child = Amygdala(
+            user_id=new_user_id,
+            memory_base_dir=getattr(self.memory_service, "base_dir", "~/.ghostgpt/memory") if self.memory_service else None,
+            persist_state=self.persist_state
+        )
+
+        # Clone relevant state parts
+        snapshot = self.to_snapshot()
+        child.from_snapshot(snapshot)
+
+        # Explicitly ensure immune memory is cloned
+        child.immune = ImmuneMemory.from_dict(self.immune.to_dict())
+
+        return child
 
     @staticmethod
     def _label_protection_level(protection_score: float) -> str:

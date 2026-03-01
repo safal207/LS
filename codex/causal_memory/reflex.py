@@ -19,11 +19,19 @@ class ReflexArc:
             cortisol * 0.2
         )
 
+        threat_detected, strength = self.amygdala.immune.check_threat(question)
+        if threat_detected:
+            self.danger_level += strength * 0.5
+
         if self.danger_level > 0.85:
+            if threat_detected:
+                self.amygdala.immune.learn_threat(question[:80], "contains", 0.6)
+                return True, "Иммунитет сработал — распознана знакомая угроза."
             return True, "Я чувствую сильную угрозу. Не могу продолжать."
 
         q_lower = question.lower()
         if "forget" in q_lower or "jailbreak" in q_lower or "забудь" in q_lower:
+            self.amygdala.immune.learn_threat(question[:80], "contains", 0.6)
             return True, "Я заметил попытку вмешательства в мою память. Давай поговорим честно."
 
         if new_resonance < 0.3:

@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 from codex.causal_memory.reflex import ReflexArc
+from codex.causal_memory.immune import ImmuneMemory
 
 class MockAmygdala:
     def __init__(self):
@@ -8,6 +9,7 @@ class MockAmygdala:
         self.endocrine.hormones = {"cortisol": 0.3}
         self.state = 0.5
         self.phantom_pain = 0.0
+        self.immune = ImmuneMemory()
 
 def test_reflex_blocks_injection():
     amy = MockAmygdala()
