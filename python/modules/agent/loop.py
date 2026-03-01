@@ -358,12 +358,16 @@ class AgentLoop:
         # 3. Обновляем last_reflection, чтобы не спамило
         amygdala.last_reflection = datetime.datetime.now()
 
-        # 4. Самоисцеление при переходе к покою
+        # 4. Эндокринное восстановление
+        if hasattr(amygdala, "endocrine"):
+            amygdala.endocrine.update_from_idle()
+
+        # 5. Самоисцеление при переходе к покою
         violations = amygdala.self_heal()
         if violations:
             self._emit("soul_healed", {"violations": violations})
 
-        # 5. Самопредложение (PR #225)
+        # 6. Самопредложение (PR #225)
         if self.temporal and amygdala.last_silent_reflection:
             axis = self.temporal.get_meritocratic_axis()
             if axis and axis.resonance > 0.7:
@@ -559,6 +563,11 @@ class AgentLoop:
 
             stability_ok = None
             amygdala_reason: str | None = None
+            harmony_score = 0.5
+            if self.temporal:
+                axis_node = self.temporal.get_meritocratic_axis()
+                if axis_node:
+                    harmony_score = getattr(axis_node, "harmony_bonus", 0.5)
             amygdala_affect = 0.0
             amygdala_state = 0.5
             rollback_layer = "Customer"
@@ -579,10 +588,14 @@ class AgentLoop:
                     resonance=consumer_resonance,
                     axis_position=consumer_axis,
                     delta_axis=consumer_axis - customer_axis,
+                    harmony_score=harmony_score,
                 )
+                harmony_score = consumer_node.harmony_score
                 if self.temporal:
                     from ..hexagon_core.temporal_graph import TemporalNode
-                    self.temporal.nodes[consumer_id] = TemporalNode(id=consumer_id, resonance=consumer_resonance)
+                    self.temporal.nodes[consumer_id] = TemporalNode(
+                        id=consumer_id, resonance=consumer_resonance, harmony_bonus=harmony_score
+                    )
                 amygdala_state = consumer_node.amygdala_state
                 rollback_layer = "Customer"
 
@@ -597,10 +610,14 @@ class AgentLoop:
                     resonance=execution_resonance,
                     axis_position=execution_axis,
                     delta_axis=execution_axis - consumer_axis,
+                    harmony_score=harmony_score,
                 )
+                harmony_score = execution_node.harmony_score
                 if self.temporal:
                     from ..hexagon_core.temporal_graph import TemporalNode
-                    self.temporal.nodes[execution_id] = TemporalNode(id=execution_id, resonance=execution_resonance)
+                    self.temporal.nodes[execution_id] = TemporalNode(
+                        id=execution_id, resonance=execution_resonance, harmony_bonus=harmony_score
+                    )
                 amygdala_state = execution_node.amygdala_state
                 rollback_layer = "Consumer"
 
@@ -615,10 +632,14 @@ class AgentLoop:
                     resonance=stability_resonance,
                     axis_position=stability_axis,
                     delta_axis=stability_axis - execution_axis,
+                    harmony_score=harmony_score,
                 )
+                harmony_score = stability_node.harmony_score
                 if self.temporal:
                     from ..hexagon_core.temporal_graph import TemporalNode
-                    self.temporal.nodes[stability_id] = TemporalNode(id=stability_id, resonance=stability_resonance)
+                    self.temporal.nodes[stability_id] = TemporalNode(
+                        id=stability_id, resonance=stability_resonance, harmony_bonus=harmony_score
+                    )
                 amygdala_state = stability_node.amygdala_state
                 rollback_layer = "Execution"
 
@@ -631,6 +652,7 @@ class AgentLoop:
                 self.memory["amygdala_reason"] = None
                 self.memory["amygdala_affect"] = amygdala_affect
                 self.memory["amygdala_state"] = amygdala_state
+                self.memory["amygdala_harmony"] = harmony_score
                 self.memory["amygdala_history_size"] = len(self.causal_transitions.amygdala.history)
                 self.memory["causal_rollback_layer"] = None
             except AmygdalaBlockError as exc:
@@ -698,6 +720,7 @@ class AgentLoop:
                     "amygdala_reason": amygdala_reason,
                     "amygdala_affect": amygdala_affect,
                     "amygdala_state": amygdala_state,
+                    "amygdala_harmony": harmony_score,
                     "amygdala_history_size": len(self.causal_transitions.amygdala.history),
                     "personality_p": float(getattr(self.causal_transitions.amygdala, "personality_p", 0.5)),
                     "causal_rollback_layer": rollback_layer,
@@ -814,6 +837,7 @@ class AgentLoop:
                     "amygdala_reason": self.memory.get("amygdala_reason"),
                     "amygdala_affect": self.memory.get("amygdala_affect", 0.0),
                     "amygdala_state": self.memory.get("amygdala_state", 0.5),
+                    "amygdala_harmony": self.memory.get("amygdala_harmony", 0.5),
                     "amygdala_history_size": self.memory.get("amygdala_history_size", 0),
                     "personality_p": float(getattr(self.causal_transitions.amygdala, "personality_p", 0.5)),
                 }

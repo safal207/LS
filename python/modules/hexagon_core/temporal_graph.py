@@ -6,7 +6,7 @@ from typing import Dict
 class TemporalNode:
     id: str
     resonance: float = 1.0
-    harmony_bonus: float = 0.0
+    harmony_bonus: float = 0.5
 
 class TemporalGraph:
     def __init__(self):
