@@ -14,12 +14,12 @@ def test_amygdala_reflection_trigger(tmp_path):
     amy = Amygdala(user_id="test_reflect", memory_dir=memory_dir, persist_state=True)
     amy.last_reflection = datetime.now() - timedelta(hours=2)
 
-    # Simulate 49 interactions
-    for i in range(49):
+    # Simulate 48 interactions (increments by 2 each call)
+    for i in range(24):
         amy.evaluate(new_resonance=0.8, axis_position=0.1, delta_axis=0.0, affect=0.0)
 
-    assert amy.interaction_count == 49
-    # The 50th one will trigger it inside evaluate
+    assert amy.interaction_count == 48
+    # The 49th call (bringing count to 50) will trigger it inside evaluate
     amy.evaluate(new_resonance=0.8, axis_position=0.1, delta_axis=0.0, affect=0.0)
     assert amy.interaction_count == 50
     # should_reflect is now False because evaluate() updated last_reflection (cooldown)
@@ -55,7 +55,7 @@ def test_reflection_cooldown(tmp_path):
     amy.last_reflection = datetime.now() - timedelta(minutes=30)
 
     # Simulate 50 interactions
-    for i in range(50):
+    for i in range(25):
         amy.evaluate(new_resonance=0.8, axis_position=0.1, delta_axis=0.0, affect=0.0)
 
     assert amy.interaction_count == 50
@@ -68,7 +68,7 @@ def test_soul_export_import_logic(tmp_path):
 
     # Set some state
     amy.visceral.record_pain(0.5)
-    amy.interaction_count = 122
+    amy.interaction_count = 121
     amy.evaluate(new_resonance=0.7, axis_position=0.2, delta_axis=0.0, affect=0.0)
 
     # Manually simulate export logic (what GhostWindow does)

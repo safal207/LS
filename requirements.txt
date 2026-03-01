@@ -10,3 +10,5 @@ pyinstaller==6.18.0
 soundfile==0.12.1
 sentence-transformers>=2.2.2
 torch>=2.0.0
+cryptography>=41.0.0
+ltp-client @ git+https://github.com/safal207/L-THREAD-Liminal-Thread-Secure-Protocol-LTP-.git@main#subdirectory=sdk/python
