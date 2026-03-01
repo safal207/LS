@@ -75,6 +75,10 @@ class GhostWindow(QMainWindow):
         self.lbl_bloodstream.setStyleSheet("color: #FF5050; font-weight: bold; font-size: 10pt; margin-left: 10px;")
         self.lbl_bloodstream.setToolTip("Bloodstream: Active Peers")
 
+        self.lbl_metabolism = QLabel("♻️ 0.00")
+        self.lbl_metabolism.setStyleSheet("color: #00FFCC; font-weight: bold; font-size: 10pt; margin-left: 10px;")
+        self.lbl_metabolism.setToolTip("Metabolism: Nutrient Pool")
+
         self.current_user_id = "default"
         self.user_combo = QComboBox()
         self.user_combo.setStyleSheet("background-color: rgba(45, 45, 60, 220); color: #E6E6E6; border-radius: 6px; padding: 2px 8px;")
@@ -114,6 +118,7 @@ class GhostWindow(QMainWindow):
         status_row = QHBoxLayout()
         status_row.addWidget(self.lbl_status)
         status_row.addStretch()
+        status_row.addWidget(self.lbl_metabolism)
         status_row.addWidget(self.lbl_bloodstream)
 
         header_inner_layout.addLayout(status_row)
@@ -266,6 +271,10 @@ class GhostWindow(QMainWindow):
         resolution_strength = float(snapshot.get("resolution_strength", 0.0))
         trigger = str(snapshot.get("trigger", "none"))
         protection_score = float(snapshot.get("protection_score", 0.5))
+        metabolism_data = snapshot.get("metabolism", {})
+        nutrient_pool = float(metabolism_data.get("nutrient_pool", 0.0))
+
+        self.lbl_metabolism.setText(f"♻️ {nutrient_pool:.2f}")
 
         state_pct = int(max(0.0, min(1.0, state)) * 100)
         self.state_bar.setValue(state_pct)
@@ -535,6 +544,18 @@ class GhostWindow(QMainWindow):
             self.lbl_status.setStyleSheet("color: #00FF99; font-weight: bold; font-size: 10pt;")
 
         QTimer.singleShot(3000, reset_status)
+
+    def trigger_growth_animation(self):
+        """Visual feedback for metabolic growth."""
+        original_text = self.lbl_status.text()
+        self.lbl_status.setText("♻️ РОСТ!")
+        self.lbl_status.setStyleSheet("color: #00FFCC; font-weight: bold; font-size: 12pt;")
+
+        def reset_status():
+            self.lbl_status.setText(original_text)
+            self.lbl_status.setStyleSheet("color: #00FF99; font-weight: bold; font-size: 10pt;")
+
+        QTimer.singleShot(2000, reset_status)
 
     def update_status(self, text: str):
         self.lbl_status.setText(text)

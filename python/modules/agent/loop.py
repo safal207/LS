@@ -139,6 +139,8 @@ class AgentLoop:
         pruned = 0
         if self.temporal:
             pruned = self.temporal.prune_weak_nodes(threshold=0.25, active_window=100)
+            if pruned > 0:
+                amygdala.metabolism.compost_pruned_nodes(pruned)
 
         compacted = 0
         if hasattr(amygdala, "visceral") and amygdala.visceral:
@@ -369,6 +371,8 @@ class AgentLoop:
                     if silent_ref and len(silent_ref.strip()) > 10:
                         amygdala.last_silent_reflection = silent_ref.strip()
                         logger.info(f"Silent reflection generated: {silent_ref[:80]}...")
+                        # 2.1 Digest reflection for metabolism
+                        amygdala.metabolism.digest_old_reflections()
             except Exception as e:
                 logger.warning(f"Silent reflection generation failed: {e}")
 
@@ -916,6 +920,11 @@ class AgentLoop:
                         amygdala.pending_self_reflection = None
                     elif amygdala.interaction_count % 10 == 0:
                         amygdala.pending_self_reflection = None
+
+                if amygdala.interaction_count % 100 == 0:
+                    boost = amygdala.metabolism.feed_growth()
+                    if boost > 0:
+                        self._emit("metabolism_growth", {"boost": boost}, task_id=task_id)
 
                 if amygdala.last_silent_reflection and result:
                     # Очищаем после первого упоминания или через 5 сообщений
