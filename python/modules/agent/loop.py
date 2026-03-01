@@ -358,7 +358,12 @@ class AgentLoop:
         # 3. Обновляем last_reflection, чтобы не спамило
         amygdala.last_reflection = datetime.datetime.now()
 
-        # 4. Самопредложение (PR #225)
+        # 4. Самоисцеление при переходе к покою
+        violations = amygdala.self_heal()
+        if violations:
+            self._emit("soul_healed", {"violations": violations})
+
+        # 5. Самопредложение (PR #225)
         if self.temporal and amygdala.last_silent_reflection:
             axis = self.temporal.get_meritocratic_axis()
             if axis and axis.resonance > 0.7:
@@ -834,6 +839,11 @@ class AgentLoop:
                 stable_interaction=result is not None,
                 user_engaged=not cancel_event.is_set(),
             )
+
+            # Self-healing after interaction
+            violations = self.causal_transitions.amygdala.self_heal()
+            if violations:
+                self._emit("soul_healed", {"violations": violations}, task_id=task_id)
 
             # Clear pending reflection if it's considered "used"
             amygdala = getattr(self.causal_transitions, "amygdala", None)
