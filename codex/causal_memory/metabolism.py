@@ -11,6 +11,7 @@ class MetabolismEngine:
     def __init__(self, amygdala: Amygdala):
         self.amygdala = amygdala
         self.waste_bin: list[dict[str, Any]] = []  # "навоз" — старые узлы/рефлексии
+        self.lessons: list[str] = []  # постоянные уроки из сна
         self.nutrient_pool: float = 0.0  # запас энергии от переработки
 
     def digest_old_reflections(self):
@@ -18,10 +19,11 @@ class MetabolismEngine:
         if hasattr(self.amygdala, "last_silent_reflection") and self.amygdala.last_silent_reflection:
             lesson = f"Урок из тишины: {self.amygdala.last_silent_reflection[:80]}..."
             self.waste_bin.append({"type": "reflection", "content": lesson})
+            self.lessons.append(lesson)
             self.nutrient_pool += 0.05  # энергия от осмысления
             logger.info(f"Reflections digested → nutrient +0.05 (current: {self.nutrient_pool:.2f})")
-            # Мы не очищаем last_silent_reflection здесь, так как AgentLoop может захотеть её использовать
-            # Но мы пометили её как переработанную в waste_bin
+            # При глубокой переработке (сон) или когда AgentLoop решит, рефлексия очищается
+            self.amygdala.last_silent_reflection = None
 
     def compost_pruned_nodes(self, pruned_count: int):
         """Превращает pruned узлы в питание для роста."""
@@ -47,10 +49,12 @@ class MetabolismEngine:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "waste_bin": self.waste_bin[-20:], # Храним только последние 20 "уроков"
+            "waste_bin": self.waste_bin[-20:], # Хarним только последние 20 записей
+            "lessons": self.lessons[-50:],    # Храним только последние 50 уроков
             "nutrient_pool": round(self.nutrient_pool, 4)
         }
 
     def from_dict(self, data: dict[str, Any]):
         self.waste_bin = data.get("waste_bin", [])
+        self.lessons = data.get("lessons", [])[-50:]
         self.nutrient_pool = float(data.get("nutrient_pool", 0.0))

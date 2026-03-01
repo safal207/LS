@@ -18,6 +18,7 @@ EventType = Literal[
     "reflex_triggered",
     "soul_healed",
     "metabolism_growth",
+    "agent_woke_up",
     "error",
 ]
 

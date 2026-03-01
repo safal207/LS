@@ -217,8 +217,9 @@ class GhostWindow(QMainWindow):
         self.btn_import = QPushButton("📥 Импорт")
         self.btn_export_secure = QPushButton("🔐 Экспорт (L-THREAD)")
         self.btn_import_secure = QPushButton("🔓 Импорт (L-THREAD)")
+        self.btn_sleep = QPushButton("🛌 Спать")
 
-        for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure]:
+        for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure, self.btn_sleep]:
             btn.setStyleSheet(
                 "background-color: rgba(60, 60, 80, 200); color: #FFF; border: 1px solid #555; border-radius: 6px; padding: 4px;"
             )
@@ -227,6 +228,7 @@ class GhostWindow(QMainWindow):
         self.btn_import.clicked.connect(self.import_soul)
         self.btn_export_secure.clicked.connect(self.export_soul_secure)
         self.btn_import_secure.clicked.connect(self.import_soul_secure)
+        self.btn_sleep.clicked.connect(lambda: self.agent_loop.submit("/sleep") if self.agent_loop else None)
 
         soul_row.addWidget(self.btn_export)
         soul_row.addWidget(self.btn_import)
@@ -234,6 +236,7 @@ class GhostWindow(QMainWindow):
         secure_row = QHBoxLayout()
         secure_row.addWidget(self.btn_export_secure)
         secure_row.addWidget(self.btn_import_secure)
+        secure_row.addWidget(self.btn_sleep)
 
         self.amygdala_tip_targets = [self.state_bar, self.protection_badge, self.personality_label, self.phantom_bar]
 
@@ -556,6 +559,26 @@ class GhostWindow(QMainWindow):
             self.lbl_status.setStyleSheet("color: #00FF99; font-weight: bold; font-size: 10pt;")
 
         QTimer.singleShot(2000, reset_status)
+
+    def trigger_sleep_animation(self):
+        """Visual feedback for sleep mode."""
+        self.lbl_status.setText("🛌 Агент спит… консолидация памяти")
+        self.lbl_status.setStyleSheet("color: #BBBBFF; font-weight: bold; font-size: 10pt;")
+
+    def trigger_wake_up_animation(self, payload: dict):
+        """Visual report after wake up."""
+        boost = payload.get("axis_boost", 0.0)
+        lessons = payload.get("lessons_created", 0)
+        msg = f"☀️ Проснулся! Ось: +{boost:.2f} | Уроков: {lessons}"
+
+        self.lbl_status.setText(msg)
+        self.lbl_status.setStyleSheet("color: #FFFF99; font-weight: bold; font-size: 10pt;")
+
+        def reset_status():
+            self.lbl_status.setText("GhostGPT Ready")
+            self.lbl_status.setStyleSheet("color: #00FF99; font-weight: bold; font-size: 10pt;")
+
+        QTimer.singleShot(5000, reset_status)
 
     def update_status(self, text: str):
         self.lbl_status.setText(text)

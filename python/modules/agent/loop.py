@@ -121,6 +121,53 @@ class AgentLoop:
         threading.Thread(target=self._bloodstream_loop, daemon=True).start()
 
 
+    def _maybe_enter_sleep_mode(self):
+        if self.state != "idle":
+            return
+        if time.time() - self.last_input_time > 1800:
+            self._enter_sleep_mode()
+
+    def _enter_sleep_mode(self):
+        logger.info("Agent entering sleep mode — memory consolidation started")
+        self._transition("sleep")
+
+        amygdala = getattr(self.causal_transitions, "amygdala", None)
+        if not amygdala:
+            self._transition("idle")
+            return
+
+        # Глубокая консолидация
+        start_time = time.time()
+
+        # 1. Переработка рефлексий в уроки
+        amygdala.metabolism.digest_old_reflections()
+
+        # 2. Укрепление оси через метаболизм
+        boost = amygdala.metabolism.feed_growth()
+
+        # 3. Передача иммунитета в долгосрочную память
+        for ab in list(amygdala.immune.antibodies):
+            if ab["strength"] > 0.7:
+                amygdala.immune.learn_threat(ab["pattern"], ab["type"], ab["strength"] * 0.9)
+
+        # 4. Лёгкая очистка графа
+        pruned = 0
+        if self.temporal:
+            pruned = self.temporal.prune_weak_nodes(threshold=0.2, active_window=200)
+            amygdala.metabolism.compost_pruned_nodes(pruned)
+
+        sleep_duration = time.time() - start_time
+        logger.info(f"Sleep completed in {sleep_duration:.1f}s | Axis boost: {boost:.2f} | Pruned: {pruned}")
+
+        self.last_input_time = time.time()  # Reset idle timer to prevent infinite sleep loop
+        self._transition("idle")
+        self._emit("agent_woke_up", {
+            "sleep_duration": sleep_duration,
+            "axis_boost": boost,
+            "pruned": pruned,
+            "lessons_created": 1 if amygdala.last_silent_reflection is None else 0 # 1 if digested during this sleep
+        })
+
     def _bloodstream_loop(self):
         """Цикл работы кровеносной системы."""
         while self.running:
@@ -540,6 +587,10 @@ class AgentLoop:
                 return
 
             question = item.get("text", "")
+
+            if question.strip() == "/sleep":
+                self._enter_sleep_mode()
+                return
 
             # Reflex Arc (PR #233)
             # Fast reaction before LLM
@@ -972,6 +1023,7 @@ class AgentLoop:
         while self.running:
             self._maybe_collect_windows_context(session_id="agent_loop")
             self._maybe_enter_idle_yoga()
+            self._maybe_enter_sleep_mode()
             if self._active_thread and self._active_thread.is_alive():
                 if not self.cancel_on_new_input:
                     time.sleep(0.05)
