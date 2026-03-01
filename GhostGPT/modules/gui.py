@@ -71,6 +71,10 @@ class GhostWindow(QMainWindow):
         self.lbl_status = QLabel("GhostGPT Ready")
         self.lbl_status.setStyleSheet("color: #00FF99; font-weight: bold; font-size: 10pt;")
 
+        self.lbl_bloodstream = QLabel("❤️ 0")
+        self.lbl_bloodstream.setStyleSheet("color: #FF5050; font-weight: bold; font-size: 10pt; margin-left: 10px;")
+        self.lbl_bloodstream.setToolTip("Bloodstream: Active Peers")
+
         self.current_user_id = "default"
         self.user_combo = QComboBox()
         self.user_combo.setStyleSheet("background-color: rgba(45, 45, 60, 220); color: #E6E6E6; border-radius: 6px; padding: 2px 8px;")
@@ -106,7 +110,13 @@ class GhostWindow(QMainWindow):
         header_container = QWidget()
         header_inner_layout = QVBoxLayout(header_container)
         header_inner_layout.addLayout(buttons_layout)
-        header_inner_layout.addWidget(self.lbl_status)
+
+        status_row = QHBoxLayout()
+        status_row.addWidget(self.lbl_status)
+        status_row.addStretch()
+        status_row.addWidget(self.lbl_bloodstream)
+
+        header_inner_layout.addLayout(status_row)
         header_inner_layout.addWidget(self.user_combo)
         layout.addWidget(header_container)
 
@@ -202,9 +212,8 @@ class GhostWindow(QMainWindow):
         self.btn_import = QPushButton("📥 Импорт")
         self.btn_export_secure = QPushButton("🔐 Экспорт (L-THREAD)")
         self.btn_import_secure = QPushButton("🔓 Импорт (L-THREAD)")
-        self.btn_fork = QPushButton("🧬 Fork")
 
-        for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure, self.btn_fork]:
+        for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure]:
             btn.setStyleSheet(
                 "background-color: rgba(60, 60, 80, 200); color: #FFF; border: 1px solid #555; border-radius: 6px; padding: 4px;"
             )
@@ -213,7 +222,6 @@ class GhostWindow(QMainWindow):
         self.btn_import.clicked.connect(self.import_soul)
         self.btn_export_secure.clicked.connect(self.export_soul_secure)
         self.btn_import_secure.clicked.connect(self.import_soul_secure)
-        self.btn_fork.clicked.connect(self.fork_agent)
 
         soul_row.addWidget(self.btn_export)
         soul_row.addWidget(self.btn_import)
@@ -221,7 +229,6 @@ class GhostWindow(QMainWindow):
         secure_row = QHBoxLayout()
         secure_row.addWidget(self.btn_export_secure)
         secure_row.addWidget(self.btn_import_secure)
-        secure_row.addWidget(self.btn_fork)
 
         self.amygdala_tip_targets = [self.state_bar, self.protection_badge, self.personality_label, self.phantom_bar]
 
@@ -338,6 +345,19 @@ class GhostWindow(QMainWindow):
 
     def _tick_heart_pulse(self) -> None:
         self._heart_pulse_step += 1
+
+        # Bloodstream pulse animation
+        if hasattr(self, "agent_loop") and self.agent_loop and self.agent_loop.bloodstream.is_pumping:
+            size = 12 if self._heart_pulse_step % 2 == 0 else 10
+            self.lbl_bloodstream.setStyleSheet(f"color: #FF0000; font-weight: bold; font-size: {size}pt;")
+        else:
+            self.lbl_bloodstream.setStyleSheet("color: #FF5050; font-weight: bold; font-size: 10pt;")
+
+        # Update peer count
+        if hasattr(self, "agent_loop") and self.agent_loop:
+            peer_count = len(self.agent_loop.bloodstream.peers)
+            self.lbl_bloodstream.setText(f"❤️ {peer_count}")
+
         self._apply_snapshot_to_ui(self._last_snapshot)
 
     def _populate_user_profiles(self) -> None:
@@ -443,16 +463,6 @@ class GhostWindow(QMainWindow):
                 QMessageBox.information(self, "Успех", "Безопасный перенос души завершен. Ориентация сохранена.")
         except Exception as e:
             QMessageBox.critical(self, "Ошибка L-THREAD импорта", str(e))
-
-    def fork_agent(self) -> None:
-        """Запрашивает имя и создаёт потомка агента."""
-        from PyQt6.QtWidgets import QInputDialog
-        name, ok = QInputDialog.getText(self, "🧬 Создать потомка", "Введите имя (fork_id):")
-        if ok and name:
-            if hasattr(self, "agent_loop") and self.agent_loop:
-                self.agent_loop.submit(f"/fork {name}")
-            else:
-                QMessageBox.warning(self, "Ошибка", "AgentLoop не активен.")
 
     def import_soul(self) -> None:
         """Импортирует состояние души из ZIP архива."""

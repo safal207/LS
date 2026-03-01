@@ -21,6 +21,13 @@ class TemporalGraph:
                 count += 1
         return count
 
+    def prune_weak_nodes(self, threshold: float = 0.25, active_window: int = 100) -> int:
+        """Удаляет узлы с resonance ниже threshold."""
+        to_remove = [node_id for node_id, node in self.nodes.items() if node.resonance < threshold]
+        for node_id in to_remove:
+            del self.nodes[node_id]
+        return len(to_remove)
+
     def get_meritocratic_axis(self) -> TemporalNode | None:
         """Возвращает главный узел оси — с максимальным resonance + harmony."""
         if not self.nodes:
@@ -35,15 +42,3 @@ class TemporalGraph:
         synergy = min(1.0, new_node.resonance * 0.7 + (1 - abs(new_node.resonance - axis.resonance)) * 0.3)
         new_node.resonance = min(1.0, new_node.resonance + synergy * 0.1)  # лёгкое усиление
         return synergy
-
-    def select_best_offspring(self, offspring_ids: list[str]) -> str | None:
-        """Выбирает лучшего потомка по resonance × (1 + harmony_bonus)."""
-        best = None
-        best_score = -1.0
-        for oid in offspring_ids:
-            node = self.nodes.get(oid, TemporalNode(id=oid))
-            score = node.resonance * (1.0 + node.harmony_bonus)
-            if score > best_score:
-                best_score = score
-                best = oid
-        return best
