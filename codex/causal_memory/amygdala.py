@@ -8,7 +8,7 @@ import shutil
 import datetime
 from pathlib import Path
 from collections import deque, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
@@ -38,11 +38,13 @@ class AmygdalaBlockError(RuntimeError):
         state: float | None = None,
         pressure: float | None = None,
         message: str | None = None,
+        violations: list[str] | None = None,
     ) -> None:
         super().__init__(message or f"amygdala blocked transition: {reason.value}")
         self.reason = reason
         self.state = state
         self.pressure = pressure
+        self.violations = violations or []
 
 
 @dataclass(frozen=True)
@@ -53,6 +55,7 @@ class AmygdalaDecision:
     pressure: float = 0.5
     protection_level: str = "mild_protection"
     protection_score: float = 0.5
+    violations: list[str] = field(default_factory=list)
 
 
 
@@ -153,6 +156,7 @@ class Amygdala:
         """Returns a serializable snapshot of the current state."""
         return {
             "state": self.state,
+            "resonance": round(1.0 - self.state, 4), # Synthetic resonance for invariant checks
             "adaptive_bias": self.adaptive_bias,
             "personality_p": self.personality_p,
             "protection_shift": self.protection_shift,
@@ -182,6 +186,38 @@ class Amygdala:
         if self.last_valid_snapshot:
             logger.info("Rolling back Amygdala state to last valid snapshot")
             self.from_snapshot(self.last_valid_snapshot)
+
+    def self_heal(self, *, force_rollback: bool = True) -> list[str]:
+        """
+        Detects anomalies and recovers the state from the last valid snapshot.
+        Returns a list of violations if healing was performed, empty list otherwise.
+        """
+        from python.modules import lthread
+        snapshot = self.to_snapshot()
+        snapshot["user_id"] = self.user_id
+        violations = lthread.detect_anomaly(snapshot)
+        if violations:
+            logger.warning(f"Self-healing triggered. Violations: {violations}")
+
+            if not force_rollback:
+                 # If rollback is disabled, we just return the violations
+                 return violations
+
+            # Try internal rollback first as it's more reliable in tests/sessions
+            if self.last_valid_snapshot:
+                self.from_snapshot(self.last_valid_snapshot)
+                if self.persist_state:
+                    self._persist_state()
+                return violations
+
+            # Fallback to persistent storage
+            restored = lthread.auto_rollback(snapshot, violations)
+            if restored:
+                self.from_snapshot(restored)
+                if self.persist_state:
+                    self._persist_state()
+                return violations
+        return []
 
     def evaluate(
         self,
@@ -274,9 +310,11 @@ class Amygdala:
         self._adapt_parameters()
 
         # Orientation Invariants Check (PR #226)
-        from python.modules import lthread
-        if not lthread.check_invariants(self.to_snapshot(), rules=self.invariants):
-            logger.warning("Orientation invariant violation detected! Triggering rollback.")
+        # We call self_heal with force_rollback=False because evaluate()
+        # handles blocking/rollback itself via AmygdalaDecision and AmygdalaBlockError.
+        violations = self.self_heal(force_rollback=False)
+        if violations:
+            logger.warning(f"Orientation invariant violation detected! {violations} Triggering rollback.")
             self.rollback_to_last_valid()
             return AmygdalaDecision(
                 allowed=False,
@@ -285,6 +323,7 @@ class Amygdala:
                 pressure=pressure,
                 protection_level="full_protection",
                 protection_score=1.0,
+                violations=violations,
             )
 
         # Update last valid snapshot on successful evaluation
