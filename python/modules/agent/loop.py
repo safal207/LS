@@ -535,11 +535,6 @@ class AgentLoop:
 
             question = item.get("text", "")
 
-            # Reproductive System: Command /fork (PR #231)
-            if question.startswith("/fork "):
-                self._handle_fork_command(question, task_id)
-                return
-
             # Prompt Injection Protection (PR #226)
             from python.modules import lthread
             if lthread.detect_prompt_injection(question):
@@ -985,44 +980,6 @@ class AgentLoop:
                 self._cancel_grace_until = 0.0
 
             self._start_task(item)
-
-    def _handle_fork_command(self, text: str, task_id: int) -> None:
-        """Обрабатывает команду форкинга агента."""
-        parts = text.split(maxsplit=1)
-        fork_name = parts[1].strip() if len(parts) > 1 else f"unnamed_{int(time.time())}"
-
-        amygdala = getattr(self.causal_transitions, "amygdala", None)
-        if not amygdala:
-            logger.warning("Fork failed: Amygdala not available")
-            return
-
-        try:
-            child = amygdala.fork_self(fork_name)
-            logger.info(f"Agent forked: {amygdala.user_id} -> {child.user_id}")
-
-            # Регистрация в темпоральном графе
-            if self.temporal:
-                from ..hexagon_core.temporal_graph import TemporalNode
-                child_node = TemporalNode(id=child.user_id, resonance=child.endocrine.mood_index)
-                self.temporal.nodes[child.user_id] = child_node
-                self.temporal.align_to_axis(child_node)
-
-            payload = {
-                "question": text,
-                "response": f"🧬 Потомок '{fork_name}' успешно создан.\nID: {child.user_id}\nНастроение: {child.endocrine.mood_index:.2f}",
-                "generation_time": 0.0,
-                "timestamp": time.time(),
-                "amygdala_status": "stable",
-                "fork_event": True,
-                "child_id": child.user_id
-            }
-            self._emit("output_ready", payload, task_id=task_id)
-            if self.output_queue:
-                self.output_queue.put(payload)
-
-        except Exception as e:
-            logger.error(f"Fork failed: {e}")
-            self._emit("error", {"message": f"fork_failed: {e}"}, task_id=task_id)
 
     def regenerate_with_trace(self, question: str, trace: dict, cancel_event: threading.Event, messages: Optional[list[dict]] = None) -> Any:
         """Regenerates a response if a hallucination was detected, with stricter focus."""

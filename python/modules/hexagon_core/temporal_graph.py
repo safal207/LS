@@ -42,15 +42,3 @@ class TemporalGraph:
         synergy = min(1.0, new_node.resonance * 0.7 + (1 - abs(new_node.resonance - axis.resonance)) * 0.3)
         new_node.resonance = min(1.0, new_node.resonance + synergy * 0.1)  # лёгкое усиление
         return synergy
-
-    def select_best_offspring(self, offspring_ids: list[str]) -> str | None:
-        """Выбирает лучшего потомка по resonance × (1 + harmony_bonus)."""
-        best = None
-        best_score = -1.0
-        for oid in offspring_ids:
-            node = self.nodes.get(oid, TemporalNode(id=oid))
-            score = node.resonance * (1.0 + node.harmony_bonus)
-            if score > best_score:
-                best_score = score
-                best = oid
-        return best

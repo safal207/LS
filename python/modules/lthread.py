@@ -157,7 +157,7 @@ def verify_audit_trail(package: Dict[str, Any]) -> bool:
     if isinstance(package, bytes):
         try:
             package = json.loads(package.decode())
-        except:
+        except Exception:
             return False
 
     payload = package.get("payload")
@@ -225,7 +225,7 @@ def receive_from_peer(peer_id: str) -> Optional[Dict[str, Any]]:
             data = json.loads(path.read_bytes().decode())
             if verify_audit_trail(data):
                 return data.get("payload")
-        except:
+        except Exception:
             pass
     return None
 
