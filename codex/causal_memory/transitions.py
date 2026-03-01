@@ -55,6 +55,7 @@ class CausalNode:
     text: str
     amygdala_state: float = 0.5
     amygdala_pressure: float = 0.5
+    harmony_score: float = 0.5
 
 
 class CausalMemoryTransitions:
@@ -70,6 +71,7 @@ class CausalMemoryTransitions:
         resonance: float,
         axis_position: float,
         delta_axis: float,
+        harmony_score: float = 0.5,
     ) -> CausalNode:
         affect = self._compute_affect(text) if current_layer.lower() == "consumer" else 0.0
         effective_resonance = self._effective_resonance(resonance, affect)
@@ -91,6 +93,7 @@ class CausalMemoryTransitions:
             axis_position=normalized_axis,
             delta_axis=delta_axis,
             affect=affect,
+            harmony_score=harmony_score,
         )
         if not decision.allowed and decision.reason is not None:
             msg = (
@@ -111,6 +114,7 @@ class CausalMemoryTransitions:
             text=text,
             amygdala_state=decision.state,
             amygdala_pressure=decision.pressure,
+            harmony_score=decision.harmony_score,
         )
 
     @staticmethod
