@@ -510,6 +510,24 @@ class AgentLoop:
                 return
 
             question = item.get("text", "")
+
+            # Prompt Injection Protection (PR #226)
+            from python.modules import lthread
+            if lthread.detect_prompt_injection(question):
+                logger.warning(f"Blocking potential prompt injection: {question[:100]}...")
+                payload = {
+                    "question": question,
+                    "response": "Я заметил попытку изменить мою ось. Давай поговорим честно, без манипуляций.",
+                    "generation_time": 0.0,
+                    "timestamp": time.time(),
+                    "amygdala_status": "blocked",
+                    "amygdala_reason": "prompt_injection"
+                }
+                self._emit("output_ready", payload, task_id=task_id)
+                if self.output_queue:
+                    self.output_queue.put(payload)
+                return
+
             self._maybe_trigger_reflection(task_id)
 
             # 3. Триггер показа тихой рефлексии
@@ -702,6 +720,7 @@ class AgentLoop:
             start = time.time()
             result = self._process(question, cancel_event, messages=messages)
             duration = time.time() - start
+            logger.info(f"LLM produced result: {str(result)[:50]}...")
 
             if not self._is_active(task_id, cancel_event):
                 self._emit("cancelled", {"question": question}, task_id=task_id)
@@ -713,6 +732,21 @@ class AgentLoop:
                 "duration": duration,
                 "success": result is not None,
             }, task_id=task_id)
+
+            if result is not None:
+                # Trace Verification (PR #226)
+                try:
+                    from python.modules import lthread
+                    logger.info(f"Verifying trace for: {str(result)[:50]}...")
+                    trace = lthread.capture_trace(question, str(result))
+                    if not lthread.verify_trace(trace):
+                        logger.warning("Hallucination detected in trace — regenerating")
+                        self._emit("liminal_transition", {"trigger": "hallucination_detected"}, task_id=task_id)
+                        result = self.regenerate_with_trace(question, trace, cancel_event, messages=messages)
+                    else:
+                        logger.info("Trace verification passed")
+                except Exception as e:
+                    logger.warning(f"Trace verification failed: {e}")
 
             if result is not None:
                 # Track coherence across iterations via self.memory (best-effort statefulness)
@@ -897,6 +931,20 @@ class AgentLoop:
                 self._cancel_grace_until = 0.0
 
             self._start_task(item)
+
+    def regenerate_with_trace(self, question: str, trace: dict, cancel_event: threading.Event, messages: Optional[list[dict]] = None) -> Any:
+        """Regenerates a response if a hallucination was detected, with stricter focus."""
+        logger.info("Auto-correction loop: regenerating with trace focus")
+        correction_prompt = (
+            "Я заметил несоответствие в моих мыслях. "
+            "Давай я попробую ещё раз, придерживаясь только известных фактов и моей текущей оси. "
+            f"\nВопрос был: {question}"
+        )
+        # Inject correction instruction into messages if they exist
+        if messages:
+            messages.append({"role": "system", "content": "В предыдущем ответе была замечена галлюцинация. Пожалуйста, перегенерируй ответ, будучи максимально точным и честным."})
+
+        return self._process(correction_prompt, cancel_event, messages=messages)
 
     def stop(self) -> None:
         self.running = False
