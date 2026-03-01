@@ -36,6 +36,10 @@ from codex.causal_memory.amygdala import Amygdala
 
 class GhostGPT:
     def _on_agent_event(self, event: AgentEvent):
+        if event.type == "reflex_triggered":
+            self.window.trigger_reflex_warning()
+            return
+
         if event.type != "output_ready":
             return
         snapshot = getattr(self.agent_loop.causal_transitions.amygdala, "last_snapshot", None) if self.agent_loop else None
