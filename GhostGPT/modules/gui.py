@@ -202,8 +202,9 @@ class GhostWindow(QMainWindow):
         self.btn_import = QPushButton("📥 Импорт")
         self.btn_export_secure = QPushButton("🔐 Экспорт (L-THREAD)")
         self.btn_import_secure = QPushButton("🔓 Импорт (L-THREAD)")
+        self.btn_fork = QPushButton("🧬 Fork")
 
-        for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure]:
+        for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure, self.btn_fork]:
             btn.setStyleSheet(
                 "background-color: rgba(60, 60, 80, 200); color: #FFF; border: 1px solid #555; border-radius: 6px; padding: 4px;"
             )
@@ -212,6 +213,7 @@ class GhostWindow(QMainWindow):
         self.btn_import.clicked.connect(self.import_soul)
         self.btn_export_secure.clicked.connect(self.export_soul_secure)
         self.btn_import_secure.clicked.connect(self.import_soul_secure)
+        self.btn_fork.clicked.connect(self.fork_agent)
 
         soul_row.addWidget(self.btn_export)
         soul_row.addWidget(self.btn_import)
@@ -219,6 +221,7 @@ class GhostWindow(QMainWindow):
         secure_row = QHBoxLayout()
         secure_row.addWidget(self.btn_export_secure)
         secure_row.addWidget(self.btn_import_secure)
+        secure_row.addWidget(self.btn_fork)
 
         self.amygdala_tip_targets = [self.state_bar, self.protection_badge, self.personality_label, self.phantom_bar]
 
@@ -440,6 +443,16 @@ class GhostWindow(QMainWindow):
                 QMessageBox.information(self, "Успех", "Безопасный перенос души завершен. Ориентация сохранена.")
         except Exception as e:
             QMessageBox.critical(self, "Ошибка L-THREAD импорта", str(e))
+
+    def fork_agent(self) -> None:
+        """Запрашивает имя и создаёт потомка агента."""
+        from PyQt6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "🧬 Создать потомка", "Введите имя (fork_id):")
+        if ok and name:
+            if hasattr(self, "agent_loop") and self.agent_loop:
+                self.agent_loop.submit(f"/fork {name}")
+            else:
+                QMessageBox.warning(self, "Ошибка", "AgentLoop не активен.")
 
     def import_soul(self) -> None:
         """Импортирует состояние души из ZIP архива."""
