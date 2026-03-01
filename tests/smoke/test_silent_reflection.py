@@ -17,6 +17,8 @@ class MockLLM:
 def agent_setup():
     llm = MockLLM()
     amy = Amygdala(persist_state=False)
+    amy.state = 0.2  # Ensure resonance (1-state) is above threshold (0.6)
+    amy.last_valid_snapshot = amy.to_snapshot()
     # Mock visceral history to have enough entries for prepare_reflection_context
     for _ in range(25):
         amy.visceral.record_pain(0.1)

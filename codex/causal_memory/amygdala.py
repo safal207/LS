@@ -15,6 +15,7 @@ from typing import Any
 from .memory import MemoryService
 from .visceral import VisceralMemory
 from .endocrine import EndocrineSystem
+from .metabolism import MetabolismEngine
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +125,7 @@ class Amygdala:
 
         self.visceral = VisceralMemory()
         self.endocrine = EndocrineSystem()
+        self.metabolism = MetabolismEngine(self)
 
         self.last_snapshot: dict[str, float | str] = {
             "state": self.state,
@@ -168,6 +170,7 @@ class Amygdala:
             "phantom_pain": self.phantom_pain,
             "resolution_strength": self.visceral.resolution_strength,
             "endocrine": self.endocrine.to_dict(),
+            "metabolism": self.metabolism.to_dict(),
             "last_silent_reflection": self.last_silent_reflection,
             "last_proposal": self.last_proposal,
         }
@@ -184,6 +187,8 @@ class Amygdala:
         self.visceral.resolution_strength = snapshot.get("resolution_strength", self.visceral.resolution_strength)
         if "endocrine" in snapshot:
             self.endocrine.from_dict(snapshot["endocrine"])
+        if "metabolism" in snapshot:
+            self.metabolism.from_dict(snapshot["metabolism"])
         self.last_silent_reflection = snapshot.get("last_silent_reflection", self.last_silent_reflection)
         self.last_proposal = snapshot.get("last_proposal", self.last_proposal)
 
@@ -495,6 +500,8 @@ class Amygdala:
 
         if "endocrine" in payload:
             self.endocrine.from_dict(payload["endocrine"])
+        if "metabolism" in payload:
+            self.metabolism.from_dict(payload["metabolism"])
 
         visceral = payload.get("visceral", {})
         if isinstance(visceral, dict):
@@ -609,6 +616,7 @@ class Amygdala:
                 "last_proposal": self.last_proposal,
                 "history": list(self.history),
                 "endocrine": self.endocrine.to_dict(),
+                "metabolism": self.metabolism.to_dict(),
                 "visceral": {
                     "phantom_pain": self.visceral.phantom_pain,
                     "resolution_strength": self.visceral.resolution_strength,

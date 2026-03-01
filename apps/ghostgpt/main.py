@@ -40,6 +40,10 @@ class GhostGPT:
             self.window.trigger_reflex_warning()
             return
 
+        if event.type == "metabolism_growth":
+            self.window.trigger_growth_animation()
+            return
+
         if event.type != "output_ready":
             return
         snapshot = getattr(self.agent_loop.causal_transitions.amygdala, "last_snapshot", None) if self.agent_loop else None

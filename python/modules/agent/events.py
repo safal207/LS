@@ -16,6 +16,8 @@ EventType = Literal[
     "metrics",
     "self_reflection",
     "reflex_triggered",
+    "soul_healed",
+    "metabolism_growth",
     "error",
 ]
 
