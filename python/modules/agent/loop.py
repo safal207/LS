@@ -113,6 +113,21 @@ class AgentLoop:
         self._next_context_poll_at = 0.0
         self._context_poll_lock = threading.Lock()
 
+        # Bloodstream Integration (PR #232)
+        from codex.causal_memory.bloodstream import Bloodstream
+        self.bloodstream = Bloodstream(self.causal_transitions.amygdala, self.temporal)
+        threading.Thread(target=self._bloodstream_loop, daemon=True).start()
+
+
+    def _bloodstream_loop(self):
+        """Цикл работы кровеносной системы."""
+        while self.running:
+            try:
+                self.bloodstream.pump()
+                self.bloodstream.filter_toxins()
+            except Exception as e:
+                logger.error(f"Bloodstream loop error: {e}")
+            time.sleep(30)
 
     def _maybe_run_maintenance(self) -> None:
         amygdala = getattr(self.causal_transitions, "amygdala", None)

@@ -528,6 +528,27 @@ class Amygdala:
         snapshot = self.to_snapshot()
         return lthread.create_audited_package(snapshot)
 
+    def merge_from_peer(self, peer_data: dict) -> None:
+        """Смешивает состояние с данными от пира (кровоток)."""
+        if not peer_data:
+            return
+
+        # Средневзвешенное смешивание для мягкого выравнивания
+        alpha = 0.3  # коэффициент доверия пиру
+        self.state = (1 - alpha) * self.state + alpha * float(peer_data.get("state", self.state))
+        self.personality_p = (1 - alpha) * self.personality_p + alpha * float(peer_data.get("personality_p", self.personality_p))
+
+        # Боль и резонанс — берем худшее для безопасности (иммунный ответ)
+        peer_pain = float(peer_data.get("phantom_pain", 0.0))
+        if peer_pain > self.visceral.phantom_pain:
+            self.visceral.record_pain(peer_pain - self.visceral.phantom_pain)
+
+        # Синхронизация гормонов
+        if "endocrine" in peer_data:
+            self.endocrine.from_dict(peer_data["endocrine"])
+
+        logger.info(f"Merged blood from peer. New state: {self.state:.2f}, pain: {self.phantom_pain:.2f}")
+
     def restore_state(self, payload: dict) -> None:
         """Restores state from a provided dictionary (used during import)."""
         if not payload:

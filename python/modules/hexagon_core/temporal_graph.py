@@ -21,6 +21,13 @@ class TemporalGraph:
                 count += 1
         return count
 
+    def prune_weak_nodes(self, threshold: float = 0.25, active_window: int = 100) -> int:
+        """Удаляет узлы с resonance ниже threshold."""
+        to_remove = [node_id for node_id, node in self.nodes.items() if node.resonance < threshold]
+        for node_id in to_remove:
+            del self.nodes[node_id]
+        return len(to_remove)
+
     def get_meritocratic_axis(self) -> TemporalNode | None:
         """Возвращает главный узел оси — с максимальным resonance + harmony."""
         if not self.nodes:

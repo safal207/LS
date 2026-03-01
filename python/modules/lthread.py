@@ -154,6 +154,12 @@ def verify_audit_trail(package: Dict[str, Any]) -> bool:
     """
     Verifies the integrity and audit trail of a package.
     """
+    if isinstance(package, bytes):
+        try:
+            package = json.loads(package.decode())
+        except:
+            return False
+
     payload = package.get("payload")
     signature = package.get("signature")
     if not payload or not signature:
@@ -185,7 +191,7 @@ def encrypt_and_sign(data: Any, key: Any = None, **kwargs) -> bytes:
         "_synthetic_target": target_device
     }).encode()
 
-def send_package(package: bytes, destination: str, **kwargs) -> str:
+def send_package(package: Any, destination: str, **kwargs) -> str:
     """
     Placeholder for sending a package over LTP.
     Returns the path to the 'sent' package.
@@ -193,8 +199,44 @@ def send_package(package: bytes, destination: str, **kwargs) -> str:
     logger.info(f"Sending package to {destination}")
     base_dir = kwargs.get("base_dir", "/tmp")
     path = Path(base_dir) / f"soul_package_{destination}.bin"
-    path.write_bytes(package)
+
+    if isinstance(package, dict):
+        data = json.dumps(package).encode()
+    elif isinstance(package, str):
+        data = package.encode()
+    else:
+        data = package
+
+    path.write_bytes(data)
     return str(path)
+
+def get_current_snapshot(user_id: str) -> Dict[str, Any]:
+    """Возвращает текущий снимок Amygdala для синхронизации."""
+    from codex.causal_memory.memory import MemoryService
+    service = MemoryService(user_id=user_id)
+    return service.load() or {}
+
+def receive_from_peer(peer_id: str) -> Optional[Dict[str, Any]]:
+    """Placeholder для приема данных от пира."""
+    # В реальности тут был бы LTP/L-THREAD сокет
+    path = Path("/tmp") / f"soul_package_{peer_id}.bin"
+    if path.exists():
+        try:
+            data = json.loads(path.read_bytes().decode())
+            if verify_audit_trail(data):
+                return data.get("payload")
+        except:
+            pass
+    return None
+
+def send_toxins(toxins: int, peers: List[str]):
+    """Транспорт для вывода токсинов (лимфа)."""
+    for peer in peers:
+        logger.info(f"Sending {toxins} toxins (lymph) to {peer}")
+
+def start_bloodstream_sync(user_id: str, peers: List[str]):
+    """Запускает фоновый цикл обмена кровью с пирами."""
+    logger.info(f"Starting bloodstream sync for {user_id} with {peers}")
 
 def verify_and_decrypt(package_path: str, **kwargs) -> tuple[bool, Any]:
     """
