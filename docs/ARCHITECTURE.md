@@ -22,36 +22,87 @@
    - `{console,ghostgpt}.yaml` → app overrides
    - `local.yaml` → local overrides (ignored)
 
-## Data Flow (Typical)
+## Cognitive Lifecycle (12 Layers Stack)
 
-Console (упрощённо):
+GhostGPT управляется 12-слойным когнитивным стеком, объединяющим восприятие, эмоции, память и метаболизм.
 
-```
-audio (file/chunks) → stt (text) → agent loop (state + cancellation) → llm (answer) → output
+### Full Stack Diagram
+
+```mermaid
+graph TD
+    %% Layers
+    L1[1. Perception] --> L5[5. AgentLoop]
+    L1 --> L4[4. Amygdala]
+
+    L2[(2. Memory System)] ↔ L5
+    L2 ↔ L3[3. Reflection]
+    L2 ↔ L6[6. Metabolism]
+
+    L3 --> L6
+    L4 ↔ L5
+    L4 ↔ L7[7. Sleep/Homeostasis]
+
+    L5 ↔ L12[12. Human Interface]
+    L6 --> L8[8. Growth Axis]
+    L6 --> L9[9. Immune System]
+
+    L10[10. Inference Router] --> L1
+    L7 --> L2
+
+    L11[11. Hardware Abs] --> L10
+
+    %% Details
+    subgraph Core_Loop
+    L4
+    L5
+    end
+
+    subgraph Consolidation
+    L6
+    L7
+    L8
+    end
 ```
 
-GhostGPT:
+### Data Flow (Typical)
 
-```
-hotkey/UI events → audio/STT (text) → access protocol/agent loop → llm → panel update
-```
+1.  **Perception**: Audio/Text попадает в `InputParser`.
+2.  **Amygdala**: Проверяет резонанс и уровень угрозы.
+3.  **AgentLoop**: Оркестрирует вызов LLM через **Inference Router**.
+4.  **Memory**: Сохраняет эпизод в Causal/Temporal графы.
+5.  **Metabolism**: (В фоне или во сне) перерабатывает эпизод, укрепляя **Growth Axis**.
+
+---
+
+## Core LLM & Inference
+
+### Qwen3.5 Small Series Integration
+Система оптимизирована для работы с серией Qwen3.5 (от 0.8B до 9B параметров).
+- **Qwen3.5-0.8B/1.5B**: Используется для быстрых рефлексий и простых задач на Edge-устройствах.
+- **Qwen3.5-7B/9B**: Основная модель для сложного reasoning и интервью-копилота.
+
+### Dynamic Model Size Policy (Planned)
+Роутер (`ModelSizePolicy`) динамически переключает размер модели в зависимости от:
+1.  Доступной RAM (через `RAMAwareSelector`).
+2.  Сложности входящего запроса.
+3.  Текущего уровня "энергии" агента (из Metabolism Layer).
+
+---
 
 ## AgentLoop
 
 `python/modules/agent/loop.py` — центральный “оркестратор” выполнения:
-- управляет состояниями: `idle/listening/thinking/responding`
-- умеет cooperative cancellation (new input supersedes current work)
-- публикует метрики и события (best-effort)
+- Управляет состояниями: `idle/listening/thinking/responding/sleep`.
+- **Cooperative Cancellation**: Новые вводы немедленно прерывают текущую генерацию.
+- **Sleep Mode**: Автоматический переход в режим консолидации после 1800с инактивации.
 
-## Cognitive Flow Layer (Phase 8)
+## Cognitive Flow Layer (Phase 8+)
 
 `python/modules/cognitive_flow/` — слой когнитивного потока:
-- `presence.py` → оперативное состояние (goal/phase/focus/intent/context)
-- `transition_engine.py` → фазные переходы reasoning
-- `liminal.py` → пороговые состояния между фазами
-- `flow_api.py` → будущая точка входа для когнитивного цикла
-
-На данном этапе слой подключён минимально: AgentLoop сохраняет presence‑снимок и обновляет `updated_at`.
+- `presence.py` → Оперативное состояние (goal/phase/focus/intent/context).
+- `transition_engine.py` → Фазные переходы reasoning.
+- `liminal.py` → Пороговые состояния (Confusion/Aha!-moments).
+- **Idle Yoga**: Периодическая глубокая рефлексия при длительном простое.
 
 ### Observability Contract v1
 

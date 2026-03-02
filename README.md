@@ -25,7 +25,19 @@ LS (Local Cognitive System) — локальная когнитивная сис
 - `docs/RUST_TRANSPORT_SPEC.md` — спецификация Rust‑транспорта
 - `docs/ARCH_DIAGRAMS.md` — архитектурные диаграммы (Mermaid)
 - `docs/ROADMAP.md` — дорожная карта
+- `docs/architecture/layers.md` — полный каталог 12 архитектурных слоев (v1.1)
 - `schemas/*.schema.json` — формальные JSON Schema протоколов
+
+## Архитектура GhostGPT (Март 2026)
+
+GhostGPT v1.1 базируется на **12-слойной когнитивной архитектуре**, объединяющей восприятие, эмоциональный баланс (Amygdala), метаболизм знаний и глубокую консолидацию во сне.
+
+Подробное описание: [docs/architecture/layers.md](docs/architecture/layers.md).
+
+Ключевые инновации v1.1:
+- **Metabolism Layer**: Переработка когнитивного опыта в энергию роста.
+- **Self-Healing Soul**: Автоматическое восстановление состояния при атаках.
+- **Sleep & Homeostasis**: Консолидация памяти и очистка "токсинов" во сне.
 
 ## Структура репозитория
 
