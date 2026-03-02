@@ -12,7 +12,6 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 from PyQt6.QtCore import Qt, QPoint, QTimer
-import time
 import json
 import zipfile
 from datetime import datetime

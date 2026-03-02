@@ -4,6 +4,8 @@ from typing import Any
 
 from shared.config_loader import get_config
 
+from .agent.sleep_config import SleepConfig
+
 _cfg = get_config()
 
 
@@ -78,7 +80,6 @@ KEY_LRI_CTO = _get(["hotkeys", "lri_cto"], "F3")
 ACCESS_PROTOCOL_PROMPT = _get(["access_protocol_prompt"], "")
 
 # Sleep & Consolidation (PR #236)
-from .agent.sleep_config import SleepConfig
 SLEEP_CONFIG = SleepConfig(
     idle_timeout=_get(["agent", "sleep", "idle_timeout"], 1800),
     prune_threshold=_get(["agent", "sleep", "prune_threshold"], 0.2),
