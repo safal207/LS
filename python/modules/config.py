@@ -4,6 +4,8 @@ from typing import Any
 
 from shared.config_loader import get_config
 
+from .agent.sleep_config import SleepConfig
+
 _cfg = get_config()
 
 
@@ -76,3 +78,14 @@ KEY_LRI_CTO = _get(["hotkeys", "lri_cto"], "F3")
 
 # Access protocol prompt (GhostGPT)
 ACCESS_PROTOCOL_PROMPT = _get(["access_protocol_prompt"], "")
+
+# Sleep & Consolidation (PR #236)
+SLEEP_CONFIG = SleepConfig(
+    idle_timeout=_get(["agent", "sleep", "idle_timeout"], 1800),
+    prune_threshold=_get(["agent", "sleep", "prune_threshold"], 0.2),
+    active_window=_get(["agent", "sleep", "active_window"], 200),
+    reflection_energy=_get(["agent", "sleep", "reflection_energy"], 0.05),
+    compost_boost_per_node=_get(["agent", "sleep", "compost_boost_per_node"], 0.01),
+    immune_threshold=_get(["agent", "sleep", "immune_threshold"], 0.7),
+    immune_decay=_get(["agent", "sleep", "immune_decay"], 0.9),
+)

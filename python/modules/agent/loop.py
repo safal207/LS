@@ -121,6 +121,74 @@ class AgentLoop:
         threading.Thread(target=self._bloodstream_loop, daemon=True).start()
 
 
+    def _maybe_enter_sleep_mode(self):
+        try:
+            from ..config import SLEEP_CONFIG
+        except Exception:
+            from .sleep_config import SleepConfig
+            SLEEP_CONFIG = SleepConfig()
+
+        if self.state != "idle":
+            return
+        if time.time() - self.last_input_time > SLEEP_CONFIG.idle_timeout:
+            self._enter_sleep_mode()
+
+    def _enter_sleep_mode(self):
+        try:
+            from ..config import SLEEP_CONFIG
+        except Exception:
+            from .sleep_config import SleepConfig
+            SLEEP_CONFIG = SleepConfig()
+        logger.info("Agent entering sleep mode — memory consolidation started")
+
+        amygdala = getattr(self.causal_transitions, "amygdala", None)
+        if not amygdala:
+            return
+
+        self._transition("sleep")
+        try:
+            # Глубокая консолидация (Биомиметическая последовательность)
+            start_time = time.time()
+
+            # 1. Фаза 1: Катаболизм — разбор слабых связей
+            pruned = 0
+            compost_energy = 0.0
+            if self.temporal:
+                pruned = self.temporal.prune_weak_nodes(
+                    threshold=SLEEP_CONFIG.prune_threshold,
+                    active_window=SLEEP_CONFIG.active_window
+                )
+                compost_energy = amygdala.metabolism.compost_pruned_nodes(pruned)
+
+            # 2. Фаза 2: Анаболизм — переработка рефлексий
+            reflection_energy = amygdala.metabolism.digest_old_reflections()
+
+            # 3. Фаза 3: Метаболическое укрепление (вся энергия цикла)
+            total_energy = compost_energy + reflection_energy
+            boost = amygdala.metabolism.feed_growth(energy=total_energy)
+
+            # 4. Фаза 4: Иммунный перенос в долгосрочную память
+            for ab in list(amygdala.immune.antibodies):
+                if ab["strength"] > SLEEP_CONFIG.immune_threshold:
+                    amygdala.immune.learn_threat(
+                        ab["pattern"], ab["type"], ab["strength"] * SLEEP_CONFIG.immune_decay
+                    )
+
+            sleep_duration = time.time() - start_time
+            logger.info(f"Sleep completed in {sleep_duration:.1f}s | Axis boost: {boost:.2f} | Pruned: {pruned}")
+
+            self._emit("agent_woke_up", {
+                "sleep_duration": sleep_duration,
+                "axis_boost": boost,
+                "pruned": pruned,
+                "lessons_created": 1 if reflection_energy > 0 else 0
+            })
+        except Exception as e:
+            logger.error(f"Sleep consolidation failed: {e}")
+        finally:
+            self.last_input_time = time.time()  # Reset idle timer to prevent infinite sleep loop
+            self._transition("idle")
+
     def _bloodstream_loop(self):
         """Цикл работы кровеносной системы."""
         while self.running:
@@ -540,6 +608,10 @@ class AgentLoop:
                 return
 
             question = item.get("text", "")
+
+            if question.strip() == "/sleep":
+                self._enter_sleep_mode()
+                return
 
             # Reflex Arc (PR #233)
             # Fast reaction before LLM
@@ -972,6 +1044,7 @@ class AgentLoop:
         while self.running:
             self._maybe_collect_windows_context(session_id="agent_loop")
             self._maybe_enter_idle_yoga()
+            self._maybe_enter_sleep_mode()
             if self._active_thread and self._active_thread.is_alive():
                 if not self.cancel_on_new_input:
                     time.sleep(0.05)
