@@ -217,8 +217,9 @@ class GhostWindow(QMainWindow):
         self.btn_export_secure = QPushButton("🔐 Экспорт (L-THREAD)")
         self.btn_import_secure = QPushButton("🔓 Импорт (L-THREAD)")
         self.btn_sleep = QPushButton("🛌 Спать")
+        self.btn_audit = QPushButton("👁️ Аудит")
 
-        for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure, self.btn_sleep]:
+        for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure, self.btn_sleep, self.btn_audit]:
             btn.setStyleSheet(
                 "background-color: rgba(60, 60, 80, 200); color: #FFF; border: 1px solid #555; border-radius: 6px; padding: 4px;"
             )
@@ -228,6 +229,7 @@ class GhostWindow(QMainWindow):
         self.btn_export_secure.clicked.connect(self.export_soul_secure)
         self.btn_import_secure.clicked.connect(self.import_soul_secure)
         self.btn_sleep.clicked.connect(lambda: self.agent_loop.submit("/sleep") if self.agent_loop else None)
+        self.btn_audit.clicked.connect(self.show_audit_log)
 
         soul_row.addWidget(self.btn_export)
         soul_row.addWidget(self.btn_import)
@@ -236,6 +238,7 @@ class GhostWindow(QMainWindow):
         secure_row.addWidget(self.btn_export_secure)
         secure_row.addWidget(self.btn_import_secure)
         secure_row.addWidget(self.btn_sleep)
+        secure_row.addWidget(self.btn_audit)
 
         self.amygdala_tip_targets = [self.state_bar, self.protection_badge, self.personality_label, self.phantom_bar]
 
@@ -517,6 +520,24 @@ class GhostWindow(QMainWindow):
                     QMessageBox.information(self, "Успех", "Душа успешно импортирована.")
         except Exception as e:
             QMessageBox.critical(self, "Ошибка импорта", str(e))
+
+    def show_audit_log(self):
+        """Shows the vision subsystem audit log."""
+        if not hasattr(self, "agent_loop") or not self.agent_loop:
+            QMessageBox.warning(self, "Audit Log", "AgentLoop not initialized.")
+            return
+
+        entries = self.agent_loop.vision.audit.get_entries()
+        if not entries:
+            QMessageBox.information(self, "Audit Log", "No vision activity recorded yet.")
+            return
+
+        log_text = ""
+        for e in entries[-20:]: # Last 20 entries
+            ts = datetime.fromtimestamp(e['timestamp']).strftime('%H:%M:%S')
+            log_text += f"[{ts}] {e['event_type']}: {json.dumps(e['details'])}\n"
+
+        QMessageBox.information(self, "Vision Audit Log", log_text)
 
     def switch_user(self, user_id: str) -> None:
         selected_user = user_id or "default"
