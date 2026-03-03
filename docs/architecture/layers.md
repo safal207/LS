@@ -8,27 +8,38 @@
 
 | № | Слой (Layer) | Ключевые компоненты (Key Components) | Ответственность (Responsibility) | Связи (Connections) | Статус (Status) |
 |---|---|---|---|---|---|
-| 1 | **Perception Layer** | `AudioIngestion`, `SpeechToText`, `InputParser` | Приём и первичная обработка text/audio/image. | → Memory, → Amygdala | Stable |
+| 1 | **Perception Layer** | `AudioIngestion`, `SpeechToText`, `InputParser`, `MultimodalDecoder` | Приём и обработка text/audio/image/video (native multimodal). | → Memory, → Amygdala | Stable |
 | 2 | **Memory System** | `MemoryService`, `CausalMemory`, `TemporalGraph` | Хранение STM/LTM, эпизодическая и семантическая память. | ↔ Reflection, ↔ Metabolism | Stable |
 | 3 | **Reflection & Reasoning** | `ReflectionEngine`, `SilentReflection` | Генерация инсайтов, "тихая" рефлексия в фоне. | → Metabolism, → Lessons | Stable |
 | 4 | **Amygdala (Emotional)** | `Amygdala`, `VisceralMemory`, `EndocrineSystem` | Эмоциональный баланс, резонанс, фантомные боли. | ↔ AgentLoop, ↔ Sleep | Stable |
 | 5 | **Executive AgentLoop** | `AgentLoop`, `EventBus`, `_process_item` | Главный цикл, оркестрация всех процессов системы. | ↔ Все слои (All layers) | Stable |
-| 6 | **Metabolism & Consolidation** | `MetabolismEngine`, `nutrient_pool`, `lessons` | Переработка "отходов" памяти в энергию роста и уроки. | → Axis, → Immunity | **NEW** |
+| 6 | **Metabolism & Consolidation** | `Metabolism`, `nutrient_pool`, `lessons` | Переработка "отходов" памяти в энергию роста и уроки. | → Axis, → Immunity | **NEW** |
 | 7 | **Sleep & Homeostasis** | `SleepConfig`, `auto-sleep`, `wake_up` | Консолидация памяти, очистка и восстановление во сне. | ← AgentLoop, → Memory | **NEW** |
 | 8 | **Growth Axis** | `Axis`, `feed_growth()`, `meritocratic_axis` | Укрепление "стержня" агента, рост осознанности. | ← Metabolism | Stable |
 | 9 | **Immune & Safety** | `ImmuneMemory`, `Antibody`, `ReflexArc` | Защита от инъекций, перенос паттернов угроз в LTM. | ← Metabolism | Stable |
-| 10 | **Dynamic Inference Router** | `ModelSizePolicy`, `RAMAwareSelector` | Выбор модели (Qwen3.5 0.8B/2B/4B) под железо. | → Perception, ← Sleep | **Planned** |
+| 10 | **Dynamic Inference Router** | `ModelSizePolicy`, `RAMAwareSelector` | Выбор модели (Qwen3.5 0.8B/2B/4B/9B) под железо. | → Perception, ← Sleep | **Planned** |
 | 11 | **Hardware Abstraction** | `BackendAdapter` (vLLM, Ollama, MLX) | Абстракция вычислений и ускорения (GPU/NPU). | → Inference Router | Stable |
 | 12 | **Human Interface & GUI** | `GhostGPT GUI`, `Animations`, `VisualFeedback` | Визуализация состояния (❤️, ♻️) и управление. | ↔ AgentLoop | Stable |
+
+---
+
+## Биологические и Продвинутые подсистемы / Biological & Advanced Subsystems
+
+Эти компоненты обеспечивают "живое" поведение и глубокую интеграцию, пронизывая несколько слоев:
+
+*   **Bloodstream Layer (Кровоток)**: Синхронизация состояний амигдалы между агентами и фильтрация "токсинов".
+*   **Self-Healing Soul (Самоисцеление)**: Механизм отката к последнему валидному состоянию при детекции аномалий.
+*   **L-THREAD**: Протокол защищенной передачи состояния (Soul Transfer).
+*   **Endocrine System & Visceral Memory**: Регуляция "настроения" через гормоны и память о негативном опыте (фантомные боли).
 
 ---
 
 ## Детальное описание слоев / Detailed Layer Description
 
 ### 1. Perception Layer (Слой восприятия)
-*   **RU:** Отвечает за преобразование внешних сигналов в когнитивные объекты. Включает VAD (Voice Activity Detection) и STT.
-*   **EN:** Responsible for converting external signals into cognitive objects. Includes VAD and STT.
-*   **Code:** `python/modules/audio/audio_module.py`, `python/modules/stt/stt_module.py`.
+*   **RU:** Отвечает за преобразование внешних сигналов в когнитивные объекты. Включает VAD (Voice Activity Detection), STT и нативную поддержку мультимодальности (image/video).
+*   **EN:** Responsible for converting external signals into cognitive objects. Includes VAD, STT, and native multimodal support (image/video).
+*   **Code:** `python/modules/audio/audio_module.py`, `python/modules/stt/stt_module.py`, `MultimodalDecoder`.
 
 ### 2. Memory System (Система памяти)
 *   **RU:** Гибридная система: Causal Graph (причинность), Temporal Graph (время) и Semantic Clusters.
@@ -51,18 +62,18 @@
 *   **Code:** `python/modules/agent/loop.py`.
 
 ### 6. Metabolism & Consolidation (Метаболизм и консолидация)
-*   **RU:** **НОВЫЙ СЛОЙ.** Перерабатывает удаленные узлы графа и старые рефлексии в `nutrient_pool`.
-*   **EN:** **NEW LAYER.** Recycles pruned graph nodes and old reflections into the `nutrient_pool`.
-*   **Code:** `codex/causal_memory/metabolism.py`.
+*   **RU:** **НОВЫЙ СЛОЙ.** Отвечает за энергетический баланс. Ключевые методы: `digest_old_reflections()` (переработка мыслей), `compost_pruned_nodes()` (утилизация мусора), `feed_growth()` (передача энергии).
+*   **EN:** **NEW LAYER.** Responsible for energy balance. Key methods: `digest_old_reflections()`, `compost_pruned_nodes()`, `feed_growth()`.
+*   **Code:** `codex/causal_memory/metabolism.py` (класс `Metabolism`).
 
 ### 7. Sleep & Homeostasis (Сон и гомеостаз)
-*   **RU:** **НОВЫЙ СЛОЙ.** Запускается автоматически после 1800с бездействия. Выполняет `digest_old_reflections`.
-*   **EN:** **NEW LAYER.** Triggers automatically after 1800s of idleness. Executes `digest_old_reflections`.
+*   **RU:** **НОВЫЙ СЛОЙ.** Запускается автоматически после 1800с бездействия. Выполняет цикл консолидации: `prune` (очистка) → `compost` (переработка) → `digest` (усвоение) → `feed` (рост) → `immunity` (укрепление защиты).
+*   **EN:** **NEW LAYER.** Triggers automatically after 1800s of idleness. Consolidation sequence: `prune` → `compost` → `digest` → `feed` → `immunity`.
 *   **Code:** `python/modules/agent/sleep_config.py`, `AgentLoop._enter_sleep_mode()`.
 
 ### 8. Growth Axis (Ось роста)
-*   **RU:** Накопительный эффект метаболизма. Увеличивает `harmony_bonus` и общую стабильность системы.
-*   **EN:** Cumulative effect of metabolism. Increases `harmony_bonus` and overall system stability.
+*   **RU:** Накопительный эффект метаболизма. Питается через `Metabolism.feed_growth()`, увеличивая `harmony_bonus` и стабильность.
+*   **EN:** Cumulative effect of metabolism. Fed via `Metabolism.feed_growth()`, increasing `harmony_bonus` and stability.
 *   **Code:** `python/modules/hexagon_core/temporal_graph.py` (`strengthen_strong_links`).
 
 ### 9. Immune & Safety System (Иммунная система)
@@ -71,8 +82,8 @@
 *   **Code:** `codex/causal_memory/immune.py`, `codex/causal_memory/reflex.py`.
 
 ### 10. Dynamic Inference Router (Динамический роутер инференса)
-*   **RU:** **ПЛАНИРУЕТСЯ.** Будет выбирать между Qwen3.5-0.8B (быстрый) и 7B (глубокий) в зависимости от контекста.
-*   **EN:** **PLANNED.** Will choose between Qwen3.5-0.8B (fast) and 7B (deep) depending on context.
+*   **RU:** **ПЛАНИРУЕТСЯ.** Будет выбирать между Qwen3.5-0.8B/2B/4B/9B в зависимости от доступной RAM и сложности задачи.
+*   **EN:** **PLANNED.** Will choose between Qwen3.5-0.8B/2B/4B/9B based on RAM and task complexity.
 *   **Code:** `python/modules/llm/ram_model_selector.py` (v1 base).
 
 ### 11. Hardware Abstraction (Абстракция железа)

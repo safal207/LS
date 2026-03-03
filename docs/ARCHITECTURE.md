@@ -29,38 +29,46 @@ GhostGPT управляется 12-слойным когнитивным сте�
 ### Full Stack Diagram
 
 ```mermaid
-graph TD
-    %% Layers
-    L1[1. Perception] --> L5[5. AgentLoop]
-    L1 --> L4[4. Amygdala]
-
-    L2[(2. Memory System)] ↔ L5
-    L2 ↔ L3[3. Reflection]
-    L2 ↔ L6[6. Metabolism]
-
-    L3 --> L6
-    L4 ↔ L5
-    L4 ↔ L7[7. Sleep/Homeostasis]
-
-    L5 ↔ L12[12. Human Interface]
-    L6 --> L8[8. Growth Axis]
-    L6 --> L9[9. Immune System]
-
-    L10[10. Inference Router] --> L1
-    L7 --> L2
-
-    L11[11. Hardware Abs] --> L10
-
-    %% Details
-    subgraph Core_Loop
-    L4
-    L5
+graph TB
+    subgraph Input_Processing[Input & Perception]
+        L1[1. Perception]
+        L10[10. Inference Router]
+        L11[11. Hardware Abs]
+        L11 --> L10 --> L1
     end
 
-    subgraph Consolidation
-    L6
-    L7
-    L8
+    subgraph Executive_Core[Executive Core]
+        L5[5. AgentLoop]
+        L4[4. Amygdala]
+        L5 ↔ L4
+        L1 --> L5
+        L1 --> L4
+    end
+
+    subgraph Memory_Reasoning[Memory & Reasoning]
+        L2[(2. Memory System)]
+        L3[3. Reflection]
+        L5 ↔ L2
+        L2 ↔ L3
+    end
+
+    subgraph Metabolism_Consolidation[Metabolism & Consolidation]
+        L6[6. Metabolism]
+        L7[7. Sleep/Homeostasis]
+        L8[8. Growth Axis]
+        L9[9. Immune System]
+
+        L3 --> L6
+        L2 ↔ L6
+        L7 --> L2
+        L4 ↔ L7
+        L6 --> L8
+        L6 --> L9
+    end
+
+    subgraph Interface[Human Interface]
+        L12[12. Human Interface]
+        L12 ↔ L5
     end
 ```
 
@@ -78,8 +86,8 @@ graph TD
 
 ### Qwen3.5 Small Series Integration
 Система оптимизирована для работы с серией Qwen3.5 (от 0.8B до 9B параметров).
-- **Qwen3.5-0.8B/1.5B**: Используется для быстрых рефлексий и простых задач на Edge-устройствах.
-- **Qwen3.5-7B/9B**: Основная модель для сложного reasoning и интервью-копилота.
+- **Qwen3.5-0.8B / 2B**: Используется для быстрых рефлексий и простых задач на Edge-устройствах.
+- **Qwen3.5-4B / 9B**: Основная модель для сложного reasoning и интервью-копилота.
 
 ### Dynamic Model Size Policy (Planned)
 Роутер (`ModelSizePolicy`) динамически переключает размер модели в зависимости от:

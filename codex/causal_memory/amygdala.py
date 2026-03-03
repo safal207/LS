@@ -15,7 +15,7 @@ from typing import Any
 from .memory import MemoryService
 from .visceral import VisceralMemory
 from .endocrine import EndocrineSystem
-from .metabolism import MetabolismEngine
+from .metabolism import Metabolism
 from .immune import ImmuneMemory
 
 logger = logging.getLogger(__name__)
@@ -126,7 +126,7 @@ class Amygdala:
 
         self.visceral = VisceralMemory()
         self.endocrine = EndocrineSystem()
-        self.metabolism = MetabolismEngine(self)
+        self.metabolism = Metabolism(self)
         self.immune = ImmuneMemory()
 
         self.last_snapshot: dict[str, float | str] = {

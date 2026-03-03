@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-class MetabolismEngine:
+class Metabolism:
     def __init__(self, amygdala: Amygdala):
         self.amygdala = amygdala
         self.waste_bin: list[dict[str, Any]] = []  # "навоз" — старые узлы/рефлексии
