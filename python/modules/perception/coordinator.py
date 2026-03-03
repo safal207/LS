@@ -11,6 +11,7 @@ from .detector import WindowDetector
 from .buffer import FrameBuffer
 from .safety import PrivacyRedactor, ConsentManager, AuditLog
 from .fusion import SceneChangeDetector, RhythmAnalyzer
+from .rust_accel import RustFrameBufferAdapter, RustPrivacyAdapter, RustRhythmAdapter, RustSceneChangeAdapter
 from .cortex import AttentionPolicy, AutoTrigger
 from .arl import CognitiveOverlay
 
@@ -37,6 +38,16 @@ class VisionSubsystem:
         # 4. Temporal Fusion (Layer 15)
         self.fusion = SceneChangeDetector()
         self.rhythm = RhythmAnalyzer()
+
+        # Optional Rust acceleration with safe fallback
+        try:
+            self.buffer = RustFrameBufferAdapter(max_frames=30)
+            self.privacy = RustPrivacyAdapter()
+            self.fusion = RustSceneChangeAdapter()
+            self.rhythm = RustRhythmAdapter()
+            logger.info("Rust vision acceleration enabled.")
+        except Exception as rust_error:
+            logger.info("Using Python vision pipeline fallback: %s", rust_error)
 
         # 5. Proactive Cortex (Layer 13)
         self.policy = AttentionPolicy(max_requests_per_min=5)

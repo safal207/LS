@@ -77,3 +77,21 @@ All ARL outputs include `grounding_refs` to link the suggestion back to specific
 - **PrivacyRedactor**: Automatically masks PII (emails, phones, etc.) before any data is sent to the models.
 - **ConsentManager**: Enforces allowlists/denylists for specific applications (e.g., masking 2FA or password managers).
 - **AuditLog**: Provides full transparency by logging what the system has "seen".
+
+
+## Rust Vision Core acceleration
+
+The vision pipeline now attempts to use Rust accelerators from `ghostgpt_core`:
+- `RustSceneChangeDetector` (`pHash + dHash + SSIM + OCR delta` score formula)
+- `RustPrivacyRedactor`
+- `RustFrameBuffer` (`crossbeam::queue::ArrayQueue` lock-free queue)
+- `RustRhythmAnalyzer`
+
+`python/modules/perception/coordinator.py` enables these classes automatically and falls back to pure Python if Rust extension import or initialization fails.
+
+Benchmark entrypoint:
+
+```bash
+cd rust_core
+cargo bench --bench vision_bench
+```

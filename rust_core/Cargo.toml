@@ -23,8 +23,11 @@ serde_json = "1.0"
 rand = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
 log = "0.4"
+strsim = "0.11"
+rustdct = "0.7"
 
 [dev-dependencies]
+criterion = "0.5"
 
 [lib]
 name = "ghostgpt_core"
@@ -32,3 +35,7 @@ crate-type = ["cdylib", "rlib"]
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
+
+[[bench]]
+name = "vision_bench"
+harness = false
