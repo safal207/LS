@@ -1,3 +1,20 @@
+# GhostGPT v1.1 (2026-03-05)
+
+## Architecture & Cognitive Layers
+- **Full 12-Layer Stack**: Внедрена и задокументирована полная 12-слойная архитектура.
+- **Metabolism & Consolidation**: Слой метаболизма (`Metabolism`) для переработки когнитивных "отходов" в `nutrient_pool`.
+ - **Refactoring (breaking for persisted state only)**: `MetabolismEngine` → `Metabolism`. Добавлена автоматическая миграция в `from_dict`. Старые снапшоты обновятся автоматически.
+- **Sleep & Homeostasis**: Автоматический режим сна (1800с) для глубокой консолидации памяти и укрепления оси роста.
+- **Immune & Safety**: Адаптивная иммунная память для блокировки инъекций и угроз без вызова LLM.
+
+## Biological & Advanced Integration (Experimental)
+- **Bloodstream Layer**: Синхронизация состояний амигдалы и фильтрация токсинов в реальном времени.
+- **Self-Healing Soul**: Механизм автоматического восстановления состояния амигдалы при детекции аномалий через L-THREAD.
+
+## Model Support
+- **Qwen3.5 Small Series Ready**: Подготовка к интеграции моделей Qwen3.5 (0.8B, 2B, 4B, 9B).
+- **Dynamic Model Policy**: Основа для адаптивного выбора размера модели в зависимости от RAM и сложности задачи.
+
 # GhostGPT v1.0 (2026-02-27)
 
 ## Key Features
