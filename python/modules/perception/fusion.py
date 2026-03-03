@@ -1,8 +1,7 @@
 from __future__ import annotations
 import logging
 import threading
-import time
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 import numpy as np
 from PIL import Image
 import imagehash

@@ -2,8 +2,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Any, Dict, List, Optional
-import numpy as np
+from typing import Optional
 
 from .bus import PerceptionEventBus, CortexIntentBus
 from .blackboard import SessionBlackboard

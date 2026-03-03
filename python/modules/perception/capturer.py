@@ -2,14 +2,13 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 import numpy as np
 from PIL import Image
 try:
     import mss
 except ImportError:
     mss = None
-import io
 
 logger = logging.getLogger(__name__)
 
