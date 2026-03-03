@@ -8,6 +8,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 class Metabolism:
+    """Метаболизм и консолидация когнитивных отходов.
+    Ранее: MetabolismEngine (v1.0 → v1.1, 03.03.2026)"""
+
     def __init__(self, amygdala: Amygdala):
         self.amygdala = amygdala
         self.waste_bin: list[dict[str, Any]] = []  # "навоз" — старые узлы/рефлексии
@@ -58,12 +61,27 @@ class Metabolism:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "waste_bin": self.waste_bin[-20:], # Хarним только последние 20 записей
+            "waste_bin": self.waste_bin[-20:], # Храним только последние 20 записей
             "lessons": self.lessons[-50:],    # Храним только последние 50 уроков
-            "nutrient_pool": round(self.nutrient_pool, 4)
+            "nutrient_pool": round(self.nutrient_pool, 4),
+            "class_name": "Metabolism"
         }
 
     def from_dict(self, data: dict[str, Any]):
+        """Мягкая миграция старых сохранений (Дипсик + Qwen)"""
+        if isinstance(data, dict):
+            if "MetabolismEngine" in data:
+                data = data["MetabolismEngine"]
+            if data.get("class_name") == "MetabolismEngine":
+                data["class_name"] = "Metabolism"
+
         self.waste_bin = data.get("waste_bin", [])
         self.lessons = data.get("lessons", [])[-50:]
         self.nutrient_pool = float(data.get("nutrient_pool", 0.0))
+
+    @classmethod
+    def from_dict_new(cls, data: dict[str, Any], amygdala: Amygdala) -> "Metabolism":
+        """Альтернативный конструктор для миграции (Архитектор)"""
+        obj = cls(amygdala)
+        obj.from_dict(data)
+        return obj

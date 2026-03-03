@@ -3,6 +3,7 @@
 ## Architecture & Cognitive Layers
 - **Full 12-Layer Stack**: Внедрена и задокументирована полная 12-слойная архитектура.
 - **Metabolism & Consolidation**: Слой метаболизма (`Metabolism`) для переработки когнитивных "отходов" в `nutrient_pool`.
+ - **Refactoring (breaking for persisted state only)**: `MetabolismEngine` → `Metabolism`. Добавлена автоматическая миграция в `from_dict`. Старые снапшоты обновятся автоматически.
 - **Sleep & Homeostasis**: Автоматический режим сна (1800с) для глубокой консолидации памяти и укрепления оси роста.
 - **Immune & Safety**: Адаптивная иммунная память для блокировки инъекций и угроз без вызова LLM.
 

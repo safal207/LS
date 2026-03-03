@@ -14,6 +14,7 @@ def test_metabolism_digestion():
     assert engine.waste_bin[0]["type"] == "reflection"
     assert "Тишина и покой" in engine.waste_bin[0]["content"]
     assert engine.nutrient_pool == pytest.approx(0.05)
+    assert engine.nutrient_pool > 0.0
 
 def test_metabolism_composting():
     amy = MagicMock(spec=Amygdala)
@@ -25,6 +26,7 @@ def test_metabolism_composting():
     assert engine.waste_bin[0]["type"] == "pruned"
     assert engine.waste_bin[0]["count"] == 5
     assert engine.nutrient_pool == pytest.approx(0.05)
+    assert engine.nutrient_pool >= 0.05
 
 def test_metabolism_feed_growth():
     amy = MagicMock(spec=Amygdala)
@@ -38,6 +40,7 @@ def test_metabolism_feed_growth():
     assert boost > 0
     assert amy.state < 0.5
     assert engine.nutrient_pool < 0.2
+    assert engine.nutrient_pool == pytest.approx(0.1)
 
 def test_metabolism_persistence():
     amy = MagicMock(spec=Amygdala)

@@ -13,7 +13,7 @@
 | 3 | **Reflection & Reasoning** | `ReflectionEngine`, `SilentReflection` | Генерация инсайтов, "тихая" рефлексия в фоне. | → Metabolism, → Lessons | Stable |
 | 4 | **Amygdala (Emotional)** | `Amygdala`, `VisceralMemory`, `EndocrineSystem` | Эмоциональный баланс, резонанс, фантомные боли. | ↔ AgentLoop, ↔ Sleep | Stable |
 | 5 | **Executive AgentLoop** | `AgentLoop`, `EventBus`, `_process_item` | Главный цикл, оркестрация всех процессов системы. | ↔ Все слои (All layers) | Stable |
-| 6 | **Metabolism & Consolidation** | `Metabolism`, `nutrient_pool`, `lessons` | Переработка "отходов" памяти в энергию роста и уроки. | → Axis, → Immunity | **NEW** |
+| 6 | **Metabolism & Consolidation** | `Metabolism`, `nutrient_pool`, `waste_bin` | Переработка "отходов" памяти в энергию роста и уроки. `lessons` — артефакт Reflection Layer, сохраняется в LTM через Metabolism. | → Axis, → Immunity | **NEW** |
 | 7 | **Sleep & Homeostasis** | `SleepConfig`, `auto-sleep`, `wake_up` | Консолидация памяти, очистка и восстановление во сне. | ← AgentLoop, → Memory | **NEW** |
 | 8 | **Growth Axis** | `Axis`, `feed_growth()`, `meritocratic_axis` | Укрепление "стержня" агента, рост осознанности. | ← Metabolism | Stable |
 | 9 | **Immune & Safety** | `ImmuneMemory`, `Antibody`, `ReflexArc` | Защита от инъекций, перенос паттернов угроз в LTM. | ← Metabolism | Stable |
