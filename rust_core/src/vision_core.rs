@@ -1,7 +1,8 @@
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use pyo3::prelude::*;
-use rustdct::DctPlanner;
+use rustdct::{Dct2, DctPlanner};
 
 const PHASH_WEIGHT: f32 = 0.45;
 const SSIM_WEIGHT: f32 = 0.35;
@@ -15,12 +16,15 @@ pub struct RustSceneChangeDetector {
     last_phash: Option<u64>,
     last_dhash: Option<u64>,
     last_ocr_text: String,
+    dct_plan: Arc<dyn Dct2<f32>>,
 }
 
 #[pymethods]
 impl RustSceneChangeDetector {
     #[new]
     pub fn new() -> Self {
+        let mut planner = DctPlanner::new();
+        let dct_plan = planner.plan_dct2(32);
         Self {
             last_frame: None,
             last_width: 0,
@@ -28,6 +32,7 @@ impl RustSceneChangeDetector {
             last_phash: None,
             last_dhash: None,
             last_ocr_text: String::new(),
+            dct_plan,
         }
     }
 
@@ -52,7 +57,7 @@ impl RustSceneChangeDetector {
         }
 
         if self.last_frame.is_none() {
-            let phash = phash64(&frame_rgb, width, height);
+            let phash = phash64(&frame_rgb, width, height, self.dct_plan.as_ref());
             let dhash = dhash64(&frame_rgb, width, height);
             self.last_frame = Some(frame_rgb);
             self.last_width = width;
@@ -63,7 +68,7 @@ impl RustSceneChangeDetector {
             return Ok(1.0);
         }
 
-        let current_phash = phash64(&frame_rgb, width, height);
+        let current_phash = phash64(&frame_rgb, width, height, self.dct_plan.as_ref());
         let current_dhash = dhash64(&frame_rgb, width, height);
 
         let ph = hamming64(current_phash, self.last_phash.unwrap_or(current_phash));
@@ -171,8 +176,21 @@ impl RustFrameBuffer {
         self.max_frames
     }
 
+    /// Returns the most recently added frame without fully draining the queue.
+    /// Pops all frames to find the tail, re-pushes older ones.
+    /// Not safe to call concurrently with add_frame.
     pub fn latest_frame(&self) -> Option<(u64, Vec<u8>, usize, usize)> {
-        self.queue.pop().map(|f| (f.id, f.frame, f.width, f.height))
+        let mut frames: Vec<FramePacket> = std::iter::from_fn(|| self.queue.pop()).collect();
+        if frames.is_empty() {
+            return None;
+        }
+
+        let latest = frames.pop().expect("non-empty");
+        for frame in frames {
+            let _ = self.queue.push(frame);
+        }
+
+        Some((latest.id, latest.frame, latest.width, latest.height))
     }
 }
 
@@ -220,9 +238,9 @@ impl RustRhythmAnalyzer {
     }
 }
 
-fn phash64(rgb: &[u8], width: usize, height: usize) -> u64 {
+fn phash64(rgb: &[u8], width: usize, height: usize, dct: &dyn Dct2<f32>) -> u64 {
     let small = resize_gray(rgb, width, height, 32, 32);
-    let coeffs = dct2_32(&small);
+    let coeffs = dct2_32_with_plan(&small, dct);
     let mut low = [0f32; 64];
     let mut idx = 0usize;
     for y in 0..8 {
@@ -244,10 +262,7 @@ fn phash64(rgb: &[u8], width: usize, height: usize) -> u64 {
     hash
 }
 
-fn dct2_32(input: &[f32]) -> Vec<f32> {
-    let mut planner = DctPlanner::new();
-    let dct = planner.plan_dct2(32);
-
+fn dct2_32_with_plan(input: &[f32], dct: &dyn Dct2<f32>) -> Vec<f32> {
     let mut tmp = vec![0f32; 32 * 32];
     let mut row = vec![0f32; 32];
     for y in 0..32 {
@@ -545,19 +560,25 @@ mod tests {
     #[test]
     fn latest_frame_does_not_drain_entire_queue() {
         let mut buffer = RustFrameBuffer::new(4).expect("buffer init");
-        buffer.add_frame(frame(4, 4, 1), 4, 4);
-        buffer.add_frame(frame(4, 4, 2), 4, 4);
-        buffer.add_frame(frame(4, 4, 3), 4, 4);
+        let _id0 = buffer.add_frame(frame(4, 4, 1), 4, 4);
+        let _id1 = buffer.add_frame(frame(4, 4, 2), 4, 4);
+        let id2 = buffer.add_frame(frame(4, 4, 3), 4, 4);
 
-        let _ = buffer.latest_frame();
-        assert_eq!(buffer.len(), 2);
+        let result = buffer.latest_frame();
+        let (returned_id, returned_frame, _, _) = result.expect("must return a frame");
+        assert_eq!(returned_id, id2, "must return last frame id");
+        assert!(
+            returned_frame.iter().all(|&b| b == 3),
+            "must return last frame data"
+        );
+        assert_eq!(buffer.len(), 2, "older frames must remain in queue");
     }
 
     #[test]
     fn privacy_redaction_masks_sensitive_values() {
         let redactor = RustPrivacyRedactor::new();
         let redacted = redactor.redact(
-            "email me at test@example.com and call +1-123-456-7890 password: abc 123456"
+            "email me at test@example.com and call +1-123-456-7890 password: abc otp code 123456"
                 .to_string(),
         );
         assert!(redacted.contains("[REDACTED_EMAIL]"));
