@@ -8,7 +8,7 @@
 
 | № | Слой (Layer) | Ключевые компоненты (Key Components) | Ответственность (Responsibility) | Связи (Connections) | Статус (Status) |
 |---|---|---|---|---|---|
-| 1 | **Perception Layer** | `AudioIngestion`, `SpeechToText`, `InputParser`, `MultimodalDecoder` | Приём и обработка text/audio/image/video (native multimodal). | → Memory, → Amygdala | Stable |
+| 1 | **Perception Layer** | `AudioIngestion`, `SpeechToText`, `InputParser`, `ScreenCapturer`, `WindowDetector` | Приём и обработка text/audio/image/video (native multimodal). | → Memory, → Amygdala | Stable |
 | 2 | **Memory System** | `MemoryService`, `CausalMemory`, `TemporalGraph` | Хранение STM/LTM, эпизодическая и семантическая память. | ↔ Reflection, ↔ Metabolism | Stable |
 | 3 | **Reflection & Reasoning** | `ReflectionEngine`, `SilentReflection` | Генерация инсайтов, "тихая" рефлексия в фоне. | → Metabolism, → Lessons | Stable |
 | 4 | **Amygdala (Emotional)** | `Amygdala`, `VisceralMemory`, `EndocrineSystem` | Эмоциональный баланс, резонанс, фантомные боли. | ↔ AgentLoop, ↔ Sleep | Stable |
@@ -20,6 +20,10 @@
 | 10 | **Dynamic Inference Router** | `ModelSizePolicy`, `RAMAwareSelector` | Выбор модели (Qwen3.5 0.8B/2B/4B/9B) под железо. | → Perception, ← Sleep | **Planned** |
 | 11 | **Hardware Abstraction** | `BackendAdapter` (vLLM, Ollama, MLX) | Абстракция вычислений и ускорения (GPU/NPU). | → Inference Router | Stable |
 | 12 | **Human Interface & GUI** | `GhostGPT GUI`, `Animations`, `VisualFeedback` | Визуализация состояния (❤️, ♻️) и управление. | ↔ AgentLoop | Stable |
+| 13 | **Proactive Cortex** | `AttentionPolicy`, `AutoTrigger` | Сам решает, когда и на что смотреть. | → Vision Coordinator | **NEW** |
+| 14 | **Augmented Reality Layer** | `CognitiveOverlay`, `VisualHint` | Доставка подсказок и grounding refs прямо в сознание. | ← Cortex | **NEW** |
+| 15 | **Temporal Fusion** | `SceneChangeDetector`, `RhythmAnalyzer` | Семантически устойчивый анализ изменений экрана. | ← Perception | **NEW** |
+| 16 | **Consent & Safety Gate** | `PrivacyRedactor`, `ConsentManager`, `AuditLog` | Privacy-by-design гейт (первый после Perception). | ← Perception | **NEW** |
 
 ---
 

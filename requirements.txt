@@ -1,4 +1,4 @@
-﻿faster-whisper==1.0.3
+faster-whisper==1.0.3
 pyaudio==0.2.14
 requests==2.31.0
 PyYAML==6.0.1
@@ -11,4 +11,9 @@ soundfile==0.12.1
 sentence-transformers>=2.2.2
 torch>=2.0.0
 cryptography>=41.0.0
+mss==10.1.0
+Pillow==12.1.1
+opencv-python==4.13.0.92
+imagehash==4.3.2
+scikit-image==0.26.0
 ltp-client @ git+https://github.com/safal207/L-THREAD-Liminal-Thread-Secure-Protocol-LTP-.git@main#subdirectory=sdk/python

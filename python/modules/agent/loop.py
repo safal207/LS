@@ -17,6 +17,7 @@ from codex.causal_memory.reflex import ReflexArc
 from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
+from ..perception.coordinator import VisionSubsystem
 
 try:
     from ..llm.temporal_graph import get_context_for_question
@@ -119,6 +120,10 @@ class AgentLoop:
         from codex.causal_memory.bloodstream import Bloodstream
         self.bloodstream = Bloodstream(self.causal_transitions.amygdala, self.temporal)
         threading.Thread(target=self._bloodstream_loop, daemon=True).start()
+
+        # Vision Subsystem Integration (Screen Perception v2)
+        self.vision = VisionSubsystem()
+        self.vision.intent_bus.subscribe(self._handle_vision_intent)
 
 
     def _maybe_enter_sleep_mode(self):
@@ -586,6 +591,16 @@ class AgentLoop:
             if self.cancel_grace_ms:
                 self._cancel_grace_until = time.time() + (self.cancel_grace_ms / 1000.0)
 
+    def _handle_vision_intent(self, intent: Any) -> None:
+        """Handles high-level intentions from the vision subsystem."""
+        logger.info(f"Vision intent received: {intent.type}")
+        if intent.type == "StartObserve":
+            # P1: ARL Hint/Observation Task
+            # We wrap it as a task and submit it with P1 priority
+            frame_id = intent.payload.get("frame_id")
+            model = intent.payload.get("model", "2B")
+            self.submit(f"/vision_observe {frame_id} {model}")
+
     def _start_task(self, item: dict) -> None:
         task_id = self._next_task_id()
         cancel_event = threading.Event()
@@ -611,6 +626,36 @@ class AgentLoop:
 
             if question.strip() == "/sleep":
                 self._enter_sleep_mode()
+                return
+
+            if question.startswith("/vision_observe"):
+                # P1 Task: Vision Observation
+                parts = question.split()
+                frame_id = parts[1] if len(parts) > 1 else None
+                model = parts[2] if len(parts) > 2 else "2B"
+
+                # Retrieve frame from buffer
+                frame = self.vision.buffer.get_frame_by_id(frame_id)
+                if not frame:
+                    logger.warning(f"Vision task failed: Frame {frame_id} not found")
+                    return
+
+                # Perform P1 Vision Analysis (MOCK for v0.1)
+                analysis_result = f"I see you are working in {frame.metadata.get('title')}. Everything looks stable."
+                # Grounding Ref
+                self.vision.arl.add_hint("Brief", analysis_result, grounding=[frame_id])
+
+                payload = {
+                    "question": f"Vision Observation ({model})",
+                    "response": analysis_result,
+                    "generation_time": 0.5,
+                    "timestamp": time.time(),
+                    "vision_task": True,
+                    "priority": "P1"
+                }
+                self._emit("output_ready", payload, task_id=task_id)
+                if self.output_queue:
+                    self.output_queue.put(payload)
                 return
 
             # Reflex Arc (PR #233)
@@ -1041,6 +1086,8 @@ class AgentLoop:
             raise RuntimeError("input_queue is required for run()")
 
         self.running = True
+        self.vision.start() # Start Screen Perception v2
+
         while self.running:
             self._maybe_collect_windows_context(session_id="agent_loop")
             self._maybe_enter_idle_yoga()
@@ -1103,5 +1150,6 @@ class AgentLoop:
 
     def stop(self) -> None:
         self.running = False
+        self.vision.stop() # Stop Screen Perception v2
         if self._active_cancel:
             self._active_cancel.set()
