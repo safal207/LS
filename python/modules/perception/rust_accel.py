@@ -21,7 +21,7 @@ def _frame_to_rgb_bytes(frame: Any) -> Tuple[bytes, int, int]:
     height = int(shape[0])
     width = int(shape[1])
 
-    if hasattr(frame, "__getitem__"):
+    if len(shape) >= 3 and int(shape[2]) > 3 and hasattr(frame, "__getitem__"):
         frame = frame[:, :, :3]
 
     if hasattr(frame, "astype"):

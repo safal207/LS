@@ -123,6 +123,7 @@ class VisionSubsystem:
 
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        self._last_degraded_log_ts = 0.0
 
     def start(self):
         """Starts the vision subsystem loop."""
@@ -145,6 +146,12 @@ class VisionSubsystem:
         while self._running:
             try:
                 if self.capturer is None:
+                    now = time.time()
+                    if now - self._last_degraded_log_ts >= 60.0:
+                        logger.warning(
+                            "Vision subsystem remains in degraded mode (capturer unavailable)."
+                        )
+                        self._last_degraded_log_ts = now
                     time.sleep(1.0)
                     continue
 

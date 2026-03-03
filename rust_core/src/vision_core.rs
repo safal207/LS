@@ -38,6 +38,10 @@ impl RustSceneChangeDetector {
         height: usize,
         current_ocr_text: Option<String>,
     ) -> PyResult<f32> {
+        if width == 0 || height == 0 || frame_rgb.is_empty() {
+            return Ok(0.0);
+        }
+
         let expected = width.saturating_mul(height).saturating_mul(3);
         if frame_rgb.len() != expected {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -167,12 +171,8 @@ impl RustFrameBuffer {
         self.max_frames
     }
 
-    pub fn latest_frame(&mut self) -> Option<(u64, Vec<u8>, usize, usize)> {
-        let mut latest: Option<FramePacket> = None;
-        while let Some(frame) = self.queue.pop() {
-            latest = Some(frame);
-        }
-        latest.map(|f| (f.id, f.frame, f.width, f.height))
+    pub fn latest_frame(&self) -> Option<(u64, Vec<u8>, usize, usize)> {
+        self.queue.pop().map(|f| (f.id, f.frame, f.width, f.height))
     }
 }
 
@@ -442,30 +442,36 @@ fn redact_phone(text: &str) -> String {
 }
 
 fn redact_2fa(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut token = String::new();
-
-    let flush = |token: &mut String, out: &mut String| {
-        if token.len() == 6 && token.chars().all(|c| c.is_ascii_digit()) {
-            out.push_str("[REDACTED_2FA]");
-        } else {
-            out.push_str(token);
-        }
-        token.clear();
-    };
-
-    for ch in text.chars() {
-        if ch.is_ascii_alphanumeric() {
-            token.push(ch);
-        } else {
-            if !token.is_empty() {
-                flush(&mut token, &mut out);
-            }
-            out.push(ch);
-        }
+    let lower = text.to_ascii_lowercase();
+    if !(lower.contains("2fa")
+        || lower.contains("otp")
+        || lower.contains("verification")
+        || lower.contains("code"))
+    {
+        return text.to_string();
     }
-    if !token.is_empty() {
-        flush(&mut token, &mut out);
+
+    let mut out = String::with_capacity(text.len());
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i].is_ascii_digit() {
+            let start = i;
+            while i < chars.len() && chars[i].is_ascii_digit() {
+                i += 1;
+            }
+            let len = i - start;
+            if len == 6 {
+                out.push_str("[REDACTED_2FA]");
+            } else {
+                for ch in &chars[start..i] {
+                    out.push(*ch);
+                }
+            }
+            continue;
+        }
+        out.push(chars[i]);
+        i += 1;
     }
     out
 }
@@ -528,6 +534,26 @@ mod tests {
     }
 
     #[test]
+    fn scene_detector_handles_zero_sized_frame() {
+        let mut detector = RustSceneChangeDetector::new();
+        let score = detector
+            .calculate_scene_score(Vec::new(), 0, 0, Some(String::new()))
+            .expect("zero-sized frame must not panic");
+        assert_eq!(score, 0.0);
+    }
+
+    #[test]
+    fn latest_frame_does_not_drain_entire_queue() {
+        let mut buffer = RustFrameBuffer::new(4).expect("buffer init");
+        buffer.add_frame(frame(4, 4, 1), 4, 4);
+        buffer.add_frame(frame(4, 4, 2), 4, 4);
+        buffer.add_frame(frame(4, 4, 3), 4, 4);
+
+        let _ = buffer.latest_frame();
+        assert_eq!(buffer.len(), 2);
+    }
+
+    #[test]
     fn privacy_redaction_masks_sensitive_values() {
         let redactor = RustPrivacyRedactor::new();
         let redacted = redactor.redact(
@@ -538,5 +564,13 @@ mod tests {
         assert!(redacted.contains("[REDACTED_PHONE]"));
         assert!(redacted.contains("[REDACTED_PASSWORD]"));
         assert!(redacted.contains("[REDACTED_2FA]"));
+    }
+
+    #[test]
+    fn privacy_redaction_does_not_mask_arbitrary_six_digits_without_context() {
+        let redactor = RustPrivacyRedactor::new();
+        let text = "invoice id 123456 should stay visible".to_string();
+        let redacted = redactor.redact(text.clone());
+        assert_eq!(redacted, text);
     }
 }
