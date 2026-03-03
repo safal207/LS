@@ -40,6 +40,10 @@ class TestVisionSubsystem(unittest.TestCase):
         score2 = self.vision.fusion.calculate_scene_score(frame2)
         self.assertGreater(score2, 0.0) # Should detect change
 
+        # Test identical frames
+        score3 = self.vision.fusion.calculate_scene_score(frame2)
+        self.assertEqual(score3, 0.0) # No change from frame2
+
     def test_attention_budget(self):
         policy = self.vision.policy
         policy.max_requests_per_min = 2

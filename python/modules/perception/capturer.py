@@ -2,13 +2,14 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import numpy as np
 from PIL import Image
 try:
     import mss
 except ImportError:
     mss = None
+import io
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +48,30 @@ class ScreenCapturer:
 
     def get_frame_metadata(self) -> Dict[str, Any]:
         """Returns metadata about the captured frame."""
-        monitors = self.sct.monitors if self.sct else [{"left":0, "top":0, "width":1920, "height":1080}]
-        idx = self.monitor_index if self.sct and self.monitor_index < len(monitors) else 0
+        if not self.sct:
+            logger.warning("ScreenCapturer.get_frame_metadata: mss not available, returning mock metadata")
+            return {
+                "monitor_index": 0,
+                "timestamp": time.time(),
+                "dimensions": {"left": 0, "top": 0, "width": 1920, "height": 1080},
+                "status": "mocked"
+            }
 
-        return {
-            "monitor_index": idx,
-            "timestamp": time.time(),
-            "dimensions": monitors[idx]
-        }
+        try:
+            monitors = self.sct.monitors
+            idx = self.monitor_index if self.monitor_index < len(monitors) else 0
+
+            return {
+                "monitor_index": idx,
+                "timestamp": time.time(),
+                "dimensions": monitors[idx],
+                "status": "active"
+            }
+        except Exception as e:
+            logger.error(f"Error getting frame metadata: {e}")
+            return {
+                "monitor_index": 0,
+                "timestamp": time.time(),
+                "dimensions": {"left": 0, "top": 0, "width": 1920, "height": 1080},
+                "status": "error"
+            }

@@ -46,8 +46,14 @@ graph TD
 ## Key Components
 
 ### 1. Perception Event Bus & Cortex Intent Bus
-- **PerceptionEventBus**: Handles low-level events like `FrameCaptured` and `SceneChange`.
-- **CortexIntentBus**: Handles high-level intentions like `StartObserve` (triggering deep analysis).
+- **PerceptionEventBus**: Handles low-level events.
+  - `FrameCaptured`: `{"frame_id": str, "window": dict}`
+  - `SceneChange`: `{"score": float, "frame_id": str}`
+  - `OCRDelta`: `{"added": List[str], "removed": List[str]}`
+- **CortexIntentBus**: Handles high-level intentions.
+  - `StartObserve`: `{"model": "2B"|"9B", "frame_id": str}`
+  - `SummarizeSlide`: `{"frame_id": str}`
+  - `Hold`: `{"reason": str}` (Pause vision updates)
 
 ### 2. Temporal Fusion (Layer 15)
 Uses a 3-channel detector to analyze screen changes:

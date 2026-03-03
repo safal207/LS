@@ -2,7 +2,8 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Dict, Any, List
+from typing import Optional, Dict, Any, List
+import psutil
 
 logger = logging.getLogger(__name__)
 
