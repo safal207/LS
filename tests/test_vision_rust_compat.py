@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-import numpy as np
+import pytest
+
+np = pytest.importorskip("numpy")
 
 from python.modules.perception.fusion import SceneChangeDetector
 from python.modules.perception.safety import PrivacyRedactor

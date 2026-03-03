@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
-
-import numpy as np
+from typing import Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -14,18 +12,38 @@ except Exception as exc:  # pragma: no cover - import availability is environmen
     logger.info("Rust vision core unavailable; Python fallback is active: %s", exc)
 
 
+def _frame_to_rgb_bytes(frame: Any) -> Tuple[bytes, int, int]:
+    """Convert ndarray-like frame to RGB bytes without hard dependency on numpy."""
+    shape = getattr(frame, "shape", None)
+    if not shape or len(shape) < 2:
+        raise ValueError("frame must expose shape (H, W, C)")
+
+    height = int(shape[0])
+    width = int(shape[1])
+
+    if hasattr(frame, "__getitem__"):
+        frame = frame[:, :, :3]
+
+    if hasattr(frame, "astype"):
+        frame = frame.astype("uint8", copy=False)
+
+    if hasattr(frame, "tobytes"):
+        return frame.tobytes(), width, height
+
+    return bytes(frame), width, height
+
+
 class RustSceneChangeAdapter:
     def __init__(self) -> None:
         if ghostgpt_core is None or not hasattr(ghostgpt_core, "RustSceneChangeDetector"):
             raise RuntimeError("RustSceneChangeDetector unavailable")
         self._detector = ghostgpt_core.RustSceneChangeDetector()
 
-    def calculate_scene_score(self, current_frame: np.ndarray, current_ocr_text: str = "") -> float:
-        h, w = current_frame.shape[:2]
-        frame_rgb = np.ascontiguousarray(current_frame[:, :, :3]).astype(np.uint8)
+    def calculate_scene_score(self, current_frame: Any, current_ocr_text: str = "") -> float:
+        frame_rgb, w, h = _frame_to_rgb_bytes(current_frame)
         return float(
             self._detector.calculate_scene_score(
-                frame_rgb.tobytes(),
+                frame_rgb,
                 int(w),
                 int(h),
                 current_ocr_text,
@@ -62,7 +80,6 @@ class RustFrameBufferAdapter:
             raise RuntimeError("RustFrameBuffer unavailable")
         self._buffer = ghostgpt_core.RustFrameBuffer(int(max_frames))
 
-    def add_frame(self, frame_data: np.ndarray, metadata: Optional[dict] = None) -> int:
-        h, w = frame_data.shape[:2]
-        frame_rgb = np.ascontiguousarray(frame_data[:, :, :3]).astype(np.uint8)
-        return int(self._buffer.add_frame(frame_rgb.tobytes(), int(w), int(h)))
+    def add_frame(self, frame_data: Any, metadata: Optional[dict] = None) -> int:
+        frame_rgb, w, h = _frame_to_rgb_bytes(frame_data)
+        return int(self._buffer.add_frame(frame_rgb, int(w), int(h)))
