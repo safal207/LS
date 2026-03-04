@@ -737,4 +737,11 @@ mod tests {
         assert_eq!(result.2, 48);
         assert_eq!(result.3, 48);
     }
+
+    #[test]
+    fn pipeline_process_frame_errors_when_not_started() {
+        let mut pipeline = VisionPipeline::new(1);
+        let result = pipeline.process_frame(frame(16, 16, 0), 16, 16, None, None);
+        assert!(result.is_err(), "must error when pipeline is not running");
+    }
 }

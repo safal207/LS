@@ -192,6 +192,7 @@ class VisionSubsystem:
                     if hasattr(self.privacy, "redact")
                     else ocr_text
                 )
+                frame_id = None
 
                 if self.pipeline is not None:
                     frame_data = self.capturer.capture_frame()
@@ -208,9 +209,6 @@ class VisionSubsystem:
                         mode=self.blackboard.current_mode,
                     )
                 else:
-                    if self.capturer is None:
-                        time.sleep(1.0)
-                        continue
                     frame_data = self.capturer.capture_frame()
                     if frame_data is None:
                         continue
