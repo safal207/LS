@@ -2,6 +2,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from importlib import import_module
 from typing import Any, Optional
 
 from .bus import PerceptionEventBus, CortexIntentBus
@@ -10,18 +11,6 @@ from .detector import WindowDetector
 from .safety import ConsentManager, AuditLog
 from .cortex import AttentionPolicy, AutoTrigger
 from .arl import CognitiveOverlay
-
-try:
-    from .capturer import ScreenCapturer
-    from .buffer import FrameBuffer
-    from .fusion import SceneChangeDetector, RhythmAnalyzer
-    from .safety import PrivacyRedactor
-except ModuleNotFoundError:  # pragma: no cover - exercised via monkeypatch in tests
-    ScreenCapturer = None
-    FrameBuffer = None
-    SceneChangeDetector = None
-    RhythmAnalyzer = None
-    PrivacyRedactor = None
 
 logger = logging.getLogger(__name__)
 
@@ -81,12 +70,16 @@ class VisionSubsystem:
         self.arl = CognitiveOverlay()
 
         self._running = False
+        self._capture_enabled = True
         self._thread: Optional[threading.Thread] = None
         self._fallback_to_python_components(monitor_index)
 
     def start(self):
         """Starts the vision subsystem loop."""
         if self._running:
+            return
+        if not self._capture_enabled:
+            logger.warning("VisionSubsystem cannot start: capture stack is unavailable.")
             return
         self._running = True
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -107,6 +100,7 @@ class VisionSubsystem:
                 if self.capturer is None:
                     logger.error("VisionSubsystem capturer unavailable, stopping processing loop.")
                     self._running = False
+                    self._capture_enabled = False
                     break
 
                 # Cycle start
@@ -152,28 +146,29 @@ class VisionSubsystem:
                 time.sleep(1.0)
 
     def _fallback_to_python_components(self, monitor_index: int) -> None:
-        """Initialize Python vision components if available, otherwise disable capture loop."""
+        """Initialize Python vision components if available, otherwise disable capture."""
+        self.capturer = None
+        self.buffer = _FallbackFrameBuffer(max_frames=30)
+        self.fusion = _FallbackSceneChangeDetector()
+        self.rhythm = _FallbackRhythmAnalyzer()
+        self.privacy = _NoopPrivacyRedactor()
+
         try:
-            if ScreenCapturer is None or FrameBuffer is None:
-                raise ModuleNotFoundError("capturer/buffer modules unavailable")
+            capturer_module = import_module("python.modules.perception.capturer")
+            buffer_module = import_module("python.modules.perception.buffer")
+            fusion_module = import_module("python.modules.perception.fusion")
+            safety_module = import_module("python.modules.perception.safety")
 
-            self.capturer = ScreenCapturer(monitor_index=monitor_index)
-            self.buffer = FrameBuffer(max_frames=30)
-
-            if SceneChangeDetector is not None:
-                self.fusion = SceneChangeDetector()
-            if RhythmAnalyzer is not None:
-                self.rhythm = RhythmAnalyzer()
-            if PrivacyRedactor is not None:
-                self.privacy = PrivacyRedactor()
-
+            self.capturer = capturer_module.ScreenCapturer(monitor_index=monitor_index)
+            self.buffer = buffer_module.FrameBuffer(max_frames=30)
+            self.fusion = fusion_module.SceneChangeDetector()
+            self.rhythm = fusion_module.RhythmAnalyzer()
+            self.privacy = safety_module.PrivacyRedactor()
+            self._capture_enabled = True
             logger.info("VisionSubsystem initialized Python perception components.")
-        except Exception as dep_error:
+        except (ModuleNotFoundError, AttributeError) as dep_error:
             logger.error(
                 "Python perception components unavailable: %s. Vision capture disabled.", dep_error
             )
-            self.capturer = None
-            self.buffer = _FallbackFrameBuffer(max_frames=30)
-            self.fusion = _FallbackSceneChangeDetector()
-            self.rhythm = _FallbackRhythmAnalyzer()
+            self._capture_enabled = False
             self._running = False
