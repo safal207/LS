@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import deque
 from typing import Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -49,11 +50,14 @@ class RustVisionPipeline:
 
     def process_frame(
         self,
-        frame_data: Any,
+        frame_data: Any = None,
         current_ocr_text: str = "",
         mode: Optional[str] = None,
     ) -> Tuple[float, str, int, int]:
-        frame_rgb, w, h = _frame_to_rgb_bytes(frame_data)
+        if frame_data is None:
+            frame_rgb, w, h = b"", 0, 0
+        else:
+            frame_rgb, w, h = _frame_to_rgb_bytes(frame_data)
         score, activity, target_w, target_h = self._core.process_frame(
             frame_rgb,
             int(w),
@@ -110,10 +114,16 @@ class RustFrameBufferAdapter:
         if ghostgpt_core is None or not hasattr(ghostgpt_core, "RustFrameBuffer"):
             raise RuntimeError("RustFrameBuffer unavailable")
         self._buffer = ghostgpt_core.RustFrameBuffer(int(max_frames))
-        self._metadata: dict[int, Optional[dict]] = {}
+        self._metadata: deque[tuple[int, Optional[dict]]] = deque(maxlen=max_frames)
 
     def add_frame(self, frame_data: Any, metadata: Optional[dict] = None) -> int:
         frame_rgb, w, h = _frame_to_rgb_bytes(frame_data)
         frame_id = int(self._buffer.add_frame(frame_rgb, int(w), int(h)))
-        self._metadata[frame_id] = metadata
+        self._metadata.append((frame_id, metadata))
         return frame_id
+
+    def get_metadata(self, frame_id: int) -> Optional[dict]:
+        for fid, metadata in reversed(self._metadata):
+            if fid == frame_id:
+                return metadata
+        return None

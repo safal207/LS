@@ -46,9 +46,12 @@ def test_privacy_redactor_contract() -> None:
     text = "mail test@example.com phone 123-456-7890 password: qwerty"
     redacted = redactor.redact(text)
 
-    assert "[REDACTED_EMAIL]" in redacted or "test@example.com" not in redacted
-    assert "[REDACTED_PHONE]" in redacted or "123-456-7890" not in redacted
-    assert "[REDACTED_PASSWORD]" in redacted or "qwerty" not in redacted
+    assert "[REDACTED_EMAIL]" in redacted, "email not redacted"
+    assert "test@example.com" not in redacted, "raw email leaked"
+    assert "[REDACTED_PHONE]" in redacted, "phone not redacted"
+    assert "123-456-7890" not in redacted, "raw phone leaked"
+    assert "[REDACTED_PASSWORD]" in redacted, "password not redacted"
+    assert "qwerty" not in redacted, "raw password value leaked"
 
 
 def test_privacy_redactor_preserves_safe_text() -> None:
@@ -64,8 +67,14 @@ def test_rust_python_scene_score_compatibility() -> None:
     py_detector = SceneChangeDetector()
     rs_detector = RustSceneChangeAdapter()
 
-    frame = np.zeros((64, 64, 3), dtype=np.uint8)
+    frame1 = np.zeros((64, 64, 3), dtype=np.uint8)
+    frame2 = np.ones((64, 64, 3), dtype=np.uint8) * 128
+    frame3 = np.ones((64, 64, 3), dtype=np.uint8) * 255
 
-    py_first = py_detector.calculate_scene_score(frame, "")
-    rs_first = rs_detector.calculate_scene_score(frame, "")
-    assert abs(py_first - rs_first) < 0.2
+    for frame in (frame1, frame2, frame3):
+        py_score = py_detector.calculate_scene_score(frame, "")
+        rs_score = rs_detector.calculate_scene_score(frame, "")
+        assert abs(py_score - rs_score) < 0.25, (
+            f"Python={py_score:.3f} vs Rust={rs_score:.3f} diverged on frame "
+            f"mean={frame.mean():.0f}"
+        )

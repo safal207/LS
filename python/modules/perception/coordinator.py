@@ -164,11 +164,11 @@ class VisionSubsystem:
         """Main vision processing cycle."""
         while self._running:
             try:
-                if self.capturer is None:
+                if self.capturer is None and self.pipeline is None:
                     now = time.time()
                     if now - self._last_degraded_log_ts >= 60.0:
                         logger.warning(
-                            "Vision subsystem remains in degraded mode (capturer unavailable)."
+                            "Vision subsystem remains in degraded mode (no capturer or pipeline available)."
                         )
                         self._last_degraded_log_ts = now
                     time.sleep(1.0)
@@ -180,10 +180,6 @@ class VisionSubsystem:
                     time.sleep(1.0)
                     continue
 
-                frame_data = self.capturer.capture_frame()
-                if frame_data is None:
-                    continue
-
                 ocr_text = ""
                 redacted_ocr = (
                     self.privacy.redact(ocr_text)
@@ -191,18 +187,36 @@ class VisionSubsystem:
                     else ocr_text
                 )
 
-                frame_id = self.buffer.add_frame(frame_data, metadata=window_context)
-                self.event_bus.emit(
-                    "FrameCaptured", {"frame_id": frame_id, "window": window_context}
-                )
-
                 if self.pipeline is not None:
+                    frame_id = None
+                    if self.capturer is not None:
+                        frame_data = self.capturer.capture_frame()
+                        if frame_data is None:
+                            continue
+                        frame_id = self.buffer.add_frame(frame_data, metadata=window_context)
+                        self.event_bus.emit(
+                            "FrameCaptured", {"frame_id": frame_id, "window": window_context}
+                        )
+                    else:
+                        frame_data = None
+
                     scene_score, current_activity, _, _ = self.pipeline.process_frame(
                         frame_data,
                         current_ocr_text=redacted_ocr,
                         mode=self.blackboard.current_mode,
                     )
                 else:
+                    if self.capturer is None:
+                        time.sleep(1.0)
+                        continue
+                    frame_data = self.capturer.capture_frame()
+                    if frame_data is None:
+                        continue
+                    frame_id = self.buffer.add_frame(frame_data, metadata=window_context)
+                    self.event_bus.emit(
+                        "FrameCaptured", {"frame_id": frame_id, "window": window_context}
+                    )
+
                     scene_score = self.fusion.calculate_scene_score(
                         frame_data, current_ocr_text=redacted_ocr
                     )
@@ -211,21 +225,20 @@ class VisionSubsystem:
                 self.blackboard.update_mode(current_activity)
 
                 if scene_score > 0.5:
-                    self.event_bus.emit(
-                        "SceneChange", {"score": scene_score, "frame_id": frame_id}
-                    )
+                    payload = {"score": scene_score}
+                    if frame_id is not None:
+                        payload["frame_id"] = frame_id
+                    self.event_bus.emit("SceneChange", payload)
 
                 confusion_score = window_context.get("confusion_score", 0.0)
                 if self.auto_trigger.should_trigger(scene_score, confusion_score):
                     if self.policy.can_request():
                         model = self.policy.select_model(scene_score, confusion_score)
-                        self.intent_bus.emit(
-                            "StartObserve", {"model": model, "frame_id": frame_id}
-                        )
-                        self.audit.log_event(
-                            "ObservationTriggered",
-                            {"model": model, "frame_id": frame_id},
-                        )
+                        payload = {"model": model}
+                        if frame_id is not None:
+                            payload["frame_id"] = frame_id
+                        self.intent_bus.emit("StartObserve", payload)
+                        self.audit.log_event("ObservationTriggered", payload)
 
                 time.sleep(1.0)
 

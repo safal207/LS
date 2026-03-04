@@ -247,6 +247,12 @@ impl VisionPipeline {
         current_ocr_text: Option<String>,
         mode: Option<String>,
     ) -> PyResult<(f32, String, usize, usize)> {
+        if !self.running {
+            return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "VisionPipeline is not running; call start() before process_frame()",
+            ));
+        }
+
         let (target_w, target_h) = self.target_resolution(mode);
         let resized = if width == target_w && height == target_h {
             frame_rgb
