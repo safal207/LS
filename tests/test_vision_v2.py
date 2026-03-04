@@ -1,6 +1,7 @@
 import unittest
 import time
 import numpy as np
+from unittest import mock
 from python.modules.perception.coordinator import VisionSubsystem
 from python.modules.perception.arl import VisualHint
 
@@ -63,6 +64,32 @@ class TestVisionSubsystem(unittest.TestCase):
         hints[0].timestamp = time.time() - 10.0
         active_hints = arl.get_active_hints()
         self.assertEqual(len(active_hints), 0)
+
+    def test_fallback_uses_python_components_when_available(self):
+        vision = VisionSubsystem(monitor_index=1)
+        self.assertIsNotNone(vision.capturer)
+        self.assertIsNotNone(vision.buffer)
+
+    def test_degraded_mode_when_component_init_fails(self):
+        real_import_module = __import__("python.modules.perception.coordinator", fromlist=["import_module"]).import_module
+        with mock.patch(
+            "python.modules.perception.coordinator.import_module",
+            side_effect=lambda name: (_ for _ in ()).throw(ModuleNotFoundError("missing screen backend"))
+            if name == "python.modules.perception.capturer"
+            else real_import_module(name),
+        ):
+            vision = VisionSubsystem(monitor_index=1)
+
+        self.assertIsNone(vision.capturer)
+        self.assertEqual(type(vision.buffer).__name__, "_FallbackFrameBuffer")
+        self.assertFalse(vision._running)
+        self.assertFalse(vision._capture_enabled)
+
+    def test_start_noop_when_capture_disabled(self):
+        vision = VisionSubsystem(monitor_index=1)
+        vision._capture_enabled = False
+        vision.start()
+        self.assertFalse(vision._running)
 
 if __name__ == "__main__":
     unittest.main()
