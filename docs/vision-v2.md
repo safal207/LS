@@ -77,3 +77,81 @@ All ARL outputs include `grounding_refs` to link the suggestion back to specific
 - **PrivacyRedactor**: Automatically masks PII (emails, phones, etc.) before any data is sent to the models.
 - **ConsentManager**: Enforces allowlists/denylists for specific applications (e.g., masking 2FA or password managers).
 - **AuditLog**: Provides full transparency by logging what the system has "seen".
+
+
+## PrivacyRedactor Limitations
+
+### What gets redacted
+- Emails: `test@example.com` → `[REDACTED_EMAIL]`
+- Phones: `+1-123-456-7890` → `[REDACTED_PHONE]`
+- Password assignments: `password: secret123` → `password: [REDACTED_PASSWORD]`
+- 2FA codes with context (`otp`, `2fa`, `verification`, `code`): `otp code 123456`
+
+### What is intentionally not redacted
+- IPv4 addresses (e.g. `192.168.1.1`, `192.168.1.1:8080`)
+- Arbitrary 6-digit values without 2FA context (e.g. `invoice 123456`)
+
+### Known limitations
+- Heuristic detection may still produce false positives for unusual phone-like strings.
+- Redaction currently operates on plain text/OCR outputs, not semantic entities.
+
+## Rust Vision Core acceleration (Pipeline + Adaptive Resolution)
+
+**Pipeline + Adaptive Resolution** is the primary direction from March 2026.
+
+- **Capture Stage** — frame capture (single thread)
+- **Preprocess Stage** — adaptive resize by mode
+- **Fusion Stage** — weighted hash delta (`pHash` + `dHash`) + `SSIM` + `OCR delta`
+- **Privacy Stage** — Rust PII redaction
+- **Output Stage** — events/intents to coordinator buses
+
+**Adaptive Resolution rules:**
+- Discussion → 16×16
+- Coding → 48×48
+- Presentation → 64×64
+- Any unknown/idle mode defaults to 16×16.
+
+`coordinator.py` attempts to enable `RustVisionPipeline` first and falls back to Python path on any Rust init/import error.
+
+**Expected frame format for Rust**:
+- NumPy array (or ndarray-like object with `.shape` and `.tobytes()`)
+- Shape `(H, W, 3)` or `(H, W, C)` where `C >= 3`
+- `dtype=uint8`, channel order RGB (first 3 channels used)
+- Note: for zero-copy via `memoryview`, frame buffers should be C-contiguous.
+  Non-contiguous inputs are currently copied during conversion.
+
+**Scene score parity note (Python vs Rust):**
+- Current compatibility target is absolute delta `< 0.10` in tests.
+- Small divergence is acceptable due to implementation details (hashing/SSIM numerics)
+  and does not block adaptive-trigger behavior in this release.
+
+Build/install Rust extension for Python (local dev):
+
+```bash
+cd rust_core
+maturin develop --release
+```
+
+If `maturin` is not installed:
+
+```bash
+pip install maturin
+cd rust_core
+maturin develop --release
+```
+
+Logging note:
+- Initialize Python logging (e.g. `logging.basicConfig(...)`) before importing
+  `ghostgpt_core` to reliably surface Rust logs bridged through `pyo3-log`.
+
+
+**Rust frame-buffer access guidance:**
+- Use `latest_frame_info()` / `get_latest_frame_metadata()` for polling frame ids and dimensions.
+- Use `latest_frame()` only when byte payload is required, because it clones RGB bytes for Python interop.
+
+Benchmark entrypoint:
+
+```bash
+cd rust/ghost-vision-core
+cargo bench --bench vision_bench
+```
