@@ -71,24 +71,80 @@ class TestVisionSubsystem(unittest.TestCase):
         self.assertIsNotNone(vision.buffer)
 
     def test_degraded_mode_when_component_init_fails(self):
-        real_import_module = __import__("python.modules.perception.coordinator", fromlist=["import_module"]).import_module
         with mock.patch(
             "python.modules.perception.coordinator.import_module",
-            side_effect=lambda name: (_ for _ in ()).throw(ModuleNotFoundError("missing screen backend"))
-            if name == "python.modules.perception.capturer"
-            else real_import_module(name),
+            side_effect=ModuleNotFoundError("missing screen backend"),
         ):
             vision = VisionSubsystem(monitor_index=1)
 
         self.assertIsNone(vision.capturer)
         self.assertEqual(type(vision.buffer).__name__, "_FallbackFrameBuffer")
-        self.assertFalse(vision._running)
         self.assertFalse(vision._capture_enabled)
 
     def test_start_noop_when_capture_disabled(self):
         vision = VisionSubsystem(monitor_index=1)
         vision._capture_enabled = False
-        vision.start()
+        with mock.patch.object(
+            vision,
+            "_fallback_to_python_components",
+            side_effect=lambda _monitor_index: setattr(vision, "_capture_enabled", False),
+        ):
+            vision.start()
+        self.assertFalse(vision._running)
+
+    def test_start_retries_component_initialization(self):
+        with mock.patch(
+            "python.modules.perception.coordinator.import_module",
+            side_effect=ModuleNotFoundError("missing screen backend"),
+        ):
+            vision = VisionSubsystem(monitor_index=1)
+
+        self.assertFalse(vision._capture_enabled)
+
+        class _FakeCapturer:
+            def capture_frame(self):
+                return None
+
+        class _FakeBuffer:
+            def __init__(self, max_frames=30):
+                self.max_frames = max_frames
+            def add_frame(self, _frame, metadata=None):
+                return 0
+
+        class _FakeFusion:
+            def calculate_scene_score(self, _frame, current_ocr_text=""):
+                return 0.0
+
+        class _FakeRhythm:
+            def add_score(self, _score):
+                return
+            def classify_mode(self):
+                return "Idle"
+
+        class _FakePrivacy:
+            def redact(self, text):
+                return text
+
+        fake_modules = {
+            "python.modules.perception.capturer": type("M", (), {"ScreenCapturer": lambda *args, **kwargs: _FakeCapturer()}),
+            "python.modules.perception.buffer": type("M", (), {"FrameBuffer": _FakeBuffer}),
+            "python.modules.perception.fusion": type("M", (), {"SceneChangeDetector": _FakeFusion, "RhythmAnalyzer": _FakeRhythm}),
+            "python.modules.perception.safety": type("M", (), {"PrivacyRedactor": _FakePrivacy}),
+        }
+
+        with mock.patch(
+            "python.modules.perception.coordinator.import_module",
+            side_effect=lambda name: fake_modules[name],
+        ), mock.patch.object(vision, "_try_enable_rust_acceleration", return_value=None):
+            vision.start()
+            vision.stop()
+
+        self.assertTrue(vision._capture_enabled)
+
+    def test_stop_is_idempotent_without_started_thread(self):
+        vision = VisionSubsystem(monitor_index=1)
+        vision.stop()
+        vision.stop()
         self.assertFalse(vision._running)
 
 if __name__ == "__main__":

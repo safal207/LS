@@ -144,6 +144,11 @@ Logging note:
 - Initialize Python logging (e.g. `logging.basicConfig(...)`) before importing
   `ghostgpt_core` to reliably surface Rust logs bridged through `pyo3-log`.
 
+
+**Rust frame-buffer access guidance:**
+- Use `latest_frame_info()` / `get_latest_frame_metadata()` for polling frame ids and dimensions.
+- Use `latest_frame()` only when byte payload is required, because it clones RGB bytes for Python interop.
+
 Benchmark entrypoint:
 
 ```bash

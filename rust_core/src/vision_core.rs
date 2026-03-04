@@ -198,6 +198,10 @@ impl RustFrameBuffer {
     }
 
     /// Returns the most recently added frame, cloning bytes for Python interop compatibility.
+    ///
+    /// # Performance note
+    /// This call clones the frame payload (e.g. ~6MB for a 1920x1080 RGB frame).
+    /// For metadata-only access in hot paths, prefer `latest_frame_info()`.
     pub fn latest_frame(&self) -> PyResult<Option<(u64, Vec<u8>, usize, usize)>> {
         let inner = self.inner.lock().map_err(|_| {
             pyo3::exceptions::PyRuntimeError::new_err("frame buffer mutex poisoned")
@@ -220,7 +224,7 @@ pub struct VisionPipeline {
     detector: RustSceneChangeDetector,
     rhythm: RustRhythmAnalyzer,
     running: AtomicBool,
-    last_activity: Option<String>,
+    last_activity: Mutex<Option<String>>,
 }
 
 #[pymethods]
@@ -232,7 +236,7 @@ impl VisionPipeline {
             detector: RustSceneChangeDetector::new(),
             rhythm: RustRhythmAnalyzer::new(10).expect("valid default window"),
             running: AtomicBool::new(false),
-            last_activity: None,
+            last_activity: Mutex::new(None),
         }
     }
 
@@ -282,9 +286,12 @@ impl VisionPipeline {
         self.rhythm.add_score(score);
         let activity = self.rhythm.classify_mode();
 
-        if self.last_activity.as_deref() != Some(activity.as_str()) {
+        let mut last_activity = self.last_activity.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("last_activity mutex poisoned")
+        })?;
+        if last_activity.as_deref() != Some(activity.as_str()) {
             debug!("VisionPipeline activity changed to {activity}");
-            self.last_activity = Some(activity.clone());
+            *last_activity = Some(activity.clone());
         }
         if score >= 0.8 {
             warn!("VisionPipeline high scene score detected: {score:.3}");

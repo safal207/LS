@@ -87,13 +87,23 @@ class VisionSubsystem:
         self.auto_trigger = AutoTrigger(threshold=0.5)
         self.arl = CognitiveOverlay()
 
+        self._state_lock = threading.Lock()
+        self._monitor_index = int(monitor_index)
         self._running = False
         self._capture_enabled = True
         self._thread: Optional[threading.Thread] = None
         self._last_degraded_log_ts = 0.0
 
-        self._fallback_to_python_components(monitor_index)
-        self._try_enable_rust_acceleration(monitor_index)
+        self._fallback_to_python_components(self._monitor_index)
+        self._try_enable_rust_acceleration(self._monitor_index)
+
+    def _is_running(self) -> bool:
+        with self._state_lock:
+            return self._running
+
+    def _set_capture_enabled(self, enabled: bool) -> None:
+        with self._state_lock:
+            self._capture_enabled = enabled
 
     def _try_enable_rust_acceleration(self, monitor_index: int) -> None:
         try:
@@ -122,21 +132,41 @@ class VisionSubsystem:
 
     def start(self):
         """Starts the vision subsystem loop."""
-        if self._running:
-            return
-        if not self._capture_enabled:
-            logger.warning("VisionSubsystem cannot start: capture stack is unavailable.")
-            return
-        self._running = True
-        self._thread = threading.Thread(target=self._run_loop, daemon=True)
-        self._thread.start()
+        with self._state_lock:
+            if self._running:
+                return
+            needs_retry = not self._capture_enabled
+
+        if needs_retry:
+            self._fallback_to_python_components(self._monitor_index)
+            if self._capture_enabled:
+                self._try_enable_rust_acceleration(self._monitor_index)
+
+        with self._state_lock:
+            if self._running:
+                return
+            if not self._capture_enabled:
+                logger.warning("VisionSubsystem cannot start: capture stack is unavailable.")
+                return
+            self._running = True
+            self._thread = threading.Thread(target=self._run_loop, daemon=True)
+            thread = self._thread
+
+        thread.start()
         logger.info("VisionSubsystem started.")
 
     def stop(self):
         """Stops the vision subsystem loop."""
-        self._running = False
-        if self._thread:
-            self._thread.join(timeout=2.0)
+        with self._state_lock:
+            if not self._running:
+                logger.debug("VisionSubsystem already stopped.")
+                return
+            self._running = False
+            thread = self._thread
+            self._thread = None
+
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=2.0)
         logger.info("VisionSubsystem stopped.")
 
     def close(self):
@@ -175,18 +205,18 @@ class VisionSubsystem:
             self.fusion = fusion_module.SceneChangeDetector()
             self.rhythm = fusion_module.RhythmAnalyzer()
             self.privacy = safety_module.PrivacyRedactor()
-            self._capture_enabled = True
+            self._set_capture_enabled(True)
             logger.info("VisionSubsystem initialized Python perception components.")
         except (ModuleNotFoundError, AttributeError) as dep_error:
-            logger.error(
-                "Python perception components unavailable: %s. Vision capture disabled.", dep_error
+            logger.warning(
+                "Python perception components unavailable: %s. Will retry on next start().",
+                dep_error,
             )
-            self._capture_enabled = False
-            self._running = False
+            self._set_capture_enabled(False)
 
     def _run_loop(self):
         """Main vision processing cycle."""
-        while self._running:
+        while self._is_running():
             try:
                 if self.capturer is None:
                     now = time.time()

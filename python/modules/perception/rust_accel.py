@@ -151,3 +151,11 @@ class RustFrameBufferAdapter:
 
     def get_metadata(self, frame_id: int) -> Optional[dict]:
         return self._metadata_by_id.get(frame_id)
+
+    def get_latest_frame_metadata(self) -> Optional[Tuple[int, int, int]]:
+        """Get latest frame metadata (id, width, height) without cloning frame bytes."""
+        latest = self._buffer.latest_frame_info()
+        if latest is None:
+            return None
+        frame_id, width, height = latest
+        return int(frame_id), int(width), int(height)
