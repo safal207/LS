@@ -1,6 +1,7 @@
 import unittest
 import time
 import numpy as np
+from unittest import mock
 from python.modules.perception.coordinator import VisionSubsystem
 from python.modules.perception.arl import VisualHint
 
@@ -63,6 +64,22 @@ class TestVisionSubsystem(unittest.TestCase):
         hints[0].timestamp = time.time() - 10.0
         active_hints = arl.get_active_hints()
         self.assertEqual(len(active_hints), 0)
+
+    def test_fallback_uses_python_components_when_available(self):
+        vision = VisionSubsystem(monitor_index=1)
+        self.assertIsNotNone(vision.capturer)
+        self.assertIsNotNone(vision.buffer)
+
+    def test_degraded_mode_when_component_init_fails(self):
+        with mock.patch(
+            "python.modules.perception.coordinator.ScreenCapturer",
+            side_effect=ModuleNotFoundError("missing screen backend"),
+        ):
+            vision = VisionSubsystem(monitor_index=1)
+
+        self.assertIsNone(vision.capturer)
+        self.assertEqual(type(vision.buffer).__name__, "_FallbackFrameBuffer")
+        self.assertFalse(vision._running)
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,19 +2,54 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from .bus import PerceptionEventBus, CortexIntentBus
 from .blackboard import SessionBlackboard
-from .capturer import ScreenCapturer
 from .detector import WindowDetector
-from .buffer import FrameBuffer
-from .safety import PrivacyRedactor, ConsentManager, AuditLog
-from .fusion import SceneChangeDetector, RhythmAnalyzer
+from .safety import ConsentManager, AuditLog
 from .cortex import AttentionPolicy, AutoTrigger
 from .arl import CognitiveOverlay
 
+try:
+    from .capturer import ScreenCapturer
+    from .buffer import FrameBuffer
+    from .fusion import SceneChangeDetector, RhythmAnalyzer
+    from .safety import PrivacyRedactor
+except ModuleNotFoundError:  # pragma: no cover - exercised via monkeypatch in tests
+    ScreenCapturer = None
+    FrameBuffer = None
+    SceneChangeDetector = None
+    RhythmAnalyzer = None
+    PrivacyRedactor = None
+
 logger = logging.getLogger(__name__)
+
+
+class _FallbackFrameBuffer:
+    def __init__(self, max_frames: int = 30):
+        self.max_frames = max_frames
+
+    def add_frame(self, *_args: Any, **_kwargs: Any) -> str:
+        return "fallback_frame_0"
+
+
+class _FallbackSceneChangeDetector:
+    def calculate_scene_score(self, *_args: Any, **_kwargs: Any) -> float:
+        return 0.0
+
+
+class _FallbackRhythmAnalyzer:
+    def add_score(self, _score: float) -> None:
+        return
+
+    def classify_mode(self) -> str:
+        return "Idle"
+
+
+class _NoopPrivacyRedactor:
+    def redact(self, text: str) -> str:
+        return text
 
 class VisionSubsystem:
     """The central coordinator for all vision-related perception layers."""
@@ -25,18 +60,18 @@ class VisionSubsystem:
         self.blackboard = SessionBlackboard()
 
         # 2. Perception Layer
-        self.capturer = ScreenCapturer(monitor_index=monitor_index)
         self.detector = WindowDetector()
-        self.buffer = FrameBuffer(max_frames=30)
+        self.capturer = None
+        self.buffer = None
 
         # 3. Safety Gate (Layer 16)
-        self.privacy = PrivacyRedactor()
+        self.privacy = _NoopPrivacyRedactor()
         self.consent = ConsentManager()
         self.audit = AuditLog()
 
         # 4. Temporal Fusion (Layer 15)
-        self.fusion = SceneChangeDetector()
-        self.rhythm = RhythmAnalyzer()
+        self.fusion = _FallbackSceneChangeDetector()
+        self.rhythm = _FallbackRhythmAnalyzer()
 
         # 5. Proactive Cortex (Layer 13)
         self.policy = AttentionPolicy(max_requests_per_min=5)
@@ -47,6 +82,7 @@ class VisionSubsystem:
 
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        self._fallback_to_python_components(monitor_index)
 
     def start(self):
         """Starts the vision subsystem loop."""
@@ -68,6 +104,11 @@ class VisionSubsystem:
         """Main vision processing cycle."""
         while self._running:
             try:
+                if self.capturer is None:
+                    logger.error("VisionSubsystem capturer unavailable, stopping processing loop.")
+                    self._running = False
+                    break
+
                 # Cycle start
                 # 1. Capture screen context
                 window_context = self.detector.get_active_window()
@@ -109,3 +150,30 @@ class VisionSubsystem:
             except Exception as e:
                 logger.error(f"Error in VisionSubsystem loop: {e}")
                 time.sleep(1.0)
+
+    def _fallback_to_python_components(self, monitor_index: int) -> None:
+        """Initialize Python vision components if available, otherwise disable capture loop."""
+        try:
+            if ScreenCapturer is None or FrameBuffer is None:
+                raise ModuleNotFoundError("capturer/buffer modules unavailable")
+
+            self.capturer = ScreenCapturer(monitor_index=monitor_index)
+            self.buffer = FrameBuffer(max_frames=30)
+
+            if SceneChangeDetector is not None:
+                self.fusion = SceneChangeDetector()
+            if RhythmAnalyzer is not None:
+                self.rhythm = RhythmAnalyzer()
+            if PrivacyRedactor is not None:
+                self.privacy = PrivacyRedactor()
+
+            logger.info("VisionSubsystem initialized Python perception components.")
+        except Exception as dep_error:
+            logger.error(
+                "Python perception components unavailable: %s. Vision capture disabled.", dep_error
+            )
+            self.capturer = None
+            self.buffer = _FallbackFrameBuffer(max_frames=30)
+            self.fusion = _FallbackSceneChangeDetector()
+            self.rhythm = _FallbackRhythmAnalyzer()
+            self._running = False
