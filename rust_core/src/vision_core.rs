@@ -723,6 +723,7 @@ mod tests {
     #[test]
     fn pipeline_process_frame_returns_activity_and_resolution() {
         let mut pipeline = VisionPipeline::new(1);
+        pipeline.start();
         let frame = frame(64, 64, 1);
         let result = pipeline
             .process_frame(

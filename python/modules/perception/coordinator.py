@@ -113,6 +113,12 @@ class VisionSubsystem:
             self.privacy = RustPrivacyAdapter()
             self.fusion = RustSceneChangeAdapter()
             self.rhythm = RustRhythmAdapter()
+            if self.capturer is None:
+                logger.warning(
+                    "Rust pipeline initialized but no capturer is available; disabling pipeline."
+                )
+                self.pipeline.stop()
+                self.pipeline = None
         except Exception as rust_error:
             logger.info("Using non-Rust vision path: %s", rust_error)
 
@@ -164,11 +170,11 @@ class VisionSubsystem:
         """Main vision processing cycle."""
         while self._running:
             try:
-                if self.capturer is None and self.pipeline is None:
+                if self.capturer is None:
                     now = time.time()
                     if now - self._last_degraded_log_ts >= 60.0:
                         logger.warning(
-                            "Vision subsystem remains in degraded mode (no capturer or pipeline available)."
+                            "Vision subsystem remains in degraded mode (capturer unavailable)."
                         )
                         self._last_degraded_log_ts = now
                     time.sleep(1.0)
@@ -188,17 +194,13 @@ class VisionSubsystem:
                 )
 
                 if self.pipeline is not None:
-                    frame_id = None
-                    if self.capturer is not None:
-                        frame_data = self.capturer.capture_frame()
-                        if frame_data is None:
-                            continue
-                        frame_id = self.buffer.add_frame(frame_data, metadata=window_context)
-                        self.event_bus.emit(
-                            "FrameCaptured", {"frame_id": frame_id, "window": window_context}
-                        )
-                    else:
-                        frame_data = None
+                    frame_data = self.capturer.capture_frame()
+                    if frame_data is None:
+                        continue
+                    frame_id = self.buffer.add_frame(frame_data, metadata=window_context)
+                    self.event_bus.emit(
+                        "FrameCaptured", {"frame_id": frame_id, "window": window_context}
+                    )
 
                     scene_score, current_activity, _, _ = self.pipeline.process_frame(
                         frame_data,

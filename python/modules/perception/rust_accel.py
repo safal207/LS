@@ -43,21 +43,17 @@ class RustVisionPipeline:
 
         self._core = ghostgpt_core.VisionPipeline(int(monitor_index))
         self._core.start()
-        self.capturer = None
 
     def stop(self) -> None:
         self._core.stop()
 
     def process_frame(
         self,
-        frame_data: Any = None,
+        frame_data: Any,
         current_ocr_text: str = "",
         mode: Optional[str] = None,
     ) -> Tuple[float, str, int, int]:
-        if frame_data is None:
-            frame_rgb, w, h = b"", 0, 0
-        else:
-            frame_rgb, w, h = _frame_to_rgb_bytes(frame_data)
+        frame_rgb, w, h = _frame_to_rgb_bytes(frame_data)
         score, activity, target_w, target_h = self._core.process_frame(
             frame_rgb,
             int(w),
