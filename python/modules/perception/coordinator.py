@@ -62,7 +62,7 @@ class _FallbackRhythmAnalyzer:
 class _NoopPrivacyRedactor:
     _EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
     _PHONE_RE = re.compile(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b")
-    _PASSWORD_RE = re.compile(r"(?i)(password|passwd|pass|secret)[:= ]+[^\s]+")
+    _PASSWORD_RE = re.compile(r"(?i)(password|passwd|secret)[:= ]+[^\s]+")
 
     def __init__(self) -> None:
         self._warned = False
@@ -112,6 +112,7 @@ class VisionSubsystem:
         self._capture_enabled = True
         self._thread: Optional[threading.Thread] = None
         self._last_degraded_log_ts = 0.0
+        self._ocr_unavailable_warned = False
 
         self._fallback_to_python_components(self._monitor_index)
         self._try_enable_rust_acceleration(self._monitor_index)
@@ -246,13 +247,23 @@ class VisionSubsystem:
             self._capture_enabled = False
 
     def _extract_ocr_text(self, frame_data: Any) -> str:
-        if self.capturer is not None and hasattr(self.capturer, "extract_ocr_text"):
-            try:
-                ocr_text = self.capturer.extract_ocr_text(frame_data)
-                return str(ocr_text or "")
-            except Exception as ocr_error:
-                logger.debug("OCR extraction failed: %s", ocr_error)
-        return ""
+        if self.capturer is None:
+            return ""
+
+        if not hasattr(self.capturer, "extract_ocr_text"):
+            if not self._ocr_unavailable_warned:
+                logger.info(
+                    "Capturer has no extract_ocr_text(); OCR delta disabled for current backend."
+                )
+                self._ocr_unavailable_warned = True
+            return ""
+
+        try:
+            ocr_text = self.capturer.extract_ocr_text(frame_data)
+            return str(ocr_text or "")
+        except Exception as ocr_error:
+            logger.debug("OCR extraction failed: %s", ocr_error)
+            return ""
 
     def _resize_frame_for_mode(self, frame_data: Any, mode: str) -> Any:
         target_by_mode = {
@@ -274,7 +285,17 @@ class VisionSubsystem:
 
             return cv2.resize(frame_data, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
         except Exception:
-            return frame_data
+            try:
+                import numpy as np
+
+                y_idx = np.linspace(0, frame_h - 1, target_h).astype(int)
+                x_idx = np.linspace(0, frame_w - 1, target_w).astype(int)
+                return frame_data[np.ix_(y_idx, x_idx)]
+            except Exception:
+                logger.warning(
+                    "Adaptive resize unavailable (cv2/numpy path failed); using original frame dimensions."
+                )
+                return frame_data
 
     def _run_loop(self):
         """Main vision processing cycle."""

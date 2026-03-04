@@ -267,3 +267,28 @@ def test_rust_python_scene_score_real_like_resized_parity() -> None:
     rs_score = rs_detector.calculate_scene_score(f2, "")
 
     assert abs(py_score - rs_score) < 0.15
+
+
+@pytest.mark.skipif(not _rust_available(), reason="Rust ghostgpt_core not compiled")
+def test_rust_python_scene_score_real_like_resized_parity_with_ocr() -> None:
+    from python.modules.perception.rust_accel import RustSceneChangeAdapter
+
+    py_detector = SceneChangeDetector()
+    rs_detector = RustSceneChangeAdapter()
+
+    rng = np.random.default_rng(17)
+    frame1 = rng.integers(0, 255, size=(240, 320, 3), dtype=np.uint8)
+    frame2 = np.roll(frame1, shift=5, axis=0)
+
+    import cv2
+
+    f1 = cv2.resize(frame1, (48, 48), interpolation=cv2.INTER_NEAREST)
+    f2 = cv2.resize(frame2, (48, 48), interpolation=cv2.INTER_NEAREST)
+
+    py_detector.calculate_scene_score(f1, "status idle")
+    rs_detector.calculate_scene_score(f1, "status idle")
+
+    py_score = py_detector.calculate_scene_score(f2, "status busy")
+    rs_score = rs_detector.calculate_scene_score(f2, "status busy")
+
+    assert abs(py_score - rs_score) < 0.20

@@ -734,11 +734,7 @@ fn redact_password(text: &str) -> String {
         };
 
         let lower = line.to_ascii_lowercase();
-        if lower.contains("password")
-            || lower.contains("passwd")
-            || lower.contains("pass")
-            || lower.contains("secret")
-        {
+        if lower.contains("password") || lower.contains("passwd") || lower.contains("secret") {
             if let Some((prefix, _)) = line.split_once(':') {
                 out.push_str(prefix);
                 out.push_str(": [REDACTED_PASSWORD]");

@@ -154,11 +154,26 @@ class TestVisionSubsystem(unittest.TestCase):
 
     def test_noop_privacy_redactor_masks_common_pii(self):
         redactor = _NoopPrivacyRedactor()
-        text = "email test@example.com phone 123-456-7890 pass: hunter2"
+        text = "email test@example.com phone 123-456-7890 secret: hunter2"
         redacted = redactor.redact(text)
         self.assertIn("[REDACTED_EMAIL]", redacted)
         self.assertIn("[REDACTED_PHONE]", redacted)
         self.assertIn("[REDACTED_PASSWORD]", redacted)
+
+
+    def test_extract_ocr_text_logs_when_ocr_unavailable(self):
+        vision = VisionSubsystem(monitor_index=1)
+
+        class _NoOcrCapturer:
+            def capture_frame(self):
+                return np.zeros((8, 8, 3), dtype=np.uint8)
+
+        vision.capturer = _NoOcrCapturer()
+        with self.assertLogs("python.modules.perception.coordinator", level="INFO") as logs:
+            text = vision._extract_ocr_text(np.zeros((8, 8, 3), dtype=np.uint8))
+
+        self.assertEqual(text, "")
+        self.assertTrue(any("extract_ocr_text" in msg for msg in logs.output))
 
     def test_ocr_redaction_occurs_after_capture(self):
         vision = VisionSubsystem(monitor_index=1)
@@ -181,12 +196,11 @@ class TestVisionSubsystem(unittest.TestCase):
                 if self.calls == 1:
                     self.last_frame = np.ones((32, 32, 3), dtype=np.uint8)
                     return self.last_frame
-                vision.stop()
                 return None
 
             def extract_ocr_text(self, frame):
                 if frame is self.last_frame:
-                    return "pass: secret123"
+                    return "password: secret123"
                 return ""
 
         class _Fusion:
@@ -209,7 +223,25 @@ class TestVisionSubsystem(unittest.TestCase):
         while vision._running and time.time() < deadline:
             time.sleep(0.05)
 
+        vision.stop()
         self.assertIn("[REDACTED_PASSWORD]", vision.fusion.seen_ocr)
+
+
+    def test_resize_frame_for_mode_without_cv2_uses_numpy_fallback(self):
+        vision = VisionSubsystem(monitor_index=1)
+        frame = np.zeros((120, 160, 3), dtype=np.uint8)
+        import builtins
+        real_import = builtins.__import__
+        with mock.patch("builtins.__import__") as import_mock:
+            def _side_effect(name, *args, **kwargs):
+                if name == "cv2":
+                    raise ModuleNotFoundError("cv2 missing")
+                return real_import(name, *args, **kwargs)
+            import_mock.side_effect = _side_effect
+            resized = vision._resize_frame_for_mode(frame, "Coding")
+
+        self.assertEqual(resized.shape[0], 48)
+        self.assertEqual(resized.shape[1], 48)
 
     def test_rust_fallback_when_capturer_missing(self):
         vision = VisionSubsystem(monitor_index=1)
