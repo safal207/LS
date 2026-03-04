@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - "main"
-    paths:
+    paths: &web4_runtime_paths
       - "python/modules/web4_runtime/**"
       - "python/modules/web4_mesh/**"
       - "python/modules/web4_graph/**"
@@ -38,41 +38,16 @@ on:
   pull_request:
     branches:
       - "main"
-    paths:
-      - "python/modules/web4_runtime/**"
-      - "python/modules/web4_mesh/**"
-      - "python/modules/web4_graph/**"
-      - "python/modules/web4_bio/**"
-      - "python/modules/hexagon_core/**"
-      - "python/tests/test_web4_runtime.py"
-      - "python/tests/test_web4_transport.py"
-      - "python/tests/test_web4_federation_policy.py"
-      - "python/tests/test_global_flow.py"
-      - "python/tests/test_async_rtt.py"
-      - "python/tests/test_fuzzy_runtime.py"
-      - "python/tests/test_web4_runtime_loadtest.py"
-      - "python/tests/test_web4_mesh.py"
-      - "python/tests/test_web4_graph.py"
-      - "python/tests/test_web4_interoperability.py"
-      - "python/tests/test_web4_bio.py"
-      - "python/tests/test_temporal_index.py"
-      - "python/tests/test_belief_system.py"
-      - "python/tests/test_circuit_breaker.py"
-      - "python/tests/test_mission_state.py"
-      - "python/tests/test_rust_bridge.py"
-      - "python/tests/test_api_parity.py"
-      - "scripts/web4_demo.py"
-      - "scripts/web4_mesh_demo.py"
-      - "scripts/web4meshdemo.py"
-      - "scripts/web4meshinspect.py"
-      - "scripts/web4meshtopology.py"
-      - "scripts/web4_runtime_load.py"
-      - "rust_core/**"
-      - ".github/workflows/web4_runtime_ci.yml"
+    paths: *web4_runtime_paths
+
+concurrency:
+  group: web4-runtime-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   web4-runtime:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -80,7 +55,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
+          cache: pip
 
       - name: Install system dependencies
         run: |
@@ -125,7 +100,6 @@ jobs:
       - name: Rust lint (clippy)
         working-directory: rust_core
         run: cargo clippy --all-targets --all-features -- -D warnings
-
 
       - name: Test Rust Python Bridge
         run: |
