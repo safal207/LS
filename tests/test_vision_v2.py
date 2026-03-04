@@ -243,6 +243,37 @@ class TestVisionSubsystem(unittest.TestCase):
         self.assertEqual(resized.shape[0], 48)
         self.assertEqual(resized.shape[1], 48)
 
+
+    def test_rust_frame_buffer_adapter_eviction_cleans_metadata(self):
+        from python.modules.perception import rust_accel
+
+        class _FakeRustFrameBuffer:
+            def __init__(self, _max_frames):
+                self._id = 0
+
+            def add_frame(self, _frame_rgb, _w, _h):
+                current = self._id
+                self._id += 1
+                return current
+
+            def latest_frame_info(self):
+                return None
+
+        class _FakeCore:
+            RustFrameBuffer = _FakeRustFrameBuffer
+
+        with mock.patch.object(rust_accel, "ghostgpt_core", _FakeCore()):
+            adapter = rust_accel.RustFrameBufferAdapter(max_frames=2)
+            frame = np.zeros((8, 8, 3), dtype=np.uint8)
+            id0 = adapter.add_frame(frame, metadata={"id": 0})
+            id1 = adapter.add_frame(frame, metadata={"id": 1})
+            _id2 = adapter.add_frame(frame, metadata={"id": 2})
+
+        self.assertEqual(id0, 0)
+        self.assertEqual(id1, 1)
+        self.assertIsNone(adapter.get_metadata(0))
+        self.assertEqual(adapter.get_metadata(1), {"id": 1})
+
     def test_rust_fallback_when_capturer_missing(self):
         vision = VisionSubsystem(monitor_index=1)
         vision.capturer = None

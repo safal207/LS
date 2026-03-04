@@ -14,6 +14,10 @@ type FrameInfo = (u64, usize, usize);
 type FramePacketOwned = (u64, Vec<u8>, usize, usize);
 
 #[pyclass]
+/// Scene-change detector used by Python and the Rust pipeline.
+///
+/// Performance note: this detector computes SSIM on the input dimensions it receives.
+/// For high-throughput use, prefer passing adaptively resized frames (as VisionPipeline does).
 pub struct RustSceneChangeDetector {
     last_frame: Option<Vec<u8>>,
     last_width: usize,
@@ -747,6 +751,12 @@ fn redact_password(text: &str) -> String {
                 out.push_str(newline);
                 continue;
             }
+            if let Some(keyword_end) = find_space_separated_password_keyword_end(&lower) {
+                out.push_str(&line[..keyword_end]);
+                out.push_str(" [REDACTED_PASSWORD]");
+                out.push_str(newline);
+                continue;
+            }
         }
 
         out.push_str(line);
@@ -758,6 +768,34 @@ fn redact_password(text: &str) -> String {
     }
 
     out
+}
+
+fn find_space_separated_password_keyword_end(lower: &str) -> Option<usize> {
+    let keywords = ["password", "passwd", "secret"];
+    let lower_bytes = lower.as_bytes();
+
+    for keyword in keywords {
+        for (idx, _) in lower.match_indices(keyword) {
+            let before_ok = idx == 0 || !lower_bytes[idx - 1].is_ascii_alphanumeric();
+            let after_idx = idx + keyword.len();
+            if !before_ok || after_idx >= lower_bytes.len() {
+                continue;
+            }
+            if !lower_bytes[after_idx].is_ascii_whitespace() {
+                continue;
+            }
+            let mut j = after_idx;
+            while j < lower_bytes.len() && lower_bytes[j].is_ascii_whitespace() {
+                j += 1;
+            }
+            if j >= lower_bytes.len() {
+                continue;
+            }
+            return Some(after_idx);
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -856,6 +894,18 @@ mod tests {
         let text = "service endpoint 192.168.1.100:8080 is reachable".to_string();
         let redacted = redactor.redact(text.clone());
         assert_eq!(redacted, text);
+    }
+
+    #[test]
+    fn redact_password_with_space_separator() {
+        let redacted = redact_password("password hunter2");
+        assert_eq!(redacted, "password [REDACTED_PASSWORD]");
+    }
+
+    #[test]
+    fn redact_password_does_not_match_partial_words() {
+        let redacted = redact_password("compass north");
+        assert_eq!(redacted, "compass north");
     }
 
     #[test]

@@ -161,6 +161,10 @@ class RustFrameBufferAdapter:
         frame_rgb, w, h = _frame_to_rgb_buffer(frame_data)
         frame_id = int(self._buffer.add_frame(frame_rgb, int(w), int(h)))
 
+        if len(self._metadata_order) == self._metadata_order.maxlen:
+            evicted_id = self._metadata_order[0]
+            self._metadata_by_id.pop(evicted_id, None)
+
         self._metadata_order.append(frame_id)
         self._metadata_by_id[frame_id] = metadata
         return frame_id
