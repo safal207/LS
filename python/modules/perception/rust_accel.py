@@ -33,10 +33,12 @@ def _frame_to_rgb_buffer(frame: Any) -> Tuple[Any, int, int]:
 
     try:
         view = memoryview(frame)
+        if not view.c_contiguous:
+            raise BufferError("frame buffer is not C-contiguous")
         if view.ndim > 1:
             view = view.cast("B")
         return view, width, height
-    except TypeError:
+    except (TypeError, BufferError):
         pass
 
     if hasattr(frame, "tobytes"):

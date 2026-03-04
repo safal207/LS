@@ -34,6 +34,7 @@ use web4_runtime::Web4RttBinding;
 
 #[pymodule]
 fn ghostgpt_core(_py: Python, m: &PyModule) -> PyResult<()> {
+    let _ = pyo3_log::try_init();
     m.add_class::<AdaptiveGovernor>()?;
     m.add_class::<FuzzyCoherenceConfig>()?;
     m.add_class::<FuzzyBackpressureConfig>()?;

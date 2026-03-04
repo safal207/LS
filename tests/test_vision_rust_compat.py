@@ -110,3 +110,31 @@ def test_rust_api_surface_contract() -> None:
     assert hasattr(pipeline, "start")
     assert hasattr(pipeline, "stop")
     assert hasattr(pipeline, "process_frame")
+
+
+@pytest.mark.skipif(not _rust_available(), reason="Rust ghostgpt_core not compiled")
+def test_rust_python_scene_score_sequence_compatibility() -> None:
+    from python.modules.perception.rust_accel import RustSceneChangeAdapter
+
+    py_detector = SceneChangeDetector()
+    rs_detector = RustSceneChangeAdapter()
+
+    sequence = [
+        np.zeros((64, 64, 3), dtype=np.uint8),
+        np.ones((64, 64, 3), dtype=np.uint8) * 32,
+        np.ones((64, 64, 3), dtype=np.uint8) * 64,
+        np.ones((64, 64, 3), dtype=np.uint8) * 96,
+    ]
+
+    py_scores = [py_detector.calculate_scene_score(frame, "") for frame in sequence]
+    rs_scores = [rs_detector.calculate_scene_score(frame, "") for frame in sequence]
+
+    for idx, (py_score, rs_score) in enumerate(zip(py_scores, rs_scores)):
+        assert abs(py_score - rs_score) < 0.10, (
+            f"Frame #{idx}: Python={py_score:.3f} vs Rust={rs_score:.3f}"
+        )
+
+    # Both implementations should react to a gradual change sequence
+    # with non-flat deltas beyond the initial warm-up frame.
+    assert max(py_scores[1:]) > min(py_scores[1:])
+    assert max(rs_scores[1:]) > min(rs_scores[1:])

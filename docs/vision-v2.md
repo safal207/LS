@@ -100,6 +100,13 @@ All ARL outputs include `grounding_refs` to link the suggestion back to specific
 - NumPy array (or ndarray-like object with `.shape` and `.tobytes()`)
 - Shape `(H, W, 3)` or `(H, W, C)` where `C >= 3`
 - `dtype=uint8`, channel order RGB (first 3 channels used)
+- Note: for zero-copy via `memoryview`, frame buffers should be C-contiguous.
+  Non-contiguous inputs are currently copied during conversion.
+
+**Scene score parity note (Python vs Rust):**
+- Current compatibility target is absolute delta `< 0.10` in tests.
+- Small divergence is acceptable due to implementation details (hashing/SSIM numerics)
+  and does not block adaptive-trigger behavior in this release.
 
 Build/install Rust extension for Python (local dev):
 
