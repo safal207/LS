@@ -93,52 +93,21 @@ class TestVisionSubsystem(unittest.TestCase):
         self.assertFalse(vision._running)
 
     def test_start_retries_component_initialization(self):
-        with mock.patch(
-            "python.modules.perception.coordinator.import_module",
-            side_effect=ModuleNotFoundError("missing screen backend"),
+        vision = VisionSubsystem(monitor_index=1)
+        vision._capture_enabled = False
+        with mock.patch.object(
+            vision,
+            "_fallback_to_python_components",
+            side_effect=lambda _monitor_index: setattr(vision, "_capture_enabled", True),
+        ) as mock_fallback, mock.patch.object(
+            vision,
+            "_try_enable_rust_acceleration",
+            return_value=None,
         ):
-            vision = VisionSubsystem(monitor_index=1)
-
-        self.assertFalse(vision._capture_enabled)
-
-        class _FakeCapturer:
-            def capture_frame(self):
-                return None
-
-        class _FakeBuffer:
-            def __init__(self, max_frames=30):
-                self.max_frames = max_frames
-            def add_frame(self, _frame, metadata=None):
-                return 0
-
-        class _FakeFusion:
-            def calculate_scene_score(self, _frame, current_ocr_text=""):
-                return 0.0
-
-        class _FakeRhythm:
-            def add_score(self, _score):
-                return
-            def classify_mode(self):
-                return "Idle"
-
-        class _FakePrivacy:
-            def redact(self, text):
-                return text
-
-        fake_modules = {
-            "python.modules.perception.capturer": type("M", (), {"ScreenCapturer": lambda *args, **kwargs: _FakeCapturer()}),
-            "python.modules.perception.buffer": type("M", (), {"FrameBuffer": _FakeBuffer}),
-            "python.modules.perception.fusion": type("M", (), {"SceneChangeDetector": _FakeFusion, "RhythmAnalyzer": _FakeRhythm}),
-            "python.modules.perception.safety": type("M", (), {"PrivacyRedactor": _FakePrivacy}),
-        }
-
-        with mock.patch(
-            "python.modules.perception.coordinator.import_module",
-            side_effect=lambda name: fake_modules[name],
-        ), mock.patch.object(vision, "_try_enable_rust_acceleration", return_value=None):
             vision.start()
             vision.stop()
 
+        mock_fallback.assert_called_once_with(1)
         self.assertTrue(vision._capture_enabled)
 
     def test_stop_is_idempotent_without_started_thread(self):
@@ -146,6 +115,77 @@ class TestVisionSubsystem(unittest.TestCase):
         vision.stop()
         vision.stop()
         self.assertFalse(vision._running)
+
+    def test_close_releases_resources_and_is_idempotent(self):
+        vision = VisionSubsystem(monitor_index=1)
+
+        class _FakePipeline:
+            def __init__(self):
+                self.stops = 0
+
+            def stop(self):
+                self.stops += 1
+
+        fake_pipeline = _FakePipeline()
+        vision.pipeline = fake_pipeline
+        vision.start()
+        vision.close()
+
+        self.assertFalse(vision._running)
+        self.assertIsNone(vision.pipeline)
+        self.assertEqual(fake_pipeline.stops, 1)
+
+        vision.close()
+        self.assertFalse(vision._running)
+
+    def test_context_manager_closes_on_normal_exit(self):
+        with VisionSubsystem(monitor_index=1) as vision:
+            self.assertTrue(vision._running)
+
+        self.assertFalse(vision._running)
+        self.assertIsNone(vision.pipeline)
+
+    def test_context_manager_propagates_exception_and_closes(self):
+        with self.assertRaises(ValueError):
+            with VisionSubsystem(monitor_index=1) as vision:
+                self.assertTrue(vision._running)
+                raise ValueError("boom")
+
+        self.assertFalse(vision._running)
+
+    def test_rust_fallback_when_capturer_missing(self):
+        vision = VisionSubsystem(monitor_index=1)
+        vision.capturer = None
+        pipeline_holder = {}
+
+        class _FakePipeline:
+            def __init__(self, monitor_index=1):
+                self.stopped = False
+                pipeline_holder["pipeline"] = self
+
+            def stop(self):
+                self.stopped = True
+
+        with mock.patch(
+            "python.modules.perception.rust_accel.RustVisionPipeline",
+            _FakePipeline,
+        ), mock.patch(
+            "python.modules.perception.rust_accel.RustFrameBufferAdapter",
+            lambda max_frames=30: object(),
+        ), mock.patch(
+            "python.modules.perception.rust_accel.RustPrivacyAdapter",
+            lambda: object(),
+        ), mock.patch(
+            "python.modules.perception.rust_accel.RustSceneChangeAdapter",
+            lambda: object(),
+        ), mock.patch(
+            "python.modules.perception.rust_accel.RustRhythmAdapter",
+            lambda: object(),
+        ):
+            vision._try_enable_rust_acceleration(1)
+
+        self.assertTrue(pipeline_holder["pipeline"].stopped)
+        self.assertIsNone(vision.pipeline)
 
 if __name__ == "__main__":
     unittest.main()

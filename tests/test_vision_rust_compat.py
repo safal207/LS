@@ -114,6 +114,13 @@ def test_rust_api_surface_contract() -> None:
     buffer = ghostgpt_core.RustFrameBuffer(4)
     assert hasattr(buffer, "add_frame")
     assert hasattr(buffer, "latest_frame")
+    assert hasattr(buffer, "latest_frame_info")
+
+    frame_id = buffer.add_frame(bytes([0] * (64 * 64 * 3)), 64, 64)
+    frame_info = buffer.latest_frame_info()
+    assert frame_info is not None
+    assert frame_info[0] == frame_id
+    assert frame_info[1:] == (64, 64)
 
     rhythm = ghostgpt_core.RustRhythmAnalyzer()
     assert hasattr(rhythm, "add_score")
@@ -203,3 +210,34 @@ def test_rust_frame_buffer_concurrent_access() -> None:
         thread.join()
 
     assert buffer.len() <= 100
+
+
+@pytest.mark.skipif(not _rust_available(), reason="Rust ghostgpt_core not compiled")
+def test_vision_pipeline_concurrent_access() -> None:
+    import ghostgpt_core  # type: ignore
+
+    pipeline = ghostgpt_core.VisionPipeline(1)
+    pipeline.start()
+
+    errors: list[Exception] = []
+
+    def worker(seed: int) -> None:
+        try:
+            for i in range(40):
+                value = (seed + i) % 255
+                frame = np.full((64, 64, 3), value, dtype=np.uint8)
+                pipeline.process_frame(frame.tobytes(), 64, 64, "", None)
+        except Exception as exc:  # pragma: no cover - defensive in threaded code
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=worker, args=(1,)),
+        threading.Thread(target=worker, args=(99,)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    pipeline.stop()
+    assert not errors
