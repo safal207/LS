@@ -63,6 +63,12 @@ pub struct RustCausalMemory {
     layers: HashMap<LayerType, Vec<u64>>,
 }
 
+impl Default for RustCausalMemory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[pymethods]
 impl RustCausalMemory {
     #[new]
@@ -379,7 +385,10 @@ mod tests {
             .expect("resonance");
         assert!(score > 0.0);
         assert!(memory.stabilize(stability.clone()).expect("stabilize"));
-        assert_eq!(memory.get_axis_position(customer).expect("customer axis"), -1.0);
+        assert_eq!(
+            memory.get_axis_position(customer).expect("customer axis"),
+            -1.0
+        );
         assert_eq!(
             memory.get_axis_position(consumer).expect("consumer axis"),
             -0.33

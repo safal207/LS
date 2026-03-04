@@ -27,9 +27,14 @@ on:
       - "scripts/web4_runtime_load.py"
       - ".github/workflows/web4_runtime_extended_load.yml"
 
+concurrency:
+  group: web4-runtime-load-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   phase3-chaos:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       RUN_SESSIONS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.sessions || github.event_name == 'pull_request' && '8' || '20' }}
       PHASE3_MESSAGES_PER_SESSION: ${{ github.event_name == 'pull_request' && '60' || '120' }}
@@ -44,6 +49,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
 
       - name: Install Python tooling
         run: |
@@ -67,6 +73,7 @@ jobs:
 
   phase4-soak:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: phase3-chaos
     env:
       RUN_SESSIONS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.sessions || github.event_name == 'pull_request' && '8' || '20' }}
@@ -83,6 +90,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
 
       - name: Install Python tooling
         run: |
