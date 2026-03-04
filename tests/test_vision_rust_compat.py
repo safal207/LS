@@ -115,6 +115,7 @@ def test_rust_api_surface_contract() -> None:
     assert hasattr(buffer, "add_frame")
     assert hasattr(buffer, "latest_frame")
     assert hasattr(buffer, "latest_frame_info")
+    assert hasattr(buffer, "is_empty")
 
     frame_id = buffer.add_frame(bytes([0] * (64 * 64 * 3)), 64, 64)
     frame_info = buffer.latest_frame_info()
@@ -241,3 +242,28 @@ def test_vision_pipeline_concurrent_access() -> None:
 
     pipeline.stop()
     assert not errors
+
+
+@pytest.mark.skipif(not _rust_available(), reason="Rust ghostgpt_core not compiled")
+def test_rust_python_scene_score_real_like_resized_parity() -> None:
+    from python.modules.perception.rust_accel import RustSceneChangeAdapter
+
+    py_detector = SceneChangeDetector()
+    rs_detector = RustSceneChangeAdapter()
+
+    rng = np.random.default_rng(7)
+    frame1 = rng.integers(0, 255, size=(240, 320, 3), dtype=np.uint8)
+    frame2 = np.roll(frame1, shift=8, axis=1)
+
+    import cv2
+
+    f1 = cv2.resize(frame1, (16, 16), interpolation=cv2.INTER_NEAREST)
+    f2 = cv2.resize(frame2, (16, 16), interpolation=cv2.INTER_NEAREST)
+
+    py_detector.calculate_scene_score(f1, "")
+    rs_detector.calculate_scene_score(f1, "")
+
+    py_score = py_detector.calculate_scene_score(f2, "")
+    rs_score = rs_detector.calculate_scene_score(f2, "")
+
+    assert abs(py_score - rs_score) < 0.15

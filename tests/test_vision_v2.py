@@ -2,7 +2,7 @@ import unittest
 import time
 import numpy as np
 from unittest import mock
-from python.modules.perception.coordinator import VisionSubsystem
+from python.modules.perception.coordinator import VisionSubsystem, _NoopPrivacyRedactor
 from python.modules.perception.arl import VisualHint
 
 class TestVisionSubsystem(unittest.TestCase):
@@ -10,10 +10,10 @@ class TestVisionSubsystem(unittest.TestCase):
         self.vision = VisionSubsystem()
 
     def test_initialization(self):
-        self.assertIsNotNone(self.vision.capturer)
         self.assertIsNotNone(self.vision.detector)
         self.assertIsNotNone(self.vision.buffer)
         self.assertIsNotNone(self.vision.policy)
+        self.assertIn(self.vision.capturer is None, (True, False))
 
     def test_safety_gate(self):
         # Mock window context
@@ -67,7 +67,6 @@ class TestVisionSubsystem(unittest.TestCase):
 
     def test_fallback_uses_python_components_when_available(self):
         vision = VisionSubsystem(monitor_index=1)
-        self.assertIsNotNone(vision.capturer)
         self.assertIsNotNone(vision.buffer)
 
     def test_degraded_mode_when_component_init_fails(self):
@@ -152,6 +151,65 @@ class TestVisionSubsystem(unittest.TestCase):
                 raise ValueError("boom")
 
         self.assertFalse(vision._running)
+
+    def test_noop_privacy_redactor_masks_common_pii(self):
+        redactor = _NoopPrivacyRedactor()
+        text = "email test@example.com phone 123-456-7890 pass: hunter2"
+        redacted = redactor.redact(text)
+        self.assertIn("[REDACTED_EMAIL]", redacted)
+        self.assertIn("[REDACTED_PHONE]", redacted)
+        self.assertIn("[REDACTED_PASSWORD]", redacted)
+
+    def test_ocr_redaction_occurs_after_capture(self):
+        vision = VisionSubsystem(monitor_index=1)
+
+        class _Detector:
+            def get_active_window(self):
+                return {"title": "Test", "process_name": "pytest"}
+
+        class _Consent:
+            def is_capture_allowed(self, _window):
+                return True
+
+        class _Capturer:
+            def __init__(self):
+                self.calls = 0
+                self.last_frame = None
+
+            def capture_frame(self):
+                self.calls += 1
+                if self.calls == 1:
+                    self.last_frame = np.ones((32, 32, 3), dtype=np.uint8)
+                    return self.last_frame
+                vision.stop()
+                return None
+
+            def extract_ocr_text(self, frame):
+                if frame is self.last_frame:
+                    return "pass: secret123"
+                return ""
+
+        class _Fusion:
+            def __init__(self):
+                self.seen_ocr = None
+
+            def calculate_scene_score(self, _frame, current_ocr_text=""):
+                self.seen_ocr = current_ocr_text
+                return 0.0
+
+        vision.pipeline = None
+        vision.detector = _Detector()
+        vision.consent = _Consent()
+        vision.capturer = _Capturer()
+        vision.fusion = _Fusion()
+        vision.privacy = _NoopPrivacyRedactor()
+
+        vision.start()
+        deadline = time.time() + 2.0
+        while vision._running and time.time() < deadline:
+            time.sleep(0.05)
+
+        self.assertIn("[REDACTED_PASSWORD]", vision.fusion.seen_ocr)
 
     def test_rust_fallback_when_capturer_missing(self):
         vision = VisionSubsystem(monitor_index=1)

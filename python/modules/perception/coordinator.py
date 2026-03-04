@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from collections import deque
@@ -59,8 +60,26 @@ class _FallbackRhythmAnalyzer:
 
 
 class _NoopPrivacyRedactor:
+    _EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
+    _PHONE_RE = re.compile(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b")
+    _PASSWORD_RE = re.compile(r"(?i)(password|passwd|pass|secret)[:= ]+[^\s]+")
+
+    def __init__(self) -> None:
+        self._warned = False
+
     def redact(self, text: str) -> str:
-        return text
+        if not text:
+            return text
+        if not self._warned:
+            logger.warning(
+                "Noop privacy redactor active in degraded mode; applying minimal built-in masking."
+            )
+            self._warned = True
+
+        redacted = self._EMAIL_RE.sub("[REDACTED_EMAIL]", text)
+        redacted = self._PHONE_RE.sub("[REDACTED_PHONE]", redacted)
+        redacted = self._PASSWORD_RE.sub(r"\1: [REDACTED_PASSWORD]", redacted)
+        return redacted
 
 
 class VisionSubsystem:
@@ -101,9 +120,13 @@ class VisionSubsystem:
         with self._state_lock:
             return self._running
 
-    def _set_capture_enabled(self, enabled: bool) -> None:
-        with self._state_lock:
-            self._capture_enabled = enabled
+    def _set_degraded_components(self) -> None:
+        self.pipeline = None
+        self.capturer = None
+        self.buffer = _FallbackFrameBuffer(max_frames=30)
+        self.fusion = _FallbackSceneChangeDetector()
+        self.rhythm = _FallbackRhythmAnalyzer()
+        self.privacy = _NoopPrivacyRedactor()
 
     def _try_enable_rust_acceleration(self, monitor_index: int) -> None:
         try:
@@ -115,17 +138,26 @@ class VisionSubsystem:
                 RustVisionPipeline,
             )
 
-            self.pipeline = RustVisionPipeline(monitor_index=monitor_index)
-            self.buffer = RustFrameBufferAdapter(max_frames=30)
-            self.privacy = RustPrivacyAdapter()
-            self.fusion = RustSceneChangeAdapter()
-            self.rhythm = RustRhythmAdapter()
+            rust_pipeline = RustVisionPipeline(monitor_index=monitor_index)
+            rust_buffer = RustFrameBufferAdapter(max_frames=30)
+            rust_privacy = RustPrivacyAdapter()
+            rust_fusion = RustSceneChangeAdapter()
+            rust_rhythm = RustRhythmAdapter()
+
             if self.capturer is None:
                 logger.warning(
-                    "Rust pipeline disabled: no capturer available. Falling back to Python path."
+                    "Rust pipeline disabled: no capturer available. Falling back to degraded components."
                 )
-                self.pipeline.stop()
-                self.pipeline = None
+                rust_pipeline.stop()
+                self._set_degraded_components()
+                self._capture_enabled = False
+                return
+
+            self.pipeline = rust_pipeline
+            self.buffer = rust_buffer
+            self.privacy = rust_privacy
+            self.fusion = rust_fusion
+            self.rhythm = rust_rhythm
         except Exception as rust_error:
             logger.warning("Rust vision unavailable, falling back to Python: %s", rust_error)
             self.pipeline = None
@@ -135,19 +167,16 @@ class VisionSubsystem:
         with self._state_lock:
             if self._running:
                 return
-            needs_retry = not self._capture_enabled
 
-        if needs_retry:
-            self._fallback_to_python_components(self._monitor_index)
-            if self._capture_enabled:
-                self._try_enable_rust_acceleration(self._monitor_index)
+            if not self._capture_enabled:
+                self._fallback_to_python_components(self._monitor_index)
+                if self._capture_enabled and self.pipeline is None:
+                    self._try_enable_rust_acceleration(self._monitor_index)
 
-        with self._state_lock:
-            if self._running:
-                return
             if not self._capture_enabled:
                 logger.warning("VisionSubsystem cannot start: capture stack is unavailable.")
                 return
+
             self._running = True
             self._thread = threading.Thread(target=self._run_loop, daemon=True)
             thread = self._thread
@@ -179,6 +208,12 @@ class VisionSubsystem:
                 pass
             self.pipeline = None
 
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
     def __enter__(self):
         self.start()
         return self
@@ -188,11 +223,7 @@ class VisionSubsystem:
 
     def _fallback_to_python_components(self, monitor_index: int) -> None:
         """Initialize Python vision components if available, otherwise disable capture."""
-        self.capturer = None
-        self.buffer = _FallbackFrameBuffer(max_frames=30)
-        self.fusion = _FallbackSceneChangeDetector()
-        self.rhythm = _FallbackRhythmAnalyzer()
-        self.privacy = _NoopPrivacyRedactor()
+        self._set_degraded_components()
 
         try:
             capturer_module = import_module("python.modules.perception.capturer")
@@ -205,14 +236,45 @@ class VisionSubsystem:
             self.fusion = fusion_module.SceneChangeDetector()
             self.rhythm = fusion_module.RhythmAnalyzer()
             self.privacy = safety_module.PrivacyRedactor()
-            self._set_capture_enabled(True)
+            self._capture_enabled = True
             logger.info("VisionSubsystem initialized Python perception components.")
         except (ModuleNotFoundError, AttributeError) as dep_error:
             logger.warning(
                 "Python perception components unavailable: %s. Will retry on next start().",
                 dep_error,
             )
-            self._set_capture_enabled(False)
+            self._capture_enabled = False
+
+    def _extract_ocr_text(self, frame_data: Any) -> str:
+        if self.capturer is not None and hasattr(self.capturer, "extract_ocr_text"):
+            try:
+                ocr_text = self.capturer.extract_ocr_text(frame_data)
+                return str(ocr_text or "")
+            except Exception as ocr_error:
+                logger.debug("OCR extraction failed: %s", ocr_error)
+        return ""
+
+    def _resize_frame_for_mode(self, frame_data: Any, mode: str) -> Any:
+        target_by_mode = {
+            "Presentation": (64, 64),
+            "Coding": (48, 48),
+        }
+        target_w, target_h = target_by_mode.get(mode, (16, 16))
+
+        shape = getattr(frame_data, "shape", None)
+        if not shape or len(shape) < 2:
+            return frame_data
+
+        frame_h, frame_w = int(shape[0]), int(shape[1])
+        if frame_h == target_h and frame_w == target_w:
+            return frame_data
+
+        try:
+            import cv2
+
+            return cv2.resize(frame_data, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
+        except Exception:
+            return frame_data
 
     def _run_loop(self):
         """Main vision processing cycle."""
@@ -234,18 +296,16 @@ class VisionSubsystem:
                     time.sleep(1.0)
                     continue
 
-                ocr_text = ""
+                frame_data = self.capturer.capture_frame()
+                if frame_data is None:
+                    continue
+
+                ocr_text = self._extract_ocr_text(frame_data)
                 redacted_ocr = (
                     self.privacy.redact(ocr_text)
                     if hasattr(self.privacy, "redact")
                     else ocr_text
                 )
-                frame_id = None
-
-                frame_data = self.capturer.capture_frame()
-                if frame_data is None:
-                    continue
-
                 frame_id = self.buffer.add_frame(frame_data, metadata=window_context)
                 self.event_bus.emit(
                     "FrameCaptured", {"frame_id": frame_id, "window": window_context}
@@ -258,26 +318,28 @@ class VisionSubsystem:
                         mode=self.blackboard.current_mode,
                     )
                 else:
+                    resized_frame = self._resize_frame_for_mode(
+                        frame_data, self.blackboard.current_mode
+                    )
                     scene_score = self.fusion.calculate_scene_score(
-                        frame_data, current_ocr_text=redacted_ocr
+                        resized_frame, current_ocr_text=redacted_ocr
                     )
                     self.rhythm.add_score(scene_score)
                     current_activity = self.rhythm.classify_mode()
+
                 self.blackboard.update_mode(current_activity)
 
                 if scene_score > 0.5:
-                    payload = {"score": scene_score}
-                    if frame_id is not None:
-                        payload["frame_id"] = frame_id
-                    self.event_bus.emit("SceneChange", payload)
+                    self.event_bus.emit(
+                        "SceneChange",
+                        {"score": scene_score, "frame_id": frame_id},
+                    )
 
                 confusion_score = window_context.get("confusion_score", 0.0)
                 if self.auto_trigger.should_trigger(scene_score, confusion_score):
                     if self.policy.can_request():
                         model = self.policy.select_model(scene_score, confusion_score)
-                        payload = {"model": model}
-                        if frame_id is not None:
-                            payload["frame_id"] = frame_id
+                        payload = {"model": model, "frame_id": frame_id}
                         self.intent_bus.emit("StartObserve", payload)
                         self.audit.log_event("ObservationTriggered", payload)
 

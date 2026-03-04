@@ -7,10 +7,18 @@ from typing import Any, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 try:
+    import numpy as np
+except Exception:  # pragma: no cover - optional optimization import
+    np = None
+
+try:
     import ghostgpt_core  # type: ignore
 except Exception as exc:  # pragma: no cover - import availability is environment-dependent
     ghostgpt_core = None
     logger.info("Rust vision core unavailable; Python fallback is active: %s", exc)
+
+_WARNED_ABOUT_RGBA_COPY = False
+_WARNED_ABOUT_NON_CONTIGUOUS = False
 
 
 def _frame_to_rgb_buffer(frame: Any) -> Tuple[Any, int, int]:
@@ -18,6 +26,9 @@ def _frame_to_rgb_buffer(frame: Any) -> Tuple[Any, int, int]:
 
     Prefers buffer views over eager `tobytes()` to reduce intermediate copies.
     """
+    global _WARNED_ABOUT_RGBA_COPY
+    global _WARNED_ABOUT_NON_CONTIGUOUS
+
     shape = getattr(frame, "shape", None)
     if not shape or len(shape) < 2:
         raise ValueError("frame must expose shape (H, W, C)")
@@ -26,7 +37,15 @@ def _frame_to_rgb_buffer(frame: Any) -> Tuple[Any, int, int]:
     width = int(shape[1])
 
     if len(shape) >= 3 and int(shape[2]) > 3 and hasattr(frame, "__getitem__"):
-        frame = frame[:, :, :3]
+        if np is not None:
+            frame = np.ascontiguousarray(frame[:, :, :3])
+            if not _WARNED_ABOUT_RGBA_COPY:
+                logger.warning(
+                    "RGBA frame received; converting to RGB with copy. Prefer RGB capture output to avoid per-frame copies."
+                )
+                _WARNED_ABOUT_RGBA_COPY = True
+        else:
+            frame = frame[:, :, :3]
 
     if hasattr(frame, "astype"):
         frame = frame.astype("uint8", copy=False)
@@ -34,9 +53,11 @@ def _frame_to_rgb_buffer(frame: Any) -> Tuple[Any, int, int]:
     try:
         view = memoryview(frame)
         if not view.c_contiguous:
-            logger.debug(
-                "Frame buffer is not C-contiguous; falling back to copy conversion"
-            )
+            if not _WARNED_ABOUT_NON_CONTIGUOUS:
+                logger.warning(
+                    "Non-contiguous frame buffer encountered; falling back to copy conversion."
+                )
+                _WARNED_ABOUT_NON_CONTIGUOUS = True
             raise BufferError("frame buffer is not C-contiguous")
         if view.ndim > 1:
             view = view.cast("B")
@@ -133,17 +154,12 @@ class RustFrameBufferAdapter:
         if ghostgpt_core is None or not hasattr(ghostgpt_core, "RustFrameBuffer"):
             raise RuntimeError("RustFrameBuffer unavailable")
         self._buffer = ghostgpt_core.RustFrameBuffer(int(max_frames))
-        self._max_frames = int(max_frames)
         self._metadata_by_id: dict[int, Optional[dict]] = {}
         self._metadata_order: deque[int] = deque(maxlen=max_frames)
 
     def add_frame(self, frame_data: Any, metadata: Optional[dict] = None) -> int:
         frame_rgb, w, h = _frame_to_rgb_buffer(frame_data)
         frame_id = int(self._buffer.add_frame(frame_rgb, int(w), int(h)))
-
-        if len(self._metadata_order) == self._max_frames:
-            evicted_id = self._metadata_order[0]
-            self._metadata_by_id.pop(evicted_id, None)
 
         self._metadata_order.append(frame_id)
         self._metadata_by_id[frame_id] = metadata
