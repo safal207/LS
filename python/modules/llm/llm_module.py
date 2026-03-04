@@ -70,8 +70,9 @@ class LanguageModel:
     def _is_cancelled(self, cancel_event) -> bool:
         return cancel_event is not None and getattr(cancel_event, "is_set", lambda: False)()
 
-    def generate_response_local(self, question: str, cancel_event=None) -> Optional[str]:
-        """Generate response using local Ollama Qwen"""
+    def _generate_response_base(self, question: str, mode: str, cancel_event=None) -> Optional[str]:
+        """Generic response generation logic shared by local and cloud methods"""
+        is_cloud = (mode == "cloud")
         try:
             if self._is_cancelled(cancel_event):
                 return None
@@ -86,7 +87,8 @@ class LanguageModel:
                 except CircuitOpenError:
                     return "LLM temporarily unavailable. Please try again later."
             
-            logger.debug(f"Sending to Qwen: {question[:50]}...")
+            debug_name = "Qwen Cloud" if is_cloud else "Qwen"
+            logger.debug(f"Sending to {debug_name}: {question[:50]}...")
             
             response = self.qwen_handler.generate_response(prompt)
             if response is None or (isinstance(response, str) and not response.strip()):
@@ -99,7 +101,8 @@ class LanguageModel:
             if self._is_cancelled(cancel_event):
                 return None
              
-            logger.info(f"Generated response: {response[:100]}...")
+            info_name = "cloud response" if is_cloud else "response"
+            logger.info(f"Generated {info_name}: {response[:100]}...")
             return response
                  
         except Exception as exc:
@@ -109,50 +112,17 @@ class LanguageModel:
             if isinstance(err, LLMEmptyResponseError):
                 logger.warning(str(err))
             else:
-                logger.error(f"Error generating local response ({err.kind}): {err}")
+                error_name = "cloud" if is_cloud else "local"
+                logger.error(f"Error generating {error_name} response ({err.kind}): {err}")
             return None
+
+    def generate_response_local(self, question: str, cancel_event=None) -> Optional[str]:
+        """Generate response using local Ollama Qwen"""
+        return self._generate_response_base(question, "local", cancel_event)
     
     def generate_response_cloud(self, question: str, cancel_event=None) -> Optional[str]:
         """Generate response using cloud Qwen API"""
-        try:
-            if self._is_cancelled(cancel_event):
-                return None
-            prompt = self._compose_prompt(question)
-
-            if self._is_cancelled(cancel_event):
-                return None
-
-            if self.breaker:
-                try:
-                    self.breaker.before_call()
-                except CircuitOpenError:
-                    return "LLM temporarily unavailable. Please try again later."
-            
-            logger.debug(f"Sending to Qwen Cloud: {question[:50]}...")
-            
-            response = self.qwen_handler.generate_response(prompt)
-            if response is None or (isinstance(response, str) and not response.strip()):
-                raise LLMEmptyResponseError()
-            if not isinstance(response, str):
-                raise LLMInvalidFormatError("Expected string response")
-
-            if self.breaker:
-                self.breaker.after_success()
-            if self._is_cancelled(cancel_event):
-                return None
-             
-            logger.info(f"Generated cloud response: {response[:100]}...")
-            return response
-                 
-        except Exception as exc:
-            err = as_llm_error(exc)
-            if self.breaker and err.trip_breaker:
-                self.breaker.after_failure(err)
-            if isinstance(err, LLMEmptyResponseError):
-                logger.warning(str(err))
-            else:
-                logger.error(f"Error generating cloud response ({err.kind}): {err}")
-            return None
+        return self._generate_response_base(question, "cloud", cancel_event)
     
     def generate_response(self, question: str, cancel_event=None) -> Optional[str]:
         """Generate response using either local or cloud LLM"""
