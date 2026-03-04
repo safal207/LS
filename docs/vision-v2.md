@@ -97,6 +97,11 @@ All ARL outputs include `grounding_refs` to link the suggestion back to specific
 
 `coordinator.py` attempts to enable `RustVisionPipeline` first and falls back to Python path on any Rust init/import error.
 
+**Expected frame format for Rust**:
+- NumPy array (or ndarray-like object with `.shape` and `.tobytes()`)
+- Shape `(H, W, 3)` or `(H, W, C)` where `C >= 3`
+- `dtype=uint8`, channel order RGB (first 3 channels used)
+
 Benchmark entrypoint:
 
 ```bash

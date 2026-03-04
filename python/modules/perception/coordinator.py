@@ -194,29 +194,22 @@ class VisionSubsystem:
                 )
                 frame_id = None
 
-                if self.pipeline is not None:
-                    frame_data = self.capturer.capture_frame()
-                    if frame_data is None:
-                        continue
-                    frame_id = self.buffer.add_frame(frame_data, metadata=window_context)
-                    self.event_bus.emit(
-                        "FrameCaptured", {"frame_id": frame_id, "window": window_context}
-                    )
+                frame_data = self.capturer.capture_frame()
+                if frame_data is None:
+                    continue
 
+                frame_id = self.buffer.add_frame(frame_data, metadata=window_context)
+                self.event_bus.emit(
+                    "FrameCaptured", {"frame_id": frame_id, "window": window_context}
+                )
+
+                if self.pipeline is not None:
                     scene_score, current_activity, _, _ = self.pipeline.process_frame(
                         frame_data,
                         current_ocr_text=redacted_ocr,
                         mode=self.blackboard.current_mode,
                     )
                 else:
-                    frame_data = self.capturer.capture_frame()
-                    if frame_data is None:
-                        continue
-                    frame_id = self.buffer.add_frame(frame_data, metadata=window_context)
-                    self.event_bus.emit(
-                        "FrameCaptured", {"frame_id": frame_id, "window": window_context}
-                    )
-
                     scene_score = self.fusion.calculate_scene_score(
                         frame_data, current_ocr_text=redacted_ocr
                     )
