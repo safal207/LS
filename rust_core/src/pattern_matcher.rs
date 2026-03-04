@@ -7,6 +7,12 @@ pub struct PatternMatcher {
     ids: Vec<usize>, // Internal IDs to map back to original indices
 }
 
+impl Default for PatternMatcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[pymethods]
 impl PatternMatcher {
     #[new]

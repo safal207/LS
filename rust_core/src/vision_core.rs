@@ -10,6 +10,9 @@ const PHASH_WEIGHT: f32 = 0.45;
 const SSIM_WEIGHT: f32 = 0.35;
 const OCR_WEIGHT: f32 = 0.20;
 
+type FrameInfo = (u64, usize, usize);
+type FramePacketOwned = (u64, Vec<u8>, usize, usize);
+
 #[pyclass]
 pub struct RustSceneChangeDetector {
     last_frame: Option<Vec<u8>>,
@@ -19,6 +22,12 @@ pub struct RustSceneChangeDetector {
     last_dhash: Option<u64>,
     last_ocr_text: String,
     dct_plan: Arc<dyn Dct2<f32>>,
+}
+
+impl Default for RustSceneChangeDetector {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[pymethods]
@@ -107,6 +116,12 @@ impl RustSceneChangeDetector {
 #[pyclass]
 pub struct RustPrivacyRedactor;
 
+impl Default for RustPrivacyRedactor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[pymethods]
 impl RustPrivacyRedactor {
     #[new]
@@ -185,12 +200,19 @@ impl RustFrameBuffer {
         Ok(inner.frames.len())
     }
 
+    pub fn is_empty(&self) -> PyResult<bool> {
+        let inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("frame buffer mutex poisoned")
+        })?;
+        Ok(inner.frames.is_empty())
+    }
+
     pub fn capacity(&self) -> usize {
         self.max_frames
     }
 
     /// Returns metadata for the most recently added frame without cloning frame bytes.
-    pub fn latest_frame_info(&self) -> PyResult<Option<(u64, usize, usize)>> {
+    pub fn latest_frame_info(&self) -> PyResult<Option<FrameInfo>> {
         let inner = self.inner.lock().map_err(|_| {
             pyo3::exceptions::PyRuntimeError::new_err("frame buffer mutex poisoned")
         })?;
@@ -202,7 +224,7 @@ impl RustFrameBuffer {
     /// # Performance note
     /// This call clones the frame payload (e.g. ~6MB for a 1920x1080 RGB frame).
     /// For metadata-only access in hot paths, prefer `latest_frame_info()`.
-    pub fn latest_frame(&self) -> PyResult<Option<(u64, Vec<u8>, usize, usize)>> {
+    pub fn latest_frame(&self) -> PyResult<Option<FramePacketOwned>> {
         let inner = self.inner.lock().map_err(|_| {
             pyo3::exceptions::PyRuntimeError::new_err("frame buffer mutex poisoned")
         })?;
