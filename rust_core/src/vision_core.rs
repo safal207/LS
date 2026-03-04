@@ -180,13 +180,17 @@ impl RustFrameBuffer {
     /// Pops all frames to find the tail, re-pushes older ones.
     /// Not safe to call concurrently with add_frame.
     pub fn latest_frame(&self) -> Option<(u64, Vec<u8>, usize, usize)> {
-        let mut frames: Vec<FramePacket> = std::iter::from_fn(|| self.queue.pop()).collect();
-        if frames.is_empty() {
-            return None;
+        let mut older_frames: Vec<FramePacket> = Vec::new();
+        let mut latest: Option<FramePacket> = None;
+
+        while let Some(frame) = self.queue.pop() {
+            if let Some(prev_latest) = latest.replace(frame) {
+                older_frames.push(prev_latest);
+            }
         }
 
-        let latest = frames.pop().expect("non-empty");
-        for frame in frames {
+        let latest = latest?;
+        for frame in older_frames {
             let _ = self.queue.push(frame);
         }
 

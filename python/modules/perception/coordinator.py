@@ -114,7 +114,6 @@ class VisionSubsystem:
             self.privacy = RustPrivacyAdapter()
             self.fusion = RustSceneChangeAdapter()
             self.rhythm = RustRhythmAdapter()
-            logger.info("Rust Pipeline + Adaptive Resolution enabled.")
         except Exception as rust_error:
             logger.info("Using non-Rust vision path: %s", rust_error)
 

@@ -99,6 +99,6 @@ All ARL outputs include `grounding_refs` to link the suggestion back to specific
 Benchmark entrypoint:
 
 ```bash
-cd rust_core
+cd rust/ghost-vision-core
 cargo bench --bench vision_bench
 ```
