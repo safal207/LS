@@ -78,7 +78,6 @@ All ARL outputs include `grounding_refs` to link the suggestion back to specific
 - **ConsentManager**: Enforces allowlists/denylists for specific applications (e.g., masking 2FA or password managers).
 - **AuditLog**: Provides full transparency by logging what the system has "seen".
 
-
 ## Rust Vision Core acceleration (Pipeline + Adaptive Resolution)
 
 **Pipeline + Adaptive Resolution** is the primary direction from March 2026.
@@ -101,6 +100,21 @@ All ARL outputs include `grounding_refs` to link the suggestion back to specific
 - NumPy array (or ndarray-like object with `.shape` and `.tobytes()`)
 - Shape `(H, W, 3)` or `(H, W, C)` where `C >= 3`
 - `dtype=uint8`, channel order RGB (first 3 channels used)
+
+Build/install Rust extension for Python (local dev):
+
+```bash
+cd rust_core
+maturin develop --release
+```
+
+If `maturin` is not installed:
+
+```bash
+pip install maturin
+cd rust_core
+maturin develop --release
+```
 
 Benchmark entrypoint:
 

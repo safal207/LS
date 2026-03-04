@@ -13,8 +13,11 @@ except Exception as exc:  # pragma: no cover - import availability is environmen
     logger.info("Rust vision core unavailable; Python fallback is active: %s", exc)
 
 
-def _frame_to_rgb_bytes(frame: Any) -> Tuple[bytes, int, int]:
-    """Convert ndarray-like frame to RGB bytes without hard dependency on numpy."""
+def _frame_to_rgb_buffer(frame: Any) -> Tuple[Any, int, int]:
+    """Convert ndarray-like frame to an RGB-compatible bytes-like object.
+
+    Prefers buffer views over eager `tobytes()` to reduce intermediate copies.
+    """
     shape = getattr(frame, "shape", None)
     if not shape or len(shape) < 2:
         raise ValueError("frame must expose shape (H, W, C)")
@@ -27,6 +30,14 @@ def _frame_to_rgb_bytes(frame: Any) -> Tuple[bytes, int, int]:
 
     if hasattr(frame, "astype"):
         frame = frame.astype("uint8", copy=False)
+
+    try:
+        view = memoryview(frame)
+        if view.ndim > 1:
+            view = view.cast("B")
+        return view, width, height
+    except TypeError:
+        pass
 
     if hasattr(frame, "tobytes"):
         return frame.tobytes(), width, height
@@ -53,7 +64,7 @@ class RustVisionPipeline:
         current_ocr_text: str = "",
         mode: Optional[str] = None,
     ) -> Tuple[float, str, int, int]:
-        frame_rgb, w, h = _frame_to_rgb_bytes(frame_data)
+        frame_rgb, w, h = _frame_to_rgb_buffer(frame_data)
         score, activity, target_w, target_h = self._core.process_frame(
             frame_rgb,
             int(w),
@@ -71,7 +82,7 @@ class RustSceneChangeAdapter:
         self._detector = ghostgpt_core.RustSceneChangeDetector()
 
     def calculate_scene_score(self, current_frame: Any, current_ocr_text: str = "") -> float:
-        frame_rgb, w, h = _frame_to_rgb_bytes(current_frame)
+        frame_rgb, w, h = _frame_to_rgb_buffer(current_frame)
         return float(
             self._detector.calculate_scene_score(
                 frame_rgb,
@@ -110,16 +121,21 @@ class RustFrameBufferAdapter:
         if ghostgpt_core is None or not hasattr(ghostgpt_core, "RustFrameBuffer"):
             raise RuntimeError("RustFrameBuffer unavailable")
         self._buffer = ghostgpt_core.RustFrameBuffer(int(max_frames))
-        self._metadata: deque[tuple[int, Optional[dict]]] = deque(maxlen=max_frames)
+        self._max_frames = int(max_frames)
+        self._metadata_by_id: dict[int, Optional[dict]] = {}
+        self._metadata_order: deque[int] = deque(maxlen=max_frames)
 
     def add_frame(self, frame_data: Any, metadata: Optional[dict] = None) -> int:
-        frame_rgb, w, h = _frame_to_rgb_bytes(frame_data)
+        frame_rgb, w, h = _frame_to_rgb_buffer(frame_data)
         frame_id = int(self._buffer.add_frame(frame_rgb, int(w), int(h)))
-        self._metadata.append((frame_id, metadata))
+
+        if len(self._metadata_order) == self._max_frames:
+            evicted_id = self._metadata_order[0]
+            self._metadata_by_id.pop(evicted_id, None)
+
+        self._metadata_order.append(frame_id)
+        self._metadata_by_id[frame_id] = metadata
         return frame_id
 
     def get_metadata(self, frame_id: int) -> Optional[dict]:
-        for fid, metadata in reversed(self._metadata):
-            if fid == frame_id:
-                return metadata
-        return None
+        return self._metadata_by_id.get(frame_id)

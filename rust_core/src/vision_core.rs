@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
+use log::{debug, warn};
 use pyo3::prelude::*;
 use rustdct::{Dct2, DctPlanner};
 
@@ -208,6 +209,7 @@ pub struct VisionPipeline {
     detector: RustSceneChangeDetector,
     rhythm: RustRhythmAnalyzer,
     running: bool,
+    last_activity: Option<String>,
 }
 
 #[pymethods]
@@ -219,15 +221,18 @@ impl VisionPipeline {
             detector: RustSceneChangeDetector::new(),
             rhythm: RustRhythmAnalyzer::new(10).expect("valid default window"),
             running: false,
+            last_activity: None,
         }
     }
 
     pub fn start(&mut self) {
         self.running = true;
+        debug!("VisionPipeline started");
     }
 
     pub fn stop(&mut self) {
         self.running = false;
+        debug!("VisionPipeline stopped");
     }
 
     pub fn target_resolution(&self, mode: Option<String>) -> (usize, usize) {
@@ -265,6 +270,15 @@ impl VisionPipeline {
                 .calculate_scene_score(resized, target_w, target_h, current_ocr_text)?;
         self.rhythm.add_score(score);
         let activity = self.rhythm.classify_mode();
+
+        if self.last_activity.as_deref() != Some(activity.as_str()) {
+            debug!("VisionPipeline activity changed to {activity}");
+            self.last_activity = Some(activity.clone());
+        }
+        if score >= 0.8 {
+            warn!("VisionPipeline high scene score detected: {score:.3}");
+        }
+
         Ok((score, activity, target_w, target_h))
     }
 }
@@ -491,14 +505,20 @@ fn redact_email(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut token = String::new();
 
+    let flush = |token: &mut String, out: &mut String| {
+        if is_likely_email(token) {
+            out.push_str("[REDACTED_EMAIL]");
+        } else {
+            out.push_str(token);
+        }
+        token.clear();
+    };
+
     for ch in text.chars() {
         if ch.is_whitespace() {
-            if token.contains('@') && token.contains('.') {
-                out.push_str("[REDACTED_EMAIL]");
-            } else {
-                out.push_str(&token);
+            if !token.is_empty() {
+                flush(&mut token, &mut out);
             }
-            token.clear();
             out.push(ch);
         } else {
             token.push(ch);
@@ -506,24 +526,50 @@ fn redact_email(text: &str) -> String {
     }
 
     if !token.is_empty() {
-        if token.contains('@') && token.contains('.') {
-            out.push_str("[REDACTED_EMAIL]");
-        } else {
-            out.push_str(&token);
-        }
+        flush(&mut token, &mut out);
     }
 
     out
 }
 
+fn is_likely_email(token: &str) -> bool {
+    let trimmed = token
+        .trim_matches(|c: char| matches!(c, ',' | ';' | ':' | '"' | '\'' | '(' | ')' | '[' | ']'));
+
+    if trimmed.is_empty() || trimmed.contains("..") {
+        return false;
+    }
+
+    let mut parts = trimmed.split('@');
+    let local = match parts.next() {
+        Some(v) if !v.is_empty() => v,
+        _ => return false,
+    };
+    let domain = match parts.next() {
+        Some(v) if !v.is_empty() => v,
+        _ => return false,
+    };
+
+    if parts.next().is_some() {
+        return false;
+    }
+
+    let valid_local = local
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '%' | '+' | '-'));
+    let valid_domain = domain
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'));
+
+    valid_local && valid_domain && domain.contains('.')
+}
+
 fn redact_phone(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
-    let mut digits = 0usize;
     let mut token = String::new();
 
-    let flush = |token: &mut String, digits: usize, dots: usize, out: &mut String| {
-        let looks_like_ip = dots == 3;
-        if digits >= 10 && !looks_like_ip {
+    let flush = |token: &mut String, out: &mut String| {
+        if is_likely_phone_token(token) {
             out.push_str("[REDACTED_PHONE]");
         } else {
             out.push_str(token);
@@ -531,32 +577,53 @@ fn redact_phone(text: &str) -> String {
         token.clear();
     };
 
-    let mut dots = 0usize;
-
     for ch in text.chars() {
-        if ch.is_ascii_digit() || ch == '+' || ch == '-' || ch == '(' || ch == ')' {
-            if ch.is_ascii_digit() {
-                digits += 1;
-            }
-            token.push(ch);
-        } else if ch == '.' && !token.is_empty() {
-            dots += 1;
+        if ch.is_ascii_digit() || matches!(ch, '+' | '-' | '(' | ')' | '.' | ' ') {
             token.push(ch);
         } else {
             if !token.is_empty() {
-                flush(&mut token, digits, dots, &mut out);
-                digits = 0;
-                dots = 0;
+                flush(&mut token, &mut out);
             }
             out.push(ch);
         }
     }
 
     if !token.is_empty() {
-        flush(&mut token, digits, dots, &mut out);
+        flush(&mut token, &mut out);
     }
 
     out
+}
+
+fn is_likely_phone_token(token: &str) -> bool {
+    let trimmed = token.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    let digits = trimmed.chars().filter(|c| c.is_ascii_digit()).count();
+    if digits < 10 {
+        return false;
+    }
+
+    let dots = trimmed.chars().filter(|&c| c == '.').count();
+    let non_digit_separator = trimmed
+        .chars()
+        .any(|c| matches!(c, '+' | '-' | '(' | ')' | ' '));
+    let all_phone_chars = trimmed
+        .chars()
+        .all(|c| c.is_ascii_digit() || matches!(c, '+' | '-' | '(' | ')' | '.' | ' '));
+
+    if !all_phone_chars {
+        return false;
+    }
+
+    // Keep typical IPv4 values untouched (e.g. 192.168.1.100).
+    if dots == 3 && !non_digit_separator {
+        return false;
+    }
+
+    non_digit_separator || dots <= 1
 }
 
 fn redact_2fa(text: &str) -> String {
@@ -699,6 +766,14 @@ mod tests {
     fn privacy_redaction_does_not_mask_arbitrary_six_digits_without_context() {
         let redactor = RustPrivacyRedactor::new();
         let text = "invoice id 123456 should stay visible".to_string();
+        let redacted = redactor.redact(text.clone());
+        assert_eq!(redacted, text);
+    }
+
+    #[test]
+    fn privacy_redaction_does_not_mask_ip_addresses_as_phones() {
+        let redactor = RustPrivacyRedactor::new();
+        let text = "connect to 192.168.1.100 for diagnostics".to_string();
         let redacted = redactor.redact(text.clone());
         assert_eq!(redacted, text);
     }
