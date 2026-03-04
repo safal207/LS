@@ -36,6 +36,17 @@ def test_python_scene_detector_changed_frame_higher_score() -> None:
     score = detector.calculate_scene_score(frame2, "")
     assert score > 0.2
 
+
+def test_python_scene_detector_shifted_pattern_detects_change() -> None:
+    detector = SceneChangeDetector()
+    base = np.zeros((64, 64, 3), dtype=np.uint8)
+    base[:, 24:40, :] = 255
+    shifted = np.roll(base, shift=6, axis=1)
+
+    detector.calculate_scene_score(base, "")
+    score = detector.calculate_scene_score(shifted, "")
+    assert score > 0.05
+
 def test_privacy_redactor_contract() -> None:
     redactor = PrivacyRedactor()
     text = "mail test@example.com phone 123-456-7890 password: qwerty"
@@ -138,3 +149,25 @@ def test_rust_python_scene_score_sequence_compatibility() -> None:
     # with non-flat deltas beyond the initial warm-up frame.
     assert max(py_scores[1:]) > min(py_scores[1:])
     assert max(rs_scores[1:]) > min(rs_scores[1:])
+
+
+@pytest.mark.skipif(not _rust_available(), reason="Rust ghostgpt_core not compiled")
+def test_rust_python_scene_score_shifted_pattern_compatibility() -> None:
+    from python.modules.perception.rust_accel import RustSceneChangeAdapter
+
+    py_detector = SceneChangeDetector()
+    rs_detector = RustSceneChangeAdapter()
+
+    frame1 = np.zeros((64, 64, 3), dtype=np.uint8)
+    frame1[:, 24:40, :] = 255
+    frame2 = np.roll(frame1, shift=6, axis=1)
+
+    py_detector.calculate_scene_score(frame1, "")
+    rs_detector.calculate_scene_score(frame1, "")
+
+    py_score = py_detector.calculate_scene_score(frame2, "")
+    rs_score = rs_detector.calculate_scene_score(frame2, "")
+
+    assert py_score > 0.05
+    assert rs_score > 0.05
+    assert abs(py_score - rs_score) < 0.10

@@ -34,16 +34,26 @@ def _frame_to_rgb_buffer(frame: Any) -> Tuple[Any, int, int]:
     try:
         view = memoryview(frame)
         if not view.c_contiguous:
+            logger.debug(
+                "Frame buffer is not C-contiguous; falling back to copy conversion"
+            )
             raise BufferError("frame buffer is not C-contiguous")
         if view.ndim > 1:
             view = view.cast("B")
         return view, width, height
-    except (TypeError, BufferError):
+    except TypeError:
+        logger.debug(
+            "Frame object does not expose memoryview-compatible buffer; "
+            "falling back to copy conversion"
+        )
+    except BufferError:
         pass
 
     if hasattr(frame, "tobytes"):
+        logger.debug("Converting frame via tobytes() copy fallback")
         return frame.tobytes(), width, height
 
+    logger.debug("Converting frame via bytes() copy fallback")
     return bytes(frame), width, height
 
 

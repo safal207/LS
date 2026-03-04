@@ -123,6 +123,10 @@ cd rust_core
 maturin develop --release
 ```
 
+Logging note:
+- Initialize Python logging (e.g. `logging.basicConfig(...)`) before importing
+  `ghostgpt_core` to reliably surface Rust logs bridged through `pyo3-log`.
+
 Benchmark entrypoint:
 
 ```bash
