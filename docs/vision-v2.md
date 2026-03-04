@@ -78,6 +78,23 @@ All ARL outputs include `grounding_refs` to link the suggestion back to specific
 - **ConsentManager**: Enforces allowlists/denylists for specific applications (e.g., masking 2FA or password managers).
 - **AuditLog**: Provides full transparency by logging what the system has "seen".
 
+
+## PrivacyRedactor Limitations
+
+### What gets redacted
+- Emails: `test@example.com` → `[REDACTED_EMAIL]`
+- Phones: `+1-123-456-7890` → `[REDACTED_PHONE]`
+- Password assignments: `password: secret123` → `password: [REDACTED_PASSWORD]`
+- 2FA codes with context (`otp`, `2fa`, `verification`, `code`): `otp code 123456`
+
+### What is intentionally not redacted
+- IPv4 addresses (e.g. `192.168.1.1`, `192.168.1.1:8080`)
+- Arbitrary 6-digit values without 2FA context (e.g. `invoice 123456`)
+
+### Known limitations
+- Heuristic detection may still produce false positives for unusual phone-like strings.
+- Redaction currently operates on plain text/OCR outputs, not semantic entities.
+
 ## Rust Vision Core acceleration (Pipeline + Adaptive Resolution)
 
 **Pipeline + Adaptive Resolution** is the primary direction from March 2026.

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 import pytest
 
 np = pytest.importorskip("numpy")
@@ -171,3 +173,33 @@ def test_rust_python_scene_score_shifted_pattern_compatibility() -> None:
     assert py_score > 0.05
     assert rs_score > 0.05
     assert abs(py_score - rs_score) < 0.10
+
+
+@pytest.mark.skipif(not _rust_available(), reason="Rust ghostgpt_core not compiled")
+def test_rust_frame_buffer_concurrent_access() -> None:
+    import ghostgpt_core  # type: ignore
+
+    buffer = ghostgpt_core.RustFrameBuffer(100)
+
+    def writer(seed: int) -> None:
+        for i in range(300):
+            value = (seed + i) % 255
+            frame = np.full((64, 64, 3), value, dtype=np.uint8)
+            buffer.add_frame(frame.tobytes(), 64, 64)
+
+    def reader() -> None:
+        for _ in range(400):
+            _ = buffer.latest_frame_info()
+
+    threads = [
+        threading.Thread(target=writer, args=(0,)),
+        threading.Thread(target=writer, args=(17,)),
+        threading.Thread(target=reader),
+    ]
+
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert buffer.len() <= 100

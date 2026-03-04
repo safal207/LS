@@ -115,12 +115,15 @@ class VisionSubsystem:
             self.rhythm = RustRhythmAdapter()
             if self.capturer is None:
                 logger.warning(
-                    "Rust pipeline initialized but no capturer is available; disabling pipeline."
+                    "Rust pipeline disabled: no capturer available. Falling back to Python path."
                 )
                 self.pipeline.stop()
-                self.pipeline = None
+                self._fallback_to_python_components(monitor_index)
         except Exception as rust_error:
-            logger.info("Using non-Rust vision path: %s", rust_error)
+            logger.warning(
+                "Rust vision unavailable, falling back to Python: %s", rust_error
+            )
+            self._fallback_to_python_components(monitor_index)
 
         # 6. Proactive Cortex (Layer 13)
         self.policy = AttentionPolicy(max_requests_per_min=5)
@@ -165,6 +168,30 @@ class VisionSubsystem:
 
     def __exit__(self, exc_type, exc, tb):
         self.close()
+
+    def _fallback_to_python_components(self, monitor_index: int) -> None:
+        """Switch all vision components to Python implementations if available."""
+        self.pipeline = None
+        try:
+            from .buffer import FrameBuffer
+            from .capturer import ScreenCapturer
+            from .fusion import RhythmAnalyzer, SceneChangeDetector
+            from .safety import PrivacyRedactor
+
+            self.capturer = ScreenCapturer(monitor_index=monitor_index)
+            self.buffer = FrameBuffer(max_frames=30)
+            self.fusion = SceneChangeDetector()
+            self.rhythm = RhythmAnalyzer()
+            self.privacy = PrivacyRedactor()
+            logger.info("Fallback switched to Python vision components.")
+        except ModuleNotFoundError as dep_error:
+            logger.warning(
+                "Python fallback components unavailable, staying degraded: %s", dep_error
+            )
+            self.capturer = None
+            self.buffer = _FallbackFrameBuffer(max_frames=30)
+            self.fusion = _FallbackSceneChangeDetector()
+            self.rhythm = _FallbackRhythmAnalyzer()
 
     def _run_loop(self):
         """Main vision processing cycle."""

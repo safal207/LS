@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use log::{debug, warn};
@@ -77,12 +78,11 @@ impl RustSceneChangeDetector {
         let hash_delta = (ph + dh) * 0.5;
 
         let ssim = if self.last_width == width && self.last_height == height {
-            ssim_rgb(
-                &frame_rgb,
-                self.last_frame.as_ref().expect("last frame is set"),
-                width,
-                height,
-            )
+            if let Some(previous_frame) = self.last_frame.as_ref() {
+                ssim_rgb(&frame_rgb, previous_frame, width, height)
+            } else {
+                0.0
+            }
         } else {
             0.0
         };
@@ -159,8 +159,10 @@ impl RustFrameBuffer {
         })
     }
 
-    pub fn add_frame(&self, frame_rgb: Vec<u8>, width: usize, height: usize) -> u64 {
-        let mut inner = self.inner.lock().expect("frame buffer mutex poisoned");
+    pub fn add_frame(&self, frame_rgb: Vec<u8>, width: usize, height: usize) -> PyResult<u64> {
+        let mut inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("frame buffer mutex poisoned")
+        })?;
         let id = inner.next_id;
         inner.next_id = inner.next_id.wrapping_add(1);
 
@@ -173,28 +175,37 @@ impl RustFrameBuffer {
             height,
             frame: frame_rgb,
         });
-        id
+        Ok(id)
     }
 
-    pub fn len(&self) -> usize {
-        self.inner
-            .lock()
-            .expect("frame buffer mutex poisoned")
-            .frames
-            .len()
+    pub fn len(&self) -> PyResult<usize> {
+        let inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("frame buffer mutex poisoned")
+        })?;
+        Ok(inner.frames.len())
     }
 
     pub fn capacity(&self) -> usize {
         self.max_frames
     }
 
-    /// Returns the most recently added frame without removing it from the buffer.
-    pub fn latest_frame(&self) -> Option<(u64, Vec<u8>, usize, usize)> {
-        let inner = self.inner.lock().expect("frame buffer mutex poisoned");
-        inner
+    /// Returns metadata for the most recently added frame without cloning frame bytes.
+    pub fn latest_frame_info(&self) -> PyResult<Option<(u64, usize, usize)>> {
+        let inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("frame buffer mutex poisoned")
+        })?;
+        Ok(inner.frames.back().map(|f| (f.id, f.width, f.height)))
+    }
+
+    /// Returns the most recently added frame, cloning bytes for Python interop compatibility.
+    pub fn latest_frame(&self) -> PyResult<Option<(u64, Vec<u8>, usize, usize)>> {
+        let inner = self.inner.lock().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err("frame buffer mutex poisoned")
+        })?;
+        Ok(inner
             .frames
             .back()
-            .map(|f| (f.id, f.frame.clone(), f.width, f.height))
+            .map(|f| (f.id, f.frame.clone(), f.width, f.height)))
     }
 }
 
@@ -208,7 +219,7 @@ pub struct RustRhythmAnalyzer {
 pub struct VisionPipeline {
     detector: RustSceneChangeDetector,
     rhythm: RustRhythmAnalyzer,
-    running: bool,
+    running: AtomicBool,
     last_activity: Option<String>,
 }
 
@@ -220,18 +231,18 @@ impl VisionPipeline {
         Self {
             detector: RustSceneChangeDetector::new(),
             rhythm: RustRhythmAnalyzer::new(10).expect("valid default window"),
-            running: false,
+            running: AtomicBool::new(false),
             last_activity: None,
         }
     }
 
-    pub fn start(&mut self) {
-        self.running = true;
+    pub fn start(&self) {
+        self.running.store(true, Ordering::SeqCst);
         debug!("VisionPipeline started");
     }
 
-    pub fn stop(&mut self) {
-        self.running = false;
+    pub fn stop(&self) {
+        self.running.store(false, Ordering::SeqCst);
         debug!("VisionPipeline stopped");
     }
 
@@ -252,7 +263,7 @@ impl VisionPipeline {
         current_ocr_text: Option<String>,
         mode: Option<String>,
     ) -> PyResult<(f32, String, usize, usize)> {
-        if !self.running {
+        if !self.running.load(Ordering::SeqCst) {
             return Err(pyo3::exceptions::PyRuntimeError::new_err(
                 "VisionPipeline is not running; call start() before process_frame()",
             ));
@@ -345,17 +356,17 @@ fn phash64(rgb: &[u8], width: usize, height: usize, dct: &dyn Dct2<f32>) -> u64 
     hash
 }
 
-fn dct2_32_with_plan(input: &[f32], dct: &dyn Dct2<f32>) -> Vec<f32> {
-    let mut tmp = vec![0f32; 32 * 32];
-    let mut row = vec![0f32; 32];
+fn dct2_32_with_plan(input: &[f32], dct: &dyn Dct2<f32>) -> [f32; 32 * 32] {
+    let mut tmp = [0f32; 32 * 32];
+    let mut row = [0f32; 32];
     for y in 0..32 {
         row.copy_from_slice(&input[y * 32..(y + 1) * 32]);
         dct.process_dct2(&mut row);
         tmp[y * 32..(y + 1) * 32].copy_from_slice(&row);
     }
 
-    let mut out = vec![0f32; 32 * 32];
-    let mut col = vec![0f32; 32];
+    let mut out = [0f32; 32 * 32];
+    let mut col = [0f32; 32];
     for x in 0..32 {
         for y in 0..32 {
             col[y] = tmp[y * 32 + x];
@@ -601,6 +612,10 @@ fn is_likely_phone_token(token: &str) -> bool {
         return false;
     }
 
+    if is_ipv4_like(trimmed) || is_ipv4_with_port_like(trimmed) {
+        return false;
+    }
+
     let digits = trimmed.chars().filter(|c| c.is_ascii_digit()).count();
     if digits < 10 {
         return false;
@@ -618,12 +633,30 @@ fn is_likely_phone_token(token: &str) -> bool {
         return false;
     }
 
-    // Keep typical IPv4 values untouched (e.g. 192.168.1.100).
-    if dots == 3 && !non_digit_separator {
+    non_digit_separator || dots <= 1
+}
+
+fn is_ipv4_like(token: &str) -> bool {
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 4 {
         return false;
     }
 
-    non_digit_separator || dots <= 1
+    parts.iter().all(|part| {
+        !part.is_empty()
+            && part.len() <= 3
+            && part.chars().all(|c| c.is_ascii_digit())
+            && part.parse::<u8>().is_ok()
+    })
+}
+
+fn is_ipv4_with_port_like(token: &str) -> bool {
+    let (host, port) = match token.split_once(':') {
+        Some(v) => v,
+        None => return false,
+    };
+
+    is_ipv4_like(host) && !port.is_empty() && port.chars().all(|c| c.is_ascii_digit())
 }
 
 fn redact_2fa(text: &str) -> String {
@@ -662,30 +695,40 @@ fn redact_2fa(text: &str) -> String {
 }
 
 fn redact_password(text: &str) -> String {
-    let had_trailing_newline = text.ends_with('\n');
-    let mut out = String::new();
-    for line in text.lines() {
+    let mut out = String::with_capacity(text.len());
+
+    for segment in text.split_inclusive('\n') {
+        let (line, newline) = if let Some(stripped) = segment.strip_suffix('\n') {
+            (stripped, "\n")
+        } else {
+            (segment, "")
+        };
+
         let lower = line.to_ascii_lowercase();
         if lower.contains("password") || lower.contains("passwd") || lower.contains("secret") {
             if let Some((prefix, _)) = line.split_once(':') {
                 out.push_str(prefix);
-                out.push_str(": [REDACTED_PASSWORD]\n");
+                out.push_str(": [REDACTED_PASSWORD]");
+                out.push_str(newline);
                 continue;
             }
             if let Some((prefix, _)) = line.split_once('=') {
                 out.push_str(prefix);
-                out.push_str("= [REDACTED_PASSWORD]\n");
+                out.push_str("= [REDACTED_PASSWORD]");
+                out.push_str(newline);
                 continue;
             }
         }
+
         out.push_str(line);
-        out.push('\n');
+        out.push_str(newline);
     }
-    if had_trailing_newline {
-        out
-    } else {
-        out.trim_end_matches('\n').to_string()
+
+    if !text.ends_with('\n') && out.ends_with('\n') {
+        out.pop();
     }
+
+    out
 }
 
 #[cfg(test)]
@@ -735,18 +778,18 @@ mod tests {
     #[test]
     fn latest_frame_does_not_drain_entire_queue() {
         let buffer = RustFrameBuffer::new(4).expect("buffer init");
-        let _id0 = buffer.add_frame(frame(4, 4, 1), 4, 4);
-        let _id1 = buffer.add_frame(frame(4, 4, 2), 4, 4);
-        let id2 = buffer.add_frame(frame(4, 4, 3), 4, 4);
+        let _id0 = buffer.add_frame(frame(4, 4, 1), 4, 4).expect("add frame");
+        let _id1 = buffer.add_frame(frame(4, 4, 2), 4, 4).expect("add frame");
+        let id2 = buffer.add_frame(frame(4, 4, 3), 4, 4).expect("add frame");
 
-        let result = buffer.latest_frame();
+        let result = buffer.latest_frame().expect("latest frame access");
         let (returned_id, returned_frame, _, _) = result.expect("must return a frame");
         assert_eq!(returned_id, id2, "must return last frame id");
         assert!(
             returned_frame.iter().all(|&b| b == 3),
             "must return last frame data"
         );
-        assert_eq!(buffer.len(), 3, "frames must remain in queue");
+        assert_eq!(buffer.len().expect("len"), 3, "frames must remain in queue");
     }
 
     #[test]
@@ -776,6 +819,32 @@ mod tests {
         let text = "connect to 192.168.1.100 for diagnostics".to_string();
         let redacted = redactor.redact(text.clone());
         assert_eq!(redacted, text);
+    }
+
+    #[test]
+    fn privacy_redaction_does_not_mask_ip_with_port_as_phone() {
+        let redactor = RustPrivacyRedactor::new();
+        let text = "service endpoint 192.168.1.100:8080 is reachable".to_string();
+        let redacted = redactor.redact(text.clone());
+        assert_eq!(redacted, text);
+    }
+
+    #[test]
+    fn redact_password_preserves_newline_shape() {
+        let redactor = RustPrivacyRedactor::new();
+        let text = "line1
+password: abc
+line3
+"
+        .to_string();
+        let redacted = redactor.redact(text);
+        assert_eq!(
+            redacted,
+            "line1
+password: [REDACTED_PASSWORD]
+line3
+"
+        );
     }
 
     #[test]
