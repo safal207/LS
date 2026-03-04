@@ -79,15 +79,22 @@ All ARL outputs include `grounding_refs` to link the suggestion back to specific
 - **AuditLog**: Provides full transparency by logging what the system has "seen".
 
 
-## Rust Vision Core acceleration
+## Rust Vision Core acceleration (Pipeline + Adaptive Resolution)
 
-The vision pipeline now attempts to use Rust accelerators from `ghostgpt_core`:
-- `RustSceneChangeDetector` (`pHash + dHash + SSIM + OCR delta` score formula)
-- `RustPrivacyRedactor`
-- `RustFrameBuffer` (`crossbeam::queue::ArrayQueue` lock-free queue)
-- `RustRhythmAnalyzer`
+**Pipeline + Adaptive Resolution** is the primary direction from March 2026.
 
-`python/modules/perception/coordinator.py` enables these classes automatically and falls back to pure Python if Rust extension import or initialization fails.
+- **Capture Stage** — frame capture (single thread)
+- **Preprocess Stage** — adaptive resize by mode
+- **Fusion Stage** — `pHash + dHash + SSIM + OCR delta`
+- **Privacy Stage** — Rust PII redaction
+- **Output Stage** — events/intents to coordinator buses
+
+**Adaptive Resolution rules:**
+- Discussion → 16×16
+- Coding → 48×48
+- Presentation → 64×64
+
+`coordinator.py` attempts to enable `RustVisionPipeline` first and falls back to Python path on any Rust init/import error.
 
 Benchmark entrypoint:
 

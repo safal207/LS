@@ -71,6 +71,7 @@ class VisionSubsystem:
 
         # 2. Defaults that do not require heavy optional deps.
         self.capturer = None
+        self.pipeline = None
         self.buffer = _FallbackFrameBuffer(max_frames=30)
         self.fusion = _FallbackSceneChangeDetector()
         self.rhythm = _FallbackRhythmAnalyzer()
@@ -104,13 +105,16 @@ class VisionSubsystem:
                 RustPrivacyAdapter,
                 RustRhythmAdapter,
                 RustSceneChangeAdapter,
+                RustVisionPipeline,
             )
 
+            self.pipeline = RustVisionPipeline(monitor_index=monitor_index)
+            self.capturer = self.pipeline.capturer
             self.buffer = RustFrameBufferAdapter(max_frames=30)
             self.privacy = RustPrivacyAdapter()
             self.fusion = RustSceneChangeAdapter()
             self.rhythm = RustRhythmAdapter()
-            logger.info("Rust vision acceleration enabled.")
+            logger.info("Rust Pipeline + Adaptive Resolution enabled.")
         except Exception as rust_error:
             logger.info("Using non-Rust vision path: %s", rust_error)
 
@@ -170,11 +174,18 @@ class VisionSubsystem:
                     "FrameCaptured", {"frame_id": frame_id, "window": window_context}
                 )
 
-                scene_score = self.fusion.calculate_scene_score(
-                    frame_data, current_ocr_text=""
-                )
-                self.rhythm.add_score(scene_score)
-                current_activity = self.rhythm.classify_mode()
+                if self.pipeline is not None:
+                    scene_score, current_activity, _, _ = self.pipeline.process_frame(
+                        frame_data,
+                        current_ocr_text="",
+                        mode=self.blackboard.current_mode,
+                    )
+                else:
+                    scene_score = self.fusion.calculate_scene_score(
+                        frame_data, current_ocr_text=""
+                    )
+                    self.rhythm.add_score(scene_score)
+                    current_activity = self.rhythm.classify_mode()
                 self.blackboard.update_mode(current_activity)
 
                 if scene_score > 0.5:
@@ -199,3 +210,10 @@ class VisionSubsystem:
             except Exception as e:
                 logger.error(f"Error in VisionSubsystem loop: {e}")
                 time.sleep(1.0)
+
+    def __del__(self):
+        try:
+            if self.pipeline is not None:
+                self.pipeline.stop()
+        except Exception:
+            pass

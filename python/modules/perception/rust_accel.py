@@ -33,6 +33,41 @@ def _frame_to_rgb_bytes(frame: Any) -> Tuple[bytes, int, int]:
     return bytes(frame), width, height
 
 
+class RustVisionPipeline:
+    """Pipeline + Adaptive Resolution wrapper around Rust core."""
+
+    def __init__(self, monitor_index: int = 1):
+        if ghostgpt_core is None or not hasattr(ghostgpt_core, "VisionPipeline"):
+            raise RuntimeError("Rust VisionPipeline unavailable")
+
+        self._core = ghostgpt_core.VisionPipeline(int(monitor_index))
+        self._core.start()
+
+        # Keep capture compatibility with existing coordinator loop.
+        from .capturer import ScreenCapturer
+
+        self.capturer = ScreenCapturer(monitor_index=monitor_index)
+
+    def stop(self) -> None:
+        self._core.stop()
+
+    def process_frame(
+        self,
+        frame_data: Any,
+        current_ocr_text: str = "",
+        mode: Optional[str] = None,
+    ) -> Tuple[float, str, int, int]:
+        frame_rgb, w, h = _frame_to_rgb_bytes(frame_data)
+        score, activity, target_w, target_h = self._core.process_frame(
+            frame_rgb,
+            int(w),
+            int(h),
+            current_ocr_text,
+            mode,
+        )
+        return float(score), str(activity), int(target_w), int(target_h)
+
+
 class RustSceneChangeAdapter:
     def __init__(self) -> None:
         if ghostgpt_core is None or not hasattr(ghostgpt_core, "RustSceneChangeDetector"):

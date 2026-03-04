@@ -200,6 +200,66 @@ pub struct RustRhythmAnalyzer {
     scores: VecDeque<f32>,
 }
 
+#[pyclass]
+pub struct VisionPipeline {
+    detector: RustSceneChangeDetector,
+    rhythm: RustRhythmAnalyzer,
+    running: bool,
+}
+
+#[pymethods]
+impl VisionPipeline {
+    #[new]
+    #[pyo3(signature = (_monitor_index=1))]
+    pub fn new(_monitor_index: usize) -> Self {
+        Self {
+            detector: RustSceneChangeDetector::new(),
+            rhythm: RustRhythmAnalyzer::new(10).expect("valid default window"),
+            running: false,
+        }
+    }
+
+    pub fn start(&mut self) {
+        self.running = true;
+    }
+
+    pub fn stop(&mut self) {
+        self.running = false;
+    }
+
+    pub fn target_resolution(&self, mode: Option<String>) -> (usize, usize) {
+        match mode.unwrap_or_else(|| "Discussion".to_string()).as_str() {
+            "Presentation" => (64, 64),
+            "Coding" => (48, 48),
+            _ => (16, 16),
+        }
+    }
+
+    #[pyo3(signature = (frame_rgb, width, height, current_ocr_text=None, mode=None))]
+    pub fn process_frame(
+        &mut self,
+        frame_rgb: Vec<u8>,
+        width: usize,
+        height: usize,
+        current_ocr_text: Option<String>,
+        mode: Option<String>,
+    ) -> PyResult<(f32, String, usize, usize)> {
+        let (target_w, target_h) = self.target_resolution(mode);
+        let resized = if width == target_w && height == target_h {
+            frame_rgb
+        } else {
+            resize_rgb_nearest(&frame_rgb, width, height, target_w, target_h)
+        };
+
+        let score =
+            self.detector
+                .calculate_scene_score(resized, target_w, target_h, current_ocr_text)?;
+        self.rhythm.add_score(score);
+        let activity = self.rhythm.classify_mode();
+        Ok((score, activity, target_w, target_h))
+    }
+}
+
 #[pymethods]
 impl RustRhythmAnalyzer {
     #[new]
@@ -389,6 +449,31 @@ fn rgb_to_gray(rgb: &[u8]) -> Vec<f32> {
 #[inline]
 fn rgb_to_gray_pixel(r: u8, g: u8, b: u8) -> f32 {
     0.299 * r as f32 + 0.587 * g as f32 + 0.114 * b as f32
+}
+
+fn resize_rgb_nearest(
+    rgb: &[u8],
+    src_w: usize,
+    src_h: usize,
+    dst_w: usize,
+    dst_h: usize,
+) -> Vec<u8> {
+    if src_w == 0 || src_h == 0 || dst_w == 0 || dst_h == 0 {
+        return Vec::new();
+    }
+    let mut out = vec![0u8; dst_w * dst_h * 3];
+    let sx = src_w as f32 / dst_w as f32;
+    let sy = src_h as f32 / dst_h as f32;
+    for y in 0..dst_h {
+        let src_y = ((y as f32 * sy).floor() as usize).min(src_h.saturating_sub(1));
+        for x in 0..dst_w {
+            let src_x = ((x as f32 * sx).floor() as usize).min(src_w.saturating_sub(1));
+            let src_idx = (src_y * src_w + src_x) * 3;
+            let dst_idx = (y * dst_w + x) * 3;
+            out[dst_idx..dst_idx + 3].copy_from_slice(&rgb[src_idx..src_idx + 3]);
+        }
+    }
+    out
 }
 
 fn redact_email(text: &str) -> String {
@@ -593,5 +678,39 @@ mod tests {
         let text = "invoice id 123456 should stay visible".to_string();
         let redacted = redactor.redact(text.clone());
         assert_eq!(redacted, text);
+    }
+
+    #[test]
+    fn pipeline_target_resolution_by_mode() {
+        let pipeline = VisionPipeline::new(1);
+        assert_eq!(
+            pipeline.target_resolution(Some("Discussion".to_string())),
+            (16, 16)
+        );
+        assert_eq!(
+            pipeline.target_resolution(Some("Coding".to_string())),
+            (48, 48)
+        );
+        assert_eq!(
+            pipeline.target_resolution(Some("Presentation".to_string())),
+            (64, 64)
+        );
+    }
+
+    #[test]
+    fn pipeline_process_frame_returns_activity_and_resolution() {
+        let mut pipeline = VisionPipeline::new(1);
+        let frame = frame(64, 64, 1);
+        let result = pipeline
+            .process_frame(
+                frame,
+                64,
+                64,
+                Some(String::new()),
+                Some("Coding".to_string()),
+            )
+            .expect("pipeline processing should succeed");
+        assert_eq!(result.2, 48);
+        assert_eq!(result.3, 48);
     }
 }
