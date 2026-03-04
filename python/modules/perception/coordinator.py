@@ -109,7 +109,6 @@ class VisionSubsystem:
             )
 
             self.pipeline = RustVisionPipeline(monitor_index=monitor_index)
-            self.capturer = self.pipeline.capturer
             self.buffer = RustFrameBufferAdapter(max_frames=30)
             self.privacy = RustPrivacyAdapter()
             self.fusion = RustSceneChangeAdapter()
@@ -144,6 +143,23 @@ class VisionSubsystem:
             self._thread.join(timeout=2.0)
         logger.info("VisionSubsystem stopped.")
 
+    def close(self):
+        """Explicitly release subsystem resources."""
+        self.stop()
+        if self.pipeline is not None:
+            try:
+                self.pipeline.stop()
+            except Exception:
+                pass
+            self.pipeline = None
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
+
     def _run_loop(self):
         """Main vision processing cycle."""
         while self._running:
@@ -168,6 +184,13 @@ class VisionSubsystem:
                 if frame_data is None:
                     continue
 
+                ocr_text = ""
+                redacted_ocr = (
+                    self.privacy.redact(ocr_text)
+                    if hasattr(self.privacy, "redact")
+                    else ocr_text
+                )
+
                 frame_id = self.buffer.add_frame(frame_data, metadata=window_context)
                 self.event_bus.emit(
                     "FrameCaptured", {"frame_id": frame_id, "window": window_context}
@@ -176,12 +199,12 @@ class VisionSubsystem:
                 if self.pipeline is not None:
                     scene_score, current_activity, _, _ = self.pipeline.process_frame(
                         frame_data,
-                        current_ocr_text="",
+                        current_ocr_text=redacted_ocr,
                         mode=self.blackboard.current_mode,
                     )
                 else:
                     scene_score = self.fusion.calculate_scene_score(
-                        frame_data, current_ocr_text=""
+                        frame_data, current_ocr_text=redacted_ocr
                     )
                     self.rhythm.add_score(scene_score)
                     current_activity = self.rhythm.classify_mode()
@@ -209,10 +232,3 @@ class VisionSubsystem:
             except Exception as e:
                 logger.error(f"Error in VisionSubsystem loop: {e}")
                 time.sleep(1.0)
-
-    def __del__(self):
-        try:
-            if self.pipeline is not None:
-                self.pipeline.stop()
-        except Exception:
-            pass

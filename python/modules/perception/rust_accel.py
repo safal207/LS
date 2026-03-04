@@ -42,11 +42,7 @@ class RustVisionPipeline:
 
         self._core = ghostgpt_core.VisionPipeline(int(monitor_index))
         self._core.start()
-
-        # Keep capture compatibility with existing coordinator loop.
-        from .capturer import ScreenCapturer
-
-        self.capturer = ScreenCapturer(monitor_index=monitor_index)
+        self.capturer = None
 
     def stop(self) -> None:
         self._core.stop()
@@ -114,7 +110,10 @@ class RustFrameBufferAdapter:
         if ghostgpt_core is None or not hasattr(ghostgpt_core, "RustFrameBuffer"):
             raise RuntimeError("RustFrameBuffer unavailable")
         self._buffer = ghostgpt_core.RustFrameBuffer(int(max_frames))
+        self._metadata: dict[int, Optional[dict]] = {}
 
     def add_frame(self, frame_data: Any, metadata: Optional[dict] = None) -> int:
         frame_rgb, w, h = _frame_to_rgb_bytes(frame_data)
-        return int(self._buffer.add_frame(frame_rgb, int(w), int(h)))
+        frame_id = int(self._buffer.add_frame(frame_rgb, int(w), int(h)))
+        self._metadata[frame_id] = metadata
+        return frame_id

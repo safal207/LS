@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use pyo3::prelude::*;
 use rustdct::{Dct2, DctPlanner};
@@ -124,8 +124,7 @@ impl RustPrivacyRedactor {
 #[pyclass]
 pub struct RustFrameBuffer {
     max_frames: usize,
-    next_id: u64,
-    queue: crossbeam::queue::ArrayQueue<FramePacket>,
+    inner: Mutex<FrameBufferInner>,
 }
 
 #[derive(Clone)]
@@ -134,6 +133,11 @@ struct FramePacket {
     width: usize,
     height: usize,
     frame: Vec<u8>,
+}
+
+struct FrameBufferInner {
+    next_id: u64,
+    frames: VecDeque<FramePacket>,
 }
 
 #[pymethods]
@@ -147,54 +151,49 @@ impl RustFrameBuffer {
         }
         Ok(Self {
             max_frames,
-            next_id: 0,
-            queue: crossbeam::queue::ArrayQueue::new(max_frames),
+            inner: Mutex::new(FrameBufferInner {
+                next_id: 0,
+                frames: VecDeque::with_capacity(max_frames),
+            }),
         })
     }
 
-    pub fn add_frame(&mut self, frame_rgb: Vec<u8>, width: usize, height: usize) -> u64 {
-        let id = self.next_id;
-        self.next_id = self.next_id.saturating_add(1);
-        let packet = FramePacket {
+    pub fn add_frame(&self, frame_rgb: Vec<u8>, width: usize, height: usize) -> u64 {
+        let mut inner = self.inner.lock().expect("frame buffer mutex poisoned");
+        let id = inner.next_id;
+        inner.next_id = inner.next_id.wrapping_add(1);
+
+        if inner.frames.len() == self.max_frames {
+            let _ = inner.frames.pop_front();
+        }
+        inner.frames.push_back(FramePacket {
             id,
             width,
             height,
             frame: frame_rgb,
-        };
-        if self.queue.push(packet.clone()).is_err() {
-            let _ = self.queue.pop();
-            let _ = self.queue.push(packet);
-        }
+        });
         id
     }
 
     pub fn len(&self) -> usize {
-        self.queue.len()
+        self.inner
+            .lock()
+            .expect("frame buffer mutex poisoned")
+            .frames
+            .len()
     }
 
     pub fn capacity(&self) -> usize {
         self.max_frames
     }
 
-    /// Returns the most recently added frame without fully draining the queue.
-    /// Pops all frames to find the tail, re-pushes older ones.
-    /// Not safe to call concurrently with add_frame.
+    /// Returns the most recently added frame without removing it from the buffer.
     pub fn latest_frame(&self) -> Option<(u64, Vec<u8>, usize, usize)> {
-        let mut older_frames: Vec<FramePacket> = Vec::new();
-        let mut latest: Option<FramePacket> = None;
-
-        while let Some(frame) = self.queue.pop() {
-            if let Some(prev_latest) = latest.replace(frame) {
-                older_frames.push(prev_latest);
-            }
-        }
-
-        let latest = latest?;
-        for frame in older_frames {
-            let _ = self.queue.push(frame);
-        }
-
-        Some((latest.id, latest.frame, latest.width, latest.height))
+        let inner = self.inner.lock().expect("frame buffer mutex poisoned");
+        inner
+            .frames
+            .back()
+            .map(|f| (f.id, f.frame.clone(), f.width, f.height))
     }
 }
 
@@ -371,7 +370,7 @@ fn hamming64(a: u64, b: u64) -> f32 {
 }
 
 fn ssim_rgb(a: &[u8], b: &[u8], width: usize, height: usize) -> f32 {
-    let n = (width * height) as f32;
+    let n = (width * height) as f64;
     if n <= 1.0 {
         return 1.0;
     }
@@ -379,13 +378,15 @@ fn ssim_rgb(a: &[u8], b: &[u8], width: usize, height: usize) -> f32 {
     let gray_a = rgb_to_gray(a);
     let gray_b = rgb_to_gray(b);
 
-    let mut sum_a = 0.0f32;
-    let mut sum_b = 0.0f32;
-    let mut sum_a2 = 0.0f32;
-    let mut sum_b2 = 0.0f32;
-    let mut sum_ab = 0.0f32;
+    let mut sum_a = 0.0f64;
+    let mut sum_b = 0.0f64;
+    let mut sum_a2 = 0.0f64;
+    let mut sum_b2 = 0.0f64;
+    let mut sum_ab = 0.0f64;
 
     for (&ga, &gb) in gray_a.iter().zip(gray_b.iter()) {
+        let ga = ga as f64;
+        let gb = gb as f64;
         sum_a += ga;
         sum_b += gb;
         sum_a2 += ga * ga;
@@ -399,15 +400,15 @@ fn ssim_rgb(a: &[u8], b: &[u8], width: usize, height: usize) -> f32 {
     let var_b = (sum_b2 / n) - (mu_b * mu_b);
     let cov_ab = (sum_ab / n) - (mu_a * mu_b);
 
-    let c1 = 6.5025;
-    let c2 = 58.5225;
+    let c1 = 6.5025f64;
+    let c2 = 58.5225f64;
     let numerator = (2.0 * mu_a * mu_b + c1) * (2.0 * cov_ab + c2);
     let denominator = (mu_a * mu_a + mu_b * mu_b + c1) * (var_a + var_b + c2);
 
-    if denominator.abs() < f32::EPSILON {
+    if denominator.abs() < f64::EPSILON {
         1.0
     } else {
-        (numerator / denominator).clamp(0.0, 1.0)
+        (numerator / denominator).clamp(0.0, 1.0) as f32
     }
 }
 
@@ -514,8 +515,9 @@ fn redact_phone(text: &str) -> String {
     let mut digits = 0usize;
     let mut token = String::new();
 
-    let flush = |token: &mut String, digits: usize, out: &mut String| {
-        if digits >= 10 {
+    let flush = |token: &mut String, digits: usize, dots: usize, out: &mut String| {
+        let looks_like_ip = dots == 3;
+        if digits >= 10 && !looks_like_ip {
             out.push_str("[REDACTED_PHONE]");
         } else {
             out.push_str(token);
@@ -523,23 +525,29 @@ fn redact_phone(text: &str) -> String {
         token.clear();
     };
 
+    let mut dots = 0usize;
+
     for ch in text.chars() {
-        if ch.is_ascii_digit() || ch == '+' || ch == '-' || ch == '.' || ch == '(' || ch == ')' {
+        if ch.is_ascii_digit() || ch == '+' || ch == '-' || ch == '(' || ch == ')' {
             if ch.is_ascii_digit() {
                 digits += 1;
             }
             token.push(ch);
+        } else if ch == '.' && !token.is_empty() {
+            dots += 1;
+            token.push(ch);
         } else {
             if !token.is_empty() {
-                flush(&mut token, digits, &mut out);
+                flush(&mut token, digits, dots, &mut out);
                 digits = 0;
+                dots = 0;
             }
             out.push(ch);
         }
     }
 
     if !token.is_empty() {
-        flush(&mut token, digits, &mut out);
+        flush(&mut token, digits, dots, &mut out);
     }
 
     out
@@ -581,6 +589,7 @@ fn redact_2fa(text: &str) -> String {
 }
 
 fn redact_password(text: &str) -> String {
+    let had_trailing_newline = text.ends_with('\n');
     let mut out = String::new();
     for line in text.lines() {
         let lower = line.to_ascii_lowercase();
@@ -599,7 +608,11 @@ fn redact_password(text: &str) -> String {
         out.push_str(line);
         out.push('\n');
     }
-    out.trim_end_matches('\n').to_string()
+    if had_trailing_newline {
+        out
+    } else {
+        out.trim_end_matches('\n').to_string()
+    }
 }
 
 #[cfg(test)]
@@ -648,7 +661,7 @@ mod tests {
 
     #[test]
     fn latest_frame_does_not_drain_entire_queue() {
-        let mut buffer = RustFrameBuffer::new(4).expect("buffer init");
+        let buffer = RustFrameBuffer::new(4).expect("buffer init");
         let _id0 = buffer.add_frame(frame(4, 4, 1), 4, 4);
         let _id1 = buffer.add_frame(frame(4, 4, 2), 4, 4);
         let id2 = buffer.add_frame(frame(4, 4, 3), 4, 4);
@@ -660,7 +673,7 @@ mod tests {
             returned_frame.iter().all(|&b| b == 3),
             "must return last frame data"
         );
-        assert_eq!(buffer.len(), 2, "older frames must remain in queue");
+        assert_eq!(buffer.len(), 3, "frames must remain in queue");
     }
 
     #[test]

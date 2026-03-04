@@ -85,7 +85,7 @@ All ARL outputs include `grounding_refs` to link the suggestion back to specific
 
 - **Capture Stage** — frame capture (single thread)
 - **Preprocess Stage** — adaptive resize by mode
-- **Fusion Stage** — `pHash + dHash + SSIM + OCR delta`
+- **Fusion Stage** — weighted hash delta (`pHash` + `dHash`) + `SSIM` + `OCR delta`
 - **Privacy Stage** — Rust PII redaction
 - **Output Stage** — events/intents to coordinator buses
 
@@ -93,6 +93,7 @@ All ARL outputs include `grounding_refs` to link the suggestion back to specific
 - Discussion → 16×16
 - Coding → 48×48
 - Presentation → 64×64
+- Any unknown/idle mode defaults to 16×16.
 
 `coordinator.py` attempts to enable `RustVisionPipeline` first and falls back to Python path on any Rust init/import error.
 
