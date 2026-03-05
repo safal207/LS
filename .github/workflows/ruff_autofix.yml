@@ -10,11 +10,16 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ruff-autofix-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   autofix:
     name: Auto-fix ruff issues
     runs-on: ubuntu-latest
-    if: github.actor != 'github-actions[bot]'
+    timeout-minutes: 10
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.fork == false
 
     steps:
       - uses: actions/checkout@v4
@@ -26,9 +31,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
 
       - name: Install ruff
-        run: python -m pip install ruff
+        run: python -m pip install --upgrade pip ruff
 
       - name: Run ruff autofix
         run: ruff check python --fix
