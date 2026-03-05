@@ -1,7 +1,7 @@
 try:
     from .agent_integration import AgentLoopAdapter
 except ModuleNotFoundError:  # optional codex dependencies may be unavailable in CI/load-test envs
-    AgentLoopAdapter = None  # type: ignore[assignment]
+    AgentLoopAdapter = None  # type: ignore
 from .async_rtt import AsyncRttSession
 from .cip_runtime import CipRuntime
 from .hcp_runtime import HcpRuntime, HcpPolicy
