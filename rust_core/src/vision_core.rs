@@ -134,10 +134,10 @@ impl RustPrivacyRedactor {
     }
 
     pub fn redact(&self, text: String) -> String {
-        let mut out = redact_email(&text);
+        let mut out = redact_password(&text);
+        out = redact_email(&out);
         out = redact_phone(&out);
-        out = redact_2fa(&out);
-        redact_password(&out)
+        redact_2fa(&out)
     }
 }
 
@@ -739,21 +739,43 @@ fn redact_password(text: &str) -> String {
 
         let lower = line.to_ascii_lowercase();
         if lower.contains("password") || lower.contains("passwd") || lower.contains("secret") {
-            if let Some((prefix, _)) = line.split_once(':') {
+            if let Some((prefix, suffix)) = line.split_once(':') {
                 out.push_str(prefix);
                 out.push_str(": [REDACTED_PASSWORD]");
+                let remaining = suffix
+                    .trim_start_matches(|c: char| !c.is_whitespace())
+                    .trim_start();
+                if !remaining.is_empty() {
+                    out.push(' ');
+                    out.push_str(remaining);
+                }
                 out.push_str(newline);
                 continue;
             }
-            if let Some((prefix, _)) = line.split_once('=') {
+            if let Some((prefix, suffix)) = line.split_once('=') {
                 out.push_str(prefix);
                 out.push_str("= [REDACTED_PASSWORD]");
+                let remaining = suffix
+                    .trim_start_matches(|c: char| !c.is_whitespace())
+                    .trim_start();
+                if !remaining.is_empty() {
+                    out.push(' ');
+                    out.push_str(remaining);
+                }
                 out.push_str(newline);
                 continue;
             }
             if let Some(keyword_end) = find_space_separated_password_keyword_end(&lower) {
                 out.push_str(&line[..keyword_end]);
                 out.push_str(" [REDACTED_PASSWORD]");
+                let remaining = line[keyword_end..]
+                    .trim_start()
+                    .trim_start_matches(|c: char| !c.is_whitespace())
+                    .trim_start();
+                if !remaining.is_empty() {
+                    out.push(' ');
+                    out.push_str(remaining);
+                }
                 out.push_str(newline);
                 continue;
             }
