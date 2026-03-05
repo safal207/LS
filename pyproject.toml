@@ -1,0 +1,42 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "ghostgpt-core"
+version = "1.2.1"
+description = "Local Cognitive System (LCS) for long-running autonomous LLM agents."
+authors = [
+    { name = "GhostGPT Team" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26.0",
+    "PyYAML>=6.0.1",
+    "Pillow>=10.0.0",
+    "opencv-python>=4.8.0",
+    "imagehash>=4.3.1",
+    "scikit-image>=0.21.0",
+    "sentence-transformers>=2.2.2",
+    "torch>=2.0.0",
+    "mss>=9.0.1",
+    "psutil>=5.9.0",
+    "PyQt6>=6.5.0",
+    "faster-whisper>=1.0.0",
+    "sounddevice>=0.4.6",
+    "soundfile>=0.12.1",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+]
+
+[tool.maturin]
+features = ["python"]
+manifest-path = "rust_core/Cargo.toml"
+module-name = "ghostgpt_core"
+python-source = "python/modules"
