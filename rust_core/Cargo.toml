@@ -4,11 +4,12 @@ version = "1.2.1"
 edition = "2021"
 
 [features]
-default = ["python"]
+default = ["python", "vision"]
 # Для Python extension (cdylib) — без линковки libpython
 python = ["pyo3", "pyo3/extension-module"]
 # Для тестов — с линковкой libpython
 python-embed = ["pyo3", "pyo3/auto-initialize"]
+vision = []
 
 [dependencies]
 pyo3 = { version = "0.20", optional = true }
