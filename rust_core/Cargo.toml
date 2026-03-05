@@ -4,7 +4,7 @@ version = "1.2.1"
 edition = "2021"
 
 [features]
-default = ["python", "vision"]
+default = ["python"]
 # Для Python extension (cdylib) — без линковки libpython
 python = ["pyo3", "pyo3/extension-module"]
 # Для тестов — с линковкой libpython

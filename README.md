@@ -9,7 +9,7 @@
 # GhostGPT / LCS — Local Cognitive System
 
 [![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](#quick-start)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
 [![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](LICENSE)
 [![Rust Powered](https://img.shields.io/badge/Rust-Inside-orange.svg)](#architecture)
@@ -36,27 +36,31 @@ GhostGPT follows a modular **Hexagon Core** design:
 ## 📦 Quick Start
 
 ### Prerequisites
-- **Python 3.10+**
+- **Python 3.9+**
 - **Rust & Cargo** (for building core optimizations)
 - [**Ollama**](https://ollama.com/) (recommended for local LLM inference)
 
-### 1) Installation
+### Installation
 
 ```bash
+# For users
+pip install "ghostgpt-core[full]"
+
+# For developers / contributors
 git clone https://github.com/safal207/LS.git
 cd LS
 python -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+source venv/bin/activate
+pip install -e ".[full]"
 ```
 
-### 2) Build Rust Core
+### Build Rust Core (for developers)
 
 ```bash
-python build_all.py
+maturin develop --features vision
 ```
 
-### 3) Launch
+### Launch
 
 **GUI Dashboard (GhostGPT):**
 ```bash
@@ -87,7 +91,7 @@ python apps/console/main.py
 
 LS (Local Cognitive System) — локальная когнитивная система: архитектурный слой поверх LLM, который добавляет агентный цикл, временной контекст, устойчивость и наблюдаемость.
 
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](#quick-start)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
 [![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
 [![Local--first](https://img.shields.io/badge/Architecture-Local--first-success.svg)](#ls--local-cognitive-system-lcs)
 
@@ -163,41 +167,21 @@ config/
 ## Quick Start
 
 ### Требования
-- Python 3.10+
+- Python 3.9+
 - [Ollama](https://ollama.com/) (локальная LLM-служба)
-- `pip install -r requirements.txt`
 
-### 1) Установка зависимостей
+### Installation
 
 ```bash
+# Для пользователей
+pip install "ghostgpt-core[full]"
+
+# Для разработчиков / контрибьюторов
+git clone https://github.com/safal207/LS.git
+cd LS
 python -m venv venv
-# Windows (PowerShell)
-.\venv\Scripts\Activate.ps1
-# CMD
-venv\Scripts\activate.bat
-
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### 2) Запуск
-
-**Console (CLI):**
-```bash
-python apps/console/main.py
-```
-
-**GhostGPT (GUI):**
-```bash
-python apps/ghostgpt/main.py
-```
-
-### Legacy entrypoints (deprecated)
-
-Эти entrypoints оставлены для обратной совместимости и будут удалены после стабилизации:
-```bash
-python main.py
-python GhostGPT/main.py
+source venv/bin/activate
+pip install -e ".[full]"
 ```
 
 ## Multi-Agent Demo
@@ -218,7 +202,7 @@ python -m apps.multi_agent_demo
 - `config/ghostgpt.yaml` — overrides для GUI
 - `config/local.yaml` — локальные override (ignored)
 
-Loader находится in `python/modules/shared/config_loader.py`:
+Loader находится в `python/modules/shared/config_loader.py`:
 ```python
 from shared.config_loader import load_config
 cfg = load_config("console")

@@ -41,7 +41,7 @@ dependencies = [
 vision = ["opencv-python>=4.8.0"]
 audio = ["sounddevice>=0.4.6", "soundfile>=0.12.1", "faster-whisper>=1.0.0"]
 ml = ["torch>=2.0.0", "sentence-transformers>=2.2.2"]
-full = ["opencv-python>=4.8.0", "torch>=2.0.0", "sentence-transformers>=2.2.2"]
+full = ["opencv-python>=4.8.0", "torch>=2.0.0", "sentence-transformers>=2.2.2", "sounddevice>=0.4.6", "soundfile>=0.12.1", "faster-whisper>=1.0.0"]
 
 [tool.maturin]
 bindings = "pyo3"

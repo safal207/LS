@@ -52,7 +52,7 @@ We maintain high standards for code quality. **All PRs must include tests.**
 
 Before submitting a PR, please ensure:
 
-- [ ] Code follows the existing style (use `black` and `isort` for Python).
+- [ ] Code follows the existing style (follow Ruff style (CI uses ruff autofix)).
 - [ ] Type hints are used everywhere in Python.
 - [ ] Rust code is linted with `clippy`.
 - [ ] Tests cover at least 90% of the new logic.
