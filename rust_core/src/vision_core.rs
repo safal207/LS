@@ -134,10 +134,10 @@ impl RustPrivacyRedactor {
     }
 
     pub fn redact(&self, text: String) -> String {
-        let mut out = redact_password(&text);
-        out = redact_email(&out);
+        let mut out = redact_email(&text);
         out = redact_phone(&out);
-        redact_2fa(&out)
+        out = redact_2fa(&out);
+        redact_password(&out)
     }
 }
 
@@ -739,43 +739,21 @@ fn redact_password(text: &str) -> String {
 
         let lower = line.to_ascii_lowercase();
         if lower.contains("password") || lower.contains("passwd") || lower.contains("secret") {
-            if let Some((prefix, suffix)) = line.split_once(':') {
+            if let Some((prefix, _)) = line.split_once(':') {
                 out.push_str(prefix);
                 out.push_str(": [REDACTED_PASSWORD]");
-                let remaining = suffix
-                    .trim_start_matches(|c: char| !c.is_whitespace())
-                    .trim_start();
-                if !remaining.is_empty() {
-                    out.push(' ');
-                    out.push_str(remaining);
-                }
                 out.push_str(newline);
                 continue;
             }
-            if let Some((prefix, suffix)) = line.split_once('=') {
+            if let Some((prefix, _)) = line.split_once('=') {
                 out.push_str(prefix);
                 out.push_str("= [REDACTED_PASSWORD]");
-                let remaining = suffix
-                    .trim_start_matches(|c: char| !c.is_whitespace())
-                    .trim_start();
-                if !remaining.is_empty() {
-                    out.push(' ');
-                    out.push_str(remaining);
-                }
                 out.push_str(newline);
                 continue;
             }
             if let Some(keyword_end) = find_space_separated_password_keyword_end(&lower) {
                 out.push_str(&line[..keyword_end]);
                 out.push_str(" [REDACTED_PASSWORD]");
-                let remaining = line[keyword_end..]
-                    .trim_start()
-                    .trim_start_matches(|c: char| !c.is_whitespace())
-                    .trim_start();
-                if !remaining.is_empty() {
-                    out.push(' ');
-                    out.push_str(remaining);
-                }
                 out.push_str(newline);
                 continue;
             }
@@ -884,10 +862,8 @@ mod tests {
     #[test]
     fn privacy_redaction_masks_sensitive_values() {
         let redactor = RustPrivacyRedactor::new();
-        let redacted = redactor.redact(
-            "email me at test@example.com and call +1-123-456-7890 password: abc otp code 123456"
-                .to_string(),
-        );
+        let text = "email me at test@example.com\ncall +1-123-456-7890\npassword: abc\notp code 123456".to_string();
+        let redacted = redactor.redact(text);
         assert!(redacted.contains("[REDACTED_EMAIL]"));
         assert!(redacted.contains("[REDACTED_PHONE]"));
         assert!(redacted.contains("[REDACTED_PASSWORD]"));
