@@ -1,39 +1,31 @@
-# GhostGPT v1.1 (2026-03-05)
+# Changelog
 
-## Architecture & Cognitive Layers
-- **Full 12-Layer Stack**: Внедрена и задокументирована полная 12-слойная архитектура.
-- **Metabolism & Consolidation**: Слой метаболизма (`Metabolism`) для переработки когнитивных "отходов" в `nutrient_pool`.
- - **Refactoring (breaking for persisted state only)**: `MetabolismEngine` → `Metabolism`. Добавлена автоматическая миграция в `from_dict`. Старые снапшоты обновятся автоматически.
-- **Sleep & Homeostasis**: Автоматический режим сна (1800с) для глубокой консолидации памяти и укрепления оси роста.
-- **Immune & Safety**: Адаптивная иммунная память для блокировки инъекций и угроз без вызова LLM.
+All notable changes to this project will be documented in this file.
 
-## Biological & Advanced Integration (Experimental)
-- **Bloodstream Layer**: Синхронизация состояний амигдалы и фильтрация токсинов в реальном времени.
-- **Self-Healing Soul**: Механизм автоматического восстановления состояния амигдалы при детекции аномалий через L-THREAD.
+## [1.2.1] - 2026-03-05
 
-## Model Support
-- **Qwen3.5 Small Series Ready**: Подготовка к интеграции моделей Qwen3.5 (0.8B, 2B, 4B, 9B).
-- **Dynamic Model Policy**: Основа для адаптивного выбора размера модели в зависимости от RAM и сложности задачи.
+### Added
+- Bilingual README (English / Russian) for global accessibility.
+- Professional `CONTRIBUTING.md` guidelines for community participation.
+- Expanded test suite for the perception module (94%+ coverage), covering concurrency and zero-copy buffers.
+- PyPI-ready `pyproject.toml` with modular optional dependencies (`vision`, `audio`, `ml`, `full`).
+- **Sleep & Homeostasis**: Autonomous sleep mode for memory consolidation and cognitive recovery.
+- **Immune & Safety**: Adaptive injection protection and safety gates.
+- Support for Qwen3.5 Small Series with dynamic model selection policy.
 
-# GhostGPT v1.0 (2026-02-27)
+### Changed
+- Improved `Metabolism` engine with robust state migration for cognitive snapshots.
+- Optimized Rust-accelerated vision pipeline with zero-copy memory management.
 
-## Key Features
-- Полностью локальный запуск (Ollama + Qwen2.5-7B / Phi-4-mini fallback)
-- RAM-aware модельный выбор для слабого железа (Ryzen 5700U 16 ГБ)
-- Интервью-копилот в GUI (GhostGPT) с Access Protocol (self-love, resonance)
-- Console-режим для быстрого тестирования
-- Temporal/causal memory + AgentLoop
-- Resonance eval harness + LLM-as-Judge
-- Circuit breakers и observability
+### Fixed
+- Resolved race conditions in the vision subsystem during rapid state transitions.
+- Fixed metadata eviction leaks in the frame buffer.
+- Corrected greedy redaction conflicts in multi-PII scenarios.
 
-## Fixes & Stability
-- PR #201: RAM-aware LLM fallback
-- PR #202: Стабильный запуск без ImportError из любой директории
-
-## Known Limitations
-- Аудио требует ручной настройки Virtual Cable на Windows
-- Qt/PyAudio могут требовать установки в dev-окружении
-- Нет CI/CD пайплайна (будет в v1.1)
-
-## Thanks
-Проект построен как senior-level архитектура с фокусом на локальность и устойчивость.
+## [1.0.0] - 2026-02-27
+### Initial Release Features
+- Full local execution (Ollama + Qwen/Phi).
+- RAM-aware model selection.
+- Interview Copilot (Ghost Mode).
+- Temporal/causal memory integration.
+- AgentLoop state machine (Idle/Listening/Thinking/Responding).
