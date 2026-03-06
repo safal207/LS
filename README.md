@@ -232,7 +232,7 @@ config/local.example.yaml
 
 ## Режимы (в т.ч. Interview Mode)
 
-Поведение системы в первую очередь задаётся `llm.system_prompt` (см. `config/base.yaml` и overrides in `config/local.yaml`).
+Поведение системы в первую очередь задаётся `llm.system_prompt` (см. `config/base.yaml` и overrides в `config/local.yaml`).
 
 Если нужен “интервью‑режим”, задайте системный промпт в `config/local.yaml` (пример):
 ```yaml
