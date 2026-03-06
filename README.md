@@ -61,7 +61,7 @@ pip install -e ".[full]"
 ### Build Rust Core (for developers)
 
 ```bash
-maturin develop --features vision
+maturin develop
 ```
 
 ### Launch
@@ -252,11 +252,6 @@ llm:
 - `llm/` — генерация ответов (Ollama/Groq/Qwen)
 - `shared/` — общие утилиты и конфиг
 - `hexagon_core/` — когнитивное ядро агента
-
-## Совместимость
-
-Для поддержки старых импортов оставлены stubs на корне:
-`audio_module.py`, `stt_module.py`, `llm_module.py`, `qwen_handler.py`, `utils.py`.
 
 ## Smoke‑тесты
 

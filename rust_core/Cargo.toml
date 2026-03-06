@@ -9,7 +9,6 @@ default = ["python"]
 python = ["pyo3", "pyo3/extension-module"]
 # Для тестов — с линковкой libpython
 python-embed = ["pyo3", "pyo3/auto-initialize"]
-vision = []
 
 [dependencies]
 pyo3 = { version = "0.20", optional = true }

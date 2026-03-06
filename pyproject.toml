@@ -45,7 +45,7 @@ full = ["opencv-python>=4.8.0", "torch>=2.0.0", "sentence-transformers>=2.2.2", 
 
 [tool.maturin]
 bindings = "pyo3"
-features = ["vision", "python"]
+features = ["python"]
 manifest-path = "rust_core/Cargo.toml"
 module-name = "ghostgpt_core"
 python-source = "python/modules"
