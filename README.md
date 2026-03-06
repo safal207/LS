@@ -54,6 +54,10 @@ source venv/bin/activate
 pip install -e ".[full]"
 ```
 
+> **Note:** `ghostgpt-core` is a core library.
+> The GUI (`apps/ghostgpt/main.py`) and console (`apps/console/main.py`)
+> require cloning the repository and running from source.
+
 ### Build Rust Core (for developers)
 
 ```bash
@@ -184,6 +188,10 @@ source venv/bin/activate
 pip install -e ".[full]"
 ```
 
+> **Примечание:** `ghostgpt-core` — это библиотека ядра.
+> GUI и консольный режим запускаются только из клонированного репозитория,
+> не через `pip install`.
+
 ## Multi-Agent Demo
 
 Запустите 3 параллельных агента, координирующихся через общую память:
@@ -224,7 +232,7 @@ config/local.example.yaml
 
 ## Режимы (в т.ч. Interview Mode)
 
-Поведение системы в первую очередь задаётся `llm.system_prompt` (см. `config/base.yaml` и overrides в `config/local.yaml`).
+Поведение системы в первую очередь задаётся `llm.system_prompt` (см. `config/base.yaml` и overrides in `config/local.yaml`).
 
 Если нужен “интервью‑режим”, задайте системный промпт в `config/local.yaml` (пример):
 ```yaml

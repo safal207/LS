@@ -86,7 +86,10 @@ def test_rust_adapters():
     assert rhythm.classify_mode() in ["Discussion", "Coding", "Presentation", "Idle"]
 
     privacy = RustPrivacyAdapter()
-    assert "[REDACTED_EMAIL]" in privacy.redact("test@example.com")
+    text = "mail test@example.com"
+    redacted = privacy.redact(text)
+    assert "[REDACTED_EMAIL]" in redacted
+    assert "test@example.com" not in redacted
 
 @pytest.mark.skipif(not _rust_available(), reason="Rust core not compiled")
 def test_zero_copy_verification():
@@ -109,11 +112,13 @@ def test_edge_case_privacy_redaction():
     pii = "test@example.com"
     redacted = redactor.redact(pii)
     assert "[REDACTED_EMAIL]" in redacted
+    assert "test@example.com" not in redacted
 
     # Mixed newlines
     mixed = "line1\npassword=secret\r\nline3"
     redacted = redactor.redact(mixed)
     assert "[REDACTED_PASSWORD]" in redacted
+    assert "secret" not in redacted
 
 def test_resized_frames_handling():
     vision = VisionSubsystem()
@@ -220,7 +225,9 @@ def test_vision_subsystem_full_loop_degraded():
     threading.Thread(target=stop_after_a_bit).start()
     vision.start()
     # Wait for thread
-    time.sleep(1.2)
+    deadline = time.time() + 2.0
+    while vision._running and time.time() < deadline:
+        time.sleep(0.05)
 
     assert vision.audit.get_entries()
 

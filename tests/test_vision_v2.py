@@ -159,6 +159,9 @@ class TestVisionSubsystem(unittest.TestCase):
         self.assertIn("[REDACTED_EMAIL]", redacted)
         self.assertIn("[REDACTED_PHONE]", redacted)
         self.assertIn("[REDACTED_PASSWORD]", redacted)
+        self.assertNotIn("test@example.com", redacted)
+        self.assertNotIn("123-456-7890", redacted)
+        self.assertNotIn("hunter2", redacted)
 
 
     def test_extract_ocr_text_logs_when_ocr_unavailable(self):
@@ -225,6 +228,7 @@ class TestVisionSubsystem(unittest.TestCase):
 
         vision.stop()
         self.assertIn("[REDACTED_PASSWORD]", vision.fusion.seen_ocr)
+        self.assertNotIn("secret123", vision.fusion.seen_ocr)
 
 
     def test_resize_frame_for_mode_without_cv2_uses_numpy_fallback(self):
