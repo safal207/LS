@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import warnings
 import sys
 from pathlib import Path
 
@@ -37,6 +38,13 @@ _aliases = {
 for legacy, canonical in _aliases.items():
     if legacy in sys.modules:
         continue
-    sys.modules[legacy] = importlib.import_module(canonical)
+    try:
+        sys.modules[legacy] = importlib.import_module(canonical)
+    except Exception as exc:
+        warnings.warn(
+            f"Legacy alias {legacy!r} -> {canonical!r} failed: {exc}",
+            ImportWarning,
+            stacklevel=1,
+        )
 
 os.environ.setdefault("LS_APP", "console")
