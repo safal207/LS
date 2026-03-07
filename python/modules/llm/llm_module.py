@@ -4,7 +4,10 @@ Language Model Module (Module 3: LLM Processing)
 Connects to Ollama phi3 API and generates responses to questions
 """
 
-import requests
+try:
+    import requests
+except Exception:  # pragma: no cover - optional dependency
+    requests = None
 import time
 import logging
 import queue
@@ -73,6 +76,9 @@ class LanguageModel:
 
     def test_ollama_connection(self) -> bool:
         """Test connection to Ollama server"""
+        if requests is None:
+            logger.warning("requests is not installed; skipping Ollama connectivity test")
+            return False
         try:
             # Simple check to see if Ollama is responsive
             response = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=2)
