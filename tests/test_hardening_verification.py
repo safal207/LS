@@ -8,10 +8,14 @@ from python.modules.perception.coordinator import VisionSubsystem
 from python.modules.perception.blackboard import SessionBlackboard
 from python.modules.perception.safety import ConsentManager, AuditLog
 
+from python.modules.perception.safety import PrivacyRedactor
+
 def test_ocr_redaction_hardening():
     """Verify that sensitive information in OCR text is redacted in the vision subsystem."""
     vision = VisionSubsystem()
     vision._capture_enabled = True
+    # Ensure we use a functional redactor for this test
+    vision.privacy_redactor = PrivacyRedactor()
 
     # Mock capturer to return sensitive text
     vision.capturer = mock.Mock()

@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: "pip"
 
       - name: Install system dependencies
@@ -51,7 +51,7 @@ jobs:
 
       - name: Vulnerability audit
         run: |
-          pip-audit --strict --desc --progress-spinner off || true
+          pip-audit --strict --desc --progress-spinner off
 
       - name: Generate SBOM
         run: |
