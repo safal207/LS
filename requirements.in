@@ -10,12 +10,12 @@ psutil==5.9.0
 pyinstaller==6.18.0
 soundfile==0.12.1
 sentence-transformers>=2.2.2
-torch>=2.0.0
+torch>=2.1.0
 cryptography>=41.0.0
+Pillow>=10.0.0
 
 # Vision Subsystem
 mss==10.1.0
-Pillow>=10.0.0
 opencv-python==4.13.0.92
 imagehash==4.3.2
 scikit-image==0.26.0

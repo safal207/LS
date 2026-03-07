@@ -44,7 +44,7 @@ jobs:
       - name: Verify requirements.txt matches requirements.in
         run: |
           pip-compile requirements.in --output-file requirements.txt.check
-          diff requirements.txt requirements.txt.check || true
+          diff requirements.txt requirements.txt.check
 
       - name: Run hardening verification tests
         run: |
