@@ -58,6 +58,7 @@ def run_case(use_pyo3: bool) -> BenchResult:
     chunks = speech_chunks + silence_chunks
 
     if use_pyo3:
+        # Availability check only: StreamingAudioPipeline still uses its own AudioRingBuffer.
         core = RustAudioCore(capacity_samples=16000 * 3)
         if core._impl is None:  # type: ignore[attr-defined]
             raise RuntimeError("PyO3 audio_core extension is not available")

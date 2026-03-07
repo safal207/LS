@@ -19,6 +19,7 @@ def test_stt_accepts_pcm16_dict_without_wav_path(monkeypatch) -> None:
             captured["kwargs"] = kwargs
             return [types.SimpleNamespace(text="hello")], types.SimpleNamespace()
 
+    monkeypatch.delitem(sys.modules, "python.modules.stt.stt_module", raising=False)
     monkeypatch.setitem(sys.modules, "faster_whisper", types.SimpleNamespace(WhisperModel=_FakeWhisperModel))
     monkeypatch.setitem(sys.modules, "config", types.SimpleNamespace(WHISPER_MODEL_SIZE="tiny"))
     monkeypatch.setitem(sys.modules, "shared.utils", types.SimpleNamespace(is_question=lambda _: False))
