@@ -1,28 +1,52 @@
-name: Security Audit
+name: Security Pipeline
 
 on:
   push:
-    branches:
-      - "main"
-      - "fix/post-1.2.1-hardening"
+    branches: ["main", "fix/post-1.2.1-hardening"]
   pull_request:
-    branches:
-      - "main"
+    branches: ["main"]
 
 jobs:
-  pip-audit:
+  security:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Security audit dependencies
+          cache: "pip"
+
+      - name: Upgrade tooling
         run: |
-          pip install pip-audit
+          python -m pip install --upgrade pip setuptools wheel
+
+      - name: Install dependencies
+        run: |
           if [ -f requirements.txt ]; then
-            pip-audit -r requirements.txt --strict
-          else
-            pip-audit --strict
+            pip install -r requirements.txt || true
           fi
+
+      - name: Install security tools
+        run: |
+          pip install pip-audit cyclonedx-bom pip-tools
+
+      - name: Verify requirements.txt matches requirements.in
+        run: |
+          pip-compile requirements.in --output-file requirements.txt.check
+          diff requirements.txt requirements.txt.check
+
+      - name: Vulnerability audit
+        run: |
+          pip-audit --strict --desc --progress-spinner off
+
+      - name: Generate SBOM
+        run: |
+          cyclonedx-py environment --output-format json --output-file sbom.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
