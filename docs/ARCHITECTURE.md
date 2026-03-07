@@ -126,6 +126,45 @@ graph TB
 - `state`: `str | null`
 - `payload`: `dict`
 
+
+## Voice Pipeline v2 (Low-Latency, Streaming)
+
+Для production voice path добавлен новый потоковый пайплайн без временных WAV-файлов:
+
+`AudioCapture -> RingBuffer -> Resampler -> 20ms FrameSplitter -> VAD -> EndpointDetector -> Streaming STT`
+
+Ключевые свойства:
+- **No Disk I/O in Hot Path**: аудио передаётся в памяти (`numpy int16`), без `temp.wav`.
+- **Ring Buffer-first дизайн**: непрерывный стриминг и предсказуемая задержка.
+- **Модульный VAD**: интерфейс `IVAD` + `WebRTCVAD` (fallback на RMS).
+- **Endpoint Detection**: сегмент закрывается после 600ms тишины (настраиваемо).
+- **Streaming STT**: `python/modules/stt/stt_streaming.py` с low-latency параметрами `beam_size=1`, `best_of=1`, `temperature=0`, rolling context 2-4s.
+- **Rust Audio Core (optional)**: `rust/audio_core` (PyO3), реализует ring buffer + resample + frame read, с автоматическим fallback на Python при отсутствии сборки.
+
+Новые модули:
+- `python/modules/audio/interfaces.py`
+- `python/modules/audio/capture.py`
+- `python/modules/audio/frame_buffer.py`
+- `python/modules/audio/vad.py`
+- `python/modules/audio/endpoint_detector.py`
+- `python/modules/audio/pipeline.py`
+- `python/modules/audio/rust_core.py`
+- `python/modules/stt/stt_streaming.py`
+
+Сборка Rust модуля (опционально):
+
+```bash
+cd rust/audio_core
+maturin develop --release
+```
+
+или:
+
+```bash
+cd rust/audio_core
+cargo build --release
+```
+
 ## LLM Layer
 
 `python/modules/llm/` содержит runtime и защитные слои:
