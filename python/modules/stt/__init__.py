@@ -1,4 +1,8 @@
-﻿from .stt_module import SpeechToText
+try:
+    from .stt_module import SpeechToText
+except ImportError:  # pragma: no cover
+    SpeechToText = None  # type: ignore
 
-__all__ = ["SpeechToText"]
+from .stt_streaming import MockStreamingSTT, StreamingWhisperSTT
 
+__all__ = ["SpeechToText", "StreamingWhisperSTT", "MockStreamingSTT"]

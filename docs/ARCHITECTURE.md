@@ -126,6 +126,55 @@ graph TB
 - `state`: `str | null`
 - `payload`: `dict`
 
+
+## Voice Pipeline v2 (Low-Latency, Streaming)
+
+Для production voice path добавлен новый потоковый пайплайн без временных WAV-файлов:
+
+`AudioCapture -> RingBuffer -> Resampler -> 20ms FrameSplitter -> VAD -> EndpointDetector -> Streaming STT`
+
+Ключевые свойства:
+- **No Disk I/O in Hot Path**: аудио передаётся в памяти (`numpy int16`), без `temp.wav`.
+- **Ring Buffer-first дизайн**: непрерывный стриминг и предсказуемая задержка.
+- **Модульный VAD**: интерфейс `IVAD` + `WebRTCVAD` (fallback на RMS).
+- **Endpoint Detection**: сегмент закрывается после 600ms тишины (настраиваемо).
+- **Streaming STT**: `python/modules/stt/stt_streaming.py` с low-latency параметрами `beam_size=1`, `best_of=1`, `temperature=0`, rolling context 2-4s.
+- **Rust Audio Core (optional)**: `rust/audio_core` (PyO3), реализует ring buffer + resample + frame read, с автоматическим fallback на Python при отсутствии сборки.
+- **Thread-safe Ring Buffer**: `AudioRingBuffer` поддерживает режим межпоточной работы для capture/STT в разных потоках с учетом `queue_drops`.
+- **Metrics/Event Logging**: `StreamingAudioPipeline` пишет stage-метрики (`capture_latency_ms`, `vad_latency_ms`, `queue_drops`, `segments_emitted`) и поддерживает callback `event_logger` для realtime мониторинга.
+
+Новые модули:
+- `python/modules/audio/interfaces.py`
+- `python/modules/audio/capture.py`
+- `python/modules/audio/frame_buffer.py`
+- `python/modules/audio/vad.py`
+- `python/modules/audio/endpoint_detector.py`
+- `python/modules/audio/pipeline.py`
+- `python/modules/audio/rust_core.py`
+- `python/modules/stt/stt_streaming.py`
+
+Сборка Rust модуля (опционально):
+
+```bash
+cd rust/audio_core
+maturin develop --release
+```
+
+или:
+
+```bash
+cd rust/audio_core
+cargo build --release
+```
+
+Latency benchmark (capture→STT, с/без PyO3):
+
+```bash
+python tests/perf/benchmark_capture_to_stt.py
+```
+
+Скрипт прогоняет одинаковый synthetic pipeline и выводит JSON с `avg_capture_to_stt_ms`/`p95_capture_to_stt_ms` для режимов `without_pyo3` и `with_pyo3`.
+
 ## LLM Layer
 
 `python/modules/llm/` содержит runtime и защитные слои:
@@ -148,4 +197,3 @@ graph TB
 1. `llm.system_prompt` в YAML (или overrides в `config/local.yaml`)
 2. feature flags в `config/base.yaml`
 3. настройки agent loop (cancellation, metrics, observability)
-

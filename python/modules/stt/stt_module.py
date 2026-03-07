@@ -9,7 +9,8 @@ import time
 import logging
 import queue
 import os
-from typing import Optional
+import numpy as np
+from typing import Optional, Any
 from faster_whisper import WhisperModel
 from config import WHISPER_MODEL_SIZE
 from shared.utils import is_question
@@ -45,18 +46,29 @@ class SpeechToText:
             logger.error(f"Failed to load Whisper model: {e}")
             return False
     
-    def transcribe_audio(self, audio_file: str) -> str:
-        """Transcribe audio file to text"""
+    def transcribe_audio(self, audio_source: Any) -> str:
+        """Transcribe audio source (file path or in-memory PCM buffer) to text."""
+        temp_audio_path = None
         try:
             if not self.model:
                 logger.error("Model not loaded")
                 return ""
-            
-            logger.debug(f"Transcribing: {audio_file}")
-            
+
+            if isinstance(audio_source, dict):
+                pcm = np.asarray(audio_source.get("samples", np.empty(0, dtype=np.int16)))
+                audio_input: Any = pcm.astype(np.float32) / 32768.0
+            elif isinstance(audio_source, np.ndarray):
+                audio_input = audio_source.astype(np.float32) / 32768.0
+            else:
+                audio_input = audio_source
+                if isinstance(audio_source, str):
+                    temp_audio_path = audio_source
+
+            logger.debug(f"Transcribing source type: {type(audio_source).__name__}")
+
             # Transcribe with optimized settings
             segments, info = self.model.transcribe(
-                audio_file,
+                audio_input,
                 beam_size=5,
                 best_of=5,
                 patience=1.0,
@@ -74,7 +86,8 @@ class SpeechToText:
                 max_initial_timestamp=1.0,
                 word_timestamps=False,
                 prepend_punctuations="\"'“¿([{-",
-                append_punctuations="\"'.。,，!！?？:：”)]}、"
+                append_punctuations="\"'.。,，!！?？:：”)]}、",
+                language="ru",
             )
             
             # Extract text from segments
@@ -91,15 +104,16 @@ class SpeechToText:
             return transcript
             
         except Exception as e:
-            logger.error(f"Transcription error for {audio_file}: {e}")
+            logger.error(f"Transcription error for source type {type(audio_source).__name__}: {e}")
             return ""
         finally:
-            # Clean up temporary file
-            try:
-                if os.path.exists(audio_file):
-                    os.unlink(audio_file)
-            except Exception as e:
-                logger.warning(f"Failed to delete temp file {audio_file}: {e}")
+            # Backward compatibility: remove temporary file only for file-based path inputs
+            if temp_audio_path:
+                try:
+                    if os.path.exists(temp_audio_path):
+                        os.unlink(temp_audio_path)
+                except Exception as e:
+                    logger.warning(f"Failed to delete temp file {temp_audio_path}: {e}")
     
     def process_transcript(self, transcript: str) -> Optional[str]:
         """

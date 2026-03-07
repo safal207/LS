@@ -39,3 +39,15 @@ PYTHONPATH=python:python/modules python -m pytest python/tests/test_rust_bridge.
   - `x86_64-pc-windows-gnu` requires MinGW runtime/link libs.
 
 If the module cannot be imported locally and no artifact exists, pytest will skip binding-only checks and still execute fallback-path tests.
+
+
+## Optional audio_core extension (Voice Pipeline v2)
+
+Build PyO3 extension for low-latency audio DSP:
+
+```bash
+cd rust/audio_core
+maturin develop --release
+```
+
+If `audio_core` cannot be imported, Python fallback remains active (`python/modules/audio/rust_core.py`).

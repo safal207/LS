@@ -1,18 +1,18 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Audio Ingestion Module (Module 1)
-Captures system audio from VB-Cable output and performs basic VAD
+Captures system audio and performs basic VAD before enqueueing in-memory PCM buffers.
 """
 
-import pyaudio
-import numpy as np
-import time
 import logging
 import queue
-import tempfile
-import os
+import time
 from typing import Optional
-from config import SAMPLE_RATE, AUDIO_CHUNK_DURATION, VOLUME_THRESHOLD
+
+import numpy as np
+import pyaudio
+
+from config import AUDIO_CHUNK_DURATION, SAMPLE_RATE, VOLUME_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -27,97 +27,55 @@ class AudioIngestion:
         self.chunk_size = int(SAMPLE_RATE * AUDIO_CHUNK_DURATION)
 
     def find_vb_cable_device(self) -> Optional[int]:
-        """Find VB-Cable output device index"""
+        """Find VB-Cable output device index."""
         try:
             for i in range(self.p.get_device_count()):
                 info = self.p.get_device_info_by_index(i)
-                device_name = info['name'].lower()
+                device_name = info["name"].lower()
 
-                # Look for VB-Cable output devices
-                if ('cable' in device_name and 'output' in device_name) or \
-                   ('vb-audio' in device_name and 'output' in device_name):
-                    logger.info(f"Found VB-Cable device: {info['name']} (index: {i})")
+                if ("cable" in device_name and "output" in device_name) or (
+                    "vb-audio" in device_name and "output" in device_name
+                ):
+                    logger.info("Found VB-Cable device: %s (index: %d)", info["name"], i)
                     return i
 
-            # If specific output not found, try any cable device
             for i in range(self.p.get_device_count()):
                 info = self.p.get_device_info_by_index(i)
-                if 'cable' in info['name'].lower():
-                    logger.info(f"Found VB-Cable device: {info['name']} (index: {i})")
+                if "cable" in info["name"].lower():
+                    logger.info("Found VB-Cable device: %s (index: %d)", info["name"], i)
                     return i
 
             logger.warning("VB-Cable device not found")
             return None
-
         except Exception as e:
-            logger.error(f"Error finding VB-Cable device: {e}")
+            logger.error("Error finding VB-Cable device: %s", e)
             return None
 
     def list_audio_devices(self):
-        """List all available audio devices for debugging"""
         logger.info("Available audio devices:")
         for i in range(self.p.get_device_count()):
             info = self.p.get_device_info_by_index(i)
             logger.info(
-                f"  [{i}] {info['name']} - "
-                f"Inputs: {info['maxInputChannels']}, "
-                f"Outputs: {info['maxOutputChannels']}"
+                "  [%d] %s - Inputs: %s, Outputs: %s",
+                i,
+                info["name"],
+                info["maxInputChannels"],
+                info["maxOutputChannels"],
             )
 
     def is_voice_active(self, audio_data: np.ndarray) -> bool:
-        """
-        Simple Voice Activity Detection based on amplitude threshold
-        Returns True if voice is detected, False otherwise
-        """
         if audio_data.dtype != np.float32:
-            audio_data = audio_data.astype(np.float32)
+            audio_data = audio_data.astype(np.float32, copy=False)
 
-        rms = np.sqrt(np.mean(audio_data ** 2))
+        rms = float(np.sqrt(np.mean(audio_data**2)))
         is_active = rms > VOLUME_THRESHOLD
-
         if is_active:
-            logger.debug(f"Voice detected - RMS: {rms:.4f}")
-
+            logger.debug("Voice detected - RMS: %.4f", rms)
         return is_active
 
-    def save_audio_chunk(self, audio_data: np.ndarray) -> str:
-        """Save audio chunk to temporary WAV file"""
-        try:
-            temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-            temp_filename = temp_file.name
-            temp_file.close()
-
-            # Save as WAV using soundfile (more reliable than scipy.io.wavfile)
-            import soundfile as sf
-            sf.write(temp_filename, audio_data, SAMPLE_RATE)
-
-            logger.debug(f"Saved audio chunk: {temp_filename}")
-            return temp_filename
-
-        except ImportError:
-            try:
-                from scipy.io import wavfile
-                temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-                temp_filename = temp_file.name
-                temp_file.close()
-
-                audio_int16 = (audio_data * 32767).astype(np.int16)
-                wavfile.write(temp_filename, SAMPLE_RATE, audio_int16)
-
-                logger.debug(f"Saved audio chunk: {temp_filename}")
-                return temp_filename
-            except Exception as e:
-                logger.error(f"Failed to save audio chunk: {e}")
-                return ""
-        except Exception as e:
-            logger.error(f"Failed to save audio chunk: {e}")
-            return ""
-
     def start_stream(self) -> bool:
-        """Initialize and start audio stream"""
         try:
             self.device_index = self.find_vb_cable_device()
-
             if self.device_index is None:
                 logger.error("Cannot find VB-Cable device. Listing available devices:")
                 self.list_audio_devices()
@@ -134,46 +92,41 @@ class AudioIngestion:
             )
 
             self.stream.start_stream()
-            logger.info(f"Audio stream started on device {self.device_index}")
+            logger.info("Audio stream started on device %s", self.device_index)
             return True
-
         except Exception as e:
-            logger.error(f"Failed to start audio stream: {e}")
+            logger.error("Failed to start audio stream: %s", e)
             return False
 
     def audio_callback(self, in_data, frame_count, time_info, status):
-        """PyAudio callback for real-time audio processing"""
         if not self.running:
             return (None, pyaudio.paAbort)
 
         try:
             audio_data = np.frombuffer(in_data, dtype=np.float32)
-
             if self.is_voice_active(audio_data):
-                temp_filename = self.save_audio_chunk(audio_data)
-
-                if temp_filename:
-                    try:
-                        self.output_queue.put_nowait(temp_filename)
-                        logger.debug(f"Queued audio file for transcription: {temp_filename}")
-                    except queue.Full:
-                        logger.warning("Transcription queue full, dropping chunk")
-                        try:
-                            os.unlink(temp_filename)
-                        except Exception:
-                            pass
+                # hot path: in-memory only, no temp files
+                pcm16 = (audio_data * 32767.0).astype(np.int16, copy=False)
+                payload = {
+                    "samples": pcm16,
+                    "sample_rate": SAMPLE_RATE,
+                    "timestamp": time.time(),
+                }
+                try:
+                    self.output_queue.put_nowait(payload)
+                    logger.debug("Queued audio chunk for transcription (%d samples)", pcm16.size)
+                except queue.Full:
+                    logger.warning("Transcription queue full, dropping chunk")
             else:
                 logger.debug("No voice activity detected")
 
         except Exception as e:
-            logger.error(f"Error in audio callback: {e}")
+            logger.error("Error in audio callback: %s", e)
 
         return (None, pyaudio.paContinue)
 
     def run(self):
-        """Main audio capture loop"""
         logger.info("Starting Audio Ingestion module")
-
         self.running = True
 
         if not self.start_stream():
@@ -184,31 +137,26 @@ class AudioIngestion:
         try:
             while self.running:
                 time.sleep(0.1)
-
                 if self.stream and not self.stream.is_active():
                     logger.warning("Audio stream inactive, attempting restart")
                     self.restart_stream()
-
         except KeyboardInterrupt:
             logger.info("Audio ingestion interrupted")
         except Exception as e:
-            logger.error(f"Audio ingestion error: {e}")
+            logger.error("Audio ingestion error: %s", e)
         finally:
             self.stop()
 
     def restart_stream(self):
-        """Restart audio stream if it stops"""
         try:
             if self.stream:
                 self.stream.stop_stream()
                 self.stream.close()
-
             self.start_stream()
         except Exception as e:
-            logger.error(f"Failed to restart stream: {e}")
+            logger.error("Failed to restart stream: %s", e)
 
     def stop(self):
-        """Stop audio capture"""
         logger.info("Stopping Audio Ingestion module")
         self.running = False
 
@@ -227,9 +175,7 @@ class AudioIngestion:
         logger.info("Audio Ingestion module stopped")
 
 
-# Test function
 def test_audio_module():
-    """Test the audio module standalone"""
     import queue
 
     test_queue = queue.Queue()
