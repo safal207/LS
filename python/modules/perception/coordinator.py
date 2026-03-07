@@ -304,8 +304,17 @@ class VisionSubsystem:
         elapsed = now - self._last_capture_time
         return max(0, (1.0 / self.target_fps) - elapsed)
 
+    def _safe_capture(self) -> Any:
+        try:
+            frame_data = self.capturer.capture_frame()
+            self._last_capture_time = time.time()
+            return frame_data
+        except Exception as e:
+            logger.error(f"Frame capture failed: {e}")
+            return None
+
     def _run_loop(self):
-        """Main vision processing cycle."""
+        """Main vision processing cycle with crash protection."""
         while self._is_running():
             try:
                 now = time.time()
@@ -322,15 +331,13 @@ class VisionSubsystem:
                 if sleep_time > 0:
                     time.sleep(sleep_time)
 
-                self._last_capture_time = time.time()
-
                 window_context = self.detector.get_active_window()
 
                 if not self.consent.is_capture_allowed(window_context):
                     time.sleep(1.0)
                     continue
 
-                frame_data = self.capturer.capture_frame()
+                frame_data = self._safe_capture()
                 if frame_data is None:
                     continue
 
