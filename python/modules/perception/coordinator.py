@@ -98,7 +98,7 @@ class VisionSubsystem:
         self.fusion = _FallbackSceneChangeDetector()
         self.rhythm = _FallbackRhythmAnalyzer()
 
-        self.privacy = _NoopPrivacyRedactor()
+        self.privacy_redactor = _NoopPrivacyRedactor()
         self.consent = ConsentManager()
         self.audit = AuditLog()
 
@@ -110,6 +110,8 @@ class VisionSubsystem:
         self._monitor_index = int(monitor_index)
         self._running = False
         self._capture_enabled = True
+        self.target_fps = 2.0
+        self._last_capture_time = 0.0
         self._thread: Optional[threading.Thread] = None
         self._last_degraded_log_ts = 0.0
         self._ocr_unavailable_warned = False
@@ -127,7 +129,7 @@ class VisionSubsystem:
         self.buffer = _FallbackFrameBuffer(max_frames=30)
         self.fusion = _FallbackSceneChangeDetector()
         self.rhythm = _FallbackRhythmAnalyzer()
-        self.privacy = _NoopPrivacyRedactor()
+        self.privacy_redactor = _NoopPrivacyRedactor()
 
     def _try_enable_rust_acceleration(self, monitor_index: int) -> None:
         try:
@@ -156,7 +158,7 @@ class VisionSubsystem:
 
             self.pipeline = rust_pipeline
             self.buffer = rust_buffer
-            self.privacy = rust_privacy
+            self.privacy_redactor = rust_privacy
             self.fusion = rust_fusion
             self.rhythm = rust_rhythm
         except Exception as rust_error:
@@ -236,7 +238,7 @@ class VisionSubsystem:
             self.buffer = buffer_module.FrameBuffer(max_frames=30)
             self.fusion = fusion_module.SceneChangeDetector()
             self.rhythm = fusion_module.RhythmAnalyzer()
-            self.privacy = safety_module.PrivacyRedactor()
+            self.privacy_redactor = safety_module.PrivacyRedactor()
             self._capture_enabled = True
             logger.info("VisionSubsystem initialized Python perception components.")
         except (ModuleNotFoundError, AttributeError) as dep_error:
@@ -297,12 +299,26 @@ class VisionSubsystem:
                 )
                 return frame_data
 
+    def _calculate_sleep(self, now: float) -> float:
+        """Calculates the time to sleep to maintain target FPS."""
+        elapsed = now - self._last_capture_time
+        return max(0, (1.0 / self.target_fps) - elapsed)
+
+    def _safe_capture(self) -> Any:
+        try:
+            frame_data = self.capturer.capture_frame()
+            self._last_capture_time = time.time()
+            return frame_data
+        except Exception as e:
+            logger.error(f"Frame capture failed: {e}")
+            return None
+
     def _run_loop(self):
-        """Main vision processing cycle."""
+        """Main vision processing cycle with crash protection."""
         while self._is_running():
             try:
+                now = time.time()
                 if self.capturer is None:
-                    now = time.time()
                     if now - self._last_degraded_log_ts >= 60.0:
                         logger.warning(
                             "Vision subsystem remains in degraded mode (capturer unavailable)."
@@ -311,31 +327,36 @@ class VisionSubsystem:
                     time.sleep(1.0)
                     continue
 
+                sleep_time = self._calculate_sleep(now)
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+
                 window_context = self.detector.get_active_window()
 
                 if not self.consent.is_capture_allowed(window_context):
                     time.sleep(1.0)
                     continue
 
-                frame_data = self.capturer.capture_frame()
+                frame_data = self._safe_capture()
                 if frame_data is None:
                     continue
 
-                ocr_text = self._extract_ocr_text(frame_data)
-                redacted_ocr = (
-                    self.privacy.redact(ocr_text)
-                    if hasattr(self.privacy, "redact")
-                    else ocr_text
+                raw_ocr = self._extract_ocr_text(frame_data)
+                safe_ocr = (
+                    self.privacy_redactor.redact(raw_ocr)
+                    if hasattr(self.privacy_redactor, "redact")
+                    else raw_ocr
                 )
                 frame_id = self.buffer.add_frame(frame_data, metadata=window_context)
                 self.event_bus.emit(
-                    "FrameCaptured", {"frame_id": frame_id, "window": window_context}
+                    "FrameCaptured",
+                    {"frame_id": frame_id, "window": window_context, "ocr": safe_ocr},
                 )
 
                 if self.pipeline is not None:
                     scene_score, current_activity, _, _ = self.pipeline.process_frame(
                         frame_data,
-                        current_ocr_text=redacted_ocr,
+                        current_ocr_text=safe_ocr,
                         mode=self.blackboard.current_mode,
                     )
                 else:
@@ -343,7 +364,7 @@ class VisionSubsystem:
                         frame_data, self.blackboard.current_mode
                     )
                     scene_score = self.fusion.calculate_scene_score(
-                        resized_frame, current_ocr_text=redacted_ocr
+                        resized_frame, current_ocr_text=safe_ocr
                     )
                     self.rhythm.add_score(scene_score)
                     current_activity = self.rhythm.classify_mode()
@@ -363,8 +384,6 @@ class VisionSubsystem:
                         payload = {"model": model, "frame_id": frame_id}
                         self.intent_bus.emit("StartObserve", payload)
                         self.audit.log_event("ObservationTriggered", payload)
-
-                time.sleep(1.0)
 
             except Exception as e:
                 logger.error(f"Error in VisionSubsystem loop: {e}")

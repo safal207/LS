@@ -30,9 +30,9 @@ class SessionBlackboard:
         with self._lock:
             return self._mode
 
-    def add_fact(self, fact: str, confidence: float, frame_id: str):
-        new_fact = VisualFact(fact=fact, confidence=confidence, source_frame_id=frame_id)
+    def add_fact(self, fact: str, score: float, source: str):
         with self._lock:
+            new_fact = VisualFact(fact=fact, confidence=score, source_frame_id=source)
             self._facts.append(new_fact)
             # Keep only recent or relevant facts (e.g., last 50)
             if len(self._facts) > 50:

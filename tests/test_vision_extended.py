@@ -286,6 +286,22 @@ def test_blackboard_coverage():
     assert snap["metadata"]["k"] == "v"
     assert len(snap["facts"]) == 50
 
+def test_blackboard_concurrent_writes():
+    bb = SessionBlackboard()
+    num_threads = 5
+    facts_per_thread = 100
+
+    def worker():
+        for i in range(facts_per_thread):
+            bb.add_fact(f"fact_{threading.get_ident()}_{i}", 0.9, "f1")
+
+    threads = [threading.Thread(target=worker) for _ in range(num_threads)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+
+    # Blackboard limits to 50 facts, so we check if it has 50 facts and didn't crash
+    assert len(bb.get_facts()) == 50
+
 def test_cortex_coverage():
     ap = AttentionPolicy(max_requests_per_min=1)
     assert ap.can_request()
@@ -368,3 +384,49 @@ def test_vision_subsystem_no_capturer_loop():
     with mock.patch("time.sleep", side_effect=InterruptedError):
         with pytest.raises(InterruptedError):
             vision._run_loop()
+
+def test_adaptive_fps_calculation():
+    vision = VisionSubsystem()
+    vision.target_fps = 5.0 # 0.2s period
+
+    # Case 1: Just captured
+    vision._last_capture_time = 100.0
+    sleep_time = vision._calculate_sleep(100.05)
+    assert pytest.approx(sleep_time, 0.01) == 0.15
+
+    # Case 2: Enough time passed
+    vision._last_capture_time = 100.0
+    sleep_time = vision._calculate_sleep(100.25)
+    assert sleep_time == 0
+
+def test_ocr_redaction_privacy_in_subsystem():
+    vision = VisionSubsystem()
+    vision._capture_enabled = True
+
+    # Mock capturer to return sensitive text
+    vision.capturer = mock.Mock()
+    vision.capturer.capture_frame.return_value = np.zeros((16, 16, 3), dtype=np.uint8)
+    vision.capturer.extract_ocr_text.return_value = "My email is test@example.com and password=secret123"
+
+    # Subscribe to event bus to check emitted data
+    emitted_events = []
+    def on_event(ev):
+        emitted_events.append(ev)
+    vision.event_bus.subscribe(on_event)
+
+    # Run one loop iteration
+    vision._running = True
+    with mock.patch("time.sleep"):
+        # We need to break the loop after one iteration
+        with mock.patch.object(vision, "_is_running", side_effect=[True, False]):
+            vision._run_loop()
+
+    # Check emitted FrameCaptured event
+    frame_events = [e for e in emitted_events if e.type == "FrameCaptured"]
+    assert len(frame_events) > 0
+    payload = frame_events[0].payload
+    assert "ocr" in payload
+    assert "[REDACTED_EMAIL]" in payload["ocr"]
+    assert "[REDACTED_PASSWORD]" in payload["ocr"]
+    assert "test@example.com" not in payload["ocr"]
+    assert "secret123" not in payload["ocr"]
