@@ -72,12 +72,17 @@ impl RustAudioCore {
             .collect()
     }
 
-    fn resample(&self, samples: Vec<i16>, in_rate: usize, out_rate: usize) -> Vec<i16> {
+    fn resample(&self, data: &[u8], in_rate: usize, out_rate: usize) -> Vec<u8> {
+        let samples: Vec<i16> = data
+            .chunks_exact(2)
+            .map(|b| i16::from_le_bytes([b[0], b[1]]))
+            .collect();
+
         if in_rate == 0 || out_rate == 0 || samples.is_empty() {
-            return samples;
+            return data.to_vec();
         }
         if in_rate == out_rate {
-            return samples;
+            return data.to_vec();
         }
 
         let out_len = samples.len().saturating_mul(out_rate) / in_rate;
@@ -97,7 +102,10 @@ impl RustAudioCore {
             let value = l * (1.0 - frac) + r * frac;
             out.push(value.round() as i16);
         }
-        out
+
+        out.into_iter()
+            .flat_map(|s| s.to_le_bytes())
+            .collect()
     }
 }
 

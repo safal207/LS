@@ -52,6 +52,6 @@ class RustAudioCore:
         if samples.dtype != np.int16:
             samples = samples.astype(np.int16, copy=False)
         if self._impl is not None:
-            out = self._impl.resample(samples.tolist(), int(in_rate), int(out_rate))
-            return np.asarray(out, dtype=np.int16)
+            out_bytes = self._impl.resample(samples.tobytes(), int(in_rate), int(out_rate))
+            return np.frombuffer(out_bytes, dtype=np.int16).copy()
         return self._resampler.resample(samples, in_rate, out_rate)

@@ -7,7 +7,7 @@ from .vad import SileroVAD, WebRTCVAD
 
 try:  # optional dependency path (PyAudio)
     from .audio_module import AudioIngestion
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     AudioIngestion = None  # type: ignore
 
 __all__ = [
