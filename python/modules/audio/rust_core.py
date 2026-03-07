@@ -33,13 +33,13 @@ class RustAudioCore:
         if samples.dtype != np.int16:
             samples = samples.astype(np.int16, copy=False)
         if self._impl is not None:
-            return int(self._impl.push_audio(samples.tolist()))
+            return int(self._impl.push_audio(samples.tobytes()))
         return int(self._fallback.push(samples))
 
     def read_frames(self, frame_samples: int, max_frames: int = 32) -> List[np.ndarray]:
         if self._impl is not None:
-            chunks = self._impl.read_frames(int(frame_samples), int(max_frames))
-            return [np.asarray(chunk, dtype=np.int16) for chunk in chunks]
+            chunks_bytes = self._impl.read_frames(int(frame_samples), int(max_frames))
+            return [np.frombuffer(chunk, dtype=np.int16).copy() for chunk in chunks_bytes]
 
         out: List[np.ndarray] = []
         for _ in range(max_frames):

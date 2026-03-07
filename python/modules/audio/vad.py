@@ -41,14 +41,15 @@ class VADDecision:
 
 
 class SileroVAD:
-    """Optional Silero VAD placeholder interface.
+    """Placeholder until real Silero integration. Delegates to WebRTCVAD.
 
-    Keeps architecture modular without hard dependency.
+    WebRTCVAD handles its own fallback if webrtcvad package is absent.
+    _available stays False until native Silero model is wired up.
     """
 
     def __init__(self) -> None:
+        self._delegate = WebRTCVAD()  # instantiated once, not per-frame
         self._available = False
 
     def is_speech(self, frame_pcm16: bytes, sample_rate: int) -> bool:
-        # TODO: optional real integration; fallback delegates to WebRTC-style logic.
-        return WebRTCVAD().is_speech(frame_pcm16, sample_rate)
+        return self._delegate.is_speech(frame_pcm16, sample_rate)
