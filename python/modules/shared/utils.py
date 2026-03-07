@@ -1,4 +1,7 @@
-import psutil
+try:
+    import psutil
+except Exception:  # pragma: no cover - optional dependency
+    psutil = None
 import logging
 from config import MAX_RAM_USAGE_MB
 
@@ -10,6 +13,9 @@ def check_system_resources() -> bool:
     Returns True if resources are adequate, False otherwise
     """
     try:
+        if psutil is None:
+            logger.warning("psutil is not installed; resource check is skipped")
+            return True
         # Check available RAM
         memory = psutil.virtual_memory()
         available_mb = memory.available / (1024 * 1024)

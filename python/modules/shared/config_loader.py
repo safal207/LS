@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import os
 import sys
+import warnings
 from pathlib import Path
 from typing import Any, Dict
 
 try:
     import yaml
-except Exception as exc:  # pragma: no cover - import guard
-    raise RuntimeError("PyYAML is required for config loading") from exc
+except Exception:  # pragma: no cover - optional dependency guard
+    yaml = None
+
+
+_YAML_WARNING_EMITTED = False
 
 _CONFIG_CACHE: Dict[str, Dict[str, Any]] = {}
 
@@ -24,7 +28,17 @@ def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any
 
 
 def _load_yaml(path: Path) -> Dict[str, Any]:
+    global _YAML_WARNING_EMITTED
     if not path.exists():
+        return {}
+    if yaml is None:
+        if not _YAML_WARNING_EMITTED:
+            warnings.warn(
+                "PyYAML is not installed; YAML configs are skipped and defaults are used",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            _YAML_WARNING_EMITTED = True
         return {}
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if data is None:

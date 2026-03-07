@@ -122,8 +122,14 @@ class AgentLoop:
         threading.Thread(target=self._bloodstream_loop, daemon=True).start()
 
         # Vision Subsystem Integration (Screen Perception v2)
-        self.vision = VisionSubsystem()
-        self.vision.intent_bus.subscribe(self._handle_vision_intent)
+        self.vision: VisionSubsystem | None = None
+        self._vision_enabled = False
+        try:
+            self.vision = VisionSubsystem()
+            self.vision.intent_bus.subscribe(self._handle_vision_intent)
+            self._vision_enabled = True
+        except Exception as exc:
+            logger.warning("VisionSubsystem init failed, continuing without vision: %s", exc)
 
 
     def _maybe_enter_sleep_mode(self):
@@ -580,7 +586,10 @@ class AgentLoop:
             try:
                 return self.llm.generate_response(question, cancel_event=cancel_event, messages=messages)
             except TypeError:
-                return self.llm.generate_response(question, cancel_event=cancel_event)
+                try:
+                    return self.llm.generate_response(question, cancel_event=cancel_event)
+                except TypeError:
+                    return self.llm.generate_response(question)
         return self.handler(question)
 
     def _cancel_active(self, reason: str) -> None:
@@ -635,6 +644,10 @@ class AgentLoop:
                 model = parts[2] if len(parts) > 2 else "2B"
 
                 # Retrieve frame from buffer
+                if not self.vision:
+                    logger.warning("Vision task skipped: VisionSubsystem unavailable")
+                    return
+
                 frame = self.vision.buffer.get_frame_by_id(frame_id)
                 if not frame:
                     logger.warning(f"Vision task failed: Frame {frame_id} not found")
@@ -1086,7 +1099,13 @@ class AgentLoop:
             raise RuntimeError("input_queue is required for run()")
 
         self.running = True
-        self.vision.start() # Start Screen Perception v2
+        if self.vision:
+            try:
+                self.vision.start()  # Start Screen Perception v2
+            except Exception as exc:
+                logger.warning("VisionSubsystem failed to start, disabling vision: %s", exc)
+                self.vision = None
+                self._vision_enabled = False
 
         while self.running:
             self._maybe_collect_windows_context(session_id="agent_loop")
@@ -1150,6 +1169,13 @@ class AgentLoop:
 
     def stop(self) -> None:
         self.running = False
-        self.vision.stop() # Stop Screen Perception v2
+        # Ensure deterministic final state for callers/tests even if an active
+        # worker thread is cancelled before its normal "finally" transition.
+        self._transition("idle")
+        if self.vision:
+            try:
+                self.vision.stop()  # Stop Screen Perception v2
+            except Exception as exc:
+                logger.debug("VisionSubsystem stop failed: %s", exc)
         if self._active_cancel:
             self._active_cancel.set()

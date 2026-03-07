@@ -2,13 +2,18 @@ from __future__ import annotations
 
 from typing import Tuple
 
-import psutil
+try:
+    import psutil
+except Exception:  # pragma: no cover - optional runtime dependency
+    psutil = None
 
 from ..config import LLM_HEAVY_MODEL, LLM_LIGHT_MODEL, LLM_RAM_THRESHOLD_GB
 
 
 def get_available_ram_gb() -> float:
     """Return currently available RAM in GB (cross-platform)."""
+    if psutil is None:
+        return 0.0
     return psutil.virtual_memory().available / (1024 ** 3)
 
 
