@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 import numpy as np
 
 
@@ -14,7 +16,7 @@ class AudioRingBuffer:
     Concurrency model is optimized for single-producer/single-consumer usage.
     """
 
-    def __init__(self, capacity_samples: int = 16000 * 10) -> None:
+    def __init__(self, capacity_samples: int = 16000 * 10, *, thread_safe: bool = True) -> None:
         if capacity_samples <= 0:
             raise ValueError("capacity_samples must be > 0")
         self._buf = np.zeros(capacity_samples, dtype=np.int16)
@@ -22,12 +24,23 @@ class AudioRingBuffer:
         self._read = 0
         self._write = 0
         self._size = 0
+        self._dropped_samples = 0
+        self._lock = threading.Lock() if thread_safe else None
+
+    def _guard(self):
+        return self._lock or _NoOpLock()
 
     def available_samples(self) -> int:
-        return self._size
+        with self._guard():
+            return self._size
 
     def free_samples(self) -> int:
-        return self._cap - self._size
+        with self._guard():
+            return self._cap - self._size
+
+    def dropped_samples(self) -> int:
+        with self._guard():
+            return self._dropped_samples
 
     def push(self, samples: np.ndarray) -> int:
         if samples.dtype != np.int16:
@@ -44,46 +57,58 @@ class AudioRingBuffer:
             samples = samples[-self._cap :]
             n = self._cap
 
-        overflow = max(0, n - self.free_samples())
-        if overflow:
-            self._read = (self._read + overflow) % self._cap
-            self._size -= overflow
+        with self._guard():
+            overflow = max(0, n - (self._cap - self._size))
+            if overflow:
+                self._read = (self._read + overflow) % self._cap
+                self._size -= overflow
+                self._dropped_samples += overflow
 
-        first = min(n, self._cap - self._write)
-        self._buf[self._write : self._write + first] = samples[:first]
-        second = n - first
-        if second:
-            self._buf[:second] = samples[first:]
+            first = min(n, self._cap - self._write)
+            self._buf[self._write : self._write + first] = samples[:first]
+            second = n - first
+            if second:
+                self._buf[:second] = samples[first:]
 
-        self._write = (self._write + n) % self._cap
-        self._size += n
-        return n
+            self._write = (self._write + n) % self._cap
+            self._size += n
+            return n
 
     def pop(self, max_samples: int) -> np.ndarray:
-        n = min(max(0, int(max_samples)), self._size)
-        if n == 0:
-            return np.empty(0, dtype=np.int16)
+        with self._guard():
+            n = min(max(0, int(max_samples)), self._size)
+            if n == 0:
+                return np.empty(0, dtype=np.int16)
 
-        out = np.empty(n, dtype=np.int16)
-        first = min(n, self._cap - self._read)
-        out[:first] = self._buf[self._read : self._read + first]
-        second = n - first
-        if second:
-            out[first:] = self._buf[:second]
+            out = np.empty(n, dtype=np.int16)
+            first = min(n, self._cap - self._read)
+            out[:first] = self._buf[self._read : self._read + first]
+            second = n - first
+            if second:
+                out[first:] = self._buf[:second]
 
-        self._read = (self._read + n) % self._cap
-        self._size -= n
-        return out
+            self._read = (self._read + n) % self._cap
+            self._size -= n
+            return out
 
     def peek(self, max_samples: int) -> np.ndarray:
-        n = min(max(0, int(max_samples)), self._size)
-        if n == 0:
-            return np.empty(0, dtype=np.int16)
+        with self._guard():
+            n = min(max(0, int(max_samples)), self._size)
+            if n == 0:
+                return np.empty(0, dtype=np.int16)
 
-        out = np.empty(n, dtype=np.int16)
-        first = min(n, self._cap - self._read)
-        out[:first] = self._buf[self._read : self._read + first]
-        second = n - first
-        if second:
-            out[first:] = self._buf[:second]
-        return out
+            out = np.empty(n, dtype=np.int16)
+            first = min(n, self._cap - self._read)
+            out[:first] = self._buf[self._read : self._read + first]
+            second = n - first
+            if second:
+                out[first:] = self._buf[:second]
+            return out
+
+
+class _NoOpLock:
+    def __enter__(self):
+        return None
+
+    def __exit__(self, exc_type, exc, tb):
+        return False

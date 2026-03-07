@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Optional, Protocol
 
 import numpy as np
 
@@ -21,6 +21,12 @@ class AudioMetrics:
     vad_latency_ms: float = 0.0
     stt_latency_ms: float = 0.0
     agent_latency_ms: float = 0.0
+    queue_drops: int = 0
+    segments_emitted: int = 0
+
+
+class EventLogger(Protocol):
+    def __call__(self, event: str, **payload: float | int | str) -> None: ...
 
 
 class LinearResampler:
@@ -49,6 +55,8 @@ class StreamingAudioPipeline:
         silence_ms_to_endpoint: int = 600,
         vad: Optional[WebRTCVAD] = None,
         ring_capacity_samples: int = 16000 * 10,
+        thread_safe_buffer: bool = True,
+        event_logger: EventLogger | None = None,
     ) -> None:
         self.capture = capture
         self.input_rate = int(input_rate)
@@ -58,9 +66,18 @@ class StreamingAudioPipeline:
         self.vad = vad or WebRTCVAD()
         self.resampler = LinearResampler()
         self.endpoint = EndpointDetector(frame_ms=frame_ms, silence_ms_to_endpoint=silence_ms_to_endpoint)
-        self.buffer = AudioRingBuffer(capacity_samples=ring_capacity_samples)
+        self.buffer = AudioRingBuffer(capacity_samples=ring_capacity_samples, thread_safe=thread_safe_buffer)
         self.metrics = AudioMetrics()
         self._frame_index = 0
+        self._event_logger = event_logger
+
+    def _emit(self, event: str, **payload: float | int | str) -> None:
+        if self._event_logger is None:
+            return
+        try:
+            self._event_logger(event, **payload)
+        except Exception:
+            logger.exception("event_logger failed for event=%s", event)
 
     def start(self) -> None:
         self.capture.start()
@@ -76,7 +93,15 @@ class StreamingAudioPipeline:
         if self.input_rate != self.target_rate:
             pcm = self.resampler.resample(pcm, self.input_rate, self.target_rate)
 
-        return self.buffer.push(pcm)
+        pushed = self.buffer.push(pcm)
+        self.metrics.queue_drops = self.buffer.dropped_samples()
+        self._emit(
+            "capture",
+            capture_latency_ms=round(self.metrics.capture_latency_ms, 3),
+            pushed_samples=pushed,
+            queue_drops=self.metrics.queue_drops,
+        )
+        return pushed
 
     def process_available_frames(self, on_segment: Callable[[SpeechSegment], None]) -> int:
         produced = 0
@@ -87,10 +112,13 @@ class StreamingAudioPipeline:
             t0 = time.perf_counter()
             speech = self.vad.is_speech(frame_bytes, self.target_rate)
             self.metrics.vad_latency_ms = (time.perf_counter() - t0) * 1000.0
+            self._emit("vad", vad_latency_ms=round(self.metrics.vad_latency_ms, 3), speech=int(speech))
 
             segment = self.endpoint.process_frame(frame, speech, self._frame_index)
             self._frame_index += 1
             if segment is not None:
                 on_segment(segment)
                 produced += 1
+                self.metrics.segments_emitted += 1
+                self._emit("segment", samples=segment.samples.size, segments_emitted=self.metrics.segments_emitted)
         return produced
