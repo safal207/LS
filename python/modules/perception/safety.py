@@ -39,6 +39,7 @@ class ConsentManager:
 
     def is_capture_allowed(self, window_context: Dict[str, Any]) -> bool:
         """Checks if screen capture is allowed for the given context."""
+        # Use lock to ensure thread-safety when reading denylist/allowlist
         with self._lock:
             if not self._global_toggle:
                 return False
@@ -70,12 +71,13 @@ class AuditLog:
         self.max_entries = 100
 
     def log_event(self, event_type: str, details: Dict[str, Any]):
-        entry = {
-            "timestamp": time.time(),
-            "event_type": event_type,
-            "details": details
-        }
+        # Use lock to ensure thread-safety when appending to shared log
         with self._lock:
+            entry = {
+                "timestamp": time.time(),
+                "event_type": event_type,
+                "details": details
+            }
             self._log.append(entry)
             if len(self._log) > self.max_entries:
                 self._log.pop(0)

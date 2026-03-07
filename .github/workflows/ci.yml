@@ -1,0 +1,28 @@
+name: Security Audit
+
+on:
+  push:
+    branches:
+      - "main"
+      - "fix/post-1.2.1-hardening"
+  pull_request:
+    branches:
+      - "main"
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Security audit dependencies
+        run: |
+          pip install pip-audit
+          if [ -f requirements.txt ]; then
+            pip-audit -r requirements.txt --strict
+          else
+            pip-audit --strict
+          fi
