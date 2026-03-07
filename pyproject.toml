@@ -1,0 +1,51 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "ghostgpt-core"
+version = "1.2.1"
+description = "High-performance Rust-accelerated cognitive architecture core for GhostOS. Zero-copy vision processing, privacy-by-design perception layer, hybrid Python/Rust orchestration and AR integration."
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {text = "Apache-2.0"}
+requires-python = ">=3.9"
+authors = [{name = "GhostOS Team", email = "core@ghostos.ai"}]
+keywords = ["cognitive-architecture", "rust", "zero-copy", "computer-vision", "privacy-by-design", "ghostos", "llm-agents", "ar-integration"]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+]
+
+dependencies = [
+    "numpy>=1.26.0",
+    "Pillow>=10.0.0",
+    "mss>=9.0.1",
+    "psutil>=5.9.0",
+]
+
+[project.optional-dependencies]
+vision = ["opencv-python>=4.8.0"]
+audio = ["sounddevice>=0.4.6", "soundfile>=0.12.1", "faster-whisper>=1.0.0"]
+ml = ["torch>=2.0.0", "sentence-transformers>=2.2.2"]
+full = ["opencv-python>=4.8.0", "torch>=2.0.0", "sentence-transformers>=2.2.2", "sounddevice>=0.4.6", "soundfile>=0.12.1", "faster-whisper>=1.0.0"]
+
+[tool.maturin]
+bindings = "pyo3"
+features = ["python"]
+manifest-path = "rust_core/Cargo.toml"
+module-name = "ghostgpt_core"
+python-source = "python/modules"

@@ -1,3 +1,92 @@
+# GhostGPT (LCS) — Local Cognitive System
+
+[English](README.md#english) | [Русский](README.md#russian)
+
+---
+
+<a name="english"></a>
+
+# GhostGPT / LCS — Local Cognitive System
+
+[![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
+[![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](LICENSE)
+[![Rust Powered](https://img.shields.io/badge/Rust-Inside-orange.svg)](#architecture)
+
+**GhostGPT** (built on the **Local Cognitive System** architecture) is an advanced cognitive layer for Large Language Models. It provides a persistent agentic loop, temporal context, and cross-session memory, enabling LLMs to behave as long-running autonomous entities.
+
+**Interview Copilot (Ghost Mode)** is one of the primary applications powered by this core.
+
+## 🚀 Key Features
+
+- **AgentLoop**: Sophisticated state management (`idle/listening/thinking/responding`) with cooperative cancellation and memory hooks.
+- **12-Layer Cognitive Architecture**: Including Metabolism (knowledge processing), Amygdala (emotional balance), and Sleep/Homeostasis (memory consolidation).
+- **Rust Optimization Layer**: High-performance pattern matching and SIMD-accelerated vector search for real-time responsiveness.
+- **Temporal Memory**: A graph-based belief system that tracks the evolution of knowledge over time.
+- **Local-First & Privacy-Centric**: Designed to run entirely on your hardware with built-in PII redaction and safety gates.
+- **Web4 Integration**: Ready for the next generation of decentralized AI protocols.
+
+## 🛠 Architecture
+
+GhostGPT follows a modular **Hexagon Core** design:
+- **Python Layer**: Handles high-level logic, GUI (Qt6), and agent orchestration.
+- **Rust Core**: Low-level optimizations for vision processing, memory management, and high-speed data transport.
+
+## 📦 Quick Start
+
+### Prerequisites
+- **Python 3.9+**
+- **Rust & Cargo** (for building core optimizations)
+- [**Ollama**](https://ollama.com/) (recommended for local LLM inference)
+
+### Installation
+
+```bash
+# For users
+pip install "ghostgpt-core[full]"
+
+# For developers / contributors
+git clone https://github.com/safal207/LS.git
+cd LS
+python -m venv venv
+source venv/bin/activate
+pip install -e ".[full]"
+```
+
+> **Note:** `ghostgpt-core` is a core library.
+> The GUI (`apps/ghostgpt/main.py`) and console (`apps/console/main.py`)
+> require cloning the repository and running from source.
+
+### Build Rust Core (for developers)
+
+```bash
+maturin develop
+```
+
+### Launch
+
+**GUI Dashboard (GhostGPT):**
+```bash
+python apps/ghostgpt/main.py
+```
+
+**Console Mode:**
+```bash
+python apps/console/main.py
+```
+
+## 📚 Documentation
+
+- [Final Project Report](FINAL_PROJECT_REPORT.md) — Comprehensive overview of the system.
+- [Architecture Deep Dive](docs/ARCHITECTURE.md) — Data flow and system components.
+- [Web4 Overview](docs/WEB4_OVERVIEW.md) — Vision for the decentralized future.
+- [HCP & CIP Specs](docs/HCP_SPEC.md) — Protocol specifications for human and agent interactions.
+
+---
+
+<a name="russian"></a>
+
 # LS — Local Cognitive System (LCS)
 
 [![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
@@ -6,7 +95,7 @@
 
 LS (Local Cognitive System) — локальная когнитивная система: архитектурный слой поверх LLM, который добавляет агентный цикл, временной контекст, устойчивость и наблюдаемость.
 
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](#quick-start)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
 [![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
 [![Local--first](https://img.shields.io/badge/Architecture-Local--first-success.svg)](#ls--local-cognitive-system-lcs)
 
@@ -82,42 +171,26 @@ config/
 ## Quick Start
 
 ### Требования
-- Python 3.10+
+- Python 3.9+
 - [Ollama](https://ollama.com/) (локальная LLM-служба)
-- `pip install -r requirements.txt`
 
-### 1) Установка зависимостей
+### Installation
 
 ```bash
+# Для пользователей
+pip install "ghostgpt-core[full]"
+
+# Для разработчиков / контрибьюторов
+git clone https://github.com/safal207/LS.git
+cd LS
 python -m venv venv
-# Windows (PowerShell)
-.\venv\Scripts\Activate.ps1
-# CMD
-venv\Scripts\activate.bat
-
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+source venv/bin/activate
+pip install -e ".[full]"
 ```
 
-### 2) Запуск
-
-**Console (CLI):**
-```bash
-python apps/console/main.py
-```
-
-**GhostGPT (GUI):**
-```bash
-python apps/ghostgpt/main.py
-```
-
-### Legacy entrypoints (deprecated)
-
-Эти entrypoints оставлены для обратной совместимости и будут удалены после стабилизации:
-```bash
-python main.py
-python GhostGPT/main.py
-```
+> **Примечание:** `ghostgpt-core` — это библиотека ядра.
+> GUI и консольный режим запускаются только из клонированного репозитория,
+> не через `pip install`.
 
 ## Multi-Agent Demo
 
@@ -180,11 +253,6 @@ llm:
 - `shared/` — общие утилиты и конфиг
 - `hexagon_core/` — когнитивное ядро агента
 
-## Совместимость
-
-Для поддержки старых импортов оставлены stubs на корне:
-`audio_module.py`, `stt_module.py`, `llm_module.py`, `qwen_handler.py`, `utils.py`.
-
 ## Smoke‑тесты
 
 ```bash
@@ -226,3 +294,6 @@ Env:
 - `top_score` — максимальный score среди найденных чанков.
 - `chunks_found` — число чанков выше порога.
 - `latency_ms` — задержка обработки вопроса.
+
+---
+© 2026 GhostGPT Team. Strictly Local. Strictly Cognitive.
