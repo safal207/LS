@@ -77,6 +77,11 @@ class DecisionPipeline:
             success=success,
             outcome_value=outcome_value,
         )
+        self.strategy_engine.update_causal_edges_from_feedback(
+            action=selected["recommended_action"],
+            actual_outcome=actual_outcome,
+            success=success,
+        )
         return decision_record
 
     def _maybe_execute_tool(self, action: str | None, event_sequence: List[Dict[str, Any]]) -> Dict[str, Any] | None:

@@ -126,3 +126,41 @@ def test_pipeline_tool_error_uses_audit_and_health_tracking() -> None:
     assert result["tool_execution"]["status"] == "error"
     assert "downstream unavailable" in result["tool_execution"]["error"]
     assert state["tool_health"]["answer_with_tool"]["is_healthy"] is False
+
+
+def test_pipeline_updates_existing_causal_edge_confidence_from_success() -> None:
+    state = {
+        "causal_edges": [
+            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.6},
+            {"cause": "retrieve_context", "effect": "context_answer", "confidence": 0.4},
+        ]
+    }
+
+    def answer_with_tool(payload: dict) -> dict:
+        return {"ok": True}
+
+    pipeline = DecisionPipeline(state, tool_registry={"answer_with_tool": answer_with_tool})
+    events = [{"type": "decision", "value": "answer_directly"}]
+
+    pipeline.run(events, actual_outcome="high_quality_answer", success=True)
+
+    updated = next(e for e in state["causal_edges"] if e["cause"] == "answer_with_tool" and e["effect"] == "high_quality_answer")
+    assert updated["confidence"] > 0.6
+
+
+def test_pipeline_creates_new_causal_edge_from_feedback() -> None:
+    state = {
+        "causal_edges": [
+            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.8},
+        ]
+    }
+
+    pipeline = DecisionPipeline(state)
+    events = [{"type": "decision", "value": "answer_directly"}]
+
+    pipeline.run(events, actual_outcome="novel_outcome", success=True)
+
+    assert any(
+        e["cause"] == "answer_with_tool" and e["effect"] == "novel_outcome"
+        for e in state["causal_edges"]
+    )

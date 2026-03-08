@@ -90,6 +90,42 @@ class StrategyEvolutionEngine:
         if outcome_value is not None:
             current["total_value"] += float(outcome_value)
 
+
+    def update_causal_edges_from_feedback(
+        self,
+        action: str | None,
+        actual_outcome: str | None,
+        success: bool | None,
+        learning_rate: float = 0.1,
+    ) -> None:
+        """Update or create causal edges from observed action outcomes."""
+        if not action or actual_outcome is None:
+            return
+
+        edges = self.cognitive_state.setdefault("causal_edges", [])
+        if not isinstance(edges, list):
+            return
+
+        match = None
+        for edge in edges:
+            if edge.get("cause") == action and edge.get("effect") == actual_outcome:
+                match = edge
+                break
+
+        delta = learning_rate if success is not False else -learning_rate
+        if match is None:
+            base_confidence = 0.5 + (learning_rate if success else -learning_rate)
+            edges.append(
+                {
+                    "cause": action,
+                    "effect": actual_outcome,
+                    "confidence": max(0.0, min(1.0, base_confidence)),
+                }
+            )
+            return
+
+        current_conf = float(match.get("confidence", 0.0) or 0.0)
+        match["confidence"] = max(0.0, min(1.0, current_conf + delta))
     def _calibrate_confidence(self, action: str | None, confidence: float, success_rate: float) -> float:
         """Down-weight overestimated strategies using observed success history."""
         if not action:
