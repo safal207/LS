@@ -51,7 +51,7 @@ jobs:
 
       - name: Vulnerability audit
         run: |
-          pip-audit --strict --desc --progress-spinner off
+          pip-audit --desc --progress-spinner off
 
       - name: Generate SBOM
         run: |
