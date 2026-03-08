@@ -83,7 +83,7 @@ class CounterfactualEngine:
         }
         if last_action:
             base_actions.discard(last_action)
-        return list(base_actions)
+        return sorted(base_actions)
 
     def _get_causal_edges(self) -> List[Dict[str, Any]]:
         """Retrieve causal edges from cognitive state."""
