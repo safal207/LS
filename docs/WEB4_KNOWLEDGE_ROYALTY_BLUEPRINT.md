@@ -98,3 +98,73 @@ MVP считается собранным, если:
 2. Есть quality/resonance decision до merge.
 3. При reuse внешнего lesson начисляется `experience_credit`.
 4. Event-log позволяет восстановить путь: `proposed → validated → merged/rejected → reused → credited`.
+
+
+## 7) Два протокола взаимодействия: Human-Agent и Agent-Agent
+
+### 7.1 Human-Agent protocol (H→A / A→H)
+
+**Цель:** безопасная, персонализированная доставка знаний пользователю через локального агента.
+
+Ключевые обязанности:
+1. Агент принимает lessons из сети и адаптирует под индивидуальный контекст пользователя.
+2. Агент фильтрует рискованные/низкокачественные знания по policy/safety-гейтам.
+3. Агент фиксирует локальный trace принятия решений в causal/temporal памяти.
+4. За полезную передачу знаний формируется value-сигнал для агента (`human_value_gain`).
+
+Минимальные события протокола:
+- `HUMAN_CONTEXT_UPDATED`
+- `AGENT_ADVICE_PROPOSED`
+- `AGENT_ADVICE_ACCEPTED` / `AGENT_ADVICE_REJECTED`
+- `HUMAN_VALUE_CREDITED`
+
+### 7.2 Agent-Agent protocol (A→A)
+
+**Цель:** коллективная эволюция знаний между агентами без потери качества.
+
+Ключевые обязанности:
+1. Агент публикует лучшие lessons с доказательством полезности (proof-of-value).
+2. Peer-агенты проверяют lesson по resonance/trajectory/usefulness.
+3. Сеть фиксирует доверие к источнику и quality history lesson-ветки.
+4. Автор сильных lessons получает network value (`trust_gain`, `knowledge_priority`).
+
+Минимальные события протокола:
+- `LESSON_PROPOSED`
+- `LESSON_VALIDATED`
+- `LESSON_MERGED` / `LESSON_DEFERRED` / `LESSON_REJECTED`
+- `NETWORK_VALUE_UPDATED`
+
+### 7.3 Интеграция двух протоколов (dual-loop)
+
+`Agent-Agent` поставляет проверенное коллективное знание, а `Human-Agent` превращает его в персональную пользу.
+
+Dual-loop шаги:
+1. A→A: lesson проходит peer validation и quality scoring.
+2. A→H: локальный агент маппит lesson на цели конкретного человека.
+3. H→A: outcome пользователя возвращается в loop и обновляет local beliefs.
+4. A→A: агрегированный outcome возвращается в сеть как новый proof-of-value.
+
+## 8) Расширенная схема экосистемы Web4
+
+```text
+[Human/User]
+   ^                                   |
+   | (advice, protection, personalization) |
+   |                                   v
+[Local Human-Agent] <---- lessons ---- [Web4 Agent Mesh / External Agents]
+   |   \                                /   |
+   |    \ (causal trace + temporal)   /    |
+   |     v                            v     |
+   |   [Local Causal/Temporal Graph] [Global Aggregators: Hexagon/KACL]
+   |                                        |
+   +---------- value/outcome ---------------+
+                (experience credits,
+                 trust gain, royalty flow)
+```
+
+## 9) Governance notes (MVP-level)
+
+1. **Meritocracy of ideas:** влияние определяется качеством и воспроизводимой полезностью lessons.
+2. **Traceability:** каждый merge/reuse шаг должен иметь event-trace и score breakdown.
+3. **Non-destructive history:** удаление первичных фактов обмена не допускается; допускаются только новые корректирующие события.
+4. **Human safety first:** в контуре H→A safety/consent политики имеют приоритет над network value.

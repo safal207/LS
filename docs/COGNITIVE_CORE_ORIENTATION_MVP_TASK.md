@@ -125,13 +125,14 @@
 ## 3.4 Подготовка к децентрализованному обучению (Web4) (P2)
 
 ### Задачи
-1. Прототип обмена знаниями между 2 агентами:
+1. Зафиксировать dual-protocol модель: Human-Agent (H→A/A→H) и Agent-Agent (A→A) с event-level контрактом.
+2. Прототип обмена знаниями между 2 агентами:
    - best lessons;
    - selected reflections.
-2. Добавить легковесную валидацию идеи:
+3. Добавить легковесную валидацию идеи:
    - quality score / challenge (PoW-light или quality proof);
    - без токенов, по полезности и согласованности.
-3. Перед merge в локальную память:
+4. Перед merge в локальную память:
    - resonance/similarity scoring;
    - policy `accept / defer / reject`.
 

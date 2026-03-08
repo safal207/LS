@@ -43,6 +43,7 @@
   - priority order: memory integration → feedback learning loops → orientation center snapshot/restore;
   - release gate: end-to-end cognitive loop with observability reconstruction and dashboard read-only monitoring.
   - Web4 knowledge exchange + royalty flow blueprint: `docs/WEB4_KNOWLEDGE_ROYALTY_BLUEPRINT.md`.
+  - dual-protocol model clarified in blueprint: Human-Agent (H→A/A→H) + Agent-Agent (A→A).
 
 - **7.0 Platform Expansion**
   - in progress: mesh/graph interoperability contract tests in `python/tests/test_web4_interoperability.py`.
