@@ -441,6 +441,7 @@ class AgentLoop:
                 "snapshot_id": snapshot.get("snapshot_id"),
                 "create_snapshot": create_snapshot,
                 "diff": diff,
+                "state": snapshot.get("state", {}),
                 "beliefs": len(snapshot.get("state", {}).get("beliefs", [])),
                 "temporal_nodes": len(snapshot.get("state", {}).get("temporal_nodes", [])),
             },
@@ -471,6 +472,7 @@ class AgentLoop:
             {
                 "snapshot_id": snapshot.get("snapshot_id"),
                 "diff": diff,
+                "state": snapshot.get("state", {}),
             },
         )
         return snapshot

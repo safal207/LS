@@ -1,6 +1,7 @@
 import threading
 
 from modules.agent.loop import AgentLoop
+from modules.agent.reconstruction import reconstruct_cognitive_state_from_events
 
 
 def test_agent_loop_snapshot_restore_api() -> None:
@@ -43,3 +44,27 @@ def test_agent_loop_emits_cognitive_events() -> None:
     snap = loop.get_cognitive_snapshot()
     loop.restore_cognitive_snapshot(payload=snap)
     assert "cognitive_snapshot_restored" in events
+
+
+class _CaptureSink:
+    def __init__(self) -> None:
+        self.events = []
+
+    def emit(self, event):
+        self.events.append(event)
+
+
+def test_reconstruct_cognitive_state_from_observability_events() -> None:
+    sink = _CaptureSink()
+    loop = AgentLoop(handler=lambda q: "ok", event_sink=sink, observability_enabled=True)
+    cancel = threading.Event()
+
+    loop._set_active(11, cancel, None)
+    loop._process_item({"type": "question", "text": "hi"}, 11, cancel)
+    current = loop.get_cognitive_snapshot()
+    loop.restore_cognitive_snapshot(payload=current)
+
+    reconstructed = reconstruct_cognitive_state_from_events(sink.events)
+    assert isinstance(reconstructed["timeline"], list)
+    assert len(reconstructed["timeline"]) >= 2
+    assert "mission_state" in reconstructed["state"]
