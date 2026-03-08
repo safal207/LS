@@ -76,3 +76,27 @@ def test_reconstruct_cognitive_state_from_observability_events() -> None:
     first_cognitive = next(event for event in sink.events if event.get("type") == "cognitive_state")
     at_first = reconstruct_cognitive_state_at_timestamp(sink.events, float(first_cognitive["timestamp"]))
     assert len(at_first["timeline"]) == 1
+
+
+def test_reconstruct_cognitive_state_sorts_events_by_timestamp_and_copies_state() -> None:
+    events = [
+        {
+            "type": "cognitive_state",
+            "timestamp": 2.0,
+            "task_id": "t1",
+            "payload": {"snapshot_id": "s2", "state": {"mission_state": {"step": 2}}},
+        },
+        {
+            "type": "cognitive_state",
+            "timestamp": 1.0,
+            "task_id": "t1",
+            "payload": {"snapshot_id": "s1", "state": {"mission_state": {"step": 1}}},
+        },
+    ]
+
+    reconstructed = reconstruct_cognitive_state_from_events(events)
+    assert [point["snapshot_id"] for point in reconstructed["timeline"]] == ["s1", "s2"]
+    assert reconstructed["state"]["mission_state"]["step"] == 2
+
+    events[0]["payload"]["state"]["mission_state"]["step"] = 999
+    assert reconstructed["state"]["mission_state"]["step"] == 2

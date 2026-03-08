@@ -38,15 +38,27 @@ def test_build_cognitive_dashboard_summary_and_timeline() -> None:
     assert dashboard["belief_weights"]["count"] == 3
     assert len(dashboard["timeline"]) == 2
     assert dashboard["timeline"][-1]["confidence"] == 0.7
+    assert dashboard["timeline"][-1]["delta"]["beliefs"] == 2
+
+
+def test_build_cognitive_dashboard_respects_last_n_window() -> None:
+    events = [_event(1.0, "s1", 1, 0.4), _event(2.0, "s2", 2, 0.6), _event(3.0, "s3", 4, 0.8)]
+
+    dashboard = build_cognitive_dashboard(events, last_n=2)
+
+    assert dashboard["events_analyzed"] == 2
+    assert dashboard["current"]["snapshot_id"] == "s3"
+    assert dashboard["timeline"][0]["snapshot_id"] == "s2"
 
 
 def test_render_cognitive_dashboard_text() -> None:
-    dashboard = build_cognitive_dashboard([_event(1.0, "s1", 1, 0.4)])
+    dashboard = build_cognitive_dashboard([_event(1.0, "s1", 1, 0.4), _event(2.0, "s2", 2, 0.5)])
     rendered = render_cognitive_dashboard(dashboard)
 
     assert "Cognitive Dashboard" in rendered
-    assert "snapshot_id: s1" in rendered
-    assert "beliefs: 1" in rendered
+    assert "snapshot_id: s2" in rendered
+    assert "beliefs: 2" in rendered
+    assert "last_delta:" in rendered
 
 
 def test_observability_schema_supports_snapshot_restored_and_lesson_merged() -> None:
