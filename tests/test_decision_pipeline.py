@@ -81,3 +81,48 @@ def test_pipeline_calibrates_overestimated_strategy_and_tracks_long_term_metrics
     assert state["strategy_stats"]["answer_with_tool"]["overestimation_events"] >= 1
     assert state["long_term_metrics"]["total_attempts"] == 1
     assert state["long_term_metrics"]["total_value"] == 0.6
+
+
+def test_pipeline_executes_tool_action_and_records_audit() -> None:
+    state = {
+        "causal_edges": [
+            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
+            {"cause": "retrieve_context", "effect": "context_answer", "confidence": 0.3},
+        ]
+    }
+
+    def answer_with_tool(payload: dict) -> dict:
+        return {"answer": "42", "events": len(payload.get("event_sequence", []))}
+
+    pipeline = DecisionPipeline(state, tool_registry={"answer_with_tool": answer_with_tool})
+    events = [{"type": "decision", "value": "answer_directly"}]
+
+    result = pipeline.run(events, success=True, outcome_value=1.0)
+
+    assert result["recommended_action"] == "answer_with_tool"
+    assert result["tool_execution"] is not None
+    assert result["tool_execution"]["status"] == "ok"
+    assert result["tool_execution"]["result"]["answer"] == "42"
+    assert state["tool_audit_log"][-1]["status"] == "ok"
+
+
+def test_pipeline_tool_error_uses_audit_and_health_tracking() -> None:
+    state = {
+        "causal_edges": [
+            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
+            {"cause": "retrieve_context", "effect": "context_answer", "confidence": 0.3},
+        ]
+    }
+
+    def broken_tool(payload: dict) -> dict:
+        raise RuntimeError("downstream unavailable")
+
+    pipeline = DecisionPipeline(state, tool_registry={"answer_with_tool": broken_tool})
+    events = [{"type": "decision", "value": "answer_directly"}]
+
+    result = pipeline.run(events)
+
+    assert result["recommended_action"] == "answer_with_tool"
+    assert result["tool_execution"]["status"] == "error"
+    assert "downstream unavailable" in result["tool_execution"]["error"]
+    assert state["tool_health"]["answer_with_tool"]["is_healthy"] is False

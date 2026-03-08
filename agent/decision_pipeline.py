@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 
 from .counterfactual_engine import CounterfactualEngine
 from .strategy_evolution_engine import StrategyEvolutionEngine
+from .tool_runtime import ToolRuntime, ToolCallable
 
 
 class DecisionPipeline:
@@ -17,12 +18,15 @@ class DecisionPipeline:
         cognitive_state: Dict[str, Any],
         low_confidence_threshold: float = 0.25,
         fallback_action: str = "retrieve_context",
+        tool_registry: Dict[str, ToolCallable] | None = None,
+        sandbox_mode: bool = True,
     ):
         self.cognitive_state = cognitive_state
         self.counterfactual_engine = CounterfactualEngine(cognitive_state)
         self.strategy_engine = StrategyEvolutionEngine(cognitive_state)
         self.low_confidence_threshold = low_confidence_threshold
         self.fallback_action = fallback_action
+        self.tool_runtime = ToolRuntime(cognitive_state, tool_registry=tool_registry, sandbox_mode=sandbox_mode)
 
     def run(
         self,
@@ -46,6 +50,8 @@ class DecisionPipeline:
                 "weighted_score": selected.get("weighted_score", 0.0),
             }
 
+        tool_execution = self._maybe_execute_tool(selected["recommended_action"], event_sequence)
+
         decision_record = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "event_count": len(event_sequence),
@@ -57,6 +63,7 @@ class DecisionPipeline:
             "success": success,
             "outcome_value": outcome_value,
             "ranked_strategies": ranked,
+            "tool_execution": tool_execution,
         }
 
         self._log_decision(decision_record)
@@ -71,6 +78,14 @@ class DecisionPipeline:
             outcome_value=outcome_value,
         )
         return decision_record
+
+    def _maybe_execute_tool(self, action: str | None, event_sequence: List[Dict[str, Any]]) -> Dict[str, Any] | None:
+        """Execute tool-backed actions with runtime guardrails."""
+        if action not in {"answer_with_tool", "retrieve_context"}:
+            return None
+
+        payload = {"event_sequence": event_sequence}
+        return self.tool_runtime.execute(action, payload)
 
     def _log_decision(self, decision_record: Dict[str, Any]) -> None:
         """Append decision record to cognitive state action log."""
