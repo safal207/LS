@@ -15,6 +15,7 @@ from codex.causal_memory.transitions import CausalMemoryTransitions
 from codex.causal_memory.reflex import ReflexArc
 
 from .event_schema import build_observability_event
+from .lessons import evaluate_external_lesson_for_merge
 from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
 from ..perception.coordinator import VisionSubsystem
@@ -411,9 +412,34 @@ class AgentLoop:
             )
         return nodes
 
-    def _build_cognitive_state(self) -> dict[str, Any]:
+    def _cot_trace_metadata(self) -> list[dict[str, Any]]:
         history = self.memory.get("history")
-        cot_trace = history[-10:] if isinstance(history, list) else []
+        if not isinstance(history, list):
+            return []
+        trace: list[dict[str, Any]] = []
+        for idx, item in enumerate(history[-10:]):
+            if isinstance(item, dict):
+                role = str(item.get("role", "unknown"))
+                content = item.get("content")
+                ts = item.get("timestamp")
+            else:
+                role = "unknown"
+                content = item
+                ts = None
+            text = "" if content is None else str(content)
+            entry: dict[str, Any] = {
+                "index": idx,
+                "role": role,
+                "content_chars": len(text),
+                "content_present": bool(text),
+            }
+            if isinstance(ts, (int, float)):
+                entry["timestamp"] = float(ts)
+            trace.append(entry)
+        return trace
+
+    def _build_cognitive_state(self) -> dict[str, Any]:
+        cot_trace = self._cot_trace_metadata()
         mission_state = {
             "agent_state": self.state,
             "amygdala_state": float(getattr(self.causal_transitions.amygdala, "state", 0.5)),
@@ -465,7 +491,7 @@ class AgentLoop:
             for key, value in state["mission_state"].items():
                 self.memory[f"mission_{key}"] = value
         if isinstance(state.get("cot_trace"), list):
-            self.memory["history"] = list(state["cot_trace"])
+            self.memory["history_meta"] = list(state["cot_trace"])
         diff = self.orientation_center.diff_cognitive_snapshots(self._last_cognitive_snapshot or {"state": {}}, snapshot)
         self._last_cognitive_snapshot = snapshot
         self._emit(
@@ -480,6 +506,35 @@ class AgentLoop:
 
     def diff_cognitive_snapshots(self, a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
         return self.orientation_center.diff_cognitive_snapshots(a, b)
+
+    def merge_external_lesson(self, lesson: dict[str, Any], *, task_id: int | None = None) -> dict[str, Any]:
+        beliefs = self.memory.setdefault("beliefs", [])
+        existing_beliefs = [item for item in beliefs if isinstance(item, dict)]
+        result = evaluate_external_lesson_for_merge(lesson, existing_beliefs=existing_beliefs)
+
+        merged = False
+        lesson_id = str(lesson.get("id") or lesson.get("lesson_id") or f"external-{int(time.time() * 1000)}")
+        if result.decision == "accept":
+            belief_record = {
+                "id": lesson_id,
+                "content": str(lesson.get("content") or lesson.get("lesson") or ""),
+                "source": "external_agent",
+                "quality": result.score_breakdown.get("quality", 0.0),
+                "resonance": result.score_breakdown.get("resonance", 0.0),
+            }
+            beliefs.append(belief_record)
+            self._update_orientation_center(create_snapshot=True, task_id=task_id)
+            merged = True
+
+        payload = {
+            "lesson_id": lesson_id,
+            "decision": result.decision,
+            "score_breakdown": result.score_breakdown,
+            "reason": result.reason,
+            "merged": merged,
+        }
+        self._emit("lesson_merged", payload, task_id=task_id)
+        return payload
 
     def _remember_question(self, question: str) -> None:
         self.memory["last_question"] = question

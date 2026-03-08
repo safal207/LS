@@ -21,6 +21,8 @@ EventType = Literal[
     "agent_woke_up",
     "cognitive_state_updated",
     "cognitive_snapshot_restored",
+    "snapshot_restored",
+    "lesson_merged",
     "error",
 ]
 
