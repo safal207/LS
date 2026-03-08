@@ -418,6 +418,7 @@ class AgentLoop:
             "agent_state": self.state,
             "amygdala_state": float(getattr(self.causal_transitions.amygdala, "state", 0.5)),
             "adaptive_bias": float(self.memory.get("adaptive_bias", 0.0)),
+            "causal_memory_backend": self.causal_memory.backend_name,
         }
         return {
             "beliefs": list(self.memory.get("beliefs", [])),

@@ -68,3 +68,4 @@ def test_reconstruct_cognitive_state_from_observability_events() -> None:
     assert isinstance(reconstructed["timeline"], list)
     assert len(reconstructed["timeline"]) >= 2
     assert "mission_state" in reconstructed["state"]
+    assert reconstructed["state"]["mission_state"].get("causal_memory_backend") in {"rust", "python_fallback"}
