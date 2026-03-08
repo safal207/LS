@@ -1,6 +1,6 @@
 """Agent modules."""
 
 from .cognitive_illusions import CognitiveIllusionDetector
-from .counterfactual_engine import CounterfactualEngine
+from .strategy_evolution import StrategyEvolutionEngine
 
-__all__ = ["CounterfactualEngine", "CognitiveIllusionDetector"]
+__all__ = ["CognitiveIllusionDetector", "StrategyEvolutionEngine"]
