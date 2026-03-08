@@ -142,6 +142,7 @@
 ### Артефакты
 - Minimal protocol message для lesson exchange.
 - Merge-policy модуль для внешних lessons.
+- Blueprint Web4 knowledge/royalty flows: `docs/WEB4_KNOWLEDGE_ROYALTY_BLUEPRINT.md`.
 
 ---
 
