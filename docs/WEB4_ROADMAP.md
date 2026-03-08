@@ -38,6 +38,11 @@
   - partial complete: `web4_runtime_ci` regression suite now includes `python/tests/test_fuzzy_runtime.py`.
   - partial complete: `web4_runtime_extended_load` now runs `phase3-chaos` + `phase4-soak` on pull requests using PR-safe profile values.
 
+- **6.6 Cognitive Core Orientation MVP (new)**
+  - execution brief and acceptance criteria captured in `docs/COGNITIVE_CORE_ORIENTATION_MVP_TASK.md`;
+  - priority order: memory integration → feedback learning loops → orientation center snapshot/restore;
+  - release gate: end-to-end cognitive loop with observability reconstruction and dashboard read-only monitoring.
+
 - **7.0 Platform Expansion**
   - in progress: mesh/graph interoperability contract tests in `python/tests/test_web4_interoperability.py`.
   - in progress: federation policy enforcement in `python/modules/web4_runtime/federation_policy.py` and `python/modules/web4_runtime/protocol_router.py`.
