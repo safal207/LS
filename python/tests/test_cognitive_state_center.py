@@ -42,6 +42,9 @@ def test_coordinator_exposes_cognitive_snapshot_api() -> None:
     assert isinstance(snapshot, dict)
     assert snapshot["state"]["mission_state"]["goal"] == "x"
 
+
+    assert isinstance(payload.get("cognitive_snapshot_diff"), dict)
+    assert "beliefs_delta" in payload["cognitive_snapshot_diff"]
     coordinator.record_outcome({"success": False})
     latest = coordinator.get_cognitive_snapshot()
     assert "trajectory_error" in latest["state"]["mission_state"]

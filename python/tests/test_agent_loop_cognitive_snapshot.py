@@ -29,3 +29,17 @@ def test_agent_loop_process_updates_snapshot() -> None:
     state = snapshot["state"]
     assert isinstance(state.get("cot_trace"), list)
     assert "mission_state" in state
+
+
+def test_agent_loop_emits_cognitive_events() -> None:
+    events = []
+    loop = AgentLoop(handler=lambda q: "ok", on_event=lambda e: events.append(e.type))
+    cancel = threading.Event()
+
+    loop._set_active(7, cancel, None)
+    loop._process_item({"type": "question", "text": "hi"}, 7, cancel)
+
+    assert "cognitive_state_updated" in events
+    snap = loop.get_cognitive_snapshot()
+    loop.restore_cognitive_snapshot(payload=snap)
+    assert "cognitive_snapshot_restored" in events

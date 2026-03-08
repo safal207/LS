@@ -78,6 +78,7 @@ class AgentLoop:
 
         self.memory: dict[str, Any] = {}
         self.orientation_center = CognitiveStateCenter()
+        self._last_cognitive_snapshot: dict[str, Any] | None = None
         self.causal_memory = CausalMemory()
         self.causal_transitions = CausalMemoryTransitions(amygdala=amygdala)
         self.reflex = ReflexArc(self.causal_transitions.amygdala)
@@ -431,11 +432,15 @@ class AgentLoop:
             create_snapshot=create_snapshot,
             **self._build_cognitive_state(),
         )
-        self._emit_observability(
-            "metrics",
+        previous = self._last_cognitive_snapshot or {"state": {}}
+        diff = self.orientation_center.diff_cognitive_snapshots(previous, snapshot)
+        self._last_cognitive_snapshot = snapshot
+        self._emit(
+            "cognitive_state_updated",
             {
-                "cognitive_state_updated": True,
                 "snapshot_id": snapshot.get("snapshot_id"),
+                "create_snapshot": create_snapshot,
+                "diff": diff,
                 "beliefs": len(snapshot.get("state", {}).get("beliefs", [])),
                 "temporal_nodes": len(snapshot.get("state", {}).get("temporal_nodes", [])),
             },
@@ -459,11 +464,13 @@ class AgentLoop:
                 self.memory[f"mission_{key}"] = value
         if isinstance(state.get("cot_trace"), list):
             self.memory["history"] = list(state["cot_trace"])
-        self._emit_observability(
-            "metrics",
+        diff = self.orientation_center.diff_cognitive_snapshots(self._last_cognitive_snapshot or {"state": {}}, snapshot)
+        self._last_cognitive_snapshot = snapshot
+        self._emit(
+            "cognitive_snapshot_restored",
             {
-                "cognitive_snapshot_restored": True,
                 "snapshot_id": snapshot.get("snapshot_id"),
+                "diff": diff,
             },
         )
         return snapshot

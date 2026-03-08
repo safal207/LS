@@ -80,6 +80,7 @@ class Coordinator:
         self.decision_history: list[CoordinationDecision] = []
         self.last_orientation: Optional[Dict[str, Any]] = None
         self.last_trajectory_error: Optional[float] = None
+        self.last_cognitive_snapshot: Optional[Dict[str, Any]] = None
 
     def _build_orientation_inputs(
         self,
@@ -188,6 +189,11 @@ class Coordinator:
             cot_trace=context.get("cot_trace") or [],
         )
         payload["cognitive_snapshot"] = snapshot
+        if self.last_cognitive_snapshot is not None:
+            payload["cognitive_snapshot_diff"] = self.diff_cognitive_snapshots(self.last_cognitive_snapshot, snapshot)
+        else:
+            payload["cognitive_snapshot_diff"] = self.diff_cognitive_snapshots({"state": {}}, snapshot)
+        self.last_cognitive_snapshot = snapshot
         return payload
 
     def get_cognitive_snapshot(self, snapshot_id: str | None = None) -> Dict[str, Any]:
@@ -320,7 +326,8 @@ class Coordinator:
         mission_state = dict(self.cognitive_state.get_cognitive_snapshot().get("state", {}).get("mission_state", {}))
         mission_state["last_outcome_success"] = bool(outcome.get("success", False))
         mission_state["trajectory_error"] = self.last_trajectory_error
-        self.cognitive_state.update_state(mission_state=mission_state, create_snapshot=True)
+        snapshot = self.cognitive_state.update_state(mission_state=mission_state, create_snapshot=True)
+        self.last_cognitive_snapshot = snapshot
 
     def _compute_orientation_weight(self, rhythm_phase: Optional[str]) -> float:
         if rhythm_phase == "inhale":

@@ -19,6 +19,8 @@ EventType = Literal[
     "soul_healed",
     "metabolism_growth",
     "agent_woke_up",
+    "cognitive_state_updated",
+    "cognitive_snapshot_restored",
     "error",
 ]
 

@@ -11,6 +11,7 @@ ObservabilityEventType = Literal[
     "phase_transition",
     "liminal_transition",
     "metrics",
+    "cognitive_state",
 ]
 
 ALLOWED_EVENTS: set[ObservabilityEventType] = {
@@ -21,6 +22,7 @@ ALLOWED_EVENTS: set[ObservabilityEventType] = {
     "phase_transition",
     "liminal_transition",
     "metrics",
+    "cognitive_state",
 }
 
 EVENT_VERSION = "1.0"
@@ -44,6 +46,8 @@ def _map_event_type(event_type: str) -> Optional[ObservabilityEventType]:
         "phase_transition": "phase_transition",
         "liminal_transition": "liminal_transition",
         "metrics": "metrics",
+        "cognitive_state_updated": "cognitive_state",
+        "cognitive_snapshot_restored": "cognitive_state",
     }
     return mapping.get(event_type)
 
