@@ -41,3 +41,9 @@ def reconstruct_cognitive_state_from_events(events: list[dict[str, Any]]) -> dic
         "state": latest_state,
         "timeline": timeline,
     }
+
+
+def reconstruct_cognitive_state_at_timestamp(events: list[dict[str, Any]], at_timestamp: float) -> dict[str, Any]:
+    """Reconstruct state at or before provided timestamp."""
+    filtered = [event for event in events if float(event.get("timestamp", 0.0)) <= at_timestamp]
+    return reconstruct_cognitive_state_from_events(filtered)

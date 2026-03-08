@@ -411,9 +411,34 @@ class AgentLoop:
             )
         return nodes
 
-    def _build_cognitive_state(self) -> dict[str, Any]:
+    def _cot_trace_metadata(self) -> list[dict[str, Any]]:
         history = self.memory.get("history")
-        cot_trace = history[-10:] if isinstance(history, list) else []
+        if not isinstance(history, list):
+            return []
+        trace: list[dict[str, Any]] = []
+        for idx, item in enumerate(history[-10:]):
+            if isinstance(item, dict):
+                role = str(item.get("role", "unknown"))
+                content = item.get("content")
+                ts = item.get("timestamp")
+            else:
+                role = "unknown"
+                content = item
+                ts = None
+            text = "" if content is None else str(content)
+            entry: dict[str, Any] = {
+                "index": idx,
+                "role": role,
+                "content_chars": len(text),
+                "content_present": bool(text),
+            }
+            if isinstance(ts, (int, float)):
+                entry["timestamp"] = float(ts)
+            trace.append(entry)
+        return trace
+
+    def _build_cognitive_state(self) -> dict[str, Any]:
+        cot_trace = self._cot_trace_metadata()
         mission_state = {
             "agent_state": self.state,
             "amygdala_state": float(getattr(self.causal_transitions.amygdala, "state", 0.5)),
@@ -465,7 +490,7 @@ class AgentLoop:
             for key, value in state["mission_state"].items():
                 self.memory[f"mission_{key}"] = value
         if isinstance(state.get("cot_trace"), list):
-            self.memory["history"] = list(state["cot_trace"])
+            self.memory["history_meta"] = list(state["cot_trace"])
         diff = self.orientation_center.diff_cognitive_snapshots(self._last_cognitive_snapshot or {"state": {}}, snapshot)
         self._last_cognitive_snapshot = snapshot
         self._emit(

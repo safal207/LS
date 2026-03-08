@@ -19,6 +19,10 @@ def test_cognitive_state_center_snapshot_restore_and_diff() -> None:
         mission_state={"goal": "assist", "phase": "thinking"},
     )
 
+    assert first["schema_version"] == "1.1"
+    assert isinstance(first["state_hash"], str)
+    assert second["revision"] == first["revision"] + 1
+
     diff = center.diff_cognitive_snapshots(first, second)
     assert diff["beliefs_delta"] == 1
     assert diff["temporal_nodes_delta"] == 1
@@ -27,6 +31,19 @@ def test_cognitive_state_center_snapshot_restore_and_diff() -> None:
     restored = center.restore_cognitive_snapshot(snapshot_id=first["snapshot_id"])
     assert restored["state"]["mission_state"]["goal"] == "assist"
     assert len(restored["state"]["beliefs"]) == 1
+
+
+def test_cognitive_state_center_rejects_mismatched_hash_on_restore_payload() -> None:
+    center = CognitiveStateCenter()
+    payload = center.update_state(create_snapshot=True, mission_state={"goal": "assist"})
+    payload["state_hash"] = "invalid"
+
+    try:
+        center.restore_cognitive_snapshot(payload=payload)
+    except ValueError as exc:
+        assert "state_hash mismatch" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for invalid state_hash")
 
 
 def test_coordinator_exposes_cognitive_snapshot_api() -> None:

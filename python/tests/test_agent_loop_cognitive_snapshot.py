@@ -1,7 +1,7 @@
 import threading
 
 from modules.agent.loop import AgentLoop
-from modules.agent.reconstruction import reconstruct_cognitive_state_from_events
+from modules.agent.reconstruction import reconstruct_cognitive_state_at_timestamp, reconstruct_cognitive_state_from_events
 
 
 def test_agent_loop_snapshot_restore_api() -> None:
@@ -29,6 +29,9 @@ def test_agent_loop_process_updates_snapshot() -> None:
     snapshot = loop.get_cognitive_snapshot()
     state = snapshot["state"]
     assert isinstance(state.get("cot_trace"), list)
+    if state["cot_trace"]:
+        assert "content_chars" in state["cot_trace"][0]
+        assert "content" not in state["cot_trace"][0]
     assert "mission_state" in state
 
 
@@ -69,3 +72,7 @@ def test_reconstruct_cognitive_state_from_observability_events() -> None:
     assert len(reconstructed["timeline"]) >= 2
     assert "mission_state" in reconstructed["state"]
     assert reconstructed["state"]["mission_state"].get("causal_memory_backend") in {"rust", "python_fallback"}
+
+    first_cognitive = next(event for event in sink.events if event.get("type") == "cognitive_state")
+    at_first = reconstruct_cognitive_state_at_timestamp(sink.events, float(first_cognitive["timestamp"]))
+    assert len(at_first["timeline"]) == 1

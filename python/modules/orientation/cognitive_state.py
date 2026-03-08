@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import time
 import uuid
 from dataclasses import dataclass
@@ -11,12 +13,18 @@ from typing import Any
 class CognitiveSnapshot:
     snapshot_id: str
     timestamp: float
+    revision: int
+    schema_version: str
+    state_hash: str
     state: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "snapshot_id": self.snapshot_id,
             "timestamp": self.timestamp,
+            "revision": self.revision,
+            "schema_version": self.schema_version,
+            "state_hash": self.state_hash,
             "state": copy.deepcopy(self.state),
         }
 
@@ -25,10 +33,16 @@ class CognitiveStateCenter:
     """Mutable center for consolidated cognitive state with snapshot/restore/diff APIs."""
 
     def __init__(self, *, max_snapshots: int = 128) -> None:
+        self.schema_version = "1.1"
         self.max_snapshots = max(1, int(max_snapshots))
         self._state: dict[str, Any] = self._normalize({})
         self._snapshots: dict[str, CognitiveSnapshot] = {}
         self._order: list[str] = []
+        self._revision = 0
+
+    def _state_hash(self, state: dict[str, Any]) -> str:
+        encoded = json.dumps(state, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
 
     def _normalize(self, raw: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -53,10 +67,15 @@ class CognitiveStateCenter:
         return self.get_cognitive_snapshot()
 
     def create_snapshot(self) -> CognitiveSnapshot:
+        self._revision += 1
+        state = copy.deepcopy(self._state)
         snap = CognitiveSnapshot(
             snapshot_id=str(uuid.uuid4()),
             timestamp=time.time(),
-            state=copy.deepcopy(self._state),
+            revision=self._revision,
+            schema_version=self.schema_version,
+            state_hash=self._state_hash(state),
+            state=state,
         )
         self._snapshots[snap.snapshot_id] = snap
         self._order.append(snap.snapshot_id)
@@ -70,6 +89,9 @@ class CognitiveStateCenter:
             return {
                 "snapshot_id": self._order[-1] if self._order else None,
                 "timestamp": None,
+                "revision": self._revision,
+                "schema_version": self.schema_version,
+                "state_hash": self._state_hash(self._state),
                 "state": copy.deepcopy(self._state),
             }
         snap = self._snapshots.get(snapshot_id)
@@ -85,7 +107,12 @@ class CognitiveStateCenter:
     ) -> dict[str, Any]:
         if payload is not None:
             state = payload.get("state", payload)
-            self._state = self._normalize(dict(state))
+            normalized = self._normalize(dict(state))
+            expected_hash = payload.get("state_hash")
+            actual_hash = self._state_hash(normalized)
+            if expected_hash and expected_hash != actual_hash:
+                raise ValueError("snapshot state_hash mismatch")
+            self._state = normalized
             return self.get_cognitive_snapshot()
 
         if snapshot_id is None:
