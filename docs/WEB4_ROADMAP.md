@@ -65,7 +65,11 @@
 - [PHASE4_1_SMART_CIRCUIT_BREAKER_REVIEW.md](archive/PHASE4_1_SMART_CIRCUIT_BREAKER_REVIEW.md)
 - [PHASE1_COMPLETE.md](archive/PHASE1_COMPLETE.md)
 
-## 5. Долгосрочные цели
+## 5.1 Связанный roadmap по Digital Self (3–6 месяцев)
+
+- `docs/ROADMAP_DIGITAL_SELF_WEB4_6M.md` — поэтапный план развития Digital Self + Web4 (self-core → протоколы → value/merit → масштаб → монетизация).
+
+## 6. Долгосрочные цели
 
 - Полностью transport-agnostic runtime с формальными SLA/QoS контрактами.
 - Связанный стек Runtime ↔ Mesh ↔ Graph ↔ Platform без дублирующей логики.
