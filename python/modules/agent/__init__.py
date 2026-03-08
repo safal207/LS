@@ -1,4 +1,6 @@
 from .dashboard import build_cognitive_dashboard, render_cognitive_dashboard
+from .counterfactual_engine import CounterfactualEngine
+from .cognitive_illusions import CognitiveIllusionDetector
 from .events import AgentEvent, EventType
 from .loop import AgentLoop
 from .lessons import evaluate_external_lesson_for_merge
@@ -15,6 +17,8 @@ __all__ = [
     "build_event_sink",
     "build_cognitive_dashboard",
     "render_cognitive_dashboard",
+    "CounterfactualEngine",
+    "CognitiveIllusionDetector",
     "reconstruct_cognitive_state_from_events",
     "reconstruct_cognitive_state_at_timestamp",
     "evaluate_external_lesson_for_merge",
