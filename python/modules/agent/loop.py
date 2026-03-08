@@ -18,6 +18,7 @@ from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
 from ..perception.coordinator import VisionSubsystem
+from ..orientation import CognitiveStateCenter
 
 try:
     from ..llm.temporal_graph import get_context_for_question
@@ -76,6 +77,8 @@ class AgentLoop:
         self.last_yoga_time = 0.0
 
         self.memory: dict[str, Any] = {}
+        self.orientation_center = CognitiveStateCenter()
+        self._last_cognitive_snapshot: dict[str, Any] | None = None
         self.causal_memory = CausalMemory()
         self.causal_transitions = CausalMemoryTransitions(amygdala=amygdala)
         self.reflex = ReflexArc(self.causal_transitions.amygdala)
@@ -394,11 +397,96 @@ class AgentLoop:
                 snapshot["last_phase_age"] = max(0.0, time.time() - self._phase_last_ts)
         self._emit("metrics", snapshot)
 
+    def _temporal_nodes_snapshot(self) -> list[dict[str, Any]]:
+        if self.temporal is None:
+            return []
+        nodes: list[dict[str, Any]] = []
+        for node_id, node in getattr(self.temporal, "nodes", {}).items():
+            nodes.append(
+                {
+                    "id": str(node_id),
+                    "resonance": float(getattr(node, "resonance", 0.0)),
+                    "harmony_bonus": float(getattr(node, "harmony_bonus", 0.0)),
+                }
+            )
+        return nodes
+
+    def _build_cognitive_state(self) -> dict[str, Any]:
+        history = self.memory.get("history")
+        cot_trace = history[-10:] if isinstance(history, list) else []
+        mission_state = {
+            "agent_state": self.state,
+            "amygdala_state": float(getattr(self.causal_transitions.amygdala, "state", 0.5)),
+            "adaptive_bias": float(self.memory.get("adaptive_bias", 0.0)),
+            "causal_memory_backend": self.causal_memory.backend_name,
+        }
+        return {
+            "beliefs": list(self.memory.get("beliefs", [])),
+            "causal_edges": list(self.memory.get("causal_edges", [])),
+            "temporal_nodes": self._temporal_nodes_snapshot(),
+            "mission_state": mission_state,
+            "cot_trace": cot_trace,
+        }
+
+    def _update_orientation_center(self, *, create_snapshot: bool = False, task_id: int | None = None) -> dict[str, Any]:
+        snapshot = self.orientation_center.update_state(
+            create_snapshot=create_snapshot,
+            **self._build_cognitive_state(),
+        )
+        previous = self._last_cognitive_snapshot or {"state": {}}
+        diff = self.orientation_center.diff_cognitive_snapshots(previous, snapshot)
+        self._last_cognitive_snapshot = snapshot
+        self._emit(
+            "cognitive_state_updated",
+            {
+                "snapshot_id": snapshot.get("snapshot_id"),
+                "create_snapshot": create_snapshot,
+                "diff": diff,
+                "state": snapshot.get("state", {}),
+                "beliefs": len(snapshot.get("state", {}).get("beliefs", [])),
+                "temporal_nodes": len(snapshot.get("state", {}).get("temporal_nodes", [])),
+            },
+            task_id=task_id,
+        )
+        return snapshot
+
+    def get_cognitive_snapshot(self, snapshot_id: str | None = None) -> dict[str, Any]:
+        return self.orientation_center.get_cognitive_snapshot(snapshot_id)
+
+    def restore_cognitive_snapshot(
+        self,
+        *,
+        snapshot_id: str | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        snapshot = self.orientation_center.restore_cognitive_snapshot(snapshot_id=snapshot_id, payload=payload)
+        state = snapshot.get("state", {})
+        if isinstance(state.get("mission_state"), dict):
+            for key, value in state["mission_state"].items():
+                self.memory[f"mission_{key}"] = value
+        if isinstance(state.get("cot_trace"), list):
+            self.memory["history"] = list(state["cot_trace"])
+        diff = self.orientation_center.diff_cognitive_snapshots(self._last_cognitive_snapshot or {"state": {}}, snapshot)
+        self._last_cognitive_snapshot = snapshot
+        self._emit(
+            "cognitive_snapshot_restored",
+            {
+                "snapshot_id": snapshot.get("snapshot_id"),
+                "diff": diff,
+                "state": snapshot.get("state", {}),
+            },
+        )
+        return snapshot
+
+    def diff_cognitive_snapshots(self, a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
+        return self.orientation_center.diff_cognitive_snapshots(a, b)
+
     def _remember_question(self, question: str) -> None:
         self.memory["last_question"] = question
         self.memory["last_question_ts"] = time.time()
         if self.temporal is not None:
             self.temporal.metadata["last_question"] = question
+        self._update_orientation_center(create_snapshot=False)
 
     def _maybe_enter_idle_yoga(self, force: bool = False) -> None:
         import datetime
@@ -562,6 +650,7 @@ class AgentLoop:
         self.memory["last_duration"] = duration
         if self.temporal is not None:
             self.temporal.metadata["last_answer"] = answer
+        self._update_orientation_center(create_snapshot=True)
 
     def _format_response(self, response: Any) -> Any:
         if self.llm and hasattr(self.llm, "format_response"):
@@ -913,6 +1002,7 @@ class AgentLoop:
                     stable_interaction=False,
                     user_engaged=False,
                 )
+                self._update_orientation_center(create_snapshot=True, task_id=task_id)
                 return
 
             self._emit("llm_started", {"question": question}, task_id=task_id)
@@ -1036,6 +1126,8 @@ class AgentLoop:
                 stable_interaction=result is not None,
                 user_engaged=not cancel_event.is_set(),
             )
+            self.memory["adaptive_bias"] = float(getattr(self.causal_transitions.amygdala, "personality_p", 0.5)) - 0.5
+            self._update_orientation_center(create_snapshot=True, task_id=task_id)
 
             # Self-healing after interaction
             violations = self.causal_transitions.amygdala.self_heal()

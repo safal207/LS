@@ -68,7 +68,12 @@ class _PythonFallbackCausalMemory:
 
 class CausalMemory:
     def __init__(self) -> None:
+        self._backend = "rust" if RustCausalMemory is not None else "python_fallback"
         self._rust = RustCausalMemory() if RustCausalMemory is not None else _PythonFallbackCausalMemory()
+
+    @property
+    def backend_name(self) -> str:
+        return self._backend
 
     def add_intent(self, content: str) -> str:
         return self._rust.add_intent("Customer", content)
@@ -84,3 +89,8 @@ class CausalMemory:
 
     def get_axis_position(self, node_id: str) -> float:
         return float(self._rust.get_axis_position(node_id))
+
+    def diagnostics(self) -> dict[str, Any]:
+        return {
+            "backend": self.backend_name,
+        }

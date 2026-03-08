@@ -38,6 +38,13 @@
   - partial complete: `web4_runtime_ci` regression suite now includes `python/tests/test_fuzzy_runtime.py`.
   - partial complete: `web4_runtime_extended_load` now runs `phase3-chaos` + `phase4-soak` on pull requests using PR-safe profile values.
 
+- **6.6 Cognitive Core Orientation MVP (new)**
+  - execution brief and acceptance criteria captured in `docs/COGNITIVE_CORE_ORIENTATION_MVP_TASK.md`;
+  - priority order: memory integration → feedback learning loops → orientation center snapshot/restore;
+  - release gate: end-to-end cognitive loop with observability reconstruction and dashboard read-only monitoring.
+  - Web4 knowledge exchange + royalty flow blueprint: `docs/WEB4_KNOWLEDGE_ROYALTY_BLUEPRINT.md`.
+  - dual-protocol model clarified in blueprint: Human-Agent (H→A/A→H) + Agent-Agent (A→A).
+
 - **7.0 Platform Expansion**
   - in progress: mesh/graph interoperability contract tests in `python/tests/test_web4_interoperability.py`.
   - in progress: federation policy enforcement in `python/modules/web4_runtime/federation_policy.py` and `python/modules/web4_runtime/protocol_router.py`.
@@ -58,7 +65,11 @@
 - [PHASE4_1_SMART_CIRCUIT_BREAKER_REVIEW.md](archive/PHASE4_1_SMART_CIRCUIT_BREAKER_REVIEW.md)
 - [PHASE1_COMPLETE.md](archive/PHASE1_COMPLETE.md)
 
-## 5. Долгосрочные цели
+## 5.1 Связанный roadmap по Digital Self (3–6 месяцев)
+
+- `docs/ROADMAP_DIGITAL_SELF_WEB4_6M.md` — поэтапный план развития Digital Self + Web4 (self-core → протоколы → value/merit → масштаб → монетизация).
+
+## 6. Долгосрочные цели
 
 - Полностью transport-agnostic runtime с формальными SLA/QoS контрактами.
 - Связанный стек Runtime ↔ Mesh ↔ Graph ↔ Platform без дублирующей логики.
