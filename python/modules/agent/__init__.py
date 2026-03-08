@@ -1,3 +1,4 @@
+from .dashboard import build_cognitive_dashboard, render_cognitive_dashboard
 from .events import AgentEvent, EventType
 from .loop import AgentLoop
 from .sinks import EventSink, NullSink, PrintSink, build_event_sink
@@ -11,6 +12,8 @@ __all__ = [
     "NullSink",
     "PrintSink",
     "build_event_sink",
+    "build_cognitive_dashboard",
+    "render_cognitive_dashboard",
     "reconstruct_cognitive_state_from_events",
     "reconstruct_cognitive_state_at_timestamp",
 ]
