@@ -15,6 +15,7 @@ from codex.causal_memory.transitions import CausalMemoryTransitions
 from codex.causal_memory.reflex import ReflexArc
 
 from .event_schema import build_observability_event
+from .lessons import evaluate_external_lesson_for_merge
 from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
 from ..perception.coordinator import VisionSubsystem
@@ -505,6 +506,35 @@ class AgentLoop:
 
     def diff_cognitive_snapshots(self, a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
         return self.orientation_center.diff_cognitive_snapshots(a, b)
+
+    def merge_external_lesson(self, lesson: dict[str, Any], *, task_id: int | None = None) -> dict[str, Any]:
+        beliefs = self.memory.setdefault("beliefs", [])
+        existing_beliefs = [item for item in beliefs if isinstance(item, dict)]
+        result = evaluate_external_lesson_for_merge(lesson, existing_beliefs=existing_beliefs)
+
+        merged = False
+        lesson_id = str(lesson.get("id") or lesson.get("lesson_id") or f"external-{int(time.time() * 1000)}")
+        if result.decision == "accept":
+            belief_record = {
+                "id": lesson_id,
+                "content": str(lesson.get("content") or lesson.get("lesson") or ""),
+                "source": "external_agent",
+                "quality": result.score_breakdown.get("quality", 0.0),
+                "resonance": result.score_breakdown.get("resonance", 0.0),
+            }
+            beliefs.append(belief_record)
+            self._update_orientation_center(create_snapshot=True, task_id=task_id)
+            merged = True
+
+        payload = {
+            "lesson_id": lesson_id,
+            "decision": result.decision,
+            "score_breakdown": result.score_breakdown,
+            "reason": result.reason,
+            "merged": merged,
+        }
+        self._emit("lesson_merged", payload, task_id=task_id)
+        return payload
 
     def _remember_question(self, question: str) -> None:
         self.memory["last_question"] = question
