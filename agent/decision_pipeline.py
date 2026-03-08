@@ -6,8 +6,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from .counterfactual_engine import CounterfactualEngine
+from .simulation_engine import StrategySimulationEngine
 from .strategy_evolution_engine import StrategyEvolutionEngine
-from .tool_runtime import ToolRuntime, ToolCallable
+from .tool_runtime import ToolCallable, ToolRuntime
 
 
 class DecisionPipeline:
@@ -24,6 +25,7 @@ class DecisionPipeline:
         self.cognitive_state = cognitive_state
         self.counterfactual_engine = CounterfactualEngine(cognitive_state)
         self.strategy_engine = StrategyEvolutionEngine(cognitive_state)
+        self.simulation_engine = StrategySimulationEngine(cognitive_state)
         self.low_confidence_threshold = low_confidence_threshold
         self.fallback_action = fallback_action
         self.tool_runtime = ToolRuntime(cognitive_state, tool_registry=tool_registry, sandbox_mode=sandbox_mode)
@@ -83,6 +85,48 @@ class DecisionPipeline:
             success=success,
         )
         return decision_record
+
+    def run_simulation_cycle(self, scenarios: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Run KPI simulation and feed results back into strategy evolution."""
+        report = self.simulation_engine.run(scenarios)
+        self.strategy_engine.ingest_simulation_feedback(report)
+        self.cognitive_state["last_simulation_metrics"] = {
+            "success_rate": report["success_rate"],
+            "prediction_accuracy": report["prediction_accuracy"],
+            "total_value": report["total_value"],
+        }
+        return report
+
+    def get_visualization_snapshot(self) -> Dict[str, Any]:
+        """Build operator-facing flow/heatmap snapshot from current state."""
+        strategy_stats = self.cognitive_state.get("strategy_stats", {})
+        heatmap = [
+            {
+                "action": action,
+                "success_rate": (item.get("successes", 0) / item.get("attempts", 1)),
+                "efficiency": (item.get("total_value", 0.0) / item.get("attempts", 1)),
+            }
+            for action, item in strategy_stats.items()
+            if isinstance(item, dict) and item.get("attempts", 0) > 0
+        ]
+
+        return {
+            "flow": "event -> counterfactuals -> strategy_evolution -> action_selection",
+            "heatmap": sorted(heatmap, key=lambda x: x["success_rate"], reverse=True),
+            "controls": {
+                "low_confidence_threshold": self.low_confidence_threshold,
+                "fallback_action": self.fallback_action,
+            },
+            "last_decision_metrics": self.cognitive_state.get("last_decision_metrics", {}),
+            "last_simulation_metrics": self.cognitive_state.get("last_simulation_metrics", {}),
+        }
+
+    def update_controls(self, low_confidence_threshold: float | None = None, fallback_action: str | None = None) -> None:
+        """Update runtime decision controls without redeploy."""
+        if low_confidence_threshold is not None:
+            self.low_confidence_threshold = max(0.0, min(1.0, low_confidence_threshold))
+        if fallback_action is not None:
+            self.fallback_action = fallback_action
 
     def _maybe_execute_tool(self, action: str | None, event_sequence: List[Dict[str, Any]]) -> Dict[str, Any] | None:
         """Execute tool-backed actions with runtime guardrails."""

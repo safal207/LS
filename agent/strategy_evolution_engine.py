@@ -18,8 +18,9 @@ class StrategyEvolutionEngine:
             action = item.get("alternative_action")
             confidence = float(item.get("confidence", 0.0) or 0.0)
             success_rate = self._get_success_rate(action)
+            efficiency = self._get_efficiency(action)
             calibrated_confidence = self._calibrate_confidence(action, confidence, success_rate)
-            weighted_score = 0.6 * calibrated_confidence + 0.25 * success_rate + 0.15 * self._get_efficiency(action)
+            weighted_score = 0.6 * calibrated_confidence + 0.25 * success_rate + 0.15 * efficiency
 
             ranked.append(
                 {
@@ -28,7 +29,7 @@ class StrategyEvolutionEngine:
                     "confidence": confidence,
                     "calibrated_confidence": calibrated_confidence,
                     "historical_success_rate": success_rate,
-                    "historical_efficiency": self._get_efficiency(action),
+                    "historical_efficiency": efficiency,
                     "weighted_score": weighted_score,
                 }
             )
@@ -74,7 +75,6 @@ class StrategyEvolutionEngine:
                 "attempts": 0,
                 "successes": 0,
                 "total_value": 0.0,
-                "confidence_sum": 0.0,
                 "overestimation_events": 0,
             },
         )
@@ -89,7 +89,6 @@ class StrategyEvolutionEngine:
 
         if outcome_value is not None:
             current["total_value"] += float(outcome_value)
-
 
     def update_causal_edges_from_feedback(
         self,
@@ -126,6 +125,24 @@ class StrategyEvolutionEngine:
 
         current_conf = float(match.get("confidence", 0.0) or 0.0)
         match["confidence"] = max(0.0, min(1.0, current_conf + delta))
+
+    def ingest_simulation_feedback(self, simulation_report: Dict[str, Any]) -> None:
+        """Use simulation runs to improve strategy statistics."""
+        for result in simulation_report.get("results", []):
+            self.update_from_result(
+                action=result.get("action"),
+                predicted_outcome=result.get("predicted_outcome"),
+                actual_outcome=result.get("actual_outcome"),
+                success=result.get("success"),
+                outcome_value=result.get("outcome_value"),
+            )
+            self.update_causal_edges_from_feedback(
+                action=result.get("action"),
+                actual_outcome=result.get("actual_outcome"),
+                success=result.get("success"),
+                learning_rate=0.05,
+            )
+
     def _calibrate_confidence(self, action: str | None, confidence: float, success_rate: float) -> float:
         """Down-weight overestimated strategies using observed success history."""
         if not action:

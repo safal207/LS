@@ -164,3 +164,56 @@ def test_pipeline_creates_new_causal_edge_from_feedback() -> None:
         e["cause"] == "answer_with_tool" and e["effect"] == "novel_outcome"
         for e in state["causal_edges"]
     )
+
+
+def test_pipeline_simulation_cycle_updates_metrics_and_strategy_stats() -> None:
+    state = {
+        "causal_edges": [
+            {"cause": "answer_with_tool", "effect": "good", "confidence": 0.7},
+        ]
+    }
+    pipeline = DecisionPipeline(state)
+
+    report = pipeline.run_simulation_cycle(
+        [
+            {
+                "action": "answer_with_tool",
+                "predicted_outcome": "good",
+                "actual_outcome": "good",
+                "success": True,
+                "outcome_value": 0.8,
+            },
+            {
+                "action": "retrieve_context",
+                "predicted_outcome": "ok",
+                "actual_outcome": "ok",
+                "success": True,
+                "outcome_value": 0.6,
+            },
+        ]
+    )
+
+    assert report["scenario_count"] == 2
+    assert state["last_simulation_metrics"]["success_rate"] == 1.0
+    assert state["strategy_stats"]["answer_with_tool"]["attempts"] >= 1
+    assert state["strategy_stats"]["retrieve_context"]["successes"] >= 1
+
+
+def test_pipeline_visualization_snapshot_and_controls_update() -> None:
+    state = {
+        "strategy_stats": {
+            "answer_with_tool": {"attempts": 4, "successes": 3, "total_value": 2.0},
+            "retrieve_context": {"attempts": 2, "successes": 1, "total_value": 0.6},
+        },
+        "last_decision_metrics": {"confidence": 0.7},
+        "last_simulation_metrics": {"success_rate": 0.8},
+    }
+    pipeline = DecisionPipeline(state)
+    pipeline.update_controls(low_confidence_threshold=0.4, fallback_action="answer_directly")
+
+    snapshot = pipeline.get_visualization_snapshot()
+
+    assert snapshot["controls"]["low_confidence_threshold"] == 0.4
+    assert snapshot["controls"]["fallback_action"] == "answer_directly"
+    assert snapshot["flow"].startswith("event -> counterfactuals")
+    assert snapshot["heatmap"][0]["action"] == "answer_with_tool"
