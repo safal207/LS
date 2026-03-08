@@ -55,9 +55,9 @@ class Coordinator:
         from .field_coordination import FieldCoordination
         from .meta_adaptation import MetaAdaptationLayer
         from .meta_hygiene import MetaHygiene
-        from orientation import OrientationCenter
-        from trajectory import TrajectoryLayer
-        from field import ConsensusEngine
+        from ..orientation import OrientationCenter, CognitiveStateCenter
+        from ..trajectory import TrajectoryLayer
+        from ..field import ConsensusEngine
 
         self.mode_detector = ModeDetector()
         self.context_sync = ContextSync()
@@ -69,6 +69,7 @@ class Coordinator:
         self.meta = MetaAdaptationLayer()
         self.meta_hygiene = MetaHygiene()
         self.orientation = OrientationCenter()
+        self.cognitive_state = CognitiveStateCenter()
         self.trajectory = TrajectoryLayer()
         self.field_adapter = None
         self.field_resonance = None
@@ -169,6 +170,39 @@ class Coordinator:
         self.decision_history.append(decision)
 
         return decision
+
+    def _update_cognitive_state(
+        self,
+        *,
+        context: Dict[str, Any],
+        retrospective: Optional[Dict[str, Any]],
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        retrospective = retrospective or {}
+        snapshot = self.cognitive_state.update_state(
+            create_snapshot=True,
+            beliefs=retrospective.get("beliefs") or [],
+            causal_edges=retrospective.get("causal_edges") or [],
+            temporal_nodes=retrospective.get("temporal_nodes") or [],
+            mission_state=context.get("mission_state") or {},
+            cot_trace=context.get("cot_trace") or [],
+        )
+        payload["cognitive_snapshot"] = snapshot
+        return payload
+
+    def get_cognitive_snapshot(self, snapshot_id: str | None = None) -> Dict[str, Any]:
+        return self.cognitive_state.get_cognitive_snapshot(snapshot_id)
+
+    def restore_cognitive_snapshot(
+        self,
+        *,
+        snapshot_id: str | None = None,
+        payload: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        return self.cognitive_state.restore_cognitive_snapshot(snapshot_id=snapshot_id, payload=payload)
+
+    def diff_cognitive_snapshots(self, a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
+        return self.cognitive_state.diff_cognitive_snapshots(a, b)
 
     def decide(
         self,
@@ -274,6 +308,7 @@ class Coordinator:
         )
         self.last_trajectory_error = self.trajectory.compute_trajectory_error()
         payload["trajectory_error"] = self.last_trajectory_error
+        payload = self._update_cognitive_state(context=context, retrospective=retrospective, payload=payload)
         return payload
 
     def record_outcome(self, outcome: Dict[str, Any]) -> None:
@@ -282,6 +317,10 @@ class Coordinator:
         """
         self.trajectory.record_outcome(outcome)
         self.last_trajectory_error = self.trajectory.compute_trajectory_error()
+        mission_state = dict(self.cognitive_state.get_cognitive_snapshot().get("state", {}).get("mission_state", {}))
+        mission_state["last_outcome_success"] = bool(outcome.get("success", False))
+        mission_state["trajectory_error"] = self.last_trajectory_error
+        self.cognitive_state.update_state(mission_state=mission_state, create_snapshot=True)
 
     def _compute_orientation_weight(self, rhythm_phase: Optional[str]) -> float:
         if rhythm_phase == "inhale":

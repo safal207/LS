@@ -12,6 +12,7 @@ from .conviction_regulator import ConvictionRegulator
 from .fusion_layer import OrientationFusionLayer
 from .metrics import OrientationSignals
 from .trajectory_adapter import TrajectoryAdapter
+from .cognitive_state import CognitiveSnapshot, CognitiveStateCenter
 
 __all__ = [
     "OrientationCenter",
@@ -27,4 +28,6 @@ __all__ = [
     "OrientationFusionLayer",
     "OrientationSignals",
     "TrajectoryAdapter",
+    "CognitiveSnapshot",
+    "CognitiveStateCenter",
 ]
