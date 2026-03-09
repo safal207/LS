@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Mapping, Set
 from .counterfactual_engine import CounterfactualEngine
 from .health_scheduler import ToolHealthcheckScheduler
 from .observability import DecisionObservability
+from .reflection_engine import ReflectionEngine
 from .simulation_engine import StrategySimulationEngine
 from .strategy_evolution_engine import StrategyEvolutionEngine
 from .tool_runtime import ToolAdapter, ToolCallable, ToolRuntime
@@ -33,6 +34,7 @@ class DecisionPipeline:
         self.strategy_engine = StrategyEvolutionEngine(cognitive_state)
         self.simulation_engine = StrategySimulationEngine(cognitive_state)
         self.observability = DecisionObservability(cognitive_state)
+        self.reflection_engine = ReflectionEngine(self.cognitive_state, window=50)
         self.low_confidence_threshold = low_confidence_threshold
         self.fallback_action = fallback_action
         self.tool_failure_fallback_action = tool_failure_fallback_action
@@ -117,6 +119,10 @@ class DecisionPipeline:
     def run_tool_healthchecks(self) -> Dict[str, Dict[str, Any]]:
         """Run active tool healthchecks and persist latest report."""
         return self.tool_runtime.run_active_healthchecks()
+
+    def reflect_and_propose(self) -> List[Dict[str, Any]]:
+        """Generate reflection proposals from current cognitive state."""
+        return self.reflection_engine.generate_proposals(max_proposals=3)
 
     def get_session_replay(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Expose replay records for operator inspection."""
