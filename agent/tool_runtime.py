@@ -48,7 +48,7 @@ class ToolRuntime:
         sandbox_mode: bool = True,
         default_timeout_s: float = 1.0,
         max_retries: int = 1,
-        circuit_breaker_threshold: int = 3,
+        audit_log_retention: int = 1000,
     ):
         self.cognitive_state = cognitive_state
         self.tool_registry = tool_registry or {}
@@ -58,14 +58,7 @@ class ToolRuntime:
         self.sandbox_mode = sandbox_mode
         self.default_timeout_s = default_timeout_s
         self.max_retries = max_retries
-        self.circuit_breaker_threshold = circuit_breaker_threshold
-
-        adapters: Dict[str, ToolAdapter] = {}
-        for action, tool in (tool_registry or {}).items():
-            adapters[action] = CallableToolAdapter(action, tool)
-        for action, adapter in (tool_adapters or {}).items():
-            adapters[action] = adapter
-        self.tool_adapters = adapters
+        self.audit_log_retention = max(1, int(audit_log_retention))
 
     def execute(self, action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Run tool action through sandbox checks and retry policy."""
@@ -238,6 +231,35 @@ class ToolRuntime:
             return False
         return item.get("is_healthy") is False
 
+    def run_healthchecks(self, active: bool = True) -> Dict[str, bool]:
+        """Run adapter health checks and persist snapshots; returns action->is_healthy."""
+        if not active:
+            current = self.cognitive_state.get("tool_health", {})
+            if isinstance(current, dict):
+                return {k: bool(v.get("is_healthy")) for k, v in current.items() if isinstance(v, dict)}
+            return {}
+
+        snapshots: Dict[str, bool] = {}
+        for action, adapter in self.tool_adapters.items():
+            is_healthy = False
+            try:
+                is_healthy = bool(adapter.healthcheck())
+            except Exception:  # noqa: BLE001
+                is_healthy = False
+            self._update_health(action, is_healthy)
+            snapshots[action] = is_healthy
+        return snapshots
+
+    def _is_degraded(self, action: str) -> bool:
+        """Passive degradation gate based on last known health snapshot."""
+        tool_health = self.cognitive_state.get("tool_health", {})
+        if not isinstance(tool_health, dict):
+            return False
+        item = tool_health.get(action)
+        if not isinstance(item, dict):
+            return False
+        return item.get("is_healthy") is False
+
     def _validate_payload(self, payload: Dict[str, Any]) -> bool:
         """Basic sandbox gate: block dangerous keys and oversized payloads."""
         blocked_keys = {"shell", "command", "exec", "subprocess"}
@@ -285,6 +307,8 @@ class ToolRuntime:
                 "attempt": attempt,
             }
         )
+        if len(audit_log) > self.audit_log_retention:
+            del audit_log[:-self.audit_log_retention]
 
     def _update_health(
         self,

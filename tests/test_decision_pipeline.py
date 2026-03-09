@@ -425,3 +425,27 @@ def test_pipeline_promote_strategy_candidate_is_idempotent_by_strategy_id() -> N
     assert second["promotion_status"] == "already_promoted"
     assert second["promotion_denied_reason"] == "duplicate_strategy_id"
     assert len(state["promoted_strategies"]) == 1
+
+
+def test_strategy_histories_apply_retention_limits() -> None:
+    state = {}
+    pipeline = DecisionPipeline(state)
+    pipeline.strategy_engine.gate_history_retention = 2
+    pipeline.strategy_engine.promotion_history_retention = 2
+
+    for idx in range(3):
+        pipeline.evaluate_strategy_candidate(
+            candidate_metrics={"success_rate": 0.7 + idx * 0.01, "prediction_accuracy": 0.7, "average_value": 0.7},
+            baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.7},
+        )
+
+    assert len(state["strategy_gate_history"]) == 2
+
+    for idx in range(3):
+        pipeline.promote_strategy_candidate(
+            candidate_strategy={"id": f"ret-{idx}"},
+            candidate_metrics={"success_rate": 0.8, "prediction_accuracy": 0.8, "average_value": 0.8},
+            baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.7},
+        )
+
+    assert len(state["strategy_promotion_history"]) == 2

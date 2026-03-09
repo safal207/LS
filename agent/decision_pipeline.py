@@ -214,6 +214,9 @@ class DecisionPipeline:
         if action not in self.allowed_tool_actions:
             return None
 
+        if action not in self.allowed_tool_actions:
+            return None
+
         payload = {"event_sequence": event_sequence}
         execution = self.tool_runtime.execute(action, payload)
         if execution.get("status") in {"error", "blocked", "circuit_open"}:

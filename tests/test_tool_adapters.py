@@ -39,3 +39,25 @@ def test_data_adapter_roundtrip_operations() -> None:
     assert get_result["value"] == 7
     assert "k" in list_result["keys"]
     assert delete_result["existed"] is True
+
+
+def test_http_context_adapter_retries_transient_errors() -> None:
+    calls = {"count": 0}
+
+    def flaky_http_client(**kwargs):
+        calls["count"] += 1
+        if calls["count"] < 3:
+            raise RuntimeError("temporary timeout")
+        return {"ok": True, "context": "after-retry"}
+
+    adapter = HTTPContextAdapter(
+        base_url="http://example.local",
+        http_client=flaky_http_client,
+        max_retries=3,
+        backoff_base_s=0.0,
+    )
+
+    result = adapter.execute({"query": "hi"})
+
+    assert result["context"] == "after-retry"
+    assert calls["count"] == 3

@@ -74,3 +74,17 @@ def test_tool_runtime_passive_healthcheck_returns_cached_state() -> None:
     health = runtime.run_healthchecks(active=False)
 
     assert health == {"retrieve_context": True}
+
+
+def test_tool_runtime_audit_log_retention() -> None:
+    state = {}
+
+    def tool(payload: dict) -> dict:
+        return {"ok": True}
+
+    runtime = ToolRuntime(state, tool_registry={"answer_with_tool": tool}, audit_log_retention=2)
+    runtime.execute("answer_with_tool", {"event_sequence": []})
+    runtime.execute("answer_with_tool", {"event_sequence": []})
+    runtime.execute("answer_with_tool", {"event_sequence": []})
+
+    assert len(state["tool_audit_log"]) == 2

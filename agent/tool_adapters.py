@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from time import sleep
 from typing import Any, Callable, Dict
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -18,12 +19,16 @@ class HTTPContextAdapter:
         default_path: str = "/context",
         timeout_s: float = 2.0,
         http_client: Callable[..., Dict[str, Any]] | None = None,
+        max_retries: int = 2,
+        backoff_base_s: float = 0.05,
     ):
         self.base_url = base_url.rstrip("/")
         self.health_path = health_path
         self.default_path = default_path
         self.timeout_s = timeout_s
         self.http_client = http_client
+        self.max_retries = max(0, int(max_retries))
+        self.backoff_base_s = max(0.0, float(backoff_base_s))
 
     def name(self) -> str:
         return "retrieve_context"
@@ -41,21 +46,34 @@ class HTTPContextAdapter:
         return self._request(path, {"query": query})
 
     def _request(self, path: str, body: Dict[str, Any]) -> Dict[str, Any]:
-        if self.http_client is not None:
-            return self.http_client(base_url=self.base_url, path=path, body=body, timeout_s=self.timeout_s)
+        last_error: Exception | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                if self.http_client is not None:
+                    return self.http_client(base_url=self.base_url, path=path, body=body, timeout_s=self.timeout_s)
 
-        raw = json.dumps(body).encode("utf-8")
-        req = Request(
-            f"{self.base_url}{path}",
-            data=raw,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        try:
-            with urlopen(req, timeout=self.timeout_s) as response:  # noqa: S310
-                return json.loads(response.read().decode("utf-8") or "{}")
-        except URLError as exc:
-            raise RuntimeError(f"http_context_error: {exc}") from exc
+                raw = json.dumps(body).encode("utf-8")
+                req = Request(
+                    f"{self.base_url}{path}",
+                    data=raw,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urlopen(req, timeout=self.timeout_s) as response:  # noqa: S310
+                    return json.loads(response.read().decode("utf-8") or "{}")
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+                if not self._is_retryable_error(exc) or attempt >= self.max_retries:
+                    break
+                sleep(self.backoff_base_s * (2**attempt))
+
+        raise RuntimeError(f"http_context_error: {last_error}") from last_error
+
+    def _is_retryable_error(self, exc: Exception) -> bool:
+        message = str(exc).lower()
+        transient_markers = ("timeout", "tempor", "connection reset", "refused", "unavailable")
+        return isinstance(exc, URLError) or any(marker in message for marker in transient_markers)
+
 
 
 class DataAdapter:

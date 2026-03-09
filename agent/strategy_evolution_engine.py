@@ -9,8 +9,10 @@ from typing import Any, Dict, List
 class StrategyEvolutionEngine:
     """Rank strategy candidates and update their long-term performance."""
 
-    def __init__(self, cognitive_state: Dict[str, Any]):
+    def __init__(self, cognitive_state: Dict[str, Any], gate_history_retention: int = 1000, promotion_history_retention: int = 1000):
         self.cognitive_state = cognitive_state
+        self.gate_history_retention = max(1, int(gate_history_retention))
+        self.promotion_history_retention = max(1, int(promotion_history_retention))
 
     def rank_strategies(self, counterfactuals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Rank counterfactual strategies with historical performance adjustment."""
@@ -200,6 +202,8 @@ class StrategyEvolutionEngine:
         history = self.cognitive_state.setdefault("strategy_gate_history", [])
         if isinstance(history, list):
             history.append(gate_result)
+            if len(history) > self.gate_history_retention:
+                del history[:-self.gate_history_retention]
 
         return gate_result
 
@@ -245,6 +249,8 @@ class StrategyEvolutionEngine:
         history = self.cognitive_state.setdefault("strategy_promotion_history", [])
         if isinstance(history, list):
             history.append(promotion_record)
+            if len(history) > self.promotion_history_retention:
+                del history[:-self.promotion_history_retention]
 
         if promotion_record["promotion_status"] != "promoted":
             return promotion_record

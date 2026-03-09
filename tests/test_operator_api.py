@@ -45,3 +45,23 @@ def test_operator_api_post_controls_updates_pipeline_controls() -> None:
     assert response["controls"]["low_confidence_threshold"] == 0.42
     assert response["controls"]["fallback_action"] == "answer_directly"
     assert response["controls"]["tool_failure_fallback_action"] == "retrieve_context"
+
+
+def test_operator_api_post_controls_validates_unknown_fields() -> None:
+    api = AgentOperatorAPI(DecisionPipeline({}))
+
+    try:
+        api.post_agent_controls({"unknown": 1})
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "unknown control fields" in str(exc)
+
+
+def test_operator_api_post_controls_validates_threshold_range() -> None:
+    api = AgentOperatorAPI(DecisionPipeline({}))
+
+    try:
+        api.post_agent_controls({"low_confidence_threshold": 1.5})
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "between 0 and 1" in str(exc)
