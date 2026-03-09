@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Mapping, Set
 
 from .counterfactual_engine import CounterfactualEngine
+from .health_scheduler import ToolHealthcheckScheduler
 from .observability import DecisionObservability
 from .simulation_engine import StrategySimulationEngine
 from .strategy_evolution_engine import StrategyEvolutionEngine

@@ -36,7 +36,7 @@ class CallableToolAdapter:
     def name(self) -> str:
         return self._action_name
 
-    def healthcheck(self) -> Dict[str, Any]:
+ж    def healthcheck(self) -> Dict[str, Any]:
         return {"ok": True, "source": "callable"}
 
     def execute(self, request: Dict[str, Any]) -> Dict[str, Any]:
@@ -118,13 +118,13 @@ class ToolRuntime:
         sandbox_mode: bool = True,
         default_timeout_s: float = 1.0,
         max_retries: int = 1,
-        circuit_breaker_threshold: int = 3,
+        audit_log_retention: int = 1000,
     ):
         self.cognitive_state = cognitive_state
         self.sandbox_mode = sandbox_mode
         self.default_timeout_s = default_timeout_s
         self.max_retries = max_retries
-        self.circuit_breaker_threshold = circuit_breaker_threshold
+        self.audit_log_retention = max(1, int(audit_log_retention))
 
         adapters: Dict[str, ToolAdapter] = {}
         for action, tool in (tool_registry or {}).items():
@@ -144,10 +144,12 @@ class ToolRuntime:
         if adapter is None:
             return {"status": "skipped", "reason": "tool_not_registered", "action": action}
 
+        if self._is_degraded(action):
+            self._audit(action, "circuit_open", "tool_unhealthy_degraded")
+            return {"status": "circuit_open", "reason": "tool_unhealthy_degraded", "action": action}
+
         if self.sandbox_mode and not self._validate_payload(payload):
             self._audit(action, "blocked", "sandbox_validation_failed")
-            self._increment_error_count(action)
-            self._update_health(action, False, error_count=self._get_error_count(action))
             return {"status": "blocked", "reason": "sandbox_validation_failed", "action": action}
 
         timeout_s = float(payload.get("timeout_s", self.default_timeout_s) or self.default_timeout_s)
@@ -262,6 +264,8 @@ class ToolRuntime:
                 "attempt": attempt,
             }
         )
+        if len(audit_log) > self.audit_log_retention:
+            del audit_log[:-self.audit_log_retention]
 
     def _update_health(
         self,
