@@ -36,26 +36,25 @@ class ReflectionActionHandler:
                     self.pipeline.update_controls(low_confidence_threshold=float(proposed_value))
                 elif target == "fallback_action":
                     self.pipeline.update_controls(fallback_action=str(proposed_value))
-                messages.append(f"applied control_update: {target}={proposed_value}")
+                messages.append(f"approved control_update: {target}={proposed_value}")
+                self.pipeline.register_action_activity(
+                    "control_update",
+                    {"target": target, "proposed_value": proposed_value},
+                )
 
             elif change_type == "tool_demotion":
                 disabled = self.pipeline.tool_runtime.disable_tool(target)
-                messages.append(f"applied tool_demotion: {target} disabled={disabled}")
-            elif change_type == "strategy_mutation":
-                base_stats = self.pipeline.cognitive_state.setdefault("strategy_stats", {})
-                base_stats.setdefault(str(proposed_value), {"successes": 0, "attempts": 0, "total_value": 0.0})
-                mutation_log = self.pipeline.cognitive_state.setdefault("strategy_mutation_log", [])
-                mutation_log.append(
-                    {
-                        "event": "applied",
-                        "base": target,
-                        "variant": proposed_value,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    }
+                messages.append(f"approved tool_demotion: {target} disabled={disabled}")
+                self.pipeline.register_action_activity(
+                    "tool_demotion",
+                    {"target": target, "disabled": disabled},
                 )
-                messages.append(f"applied strategy_mutation: {target}->{proposed_value}")
             else:
                 messages.append(f"skipped unknown proposal type: {change_type}")
+                self.pipeline.register_action_activity(
+                    "strategy_mutation",
+                    {"change_type": change_type, "target": target, "proposed_value": proposed_value},
+                )
 
         self._append_log(action, messages)
         self.pipeline.save_state(str(Path("reflection_state.json")))
@@ -63,7 +62,17 @@ class ReflectionActionHandler:
 
     def reject_selected(self, proposals: Iterable[Dict[str, Any]]) -> List[str]:
         """Reject selected proposals and return rejection messages."""
-        messages = [f"rejected proposal: {item.get('proposal_id')}" for item in proposals]
+        proposal_list = list(proposals)
+        messages = [f"rejected proposal: {item.get('proposal_id')}" for item in proposal_list]
+        for item in proposal_list:
+            self.pipeline.register_action_activity(
+                "strategy_mutation",
+                {
+                    "proposal_id": item.get("proposal_id"),
+                    "status": "rejected",
+                    "change_type": item.get("change_type"),
+                },
+            )
         self._append_log("reject", messages)
         self.pipeline.save_state(str(Path("reflection_state.json")))
         return messages
