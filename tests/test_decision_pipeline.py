@@ -338,3 +338,62 @@ def test_pipeline_promote_strategy_candidate_promotes_on_manual_override() -> No
     assert result["promotion_status"] == "promoted"
     assert state["active_strategy"]["id"] == "s2"
     assert state["promoted_strategies"][-1]["manual_override_reason"] == "urgent product requirement"
+
+
+def test_pipeline_executes_registered_tool_adapter() -> None:
+    from agent.tool_runtime import InMemoryDataToolAdapter
+
+    state = {
+        "causal_edges": [
+            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
+        ]
+    }
+    adapter = InMemoryDataToolAdapter("answer_with_tool", state)
+    pipeline = DecisionPipeline(state, tool_adapters={"answer_with_tool": adapter})
+
+    result = pipeline.run([{"type": "decision", "value": "answer_directly"}])
+
+    assert result["recommended_action"] == "answer_with_tool"
+    assert result["tool_execution"]["status"] == "ok"
+
+
+def test_pipeline_healthchecks_available_in_snapshot() -> None:
+    from agent.tool_runtime import InMemoryDataToolAdapter
+
+    state = {}
+    pipeline = DecisionPipeline(state, tool_adapters={"answer_with_tool": InMemoryDataToolAdapter("answer_with_tool", state)})
+
+    report = pipeline.run_tool_healthchecks()
+    snapshot = pipeline.get_visualization_snapshot()
+
+    assert report["answer_with_tool"]["ok"] is True
+    assert snapshot["tool_health"]["answer_with_tool"]["is_healthy"] is True
+    assert "results" in snapshot["last_tool_healthcheck"]
+
+
+def test_pipeline_supports_custom_tool_payload_builder() -> None:
+    captured = {}
+
+    def tool(payload: dict) -> dict:
+        captured.update(payload)
+        return {"ok": True}
+
+    state = {
+        "causal_edges": [
+            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
+        ]
+    }
+
+    pipeline = DecisionPipeline(
+        state,
+        tool_registry={"answer_with_tool": tool},
+        tool_payload_builders={
+            "answer_with_tool": lambda events: {"query": events[-1]["value"], "event_count": len(events)}
+        },
+    )
+
+    result = pipeline.run([{"type": "decision", "value": "answer_directly"}])
+
+    assert result["tool_execution"]["status"] == "ok"
+    assert captured["query"] == "answer_directly"
+    assert captured["event_count"] == 1

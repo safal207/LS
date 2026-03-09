@@ -80,3 +80,34 @@ def test_tool_runtime_times_out_before_blocking_pipeline() -> None:
     assert result["status"] == "timeout"
     assert "timed out" in result["error"]
     assert state["tool_health"]["answer_with_tool"]["is_healthy"] is False
+
+
+def test_tool_runtime_supports_tool_adapter_registration() -> None:
+    from agent.tool_runtime import InMemoryDataToolAdapter
+
+    state = {}
+    adapter = InMemoryDataToolAdapter("data_lookup", state)
+    runtime = ToolRuntime(state, tool_adapters={"data_lookup": adapter}, sandbox_mode=True)
+
+    set_result = runtime.execute("data_lookup", {"op": "set", "key": "alpha", "value": 7})
+    get_result = runtime.execute("data_lookup", {"op": "get", "key": "alpha"})
+
+    assert set_result["status"] == "ok"
+    assert get_result["result"]["value"] == 7
+
+
+def test_tool_runtime_active_healthchecks_persist_snapshot() -> None:
+    from agent.tool_runtime import InMemoryDataToolAdapter
+
+    state = {}
+    runtime = ToolRuntime(
+        state,
+        tool_adapters={"data_lookup": InMemoryDataToolAdapter("data_lookup", state)},
+        sandbox_mode=True,
+    )
+
+    report = runtime.run_active_healthchecks()
+
+    assert report["data_lookup"]["ok"] is True
+    assert "last_tool_healthcheck" in state
+    assert state["tool_health"]["data_lookup"]["is_healthy"] is True

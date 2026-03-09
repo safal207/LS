@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Set
+from typing import Any, Callable, Dict, List, Mapping, Set
 
 from .counterfactual_engine import CounterfactualEngine
 from .observability import DecisionObservability
 from .simulation_engine import StrategySimulationEngine
 from .strategy_evolution_engine import StrategyEvolutionEngine
-from .tool_runtime import ToolCallable, ToolRuntime
+from .tool_runtime import ToolAdapter, ToolCallable, ToolRuntime
 
 
 class DecisionPipeline:
@@ -21,9 +21,11 @@ class DecisionPipeline:
         low_confidence_threshold: float = 0.25,
         fallback_action: str = "retrieve_context",
         tool_registry: Dict[str, ToolCallable] | None = None,
+        tool_adapters: Mapping[str, ToolAdapter] | None = None,
         sandbox_mode: bool = True,
         allowed_tool_actions: Set[str] | None = None,
         tool_failure_fallback_action: str = "structured_reasoning",
+        tool_payload_builders: Mapping[str, Callable[[List[Dict[str, Any]]], Dict[str, Any]]] | None = None,
     ):
         self.cognitive_state = cognitive_state
         self.counterfactual_engine = CounterfactualEngine(cognitive_state)
@@ -33,13 +35,14 @@ class DecisionPipeline:
         self.low_confidence_threshold = low_confidence_threshold
         self.fallback_action = fallback_action
         self.tool_failure_fallback_action = tool_failure_fallback_action
-        if allowed_tool_actions is None:
-            self.allowed_tool_actions = {"answer_with_tool", "retrieve_context"}
-        else:
-            self.allowed_tool_actions = set(allowed_tool_actions)
-        self.tool_runtime = ToolRuntime(cognitive_state, tool_registry=tool_registry, sandbox_mode=sandbox_mode)
         self.allowed_tool_actions = set(allowed_tool_actions) if allowed_tool_actions is not None else {"answer_with_tool", "retrieve_context"}
-        self.tool_failure_fallback_action = tool_failure_fallback_action
+        self.tool_payload_builders = dict(tool_payload_builders or {})
+        self.tool_runtime = ToolRuntime(
+            cognitive_state,
+            tool_registry=tool_registry,
+            tool_adapters=tool_adapters,
+            sandbox_mode=sandbox_mode,
+        )
 
     def run(
         self,
@@ -110,30 +113,10 @@ class DecisionPipeline:
         }
         return report
 
+    def run_tool_healthchecks(self) -> Dict[str, Dict[str, Any]]:
+        """Run active tool healthchecks and persist latest report."""
+        return self.tool_runtime.run_active_healthchecks()
 
-    def evaluate_strategy_candidate(
-        self,
-        scenarios: List[Dict[str, Any]],
-        auto_promote_baseline: bool = False,
-    ) -> Dict[str, Any]:
-        """Run simulation gate for candidate strategy against baseline KPI."""
-        candidate_report = self.simulation_engine.run(scenarios)
-        comparison = self.simulation_engine.compare_to_baseline(candidate_report)
-
-        gate_result = {
-            "candidate_report": candidate_report,
-            "comparison": comparison,
-            "accepted": comparison["is_non_regression"],
-        }
-
-        if auto_promote_baseline and gate_result["accepted"]:
-            self.simulation_engine.update_baseline(candidate_report)
-            gate_result["baseline_promoted"] = True
-        else:
-            gate_result["baseline_promoted"] = False
-
-        self.cognitive_state["last_strategy_gate"] = gate_result
-        return gate_result
     def get_session_replay(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Expose replay records for operator inspection."""
         return self.observability.get_session_replay(limit=limit)
@@ -163,6 +146,8 @@ class DecisionPipeline:
             "trends": self.observability.get_trend_summary(window=20),
             "last_decision_metrics": self.cognitive_state.get("last_decision_metrics", {}),
             "last_simulation_metrics": self.cognitive_state.get("last_simulation_metrics", {}),
+            "tool_health": self.cognitive_state.get("tool_health", {}),
+            "last_tool_healthcheck": self.cognitive_state.get("last_tool_healthcheck", {}),
         }
 
     def update_controls(
@@ -207,20 +192,46 @@ class DecisionPipeline:
             manual_override_reason=manual_override_reason,
         )
 
-
     def _maybe_execute_tool(self, action: str | None, event_sequence: List[Dict[str, Any]]) -> Dict[str, Any] | None:
         """Execute tool-backed actions with runtime guardrails."""
         if action not in self.allowed_tool_actions:
             return None
 
-        if action not in self.allowed_tool_actions:
-            return None
-
-        payload = {"event_sequence": event_sequence}
+        payload = self._build_tool_payload(action, event_sequence)
         execution = self.tool_runtime.execute(action, payload)
-        if execution.get("status") in {"error", "blocked"}:
+        if execution.get("status") in {"error", "blocked", "timeout"}:
             execution["fallback_action"] = self.tool_failure_fallback_action
         return execution
+
+    def _build_tool_payload(self, action: str, event_sequence: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Build action-aware payloads for adapter-backed tool execution."""
+        builder = self.tool_payload_builders.get(action)
+        if builder is not None:
+            return builder(event_sequence)
+
+        payload: Dict[str, Any] = {"event_sequence": event_sequence}
+        if action == "retrieve_context":
+            payload["query"] = event_sequence[-1].get("value") if event_sequence else None
+        return payload
+
+    def _resolve_tool_failure_fallback(
+        self,
+        selected_action: str,
+        tool_execution: Dict[str, Any] | None,
+    ) -> tuple[str, str | None]:
+        """Switch to fallback action on tool runtime failure outcomes."""
+        if not tool_execution:
+            return selected_action, None
+
+        status = tool_execution.get("status")
+        if status in {"error", "blocked", "timeout"}:
+            reason = tool_execution.get("reason")
+            if not reason:
+                reason_map = {"error": "tool_error", "timeout": "tool_timeout", "blocked": "tool_blocked"}
+                reason = reason_map.get(status, status)
+            return self.tool_failure_fallback_action, reason
+
+        return selected_action, None
 
     def _log_decision(self, decision_record: Dict[str, Any]) -> None:
         """Append decision record to cognitive state action log."""
