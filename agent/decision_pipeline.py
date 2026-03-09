@@ -9,7 +9,7 @@ from .counterfactual_engine import CounterfactualEngine
 from .observability import DecisionObservability
 from .simulation_engine import StrategySimulationEngine
 from .strategy_evolution_engine import StrategyEvolutionEngine
-from .tool_runtime import ToolCallable, ToolRuntime
+from .tool_runtime import ToolAdapter, ToolCallable, ToolRuntime
 
 
 class DecisionPipeline:
@@ -21,6 +21,7 @@ class DecisionPipeline:
         low_confidence_threshold: float = 0.25,
         fallback_action: str = "retrieve_context",
         tool_registry: Dict[str, ToolCallable] | None = None,
+        tool_adapters: Dict[str, ToolAdapter] | None = None,
         sandbox_mode: bool = True,
         allowed_tool_actions: Set[str] | None = None,
         tool_failure_fallback_action: str = "structured_reasoning",
@@ -32,12 +33,12 @@ class DecisionPipeline:
         self.observability = DecisionObservability(cognitive_state)
         self.low_confidence_threshold = low_confidence_threshold
         self.fallback_action = fallback_action
-        self.tool_failure_fallback_action = tool_failure_fallback_action
-        if allowed_tool_actions is None:
-            self.allowed_tool_actions = {"answer_with_tool", "retrieve_context"}
-        else:
-            self.allowed_tool_actions = set(allowed_tool_actions)
-        self.tool_runtime = ToolRuntime(cognitive_state, tool_registry=tool_registry, sandbox_mode=sandbox_mode)
+        self.tool_runtime = ToolRuntime(
+            cognitive_state,
+            tool_registry=tool_registry,
+            tool_adapters=tool_adapters,
+            sandbox_mode=sandbox_mode,
+        )
         self.allowed_tool_actions = set(allowed_tool_actions) if allowed_tool_actions is not None else {"answer_with_tool", "retrieve_context"}
         self.tool_failure_fallback_action = tool_failure_fallback_action
 
@@ -210,6 +211,9 @@ class DecisionPipeline:
 
     def _maybe_execute_tool(self, action: str | None, event_sequence: List[Dict[str, Any]]) -> Dict[str, Any] | None:
         """Execute tool-backed actions with runtime guardrails."""
+        if action not in self.allowed_tool_actions:
+            return None
+
         if action not in self.allowed_tool_actions:
             return None
 
