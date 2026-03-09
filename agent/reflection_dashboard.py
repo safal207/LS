@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 from importlib.util import find_spec
 
@@ -57,6 +57,9 @@ except ImportError:  # pragma: no cover - direct script execution
     from agent.reflection_formatting import format_proposals
 
 
+DashboardFactory = Callable[[DecisionPipeline], QWidget]
+
+
 class ReflectionWidget(QWidget):
     """Interactive dashboard for reviewing and applying reflection proposals."""
 
@@ -106,8 +109,10 @@ class ReflectionWidget(QWidget):
         settings_layout = QVBoxLayout(settings_box)
         self.threshold_label = QLabel()
         self.fallback_label = QLabel()
+        self.sleep_phase_label = QLabel()
         settings_layout.addWidget(self.threshold_label)
         settings_layout.addWidget(self.fallback_label)
+        settings_layout.addWidget(self.sleep_phase_label)
         grid.addWidget(settings_box, 0, 1)
 
         heatmap_box = QGroupBox("Strategy Heatmap")
@@ -133,8 +138,14 @@ class ReflectionWidget(QWidget):
     def on_reflect_clicked(self) -> None:
         """Request reflection proposals from pipeline and refresh the panel."""
         self.current_proposals = self.pipeline.reflect_and_propose()
+        auto_messages = self.action_handler.auto_apply_high_confidence(self.current_proposals)
+        self.current_proposals = [item for item in self.current_proposals if float(item.get("confidence", 0.0)) < 0.9]
         self._render_proposals()
-        self._append_log(f"generated {len(self.current_proposals)} proposals")
+        if auto_messages:
+            self._append_log("; ".join(auto_messages))
+        self._append_log(f"generated {len(self.current_proposals)} manual proposals")
+        self._refresh_dashboard()
+        self._auto_save_state()
 
     def on_approve_selected(self) -> None:
         """Apply selected proposals and update metrics/controls immediately."""
@@ -144,7 +155,6 @@ class ReflectionWidget(QWidget):
             return
 
         messages = self.action_handler.apply_selected(selected)
-        # Apply flow: mutate controls/tool runtime, clear handled proposals, then update derived views.
         self._remove_selected_proposals(selected)
         self._refresh_dashboard()
         self._append_log("; ".join(messages))
@@ -161,44 +171,40 @@ class ReflectionWidget(QWidget):
         self._remove_selected_proposals(selected)
         self._refresh_dashboard()
         self._append_log("; ".join(messages))
+        self._auto_save_state()
 
     def _selected_proposals(self) -> List[Dict[str, Any]]:
-        """Resolve selected list items to proposal dictionaries."""
         selected_indices = [self.proposal_list.row(item) for item in self.proposal_list.selectedItems()]
         return [self.current_proposals[index] for index in selected_indices if 0 <= index < len(self.current_proposals)]
 
     def _remove_selected_proposals(self, proposals: List[Dict[str, Any]]) -> None:
-        """Drop handled proposals from in-memory state and re-render list."""
         selected_ids = {item.get("proposal_id") for item in proposals}
         self.current_proposals = [item for item in self.current_proposals if item.get("proposal_id") not in selected_ids]
         self._render_proposals()
 
     def _render_proposals(self) -> None:
-        """Render proposal details and selectable entries."""
         self.proposal_summary.setPlainText(format_proposals(self.current_proposals))
         self.proposal_list.clear()
-
-        if not self.current_proposals:
-            QMessageBox.warning(self, "No Proposals", "No proposals available. Run reflection first.")
-            return
 
         for proposal in self.current_proposals:
             confidence = float(proposal.get("confidence", 0.0))
             text = f"{proposal.get('proposal_id')} | {proposal.get('change_type')} | conf={confidence:.2f}"
             item = QListWidgetItem(text)
-            if confidence > 0.8:
+            if confidence >= 0.9:
+                item.setBackground(QColor("#8ff58f"))
+            elif confidence > 0.8:
                 item.setBackground(QColor("#c8f7c5"))
             self.proposal_list.addItem(item)
 
     def _refresh_dashboard(self) -> None:
-        """Refresh settings, heatmap, and trend data after each user action."""
         self.threshold_label.setText(f"low_confidence_threshold: {self.pipeline.low_confidence_threshold:.2f}")
         self.fallback_label.setText(f"fallback_action: {self.pipeline.fallback_action}")
+        summary = self.pipeline.cognitive_state.get("last_sleep_phase_summary", {})
+        self.sleep_phase_label.setText(f"sleep_phase_summary: {summary or 'not-run'}")
         self._refresh_heatmap()
         self._refresh_trends()
 
     def _refresh_heatmap(self) -> None:
-        """Recompute heatmap values from strategy stats after state updates."""
         stats = self.pipeline.cognitive_state.get("strategy_stats", {})
         rows = [item for item in stats.items() if isinstance(item[1], dict)]
         self.heatmap_table.setRowCount(len(rows))
@@ -215,7 +221,6 @@ class ReflectionWidget(QWidget):
             self.heatmap_table.setItem(row_idx, 2, QTableWidgetItem(f"{efficiency:.2f}"))
 
     def _refresh_trends(self, window: int = 20) -> None:
-        """Show compact trend summary for the last ``window`` decisions."""
         history = self.pipeline.cognitive_state.get("action_history", [])[-window:]
         if not history:
             self.trends_text.setPlainText("No action history yet.")
@@ -227,15 +232,27 @@ class ReflectionWidget(QWidget):
         self.trends_text.setPlainText(f"Last {len(history)} actions success trend:\n{marks}\nSuccess rate: {rate:.2f}")
 
     def _append_log(self, message: str) -> None:
-        """Append dashboard user action messages to the visible event log."""
         current = self.log_output.toPlainText().strip()
         new_text = f"{current}\n{message}" if current else message
         self.log_output.setPlainText(new_text)
 
     def _auto_save_state(self) -> None:
-        """Persist cognitive state after approve flow for reproducible demos."""
         target = Path("reflection_state.json")
         self.pipeline.save_state(str(target))
+
+
+_reflection_dashboard_factory: DashboardFactory = ReflectionWidget
+
+
+def set_reflection_dashboard_factory(factory: DashboardFactory) -> None:
+    """Set injectable dashboard factory for GhostGPT integration and testing."""
+    global _reflection_dashboard_factory
+    _reflection_dashboard_factory = factory
+
+
+def create_reflection_dashboard(pipeline: DecisionPipeline) -> QWidget:
+    """Build reflection dashboard from configurable factory."""
+    return _reflection_dashboard_factory(pipeline)
 
 
 def build_demo_pipeline() -> DecisionPipeline:

@@ -217,9 +217,10 @@ class GhostWindow(QMainWindow):
         self.btn_export_secure = QPushButton("🔐 Экспорт (L-THREAD)")
         self.btn_import_secure = QPushButton("🔓 Импорт (L-THREAD)")
         self.btn_sleep = QPushButton("🛌 Спать")
+        self.btn_reflect = QPushButton("🪞 Reflect")
         self.btn_audit = QPushButton("👁️ Аудит")
 
-        for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure, self.btn_sleep, self.btn_audit]:
+        for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure, self.btn_sleep, self.btn_reflect, self.btn_audit]:
             btn.setStyleSheet(
                 "background-color: rgba(60, 60, 80, 200); color: #FFF; border: 1px solid #555; border-radius: 6px; padding: 4px;"
             )
@@ -229,6 +230,7 @@ class GhostWindow(QMainWindow):
         self.btn_export_secure.clicked.connect(self.export_soul_secure)
         self.btn_import_secure.clicked.connect(self.import_soul_secure)
         self.btn_sleep.clicked.connect(lambda: self.agent_loop.submit("/sleep") if self.agent_loop else None)
+        self.btn_reflect.clicked.connect(self.open_reflection_dashboard)
         self.btn_audit.clicked.connect(self.show_audit_log)
 
         soul_row.addWidget(self.btn_export)
@@ -238,6 +240,7 @@ class GhostWindow(QMainWindow):
         secure_row.addWidget(self.btn_export_secure)
         secure_row.addWidget(self.btn_import_secure)
         secure_row.addWidget(self.btn_sleep)
+        secure_row.addWidget(self.btn_reflect)
         secure_row.addWidget(self.btn_audit)
 
         self.amygdala_tip_targets = [self.state_bar, self.protection_badge, self.personality_label, self.phantom_bar]
@@ -520,6 +523,26 @@ class GhostWindow(QMainWindow):
                     QMessageBox.information(self, "Успех", "Душа успешно импортирована.")
         except Exception as e:
             QMessageBox.critical(self, "Ошибка импорта", str(e))
+
+
+    def set_decision_pipeline(self, pipeline) -> None:
+        """Attach DecisionPipeline used by reflection dashboard."""
+        self.decision_pipeline = pipeline
+        self._reflection_widget = None
+
+    def open_reflection_dashboard(self) -> None:
+        """Open shared reflection dashboard from GhostGPT UI."""
+        pipeline = getattr(self, "decision_pipeline", None)
+        if pipeline is None:
+            QMessageBox.warning(self, "Reflection", "DecisionPipeline not initialized.")
+            return
+        from agent.reflection_dashboard import create_reflection_dashboard
+
+        if self._reflection_widget is None:
+            self._reflection_widget = create_reflection_dashboard(pipeline)
+        self._reflection_widget.show()
+        self._reflection_widget.raise_()
+        self._reflection_widget.activateWindow()
 
     def show_audit_log(self):
         """Shows the vision subsystem audit log."""
