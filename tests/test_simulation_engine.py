@@ -40,3 +40,19 @@ def test_simulation_engine_handles_empty_scenarios() -> None:
     assert report["scenario_count"] == 0
     assert report["success_rate"] == 0.0
     assert report["prediction_accuracy"] == 0.0
+
+
+def test_simulation_engine_compare_to_baseline_and_promote() -> None:
+    state = {}
+    engine = StrategySimulationEngine(state)
+
+    baseline = {"success_rate": 0.4, "prediction_accuracy": 0.4, "average_value": 0.3}
+    candidate = {"success_rate": 0.6, "prediction_accuracy": 0.5, "average_value": 0.35}
+
+    comparison = engine.compare_to_baseline(candidate, baseline)
+
+    assert comparison["is_non_regression"] is True
+    assert abs(comparison["deltas"]["success_rate_delta"] - 0.2) < 1e-9
+
+    engine.update_baseline(candidate)
+    assert state["baseline_simulation_report"]["success_rate"] == 0.6
