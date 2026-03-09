@@ -34,3 +34,40 @@ def test_observability_trend_summary_computes_rates() -> None:
     assert trend["success_rate"] == 2 / 3
     assert trend["fallback_rate"] == 1 / 3
     assert trend["calibration_error"] >= 0.0
+
+
+def test_observability_trend_summary_includes_tool_kpi_and_failure_clusters() -> None:
+    state = {
+        "action_log": [
+            {
+                "timestamp": "t1",
+                "success": False,
+                "confidence": 0.9,
+                "fallback_reason": "tool_error",
+                "tool_execution": {"status": "error", "error": "timeout after 1.2s"},
+            },
+            {
+                "timestamp": "t2",
+                "success": True,
+                "confidence": 0.7,
+                "fallback_reason": None,
+                "tool_execution": {"status": "ok"},
+            },
+        ]
+    }
+    obs = DecisionObservability(state)
+
+    trend = obs.get_trend_summary(window=2)
+
+    assert "tool_kpi" in trend
+    assert trend["tool_kpi"]["timeout_rate"] == 0.5
+    assert trend["tool_kpi"]["tool_error_rate"] == 0.5
+    assert trend["top_failure_clusters"]["fallback_reason"][0]["key"] == "tool_error"
+
+
+def test_observability_failure_clusters_handles_missing_log() -> None:
+    obs = DecisionObservability({})
+
+    clusters = obs.get_failure_clusters()
+
+    assert clusters == {"fallback_reason": [], "tool_execution.error": []}
