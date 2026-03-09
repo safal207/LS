@@ -21,6 +21,7 @@ def test_pipeline_selects_high_confidence_action_and_logs_metrics() -> None:
         "calibrated_confidence": 0.9,
         "predicted_outcome": "high_quality_answer",
         "action_success": True,
+        "fallback_reason": None,
     }
     assert len(state["action_log"]) == 1
     assert len(state["action_history"]) == 1
@@ -122,7 +123,8 @@ def test_pipeline_tool_error_uses_audit_and_health_tracking() -> None:
 
     result = pipeline.run(events)
 
-    assert result["recommended_action"] == "answer_with_tool"
+    assert result["recommended_action"] == "structured_reasoning"
+    assert result["fallback_reason"] == "tool_error"
     assert result["tool_execution"]["status"] == "error"
     assert "downstream unavailable" in result["tool_execution"]["error"]
     assert state["tool_health"]["answer_with_tool"]["is_healthy"] is False
@@ -274,3 +276,79 @@ def test_pipeline_session_replay_and_trends_in_snapshot() -> None:
     assert replay[0]["actual_outcome"] == "bad"
     assert snapshot["trends"]["decision_count"] >= 2
     assert "success_rate" in snapshot["trends"]
+
+
+def test_pipeline_strategy_gate_accepts_and_promotes_baseline() -> None:
+    state = {"baseline_simulation_report": {"success_rate": 0.3, "prediction_accuracy": 0.3, "average_value": 0.2}}
+    pipeline = DecisionPipeline(state)
+
+    gate = pipeline.evaluate_strategy_candidate(
+        [
+            {"action": "answer_with_tool", "predicted_outcome": "g", "actual_outcome": "g", "success": True, "outcome_value": 0.8},
+            {"action": "retrieve_context", "predicted_outcome": "k", "actual_outcome": "k", "success": True, "outcome_value": 0.7},
+        ],
+        auto_promote_baseline=True,
+    )
+
+    assert gate["accepted"] is True
+    assert gate["baseline_promoted"] is True
+    assert state["baseline_simulation_report"]["success_rate"] >= 0.3
+
+
+def test_pipeline_strategy_gate_rejects_regression() -> None:
+    state = {"baseline_simulation_report": {"success_rate": 1.0, "prediction_accuracy": 1.0, "average_value": 1.0}}
+    pipeline = DecisionPipeline(state)
+
+    gate = pipeline.evaluate_strategy_candidate(
+        [
+            {"action": "answer_with_tool", "predicted_outcome": "g", "actual_outcome": "b", "success": False, "outcome_value": 0.0},
+        ]
+    )
+
+    assert gate["accepted"] is False
+    assert gate["comparison"]["is_non_regression"] is False
+
+
+def test_pipeline_respects_explicit_empty_allowed_tool_actions() -> None:
+    state = {
+        "causal_edges": [
+            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
+        ]
+    }
+
+    def answer_with_tool(payload: dict) -> dict:
+        return {"answer": "42"}
+
+    pipeline = DecisionPipeline(
+        state,
+        tool_registry={"answer_with_tool": answer_with_tool},
+        allowed_tool_actions=set(),
+    )
+    events = [{"type": "decision", "value": "answer_directly"}]
+
+    result = pipeline.run(events)
+
+    assert result["recommended_action"] == "answer_with_tool"
+    assert result["tool_execution"] is None
+
+
+def test_pipeline_fallbacks_when_circuit_is_open() -> None:
+    state = {
+        "causal_edges": [
+            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
+            {"cause": "retrieve_context", "effect": "ctx", "confidence": 0.1},
+        ],
+        "tool_error_counts": {"answer_with_tool": 10},
+    }
+
+    def answer_with_tool(payload: dict) -> dict:
+        return {"answer": "42"}
+
+    pipeline = DecisionPipeline(state, tool_registry={"answer_with_tool": answer_with_tool})
+    events = [{"type": "decision", "value": "answer_directly"}]
+
+    result = pipeline.run(events)
+
+    assert result["recommended_action"] == "structured_reasoning"
+    assert result["fallback_reason"] == "tool_circuit_open"
+    assert result["tool_execution"]["status"] == "circuit_open"

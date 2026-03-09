@@ -60,3 +60,39 @@ class StrategySimulationEngine:
         }
         self.cognitive_state["simulation_report"] = report
         return report
+
+    def compare_to_baseline(self, candidate: Dict[str, Any], baseline: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        """Compare candidate simulation KPI report against baseline."""
+        baseline_report = baseline or self.cognitive_state.get("baseline_simulation_report", {})
+        if not isinstance(baseline_report, dict) or not baseline_report:
+            baseline_report = {
+                "success_rate": 0.0,
+                "prediction_accuracy": 0.0,
+                "average_value": 0.0,
+            }
+
+        deltas = {
+            "success_rate_delta": float(candidate.get("success_rate", 0.0) or 0.0)
+            - float(baseline_report.get("success_rate", 0.0) or 0.0),
+            "prediction_accuracy_delta": float(candidate.get("prediction_accuracy", 0.0) or 0.0)
+            - float(baseline_report.get("prediction_accuracy", 0.0) or 0.0),
+            "average_value_delta": float(candidate.get("average_value", 0.0) or 0.0)
+            - float(baseline_report.get("average_value", 0.0) or 0.0),
+        }
+
+        comparison = {
+            "baseline": baseline_report,
+            "candidate": candidate,
+            "deltas": deltas,
+            "is_non_regression": all(v >= 0 for v in deltas.values()),
+        }
+        self.cognitive_state["simulation_comparison"] = comparison
+        return comparison
+
+    def update_baseline(self, report: Dict[str, Any]) -> None:
+        """Persist a simulation report as new baseline."""
+        self.cognitive_state["baseline_simulation_report"] = {
+            "success_rate": float(report.get("success_rate", 0.0) or 0.0),
+            "prediction_accuracy": float(report.get("prediction_accuracy", 0.0) or 0.0),
+            "average_value": float(report.get("average_value", 0.0) or 0.0),
+        }
