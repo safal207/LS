@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from .counterfactual_engine import CounterfactualEngine
+from .observability import DecisionObservability
 from .simulation_engine import StrategySimulationEngine
 from .strategy_evolution_engine import StrategyEvolutionEngine
 from .tool_runtime import ToolCallable, ToolRuntime
@@ -26,6 +27,7 @@ class DecisionPipeline:
         self.counterfactual_engine = CounterfactualEngine(cognitive_state)
         self.strategy_engine = StrategyEvolutionEngine(cognitive_state)
         self.simulation_engine = StrategySimulationEngine(cognitive_state)
+        self.observability = DecisionObservability(cognitive_state)
         self.low_confidence_threshold = low_confidence_threshold
         self.fallback_action = fallback_action
         self.tool_runtime = ToolRuntime(cognitive_state, tool_registry=tool_registry, sandbox_mode=sandbox_mode)
@@ -97,6 +99,10 @@ class DecisionPipeline:
         }
         return report
 
+    def get_session_replay(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Expose replay records for operator inspection."""
+        return self.observability.get_session_replay(limit=limit)
+
     def get_visualization_snapshot(self) -> Dict[str, Any]:
         """Build operator-facing flow/heatmap snapshot from current state."""
         strategy_stats = self.cognitive_state.get("strategy_stats", {})
@@ -117,6 +123,7 @@ class DecisionPipeline:
                 "low_confidence_threshold": self.low_confidence_threshold,
                 "fallback_action": self.fallback_action,
             },
+            "trends": self.observability.get_trend_summary(window=20),
             "last_decision_metrics": self.cognitive_state.get("last_decision_metrics", {}),
             "last_simulation_metrics": self.cognitive_state.get("last_simulation_metrics", {}),
         }
