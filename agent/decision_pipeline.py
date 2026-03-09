@@ -21,7 +21,7 @@ class DecisionPipeline:
         low_confidence_threshold: float = 0.25,
         fallback_action: str = "retrieve_context",
         tool_registry: Dict[str, ToolCallable] | None = None,
-        tool_adapters: Mapping[str, ToolAdapter] | None = None,
+        tool_adapters: Dict[str, ToolAdapter] | None = None,
         sandbox_mode: bool = True,
         allowed_tool_actions: Set[str] | None = None,
         tool_failure_fallback_action: str = "structured_reasoning",
@@ -33,7 +33,12 @@ class DecisionPipeline:
         self.observability = DecisionObservability(cognitive_state)
         self.low_confidence_threshold = low_confidence_threshold
         self.fallback_action = fallback_action
-        self.tool_failure_fallback_action = tool_failure_fallback_action
+        self.tool_runtime = ToolRuntime(
+            cognitive_state,
+            tool_registry=tool_registry,
+            tool_adapters=tool_adapters,
+            sandbox_mode=sandbox_mode,
+        )
         self.allowed_tool_actions = set(allowed_tool_actions) if allowed_tool_actions is not None else {"answer_with_tool", "retrieve_context"}
         self.tool_runtime = ToolRuntime(
             cognitive_state,
@@ -189,9 +194,15 @@ class DecisionPipeline:
         if action not in self.allowed_tool_actions:
             return None
 
+        if action not in self.allowed_tool_actions:
+            return None
+
+        if action not in self.allowed_tool_actions:
+            return None
+
         payload = {"event_sequence": event_sequence}
         execution = self.tool_runtime.execute(action, payload)
-        if execution.get("status") in {"error", "blocked", "timeout"}:
+        if execution.get("status") in {"error", "blocked", "circuit_open"}:
             execution["fallback_action"] = self.tool_failure_fallback_action
         return execution
 

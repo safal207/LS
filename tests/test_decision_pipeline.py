@@ -340,18 +340,21 @@ def test_pipeline_promote_strategy_candidate_promotes_on_manual_override() -> No
     assert state["promoted_strategies"][-1]["manual_override_reason"] == "urgent product requirement"
 
 
-def test_pipeline_executes_registered_tool_adapter() -> None:
-    from agent.tool_runtime import InMemoryDataToolAdapter
-
+def test_pipeline_circuit_open_tool_execution_includes_fallback_action() -> None:
     state = {
         "causal_edges": [
             {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
-        ]
+        ],
+        "tool_health": {"answer_with_tool": {"is_healthy": False}},
     }
-    adapter = InMemoryDataToolAdapter("answer_with_tool", state)
-    pipeline = DecisionPipeline(state, tool_adapters={"answer_with_tool": adapter})
 
-    result = pipeline.run([{"type": "decision", "value": "answer_directly"}])
+    def answer_with_tool(payload: dict) -> dict:
+        return {"answer": "42"}
 
-    assert result["recommended_action"] == "answer_with_tool"
-    assert result["tool_execution"]["status"] == "ok"
+    pipeline = DecisionPipeline(state, tool_registry={"answer_with_tool": answer_with_tool})
+    events = [{"type": "decision", "value": "answer_directly"}]
+
+    result = pipeline.run(events)
+
+    assert result["tool_execution"]["status"] == "circuit_open"
+    assert result["tool_execution"]["fallback_action"] == "structured_reasoning"
