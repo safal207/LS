@@ -36,7 +36,7 @@ class CallableToolAdapter:
     def name(self) -> str:
         return self._action_name
 
-ж    def healthcheck(self) -> Dict[str, Any]:
+    def healthcheck(self) -> Dict[str, Any]:
         return {"ok": True, "source": "callable"}
 
     def execute(self, request: Dict[str, Any]) -> Dict[str, Any]:
@@ -119,12 +119,15 @@ class ToolRuntime:
         default_timeout_s: float = 1.0,
         max_retries: int = 1,
         audit_log_retention: int = 1000,
+        circuit_breaker_threshold: int = 5,
     ):
         self.cognitive_state = cognitive_state
         self.sandbox_mode = sandbox_mode
         self.default_timeout_s = default_timeout_s
         self.max_retries = max_retries
         self.audit_log_retention = max(1, int(audit_log_retention))
+        self.circuit_breaker_threshold = max(1, int(circuit_breaker_threshold))
+        self._disabled_tools: set[str] = set()
 
         adapters: Dict[str, ToolAdapter] = {}
         for action, tool in (tool_registry or {}).items():
@@ -135,6 +138,10 @@ class ToolRuntime:
 
     def execute(self, action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Run tool action through sandbox checks and retry policy."""
+        if action in self._disabled_tools:
+            self._audit(action, "disabled", "tool_disabled")
+            return {"status": "disabled", "reason": "tool_disabled", "action": action}
+
         if self.is_circuit_open(action):
             self._audit(action, "blocked", "circuit_open")
             self._update_health(action, False, error_count=self._get_error_count(action), circuit_open=True)
@@ -198,6 +205,32 @@ class ToolRuntime:
             "error_count": error_count,
             "circuit_open": circuit_open,
         }
+
+    def disable_tool(self, tool_name: str) -> bool:
+        """Disable a tool action from runtime routing until re-enabled."""
+        if tool_name not in self.tool_adapters:
+            return False
+        self._disabled_tools.add(tool_name)
+        self._update_health(
+            tool_name,
+            is_healthy=False,
+            error_count=self._get_error_count(tool_name),
+            circuit_open=True,
+        )
+        return True
+
+    def enable_tool(self, tool_name: str) -> bool:
+        """Re-enable a previously disabled tool action."""
+        if tool_name not in self._disabled_tools:
+            return False
+        self._disabled_tools.remove(tool_name)
+        self._update_health(
+            tool_name,
+            is_healthy=True,
+            error_count=self._get_error_count(tool_name),
+            circuit_open=self.is_circuit_open(tool_name),
+        )
+        return True
 
     def run_active_healthchecks(self) -> Dict[str, Dict[str, Any]]:
         """Run healthchecks for all registered adapters and persist snapshots."""
