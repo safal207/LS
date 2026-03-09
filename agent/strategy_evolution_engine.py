@@ -174,14 +174,16 @@ class StrategyEvolutionEngine:
             "average_value": average_value_delta + epsilon >= acceptance_policy["average_value_delta_min"],
         }
 
+        override_reason = (manual_override_reason or "").strip()
+        has_valid_override = len(override_reason) >= 8
         accepted_by_policy = all(checks.values())
-        accepted = accepted_by_policy or bool(manual_override_reason)
+        accepted = accepted_by_policy or has_valid_override
 
         gate_result = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "accepted": accepted,
             "accepted_by_policy": accepted_by_policy,
-            "manual_override_reason": manual_override_reason,
+            "manual_override_reason": override_reason or None,
             "deltas": {
                 "success_rate_delta": success_rate_delta,
                 "prediction_accuracy_delta": prediction_accuracy_delta,
@@ -191,6 +193,7 @@ class StrategyEvolutionEngine:
             "acceptance_policy": acceptance_policy,
             "candidate_metrics": candidate_metrics,
             "baseline_metrics": baseline_metrics,
+            "override_reason_valid": has_valid_override,
         }
 
         self.cognitive_state["last_strategy_gate"] = gate_result
@@ -215,29 +218,44 @@ class StrategyEvolutionEngine:
         )
 
         strategy_id = str(candidate_strategy.get("id") or candidate_strategy.get("name") or "unknown_strategy")
+        promoted = self.cognitive_state.setdefault("promoted_strategies", [])
+        already_promoted = isinstance(promoted, list) and any(
+            isinstance(item, dict) and str(item.get("strategy_id")) == strategy_id for item in promoted
+        )
+
         promotion_record = {
             "timestamp": gate_result["timestamp"],
             "strategy_id": strategy_id,
             "candidate_strategy": candidate_strategy,
             "gate_result": gate_result,
             "promotion_status": "promoted" if gate_result.get("accepted") else "rejected",
+            "promotion_denied_reason": None,
         }
+
+        if already_promoted:
+            promotion_record["promotion_status"] = "already_promoted"
+            promotion_record["promotion_denied_reason"] = "duplicate_strategy_id"
+
+        if promotion_record["promotion_status"] == "rejected" and gate_result.get("accepted_by_policy") is False:
+            if manual_override_reason and not gate_result.get("override_reason_valid"):
+                promotion_record["promotion_denied_reason"] = "manual_override_reason_too_short"
+            else:
+                promotion_record["promotion_denied_reason"] = "gate_policy_not_satisfied"
 
         history = self.cognitive_state.setdefault("strategy_promotion_history", [])
         if isinstance(history, list):
             history.append(promotion_record)
 
-        if not gate_result.get("accepted"):
+        if promotion_record["promotion_status"] != "promoted":
             return promotion_record
 
-        promoted = self.cognitive_state.setdefault("promoted_strategies", [])
         if isinstance(promoted, list):
             promoted.append(
                 {
                     "strategy_id": strategy_id,
                     "candidate_strategy": candidate_strategy,
                     "promoted_at": gate_result["timestamp"],
-                    "manual_override_reason": manual_override_reason,
+                    "manual_override_reason": gate_result.get("manual_override_reason"),
                 }
             )
 

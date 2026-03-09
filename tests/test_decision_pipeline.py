@@ -375,3 +375,53 @@ def test_pipeline_run_tool_healthcheck_cycle_and_snapshot_exposes_health() -> No
     assert "answer_with_tool" in health["tool_health"]
     assert "tool_health" in snapshot
     assert snapshot["last_tool_healthcheck"]["mode"] == "active"
+
+
+def test_pipeline_promote_strategy_candidate_sets_denied_reason_on_policy_reject() -> None:
+    state = {}
+    pipeline = DecisionPipeline(state)
+
+    result = pipeline.promote_strategy_candidate(
+        candidate_strategy={"id": "s3", "name": "strategy-three"},
+        candidate_metrics={"success_rate": 0.2, "prediction_accuracy": 0.2, "average_value": 0.1},
+        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.3},
+    )
+
+    assert result["promotion_status"] == "rejected"
+    assert result["promotion_denied_reason"] == "gate_policy_not_satisfied"
+
+
+def test_pipeline_promote_strategy_candidate_rejects_short_override_reason() -> None:
+    state = {}
+    pipeline = DecisionPipeline(state)
+
+    result = pipeline.promote_strategy_candidate(
+        candidate_strategy={"id": "s4", "name": "strategy-four"},
+        candidate_metrics={"success_rate": 0.2, "prediction_accuracy": 0.2, "average_value": 0.1},
+        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.3},
+        manual_override_reason="short",
+    )
+
+    assert result["promotion_status"] == "rejected"
+    assert result["promotion_denied_reason"] == "manual_override_reason_too_short"
+
+
+def test_pipeline_promote_strategy_candidate_is_idempotent_by_strategy_id() -> None:
+    state = {}
+    pipeline = DecisionPipeline(state)
+
+    first = pipeline.promote_strategy_candidate(
+        candidate_strategy={"id": "s5", "name": "strategy-five"},
+        candidate_metrics={"success_rate": 0.8, "prediction_accuracy": 0.8, "average_value": 0.8},
+        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.7},
+    )
+    second = pipeline.promote_strategy_candidate(
+        candidate_strategy={"id": "s5", "name": "strategy-five-v2"},
+        candidate_metrics={"success_rate": 0.9, "prediction_accuracy": 0.9, "average_value": 0.9},
+        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.7},
+    )
+
+    assert first["promotion_status"] == "promoted"
+    assert second["promotion_status"] == "already_promoted"
+    assert second["promotion_denied_reason"] == "duplicate_strategy_id"
+    assert len(state["promoted_strategies"]) == 1
