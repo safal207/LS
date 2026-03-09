@@ -27,6 +27,7 @@ def test_tool_runtime_executes_registered_tool_and_updates_audit() -> None:
     assert result["status"] == "ok"
     assert result["result"]["ok"] is True
     assert state["tool_health"]["answer_with_tool"]["is_healthy"] is True
+    assert state["tool_health"]["answer_with_tool"]["error_count"] == 0
     assert state["tool_audit_log"][-1]["status"] == "ok"
 
 

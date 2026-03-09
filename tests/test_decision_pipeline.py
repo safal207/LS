@@ -22,6 +22,7 @@ def test_pipeline_selects_high_confidence_action_and_logs_metrics() -> None:
         "calibrated_confidence": 0.9,
         "predicted_outcome": "high_quality_answer",
         "action_success": True,
+        "fallback_reason": None,
     }
     assert len(state["action_log"]) == 1
     assert len(state["action_history"]) == 1
@@ -123,7 +124,8 @@ def test_pipeline_tool_error_uses_audit_and_health_tracking() -> None:
 
     result = pipeline.run(events)
 
-    assert result["recommended_action"] == "answer_with_tool"
+    assert result["recommended_action"] == "structured_reasoning"
+    assert result["fallback_reason"] == "tool_error"
     assert result["tool_execution"]["status"] == "error"
     assert "downstream unavailable" in result["tool_execution"]["error"]
     assert state["tool_health"]["answer_with_tool"]["is_healthy"] is False
