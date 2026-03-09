@@ -32,8 +32,7 @@ from modules.agent.sinks import build_event_sink
 from modules.agent.events import AgentEvent
 from modules import config
 from codex.causal_memory.amygdala import Amygdala
-from agent.reflection import ReflectionPipeline
-from apps.ghostgpt.reflection_dashboard import ReflectionDashboard
+from agent.decision_pipeline import DecisionPipeline
 
 
 class GhostGPT:
@@ -64,9 +63,8 @@ class GhostGPT:
         self.app = QApplication(sys.argv)
         self.window = GhostWindow()
         self.audio = AudioWorker()
-        self.reflection_pipeline = ReflectionPipeline.load_state("reflection_state.json")
-
-        self.window.set_reflection_dashboard_factory(self._build_reflection_dashboard)
+        self.decision_pipeline = DecisionPipeline({"action_history": [], "strategy_stats": {}, "action_log": []})
+        self.window.set_decision_pipeline(self.decision_pipeline)
 
         # Initialize Access Protocol
         self.protocol = AccessProtocol(self.window, self.audio)

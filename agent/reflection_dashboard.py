@@ -191,8 +191,14 @@ class ReflectionWidget(QWidget):
     def on_reflect_clicked(self) -> None:
         """Request reflection proposals from pipeline and refresh the panel."""
         self.current_proposals = self.pipeline.reflect_and_propose()
+        auto_messages = self.action_handler.auto_apply_high_confidence(self.current_proposals)
+        self.current_proposals = [item for item in self.current_proposals if float(item.get("confidence", 0.0)) < 0.9]
         self._render_proposals()
-        self._append_log(f"generated {len(self.current_proposals)} proposals")
+        if auto_messages:
+            self._append_log("; ".join(auto_messages))
+        self._append_log(f"generated {len(self.current_proposals)} manual proposals")
+        self._refresh_dashboard()
+        self._auto_save_state()
 
     def on_approve_selected(self) -> None:
         """Apply selected proposals and update metrics/controls immediately."""
@@ -237,7 +243,6 @@ class ReflectionWidget(QWidget):
             self._append_log(f"report exported: {target}")
 
     def _selected_proposals(self) -> List[Dict[str, Any]]:
-        """Resolve selected list items to proposal dictionaries."""
         selected_indices = [self.proposal_list.row(item) for item in self.proposal_list.selectedItems()]
         return [self.current_proposals[index] for index in selected_indices if 0 <= index < len(self.current_proposals)]
 
@@ -248,7 +253,6 @@ class ReflectionWidget(QWidget):
         self._render_proposals()
 
     def _render_proposals(self) -> None:
-        """Render proposal details and selectable entries."""
         self.proposal_summary.setPlainText(format_proposals(self.current_proposals))
         self.proposal_list.clear()
 
@@ -328,7 +332,6 @@ class ReflectionWidget(QWidget):
         self.heatmap_table.setSortingEnabled(True)
 
     def _refresh_trends(self, window: int = 20) -> None:
-        """Show compact trend summary for the last ``window`` decisions."""
         history = self.pipeline.cognitive_state.get("action_history", [])[-window:]
         if not history:
             self.trends_text.setPlainText("No action history yet.")
@@ -363,7 +366,6 @@ class ReflectionWidget(QWidget):
         self.activity_text.setPlainText("\n".join(lines))
 
     def _append_log(self, message: str) -> None:
-        """Append dashboard user action messages to the visible event log."""
         current = self.log_output.toPlainText().strip()
         new_text = f"{current}\n{message}" if current else message
         self.log_output.setPlainText(new_text)
@@ -461,6 +463,20 @@ class ReflectionWidget(QWidget):
             efficiency = total_value / attempts if attempts else 0.0
             rows.append([strategy, round(success_rate, 4), round(efficiency, 4)])
         return rows
+
+
+_reflection_dashboard_factory: DashboardFactory = ReflectionWidget
+
+
+def set_reflection_dashboard_factory(factory: DashboardFactory) -> None:
+    """Set injectable dashboard factory for GhostGPT integration and testing."""
+    global _reflection_dashboard_factory
+    _reflection_dashboard_factory = factory
+
+
+def create_reflection_dashboard(pipeline: DecisionPipeline) -> QWidget:
+    """Build reflection dashboard from configurable factory."""
+    return _reflection_dashboard_factory(pipeline)
 
 
 def build_demo_pipeline() -> DecisionPipeline:
