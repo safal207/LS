@@ -338,3 +338,20 @@ def test_pipeline_promote_strategy_candidate_promotes_on_manual_override() -> No
     assert result["promotion_status"] == "promoted"
     assert state["active_strategy"]["id"] == "s2"
     assert state["promoted_strategies"][-1]["manual_override_reason"] == "urgent product requirement"
+
+
+def test_pipeline_executes_registered_tool_adapter() -> None:
+    from agent.tool_runtime import InMemoryDataToolAdapter
+
+    state = {
+        "causal_edges": [
+            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
+        ]
+    }
+    adapter = InMemoryDataToolAdapter("answer_with_tool", state)
+    pipeline = DecisionPipeline(state, tool_adapters={"answer_with_tool": adapter})
+
+    result = pipeline.run([{"type": "decision", "value": "answer_directly"}])
+
+    assert result["recommended_action"] == "answer_with_tool"
+    assert result["tool_execution"]["status"] == "ok"
