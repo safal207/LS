@@ -1,3 +1,4 @@
+import pytest
 from agent.decision_pipeline import DecisionPipeline
 
 
@@ -274,3 +275,33 @@ def test_pipeline_session_replay_and_trends_in_snapshot() -> None:
     assert replay[0]["actual_outcome"] == "bad"
     assert snapshot["trends"]["decision_count"] >= 2
     assert "success_rate" in snapshot["trends"]
+
+
+def test_pipeline_evaluate_strategy_candidate_persists_gate_history() -> None:
+    state = {}
+    pipeline = DecisionPipeline(state)
+
+    gate = pipeline.evaluate_strategy_candidate(
+        candidate_metrics={"success_rate": 0.8, "prediction_accuracy": 0.72, "average_value": 0.5},
+        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.73, "average_value": 0.4},
+    )
+
+    assert gate["accepted"] is True
+    assert gate["accepted_by_policy"] is True
+    assert len(state["strategy_gate_history"]) == 1
+    assert state["last_strategy_gate"]["deltas"]["success_rate_delta"] == pytest.approx(0.1)
+
+
+def test_pipeline_evaluate_strategy_candidate_supports_manual_override() -> None:
+    state = {}
+    pipeline = DecisionPipeline(state)
+
+    gate = pipeline.evaluate_strategy_candidate(
+        candidate_metrics={"success_rate": 0.6, "prediction_accuracy": 0.5, "average_value": 0.2},
+        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.3},
+        manual_override_reason="business-critical experiment",
+    )
+
+    assert gate["accepted_by_policy"] is False
+    assert gate["accepted"] is True
+    assert gate["manual_override_reason"] == "business-critical experiment"

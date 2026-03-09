@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 
@@ -142,6 +143,62 @@ class StrategyEvolutionEngine:
                 success=result.get("success"),
                 learning_rate=0.05,
             )
+
+    def evaluate_strategy_candidate(
+        self,
+        candidate_metrics: Dict[str, float],
+        baseline_metrics: Dict[str, float],
+        manual_override_reason: str | None = None,
+    ) -> Dict[str, Any]:
+        """Evaluate candidate strategy against baseline promotion gate policy."""
+        success_rate_delta = float(candidate_metrics.get("success_rate", 0.0) or 0.0) - float(
+            baseline_metrics.get("success_rate", 0.0) or 0.0
+        )
+        prediction_accuracy_delta = float(candidate_metrics.get("prediction_accuracy", 0.0) or 0.0) - float(
+            baseline_metrics.get("prediction_accuracy", 0.0) or 0.0
+        )
+        average_value_delta = float(candidate_metrics.get("average_value", 0.0) or 0.0) - float(
+            baseline_metrics.get("average_value", 0.0) or 0.0
+        )
+
+        acceptance_policy = {
+            "success_rate_delta_min": 0.0,
+            "prediction_accuracy_delta_min": -0.01,
+            "average_value_delta_min": 0.0,
+        }
+
+        epsilon = 1e-9
+        checks = {
+            "success_rate": success_rate_delta + epsilon >= acceptance_policy["success_rate_delta_min"],
+            "prediction_accuracy": prediction_accuracy_delta + epsilon >= acceptance_policy["prediction_accuracy_delta_min"],
+            "average_value": average_value_delta + epsilon >= acceptance_policy["average_value_delta_min"],
+        }
+
+        accepted_by_policy = all(checks.values())
+        accepted = accepted_by_policy or bool(manual_override_reason)
+
+        gate_result = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "accepted": accepted,
+            "accepted_by_policy": accepted_by_policy,
+            "manual_override_reason": manual_override_reason,
+            "deltas": {
+                "success_rate_delta": success_rate_delta,
+                "prediction_accuracy_delta": prediction_accuracy_delta,
+                "average_value_delta": average_value_delta,
+            },
+            "checks": checks,
+            "acceptance_policy": acceptance_policy,
+            "candidate_metrics": candidate_metrics,
+            "baseline_metrics": baseline_metrics,
+        }
+
+        self.cognitive_state["last_strategy_gate"] = gate_result
+        history = self.cognitive_state.setdefault("strategy_gate_history", [])
+        if isinstance(history, list):
+            history.append(gate_result)
+
+        return gate_result
 
     def _calibrate_confidence(self, action: str | None, confidence: float, success_rate: float) -> float:
         """Down-weight overestimated strategies using observed success history."""
