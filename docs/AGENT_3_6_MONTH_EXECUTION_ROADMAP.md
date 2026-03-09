@@ -58,73 +58,111 @@ Enable adaptive behavior and strategy refinement through feedback.
 
 ---
 
-## Phase 3 — External Tools and APIs (Months 2–4)
+## Current status snapshot
 
-### Goal
-Move from internal reasoning to externally useful action execution.
-
-### Implementation steps
-
-1. Integrate APIs for context retrieval, data operations, and actionable outputs.
-2. Enable automatic tool routing (`answer_with_tool`, `retrieve_context`, etc.).
-3. Add sandbox simulation before production tool activation.
-4. Add guardrails:
-   - timeout/retry policies
-   - tool health checks
-   - action-level audit logs
-
-### Exit criteria
-
-- Agent executes tool-assisted actions end-to-end.
-- New tools pass sandbox validation before production use.
-- Failures are observable and recoverable via fallback policies.
+- **Phase 1–2:** Functionally closed (integration loop + learning baseline are in place).
+- **Phase 3:** Core runtime guardrails are implemented (timeouts, retries, circuit, audit), but tool integrations are still mostly local.
+- **Phase 4:** Simulation and baseline comparison exist, but the gate is not yet hard-enforced in lifecycle promotion.
+- **Phase 5:** Replay/trends primitives exist at backend level; operator-facing endpoint/UI layer is still required.
 
 ---
 
-## Phase 4 — Efficiency Metrics and Simulation (Month 4–5)
+## Phase 3 — Real Tool Adapters and Production Integrations (Months 2–4)
 
 ### Goal
-Quantify strategy quality and close the optimization loop.
+Move from local tool stubs to production-grade external integrations with a unified runtime contract.
 
 ### Implementation steps
 
-1. Build a simulation environment with KPI tracking:
-   - revenue / value proxy
-   - strategy success rate
-   - prediction accuracy
-2. Automatically benchmark new strategies in simulation.
-3. Visualize performance slices:
-   - best strategies
-   - failure clusters
-   - uncertainty zones
-4. Feed simulator outcomes back into `StrategyEvolutionEngine`.
+1. Introduce a `ToolAdapter` interface contract:
+   - `name()`
+   - `healthcheck()`
+   - `execute(request)`
+2. Add at least two production adapters:
+   - HTTP context adapter (external context/API retrieval)
+   - data adapter (structured data access or write path)
+3. Integrate adapters into `ToolRuntime` via adapter registry (not direct local-function binding).
+4. Add healthcheck scheduler:
+   - passive checks (based on runtime failures)
+   - active checks (periodic probe)
+5. Add health-based degradation policy:
+   - route away from unhealthy adapters
+   - deterministic fallback_reason logging
 
 ### Exit criteria
 
-- Every strategy iteration has benchmark evidence.
-- KPI deltas are visible across versions.
-- Evolution engine updates are tied to measured gains.
+- Tool execution path is adapter-driven and contract-consistent.
+- At least 1–2 real external integrations run under runtime guardrails.
+- Health degradation and fallback are automated and observable.
 
 ---
 
-## Phase 5 — Visualization and Control Interface (Month 5–6)
+## Phase 4 — Simulation Gate Enforcement in Lifecycle (Month 4–5)
 
 ### Goal
-Make decision logic inspectable and tunable by operators.
+Make simulation evaluation a mandatory promotion gate for strategy lifecycle changes.
 
 ### Implementation steps
 
-1. Add a flow view:
-   `event → counterfactuals → strategy evolution → action selection`.
-2. Add confidence/success heatmaps and trend charts.
-3. Add control panel for thresholds and risk filters.
-4. Add session replay for debugging critical decisions.
+1. Define explicit acceptance policy for promotion (example defaults):
+   - `success_rate_delta >= 0`
+   - `prediction_accuracy_delta >= -0.01`
+   - `average_value_delta >= 0`
+2. Enforce `evaluate_strategy_candidate` gate before any promote action.
+3. Add `manual_override_reason` to gate result model.
+4. Persist complete decision history in `strategy_gate_history` (not only `last_strategy_gate`).
+5. Feed gate outcomes and deltas back into strategy evolution loops.
 
 ### Exit criteria
 
-- Operators can inspect why a decision was made.
-- Runtime knobs allow safe tuning without redeploy.
-- Failure analysis time is reduced through visual diagnostics.
+- No strategy reaches promotion path without gate evaluation.
+- Overrides are explicit, auditable, and reasoned.
+- Gate decisions are historically queryable for trend analysis.
+
+---
+
+## Phase 5 — Operator Surface (Month 5–6)
+
+### Goal
+Expose thin but operationally useful interface endpoints over existing replay/trends primitives.
+
+### Implementation steps
+
+1. Add operator-facing endpoints:
+   - `GET /agent/snapshot`
+   - `GET /agent/replay`
+   - `POST /agent/controls`
+2. Expand trends with tool-specific reliability KPI:
+   - timeout rate
+   - circuit-open rate
+   - adapter-level error rate
+3. Add top failure clusters:
+   - grouped by `fallback_reason`
+   - grouped by `tool_execution.error`
+4. Keep UI/API thin; prioritize production diagnostics over heavy UX buildout.
+
+### Exit criteria
+
+- Operators can retrieve state, replay decisions, and apply controls through stable endpoints.
+- Tool/runtime failures are visible in ranked clusters for faster incident triage.
+- Reliability trends support weekly operational reviews.
+
+---
+
+## Priority sprint plan (1–2 weeks)
+
+### Week 1
+
+1. Implement `ToolAdapter` contract and wire adapter registry into `ToolRuntime`.
+2. Ship first real adapter and add second adapter stub/integration target.
+3. Add active+passive healthchecks and degradation policy.
+
+### Week 2
+
+1. Enforce gate acceptance policy + add `strategy_gate_history` persistence.
+2. Add `manual_override_reason` support in gate flows.
+3. Deliver `snapshot/replay/controls` endpoints.
+4. Extend observability metrics for timeout/circuit degradation trends.
 
 ---
 
