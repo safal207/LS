@@ -1,0 +1,51 @@
+{
+  "nav": { "switch": "RU" },
+  "hero": {
+    "title": "GhostGPT: Your AI that remembers you. Decentralized intelligence for a new era.",
+    "subtitle": "Local Cognitive System makes AI smarter, safer, and truly reliable for everyday decisions.",
+    "cta": "Try demo"
+  },
+  "problem": {
+    "title": "From fragile AI to persistent intelligence",
+    "items": {
+      "centralized": "Centralized AI limits ownership and trust.",
+      "size": "Bigger models still miss context.",
+      "hallucinations": "Hallucinations break mission-critical workflows.",
+      "memory": "Most assistants forget your history."
+    },
+    "solutionTitle": "GhostGPT LS Solution",
+    "solutionBody": "Architecture > Model Size. Causal Memory + Web4 + HCP produce explainable and resilient intelligence."
+  },
+  "features": {
+    "title": "Core capabilities",
+    "list": {
+      "local": { "title": "Local-first", "desc": "Your data stays under your control." },
+      "causal": { "title": "Causal Memory", "desc": "Understands not just what, but why." },
+      "human": { "title": "Human-Centric Design", "desc": "Built to respect human intent and agency." },
+      "anti": { "title": "Anti-Hallucination", "desc": "Grounded reasoning for dependable outcomes." },
+      "identity": { "title": "Evolving Identity", "desc": "Grows with your goals and behavior." }
+    }
+  },
+  "roadmap": {
+    "title": "Roadmap",
+    "phases": [
+      { "q": "Q2 2026", "name": "Adaptive Reflection Dashboard" },
+      { "q": "Q3 2026", "name": "Temporal Graph Intelligence Layer" },
+      { "q": "Q4 2026", "name": "Cross-device Web4 Mesh" },
+      { "q": "Q1 2027", "name": "HCP Intelligence Marketplace" }
+    ]
+  },
+  "visuals": {
+    "title": "Digital consciousness in motion",
+    "web4": "Web4 topology",
+    "temporal": "Temporal graph",
+    "growth": "Cognitive growth",
+    "mockupTitle": "Reflection Dashboard Mockups"
+  },
+  "cta": {
+    "title": "Join the next generation of decentralized intelligence",
+    "demo": "Try demo",
+    "community": "Join community",
+    "contact": "Contact us"
+  }
+}
