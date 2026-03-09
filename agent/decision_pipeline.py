@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Set
 
 from .counterfactual_engine import CounterfactualEngine
+from .health_scheduler import ToolHealthcheckScheduler
 from .observability import DecisionObservability
 from .simulation_engine import StrategySimulationEngine
 from .strategy_evolution_engine import StrategyEvolutionEngine
@@ -41,6 +42,7 @@ class DecisionPipeline:
         )
         self.allowed_tool_actions = set(allowed_tool_actions) if allowed_tool_actions is not None else {"answer_with_tool", "retrieve_context"}
         self.tool_failure_fallback_action = tool_failure_fallback_action
+        self.health_scheduler = ToolHealthcheckScheduler(self.tool_runtime)
 
     def run(
         self,
@@ -111,6 +113,11 @@ class DecisionPipeline:
         }
         return report
 
+    def run_tool_healthcheck_cycle(self, active: bool = True) -> Dict[str, Any]:
+        """Run active/passive tool healthcheck cycle and persist scheduler history."""
+        return self.health_scheduler.run_once(active=active)
+
+
     def get_session_replay(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Expose replay records for operator inspection."""
         return self.observability.get_session_replay(limit=limit)
@@ -140,6 +147,8 @@ class DecisionPipeline:
             "trends": self.observability.get_trend_summary(window=20),
             "last_decision_metrics": self.cognitive_state.get("last_decision_metrics", {}),
             "last_simulation_metrics": self.cognitive_state.get("last_simulation_metrics", {}),
+            "tool_health": self.cognitive_state.get("tool_health", {}),
+            "last_tool_healthcheck": self.cognitive_state.get("last_tool_healthcheck", {}),
         }
 
     def update_controls(
@@ -187,6 +196,9 @@ class DecisionPipeline:
 
     def _maybe_execute_tool(self, action: str | None, event_sequence: List[Dict[str, Any]]) -> Dict[str, Any] | None:
         """Execute tool-backed actions with runtime guardrails."""
+        if action not in self.allowed_tool_actions:
+            return None
+
         if action not in self.allowed_tool_actions:
             return None
 

@@ -358,3 +358,20 @@ def test_pipeline_circuit_open_tool_execution_includes_fallback_action() -> None
 
     assert result["tool_execution"]["status"] == "circuit_open"
     assert result["tool_execution"]["fallback_action"] == "structured_reasoning"
+
+
+def test_pipeline_run_tool_healthcheck_cycle_and_snapshot_exposes_health() -> None:
+    state = {}
+
+    def answer_with_tool(payload: dict) -> dict:
+        return {"answer": "42"}
+
+    pipeline = DecisionPipeline(state, tool_registry={"answer_with_tool": answer_with_tool})
+
+    health = pipeline.run_tool_healthcheck_cycle(active=True)
+    snapshot = pipeline.get_visualization_snapshot()
+
+    assert health["mode"] == "active"
+    assert "answer_with_tool" in health["tool_health"]
+    assert "tool_health" in snapshot
+    assert snapshot["last_tool_healthcheck"]["mode"] == "active"
