@@ -36,7 +36,7 @@ class CallableToolAdapter:
     def name(self) -> str:
         return self._action_name
 
-ж    def healthcheck(self) -> Dict[str, Any]:
+    def healthcheck(self) -> Dict[str, Any]:
         return {"ok": True, "source": "callable"}
 
     def execute(self, request: Dict[str, Any]) -> Dict[str, Any]:

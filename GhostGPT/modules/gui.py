@@ -218,8 +218,9 @@ class GhostWindow(QMainWindow):
         self.btn_import_secure = QPushButton("🔓 Импорт (L-THREAD)")
         self.btn_sleep = QPushButton("🛌 Спать")
         self.btn_audit = QPushButton("👁️ Аудит")
+        self.btn_reflect = QPushButton("Reflect")
 
-        for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure, self.btn_sleep, self.btn_audit]:
+        for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure, self.btn_sleep, self.btn_audit, self.btn_reflect]:
             btn.setStyleSheet(
                 "background-color: rgba(60, 60, 80, 200); color: #FFF; border: 1px solid #555; border-radius: 6px; padding: 4px;"
             )
@@ -230,6 +231,7 @@ class GhostWindow(QMainWindow):
         self.btn_import_secure.clicked.connect(self.import_soul_secure)
         self.btn_sleep.clicked.connect(lambda: self.agent_loop.submit("/sleep") if self.agent_loop else None)
         self.btn_audit.clicked.connect(self.show_audit_log)
+        self.btn_reflect.clicked.connect(self.open_reflection_dashboard)
 
         soul_row.addWidget(self.btn_export)
         soul_row.addWidget(self.btn_import)
@@ -239,6 +241,7 @@ class GhostWindow(QMainWindow):
         secure_row.addWidget(self.btn_import_secure)
         secure_row.addWidget(self.btn_sleep)
         secure_row.addWidget(self.btn_audit)
+        secure_row.addWidget(self.btn_reflect)
 
         self.amygdala_tip_targets = [self.state_bar, self.protection_badge, self.personality_label, self.phantom_bar]
 
@@ -260,6 +263,8 @@ class GhostWindow(QMainWindow):
             "trigger": "none",
         }
         self._apply_snapshot_to_ui(self._last_snapshot)
+        self._reflection_dashboard_factory = None
+        self._reflection_dashboard_window = None
 
     def update_amygdala_visual(self, snapshot: dict) -> None:
         if not isinstance(snapshot, dict):
@@ -599,6 +604,17 @@ class GhostWindow(QMainWindow):
             self.lbl_status.setStyleSheet("color: #00FF99; font-weight: bold; font-size: 10pt;")
 
         QTimer.singleShot(5000, reset_status)
+
+
+    def set_reflection_dashboard_factory(self, factory) -> None:
+        self._reflection_dashboard_factory = factory
+
+    def open_reflection_dashboard(self) -> None:
+        if self._reflection_dashboard_factory is None:
+            self.update_status("Reflection dashboard unavailable")
+            return
+        self._reflection_dashboard_window = self._reflection_dashboard_factory()
+        self._reflection_dashboard_window.show()
 
     def update_status(self, text: str):
         self.lbl_status.setText(text)

@@ -7,6 +7,8 @@ from .decision_pipeline import DecisionPipeline
 from .observability import DecisionObservability
 from .operator_api import AgentOperatorAPI
 from .reflection_engine import ReflectionEngine
+from .reflection import ReflectionPipeline
+from .reflection_handler import ReflectionActionHandler
 from .simulation_engine import StrategySimulationEngine
 from .strategy_evolution_engine import StrategyEvolutionEngine
 from .tool_adapters import DataAdapter, HTTPContextAdapter
@@ -22,6 +24,8 @@ __all__ = [
     "DecisionObservability",
     "AgentOperatorAPI",
     "ReflectionEngine",
+    "ReflectionPipeline",
+    "ReflectionActionHandler",
     "DataAdapter",
     "HTTPContextAdapter",
     "ToolHealthcheckScheduler",
