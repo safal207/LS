@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Set
@@ -48,6 +48,7 @@ class DecisionPipeline:
             tool_adapters=tool_adapters,
             sandbox_mode=sandbox_mode,
         )
+        self._init_reflection_state()
 
     def run(
         self,
@@ -105,6 +106,11 @@ class DecisionPipeline:
             actual_outcome=actual_outcome,
             success=success,
         )
+        self.register_action_activity()
+        if self.should_trigger_sleep_phase():
+            self.save_state("reflection_state_pre_sleep.json")
+            self.run_sleep_phase_reflection()
+            self.save_state("reflection_state_post_sleep.json")
         return decision_record
 
     def run_simulation_cycle(self, scenarios: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -124,7 +130,66 @@ class DecisionPipeline:
 
     def reflect_and_propose(self) -> List[Dict[str, Any]]:
         """Generate reflection proposals from current cognitive state."""
-        return self.reflection_engine.generate_proposals(max_proposals=3)
+        proposals = self.reflection_engine.generate_proposals(max_proposals=3)
+        proposals.extend(self.generate_strategy_mutation_proposals())
+        return proposals
+
+    def register_action_activity(self, now: datetime | None = None) -> None:
+        """Track activity count/time for sleep-phase scheduling."""
+        event_time = now or datetime.now(timezone.utc)
+        self.cognitive_state["last_action_at"] = event_time.isoformat()
+        self.cognitive_state["actions_since_sleep"] = int(self.cognitive_state.get("actions_since_sleep", 0)) + 1
+
+    def should_trigger_sleep_phase(self, now: datetime | None = None) -> bool:
+        """Return True when reflection sleep-phase should run."""
+        now_utc = now or datetime.now(timezone.utc)
+        actions_since_sleep = int(self.cognitive_state.get("actions_since_sleep", 0))
+        if actions_since_sleep >= 100:
+            return True
+
+        last_sleep_raw = self.cognitive_state.get("last_sleep_phase_at")
+        if not isinstance(last_sleep_raw, str):
+            return False
+        last_sleep = datetime.fromisoformat(last_sleep_raw)
+        return now_utc - last_sleep >= timedelta(hours=24)
+
+    def run_sleep_phase_reflection(self, now: datetime | None = None) -> Dict[str, Any]:
+        """Run automatic sleep-phase reflection cycle and save summary in state."""
+        now_utc = now or datetime.now(timezone.utc)
+        proposals = self.reflect_and_propose()
+        summary = {
+            "timestamp": now_utc.isoformat(),
+            "proposal_count": len(proposals),
+            "actions_since_sleep": int(self.cognitive_state.get("actions_since_sleep", 0)),
+        }
+        self.cognitive_state["last_sleep_phase_summary"] = summary
+        self.cognitive_state["last_sleep_phase_at"] = now_utc.isoformat()
+        self.cognitive_state["actions_since_sleep"] = 0
+        return summary
+
+    def generate_strategy_mutation_proposals(self) -> List[Dict[str, Any]]:
+        """Generate deterministic rule-based strategy mutation proposals."""
+        mutation_rules = {
+            "retrieve_context": ["retrieve_context_light", "retrieve_context_with_cache", "retrieve_context_topk"],
+            "answer_with_tool": ["answer_with_tool_safe", "answer_with_tool_parallel", "answer_with_tool_retry"],
+            "structured_reasoning": ["structured_reasoning_fast", "structured_reasoning_deep", "structured_reasoning_chain"],
+        }
+        strategy_stats = self.cognitive_state.get("strategy_stats", {})
+        proposals: List[Dict[str, Any]] = []
+        mutation_log = self.cognitive_state.setdefault("strategy_mutation_log", [])
+        for base_action in strategy_stats:
+            for idx, variant in enumerate(mutation_rules.get(base_action, []), start=1):
+                proposal = {
+                    "proposal_id": f"mutation:{base_action}:{idx}",
+                    "change_type": "strategy_mutation",
+                    "target": base_action,
+                    "proposed_value": variant,
+                    "confidence": 0.91 if idx == 1 else 0.72,
+                    "reason": "rule_based_mutation",
+                }
+                proposals.append(proposal)
+                mutation_log.append({"event": "generated", "proposal": proposal})
+        return proposals
 
     def get_session_replay(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Expose replay records for operator inspection."""
@@ -197,6 +262,13 @@ class DecisionPipeline:
 
         self.cognitive_state.clear()
         self.cognitive_state.update(loaded_state)
+        self._init_reflection_state()
+
+    def _init_reflection_state(self) -> None:
+        """Ensure reflection-related persistence keys exist."""
+        self.cognitive_state.setdefault("reflection_dashboard_log", [])
+        self.cognitive_state.setdefault("strategy_mutation_log", [])
+        self.cognitive_state.setdefault("actions_since_sleep", 0)
 
     def evaluate_strategy_candidate(
         self,

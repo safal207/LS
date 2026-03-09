@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
 from .decision_pipeline import DecisionPipeline
@@ -14,7 +15,15 @@ class ReflectionActionHandler:
     def __init__(self, pipeline: DecisionPipeline):
         self.pipeline = pipeline
 
-    def apply_selected(self, proposals: Iterable[Dict[str, Any]]) -> List[str]:
+    def auto_apply_high_confidence(self, proposals: Iterable[Dict[str, Any]]) -> List[str]:
+        """Automatically apply proposals with confidence >= 0.9."""
+        high_confidence = [item for item in proposals if float(item.get("confidence", 0.0)) >= 0.9]
+        if not high_confidence:
+            return []
+        messages = self.apply_selected(high_confidence, action="auto_apply")
+        return messages
+
+    def apply_selected(self, proposals: Iterable[Dict[str, Any]], action: str = "approve") -> List[str]:
         """Apply selected proposals and return human-readable action messages."""
         messages: List[str] = []
         for proposal in proposals:
@@ -47,7 +56,8 @@ class ReflectionActionHandler:
                     {"change_type": change_type, "target": target, "proposed_value": proposed_value},
                 )
 
-        self._append_log("approve", messages)
+        self._append_log(action, messages)
+        self.pipeline.save_state(str(Path("reflection_state.json")))
         return messages
 
     def reject_selected(self, proposals: Iterable[Dict[str, Any]]) -> List[str]:
@@ -64,6 +74,7 @@ class ReflectionActionHandler:
                 },
             )
         self._append_log("reject", messages)
+        self.pipeline.save_state(str(Path("reflection_state.json")))
         return messages
 
     def _append_log(self, action: str, messages: List[str]) -> None:
