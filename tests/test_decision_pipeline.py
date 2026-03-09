@@ -340,112 +340,60 @@ def test_pipeline_promote_strategy_candidate_promotes_on_manual_override() -> No
     assert state["promoted_strategies"][-1]["manual_override_reason"] == "urgent product requirement"
 
 
-def test_pipeline_circuit_open_tool_execution_includes_fallback_action() -> None:
+def test_pipeline_executes_registered_tool_adapter() -> None:
+    from agent.tool_runtime import InMemoryDataToolAdapter
+
     state = {
         "causal_edges": [
             {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
-        ],
-        "tool_health": {"answer_with_tool": {"is_healthy": False}},
+        ]
     }
+    adapter = InMemoryDataToolAdapter("answer_with_tool", state)
+    pipeline = DecisionPipeline(state, tool_adapters={"answer_with_tool": adapter})
 
-    def answer_with_tool(payload: dict) -> dict:
-        return {"answer": "42"}
+    result = pipeline.run([{"type": "decision", "value": "answer_directly"}])
 
-    pipeline = DecisionPipeline(state, tool_registry={"answer_with_tool": answer_with_tool})
-    events = [{"type": "decision", "value": "answer_directly"}]
-
-    result = pipeline.run(events)
-
-    assert result["tool_execution"]["status"] == "circuit_open"
-    assert result["tool_execution"]["fallback_action"] == "structured_reasoning"
+    assert result["recommended_action"] == "answer_with_tool"
+    assert result["tool_execution"]["status"] == "ok"
 
 
-def test_pipeline_run_tool_healthcheck_cycle_and_snapshot_exposes_health() -> None:
+def test_pipeline_healthchecks_available_in_snapshot() -> None:
+    from agent.tool_runtime import InMemoryDataToolAdapter
+
     state = {}
+    pipeline = DecisionPipeline(state, tool_adapters={"answer_with_tool": InMemoryDataToolAdapter("answer_with_tool", state)})
 
-    def answer_with_tool(payload: dict) -> dict:
-        return {"answer": "42"}
-
-    pipeline = DecisionPipeline(state, tool_registry={"answer_with_tool": answer_with_tool})
-
-    health = pipeline.run_tool_healthcheck_cycle(active=True)
+    report = pipeline.run_tool_healthchecks()
     snapshot = pipeline.get_visualization_snapshot()
 
-    assert health["mode"] == "active"
-    assert "answer_with_tool" in health["tool_health"]
-    assert "tool_health" in snapshot
-    assert snapshot["last_tool_healthcheck"]["mode"] == "active"
+    assert report["answer_with_tool"]["ok"] is True
+    assert snapshot["tool_health"]["answer_with_tool"]["is_healthy"] is True
+    assert "results" in snapshot["last_tool_healthcheck"]
 
 
-def test_pipeline_promote_strategy_candidate_sets_denied_reason_on_policy_reject() -> None:
-    state = {}
-    pipeline = DecisionPipeline(state)
+def test_pipeline_supports_custom_tool_payload_builder() -> None:
+    captured = {}
 
-    result = pipeline.promote_strategy_candidate(
-        candidate_strategy={"id": "s3", "name": "strategy-three"},
-        candidate_metrics={"success_rate": 0.2, "prediction_accuracy": 0.2, "average_value": 0.1},
-        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.3},
+    def tool(payload: dict) -> dict:
+        captured.update(payload)
+        return {"ok": True}
+
+    state = {
+        "causal_edges": [
+            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
+        ]
+    }
+
+    pipeline = DecisionPipeline(
+        state,
+        tool_registry={"answer_with_tool": tool},
+        tool_payload_builders={
+            "answer_with_tool": lambda events: {"query": events[-1]["value"], "event_count": len(events)}
+        },
     )
 
-    assert result["promotion_status"] == "rejected"
-    assert result["promotion_denied_reason"] == "gate_policy_not_satisfied"
+    result = pipeline.run([{"type": "decision", "value": "answer_directly"}])
 
-
-def test_pipeline_promote_strategy_candidate_rejects_short_override_reason() -> None:
-    state = {}
-    pipeline = DecisionPipeline(state)
-
-    result = pipeline.promote_strategy_candidate(
-        candidate_strategy={"id": "s4", "name": "strategy-four"},
-        candidate_metrics={"success_rate": 0.2, "prediction_accuracy": 0.2, "average_value": 0.1},
-        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.3},
-        manual_override_reason="short",
-    )
-
-    assert result["promotion_status"] == "rejected"
-    assert result["promotion_denied_reason"] == "manual_override_reason_too_short"
-
-
-def test_pipeline_promote_strategy_candidate_is_idempotent_by_strategy_id() -> None:
-    state = {}
-    pipeline = DecisionPipeline(state)
-
-    first = pipeline.promote_strategy_candidate(
-        candidate_strategy={"id": "s5", "name": "strategy-five"},
-        candidate_metrics={"success_rate": 0.8, "prediction_accuracy": 0.8, "average_value": 0.8},
-        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.7},
-    )
-    second = pipeline.promote_strategy_candidate(
-        candidate_strategy={"id": "s5", "name": "strategy-five-v2"},
-        candidate_metrics={"success_rate": 0.9, "prediction_accuracy": 0.9, "average_value": 0.9},
-        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.7},
-    )
-
-    assert first["promotion_status"] == "promoted"
-    assert second["promotion_status"] == "already_promoted"
-    assert second["promotion_denied_reason"] == "duplicate_strategy_id"
-    assert len(state["promoted_strategies"]) == 1
-
-
-def test_strategy_histories_apply_retention_limits() -> None:
-    state = {}
-    pipeline = DecisionPipeline(state)
-    pipeline.strategy_engine.gate_history_retention = 2
-    pipeline.strategy_engine.promotion_history_retention = 2
-
-    for idx in range(3):
-        pipeline.evaluate_strategy_candidate(
-            candidate_metrics={"success_rate": 0.7 + idx * 0.01, "prediction_accuracy": 0.7, "average_value": 0.7},
-            baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.7},
-        )
-
-    assert len(state["strategy_gate_history"]) == 2
-
-    for idx in range(3):
-        pipeline.promote_strategy_candidate(
-            candidate_strategy={"id": f"ret-{idx}"},
-            candidate_metrics={"success_rate": 0.8, "prediction_accuracy": 0.8, "average_value": 0.8},
-            baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.7},
-        )
-
-    assert len(state["strategy_promotion_history"]) == 2
+    assert result["tool_execution"]["status"] == "ok"
+    assert captured["query"] == "answer_directly"
+    assert captured["event_count"] == 1

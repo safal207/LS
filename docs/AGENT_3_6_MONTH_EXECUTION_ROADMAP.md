@@ -65,6 +65,54 @@ Enable adaptive behavior and strategy refinement through feedback.
 - **Phase 4:** Simulation and baseline comparison exist, but the gate is not yet hard-enforced in lifecycle promotion.
 - **Phase 5:** Replay/trends primitives exist at backend level; operator-facing endpoint/UI layer is still required.
 
+### Completed in current iteration
+
+1. **DecisionPipeline**
+   - End-to-end loop is active: event → counterfactuals → strategy ranking → action selection.
+   - `tool_adapters`, `allowed_tool_actions`, and deterministic fallback on tool failures are supported.
+   - Confidence-aware fallback logic is included in decision resolution.
+   - Strategy gate APIs are wired (`evaluate_strategy_candidate`, `promote_strategy_candidate`).
+   - Action logs and compact history are persisted for long-horizon learning.
+
+2. **Observability**
+   - Action-level history is tracked in `action_log`.
+   - Failure clustering is available through `fallback_reason` and `tool_execution.error` fields.
+   - Tool runtime KPI dimensions include timeout, circuit-open, and tool error signals.
+   - Rolling-window trends expose `success_rate`, `fallback_rate`, `calibration_error`, and `tool_kpi`.
+
+3. **StrategyEvolutionEngine**
+   - Candidate ranking blends historical effectiveness and confidence calibration.
+   - Simulation outputs are integrated into candidate quality statistics.
+   - Gate policy + manual override path are available for candidate decisions.
+   - Promotion updates history, `active_strategy`, and `promoted_strategies` state.
+
+4. **ToolRuntime**
+   - A production-oriented `ToolAdapter` interface is implemented.
+   - Backward-compatibility wrapper is available via `CallableToolAdapter`.
+   - Payload sandbox checks, action audit logging, and degradation flow are in place.
+   - Active/passive healthchecks, timeouts, retries, and fallback handling are implemented.
+
+5. **Documentation alignment**
+   - Phase 3 (Tool Adapters) and Phase 4 (Simulation Gate Enforcement) sections now match implemented scope.
+
+### Remaining to production readiness
+
+1. **External tool integrations**
+   - Connect at least 1–2 real adapters (e.g., HTTP API adapter, data adapter) to the runtime path.
+   - Validate operation under guardrails (sandbox, retry policy, healthchecks, fallback).
+
+2. **Operator-facing surface**
+   - Deliver session replay + KPI/trend/failure-cluster visibility in an operator view.
+   - Expose manual review and gate promotion controls for strategy lifecycle operations.
+
+3. **Hard simulation gate enforcement**
+   - Make simulation evaluation mandatory before any strategy promotion.
+   - Auto-validate KPI thresholds against baseline comparison in the promotion flow.
+
+4. **Strategy and tool expansion**
+   - Add more adapters and expand action routing coverage (`answer_with_tool`, `retrieve_context`, etc.).
+   - Continue long-horizon optimization based on reliability and decision-quality metrics.
+
 ---
 
 ## Phase 3 — Real Tool Adapters and Production Integrations (Months 2–4)
