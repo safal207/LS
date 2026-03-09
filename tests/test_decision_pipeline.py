@@ -307,3 +307,48 @@ def test_pipeline_strategy_gate_rejects_regression() -> None:
 
     assert gate["accepted"] is False
     assert gate["comparison"]["is_non_regression"] is False
+
+
+def test_pipeline_respects_explicit_empty_allowed_tool_actions() -> None:
+    state = {
+        "causal_edges": [
+            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
+        ]
+    }
+
+    def answer_with_tool(payload: dict) -> dict:
+        return {"answer": "42"}
+
+    pipeline = DecisionPipeline(
+        state,
+        tool_registry={"answer_with_tool": answer_with_tool},
+        allowed_tool_actions=set(),
+    )
+    events = [{"type": "decision", "value": "answer_directly"}]
+
+    result = pipeline.run(events)
+
+    assert result["recommended_action"] == "answer_with_tool"
+    assert result["tool_execution"] is None
+
+
+def test_pipeline_fallbacks_when_circuit_is_open() -> None:
+    state = {
+        "causal_edges": [
+            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
+            {"cause": "retrieve_context", "effect": "ctx", "confidence": 0.1},
+        ],
+        "tool_error_counts": {"answer_with_tool": 10},
+    }
+
+    def answer_with_tool(payload: dict) -> dict:
+        return {"answer": "42"}
+
+    pipeline = DecisionPipeline(state, tool_registry={"answer_with_tool": answer_with_tool})
+    events = [{"type": "decision", "value": "answer_directly"}]
+
+    result = pipeline.run(events)
+
+    assert result["recommended_action"] == "structured_reasoning"
+    assert result["fallback_reason"] == "tool_circuit_open"
+    assert result["tool_execution"]["status"] == "circuit_open"

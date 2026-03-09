@@ -56,3 +56,27 @@ def test_tool_runtime_opens_circuit_after_repeated_failures() -> None:
     assert third["status"] == "blocked"
     assert third["reason"] == "circuit_open"
     assert state["tool_health"]["answer_with_tool"]["circuit_open"] is True
+
+
+def test_tool_runtime_times_out_before_blocking_pipeline() -> None:
+    import time
+
+    state = {}
+
+    def slow_tool(payload: dict) -> dict:
+        time.sleep(0.15)
+        return {"ok": True}
+
+    runtime = ToolRuntime(
+        state,
+        tool_registry={"answer_with_tool": slow_tool},
+        sandbox_mode=True,
+        default_timeout_s=0.02,
+        max_retries=0,
+    )
+
+    result = runtime.execute("answer_with_tool", {"event_sequence": []})
+
+    assert result["status"] == "timeout"
+    assert "timed out" in result["error"]
+    assert state["tool_health"]["answer_with_tool"]["is_healthy"] is False

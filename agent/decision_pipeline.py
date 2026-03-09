@@ -33,7 +33,10 @@ class DecisionPipeline:
         self.low_confidence_threshold = low_confidence_threshold
         self.fallback_action = fallback_action
         self.tool_failure_fallback_action = tool_failure_fallback_action
-        self.allowed_tool_actions = allowed_tool_actions or {"answer_with_tool", "retrieve_context"}
+        if allowed_tool_actions is None:
+            self.allowed_tool_actions = {"answer_with_tool", "retrieve_context"}
+        else:
+            self.allowed_tool_actions = set(allowed_tool_actions)
         self.tool_runtime = ToolRuntime(cognitive_state, tool_registry=tool_registry, sandbox_mode=sandbox_mode)
 
     def run(
@@ -186,7 +189,7 @@ class DecisionPipeline:
         if status == "ok":
             return action, None
 
-        if status in {"error", "blocked"}:
+        if status in {"error", "blocked", "circuit_open"}:
             return self.tool_failure_fallback_action, f"tool_{status}"
 
         return action, None
@@ -195,6 +198,9 @@ class DecisionPipeline:
         """Execute tool-backed actions with runtime guardrails."""
         if action not in self.allowed_tool_actions:
             return None
+
+        if self.tool_runtime.is_circuit_open(action):
+            return {"status": "circuit_open", "reason": "Tool temporarily blocked due to repeated failures"}
 
         payload = {"event_sequence": event_sequence}
         return self.tool_runtime.execute(action, payload)

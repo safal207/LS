@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from datetime import datetime, timezone
 from time import monotonic
 from typing import Any, Callable, Dict
@@ -30,7 +31,7 @@ class ToolRuntime:
 
     def execute(self, action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Run tool action through sandbox checks and retry policy."""
-        if self._is_circuit_open(action):
+        if self.is_circuit_open(action):
             self._audit(action, "blocked", "circuit_open")
             self._update_health(action, False, error_count=self._get_error_count(action), circuit_open=True)
             return {"status": "blocked", "reason": "circuit_open", "action": action}
@@ -51,11 +52,18 @@ class ToolRuntime:
         for attempt in range(1, self.max_retries + 2):
             started = monotonic()
             try:
-                result = tool(payload)
-                elapsed = monotonic() - started
-                if elapsed > timeout_s:
-                    raise TimeoutError(f"timeout after {elapsed:.3f}s")
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(tool, payload)
+                    try:
+                        result = future.result(timeout=timeout_s)
+                    except FutureTimeoutError:
+                        future.cancel()
+                        elapsed = monotonic() - started
+                        last_error = f"Tool execution timed out after {timeout_s}s"
+                        self._audit(action, "timeout", last_error, elapsed=elapsed, attempt=attempt)
+                        raise TimeoutError(last_error)
 
+                elapsed = monotonic() - started
                 self._audit(action, "ok", None, elapsed=elapsed, attempt=attempt)
                 self._reset_error_count(action)
                 self._update_health(action, True, error_count=0)
@@ -68,14 +76,17 @@ class ToolRuntime:
                 }
             except Exception as exc:  # noqa: BLE001
                 last_error = str(exc)
-                self._audit(action, "error", last_error, attempt=attempt)
+                if "timed out" not in last_error:
+                    self._audit(action, "error", last_error, attempt=attempt)
 
         self._increment_error_count(action)
         error_count = self._get_error_count(action)
         circuit_open = error_count >= self.circuit_breaker_threshold
         self._update_health(action, False, error_count=error_count, circuit_open=circuit_open)
+
+        status = "timeout" if "timed out" in last_error else "error"
         return {
-            "status": "error",
+            "status": status,
             "action": action,
             "error": last_error,
             "error_count": error_count,
@@ -90,7 +101,7 @@ class ToolRuntime:
         payload_size = len(str(payload))
         return payload_size <= 10_000
 
-    def _is_circuit_open(self, action: str) -> bool:
+    def is_circuit_open(self, action: str) -> bool:
         """Return whether circuit for a tool is open due to repeated failures."""
         return self._get_error_count(action) >= self.circuit_breaker_threshold
 
