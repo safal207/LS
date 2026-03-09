@@ -237,10 +237,12 @@ class ReflectionWidget(QWidget):
         if not target_path:
             return
 
-        target = Path(target_path)
-        success = self._export_report(target)
-        if success:
-            self._append_log(f"report exported: {target}")
+        if self.export_report_to(target_path):
+            self._append_log(f"report exported: {target_path}")
+
+    def export_report_to(self, target: str | Path) -> bool:
+        """Public helper to export report to explicit file path for scripted demos/tests."""
+        return self._export_report(Path(target))
 
     def _selected_proposals(self) -> List[Dict[str, Any]]:
         selected_indices = [self.proposal_list.row(item) for item in self.proposal_list.selectedItems()]
@@ -377,6 +379,7 @@ class ReflectionWidget(QWidget):
 
     def _export_report(self, target: Path) -> bool:
         """Write report to xlsx when openpyxl exists, else export CSV companion files."""
+        target = Path(target)
         try:
             import openpyxl  # type: ignore
         except ImportError:
@@ -502,6 +505,50 @@ def build_demo_pipeline() -> DecisionPipeline:
         ],
     }
     return DecisionPipeline(cognitive_state)
+
+
+def demo_dashboard() -> int:
+    """Launch a live mini-demo with scripted proposals/actions and report export."""
+    app = QApplication(sys.argv)
+    pipeline = build_demo_pipeline()
+    widget = ReflectionWidget(pipeline)
+    widget.show()
+
+    proposals: List[Dict[str, Any]] = [
+        {
+            "proposal_id": "p1",
+            "change_type": "control_update",
+            "target": "low_confidence_threshold",
+            "proposed_value": 0.4,
+            "confidence": 0.95,
+        },
+        {
+            "proposal_id": "p2",
+            "change_type": "tool_demotion",
+            "target": "answer_with_tool",
+            "confidence": 0.8,
+        },
+        {
+            "proposal_id": "p3",
+            "change_type": "unknown_type",
+            "target": "dummy",
+            "proposed_value": None,
+            "confidence": 0.6,
+        },
+    ]
+
+    widget.current_proposals = proposals
+    widget._render_proposals()
+
+    widget.action_handler.apply_selected([proposals[0]])
+    widget.action_handler.reject_selected([proposals[2]])
+    widget._refresh_dashboard()
+    widget.export_report_to("ReflectionWidget_demo_report.xlsx")
+
+    exec_fn = getattr(app, "exec", None) or getattr(app, "exec_", None)
+    if exec_fn is None:
+        raise RuntimeError("Unable to start Qt event loop")
+    return int(exec_fn())
 
 
 def main() -> int:
