@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping, Set
+from typing import Any, Dict, List, Set
 
 from .counterfactual_engine import CounterfactualEngine
 from .observability import DecisionObservability
@@ -40,12 +40,7 @@ class DecisionPipeline:
             sandbox_mode=sandbox_mode,
         )
         self.allowed_tool_actions = set(allowed_tool_actions) if allowed_tool_actions is not None else {"answer_with_tool", "retrieve_context"}
-        self.tool_runtime = ToolRuntime(
-            cognitive_state,
-            tool_registry=tool_registry,
-            tool_adapters=tool_adapters,
-            sandbox_mode=sandbox_mode,
-        )
+        self.tool_failure_fallback_action = tool_failure_fallback_action
 
     def run(
         self,
@@ -189,8 +184,12 @@ class DecisionPipeline:
             manual_override_reason=manual_override_reason,
         )
 
+
     def _maybe_execute_tool(self, action: str | None, event_sequence: List[Dict[str, Any]]) -> Dict[str, Any] | None:
         """Execute tool-backed actions with runtime guardrails."""
+        if action not in self.allowed_tool_actions:
+            return None
+
         if action not in self.allowed_tool_actions:
             return None
 
@@ -205,25 +204,6 @@ class DecisionPipeline:
         if execution.get("status") in {"error", "blocked", "circuit_open"}:
             execution["fallback_action"] = self.tool_failure_fallback_action
         return execution
-
-    def _resolve_tool_failure_fallback(
-        self,
-        selected_action: str,
-        tool_execution: Dict[str, Any] | None,
-    ) -> tuple[str, str | None]:
-        """Switch to fallback action on tool runtime failure outcomes."""
-        if not tool_execution:
-            return selected_action, None
-
-        status = tool_execution.get("status")
-        if status in {"error", "blocked", "timeout"}:
-            reason = tool_execution.get("reason")
-            if not reason:
-                reason_map = {"error": "tool_error", "timeout": "tool_timeout", "blocked": "tool_blocked"}
-                reason = reason_map.get(status, status)
-            return self.tool_failure_fallback_action, reason
-
-        return selected_action, None
 
     def _log_decision(self, decision_record: Dict[str, Any]) -> None:
         """Append decision record to cognitive state action log."""
