@@ -173,6 +173,20 @@ class DecisionPipeline:
         if tool_failure_fallback_action is not None:
             self.tool_failure_fallback_action = tool_failure_fallback_action
 
+
+    def save_state(self, file_path: str) -> None:
+        """Persist cognitive state snapshot to a JSON file."""
+        with open(file_path, "w", encoding="utf-8") as handle:
+            json.dump(self.cognitive_state, handle, ensure_ascii=False, indent=2)
+
+    def load_state(self, file_path: str) -> None:
+        """Load cognitive state snapshot from JSON and refresh bound engines."""
+        with open(file_path, "r", encoding="utf-8") as handle:
+            loaded_state = json.load(handle)
+
+        self.cognitive_state.clear()
+        self.cognitive_state.update(loaded_state)
+
     def evaluate_strategy_candidate(
         self,
         candidate_metrics: Dict[str, float],
