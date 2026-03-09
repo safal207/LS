@@ -173,6 +173,17 @@ class DecisionPipeline:
         if tool_failure_fallback_action is not None:
             self.tool_failure_fallback_action = tool_failure_fallback_action
 
+    def register_action_activity(self, activity_type: str, details: Dict[str, Any] | None = None) -> None:
+        """Append typed activity event for dashboard operational timeline."""
+        activity_log = self.cognitive_state.setdefault("pipeline_activity", [])
+        activity_log.append(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "type": activity_type,
+                "details": details or {},
+            }
+        )
+
 
     def save_state(self, file_path: str) -> None:
         """Persist cognitive state snapshot to a JSON file."""
