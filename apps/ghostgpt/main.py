@@ -112,6 +112,9 @@ class GhostGPT:
         else:
             self.window.show()
 
+    def _build_reflection_dashboard(self):
+        return ReflectionDashboard(self.reflection_pipeline)
+
     def run(self):
         self.window.show()
         self.audio.start()

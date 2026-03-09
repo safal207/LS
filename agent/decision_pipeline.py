@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import json
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Set
 
 from .counterfactual_engine import CounterfactualEngine
@@ -285,6 +286,23 @@ class DecisionPipeline:
             baseline_metrics=baseline_metrics,
             manual_override_reason=manual_override_reason,
         )
+
+
+    def save_state(self, path: str = "reflection_state.json") -> None:
+        """Persist cognitive state to JSON for operator workflows."""
+        output = Path(path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(self.cognitive_state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    @classmethod
+    def load_state(cls, path: str = "reflection_state.json") -> "DecisionPipeline":
+        """Load pipeline cognitive state from JSON or initialize empty state."""
+        state_path = Path(path)
+        if state_path.exists():
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+        else:
+            state = {}
+        return cls(state)
 
     def _maybe_execute_tool(self, action: str | None, event_sequence: List[Dict[str, Any]]) -> Dict[str, Any] | None:
         """Execute tool-backed actions with runtime guardrails."""
