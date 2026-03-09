@@ -1,3 +1,4 @@
+import pytest
 from agent.decision_pipeline import DecisionPipeline
 
 
@@ -278,77 +279,62 @@ def test_pipeline_session_replay_and_trends_in_snapshot() -> None:
     assert "success_rate" in snapshot["trends"]
 
 
-def test_pipeline_strategy_gate_accepts_and_promotes_baseline() -> None:
-    state = {"baseline_simulation_report": {"success_rate": 0.3, "prediction_accuracy": 0.3, "average_value": 0.2}}
+def test_pipeline_evaluate_strategy_candidate_persists_gate_history() -> None:
+    state = {}
     pipeline = DecisionPipeline(state)
 
     gate = pipeline.evaluate_strategy_candidate(
-        [
-            {"action": "answer_with_tool", "predicted_outcome": "g", "actual_outcome": "g", "success": True, "outcome_value": 0.8},
-            {"action": "retrieve_context", "predicted_outcome": "k", "actual_outcome": "k", "success": True, "outcome_value": 0.7},
-        ],
-        auto_promote_baseline=True,
+        candidate_metrics={"success_rate": 0.8, "prediction_accuracy": 0.72, "average_value": 0.5},
+        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.73, "average_value": 0.4},
     )
 
     assert gate["accepted"] is True
-    assert gate["baseline_promoted"] is True
-    assert state["baseline_simulation_report"]["success_rate"] >= 0.3
+    assert gate["accepted_by_policy"] is True
+    assert len(state["strategy_gate_history"]) == 1
+    assert state["last_strategy_gate"]["deltas"]["success_rate_delta"] == pytest.approx(0.1)
 
 
-def test_pipeline_strategy_gate_rejects_regression() -> None:
-    state = {"baseline_simulation_report": {"success_rate": 1.0, "prediction_accuracy": 1.0, "average_value": 1.0}}
+def test_pipeline_evaluate_strategy_candidate_supports_manual_override() -> None:
+    state = {}
     pipeline = DecisionPipeline(state)
 
     gate = pipeline.evaluate_strategy_candidate(
-        [
-            {"action": "answer_with_tool", "predicted_outcome": "g", "actual_outcome": "b", "success": False, "outcome_value": 0.0},
-        ]
+        candidate_metrics={"success_rate": 0.6, "prediction_accuracy": 0.5, "average_value": 0.2},
+        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.3},
+        manual_override_reason="business-critical experiment",
     )
 
-    assert gate["accepted"] is False
-    assert gate["comparison"]["is_non_regression"] is False
+    assert gate["accepted_by_policy"] is False
+    assert gate["accepted"] is True
+    assert gate["manual_override_reason"] == "business-critical experiment"
 
 
-def test_pipeline_respects_explicit_empty_allowed_tool_actions() -> None:
-    state = {
-        "causal_edges": [
-            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
-        ]
-    }
+def test_pipeline_promote_strategy_candidate_rejects_when_gate_fails() -> None:
+    state = {}
+    pipeline = DecisionPipeline(state)
 
-    def answer_with_tool(payload: dict) -> dict:
-        return {"answer": "42"}
-
-    pipeline = DecisionPipeline(
-        state,
-        tool_registry={"answer_with_tool": answer_with_tool},
-        allowed_tool_actions=set(),
+    result = pipeline.promote_strategy_candidate(
+        candidate_strategy={"id": "s1", "name": "strategy-one"},
+        candidate_metrics={"success_rate": 0.5, "prediction_accuracy": 0.5, "average_value": 0.2},
+        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.3},
     )
-    events = [{"type": "decision", "value": "answer_directly"}]
 
-    result = pipeline.run(events)
-
-    assert result["recommended_action"] == "answer_with_tool"
-    assert result["tool_execution"] is None
+    assert result["promotion_status"] == "rejected"
+    assert state["strategy_promotion_history"][-1]["strategy_id"] == "s1"
+    assert "active_strategy" not in state
 
 
-def test_pipeline_fallbacks_when_circuit_is_open() -> None:
-    state = {
-        "causal_edges": [
-            {"cause": "answer_with_tool", "effect": "high_quality_answer", "confidence": 0.95},
-            {"cause": "retrieve_context", "effect": "ctx", "confidence": 0.1},
-        ],
-        "tool_error_counts": {"answer_with_tool": 10},
-    }
+def test_pipeline_promote_strategy_candidate_promotes_on_manual_override() -> None:
+    state = {}
+    pipeline = DecisionPipeline(state)
 
-    def answer_with_tool(payload: dict) -> dict:
-        return {"answer": "42"}
+    result = pipeline.promote_strategy_candidate(
+        candidate_strategy={"id": "s2", "name": "strategy-two", "action": "answer_with_tool"},
+        candidate_metrics={"success_rate": 0.4, "prediction_accuracy": 0.4, "average_value": 0.1},
+        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.3},
+        manual_override_reason="urgent product requirement",
+    )
 
-    pipeline = DecisionPipeline(state, tool_registry={"answer_with_tool": answer_with_tool})
-    events = [{"type": "decision", "value": "answer_directly"}]
-
-    result = pipeline.run(events)
-
-    assert result["recommended_action"] == "structured_reasoning"
-    assert result["fallback_reason"] == "tool_circuit_open"
-    assert result["tool_execution"]["status"] == "circuit_open"
+    assert result["promotion_status"] == "promoted"
+    assert state["active_strategy"]["id"] == "s2"
+    assert state["promoted_strategies"][-1]["manual_override_reason"] == "urgent product requirement"

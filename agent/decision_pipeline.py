@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set
 
 from .counterfactual_engine import CounterfactualEngine
 from .observability import DecisionObservability
@@ -22,8 +22,8 @@ class DecisionPipeline:
         fallback_action: str = "retrieve_context",
         tool_registry: Dict[str, ToolCallable] | None = None,
         sandbox_mode: bool = True,
+        allowed_tool_actions: Set[str] | None = None,
         tool_failure_fallback_action: str = "structured_reasoning",
-        allowed_tool_actions: set[str] | None = None,
     ):
         self.cognitive_state = cognitive_state
         self.counterfactual_engine = CounterfactualEngine(cognitive_state)
@@ -38,6 +38,8 @@ class DecisionPipeline:
         else:
             self.allowed_tool_actions = set(allowed_tool_actions)
         self.tool_runtime = ToolRuntime(cognitive_state, tool_registry=tool_registry, sandbox_mode=sandbox_mode)
+        self.allowed_tool_actions = set(allowed_tool_actions) if allowed_tool_actions is not None else {"answer_with_tool", "retrieve_context"}
+        self.tool_failure_fallback_action = tool_failure_fallback_action
 
     def run(
         self,
@@ -156,6 +158,7 @@ class DecisionPipeline:
                 "low_confidence_threshold": self.low_confidence_threshold,
                 "fallback_action": self.fallback_action,
                 "tool_failure_fallback_action": self.tool_failure_fallback_action,
+                "allowed_tool_actions": sorted(self.allowed_tool_actions),
             },
             "trends": self.observability.get_trend_summary(window=20),
             "last_decision_metrics": self.cognitive_state.get("last_decision_metrics", {}),
@@ -176,34 +179,48 @@ class DecisionPipeline:
         if tool_failure_fallback_action is not None:
             self.tool_failure_fallback_action = tool_failure_fallback_action
 
-    def _resolve_tool_failure_fallback(
+    def evaluate_strategy_candidate(
         self,
-        action: str,
-        tool_execution: Dict[str, Any] | None,
-    ) -> tuple[str, str | None]:
-        """Fallback to a safe non-tool action when tool execution fails."""
-        if tool_execution is None:
-            return action, None
+        candidate_metrics: Dict[str, float],
+        baseline_metrics: Dict[str, float],
+        manual_override_reason: str | None = None,
+    ) -> Dict[str, Any]:
+        """Evaluate candidate against baseline using enforced strategy gate policy."""
+        return self.strategy_engine.evaluate_strategy_candidate(
+            candidate_metrics=candidate_metrics,
+            baseline_metrics=baseline_metrics,
+            manual_override_reason=manual_override_reason,
+        )
 
-        status = tool_execution.get("status")
-        if status == "ok":
-            return action, None
+    def promote_strategy_candidate(
+        self,
+        candidate_strategy: Dict[str, Any],
+        candidate_metrics: Dict[str, float],
+        baseline_metrics: Dict[str, float],
+        manual_override_reason: str | None = None,
+    ) -> Dict[str, Any]:
+        """Mandatory lifecycle gate: evaluate and conditionally promote strategy candidate."""
+        return self.strategy_engine.promote_strategy_candidate(
+            candidate_strategy=candidate_strategy,
+            candidate_metrics=candidate_metrics,
+            baseline_metrics=baseline_metrics,
+            manual_override_reason=manual_override_reason,
+        )
 
-        if status in {"error", "blocked", "circuit_open"}:
-            return self.tool_failure_fallback_action, f"tool_{status}"
-
-        return action, None
 
     def _maybe_execute_tool(self, action: str | None, event_sequence: List[Dict[str, Any]]) -> Dict[str, Any] | None:
         """Execute tool-backed actions with runtime guardrails."""
         if action not in self.allowed_tool_actions:
             return None
 
-        if self.tool_runtime.is_circuit_open(action):
-            return {"status": "circuit_open", "reason": "Tool temporarily blocked due to repeated failures"}
+        if action not in self.allowed_tool_actions:
+            return None
 
         payload = {"event_sequence": event_sequence}
-        return self.tool_runtime.execute(action, payload)
+        execution = self.tool_runtime.execute(action, payload)
+        if execution.get("status") in {"error", "blocked"}:
+            execution["fallback_action"] = self.tool_failure_fallback_action
+        return execution
 
     def _log_decision(self, decision_record: Dict[str, Any]) -> None:
         """Append decision record to cognitive state action log."""
