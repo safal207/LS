@@ -114,6 +114,7 @@ LS (Local Cognitive System) — локальная когнитивная сис
 - `docs/RUST_TRANSPORT_SPEC.md` — спецификация Rust‑транспорта
 - `docs/ARCH_DIAGRAMS.md` — архитектурные диаграммы (Mermaid)
 - `docs/ROADMAP.md` — дорожная карта
+- `docs/INVESTMENT_ANALYSIS_RU.md` — инвестиционный анализ и рекомендации по позиционированию
 - `docs/architecture/layers.md` — полный каталог 12 архитектурных слоев (v1.1)
 - `schemas/*.schema.json` — формальные JSON Schema протоколов
 
