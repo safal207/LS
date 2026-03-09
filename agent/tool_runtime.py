@@ -1,4 +1,4 @@
-"""Tool runtime with sandbox checks, retries, and audit logging."""
+"""Tool runtime with adapters, sandbox checks, retries, and audit logging."""
 
 from __future__ import annotations
 
@@ -59,6 +59,13 @@ class ToolRuntime:
         self.default_timeout_s = default_timeout_s
         self.max_retries = max_retries
         self.circuit_breaker_threshold = circuit_breaker_threshold
+
+        adapters: Dict[str, ToolAdapter] = {}
+        for action, tool in (tool_registry or {}).items():
+            adapters[action] = CallableToolAdapter(action, tool)
+        for action, adapter in (tool_adapters or {}).items():
+            adapters[action] = adapter
+        self.tool_adapters = adapters
 
     def execute(self, action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Run tool action through sandbox checks and retry policy."""
