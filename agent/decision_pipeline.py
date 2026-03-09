@@ -65,11 +65,12 @@ class DecisionPipeline:
             }
 
         tool_execution = self._maybe_execute_tool(selected["recommended_action"], event_sequence)
+        final_action, fallback_reason = self._resolve_tool_failure_fallback(selected["recommended_action"], tool_execution)
 
         decision_record = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "event_count": len(event_sequence),
-            "recommended_action": selected["recommended_action"],
+            "recommended_action": final_action,
             "predicted_outcome": selected["predicted_outcome"],
             "confidence": selected["confidence"],
             "calibrated_confidence": selected.get("calibrated_confidence", selected["confidence"]),
@@ -78,6 +79,7 @@ class DecisionPipeline:
             "outcome_value": outcome_value,
             "ranked_strategies": ranked,
             "tool_execution": tool_execution,
+            "fallback_reason": fallback_reason,
         }
 
         self._log_decision(decision_record)
@@ -85,14 +87,14 @@ class DecisionPipeline:
         self._update_metrics(decision_record)
         self._update_long_term_metrics()
         self.strategy_engine.update_from_result(
-            action=selected["recommended_action"],
+            action=final_action,
             predicted_outcome=selected["predicted_outcome"],
             actual_outcome=actual_outcome,
             success=success,
             outcome_value=outcome_value,
         )
         self.strategy_engine.update_causal_edges_from_feedback(
-            action=selected["recommended_action"],
+            action=final_action,
             actual_outcome=actual_outcome,
             success=success,
         )
@@ -109,6 +111,30 @@ class DecisionPipeline:
         }
         return report
 
+
+    def evaluate_strategy_candidate(
+        self,
+        scenarios: List[Dict[str, Any]],
+        auto_promote_baseline: bool = False,
+    ) -> Dict[str, Any]:
+        """Run simulation gate for candidate strategy against baseline KPI."""
+        candidate_report = self.simulation_engine.run(scenarios)
+        comparison = self.simulation_engine.compare_to_baseline(candidate_report)
+
+        gate_result = {
+            "candidate_report": candidate_report,
+            "comparison": comparison,
+            "accepted": comparison["is_non_regression"],
+        }
+
+        if auto_promote_baseline and gate_result["accepted"]:
+            self.simulation_engine.update_baseline(candidate_report)
+            gate_result["baseline_promoted"] = True
+        else:
+            gate_result["baseline_promoted"] = False
+
+        self.cognitive_state["last_strategy_gate"] = gate_result
+        return gate_result
     def get_session_replay(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Expose replay records for operator inspection."""
         return self.observability.get_session_replay(limit=limit)
@@ -185,7 +211,10 @@ class DecisionPipeline:
 
     def _maybe_execute_tool(self, action: str | None, event_sequence: List[Dict[str, Any]]) -> Dict[str, Any] | None:
         """Execute tool-backed actions with runtime guardrails."""
-        if action not in {"answer_with_tool", "retrieve_context"}:
+        if action not in self.allowed_tool_actions:
+            return None
+
+        if action not in self.allowed_tool_actions:
             return None
 
         if action not in self.allowed_tool_actions:
@@ -213,6 +242,7 @@ class DecisionPipeline:
                 "actual_outcome": decision_record["actual_outcome"],
                 "success": decision_record["success"],
                 "outcome_value": decision_record["outcome_value"],
+                "fallback_reason": decision_record.get("fallback_reason"),
             }
         )
 
@@ -223,6 +253,7 @@ class DecisionPipeline:
             "calibrated_confidence": decision_record["calibrated_confidence"],
             "predicted_outcome": decision_record["predicted_outcome"],
             "action_success": decision_record["success"],
+            "fallback_reason": decision_record.get("fallback_reason"),
         }
 
     def _update_long_term_metrics(self) -> None:
