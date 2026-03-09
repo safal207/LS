@@ -200,6 +200,50 @@ class StrategyEvolutionEngine:
 
         return gate_result
 
+    def promote_strategy_candidate(
+        self,
+        candidate_strategy: Dict[str, Any],
+        candidate_metrics: Dict[str, float],
+        baseline_metrics: Dict[str, float],
+        manual_override_reason: str | None = None,
+    ) -> Dict[str, Any]:
+        """Enforce gate policy before persisting candidate strategy as promoted."""
+        gate_result = self.evaluate_strategy_candidate(
+            candidate_metrics=candidate_metrics,
+            baseline_metrics=baseline_metrics,
+            manual_override_reason=manual_override_reason,
+        )
+
+        strategy_id = str(candidate_strategy.get("id") or candidate_strategy.get("name") or "unknown_strategy")
+        promotion_record = {
+            "timestamp": gate_result["timestamp"],
+            "strategy_id": strategy_id,
+            "candidate_strategy": candidate_strategy,
+            "gate_result": gate_result,
+            "promotion_status": "promoted" if gate_result.get("accepted") else "rejected",
+        }
+
+        history = self.cognitive_state.setdefault("strategy_promotion_history", [])
+        if isinstance(history, list):
+            history.append(promotion_record)
+
+        if not gate_result.get("accepted"):
+            return promotion_record
+
+        promoted = self.cognitive_state.setdefault("promoted_strategies", [])
+        if isinstance(promoted, list):
+            promoted.append(
+                {
+                    "strategy_id": strategy_id,
+                    "candidate_strategy": candidate_strategy,
+                    "promoted_at": gate_result["timestamp"],
+                    "manual_override_reason": manual_override_reason,
+                }
+            )
+
+        self.cognitive_state["active_strategy"] = candidate_strategy
+        return promotion_record
+
     def _calibrate_confidence(self, action: str | None, confidence: float, success_rate: float) -> float:
         """Down-weight overestimated strategies using observed success history."""
         if not action:

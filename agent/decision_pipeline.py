@@ -161,6 +161,22 @@ class DecisionPipeline:
             manual_override_reason=manual_override_reason,
         )
 
+    def promote_strategy_candidate(
+        self,
+        candidate_strategy: Dict[str, Any],
+        candidate_metrics: Dict[str, float],
+        baseline_metrics: Dict[str, float],
+        manual_override_reason: str | None = None,
+    ) -> Dict[str, Any]:
+        """Mandatory lifecycle gate: evaluate and conditionally promote strategy candidate."""
+        return self.strategy_engine.promote_strategy_candidate(
+            candidate_strategy=candidate_strategy,
+            candidate_metrics=candidate_metrics,
+            baseline_metrics=baseline_metrics,
+            manual_override_reason=manual_override_reason,
+        )
+
+
     def _maybe_execute_tool(self, action: str | None, event_sequence: List[Dict[str, Any]]) -> Dict[str, Any] | None:
         """Execute tool-backed actions with runtime guardrails."""
         if action not in {"answer_with_tool", "retrieve_context"}:

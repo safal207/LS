@@ -305,3 +305,34 @@ def test_pipeline_evaluate_strategy_candidate_supports_manual_override() -> None
     assert gate["accepted_by_policy"] is False
     assert gate["accepted"] is True
     assert gate["manual_override_reason"] == "business-critical experiment"
+
+
+def test_pipeline_promote_strategy_candidate_rejects_when_gate_fails() -> None:
+    state = {}
+    pipeline = DecisionPipeline(state)
+
+    result = pipeline.promote_strategy_candidate(
+        candidate_strategy={"id": "s1", "name": "strategy-one"},
+        candidate_metrics={"success_rate": 0.5, "prediction_accuracy": 0.5, "average_value": 0.2},
+        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.3},
+    )
+
+    assert result["promotion_status"] == "rejected"
+    assert state["strategy_promotion_history"][-1]["strategy_id"] == "s1"
+    assert "active_strategy" not in state
+
+
+def test_pipeline_promote_strategy_candidate_promotes_on_manual_override() -> None:
+    state = {}
+    pipeline = DecisionPipeline(state)
+
+    result = pipeline.promote_strategy_candidate(
+        candidate_strategy={"id": "s2", "name": "strategy-two", "action": "answer_with_tool"},
+        candidate_metrics={"success_rate": 0.4, "prediction_accuracy": 0.4, "average_value": 0.1},
+        baseline_metrics={"success_rate": 0.7, "prediction_accuracy": 0.7, "average_value": 0.3},
+        manual_override_reason="urgent product requirement",
+    )
+
+    assert result["promotion_status"] == "promoted"
+    assert state["active_strategy"]["id"] == "s2"
+    assert state["promoted_strategies"][-1]["manual_override_reason"] == "urgent product requirement"
