@@ -144,6 +144,10 @@ class ToolRuntime:
         if adapter is None:
             return {"status": "skipped", "reason": "tool_not_registered", "action": action}
 
+        if self._is_degraded(action):
+            self._audit(action, "circuit_open", "tool_unhealthy_degraded")
+            return {"status": "circuit_open", "reason": "tool_unhealthy_degraded", "action": action}
+
         if self.sandbox_mode and not self._validate_payload(payload):
             self._audit(action, "blocked", "sandbox_validation_failed")
             self._increment_error_count(action)
