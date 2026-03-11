@@ -24,6 +24,7 @@
 - **12-Layer Cognitive Architecture**: Including Metabolism (knowledge processing), Amygdala (emotional balance), and Sleep/Homeostasis (memory consolidation).
 - **Rust Optimization Layer**: High-performance pattern matching and SIMD-accelerated vector search for real-time responsiveness.
 - **Temporal Memory**: A graph-based belief system that tracks the evolution of knowledge over time.
+- **Reasoning Diff**: Compare agent reasoning traces and detect divergence points.
 - **Local-First & Privacy-Centric**: Designed to run entirely on your hardware with built-in PII redaction and safety gates.
 - **Web4 Integration**: Ready for the next generation of decentralized AI protocols.
 
@@ -82,6 +83,92 @@ python apps/console/main.py
 - [Architecture Deep Dive](docs/ARCHITECTURE.md) — Data flow and system components.
 - [Web4 Overview](docs/WEB4_OVERVIEW.md) — Vision for the decentralized future.
 - [HCP & CIP Specs](docs/HCP_SPEC.md) — Protocol specifications for human and agent interactions.
+
+## Reasoning Diff
+
+Reasoning Diff allows developers to compare two reasoning traces and detect where agent decisions diverged.
+
+### Why it matters
+
+AI debugging often requires comparing:
+- a working reasoning path;
+- a failed reasoning path.
+
+Reasoning Diff highlights the divergence point so you can quickly isolate where the run started to drift, including potential hallucination branches.
+
+### Visual example
+
+Trace A (success)
+`start → plan → execute → verify → finish`
+
+Trace B (failure)
+`start → plan → execute → assumption → hallucination → contradiction`
+
+Diff output:
+
+```text
+start
+plan
+execute
+--- divergence detected ---
+verify
+vs
+assumption
+```
+
+The system highlights the first conflicting transition, then lets you inspect the branches that follow.
+
+### CLI-style usage
+
+```bash
+ltp diff trace-success.json trace-failure.json
+```
+
+Example output:
+
+```text
+Comparing reasoning traces...
+
+Shared path:
+start → plan → execute
+
+Divergence point:
+Trace A: verify
+Trace B: assumption
+
+Possible hallucination path detected.
+```
+
+### Developer example (TypeScript)
+
+```ts
+const diff = ReasoningDiff.compare(traceA, traceB)
+
+console.log(diff.sharedPath)
+console.log(diff.divergencePoint)
+console.log(diff.branchA)
+console.log(diff.branchB)
+```
+
+This gives developers a compact way to inspect how two runs split and which branch introduced unstable reasoning.
+
+### Comparing successful vs failed reasoning
+
+Common debugging flow:
+1. Agent run succeeds.
+2. Another run fails.
+3. Developer compares traces.
+4. Reasoning Diff highlights divergence.
+
+### Relation to Reasoning State Graph
+
+Reasoning Diff operates on the Reasoning State Graph and extends Trace Replay capabilities.
+Because reasoning is represented as a graph of transitions, the system can:
+- compare paths;
+- detect divergence;
+- visualize alternate reasoning routes.
+
+Together with trace, replay, and rewind capabilities, Reasoning Diff completes the core AI reasoning observability toolkit.
 
 ---
 
