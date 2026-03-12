@@ -3,7 +3,6 @@ from __future__ import annotations
 import time
 import uuid
 from collections import deque
-from dataclasses import asdict
 from typing import Any
 
 from ls.memory.edge import MemoryEdge
