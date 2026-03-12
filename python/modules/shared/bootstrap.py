@@ -8,6 +8,7 @@ from typing import Any, Dict
 
 from modules.shared.config_loader import load_config
 from modules.shared.event_bus import EventBus
+from modules.shared.service_registry import ServiceRegistry
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,7 @@ class RuntimeContext:
     root: Path
     config: Dict[str, Any]
     event_bus: EventBus = field(default_factory=EventBus)
+    services: ServiceRegistry = field(default_factory=ServiceRegistry)
 
 
 def setup_runtime_paths(entry_file: str) -> Path:

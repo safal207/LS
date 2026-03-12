@@ -4,6 +4,7 @@ from pathlib import Path
 
 from modules.shared.bootstrap import RuntimeContext, bootstrap_app, setup_runtime_paths
 from modules.shared.event_bus import EventBus
+from modules.shared.service_registry import ServiceRegistry
 
 
 class _Event:
@@ -35,6 +36,7 @@ def test_bootstrap_app_returns_runtime_context(monkeypatch):
     assert isinstance(ctx.config, dict)
     assert "llm" in ctx.config
     assert isinstance(ctx.event_bus, EventBus)
+    assert isinstance(ctx.services, ServiceRegistry)
 
 
 def test_event_bus_publish_subscribe():
@@ -61,3 +63,24 @@ def test_event_bus_continues_when_handler_fails(caplog):
 
     assert events == ["still delivered"]
     assert "Event handler failed for event_type=output_ready" in caplog.text
+
+
+def test_service_registry_register_and_get():
+    registry = ServiceRegistry()
+    service = object()
+
+    registry.register("memory", service)
+
+    assert registry.has("memory")
+    assert registry.get("memory") is service
+
+
+def test_service_registry_prevents_duplicate_registration():
+    registry = ServiceRegistry()
+    registry.register("memory", object())
+
+    try:
+        registry.register("memory", object())
+        assert False, "Expected KeyError for duplicate service name"
+    except KeyError as exc:
+        assert "Service already registered" in str(exc)

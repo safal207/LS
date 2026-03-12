@@ -32,7 +32,7 @@
 ### 2.2 Runtime Context + Event Bus
 
 Добавлен базовый runtime-контейнер:
-- `RuntimeContext` с полями `app_name`, `root`, `config`, `event_bus`.
+- `RuntimeContext` с полями `app_name`, `root`, `config`, `event_bus`, `services`.
 
 `bootstrap_app()` теперь возвращает `RuntimeContext`, что создаёт единый контракт для дальнейшего роста:
 - централизованная регистрация сервисов (logger/metrics/memory),

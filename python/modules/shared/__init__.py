@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from .config_loader import load_config, get_config
 from .bootstrap import RuntimeContext, bootstrap_app
 from .event_bus import EventBus
+from .service_registry import ServiceRegistry
 
 __all__ = [
     "load_config",
@@ -12,6 +13,7 @@ __all__ = [
     "RuntimeContext",
     "bootstrap_app",
     "EventBus",
+    "ServiceRegistry",
     "check_system_resources",
     "format_latency",
     "is_question",
