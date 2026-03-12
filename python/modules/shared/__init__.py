@@ -3,10 +3,24 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .config_loader import load_config, get_config
+from .bootstrap import RuntimeContext, bootstrap_app
+from .event_bus import EventBus
+from .service_registry import ServiceRegistry
+from .runtime_manifest import RuntimeManifest, build_manifest
+from .module_loader import DynamicModuleLoader, RuntimeModule, ModuleLifecycleEvent
 
 __all__ = [
     "load_config",
     "get_config",
+    "RuntimeContext",
+    "bootstrap_app",
+    "EventBus",
+    "ServiceRegistry",
+    "RuntimeManifest",
+    "build_manifest",
+    "DynamicModuleLoader",
+    "RuntimeModule",
+    "ModuleLifecycleEvent",
     "check_system_resources",
     "format_latency",
     "is_question",
