@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 GRAPH_PATH = Path(__file__).parents[2] / "codex/temporal_graph/graph.json"
+MEMORY_GRAPH_PATH = Path(__file__).parents[2] / "data/memory_graph.json"
 UI_PATH = Path(__file__).parent / "graph_ui.html"
 
 
@@ -14,6 +15,8 @@ class GraphHandler(BaseHTTPRequestHandler):
             self._serve_file(UI_PATH, "text/html")
         elif self.path == "/graph.json":
             self._serve_file(GRAPH_PATH, "application/json")
+        elif self.path == "/memory_graph.json":
+            self._serve_file(MEMORY_GRAPH_PATH, "application/json")
         else:
             self.send_response(404)
             self.end_headers()

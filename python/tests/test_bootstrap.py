@@ -136,3 +136,41 @@ def test_dynamic_module_loader_load_unload_publishes_events():
     assert not ctx.services.has("dummy_service")
 
     assert events == [("module_loaded", "dummy"), ("module_unloaded", "dummy")]
+
+
+def test_event_bus_unsubscribe_removes_handler():
+    bus = EventBus()
+    events = []
+
+    def handler(event):
+        events.append(event.payload["text"])
+
+    bus.subscribe("output_ready", handler)
+    bus.unsubscribe("output_ready", handler)
+    bus.publish(_Event("output_ready", payload={"text": "x"}))
+
+    assert events == []
+
+
+def test_event_bus_subscriber_count_and_snapshot():
+    bus = EventBus()
+    bus.subscribe("a", lambda _e: None)
+    bus.subscribe("a", lambda _e: None)
+    bus.subscribe("b", lambda _e: None)
+
+    assert bus.subscriber_count("a") == 2
+    assert bus.subscriber_count() == 3
+    assert bus.subscriber_snapshot() == {"a": 2, "b": 1}
+
+
+def test_event_bus_publish_async():
+    bus = EventBus()
+    events = []
+
+    bus.subscribe("output_ready", lambda e: events.append(e.payload["text"]))
+    futures = bus.publish_async(_Event("output_ready", payload={"text": "async-ok"}))
+
+    for future in futures:
+        future.result(timeout=2)
+
+    assert events == ["async-ok"]
