@@ -17,6 +17,25 @@ class EventBus:
     def subscribe(self, event_type: str, handler: Callable[[Any], None]) -> None:
         self.subscribers[event_type].append(handler)
 
+    def unsubscribe(self, event_type: str, handler: Callable[[Any], None]) -> None:
+        handlers = self.subscribers.get(event_type)
+        if not handlers:
+            return
+        try:
+            handlers.remove(handler)
+        except ValueError:
+            return
+        if not handlers:
+            self.subscribers.pop(event_type, None)
+
+    def subscriber_count(self, event_type: str | None = None) -> int:
+        if event_type is not None:
+            return len(self.subscribers.get(event_type, []))
+        return sum(len(handlers) for handlers in self.subscribers.values())
+
+    def subscriber_snapshot(self) -> dict[str, int]:
+        return {event_type: len(handlers) for event_type, handlers in self.subscribers.items()}
+
     def publish(self, event: Any) -> None:
         event_type = getattr(event, "type", None)
         if not event_type:
