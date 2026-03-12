@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
 
-from modules.shared.config_loader import load_config
-from modules.shared.event_bus import EventBus
-from modules.shared.service_registry import ServiceRegistry
-from modules.shared.runtime_manifest import RuntimeManifest, build_manifest
+from .config_loader import load_config
+from .event_bus import EventBus
+from .service_registry import ServiceRegistry
+from .runtime_manifest import RuntimeManifest, build_manifest
 
 
 @dataclass(frozen=True)
@@ -44,7 +43,6 @@ def setup_runtime_paths(entry_file: str) -> Path:
 def bootstrap_app(entry_file: str, app: str) -> RuntimeContext:
     """Prepare runtime environment and return a full runtime context."""
     root = setup_runtime_paths(entry_file)
-    os.environ.setdefault("LS_APP", app)
     cfg = load_config(app)
     manifest = build_manifest(app, cfg)
     return RuntimeContext(app_name=app, root=root, config=cfg, manifest=manifest)

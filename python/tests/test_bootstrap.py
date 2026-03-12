@@ -1,4 +1,3 @@
-import os
 import sys
 from pathlib import Path
 
@@ -41,13 +40,10 @@ def test_setup_runtime_paths_adds_expected_paths(monkeypatch):
     assert str(root) in sys.path
 
 
-def test_bootstrap_app_returns_runtime_context(monkeypatch):
-    monkeypatch.delenv("LS_APP", raising=False)
-
+def test_bootstrap_app_returns_runtime_context():
     ctx = bootstrap_app(str(Path("/workspace/LS/apps/console/main.py")), "console")
 
     assert isinstance(ctx, RuntimeContext)
-    assert os.environ["LS_APP"] == "console"
     assert ctx.app_name == "console"
     assert ctx.root == Path("/workspace/LS")
     assert isinstance(ctx.config, dict)
