@@ -45,3 +45,19 @@ def test_event_bus_publish_subscribe():
     bus.publish(_Event("output_ready", payload={"text": "ok"}))
 
     assert events == ["ok"]
+
+
+def test_event_bus_continues_when_handler_fails(caplog):
+    bus = EventBus()
+    events = []
+
+    def broken_handler(_event):
+        raise RuntimeError("boom")
+
+    bus.subscribe("output_ready", broken_handler)
+    bus.subscribe("output_ready", lambda e: events.append(e.payload["text"]))
+
+    bus.publish(_Event("output_ready", payload={"text": "still delivered"}))
+
+    assert events == ["still delivered"]
+    assert "Event handler failed for event_type=output_ready" in caplog.text
