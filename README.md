@@ -385,3 +385,74 @@ Env:
 
 ---
 © 2026 GhostGPT Team. Strictly Local. Strictly Cognitive.
+
+## Adaptive Plugin & Monitoring System
+
+Новый архитектурный слой добавляет hot-load плагинов и централизованный мониторинг.
+
+### Плагины
+
+- Директория плагинов: `python/plugins/`.
+- Контракт плагина:
+
+```python
+class Plugin:
+    name: str
+    def setup(ctx: RuntimeContext) -> None: ...
+    def shutdown(ctx: RuntimeContext) -> None: ...
+```
+
+- Менеджер: `PluginManager` (`python/modules/shared/plugin_manager.py`):
+  - `load_all()` — загружает все плагины из `python/plugins/*.py` без рестарта приложения.
+  - `load_from_path(path)` — загружает конкретный плагин.
+  - `reload(name)` — безопасно перезагружает плагин на лету.
+  - `unload(name)` — выгружает плагин и очищает его сервисы/подписки.
+- Изоляция: ошибки плагина не останавливают агент; публикуются lifecycle-события `plugin_failed`, `plugin_load_failed`, `plugin_shutdown_failed`.
+- Права плагинов: `PluginPermissions` (filesystem/network/process) с deny-by-default политикой в `PluginManager`.
+
+Пример:
+
+```python
+from modules.shared.bootstrap import bootstrap_app
+from modules.shared.plugin_manager import PluginManager
+
+ctx = bootstrap_app(__file__, "console")
+pm = PluginManager(ctx)
+pm.load_all()
+```
+
+### Мониторинг
+
+- Сервис: `MonitorService` (`python/modules/shared/monitoring.py`).
+- Регистрация в runtime:
+
+```python
+monitor = MonitorService(ctx)
+monitor.register()  # ctx.services.register("monitor", monitor)
+```
+
+- API:
+  - `get_queue_stats()` — размер/емкость/utilization/throughput очередей (`llm_queue`, `ui_queue`, `audio_queue`).
+  - `get_resource_usage()` — CPU, RAM, диск.
+  - `get_event_bus_stats()` — число подписчиков EventBus.
+  - `subscribe_alert(event_type, callback)` — подписка на алерты (`queue_high_utilization`, `llm_timeout`).
+
+Пример:
+
+```python
+monitor = ctx.services.get("monitor")
+stats = monitor.snapshot()
+print(stats["queues"], stats["resources"], stats["event_bus"])
+```
+
+
+CLI-утилита для операционного управления плагинами:
+
+```bash
+python apps/console/plugins_cli.py list
+python apps/console/plugins_cli.py load --path python/plugins/echo_plugin.py
+python apps/console/plugins_cli.py reload echo_plugin
+python apps/console/plugins_cli.py unload echo_plugin
+```
+
+`EventBus` также поддерживает неблокирующий dispatch через `publish_async(event)`.
