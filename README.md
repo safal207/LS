@@ -456,3 +456,13 @@ python apps/console/plugins_cli.py unload echo_plugin
 ```
 
 `EventBus` также поддерживает неблокирующий dispatch через `publish_async(event)`.
+
+
+## Cognitive Loop & Memory Graph
+
+Добавлен новый когнитивный runtime-модуль (`python/ls/`) с:
+- `ls.memory.MemoryGraph` для граф-памяти (nodes/edges/search/context),
+- `ls.cognition.ReflectionEngine` для state comparison, progress score и self-reflection,
+- JSON persistence через `JsonGraphStore` (`data/memory_graph.json`).
+
+Подробная архитектура и цикл: `docs/cognitive_loop.md`.
