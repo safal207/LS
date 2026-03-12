@@ -38,6 +38,9 @@
 - централизованная регистрация сервисов (logger/metrics/memory),
 - единая точка расширения runtime и plugin-модели,
 - единый event-driven канал между модулями через `EventBus`.
+- capability-aware `ServiceRegistry` для контролируемого доступа к сервисам runtime.
+- базовый `DynamicModuleLoader` для динамического подключения/отключения модулей без усложнения ядра.
+- `RuntimeManifest` (version/features/limits/transport_mode) как основа для versioned runtime профилей.
 
 ## 3) Целевая архитектурная эволюция (следующие 2-3 спринта)
 

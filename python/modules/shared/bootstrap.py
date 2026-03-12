@@ -9,6 +9,7 @@ from typing import Any, Dict
 from modules.shared.config_loader import load_config
 from modules.shared.event_bus import EventBus
 from modules.shared.service_registry import ServiceRegistry
+from modules.shared.runtime_manifest import RuntimeManifest, build_manifest
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,7 @@ class RuntimeContext:
     config: Dict[str, Any]
     event_bus: EventBus = field(default_factory=EventBus)
     services: ServiceRegistry = field(default_factory=ServiceRegistry)
+    manifest: RuntimeManifest | None = None
 
 
 def setup_runtime_paths(entry_file: str) -> Path:
@@ -44,4 +46,5 @@ def bootstrap_app(entry_file: str, app: str) -> RuntimeContext:
     root = setup_runtime_paths(entry_file)
     os.environ.setdefault("LS_APP", app)
     cfg = load_config(app)
-    return RuntimeContext(app_name=app, root=root, config=cfg)
+    manifest = build_manifest(app, cfg)
+    return RuntimeContext(app_name=app, root=root, config=cfg, manifest=manifest)
