@@ -2,7 +2,14 @@ import os
 import sys
 from pathlib import Path
 
-from modules.shared.bootstrap import setup_runtime_paths, bootstrap_app
+from modules.shared.bootstrap import RuntimeContext, bootstrap_app, setup_runtime_paths
+from modules.shared.event_bus import EventBus
+
+
+class _Event:
+    def __init__(self, event_type, payload=None):
+        self.type = event_type
+        self.payload = payload or {}
 
 
 def test_setup_runtime_paths_adds_expected_paths(monkeypatch):
@@ -16,11 +23,25 @@ def test_setup_runtime_paths_adds_expected_paths(monkeypatch):
     assert str(root) in sys.path
 
 
-def test_bootstrap_app_sets_ls_app_env(monkeypatch):
+def test_bootstrap_app_returns_runtime_context(monkeypatch):
     monkeypatch.delenv("LS_APP", raising=False)
 
-    cfg = bootstrap_app(str(Path("/workspace/LS/apps/console/main.py")), "console")
+    ctx = bootstrap_app(str(Path("/workspace/LS/apps/console/main.py")), "console")
 
+    assert isinstance(ctx, RuntimeContext)
     assert os.environ["LS_APP"] == "console"
-    assert isinstance(cfg, dict)
-    assert "llm" in cfg
+    assert ctx.app_name == "console"
+    assert ctx.root == Path("/workspace/LS")
+    assert isinstance(ctx.config, dict)
+    assert "llm" in ctx.config
+    assert isinstance(ctx.event_bus, EventBus)
+
+
+def test_event_bus_publish_subscribe():
+    bus = EventBus()
+    events = []
+
+    bus.subscribe("output_ready", lambda e: events.append(e.payload["text"]))
+    bus.publish(_Event("output_ready", payload={"text": "ok"}))
+
+    assert events == ["ok"]

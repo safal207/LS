@@ -14,7 +14,8 @@ if str(PYTHON_ROOT) not in sys.path:
 
 from modules.shared.bootstrap import bootstrap_app
 
-cfg = bootstrap_app(__file__, "console")
+ctx = bootstrap_app(__file__, "console")
+cfg = ctx.config
 
 
 import threading

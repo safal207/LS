@@ -9,7 +9,8 @@ if str(PYTHON_ROOT) not in sys.path:
 
 from modules.shared.bootstrap import bootstrap_app
 
-cfg = bootstrap_app(__file__, "ghostgpt")
+ctx = bootstrap_app(__file__, "ghostgpt")
+cfg = ctx.config
 
 import keyboard
 from GhostGPT.modules.gui import GhostWindow
