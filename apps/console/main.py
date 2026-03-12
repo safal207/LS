@@ -4,15 +4,7 @@ LS — Console Runtime
 Audio capture -> STT -> LLM -> Console output
 """
 
-from pathlib import Path
-import sys
-
-# Минимальный bootstrap path для импорта shared.bootstrap.
-PYTHON_ROOT = Path(__file__).resolve().parents[2] / "python"
-if str(PYTHON_ROOT) not in sys.path:
-    sys.path.insert(0, str(PYTHON_ROOT))
-
-from modules.shared.bootstrap import bootstrap_app
+from python.modules.shared.bootstrap import bootstrap_app
 
 ctx = bootstrap_app(__file__, "console")
 cfg = ctx.config
@@ -53,6 +45,9 @@ class InterviewCopilot:
         self.audio_module = AudioIngestion(self.transcribe_queue)
         self.stt_module = SpeechToText(self.transcribe_queue, self.llm_queue)
         self.llm_module = LanguageModel(self.llm_queue, self.ui_queue)
+        ctx.services.register("llm", self.llm_module)
+        ctx.services.register("memory", {})
+        ctx.services.register("logger", logger)
         event_sink = None
         if config.AGENT_OBSERVABILITY_ENABLED:
             event_sink = build_event_sink(config.AGENT_EVENT_SINK)
@@ -68,6 +63,7 @@ class InterviewCopilot:
             metrics_enabled=config.AGENT_METRICS_ENABLED,
             observability_enabled=config.AGENT_OBSERVABILITY_ENABLED,
             event_sink=event_sink,
+            event_bus=ctx.event_bus,
         ) if config.AGENT_ENABLED else None
         
         self.running = False

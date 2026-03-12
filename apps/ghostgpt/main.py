@@ -1,13 +1,8 @@
 from PyQt6.QtWidgets import QApplication
+import logging
 import sys
-from pathlib import Path
 
-# Минимальный bootstrap path для импорта shared.bootstrap.
-PYTHON_ROOT = Path(__file__).resolve().parents[2] / "python"
-if str(PYTHON_ROOT) not in sys.path:
-    sys.path.insert(0, str(PYTHON_ROOT))
-
-from modules.shared.bootstrap import bootstrap_app
+from python.modules.shared.bootstrap import bootstrap_app
 
 ctx = bootstrap_app(__file__, "ghostgpt")
 cfg = ctx.config
@@ -24,26 +19,24 @@ from codex.causal_memory.amygdala import Amygdala
 from agent.decision_pipeline import DecisionPipeline
 
 
+logger = logging.getLogger(__name__)
+
+
 class GhostGPT:
-    def _on_agent_event(self, event: AgentEvent):
-        if event.type == "reflex_triggered":
-            self.window.trigger_reflex_warning()
-            return
+    def _on_reflex_triggered(self, _event: AgentEvent):
+        self.window.trigger_reflex_warning()
 
-        if event.type == "metabolism_growth":
-            self.window.trigger_growth_animation()
-            return
+    def _on_metabolism_growth(self, _event: AgentEvent):
+        self.window.trigger_growth_animation()
 
-        if event.type == "agent_woke_up":
-            self.window.trigger_wake_up_animation(event.payload)
-            return
+    def _on_agent_woke_up(self, event: AgentEvent):
+        self.window.trigger_wake_up_animation(event.payload)
 
-        if event.type == "state_change" and event.payload.get("state") == "sleep":
+    def _on_state_change(self, event: AgentEvent):
+        if event.payload.get("state") == "sleep":
             self.window.trigger_sleep_animation()
-            return
 
-        if event.type != "output_ready":
-            return
+    def _on_output_ready(self, _event: AgentEvent):
         snapshot = getattr(self.agent_loop.causal_transitions.amygdala, "last_snapshot", None) if self.agent_loop else None
         if isinstance(snapshot, dict):
             self.window.update_amygdala_visual(snapshot)
@@ -54,6 +47,7 @@ class GhostGPT:
         self.audio = AudioWorker()
         self.decision_pipeline = DecisionPipeline({"action_history": [], "strategy_stats": {}, "action_log": []})
         self.window.set_decision_pipeline(self.decision_pipeline)
+        ctx.services.register("logger", logger)
 
         # Initialize Access Protocol
         self.protocol = AccessProtocol(self.window, self.audio)
@@ -72,11 +66,18 @@ class GhostGPT:
             metrics_enabled=config.AGENT_METRICS_ENABLED,
             observability_enabled=config.AGENT_OBSERVABILITY_ENABLED,
             event_sink=event_sink,
-            on_event=self._on_agent_event,
+            event_bus=ctx.event_bus,
             amygdala=Amygdala(user_id=self.window.current_user_id, persist_state=True),
         ) if config.AGENT_ENABLED else None
         if self.agent_loop:
             self.window.agent_loop = self.agent_loop
+            ctx.services.register("memory", self.agent_loop.causal_memory)
+            ctx.services.register("llm", self.protocol)
+            ctx.event_bus.subscribe("reflex_triggered", self._on_reflex_triggered)
+            ctx.event_bus.subscribe("metabolism_growth", self._on_metabolism_growth)
+            ctx.event_bus.subscribe("agent_woke_up", self._on_agent_woke_up)
+            ctx.event_bus.subscribe("state_change", self._on_state_change)
+            ctx.event_bus.subscribe("output_ready", self._on_output_ready)
             self.audio.text_ready.connect(self.agent_loop.handle_input)
         else:
             self.audio.text_ready.connect(self.protocol.execute_cycle)

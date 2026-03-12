@@ -17,6 +17,7 @@ from codex.causal_memory.reflex import ReflexArc
 from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
+from ..shared.event_bus import EventBus
 from ..perception.coordinator import VisionSubsystem
 
 try:
@@ -56,6 +57,7 @@ class AgentLoop:
         event_sink: EventSink | None = None,
         observability_enabled: bool = True,
         amygdala: Amygdala | None = None,
+        event_bus: EventBus | None = None,
     ) -> None:
         if (llm is None) == (handler is None):
             raise ValueError("Provide exactly one of llm or handler")
@@ -65,6 +67,7 @@ class AgentLoop:
         self.llm = llm
         self.handler = handler
         self.on_event = on_event
+        self.event_bus = event_bus
         self.running = False
 
         self.temporal = temporal if temporal_enabled else None
@@ -327,8 +330,11 @@ class AgentLoop:
         payload = payload or {}
         self._touch_presence(task_id=task_id)
         self._step_flow(event_type, payload, task_id=task_id)
+        event = AgentEvent(type=event_type, payload=payload)
+        if self.event_bus:
+            self.event_bus.publish(event)
         if self.on_event:
-            self.on_event(AgentEvent(type=event_type, payload=payload))
+            self.on_event(event)
         self._emit_observability(event_type, payload, task_id=task_id)
 
     def _transition(self, state: str, *, task_id: int | None = None) -> None:
