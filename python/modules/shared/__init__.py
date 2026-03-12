@@ -8,7 +8,7 @@ from .event_bus import EventBus
 from .service_registry import ServiceRegistry
 from .runtime_manifest import RuntimeManifest, build_manifest
 from .module_loader import DynamicModuleLoader, RuntimeModule, ModuleLifecycleEvent
-from .plugin_manager import PluginManager, Plugin, PluginLifecycleEvent
+from .plugin_manager import PluginManager, Plugin, PluginLifecycleEvent, PluginPermissions
 from .monitoring import MonitorService, MonitorAlert
 
 __all__ = [
@@ -26,6 +26,7 @@ __all__ = [
     "PluginManager",
     "Plugin",
     "PluginLifecycleEvent",
+    "PluginPermissions",
     "MonitorService",
     "MonitorAlert",
     "check_system_resources",

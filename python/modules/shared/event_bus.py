@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from concurrent.futures import Future, ThreadPoolExecutor
 import logging
 from typing import Any, Callable, DefaultDict, List
 
@@ -11,8 +12,9 @@ logger = logging.getLogger(__name__)
 class EventBus:
     """Simple in-process pub/sub for runtime module coordination."""
 
-    def __init__(self):
+    def __init__(self, max_workers: int = 4):
         self.subscribers: DefaultDict[str, List[Callable[[Any], None]]] = defaultdict(list)
+        self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="event-bus")
 
     def subscribe(self, event_type: str, handler: Callable[[Any], None]) -> None:
         self.subscribers[event_type].append(handler)
@@ -40,8 +42,25 @@ class EventBus:
         event_type = getattr(event, "type", None)
         if not event_type:
             return
-        for handler in self.subscribers.get(event_type, []):
+        for handler in list(self.subscribers.get(event_type, [])):
             try:
                 handler(event)
             except Exception as exc:
                 logger.exception("Event handler failed for event_type=%s: %s", event_type, exc)
+
+    def publish_async(self, event: Any) -> list[Future]:
+        event_type = getattr(event, "type", None)
+        if not event_type:
+            return []
+
+        futures: list[Future] = []
+        for handler in list(self.subscribers.get(event_type, [])):
+            futures.append(self._executor.submit(self._safe_dispatch, event_type, handler, event))
+        return futures
+
+    @staticmethod
+    def _safe_dispatch(event_type: str, handler: Callable[[Any], None], event: Any) -> None:
+        try:
+            handler(event)
+        except Exception as exc:
+            logger.exception("Async event handler failed for event_type=%s: %s", event_type, exc)

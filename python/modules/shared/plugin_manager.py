@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Dict, Protocol
@@ -20,8 +20,25 @@ class PluginLifecycleEvent:
     payload: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class PluginPermissions:
+    filesystem_read: bool = False
+    filesystem_write: bool = False
+    network_access: bool = False
+    spawn_process: bool = False
+
+    def allows(self, requested: "PluginPermissions") -> bool:
+        return (
+            (not requested.filesystem_read or self.filesystem_read)
+            and (not requested.filesystem_write or self.filesystem_write)
+            and (not requested.network_access or self.network_access)
+            and (not requested.spawn_process or self.spawn_process)
+        )
+
+
 class Plugin(Protocol):
     name: str
+    permissions: PluginPermissions
 
     def setup(self, ctx: RuntimeContext) -> None:
         ...
@@ -117,9 +134,15 @@ class _LoadedPlugin:
 class PluginManager:
     """Loads and manages hot-swappable runtime plugins from python/plugins."""
 
-    def __init__(self, ctx: RuntimeContext, plugin_dir: Path | None = None):
+    def __init__(
+        self,
+        ctx: RuntimeContext,
+        plugin_dir: Path | None = None,
+        allowed_permissions: PluginPermissions | None = None,
+    ):
         self.ctx = ctx
         self.plugin_dir = plugin_dir or (ctx.root / "python" / "plugins")
+        self.allowed_permissions = allowed_permissions or PluginPermissions(filesystem_read=True)
         self._plugins: Dict[str, _LoadedPlugin] = {}
 
     def discover(self) -> list[Path]:
@@ -146,6 +169,16 @@ class PluginManager:
         if plugin.name in self._plugins:
             raise KeyError(f"Plugin already loaded: {plugin.name}")
 
+        requested_permissions = self._extract_permissions(plugin)
+        if not self.allowed_permissions.allows(requested_permissions):
+            error = (
+                f"Plugin '{plugin.name}' requests permissions {requested_permissions} "
+                f"outside allowed policy {self.allowed_permissions}"
+            )
+            self.ctx.event_bus.publish(PluginLifecycleEvent("plugin_permission_denied", {"name": plugin.name, "error": error}))
+            logger.error(error)
+            return None
+
         plugin_ctx = PluginRuntimeContext(self.ctx, plugin.name)
         try:
             plugin.setup(plugin_ctx)  # type: ignore[arg-type]
@@ -163,7 +196,9 @@ class PluginManager:
             source_path=source_path or self.plugin_dir,
             ctx_proxy=plugin_ctx,
         )
-        self.ctx.event_bus.publish(PluginLifecycleEvent("plugin_loaded", {"name": plugin.name}))
+        self.ctx.event_bus.publish(
+            PluginLifecycleEvent("plugin_loaded", {"name": plugin.name, "permissions": requested_permissions.__dict__})
+        )
         return plugin.name
 
     def unload(self, plugin_name: str) -> None:
@@ -201,6 +236,15 @@ class PluginManager:
 
     def list_loaded(self) -> list[str]:
         return sorted(self._plugins.keys())
+
+    @staticmethod
+    def _extract_permissions(plugin: Plugin) -> PluginPermissions:
+        permissions = getattr(plugin, "permissions", None)
+        if permissions is None:
+            return PluginPermissions()
+        if isinstance(permissions, PluginPermissions):
+            return permissions
+        raise TypeError("Plugin.permissions must be PluginPermissions")
 
     @staticmethod
     def _extract_plugin(module: ModuleType) -> Plugin:

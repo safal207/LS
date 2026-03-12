@@ -19,12 +19,20 @@ class MonitorAlert:
 class MonitorService:
     """Centralized runtime metrics with lightweight alert subscriptions."""
 
-    def __init__(self, ctx: RuntimeContext, queue_names: list[str] | None = None):
+    def __init__(
+        self,
+        ctx: RuntimeContext,
+        queue_names: list[str] | None = None,
+        resource_cache_ttl_s: float = 1.0,
+    ):
         self.ctx = ctx
         self.queue_names = queue_names or ["llm_queue", "ui_queue", "audio_queue"]
+        self.resource_cache_ttl_s = resource_cache_ttl_s
         self._alert_handlers: dict[str, list[Callable[[MonitorAlert], None]]] = defaultdict(list)
         self._queue_last_seen: dict[str, tuple[float, int]] = {}
         self._latencies: dict[str, list[float]] = defaultdict(list)
+        self._resource_cache: dict[str, Any] | None = None
+        self._resource_cache_ts = 0.0
         self.ctx.event_bus.subscribe("plugin_failed", self._on_plugin_failure)
         self.ctx.event_bus.subscribe("plugin_load_failed", self._on_plugin_failure)
         self.ctx.event_bus.subscribe("plugin_shutdown_failed", self._on_plugin_failure)
@@ -79,9 +87,13 @@ class MonitorService:
         return stats
 
     def get_resource_usage(self) -> dict[str, Any]:
+        now = time.monotonic()
+        if self._resource_cache and (now - self._resource_cache_ts) < self.resource_cache_ttl_s:
+            return dict(self._resource_cache)
+
         virtual_mem = psutil.virtual_memory()
         disk = psutil.disk_usage("/")
-        return {
+        self._resource_cache = {
             "cpu_percent": psutil.cpu_percent(interval=None),
             "memory_percent": virtual_mem.percent,
             "memory_used": virtual_mem.used,
@@ -90,6 +102,8 @@ class MonitorService:
             "disk_used": disk.used,
             "disk_total": disk.total,
         }
+        self._resource_cache_ts = now
+        return dict(self._resource_cache)
 
     def get_event_bus_stats(self) -> dict[str, Any]:
         return {

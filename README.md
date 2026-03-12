@@ -408,6 +408,7 @@ class Plugin:
   - `reload(name)` — безопасно перезагружает плагин на лету.
   - `unload(name)` — выгружает плагин и очищает его сервисы/подписки.
 - Изоляция: ошибки плагина не останавливают агент; публикуются lifecycle-события `plugin_failed`, `plugin_load_failed`, `plugin_shutdown_failed`.
+- Права плагинов: `PluginPermissions` (filesystem/network/process) с deny-by-default политикой в `PluginManager`.
 
 Пример:
 
@@ -443,3 +444,15 @@ monitor = ctx.services.get("monitor")
 stats = monitor.snapshot()
 print(stats["queues"], stats["resources"], stats["event_bus"])
 ```
+
+
+CLI-утилита для операционного управления плагинами:
+
+```bash
+python apps/console/plugins_cli.py list
+python apps/console/plugins_cli.py load --path python/plugins/echo_plugin.py
+python apps/console/plugins_cli.py reload echo_plugin
+python apps/console/plugins_cli.py unload echo_plugin
+```
+
+`EventBus` также поддерживает неблокирующий dispatch через `publish_async(event)`.

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from modules.shared.plugin_manager import PluginPermissions
+
 
 @dataclass
 class _EchoEvent:
@@ -11,6 +13,7 @@ class _EchoEvent:
 
 class EchoPlugin:
     name = "echo_plugin"
+    permissions = PluginPermissions()
 
     def __init__(self):
         self._handler = None

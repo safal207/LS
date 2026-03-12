@@ -161,3 +161,16 @@ def test_event_bus_subscriber_count_and_snapshot():
     assert bus.subscriber_count("a") == 2
     assert bus.subscriber_count() == 3
     assert bus.subscriber_snapshot() == {"a": 2, "b": 1}
+
+
+def test_event_bus_publish_async():
+    bus = EventBus()
+    events = []
+
+    bus.subscribe("output_ready", lambda e: events.append(e.payload["text"]))
+    futures = bus.publish_async(_Event("output_ready", payload={"text": "async-ok"}))
+
+    for future in futures:
+        future.result(timeout=2)
+
+    assert events == ["async-ok"]
