@@ -5,28 +5,16 @@ Audio capture -> STT -> LLM -> Console output
 """
 
 from pathlib import Path
-import os
 import sys
 
-# Добавляем корневой python/ в sys.path, чтобы все относительные импорты работали
-# независимо от того, откуда запускается скрипт (из apps/, из корня, из IDE и т.д.)
+# Минимальный bootstrap path для импорта shared.bootstrap.
 PYTHON_ROOT = Path(__file__).resolve().parents[2] / "python"
 if str(PYTHON_ROOT) not in sys.path:
     sys.path.insert(0, str(PYTHON_ROOT))
 
-MODULES_ROOT = PYTHON_ROOT / "modules"
-if str(MODULES_ROOT) not in sys.path:
-    sys.path.insert(0, str(MODULES_ROOT))
+from modules.shared.bootstrap import bootstrap_app
 
-
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from modules.shared.config_loader import load_config
-
-os.environ.setdefault("LS_APP", "console")
-cfg = load_config("console")
+cfg = bootstrap_app(__file__, "console")
 
 
 import threading
