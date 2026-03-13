@@ -14,6 +14,7 @@ from ls.cognition.motivation_engine import (
 from ls.cognition.need_market_engine import Capability, GoalContract, NeedMarketEngine
 from ls.cognition.capability_calibration_engine import CapabilityCalibrationEngine
 from ls.cognition.strategy_synergy_engine import CapabilitySet, StrategyIdea, StrategySynergyEngine
+from ls.cognition.agent_identity import AgentIdentity
 
 __all__ = [
     "MemoryGraph",
@@ -36,4 +37,5 @@ __all__ = [
     "CapabilitySet",
     "StrategyIdea",
     "StrategySynergyEngine",
+    "AgentIdentity",
 ]

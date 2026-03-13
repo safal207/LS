@@ -8,6 +8,7 @@ from ls.memory.edge import MemoryEdge
 from ls.memory.memory_graph import MemoryGraph
 
 if TYPE_CHECKING:
+    from ls.cognition.agent_identity import AgentIdentity
     from ls.cognition.need_market_engine import Capability, GoalContract
 
 
@@ -99,11 +100,13 @@ class MotivationEngine:
         executor: ActionExecutor,
         regulation_engine: EmotionRegulationEngine | None = None,
         initial_emotional_state: EmotionalState | None = None,
+        identity: AgentIdentity | None = None,
     ):
         self.memory_graph = memory_graph
         self.executor = executor
         self.regulation_engine = regulation_engine or EmotionRegulationEngine()
         self.emotional_state = initial_emotional_state or EmotionalState()
+        self.identity = identity
 
     def run_cycle(
         self,
@@ -145,6 +148,7 @@ class MotivationEngine:
                 self.memory_graph.add_edge(MemoryEdge(action_node_id, outcome_node.node_id, "leads_to", 1.0))
                 self.reflect(outcome, goal, need_node_ids, outcome_node.node_id)
 
+        self._update_identity_from_outcomes(goals, outcomes)
         self.emotional_state = self.regulation_engine.update(cycle_emotional_state, outcomes)
         return outcomes
 
@@ -170,7 +174,7 @@ class MotivationEngine:
                 need = needs_index.get(contract.need_id)
                 if need is None:
                     continue
-                emotional_weight = self._stress_weight_for_need(need, stress)
+                emotional_weight = self._stress_weight_for_need(need, stress, self.identity)
                 priority = self._effective_contract_priority(need, contract.expected_effect, contract.cost, emotional_weight)
                 goal = AgentGoal(
                     id=f"goal-{contract.id}",
@@ -193,7 +197,7 @@ class MotivationEngine:
                 linked_needs=[need],
                 priority=self._effective_priority(need, stress),
                 base_priority=need.intensity * (1.0 - need.satisfaction),
-                emotional_weight=self._stress_weight_for_need(need, stress),
+                emotional_weight=self._stress_weight_for_need(need, stress, self.identity),
             )
             for need in ranked[:max_goals]
         ]
@@ -209,10 +213,9 @@ class MotivationEngine:
         adjusted_effect = expected_effect * emotional_weight
         return (need.intensity * adjusted_effect) - cost
 
-    @staticmethod
-    def _effective_priority(need: AgentNeed, stress: float) -> float:
+    def _effective_priority(self, need: AgentNeed, stress: float) -> float:
         base_priority = need.intensity * (1.0 - need.satisfaction)
-        return base_priority * MotivationEngine._stress_weight_for_need(need, stress)
+        return base_priority * self._stress_weight_for_need(need, stress, self.identity)
 
     @staticmethod
     def _infer_category(need: AgentNeed) -> NeedCategory:
@@ -228,13 +231,17 @@ class MotivationEngine:
         return NeedCategory.NEUTRAL
 
     @staticmethod
-    def _stress_weight_for_need(need: AgentNeed, stress: float) -> float:
+    def _stress_weight_for_need(need: AgentNeed, stress: float, identity: AgentIdentity | None) -> float:
         category = need.category if need.category != NeedCategory.NEUTRAL else MotivationEngine._infer_category(need)
         if category == NeedCategory.SURVIVAL:
-            return 1.0 + (0.8 * stress)
-        if category in {NeedCategory.LEARNING, NeedCategory.SOCIAL, NeedCategory.CREATIVE}:
-            return 1.0 - (0.5 * stress)
-        return 1.0
+            base_weight = 1.0 + (0.8 * stress)
+        elif category in {NeedCategory.LEARNING, NeedCategory.SOCIAL, NeedCategory.CREATIVE}:
+            base_weight = 1.0 - (0.5 * stress)
+        else:
+            base_weight = 1.0
+
+        identity_alignment = identity.value_for(category) if identity else 1.0
+        return base_weight * identity_alignment
 
     @staticmethod
     def build_strategy(goal: AgentGoal) -> Strategy:
@@ -271,6 +278,8 @@ class MotivationEngine:
         contract: "GoalContract" | None,
         emotion_node_id: str,
     ) -> tuple[Strategy, str, list[str]]:
+        need_node_ids, goal_node_id = self._link_need_to_goal(goal, emotion_node_id)
+
         if contract is not None:
             from ls.cognition.need_market_engine import NeedMarketEngine
 
@@ -297,11 +306,11 @@ class MotivationEngine:
                     },
                 )
                 self.memory_graph.add_edge(MemoryEdge(fallback_contract.node_id, strategy_node.node_id, "produces", contract.priority))
+            self.memory_graph.add_edge(MemoryEdge(goal_node_id, strategy_node.node_id, "produces", goal.priority))
             self.memory_graph.add_edge(MemoryEdge(emotion_node_id, strategy_node.node_id, "modulates", 1.0))
-            return strategy, strategy_node.node_id, self._find_need_nodes(goal)
+            return strategy, strategy_node.node_id, need_node_ids
 
         strategy = self.build_strategy(goal)
-        need_node_ids, goal_node_id = self._link_need_to_goal(goal, emotion_node_id)
         strategy_node = self.memory_graph.add_node(node_type="strategy", content={"goal_id": goal.id, "steps": strategy.steps})
         self.memory_graph.add_edge(MemoryEdge(goal_node_id, strategy_node.node_id, "produces", goal.priority))
         return strategy, strategy_node.node_id, need_node_ids
@@ -330,6 +339,7 @@ class MotivationEngine:
                 "priority": goal.priority,
                 "base_priority": goal.base_priority,
                 "emotional_weight": goal.emotional_weight,
+                "identity_alignment": self._identity_alignment(goal),
             },
         )
         self.memory_graph.add_edge(MemoryEdge(emotion_node_id, goal_node.node_id, "influences", goal.emotional_weight))
@@ -350,6 +360,31 @@ class MotivationEngine:
             self.memory_graph.add_edge(MemoryEdge(need_node.node_id, goal_node.node_id, "generates", goal.priority))
 
         return need_node_ids, goal_node.node_id
+
+    def _identity_alignment(self, goal: AgentGoal) -> float:
+        if not self.identity or not goal.linked_needs:
+            return 1.0
+        alignments = [
+            self.identity.value_for(need.category if need.category != NeedCategory.NEUTRAL else self._infer_category(need))
+            for need in goal.linked_needs
+        ]
+        return sum(alignments) / len(alignments)
+
+    def _update_identity_from_outcomes(self, goals: list[AgentGoal], outcomes: list[ActionOutcome]) -> None:
+        if not self.identity or not goals or not outcomes:
+            return
+        total_effect = sum(max(outcome.effect, 0.0) for outcome in outcomes)
+        avg_effect = total_effect / len(outcomes)
+        success = sum(1 for outcome in outcomes if outcome.success) >= (len(outcomes) / 2)
+
+        category_effects: dict[NeedCategory, float] = {}
+        for goal in goals:
+            for need in goal.linked_needs:
+                category = need.category if need.category != NeedCategory.NEUTRAL else self._infer_category(need)
+                category_effects[category] = category_effects.get(category, 0.0) + avg_effect
+
+        for category, effect in category_effects.items():
+            self.identity.update(category, effect, success)
 
     def _find_need_nodes(self, goal: AgentGoal) -> list[str]:
         return [
