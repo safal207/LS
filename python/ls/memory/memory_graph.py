@@ -38,6 +38,21 @@ class MemoryGraph:
     def get_node(self, node_id: str) -> MemoryNode | None:
         return self._nodes.get(node_id)
 
+    def find_nodes(self, *, node_type: str | None = None, content_key: str | None = None, content_value: Any | None = None) -> list[MemoryNode]:
+        # TODO: add internal indexes by node_type/content keys for large graphs.
+        out: list[MemoryNode] = []
+        for node in self._nodes.values():
+            if node_type is not None and node.node_type != node_type:
+                continue
+            if content_key is not None and node.content.get(content_key) != content_value:
+                continue
+            out.append(node)
+        return out
+
+    def find_first_node(self, *, node_type: str | None = None, content_key: str | None = None, content_value: Any | None = None) -> MemoryNode | None:
+        matches = self.find_nodes(node_type=node_type, content_key=content_key, content_value=content_value)
+        return matches[0] if matches else None
+
     def get_neighbors(self, node_id: str, relation: str | None = None) -> list[MemoryNode]:
         out: list[MemoryNode] = []
         for edge in self._adj.get(node_id, []):
