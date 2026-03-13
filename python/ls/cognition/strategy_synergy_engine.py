@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class CapabilitySet:
-    capabilities: list["Capability"]
+    capabilities: tuple["Capability", ...]
     synergy_score: float
 
 
@@ -67,9 +67,10 @@ class StrategySynergyEngine:
         synergy_bonus = self.synergy_factor * len(capabilities)
         cost_sum = sum(cap.cost for cap in capabilities)
         score = need.intensity * (effectiveness_sum + synergy_bonus) - cost_sum
+        # Normalize by set size so larger capability sets do not dominate purely by count.
         expected_effect = min(1.0, (effectiveness_sum + synergy_bonus) / max(len(capabilities), 1))
 
-        capability_set = CapabilitySet(capabilities=capabilities, synergy_score=effectiveness_sum + synergy_bonus)
+        capability_set = CapabilitySet(capabilities=tuple(capabilities), synergy_score=effectiveness_sum + synergy_bonus)
         caps_suffix = "-".join(cap.id for cap in capabilities)
         return StrategyIdea(
             id=f"idea-{need.id}-{caps_suffix}",
@@ -115,16 +116,13 @@ class StrategySynergyEngine:
 
     def _find_or_create_need_nodes(self, needs: list["AgentNeed"]) -> dict[str, str]:
         mapping: dict[str, str] = {}
-        for node in self.memory_graph.nodes.values():
-            if node.node_type != "need":
-                continue
-            nid = node.content.get("need_id")
-            if isinstance(nid, str):
-                mapping[nid] = node.node_id
 
         for need in needs:
-            if need.id in mapping:
+            existing = self.memory_graph.find_first_node(node_type="need", content_key="need_id", content_value=need.id)
+            if existing is not None:
+                mapping[need.id] = existing.node_id
                 continue
+
             node = self.memory_graph.add_node(
                 node_type="need",
                 content={

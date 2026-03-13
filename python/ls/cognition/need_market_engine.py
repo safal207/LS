@@ -23,13 +23,16 @@ class Capability:
 class GoalContract:
     id: str
     need_id: str
-    capability_id: str
     expected_effect: float
     cost: float
     priority: float
-    capability_ids: list[str]
+    capability_ids: tuple[str, ...]
     strategy_idea_id: str
     contract_node_id: str | None = None
+
+    @property
+    def capability_id(self) -> str:
+        return self.capability_ids[0]
 
 
 class NeedMarketEngine:
@@ -49,7 +52,7 @@ class NeedMarketEngine:
             if best_idea is None:
                 continue
 
-            capability_ids = [cap.id for cap in best_idea.capability_set.capabilities]
+            capability_ids = tuple(cap.id for cap in best_idea.capability_set.capabilities)
             if not capability_ids:
                 continue
 
@@ -60,7 +63,6 @@ class NeedMarketEngine:
             base_contract = GoalContract(
                 id=f"contract-{need.id}-{'-'.join(capability_ids)}",
                 need_id=need.id,
-                capability_id=capability_ids[0],
                 expected_effect=best_idea.expected_effect,
                 cost=cost_sum,
                 priority=priority,
@@ -72,7 +74,6 @@ class NeedMarketEngine:
                 GoalContract(
                     id=base_contract.id,
                     need_id=base_contract.need_id,
-                    capability_id=base_contract.capability_id,
                     expected_effect=base_contract.expected_effect,
                     cost=base_contract.cost,
                     priority=base_contract.priority,
@@ -87,6 +88,7 @@ class NeedMarketEngine:
 
     @staticmethod
     def build_strategy(contract: GoalContract, goal: "AgentGoal") -> "Strategy":
+        """Build a capability-aware strategy; TODO: replace with richer planning policy."""
         from ls.cognition.motivation_engine import Strategy
 
         steps = [f"assess_need:{contract.need_id}"]
@@ -105,7 +107,7 @@ class NeedMarketEngine:
                 "contract_id": contract.id,
                 "need_id": contract.need_id,
                 "capability_id": contract.capability_id,
-                "capability_ids": contract.capability_ids,
+                "capability_ids": list(contract.capability_ids),
                 "strategy_idea_id": contract.strategy_idea_id,
                 "expected_effect": contract.expected_effect,
                 "cost": contract.cost,
@@ -120,7 +122,5 @@ class NeedMarketEngine:
         return contract_node.node_id
 
     def _find_strategy_idea_node(self, strategy_idea_id: str) -> str | None:
-        for node in self.memory_graph.nodes.values():
-            if node.node_type == "strategy_idea" and node.content.get("idea_id") == strategy_idea_id:
-                return node.node_id
-        return None
+        node = self.memory_graph.find_first_node(node_type="strategy_idea", content_key="idea_id", content_value=strategy_idea_id)
+        return node.node_id if node else None

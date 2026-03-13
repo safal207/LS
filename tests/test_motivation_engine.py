@@ -42,3 +42,15 @@ def test_motivation_engine_cycle_updates_needs_and_memory_graph_chain():
     assert ("executes", "strategy", "action") in relations
     assert ("leads_to", "action", "outcome") in relations
     assert ("updates", "outcome", "reflection") in relations
+
+
+def test_motivation_engine_reuses_need_nodes_across_cycles():
+    graph = MemoryGraph()
+    engine = MotivationEngine(graph, _Executor())
+    need = AgentNeed(id="energy", description="energy restoration", intensity=0.6, satisfaction=0.3)
+
+    engine.run_cycle([need], max_goals=1)
+    engine.run_cycle([need], max_goals=1)
+
+    need_nodes = [n for n in graph.nodes.values() if n.node_type == "need" and n.content.get("need_id") == "energy"]
+    assert len(need_nodes) == 1

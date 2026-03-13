@@ -129,6 +129,7 @@ class MotivationEngine:
 
     @staticmethod
     def build_strategy(goal: AgentGoal) -> Strategy:
+        """Baseline fallback strategy; TODO: replace with richer planning policy."""
         return Strategy(goal=goal, steps=[f"assess:{goal.id}", f"execute:{goal.id}", f"verify:{goal.id}"])
 
     def reflect(self, outcome: ActionOutcome, goal: AgentGoal, need_node_ids: list[str], outcome_node_id: str) -> None:
@@ -154,7 +155,6 @@ class MotivationEngine:
                 node = self.memory_graph.get_node(node_id)
                 if node and node.content.get("need_id") == need.id:
                     self.memory_graph.add_edge(MemoryEdge(reflection_node.node_id, node_id, "updates", 1.0))
-                    self.memory_graph.add_edge(MemoryEdge(outcome_node_id, node_id, "updates", 1.0))
 
     def _prepare_strategy_and_links(self, goal: AgentGoal, contract: "GoalContract" | None) -> tuple[Strategy, str, list[str]]:
         if contract is not None:
@@ -175,7 +175,7 @@ class MotivationEngine:
                         "contract_id": contract.id,
                         "need_id": contract.need_id,
                         "capability_id": contract.capability_id,
-                        "capability_ids": contract.capability_ids,
+                        "capability_ids": list(contract.capability_ids),
                         "strategy_idea_id": contract.strategy_idea_id,
                         "expected_effect": contract.expected_effect,
                         "cost": contract.cost,
@@ -204,7 +204,8 @@ class MotivationEngine:
         )
 
         for need in goal.linked_needs:
-            need_node = self.memory_graph.add_node(
+            existing_need = self.memory_graph.find_first_node(node_type="need", content_key="need_id", content_value=need.id)
+            need_node = existing_need or self.memory_graph.add_node(
                 node_type="need",
                 content={
                     "need_id": need.id,
@@ -219,11 +220,10 @@ class MotivationEngine:
         return need_node_ids, goal_node.node_id
 
     def _find_need_nodes(self, goal: AgentGoal) -> list[str]:
-        need_ids = {need.id for need in goal.linked_needs}
         return [
             node.node_id
-            for node in self.memory_graph.nodes.values()
-            if node.node_type == "need" and node.content.get("need_id") in need_ids
+            for need in goal.linked_needs
+            for node in self.memory_graph.find_nodes(node_type="need", content_key="need_id", content_value=need.id)
         ]
 
 

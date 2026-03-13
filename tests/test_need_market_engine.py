@@ -49,4 +49,5 @@ def test_need_market_chain_is_recorded_in_memory_graph_and_motivation_cycle():
     assert ("produces", "goal_contract", "strategy") in relations
     assert ("executes", "strategy", "action") in relations
     assert ("leads_to", "action", "outcome") in relations
-    assert ("updates", "outcome", "need") in relations
+    assert ("updates", "outcome", "reflection") in relations
+    assert ("updates", "reflection", "need") in relations
