@@ -381,6 +381,7 @@ class MotivationEngine:
         if len(goals) < 2:
             return goals
 
+        goal_categories = self._goal_categories_map(goals)
         scored: list[tuple[float, AgentGoal]] = []
         for goal in goals:
             alternatives = [candidate for candidate in goals if candidate.id != goal.id]
@@ -391,11 +392,25 @@ class MotivationEngine:
                 goal_completion=0.0,
             )
             simulations = self.counterfactual_engine.evaluate(state, goal, alternatives)
-            potential_gain = max((item.predicted_effect - goal.priority for item in simulations), default=0.0)
-            score = goal.priority + max(potential_gain, 0.0) * 0.1
+            synergy_bonus = sum(
+                simulation.category_effects.get(category.value, 0.0)
+                for simulation in simulations
+                for category in goal_categories.get(goal.id, set())
+            )
+            score = goal.priority + (synergy_bonus * 0.15)
             scored.append((score, goal))
 
         return [goal for _, goal in sorted(scored, key=lambda item: item[0], reverse=True)]
+
+    def _goal_categories_map(self, goals: list[AgentGoal]) -> dict[str, set[NeedCategory]]:
+        goal_categories: dict[str, set[NeedCategory]] = {}
+        for goal in goals:
+            categories: set[NeedCategory] = set()
+            for need in goal.linked_needs:
+                category = need.category if need.category != NeedCategory.NEUTRAL else self._infer_category(need)
+                categories.add(category)
+            goal_categories[goal.id] = categories
+        return goal_categories
 
     def _identity_alignment(self, goal: AgentGoal) -> float:
         if not self.identity or not goal.linked_needs:
@@ -420,15 +435,7 @@ class MotivationEngine:
         baseline = 0.0
         report: list[dict[str, float | str]] = []
 
-        goal_categories: dict[str, set[NeedCategory]] = {}
-        category_to_goals: dict[NeedCategory, list[AgentGoal]] = {}
-        for goal in goals:
-            categories: set[NeedCategory] = set()
-            for need in goal.linked_needs:
-                category = need.category if need.category != NeedCategory.NEUTRAL else self._infer_category(need)
-                categories.add(category)
-                category_to_goals.setdefault(category, []).append(goal)
-            goal_categories[goal.id] = categories
+        goal_categories = self._goal_categories_map(goals)
 
         for goal in goals:
             linked_outcomes = goal_outcomes.get(goal.id, [])
@@ -437,38 +444,45 @@ class MotivationEngine:
             real_effect = sum((max(outcome.effect, 0.0) if outcome.success else -max(outcome.effect, 0.0)) for outcome in linked_outcomes) / len(linked_outcomes)
             for category in goal_categories.get(goal.id, set()):
                 self.identity.update_real(category, real_effect, baseline=baseline)
-                report.append({
-                    "mode": "real",
-                    "goal_id": goal.id,
-                    "category": category.value,
-                    "effect": real_effect,
-                })
+                report.append(
+                    {
+                        "mode": "real",
+                        "goal_id": goal.id,
+                        "category": category.value,
+                        "effect": real_effect,
+                    }
+                )
 
-        for category, category_goals in category_to_goals.items():
-            if len(category_goals) < 2:
+        for goal in goals:
+            alternatives = [candidate for candidate in goals if candidate.id != goal.id]
+            if not alternatives:
                 continue
-            best_goal = max(category_goals, key=lambda goal: goal.priority)
-            alternatives = [goal for goal in category_goals if goal.id != best_goal.id]
             state = AgentState(
-                goal=best_goal.id,
+                goal=goal.id,
                 context={
                     "stress": emotional_state.normalized_stress(),
                     "need_count": len(needs),
-                    "category": category.value,
                 },
                 progress_score=0.0,
                 goal_completion=0.0,
             )
-            simulations = self.counterfactual_engine.evaluate(state, best_goal, alternatives)
+            simulations = self.counterfactual_engine.evaluate(state, goal, alternatives)
             for simulation in simulations:
-                self.identity.update_simulated(category, simulation.predicted_effect, baseline=baseline)
-                report.append({
-                    "mode": "simulated",
-                    "goal_id": simulation.goal_id,
-                    "category": category.value,
-                    "effect": simulation.predicted_effect,
-                    "cost": simulation.predicted_cost,
-                })
+                for category_name, category_effect in simulation.category_effects.items():
+                    try:
+                        category = NeedCategory(category_name)
+                    except ValueError:
+                        continue
+                    self.identity.update_simulated(category, category_effect, baseline=baseline)
+                    report.append(
+                        {
+                            "mode": "simulated",
+                            "goal_id": simulation.goal_id,
+                            "category": category_name,
+                            "effect": category_effect,
+                            "cost": simulation.predicted_cost,
+                        }
+                    )
 
         self._last_identity_update_report = report
 
