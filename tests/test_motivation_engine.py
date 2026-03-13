@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from ls.cognition.motivation_engine import ActionOutcome, AgentNeed, MotivationEngine
+import pytest
+
+from ls.cognition.motivation_engine import (
+    ActionOutcome,
+    AgentNeed,
+    EmotionalState,
+    MotivationEngine,
+    NeedCategory,
+)
 from ls.memory.memory_graph import MemoryGraph
 
 
@@ -9,6 +17,11 @@ class _Executor:
         if step.startswith("execute") or "apply_capability" in step:
             return ActionOutcome(success=True, effect=0.2, details="ok")
         return ActionOutcome(success=True, effect=0.05, details="minor")
+
+
+class _FailingExecutor:
+    def execute(self, step: str, goal):
+        return ActionOutcome(success=False, effect=0.4, details="failed")
 
 
 def test_motivation_engine_generates_goals_from_needs_priority():
@@ -38,6 +51,7 @@ def test_motivation_engine_cycle_updates_needs_and_memory_graph_chain():
 
     relations = {(edge.relation, graph.get_node(edge.source).node_type, graph.get_node(edge.target).node_type) for edge in graph.edges}
     assert ("generates", "need", "goal") in relations
+    assert ("influences", "emotional_state", "goal") in relations
     assert ("produces", "goal", "strategy") in relations
     assert ("executes", "strategy", "action") in relations
     assert ("leads_to", "action", "outcome") in relations
@@ -54,3 +68,57 @@ def test_motivation_engine_reuses_need_nodes_across_cycles():
 
     need_nodes = [n for n in graph.nodes.values() if n.node_type == "need" and n.content.get("need_id") == "energy"]
     assert len(need_nodes) == 1
+
+
+def test_motivation_engine_emotional_weight_raises_safety_priority_under_stress():
+    engine = MotivationEngine(MemoryGraph(), _Executor())
+    needs = [
+        AgentNeed(id="learning", description="learning", intensity=0.8, satisfaction=0.1, category=NeedCategory.LEARNING),
+        AgentNeed(id="safety", description="safety", intensity=0.6, satisfaction=0.1, category=NeedCategory.SURVIVAL),
+    ]
+
+    calm_goals, _ = engine.generate_goals(needs, emotional_state=EmotionalState(stress=0.0))
+    stressed_goals, _ = engine.generate_goals(needs, emotional_state=EmotionalState(stress=0.9))
+
+    assert calm_goals[0].id == "goal-learning"
+    assert stressed_goals[0].id == "goal-safety"
+
+
+def test_motivation_engine_uses_category_not_keyword_matching_only():
+    engine = MotivationEngine(MemoryGraph(), _Executor())
+    needs = [
+        AgentNeed(id="n1", description="alpha", intensity=0.7, satisfaction=0.1, category=NeedCategory.LEARNING),
+        AgentNeed(id="n2", description="beta", intensity=0.55, satisfaction=0.1, category=NeedCategory.SURVIVAL),
+    ]
+
+    stressed_goals, _ = engine.generate_goals(needs, emotional_state=EmotionalState(stress=1.0))
+    assert stressed_goals[0].id == "goal-n2"
+
+
+def test_motivation_engine_persists_emotion_and_weight_in_memory_graph():
+    graph = MemoryGraph()
+    engine = MotivationEngine(graph, _Executor())
+    need = AgentNeed(id="safety", description="safety", intensity=0.6, satisfaction=0.1, category=NeedCategory.SURVIVAL)
+
+    engine.run_cycle([need], max_goals=1, emotional_state=EmotionalState(stress=1.0))
+
+    emotion_nodes = [node for node in graph.nodes.values() if node.node_type == "emotional_state"]
+    assert len(emotion_nodes) == 1
+    assert emotion_nodes[0].content["stress"] == pytest.approx(1.0)
+
+    goal_nodes = [node for node in graph.nodes.values() if node.node_type == "goal" and node.content.get("goal_id") == "goal-safety"]
+    assert len(goal_nodes) == 1
+    goal_content = goal_nodes[0].content
+    assert goal_content["base_priority"] == pytest.approx(0.6175)
+    assert goal_content["emotional_weight"] == pytest.approx(1.8)
+    assert goal_content["priority"] == pytest.approx(1.1115)
+
+
+def test_motivation_engine_updates_internal_stress_from_outcomes():
+    graph = MemoryGraph()
+    engine = MotivationEngine(graph, _FailingExecutor(), initial_emotional_state=EmotionalState(stress=0.0))
+    need = AgentNeed(id="safety", description="safety", intensity=0.6, satisfaction=0.1, category=NeedCategory.SURVIVAL)
+
+    engine.run_cycle([need], max_goals=1)
+
+    assert 0.0 < engine.emotional_state.stress <= 1.0
