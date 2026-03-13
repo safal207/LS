@@ -111,6 +111,7 @@ class MotivationEngine:
         self.emotional_state = initial_emotional_state or EmotionalState()
         self.identity = identity
         self.counterfactual_engine = CounterfactualEngine()
+        self._last_identity_update_report: list[dict[str, float | str]] = []
 
     def run_cycle(
         self,
@@ -132,7 +133,9 @@ class MotivationEngine:
             capabilities=capabilities,
             emotional_state=cycle_emotional_state,
         )
+        goals = self._rank_goals_with_counterfactual_potential(goals, cycle_emotional_state)
         outcomes: list[ActionOutcome] = []
+        goal_outcomes: dict[str, list[ActionOutcome]] = {goal.id: [] for goal in goals}
 
         for goal in goals:
             strategy, strategy_node_id, need_node_ids = self._prepare_strategy_and_links(
@@ -144,6 +147,7 @@ class MotivationEngine:
             for step in strategy.steps:
                 outcome, action_node_id = self._execute_step(goal, strategy_node_id, step)
                 outcomes.append(outcome)
+                goal_outcomes.setdefault(goal.id, []).append(outcome)
 
                 outcome_node = self.memory_graph.add_node(
                     node_type="outcome",
@@ -152,7 +156,7 @@ class MotivationEngine:
                 self.memory_graph.add_edge(MemoryEdge(action_node_id, outcome_node.node_id, "leads_to", 1.0))
                 self.reflect(outcome, goal, need_node_ids, outcome_node.node_id)
 
-        self._update_identity_from_outcomes(needs, goals, outcomes, cycle_emotional_state)
+        self._update_identity_from_outcomes(needs, goals, goal_outcomes, cycle_emotional_state)
         self.emotional_state = self.regulation_engine.update(cycle_emotional_state, outcomes)
         return outcomes
 
@@ -365,6 +369,34 @@ class MotivationEngine:
 
         return need_node_ids, goal_node.node_id
 
+    def identity_update_report(self) -> list[dict[str, float | str]]:
+        """Return the latest identity update trace for observability dashboards."""
+        return list(self._last_identity_update_report)
+
+    def _rank_goals_with_counterfactual_potential(
+        self,
+        goals: list[AgentGoal],
+        emotional_state: EmotionalState,
+    ) -> list[AgentGoal]:
+        if len(goals) < 2:
+            return goals
+
+        scored: list[tuple[float, AgentGoal]] = []
+        for goal in goals:
+            alternatives = [candidate for candidate in goals if candidate.id != goal.id]
+            state = AgentState(
+                goal=goal.id,
+                context={"stress": emotional_state.normalized_stress()},
+                progress_score=0.0,
+                goal_completion=0.0,
+            )
+            simulations = self.counterfactual_engine.evaluate(state, goal, alternatives)
+            potential_gain = max((item.predicted_effect - goal.priority for item in simulations), default=0.0)
+            score = goal.priority + max(potential_gain, 0.0) * 0.1
+            scored.append((score, goal))
+
+        return [goal for _, goal in sorted(scored, key=lambda item: item[0], reverse=True)]
+
     def _identity_alignment(self, goal: AgentGoal) -> float:
         if not self.identity or not goal.linked_needs:
             return 1.0
@@ -378,19 +410,15 @@ class MotivationEngine:
         self,
         needs: list[AgentNeed],
         goals: list[AgentGoal],
-        outcomes: list[ActionOutcome],
+        goal_outcomes: dict[str, list[ActionOutcome]],
         emotional_state: EmotionalState,
     ) -> None:
-        if not self.identity or not goals or not outcomes:
+        if not self.identity or not goals:
+            self._last_identity_update_report = []
             return
 
         baseline = 0.0
-        goal_count = len(goals)
-
-        goal_outcomes: dict[str, list[ActionOutcome]] = {}
-        for index, outcome in enumerate(outcomes):
-            goal = goals[min(index // 3, goal_count - 1)]
-            goal_outcomes.setdefault(goal.id, []).append(outcome)
+        report: list[dict[str, float | str]] = []
 
         goal_categories: dict[str, set[NeedCategory]] = {}
         category_to_goals: dict[NeedCategory, list[AgentGoal]] = {}
@@ -409,6 +437,12 @@ class MotivationEngine:
             real_effect = sum((max(outcome.effect, 0.0) if outcome.success else -max(outcome.effect, 0.0)) for outcome in linked_outcomes) / len(linked_outcomes)
             for category in goal_categories.get(goal.id, set()):
                 self.identity.update_real(category, real_effect, baseline=baseline)
+                report.append({
+                    "mode": "real",
+                    "goal_id": goal.id,
+                    "category": category.value,
+                    "effect": real_effect,
+                })
 
         for category, category_goals in category_to_goals.items():
             if len(category_goals) < 2:
@@ -428,6 +462,15 @@ class MotivationEngine:
             simulations = self.counterfactual_engine.evaluate(state, best_goal, alternatives)
             for simulation in simulations:
                 self.identity.update_simulated(category, simulation.predicted_effect, baseline=baseline)
+                report.append({
+                    "mode": "simulated",
+                    "goal_id": simulation.goal_id,
+                    "category": category.value,
+                    "effect": simulation.predicted_effect,
+                    "cost": simulation.predicted_cost,
+                })
+
+        self._last_identity_update_report = report
 
 
     def _find_need_nodes(self, goal: AgentGoal) -> list[str]:

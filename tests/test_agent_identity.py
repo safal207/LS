@@ -150,3 +150,35 @@ def test_counterfactual_identity_update_shifts_value_toward_better_alternative()
     engine.run_cycle(needs, max_goals=2, emotional_state=EmotionalState(stress=0.1))
 
     assert identity.values[NeedCategory.SURVIVAL.value] > 0.6
+
+
+def test_identity_update_report_tracks_real_and_simulated_effects():
+    identity = AgentIdentity(id="report", values={NeedCategory.SURVIVAL.value: 0.6}, learning_rate=0.01)
+    engine = MotivationEngine(MemoryGraph(), _SuccessfulExecutor(), identity=identity)
+    needs = [
+        AgentNeed(id="safe-high", description="safety", intensity=0.9, satisfaction=0.0, category=NeedCategory.SURVIVAL),
+        AgentNeed(id="safe-low", description="safety", intensity=0.7, satisfaction=0.1, category=NeedCategory.SURVIVAL),
+    ]
+
+    engine.run_cycle(needs, max_goals=2, emotional_state=EmotionalState(stress=0.2))
+    report = engine.identity_update_report()
+
+    modes = {item["mode"] for item in report}
+    assert "real" in modes
+    assert "simulated" in modes
+
+
+def test_identity_updates_do_not_assume_three_steps_per_goal(monkeypatch):
+    identity = AgentIdentity(id="step-count", values={NeedCategory.SURVIVAL.value: 0.4}, learning_rate=0.01)
+    engine = MotivationEngine(MemoryGraph(), _SuccessfulExecutor(), identity=identity)
+
+    monkeypatch.setattr(MotivationEngine, "build_strategy", staticmethod(lambda goal: type("_S", (), {"goal": goal, "steps": [f"one:{goal.id}"]})()))
+
+    engine.run_cycle(
+        [
+            AgentNeed(id="safe", description="safety", intensity=0.8, satisfaction=0.1, category=NeedCategory.SURVIVAL),
+        ],
+        max_goals=1,
+    )
+
+    assert identity.values[NeedCategory.SURVIVAL.value] > 0.4
