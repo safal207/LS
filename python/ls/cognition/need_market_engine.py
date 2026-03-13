@@ -29,6 +29,7 @@ class GoalContract:
     priority: float
     capability_ids: list[str]
     strategy_idea_id: str
+    contract_node_id: str | None = None
 
 
 class NeedMarketEngine:
@@ -37,36 +38,49 @@ class NeedMarketEngine:
         self.synergy_engine = StrategySynergyEngine(memory_graph)
 
     def match(self, needs: list["AgentNeed"], capabilities: list[Capability], max_contracts: int = 3) -> list[GoalContract]:
-        contracts: list[GoalContract] = []
         if not capabilities:
-            return contracts
+            return []
 
         ideas_by_need = self.synergy_engine.generate_strategy_ideas(needs, capabilities, top_k=max_contracts)
+        contracts: list[GoalContract] = []
 
         for need in needs:
-            ideas = ideas_by_need.get(need.id, [])
-            if not ideas:
+            best_idea = self._best_idea_for_need(ideas_by_need.get(need.id, []))
+            if best_idea is None:
                 continue
 
-            best_idea = ideas[0]
             capability_ids = [cap.id for cap in best_idea.capability_set.capabilities]
+            if not capability_ids:
+                continue
+
             score = need.intensity * best_idea.expected_effect
             cost_sum = sum(cap.cost for cap in best_idea.capability_set.capabilities)
             priority = score - cost_sum
-            primary_capability_id = capability_ids[0]
 
-            contract = GoalContract(
+            base_contract = GoalContract(
                 id=f"contract-{need.id}-{'-'.join(capability_ids)}",
                 need_id=need.id,
-                capability_id=primary_capability_id,
+                capability_id=capability_ids[0],
                 expected_effect=best_idea.expected_effect,
                 cost=cost_sum,
                 priority=priority,
                 capability_ids=capability_ids,
                 strategy_idea_id=best_idea.id,
             )
-            contracts.append(contract)
-            self._record_contract_chain(contract)
+            contract_node_id = self._record_contract_chain(base_contract)
+            contracts.append(
+                GoalContract(
+                    id=base_contract.id,
+                    need_id=base_contract.need_id,
+                    capability_id=base_contract.capability_id,
+                    expected_effect=base_contract.expected_effect,
+                    cost=base_contract.cost,
+                    priority=base_contract.priority,
+                    capability_ids=base_contract.capability_ids,
+                    strategy_idea_id=base_contract.strategy_idea_id,
+                    contract_node_id=contract_node_id,
+                )
+            )
 
         contracts.sort(key=lambda item: item.priority, reverse=True)
         return contracts[:max_contracts]
@@ -80,7 +94,11 @@ class NeedMarketEngine:
         steps.append(f"verify_result:{goal.id}")
         return Strategy(goal=goal, steps=steps)
 
-    def _record_contract_chain(self, contract: GoalContract) -> None:
+    @staticmethod
+    def _best_idea_for_need(ideas):
+        return ideas[0] if ideas else None
+
+    def _record_contract_chain(self, contract: GoalContract) -> str:
         contract_node = self.memory_graph.add_node(
             node_type="goal_contract",
             content={
@@ -99,10 +117,10 @@ class NeedMarketEngine:
         if idea_node_id is not None:
             self.memory_graph.add_edge(MemoryEdge(idea_node_id, contract_node.node_id, "forms", contract.priority))
 
+        return contract_node.node_id
+
     def _find_strategy_idea_node(self, strategy_idea_id: str) -> str | None:
         for node in self.memory_graph.nodes.values():
-            if node.node_type != "strategy_idea":
-                continue
-            if node.content.get("idea_id") == strategy_idea_id:
+            if node.node_type == "strategy_idea" and node.content.get("idea_id") == strategy_idea_id:
                 return node.node_id
         return None

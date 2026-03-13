@@ -28,9 +28,10 @@ class StrategyIdea:
 
 
 class StrategySynergyEngine:
-    def __init__(self, memory_graph: MemoryGraph, max_combination_size: int = 3):
+    def __init__(self, memory_graph: MemoryGraph, max_combination_size: int = 3, synergy_factor: float = 0.1):
         self.memory_graph = memory_graph
         self.max_combination_size = max_combination_size
+        self.synergy_factor = synergy_factor
 
     def generate_strategy_ideas(
         self,
@@ -63,7 +64,7 @@ class StrategySynergyEngine:
 
     def _build_idea(self, need: "AgentNeed", capabilities: list["Capability"]) -> StrategyIdea:
         effectiveness_sum = sum(cap.effectiveness for cap in capabilities)
-        synergy_bonus = 0.1 * len(capabilities)
+        synergy_bonus = self.synergy_factor * len(capabilities)
         cost_sum = sum(cap.cost for cap in capabilities)
         score = need.intensity * (effectiveness_sum + synergy_bonus) - cost_sum
         expected_effect = min(1.0, (effectiveness_sum + synergy_bonus) / max(len(capabilities), 1))

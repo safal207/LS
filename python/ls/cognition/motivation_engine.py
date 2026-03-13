@@ -70,52 +70,17 @@ class MotivationEngine:
         outcomes: list[ActionOutcome] = []
 
         for goal in goals:
-            contract = contracts.get(goal.id)
-            if contract is not None:
-                from ls.cognition.need_market_engine import NeedMarketEngine
-
-                strategy = NeedMarketEngine.build_strategy(contract, goal)
-                contract_node = self.memory_graph.add_node(
-                    node_type="goal_contract",
-                    content={
-                        "contract_id": contract.id,
-                        "need_id": contract.need_id,
-                        "capability_id": contract.capability_id,
-                        "capability_ids": contract.capability_ids,
-                        "strategy_idea_id": contract.strategy_idea_id,
-                        "expected_effect": contract.expected_effect,
-                        "cost": contract.cost,
-                        "priority": contract.priority,
-                    },
-                )
-                strategy_node = self.memory_graph.add_node(
-                    node_type="strategy",
-                    content={"goal_id": goal.id, "contract_id": contract.id, "steps": strategy.steps},
-                )
-                self.memory_graph.add_edge(MemoryEdge(contract_node.node_id, strategy_node.node_id, "produces", contract.priority))
-                need_node_ids = self._find_need_nodes(goal)
-            else:
-                strategy = self.build_strategy(goal)
-                need_node_ids, goal_node_id = self._link_need_to_goal(goal)
-                strategy_node = self.memory_graph.add_node(
-                    node_type="strategy",
-                    content={"goal_id": goal.id, "steps": strategy.steps},
-                )
-                self.memory_graph.add_edge(MemoryEdge(goal_node_id, strategy_node.node_id, "produces", goal.priority))
+            strategy, strategy_node_id, need_node_ids = self._prepare_strategy_and_links(goal, contracts.get(goal.id))
 
             for step in strategy.steps:
-                action_node = self.memory_graph.add_node(node_type="action", content={"goal_id": goal.id, "step": step})
-                self.memory_graph.add_edge(MemoryEdge(strategy_node.node_id, action_node.node_id, "executes", 1.0))
-
-                outcome = self.executor.execute(step, goal)
+                outcome, action_node_id = self._execute_step(goal, strategy_node_id, step)
                 outcomes.append(outcome)
 
                 outcome_node = self.memory_graph.add_node(
                     node_type="outcome",
                     content={"goal_id": goal.id, "success": outcome.success, "effect": outcome.effect, "details": outcome.details},
                 )
-                self.memory_graph.add_edge(MemoryEdge(action_node.node_id, outcome_node.node_id, "leads_to", 1.0))
-
+                self.memory_graph.add_edge(MemoryEdge(action_node_id, outcome_node.node_id, "leads_to", 1.0))
                 self.reflect(outcome, goal, need_node_ids, outcome_node.node_id)
 
         return outcomes
@@ -151,35 +116,25 @@ class MotivationEngine:
             return goals, contract_map
 
         ranked = sorted(needs, key=lambda n: n.intensity * (1.0 - n.satisfaction), reverse=True)
-        goals: list[AgentGoal] = []
-
-        for need in ranked[:max_goals]:
-            priority = need.intensity * (1.0 - need.satisfaction)
-            goals.append(
-                AgentGoal(
-                    id=f"goal-{need.id}",
-                    description=f"Improve need '{need.description}'",
-                    linked_needs=[need],
-                    priority=priority,
-                )
+        goals = [
+            AgentGoal(
+                id=f"goal-{need.id}",
+                description=f"Improve need '{need.description}'",
+                linked_needs=[need],
+                priority=need.intensity * (1.0 - need.satisfaction),
             )
-
+            for need in ranked[:max_goals]
+        ]
         return goals, {}
 
     @staticmethod
     def build_strategy(goal: AgentGoal) -> Strategy:
-        steps = [
-            f"assess:{goal.id}",
-            f"execute:{goal.id}",
-            f"verify:{goal.id}",
-        ]
-        return Strategy(goal=goal, steps=steps)
+        return Strategy(goal=goal, steps=[f"assess:{goal.id}", f"execute:{goal.id}", f"verify:{goal.id}"])
 
     def reflect(self, outcome: ActionOutcome, goal: AgentGoal, need_node_ids: list[str], outcome_node_id: str) -> None:
         for need in goal.linked_needs:
             if outcome.success:
-                delta = max(outcome.effect, 0.0)
-                need.satisfy(delta)
+                need.satisfy(max(outcome.effect, 0.0))
             else:
                 need.update_intensity(max(outcome.effect, 0.0))
 
@@ -196,16 +151,53 @@ class MotivationEngine:
             self.memory_graph.add_edge(MemoryEdge(outcome_node_id, reflection_node.node_id, "updates", 1.0))
 
             for node_id in need_node_ids:
-                need_node = self.memory_graph.get_node(node_id)
-                if need_node is None:
-                    continue
-                if need_node.content.get("need_id") == need.id:
+                node = self.memory_graph.get_node(node_id)
+                if node and node.content.get("need_id") == need.id:
                     self.memory_graph.add_edge(MemoryEdge(reflection_node.node_id, node_id, "updates", 1.0))
                     self.memory_graph.add_edge(MemoryEdge(outcome_node_id, node_id, "updates", 1.0))
 
+    def _prepare_strategy_and_links(self, goal: AgentGoal, contract: "GoalContract" | None) -> tuple[Strategy, str, list[str]]:
+        if contract is not None:
+            from ls.cognition.need_market_engine import NeedMarketEngine
+
+            strategy = NeedMarketEngine.build_strategy(contract, goal)
+            strategy_node = self.memory_graph.add_node(
+                node_type="strategy",
+                content={"goal_id": goal.id, "contract_id": contract.id, "steps": strategy.steps},
+            )
+            contract_node_id = contract.contract_node_id
+            if contract_node_id and self.memory_graph.get_node(contract_node_id):
+                self.memory_graph.add_edge(MemoryEdge(contract_node_id, strategy_node.node_id, "produces", contract.priority))
+            else:
+                fallback_contract = self.memory_graph.add_node(
+                    node_type="goal_contract",
+                    content={
+                        "contract_id": contract.id,
+                        "need_id": contract.need_id,
+                        "capability_id": contract.capability_id,
+                        "capability_ids": contract.capability_ids,
+                        "strategy_idea_id": contract.strategy_idea_id,
+                        "expected_effect": contract.expected_effect,
+                        "cost": contract.cost,
+                        "priority": contract.priority,
+                    },
+                )
+                self.memory_graph.add_edge(MemoryEdge(fallback_contract.node_id, strategy_node.node_id, "produces", contract.priority))
+            return strategy, strategy_node.node_id, self._find_need_nodes(goal)
+
+        strategy = self.build_strategy(goal)
+        need_node_ids, goal_node_id = self._link_need_to_goal(goal)
+        strategy_node = self.memory_graph.add_node(node_type="strategy", content={"goal_id": goal.id, "steps": strategy.steps})
+        self.memory_graph.add_edge(MemoryEdge(goal_node_id, strategy_node.node_id, "produces", goal.priority))
+        return strategy, strategy_node.node_id, need_node_ids
+
+    def _execute_step(self, goal: AgentGoal, strategy_node_id: str, step: str) -> tuple[ActionOutcome, str]:
+        action_node = self.memory_graph.add_node(node_type="action", content={"goal_id": goal.id, "step": step})
+        self.memory_graph.add_edge(MemoryEdge(strategy_node_id, action_node.node_id, "executes", 1.0))
+        return self.executor.execute(step, goal), action_node.node_id
+
     def _link_need_to_goal(self, goal: AgentGoal) -> tuple[list[str], str]:
         need_node_ids: list[str] = []
-
         goal_node = self.memory_graph.add_node(
             node_type="goal",
             content={"goal_id": goal.id, "description": goal.description, "priority": goal.priority},
@@ -227,16 +219,13 @@ class MotivationEngine:
         return need_node_ids, goal_node.node_id
 
     def _find_need_nodes(self, goal: AgentGoal) -> list[str]:
-        matched: list[str] = []
         need_ids = {need.id for need in goal.linked_needs}
-        for node in self.memory_graph.nodes.values():
-            if node.node_type != "need":
-                continue
-            if node.content.get("need_id") in need_ids:
-                matched.append(node.node_id)
-        return matched
+        return [
+            node.node_id
+            for node in self.memory_graph.nodes.values()
+            if node.node_type == "need" and node.content.get("need_id") in need_ids
+        ]
 
 
 def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, value))
-
