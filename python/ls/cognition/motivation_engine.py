@@ -81,6 +81,8 @@ class MotivationEngine:
                         "contract_id": contract.id,
                         "need_id": contract.need_id,
                         "capability_id": contract.capability_id,
+                        "capability_ids": contract.capability_ids,
+                        "strategy_idea_id": contract.strategy_idea_id,
                         "expected_effect": contract.expected_effect,
                         "cost": contract.cost,
                         "priority": contract.priority,
