@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from ls.cognition.motivation_engine import ActionOutcome, AgentNeed, MotivationEngine
+import pytest
+
+from ls.cognition.motivation_engine import ActionOutcome, AgentNeed, EmotionalState, MotivationEngine
 from ls.memory.memory_graph import MemoryGraph
 
 
@@ -54,3 +56,34 @@ def test_motivation_engine_reuses_need_nodes_across_cycles():
 
     need_nodes = [n for n in graph.nodes.values() if n.node_type == "need" and n.content.get("need_id") == "energy"]
     assert len(need_nodes) == 1
+
+
+def test_motivation_engine_emotional_weight_raises_safety_priority_under_stress():
+    engine = MotivationEngine(MemoryGraph(), _Executor())
+    needs = [
+        AgentNeed(id="learning", description="learning", intensity=0.8, satisfaction=0.1),
+        AgentNeed(id="safety", description="safety", intensity=0.6, satisfaction=0.1),
+    ]
+
+    calm_goals, _ = engine.generate_goals(needs, emotional_state=EmotionalState(stress=0.0))
+    stressed_goals, _ = engine.generate_goals(needs, emotional_state=EmotionalState(stress=0.9))
+
+    calm_top_goal = calm_goals[0]
+    stressed_top_goal = stressed_goals[0]
+    assert calm_top_goal.id == "goal-learning"
+    assert stressed_top_goal.id == "goal-safety"
+
+
+def test_motivation_engine_persists_emotional_weight_in_goal_memory_node():
+    graph = MemoryGraph()
+    engine = MotivationEngine(graph, _Executor())
+    need = AgentNeed(id="safety", description="safety", intensity=0.6, satisfaction=0.1)
+
+    engine.run_cycle([need], max_goals=1, emotional_state=EmotionalState(stress=1.0))
+
+    goal_nodes = [node for node in graph.nodes.values() if node.node_type == "goal" and node.content.get("goal_id") == "goal-safety"]
+    assert len(goal_nodes) == 1
+    goal_content = goal_nodes[0].content
+    assert goal_content["base_priority"] == pytest.approx(0.6175)
+    assert goal_content["emotional_weight"] == pytest.approx(1.8)
+    assert goal_content["priority"] == pytest.approx(1.1115)

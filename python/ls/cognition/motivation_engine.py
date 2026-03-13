@@ -35,6 +35,16 @@ class AgentGoal:
     description: str
     linked_needs: list[AgentNeed]
     priority: float
+    base_priority: float
+    emotional_weight: float
+
+
+@dataclass(frozen=True)
+class EmotionalState:
+    stress: float = 0.0
+
+    def normalized_stress(self) -> float:
+        return _clamp01(self.stress)
 
 
 @dataclass
@@ -62,11 +72,22 @@ class MotivationEngine:
         self.memory_graph = memory_graph
         self.executor = executor
 
-    def run_cycle(self, needs: list[AgentNeed], max_goals: int = 3, capabilities: list["Capability"] | None = None) -> list[ActionOutcome]:
+    def run_cycle(
+        self,
+        needs: list[AgentNeed],
+        max_goals: int = 3,
+        capabilities: list["Capability"] | None = None,
+        emotional_state: EmotionalState | None = None,
+    ) -> list[ActionOutcome]:
         for need in needs:
             need.decay()
 
-        goals, contracts = self.generate_goals(needs, max_goals=max_goals, capabilities=capabilities)
+        goals, contracts = self.generate_goals(
+            needs,
+            max_goals=max_goals,
+            capabilities=capabilities,
+            emotional_state=emotional_state,
+        )
         outcomes: list[ActionOutcome] = []
 
         for goal in goals:
@@ -90,7 +111,10 @@ class MotivationEngine:
         needs: list[AgentNeed],
         max_goals: int = 3,
         capabilities: list["Capability"] | None = None,
+        emotional_state: EmotionalState | None = None,
     ) -> tuple[list[AgentGoal], dict[str, "GoalContract"]]:
+        stress = emotional_state.normalized_stress() if emotional_state else 0.0
+
         if capabilities:
             from ls.cognition.need_market_engine import NeedMarketEngine
 
@@ -109,23 +133,50 @@ class MotivationEngine:
                     description=f"Contract {contract.id} for need '{need.description}'",
                     linked_needs=[need],
                     priority=contract.priority,
+                    base_priority=contract.priority,
+                    emotional_weight=1.0,
                 )
                 goals.append(goal)
                 contract_map[goal.id] = contract
 
             return goals, contract_map
 
-        ranked = sorted(needs, key=lambda n: n.intensity * (1.0 - n.satisfaction), reverse=True)
+        ranked = sorted(
+            needs,
+            key=lambda n: self._effective_priority(n, stress),
+            reverse=True,
+        )
         goals = [
             AgentGoal(
                 id=f"goal-{need.id}",
                 description=f"Improve need '{need.description}'",
                 linked_needs=[need],
-                priority=need.intensity * (1.0 - need.satisfaction),
+                priority=self._effective_priority(need, stress),
+                base_priority=need.intensity * (1.0 - need.satisfaction),
+                emotional_weight=self._stress_weight_for_need(need, stress),
             )
             for need in ranked[:max_goals]
         ]
         return goals, {}
+
+    @staticmethod
+    def _effective_priority(need: AgentNeed, stress: float) -> float:
+        base_priority = need.intensity * (1.0 - need.satisfaction)
+        return base_priority * MotivationEngine._stress_weight_for_need(need, stress)
+
+    @staticmethod
+    def _stress_weight_for_need(need: AgentNeed, stress: float) -> float:
+        lowered_description = need.description.lower()
+        lowered_id = need.id.lower()
+        signature = f"{lowered_id} {lowered_description}"
+
+        if any(key in signature for key in {"safety", "risk", "threat", "energy", "rest", "secure"}):
+            return 1.0 + (0.8 * stress)
+
+        if any(key in signature for key in {"learning", "curiosity", "exploration", "social", "creative"}):
+            return 1.0 - (0.5 * stress)
+
+        return 1.0
 
     @staticmethod
     def build_strategy(goal: AgentGoal) -> Strategy:
@@ -200,7 +251,13 @@ class MotivationEngine:
         need_node_ids: list[str] = []
         goal_node = self.memory_graph.add_node(
             node_type="goal",
-            content={"goal_id": goal.id, "description": goal.description, "priority": goal.priority},
+            content={
+                "goal_id": goal.id,
+                "description": goal.description,
+                "priority": goal.priority,
+                "base_priority": goal.base_priority,
+                "emotional_weight": goal.emotional_weight,
+            },
         )
 
         for need in goal.linked_needs:
