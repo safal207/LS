@@ -14,6 +14,7 @@ from ls.cognition.need_market_engine import Capability, GoalContract, NeedMarket
 from ls.cognition.capability_calibration_engine import CapabilityCalibrationEngine
 from ls.cognition.strategy_synergy_engine import CapabilitySet, StrategyIdea, StrategySynergyEngine
 from ls.cognition.agent_identity import AgentIdentity
+from ls.cognition.counterfactual_engine import CounterfactualEngine, CounterfactualOutcome
 
 __all__ = [
     "AgentState",
@@ -36,4 +37,6 @@ __all__ = [
     "StrategyIdea",
     "StrategySynergyEngine",
     "AgentIdentity",
+    "CounterfactualEngine",
+    "CounterfactualOutcome",
 ]

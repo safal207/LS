@@ -112,3 +112,41 @@ def test_identity_alignment_persisted_in_goal_node_content_in_contract_path():
     assert len(goal_nodes) == 1
     goal_content = goal_nodes[0].content
     assert goal_content["identity_alignment"] == pytest.approx(1.4)
+
+
+def test_simulated_identity_update_uses_lower_learning_rate_multiplier():
+    identity = AgentIdentity(id="sim", values={NeedCategory.LEARNING.value: 0.5}, learning_rate=0.01)
+
+    identity.update_real(NeedCategory.LEARNING, effect=0.8, baseline=0.0)
+    real_updated = identity.values[NeedCategory.LEARNING.value]
+
+    identity.values[NeedCategory.LEARNING.value] = 0.5
+    identity.update_simulated(NeedCategory.LEARNING, predicted_effect=0.8, baseline=0.0)
+    sim_updated = identity.values[NeedCategory.LEARNING.value]
+
+    assert (real_updated - 0.5) == pytest.approx(0.008)
+    assert (sim_updated - 0.5) == pytest.approx(0.0016)
+
+
+def test_counterfactual_identity_update_shifts_value_toward_better_alternative():
+    class _CategoryOutcomeExecutor:
+        def execute(self, step: str, goal):
+            if "goal-safe-high" in step:
+                return ActionOutcome(success=True, effect=0.3, details="safe")
+            return ActionOutcome(success=True, effect=0.3, details="learn")
+
+    identity = AgentIdentity(
+        id="counterfactual",
+        values={NeedCategory.SURVIVAL.value: 0.6, NeedCategory.LEARNING.value: 0.6},
+        learning_rate=0.01,
+    )
+    engine = MotivationEngine(MemoryGraph(), _CategoryOutcomeExecutor(), identity=identity)
+
+    needs = [
+        AgentNeed(id="safe-high", description="safety", intensity=0.95, satisfaction=0.0, category=NeedCategory.SURVIVAL),
+        AgentNeed(id="safe-low", description="safety", intensity=0.55, satisfaction=0.0, category=NeedCategory.SURVIVAL),
+    ]
+
+    engine.run_cycle(needs, max_goals=2, emotional_state=EmotionalState(stress=0.1))
+
+    assert identity.values[NeedCategory.SURVIVAL.value] > 0.6
