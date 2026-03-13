@@ -57,10 +57,10 @@ class EmotionalState:
         return _clamp01(self.stress)
 
 
-@dataclass(frozen=True)
 class EmotionRegulationEngine:
-    stress_up_per_failure: float = 0.12
-    stress_down_per_success: float = 0.05
+    def __init__(self, stress_up_per_failure: float = 0.12, stress_down_per_success: float = 0.05) -> None:
+        self.stress_up_per_failure = stress_up_per_failure
+        self.stress_down_per_success = stress_down_per_success
 
     def update(self, current: EmotionalState, outcomes: list[ActionOutcome]) -> EmotionalState:
         stress = current.normalized_stress()
@@ -170,13 +170,15 @@ class MotivationEngine:
                 need = needs_index.get(contract.need_id)
                 if need is None:
                     continue
+                emotional_weight = self._stress_weight_for_need(need, stress)
+                priority = self._effective_contract_priority(need, contract.expected_effect, contract.cost, emotional_weight)
                 goal = AgentGoal(
                     id=f"goal-{contract.id}",
                     description=f"Contract {contract.id} for need '{need.description}'",
                     linked_needs=[need],
-                    priority=contract.priority,
+                    priority=priority,
                     base_priority=contract.priority,
-                    emotional_weight=1.0,
+                    emotional_weight=emotional_weight,
                 )
                 goals.append(goal)
                 contract_map[goal.id] = contract
@@ -196,6 +198,16 @@ class MotivationEngine:
             for need in ranked[:max_goals]
         ]
         return goals, {}
+
+    @staticmethod
+    def _effective_contract_priority(
+        need: AgentNeed,
+        expected_effect: float,
+        cost: float,
+        emotional_weight: float,
+    ) -> float:
+        adjusted_effect = expected_effect * emotional_weight
+        return (need.intensity * adjusted_effect) - cost
 
     @staticmethod
     def _effective_priority(need: AgentNeed, stress: float) -> float:

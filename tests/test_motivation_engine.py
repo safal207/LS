@@ -121,4 +121,4 @@ def test_motivation_engine_updates_internal_stress_from_outcomes():
 
     engine.run_cycle([need], max_goals=1)
 
-    assert engine.emotional_state.stress > 0.0
+    assert 0.0 < engine.emotional_state.stress <= 1.0
