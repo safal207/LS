@@ -111,6 +111,7 @@ class MotivationEngine:
         self.emotional_state = initial_emotional_state or EmotionalState()
         self.identity = identity
         self.counterfactual_engine = CounterfactualEngine()
+        self.resonance_map: dict[tuple[str, str], float] = {}
         self._last_identity_update_report: list[dict[str, float | str]] = []
 
     def run_cycle(
@@ -157,6 +158,7 @@ class MotivationEngine:
                 self.reflect(outcome, goal, need_node_ids, outcome_node.node_id)
 
         self._update_identity_from_outcomes(needs, goals, goal_outcomes, cycle_emotional_state)
+        self._update_resonance_map(needs, goals, goal_outcomes, cycle_emotional_state)
         self.emotional_state = self.regulation_engine.update(cycle_emotional_state, outcomes)
         return outcomes
 
@@ -378,26 +380,15 @@ class MotivationEngine:
         goals: list[AgentGoal],
         emotional_state: EmotionalState,
     ) -> list[AgentGoal]:
+        _ = emotional_state
         if len(goals) < 2:
             return goals
 
         goal_categories = self._goal_categories_map(goals)
         scored: list[tuple[float, AgentGoal]] = []
         for goal in goals:
-            alternatives = [candidate for candidate in goals if candidate.id != goal.id]
-            state = AgentState(
-                goal=goal.id,
-                context={"stress": emotional_state.normalized_stress()},
-                progress_score=0.0,
-                goal_completion=0.0,
-            )
-            simulations = self.counterfactual_engine.evaluate(state, goal, alternatives)
-            synergy_bonus = sum(
-                simulation.category_effects.get(category.value, 0.0)
-                for simulation in simulations
-                for category in goal_categories.get(goal.id, set())
-            )
-            score = goal.priority + (synergy_bonus * 0.15)
+            synergy_bonus = sum(self.resonance_map.get((goal.id, category.value), 0.0) for category in goal_categories.get(goal.id, set()))
+            score = goal.priority + (synergy_bonus * 0.1)
             scored.append((score, goal))
 
         return [goal for _, goal in sorted(scored, key=lambda item: item[0], reverse=True)]
@@ -428,6 +419,8 @@ class MotivationEngine:
         goal_outcomes: dict[str, list[ActionOutcome]],
         emotional_state: EmotionalState,
     ) -> None:
+        _ = needs
+        _ = emotional_state
         if not self.identity or not goals:
             self._last_identity_update_report = []
             return
@@ -453,10 +446,35 @@ class MotivationEngine:
                     }
                 )
 
+        self._last_identity_update_report = report
+
+    def _update_resonance_map(
+        self,
+        needs: list[AgentNeed],
+        goals: list[AgentGoal],
+        goal_outcomes: dict[str, list[ActionOutcome]],
+        emotional_state: EmotionalState,
+    ) -> None:
+        if not goals:
+            return
+
+        report = list(self._last_identity_update_report)
+        baseline = 0.0
+        goal_categories = self._goal_categories_map(goals)
+
         for goal in goals:
+            linked_outcomes = goal_outcomes.get(goal.id, [])
+            if linked_outcomes:
+                real_effect = sum((max(outcome.effect, 0.0) if outcome.success else -max(outcome.effect, 0.0)) for outcome in linked_outcomes) / len(linked_outcomes)
+                for category in goal_categories.get(goal.id, set()):
+                    edge_key = (goal.id, category.value)
+                    previous = self.resonance_map.get(edge_key, 0.0)
+                    self.resonance_map[edge_key] = _clamp11((previous * 0.7) + (real_effect * 0.3))
+
             alternatives = [candidate for candidate in goals if candidate.id != goal.id]
             if not alternatives:
                 continue
+
             state = AgentState(
                 goal=goal.id,
                 context={
@@ -473,11 +491,17 @@ class MotivationEngine:
                         category = NeedCategory(category_name)
                     except ValueError:
                         continue
-                    self.identity.update_simulated(category, category_effect, baseline=baseline)
+
+                    edge_key = (goal.id, category.value)
+                    previous = self.resonance_map.get(edge_key, 0.0)
+                    self.resonance_map[edge_key] = _clamp11((previous * 0.8) + (category_effect * 0.2))
+
+                    if self.identity:
+                        self.identity.update_simulated(category, category_effect, baseline=baseline)
                     report.append(
                         {
                             "mode": "simulated",
-                            "goal_id": simulation.goal_id,
+                            "goal_id": goal.id,
                             "category": category_name,
                             "effect": category_effect,
                             "cost": simulation.predicted_cost,
@@ -497,3 +521,7 @@ class MotivationEngine:
 
 def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, value))
+
+
+def _clamp11(value: float) -> float:
+    return max(-1.0, min(1.0, value))
