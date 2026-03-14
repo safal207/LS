@@ -75,7 +75,9 @@ class CognitivePhaseSpace:
         return CognitiveVector(base)
 
     def alignment(self, current_state: CognitiveVector, goal: AgentGoal) -> float:
-        return -current_state.distance(self.goal_vector(goal))
+        """Return normalized alignment in [0,1], where 1 means identical vectors."""
+        distance = current_state.distance(self.goal_vector(goal))
+        return 1.0 / (1.0 + distance)
 
     @staticmethod
     def _category_levels(goals: list[AgentGoal]) -> dict[str, float]:

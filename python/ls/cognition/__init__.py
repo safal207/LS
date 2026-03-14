@@ -16,6 +16,7 @@ from ls.cognition.strategy_synergy_engine import CapabilitySet, StrategyIdea, St
 from ls.cognition.agent_identity import AgentIdentity
 from ls.cognition.counterfactual_engine import CounterfactualEngine, CounterfactualOutcome
 from ls.cognition.cognitive_phase_space import CognitivePhaseSpace, CognitiveVector
+from ls.cognition.cognitive_energy_model import CognitiveEnergyModel
 
 __all__ = [
     "AgentState",
@@ -42,4 +43,5 @@ __all__ = [
     "CounterfactualOutcome",
     "CognitivePhaseSpace",
     "CognitiveVector",
+    "CognitiveEnergyModel",
 ]

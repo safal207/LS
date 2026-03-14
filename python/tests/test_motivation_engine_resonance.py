@@ -1,6 +1,7 @@
 import pytest
 
 from ls.cognition.agent_identity import AgentIdentity
+from ls.cognition.cognitive_energy_model import CognitiveEnergyModel
 from ls.cognition.cognitive_phase_space import CognitivePhaseSpace, CognitiveVector
 from ls.cognition.counterfactual_engine import CounterfactualOutcome
 from ls.cognition.motivation_engine import (
@@ -257,3 +258,37 @@ def test_rank_uses_phase_space_alignment_bonus() -> None:
     engine.phase_space.alignment = original_alignment  # type: ignore[method-assign]
 
     assert ranked[0].id == "g2"
+
+
+def test_phase_space_alignment_is_normalized() -> None:
+    phase_space = CognitivePhaseSpace()
+    learning_need = AgentNeed("n1", "learn", intensity=0.9, satisfaction=0.1, category=NeedCategory.LEARNING)
+    learning_goal = AgentGoal("g-learn", "learn", [learning_need], priority=0.5, base_priority=0.5, emotional_weight=1.0)
+
+    current = phase_space.current_state_vector([learning_goal], EmotionalState(stress=0.2), focus=0.8)
+    alignment = phase_space.alignment(current, learning_goal)
+
+    assert 0.0 < alignment <= 1.0
+
+
+def test_cognitive_energy_model_normalizes_cycle_energy() -> None:
+    energy_model = CognitiveEnergyModel(base_energy=0.2)
+
+    ce = energy_model.compute_cycle_energy(
+        focus=0.0,
+        stress=0.9,
+        momentum_bonus=0.0,
+        resonance_bonus=0.0,
+    )
+
+    assert ce == pytest.approx(0.2)
+
+
+def test_cognitive_energy_goal_activation_threshold() -> None:
+    energy_model = CognitiveEnergyModel(allocation_threshold=0.05)
+
+    low = energy_model.allocate_for_goal(ce=0.2, alignment=0.1, attractor_influence=-1.0)
+    high = energy_model.allocate_for_goal(ce=1.0, alignment=1.0, attractor_influence=1.0)
+
+    assert not energy_model.is_goal_activated(low)
+    assert energy_model.is_goal_activated(high)
