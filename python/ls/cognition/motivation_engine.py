@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Protocol
@@ -11,6 +12,7 @@ if TYPE_CHECKING:
     from ls.cognition.agent_identity import AgentIdentity
     from ls.cognition.need_market_engine import Capability, GoalContract
 
+from ls.cognition.cognitive_phase_space import CognitivePhaseSpace
 from ls.cognition.counterfactual_engine import CounterfactualEngine
 from ls.cognition.state_tracker import AgentState
 
@@ -94,6 +96,51 @@ class ActionExecutor(Protocol):
         ...
 
 
+class CognitiveMomentum:
+    """Tracks goal-level momentum to preserve focus across cycles."""
+
+    def __init__(self, cycle_decay: float = 0.95) -> None:
+        self.goal_momentum: dict[str, float] = {}
+        self.cycle_decay = cycle_decay
+
+    def update(self, goal_id: str, success: bool) -> None:
+        previous = self.goal_momentum.get(goal_id, 0.0)
+        if success:
+            self.goal_momentum[goal_id] = _clamp01((previous * 0.8) + 0.3)
+        else:
+            self.goal_momentum[goal_id] = _clamp01(previous * 0.6)
+
+    def decay(self) -> None:
+        for goal_id, momentum in list(self.goal_momentum.items()):
+            self.goal_momentum[goal_id] = _clamp01(momentum * self.cycle_decay)
+
+    def momentum(self, goal_id: str) -> float:
+        return self.goal_momentum.get(goal_id, 0.0)
+
+
+class GoalAttractorField:
+    """Goal-to-goal influence field learned from co-activation across cycles."""
+
+    def __init__(self) -> None:
+        self.goal_goal: dict[tuple[str, str], float] = {}
+
+    def influence(self, from_goal: str, to_goal: str) -> float:
+        return self.goal_goal.get((from_goal, to_goal), 0.0)
+
+    def update(self, executed_goals: list[str]) -> None:
+        ordered_goals = list(dict.fromkeys(executed_goals))
+        goal_positions = {goal_id: idx for idx, goal_id in enumerate(ordered_goals)}
+        for source_goal in ordered_goals:
+            for target_goal in ordered_goals:
+                if source_goal == target_goal:
+                    continue
+                distance = abs(goal_positions[source_goal] - goal_positions[target_goal])
+                delta = 0.1 if distance == 1 else -0.03
+                key = (source_goal, target_goal)
+                previous = self.goal_goal.get(key, 0.0)
+                self.goal_goal[key] = _clamp11((previous * 0.9) + delta)
+
+
 class MotivationEngine:
     """Need-driven loop with optional market matching for contract-driven goals."""
 
@@ -111,6 +158,14 @@ class MotivationEngine:
         self.emotional_state = initial_emotional_state or EmotionalState()
         self.identity = identity
         self.counterfactual_engine = CounterfactualEngine()
+        self.phase_space = CognitivePhaseSpace()
+        self.momentum_engine = CognitiveMomentum()
+        self.attractor_field = GoalAttractorField()
+        self.recent_goals: list[str] = []
+        self.goal_history_window = 10
+        self.goal_history_decay = 0.85
+        self.goal_history: deque[str] = deque(maxlen=self.goal_history_window)
+        self.resonance_map: dict[tuple[str, str], float] = {}
         self._last_identity_update_report: list[dict[str, float | str]] = []
 
     def run_cycle(
@@ -124,6 +179,7 @@ class MotivationEngine:
 
         for need in needs:
             need.decay()
+        self.momentum_engine.decay()
 
         emotion_node_id = self._record_emotional_state(cycle_emotional_state)
 
@@ -136,6 +192,7 @@ class MotivationEngine:
         goals = self._rank_goals_with_counterfactual_potential(goals, cycle_emotional_state)
         outcomes: list[ActionOutcome] = []
         goal_outcomes: dict[str, list[ActionOutcome]] = {goal.id: [] for goal in goals}
+        executed_goals: list[str] = []
 
         for goal in goals:
             strategy, strategy_node_id, need_node_ids = self._prepare_strategy_and_links(
@@ -156,7 +213,16 @@ class MotivationEngine:
                 self.memory_graph.add_edge(MemoryEdge(action_node_id, outcome_node.node_id, "leads_to", 1.0))
                 self.reflect(outcome, goal, need_node_ids, outcome_node.node_id)
 
+            goal_success = any(outcome.success for outcome in goal_outcomes.get(goal.id, []))
+            self.momentum_engine.update(goal.id, goal_success)
+            if goal_outcomes.get(goal.id):
+                executed_goals.append(goal.id)
+
+        self.attractor_field.update(executed_goals)
+        self.recent_goals = list(dict.fromkeys(executed_goals))
+        self.goal_history.extend(executed_goals)
         self._update_identity_from_outcomes(needs, goals, goal_outcomes, cycle_emotional_state)
+        self._update_resonance_map(needs, goals, goal_outcomes, cycle_emotional_state)
         self.emotional_state = self.regulation_engine.update(cycle_emotional_state, outcomes)
         return outcomes
 
@@ -381,23 +447,22 @@ class MotivationEngine:
         if len(goals) < 2:
             return goals
 
-        goal_categories = self._goal_categories_map(goals)
+        avg_focus = sum(self.momentum_engine.momentum(goal.id) for goal in goals) / max(len(goals), 1)
+        current_state = self.phase_space.current_state_vector(goals, emotional_state, focus=avg_focus)
+
         scored: list[tuple[float, AgentGoal]] = []
         for goal in goals:
-            alternatives = [candidate for candidate in goals if candidate.id != goal.id]
-            state = AgentState(
-                goal=goal.id,
-                context={"stress": emotional_state.normalized_stress()},
-                progress_score=0.0,
-                goal_completion=0.0,
+            synergy_bonus = self.resonance_strength_for_goal(goal)
+            momentum_bonus = self.momentum_engine.momentum(goal.id)
+            attractor_bonus = self.attractor_influence_for_goal(goal.id)
+            phase_space_alignment = self.phase_space.alignment(current_state, goal)
+            score = (
+                goal.priority
+                + (synergy_bonus * 0.1)
+                + (momentum_bonus * 0.2)
+                + (attractor_bonus * 0.15)
+                + (phase_space_alignment * 0.25)
             )
-            simulations = self.counterfactual_engine.evaluate(state, goal, alternatives)
-            synergy_bonus = sum(
-                simulation.category_effects.get(category.value, 0.0)
-                for simulation in simulations
-                for category in goal_categories.get(goal.id, set())
-            )
-            score = goal.priority + (synergy_bonus * 0.15)
             scored.append((score, goal))
 
         return [goal for _, goal in sorted(scored, key=lambda item: item[0], reverse=True)]
@@ -411,6 +476,32 @@ class MotivationEngine:
                 categories.add(category)
             goal_categories[goal.id] = categories
         return goal_categories
+
+    def resonance_strength_for_goal(self, goal: AgentGoal) -> float:
+        """Return cumulative resonance for a goal across all of its need categories."""
+        categories = self._goal_categories_map([goal]).get(goal.id, set())
+        return sum(self.resonance_map.get((goal.id, category.value), 0.0) for category in categories)
+
+    def resonance_strengths_for_goals(self, goals: list[AgentGoal]) -> dict[str, float]:
+        """Return cumulative resonance per goal id for visualization and diagnostics."""
+        goal_categories = self._goal_categories_map(goals)
+        return {
+            goal.id: sum(self.resonance_map.get((goal.id, category.value), 0.0) for category in goal_categories.get(goal.id, set()))
+            for goal in goals
+        }
+
+    def momentum_for_goal(self, goal_id: str) -> float:
+        """Expose momentum for diagnostics and visualization layers."""
+        return self.momentum_engine.momentum(goal_id)
+
+    def attractor_influence_for_goal(self, goal_id: str) -> float:
+        """Aggregate influence of recent and short-term historical goals on the target goal."""
+        influence = 0.0
+        for offset, active_goal in enumerate(reversed(self.goal_history)):
+            if active_goal == goal_id:
+                continue
+            influence += self.attractor_field.influence(active_goal, goal_id) * (self.goal_history_decay**offset)
+        return influence
 
     def _identity_alignment(self, goal: AgentGoal) -> float:
         if not self.identity or not goal.linked_needs:
@@ -428,6 +519,8 @@ class MotivationEngine:
         goal_outcomes: dict[str, list[ActionOutcome]],
         emotional_state: EmotionalState,
     ) -> None:
+        _ = needs
+        _ = emotional_state
         if not self.identity or not goals:
             self._last_identity_update_report = []
             return
@@ -453,10 +546,35 @@ class MotivationEngine:
                     }
                 )
 
+        self._last_identity_update_report = report
+
+    def _update_resonance_map(
+        self,
+        needs: list[AgentNeed],
+        goals: list[AgentGoal],
+        goal_outcomes: dict[str, list[ActionOutcome]],
+        emotional_state: EmotionalState,
+    ) -> None:
+        if not goals:
+            return
+
+        report = list(self._last_identity_update_report)
+        baseline = 0.0
+        goal_categories = self._goal_categories_map(goals)
+
         for goal in goals:
+            linked_outcomes = goal_outcomes.get(goal.id, [])
+            if linked_outcomes:
+                real_effect = sum((max(outcome.effect, 0.0) if outcome.success else -max(outcome.effect, 0.0)) for outcome in linked_outcomes) / len(linked_outcomes)
+                for category in goal_categories.get(goal.id, set()):
+                    edge_key = (goal.id, category.value)
+                    previous = self.resonance_map.get(edge_key, 0.0)
+                    self.resonance_map[edge_key] = _clamp11((previous * 0.7) + (real_effect * 0.3))
+
             alternatives = [candidate for candidate in goals if candidate.id != goal.id]
             if not alternatives:
                 continue
+
             state = AgentState(
                 goal=goal.id,
                 context={
@@ -473,11 +591,17 @@ class MotivationEngine:
                         category = NeedCategory(category_name)
                     except ValueError:
                         continue
-                    self.identity.update_simulated(category, category_effect, baseline=baseline)
+
+                    edge_key = (goal.id, category.value)
+                    previous = self.resonance_map.get(edge_key, 0.0)
+                    self.resonance_map[edge_key] = _clamp11((previous * 0.8) + (category_effect * 0.2))
+
+                    if self.identity:
+                        self.identity.update_simulated(category, category_effect, baseline=baseline)
                     report.append(
                         {
                             "mode": "simulated",
-                            "goal_id": simulation.goal_id,
+                            "goal_id": goal.id,
                             "category": category_name,
                             "effect": category_effect,
                             "cost": simulation.predicted_cost,
@@ -497,3 +621,7 @@ class MotivationEngine:
 
 def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, value))
+
+
+def _clamp11(value: float) -> float:
+    return max(-1.0, min(1.0, value))
