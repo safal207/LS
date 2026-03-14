@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from ls.cognition.agent_identity import AgentIdentity
     from ls.cognition.need_market_engine import Capability, GoalContract
 
+from ls.cognition.cognitive_phase_space import CognitivePhaseSpace
 from ls.cognition.counterfactual_engine import CounterfactualEngine
 from ls.cognition.state_tracker import AgentState
 
@@ -157,6 +158,7 @@ class MotivationEngine:
         self.emotional_state = initial_emotional_state or EmotionalState()
         self.identity = identity
         self.counterfactual_engine = CounterfactualEngine()
+        self.phase_space = CognitivePhaseSpace()
         self.momentum_engine = CognitiveMomentum()
         self.attractor_field = GoalAttractorField()
         self.recent_goals: list[str] = []
@@ -442,16 +444,25 @@ class MotivationEngine:
         goals: list[AgentGoal],
         emotional_state: EmotionalState,
     ) -> list[AgentGoal]:
-        _ = emotional_state
         if len(goals) < 2:
             return goals
+
+        avg_focus = sum(self.momentum_engine.momentum(goal.id) for goal in goals) / max(len(goals), 1)
+        current_state = self.phase_space.current_state_vector(goals, emotional_state, focus=avg_focus)
 
         scored: list[tuple[float, AgentGoal]] = []
         for goal in goals:
             synergy_bonus = self.resonance_strength_for_goal(goal)
             momentum_bonus = self.momentum_engine.momentum(goal.id)
             attractor_bonus = self.attractor_influence_for_goal(goal.id)
-            score = goal.priority + (synergy_bonus * 0.1) + (momentum_bonus * 0.2) + (attractor_bonus * 0.15)
+            phase_space_alignment = self.phase_space.alignment(current_state, goal)
+            score = (
+                goal.priority
+                + (synergy_bonus * 0.1)
+                + (momentum_bonus * 0.2)
+                + (attractor_bonus * 0.15)
+                + (phase_space_alignment * 0.25)
+            )
             scored.append((score, goal))
 
         return [goal for _, goal in sorted(scored, key=lambda item: item[0], reverse=True)]

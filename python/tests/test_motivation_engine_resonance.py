@@ -1,6 +1,7 @@
 import pytest
 
 from ls.cognition.agent_identity import AgentIdentity
+from ls.cognition.cognitive_phase_space import CognitivePhaseSpace, CognitiveVector
 from ls.cognition.counterfactual_engine import CounterfactualOutcome
 from ls.cognition.motivation_engine import (
     ActionOutcome,
@@ -215,3 +216,44 @@ def test_attractor_influence_uses_temporal_goal_history() -> None:
 
     # Most recent goal contributes 1.0, previous contributes 0.85 by default decay.
     assert influence == pytest.approx(1.85)
+
+
+def test_cognitive_vector_distance() -> None:
+    left = CognitiveVector({"stress": 0.2, "focus": 0.9})
+    right = CognitiveVector({"stress": 0.2, "focus": 0.4})
+
+    assert left.distance(right) == pytest.approx(0.5)
+
+
+def test_phase_space_alignment_prefers_closer_goal_state() -> None:
+    phase_space = CognitivePhaseSpace()
+    learning_need = AgentNeed("n1", "learn", intensity=0.9, satisfaction=0.1, category=NeedCategory.LEARNING)
+    survival_need = AgentNeed("n2", "safety", intensity=0.9, satisfaction=0.1, category=NeedCategory.SURVIVAL)
+
+    learning_goal = AgentGoal("g-learn", "learn", [learning_need], priority=0.5, base_priority=0.5, emotional_weight=1.0)
+    survival_goal = AgentGoal("g-survive", "survive", [survival_need], priority=0.5, base_priority=0.5, emotional_weight=1.0)
+
+    current = phase_space.current_state_vector([learning_goal], EmotionalState(stress=0.2), focus=0.8)
+
+    assert phase_space.alignment(current, learning_goal) > phase_space.alignment(current, survival_goal)
+
+
+def test_rank_uses_phase_space_alignment_bonus() -> None:
+    graph = MemoryGraph()
+    engine = MotivationEngine(memory_graph=graph, executor=StubExecutor())
+
+    need = AgentNeed("n", "learning", intensity=0.6, satisfaction=0.1, category=NeedCategory.LEARNING)
+    goal1 = AgentGoal("g1", "goal1", [need], priority=0.5, base_priority=0.5, emotional_weight=1.0)
+    goal2 = AgentGoal("g2", "goal2", [need], priority=0.5, base_priority=0.5, emotional_weight=1.0)
+
+    original_alignment = engine.phase_space.alignment
+
+    def fake_alignment(current_state, goal):
+        _ = current_state
+        return 0.4 if goal.id == "g2" else -0.4
+
+    engine.phase_space.alignment = fake_alignment  # type: ignore[method-assign]
+    ranked = engine._rank_goals_with_counterfactual_potential([goal1, goal2], EmotionalState(stress=0.0))
+    engine.phase_space.alignment = original_alignment  # type: ignore[method-assign]
+
+    assert ranked[0].id == "g2"
