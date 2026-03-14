@@ -12,6 +12,7 @@ flowchart TD
     RR["get_recent_reflections()"]
     MT["get_metrics()"]
     HM["get_heatmap_data()"]
+    TL["get_action_timeline()"]
 
     CS[("cognitive_state<br/>memory_graph<br/>recent_reflections<br/>reflection_dashboard_log<br/>pipeline_activity")]
 
@@ -25,6 +26,8 @@ flowchart TD
     DP["DecisionPipeline<br/>register_action_activity()"]
 
     ACT[("pipeline_activity updated")]
+    CAN[("canonical_reflections updated")]
+    CON[("reflection_contradictions updated")]
 
     UI -- "request snapshot" --> SVC
 
@@ -32,11 +35,13 @@ flowchart TD
     SVC --> RR
     SVC --> MT
     SVC --> HM
+    SVC --> TL
 
     MM --> CS
     RR --> CS
     MT --> CS
     HM --> CS
+    TL --> CS
 
     SVC -- "generate_proposals()" --> DP
 
@@ -44,6 +49,7 @@ flowchart TD
     RR --> SNAP
     MT --> SNAP
     HM --> SNAP
+    TL --> SNAP
     SVC --> SNAP
     SNAP --> UI
 
@@ -56,15 +62,20 @@ flowchart TD
     ED --> AH
 
     AH --> DP
+    AP --> CAN
+    RJ --> CON
     DP --> ACT
     ACT --> CS
+    CAN --> CS
+    CON --> CS
 ```
 
 ## Краткая интерпретация
 
 - `get_dashboard_snapshot()` агрегирует все блоки данных и формирует единый JSON для UI.
 - `approve/reject/edit` проходят через `ReflectionActionHandler`, который применяет изменения в `DecisionPipeline`.
-- `DecisionPipeline.register_action_activity()` пишет события в `pipeline_activity`, что затем используется для heatmap/метрик.
+- `DecisionPipeline.register_action_activity()` пишет события в `pipeline_activity`, что затем используется для heatmap/таймлайна.
+- `approve()` добавляет запись в `canonical_reflections`, а `reject()` — в `reflection_contradictions` и ставит флаг `rethink_required`.
 
 ## Где использовать
 
