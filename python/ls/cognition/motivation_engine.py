@@ -97,8 +97,9 @@ class ActionExecutor(Protocol):
 class CognitiveMomentum:
     """Tracks goal-level momentum to preserve focus across cycles."""
 
-    def __init__(self) -> None:
+    def __init__(self, cycle_decay: float = 0.95) -> None:
         self.goal_momentum: dict[str, float] = {}
+        self.cycle_decay = cycle_decay
 
     def update(self, goal_id: str, success: bool) -> None:
         previous = self.goal_momentum.get(goal_id, 0.0)
@@ -106,6 +107,10 @@ class CognitiveMomentum:
             self.goal_momentum[goal_id] = _clamp01((previous * 0.8) + 0.3)
         else:
             self.goal_momentum[goal_id] = _clamp01(previous * 0.6)
+
+    def decay(self) -> None:
+        for goal_id, momentum in list(self.goal_momentum.items()):
+            self.goal_momentum[goal_id] = _clamp01(momentum * self.cycle_decay)
 
     def momentum(self, goal_id: str) -> float:
         return self.goal_momentum.get(goal_id, 0.0)
@@ -143,6 +148,7 @@ class MotivationEngine:
 
         for need in needs:
             need.decay()
+        self.momentum_engine.decay()
 
         emotion_node_id = self._record_emotional_state(cycle_emotional_state)
 
@@ -174,7 +180,9 @@ class MotivationEngine:
                 )
                 self.memory_graph.add_edge(MemoryEdge(action_node_id, outcome_node.node_id, "leads_to", 1.0))
                 self.reflect(outcome, goal, need_node_ids, outcome_node.node_id)
-                self.momentum_engine.update(goal.id, outcome.success)
+
+            goal_success = any(outcome.success for outcome in goal_outcomes.get(goal.id, []))
+            self.momentum_engine.update(goal.id, goal_success)
 
         self._update_identity_from_outcomes(needs, goals, goal_outcomes, cycle_emotional_state)
         self._update_resonance_map(needs, goals, goal_outcomes, cycle_emotional_state)

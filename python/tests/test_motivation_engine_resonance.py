@@ -116,7 +116,7 @@ def test_rank_uses_momentum_bonus() -> None:
     assert ranked[0].id == "g1"
 
 
-def test_run_cycle_increases_momentum_for_successful_goal() -> None:
+def test_run_cycle_updates_momentum_once_per_goal() -> None:
     graph = MemoryGraph()
     engine = MotivationEngine(memory_graph=graph, executor=StubExecutor())
 
@@ -130,4 +130,15 @@ def test_run_cycle_increases_momentum_for_successful_goal() -> None:
 
     engine.run_cycle(needs, max_goals=2, emotional_state=EmotionalState(stress=0.2))
 
-    assert engine.momentum_for_goal(top_goal_id) > 0.0
+    # Momentum updates once per goal (not once per step), so first successful goal lands at 0.3.
+    assert engine.momentum_for_goal(top_goal_id) == pytest.approx(0.3)
+
+
+def test_momentum_decay_applies_each_cycle() -> None:
+    graph = MemoryGraph()
+    engine = MotivationEngine(memory_graph=graph, executor=StubExecutor())
+    engine.momentum_engine.goal_momentum["g1"] = 1.0
+
+    engine.momentum_engine.decay()
+
+    assert engine.momentum_for_goal("g1") == pytest.approx(0.95)
