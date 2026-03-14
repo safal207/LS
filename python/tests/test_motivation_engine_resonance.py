@@ -1,3 +1,5 @@
+import pytest
+
 from ls.cognition.agent_identity import AgentIdentity
 from ls.cognition.counterfactual_engine import CounterfactualOutcome
 from ls.cognition.motivation_engine import (
@@ -65,3 +67,18 @@ def test_rank_uses_resonance_map_synergy() -> None:
     ranked = engine._rank_goals_with_counterfactual_potential([goal1, goal2], EmotionalState(stress=0.0))
 
     assert ranked[0].id == "g1"
+
+
+def test_resonance_strength_helpers_accumulate_goal_categories() -> None:
+    graph = MemoryGraph()
+    engine = MotivationEngine(memory_graph=graph, executor=StubExecutor())
+
+    learning = AgentNeed("n1", "learning", intensity=0.6, satisfaction=0.1, category=NeedCategory.LEARNING)
+    social = AgentNeed("n2", "social", intensity=0.6, satisfaction=0.1, category=NeedCategory.SOCIAL)
+    goal = AgentGoal("g1", "goal", [learning, social], priority=0.5, base_priority=0.5, emotional_weight=1.0)
+
+    engine.resonance_map[("g1", NeedCategory.LEARNING.value)] = 0.25
+    engine.resonance_map[("g1", NeedCategory.SOCIAL.value)] = 0.35
+
+    assert engine.resonance_strength_for_goal(goal) == pytest.approx(0.6)
+    assert engine.resonance_strengths_for_goals([goal]) == {"g1": pytest.approx(0.6)}

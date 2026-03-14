@@ -384,10 +384,9 @@ class MotivationEngine:
         if len(goals) < 2:
             return goals
 
-        goal_categories = self._goal_categories_map(goals)
         scored: list[tuple[float, AgentGoal]] = []
         for goal in goals:
-            synergy_bonus = sum(self.resonance_map.get((goal.id, category.value), 0.0) for category in goal_categories.get(goal.id, set()))
+            synergy_bonus = self.resonance_strength_for_goal(goal)
             score = goal.priority + (synergy_bonus * 0.1)
             scored.append((score, goal))
 
@@ -402,6 +401,19 @@ class MotivationEngine:
                 categories.add(category)
             goal_categories[goal.id] = categories
         return goal_categories
+
+    def resonance_strength_for_goal(self, goal: AgentGoal) -> float:
+        """Return cumulative resonance for a goal across all of its need categories."""
+        categories = self._goal_categories_map([goal]).get(goal.id, set())
+        return sum(self.resonance_map.get((goal.id, category.value), 0.0) for category in categories)
+
+    def resonance_strengths_for_goals(self, goals: list[AgentGoal]) -> dict[str, float]:
+        """Return cumulative resonance per goal id for visualization and diagnostics."""
+        goal_categories = self._goal_categories_map(goals)
+        return {
+            goal.id: sum(self.resonance_map.get((goal.id, category.value), 0.0) for category in goal_categories.get(goal.id, set()))
+            for goal in goals
+        }
 
     def _identity_alignment(self, goal: AgentGoal) -> float:
         if not self.identity or not goal.linked_needs:
