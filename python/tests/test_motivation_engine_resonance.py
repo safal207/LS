@@ -170,7 +170,7 @@ def test_rank_uses_attractor_bonus_from_recent_goals() -> None:
     goal1 = AgentGoal("g1", "goal1", [need], priority=0.5, base_priority=0.5, emotional_weight=1.0)
     goal2 = AgentGoal("g2", "goal2", [need], priority=0.5, base_priority=0.5, emotional_weight=1.0)
 
-    engine.recent_goals = ["g1"]
+    engine.goal_history.extend(["g1"])
     engine.attractor_field.goal_goal[("g1", "g2")] = 1.0
 
     ranked = engine._rank_goals_with_counterfactual_potential([goal1, goal2], EmotionalState(stress=0.0))
@@ -191,3 +191,27 @@ def test_run_cycle_persists_recent_goals_for_attractor() -> None:
 
     assert len(engine.recent_goals) == 2
     assert all(goal_id.startswith("goal-") for goal_id in engine.recent_goals)
+
+
+def test_attractor_field_adds_inhibition_for_distant_goals() -> None:
+    graph = MemoryGraph()
+    engine = MotivationEngine(memory_graph=graph, executor=StubExecutor())
+
+    engine.attractor_field.update(["g1", "g2", "g3"])
+
+    assert engine.attractor_field.influence("g1", "g2") == pytest.approx(0.1)
+    assert engine.attractor_field.influence("g1", "g3") == pytest.approx(-0.03)
+
+
+def test_attractor_influence_uses_temporal_goal_history() -> None:
+    graph = MemoryGraph()
+    engine = MotivationEngine(memory_graph=graph, executor=StubExecutor())
+
+    engine.goal_history.extend(["g_old", "g_recent"])
+    engine.attractor_field.goal_goal[("g_old", "g_target")] = 1.0
+    engine.attractor_field.goal_goal[("g_recent", "g_target")] = 1.0
+
+    influence = engine.attractor_influence_for_goal("g_target")
+
+    # Most recent goal contributes 1.0, previous contributes 0.85 by default decay.
+    assert influence == pytest.approx(1.85)

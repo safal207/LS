@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Protocol
@@ -126,14 +127,17 @@ class GoalAttractorField:
         return self.goal_goal.get((from_goal, to_goal), 0.0)
 
     def update(self, executed_goals: list[str]) -> None:
-        unique_goals = list(dict.fromkeys(executed_goals))
-        for source_goal in unique_goals:
-            for target_goal in unique_goals:
+        ordered_goals = list(dict.fromkeys(executed_goals))
+        goal_positions = {goal_id: idx for idx, goal_id in enumerate(ordered_goals)}
+        for source_goal in ordered_goals:
+            for target_goal in ordered_goals:
                 if source_goal == target_goal:
                     continue
+                distance = abs(goal_positions[source_goal] - goal_positions[target_goal])
+                delta = 0.1 if distance == 1 else -0.03
                 key = (source_goal, target_goal)
                 previous = self.goal_goal.get(key, 0.0)
-                self.goal_goal[key] = _clamp11((previous * 0.9) + 0.1)
+                self.goal_goal[key] = _clamp11((previous * 0.9) + delta)
 
 
 class MotivationEngine:
@@ -156,6 +160,9 @@ class MotivationEngine:
         self.momentum_engine = CognitiveMomentum()
         self.attractor_field = GoalAttractorField()
         self.recent_goals: list[str] = []
+        self.goal_history_window = 10
+        self.goal_history_decay = 0.85
+        self.goal_history: deque[str] = deque(maxlen=self.goal_history_window)
         self.resonance_map: dict[tuple[str, str], float] = {}
         self._last_identity_update_report: list[dict[str, float | str]] = []
 
@@ -211,6 +218,7 @@ class MotivationEngine:
 
         self.attractor_field.update(executed_goals)
         self.recent_goals = list(dict.fromkeys(executed_goals))
+        self.goal_history.extend(executed_goals)
         self._update_identity_from_outcomes(needs, goals, goal_outcomes, cycle_emotional_state)
         self._update_resonance_map(needs, goals, goal_outcomes, cycle_emotional_state)
         self.emotional_state = self.regulation_engine.update(cycle_emotional_state, outcomes)
@@ -476,12 +484,13 @@ class MotivationEngine:
         return self.momentum_engine.momentum(goal_id)
 
     def attractor_influence_for_goal(self, goal_id: str) -> float:
-        """Aggregate influence of recently active goals on the target goal."""
-        return sum(
-            self.attractor_field.influence(active_goal, goal_id)
-            for active_goal in self.recent_goals
-            if active_goal != goal_id
-        )
+        """Aggregate influence of recent and short-term historical goals on the target goal."""
+        influence = 0.0
+        for offset, active_goal in enumerate(reversed(self.goal_history)):
+            if active_goal == goal_id:
+                continue
+            influence += self.attractor_field.influence(active_goal, goal_id) * (self.goal_history_decay**offset)
+        return influence
 
     def _identity_alignment(self, goal: AgentGoal) -> float:
         if not self.identity or not goal.linked_needs:
