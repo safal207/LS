@@ -142,3 +142,52 @@ def test_momentum_decay_applies_each_cycle() -> None:
     engine.momentum_engine.decay()
 
     assert engine.momentum_for_goal("g1") == pytest.approx(0.95)
+
+
+def test_goal_attractor_field_updates_from_coactivation() -> None:
+    graph = MemoryGraph()
+    engine = MotivationEngine(memory_graph=graph, executor=StubExecutor())
+
+    needs = [
+        AgentNeed("learn", "learning loop", intensity=0.9, satisfaction=0.1, category=NeedCategory.LEARNING),
+        AgentNeed("social", "social sync", intensity=0.85, satisfaction=0.1, category=NeedCategory.SOCIAL),
+    ]
+
+    goals, _ = engine.generate_goals(needs, max_goals=2)
+    goal_ids = [goal.id for goal in goals]
+
+    engine.attractor_field.update(goal_ids)
+
+    assert engine.attractor_field.influence(goal_ids[0], goal_ids[1]) == pytest.approx(0.1)
+    assert engine.attractor_field.influence(goal_ids[1], goal_ids[0]) == pytest.approx(0.1)
+
+
+def test_rank_uses_attractor_bonus_from_recent_goals() -> None:
+    graph = MemoryGraph()
+    engine = MotivationEngine(memory_graph=graph, executor=StubExecutor())
+
+    need = AgentNeed("n", "learning", intensity=0.6, satisfaction=0.1, category=NeedCategory.LEARNING)
+    goal1 = AgentGoal("g1", "goal1", [need], priority=0.5, base_priority=0.5, emotional_weight=1.0)
+    goal2 = AgentGoal("g2", "goal2", [need], priority=0.5, base_priority=0.5, emotional_weight=1.0)
+
+    engine.recent_goals = ["g1"]
+    engine.attractor_field.goal_goal[("g1", "g2")] = 1.0
+
+    ranked = engine._rank_goals_with_counterfactual_potential([goal1, goal2], EmotionalState(stress=0.0))
+
+    assert ranked[0].id == "g2"
+
+
+def test_run_cycle_persists_recent_goals_for_attractor() -> None:
+    graph = MemoryGraph()
+    engine = MotivationEngine(memory_graph=graph, executor=StubExecutor())
+
+    needs = [
+        AgentNeed("learn", "learning loop", intensity=0.9, satisfaction=0.1, category=NeedCategory.LEARNING),
+        AgentNeed("social", "social sync", intensity=0.85, satisfaction=0.1, category=NeedCategory.SOCIAL),
+    ]
+
+    engine.run_cycle(needs, max_goals=2, emotional_state=EmotionalState(stress=0.2))
+
+    assert len(engine.recent_goals) == 2
+    assert all(goal_id.startswith("goal-") for goal_id in engine.recent_goals)
