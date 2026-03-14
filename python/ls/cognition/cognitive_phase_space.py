@@ -5,7 +5,7 @@ from math import sqrt
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ls.cognition.motivation_engine import AgentGoal, EmotionalState, NeedCategory
+    from ls.cognition.motivation_engine import AgentGoal, EmotionalState
 
 
 @dataclass(frozen=True)

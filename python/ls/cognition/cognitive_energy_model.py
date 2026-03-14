@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ls.cognition.cognitive_phase_space import CognitiveVector
 
 
 @dataclass
