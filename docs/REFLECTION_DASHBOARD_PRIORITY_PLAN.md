@@ -82,3 +82,8 @@
 3. HCP Marketplace MVP (закрытый контур, без on-chain).
 
 Итог: такой порядок даёт максимальную скорость обратной связи и минимизирует архитектурные откаты.
+
+
+## Визуальная схема потока
+
+- Flowchart (Mermaid): `docs/REFLECTION_DASHBOARD_FLOWCHART.md`.
