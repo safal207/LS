@@ -94,6 +94,23 @@ class ActionExecutor(Protocol):
         ...
 
 
+class CognitiveMomentum:
+    """Tracks goal-level momentum to preserve focus across cycles."""
+
+    def __init__(self) -> None:
+        self.goal_momentum: dict[str, float] = {}
+
+    def update(self, goal_id: str, success: bool) -> None:
+        previous = self.goal_momentum.get(goal_id, 0.0)
+        if success:
+            self.goal_momentum[goal_id] = _clamp01((previous * 0.8) + 0.3)
+        else:
+            self.goal_momentum[goal_id] = _clamp01(previous * 0.6)
+
+    def momentum(self, goal_id: str) -> float:
+        return self.goal_momentum.get(goal_id, 0.0)
+
+
 class MotivationEngine:
     """Need-driven loop with optional market matching for contract-driven goals."""
 
@@ -111,6 +128,7 @@ class MotivationEngine:
         self.emotional_state = initial_emotional_state or EmotionalState()
         self.identity = identity
         self.counterfactual_engine = CounterfactualEngine()
+        self.momentum_engine = CognitiveMomentum()
         self.resonance_map: dict[tuple[str, str], float] = {}
         self._last_identity_update_report: list[dict[str, float | str]] = []
 
@@ -156,6 +174,7 @@ class MotivationEngine:
                 )
                 self.memory_graph.add_edge(MemoryEdge(action_node_id, outcome_node.node_id, "leads_to", 1.0))
                 self.reflect(outcome, goal, need_node_ids, outcome_node.node_id)
+                self.momentum_engine.update(goal.id, outcome.success)
 
         self._update_identity_from_outcomes(needs, goals, goal_outcomes, cycle_emotional_state)
         self._update_resonance_map(needs, goals, goal_outcomes, cycle_emotional_state)
@@ -387,7 +406,8 @@ class MotivationEngine:
         scored: list[tuple[float, AgentGoal]] = []
         for goal in goals:
             synergy_bonus = self.resonance_strength_for_goal(goal)
-            score = goal.priority + (synergy_bonus * 0.1)
+            momentum_bonus = self.momentum_engine.momentum(goal.id)
+            score = goal.priority + (synergy_bonus * 0.1) + (momentum_bonus * 0.2)
             scored.append((score, goal))
 
         return [goal for _, goal in sorted(scored, key=lambda item: item[0], reverse=True)]
@@ -414,6 +434,10 @@ class MotivationEngine:
             goal.id: sum(self.resonance_map.get((goal.id, category.value), 0.0) for category in goal_categories.get(goal.id, set()))
             for goal in goals
         }
+
+    def momentum_for_goal(self, goal_id: str) -> float:
+        """Expose momentum for diagnostics and visualization layers."""
+        return self.momentum_engine.momentum(goal_id)
 
     def _identity_alignment(self, goal: AgentGoal) -> float:
         if not self.identity or not goal.linked_needs:

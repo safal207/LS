@@ -82,3 +82,52 @@ def test_resonance_strength_helpers_accumulate_goal_categories() -> None:
 
     assert engine.resonance_strength_for_goal(goal) == pytest.approx(0.6)
     assert engine.resonance_strengths_for_goals([goal]) == {"g1": pytest.approx(0.6)}
+
+
+def test_cognitive_momentum_update_and_decay() -> None:
+    graph = MemoryGraph()
+    engine = MotivationEngine(memory_graph=graph, executor=StubExecutor())
+
+    assert engine.momentum_for_goal("g1") == 0.0
+
+    engine.momentum_engine.update("g1", True)
+    assert engine.momentum_for_goal("g1") == pytest.approx(0.3)
+
+    engine.momentum_engine.update("g1", True)
+    assert engine.momentum_for_goal("g1") == pytest.approx(0.54)
+
+    engine.momentum_engine.update("g1", False)
+    assert engine.momentum_for_goal("g1") == pytest.approx(0.324)
+
+
+def test_rank_uses_momentum_bonus() -> None:
+    graph = MemoryGraph()
+    engine = MotivationEngine(memory_graph=graph, executor=StubExecutor())
+
+    need = AgentNeed("n", "learning", intensity=0.6, satisfaction=0.1, category=NeedCategory.LEARNING)
+    goal1 = AgentGoal("g1", "goal1", [need], priority=0.5, base_priority=0.5, emotional_weight=1.0)
+    goal2 = AgentGoal("g2", "goal2", [need], priority=0.5, base_priority=0.5, emotional_weight=1.0)
+
+    engine.momentum_engine.goal_momentum["g1"] = 1.0
+    engine.momentum_engine.goal_momentum["g2"] = 0.0
+
+    ranked = engine._rank_goals_with_counterfactual_potential([goal1, goal2], EmotionalState(stress=0.0))
+
+    assert ranked[0].id == "g1"
+
+
+def test_run_cycle_increases_momentum_for_successful_goal() -> None:
+    graph = MemoryGraph()
+    engine = MotivationEngine(memory_graph=graph, executor=StubExecutor())
+
+    needs = [
+        AgentNeed("learn", "learning loop", intensity=0.9, satisfaction=0.1, category=NeedCategory.LEARNING),
+        AgentNeed("social", "social sync", intensity=0.85, satisfaction=0.1, category=NeedCategory.SOCIAL),
+    ]
+
+    goals, _ = engine.generate_goals(needs, max_goals=2)
+    top_goal_id = goals[0].id
+
+    engine.run_cycle(needs, max_goals=2, emotional_state=EmotionalState(stress=0.2))
+
+    assert engine.momentum_for_goal(top_goal_id) > 0.0
