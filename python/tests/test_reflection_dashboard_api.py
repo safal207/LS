@@ -3,10 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
+MODULES_ROOT = ROOT / "python" / "modules"
+if str(MODULES_ROOT) in sys.path:
+    sys.path.remove(str(MODULES_ROOT))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-sys.path = [p for p in sys.path if not p.endswith("/python/modules")] + [p for p in sys.path if p.endswith("/python/modules")]
 
 from agent.decision_pipeline import DecisionPipeline
 from agent.reflection import ReflectionPipeline
@@ -71,9 +75,5 @@ def test_execute_action_edit_requires_proposed_value() -> None:
         "proposed_value": "retrieve_context",
     }
 
-    try:
+    with pytest.raises(ValueError, match="proposed_value"):
         execute_action(service, {"action": "edit", "proposal": proposal})
-    except ValueError as error:
-        assert "proposed_value" in str(error)
-    else:
-        raise AssertionError("Expected ValueError for missing proposed_value")

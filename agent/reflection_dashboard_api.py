@@ -46,9 +46,18 @@ def execute_action(service: ReflectionDashboardService, payload: Dict[str, Any])
 
 
 class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
-    """Minimal JSON API handler for Reflection Dashboard workflows."""
+    """Minimal JSON API handler for Reflection Dashboard workflows.
+
+    Note:
+        Instantiate this handler via ``create_handler(...)`` so ``service_factory`` is configured.
+    """
 
     service_factory: Callable[[], ReflectionDashboardService] | None = None
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        if self.service_factory is None:
+            raise RuntimeError("service_factory is not configured; use create_handler(...) to bind a service")
+        super().__init__(*args, **kwargs)
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -96,6 +105,7 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        # dev-only: restrict in production
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)

@@ -7,9 +7,11 @@ import sys
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+MODULES_ROOT = ROOT / "python" / "modules"
+if str(MODULES_ROOT) in sys.path:
+    sys.path.remove(str(MODULES_ROOT))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-sys.path = [p for p in sys.path if not p.endswith("/python/modules")] + [p for p in sys.path if p.endswith("/python/modules")]
 
 from agent.decision_pipeline import DecisionPipeline
 from agent.reflection import ReflectionPipeline
@@ -145,3 +147,20 @@ def test_approve_and_reject_update_state_markers() -> None:
     assert contradictions[-1]["proposal_id"] == "p-reject"
     assert contradictions[-1]["reason"] == "contradiction_detected"
     assert service.pipeline.cognitive_state["rethink_required"] is True
+
+
+def test_snapshot_uses_short_ttl_cache_for_proposals() -> None:
+    service = build_service()
+    calls = {"count": 0}
+
+    def fake_generate() -> list[dict]:
+        calls["count"] += 1
+        return [{"proposal_id": f"p-{calls['count']}", "confidence": 0.5}]
+
+    service.pipeline.generate_proposals = fake_generate  # type: ignore[assignment]
+
+    first = service.get_dashboard_snapshot()
+    second = service.get_dashboard_snapshot()
+
+    assert calls["count"] == 1
+    assert first["proposals"] == second["proposals"]

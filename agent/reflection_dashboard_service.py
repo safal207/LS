@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime, timezone
+import time
 from typing import Any, Dict, Iterable, List
 
 from .reflection import ReflectionPipeline
@@ -13,13 +14,17 @@ from .reflection_actions import ReflectionActionHandler
 class ReflectionDashboardService:
     """Expose reflection dashboard data and actions through a stable contract."""
 
-    def __init__(self, pipeline: ReflectionPipeline):
+    def __init__(self, pipeline: ReflectionPipeline, proposals_ttl_s: float = 5.0):
         self.pipeline = pipeline
         self.action_handler = ReflectionActionHandler(self.pipeline.decision_pipeline)
+        # TODO: cache proposals with TTL for production dashboards.
+        self.proposals_ttl_s = max(proposals_ttl_s, 0.0)
+        self._cached_proposals: List[Dict[str, Any]] = []
+        self._cached_proposals_at = 0.0
 
     def get_dashboard_snapshot(self, recent_limit: int = 20, timeline_limit: int = 30) -> Dict[str, Any]:
         """Return memory graph, recent reflections, metrics, and heatmap data."""
-        proposals = self.pipeline.generate_proposals()
+        proposals = self._get_proposals()
         return {
             "memory_graph": self.get_memory_graph(),
             "recent_reflections": self.get_recent_reflections(limit=recent_limit),
@@ -63,7 +68,7 @@ class ReflectionDashboardService:
 
     def get_metrics(self, proposals: Iterable[Dict[str, Any]] | None = None) -> Dict[str, Any]:
         """Calculate baseline confidence and contradiction metrics."""
-        proposal_list = list(proposals) if proposals is not None else self.pipeline.generate_proposals()
+        proposal_list = list(proposals) if proposals is not None else self._get_proposals()
 
         confidences = [float(item.get("confidence", 0.0)) for item in proposal_list]
         confidence_score = sum(confidences) / len(confidences) if confidences else 0.0
@@ -109,6 +114,7 @@ class ReflectionDashboardService:
         messages = self.action_handler.apply_selected([proposal], action="approve")
         self._append_canonical_reflection(proposal)
         self.pipeline.decision_pipeline.register_action_activity("approve", {"proposal_id": proposal.get("proposal_id")})
+        self._cached_proposals_at = 0.0
         return messages
 
     def reject(self, proposal: Dict[str, Any], reason: str | None = None) -> List[str]:
@@ -117,6 +123,7 @@ class ReflectionDashboardService:
         self._append_contradiction(proposal, reason=reason)
         self.pipeline.cognitive_state["rethink_required"] = True
         self.pipeline.decision_pipeline.register_action_activity("reject", {"proposal_id": proposal.get("proposal_id")})
+        self._cached_proposals_at = 0.0
         return messages
 
     def edit(self, proposal: Dict[str, Any], proposed_value: Any, note: str | None = None) -> List[str]:
@@ -140,7 +147,19 @@ class ReflectionDashboardService:
                 "parent_proposal_id": proposal.get("proposal_id"),
             },
         )
+        self._cached_proposals_at = 0.0
         return messages
+
+
+    def _get_proposals(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """Return proposals with a short-lived in-memory TTL cache."""
+        now = time.monotonic()
+        should_refresh = force_refresh or (now - self._cached_proposals_at) >= self.proposals_ttl_s
+        if should_refresh:
+            proposals = self.pipeline.generate_proposals()
+            self._cached_proposals = list(proposals)
+            self._cached_proposals_at = now
+        return list(self._cached_proposals)
 
     def _append_canonical_reflection(self, proposal: Dict[str, Any]) -> None:
         canonical = self.pipeline.cognitive_state.setdefault("canonical_reflections", [])
