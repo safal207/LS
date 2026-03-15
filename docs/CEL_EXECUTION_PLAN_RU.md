@@ -210,3 +210,20 @@
 
 - In-memory Decision Listing API: `python/modules/cel/decision_api.py`
 - Тесты Sprint 3 (create/list/get/buy/subscribe, TTL/status, ACL, CEM-сигналы): `python/tests/test_cel_decision_api.py`
+
+
+## Sprint 3.5 (добавлено): Contribution Economy baseline
+
+### Deliverables
+- Модель вкладов (`hypothesis/refinement/validation/extension`).
+- Формула `impact * resonance * accuracy` и расчёт payout split.
+- Граф вкладов для proposal и экспорт в settlement pipeline.
+
+### Definition of Done
+- Для одного proposal можно записать вклад нескольких агентов.
+- Распределение выплат детерминировано и суммарно равно total value.
+- Есть unit-тесты на формулу и граничные условия.
+
+### Реализованные артефакты
+- `python/modules/cel/contribution_api.py`
+- `python/tests/test_cel_contribution_api.py`

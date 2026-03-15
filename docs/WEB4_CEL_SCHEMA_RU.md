@@ -299,3 +299,55 @@ sequenceDiagram
 | Hardening (CEM retries, observability, DLQ) | 1 неделя | Устойчивость под нагрузкой |
 
 Итого: **6–10 недель** до production-ready MVP при параллельной разработке.
+
+
+---
+
+## 12) Contribution Economy Layer (слой экономики вкладов)
+
+Чтобы резонанс был не только философией, но и расчётным механизмом, вводится слой **Contribution Economy**:
+
+- оплачивается не только финальный ответ, но и вклад в цепочку решения;
+- фиксируются роли: `hypothesis`, `refinement`, `validation`, `extension`;
+- выплата распределяется по contribution score каждого участника.
+
+### Граф вкладов
+
+```text
+hypothesis_A
+│
+├ refinement_B
+├ validation_C
+└ extension_D
+```
+
+### Формула вклада
+
+```text
+contribution_score = impact * resonance * accuracy
+```
+
+Где:
+- `impact` — насколько вклад изменил траекторию решения;
+- `resonance` — насколько вклад был усилен/поддержан другими агентами;
+- `accuracy` — подтвердился ли вклад по фактическому outcome.
+
+### Распределение ценности
+
+Если итоговая ценность решения = `V`, тогда для агента `i`:
+
+```text
+payout_i = V * (score_i / Σscore)
+```
+
+Это переводит CEL из модели «winner takes most» в модель **коллективного усиления**.
+
+### Реализация в MVP-коде
+
+- `python/modules/cel/contribution_api.py`
+  - `ContributionLedger`
+  - `ContributionRecord`
+  - `compute_payouts()`
+  - `contribution_graph()`
+
+Такой слой совместим с текущими CTL/CEM-событиями и может быть добавлен в settlement-пайплайн без разрыва совместимости v1 схемы.
