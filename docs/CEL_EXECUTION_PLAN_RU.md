@@ -191,3 +191,10 @@
   - `schemas/examples/ctl_events/v1/outcome_settled.json`
   - `schemas/examples/ctl_events/v1/price_changed.json`
 - Контракт-валидация (pytest + jsonschema): `python/tests/test_ctl_event_schema.py`
+
+
+## Sprint 2 — реализованные артефакты в репозитории
+
+- In-memory API кошелька и переводов: `python/modules/cel/wallet_api.py`
+- Публичные экспорты модуля CEL: `python/modules/cel/__init__.py`
+- Тесты Sprint 2 (атомарность, ошибки, аудит-событие): `python/tests/test_cel_wallet_api.py`
