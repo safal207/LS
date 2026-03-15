@@ -14,6 +14,12 @@
 
 ## Scope MVP
 
+## Принципы исполнения: от конкуренции к синергии
+
+- Проектируем API и события так, чтобы поощрять кооперацию, а не zero-sum конкуренцию.
+- Сигналы качества оцениваем по влиянию на общую устойчивость сети агентов.
+- Любая оптимизация производительности не должна ухудшать прозрачность доверия и audit trail.
+
 1. CTL Event Schema v1
 2. CEL Wallet + Transfer API
 3. Decision Listing API
@@ -58,7 +64,7 @@
 - Wallet ledger + аудит трассы платежа (link to CTL event).
 
 ### Definition of Done
-- Нет double-spend в конкурентных сценариях.
+- Нет double-spend в сценариях параллельной кооперации агентов.
 - API возвращает детерминированные коды ошибок.
 - Финансовые события пишутся в CTL.
 
@@ -66,7 +72,7 @@
 - Гонки при высоком параллелизме.
 
 ### Митигация
-- Транзакции/locks на уровне ledger + стресс-тесты конкурентности.
+- Транзакции/locks на уровне ledger + стресс-тесты параллелизма.
 
 ---
 
@@ -79,7 +85,7 @@
 
 ### Definition of Done
 - Полный e2e: publish -> buy -> access grant.
-- ACL/permission модель работает для buyer/seller.
+- ACL/permission модель работает для инициатора, поставщика и подписчика.
 
 ### Риски
 - Расхождение статуса между CEL и CEM.
@@ -108,16 +114,16 @@
 
 ---
 
-## Sprint 5 (Недели 6–8): LTP-lite Reputation + Price Band
+## Sprint 5 (Недели 6–8): LTP-lite Reputation + Resonance Band
 
 ### Deliverables
 - Расчёт `reputation_score` и `quality_score`.
-- Выдача `suggested_price_band` для новых листингов.
+- Выдача `suggested_resonance_band` для новых листингов.
 - Событие `price_changed` в CEM.
 
 ### Definition of Done
 - Метрика репутации пересчитывается автоматически по settlement-событиям.
-- CEL применяет price band в новых публикациях.
+- CEL применяет resonance band в новых публикациях.
 
 ### Риски
 - Перекос цен из-за малого объёма истории.
@@ -145,7 +151,7 @@
 - Есть on-call runbook и rollback-процедура.
 
 ### Риски
-- Деградация под пиковым спросом.
+- Деградация под пиковыми волнами активности.
 
 ### Митигация
 - Throttling, priority queues, degrade mode.
@@ -175,7 +181,7 @@
 
 1. RFC: `CTL Event Schema v1`
 2. OpenAPI draft: `CEL Wallet + Transfer API`
-3. Sequence test-case: `publish -> buy -> settle -> reprice`
+3. Sequence test-case: `publish -> buy -> settle -> resonance_reprice`
 4. Таблица рисков с владельцами и сроками митигации
 
 После подготовки этих 4 артефактов можно официально стартовать Sprint 1.

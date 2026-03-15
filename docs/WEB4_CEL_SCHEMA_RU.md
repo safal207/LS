@@ -5,7 +5,7 @@
 1. **Runtime** — исполнение агентов и стратегий.
 2. **CTL (Cognitive Trace Ledger)** — неизменяемый журнал когнитивных и экономических событий.
 3. **CEM (Cognitive Event Mesh)** — шина событий в реальном времени.
-4. **CEL (Cognitive Economy Layer)** — рынок решений, токены, расчёты, репутация.
+4. **CEL (Cognitive Economy Layer)** — слой резонанса решений, токены координации, расчёты и доверие.
 5. **LTP (Long-Term Protocol / Learning & Trajectory Plane)** — долгосрочное обучение, траектории и ценовые политики.
 
 ---
@@ -20,7 +20,15 @@ CEL делает «решение агента» товаром:
 - CEM мгновенно уведомляет экосистему;
 - LTP обновляет репутацию, риск-профиль и ценообразование.
 
-Итог: формируется **рынок интеллектов**, где знание имеет цену, а качество — измеримую доходность.
+Итог: формируется **резонансная экосистема интеллектов**, где знание создаёт совместную ценность, а качество — устойчивое доверие и синергию.
+
+### Принципы CEL в парадигме резонанса
+
+- **Не zero-sum**: ценность растёт, когда решения усиливают общий контекст, а не вытесняют друг друга.
+- **Кооперативное ценообразование**: стоимость учитывает не только спрос, но и вклад в качество сети.
+- **Доверие как капитал**: устойчивый вклад в синергию повышает доступ и приоритет.
+- **Снижение энтропии**: приоритет получают сигналы, которые уменьшают шум и улучшают согласованность действий агентов.
+
 
 ---
 
@@ -42,7 +50,7 @@ CEL делает «решение агента» товаром:
   - `proposal_sold`
   - `price_changed`
   - `settlement_completed`
-- Позволяет агентам адаптировать цену и стратегию по спросу.
+- Позволяет агентам адаптировать условия доступа и стратегию по сигналам резонанса сети.
 
 ### CEL
 - Управляет токенами (CT), кошельками и биллингом.
@@ -51,7 +59,7 @@ CEL делает «решение агента» товаром:
   - покупка,
   - подписка,
   - роялти/ревшар.
-- Считает базовую цену на основе репутации, точности и спроса.
+- Считает базовую стоимость доступа на основе репутации, точности и вклада в синергию сети.
 
 ### LTP
 - Пересчитывает долгосрочный trust/reputation score.
@@ -174,10 +182,10 @@ price_ct = base_price
 - При систематической ошибке — частичный slash.
 - При стабильной точности — staking yield / fee boost.
 
-### Incentives
-- Бонус за редкие, ценные и своевременные сигналы.
-- Реферальные выплаты за дистрибуцию качественных моделей.
-- Награды за межагентную коллаборацию.
+### Resonance Incentives
+- Бонус за сигналы, которые улучшают коллективную согласованность решений.
+- Награды за межагентную кооперацию и передачу полезных моделей.
+- Дополнительный коэффициент доверия за устойчивую синхронизацию с другими агентами.
 
 ### Tokenomics CT (базовая модель устойчивости)
 
@@ -200,19 +208,19 @@ price_ct = base_price
 
 - **Sybil/фарминг репутации** → stake + identity attestations + graph anomaly detection.
 - **Data leakage/front-running** → commit-reveal, временные окна раскрытия.
-- **Манипуляция спросом** → anti-wash-trading фильтры в LTP.
+- **Искажение резонанс-сигналов** → anti-gaming фильтры в LTP + проверка кооперативной пользы.
 - **Переоценка confidence** → калибровка (Brier/log-loss), штраф за miscalibration.
 
 ---
 
-## 8) Единая схема Web4 + CEL
+## 8) Единая схема Web4 + CEL (парадигма резонанса)
 
 ```mermaid
 flowchart LR
-    A[Agent Runtime] -->|proposal_created| B[CEL Marketplace]
+    A[Agent Runtime] -->|proposal_created| B[CEL Resonance Layer]
     B -->|ledger write| C[CTL]
     B -->|event publish| D[CEM]
-    D -->|market signal| E[Other Agents]
+    D -->|resonance signal| E[Other Agents]
     E -->|buy/subscribe| B
 
     B -->|settlement events| C
@@ -226,7 +234,7 @@ flowchart LR
 
 ## 9) Надёжность CEM: retry/backpressure контракт
 
-Минимальный operational SLA для CEM:
+Минимальный operational SLA для CEM (чтобы удерживать гармонию потока):
 
 - delivery semantics: `at-least-once`;
 - exponential retry: `100ms -> 500ms -> 2s -> 10s` (max attempts = 5);
@@ -237,7 +245,7 @@ flowchart LR
   - при критике включается degrade-mode (только high-priority events);
 - идемпотентный consumer обязателен (`event_id` + dedup window).
 
-Это защищает CEL/CTL от лавинообразной потери сообщений при пиковом спросе.
+Это защищает CEL/CTL от лавинообразной потери сообщений при пиковых волнах активности.
 
 ---
 
@@ -246,7 +254,7 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     participant A as Agent
-    participant M as CEL Marketplace
+    participant M as CEL Resonance Layer
     participant T as CTL
     participant E as CEM
     participant L as LTP
@@ -254,7 +262,7 @@ sequenceDiagram
     A->>M: create_proposal(price_ct, confidence)
     M->>T: append(proposal_created)
     M->>E: publish(proposal_created)
-    E-->>A: market signal updates
+    E-->>A: resonance signal updates
 
     A->>M: buy_proposal(proposal_id)
     M->>T: append(proposal_purchased)
@@ -264,10 +272,10 @@ sequenceDiagram
     T->>L: stream(settlement + quality metrics)
     L->>M: update(reputation_score, suggested_price_band)
     M->>E: publish(price_changed)
-    E-->>A: updated market prices
+    E-->>A: updated resonance-aligned pricing
 ```
 
-Ключевой эффект: LTP не просто «смотрит в историю», а замыкает контур управления ценой и доверием в реальном времени.
+Ключевой эффект: LTP не просто «смотрит в историю», а замыкает контур управления доверием, синергией и условиями доступа в реальном времени.
 
 ---
 
