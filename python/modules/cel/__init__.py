@@ -13,6 +13,12 @@ from .decision_api import (
     ProposalSubscribeRequest,
 )
 from .wallet_api import CELApiError, CELWalletAPI, TransferReceipt, TransferRequest
+from .settlement_worker import (
+    OutcomeSettlementWorker,
+    SettlementError,
+    SettlementRequest,
+    SettlementResult,
+)
 
 __all__ = [
     "CELApiError",
@@ -29,4 +35,8 @@ __all__ = [
     "ContributionRecord",
     "ContributionPayout",
     "distribute_value",
+    "OutcomeSettlementWorker",
+    "SettlementError",
+    "SettlementRequest",
+    "SettlementResult",
 ]

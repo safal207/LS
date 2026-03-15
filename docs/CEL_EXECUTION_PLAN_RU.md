@@ -227,3 +227,9 @@
 ### Реализованные артефакты
 - `python/modules/cel/contribution_api.py`
 - `python/tests/test_cel_contribution_api.py`
+
+
+## Sprint 4 — реализованные артефакты в репозитории
+
+- Outcome Settlement Worker: `python/modules/cel/settlement_worker.py`
+- Тесты Sprint 4 (outcome_settled + settlement_completed + schema validation): `python/tests/test_cel_settlement_worker.py`
