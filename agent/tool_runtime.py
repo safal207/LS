@@ -232,14 +232,26 @@ class ToolRuntime:
         )
         return True
 
+
+    def run_healthchecks(self, active: bool = True) -> Dict[str, Dict[str, Any]]:
+        """Compatibility wrapper for scheduler active/passive probes."""
+        if active:
+            return self.run_active_healthchecks()
+        tool_health = self.cognitive_state.get("tool_health", {})
+        return {name: dict(snapshot) for name, snapshot in tool_health.items() if isinstance(snapshot, dict)}
+
     def run_active_healthchecks(self) -> Dict[str, Dict[str, Any]]:
         """Run healthchecks for all registered adapters and persist snapshots."""
         health_results: Dict[str, Dict[str, Any]] = {}
         for action, adapter in self.tool_adapters.items():
             try:
                 result = adapter.healthcheck()
-                ok = bool(result.get("ok", False))
-                health_results[action] = {"ok": ok, **result}
+                if isinstance(result, bool):
+                    ok = result
+                    health_results[action] = {"ok": ok}
+                else:
+                    ok = bool(result.get("ok", False))
+                    health_results[action] = {"ok": ok, **result}
                 self._update_health(action, ok, error_count=self._get_error_count(action), circuit_open=self.is_circuit_open(action))
             except Exception as exc:  # noqa: BLE001
                 health_results[action] = {"ok": False, "error": str(exc)}
@@ -315,3 +327,11 @@ class ToolRuntime:
             "circuit_open": circuit_open,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
+
+
+    def _is_degraded(self, action: str) -> bool:
+        """Return True when tool health is explicitly degraded."""
+        health = self.cognitive_state.get("tool_health", {}).get(action, {})
+        if not isinstance(health, dict):
+            return False
+        return bool(health.get("circuit_open", False) and not health.get("is_healthy", True))
