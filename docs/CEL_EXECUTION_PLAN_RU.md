@@ -198,3 +198,9 @@
 - In-memory API кошелька и переводов: `python/modules/cel/wallet_api.py`
 - Публичные экспорты модуля CEL: `python/modules/cel/__init__.py`
 - Тесты Sprint 2 (атомарность, ошибки, аудит-событие): `python/tests/test_cel_wallet_api.py`
+
+
+## Sprint 3 — реализованные артефакты в репозитории
+
+- In-memory Decision Listing API: `python/modules/cel/decision_api.py`
+- Тесты Sprint 3 (create/list/get/buy/subscribe, TTL/status, ACL, CEM-сигналы): `python/tests/test_cel_decision_api.py`
