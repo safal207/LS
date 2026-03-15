@@ -233,3 +233,11 @@
 
 - Outcome Settlement Worker: `python/modules/cel/settlement_worker.py`
 - Тесты Sprint 4 (outcome_settled + settlement_completed + schema validation): `python/tests/test_cel_settlement_worker.py`
+
+
+## Sprint 5 — реализованные артефакты в репозитории
+
+- Reputation memory engine: `python/modules/cel/reputation_engine.py`
+- Dynamic price/resonance band engine: `python/modules/cel/price_engine.py`
+- Интеграция dynamic pricing в listing API: `python/modules/cel/decision_api.py`
+- Тесты Sprint 5: `python/tests/test_cel_reputation_price_engine.py`

@@ -12,13 +12,15 @@ from .decision_api import (
     ProposalCreateRequest,
     ProposalSubscribeRequest,
 )
-from .wallet_api import CELApiError, CELWalletAPI, TransferReceipt, TransferRequest
+from .price_engine import PriceEngine, PriceEngineError, PriceInput, PriceQuote
+from .reputation_engine import AgentReputation, ReputationEngine, ReputationError
 from .settlement_worker import (
     OutcomeSettlementWorker,
     SettlementError,
     SettlementRequest,
     SettlementResult,
 )
+from .wallet_api import CELApiError, CELWalletAPI, TransferReceipt, TransferRequest
 
 __all__ = [
     "CELApiError",
@@ -39,4 +41,11 @@ __all__ = [
     "SettlementError",
     "SettlementRequest",
     "SettlementResult",
+    "ReputationEngine",
+    "ReputationError",
+    "AgentReputation",
+    "PriceEngine",
+    "PriceEngineError",
+    "PriceInput",
+    "PriceQuote",
 ]

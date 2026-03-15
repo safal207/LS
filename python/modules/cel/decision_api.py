@@ -6,6 +6,8 @@ from threading import RLock
 from time import time
 from typing import Callable
 
+from .price_engine import PriceEngine, PriceInput
+from .reputation_engine import ReputationEngine
 from .wallet_api import CELWalletAPI, TransferReceipt, TransferRequest
 
 
@@ -25,6 +27,8 @@ class ProposalCreateRequest:
     confidence: float
     price_ct: Decimal
     ttl_sec: int
+    demand_index: float = 0.0
+    risk_discount: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -42,22 +46,19 @@ class ProposalSubscribeRequest:
 
 
 class DecisionListingAPI:
-    """In-memory Sprint 3 Decision Listing API.
-
-    Responsibilities:
-    - create/list/get proposals
-    - buy proposal via CELWalletAPI
-    - subscribe to proposal signals
-    - publish CEM events for proposal_created / proposal_sold
-    """
+    """In-memory Sprint 3/5 Decision Listing API."""
 
     def __init__(
         self,
         wallet_api: CELWalletAPI,
         publish_cem_event: Callable[[dict], None] | None = None,
+        reputation_engine: ReputationEngine | None = None,
+        price_engine: PriceEngine | None = None,
     ) -> None:
         self._wallet_api = wallet_api
         self._publish_cem_event = publish_cem_event
+        self._reputation_engine = reputation_engine
+        self._price_engine = price_engine
         self._lock = RLock()
         self._proposals: dict[str, dict] = {}
         self._access: dict[str, set[str]] = {}
@@ -78,13 +79,37 @@ class DecisionListingAPI:
             if req.proposal_id in self._proposals:
                 raise DecisionApiError("PROPOSAL_ALREADY_EXISTS", "proposal already exists")
 
+            dynamic_price = req.price_ct
+            band_min: Decimal | None = None
+            band_max: Decimal | None = None
+
+            if self._price_engine:
+                reputation_score = 0.5
+                if self._reputation_engine:
+                    reputation_score = self._reputation_engine.get(req.agent_id).reputation_score
+                quote = self._price_engine.quote(
+                    PriceInput(
+                        base_price_ct=req.price_ct,
+                        reputation_score=reputation_score,
+                        demand_index=req.demand_index,
+                        confidence_calibrated=req.confidence,
+                        risk_discount=req.risk_discount,
+                    )
+                )
+                dynamic_price = quote.price_ct
+                band_min = quote.suggested_resonance_band_min
+                band_max = quote.suggested_resonance_band_max
+
             proposal = {
                 "proposal_id": req.proposal_id,
                 "agent_id": req.agent_id,
                 "asset": req.asset,
                 "prediction": req.prediction,
                 "confidence": req.confidence,
-                "price_ct": req.price_ct,
+                "price_ct": dynamic_price,
+                "base_price_ct": req.price_ct,
+                "suggested_resonance_band_min": band_min,
+                "suggested_resonance_band_max": band_max,
                 "ttl_sec": req.ttl_sec,
                 "created_at": now,
                 "expires_at": now + req.ttl_sec,

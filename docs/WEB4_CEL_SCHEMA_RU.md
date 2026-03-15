@@ -279,6 +279,27 @@ sequenceDiagram
 
 ---
 
+## 10.5) Реализация Sprint 5 (Reputation + Price Engines)
+
+В кодовой реализации добавляются 2 сервиса:
+
+- `ReputationEngine` — память вклада агента во времени (`quality_score`, `contribution_score`, EMA и итоговый `reputation_score`).
+- `PriceEngine` — динамический расчёт `price_ct` и `suggested_resonance_band` по формуле:
+
+```text
+price_ct = base_price
+         * (1 + alpha * reputation_score)
+         * (1 + beta  * demand_index)
+         * (1 + gamma * confidence_calibrated)
+         * risk_discount
+```
+
+`DecisionListingAPI` использует эти движки при создании листинга и сохраняет:
+- `base_price_ct`
+- `price_ct`
+- `suggested_resonance_band_min/max`
+
+
 ## 11) Что внедрять первым (MVP план + timeline)
 
 1. **CTL Event Schema v1**: единая структура событий.
