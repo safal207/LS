@@ -87,3 +87,10 @@
 ## Визуальная схема потока
 
 - Flowchart (Mermaid): `docs/REFLECTION_DASHBOARD_FLOWCHART.md`.
+
+
+## Что дальше по плану (следующий инкремент)
+
+1. Поднять минимальный REST-контракт для Dashboard (`/api/reflection/snapshot`, `/api/reflection/action`) для интеграции с frontend polling/WebSocket-adapter.
+2. Подключить frontend к snapshot + action endpoint и добавить автoобновление (3–5 сек).
+3. Добавить e2e smoke: approve/reject/edit + проверка обновления метрик и heatmap.
