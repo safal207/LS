@@ -1,5 +1,7 @@
 {
-  "nav": { "switch": "RU" },
+  "nav": {
+    "switch": "RU"
+  },
   "hero": {
     "title": "GhostGPT: Your AI that remembers you. Decentralized intelligence for a new era.",
     "subtitle": "Local Cognitive System makes AI smarter, safer, and truly reliable for everyday decisions.",
@@ -19,20 +21,47 @@
   "features": {
     "title": "Core capabilities",
     "list": {
-      "local": { "title": "Local-first", "desc": "Your data stays under your control." },
-      "causal": { "title": "Causal Memory", "desc": "Understands not just what, but why." },
-      "human": { "title": "Human-Centric Design", "desc": "Built to respect human intent and agency." },
-      "anti": { "title": "Anti-Hallucination", "desc": "Grounded reasoning for dependable outcomes." },
-      "identity": { "title": "Evolving Identity", "desc": "Grows with your goals and behavior." }
+      "local": {
+        "title": "Local-first",
+        "desc": "Your data stays under your control."
+      },
+      "causal": {
+        "title": "Causal Memory",
+        "desc": "Understands not just what, but why."
+      },
+      "human": {
+        "title": "Human-Centric Design",
+        "desc": "Built to respect human intent and agency."
+      },
+      "anti": {
+        "title": "Anti-Hallucination",
+        "desc": "Grounded reasoning for dependable outcomes."
+      },
+      "identity": {
+        "title": "Evolving Identity",
+        "desc": "Grows with your goals and behavior."
+      }
     }
   },
   "roadmap": {
     "title": "Roadmap",
     "phases": [
-      { "q": "Q2 2026", "name": "Adaptive Reflection Dashboard" },
-      { "q": "Q3 2026", "name": "Temporal Graph Intelligence Layer" },
-      { "q": "Q4 2026", "name": "Cross-device Web4 Mesh" },
-      { "q": "Q1 2027", "name": "HCP Intelligence Marketplace" }
+      {
+        "q": "Q2 2026",
+        "name": "Adaptive Reflection Dashboard"
+      },
+      {
+        "q": "Q3 2026",
+        "name": "Temporal Graph Intelligence Layer"
+      },
+      {
+        "q": "Q4 2026",
+        "name": "Cross-device Web4 Mesh"
+      },
+      {
+        "q": "Q1 2027",
+        "name": "HCP Intelligence Marketplace"
+      }
     ]
   },
   "visuals": {
@@ -47,5 +76,26 @@
     "demo": "Try demo",
     "community": "Join community",
     "contact": "Contact us"
+  },
+  "runtime": {
+    "eyebrow": "LS: Reflective AI Runtime",
+    "title": "An operating system for AI behavior control",
+    "problem": {
+      "title": "Problem",
+      "body": "AI decisions are opaque: teams struggle to explain, verify, and correct agent behavior."
+    },
+    "solution": {
+      "title": "Solution",
+      "body": "Reflection Runtime adds a control loop: reflection → review → approve/reject/edit → behavior update."
+    },
+    "architecture": {
+      "title": "Architecture",
+      "items": [
+        "Memory Graph",
+        "Decision Pipeline",
+        "Reflection Dashboard",
+        "Human Feedback Loop"
+      ]
+    }
   }
 }
