@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
+from .cognition import CognitiveTransaction
 from .decision_pipeline import DecisionPipeline
 
 
@@ -37,6 +38,13 @@ class ReflectionActionHandler:
                 elif target == "fallback_action":
                     self.pipeline.update_controls(fallback_action=str(proposed_value))
                 messages.append(f"approved control_update: {target}={proposed_value}")
+                self.pipeline.append_cognitive_transaction(
+                    CognitiveTransaction.create(
+                        actor="human",
+                        action="approve_proposal",
+                        payload={"proposal_id": proposal.get("proposal_id"), "data": proposal},
+                    )
+                )
                 self.pipeline.register_action_activity(
                     "control_update",
                     {"target": target, "proposed_value": proposed_value},
@@ -45,6 +53,13 @@ class ReflectionActionHandler:
             elif change_type == "tool_demotion":
                 disabled = self.pipeline.tool_runtime.disable_tool(target)
                 messages.append(f"approved tool_demotion: {target} disabled={disabled}")
+                self.pipeline.append_cognitive_transaction(
+                    CognitiveTransaction.create(
+                        actor="human",
+                        action="approve_proposal",
+                        payload={"proposal_id": proposal.get("proposal_id"), "data": proposal},
+                    )
+                )
                 self.pipeline.register_action_activity(
                     "tool_demotion",
                     {"target": target, "disabled": disabled},
@@ -65,6 +80,13 @@ class ReflectionActionHandler:
         proposal_list = list(proposals)
         messages = [f"rejected proposal: {item.get('proposal_id')}" for item in proposal_list]
         for item in proposal_list:
+            self.pipeline.append_cognitive_transaction(
+                CognitiveTransaction.create(
+                    actor="human",
+                    action="reject_proposal",
+                    payload={"proposal_id": item.get("proposal_id")},
+                )
+            )
             self.pipeline.register_action_activity(
                 "strategy_mutation",
                 {
