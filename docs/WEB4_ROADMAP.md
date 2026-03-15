@@ -63,3 +63,11 @@
 - Полностью transport-agnostic runtime с формальными SLA/QoS контрактами.
 - Связанный стек Runtime ↔ Mesh ↔ Graph ↔ Platform без дублирующей логики.
 - Предсказуемая эволюция 7.x через короткие инкременты с трассируемой документацией и тестами.
+
+## 6. Ближайший приоритет (март 2026)
+
+- first milestone: **Reflection Dashboard** (daily-use readiness);
+- после стабилизации dashboard: **Web4 Mesh v0** (CLI-нода + минимальный протокол);
+- затем: **HCP Marketplace MVP** (внутренние кредиты, без on-chain).
+
+Детальный план ближайших 4 недель: `docs/REFLECTION_DASHBOARD_PRIORITY_PLAN.md`.

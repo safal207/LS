@@ -3,7 +3,9 @@ import CTA from '../components/CTA';
 import Features from '../components/Features';
 import Hero from '../components/Hero';
 import ProblemSolution from '../components/ProblemSolution';
+import ReflectiveRuntime from '../components/ReflectiveRuntime';
 import Roadmap from '../components/Roadmap';
+import RuntimeLivePanel from '../components/RuntimeLivePanel';
 import Visuals from '../components/Visuals';
 
 export default function IndexPage() {
@@ -18,6 +20,8 @@ export default function IndexPage() {
       <Hero onSwitchLang={onSwitchLang} />
       <ProblemSolution />
       <Features />
+      <ReflectiveRuntime />
+      <RuntimeLivePanel />
       <Roadmap />
       <Visuals />
       <CTA />
