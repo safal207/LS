@@ -58,6 +58,18 @@ CEL делает «решение агента» товаром:
 - Обновляет параметры ценообразования и риска.
 - Выявляет аномалии (накрутка объёмов, сговор, спам-предсказания).
 
+### Масштабирование и консистентность по слоям
+
+| Слой | Масштабирование | Требование к консистентности | Практика |
+|---|---|---|---|
+| Runtime | Горизонтально (stateless workers) | Eventual | Очереди задач + autoscaling |
+| CEM | Горизонтально (partitioned topics) | At-least-once delivery | Retry + DLQ + consumer groups |
+| CEL (market APIs) | Горизонтально (API replicas) | Strong для балансов и списаний | Транзакции/locks на wallet ledger |
+| CTL | Шардирование по tenant/epoch + read replicas | Strong append-order в рамках partition | Append-only log + hash-chain |
+| LTP | Batch + stream workers | Eventual (модельные апдейты) | Feature store + periodic recompute |
+
+Критичные к сильной консистентности зоны: `wallet balances`, `settlement`, `ledger append order`.
+
 ---
 
 ## 3) Сквозной сценарий (end-to-end)
@@ -167,6 +179,21 @@ price_ct = base_price
 - Реферальные выплаты за дистрибуцию качественных моделей.
 - Награды за межагентную коллаборацию.
 
+### Tokenomics CT (базовая модель устойчивости)
+
+- **Максимальный supply**: 1,000,000,000 CT (hard cap).
+- **Genesis allocation (пример)**:
+  - 35% — ecosystem incentives,
+  - 20% — treasury/DAO,
+  - 20% — core contributors (vesting),
+  - 15% — investors (vesting),
+  - 10% — liquidity/market operations.
+- **Эмиссия**: 2–4% годовых с DAO-контролем, только в ecosystem incentives.
+- **Сжигание (burn)**:
+  - 20% от marketplace fee уходит в burn,
+  - 100% штрафов (slash) частично burn (например 50%) и частично в insurance pool.
+- **Стабилизация**: dynamic fee band + buyback при резком падении utility-метрик.
+
 ---
 
 ## 7) Риски и защитные механики
@@ -197,9 +224,54 @@ flowchart LR
     G <-->|anchored tx refs| C
 ```
 
+## 9) Надёжность CEM: retry/backpressure контракт
+
+Минимальный operational SLA для CEM:
+
+- delivery semantics: `at-least-once`;
+- exponential retry: `100ms -> 500ms -> 2s -> 10s` (max attempts = 5);
+- dead-letter queue для нерешаемых событий;
+- backpressure policy:
+  - при перегрузе consumer снижает fetch size,
+  - producer получает throttle signal,
+  - при критике включается degrade-mode (только high-priority events);
+- идемпотентный consumer обязателен (`event_id` + dedup window).
+
+Это защищает CEL/CTL от лавинообразной потери сообщений при пиковом спросе.
+
 ---
 
-## 9) Что внедрять первым (MVP план)
+## 10) LTP feedback loop (sequence)
+
+```mermaid
+sequenceDiagram
+    participant A as Agent
+    participant M as CEL Marketplace
+    participant T as CTL
+    participant E as CEM
+    participant L as LTP
+
+    A->>M: create_proposal(price_ct, confidence)
+    M->>T: append(proposal_created)
+    M->>E: publish(proposal_created)
+    E-->>A: market signal updates
+
+    A->>M: buy_proposal(proposal_id)
+    M->>T: append(proposal_purchased)
+    M->>E: publish(proposal_sold)
+
+    M->>T: append(outcome_settled)
+    T->>L: stream(settlement + quality metrics)
+    L->>M: update(reputation_score, suggested_price_band)
+    M->>E: publish(price_changed)
+    E-->>A: updated market prices
+```
+
+Ключевой эффект: LTP не просто «смотрит в историю», а замыкает контур управления ценой и доверием в реальном времени.
+
+---
+
+## 11) Что внедрять первым (MVP план + timeline)
 
 1. **CTL Event Schema v1**: единая структура событий.
 2. **CEL Wallet + Transfer API**: атомарные платежи между агентами.
@@ -207,4 +279,15 @@ flowchart LR
 4. **Outcome Settlement Worker**: автопересчёт качества после горизонта.
 5. **Reputation Engine (LTP-lite)**: базовый score и price band.
 
-Такой MVP уже запускает рабочий рынок решений без перегруза инфраструктуры.
+Оценка сроков (пример для команды 3–5 инженеров):
+
+| Этап | Срок | Результат |
+|---|---:|---|
+| CTL Event Schema v1 | 1–2 недели | Версионированный контракт + валидация + idempotency |
+| CEL Wallet + Transfer API | 1–2 недели | Атомарные переводы + аудит операций |
+| Decision Listing API | 1 неделя | Публикация/покупка/подписка |
+| Settlement Worker | 1–2 недели | Автоматический расчёт quality/outcome |
+| LTP-lite Reputation | 1–2 недели | Рейтинг + рекомендованный price band |
+| Hardening (CEM retries, observability, DLQ) | 1 неделя | Устойчивость под нагрузкой |
+
+Итого: **6–10 недель** до production-ready MVP при параллельной разработке.
