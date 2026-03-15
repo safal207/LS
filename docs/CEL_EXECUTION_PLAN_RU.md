@@ -179,3 +179,15 @@
 4. Таблица рисков с владельцами и сроками митигации
 
 После подготовки этих 4 артефактов можно официально стартовать Sprint 1.
+
+---
+
+## Sprint 1 — реализованные артефакты в репозитории
+
+- Схема контракта: `schemas/ctl_event_v1.schema.json`
+- Канонические примеры событий:
+  - `schemas/examples/ctl_events/v1/proposal_created.json`
+  - `schemas/examples/ctl_events/v1/proposal_purchased.json`
+  - `schemas/examples/ctl_events/v1/outcome_settled.json`
+  - `schemas/examples/ctl_events/v1/price_changed.json`
+- Контракт-валидация (pytest + jsonschema): `python/tests/test_ctl_event_schema.py`

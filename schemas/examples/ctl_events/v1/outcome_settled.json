@@ -1,0 +1,16 @@
+{
+  "event_id": "evt_01HXYZABCF",
+  "trace_id": "trace_01HXYZABCD",
+  "event_type": "outcome_settled",
+  "ts": 1711108800,
+  "producer": "settlement-worker",
+  "schema_version": "1.0",
+  "signature": "ed25519:settlement_signature",
+  "data": {
+    "proposal_id": "prop_003",
+    "horizon_sec": 604800,
+    "result": "hit",
+    "error_band": 0.02,
+    "quality_score": 0.91
+  }
+}
