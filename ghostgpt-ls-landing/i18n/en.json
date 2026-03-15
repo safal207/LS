@@ -97,5 +97,18 @@
         "Human Feedback Loop"
       ]
     }
+  },
+  "runtimeLive": {
+    "title": "Runtime Live Panel",
+    "loading": "loading",
+    "live": "live",
+    "error": "API error",
+    "metrics": "Metrics",
+    "heatmap": "Heatmap",
+    "timeline": "Action timeline",
+    "proposals": "Top proposals",
+    "approve": "Approve",
+    "reject": "Reject",
+    "noProposals": "No proposals to display"
   }
 }

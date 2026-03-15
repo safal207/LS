@@ -97,5 +97,18 @@
         "Human Feedback Loop"
       ]
     }
+  },
+  "runtimeLive": {
+    "title": "Runtime Live Panel",
+    "loading": "загрузка",
+    "live": "live",
+    "error": "Ошибка API",
+    "metrics": "Metrics",
+    "heatmap": "Heatmap",
+    "timeline": "Action timeline",
+    "proposals": "Top proposals",
+    "approve": "Approve",
+    "reject": "Reject",
+    "noProposals": "Нет предложений для отображения"
   }
 }

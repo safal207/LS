@@ -5,6 +5,7 @@ import Hero from '../components/Hero';
 import ProblemSolution from '../components/ProblemSolution';
 import ReflectiveRuntime from '../components/ReflectiveRuntime';
 import Roadmap from '../components/Roadmap';
+import RuntimeLivePanel from '../components/RuntimeLivePanel';
 import Visuals from '../components/Visuals';
 
 export default function IndexPage() {
@@ -20,6 +21,7 @@ export default function IndexPage() {
       <ProblemSolution />
       <Features />
       <ReflectiveRuntime />
+      <RuntimeLivePanel />
       <Roadmap />
       <Visuals />
       <CTA />
