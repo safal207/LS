@@ -2,8 +2,11 @@ from .attribution_api import (
     AttributionApiError,
     AttributionIngestRequest,
     AttributionReplayAPI,
+    OpenDisputeRequest,
     PayoutPreviewRequest,
     PayoutReplayRequest,
+    RecomputePayoutsRequest,
+    ResolveDisputeRequest,
 )
 from .contribution_api import (
     ContributionApiError,
@@ -79,4 +82,7 @@ __all__ = [
     "AttributionReplayAPI",
     "AttributionIngestRequest",
     "AttributionApiError",
+    "ResolveDisputeRequest",
+    "OpenDisputeRequest",
+    "RecomputePayoutsRequest",
 ]
