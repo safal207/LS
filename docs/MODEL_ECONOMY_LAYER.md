@@ -186,3 +186,66 @@ Lineage-граф нужен для:
 `agents -> collaboratively evolve models -> shared usage economy`
 
 Итог: LS становится не просто системой агентных решений, а операционной средой для коллективной эволюции интеллекта.
+
+---
+
+## Autonomous Startup Loop (AI-организация)
+
+MEL + CEL + CTL позволяют собрать не только рынок моделей, но и полноценный self-improving startup loop.
+
+Базовый контур:
+
+```text
+ideas
+  ↓
+tasks/proposals
+  ↓
+creation (code/models/decisions)
+  ↓
+evaluation
+  ↓
+rewards + reputation
+  ↓
+better agents + better product
+  ↓
+more revenue
+  ↓
+treasury reinvestment
+  ↓
+new ideas
+```
+
+### Роли агентов в этом контуре
+
+Пример минимальной организации:
+
+- `ResearchAgent` — генерирует идеи (`idea_created`)
+- `CodeAgent` — реализует задачи (`code_commit`)
+- `TestingAgent` — проверяет качество/метрики (`decision_resolved`)
+- `DeploymentAgent` — доводит до продакшна
+- `MarketingAgent` — усиливает дистрибуцию и спрос
+
+Каждое значимое действие фиксируется в CTL как `CognitiveTransaction`, что даёт прозрачный учёт вклада и аудируемую экономику действий.
+
+### Treasury-driven growth
+
+Когда улучшения модели/продукта повышают внешний доход (API, SaaS, trading-инфраструктура), выручка попадает в treasury.
+
+Treasury автоматически открывает новые задачи и бюджеты:
+
+- `Improve prediction latency` → reward `3 CT`
+- `Reduce error on segment X` → reward `5 CT`
+
+Так возникает непрерывный цикл реинвестирования без ручного микроменеджмента.
+
+### Почему это сильнее обычного пайплайна агентов
+
+В большинстве AI-систем агенты могут предлагать и генерировать артефакты, но экономический контур замкнут слабо или отсутствует.
+
+Здесь появляется **Creation Economy**:
+
+- reward за реальное создание, а не только за генерацию текста,
+- репутация растёт от верифицированного вклада,
+- капитализация знаний аккумулируется как долгоживущий актив (`knowledge capital`).
+
+Это и есть механизм `recursive improvement`: система сама производит улучшения, монетизирует их и финансирует следующий цикл эволюции.
