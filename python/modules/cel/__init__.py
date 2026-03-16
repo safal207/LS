@@ -1,3 +1,4 @@
+from .attribution_store import AttributionStore, StoredPayout
 from .attribution_api import (
     AttributionApiError,
     AttributionIngestRequest,
@@ -83,6 +84,8 @@ __all__ = [
     "AttributionIngestRequest",
     "AttributionApiError",
     "ResolveDisputeRequest",
+    "StoredPayout",
+    "AttributionStore",
     "OpenDisputeRequest",
     "RecomputePayoutsRequest",
 ]

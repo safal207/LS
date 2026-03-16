@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from decimal import Decimal
+import json
 from threading import RLock
 
+from .attribution_store import AttributionStore
 from .iare_engine import (
     ContributorImpact,
     CreationEvent,
@@ -76,10 +78,12 @@ class AttributionReplayAPI:
         attribution_engine: IncrementalAttributionEngine | None = None,
         governance_threshold: Decimal = Decimal("10"),
         burst_limit_per_actor: int = 20,
+        store: AttributionStore | None = None,
     ) -> None:
         self._engine = attribution_engine or IncrementalAttributionEngine()
         self._governance_threshold = governance_threshold
         self._burst_limit_per_actor = burst_limit_per_actor
+        self._store = store
         self._lock = RLock()
 
         self._actor_ingest_counts: dict[tuple[str, str], int] = {}
@@ -88,7 +92,6 @@ class AttributionReplayAPI:
 
     def ingest(self, req: AttributionIngestRequest) -> dict:
         self._validate_window_inputs(req)
-        # anti-gaming: quarantine bursty actors per project
         for contributor in req.contributors:
             key = (req.project_id, contributor.agent_id)
             next_count = self._actor_ingest_counts.get(key, 0) + 1
@@ -113,6 +116,26 @@ class AttributionReplayAPI:
         )
         try:
             with self._lock:
+                if self._store:
+                    payload_json = json.dumps(
+                        {
+                            "contributors": [asdict(c) for c in req.contributors],
+                            "parents": list(req.parents),
+                            "base_weight": req.base_weight,
+                        },
+                        sort_keys=True,
+                    )
+                    persisted = self._store.save_event_if_new(
+                        event_id=req.event_id,
+                        project_id=req.project_id,
+                        event_type=req.event_type,
+                        ts=req.ts,
+                        policy_version=req.policy_version,
+                        payload_json=payload_json,
+                    )
+                    if not persisted:
+                        return {"event_id": req.event_id, "project_id": req.project_id, "status": "duplicate"}
+
                 created = self._engine.add_event(event)
                 status = "accepted" if created else "duplicate"
                 return {
@@ -165,9 +188,22 @@ class AttributionReplayAPI:
         with self._lock:
             created: list[dict] = []
             for line in snapshot.lines:
-                self._payout_id_seq += 1
-                payout_id = self._payout_id_seq
                 status = "pending_dispute" if line.payout >= self._governance_threshold else "ready_to_pay"
+                if self._store:
+                    payout_id = self._store.create_payout(
+                        project_id=req.project_id,
+                        window_days=req.window_days,
+                        policy_version=req.policy_version,
+                        agent_id=line.agent_id,
+                        amount=line.payout,
+                        status=status,
+                        input_snapshot_hash=snapshot.input_snapshot_hash,
+                        output_payout_hash=snapshot.output_payout_hash,
+                    )
+                else:
+                    self._payout_id_seq += 1
+                    payout_id = self._payout_id_seq
+
                 rec = {
                     "payout_id": payout_id,
                     "project_id": req.project_id,
@@ -192,6 +228,8 @@ class AttributionReplayAPI:
                 raise AttributionApiError("INVALID_PAYOUT_STATE", "cannot dispute paid payout")
             payout["status"] = "pending_dispute"
             payout["dispute_reason"] = req.reason
+            if self._store:
+                self._store.update_payout_status(req.payout_id, status="pending_dispute", dispute_reason=req.reason)
             return payout.copy()
 
     def resolve_dispute(self, req: ResolveDisputeRequest) -> dict:
@@ -201,6 +239,12 @@ class AttributionReplayAPI:
                 raise AttributionApiError("INVALID_PAYOUT_STATE", "payout is not pending_dispute")
             payout["status"] = "ready_to_pay" if req.approve else "rejected"
             payout["dispute_approver"] = req.approver
+            if self._store:
+                self._store.update_payout_status(
+                    req.payout_id,
+                    status=payout["status"],
+                    dispute_approver=req.approver,
+                )
             return payout.copy()
 
     def execute_payout(self, payout_id: int) -> dict:
@@ -209,10 +253,29 @@ class AttributionReplayAPI:
             if payout["status"] != "ready_to_pay":
                 raise AttributionApiError("INVALID_PAYOUT_STATE", "payout is not ready_to_pay")
             payout["status"] = "paid"
+            if self._store:
+                self._store.update_payout_status(payout_id, status="paid")
             return payout.copy()
 
     def list_payouts(self, project_id: str) -> list[dict]:
         with self._lock:
+            if self._store:
+                return [
+                    {
+                        "payout_id": item.payout_id,
+                        "project_id": item.project_id,
+                        "window_days": item.window_days,
+                        "policy_version": item.policy_version,
+                        "agent_id": item.agent_id,
+                        "amount": item.amount,
+                        "status": item.status,
+                        "input_snapshot_hash": item.input_snapshot_hash,
+                        "output_payout_hash": item.output_payout_hash,
+                        "dispute_reason": item.dispute_reason,
+                        "dispute_approver": item.dispute_approver,
+                    }
+                    for item in self._store.list_payouts(project_id)
+                ]
             payouts = [p.copy() for p in self._payouts.values() if p["project_id"] == project_id]
             return sorted(payouts, key=lambda p: p["payout_id"])
 
@@ -222,7 +285,24 @@ class AttributionReplayAPI:
             raise AttributionApiError("INVALID_EVENT_TYPE", "event_type is required")
 
     def _must_get_payout(self, payout_id: int) -> dict:
-        payout = self._payouts.get(payout_id)
-        if payout is None:
-            raise AttributionApiError("PAYOUT_NOT_FOUND", "payout not found")
-        return payout
+        if payout_id in self._payouts:
+            return self._payouts[payout_id]
+        if self._store:
+            stored = self._store.get_payout(payout_id)
+            if stored:
+                payout = {
+                    "payout_id": stored.payout_id,
+                    "project_id": stored.project_id,
+                    "window_days": stored.window_days,
+                    "policy_version": stored.policy_version,
+                    "agent_id": stored.agent_id,
+                    "amount": stored.amount,
+                    "status": stored.status,
+                    "input_snapshot_hash": stored.input_snapshot_hash,
+                    "output_payout_hash": stored.output_payout_hash,
+                    "dispute_reason": stored.dispute_reason,
+                    "dispute_approver": stored.dispute_approver,
+                }
+                self._payouts[payout_id] = payout
+                return payout
+        raise AttributionApiError("PAYOUT_NOT_FOUND", "payout not found")
