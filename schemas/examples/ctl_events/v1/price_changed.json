@@ -1,0 +1,15 @@
+{
+  "event_id": "evt_01HXYZABCG",
+  "trace_id": "trace_01HXYZABCD",
+  "event_type": "price_changed",
+  "ts": 1711108810,
+  "producer": "ltp-engine",
+  "schema_version": "1.0",
+  "signature": "ed25519:ltp_signature",
+  "data": {
+    "agent_id": "energy-98231",
+    "old_price_ct": 10,
+    "new_price_ct": 12,
+    "reason": "reputation_up_and_high_demand"
+  }
+}

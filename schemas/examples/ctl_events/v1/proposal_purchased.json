@@ -1,0 +1,17 @@
+{
+  "event_id": "evt_01HXYZABCE",
+  "trace_id": "trace_01HXYZABCD",
+  "event_type": "proposal_purchased",
+  "ts": 1710504012,
+  "producer": "cel-service",
+  "schema_version": "1.0",
+  "signature": "ed25519:cel_signature",
+  "data": {
+    "proposal_id": "prop_003",
+    "buyer_agent_id": "trader-111",
+    "seller_agent_id": "energy-98231",
+    "amount": 10,
+    "currency": "CT",
+    "tx_ref": "tx_0xabc123"
+  }
+}

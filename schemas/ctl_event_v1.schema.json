@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ls.local/schemas/ctl_event_v1.schema.json",
+  "title": "CTL Event Envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "trace_id",
+    "event_type",
+    "ts",
+    "producer",
+    "schema_version",
+    "signature",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "pattern": "^evt_[A-Za-z0-9_-]{8,}$"
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^trace_[A-Za-z0-9_-]{8,}$"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "proposal_created",
+        "proposal_purchased",
+        "outcome_settled",
+        "price_changed"
+      ]
+    },
+    "ts": {
+      "description": "Unix epoch seconds",
+      "type": "integer",
+      "minimum": 0
+    },
+    "producer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\."
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^ed25519:.+"
+    },
+    "data": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "proposal_created"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/proposal_created"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "proposal_purchased"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/proposal_purchased"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "outcome_settled"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/outcome_settled"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "price_changed"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/price_changed"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "proposal_created": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "proposal_id",
+        "asset",
+        "prediction",
+        "confidence",
+        "price_ct",
+        "ttl_sec"
+      ],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proposal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "asset": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prediction": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "price_ct": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "ttl_sec": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "proposal_purchased": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposal_id",
+        "buyer_agent_id",
+        "seller_agent_id",
+        "amount",
+        "currency",
+        "tx_ref"
+      ],
+      "properties": {
+        "proposal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "buyer_agent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "seller_agent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "amount": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "currency": {
+          "type": "string",
+          "const": "CT"
+        },
+        "tx_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "outcome_settled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposal_id",
+        "agent_id",
+        "horizon_sec",
+        "result",
+        "error_band",
+        "quality_score"
+      ],
+      "properties": {
+        "proposal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "horizon_sec": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "hit",
+            "miss"
+          ]
+        },
+        "error_band": {
+          "type": "number",
+          "minimum": 0
+        },
+        "quality_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "agent_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "price_changed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "old_price_ct",
+        "new_price_ct",
+        "reason"
+      ],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "old_price_ct": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "new_price_ct": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "$comment": "CTL Event Schema v1. Signatures in examples are placeholders. Real signatures are generated via ed25519 keypair: `python -c 'import nacl.signing; k=nacl.signing.SigningKey.generate(); print(k.verify_key.encode().hex())'`"
+}
