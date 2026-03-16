@@ -149,3 +149,28 @@ graph TB
 2. feature flags в `config/base.yaml`
 3. настройки agent loop (cancellation, metrics, observability)
 
+
+## Economic Intelligence Stack (CEL + MEL)
+
+LS можно рассматривать как двухконтурную экономику:
+
+1. **Decision Economy (CEL)** — оплата за конкретное решение (`decision -> reward`).
+2. **Model Economy (MEL)** — оплата за использование интеллектуального актива (`model -> usage -> reward`).
+
+Минимальный поток MEL:
+
+```text
+Agent -> Model Artifact -> Model Registry -> Usage Metering -> Revenue Split
+```
+
+Экономический слой LS в расширенной форме:
+
+```text
+Agents -> CEL -> MEL -> CEM -> CTL -> LTP
+```
+
+- **CEM** фиксирует `model_call_event` и оценки качества.
+- **CTL** выполняет on-ledger расчёт и распределение выручки.
+- **LTP/LTM** хранит долгосрочную историю репутации и lineage моделей.
+
+Подробная спецификация MEL: `docs/MODEL_ECONOMY_LAYER.md`.
