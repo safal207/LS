@@ -14,6 +14,12 @@ SUPPORTED_ACTIONS = {
     "belief_update",
     "canonical_update",
     "reflection_generated",
+    "idea_created",
+    "code_commit",
+    "model_published",
+    "agent_improved",
+    "prediction_submitted",
+    "decision_resolved",
 }
 
 
