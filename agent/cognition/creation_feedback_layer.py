@@ -17,6 +17,42 @@ CREATION_EVENT_WEIGHTS: dict[str, float] = {
 }
 
 
+FLOW_CHANNELS: tuple[str, str, str] = ("dopamine", "economy", "knowledge")
+
+
+FLOW_NODES: tuple[dict[str, str], ...] = (
+    {"id": "cue", "label": "Idea / Cue"},
+    {"id": "agent_loop", "label": "AgentLoop"},
+    {"id": "causal_memory", "label": "Causal Memory"},
+    {"id": "micro_progress", "label": "Micro-step"},
+    {"id": "reflection", "label": "Reflection Engine"},
+    {"id": "artifact", "label": "Commit / Artifact"},
+    {"id": "mel", "label": "MEL: Model Economy"},
+    {"id": "icrl", "label": "ICRL Routing"},
+    {"id": "cel", "label": "CEL: Decision Economy"},
+    {"id": "cem", "label": "Event Mesh / CEM"},
+    {"id": "ctl", "label": "Ledger / CTL"},
+    {"id": "ltp", "label": "Long-Term Memory / LTP"},
+    {"id": "next_cue", "label": "Next Idea / Cue"},
+)
+
+
+FLOW_EDGES: tuple[dict[str, str], ...] = (
+    {"source": "cue", "target": "agent_loop", "channel": "dopamine"},
+    {"source": "agent_loop", "target": "causal_memory", "channel": "knowledge"},
+    {"source": "agent_loop", "target": "micro_progress", "channel": "dopamine"},
+    {"source": "micro_progress", "target": "reflection", "channel": "dopamine"},
+    {"source": "micro_progress", "target": "artifact", "channel": "knowledge"},
+    {"source": "artifact", "target": "mel", "channel": "economy"},
+    {"source": "mel", "target": "icrl", "channel": "economy"},
+    {"source": "icrl", "target": "cel", "channel": "economy"},
+    {"source": "cel", "target": "cem", "channel": "knowledge"},
+    {"source": "cem", "target": "ctl", "channel": "knowledge"},
+    {"source": "ctl", "target": "ltp", "channel": "knowledge"},
+    {"source": "ltp", "target": "next_cue", "channel": "dopamine"},
+)
+
+
 @dataclass(frozen=True)
 class CreationMetric:
     action: str
@@ -96,4 +132,32 @@ class CreationFeedbackLayer:
             "weighted_counts": {k: round(v, 4) for k, v in self._weighted_counts.items()},
             "trajectory": list(self._trajectory),
             "idea_lineage": dict(self._lineage_children),
+            "flow_visualization": self.flow_visualization(),
+            "mermaid": self.mermaid_diagram(),
         }
+
+    def flow_visualization(self) -> dict[str, Any]:
+        """Return one-frame LS flow map for UI graph rendering.
+
+        The shape intentionally combines creation, motivation, and economy loops
+        into a single structure so dashboards can show the full contour of the
+        system without additional joins.
+        """
+        return {
+            "channels": list(FLOW_CHANNELS),
+            "nodes": [dict(node) for node in FLOW_NODES],
+            "edges": [dict(edge) for edge in FLOW_EDGES],
+            "summary": {
+                "creation_score": round(self._score, 4),
+                "events_total": len(self.metrics),
+            },
+        }
+
+    def mermaid_diagram(self) -> str:
+        """Return Mermaid diagram for docs and quick console previews."""
+        node_lines = [f'    {node["id"]}["{node["label"]}"]' for node in FLOW_NODES]
+        edge_lines = [
+            f'    {edge["source"]} -->|{edge["channel"]}| {edge["target"]}'
+            for edge in FLOW_EDGES
+        ]
+        return "\n".join(["flowchart TD", *node_lines, *edge_lines])

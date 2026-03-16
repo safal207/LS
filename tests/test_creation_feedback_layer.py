@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agent.cognition import CognitiveTransaction, CreationFeedbackLayer
+from agent.cognition import CognitiveTransaction, CreationFeedbackLayer, FLOW_CHANNELS
 
 
 def _tx(action: str, payload: dict | None = None) -> CognitiveTransaction:
@@ -42,3 +42,31 @@ def test_creation_feedback_layer_ignores_non_creation_actions() -> None:
     assert snapshot["creation_score"] == 0.0
     assert snapshot["events_total"] == 0
     assert snapshot["trajectory"] == []
+
+
+def test_creation_feedback_layer_builds_full_ls_flow_visualization() -> None:
+    layer = CreationFeedbackLayer()
+    layer.ingest_transaction(_tx("idea_created"))
+    snapshot = layer.snapshot()
+
+    flow = snapshot["flow_visualization"]
+    assert flow["channels"] == list(FLOW_CHANNELS)
+    assert flow["summary"]["creation_score"] == 1.0
+    assert flow["summary"]["events_total"] == 1
+    assert any(node["id"] == "mel" for node in flow["nodes"])
+    assert any(node["id"] == "cel" for node in flow["nodes"])
+    assert any(node["id"] == "cem" for node in flow["nodes"])
+    assert any(node["id"] == "ctl" for node in flow["nodes"])
+    assert any(node["id"] == "ltp" for node in flow["nodes"])
+    assert any(edge["source"] == "artifact" and edge["target"] == "mel" for edge in flow["edges"])
+
+
+def test_creation_feedback_layer_renders_mermaid_diagram() -> None:
+    layer = CreationFeedbackLayer()
+
+    graph = layer.mermaid_diagram()
+
+    assert graph.startswith("flowchart TD")
+    assert "artifact -->|economy| mel" in graph
+    assert "cel -->|knowledge| cem" in graph
+    assert "ltp -->|dopamine| next_cue" in graph
