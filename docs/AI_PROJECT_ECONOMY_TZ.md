@@ -52,13 +52,16 @@
 
 ---
 
-## 5) Архитектура (target state)
+## 5) Архитектура (target state + IARE)
 
 - **Project Registry** — жизненный цикл проекта и KPI.
 - **Task Orchestrator** — декомпозиция roadmap и assignment.
-- **Creation Ledger** — append-only события + подписи + idempotency.
-- **Attribution Engine** — граф причинности, доли вклада.
-- **Reward Engine** — батчи T+7/T+30/T+90, начисления/корректировки.
+- **Creation Ledger (CTL)** — append-only события + подписи + idempotency.
+- **Ingress (dedupe/normalize)** — дедупликация и нормализация перед стримом.
+- **Graph Builder (stream)** — инкрементальная сборка creation graph.
+- **IARE Attribution Workers** — O(delta)-пересчёт только затронутых subgraph.
+- **Reputation Store (CRDT-backed)** — merge-safe состояние репутации между репликами.
+- **Reward Engine** — детерминированные батчи T+7/T+30/T+90, начисления/корректировки.
 - **Treasury Service** — доступный баланс, lock, vesting, payout.
 - **Policy Engine** — параметры формулы, пороги, правила анти-абьюза.
 - **Governance Console** — dispute, override, audit trail.
@@ -121,6 +124,7 @@
 - Ограничение max reward без подтверждённого эксперимента.
 - Auto-penalty для rollback и инцидентов `severity >= medium`.
 - Аномалии самоатрибуции и burst-активности отправляются в аудит.
+- Quarantine-режим для low-confidence/high-value событий до ручной проверки.
 
 ### FR-8. Governance
 - Начисления выше порога `governance_threshold` получают dispute window (72ч).
@@ -153,6 +157,9 @@
 
 ### `POST /v1/rewards/recompute`
 Запуск batch-пересчёта (`window=7|30|90`).
+
+### `POST /v1/attribution/replay`
+Детерминированный replay расчёта для аудита (`project_id`, `window`, `snapshot_hash`).
 
 ### `GET /v1/projects/{project_id}/ledger`
 Чтение графа событий проекта.
@@ -334,4 +341,69 @@ create table reward_payouts (
 4. Batch T+7 считает initial impact и создаёт payout (20% уже выплачено).
 5. Batch T+30 учитывает rollback/incidents и применяет корректировку.
 6. Batch T+90 фиксирует финальный contribution score.
+
+---
+
+
+## 17) Incremental Attribution & Reputation Engine (IARE)
+
+### 17.1 Цель IARE
+IARE отвечает за потоковый и детерминированный расчёт вкладов и репутации без полного пересчёта графа при каждом событии.
+
+Ключевые свойства:
+- **Инкрементальность:** пересчёт только изменённой части (`O(delta)`).
+- **Детерминизм:** одинаковый вход + policy_version + snapshot дают идентичный output hash.
+- **Распределённость:** репутация merge-ится между репликами без гонок (CRDT).
+
+### 17.2 Поток обработки
+1. `Creation Event` записывается в CTL.
+2. Ingress выполняет dedupe/normalize и публикует в stream topic.
+3. Graph Builder добавляет узлы/рёбра в creation graph (partition by `project_id`).
+4. Attribution Worker пересчитывает локальные агрегаты затронутого subgraph.
+5. Reputation Actor обновляет LTP/репутацию в CRDT-store.
+6. Payout Planner формирует draft payout и пишет его в CTL.
+7. Governance запускает dispute window и применяет override при необходимости.
+
+### 17.3 Инкрементальная формула (MVP)
+`score_event = base_weight * Σ(contributor_weight_i * lineage_decay^depth_i)`
+
+Где:
+- `contributor_weight_i = raw_impact_i * resonance_factor_i`,
+- `lineage_decay` по умолчанию 0.75 (допустимый диапазон 0.5–0.85),
+- `depth` ограничен радиусом локального обхода (например, `<= 6`).
+
+### 17.4 Репутация (CRDT + Bayesian smoothing)
+Для каждого `actor_id` хранить:
+- `count`,
+- `sum_score`,
+- `smoothed_score = (α * prior + sum_score) / (α + count)`.
+
+Требование к хранилищу:
+- состояния должны быть merge-safe (например, GCounter/PN-Counter или эквивалентная CRDT-семантика),
+- результат merge должен быть ассоциативным, коммутативным, идемпотентным.
+
+### 17.5 Детерминизм и аудит
+В CTL для каждого расчёта сохранять:
+- `policy_version`,
+- `input_snapshot_hash` (events + contributors + weights),
+- `output_payout_hash`.
+
+Проверка аудита: локальный replay по CTL должен приводить к тому же `output_payout_hash`.
+
+### 17.6 Anti-gaming примитивы в IARE
+- `per-actor rate limit` + батчинг микрособытий.
+- `burst growth detector`: резкий всплеск вклада > X за короткое окно => `quarantine`.
+- Spot-check (sampling) артефактов для high-value payouts.
+
+### 17.7 KPI для IARE
+- p95 attribution latency `< 1s` для micro events.
+- p95 attribution latency `< 5s` для medium events.
+- Доля инкрементальных перерасчётов `>= 99.5%`.
+- Determinism check: replay hash-match `= 100%`.
+
+### 17.8 Обязательные тесты IARE
+- **Determinism:** одинаковый упорядоченный replay => идентичный payout hash.
+- **Concurrency:** конкурентные writer'ы в один шард => нет потерянных обновлений.
+- **Abuse simulation:** спам микрособытиями => срабатывают batching/quarantine.
+- **Recovery:** падение воркера mid-update => идемпотентный resume по offset.
 
