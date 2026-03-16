@@ -68,3 +68,10 @@ def test_decision_api_uses_reputation_and_price_engines() -> None:
     assert created["price_ct"] > Decimal("10")
     assert created["suggested_resonance_band_min"] is not None
     assert created["suggested_resonance_band_max"] is not None
+
+
+def test_reputation_engine_normalizes_contribution_ema() -> None:
+    engine = ReputationEngine()
+    updated = engine.update("agent-x", quality_score=0.7, contribution_score=5.0)
+
+    assert 0 <= updated.contribution_ema <= 1

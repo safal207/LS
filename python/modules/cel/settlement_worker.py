@@ -5,6 +5,8 @@ from time import time
 from typing import Callable
 from uuid import uuid4
 
+UNSIGNED_PLACEHOLDER = "ed25519:unsigned-local"
+
 
 class SettlementError(ValueError):
     def __init__(self, code: str, message: str) -> None:
@@ -62,7 +64,7 @@ class OutcomeSettlementWorker:
             "ts": int(time()),
             "producer": "settlement-worker",
             "schema_version": "1.0",
-            "signature": "ed25519:unsigned-local",
+            "signature": UNSIGNED_PLACEHOLDER,
             "data": {
                 "proposal_id": req.proposal_id,
                 "agent_id": req.agent_id,

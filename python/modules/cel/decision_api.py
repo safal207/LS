@@ -212,6 +212,7 @@ class DecisionListingAPI:
             proposal["status"] = "archived"
 
     def _refresh_expired_locked(self) -> None:
+        # TODO: replace O(n) scan with TTL min-heap/index for large proposal sets.
         now = int(time())
         for proposal in self._proposals.values():
             if proposal["status"] == "active" and now >= proposal["expires_at"]:

@@ -34,6 +34,10 @@ class ContributionLedger:
     """Tracks contribution graph edges and computes payout split.
 
     Contribution Score = impact * resonance * accuracy
+
+    Note: multiple contribution types from the same agent are intentionally
+    aggregated for payout; role granularity remains available via
+    ``contribution_graph()``.
     """
 
     def __init__(self) -> None:

@@ -54,12 +54,13 @@ class ReputationEngine:
 
         with self._lock:
             prev = self.get(agent_id)
+            normalized_contribution = min(contribution_score, 1.0)
             q_ema = self._ema(prev.quality_ema, quality_score, alpha=0.3)
-            c_ema = self._ema(prev.contribution_ema, contribution_score, alpha=0.3)
+            c_ema = self._ema(prev.contribution_ema, normalized_contribution, alpha=0.3)
 
             next_score = (1 - self._decay) * prev.reputation_score
             next_score += self._quality_weight * q_ema
-            next_score += self._contribution_weight * min(c_ema, 1.0)
+            next_score += self._contribution_weight * c_ema
             next_score = max(0.0, min(1.0, next_score))
 
             current = AgentReputation(

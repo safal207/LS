@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from time import sleep
-
 import pytest
 
 from modules.cel import (
@@ -89,8 +87,13 @@ def test_buy_updates_status_emits_sold_event_and_grants_access() -> None:
     assert cem_events[-1]["event_type"] == "proposal_sold"
 
 
-def test_proposal_expiration_to_expired_status() -> None:
+def test_proposal_expiration_to_expired_status(monkeypatch: pytest.MonkeyPatch) -> None:
     api, _ = _mk_api()
+
+    import modules.cel.decision_api as decision_api_module
+
+    now = 1_710_000_000
+    monkeypatch.setattr(decision_api_module, "time", lambda: now)
 
     api.create(
         ProposalCreateRequest(
@@ -105,7 +108,7 @@ def test_proposal_expiration_to_expired_status() -> None:
         )
     )
 
-    sleep(1.1)
+    monkeypatch.setattr(decision_api_module, "time", lambda: now + 2)
     assert api.get("prop_expire")["status"] == "expired"
 
 
