@@ -1,6 +1,8 @@
 # Idea Flood vs Execution Bottleneck
 
 ## Контекст
+> Детальное ТЗ реализации: `docs/AI_VENTURE_ENGINE_PORTFOLIO_FLOW_CONTROLLER_TZ.md`.
+
 AI Venture Engine быстро генерирует и валидирует гипотезы. На практике первый масштабный сбой появляется не в качестве идей, а в дисбалансе между входящим потоком проектов и пропускной способностью исполнения.
 
 Это ловушка **Idea Flood vs Execution Bottleneck**:
