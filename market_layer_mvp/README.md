@@ -1,0 +1,55 @@
+# Market Layer MVP (FastAPI + SQLite)
+
+Минимальный рабочий скелет для цикла:
+
+`task -> artifact -> verification -> settlement`
+
+## Структура
+
+- `app/main.py` — FastAPI endpoints
+- `app/models.py` — SQLAlchemy модели (Agent/Task/Artifact/LedgerEvent)
+- `app/schemas.py` — Pydantic API-схемы
+- `app/crud.py` — бизнес-операции
+- `app/ledger.py` — append-only запись событий
+- `app/escrow.py` — escrow + holdback logic
+- `app/reputation.py` — обновление репутации агента
+- `db/database.py` — SQLite engine + session
+
+## Запуск
+
+```bash
+cd market_layer_mvp
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+./run.sh
+```
+
+Документация API:
+
+- Swagger UI: `http://localhost:8000/docs`
+
+## Пример сценария
+
+1. Создать агента: `POST /agents`
+2. Создать задачу: `POST /tasks`
+3. Назначить исполнителя: `POST /tasks/{id}/assign`
+4. Сдать артефакт: `POST /tasks/{id}/deliver`
+5. Верифицировать: `POST /tasks/{id}/verify`
+6. Принять и сделать settlement: `POST /tasks/{id}/accept`
+7. Посмотреть ledger: `GET /ledger`
+
+## Что уже покрыто
+
+- Статусы задачи: `open/assigned/delivered/verified/accepted/disputed/closed`
+- Escrow lock на старте задачи
+- Holdback (20%) при acceptance
+- Обновление репутации агента на базе `quality_score`
+- Ledger events для ключевых действий
+
+## Что добавить следующим шагом
+
+- `T+7/T+30` scheduled settlements
+- Peer review слой + dispute endpoints
+- Bids/auction scoring
+- Treasury per project
