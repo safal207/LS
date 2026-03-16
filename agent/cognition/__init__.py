@@ -4,6 +4,14 @@ from .cognitive_reducer import CognitiveReducer
 from .cognitive_store import CognitiveStore
 from .cognitive_transaction import CognitiveTransaction
 from .cognitive_transaction_log import CognitiveTransactionLog
+from .creation_feedback_layer import (
+    CREATION_EVENT_WEIGHTS,
+    FLOW_CHANNELS,
+    FLOW_EDGES,
+    FLOW_NODES,
+    CreationFeedbackLayer,
+    CreationLoopFeedback,
+)
 from .ltp_envelope import LTPEnvelope
 
 __all__ = [
@@ -13,5 +21,11 @@ __all__ = [
     "CognitiveStore",
     "CognitiveEventMesh",
     "CognitiveIdentity",
+    "CreationFeedbackLayer",
+    "CreationLoopFeedback",
+    "CREATION_EVENT_WEIGHTS",
+    "FLOW_CHANNELS",
+    "FLOW_NODES",
+    "FLOW_EDGES",
     "LTPEnvelope",
 ]
