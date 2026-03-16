@@ -56,28 +56,35 @@ def last_commit() -> dict[str, Any]:
     commit_hash = _run_git(["rev-parse", "HEAD"]).strip()
     message = _run_git(["show", "-s", "--format=%B", "HEAD"]).strip()
     numstat = _run_git(["show", "--numstat", "--format=", "HEAD"])
-
-    files: list[str] = []
-    insertions = 0
-    deletions = 0
-    files_changed = 0
-
-    for line in numstat.splitlines():
-        parts = line.split("\t")
-        if len(parts) < 3:
-            continue
-        ins, dels, path = parts[0], parts[1], parts[2]
-        ins_i = int(ins) if ins.isdigit() else 0
-        dels_i = int(dels) if dels.isdigit() else 0
-        insertions += ins_i
-        deletions += dels_i
-        files.append(path)
-        files_changed += 1
+    stats = _parse_numstat(numstat)
 
     return {
         "hash": commit_hash,
         "message": message,
-        "files_changed": files_changed,
+        "files_changed": stats["files_changed"],
+        "insertions": stats["insertions"],
+        "deletions": stats["deletions"],
+        "files": stats["files"],
+    }
+
+
+def _parse_numstat(numstat: str) -> dict[str, Any]:
+    files: list[str] = []
+    insertions = 0
+    deletions = 0
+
+    for line in numstat.splitlines():
+        parts = line.split("\t", 2)
+        if len(parts) != 3:
+            continue
+
+        ins, dels, path = parts
+        insertions += int(ins) if ins.isdigit() else 0
+        deletions += int(dels) if dels.isdigit() else 0
+        files.append(path)
+
+    return {
+        "files_changed": len(files),
         "insertions": insertions,
         "deletions": deletions,
         "files": files,
@@ -102,9 +109,12 @@ def heuristics_score(files_changed: int, insertions: int, deletions: int) -> dic
 def compute_accuracy(msg: str) -> float:
     base = 0.60
     lowered = msg.lower()
-    if any(token in lowered for token in ("fix", "bug", "resolved", "test", "passed")):
+    high_confidence_tokens = ("fix", "bug", "resolved", "test", "passed")
+    low_confidence_tokens = ("refactor", "docs", "typo", "style")
+
+    if any(token in lowered for token in high_confidence_tokens):
         base += 0.25
-    if any(token in lowered for token in ("refactor", "docs", "typo", "style")):
+    if any(token in lowered for token in low_confidence_tokens):
         base += 0.10
     return round(min(1.0, base), 4)
 
@@ -148,8 +158,8 @@ def perform_payout_if_needed(metrics: dict[str, Any], commit: dict[str, Any]) ->
 
     wallet = cel_wallet_api(append_ctl_event=append_ctl_event)
     amount = (MICRO_PAYOUT_CT * Decimal(str(metrics["impact"]))).quantize(Decimal("0.000001"))
-    trace_id = f"trace_commit_{commit['hash'][:12]}"
-    proposal_id = f"commit:{commit['hash'][:8]}"
+    trace_id = _trace_id(commit["hash"])
+    proposal_id = _proposal_id(commit["hash"])
 
     try:
         receipt = wallet.transfer(
@@ -169,22 +179,31 @@ def perform_payout_if_needed(metrics: dict[str, Any], commit: dict[str, Any]) ->
 
 
 def make_ctl_event_from_feedback(feedback: dict[str, Any], commit: dict[str, Any]) -> dict[str, Any]:
+    commit_hash = commit["hash"]
     return {
-        "event_id": f"evt_{commit['hash'][:12]}",
-        "trace_id": f"trace_commit_{commit['hash'][:12]}",
+        "event_id": f"evt_{commit_hash[:12]}",
+        "trace_id": _trace_id(commit_hash),
         "event_type": "micro_creation_reward",
         "ts": int(time.time()),
         "producer": "commit_reflection_hook",
         "schema_version": "1.0",
         "signature": "ed25519:unsigned-local",
         "data": {
-            "commit_hash": commit["hash"],
+            "commit_hash": commit_hash,
             "agent_id": AGENT_ID,
             "micro_reward": feedback.get("micro_reward"),
             "quality_score": feedback.get("quality_score"),
             "contribution_score": feedback.get("contribution_score"),
         },
     }
+
+
+def _trace_id(commit_hash: str) -> str:
+    return f"trace_commit_{commit_hash[:12]}"
+
+
+def _proposal_id(commit_hash: str) -> str:
+    return f"commit:{commit_hash[:8]}"
 
 
 def _feedback_to_dict(feedback_obj: Any) -> dict[str, Any]:

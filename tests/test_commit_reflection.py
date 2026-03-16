@@ -68,3 +68,21 @@ def test_payout_called_when_impact_high(monkeypatch) -> None:
     rc = cr.main([])
 
     assert rc == 0
+
+
+def test_parse_numstat_ignores_invalid_rows() -> None:
+    raw = "5\t2\tfoo.py\n-\t-\tbinary.png\ninvalid\n"
+
+    parsed = cr._parse_numstat(raw)
+
+    assert parsed["files_changed"] == 2
+    assert parsed["insertions"] == 5
+    assert parsed["deletions"] == 2
+    assert parsed["files"] == ["foo.py", "binary.png"]
+
+
+def test_trace_and_proposal_id_helpers() -> None:
+    commit_hash = "1234567890abcdef"
+
+    assert cr._trace_id(commit_hash) == "trace_commit_1234567890ab"
+    assert cr._proposal_id(commit_hash) == "commit:12345678"
