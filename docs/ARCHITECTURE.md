@@ -149,3 +149,9 @@ graph TB
 2. feature flags в `config/base.yaml`
 3. настройки agent loop (cancellation, metrics, observability)
 
+
+## Planned Extension: Intent / Capability Routing Layer (ICRL)
+
+Для масштабирования multi-agent режима вводится слой Intent Routing + Capability Index, который переводит топологию вызовов из статических связей в динамический capability matching.
+
+См. RFC: `docs/RFC_INTENT_CAPABILITY_ROUTING_LAYER_RU.md`.
