@@ -150,27 +150,8 @@ graph TB
 3. настройки agent loop (cancellation, metrics, observability)
 
 
-## Economic Intelligence Stack (CEL + MEL)
+## Planned Extension: Intent / Capability Routing Layer (ICRL)
 
-LS можно рассматривать как двухконтурную экономику:
+Для масштабирования multi-agent режима вводится слой Intent Routing + Capability Index, который переводит топологию вызовов из статических связей в динамический capability matching.
 
-1. **Decision Economy (CEL)** — оплата за конкретное решение (`decision -> reward`).
-2. **Model Economy (MEL)** — оплата за использование интеллектуального актива (`model -> usage -> reward`).
-
-Минимальный поток MEL:
-
-```text
-Agent -> Model Artifact -> Model Registry -> Usage Metering -> Revenue Split
-```
-
-Экономический слой LS в расширенной форме:
-
-```text
-Agents -> CEL -> MEL -> CEM -> CTL -> LTP
-```
-
-- **CEM** фиксирует `model_call_event` и оценки качества.
-- **CTL** выполняет on-ledger расчёт и распределение выручки.
-- **LTP/LTM** хранит долгосрочную историю репутации и lineage моделей.
-
-Подробная спецификация MEL: `docs/MODEL_ECONOMY_LAYER.md`.
+См. RFC: `docs/RFC_INTENT_CAPABILITY_ROUTING_LAYER_RU.md`.
