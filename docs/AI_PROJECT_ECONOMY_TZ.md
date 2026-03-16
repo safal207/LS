@@ -1,223 +1,317 @@
 # Техническое задание: внедрение AI-экономики проектов (Creation Ledger + Reward Engine)
 
-## 1. Контекст и цель
+## 1) Цель и ожидаемый результат
 
-Цель: внедрить в проект контур «AI-экономики проектов», в котором:
+Внедрить в проект операционный контур, в котором ценность создаётся и измеряется прозрачно:
 
-1. идеи автоматически формируются и оцениваются,
-2. одобренные проекты получают бюджет (`treasury`),
-3. задачи исполняются агентами/людьми,
-4. каждый вклад записывается как `Creation Event` в неизменяемый ledger,
-5. награды рассчитываются на основе подтверждённого вклада в метрики проекта,
-6. доход проекта реинвестируется в новые циклы.
+1. Идеи формируются и проходят фильтрацию.
+2. Одобренные инициативы становятся проектами с бюджетом (`treasury`).
+3. Проект декомпозируется в задачи, исполняемые агентами и людьми.
+4. Каждый значимый вклад фиксируется как `Creation Event` в append-only ledger.
+5. Выплаты рассчитываются по подтверждённому эффекту на метрики.
+6. Доход проекта частично реинвестируется в новые проекты.
 
-Результат внедрения: управляемый и проверяемый механизм распределения ценности, устойчивый к KPI-gaming и ложной активности.
-
----
-
-## 2. Границы внедрения (Scope)
-
-### В scope
-- модель данных проекта, treasury, задач и creation events;
-- API/контракты для записи событий и их валидации;
-- движок атрибуции вклада и расчёта reward;
-- отложенные перерасчёты (T+7/T+30/T+90);
-- базовые анти-абьюз проверки;
-- observability и аудит;
-- человек-в-контуре (споры/override).
-
-### Out of scope (этап 1)
-- юридическая токеномика и внешние on-chain интеграции;
-- полноценный маркетплейс внешних агентов;
-- автономный запуск проектов без утверждения governance.
+**Итог:** система должна объяснять «почему выплачено именно столько», быть устойчивой к gaming-стратегиям и поддерживать аудит по цепочке «метрика → событие → артефакт → исполнитель».
 
 ---
 
-## 3. Бизнес-требования
+## 2) Scope
 
-1. **Прозрачность**: для каждой выплаты должен быть трассируемый путь от бизнес-результата до цепочки событий.
-2. **Справедливость**: награда учитывает не только доставку, но и устойчивость эффекта, качество и enablement-вклад.
-3. **Устойчивость**: система не должна поощрять искусственное дробление задач и «шумовые» коммиты.
-4. **Гибкость**: правила экономики версионируются и применяются по `policy_version`.
-5. **Контроль риска**: при инцидентах и rollback выплаты автоматически корректируются.
+### In scope (Phase 1)
+- Модель данных: проекты, treasury, задачи, события, выплаты.
+- Event API и валидация протокола `Creation Event`.
+- Базовый `Reward Engine` (T+7) + отложенные окна (T+30/T+90).
+- Базовый `Attribution Engine` по dependency graph.
+- Governance-контур споров/override.
+- Наблюдаемость, аудит и инварианты целостности.
 
----
-
-## 4. Архитектура (этап 1)
-
-- **Project Registry**: хранение проекта, целей, метрик, статуса.
-- **Treasury Service**: бюджет проекта, движения средств, lock/vesting.
-- **Task Orchestrator**: декомпозиция roadmap в задачи, назначение исполнителей.
-- **Creation Ledger**: append-only журнал `Creation Event`.
-- **Attribution Engine**: построение dependency graph и расчёт долей вклада.
-- **Reward Engine**: расчёт и начисление reward по формулам и окнам времени.
-- **Policy Engine**: хранение и исполнение версий правил.
-- **Audit & Dispute Console**: интерфейс проверки спорных начислений.
+### Out of scope (Phase 1)
+- Юридическая токеномика и on-chain settlement.
+- Полностью автономный запуск проектов без human approval.
+- Внешний публичный маркетплейс агентов.
 
 ---
 
-## 5. Функциональные требования
+## 3) Термины
 
-### FR-1. Управление проектом
-- Создание проекта с полями: `idea`, `goal`, `success_metrics`, `roadmap`, `treasury`.
-- Статусы проекта: `proposed`, `approved`, `active`, `paused`, `archived`.
-- Для `approved` обязательно наличие стартового treasury.
+- **Project** — экономическая единица (цель, метрики, roadmap, treasury).
+- **Creation Event** — атомарная запись вклада (идея/код/тест/деплой/эксперимент и т.д.).
+- **Attribution** — расчёт долей вклада по графу зависимостей.
+- **Reward** — начисление за вклад после применения формулы и политик.
+- **Policy Version** — версия правил экономики, применяемая к событию/выплате.
+
+---
+
+## 4) Бизнес-требования
+
+1. **Прозрачность:** любое начисление объяснимо и трассируемо.
+2. **Справедливость:** учитываются impact, качество, устойчивость, enablement.
+3. **Устойчивость:** минимизация стимулов к искусственной активности.
+4. **Гибкость:** правила версионируются, поддерживаются миграции политик.
+5. **Контроль рисков:** инциденты, rollback, security-fail автоматически влияют на выплаты.
+
+---
+
+## 5) Архитектура (target state)
+
+- **Project Registry** — жизненный цикл проекта и KPI.
+- **Task Orchestrator** — декомпозиция roadmap и assignment.
+- **Creation Ledger** — append-only события + подписи + idempotency.
+- **Attribution Engine** — граф причинности, доли вклада.
+- **Reward Engine** — батчи T+7/T+30/T+90, начисления/корректировки.
+- **Treasury Service** — доступный баланс, lock, vesting, payout.
+- **Policy Engine** — параметры формулы, пороги, правила анти-абьюза.
+- **Governance Console** — dispute, override, audit trail.
+
+---
+
+## 6) Функциональные требования
+
+### FR-1. Жизненный цикл проекта
+- Статусы: `proposed` → `approved` → `active` → `paused`/`archived`.
+- `approved` возможен только при наличии стартового treasury и owner.
 
 ### FR-2. Декомпозиция задач
-- Задачи создаются по этапам roadmap.
-- У задачи есть: `task_id`, `project_id`, `owner`, `reward_budget`, `acceptance_criteria`.
+- Каждая задача привязана к этапу roadmap.
+- Обязательные поля: `task_id`, `project_id`, `owner`, `reward_budget`, `acceptance_criteria`, `deadline`.
 
-### FR-3. Протокол Creation Event
-Каждое значимое действие записывается событием, минимум с полями:
+### FR-3. Протокол Creation Event (обязательные поля)
 - `event_id`, `project_id`, `timestamp`;
-- `actor` (тип, id, роль);
-- `action.type`;
-- `artifacts[]` (URI + hash);
+- `actor{type,id,role}`;
+- `action{type,task_id,description}`;
+- `artifacts[]` (минимум URI + digest/hash);
 - `dependencies.parent_event_ids[]`;
-- `evaluation.expected_impact`;
-- `quality_signals`;
-- `attribution.contributors[]` (доли);
-- `economics.base_reward`, `vesting_days`;
-- `governance.policy_version`.
+- `evaluation.expected_impact{metric,direction,magnitude_estimate}`;
+- `quality_signals{tests_passed,review_score,security_status,rollback_within_7d}`;
+- `attribution.contributors[]` (доли суммарно 1.0);
+- `economics{base_reward,vesting_days}`;
+- `governance{policy_version}`.
 
-### FR-4. Валидация событий
-- Нельзя принимать событие без `project_id`, `actor`, `action.type`.
-- Для high-impact действий обязателен хотя бы один проверяемый artifact.
-- Если отсутствуют связи зависимостей, событие помечается как `low_confidence`.
+### FR-4. Валидация события
+- Reject, если нет `project_id`/`actor`/`action.type`.
+- High-impact action требует верифицируемый artifact.
+- Нарушение инвариантов долей атрибуции (`sum != 1.0`) — reject.
+- Event с отсутствующим dependency-графом — `low_confidence` (но сохраняется).
 
 ### FR-5. Расчёт наград
-Базовая формула:
+
+Формула:
 
 `R = B + α·I + β·P + γ·E − δ·N`
 
 Где:
-- `B` — базовая награда,
-- `I` — подтверждённый impact,
-- `P` — persistence (длительность эффекта),
-- `E` — enablement-вклад,
-- `N` — штрафы (инциденты/rollback/security).
+- `B` — base reward,
+- `I` — подтверждённый impact на KPI,
+- `P` — persistence эффекта,
+- `E` — enablement (ускорение/масштабируемость для других),
+- `N` — негативные факторы (rollback/incidents/security).
 
-Выплата: 20% сразу + 80% после окна валидации эффекта (по политике).
+Выплата:
+- 20% мгновенно (provisional),
+- 80% после валидации окна,
+- при отрицательной корректировке создаётся `negative_adjustment`.
 
-### FR-6. Отложенные окна пересчёта
-- `T+7`: первая валидация impact.
-- `T+30`: основная корректировка reward.
-- `T+90`: финальная корректировка по устойчивости.
+### FR-6. Временные окна
+- `T+7` — первичная валидация и основная часть начисления.
+- `T+30` — корректировка по устойчивости и качеству.
+- `T+90` — финальная стабилизация contribution score.
 
 ### FR-7. Anti-gaming
-- Батчинг микрособытий (нормализация сверхчастых action).
-- Штраф за rollback и инциденты severity >= medium.
+- Нормализация микрособытий (batching/frequency caps).
 - Ограничение max reward без подтверждённого эксперимента.
-- Аномалии (подозрительная частота/самоатрибуция) отправляются в аудит.
+- Auto-penalty для rollback и инцидентов `severity >= medium`.
+- Аномалии самоатрибуции и burst-активности отправляются в аудит.
 
-### FR-8. Governance и споры
-- Любое начисление выше порога требует окна dispute (72 часа).
-- Override только через `governance_action` с причиной и ответственным.
-- Все overrides неизменяемо логируются.
-
----
-
-## 6. Нефункциональные требования
-
-- **Надёжность**: idempotency записи событий по `event_id`.
-- **Производительность**: запись события p95 < 200ms; расчёт daily batch до 1 млн событий < 30 минут.
-- **Безопасность**: подпись события, контроль прав на запись/approve.
-- **Аудит**: полный трассинг «выплата → события → артефакты → метрики».
-- **Наблюдаемость**: метрики ошибок, задержек, доли disputed начислений.
+### FR-8. Governance
+- Начисления выше порога `governance_threshold` получают dispute window (72ч).
+- Override только через `governance_action` с reason + approver.
+- Все governance-события immutable и подписаны.
 
 ---
 
-## 7. Контракты API (черновик)
+## 7) Нефункциональные требования
 
-### POST `/v1/projects`
-Создать проект.
-
-### POST `/v1/projects/{project_id}/tasks`
-Создать задачу этапа.
-
-### POST `/v1/events`
-Записать `Creation Event`.
-
-### POST `/v1/rewards/recompute`
-Запустить перерасчёт за окно (`7|30|90`).
-
-### GET `/v1/projects/{project_id}/ledger`
-Получить события и связи.
-
-### GET `/v1/projects/{project_id}/payouts`
-Получить историю начислений и корректировок.
-
-### POST `/v1/governance/disputes`
-Открыть спор по начислению.
-
-### POST `/v1/governance/overrides`
-Выполнить override по спору.
+- Надёжность: idempotency по `event_id`.
+- Производительность: `POST /v1/events` p95 < 200ms.
+- Batch-производительность: перерасчёт до 1 млн событий < 30 мин.
+- Безопасность: подпись события, RBAC/ABAC на операции approve/payout.
+- Наблюдаемость: метрики latency/error/disputed-rate/payout-drift.
+- Аудит: полный trace payout → events → artifacts → KPI snapshots.
 
 ---
 
-## 8. Модель данных (минимум)
+## 8) API-контракты (MVP)
 
-### Таблицы
-- `projects`
-- `project_treasury`
-- `project_tasks`
-- `creation_events`
-- `event_artifacts`
-- `event_dependencies`
-- `event_contributors`
-- `reward_calculations`
-- `reward_payouts`
-- `governance_disputes`
-- `governance_overrides`
+### `POST /v1/projects`
+Создание проекта.
 
-### Инварианты
-- `creation_events.event_id` уникален (idempotency key).
-- Сумма `event_contributors.share` = 1.0.
-- Нельзя выполнить payout при недостатке доступного treasury.
+### `POST /v1/projects/{project_id}/tasks`
+Создание задачи.
 
----
+### `POST /v1/events`
+Запись `Creation Event`.
 
-## 9. Этапы внедрения
+### `POST /v1/rewards/recompute`
+Запуск batch-пересчёта (`window=7|30|90`).
 
-### Этап 1 (2–3 недели)
-- Реализовать `Creation Ledger` + базовую валидацию событий.
-- Ввести таблицы и API для записи/чтения событий.
-- Добавить первичный reward batch (T+7).
+### `GET /v1/projects/{project_id}/ledger`
+Чтение графа событий проекта.
 
-### Этап 2 (2 недели)
-- Добавить граф атрибуции, persistence и enablement-фактор.
-- Поддержать T+30/T+90 перерасчёты.
-- Включить anti-gaming правила.
+### `GET /v1/projects/{project_id}/payouts`
+История начислений и корректировок.
 
-### Этап 3 (1–2 недели)
-- Внедрить governance disputes/overrides.
-- Подключить аналитические дашборды и аудит-трейсы.
+### `POST /v1/governance/disputes`
+Открыть спор по payout.
+
+### `POST /v1/governance/overrides`
+Применить override по спору.
 
 ---
 
-## 10. Критерии приёмки (Definition of Done)
+## 9) SQL DDL (минимум для старта)
 
-1. Для каждого payout есть объяснение формулы и ссылка на исходные события.
-2. Повторная отправка `Creation Event` с тем же `event_id` не дублирует запись.
-3. При rollback в окне T+30 reward снижается согласно политике.
-4. При споре начисление переводится в `pending` до решения.
-5. Все ключевые API покрыты автотестами (контракт + интеграция).
-6. Есть отчёт: распределение reward по ролям и доля disputed payouts.
+```sql
+create table projects (
+  project_id text primary key,
+  name text not null,
+  status text not null,
+  idea text not null,
+  goal text not null,
+  success_metrics jsonb not null,
+  roadmap jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+create table project_treasury (
+  project_id text primary key references projects(project_id),
+  currency text not null,
+  available_amount numeric(20,8) not null,
+  locked_amount numeric(20,8) not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+create table creation_events (
+  event_id text primary key,
+  project_id text not null references projects(project_id),
+  timestamp timestamptz not null,
+  actor_type text not null,
+  actor_id text not null,
+  actor_role text not null,
+  action_type text not null,
+  task_id text,
+  payload jsonb not null,
+  confidence text not null default 'normal',
+  policy_version text not null,
+  created_at timestamptz not null default now()
+);
+
+create table event_contributors (
+  event_id text not null references creation_events(event_id) on delete cascade,
+  actor_id text not null,
+  share numeric(6,5) not null,
+  primary key (event_id, actor_id)
+);
+
+create table reward_calculations (
+  calc_id bigserial primary key,
+  event_id text not null references creation_events(event_id),
+  window_days int not null,
+  base_reward numeric(20,8) not null,
+  impact_score numeric(12,6) not null,
+  persistence_score numeric(12,6) not null,
+  enablement_score numeric(12,6) not null,
+  negative_score numeric(12,6) not null,
+  total_reward numeric(20,8) not null,
+  status text not null,
+  created_at timestamptz not null default now()
+);
+
+create table reward_payouts (
+  payout_id bigserial primary key,
+  calc_id bigint not null references reward_calculations(calc_id),
+  project_id text not null references projects(project_id),
+  actor_id text not null,
+  amount numeric(20,8) not null,
+  payout_type text not null,
+  status text not null,
+  created_at timestamptz not null default now()
+);
+```
+
+### Инварианты БД
+- `creation_events.event_id` уникален (idempotency).
+- `sum(event_contributors.share)` по `event_id` должно быть равно `1.0`.
+- Нельзя подтвердить payout, если `available_amount < amount`.
 
 ---
 
-## 11. Риски и меры
+## 10) State machines
 
-- **Риск:** ложная атрибуция вклада.  
-  **Мера:** dependency graph + human review для high-impact.
-- **Риск:** переусложнение модели на старте.  
-  **Мера:** запуск с MVP-формулой и ограниченным числом event types.
-- **Риск:** дефицит качественных сигналов.  
-  **Мера:** обязательные artifacts + quality gates в CI.
+### 10.1 Project state machine
+- `proposed` → `approved` (требует treasury > 0)
+- `approved` → `active`
+- `active` → `paused` | `archived`
+- `paused` → `active` | `archived`
+
+### 10.2 Payout state machine
+- `draft` → `pending_dispute` (если выше порога)
+- `draft` → `ready_to_pay` (если ниже порога)
+- `pending_dispute` → `ready_to_pay` | `rejected`
+- `ready_to_pay` → `paid`
 
 ---
 
-## 12. Стартовый список типов событий
+## 11) План внедрения (delivery)
+
+### Phase 1 (2–3 недели)
+- Event API + валидация + запись в ledger.
+- DDL/миграции таблиц.
+- Batch T+7 и provisional payout.
+- Базовый dashboard (events/day, payouts/day, disputed-rate).
+
+### Phase 2 (2 недели)
+- Dependency graph + attribution scoring.
+- Batch T+30/T+90 и корректировки.
+- Anti-gaming правила и anomaly flags.
+
+### Phase 3 (1–2 недели)
+- Governance disputes/overrides.
+- Финальный аудит-трейс и отчёты для finance/product.
+
+---
+
+## 12) Acceptance Criteria (DoD)
+
+1. Повторная отправка `event_id` не создаёт дубль.
+2. Любой payout объясним формулой и ссылками на исходные события.
+3. Rollback в окне T+30 снижает payout по политике.
+4. Спор переводит payout в `pending_dispute` до решения.
+5. Ключевые API покрыты контрактными и интеграционными тестами.
+6. Есть отчёт по распределению reward и доле disputed payouts.
+
+---
+
+## 13) Тест-план (обязательный минимум)
+
+- Контрактные тесты API (`/projects`, `/events`, `/rewards/recompute`, `/governance/*`).
+- Property-based тест: сумма долей атрибуции всегда 1.0.
+- Идемпотентность: повтор `POST /v1/events` с одинаковым `event_id`.
+- Интеграция: сценарий `code_committed → deploy_done → metric_improved → payout`.
+- Негативный сценарий: rollback после payout и корректировка `negative_adjustment`.
+
+---
+
+## 14) RACI (кто отвечает)
+
+- Product/Strategy — KPI, пороги economics, приоритеты проектов.
+- Platform/Backend — Ledger API, Reward Engine, миграции.
+- Data/ML — impact-сигналы и аномалии anti-gaming.
+- Security — подписи, доступы, аудит событий.
+- Governance Board — спорные начисления и policy override.
+
+---
+
+## 15) Стартовый справочник типов событий
 
 - `idea_created`
 - `hypothesis_validated`
@@ -232,12 +326,12 @@
 
 ---
 
-## 13. Приложение: пример пайплайна начисления
+## 16) Пример жизненного цикла начисления
 
-1. Агент публикует `code_committed` с artifact (commit hash).
-2. После деплоя фиксируется `deploy_done`.
+1. Агент публикует `code_committed` с hash артефакта.
+2. После релиза фиксируется `deploy_done`.
 3. Эксперимент публикует `metric_improved`.
-4. Daily batch на T+7 подтверждает impact.
-5. Reward Engine рассчитывает `R` и создаёт `reward_payout` (частично vested).
-6. Если в T+30 был rollback — создаётся корректировка (negative payout/penalty).
+4. Batch T+7 считает initial impact и создаёт payout (20% уже выплачено).
+5. Batch T+30 учитывает rollback/incidents и применяет корректировку.
+6. Batch T+90 фиксирует финальный contribution score.
 
