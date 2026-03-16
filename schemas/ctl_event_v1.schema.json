@@ -43,7 +43,7 @@
     },
     "schema_version": {
       "type": "string",
-      "const": "1.0"
+      "pattern": "^1\\."
     },
     "signature": {
       "type": "string",
@@ -61,7 +61,9 @@
             "const": "proposal_created"
           }
         },
-        "required": ["event_type"]
+        "required": [
+          "event_type"
+        ]
       },
       "then": {
         "properties": {
@@ -78,7 +80,9 @@
             "const": "proposal_purchased"
           }
         },
-        "required": ["event_type"]
+        "required": [
+          "event_type"
+        ]
       },
       "then": {
         "properties": {
@@ -95,7 +99,9 @@
             "const": "outcome_settled"
           }
         },
-        "required": ["event_type"]
+        "required": [
+          "event_type"
+        ]
       },
       "then": {
         "properties": {
@@ -112,7 +118,9 @@
             "const": "price_changed"
           }
         },
-        "required": ["event_type"]
+        "required": [
+          "event_type"
+        ]
       },
       "then": {
         "properties": {
@@ -137,13 +145,35 @@
         "ttl_sec"
       ],
       "properties": {
-        "agent_id": { "type": "string", "minLength": 1 },
-        "proposal_id": { "type": "string", "minLength": 1 },
-        "asset": { "type": "string", "minLength": 1 },
-        "prediction": { "type": "string", "minLength": 1 },
-        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-        "price_ct": { "type": "number", "exclusiveMinimum": 0 },
-        "ttl_sec": { "type": "integer", "minimum": 1 }
+        "agent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proposal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "asset": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prediction": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "price_ct": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "ttl_sec": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
     "proposal_purchased": {
@@ -158,12 +188,30 @@
         "tx_ref"
       ],
       "properties": {
-        "proposal_id": { "type": "string", "minLength": 1 },
-        "buyer_agent_id": { "type": "string", "minLength": 1 },
-        "seller_agent_id": { "type": "string", "minLength": 1 },
-        "amount": { "type": "number", "exclusiveMinimum": 0 },
-        "currency": { "type": "string", "const": "CT" },
-        "tx_ref": { "type": "string", "minLength": 1 }
+        "proposal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "buyer_agent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "seller_agent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "amount": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "currency": {
+          "type": "string",
+          "const": "CT"
+        },
+        "tx_ref": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "outcome_settled": {
@@ -171,17 +219,41 @@
       "additionalProperties": false,
       "required": [
         "proposal_id",
+        "agent_id",
         "horizon_sec",
         "result",
         "error_band",
         "quality_score"
       ],
       "properties": {
-        "proposal_id": { "type": "string", "minLength": 1 },
-        "horizon_sec": { "type": "integer", "minimum": 1 },
-        "result": { "type": "string", "enum": ["hit", "miss"] },
-        "error_band": { "type": "number", "minimum": 0 },
-        "quality_score": { "type": "number", "minimum": 0, "maximum": 1 }
+        "proposal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "horizon_sec": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "hit",
+            "miss"
+          ]
+        },
+        "error_band": {
+          "type": "number",
+          "minimum": 0
+        },
+        "quality_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "agent_id": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "price_changed": {
@@ -194,11 +266,24 @@
         "reason"
       ],
       "properties": {
-        "agent_id": { "type": "string", "minLength": 1 },
-        "old_price_ct": { "type": "number", "exclusiveMinimum": 0 },
-        "new_price_ct": { "type": "number", "exclusiveMinimum": 0 },
-        "reason": { "type": "string", "minLength": 1 }
+        "agent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "old_price_ct": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "new_price_ct": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     }
-  }
+  },
+  "$comment": "CTL Event Schema v1. Signatures in examples are placeholders. Real signatures are generated via ed25519 keypair: `python -c 'import nacl.signing; k=nacl.signing.SigningKey.generate(); print(k.verify_key.encode().hex())'`"
 }

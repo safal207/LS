@@ -30,6 +30,7 @@ def test_settlement_emits_valid_ctl_event_and_cem_event() -> None:
         SettlementRequest(
             trace_id="trace_settle_1",
             proposal_id="prop_003",
+            agent_id="energy-98231",
             expected_delta=0.05,
             actual_delta=0.07,
             horizon_sec=604800,
@@ -44,6 +45,7 @@ def test_settlement_emits_valid_ctl_event_and_cem_event() -> None:
     assert len(ctl_events) == 1
     schema = _load_json(SCHEMA_PATH)
     Draft202012Validator(schema).validate(ctl_events[0])
+    assert ctl_events[0]["data"]["agent_id"] == "energy-98231"
 
     assert len(cem_events) == 1
     assert cem_events[0]["event_type"] == "settlement_completed"
@@ -55,6 +57,7 @@ def test_settlement_miss_case() -> None:
         SettlementRequest(
             trace_id="trace_settle_2",
             proposal_id="prop_004",
+            agent_id="energy-98231",
             expected_delta=0.05,
             actual_delta=-0.01,
             horizon_sec=86400,
@@ -73,6 +76,7 @@ def test_settlement_rejects_invalid_horizon() -> None:
             SettlementRequest(
                 trace_id="trace_settle_3",
                 proposal_id="prop_005",
+                agent_id="energy-98231",
                 expected_delta=0.01,
                 actual_delta=0.02,
                 horizon_sec=0,

@@ -11,6 +11,7 @@
     "horizon_sec": 604800,
     "result": "hit",
     "error_band": 0.02,
-    "quality_score": 0.91
+    "quality_score": 0.91,
+    "agent_id": "energy-98231"
   }
 }

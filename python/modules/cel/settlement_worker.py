@@ -16,6 +16,7 @@ class SettlementError(ValueError):
 class SettlementRequest:
     trace_id: str
     proposal_id: str
+    agent_id: str
     expected_delta: float
     actual_delta: float
     horizon_sec: int
@@ -45,6 +46,8 @@ class OutcomeSettlementWorker:
             raise SettlementError("INVALID_TRACE_ID", "trace_id must start with 'trace_'")
         if not req.proposal_id:
             raise SettlementError("INVALID_PROPOSAL_ID", "proposal_id is required")
+        if not req.agent_id:
+            raise SettlementError("INVALID_AGENT_ID", "agent_id is required")
         if req.horizon_sec <= 0:
             raise SettlementError("INVALID_HORIZON", "horizon_sec must be > 0")
 
@@ -62,6 +65,7 @@ class OutcomeSettlementWorker:
             "signature": "ed25519:unsigned-local",
             "data": {
                 "proposal_id": req.proposal_id,
+                "agent_id": req.agent_id,
                 "horizon_sec": req.horizon_sec,
                 "result": result,
                 "error_band": round(error_band, 6),

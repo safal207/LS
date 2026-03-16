@@ -5,7 +5,7 @@
   "ts": 1710504000,
   "producer": "runtime-service",
   "schema_version": "1.0",
-  "signature": "ed25519:runtime_signature",
+  "signature": "ed25519:<placeholder>",
   "data": {
     "agent_id": "energy-98231",
     "proposal_id": "prop_003",
