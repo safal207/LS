@@ -5,6 +5,15 @@ from .contribution_api import (
     ContributionRecord,
     distribute_value,
 )
+from .iare_engine import (
+    CRDTReputationStore,
+    ContributorImpact,
+    CreationEvent,
+    IAREError,
+    IncrementalAttributionEngine,
+    PayoutLine,
+    PayoutSnapshot,
+)
 from .decision_api import (
     DecisionApiError,
     DecisionListingAPI,
@@ -51,4 +60,11 @@ __all__ = [
     "PriceQuote",
     "EventSigner",
     "SigningError",
+    "CRDTReputationStore",
+    "IncrementalAttributionEngine",
+    "PayoutSnapshot",
+    "PayoutLine",
+    "CreationEvent",
+    "ContributorImpact",
+    "IAREError",
 ]
