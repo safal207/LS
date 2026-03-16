@@ -37,6 +37,7 @@ def test_creation_feedback_layer_ignores_non_creation_actions() -> None:
     approved = _tx("approve_proposal", {"proposal_id": "p1", "data": {"ok": True}})
 
     assert layer.ingest_transaction(approved) is False
+    assert layer.process_micro_step(approved) is None
 
     snapshot = layer.snapshot()
     assert snapshot["creation_score"] == 0.0
@@ -70,3 +71,34 @@ def test_creation_feedback_layer_renders_mermaid_diagram() -> None:
     assert "artifact -->|economy| mel" in graph
     assert "cel -->|knowledge| cem" in graph
     assert "ltp -->|dopamine| next_cue" in graph
+
+
+def test_process_micro_step_emits_reflection_cel_and_ltp_updates() -> None:
+    layer = CreationFeedbackLayer()
+    tx = _tx("code_commit", {"trace_id": "trace_commit_1"})
+
+    feedback = layer.process_micro_step(tx, quality_score=0.8)
+
+    assert feedback is not None
+    assert feedback.action == "code_commit"
+    assert feedback.micro_reward > 0
+    assert feedback.prediction_error > 0
+    assert feedback.reflection_event["type"] == "reflection_micro_reward"
+    assert feedback.cel_decision_payload["type"] == "cel_decision_micro"
+    assert feedback.cel_decision_payload["trace_id"] == "trace_commit_1"
+    assert feedback.ltp_update["type"] == "ltp_growth_update"
+    assert feedback.ltp_score > 0
+
+    actor_profile = layer.snapshot()["actor_profiles"]["agent"]
+    assert actor_profile["ltp_score"] == feedback.ltp_score
+
+
+def test_process_micro_step_rejects_invalid_quality_score() -> None:
+    layer = CreationFeedbackLayer()
+    tx = _tx("code_commit")
+
+    try:
+        layer.process_micro_step(tx, quality_score=1.5)
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "quality_score" in str(exc)

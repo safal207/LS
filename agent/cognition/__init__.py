@@ -10,6 +10,7 @@ from .creation_feedback_layer import (
     FLOW_EDGES,
     FLOW_NODES,
     CreationFeedbackLayer,
+    CreationLoopFeedback,
 )
 from .ltp_envelope import LTPEnvelope
 
@@ -21,6 +22,7 @@ __all__ = [
     "CognitiveEventMesh",
     "CognitiveIdentity",
     "CreationFeedbackLayer",
+    "CreationLoopFeedback",
     "CREATION_EVENT_WEIGHTS",
     "FLOW_CHANNELS",
     "FLOW_NODES",
