@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from modules.cel import CELApiError, CELWalletAPI, TransferRequest
+from modules.cel import CELApiError, CELWalletAPI, EventSigner, TransferRequest
 
 
 def test_transfer_updates_balances_and_emits_ctl_event() -> None:
@@ -34,6 +34,27 @@ def test_transfer_updates_balances_and_emits_ctl_event() -> None:
     assert event["trace_id"] == "trace_01HXYZABCD"
     assert event["data"]["proposal_id"] == "prop_003"
     assert event["data"]["amount"] == 10.0
+
+
+def test_transfer_signs_event_when_signer_provided() -> None:
+    signer = EventSigner.generate()
+    events: list[dict] = []
+    api = CELWalletAPI(append_ctl_event=events.append, event_signer=signer)
+    api.create_wallet("buyer", Decimal("10"))
+    api.create_wallet("seller", Decimal("0"))
+
+    api.transfer(
+        TransferRequest(
+            trace_id="trace_sign",
+            proposal_id="prop_sign",
+            from_agent_id="buyer",
+            to_agent_id="seller",
+            amount_ct=Decimal("1"),
+        )
+    )
+
+    assert events[0]["signature"].startswith("ed25519:")
+    assert signer.verify_event(events[0])
 
 
 def test_transfer_rejects_insufficient_funds_with_deterministic_code() -> None:

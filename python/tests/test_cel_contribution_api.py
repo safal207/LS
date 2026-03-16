@@ -114,3 +114,10 @@ def test_builds_contribution_graph_projection() -> None:
     assert graph["hypothesis"] == ["agent_A"]
     assert graph["refinement"] == ["agent_B"]
     assert graph["validation"] == ["agent_C"]
+
+
+def test_no_contributions_raises() -> None:
+    ledger = ContributionLedger()
+    with pytest.raises(ContributionApiError) as exc:
+        ledger.compute_payouts("missing", Decimal("10"))
+    assert exc.value.code == "NO_CONTRIBUTIONS"

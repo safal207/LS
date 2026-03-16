@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
 from modules.cel import (
+    CELWalletAPI,
     DecisionListingAPI,
     PriceEngine,
     PriceInput,
+    PriceEngineError,
     ProposalCreateRequest,
     ReputationEngine,
-    CELWalletAPI,
 )
 
 
@@ -21,6 +24,16 @@ def test_reputation_engine_updates_with_quality_and_contribution() -> None:
     assert before.reputation_score == 0.5
     assert after.reputation_score > before.reputation_score
     assert after.updates_count == 1
+
+
+def test_reputation_engine_decay_under_low_quality() -> None:
+    engine = ReputationEngine(quality_weight=0.2, contribution_weight=0.0, decay=0.2)
+    engine.update("agent-decay", quality_score=1.0, contribution_score=0.0)
+    prev = engine.get("agent-decay")
+    for _ in range(5):
+        engine.update("agent-decay", quality_score=0.0, contribution_score=0.0)
+    curr = engine.get("agent-decay")
+    assert curr.reputation_score < prev.reputation_score
 
 
 def test_price_engine_formula_and_band() -> None:
@@ -40,9 +53,23 @@ def test_price_engine_formula_and_band() -> None:
     assert quote.suggested_resonance_band_max == Decimal("19.641600")
 
 
+def test_price_engine_rejects_bad_input() -> None:
+    engine = PriceEngine()
+    with pytest.raises(PriceEngineError):
+        engine.quote(
+            PriceInput(
+                base_price_ct=Decimal("10"),
+                reputation_score=2.0,
+                demand_index=0.0,
+                confidence_calibrated=0.5,
+                risk_discount=1.0,
+            )
+        )
+
+
 def test_decision_api_uses_reputation_and_price_engines() -> None:
     wallet = CELWalletAPI()
-    wallet.create_wallet("energy-98231", Decimal("0"))
+    wallet.create_wallet("energy-98231", Decimal("100"))
 
     reputation = ReputationEngine()
     reputation.update("energy-98231", quality_score=0.95, contribution_score=0.9)

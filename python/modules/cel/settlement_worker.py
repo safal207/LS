@@ -5,6 +5,8 @@ from time import time
 from typing import Callable
 from uuid import uuid4
 
+from .signing import EventSigner
+
 UNSIGNED_PLACEHOLDER = "ed25519:unsigned-local"
 
 
@@ -39,9 +41,11 @@ class OutcomeSettlementWorker:
         self,
         append_ctl_event: Callable[[dict], None] | None = None,
         publish_cem_event: Callable[[dict], None] | None = None,
+        event_signer: EventSigner | None = None,
     ) -> None:
         self._append_ctl_event = append_ctl_event
         self._publish_cem_event = publish_cem_event
+        self._event_signer = event_signer
 
     def settle(self, req: SettlementRequest) -> SettlementResult:
         if not req.trace_id.startswith("trace_"):
@@ -74,6 +78,8 @@ class OutcomeSettlementWorker:
                 "quality_score": round(quality_score, 6),
             },
         }
+        if self._event_signer:
+            ctl_event["signature"] = self._event_signer.sign_event(ctl_event)
         if self._append_ctl_event:
             self._append_ctl_event(ctl_event)
 

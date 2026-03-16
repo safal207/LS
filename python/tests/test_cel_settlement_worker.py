@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
-from modules.cel import OutcomeSettlementWorker, SettlementError, SettlementRequest
+from modules.cel import EventSigner, OutcomeSettlementWorker, SettlementError, SettlementRequest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = ROOT / "schemas" / "ctl_event_v1.schema.json"
@@ -49,6 +49,25 @@ def test_settlement_emits_valid_ctl_event_and_cem_event() -> None:
 
     assert len(cem_events) == 1
     assert cem_events[0]["event_type"] == "settlement_completed"
+
+
+def test_settlement_signs_event_with_nacl_signer() -> None:
+    signer = EventSigner.generate()
+    ctl_events: list[dict] = []
+    worker = OutcomeSettlementWorker(append_ctl_event=ctl_events.append, event_signer=signer)
+    worker.settle(
+        SettlementRequest(
+            trace_id="trace_settle_sign",
+            proposal_id="prop_sign",
+            agent_id="energy-98231",
+            expected_delta=0.03,
+            actual_delta=0.01,
+            horizon_sec=100,
+        )
+    )
+
+    assert ctl_events[0]["signature"].startswith("ed25519:")
+    assert signer.verify_event(ctl_events[0]) is True
 
 
 def test_settlement_miss_case() -> None:

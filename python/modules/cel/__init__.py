@@ -14,6 +14,7 @@ from .decision_api import (
 )
 from .price_engine import PriceEngine, PriceEngineError, PriceInput, PriceQuote
 from .reputation_engine import AgentReputation, ReputationEngine, ReputationError
+from .signing import EventSigner, SigningError
 from .settlement_worker import (
     OutcomeSettlementWorker,
     SettlementError,
@@ -48,4 +49,6 @@ __all__ = [
     "PriceEngineError",
     "PriceInput",
     "PriceQuote",
+    "EventSigner",
+    "SigningError",
 ]

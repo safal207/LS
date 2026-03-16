@@ -7,6 +7,10 @@ from time import time
 from typing import Callable
 from uuid import uuid4
 
+from .signing import EventSigner
+
+UNSIGNED_PLACEHOLDER = "ed25519:unsigned-local"
+
 
 class CELApiError(ValueError):
     def __init__(self, code: str, message: str) -> None:
@@ -36,10 +40,15 @@ class TransferReceipt:
 class CELWalletAPI:
     """In-memory wallet and transfer API with atomic updates and CTL audit callback."""
 
-    def __init__(self, append_ctl_event: Callable[[dict], None] | None = None) -> None:
+    def __init__(
+        self,
+        append_ctl_event: Callable[[dict], None] | None = None,
+        event_signer: EventSigner | None = None,
+    ) -> None:
         self._balances: dict[str, Decimal] = {}
         self._lock = RLock()
         self._append_ctl_event = append_ctl_event
+        self._event_signer = event_signer
 
     def create_wallet(self, agent_id: str, initial_balance_ct: Decimal = Decimal("0")) -> None:
         if not agent_id:
@@ -92,7 +101,7 @@ class CELWalletAPI:
                 "ts": int(time()),
                 "producer": "cel-wallet-api",
                 "schema_version": "1.0",
-                "signature": "ed25519:unsigned-local",
+                "signature": UNSIGNED_PLACEHOLDER,
                 "data": {
                     "proposal_id": req.proposal_id,
                     "buyer_agent_id": req.from_agent_id,
@@ -102,6 +111,8 @@ class CELWalletAPI:
                     "tx_ref": tx_ref,
                 },
             }
+            if self._event_signer:
+                event["signature"] = self._event_signer.sign_event(event)
 
             if self._append_ctl_event:
                 self._append_ctl_event(event)
