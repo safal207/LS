@@ -1,3 +1,10 @@
+from .attribution_api import (
+    AttributionApiError,
+    AttributionIngestRequest,
+    AttributionReplayAPI,
+    PayoutPreviewRequest,
+    PayoutReplayRequest,
+)
 from .contribution_api import (
     ContributionApiError,
     ContributionLedger,
@@ -67,4 +74,9 @@ __all__ = [
     "CreationEvent",
     "ContributorImpact",
     "IAREError",
+    "PayoutReplayRequest",
+    "PayoutPreviewRequest",
+    "AttributionReplayAPI",
+    "AttributionIngestRequest",
+    "AttributionApiError",
 ]
