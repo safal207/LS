@@ -1,9 +1,29 @@
+from .attribution_store import AttributionStore, StoredPayout
+from .attribution_api import (
+    AttributionApiError,
+    AttributionIngestRequest,
+    AttributionReplayAPI,
+    OpenDisputeRequest,
+    PayoutPreviewRequest,
+    PayoutReplayRequest,
+    RecomputePayoutsRequest,
+    ResolveDisputeRequest,
+)
 from .contribution_api import (
     ContributionApiError,
     ContributionLedger,
     ContributionPayout,
     ContributionRecord,
     distribute_value,
+)
+from .iare_engine import (
+    CRDTReputationStore,
+    ContributorImpact,
+    CreationEvent,
+    IAREError,
+    IncrementalAttributionEngine,
+    PayoutLine,
+    PayoutSnapshot,
 )
 from .decision_api import (
     DecisionApiError,
@@ -51,4 +71,21 @@ __all__ = [
     "PriceQuote",
     "EventSigner",
     "SigningError",
+    "CRDTReputationStore",
+    "IncrementalAttributionEngine",
+    "PayoutSnapshot",
+    "PayoutLine",
+    "CreationEvent",
+    "ContributorImpact",
+    "IAREError",
+    "PayoutReplayRequest",
+    "PayoutPreviewRequest",
+    "AttributionReplayAPI",
+    "AttributionIngestRequest",
+    "AttributionApiError",
+    "ResolveDisputeRequest",
+    "StoredPayout",
+    "AttributionStore",
+    "OpenDisputeRequest",
+    "RecomputePayoutsRequest",
 ]
