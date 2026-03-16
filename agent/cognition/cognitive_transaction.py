@@ -14,6 +14,7 @@ SUPPORTED_ACTIONS = {
     "belief_update",
     "canonical_update",
     "reflection_generated",
+    "code_commit",
 }
 
 
