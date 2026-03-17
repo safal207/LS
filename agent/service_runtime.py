@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Protocol, Sequence
 
 
-@dataclass(slots=True)
+@dataclass
 class Task:
     """Represents a unit of work requested from the service layer."""
 
@@ -15,7 +15,7 @@ class Task:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass(slots=True)
+@dataclass
 class Result:
     """Normalized task execution payload returned to callers."""
 
