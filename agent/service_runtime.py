@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Optional, Protocol, Sequence
 
 
 @dataclass(slots=True)
@@ -79,10 +79,10 @@ class PostProcessor:
 class RuntimeBuilder:
     """Creates and runs a deterministic pipeline for each task."""
 
-    def __init__(self, task: Task, llm_service: LLMService, steps: Optional[List[RuntimeStep]] = None):
+    def __init__(self, task: Task, llm_service: LLMService, steps: Optional[Sequence[RuntimeStep]] = None):
         self.task = task
         self.llm_service = llm_service
-        self.pipeline = steps or self.build_pipeline()
+        self.pipeline = list(steps) if steps else self.build_pipeline()
 
     def build_pipeline(self) -> List[RuntimeStep]:
         return [
@@ -111,6 +111,12 @@ class ServiceLayer:
 
     def execute_task(self, task: Task) -> Result:
         runtime = RuntimeBuilder(task, self.llm_service)
+        return runtime.run()
+
+    def execute_task_with_steps(self, task: Task, steps: Sequence[RuntimeStep]) -> Result:
+        """Execute a task with a custom runtime pipeline."""
+
+        runtime = RuntimeBuilder(task, self.llm_service, steps=steps)
         return runtime.run()
 
 

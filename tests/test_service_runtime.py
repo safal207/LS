@@ -1,16 +1,5 @@
-from agent.service_runtime import EchoLLMService, Result, RuntimeBuilder, ServiceLayer
-
-
-class LandingPostProcessor:
-    def execute(self, raw_output: str) -> Result:
-        return Result(
-            task_type="landing_page",
-            raw_output=raw_output,
-            result={
-                "title": "Пример Landing",
-                "sections": ["hero", "features", "cta"],
-            },
-        )
+from agent.landing_page_pipeline import build_landing_page_steps
+from agent.service_runtime import EchoLLMService, ServiceLayer
 
 
 def test_service_layer_executes_default_runtime_pipeline():
@@ -24,21 +13,18 @@ def test_service_layer_executes_default_runtime_pipeline():
     assert result.result["input"]["product"] == "agent platform"
 
 
-def test_runtime_builder_supports_custom_postprocessor():
+def test_custom_landing_pipeline_adds_seo_and_analytics():
     service = ServiceLayer(EchoLLMService())
-    task = service.create_task("landing_page", {"product": "agent platform"})
+    task = service.create_task("landing_page", {"product": "AI Agent Platform"})
 
-    runtime = RuntimeBuilder(
-        task,
-        service.llm_service,
-        steps=[
-            runtime_step
-            for runtime_step in RuntimeBuilder(task, service.llm_service).build_pipeline()[:-1]
-        ]
-        + [LandingPostProcessor()],
-    )
+    result = service.execute_task_with_steps(task, build_landing_page_steps(task, service))
 
-    result = runtime.run()
-
-    assert result.result["title"] == "Пример Landing"
-    assert result.result["sections"] == ["hero", "features", "cta"]
+    assert result.result == {
+        "title": "Landing Page for AI Agent Platform",
+        "sections": ["hero", "features", "testimonials", "cta"],
+        "summary": (
+            "LLM output for: task=landing_page;input={'product': 'AI Agent Platform'}\n"
+            "[SEO Score: 85]\n"
+            "[Analytics: Page should target tech-savvy audience.]"
+        ),
+    }
