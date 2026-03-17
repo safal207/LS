@@ -2,9 +2,21 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+import logging
 from typing import Any, Callable, Dict, List, Optional, Protocol, Sequence
+
+
+logger = logging.getLogger(__name__)
+
+
+class ParallelTaskExecutionError(RuntimeError):
+    """Raised when a parallel task worker fails."""
+
+    def __init__(self, task_index: int, message: str):
+        super().__init__(message)
+        self.task_index = task_index
 
 
 @dataclass
@@ -46,6 +58,7 @@ class PreProcessor:
         self.task = task
 
     def execute(self, _: Any) -> str:
+        # Pipeline starts with `None`, this step intentionally ignores incoming payload.
         normalized = {k: v for k, v in self.task.input_data.items() if v is not None}
         return f"task={self.task.task_type};input={normalized}"
 
@@ -115,8 +128,6 @@ class ServiceLayer:
         return runtime.run()
 
     def execute_task_with_steps(self, task: Task, steps: Sequence[RuntimeStep]) -> Result:
-        """Execute a task with a custom runtime pipeline."""
-
         runtime = RuntimeBuilder(task, self.llm_service, steps=steps)
         return runtime.run()
 
@@ -126,32 +137,25 @@ class ServiceLayer:
         steps_builder: Optional[Callable[[Task, "ServiceLayer"], Sequence[RuntimeStep]]] = None,
         max_workers: Optional[int] = None,
     ) -> List[Result]:
-        """Execute multiple tasks in parallel while preserving input order.
-
-        Args:
-            tasks: Task batch to execute.
-            steps_builder: Optional function to build a custom step chain per task.
-            max_workers: Thread pool size passed to ThreadPoolExecutor.
-        """
-
         if not tasks:
             return []
 
-        results: List[Optional[Result]] = [None] * len(tasks)
+        indexed_results: dict[int, Result] = {}
 
-        def _run_one(index: int, task: Task) -> None:
+        def _run_one(index: int, task: Task) -> tuple[int, Result]:
             if steps_builder is None:
                 result = self.execute_task(task)
             else:
                 result = self.execute_task_with_steps(task, steps_builder(task, self))
-            results[index] = result
+            return index, result
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(_run_one, idx, task) for idx, task in enumerate(tasks)]
-            for future in futures:
-                future.result()
+            for future in as_completed(futures):
+                index, result = future.result()
+                indexed_results[index] = result
 
-        return [result for result in results if result is not None]
+        return [indexed_results[idx] for idx in sorted(indexed_results)]
 
 
 class EchoLLMService:
