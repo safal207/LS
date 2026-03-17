@@ -39,6 +39,31 @@ pip install -r requirements.txt
 6. Принять и сделать settlement: `POST /tasks/{id}/accept`
 7. Посмотреть ledger: `GET /ledger`
 
+## Market Layer MVP Flow
+
+```mermaid
+flowchart TD
+    A[CREATE TASK\ntask_unit] --> B[TASK REGISTRY\nopen/assigned]
+    B --> C[BID / ASSIGN\nagent selects]
+    C --> D[ESCROW LOCK\nescrow_locked]
+    D --> E[SUBMIT ARTIFACT\nartifact_unit]
+    E --> F{VERIFICATION\napproved?}
+    F -->|yes| G[ACCEPT TASK\nrelease pay]
+    F -->|no| H[DISPUTE TASK\narbitration]
+    G --> I[SETTLEMENT\nimmediate + holdback]
+    I --> J[UPDATE REPUTATION\nquality_score]
+    J --> K[LEDGER EVENT\nimmutable record]
+```
+
+Ключевые идеи flow:
+
+- `Task Registry` удерживает жизненный цикл `open -> assigned -> delivered -> verified -> accepted`.
+- `Escrow` блокирует reward до завершения проверки.
+- `Verification` ветвится в `accept` или `dispute`.
+- `Settlement` разделяет выплату на immediate payout и holdback.
+- `Reputation` обновляется на основе качества доставленного артефакта.
+- `Ledger` фиксирует экономические события как append-only историю.
+
 ## Что уже покрыто
 
 - Статусы задачи: `open/assigned/delivered/verified/accepted/disputed/closed`
