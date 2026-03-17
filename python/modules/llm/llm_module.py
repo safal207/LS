@@ -9,6 +9,7 @@ import time
 import logging
 import queue
 import threading
+import os
 from typing import Optional
 from .breaker import CircuitBreaker, CircuitOpenError
 from .cot_adapter import COTAdapter
@@ -30,6 +31,18 @@ from ..config import (
 
 logger = logging.getLogger(__name__)
 
+def _compress_messages_for_hint(messages: Optional[list[dict]], max_messages: int = 2) -> Optional[list[dict]]:
+    if not messages:
+        return messages
+    system = [m for m in messages if m.get("role") == "system"]
+    recent = messages[-max_messages:]
+    return system + recent
+
+
+def _chunk_ready_for_tts(text: str) -> bool:
+    return text.endswith((".", ",", "!", "?", "\n"))
+
+
 class LanguageModel:
     def __init__(self, input_queue: queue.Queue, output_queue: queue.Queue, use_cotcore: Optional[bool] = None, use_breaker: Optional[bool] = None):
         self.input_queue = input_queue
@@ -41,7 +54,6 @@ class LanguageModel:
         self.cot_adapter = COTAdapter() if self.use_cotcore else None
         
         # Initialize Qwen handler
-        import os
         qwen_api_key = os.getenv("QWEN_API_KEY", "")
         self.primary_model, self.fallback_model = self._resolve_models()
         self.qwen_handler = QwenHandler(
@@ -89,9 +101,10 @@ class LanguageModel:
     def _is_cancelled(self, cancel_event) -> bool:
         return cancel_event is not None and getattr(cancel_event, "is_set", lambda: False)()
 
-    def generate_response_local(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None) -> Optional[str]:
+    def generate_response_local(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
         """Generate response using local Ollama Qwen"""
         prompt = ""
+        active_messages = _compress_messages_for_hint(messages) if os.getenv("WHISPER_MODE", "0") == "1" else messages
         try:
             if self._is_cancelled(cancel_event):
                 return None
@@ -108,7 +121,7 @@ class LanguageModel:
             
             logger.debug(f"Sending to Qwen: {question[:50]}...")
             
-            response = self.qwen_handler.generate_response(prompt, messages=messages)
+            response = self.qwen_handler.generate_response(prompt, messages=active_messages, stream=stream, on_token=on_token)
             if response is None or (isinstance(response, str) and not response.strip()):
                 raise LLMEmptyResponseError()
             if not isinstance(response, str):
@@ -141,7 +154,7 @@ class LanguageModel:
                         self.fallback_model,
                     )
                     self.qwen_handler.model_name = self.fallback_model
-                    fallback_response = self.qwen_handler.generate_response(prompt, messages=messages)
+                    fallback_response = self.qwen_handler.generate_response(prompt, messages=active_messages, stream=stream, on_token=on_token)
                     if isinstance(fallback_response, str) and fallback_response.strip():
                         self.primary_model = self.fallback_model
                         fallback_succeeded = True
@@ -153,8 +166,9 @@ class LanguageModel:
                         self.qwen_handler.model_name = current_model
             return None
     
-    def generate_response_cloud(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None) -> Optional[str]:
+    def generate_response_cloud(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
         """Generate response using cloud Qwen API"""
+        active_messages = _compress_messages_for_hint(messages) if os.getenv("WHISPER_MODE", "0") == "1" else messages
         try:
             if self._is_cancelled(cancel_event):
                 return None
@@ -171,7 +185,7 @@ class LanguageModel:
             
             logger.debug(f"Sending to Qwen Cloud: {question[:50]}...")
             
-            response = self.qwen_handler.generate_response(prompt, messages=messages)
+            response = self.qwen_handler.generate_response(prompt, messages=active_messages, stream=stream, on_token=on_token)
             if response is None or (isinstance(response, str) and not response.strip()):
                 raise LLMEmptyResponseError()
             if not isinstance(response, str):
@@ -195,14 +209,14 @@ class LanguageModel:
                 logger.error(f"Error generating cloud response ({err.kind}): {err}")
             return None
     
-    def generate_response(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None) -> Optional[str]:
+    def generate_response(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
         """Generate response using either local or cloud LLM"""
         if USE_CLOUD_LLM:
             logger.info("Using cloud LLM (Groq)")
-            return self.generate_response_cloud(question, cancel_event=cancel_event, messages=messages)
+            return self.generate_response_cloud(question, cancel_event=cancel_event, messages=messages, stream=stream, on_token=on_token)
         else:
             logger.info("Using local LLM (Ollama phi3)")
-            return self.generate_response_local(question, cancel_event=cancel_event, messages=messages)
+            return self.generate_response_local(question, cancel_event=cancel_event, messages=messages, stream=stream, on_token=on_token)
     
     def format_response(self, response: str) -> str:
         """Format response for display"""
@@ -257,19 +271,60 @@ class LanguageModel:
                         
                         logger.info(f"Processing question: {question}")
                         
-                        # Generate response
-                        start_time = time.time()
-                        raw_response = self.generate_response(question)
-                        generation_time = time.time() - start_time
-                        
-                        if raw_response:
-                            formatted_response = self.format_response(raw_response)
-                            
-                            logger.info(f"Response generated in {generation_time:.2f}s")
-                            
-                            # Send to UI queue
+                        # Generate response (streaming-first path)
+                        tts_buffer: list[str] = []
+
+                        def _on_token(token: str) -> None:
+                            # NOTE: on_token is currently invoked synchronously inside generate_response,
+                            # so tts_buffer access is single-threaded in this path.
+                            # Revisit if generation threading/async model changes.
+                            tts_buffer.append(token)
                             try:
                                 self.output_queue.put_nowait({
+                                    'type': 'token',
+                                    'question': question,
+                                    'text': token,
+                                    'timestamp': time.time(),
+                                })
+                            except queue.Full:
+                                logger.warning("UI queue full, dropping token")
+                            joined = "".join(tts_buffer).strip()
+                            if joined and _chunk_ready_for_tts(joined):
+                                try:
+                                    self.output_queue.put_nowait({
+                                        'type': 'tts_chunk',
+                                        'question': question,
+                                        'text': joined,
+                                        'timestamp': time.time(),
+                                    })
+                                    tts_buffer.clear()
+                                except queue.Full:
+                                    logger.warning("UI queue full, dropping tts chunk")
+
+                        start_time = time.time()
+                        raw_response = self.generate_response(question, stream=True, on_token=_on_token)
+                        generation_time = time.time() - start_time
+
+                        if raw_response:
+                            formatted_response = self.format_response(raw_response)
+
+                            logger.info(f"Response generated in {generation_time:.2f}s")
+
+                            if tts_buffer:
+                                try:
+                                    self.output_queue.put_nowait({
+                                        'type': 'tts_chunk',
+                                        'question': question,
+                                        'text': "".join(tts_buffer).strip(),
+                                        'timestamp': time.time(),
+                                    })
+                                except queue.Full:
+                                    logger.warning("UI queue full, dropping final tts chunk")
+
+                            # Send final answer event
+                            try:
+                                self.output_queue.put_nowait({
+                                    'type': 'final',
                                     'question': question,
                                     'response': formatted_response,
                                     'generation_time': generation_time,
@@ -330,6 +385,8 @@ def test_llm_module():
     # Wait for response
     try:
         result = output_queue.get(timeout=30)
+        while result.get('type') not in (None, 'final'):
+            result = output_queue.get(timeout=30)
         print(f"Question: {result['question']}")
         print(f"Response: {result['response']}")
         print(f"Generation time: {result['generation_time']:.2f}s")
