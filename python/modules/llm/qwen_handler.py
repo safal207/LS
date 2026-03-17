@@ -15,6 +15,7 @@ except ImportError:  # optional for replay/context helpers
 import json
 import logging
 import os
+from time import perf_counter
 from pathlib import Path  # noqa: F401
 from typing import Callable, Optional
 
@@ -54,6 +55,12 @@ try:
 except Exception:
     _ghostgpt_core = None
 
+
+
+
+def _is_done_frame(raw_line: str) -> bool:
+    compact = raw_line.replace(" ", "")
+    return '"done":true' in compact
 
 def _extract_stream_token(frame_line: str, has_messages: bool) -> str:
     """Fast path token extraction from Ollama JSONL frame (Rust if available)."""
@@ -203,14 +210,21 @@ class QwenHandler:
         try:
             url, payload = self._build_ollama_payload(prompt, messages, stream=True)
             chunks: list[str] = []
+            started = perf_counter()
+            first_token_at: float | None = None
             with self.session.post(url, json=payload, timeout=DEFAULT_TIMEOUT, stream=True) as response:
                 response.raise_for_status()
                 for raw_line in response.iter_lines(decode_unicode=True):
                     if not raw_line:
                         continue
+                    if _is_done_frame(raw_line):
+                        break
                     token = _extract_stream_token(raw_line, messages is not None)
                     if not token:
                         continue
+                    if first_token_at is None:
+                        first_token_at = perf_counter()
+                        logger.info("llm.ttft_ms=%.1f path=stream", (first_token_at - started) * 1000)
                     chunks.append(token)
                     if on_token is not None:
                         on_token(token)

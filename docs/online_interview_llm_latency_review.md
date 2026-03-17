@@ -105,3 +105,11 @@ This dual-lane architecture gives you both speed and quality:
 ## Safety and compliance note
 
 If this tool is used in real interviews/negotiations, enforce explicit legal/ethical policy by region and context. Add clear opt-in and usage boundaries inside product UI.
+
+
+## Follow-up runtime improvements
+
+- Added early exit for Ollama `done` stream frame to avoid unnecessary parser-chain work.
+- Added structured TTFT telemetry log (`llm.ttft_ms=... path=stream`).
+- Added streaming-first queue events in `LanguageModel.run`: token events, punctuation-based `tts_chunk` events, and final response event.
+- Added whisper-mode message compressor helper for fast-hint mode (`WHISPER_MODE=1`).

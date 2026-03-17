@@ -132,3 +132,25 @@ def test_extract_stream_token_falls_back_to_python_when_cpp_missing(monkeypatch)
     monkeypatch.setattr(qwen_handler, "_ghostgpt_core", None)
     monkeypatch.setattr(qwen_handler, "_extract_ollama_token_cpp", lambda frame, has_messages: None)
     assert qwen_handler._extract_stream_token('{"response":"py"}', False) == "py"
+
+
+def test_generate_with_ollama_stream_stops_on_done_frame(monkeypatch):
+    monkeypatch.setattr(qwen_handler, "_extract_ollama_token_cpp", lambda frame, has_messages: None)
+    frames = [
+        '{"response":"A"}',
+        '{"done": true}',
+        '{"response":"B"}',
+    ]
+    monkeypatch.setattr(qwen_handler, "requests", _FakeRequests(lines=frames))
+    handler = qwen_handler.QwenHandler(use_cloud_api=False)
+
+    seen = []
+    result = handler.generate_with_ollama_stream("prompt", on_token=seen.append)
+    assert seen == ["A"]
+    assert result == "A"
+
+
+def test_is_done_frame_fast_check():
+    assert qwen_handler._is_done_frame('{"done":true}') is True
+    assert qwen_handler._is_done_frame('{"done": true}') is True
+    assert qwen_handler._is_done_frame('{"response":"x"}') is False
