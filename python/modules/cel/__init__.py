@@ -42,6 +42,7 @@ from .settlement_worker import (
     SettlementResult,
 )
 from .wallet_api import CELApiError, CELWalletAPI, TransferReceipt, TransferRequest
+from .economics_audit import AuditMetrics, EconomicsAudit
 
 __all__ = [
     "CELApiError",
@@ -88,4 +89,6 @@ __all__ = [
     "AttributionStore",
     "OpenDisputeRequest",
     "RecomputePayoutsRequest",
+    "EconomicsAudit",
+    "AuditMetrics",
 ]
