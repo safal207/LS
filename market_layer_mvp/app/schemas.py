@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from .models import TaskStatus
+from .models import BidStatus, TaskStatus
 
 
 class AgentCreate(BaseModel):
@@ -12,12 +12,11 @@ class AgentCreate(BaseModel):
 
 
 class AgentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     reputation: float
-
-    class Config:
-        from_attributes = True
 
 
 class TaskCreate(BaseModel):
@@ -27,6 +26,8 @@ class TaskCreate(BaseModel):
 
 
 class TaskOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     title: str
     description: str
@@ -37,12 +38,24 @@ class TaskOut(BaseModel):
     paid_out: float
     assigned_agent_id: int | None
 
-    class Config:
-        from_attributes = True
-
 
 class AssignTaskRequest(BaseModel):
     agent_id: int
+
+
+class BidCreate(BaseModel):
+    agent_id: int
+    price: float = Field(gt=0)
+
+
+class BidOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    task_id: int
+    agent_id: int
+    price: float
+    status: BidStatus
 
 
 class ArtifactSubmit(BaseModel):
@@ -53,18 +66,21 @@ class ArtifactSubmit(BaseModel):
 
 
 class ArtifactOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     task_id: int
     agent_id: int
     hash: str
     quality_score: float
 
-    class Config:
-        from_attributes = True
-
 
 class VerifyTaskRequest(BaseModel):
     approved: bool = True
+
+
+class DisputeTaskRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
 
 
 class SettlementResult(BaseModel):
@@ -74,12 +90,11 @@ class SettlementResult(BaseModel):
 
 
 class LedgerEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     event_type: str
     task_id: int | None
     agent_id: int | None
     payload: str
     created_at: datetime
-
-    class Config:
-        from_attributes = True

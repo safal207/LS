@@ -4,7 +4,7 @@ import enum
 from datetime import datetime
 
 from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import DeclarativeBase, relationship, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
@@ -21,11 +21,19 @@ class TaskStatus(str, enum.Enum):
     closed = "closed"
 
 
+class BidStatus(str, enum.Enum):
+    submitted = "submitted"
+    accepted = "accepted"
+    rejected = "rejected"
+
+
 class EventType(str, enum.Enum):
     task_created = "task_created"
+    bid_submitted = "bid_submitted"
     task_assigned = "task_assigned"
     artifact_delivered = "artifact_delivered"
     task_verified = "task_verified"
+    task_disputed = "task_disputed"
     payout_released = "payout_released"
     reputation_updated = "reputation_updated"
 
@@ -54,6 +62,21 @@ class Task(Base):
 
     assigned_agent_id: Mapped[int | None] = mapped_column(ForeignKey("agents.id"))
     assigned_agent: Mapped[Agent | None] = relationship("Agent")
+
+
+class Bid(Base):
+    __tablename__ = "bids"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), nullable=False)
+    agent_id: Mapped[int] = mapped_column(ForeignKey("agents.id"), nullable=False)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    status: Mapped[BidStatus] = mapped_column(
+        Enum(BidStatus), default=BidStatus.submitted, nullable=False
+    )
+
+    task: Mapped[Task] = relationship("Task")
+    agent: Mapped[Agent] = relationship("Agent")
 
 
 class Artifact(Base):

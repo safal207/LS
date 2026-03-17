@@ -9,7 +9,7 @@ from db.database import engine, get_db
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Market Layer MVP", version="0.1.0")
+app = FastAPI(title="Market Layer MVP", version="0.2.0")
 
 
 @app.post("/agents", response_model=schemas.AgentOut)
@@ -35,6 +35,19 @@ def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
 @app.get("/tasks", response_model=list[schemas.TaskOut])
 def list_tasks(db: Session = Depends(get_db)):
     return crud.list_tasks(db)
+
+
+@app.post("/tasks/{task_id}/bids", response_model=schemas.BidOut)
+def submit_bid(task_id: int, bid: schemas.BidCreate, db: Session = Depends(get_db)):
+    try:
+        return crud.submit_bid(db, task_id=task_id, agent_id=bid.agent_id, price=bid.price)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/tasks/{task_id}/bids", response_model=list[schemas.BidOut])
+def list_bids(task_id: int, db: Session = Depends(get_db)):
+    return crud.list_task_bids(db, task_id=task_id)
 
 
 @app.post("/tasks/{task_id}/assign", response_model=schemas.TaskOut)
@@ -71,6 +84,18 @@ def verify_task(
 ):
     try:
         return crud.verify_task(db, task_id=task_id, approved=payload.approved)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/tasks/{task_id}/dispute", response_model=schemas.TaskOut)
+def dispute_task(
+    task_id: int,
+    payload: schemas.DisputeTaskRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        return crud.dispute_task(db, task_id=task_id, reason=payload.reason)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

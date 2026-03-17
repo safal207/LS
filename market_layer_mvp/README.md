@@ -33,11 +33,12 @@ pip install -r requirements.txt
 
 1. Создать агента: `POST /agents`
 2. Создать задачу: `POST /tasks`
-3. Назначить исполнителя: `POST /tasks/{id}/assign`
-4. Сдать артефакт: `POST /tasks/{id}/deliver`
-5. Верифицировать: `POST /tasks/{id}/verify`
-6. Принять и сделать settlement: `POST /tasks/{id}/accept`
-7. Посмотреть ledger: `GET /ledger`
+3. Подать ставки: `POST /tasks/{id}/bids`
+4. Назначить исполнителя: `POST /tasks/{id}/assign`
+5. Сдать артефакт: `POST /tasks/{id}/deliver`
+6. Верифицировать: `POST /tasks/{id}/verify`
+7. Принять или открыть спор: `POST /tasks/{id}/accept` / `POST /tasks/{id}/dispute`
+8. Посмотреть ledger: `GET /ledger`
 
 ## Market Layer MVP Flow
 
@@ -71,6 +72,8 @@ flowchart TD
 - Holdback (20%) при acceptance
 - Обновление репутации агента на базе `quality_score`
 - Ledger events для ключевых действий
+- Bid API (`/tasks/{id}/bids`) и запись bid-событий
+- Dispute endpoint (`/tasks/{id}/dispute`)
 
 ## Что добавить следующим шагом
 
