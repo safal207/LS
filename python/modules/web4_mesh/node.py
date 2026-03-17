@@ -161,7 +161,7 @@ class Web4MeshNode:
 
     def push_reflection(self, text: str, reflection_id: str) -> List[MeshEnvelope]:
         self.gc_expired()
-        reflection = {"id": reflection_id, "text": text, "author": self.peer_id}
+        reflection: Dict[str, object] = {"id": reflection_id, "text": text, "author": self.peer_id}
         if reflection_id in self._seen_reflection_ids and not self.config.allow_self_reflection_duplicates:
             self.observability.record("mesh_reflection_duplicate_skipped", {"reflection_id": reflection_id})
             return []
@@ -223,7 +223,7 @@ class Web4MeshNode:
             self.observability.record("mesh_reflection_deduplicated", {"reflection_id": reflection_id})
             return []
 
-        sanitized_reflection = {
+        sanitized_reflection: Dict[str, object] = {
             "id": reflection_id,
             "text": str(envelope.payload.get("text", "")),
             "author": str(envelope.payload.get("author", envelope.origin)),
@@ -275,7 +275,7 @@ class Web4MeshNode:
             node_id = node.get("id")
             if not isinstance(node_id, str) or not node_id:
                 continue
-            normalized = {
+            normalized: Dict[str, object] = {
                 "id": node_id,
                 "text": str(node.get("text", "")),
                 "author": str(node.get("author", envelope.origin)),
