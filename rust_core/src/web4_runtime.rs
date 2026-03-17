@@ -34,6 +34,7 @@ impl BackpressurePolicy {
 struct RttStats {
     attempted: usize,
     enqueued: usize,
+    accepted: usize,
     dropped_oldest: usize,
     dropped_newest: usize,
     blocked: usize,
@@ -208,6 +209,7 @@ impl Web4RttBinding {
                     .expect("message must be available until enqueue");
                 inner.push_message(msg, priority);
                 inner.stats.enqueued += 1;
+                inner.stats.accepted += 1;
                 inner.update_max_queue_len();
                 return Ok(());
             }
@@ -241,6 +243,7 @@ impl Web4RttBinding {
                             .expect("message must be available until enqueue");
                         inner.push_message(msg, priority);
                         inner.stats.enqueued += 1;
+                        inner.stats.accepted += 1;
                         inner.stats.dropped_oldest += 1;
                         inner.update_max_queue_len();
                     } else {
@@ -449,7 +452,7 @@ impl Web4RttBinding {
         if let Ok(inner) = self.inner.lock() {
             let _ = stats.set_item("attempted", inner.stats.attempted);
             let _ = stats.set_item("enqueued", inner.stats.enqueued);
-            let _ = stats.set_item("accepted", inner.stats.enqueued);
+            let _ = stats.set_item("accepted", inner.stats.accepted);
             let _ = stats.set_item("dropped_oldest", inner.stats.dropped_oldest);
             let _ = stats.set_item("dropped_newest", inner.stats.dropped_newest);
             let _ = stats.set_item(

@@ -43,6 +43,7 @@ PINNED_ROLES = {"system", "context_anchor"}
 
 
 def trim_history(history: list[dict], max_size: int = 10) -> list[dict]:
+    """Keep pinned system/context messages while applying a sliding window to the rest."""
     pinned = [m for m in history if m.get("role") in PINNED_ROLES]
     sliding = [m for m in history if m.get("role") not in PINNED_ROLES]
     available = max(max_size - len(pinned), 0)
