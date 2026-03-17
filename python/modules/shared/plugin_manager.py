@@ -218,13 +218,46 @@ class PluginManager:
 
         self.ctx.event_bus.publish(PluginLifecycleEvent("plugin_unloaded", {"name": plugin_name}))
 
-    def reload(self, plugin_name: str) -> str | None:
+    def reload(self, plugin_name: str) -> bool:
         loaded = self._plugins.get(plugin_name)
         if not loaded:
             raise KeyError(f"Plugin not loaded: {plugin_name}")
-        source = loaded.source_path
-        self.unload(plugin_name)
-        return self.load_from_path(source)
+
+        old = loaded
+        try:
+            module = self._import_module(old.module_name, old.source_path)
+            plugin = self._extract_plugin(module)
+
+            requested_permissions = self._extract_permissions(plugin)
+            if not self.allowed_permissions.allows(requested_permissions):
+                raise PermissionError(
+                    f"Plugin '{plugin.name}' requests permissions {requested_permissions} "
+                    f"outside allowed policy {self.allowed_permissions}"
+                )
+
+            plugin_ctx = PluginRuntimeContext(self.ctx, plugin.name)
+            plugin.setup(plugin_ctx)  # type: ignore[arg-type]
+            new_loaded = _LoadedPlugin(
+                plugin=plugin,
+                module_name=old.module_name,
+                source_path=old.source_path,
+                ctx_proxy=plugin_ctx,
+            )
+
+            self._plugins[plugin_name] = new_loaded
+            try:
+                old.plugin.shutdown(old.ctx_proxy)  # type: ignore[arg-type]
+            except Exception as exc:
+                logger.exception("Plugin shutdown failed for %s during reload: %s", plugin_name, exc)
+            finally:
+                old.ctx_proxy.cleanup()
+
+            self.ctx.event_bus.publish(PluginLifecycleEvent("plugin_reloaded", {"name": plugin_name}))
+            return True
+        except Exception:
+            self._plugins[plugin_name] = old
+            logger.error("Plugin reload failed, kept old version", exc_info=True)
+            return False
 
     def load_all(self) -> list[str]:
         loaded: list[str] = []

@@ -1,4 +1,5 @@
 use pyo3::exceptions::PyNotImplementedError;
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
@@ -275,90 +276,96 @@ impl TransportHandle {
         if payload.len() > self.config.max_payload_bytes {
             return Err(PyValueError::new_err("payload exceeds max_payload_bytes"));
         }
-        let channels = self
-            .channels
-            .lock()
-            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
-        let channel_info = channels
-            .get(&channel)
-            .ok_or_else(|| PyValueError::new_err("unknown channel"))?;
+        let channel_info = {
+            let channels = self
+                .channels
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
+            channels
+                .get(&channel)
+                .cloned()
+                .ok_or_else(|| PyValueError::new_err("unknown channel"))?
+        };
+
         if let Some(session_id) = channel_info.session_id {
             let sessions = self
                 .sessions
                 .lock()
-                .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+                .map_err(|_| PyRuntimeError::new_err("session lock poisoned"))?;
             if !sessions.contains_key(&session_id) {
                 return Err(PyValueError::new_err("channel session closed"));
             }
         }
-        if !channels.contains_key(&channel) {
-            return Err(PyValueError::new_err("unknown channel"));
-        }
-        drop(channels);
-        let mut queues = self
-            .queues
-            .lock()
-            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
-        if let Some(queue) = queues.get_mut(&channel) {
+        {
+            let mut queues = self
+                .queues
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
+            let queue = queues
+                .get_mut(&channel)
+                .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
             if queue.len() >= self.config.max_queue_depth {
                 return Err(PyValueError::new_err("channel queue full"));
             }
             queue.push_back(payload.to_vec());
+        }
+
+        {
             let mut channels = self
                 .channels
                 .lock()
-                .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+                .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
             if let Some(info) = channels.get_mut(&channel) {
                 info.sent_count = info.sent_count.saturating_add(1);
                 info.sent_bytes = info.sent_bytes.saturating_add(payload.len() as u64);
             }
-            Ok(())
-        } else {
-            Err(PyValueError::new_err("channel queue missing"))
         }
+        Ok(())
     }
 
     fn receive(&self, channel: u64) -> PyResult<Vec<u8>> {
-        let channels = self
-            .channels
-            .lock()
-            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
-        let channel_info = channels
-            .get(&channel)
-            .ok_or_else(|| PyValueError::new_err("unknown channel"))?;
+        let channel_info = {
+            let channels = self
+                .channels
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
+            channels
+                .get(&channel)
+                .cloned()
+                .ok_or_else(|| PyValueError::new_err("unknown channel"))?
+        };
+
         if let Some(session_id) = channel_info.session_id {
             let sessions = self
                 .sessions
                 .lock()
-                .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+                .map_err(|_| PyRuntimeError::new_err("session lock poisoned"))?;
             if !sessions.contains_key(&session_id) {
                 return Err(PyValueError::new_err("channel session closed"));
             }
         }
-        if !channels.contains_key(&channel) {
-            return Err(PyValueError::new_err("unknown channel"));
-        }
-        drop(channels);
-        let mut queues = self
-            .queues
-            .lock()
-            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
-        if let Some(queue) = queues.get_mut(&channel) {
-            let payload = queue.pop_front().unwrap_or_default();
-            if !payload.is_empty() {
-                let mut channels = self
-                    .channels
-                    .lock()
-                    .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
-                if let Some(info) = channels.get_mut(&channel) {
-                    info.recv_count = info.recv_count.saturating_add(1);
-                    info.recv_bytes = info.recv_bytes.saturating_add(payload.len() as u64);
-                }
+        let payload = {
+            let mut queues = self
+                .queues
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
+            let queue = queues
+                .get_mut(&channel)
+                .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
+            queue.pop_front().unwrap_or_default()
+        };
+
+        if !payload.is_empty() {
+            let mut channels = self
+                .channels
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
+            if let Some(info) = channels.get_mut(&channel) {
+                info.recv_count = info.recv_count.saturating_add(1);
+                info.recv_bytes = info.recv_bytes.saturating_add(payload.len() as u64);
             }
-            Ok(payload)
-        } else {
-            Err(PyValueError::new_err("channel queue missing"))
         }
+        Ok(payload)
     }
 
     fn queue_len(&self, channel: u64) -> PyResult<usize> {
