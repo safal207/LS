@@ -93,7 +93,6 @@ def test_node_deduplicates_reflection_by_id() -> None:
 
 def test_node_sync_chunk_respects_limit() -> None:
     node_a = Web4MeshNode("node-a", "mesh://a", config=Web4MeshNodeConfig(max_graph_chunk_size=1))
-    node_b = Web4MeshNode("node-b", "mesh://b")
     node_a.add_peer("node-b", "mesh://b")
 
     node_a.push_reflection("a", "r1")
@@ -152,7 +151,6 @@ def test_signed_envelope_without_verifier_is_rejected_when_signature_present() -
 
 
 def test_unsigned_envelope_without_verifier_is_accepted() -> None:
-    node_a = Web4MeshNode("node-a", "mesh://a")
     node_b = Web4MeshNode("node-b", "mesh://b")
 
     envelope = MeshEnvelope(
