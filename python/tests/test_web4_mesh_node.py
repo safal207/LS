@@ -166,6 +166,19 @@ def test_unsigned_envelope_without_verifier_is_accepted() -> None:
     assert "r-plain" in node_b.memory_graph
 
 
+def test_empty_signature_without_verifier_is_treated_as_unsigned() -> None:
+    node_b = Web4MeshNode("node-b", "mesh://b")
+    envelope = MeshEnvelope(
+        message_type=PUSH_REFLECTION,
+        origin="node-a",
+        destination="node-b",
+        payload={"id": "r-empty-sig", "text": "ok", "author": "node-a", "signature": ""},
+        envelope_id="empty-sig-1",
+    )
+    node_b.receive(envelope)
+    assert "r-empty-sig" in node_b.memory_graph
+
+
 def test_rotating_signer_with_key_history_verifier() -> None:
     signer = RotatingMeshSigner(signer_id="node-a")
     verifier = RotatingMeshVerifier(keyring={"node-a": dict(signer.key_history)})

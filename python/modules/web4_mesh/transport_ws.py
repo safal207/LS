@@ -120,6 +120,7 @@ class WebSocketTransport:
         return delivered
 
     async def _read_loop(self, conn: ClientConnection, uri: str) -> None:
+        current_task = asyncio.current_task()
         try:
             async for raw in conn:
                 envelope = self._deserialize_envelope(raw)
@@ -130,6 +131,8 @@ class WebSocketTransport:
             logger.debug("Peer connection closed %s -> %s", self.node.peer_id, uri)
         finally:
             self._outgoing.pop(uri, None)
+            if current_task is not None and current_task in self._reader_tasks:
+                self._reader_tasks.remove(current_task)
 
     async def _accept_and_dispatch(self, envelope: MeshEnvelope) -> None:
         self._learn_origin_address(envelope)

@@ -16,16 +16,18 @@ def test_economics_audit_summary_and_efficiency() -> None:
     report = EconomicsAudit().summarize(events)
 
     assert report.total_events == 8
+    assert report.proposal_count == 2
     assert report.gmv_ct == 17.5
     assert report.payout_events == 2
     assert report.median_payout_latency_s == 130.0
     assert report.verification_pass_rate == 0.5
-    assert report.dispute_rate == 0.125
-    assert report.rollback_rate == 0.125
+    assert report.dispute_rate == 0.5
+    assert report.rollback_rate == 0.5
     assert 0.0 <= report.economic_efficiency_score <= 1.0
 
 
 def test_economics_audit_empty() -> None:
     report = EconomicsAudit().summarize([])
     assert report.total_events == 0
+    assert report.proposal_count == 0
     assert report.economic_efficiency_score == 0.0

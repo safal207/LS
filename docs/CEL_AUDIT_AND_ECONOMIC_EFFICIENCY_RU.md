@@ -42,3 +42,8 @@
 - Подключить `EconomicsAudit` в операторский dashboard/API,
 - хранить историю weekly snapshot,
 - сравнивать delta `economic_efficiency_score` неделя-к-неделе.
+
+
+## Нормализация dispute/rollback
+- `dispute_rate` и `rollback_rate` нормализуются по числу уникальных `proposal_id`, а не по числу всех событий.
+- Это снижает искажения метрики при росте служебных event types.

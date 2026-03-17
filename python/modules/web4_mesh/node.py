@@ -300,7 +300,7 @@ class Web4MeshNode:
     def _verify_signature_if_present(self, envelope: MeshEnvelope) -> bool:
         signature = envelope.payload.get("signature")
         signer_id = envelope.payload.get("signer_id", envelope.origin)
-        if not isinstance(signature, str):
+        if not isinstance(signature, str) or not signature:
             return True
         if self.verifier is None:
             return False

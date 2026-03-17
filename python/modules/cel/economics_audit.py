@@ -8,6 +8,7 @@ from typing import Any, Iterable
 @dataclass(frozen=True)
 class AuditMetrics:
     total_events: int
+    proposal_count: int
     gmv_ct: float
     payout_events: int
     median_payout_latency_s: float
@@ -25,7 +26,7 @@ class EconomicsAudit:
         rows = list(events)
         total = len(rows)
         if total == 0:
-            return AuditMetrics(0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            return AuditMetrics(0, 0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
         gmv = 0.0
         payout_latencies: list[float] = []
@@ -35,6 +36,7 @@ class EconomicsAudit:
         verification_total = 0
 
         created_ts_by_proposal: dict[str, int] = {}
+        proposal_ids: set[str] = set()
 
         for event in rows:
             event_type = str(event.get("event_type", ""))
@@ -47,6 +49,8 @@ class EconomicsAudit:
 
             if event_type in {"task_created", "proposal_created"} and proposal_id and ts is not None:
                 created_ts_by_proposal[proposal_id] = ts
+            if proposal_id:
+                proposal_ids.add(proposal_id)
 
             if event_type in {"payout_released", "settlement_completed"}:
                 amount = self._safe_float(data.get("amount_ct", data.get("payout_ct", 0.0)))
@@ -70,8 +74,9 @@ class EconomicsAudit:
         med_latency = median(payout_latencies) if payout_latencies else 0.0
         p95 = self._percentile(payout_latencies, 95) if payout_latencies else 0.0
 
-        dispute_rate = disputes / total
-        rollback_rate = rollbacks / total
+        denominator = max(1, len(proposal_ids))
+        dispute_rate = disputes / denominator
+        rollback_rate = rollbacks / denominator
         verification_pass_rate = (verification_pass / verification_total) if verification_total else 0.0
 
         efficiency = self._compute_efficiency(
@@ -83,6 +88,7 @@ class EconomicsAudit:
 
         return AuditMetrics(
             total_events=total,
+            proposal_count=len(proposal_ids),
             gmv_ct=round(gmv, 6),
             payout_events=payout_count,
             median_payout_latency_s=round(med_latency, 6),
