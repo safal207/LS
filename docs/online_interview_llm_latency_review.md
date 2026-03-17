@@ -27,7 +27,7 @@
 4. **No explicit latency SLO telemetry in LLM adapter**
    - There is generic logging, but not structured TTFT / total generation metrics for each request path.
 
-## Improvements added in this patch
+## Improvements delivered
 
 1. **Streaming response mode for Ollama path**
    - Added `generate_with_ollama_stream(...)` with incremental token callback.
@@ -45,6 +45,21 @@
 
 5. **Coverage tests for new stream behavior**
    - Added unit tests for payload override and stream token emission.
+
+## Test evidence: with feature vs without feature
+
+See measured benchmark report:
+- `docs/online_interview_llm_latency_results.md`
+
+Method:
+- deterministic synthetic transport benchmark,
+- same token count and per-token delay,
+- compare `stream=True` vs `stream=False` for the same handler.
+
+Result summary (current run):
+- **TTFT improved ~15.9x** with streaming,
+- full completion time remained roughly equal,
+- this is exactly what we want for interview whisper mode: first useful hint appears much earlier.
 
 ## Recommended next architecture step (high impact)
 

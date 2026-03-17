@@ -21,22 +21,36 @@ class _FakeStreamResponse:
             yield line
 
 
+class _FakeJsonResponse:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self._payload
+
+
 class _FakeSession:
-    def __init__(self, lines=None):
+    def __init__(self, lines=None, payload=None):
         self._lines = lines or []
+        self._payload = payload or {"response": "ok"}
         self.headers = {}
 
     def post(self, *args, **kwargs):
-        assert kwargs.get("stream") is True
-        return _FakeStreamResponse(self._lines)
+        if kwargs.get("stream") is True:
+            return _FakeStreamResponse(self._lines)
+        return _FakeJsonResponse(self._payload)
 
 
 class _FakeRequests:
-    def __init__(self, lines=None):
+    def __init__(self, lines=None, payload=None):
         self._lines = lines or []
+        self._payload = payload or {"response": "ok"}
 
     def Session(self):
-        return _FakeSession(self._lines)
+        return _FakeSession(self._lines, self._payload)
 
 
 def test_build_ollama_payload_uses_env_num_predict(monkeypatch):
@@ -53,7 +67,7 @@ def test_generate_with_ollama_stream_emits_tokens_and_returns_text(monkeypatch):
         json.dumps({"response": "Привет"}),
         json.dumps({"response": ", мир"}),
     ]
-    monkeypatch.setattr(qwen_handler, "requests", _FakeRequests(frames))
+    monkeypatch.setattr(qwen_handler, "requests", _FakeRequests(lines=frames))
     handler = qwen_handler.QwenHandler(use_cloud_api=False)
 
     chunks = []
@@ -61,3 +75,23 @@ def test_generate_with_ollama_stream_emits_tokens_and_returns_text(monkeypatch):
 
     assert chunks == ["Привет", ", мир"]
     assert result == "Привет, мир"
+
+
+def test_generate_response_non_streaming_path_still_works(monkeypatch):
+    monkeypatch.setattr(qwen_handler, "requests", _FakeRequests(payload={"response": "final text"}))
+    handler = qwen_handler.QwenHandler(use_cloud_api=False)
+
+    result = handler.generate_response("prompt", stream=False)
+    assert result == "final text"
+
+
+def test_generate_response_streaming_path_uses_callback(monkeypatch):
+    frames = [json.dumps({"response": "A"}), json.dumps({"response": "B"})]
+    monkeypatch.setattr(qwen_handler, "requests", _FakeRequests(lines=frames))
+    handler = qwen_handler.QwenHandler(use_cloud_api=False)
+
+    seen = []
+    result = handler.generate_response("prompt", stream=True, on_token=seen.append)
+
+    assert seen == ["A", "B"]
+    assert result == "AB"
