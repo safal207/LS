@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AgentCreate(BaseModel):
@@ -10,13 +10,12 @@ class AgentCreate(BaseModel):
 
 
 class AgentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     reputation_score: float
     balance: float
-
-    class Config:
-        from_attributes = True
 
 
 class ProjectCreate(BaseModel):
@@ -25,12 +24,11 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     treasury: float
-
-    class Config:
-        from_attributes = True
 
 
 class TaskCreate(BaseModel):
@@ -41,15 +39,15 @@ class TaskCreate(BaseModel):
 
 
 class TaskOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     project_id: int
     title: str
     description: str
     reward_budget: float
+    escrow_balance: float
     status: str
-
-    class Config:
-        from_attributes = True
 
 
 class AcceptTaskIn(BaseModel):
@@ -59,11 +57,13 @@ class AcceptTaskIn(BaseModel):
 class CompleteTaskIn(BaseModel):
     agent_id: int
     artifact: str = Field(min_length=1)
-    impact_score: float = Field(ge=0.0)
-    quality_score: float = Field(ge=0.0)
+    impact_score: float = Field(ge=0.0, le=1.0)
+    quality_score: float = Field(ge=0.0, le=1.0)
 
 
 class CreationEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     task_id: int
     agent_id: int
@@ -72,10 +72,27 @@ class CreationEventOut(BaseModel):
     quality_score: float
     artifact: str
 
-    class Config:
-        from_attributes = True
-
 
 class RewardComputeOut(BaseModel):
     processed_count: int
     total_amount: float
+
+
+class EfficiencyIn(BaseModel):
+    tasks_per_month: int = Field(ge=1)
+    avg_reward_budget: float = Field(gt=0.0)
+    avg_impact_score: float = Field(ge=0.0, le=1.0)
+    avg_quality_score: float = Field(ge=0.0, le=1.0)
+    baseline_human_cost_per_task: float = Field(gt=0.0)
+    automation_uplift_pct: float = Field(ge=0.0, le=1.0)
+    platform_opex_monthly: float = Field(ge=0.0)
+
+
+class EfficiencyOut(BaseModel):
+    payout_per_task: float
+    net_saving_per_task: float
+    gross_monthly_saving: float
+    automation_uplift_value: float
+    monthly_net_effect: float
+    roi_monthly: float | None
+    payback_months: float | None

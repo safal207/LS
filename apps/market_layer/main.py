@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .database import Base, build_session_factory, get_db
+from .economics import calculate_economic_efficiency
 from .models import Agent, Project, Task, TaskStatus
 from .schemas import (
     AcceptTaskIn,
@@ -14,6 +15,8 @@ from .schemas import (
     AgentOut,
     CompleteTaskIn,
     CreationEventOut,
+    EfficiencyIn,
+    EfficiencyOut,
     ProjectCreate,
     ProjectOut,
     RewardComputeOut,
@@ -56,6 +59,13 @@ def create_app(database_url: str = "sqlite:///./market_layer.db") -> FastAPI:
         db.refresh(project)
         return project
 
+    @app.get("/projects/{project_id}", response_model=ProjectOut)
+    def get_project(project_id: int, db: Session = Depends(db_dep)) -> Project:
+        project = db.get(Project, project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        return project
+
     @app.post("/tasks", response_model=TaskOut)
     def create_task(payload: TaskCreate, db: Session = Depends(db_dep)) -> Task:
         project = db.get(Project, payload.project_id)
@@ -63,11 +73,14 @@ def create_app(database_url: str = "sqlite:///./market_layer.db") -> FastAPI:
             raise HTTPException(status_code=404, detail="Project not found")
         if project.treasury < payload.reward_budget:
             raise HTTPException(status_code=400, detail="reward_budget exceeds treasury")
+
+        project.treasury -= payload.reward_budget
         task = Task(
             project_id=payload.project_id,
             title=payload.title,
             description=payload.description,
             reward_budget=payload.reward_budget,
+            escrow_balance=payload.reward_budget,
             status=TaskStatus.OPEN,
         )
         db.add(task)
@@ -104,6 +117,10 @@ def create_app(database_url: str = "sqlite:///./market_layer.db") -> FastAPI:
     def compute_rewards(db: Session = Depends(db_dep)) -> RewardComputeOut:
         processed_count, total_amount = process_vested_payouts(db)
         return RewardComputeOut(processed_count=processed_count, total_amount=total_amount)
+
+    @app.post("/analytics/efficiency", response_model=EfficiencyOut)
+    def estimate_efficiency(payload: EfficiencyIn) -> EfficiencyOut:
+        return calculate_economic_efficiency(payload)
 
     return app
 

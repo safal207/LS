@@ -45,6 +45,7 @@ class Task(Base):
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text)
     reward_budget: Mapped[float] = mapped_column(Float)
+    escrow_balance: Mapped[float] = mapped_column(Float)
     status: Mapped[TaskStatus] = mapped_column(SQLEnum(TaskStatus), default=TaskStatus.OPEN)
 
     project: Mapped[Project] = relationship()

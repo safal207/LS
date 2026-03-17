@@ -10,7 +10,6 @@ from .models import (
     Agent,
     AssignmentStatus,
     CreationEvent,
-    Project,
     RewardPayout,
     Task,
     TaskAssignment,
@@ -67,6 +66,8 @@ def complete_task(
     )
     if not assignment:
         raise HTTPException(status_code=400, detail="Task is not assigned to this agent")
+    if task.status != TaskStatus.IN_PROGRESS:
+        raise HTTPException(status_code=400, detail="Task is not in progress")
     if impact_score < IMPACT_THRESHOLD:
         raise HTTPException(status_code=400, detail=f"impact_score must be >= {IMPACT_THRESHOLD}")
 
@@ -80,6 +81,9 @@ def complete_task(
     payout_total = compute_payout(task, impact_score, quality_score)
     immediate_amount = payout_total * IMMEDIATE_FRACTION
     delayed_amount = payout_total - immediate_amount
+
+    if payout_total > task.escrow_balance:
+        raise HTTPException(status_code=400, detail="Computed payout exceeds task escrow")
 
     now = datetime.utcnow()
     payouts = [
@@ -99,16 +103,13 @@ def complete_task(
         ),
     ]
 
-    if task.project.treasury < immediate_amount:
-        raise HTTPException(status_code=400, detail="Insufficient project treasury for immediate payout")
-
     assignment.status = AssignmentStatus.COMPLETED
     assignment.artifact = artifact
     task.status = TaskStatus.COMPLETED
 
     agent.reputation_score += impact_score * quality_score
     agent.balance += immediate_amount
-    task.project.treasury -= immediate_amount
+    task.escrow_balance -= immediate_amount
 
     db.add(event)
     for payout in payouts:
@@ -130,10 +131,9 @@ def process_vested_payouts(db: Session) -> tuple[int, float]:
     for payout in rows:
         agent = _must_get(Agent, db, payout.agent_id)
         task = _must_get(Task, db, payout.task_id)
-        project = _must_get(Project, db, task.project_id)
-        if project.treasury < payout.amount:
+        if task.escrow_balance < payout.amount:
             continue
-        project.treasury -= payout.amount
+        task.escrow_balance -= payout.amount
         agent.balance += payout.amount
         payout.vested = True
         total += payout.amount

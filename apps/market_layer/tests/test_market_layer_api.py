@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from apps.market_layer.database import build_session_factory
 from apps.market_layer.main import create_app
 from apps.market_layer.models import RewardPayout
 
@@ -29,6 +30,10 @@ def test_market_flow_end_to_end(tmp_path):
             "reward_budget": 100,
         },
     ).json()
+    assert task["escrow_balance"] == 100.0
+
+    project_after_task = client.get(f"/projects/{project['id']}").json()
+    assert project_after_task["treasury"] == 900.0
 
     open_tasks = client.get("/tasks/open").json()
     assert len(open_tasks) == 1
@@ -52,14 +57,6 @@ def test_market_flow_end_to_end(tmp_path):
     assert agent_after["reputation_score"] == 0.4
     assert agent_after["balance"] == 8.0
 
-    # Force delayed payout to become due.
-    session_factory = app.dependency_overrides or None
-    assert session_factory is None  # sanity: using default DB wiring
-
-    # Use direct SQLAlchemy session by re-creating app internals through endpoint side effects.
-    # Updating available_at via API is out of scope for MVP tests.
-    from apps.market_layer.database import build_session_factory
-
     engine, factory = build_session_factory(f"sqlite:///{db_path}")
     with factory() as db:
         delayed = db.scalar(select(RewardPayout).where(RewardPayout.vested.is_(False)))
@@ -73,3 +70,60 @@ def test_market_flow_end_to_end(tmp_path):
 
     agent_final = client.get(f"/agents/{agent['id']}").json()
     assert agent_final["balance"] == 40.0
+
+
+def test_treasury_is_reserved_on_task_creation(tmp_path):
+    db_path = tmp_path / "market2.db"
+    app = create_app(database_url=f"sqlite:///{db_path}")
+    client = TestClient(app)
+
+    project = client.post("/projects", json={"name": "project-b", "treasury": 50}).json()
+
+    first = client.post(
+        "/tasks",
+        json={
+            "project_id": project["id"],
+            "title": "T1",
+            "description": "D1",
+            "reward_budget": 30,
+        },
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/tasks",
+        json={
+            "project_id": project["id"],
+            "title": "T2",
+            "description": "D2",
+            "reward_budget": 30,
+        },
+    )
+    assert second.status_code == 400
+
+
+def test_economic_efficiency_endpoint(tmp_path):
+    db_path = tmp_path / "market3.db"
+    app = create_app(database_url=f"sqlite:///{db_path}")
+    client = TestClient(app)
+
+    response = client.post(
+        "/analytics/efficiency",
+        json={
+            "tasks_per_month": 200,
+            "avg_reward_budget": 100,
+            "avg_impact_score": 0.8,
+            "avg_quality_score": 0.75,
+            "baseline_human_cost_per_task": 120,
+            "automation_uplift_pct": 0.15,
+            "platform_opex_monthly": 5000,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    assert round(data["payout_per_task"], 2) == 60.0
+    assert round(data["net_saving_per_task"], 2) == 60.0
+    assert round(data["gross_monthly_saving"], 2) == 12000.0
+    assert round(data["automation_uplift_value"], 2) == 1800.0
+    assert round(data["monthly_net_effect"], 2) == 8800.0
