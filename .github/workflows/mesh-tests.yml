@@ -43,16 +43,7 @@ jobs:
         env:
           PYTHONPATH: python
         run: |
-          pytest -q \
-            tests/test_service_runtime.py \
-            python/tests/test_web4_mesh.py \
-            python/tests/test_web4_mesh_node.py \
-            python/tests/test_web4_mesh_transport_ws.py \
-            --junitxml=artifacts/mesh-junit.xml \
-            --cov=agent \
-            --cov=python/modules/web4_mesh \
-            --cov-report=xml:artifacts/coverage.xml \
-            --timeout=30
+          pytest -q             tests/test_service_runtime.py             python/tests/test_web4_mesh.py             python/tests/test_web4_mesh_node.py             python/tests/test_web4_mesh_transport_ws.py             --junitxml=artifacts/mesh-junit.xml             --cov=agent             --cov=python/modules/web4_mesh             --cov-report=xml:artifacts/coverage.xml             --timeout=30
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4

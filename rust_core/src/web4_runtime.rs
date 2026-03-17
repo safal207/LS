@@ -1,6 +1,6 @@
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use pyo3::PyCell;
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashSet, VecDeque};
 use std::sync::{Arc, Condvar, Mutex};
@@ -34,6 +34,7 @@ impl BackpressurePolicy {
 struct RttStats {
     attempted: usize,
     enqueued: usize,
+    accepted: usize,
     dropped_oldest: usize,
     dropped_newest: usize,
     blocked: usize,
@@ -63,8 +64,7 @@ impl PartialOrd for PrioritizedMessage {
     }
 }
 
-#[pyclass]
-pub struct Web4RttBinding {
+struct Web4RttBindingInner {
     connected: bool,
     queue: VecDeque<String>,
     priority_queue: BinaryHeap<PrioritizedMessage>,
@@ -82,6 +82,12 @@ pub struct Web4RttBinding {
     on_heartbeat_timeout: Vec<PyObject>,
     block_wait: Arc<(Mutex<()>, Condvar)>,
     stats: RttStats,
+    timeout_transition_in_progress: bool,
+}
+
+#[pyclass]
+pub struct Web4RttBinding {
+    inner: Arc<Mutex<Web4RttBindingInner>>,
 }
 
 #[pymethods]
@@ -102,134 +108,163 @@ impl Web4RttBinding {
             )));
         }
         Ok(Self {
-            connected: true,
-            queue: VecDeque::new(),
-            priority_queue: BinaryHeap::new(),
-            oldest_priority_queue: BinaryHeap::new(),
-            live_priority_sequences: HashSet::new(),
-            next_sequence: 0,
-            max_queue,
-            policy: BackpressurePolicy::parse(backpressure_policy)?,
-            block_timeout_ms,
-            session_id,
-            heartbeat_timeout_ms,
-            last_heartbeat_at: Instant::now(),
-            on_session_open: Vec::new(),
-            on_session_close: Vec::new(),
-            on_heartbeat_timeout: Vec::new(),
-            block_wait: Arc::new((Mutex::new(()), Condvar::new())),
-            stats: RttStats::default(),
+            inner: Arc::new(Mutex::new(Web4RttBindingInner {
+                connected: true,
+                queue: VecDeque::new(),
+                priority_queue: BinaryHeap::new(),
+                oldest_priority_queue: BinaryHeap::new(),
+                live_priority_sequences: HashSet::new(),
+                next_sequence: 0,
+                max_queue,
+                policy: BackpressurePolicy::parse(backpressure_policy)?,
+                block_timeout_ms,
+                session_id,
+                heartbeat_timeout_ms,
+                last_heartbeat_at: Instant::now(),
+                on_session_open: Vec::new(),
+                on_session_close: Vec::new(),
+                on_heartbeat_timeout: Vec::new(),
+                block_wait: Arc::new((Mutex::new(()), Condvar::new())),
+                stats: RttStats::default(),
+                timeout_transition_in_progress: false,
+            })),
         })
     }
 
-    fn connect(&mut self, py: Python<'_>) -> PyResult<()> {
-        if self.connected {
-            return Ok(());
+    fn connect(&self, py: Python<'_>) -> PyResult<()> {
+        let callbacks;
+        {
+            let mut inner = self
+                .inner
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
+            if inner.connected {
+                return Ok(());
+            }
+            if inner.timeout_transition_in_progress {
+                return Err(PyRuntimeError::new_err(
+                    "RTT binding timeout transition in progress",
+                ));
+            }
+            inner.connected = true;
+            inner.last_heartbeat_at = Instant::now();
+            inner.notify_block_waiters();
+            callbacks = inner
+                .on_session_open
+                .iter()
+                .map(|c| c.clone_ref(py))
+                .collect::<Vec<_>>();
         }
-        self.connected = true;
-        self.last_heartbeat_at = Instant::now();
-        self.notify_block_waiters();
-        self.emit(py, &self.on_session_open)?;
-        Ok(())
+        Web4RttBindingInner::emit(py, &callbacks, self.session_id()?)
     }
 
     #[pyo3(signature = (reason=None))]
-    fn disconnect(&mut self, py: Python<'_>, reason: Option<&str>) -> PyResult<()> {
-        if !self.connected {
-            return Ok(());
-        }
-        self.connected = false;
+    fn disconnect(&self, py: Python<'_>, reason: Option<&str>) -> PyResult<()> {
         let _ = reason;
-        self.notify_block_waiters();
-        self.emit(py, &self.on_session_close)?;
-        Ok(())
+        let callbacks;
+        {
+            let mut inner = self
+                .inner
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
+            if !inner.connected {
+                return Ok(());
+            }
+            inner.connected = false;
+            inner.notify_block_waiters();
+            callbacks = inner
+                .on_session_close
+                .iter()
+                .map(|c| c.clone_ref(py))
+                .collect::<Vec<_>>();
+        }
+        Web4RttBindingInner::emit(py, &callbacks, self.session_id()?)
     }
 
     #[pyo3(signature = (message, priority=None))]
-    fn send(
-        slf: &PyCell<Self>,
-        py: Python<'_>,
-        message: String,
-        priority: Option<i32>,
-    ) -> PyResult<()> {
+    fn send(&self, py: Python<'_>, message: String, priority: Option<i32>) -> PyResult<()> {
         let mut message_slot = Some(message);
         let mut block_deadline: Option<Instant> = None;
         let mut block_counted = false;
 
         {
-            let mut this = slf.borrow_mut();
-            if !this.connected {
-                this.stats.errors += 1;
-                return Err(pyo3::exceptions::PyRuntimeError::new_err(
-                    "RTT binding disconnected",
-                ));
+            let mut inner = self
+                .inner
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
+            if !inner.connected {
+                inner.stats.errors += 1;
+                return Err(PyRuntimeError::new_err("RTT binding disconnected"));
             }
-            this.stats.attempted += 1;
+            inner.stats.attempted += 1;
         }
 
         loop {
-            let mut this = slf.borrow_mut();
+            let mut inner = self
+                .inner
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
 
-            if !this.connected {
-                this.stats.errors += 1;
-                return Err(pyo3::exceptions::PyRuntimeError::new_err(
-                    "RTT binding disconnected",
-                ));
+            if !inner.connected {
+                inner.stats.errors += 1;
+                return Err(PyRuntimeError::new_err("RTT binding disconnected"));
             }
 
-            if this.pending() < this.max_queue {
+            if inner.pending() < inner.max_queue {
                 let msg = message_slot
                     .take()
                     .expect("message must be available until enqueue");
-                this.push_message(msg, priority);
-                this.stats.enqueued += 1;
-                this.update_max_queue_len();
+                inner.push_message(msg, priority);
+                inner.stats.enqueued += 1;
+                inner.stats.accepted += 1;
+                inner.update_max_queue_len();
                 return Ok(());
             }
 
-            this.stats.overflow_events += 1;
-            match this.policy {
+            inner.stats.overflow_events += 1;
+            match inner.policy {
                 BackpressurePolicy::DropOldest => {
                     let mut dropped = false;
 
-                    if !this.live_priority_sequences.is_empty() {
-                        while let Some(Reverse(oldest_sequence)) = this.oldest_priority_queue.pop()
+                    if !inner.live_priority_sequences.is_empty() {
+                        while let Some(Reverse(oldest_sequence)) = inner.oldest_priority_queue.pop()
                         {
-                            if this.live_priority_sequences.remove(&oldest_sequence) {
+                            if inner.live_priority_sequences.remove(&oldest_sequence) {
                                 dropped = true;
                                 break;
                             }
                         }
 
                         if dropped {
-                            this.maybe_compact_priority_structures();
+                            inner.maybe_compact_priority_structures();
                         }
                     }
 
                     if !dropped {
-                        dropped = this.queue.pop_front().is_some();
+                        dropped = inner.queue.pop_front().is_some();
                     }
 
                     if dropped {
                         let msg = message_slot
                             .take()
                             .expect("message must be available until enqueue");
-                        this.push_message(msg, priority);
-                        this.stats.enqueued += 1;
-                        this.stats.dropped_oldest += 1;
-                        this.update_max_queue_len();
+                        inner.push_message(msg, priority);
+                        inner.stats.enqueued += 1;
+                        inner.stats.accepted += 1;
+                        inner.stats.dropped_oldest += 1;
+                        inner.update_max_queue_len();
                     } else {
-                        this.stats.dropped_newest += 1;
+                        inner.stats.dropped_newest += 1;
                     }
                     return Ok(());
                 }
                 BackpressurePolicy::DropNewest => {
-                    this.stats.dropped_newest += 1;
+                    inner.stats.dropped_newest += 1;
                     return Ok(());
                 }
                 BackpressurePolicy::Block => {
                     if !block_counted {
-                        this.stats.blocked += 1;
+                        inner.stats.blocked += 1;
                         block_counted = true;
                     }
 
@@ -237,7 +272,7 @@ impl Web4RttBinding {
                         Some(existing) => existing,
                         None => {
                             let created =
-                                Instant::now() + Duration::from_millis(this.block_timeout_ms);
+                                Instant::now() + Duration::from_millis(inner.block_timeout_ms);
                             block_deadline = Some(created);
                             created
                         }
@@ -245,15 +280,15 @@ impl Web4RttBinding {
 
                     let now = Instant::now();
                     if now >= deadline {
-                        this.stats.errors += 1;
-                        return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                        inner.stats.errors += 1;
+                        return Err(PyRuntimeError::new_err(
                             "RTT binding backpressure: block timeout",
                         ));
                     }
 
                     let remaining = deadline.saturating_duration_since(now);
-                    let block_wait = Arc::clone(&this.block_wait);
-                    drop(this);
+                    let block_wait = Arc::clone(&inner.block_wait);
+                    drop(inner);
 
                     let timed_out = py.allow_threads(move || {
                         let (lock, cvar) = &*block_wait;
@@ -269,126 +304,202 @@ impl Web4RttBinding {
                     });
 
                     if timed_out {
-                        let mut this = slf.borrow_mut();
-                        if this.pending() >= this.max_queue {
-                            this.stats.errors += 1;
-                            return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                        let mut inner = self
+                            .inner
+                            .lock()
+                            .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
+                        if inner.pending() >= inner.max_queue {
+                            inner.stats.errors += 1;
+                            return Err(PyRuntimeError::new_err(
                                 "RTT binding backpressure: block timeout",
                             ));
                         }
                     }
                 }
                 BackpressurePolicy::Error => {
-                    this.stats.errors += 1;
-                    return Err(pyo3::exceptions::PyRuntimeError::new_err(
-                        "RTT binding backpressure",
-                    ));
+                    inner.stats.errors += 1;
+                    return Err(PyRuntimeError::new_err("RTT binding backpressure"));
                 }
             }
         }
     }
 
-    fn receive(&mut self) -> Option<String> {
-        if !self.connected {
+    fn receive(&self) -> Option<String> {
+        let mut inner = self.inner.lock().ok()?;
+        if !inner.connected {
             return None;
         }
-        let item = if !self.priority_queue.is_empty() {
+        let item = if !inner.priority_queue.is_empty() {
             let mut priority_item = None;
-            while let Some(pm) = self.priority_queue.pop() {
-                if self.live_priority_sequences.remove(&pm.sequence) {
+            while let Some(pm) = inner.priority_queue.pop() {
+                if inner.live_priority_sequences.remove(&pm.sequence) {
                     priority_item = Some(pm.message);
                     break;
                 }
             }
             if priority_item.is_some() {
-                self.maybe_compact_priority_structures();
+                inner.maybe_compact_priority_structures();
             }
-            priority_item.or_else(|| self.queue.pop_front())
+            priority_item.or_else(|| inner.queue.pop_front())
         } else {
-            self.queue.pop_front()
+            inner.queue.pop_front()
         };
         if item.is_some() {
-            self.notify_block_waiters();
+            inner.notify_block_waiters();
         }
         item
     }
 
     fn pending(&self) -> usize {
-        self.queue.len() + self.live_priority_sequences.len()
-    }
-
-    fn heartbeat(&mut self) {
-        self.last_heartbeat_at = Instant::now();
-    }
-
-    fn check_heartbeat_timeout(&mut self, py: Python<'_>) -> PyResult<bool> {
-        if !self.connected {
-            return Ok(false);
+        match self.inner.lock() {
+            Ok(inner) => inner.pending(),
+            Err(_) => 0,
         }
-        if self.last_heartbeat_at.elapsed() < Duration::from_millis(self.heartbeat_timeout_ms) {
-            return Ok(false);
-        }
-        self.emit(py, &self.on_heartbeat_timeout)?;
-        self.connected = false;
-        self.notify_block_waiters();
-        self.emit(py, &self.on_session_close)?;
-        Ok(true)
     }
 
-    fn register_on_session_open(&mut self, py: Python<'_>, callback: PyObject) -> PyResult<()> {
-        self.on_session_open.push(callback.clone_ref(py));
-        if self.connected {
-            callback.call1(py, (self.session_id,))?;
+    fn heartbeat(&self) {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.last_heartbeat_at = Instant::now();
+        }
+    }
+
+    fn check_heartbeat_timeout(&self, py: Python<'_>) -> PyResult<bool> {
+        let (timed_out, timeout_callbacks, close_callbacks, session_id) = {
+            let mut inner = self
+                .inner
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
+            if !inner.connected || inner.timeout_transition_in_progress {
+                return Ok(false);
+            }
+            if inner.last_heartbeat_at.elapsed() < Duration::from_millis(inner.heartbeat_timeout_ms)
+            {
+                return Ok(false);
+            }
+            inner.timeout_transition_in_progress = true;
+            let timeout_callbacks = inner
+                .on_heartbeat_timeout
+                .iter()
+                .map(|c| c.clone_ref(py))
+                .collect::<Vec<_>>();
+            inner.connected = false;
+            inner.notify_block_waiters();
+            let close_callbacks = inner
+                .on_session_close
+                .iter()
+                .map(|c| c.clone_ref(py))
+                .collect::<Vec<_>>();
+            (true, timeout_callbacks, close_callbacks, inner.session_id)
+        };
+        if timed_out {
+            let emit_result = (|| {
+                Web4RttBindingInner::emit(py, &timeout_callbacks, session_id)?;
+                Web4RttBindingInner::emit(py, &close_callbacks, session_id)?;
+                Ok::<(), PyErr>(())
+            })();
+            if let Ok(mut inner) = self.inner.lock() {
+                inner.timeout_transition_in_progress = false;
+            }
+            emit_result?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    fn register_on_session_open(&self, py: Python<'_>, callback: PyObject) -> PyResult<()> {
+        let call_now;
+        let session_id;
+        {
+            let mut inner = self
+                .inner
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
+            inner.on_session_open.push(callback.clone_ref(py));
+            call_now = inner.connected;
+            session_id = inner.session_id;
+        }
+        if call_now {
+            callback.call1(py, (session_id,))?;
         }
         Ok(())
     }
 
-    fn unregister_on_session_open(&mut self, py: Python<'_>, callback: PyObject) {
-        Self::remove_callback(py, &mut self.on_session_open, &callback);
+    fn unregister_on_session_open(&self, py: Python<'_>, callback: PyObject) {
+        if let Ok(mut inner) = self.inner.lock() {
+            Web4RttBindingInner::remove_callback(py, &mut inner.on_session_open, &callback);
+        }
     }
 
-    fn register_on_session_close(&mut self, py: Python<'_>, callback: PyObject) {
-        self.on_session_close.push(callback.clone_ref(py));
+    fn register_on_session_close(&self, py: Python<'_>, callback: PyObject) {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.on_session_close.push(callback.clone_ref(py));
+        }
     }
 
-    fn unregister_on_session_close(&mut self, py: Python<'_>, callback: PyObject) {
-        Self::remove_callback(py, &mut self.on_session_close, &callback);
+    fn unregister_on_session_close(&self, py: Python<'_>, callback: PyObject) {
+        if let Ok(mut inner) = self.inner.lock() {
+            Web4RttBindingInner::remove_callback(py, &mut inner.on_session_close, &callback);
+        }
     }
 
-    fn register_on_heartbeat_timeout(&mut self, py: Python<'_>, callback: PyObject) {
-        self.on_heartbeat_timeout.push(callback.clone_ref(py));
+    fn register_on_heartbeat_timeout(&self, py: Python<'_>, callback: PyObject) {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.on_heartbeat_timeout.push(callback.clone_ref(py));
+        }
     }
 
-    fn unregister_on_heartbeat_timeout(&mut self, py: Python<'_>, callback: PyObject) {
-        Self::remove_callback(py, &mut self.on_heartbeat_timeout, &callback);
+    fn unregister_on_heartbeat_timeout(&self, py: Python<'_>, callback: PyObject) {
+        if let Ok(mut inner) = self.inner.lock() {
+            Web4RttBindingInner::remove_callback(py, &mut inner.on_heartbeat_timeout, &callback);
+        }
     }
 
-    fn clear_session_hooks(&mut self) {
-        self.on_session_open.clear();
-        self.on_session_close.clear();
-        self.on_heartbeat_timeout.clear();
+    fn clear_session_hooks(&self) {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.on_session_open.clear();
+            inner.on_session_close.clear();
+            inner.on_heartbeat_timeout.clear();
+        }
     }
 
-    fn stats<'py>(&self, py: Python<'py>) -> &'py PyDict {
+    fn stats<'py>(&self, py: Python<'py>) -> PyResult<&'py PyDict> {
         let stats = PyDict::new(py);
-        let _ = stats.set_item("attempted", self.stats.attempted);
-        let _ = stats.set_item("enqueued", self.stats.enqueued);
-        let _ = stats.set_item("accepted", self.stats.enqueued);
-        let _ = stats.set_item("dropped_oldest", self.stats.dropped_oldest);
-        let _ = stats.set_item("dropped_newest", self.stats.dropped_newest);
+        let inner = self
+            .inner
+            .lock()
+            .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
+        let _ = stats.set_item("attempted", inner.stats.attempted);
+        let _ = stats.set_item("enqueued", inner.stats.enqueued);
+        let _ = stats.set_item("accepted", inner.stats.accepted);
+        let _ = stats.set_item("dropped_oldest", inner.stats.dropped_oldest);
+        let _ = stats.set_item("dropped_newest", inner.stats.dropped_newest);
         let _ = stats.set_item(
             "dropped",
-            self.stats.dropped_oldest + self.stats.dropped_newest,
+            inner.stats.dropped_oldest + inner.stats.dropped_newest,
         );
-        let _ = stats.set_item("blocked", self.stats.blocked);
-        let _ = stats.set_item("errors", self.stats.errors);
-        let _ = stats.set_item("overflow_events", self.stats.overflow_events);
-        let _ = stats.set_item("max_queue_len", self.stats.max_queue_len);
-        stats
+        let _ = stats.set_item("blocked", inner.stats.blocked);
+        let _ = stats.set_item("errors", inner.stats.errors);
+        let _ = stats.set_item("overflow_events", inner.stats.overflow_events);
+        let _ = stats.set_item("max_queue_len", inner.stats.max_queue_len);
+        Ok(stats)
     }
 }
 
 impl Web4RttBinding {
+    fn session_id(&self) -> PyResult<u64> {
+        let inner = self
+            .inner
+            .lock()
+            .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
+        Ok(inner.session_id)
+    }
+}
+
+impl Web4RttBindingInner {
+    fn pending(&self) -> usize {
+        self.queue.len() + self.live_priority_sequences.len()
+    }
+
     fn update_max_queue_len(&mut self) {
         self.stats.max_queue_len = self
             .stats
@@ -454,10 +565,9 @@ impl Web4RttBinding {
             .collect();
     }
 
-    fn emit(&self, py: Python<'_>, callbacks: &[PyObject]) -> PyResult<()> {
-        let callbacks: Vec<PyObject> = callbacks.iter().map(|c| c.clone_ref(py)).collect();
+    fn emit(py: Python<'_>, callbacks: &[PyObject], session_id: u64) -> PyResult<()> {
         for callback in callbacks {
-            callback.call1(py, (self.session_id,))?;
+            callback.call1(py, (session_id,))?;
         }
         Ok(())
     }

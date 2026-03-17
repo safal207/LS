@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import threading
 from typing import Any, Dict, Iterable, Set
 
 
@@ -16,18 +17,27 @@ class ServiceRegistry:
 
     def __init__(self):
         self._services: Dict[str, ServiceEntry] = {}
+        self._lock = threading.RLock()
 
-    def register(self, name: str, service: Any, capabilities: Iterable[str] | None = None) -> None:
+    def register(
+        self,
+        name: str,
+        service: Any,
+        capabilities: Iterable[str] | None = None,
+        replace: bool = False,
+    ) -> None:
         if not name:
             raise ValueError("Service name must be non-empty")
-        if name in self._services:
-            raise KeyError(f"Service already registered: {name}")
-        cap_set = set(capabilities or [])
-        self._services[name] = ServiceEntry(name=name, service=service, capabilities=cap_set)
+        with self._lock:
+            if name in self._services and not replace:
+                raise KeyError(f"Service already registered: {name}")
+            cap_set = set(capabilities or [])
+            self._services[name] = ServiceEntry(name=name, service=service, capabilities=cap_set)
 
     def get(self, name: str, required_capability: str | None = None) -> Any:
         try:
-            entry = self._services[name]
+            with self._lock:
+                entry = self._services[name]
         except KeyError as exc:
             raise KeyError(f"Service not found: {name}") from exc
 
@@ -38,15 +48,19 @@ class ServiceRegistry:
         return entry.service
 
     def capabilities(self, name: str) -> Set[str]:
-        if name not in self._services:
-            raise KeyError(f"Service not found: {name}")
-        return set(self._services[name].capabilities)
+        with self._lock:
+            if name not in self._services:
+                raise KeyError(f"Service not found: {name}")
+            return set(self._services[name].capabilities)
 
     def has(self, name: str) -> bool:
-        return name in self._services
+        with self._lock:
+            return name in self._services
 
     def unregister(self, name: str) -> None:
-        self._services.pop(name, None)
+        with self._lock:
+            self._services.pop(name, None)
 
     def list_services(self) -> list[str]:
-        return sorted(self._services.keys())
+        with self._lock:
+            return sorted(self._services.keys())
