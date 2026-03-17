@@ -14,8 +14,9 @@ except ImportError:  # optional for replay/context helpers
     requests = None
 import json
 import logging
+import os
 from pathlib import Path  # noqa: F401
-from typing import Optional
+from typing import Callable, Optional
 
 try:
     from ..config import OLLAMA_HOST, LLM_MODEL_NAME
@@ -68,36 +69,59 @@ class QwenHandler:
         self.model_name = model_name or LLM_MODEL_NAME
         _ensure_requests_available()
         self.session = requests.Session()
-        self.session.timeout = 30
+        # Reuse one HTTP session to reduce handshake latency between calls.
+        self.session.headers.update({"Connection": "keep-alive"})
 
-    def generate_with_ollama(self, prompt: str, messages: Optional[list[dict]] = None) -> Optional[str]:
-        """Generate response using Ollama Qwen model. Supports legacy prompt or chat history."""
+    @staticmethod
+    def _default_num_predict() -> int:
         try:
-            if messages:
-                url = f"{OLLAMA_HOST}/api/chat"
-                payload = {
+            value = int(os.getenv("OLLAMA_NUM_PREDICT", "150"))
+            return max(1, value)
+        except (TypeError, ValueError):
+            return 150
+
+    def _build_ollama_payload(
+        self,
+        prompt: str,
+        messages: Optional[list[dict]],
+        *,
+        stream: bool,
+    ) -> tuple[str, dict]:
+        num_predict = self._default_num_predict()
+        if messages:
+            return (
+                f"{OLLAMA_HOST}/api/chat",
+                {
                     "model": self.model_name,
                     "messages": messages,
-                    "stream": False,
+                    "stream": stream,
                     "options": {
                         "temperature": 0.2,
-                        "num_predict": 150,
-                    }
-                }
-            else:
-                url = f"{OLLAMA_HOST}/api/generate"
-                payload = {
-                    "model": self.model_name,
-                    "prompt": prompt,
-                    "stream": False,
+                        "num_predict": num_predict,
+                    },
+                },
+            )
+
+        return (
+            f"{OLLAMA_HOST}/api/generate",
+            {
+                "model": self.model_name,
+                "prompt": prompt,
+                "stream": stream,
                 "options": {
                     "temperature": 0.2,
                     "top_k": 40,
                     "top_p": 0.9,
-                    "num_predict": 150,
-                    "repeat_penalty": 1.1
-                }
-            }
+                    "num_predict": num_predict,
+                    "repeat_penalty": 1.1,
+                },
+            },
+        )
+
+    def generate_with_ollama(self, prompt: str, messages: Optional[list[dict]] = None) -> Optional[str]:
+        """Generate response using Ollama Qwen model. Supports legacy prompt or chat history."""
+        try:
+            url, payload = self._build_ollama_payload(prompt, messages, stream=False)
 
             logger.debug(f"Sending to Ollama Qwen: {prompt[:50]}...")
             response = self.session.post(url, json=payload, timeout=DEFAULT_TIMEOUT)
@@ -132,6 +156,49 @@ class QwenHandler:
                     raise LLMInvalidFormatError(str(e) or "Invalid response format", cause=e) from e
                 raise LLMProviderError(str(e) or "Ollama Qwen error", cause=e) from e
             logger.error(f"Ollama Qwen error: {e}")
+            return None
+
+    def generate_with_ollama_stream(
+        self,
+        prompt: str,
+        messages: Optional[list[dict]] = None,
+        on_token: Optional[Callable[[str], None]] = None,
+    ) -> Optional[str]:
+        """Generate response using Ollama stream API and emit incremental chunks."""
+        try:
+            url, payload = self._build_ollama_payload(prompt, messages, stream=True)
+            chunks: list[str] = []
+            with self.session.post(url, json=payload, timeout=DEFAULT_TIMEOUT, stream=True) as response:
+                response.raise_for_status()
+                for raw_line in response.iter_lines(decode_unicode=True):
+                    if not raw_line:
+                        continue
+                    frame = json.loads(raw_line)
+                    token = frame.get("message", {}).get("content") if messages else frame.get("response", "")
+                    if not isinstance(token, str):
+                        raise LLMInvalidFormatError("Expected streamed token to be a string")
+                    if not token:
+                        continue
+                    chunks.append(token)
+                    if on_token is not None:
+                        on_token(token)
+
+            answer = "".join(chunks).strip()
+            if answer:
+                return answer
+            if self.raise_on_error:
+                raise LLMEmptyResponseError("Empty streamed response from Qwen (Ollama)")
+            return None
+        except Exception as e:
+            if self.raise_on_error:
+                if isinstance(e, (LLMEmptyResponseError, LLMInvalidFormatError, LLMProviderError, LLMTimeoutError)):
+                    raise
+                if is_timeout_exception(e):
+                    raise LLMTimeoutError(cause=e) from e
+                if isinstance(e, (KeyError, ValueError, TypeError, json.JSONDecodeError)):
+                    raise LLMInvalidFormatError(str(e) or "Invalid streamed response format", cause=e) from e
+                raise LLMProviderError(str(e) or "Ollama stream error", cause=e) from e
+            logger.error(f"Ollama Qwen stream error: {e}")
             return None
 
     def generate_with_cloud_api(self, prompt: str, messages: Optional[list[dict]] = None) -> Optional[str]:
@@ -201,8 +268,17 @@ class QwenHandler:
             logger.error(f"Qwen Cloud API error: {e}")
             return None
 
-    def generate_response(self, prompt: str, messages: Optional[list[dict]] = None) -> Optional[str]:
+    def generate_response(
+        self,
+        prompt: str,
+        messages: Optional[list[dict]] = None,
+        *,
+        stream: bool = False,
+        on_token: Optional[Callable[[str], None]] = None,
+    ) -> Optional[str]:
         """Generate response using appropriate Qwen variant"""
+        if stream and not self.use_cloud_api:
+            return self.generate_with_ollama_stream(prompt, messages=messages, on_token=on_token)
         if self.use_cloud_api:
             return self.generate_with_cloud_api(prompt, messages=messages)
         else:
