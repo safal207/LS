@@ -172,7 +172,7 @@ class ServiceLayer:
                 except Exception as exc:
                     failed_index = future_to_index[future]
                     logger.exception("Parallel task execution failed for index=%s", failed_index)
-                    if len(indexed_results) != len(tasks):
+                    if 0 < len(indexed_results) < len(tasks):
                         logger.warning("Partial results before failure: %d/%d", len(indexed_results), len(tasks))
                     raise ParallelTaskExecutionError(
                         task_index=failed_index,
