@@ -53,6 +53,19 @@ def test_admission_queue_when_wip_limit_reached() -> None:
     assert "idea_2" in controller.state.admission_queue
 
 
+def test_admission_rejects_when_required_capital_exceeds_treasury() -> None:
+    controller = _make_controller(treasury=15_000.0)
+    idea = IdeaObject("idea_1", "P1", upside=500_000.0, p_success=0.6)
+    vr = ValidationRecord("vr_1", "idea_1", "default")
+
+    decision = controller.evaluate_admission(idea, vr, required_capital=20_000.0)
+
+    assert decision.decision == "reject"
+    assert "insufficient_treasury_for_capital" in decision.reasons
+    assert not controller.state.active_projects
+    assert controller.state.treasury == 15_000.0
+
+
 def test_gate_freeze_and_kill_generate_ledger_events() -> None:
     controller = _make_controller()
     idea = IdeaObject("idea_1", "AI QA", upside=500_000.0, p_success=0.5)

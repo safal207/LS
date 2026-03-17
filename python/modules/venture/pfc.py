@@ -191,6 +191,20 @@ class PortfolioFlowController:
                 self._record_event("PFC_ADMISSION_DECIDED", idea.idea_id, trace, decision)
                 return decision
 
+            if self._state.treasury < required_capital:
+                reasons.append("insufficient_treasury_for_capital")
+                decision = self._record_decision(
+                    decision_type="admission",
+                    entity_id=idea.idea_id,
+                    decision="reject",
+                    reasons=reasons,
+                    trace_id=trace,
+                    expected_value=expected_value,
+                    dynamic_cutoff=cutoff,
+                )
+                self._record_event("PFC_ADMISSION_DECIDED", idea.idea_id, trace, decision)
+                return decision
+
             self._state.treasury -= required_capital
             project = ProjectObject(
                 project_id=f"project_{idea.idea_id}",
