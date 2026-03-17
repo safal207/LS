@@ -27,6 +27,7 @@
 - **Reasoning Diff**: Compare agent reasoning traces and detect divergence points.
 - **Local-First & Privacy-Centric**: Designed to run entirely on your hardware with built-in PII redaction and safety gates.
 - **Web4 Integration**: Ready for the next generation of decentralized AI protocols.
+- **AI Venture Engine + PFC**: Portfolio-level admission, stage-gate, and capital allocation controls for turning idea flow into execution throughput.
 
 ## 🛠 Architecture
 
@@ -83,6 +84,7 @@ python apps/console/main.py
 - [Architecture Deep Dive](docs/ARCHITECTURE.md) — Data flow and system components.
 - [Web4 Overview](docs/WEB4_OVERVIEW.md) — Vision for the decentralized future.
 - [HCP & CIP Specs](docs/HCP_SPEC.md) — Protocol specifications for human and agent interactions.
+- [AI Venture Engine Positioning](docs/AI_VENTURE_ENGINE_PFC_POSITIONING.md) — Product documentation and marketing positioning for Portfolio Flow Controller.
 
 ## Reasoning Diff
 
@@ -202,6 +204,7 @@ LS (Local Cognitive System) — локальная когнитивная сис
 - `docs/ARCH_DIAGRAMS.md` — архитектурные диаграммы (Mermaid)
 - `docs/ROADMAP.md` — дорожная карта
 - `docs/INVESTMENT_ANALYSIS_RU.md` — инвестиционный анализ и рекомендации по позиционированию
+- `docs/AI_VENTURE_ENGINE_PFC_POSITIONING.md` — документация и маркетинговое позиционирование AI Venture Engine + PFC
 - `docs/architecture/layers.md` — полный каталог 12 архитектурных слоев (v1.1)
 - `docs/MODEL_ECONOMY_LAYER.md` — MEL: экономика моделей, реестр, metering и revenue split
 - `schemas/*.schema.json` — формальные JSON Schema протоколов
