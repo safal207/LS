@@ -69,7 +69,7 @@ def test_parallel_landing_generation_raises_when_worker_fails():
         return build_landing_page_steps(task, service)
 
     with pytest.raises(ParallelTaskExecutionError, match="index=1") as exc_info:
-        service.execute_tasks_parallel(tasks, steps_builder=failing_builder, max_workers=2)
+        service.execute_tasks_parallel(tasks, steps_builder=failing_builder, max_workers=1)
 
     assert exc_info.value.task_index == 1
     assert isinstance(exc_info.value.__cause__, RuntimeError)

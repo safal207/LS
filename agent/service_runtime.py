@@ -176,11 +176,8 @@ class ServiceLayer:
                         logger.warning("Partial results before failure: %d/%d", len(indexed_results), len(tasks))
                     raise ParallelTaskExecutionError(
                         task_index=failed_index,
-                        message=f"Task failed during parallel execution at index={failed_index}",
+                        message=f"Task at index={failed_index} failed: {exc}",
                     ) from exc
-
-        if len(indexed_results) != len(tasks):
-            logger.warning("Partial results: %d/%d tasks completed", len(indexed_results), len(tasks))
 
         return [indexed_results[idx] for idx in sorted(indexed_results)]
 
