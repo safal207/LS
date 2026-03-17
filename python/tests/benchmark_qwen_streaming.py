@@ -162,14 +162,13 @@ def _benchmark_python_parser(frame: str, iterations: int) -> float:
 
 def _benchmark_rust_parser(frame: str, iterations: int) -> tuple[float | None, str]:
     try:
-        ghostgpt_core = getattr(qwen_handler, "_ghostgpt_core", None)
-        if ghostgpt_core is None:
-            import ghostgpt_core as _ghostgpt_core  # type: ignore
-            ghostgpt_core = _ghostgpt_core
+        rust_core = getattr(qwen_handler, "_ghostgpt_core", None)
+        if rust_core is None:
+            import ghostgpt_core as rust_core  # type: ignore
 
         started = time.perf_counter()
         for _ in range(iterations):
-            _ = ghostgpt_core.extract_ollama_token(frame, False)
+            _ = rust_core.extract_ollama_token(frame, False)
         return (time.perf_counter() - started) * 1000, ""
     except Exception as exc:
         return None, str(exc)
@@ -183,7 +182,7 @@ def _benchmark_cpp_parser(frame: str, iterations: int) -> tuple[float | None, st
     try:
         lib = ctypes.CDLL(str(lib_path))
         fn = lib.extract_ollama_token_cpp
-        fn.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
+        fn.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.POINTER(ctypes.c_char), ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
         fn.restype = ctypes.c_int
 
         out = ctypes.create_string_buffer(1024)

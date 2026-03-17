@@ -63,7 +63,8 @@ Method:
 - compare `stream=True` vs `stream=False` for the same handler.
 
 Result summary (current run):
-- **TTFT improved ~15.9x** with streaming,
+> Note: latest measured values are published in `docs/online_interview_llm_latency_results.md` and may differ by environment/build cache.
+- **TTFT improved significantly** with streaming (see latest benchmark report for exact value),
 - full completion time remained roughly equal,
 - **Rust parser micro-benchmark gives multi-x speedup** vs Python JSON parse (see latest report),
 - **C++ parser micro-benchmark gives measurable speedup** vs Python JSON parse (see latest report),
