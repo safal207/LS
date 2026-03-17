@@ -5,6 +5,7 @@ import asyncio
 import csv
 import logging
 import time
+from dataclasses import asdict
 from pathlib import Path
 from typing import Callable
 
@@ -92,7 +93,7 @@ def write_metrics_csv(path: str, events: list[DeliveryEvent]) -> None:
         )
         writer.writeheader()
         for e in events:
-            writer.writerow(e.to_dict())
+            writer.writerow(asdict(e))
 
 
 def main() -> None:
