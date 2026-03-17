@@ -5,6 +5,7 @@ import asyncio
 import csv
 import logging
 import time
+from dataclasses import asdict
 from pathlib import Path
 from typing import Callable
 
@@ -91,22 +92,17 @@ def write_metrics_csv(path: str, events: list[DeliveryEvent]) -> None:
             fieldnames=["run", "envelope_id", "origin", "destination", "latency_s", "delivered_bool"],
         )
         writer.writeheader()
-        for event in events:
-            writer.writerow(
-                {
-                    "run": event.run,
-                    "envelope_id": event.envelope_id,
-                    "origin": event.origin,
-                    "destination": event.destination,
-                    "latency_s": f"{event.latency_s:.6f}",
-                    "delivered_bool": str(event.delivered_bool).lower(),
-                }
-            )
+        for e in events:
+            writer.writerow(asdict(e))
 
 
-if __name__ == "__main__":
+def main() -> None:
     args = parse_args()
     events = asyncio.run(demo(args))
     if args.collect_metrics:
         write_metrics_csv(args.metrics_path, events)
-        logger.info("Saved metrics to %s with %d rows", args.metrics_path, len(events))
+        logger.info("metrics written to %s (%d rows)", args.metrics_path, len(events))
+
+
+if __name__ == "__main__":
+    main()
