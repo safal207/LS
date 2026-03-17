@@ -154,3 +154,7 @@ def test_is_done_frame_fast_check():
     assert qwen_handler._is_done_frame('{"done":true}') is True
     assert qwen_handler._is_done_frame('{"done": true}') is True
     assert qwen_handler._is_done_frame('{"response":"x"}') is False
+
+
+def test_is_done_frame_does_not_match_response_text():
+    assert qwen_handler._is_done_frame('{"response":"done:true, confirmed"}') is False

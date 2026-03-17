@@ -104,6 +104,7 @@ class LanguageModel:
     def generate_response_local(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
         """Generate response using local Ollama Qwen"""
         prompt = ""
+        active_messages = _compress_messages_for_hint(messages) if os.getenv("WHISPER_MODE", "0") == "1" else messages
         try:
             if self._is_cancelled(cancel_event):
                 return None
@@ -120,7 +121,6 @@ class LanguageModel:
             
             logger.debug(f"Sending to Qwen: {question[:50]}...")
             
-            active_messages = _compress_messages_for_hint(messages) if os.getenv("WHISPER_MODE", "0") == "1" else messages
             response = self.qwen_handler.generate_response(prompt, messages=active_messages, stream=stream, on_token=on_token)
             if response is None or (isinstance(response, str) and not response.strip()):
                 raise LLMEmptyResponseError()
@@ -168,6 +168,7 @@ class LanguageModel:
     
     def generate_response_cloud(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
         """Generate response using cloud Qwen API"""
+        active_messages = _compress_messages_for_hint(messages) if os.getenv("WHISPER_MODE", "0") == "1" else messages
         try:
             if self._is_cancelled(cancel_event):
                 return None
@@ -184,7 +185,6 @@ class LanguageModel:
             
             logger.debug(f"Sending to Qwen Cloud: {question[:50]}...")
             
-            active_messages = _compress_messages_for_hint(messages) if os.getenv("WHISPER_MODE", "0") == "1" else messages
             response = self.qwen_handler.generate_response(prompt, messages=active_messages, stream=stream, on_token=on_token)
             if response is None or (isinstance(response, str) and not response.strip()):
                 raise LLMEmptyResponseError()
@@ -275,6 +275,9 @@ class LanguageModel:
                         tts_buffer: list[str] = []
 
                         def _on_token(token: str) -> None:
+                            # NOTE: on_token is currently invoked synchronously inside generate_response,
+                            # so tts_buffer access is single-threaded in this path.
+                            # Revisit if generation threading/async model changes.
                             tts_buffer.append(token)
                             try:
                                 self.output_queue.put_nowait({

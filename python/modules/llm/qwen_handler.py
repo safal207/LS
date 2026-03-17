@@ -59,8 +59,15 @@ except Exception:
 
 
 def _is_done_frame(raw_line: str) -> bool:
-    compact = raw_line.replace(" ", "")
-    return '"done":true' in compact
+    if '"done"' not in raw_line:
+        return False
+    try:
+        payload = json.loads(raw_line)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    return bool(payload.get("done"))
 
 def _extract_stream_token(frame_line: str, has_messages: bool) -> str:
     """Fast path token extraction from Ollama JSONL frame (Rust if available)."""
