@@ -642,6 +642,7 @@ class AgentLoop:
             if thread.is_alive():
                 logger.warning("Timed out waiting for active task thread to stop", extra={"task_id": task_id})
                 if cancel:
+                    self._emit("cancelled", {"reason": reason, "timed_out": True}, task_id=task_id)
                     self._track_cancellation(cancel)
                 return
         if cancel:
