@@ -4,7 +4,14 @@ from .observability_mesh import MeshObservabilityEvent, MeshObservabilityHub
 from .peers import Peer, PeerRegistry
 from .router import MeshRouter, MeshForwardingPolicy
 from .trust_mesh import DistributedTrustFSM, TrustLink, TrustLevel
-from .node import Web4MeshNode, ANNOUNCE, SYNC_GRAPH_CHUNK, SYNC_GRAPH_REQUEST, PUSH_REFLECTION
+from .node import (
+    ANNOUNCE,
+    PUSH_REFLECTION,
+    SYNC_GRAPH_CHUNK,
+    SYNC_GRAPH_REQUEST,
+    Web4MeshNode,
+    Web4MeshNodeConfig,
+)
 
 __all__ = [
     "MeshEnvelope",
@@ -22,6 +29,7 @@ __all__ = [
     "TrustLink",
     "TrustLevel",
     "Web4MeshNode",
+    "Web4MeshNodeConfig",
     "ANNOUNCE",
     "SYNC_GRAPH_CHUNK",
     "SYNC_GRAPH_REQUEST",
