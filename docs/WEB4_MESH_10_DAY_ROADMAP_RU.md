@@ -43,6 +43,7 @@ Web4 Mesh в LS — это не просто сетевой слой, а **ко�
 - [x] Trust + observability hooks.
 - [x] Unit-тесты на happy path + edge cases.
 - [ ] Прототип docker-compose для 3 нод.
+- [x] Прототип transport-адаптера на asyncio + WebSocket (`transport_ws.py`) и runner `tools/run_mesh_ws.py`.
 
 ### Дни 4–6 — transport и реальная связность
 - [ ] Подключить transport-адаптер (начать с websocket/asyncio, затем libp2p bridge).
@@ -69,3 +70,9 @@ Web4 Mesh в LS — это не просто сетевой слой, а **ко�
    - B/C принимают,
    - D входит позже и делает sync request.
 3. Зафиксировать SLA-метрики (latency, duplicate ratio, sync completeness) в отдельном отчете.
+
+
+### Текущий демо-сценарий
+- A публикует reflection, B/C получают по WebSocket transport.
+- D подключается позже и получает граф через `SYNC_GRAPH_REQUEST`/`SYNC_GRAPH_CHUNK`.
+- Запуск: `PYTHONPATH=python python tools/run_mesh_ws.py`.

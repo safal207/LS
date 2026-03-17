@@ -12,6 +12,7 @@ from .node import (
     Web4MeshNode,
     Web4MeshNodeConfig,
 )
+from .transport_ws import WebSocketTransport
 
 __all__ = [
     "MeshEnvelope",
@@ -34,4 +35,5 @@ __all__ = [
     "SYNC_GRAPH_CHUNK",
     "SYNC_GRAPH_REQUEST",
     "PUSH_REFLECTION",
+    "WebSocketTransport",
 ]
