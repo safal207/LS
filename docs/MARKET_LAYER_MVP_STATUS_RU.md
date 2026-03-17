@@ -1,134 +1,71 @@
-# Market Layer MVP — позиционирование, итоги и следующие шаги
+# Market Layer MVP — итоговый статус (100%)
 
-## 1) Позиционирование
+## Текущее состояние
 
-**Что это:**
+Все запланированные шаги из MVP-roadmap реализованы в коде и покрыты экспресс-тестами.
 
-`market_layer_mvp` — это минимальный исполняемый слой агентной экономики для цикла:
+Базовый контур:
 
-`task -> bid/assign -> artifact -> verification -> settlement -> reputation -> ledger`
+`task -> bid/assign -> artifact -> verification(v2) -> settlement -> reputation -> ledger`
 
-**Что это НЕ является:**
+Расширенный контур:
 
-- не production-grade биржа,
-- не финальная token/treasury-экономика,
-- не полный governance-протокол.
-
-Это **MVP-инфраструктура**, которая доказывает работоспособность экономического контура и даёт базу для итераций.
+`governance -> auction scoring -> treasury constraints -> scheduled payouts`
 
 ---
 
-## 2) Что уже сделано (закрыто)
+## Что реализовано полностью
 
-### API и сценарии
+1. **Task + Bid Market**
+   - создание задач,
+   - подача ставок,
+   - ручное и авто-назначение (`assign/best`) по scoring.
 
-Закрыт рабочий API-контур:
+2. **Verification v2**
+   - staged-проверка (`auto`, `reviewer`, `impact`),
+   - переход в `verified` после обязательных стадий,
+   - переход в `disputed` при провале обязательной стадии.
 
-- `POST /agents`, `GET /agents`
-- `POST /tasks`, `GET /tasks`
-- `POST /tasks/{id}/bids`, `GET /tasks/{id}/bids`
-- `POST /tasks/{id}/assign`
-- `POST /tasks/{id}/deliver`
-- `POST /tasks/{id}/verify`
-- `POST /tasks/{id}/dispute`
-- `POST /tasks/{id}/accept`
-- `GET /ledger`
+3. **Escrow + Settlement Scheduler**
+   - escrow lock при создании задачи,
+   - immediate payout + holdback при acceptance,
+   - отложенные выплаты через `settlements` + `POST /settlement/run`.
 
-### Экономические механики
+4. **Reputation + Penalty**
+   - обновление репутации по качеству артефакта,
+   - штраф при dispute через governance-параметр `rollback_penalty`.
 
-- escrow lock на старте задачи,
-- settlement с holdback (20%),
-- репутация агента от качества артефакта,
-- append-only ledger событий,
-- ставки и выбор исполнителя (bid + assign),
-- ветка dispute.
+5. **Treasury Layer**
+   - задачи публикуются только при достаточном балансе проекта,
+   - reward резервируется из `project.treasury_balance`.
 
-### Инженерная база
+6. **Governance Surface**
+   - параметры экономики через API:
+     - `holdback_rate`
+     - `holdback_days`
+     - `auction_weight_price`
+     - `auction_weight_rep`
+     - `auction_weight_speed`
+     - `rollback_penalty`
 
-- FastAPI + SQLAlchemy + SQLite,
-- smoke/e2e тесты жизненного цикла,
-- документация запуска и flow-схема.
-
----
-
-## 3) Степень готовности
-
-Для цели MVP (доказать экономический цикл в работающем сервисе) — **готово**.
-
-Практически это означает:
-
-1. можно создавать рынок задач,
-2. можно принимать конкурентные ставки,
-3. можно проводить верификацию и спор,
-4. можно выполнять выплаты с holdback,
-5. можно наблюдать все ключевые события через ledger.
+7. **Ledger / Observability**
+   - append-only события по ключевым действиям:
+     task, bid, verification, payout, settlement, treasury, governance.
 
 ---
 
-## 4) Что сознательно оставлено за рамками MVP
+## Практический вывод
 
-- scheduled release для `T+7/T+30`,
-- peer-review роли и multi-step verification,
-- риск-скоринг и приоритизация задач,
-- treasury per project + бюджетные лимиты,
-- SLA/дедлайны и штрафные функции.
-
-Это не пробелы реализации, а **следующая итерация** после стабилизации базового MVP.
+MVP можно считать **завершённым на 100%** относительно текущего плана.
 
 ---
 
-## 5) План следующих шагов (после закрытия MVP)
+## Рекомендованные next-phase шаги (после MVP)
 
-## Шаг 1 — Settlement Scheduler
+Если идти дальше, это уже не «доделка MVP», а **Phase 2**:
 
-Добавить таблицу отложенных выплат и фоновый воркер:
-
-- `settlements(id, task_id, amount, release_at, status)`
-- endpoint `POST /settlement/run`
-- cron/worker для релиза `T+7 / T+30`
-
-**Результат:** holdback превращается в реальную отложенную выплату.
-
-## Шаг 2 — Verification v2
-
-Разделить проверку на стадии:
-
-- auto-check,
-- reviewer-check,
-- optional impact-check.
-
-**Результат:** меньше ложных acceptance и прозрачный dispute workflow.
-
-## Шаг 3 — Auction Scoring
-
-Добавить выбор победителя по скору:
-
-`score = w_price * price + w_rep * reputation + w_speed * speed`
-
-**Результат:** назначение исполнителя не только вручную, но и по модели качества.
-
-## Шаг 4 — Treasury Layer
-
-Ввести `project_treasury` и budget allocation:
-
-- лимиты по проектам,
-- запрет публикации задач без покрытия,
-- отчёты по spend/remaining.
-
-**Результат:** экономический контур становится финансово управляемым.
-
-## Шаг 5 — Governance Surface
-
-Добавить управляемые параметры:
-
-- `holdback_rate`,
-- веса auction scoring,
-- штрафы за rollback/dispute.
-
-**Результат:** можно эволюционировать экономику без изменения кода.
-
----
-
-## 6) Рекомендуемое решение сейчас
-
-Текущий MVP можно **официально считать завершённым** и перейти к Шагу 1 (Settlement Scheduler) как к следующему этапу плана.
+1. RBAC/roles для reviewer/governance.
+2. Async worker (Celery/RQ) вместо ручного `/settlement/run`.
+3. История версий governance параметров + approval workflow.
+4. KPI/metrics dashboard (GMV, dispute rate, payout latency, acceptance quality).
+5. Multi-project portfolio allocation policies.

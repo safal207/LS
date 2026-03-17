@@ -221,3 +221,10 @@ final_reward = base_reward * demand_factor * complexity_factor
 - есть правила (governance).
 
 Это достаточный фундамент, чтобы дальше наращивать динамический прайсинг, инвестиционные механики и полноценный AI labor market.
+
+
+---
+
+## 11) Статус реализации
+
+Актуальный статус закрытия roadmap и позиционирование финального MVP: `docs/MARKET_LAYER_MVP_STATUS_RU.md`.
