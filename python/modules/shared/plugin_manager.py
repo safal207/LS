@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 import sys
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -144,6 +145,7 @@ class PluginManager:
         self.plugin_dir = plugin_dir or (ctx.root / "python" / "plugins")
         self.allowed_permissions = allowed_permissions or PluginPermissions(filesystem_read=True)
         self._plugins: Dict[str, _LoadedPlugin] = {}
+        self._lock = threading.RLock()
 
     def discover(self) -> list[Path]:
         if not self.plugin_dir.exists():
@@ -166,8 +168,9 @@ class PluginManager:
         return self.load_plugin(plugin, module_name=module_name, source_path=plugin_path)
 
     def load_plugin(self, plugin: Plugin, module_name: str = "inline", source_path: Path | None = None) -> str | None:
-        if plugin.name in self._plugins:
-            raise KeyError(f"Plugin already loaded: {plugin.name}")
+        with self._lock:
+            if plugin.name in self._plugins:
+                raise KeyError(f"Plugin already loaded: {plugin.name}")
 
         requested_permissions = self._extract_permissions(plugin)
         if not self.allowed_permissions.allows(requested_permissions):
@@ -190,19 +193,21 @@ class PluginManager:
             )
             return None
 
-        self._plugins[plugin.name] = _LoadedPlugin(
-            plugin=plugin,
-            module_name=module_name,
-            source_path=source_path or self.plugin_dir,
-            ctx_proxy=plugin_ctx,
-        )
+        with self._lock:
+            self._plugins[plugin.name] = _LoadedPlugin(
+                plugin=plugin,
+                module_name=module_name,
+                source_path=source_path or self.plugin_dir,
+                ctx_proxy=plugin_ctx,
+            )
         self.ctx.event_bus.publish(
             PluginLifecycleEvent("plugin_loaded", {"name": plugin.name, "permissions": requested_permissions.__dict__})
         )
         return plugin.name
 
     def unload(self, plugin_name: str) -> None:
-        loaded = self._plugins.pop(plugin_name, None)
+        with self._lock:
+            loaded = self._plugins.pop(plugin_name, None)
         if not loaded:
             return
 
@@ -219,7 +224,8 @@ class PluginManager:
         self.ctx.event_bus.publish(PluginLifecycleEvent("plugin_unloaded", {"name": plugin_name}))
 
     def reload(self, plugin_name: str) -> bool:
-        loaded = self._plugins.get(plugin_name)
+        with self._lock:
+            loaded = self._plugins.get(plugin_name)
         if not loaded:
             raise KeyError(f"Plugin not loaded: {plugin_name}")
 
@@ -244,7 +250,8 @@ class PluginManager:
                 ctx_proxy=plugin_ctx,
             )
 
-            self._plugins[plugin_name] = new_loaded
+            with self._lock:
+                self._plugins[plugin_name] = new_loaded
             try:
                 old.plugin.shutdown(old.ctx_proxy)  # type: ignore[arg-type]
             except Exception as exc:
@@ -255,7 +262,8 @@ class PluginManager:
             self.ctx.event_bus.publish(PluginLifecycleEvent("plugin_reloaded", {"name": plugin_name}))
             return True
         except Exception:
-            self._plugins[plugin_name] = old
+            with self._lock:
+                self._plugins[plugin_name] = old
             logger.error("Plugin reload failed, kept old version", exc_info=True)
             return False
 
@@ -268,7 +276,8 @@ class PluginManager:
         return loaded
 
     def list_loaded(self) -> list[str]:
-        return sorted(self._plugins.keys())
+        with self._lock:
+            return sorted(self._plugins.keys())
 
     @staticmethod
     def _extract_permissions(plugin: Plugin) -> PluginPermissions:

@@ -82,6 +82,7 @@ struct Web4RttBindingInner {
     on_heartbeat_timeout: Vec<PyObject>,
     block_wait: Arc<(Mutex<()>, Condvar)>,
     stats: RttStats,
+    timeout_transition_in_progress: bool,
 }
 
 #[pyclass]
@@ -125,6 +126,7 @@ impl Web4RttBinding {
                 on_heartbeat_timeout: Vec::new(),
                 block_wait: Arc::new((Mutex::new(()), Condvar::new())),
                 stats: RttStats::default(),
+                timeout_transition_in_progress: false,
             })),
         })
     }
@@ -138,6 +140,11 @@ impl Web4RttBinding {
                 .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
             if inner.connected {
                 return Ok(());
+            }
+            if inner.timeout_transition_in_progress {
+                return Err(PyRuntimeError::new_err(
+                    "RTT binding timeout transition in progress",
+                ));
             }
             inner.connected = true;
             inner.last_heartbeat_at = Instant::now();
@@ -362,13 +369,14 @@ impl Web4RttBinding {
                 .inner
                 .lock()
                 .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
-            if !inner.connected {
+            if !inner.connected || inner.timeout_transition_in_progress {
                 return Ok(false);
             }
             if inner.last_heartbeat_at.elapsed() < Duration::from_millis(inner.heartbeat_timeout_ms)
             {
                 return Ok(false);
             }
+            inner.timeout_transition_in_progress = true;
             let timeout_callbacks = inner
                 .on_heartbeat_timeout
                 .iter()
@@ -386,6 +394,11 @@ impl Web4RttBinding {
         if timed_out {
             Web4RttBindingInner::emit(py, &timeout_callbacks, session_id)?;
             Web4RttBindingInner::emit(py, &close_callbacks, session_id)?;
+            let mut inner = self
+                .inner
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
+            inner.timeout_transition_in_progress = false;
             return Ok(true);
         }
         Ok(false)
@@ -447,24 +460,26 @@ impl Web4RttBinding {
         }
     }
 
-    fn stats<'py>(&self, py: Python<'py>) -> &'py PyDict {
+    fn stats<'py>(&self, py: Python<'py>) -> PyResult<&'py PyDict> {
         let stats = PyDict::new(py);
-        if let Ok(inner) = self.inner.lock() {
-            let _ = stats.set_item("attempted", inner.stats.attempted);
-            let _ = stats.set_item("enqueued", inner.stats.enqueued);
-            let _ = stats.set_item("accepted", inner.stats.accepted);
-            let _ = stats.set_item("dropped_oldest", inner.stats.dropped_oldest);
-            let _ = stats.set_item("dropped_newest", inner.stats.dropped_newest);
-            let _ = stats.set_item(
-                "dropped",
-                inner.stats.dropped_oldest + inner.stats.dropped_newest,
-            );
-            let _ = stats.set_item("blocked", inner.stats.blocked);
-            let _ = stats.set_item("errors", inner.stats.errors);
-            let _ = stats.set_item("overflow_events", inner.stats.overflow_events);
-            let _ = stats.set_item("max_queue_len", inner.stats.max_queue_len);
-        }
-        stats
+        let inner = self
+            .inner
+            .lock()
+            .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
+        let _ = stats.set_item("attempted", inner.stats.attempted);
+        let _ = stats.set_item("enqueued", inner.stats.enqueued);
+        let _ = stats.set_item("accepted", inner.stats.accepted);
+        let _ = stats.set_item("dropped_oldest", inner.stats.dropped_oldest);
+        let _ = stats.set_item("dropped_newest", inner.stats.dropped_newest);
+        let _ = stats.set_item(
+            "dropped",
+            inner.stats.dropped_oldest + inner.stats.dropped_newest,
+        );
+        let _ = stats.set_item("blocked", inner.stats.blocked);
+        let _ = stats.set_item("errors", inner.stats.errors);
+        let _ = stats.set_item("overflow_events", inner.stats.overflow_events);
+        let _ = stats.set_item("max_queue_len", inner.stats.max_queue_len);
+        Ok(stats)
     }
 }
 

@@ -18,11 +18,10 @@ class TemporalGraph:
         """Увеличивает resonance узлов выше threshold на boost."""
         count = 0
         with self._graph_lock:
-            nodes = list(self.nodes.values())
-        for node in nodes:
-            if node.resonance > threshold:
-                node.resonance = min(1.0, node.resonance + boost)
-                count += 1
+            for node in self.nodes.values():
+                if node.resonance > threshold:
+                    node.resonance = min(1.0, node.resonance + boost)
+                    count += 1
         return count
 
     def prune_weak_nodes(self, threshold: float = 0.25, active_window: int = 100) -> int:

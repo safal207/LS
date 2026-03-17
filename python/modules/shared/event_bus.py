@@ -15,7 +15,7 @@ class EventBus:
 
     def __init__(self, max_workers: int = 4):
         self.subscribers: DefaultDict[str, List[Callable[[Any], None]]] = defaultdict(list)
-        self._lock = threading.RLock()
+        self._lock = threading.Lock()
         self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="event-bus")
 
     def subscribe(self, event_type: str, handler: Callable[[Any], None]) -> None:

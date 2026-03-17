@@ -156,6 +156,9 @@ def load_config(app: str) -> Dict[str, Any]:
 
     os.environ.setdefault("LS_APP", normalized_app)
     with _CACHE_LOCK:
+        cached = _CONFIG_CACHE.get(normalized_app)
+        if cached is not None:
+            return cached
         _CONFIG_CACHE[normalized_app] = cfg
     return cfg
 

@@ -19,7 +19,7 @@ from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
 from ..shared.event_bus import EventBus
 from ..perception.coordinator import VisionSubsystem
-from python.modules import lthread
+from .. import lthread
 
 try:
     from ..llm.temporal_graph import get_context_for_question
@@ -100,6 +100,7 @@ class AgentLoop:
         self._active_cancel: threading.Event | None = None
         self._pending_item: dict | None = None
         self._idle_cancel: threading.Event | None = None
+        self._bloodstream_thread: threading.Thread | None = None
         self._cancel_grace_until = 0.0
 
         self.cancel_on_new_input = cancel_on_new_input
@@ -628,10 +629,10 @@ class AgentLoop:
         if idle_cancel:
             idle_cancel.set()
         if thread and thread.is_alive():
-            self._emit("cancelled", {"reason": reason}, task_id=task_id)
-            if cancel:
-                self._track_cancellation(cancel)
             thread.join(timeout=2.0)
+        if cancel:
+            self._emit("cancelled", {"reason": reason}, task_id=task_id)
+            self._track_cancellation(cancel)
             if self.cancel_grace_ms:
                 self._cancel_grace_until = time.time() + (self.cancel_grace_ms / 1000.0)
 
@@ -1129,12 +1130,13 @@ class AgentLoop:
             raise RuntimeError("input_queue is required for run()")
 
         self.running = True
-        self._bloodstream_thread = threading.Thread(
-            target=self._bloodstream_loop,
-            daemon=True,
-            name="bloodstream",
-        )
-        self._bloodstream_thread.start()
+        if self._bloodstream_thread is None or not self._bloodstream_thread.is_alive():
+            self._bloodstream_thread = threading.Thread(
+                target=self._bloodstream_loop,
+                daemon=True,
+                name="bloodstream",
+            )
+            self._bloodstream_thread.start()
         self.vision.start() # Start Screen Perception v2
 
         while self.running:
@@ -1171,9 +1173,7 @@ class AgentLoop:
                     self._pending_item = None
                 else:
                     item = None
-            if item is not None:
-                pass
-            else:
+            if item is None:
                 try:
                     item = self.input_queue.get(timeout=0.2)
                 except queue.Empty:
@@ -1209,7 +1209,7 @@ class AgentLoop:
     def stop(self) -> None:
         self.running = False
         self.vision.stop() # Stop Screen Perception v2
-        if hasattr(self, "_bloodstream_thread") and self._bloodstream_thread.is_alive():
+        if self._bloodstream_thread is not None and self._bloodstream_thread.is_alive():
             self._bloodstream_thread.join(timeout=3.0)
         with self._task_lock:
             active_cancel = self._active_cancel
