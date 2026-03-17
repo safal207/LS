@@ -2,9 +2,21 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+import logging
 from typing import Any, Callable, Dict, List, Optional, Protocol, Sequence
+
+
+logger = logging.getLogger(__name__)
+
+
+class ParallelTaskExecutionError(RuntimeError):
+    """Raised when a parallel task worker fails."""
+
+    def __init__(self, task_index: int, message: str):
+        super().__init__(message)
+        self.task_index = task_index
 
 
 @dataclass
@@ -132,26 +144,42 @@ class ServiceLayer:
             tasks: Task batch to execute.
             steps_builder: Optional function to build a custom step chain per task.
             max_workers: Thread pool size passed to ThreadPoolExecutor.
+
+        Raises:
+            ParallelTaskExecutionError: Re-raises the first completed worker failure and
+                includes the failed task index (`task_index`). This method uses fail-fast
+                semantics and discards remaining results after the first error.
         """
 
         if not tasks:
             return []
 
-        results: List[Optional[Result]] = [None] * len(tasks)
+        indexed_results: dict[int, Result] = {}
 
-        def _run_one(index: int, task: Task) -> None:
+        def _run_one(index: int, task: Task) -> tuple[int, Result]:
             if steps_builder is None:
                 result = self.execute_task(task)
             else:
                 result = self.execute_task_with_steps(task, steps_builder(task, self))
-            results[index] = result
+            return index, result
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(_run_one, idx, task) for idx, task in enumerate(tasks)]
-            for future in futures:
-                future.result()
+            future_to_index = {executor.submit(_run_one, idx, task): idx for idx, task in enumerate(tasks)}
+            for future in as_completed(future_to_index):
+                try:
+                    index, result = future.result()
+                    indexed_results[index] = result
+                except Exception as exc:
+                    failed_index = future_to_index[future]
+                    logger.exception("Parallel task execution failed for index=%s", failed_index)
+                    if 0 < len(indexed_results) < len(tasks):
+                        logger.warning("Partial results before failure: %d/%d", len(indexed_results), len(tasks))
+                    raise ParallelTaskExecutionError(
+                        task_index=failed_index,
+                        message=f"Task at index={failed_index} failed: {exc}",
+                    ) from exc
 
-        return [result for result in results if result is not None]
+        return [indexed_results[idx] for idx in sorted(indexed_results)]
 
 
 class EchoLLMService:
