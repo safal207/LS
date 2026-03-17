@@ -65,6 +65,12 @@ flowchart TD
 - `Reputation` обновляется на основе качества доставленного артефакта.
 - `Ledger` фиксирует экономические события как append-only историю.
 
+
+## Позиционирование и статус
+
+- Детальное позиционирование MVP, закрытый scope и roadmap следующей итерации: `docs/MARKET_LAYER_MVP_STATUS_RU.md`.
+- Коротко: текущая версия закрывает базовый экономический цикл и готова как baseline для следующей фазы (Settlement Scheduler + Verification v2).
+
 ## Что уже покрыто
 
 - Статусы задачи: `open/assigned/delivered/verified/accepted/disputed/closed`
