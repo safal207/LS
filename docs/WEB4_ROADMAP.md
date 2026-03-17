@@ -71,3 +71,5 @@
 - затем: **HCP Marketplace MVP** (внутренние кредиты, без on-chain).
 
 Детальный план ближайших 4 недель: `docs/REFLECTION_DASHBOARD_PRIORITY_PLAN.md`.
+
+Post-Web4 план по протоколам и экономике: `docs/POST_WEB4_PROTOCOLS_AND_MARKET_ROADMAP_RU.md`.
