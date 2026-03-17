@@ -44,19 +44,18 @@ def _load_app_aliases() -> Dict[str, str]:
         if _APP_ALIASES_CACHE is not None:
             return _APP_ALIASES_CACHE
 
-        default_aliases = {
-            "console": "console",
-            "ghostgpt": "ghostgpt",
-            "ghost_gui": "ghostgpt",
-            "interview_copilot": "ghostgpt",
-        }
+    default_aliases = {
+        "console": "console",
+        "ghostgpt": "ghostgpt",
+        "ghost_gui": "ghostgpt",
+        "interview_copilot": "ghostgpt",
+    }
 
-        registry = _load_yaml(_repo_root() / "config" / "apps.yaml")
-        apps = registry.get("apps") if isinstance(registry, dict) else None
-        if not isinstance(apps, dict):
-            _APP_ALIASES_CACHE = default_aliases
-            return _APP_ALIASES_CACHE
-
+    registry = _load_yaml(_repo_root() / "config" / "apps.yaml")
+    apps = registry.get("apps") if isinstance(registry, dict) else None
+    if not isinstance(apps, dict):
+        computed = default_aliases
+    else:
         aliases: Dict[str, str] = {}
         for app_name, app_cfg in apps.items():
             if not isinstance(app_name, str) or not app_name.strip():
@@ -74,8 +73,12 @@ def _load_app_aliases() -> Dict[str, str]:
                 if not isinstance(alias, str) or not alias.strip():
                     raise ValueError(f"Alias must be a non-empty string for app '{app_name}'")
                 aliases[alias.strip().lower()] = normalized_name
+        computed = aliases or default_aliases
 
-        _APP_ALIASES_CACHE = aliases or default_aliases
+    with _CACHE_LOCK:
+        if _APP_ALIASES_CACHE is not None:
+            return _APP_ALIASES_CACHE
+        _APP_ALIASES_CACHE = computed
         return _APP_ALIASES_CACHE
 
 

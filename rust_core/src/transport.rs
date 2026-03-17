@@ -90,7 +90,6 @@ struct PeerSession {
     last_heartbeat: Instant,
 }
 
-
 type ChannelStats = (String, Option<u64>, usize, u64, u64, u64, u64);
 type ChannelStatsEntry = (u64, String, Option<u64>, usize, u64, u64, u64, u64);
 
@@ -134,7 +133,7 @@ impl TransportHandle {
             let sessions = self
                 .sessions
                 .lock()
-                .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+                .map_err(|_| PyRuntimeError::new_err("session lock poisoned"))?;
             if !sessions.contains_key(&session_id) {
                 return Err(PyValueError::new_err("unknown session"));
             }
@@ -143,7 +142,7 @@ impl TransportHandle {
         let mut channels = self
             .channels
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         if channels.len() as u64 >= self.config.max_channels {
             return Err(PyNotImplementedError::new_err("max channels exceeded"));
         }
@@ -161,7 +160,7 @@ impl TransportHandle {
         let mut queues = self
             .queues
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
         queues.insert(channel_id, VecDeque::new());
         Ok(channel_id)
     }
@@ -170,7 +169,7 @@ impl TransportHandle {
         let sessions = self
             .sessions
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("session lock poisoned"))?;
         if !sessions.contains_key(&session_id) {
             return Err(PyValueError::new_err("unknown session"));
         }
@@ -178,7 +177,7 @@ impl TransportHandle {
         let mut channels = self
             .channels
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         let entry = channels
             .get_mut(&channel)
             .ok_or_else(|| PyValueError::new_err("unknown channel"))?;
@@ -192,7 +191,7 @@ impl TransportHandle {
         let mut sessions = self
             .sessions
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("session lock poisoned"))?;
         sessions.insert(
             session_id,
             PeerSession {
@@ -208,7 +207,7 @@ impl TransportHandle {
         let mut sessions = self
             .sessions
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("session lock poisoned"))?;
         let session = sessions
             .get_mut(&session_id)
             .ok_or_else(|| PyValueError::new_err("unknown session"))?;
@@ -220,7 +219,7 @@ impl TransportHandle {
         let mut sessions = self
             .sessions
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("session lock poisoned"))?;
         let session = sessions
             .get_mut(&session_id)
             .ok_or_else(|| PyValueError::new_err("unknown session"))?;
@@ -235,7 +234,7 @@ impl TransportHandle {
         let sessions = self
             .sessions
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("session lock poisoned"))?;
         let session = sessions
             .get(&session_id)
             .ok_or_else(|| PyValueError::new_err("unknown session"))?;
@@ -249,7 +248,7 @@ impl TransportHandle {
         let sessions = self
             .sessions
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("session lock poisoned"))?;
         let now = Instant::now();
         let mut snapshot = Vec::with_capacity(sessions.len());
         for (session_id, session) in sessions.iter() {
@@ -264,7 +263,7 @@ impl TransportHandle {
         let mut sessions = self
             .sessions
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("session lock poisoned"))?;
         let now = Instant::now();
         let timeout = Duration::from_millis(self.config.heartbeat_ms * 2);
         let before = sessions.len();
@@ -372,7 +371,7 @@ impl TransportHandle {
         let channels = self
             .channels
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         if !channels.contains_key(&channel) {
             return Err(PyValueError::new_err("unknown channel"));
         }
@@ -380,7 +379,7 @@ impl TransportHandle {
         let queues = self
             .queues
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
         queues
             .get(&channel)
             .map(|queue| queue.len())
@@ -391,7 +390,7 @@ impl TransportHandle {
         let channels = self
             .channels
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         if !channels.contains_key(&channel) {
             return Err(PyValueError::new_err("unknown channel"));
         }
@@ -399,7 +398,7 @@ impl TransportHandle {
         let mut queues = self
             .queues
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
         let queue = queues
             .get_mut(&channel)
             .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
@@ -417,12 +416,12 @@ impl TransportHandle {
         let mut channels = self
             .channels
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         channels.remove(&channel);
         let mut queues = self
             .queues
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
         queues.remove(&channel);
         Ok(())
     }
@@ -431,7 +430,7 @@ impl TransportHandle {
         let channels = self
             .channels
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         if !channels.contains_key(&channel) {
             return Err(PyValueError::new_err("unknown channel"));
         }
@@ -439,7 +438,7 @@ impl TransportHandle {
         let mut queues = self
             .queues
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
         let queue = queues
             .get_mut(&channel)
             .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
@@ -452,21 +451,18 @@ impl TransportHandle {
         let channels = self
             .channels
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         let info = channels
             .get(&channel)
             .ok_or_else(|| PyValueError::new_err("unknown channel"))?;
         Ok((info.kind.as_str().to_string(), info.session_id))
     }
 
-    fn channel_stats(
-        &self,
-        channel: u64,
-    ) -> PyResult<ChannelStats> {
+    fn channel_stats(&self, channel: u64) -> PyResult<ChannelStats> {
         let channels = self
             .channels
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         let info = channels
             .get(&channel)
             .ok_or_else(|| PyValueError::new_err("unknown channel"))?;
@@ -480,7 +476,7 @@ impl TransportHandle {
         let queues = self
             .queues
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
         let queue_len = queues
             .get(&channel)
             .map(|queue| queue.len())
@@ -494,7 +490,7 @@ impl TransportHandle {
         let channels = self
             .channels
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         let mut snapshot = Vec::with_capacity(channels.len());
         for (channel_id, info) in channels.iter() {
             snapshot.push((*channel_id, info.kind.as_str().to_string(), info.session_id));
@@ -502,17 +498,15 @@ impl TransportHandle {
         Ok(snapshot)
     }
 
-    fn list_channel_stats(
-        &self,
-    ) -> PyResult<Vec<ChannelStatsEntry>> {
+    fn list_channel_stats(&self) -> PyResult<Vec<ChannelStatsEntry>> {
         let channels = self
             .channels
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         let queues = self
             .queues
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
         let mut snapshot = Vec::with_capacity(channels.len());
         for (channel_id, info) in channels.iter() {
             let queue_len = queues.get(channel_id).map(|queue| queue.len()).unwrap_or(0);
@@ -534,17 +528,17 @@ impl TransportHandle {
         let mut sessions = self
             .sessions
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("session registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("session lock poisoned"))?;
         sessions.remove(&session_id);
         drop(sessions);
         let mut channels = self
             .channels
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("channel registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         let mut queues = self
             .queues
             .lock()
-            .map_err(|_| PyNotImplementedError::new_err("queue registry poisoned"))?;
+            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
         let to_remove: Vec<u64> = channels
             .iter()
             .filter_map(|(channel_id, info)| {

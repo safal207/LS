@@ -193,13 +193,26 @@ class PluginManager:
             )
             return None
 
+        conflict = False
         with self._lock:
-            self._plugins[plugin.name] = _LoadedPlugin(
-                plugin=plugin,
-                module_name=module_name,
-                source_path=source_path or self.plugin_dir,
-                ctx_proxy=plugin_ctx,
-            )
+            if plugin.name in self._plugins:
+                conflict = True
+            else:
+                self._plugins[plugin.name] = _LoadedPlugin(
+                    plugin=plugin,
+                    module_name=module_name,
+                    source_path=source_path or self.plugin_dir,
+                    ctx_proxy=plugin_ctx,
+                )
+
+        if conflict:
+            try:
+                plugin.shutdown(plugin_ctx)  # type: ignore[arg-type]
+            except Exception as exc:
+                logger.exception("Plugin shutdown failed during load rollback for %s: %s", plugin.name, exc)
+            finally:
+                plugin_ctx.cleanup()
+            raise KeyError(f"Plugin already loaded: {plugin.name}")
         self.ctx.event_bus.publish(
             PluginLifecycleEvent("plugin_loaded", {"name": plugin.name, "permissions": requested_permissions.__dict__})
         )

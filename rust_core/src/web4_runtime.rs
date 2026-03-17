@@ -392,13 +392,15 @@ impl Web4RttBinding {
             (true, timeout_callbacks, close_callbacks, inner.session_id)
         };
         if timed_out {
-            Web4RttBindingInner::emit(py, &timeout_callbacks, session_id)?;
-            Web4RttBindingInner::emit(py, &close_callbacks, session_id)?;
-            let mut inner = self
-                .inner
-                .lock()
-                .map_err(|_| PyRuntimeError::new_err("inner lock poisoned"))?;
-            inner.timeout_transition_in_progress = false;
+            let emit_result = (|| {
+                Web4RttBindingInner::emit(py, &timeout_callbacks, session_id)?;
+                Web4RttBindingInner::emit(py, &close_callbacks, session_id)?;
+                Ok::<(), PyErr>(())
+            })();
+            if let Ok(mut inner) = self.inner.lock() {
+                inner.timeout_transition_in_progress = false;
+            }
+            emit_result?;
             return Ok(true);
         }
         Ok(false)

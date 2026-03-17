@@ -46,6 +46,12 @@ def trim_history(history: list[dict], max_size: int = 10) -> list[dict]:
     """Keep pinned system/context messages while applying a sliding window to the rest."""
     pinned = [m for m in history if m.get("role") in PINNED_ROLES]
     sliding = [m for m in history if m.get("role") not in PINNED_ROLES]
+    if len(pinned) >= max_size:
+        logger.warning(
+            "Pinned history entries (%s) exceed/equal max_size (%s); dropping non-pinned history",
+            len(pinned),
+            max_size,
+        )
     available = max(max_size - len(pinned), 0)
     return pinned + sliding[-available:]
 
@@ -93,6 +99,8 @@ class AgentLoop:
         self.causal_memory = CausalMemory()
         self.causal_transitions = CausalMemoryTransitions(amygdala=amygdala)
         self.reflex = ReflexArc(self.causal_transitions.amygdala)
+        # NOTE: must remain RLock because _emit/_step_flow may re-acquire on paths
+        # that already hold this lock (e.g. cancellation flow).
         self._task_lock = threading.RLock()
         self._task_counter = 0
         self._active_task_id: int | None = 0
@@ -101,6 +109,7 @@ class AgentLoop:
         self._pending_item: dict | None = None
         self._idle_cancel: threading.Event | None = None
         self._bloodstream_thread: threading.Thread | None = None
+        self._bloodstream_lock = threading.Lock()
         self._cancel_grace_until = 0.0
 
         self.cancel_on_new_input = cancel_on_new_input
@@ -630,6 +639,11 @@ class AgentLoop:
             idle_cancel.set()
         if thread and thread.is_alive():
             thread.join(timeout=2.0)
+            if thread.is_alive():
+                logger.warning("Timed out waiting for active task thread to stop", extra={"task_id": task_id})
+                if cancel:
+                    self._track_cancellation(cancel)
+                return
         if cancel:
             self._emit("cancelled", {"reason": reason}, task_id=task_id)
             self._track_cancellation(cancel)
@@ -1130,13 +1144,14 @@ class AgentLoop:
             raise RuntimeError("input_queue is required for run()")
 
         self.running = True
-        if self._bloodstream_thread is None or not self._bloodstream_thread.is_alive():
-            self._bloodstream_thread = threading.Thread(
-                target=self._bloodstream_loop,
-                daemon=True,
-                name="bloodstream",
-            )
-            self._bloodstream_thread.start()
+        with self._bloodstream_lock:
+            if self._bloodstream_thread is None or not self._bloodstream_thread.is_alive():
+                self._bloodstream_thread = threading.Thread(
+                    target=self._bloodstream_loop,
+                    daemon=True,
+                    name="bloodstream",
+                )
+                self._bloodstream_thread.start()
         self.vision.start() # Start Screen Perception v2
 
         while self.running:
@@ -1209,8 +1224,10 @@ class AgentLoop:
     def stop(self) -> None:
         self.running = False
         self.vision.stop() # Stop Screen Perception v2
-        if self._bloodstream_thread is not None and self._bloodstream_thread.is_alive():
-            self._bloodstream_thread.join(timeout=3.0)
+        with self._bloodstream_lock:
+            bloodstream_thread = self._bloodstream_thread
+        if bloodstream_thread is not None and bloodstream_thread.is_alive():
+            bloodstream_thread.join(timeout=3.0)
         with self._task_lock:
             active_cancel = self._active_cancel
         if active_cancel:
