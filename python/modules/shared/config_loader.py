@@ -44,39 +44,37 @@ def _load_app_aliases() -> Dict[str, str]:
         if _APP_ALIASES_CACHE is not None:
             return _APP_ALIASES_CACHE
 
-    default_aliases = {
-        "console": "console",
-        "ghostgpt": "ghostgpt",
-        "ghost_gui": "ghostgpt",
-        "interview_copilot": "ghostgpt",
-    }
+        default_aliases = {
+            "console": "console",
+            "ghostgpt": "ghostgpt",
+            "ghost_gui": "ghostgpt",
+            "interview_copilot": "ghostgpt",
+        }
 
-    registry = _load_yaml(_repo_root() / "config" / "apps.yaml")
-    apps = registry.get("apps") if isinstance(registry, dict) else None
-    if not isinstance(apps, dict):
-        with _CACHE_LOCK:
+        registry = _load_yaml(_repo_root() / "config" / "apps.yaml")
+        apps = registry.get("apps") if isinstance(registry, dict) else None
+        if not isinstance(apps, dict):
             _APP_ALIASES_CACHE = default_aliases
             return _APP_ALIASES_CACHE
 
-    aliases: Dict[str, str] = {}
-    for app_name, app_cfg in apps.items():
-        if not isinstance(app_name, str) or not app_name.strip():
-            raise ValueError("Invalid app name in config/apps.yaml")
-        normalized_name = app_name.strip().lower()
-        aliases[normalized_name] = normalized_name
+        aliases: Dict[str, str] = {}
+        for app_name, app_cfg in apps.items():
+            if not isinstance(app_name, str) or not app_name.strip():
+                raise ValueError("Invalid app name in config/apps.yaml")
+            normalized_name = app_name.strip().lower()
+            aliases[normalized_name] = normalized_name
 
-        if not isinstance(app_cfg, dict):
-            raise ValueError(f"Invalid app config in config/apps.yaml for '{app_name}'")
-        app_aliases = app_cfg.get("aliases", [])
-        if not isinstance(app_aliases, list):
-            raise ValueError(f"'aliases' must be a list for app '{app_name}'")
+            if not isinstance(app_cfg, dict):
+                raise ValueError(f"Invalid app config in config/apps.yaml for '{app_name}'")
+            app_aliases = app_cfg.get("aliases", [])
+            if not isinstance(app_aliases, list):
+                raise ValueError(f"'aliases' must be a list for app '{app_name}'")
 
-        for alias in app_aliases:
-            if not isinstance(alias, str) or not alias.strip():
-                raise ValueError(f"Alias must be a non-empty string for app '{app_name}'")
-            aliases[alias.strip().lower()] = normalized_name
+            for alias in app_aliases:
+                if not isinstance(alias, str) or not alias.strip():
+                    raise ValueError(f"Alias must be a non-empty string for app '{app_name}'")
+                aliases[alias.strip().lower()] = normalized_name
 
-    with _CACHE_LOCK:
         _APP_ALIASES_CACHE = aliases or default_aliases
         return _APP_ALIASES_CACHE
 
