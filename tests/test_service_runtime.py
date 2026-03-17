@@ -1,5 +1,7 @@
+import pytest
+
 from agent.landing_page_pipeline import build_landing_page_steps
-from agent.service_runtime import EchoLLMService, ServiceLayer
+from agent.service_runtime import EchoLLMService, ParallelTaskExecutionError, ServiceLayer
 
 
 def test_service_layer_executes_default_runtime_pipeline() -> None:

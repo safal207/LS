@@ -4,7 +4,19 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+import logging
 from typing import Any, Callable, Dict, List, Optional, Protocol, Sequence
+
+
+logger = logging.getLogger(__name__)
+
+
+class ParallelTaskExecutionError(RuntimeError):
+    """Raised when a parallel task worker fails."""
+
+    def __init__(self, task_index: int, message: str):
+        super().__init__(message)
+        self.task_index = task_index
 
 
 @dataclass
