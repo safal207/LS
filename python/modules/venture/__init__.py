@@ -11,6 +11,7 @@ from .pfc import (
     ValidationRecord,
     WIPLimits,
 )
+from .simulation import SimulationResult, build_sample_inputs, run_portfolio_simulation
 
 __all__ = [
     "PortfolioFlowController",
@@ -24,4 +25,7 @@ __all__ = [
     "ValidationRecord",
     "PFCDecision",
     "LedgerEvent",
+    "SimulationResult",
+    "build_sample_inputs",
+    "run_portfolio_simulation",
 ]
