@@ -5,7 +5,7 @@ import json
 import secrets
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Mapping, MutableMapping, Optional, Protocol, Sequence, Set
+from typing import Dict, List, Mapping, MutableMapping, Optional, Protocol, Set
 
 from .mesh_envelope import MeshEnvelope
 from .observability_mesh import MeshObservabilityHub
@@ -263,7 +263,7 @@ class Web4MeshNode:
 
     def _on_sync_chunk(self, envelope: MeshEnvelope) -> List[MeshEnvelope]:
         chunk = envelope.payload.get("chunk", [])
-        if not isinstance(chunk, Sequence):
+        if not isinstance(chunk, list):
             self.observability.record("mesh_graph_sync_invalid_chunk", {"origin": envelope.origin})
             return []
 

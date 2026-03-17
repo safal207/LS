@@ -6,6 +6,7 @@ import csv
 import logging
 import time
 from pathlib import Path
+from typing import Callable
 
 from modules.web4_mesh import DeliveryEvent, Web4MeshNode, WebSocketTransport
 
@@ -24,7 +25,7 @@ async def start_node(
     peer_id: str,
     host: str,
     port: int,
-    on_delivery,
+    on_delivery: Callable[[DeliveryEvent], None] | None,
     run_id: str,
 ) -> tuple[Web4MeshNode, WebSocketTransport]:
     node = Web4MeshNode(peer_id=peer_id, address=f"ws://{host}:{port}")

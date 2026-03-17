@@ -9,7 +9,10 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterable, Optional
 
 import websockets
+from websockets.asyncio.client import ClientConnection
+from websockets.asyncio.server import Server, ServerConnection
 from websockets.exceptions import ConnectionClosed
+from websockets.protocol import State
 
 from .mesh_envelope import MeshEnvelope
 from .node import Web4MeshNode
@@ -36,8 +39,8 @@ class WebSocketTransport:
     port: int = 9001
     on_delivery: Callable[[DeliveryEvent], None] | None = None
     run_id: str = "default"
-    _server: websockets.asyncio.server.Server | None = field(default=None, init=False)
-    _outgoing: Dict[str, websockets.ClientConnection] = field(default_factory=dict, init=False)
+    _server: Server | None = field(default=None, init=False)
+    _outgoing: Dict[str, ClientConnection] = field(default_factory=dict, init=False)
     _reader_tasks: list[asyncio.Task[None]] = field(default_factory=list, init=False)
 
     @property
@@ -45,7 +48,7 @@ class WebSocketTransport:
         return f"ws://{self.host}:{self.port}"
 
     async def start(self) -> None:
-        async def handler(conn: websockets.ServerConnection) -> None:
+        async def handler(conn: ServerConnection) -> None:
             try:
                 async for raw in conn:
                     envelope = self._deserialize_envelope(raw)
@@ -76,7 +79,8 @@ class WebSocketTransport:
             self._server = None
 
     async def connect_to_peer(self, uri: str) -> None:
-        if uri in self._outgoing and not self._outgoing[uri].close_code:
+        existing = self._outgoing.get(uri)
+        if existing is not None and existing.state == State.OPEN:
             return
         conn = await websockets.connect(uri)
         self._outgoing[uri] = conn
@@ -115,7 +119,7 @@ class WebSocketTransport:
             delivered += int(ok)
         return delivered
 
-    async def _read_loop(self, conn: websockets.ClientConnection, uri: str) -> None:
+    async def _read_loop(self, conn: ClientConnection, uri: str) -> None:
         try:
             async for raw in conn:
                 envelope = self._deserialize_envelope(raw)

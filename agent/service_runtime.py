@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Protocol, Sequence
 
@@ -46,6 +46,7 @@ class PreProcessor:
         self.task = task
 
     def execute(self, _: Any) -> str:
+        # Pipeline starts with `None`, this step intentionally ignores incoming payload.
         normalized = {k: v for k, v in self.task.input_data.items() if v is not None}
         return f"task={self.task.task_type};input={normalized}"
 
@@ -127,21 +128,22 @@ class ServiceLayer:
         if not tasks:
             return []
 
-        results: List[Optional[Result]] = [None] * len(tasks)
+        indexed_results: dict[int, Result] = {}
 
-        def _run_one(index: int, task: Task) -> None:
+        def _run_one(index: int, task: Task) -> tuple[int, Result]:
             if steps_builder is None:
                 result = self.execute_task(task)
             else:
                 result = self.execute_task_with_steps(task, steps_builder(task, self))
-            results[index] = result
+            return index, result
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(_run_one, idx, task) for idx, task in enumerate(tasks)]
-            for future in futures:
-                future.result()
+            for future in as_completed(futures):
+                index, result = future.result()
+                indexed_results[index] = result
 
-        return [result for result in results if result is not None]
+        return [indexed_results[idx] for idx in sorted(indexed_results)]
 
 
 class EchoLLMService:

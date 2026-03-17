@@ -133,7 +133,7 @@ def test_signed_envelope_is_verified() -> None:
     assert "r-sec" in node_b.memory_graph
 
 
-def test_signed_envelope_without_verifier_is_rejected() -> None:
+def test_signed_envelope_without_verifier_is_rejected_when_signature_present() -> None:
     signer = DummySigner()
     node_a = Web4MeshNode("node-a", "mesh://a", signer=signer)
     node_b = Web4MeshNode("node-b", "mesh://b")
@@ -149,6 +149,21 @@ def test_signed_envelope_without_verifier_is_rejected() -> None:
     )
     node_b.receive(rejected)
     assert "r-sec" not in node_b.memory_graph
+
+
+def test_unsigned_envelope_without_verifier_is_accepted() -> None:
+    node_a = Web4MeshNode("node-a", "mesh://a")
+    node_b = Web4MeshNode("node-b", "mesh://b")
+
+    envelope = MeshEnvelope(
+        message_type=PUSH_REFLECTION,
+        origin="node-a",
+        destination="node-b",
+        payload={"id": "r-plain", "text": "plain", "author": "node-a"},
+        envelope_id="plain-1",
+    )
+    node_b.receive(envelope)
+    assert "r-plain" in node_b.memory_graph
 
 
 def test_rotating_signer_with_key_history_verifier() -> None:
