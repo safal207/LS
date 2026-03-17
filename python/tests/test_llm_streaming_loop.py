@@ -1,7 +1,6 @@
 import pytest
 pytest.importorskip("requests")
 
-import os
 import queue
 
 from modules.llm.llm_module import LanguageModel, _chunk_ready_for_tts, _compress_messages_for_hint
