@@ -19,6 +19,7 @@ from .reflection_engine import ReflectionEngine
 from .reflection import ReflectionPipeline
 from .reflection_handler import ReflectionActionHandler
 from .simulation_engine import StrategySimulationEngine
+from .service_runtime import EchoLLMService, Result, RuntimeBuilder, ServiceLayer, Task
 from .strategy_evolution_engine import StrategyEvolutionEngine
 from .tool_adapters import DataAdapter, HTTPContextAdapter
 from .tool_runtime import ToolRuntime
@@ -45,4 +46,9 @@ __all__ = [
     "DataAdapter",
     "HTTPContextAdapter",
     "ToolHealthcheckScheduler",
+    "Task",
+    "Result",
+    "RuntimeBuilder",
+    "ServiceLayer",
+    "EchoLLMService",
 ]
