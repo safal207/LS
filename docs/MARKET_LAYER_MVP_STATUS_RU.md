@@ -1,71 +1,59 @@
 # Market Layer MVP — итоговый статус (100%)
 
-## Текущее состояние
+## Итог
 
-Все запланированные шаги из MVP-roadmap реализованы в коде и покрыты экспресс-тестами.
+План MVP закрыт полностью, включая шаги, которые выводят систему из «просто API» в исполняемый экономический протокол:
 
-Базовый контур:
+`capital -> task -> execution -> verification -> payout -> reputation -> feedback`
 
-`task -> bid/assign -> artifact -> verification(v2) -> settlement -> reputation -> ledger`
+## Что закрыто
 
-Расширенный контур:
+1. **Capital / Treasury layer**
+   - проекты с treasury,
+   - reserve reward при создании задачи,
+   - блокировка задач при недостатке средств.
 
-`governance -> auction scoring -> treasury constraints -> scheduled payouts`
+2. **Task + Bid market**
+   - ставки,
+   - ручное назначение,
+   - auto-assign (`assign/best`) по governance scoring.
 
----
+3. **Execution layer (реальный runtime)**
+   - `execute_task` endpoint,
+   - `autoloop` endpoint,
+   - LLM-вызов (при наличии ключа) + fallback.
 
-## Что реализовано полностью
+4. **Verification v2**
+   - стадии `auto`, `reviewer`, `impact`,
+   - автоматический перевод в `verified/disputed` по результатам стадий.
 
-1. **Task + Bid Market**
-   - создание задач,
-   - подача ставок,
-   - ручное и авто-назначение (`assign/best`) по scoring.
+5. **Settlement + holdback scheduler**
+   - immediate payout + delayed holdback,
+   - `settlements` таблица,
+   - `POST /settlement/run` для релиза.
 
-2. **Verification v2**
-   - staged-проверка (`auto`, `reviewer`, `impact`),
-   - переход в `verified` после обязательных стадий,
-   - переход в `disputed` при провале обязательной стадии.
+6. **Reputation + penalties**
+   - апдейт по quality,
+   - штраф за спор через `rollback_penalty`.
 
-3. **Escrow + Settlement Scheduler**
-   - escrow lock при создании задачи,
-   - immediate payout + holdback при acceptance,
-   - отложенные выплаты через `settlements` + `POST /settlement/run`.
+7. **Governance surface**
+   - runtime-настройка коэффициентов и holdback-параметров через API.
 
-4. **Reputation + Penalty**
-   - обновление репутации по качеству артефакта,
-   - штраф при dispute через governance-параметр `rollback_penalty`.
+8. **Ledger / Observability**
+   - append-only события для капитала, исполнения, верификации, выплат и governance.
 
-5. **Treasury Layer**
-   - задачи публикуются только при достаточном балансе проекта,
-   - reward резервируется из `project.treasury_balance`.
+## Реальный use-case
 
-6. **Governance Surface**
-   - параметры экономики через API:
-     - `holdback_rate`
-     - `holdback_days`
-     - `auction_weight_price`
-     - `auction_weight_rep`
-     - `auction_weight_speed`
-     - `rollback_penalty`
+Добавлен end-to-end сценарий **Landing Generator**:
 
-7. **Ledger / Observability**
-   - append-only события по ключевым действиям:
-     task, bid, verification, payout, settlement, treasury, governance.
+- задача с `use_case=landing_generator`,
+- execution генерирует HTML+CTA артефакт,
+- staged verification валидирует результат,
+- settlement закрывает цикл выплат.
 
----
+## Что дальше (уже Phase 2, не MVP)
 
-## Практический вывод
-
-MVP можно считать **завершённым на 100%** относительно текущего плана.
-
----
-
-## Рекомендованные next-phase шаги (после MVP)
-
-Если идти дальше, это уже не «доделка MVP», а **Phase 2**:
-
-1. RBAC/roles для reviewer/governance.
-2. Async worker (Celery/RQ) вместо ручного `/settlement/run`.
-3. История версий governance параметров + approval workflow.
-4. KPI/metrics dashboard (GMV, dispute rate, payout latency, acceptance quality).
-5. Multi-project portfolio allocation policies.
+1. RBAC и роли reviewer/governance.
+2. Фоновый worker вместо ручного `/settlement/run`.
+3. KPI dashboard и cohort-аналитика.
+4. Multi-tenant / auth / billing.

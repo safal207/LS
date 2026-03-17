@@ -54,6 +54,7 @@ def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
             title=task.title,
             description=task.description,
             reward=task.reward,
+            use_case=task.use_case,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -112,10 +113,28 @@ def submit_artifact(
             agent_id=artifact.agent_id,
             hash_value=artifact.hash,
             quality_score=artifact.quality_score,
+            content=artifact.content,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+
+
+
+@app.post("/tasks/{task_id}/execute", response_model=schemas.ArtifactOut)
+def execute_task(task_id: int, db: Session = Depends(get_db)):
+    try:
+        return crud.execute_task(db, task_id=task_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/tasks/{task_id}/autoloop", response_model=schemas.TaskOut)
+def auto_loop_task(task_id: int, db: Session = Depends(get_db)):
+    try:
+        return crud.auto_loop_task(db, task_id=task_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @app.post("/tasks/{task_id}/verify/stage", response_model=schemas.TaskOut)
 def verify_stage(

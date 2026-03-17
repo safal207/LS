@@ -42,6 +42,8 @@ class EventType(str, enum.Enum):
     task_created = "task_created"
     bid_submitted = "bid_submitted"
     task_assigned = "task_assigned"
+    task_executed = "task_executed"
+    autoloop_completed = "autoloop_completed"
     artifact_delivered = "artifact_delivered"
     verification_stage_recorded = "verification_stage_recorded"
     task_verified = "task_verified"
@@ -77,6 +79,7 @@ class Task(Base):
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    use_case: Mapped[str] = mapped_column(String(64), default="generic", nullable=False)
     status: Mapped[TaskStatus] = mapped_column(
         Enum(TaskStatus), default=TaskStatus.open, nullable=False
     )
@@ -117,6 +120,7 @@ class Artifact(Base):
     agent_id: Mapped[int] = mapped_column(ForeignKey("agents.id"), nullable=False)
     hash: Mapped[str] = mapped_column(String(128), nullable=False)
     quality_score: Mapped[float] = mapped_column(Float, nullable=False)
+    content: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
     task: Mapped[Task] = relationship("Task")
     agent: Mapped[Agent] = relationship("Agent")

@@ -37,6 +37,7 @@ class TaskCreate(BaseModel):
     title: str
     description: str
     reward: float = Field(gt=0)
+    use_case: str = Field(default="generic", max_length=64)
 
 
 class TaskOut(BaseModel):
@@ -46,6 +47,7 @@ class TaskOut(BaseModel):
     project_id: int
     title: str
     description: str
+    use_case: str
     status: TaskStatus
     reward: float
     escrow_locked: float
@@ -83,6 +85,7 @@ class ArtifactSubmit(BaseModel):
     agent_id: int
     hash: str = Field(min_length=8, max_length=128)
     quality_score: float = Field(ge=0, le=1)
+    content: str = ""
 
 
 class ArtifactOut(BaseModel):
@@ -93,6 +96,7 @@ class ArtifactOut(BaseModel):
     agent_id: int
     hash: str
     quality_score: float
+    content: str
 
 
 class VerifyTaskRequest(BaseModel):

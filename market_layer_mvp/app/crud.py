@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import escrow, reputation
+from .executor import execute_task as execute_task_content
 from .ledger import record_event
 from .models import (
     Agent,
@@ -22,6 +24,7 @@ from .models import (
     VerificationReview,
     VerificationStage,
 )
+from .verification import evaluate_artifact
 
 DEFAULT_GOVERNANCE: dict[str, float] = {
     "holdback_rate": 0.2,
@@ -76,7 +79,13 @@ def list_projects(db: Session) -> list[Project]:
 
 
 def create_task(
-    db: Session, *, project_id: int, title: str, description: str, reward: float
+    db: Session,
+    *,
+    project_id: int,
+    title: str,
+    description: str,
+    reward: float,
+    use_case: str = "generic",
 ) -> Task:
     project = db.get(Project, project_id)
     if project is None:
@@ -90,6 +99,7 @@ def create_task(
         title=title,
         description=description,
         reward=reward,
+        use_case=use_case,
     )
     escrow.lock_reward(task)
     db.add(task)
@@ -141,16 +151,12 @@ def submit_bid(db: Session, *, task_id: int, agent_id: int, price: float, eta_ho
 
 
 def list_task_bids(db: Session, *, task_id: int) -> list[Bid]:
-    return list(
-        db.scalars(select(Bid).where(Bid.task_id == task_id).order_by(Bid.id.desc())).all()
-    )
+    return list(db.scalars(select(Bid).where(Bid.task_id == task_id).order_by(Bid.id.desc())).all())
 
 
 def _resolve_bids(db: Session, *, task: Task, selected_agent_id: int) -> None:
     bids = list(
-        db.scalars(
-            select(Bid).where(Bid.task_id == task.id, Bid.status == BidStatus.submitted)
-        ).all()
+        db.scalars(select(Bid).where(Bid.task_id == task.id, Bid.status == BidStatus.submitted)).all()
     )
     for bid in bids:
         bid.status = BidStatus.accepted if bid.agent_id == selected_agent_id else BidStatus.rejected
@@ -194,9 +200,7 @@ def assign_best_bid(db: Session, *, task_id: int) -> Task:
     if task.status != TaskStatus.open:
         raise ValueError("Task is not open")
 
-    bids = list(
-        db.scalars(select(Bid).where(Bid.task_id == task_id, Bid.status == BidStatus.submitted)).all()
-    )
+    bids = list(db.scalars(select(Bid).where(Bid.task_id == task_id, Bid.status == BidStatus.submitted)).all())
     if not bids:
         raise ValueError("No submitted bids for task")
 
@@ -205,7 +209,13 @@ def assign_best_bid(db: Session, *, task_id: int) -> Task:
 
 
 def submit_artifact(
-    db: Session, *, task_id: int, agent_id: int, hash_value: str, quality_score: float
+    db: Session,
+    *,
+    task_id: int,
+    agent_id: int,
+    hash_value: str,
+    quality_score: float,
+    content: str = "",
 ) -> Artifact:
     task = db.get(Task, task_id)
     if task is None:
@@ -220,6 +230,7 @@ def submit_artifact(
         agent_id=agent_id,
         hash=hash_value,
         quality_score=quality_score,
+        content=content,
     )
     db.add(artifact)
     task.status = TaskStatus.delivered
@@ -233,6 +244,32 @@ def submit_artifact(
     )
     db.commit()
     db.refresh(artifact)
+    return artifact
+
+
+def execute_task(db: Session, *, task_id: int) -> Artifact:
+    task = db.get(Task, task_id)
+    if task is None:
+        raise ValueError("Task not found")
+    if task.status == TaskStatus.open:
+        task = assign_best_bid(db, task_id=task_id)
+    if task.assigned_agent_id is None:
+        raise ValueError("Task must be assigned before execution")
+    if task.status != TaskStatus.assigned:
+        raise ValueError("Task must be assigned before execution")
+
+    content = execute_task_content(task)
+    quality = evaluate_artifact(task, content)["quality_score"]
+    hash_value = hashlib.sha256(content.encode("utf-8")).hexdigest()[:64]
+    artifact = submit_artifact(
+        db,
+        task_id=task.id,
+        agent_id=task.assigned_agent_id,
+        hash_value=hash_value,
+        quality_score=float(quality),
+        content=content,
+    )
+    record_event(db, EventType.task_executed, task_id=task.id, agent_id=task.assigned_agent_id)
     return artifact
 
 
@@ -284,7 +321,6 @@ def verify_stage(
 
 
 def verify_task(db: Session, *, task_id: int, approved: bool) -> Task:
-    # backward-compatible endpoint
     return verify_stage(
         db,
         task_id=task_id,
@@ -293,6 +329,54 @@ def verify_task(db: Session, *, task_id: int, approved: bool) -> Task:
         note="legacy verify endpoint",
         impact_score=None,
     )
+
+
+def auto_loop_task(db: Session, *, task_id: int) -> Task:
+    artifact = execute_task(db, task_id=task_id)
+    task = db.get(Task, task_id)
+    if task is None:
+        raise ValueError("Task not found")
+    eval_result = evaluate_artifact(task, artifact.content)
+
+    task = verify_stage(
+        db,
+        task_id=task.id,
+        stage=VerificationStage.auto,
+        passed=bool(eval_result["auto_pass"]),
+        note=str(eval_result["note"]),
+        impact_score=None,
+    )
+    if task.status == TaskStatus.disputed:
+        return task
+
+    task = verify_stage(
+        db,
+        task_id=task.id,
+        stage=VerificationStage.reviewer,
+        passed=bool(eval_result["reviewer_pass"]),
+        note="auto reviewer simulation",
+        impact_score=None,
+    )
+    if task.status == TaskStatus.disputed:
+        return task
+
+    task = verify_stage(
+        db,
+        task_id=task.id,
+        stage=VerificationStage.impact,
+        passed=True,
+        note="impact measured",
+        impact_score=float(eval_result["impact_score"]),
+    )
+
+    if task.status == TaskStatus.verified:
+        accept_task(db, task_id=task.id)
+        run_settlement(db)
+
+    task = db.get(Task, task.id)
+    record_event(db, EventType.autoloop_completed, task_id=task_id)
+    db.commit()
+    return task
 
 
 def dispute_task(db: Session, *, task_id: int, reason: str) -> Task:
