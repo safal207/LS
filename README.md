@@ -86,6 +86,20 @@ python apps/console/main.py
 - [HCP & CIP Specs](docs/HCP_SPEC.md) — Protocol specifications for human and agent interactions.
 - [AI Venture Engine Positioning](docs/AI_VENTURE_ENGINE_PFC_POSITIONING.md) — Product documentation and marketing positioning for Portfolio Flow Controller.
 
+
+## ⚡ LLM Speed Evolution (Python / Rust / C++)
+
+We now publish repeatable acceleration benchmarks for the interview-copilot streaming path:
+
+- Roadmap: [`docs/LLM_ACCELERATION_ROADMAP.md`](docs/LLM_ACCELERATION_ROADMAP.md)
+- Latest benchmark report: [`docs/online_interview_llm_latency_results.md`](docs/online_interview_llm_latency_results.md)
+- Architecture review: [`docs/online_interview_llm_latency_review.md`](docs/online_interview_llm_latency_review.md)
+
+Current snapshot includes:
+- TTFT comparison (streaming vs non-streaming),
+- Parser micro-benchmark (Python vs Rust vs C++).
+
+
 ## Reasoning Diff
 
 Reasoning Diff allows developers to compare two reasoning traces and detect where agent decisions diverged.

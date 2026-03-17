@@ -63,6 +63,7 @@ def test_build_ollama_payload_uses_env_num_predict(monkeypatch):
 
 
 def test_generate_with_ollama_stream_emits_tokens_and_returns_text(monkeypatch):
+    monkeypatch.setattr(qwen_handler, "_extract_ollama_token_cpp", lambda frame, has_messages: None)
     frames = [
         json.dumps({"response": "Привет"}),
         json.dumps({"response": ", мир"}),
@@ -86,6 +87,7 @@ def test_generate_response_non_streaming_path_still_works(monkeypatch):
 
 
 def test_generate_response_streaming_path_uses_callback(monkeypatch):
+    monkeypatch.setattr(qwen_handler, "_extract_ollama_token_cpp", lambda frame, has_messages: None)
     frames = [json.dumps({"response": "A"}), json.dumps({"response": "B"})]
     monkeypatch.setattr(qwen_handler, "requests", _FakeRequests(lines=frames))
     handler = qwen_handler.QwenHandler(use_cloud_api=False)
@@ -118,3 +120,15 @@ def test_extract_stream_token_falls_back_to_python_when_rust_errors(monkeypatch)
     monkeypatch.setattr(qwen_handler, "_ghostgpt_core", _Rust())
     token = qwen_handler._extract_stream_token('{"response":"fallback"}', False)
     assert token == "fallback"
+
+
+def test_extract_stream_token_uses_cpp_when_rust_unavailable(monkeypatch):
+    monkeypatch.setattr(qwen_handler, "_ghostgpt_core", None)
+    monkeypatch.setattr(qwen_handler, "_extract_ollama_token_cpp", lambda frame, has_messages: "C")
+    assert qwen_handler._extract_stream_token('{"response":"x"}', False) == "C"
+
+
+def test_extract_stream_token_falls_back_to_python_when_cpp_missing(monkeypatch):
+    monkeypatch.setattr(qwen_handler, "_ghostgpt_core", None)
+    monkeypatch.setattr(qwen_handler, "_extract_ollama_token_cpp", lambda frame, has_messages: None)
+    assert qwen_handler._extract_stream_token('{"response":"py"}', False) == "py"

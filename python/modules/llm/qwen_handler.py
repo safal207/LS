@@ -38,6 +38,7 @@ from .context_provider import (  # noqa: F401
     get_registry_manager,
     save_to_codex,
 )
+from .cpp_stream_parser import extract_ollama_token_cpp as _extract_ollama_token_cpp
 from .errors import (
     LLMEmptyResponseError,
     LLMInvalidFormatError,
@@ -67,6 +68,10 @@ def _extract_stream_token(frame_line: str, has_messages: bool) -> str:
         except Exception:
             # fallback to Python parser on any bridge/runtime error
             pass
+
+    cpp_token = _extract_ollama_token_cpp(frame_line, has_messages)
+    if cpp_token is not None:
+        return cpp_token
 
     frame = json.loads(frame_line)
     token = frame.get("message", {}).get("content") if has_messages else frame.get("response", "")

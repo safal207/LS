@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
-"""Micro-benchmark: streaming vs non-streaming path in QwenHandler.
-
-Uses deterministic fake HTTP backend so we can compare TTFT and total time in CI/dev
-without depending on local Ollama availability.
-"""
+"""Benchmark: streaming latency + parser speed (Python vs Rust vs C++)."""
 
 from __future__ import annotations
 
+import ctypes
 import json
+import shutil
 import statistics
+import subprocess
+import sys
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 from modules.llm import qwen_handler
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 
 @dataclass
@@ -83,7 +88,6 @@ class _FakeRequests:
 def _p95(values: list[float]) -> float:
     if len(values) == 1:
         return values[0]
-    # inclusive quantiles-like approximation for small sample
     ordered = sorted(values)
     idx = min(len(ordered) - 1, round((len(ordered) - 1) * 0.95))
     return ordered[idx]
@@ -101,7 +105,6 @@ def run_benchmark(runs: int = 8, token_count: int = 16, per_token_delay_s: float
         nonstream_total: list[float] = []
 
         for _ in range(runs):
-            # streaming run
             first_token_at = None
             started = time.perf_counter()
 
@@ -116,7 +119,6 @@ def run_benchmark(runs: int = 8, token_count: int = 16, per_token_delay_s: float
             stream_ttft.append((first_token_at - started) * 1000)
             stream_total.append((ended - started) * 1000)
 
-            # non-streaming run
             started = time.perf_counter()
             _ = handler.generate_response("bench", stream=False)
             ended = time.perf_counter()
@@ -125,42 +127,112 @@ def run_benchmark(runs: int = 8, token_count: int = 16, per_token_delay_s: float
             nonstream_total.append(elapsed_ms)
 
         return [
-            BenchResult(
-                mode="streaming",
-                runs=runs,
-                avg_ttft_ms=statistics.fmean(stream_ttft),
-                p95_ttft_ms=_p95(stream_ttft),
-                avg_total_ms=statistics.fmean(stream_total),
-                p95_total_ms=_p95(stream_total),
-            ),
-            BenchResult(
-                mode="non_streaming",
-                runs=runs,
-                avg_ttft_ms=statistics.fmean(nonstream_ttft),
-                p95_ttft_ms=_p95(nonstream_ttft),
-                avg_total_ms=statistics.fmean(nonstream_total),
-                p95_total_ms=_p95(nonstream_total),
-            ),
+            BenchResult("streaming", runs, statistics.fmean(stream_ttft), _p95(stream_ttft), statistics.fmean(stream_total), _p95(stream_total)),
+            BenchResult("non_streaming", runs, statistics.fmean(nonstream_ttft), _p95(nonstream_ttft), statistics.fmean(nonstream_total), _p95(nonstream_total)),
         ]
     finally:
         qwen_handler.requests = original_requests
 
 
+def _build_cpp_parser() -> tuple[Path | None, str]:
+    repo_root = Path(__file__).resolve().parents[2]
+    src = repo_root / "cpp" / "ollama_stream_parser.cpp"
+    build_dir = repo_root / "cpp" / "build"
+    build_dir.mkdir(parents=True, exist_ok=True)
+
+    cxx = shutil.which("g++") or shutil.which("clang++")
+    if cxx is None:
+        return None, "c++ compiler not found"
+
+    out = build_dir / "libollama_stream_parser.so"
+    cmd = [cxx, "-O3", "-std=c++17", "-shared", "-fPIC", str(src), "-o", str(out)]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        return None, (proc.stderr or proc.stdout or "build failed").strip()
+    return out, ""
+
+
+def _benchmark_python_parser(frame: str, iterations: int) -> float:
+    started = time.perf_counter()
+    for _ in range(iterations):
+        parsed = json.loads(frame)
+        _ = parsed.get("response", "")
+    return (time.perf_counter() - started) * 1000
+
+
+def _benchmark_rust_parser(frame: str, iterations: int) -> tuple[float | None, str]:
+    try:
+        ghostgpt_core = getattr(qwen_handler, "_ghostgpt_core", None)
+        if ghostgpt_core is None:
+            import ghostgpt_core as _ghostgpt_core  # type: ignore
+            ghostgpt_core = _ghostgpt_core
+
+        started = time.perf_counter()
+        for _ in range(iterations):
+            _ = ghostgpt_core.extract_ollama_token(frame, False)
+        return (time.perf_counter() - started) * 1000, ""
+    except Exception as exc:
+        return None, str(exc)
+
+
+def _benchmark_cpp_parser(frame: str, iterations: int) -> tuple[float | None, str]:
+    lib_path, err = _build_cpp_parser()
+    if lib_path is None:
+        return None, err
+
+    try:
+        lib = ctypes.CDLL(str(lib_path))
+        fn = lib.extract_ollama_token_cpp
+        fn.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
+        fn.restype = ctypes.c_int
+
+        out = ctypes.create_string_buffer(1024)
+        out_len = ctypes.c_int(0)
+        payload = frame.encode("utf-8")
+
+        started = time.perf_counter()
+        for _ in range(iterations):
+            _ = fn(payload, 0, out, len(out), ctypes.byref(out_len))
+        return (time.perf_counter() - started) * 1000, ""
+    except Exception as exc:
+        return None, str(exc)
+
+
+def benchmark_parser_speed(iterations: int = 20000) -> dict[str, float | str | None]:
+    frame = json.dumps({"response": "token"})
+    py_ms = _benchmark_python_parser(frame, iterations)
+    rust_ms, rust_err = _benchmark_rust_parser(frame, iterations)
+    cpp_ms, cpp_err = _benchmark_cpp_parser(frame, iterations)
+
+    return {
+        "iterations": float(iterations),
+        "python_ms": py_ms,
+        "rust_ms": rust_ms,
+        "cpp_ms": cpp_ms,
+        "rust_speedup": (py_ms / rust_ms) if rust_ms else None,
+        "cpp_speedup": (py_ms / cpp_ms) if cpp_ms else None,
+        "rust_error": rust_err,
+        "cpp_error": cpp_err,
+    }
+
+
 def render_markdown(results: list[BenchResult], token_count: int, per_token_delay_s: float) -> str:
     header = "| mode | runs | avg TTFT (ms) | p95 TTFT (ms) | avg total (ms) | p95 total (ms) |\n|---|---:|---:|---:|---:|---:|"
-    rows = [
-        f"| {r.mode} | {r.runs} | {r.avg_ttft_ms:.2f} | {r.p95_ttft_ms:.2f} | {r.avg_total_ms:.2f} | {r.p95_total_ms:.2f} |"
-        for r in results
-    ]
-    speedup = next(r for r in results if r.mode == "non_streaming").avg_ttft_ms / next(
-        r for r in results if r.mode == "streaming"
-    ).avg_ttft_ms
+    rows = [f"| {r.mode} | {r.runs} | {r.avg_ttft_ms:.2f} | {r.p95_ttft_ms:.2f} | {r.avg_total_ms:.2f} | {r.p95_total_ms:.2f} |" for r in results]
+    speedup = next(r for r in results if r.mode == "non_streaming").avg_ttft_ms / next(r for r in results if r.mode == "streaming").avg_ttft_ms
+
     parser = benchmark_parser_speed()
     rust_line = (
-        f"- Rust JSON token parser: `{parser['rust_ms']:.2f} ms` for {int(parser['iterations'])} frames (~{parser['speedup']:.2f}x vs Python)."
-        if parser["rust_ms"] is not None and parser["speedup"] is not None
-        else f"- Rust JSON token parser: unavailable ({parser.get('error','unknown')})."
+        f"- Rust JSON token parser: `{parser['rust_ms']:.2f} ms` (~{parser['rust_speedup']:.2f}x vs Python)."
+        if parser["rust_ms"] is not None
+        else f"- Rust JSON token parser: unavailable ({parser['rust_error']})."
     )
+    cpp_line = (
+        f"- C++ JSON token parser: `{parser['cpp_ms']:.2f} ms` (~{parser['cpp_speedup']:.2f}x vs Python)."
+        if parser["cpp_ms"] is not None
+        else f"- C++ JSON token parser: unavailable ({parser['cpp_error']})."
+    )
+
     lines = [
         "# Qwen Streaming Benchmark Results",
         "",
@@ -173,43 +245,16 @@ def render_markdown(results: list[BenchResult], token_count: int, per_token_dela
         "",
         f"**TTFT improvement (streaming vs non-streaming): ~{speedup:.1f}x faster**.",
         "",
-        "Parser micro-benchmark:",
-        f"- Python JSON parser: `{parser['python_ms']:.2f} ms` for {int(parser['iterations'])} frames.",
+        "Parser micro-benchmark (20k frames):",
+        f"- Python JSON parser: `{parser['python_ms']:.2f} ms`.",
         rust_line,
+        cpp_line,
         "",
-        "Interpretation: streaming drastically reduces *time-to-first-token*, while full completion time remains approximately equal.",
+        "Interpretation: streaming gives major TTFT gain; native parsers (Rust/C++) reduce CPU overhead in token frame parsing.",
     ]
     return "\n".join(lines) + "\n"
 
-def benchmark_parser_speed(iterations: int = 20000) -> dict[str, float | None | str]:
-    frame = json.dumps({"response": "token"})
-
-    started = time.perf_counter()
-    for _ in range(iterations):
-        parsed = json.loads(frame)
-        _ = parsed.get("response", "")
-    py_ms = (time.perf_counter() - started) * 1000
-
-    rust_ms: float | None = None
-    speedup: float | None = None
-    try:
-        import ghostgpt_core
-
-        started = time.perf_counter()
-        for _ in range(iterations):
-            _ = ghostgpt_core.extract_ollama_token(frame, False)
-        rust_ms = (time.perf_counter() - started) * 1000
-        if rust_ms > 0:
-            speedup = py_ms / rust_ms
-    except Exception as exc:
-        return {"python_ms": py_ms, "rust_ms": None, "speedup": None, "iterations": float(iterations), "error": str(exc)}
-
-    return {"python_ms": py_ms, "rust_ms": rust_ms, "speedup": speedup, "iterations": float(iterations), "error": ""}
-
 
 if __name__ == "__main__":
-    RUNS = 8
-    TOKENS = 16
-    DELAY = 0.04
-    res = run_benchmark(runs=RUNS, token_count=TOKENS, per_token_delay_s=DELAY)
-    print(render_markdown(res, token_count=TOKENS, per_token_delay_s=DELAY))
+    res = run_benchmark(runs=8, token_count=16, per_token_delay_s=0.04)
+    print(render_markdown(res, token_count=16, per_token_delay_s=0.04))

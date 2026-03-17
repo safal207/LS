@@ -6,13 +6,15 @@ Deterministic synthetic benchmark (fake transport):
 
 | mode | runs | avg TTFT (ms) | p95 TTFT (ms) | avg total (ms) | p95 total (ms) |
 |---|---:|---:|---:|---:|---:|
-| streaming | 8 | 40.39 | 40.48 | 643.33 | 644.85 |
-| non_streaming | 8 | 640.90 | 640.94 | 640.90 | 640.94 |
+| streaming | 8 | 40.49 | 41.16 | 644.26 | 647.07 |
+| non_streaming | 8 | 640.88 | 641.03 | 640.88 | 641.03 |
 
-**TTFT improvement (streaming vs non-streaming): ~15.9x faster**.
+**TTFT improvement (streaming vs non-streaming): ~15.8x faster**.
 
-Parser micro-benchmark:
-- Python JSON parser: `53.08 ms` for 20000 frames.
-- Rust JSON token parser: `9.17 ms` for 20000 frames (~5.79x vs Python).
+Parser micro-benchmark (20k frames):
+- Python JSON parser: `57.23 ms`.
+- Rust JSON token parser: `9.97 ms` (~5.74x vs Python).
+- C++ JSON token parser: `37.14 ms` (~1.54x vs Python).
 
-Interpretation: streaming drastically reduces *time-to-first-token*, while full completion time remains approximately equal.
+Interpretation: streaming gives major TTFT gain; native parsers (Rust/C++) reduce CPU overhead in token frame parsing.
+

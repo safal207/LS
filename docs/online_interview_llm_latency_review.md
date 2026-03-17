@@ -45,10 +45,12 @@
 
 5. **Rust-accelerated stream frame parsing**
    - Added `ghostgpt_core.extract_ollama_token(...)` and integrated it as fast path in Python streaming loop.
-   - Python JSON parsing remains as automatic fallback if Rust bridge is unavailable.
 
-6. **Coverage tests for new stream behavior**
-   - Added unit tests for payload override, stream token emission, and Rust fast-path fallback behavior.
+6. **C++ stream parser fallback**
+   - Added `cpp/ollama_stream_parser.cpp` + Python loader and integrated fallback chain: Rust -> C++ -> Python JSON.
+
+7. **Coverage tests for new stream behavior**
+   - Added unit tests for payload override, stream token emission, and native fast-path fallback behavior.
 
 ## Test evidence: with feature vs without feature
 
@@ -63,7 +65,8 @@ Method:
 Result summary (current run):
 - **TTFT improved ~15.9x** with streaming,
 - full completion time remained roughly equal,
-- **Rust parser micro-benchmark ~5.67x faster** than Python JSON parse for stream frames,
+- **Rust parser micro-benchmark gives multi-x speedup** vs Python JSON parse (see latest report),
+- **C++ parser micro-benchmark gives measurable speedup** vs Python JSON parse (see latest report),
 - this is exactly what we want for interview whisper mode: first useful hint appears much earlier with lower CPU overhead in stream parsing.
 
 ## Recommended next architecture step (high impact)
