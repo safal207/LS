@@ -19,6 +19,7 @@ from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
 from ..shared.event_bus import EventBus
 from ..perception.coordinator import VisionSubsystem
+from .. import lthread
 
 try:
     from ..llm.temporal_graph import get_context_for_question
@@ -37,6 +38,22 @@ REFLECTION_SYSTEM_PROMPT = (
     "Не используй клише. Максимум 180 токенов. "
     "Не повторяй дословно предыдущие рефлексии."
 )
+
+PINNED_ROLES = {"system", "context_anchor"}
+
+
+def trim_history(history: list[dict], max_size: int = 10) -> list[dict]:
+    """Keep pinned system/context messages while applying a sliding window to the rest."""
+    pinned = [m for m in history if m.get("role") in PINNED_ROLES]
+    sliding = [m for m in history if m.get("role") not in PINNED_ROLES]
+    if len(pinned) >= max_size:
+        logger.warning(
+            "Pinned history entries (%s) exceed/equal max_size (%s); dropping non-pinned history",
+            len(pinned),
+            max_size,
+        )
+    available = max(max_size - len(pinned), 0)
+    return pinned + sliding[-available:]
 
 
 class AgentLoop:
@@ -82,12 +99,17 @@ class AgentLoop:
         self.causal_memory = CausalMemory()
         self.causal_transitions = CausalMemoryTransitions(amygdala=amygdala)
         self.reflex = ReflexArc(self.causal_transitions.amygdala)
-        self._task_lock = threading.Lock()
+        # NOTE: must remain RLock because _emit/_step_flow may re-acquire on paths
+        # that already hold this lock (e.g. cancellation flow).
+        self._task_lock = threading.RLock()
         self._task_counter = 0
-        self._active_task_id = 0
+        self._active_task_id: int | None = 0
         self._active_thread: threading.Thread | None = None
         self._active_cancel: threading.Event | None = None
         self._pending_item: dict | None = None
+        self._idle_cancel: threading.Event | None = None
+        self._bloodstream_thread: threading.Thread | None = None
+        self._bloodstream_lock = threading.Lock()
         self._cancel_grace_until = 0.0
 
         self.cancel_on_new_input = cancel_on_new_input
@@ -122,7 +144,6 @@ class AgentLoop:
         # Bloodstream Integration (PR #232)
         from codex.causal_memory.bloodstream import Bloodstream
         self.bloodstream = Bloodstream(self.causal_transitions.amygdala, self.temporal)
-        threading.Thread(target=self._bloodstream_loop, daemon=True).start()
 
         # Vision Subsystem Integration (Screen Perception v2)
         self.vision = VisionSubsystem()
@@ -258,15 +279,17 @@ class AgentLoop:
             return self._task_counter
 
     def _set_active(self, task_id: int, cancel_event: threading.Event, thread: threading.Thread | None) -> None:
-        self._active_task_id = task_id
-        self._active_cancel = cancel_event
-        self._active_thread = thread
+        with self._task_lock:
+            self._active_task_id = task_id
+            self._active_cancel = cancel_event
+            self._active_thread = thread
         self._touch_presence(task_id=task_id)
 
     def _is_active(self, task_id: int, cancel_event: threading.Event) -> bool:
         if cancel_event.is_set():
             return False
-        return task_id == self._active_task_id
+        with self._task_lock:
+            return task_id == self._active_task_id
 
     def _touch_presence(self, *, task_id: int | None = None) -> None:
         if self.presence is None:
@@ -280,15 +303,16 @@ class AgentLoop:
             return
         before = self.presence.phase if self.presence is not None else None
         try:
+            with self._task_lock:
+                active_task_id = self._active_task_id
             self.cognitive_flow.step({
                 "type": event_type,
                 "payload": payload,
-                "task_id": str(task_id or self._active_task_id),
+                "task_id": str(task_id or active_task_id),
                 "state": self.temporal.state if self.temporal else None,
             })
         except Exception:
-            # cognitive flow should be best-effort for now
-            pass
+            logger.warning("CognitiveFlow.step() failed", exc_info=True)
             return
         after = self.presence.phase if self.presence is not None else None
         if before != after and after is not None:
@@ -310,11 +334,13 @@ class AgentLoop:
         if not self.observability_enabled:
             return
         state = self.temporal.state if self.temporal else None
+        with self._task_lock:
+            active_task_id = self._active_task_id
         event = build_observability_event(
             event_type,
             payload,
             state,
-            str(task_id or self._active_task_id),
+            str(task_id or active_task_id),
         )
         if event is None:
             return
@@ -338,8 +364,10 @@ class AgentLoop:
         self._emit_observability(event_type, payload, task_id=task_id)
 
     def _transition(self, state: str, *, task_id: int | None = None) -> None:
-        if task_id is not None and task_id != self._active_task_id:
-            return
+        if task_id is not None:
+            with self._task_lock:
+                if task_id != self._active_task_id:
+                    return
         if self.temporal:
             self.temporal.transition(state)
         if self.presence is not None:
@@ -446,7 +474,12 @@ class AgentLoop:
                         {"role": "user", "content": reflection_prompt}
                     ]
                     # Note: LanguageModel.generate_response will use messages if provided
-                    silent_ref = self.llm.generate_response(reflection_prompt, messages=messages)
+                    self._idle_cancel = threading.Event()
+                    silent_ref = self.llm.generate_response(
+                        reflection_prompt,
+                        messages=messages,
+                        cancel_event=self._idle_cancel,
+                    )
                     if silent_ref and len(silent_ref.strip()) > 10:
                         amygdala.last_silent_reflection = silent_ref.strip()
                         logger.info(f"Silent reflection generated: {silent_ref[:80]}...")
@@ -454,6 +487,8 @@ class AgentLoop:
                         amygdala.metabolism.digest_old_reflections()
             except Exception as e:
                 logger.warning(f"Silent reflection generation failed: {e}")
+            finally:
+                self._idle_cancel = None
 
         # 3. Обновляем last_reflection, чтобы не спамило
         amygdala.last_reflection = datetime.datetime.now()
@@ -590,10 +625,29 @@ class AgentLoop:
         return self.handler(question)
 
     def _cancel_active(self, reason: str) -> None:
-        if self._active_thread and self._active_thread.is_alive() and self._active_cancel:
-            self._active_cancel.set()
-            self._emit("cancelled", {"reason": reason}, task_id=self._active_task_id)
-            self._track_cancellation(self._active_cancel)
+        with self._task_lock:
+            cancel = self._active_cancel
+            thread = self._active_thread
+            task_id = self._active_task_id
+            self._active_task_id = None
+            self._active_cancel = None
+            self._active_thread = None
+            idle_cancel = self._idle_cancel
+        if cancel:
+            cancel.set()
+        if idle_cancel:
+            idle_cancel.set()
+        if thread and thread.is_alive():
+            thread.join(timeout=2.0)
+            if thread.is_alive():
+                logger.warning("Timed out waiting for active task thread to stop", extra={"task_id": task_id})
+                if cancel:
+                    self._emit("cancelled", {"reason": reason, "timed_out": True}, task_id=task_id)
+                    self._track_cancellation(cancel)
+                return
+        if cancel:
+            self._emit("cancelled", {"reason": reason}, task_id=task_id)
+            self._track_cancellation(cancel)
             if self.cancel_grace_ms:
                 self._cancel_grace_until = time.time() + (self.cancel_grace_ms / 1000.0)
 
@@ -687,7 +741,6 @@ class AgentLoop:
                 return
 
             # Prompt Injection Protection (PR #226)
-            from python.modules import lthread
             if lthread.detect_prompt_injection(question):
                 logger.warning(f"Blocking potential prompt injection: {question[:100]}...")
                 payload = {
@@ -715,7 +768,7 @@ class AgentLoop:
             self.memory["history"].append({"role": "user", "content": question})
             # Trim history to last 10 messages (5 rounds) to stay within context
             if len(self.memory["history"]) > 10:
-                self.memory["history"] = self.memory["history"][-10:]
+                self.memory["history"] = trim_history(self.memory["history"], max_size=10)
 
             # Prepare hidden context with reflection
             messages = self._inject_reflection_into_context(list(self.memory["history"]), question=question, force_show_silent=force_show_silent)
@@ -737,7 +790,8 @@ class AgentLoop:
                 customer_axis = self.causal_memory.get_axis_position(customer_id)
                 if self.temporal:
                     from ..hexagon_core.temporal_graph import TemporalNode
-                    self.temporal.nodes[customer_id] = TemporalNode(id=customer_id, resonance=1.0)
+                    with self.temporal._graph_lock:
+                        self.temporal.nodes[customer_id] = TemporalNode(id=customer_id, resonance=1.0)
 
                 consumer_id = self.causal_memory.transition_down(customer_id, question, "Consumer")
                 consumer_resonance = self.causal_memory.check_resonance(consumer_id)
@@ -930,7 +984,6 @@ class AgentLoop:
             if result is not None:
                 # Trace Verification (PR #226)
                 try:
-                    from python.modules import lthread
                     logger.info(f"Verifying trace for: {str(result)[:50]}...")
                     trace = lthread.capture_trace(question, str(result))
                     if not lthread.verify_trace(trace):
@@ -1092,13 +1145,23 @@ class AgentLoop:
             raise RuntimeError("input_queue is required for run()")
 
         self.running = True
+        with self._bloodstream_lock:
+            if self._bloodstream_thread is None or not self._bloodstream_thread.is_alive():
+                self._bloodstream_thread = threading.Thread(
+                    target=self._bloodstream_loop,
+                    daemon=True,
+                    name="bloodstream",
+                )
+                self._bloodstream_thread.start()
         self.vision.start() # Start Screen Perception v2
 
         while self.running:
             self._maybe_collect_windows_context(session_id="agent_loop")
             self._maybe_enter_idle_yoga()
             self._maybe_enter_sleep_mode()
-            if self._active_thread and self._active_thread.is_alive():
+            with self._task_lock:
+                active_thread = self._active_thread
+            if active_thread and active_thread.is_alive():
                 if not self.cancel_on_new_input:
                     time.sleep(0.05)
                     continue
@@ -1109,7 +1172,8 @@ class AgentLoop:
 
                 self._cancel_active("superseded")
                 # latest-wins semantics: keep only the most recent pending item
-                self._pending_item = item
+                with self._task_lock:
+                    self._pending_item = item
                 self._transition("listening")
                 try:
                     # We do not rely on queue.join(); task_done is called immediately.
@@ -1118,10 +1182,14 @@ class AgentLoop:
                     pass
                 continue
 
-            if self._pending_item is not None:
-                item = self._pending_item
-                self._pending_item = None
-            else:
+            with self._task_lock:
+                pending_item = self._pending_item
+                if pending_item is not None:
+                    item = pending_item
+                    self._pending_item = None
+                else:
+                    item = None
+            if item is None:
                 try:
                     item = self.input_queue.get(timeout=0.2)
                 except queue.Empty:
@@ -1157,5 +1225,11 @@ class AgentLoop:
     def stop(self) -> None:
         self.running = False
         self.vision.stop() # Stop Screen Perception v2
-        if self._active_cancel:
-            self._active_cancel.set()
+        with self._bloodstream_lock:
+            bloodstream_thread = self._bloodstream_thread
+        if bloodstream_thread is not None and bloodstream_thread.is_alive():
+            bloodstream_thread.join(timeout=3.0)
+        with self._task_lock:
+            active_cancel = self._active_cancel
+        if active_cancel:
+            active_cancel.set()
