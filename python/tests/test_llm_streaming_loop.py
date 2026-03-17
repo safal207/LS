@@ -1,7 +1,6 @@
 import pytest
 pytest.importorskip("requests")
 
-import os
 import queue
 import threading
 
