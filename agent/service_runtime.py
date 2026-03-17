@@ -11,6 +11,14 @@ from typing import Any, Callable, Dict, List, Optional, Protocol, Sequence
 logger = logging.getLogger(__name__)
 
 
+class ParallelTaskExecutionError(RuntimeError):
+    """Raised when a parallel task worker fails."""
+
+    def __init__(self, task_index: int, message: str):
+        super().__init__(message)
+        self.task_index = task_index
+
+
 @dataclass
 class Task:
     """Represents a unit of work requested from the service layer."""
@@ -136,6 +144,11 @@ class ServiceLayer:
             tasks: Task batch to execute.
             steps_builder: Optional function to build a custom step chain per task.
             max_workers: Thread pool size passed to ThreadPoolExecutor.
+
+        Raises:
+            ParallelTaskExecutionError: Re-raises the first completed worker failure and
+                includes the failed task index (`task_index`). This method uses fail-fast
+                semantics and discards remaining results after the first error.
         """
 
         if not tasks:
@@ -151,14 +164,23 @@ class ServiceLayer:
             return index, result
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(_run_one, idx, task) for idx, task in enumerate(tasks)]
-            for future in as_completed(futures):
+            future_to_index = {executor.submit(_run_one, idx, task): idx for idx, task in enumerate(tasks)}
+            for future in as_completed(future_to_index):
                 try:
                     index, result = future.result()
                     indexed_results[index] = result
-                except Exception:
-                    logger.exception("Parallel task execution failed")
-                    raise
+                except Exception as exc:
+                    failed_index = future_to_index[future]
+                    logger.exception("Parallel task execution failed for index=%s", failed_index)
+                    if len(indexed_results) != len(tasks):
+                        logger.warning("Partial results before failure: %d/%d", len(indexed_results), len(tasks))
+                    raise ParallelTaskExecutionError(
+                        task_index=failed_index,
+                        message=f"Task failed during parallel execution at index={failed_index}",
+                    ) from exc
+
+        if len(indexed_results) != len(tasks):
+            logger.warning("Partial results: %d/%d tasks completed", len(indexed_results), len(tasks))
 
         return [indexed_results[idx] for idx in sorted(indexed_results)]
 

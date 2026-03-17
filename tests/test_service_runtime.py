@@ -1,10 +1,7 @@
+import pytest
+
 from agent.landing_page_pipeline import build_landing_page_steps
-from agent.service_runtime import EchoLLMService, ServiceLayer
-
-
-class _ExplodingStep:
-    def execute(self, payload):
-        raise RuntimeError("boom")
+from agent.service_runtime import EchoLLMService, ParallelTaskExecutionError, ServiceLayer
 
 
 def test_service_layer_executes_default_runtime_pipeline():
@@ -62,13 +59,18 @@ def test_parallel_landing_generation_raises_when_worker_fails():
         service.create_task("landing_page", {"product": "fail"}),
     ]
 
+    class ExplodingStep:
+        def execute(self, payload):
+            raise RuntimeError("boom")
+
     def failing_builder(task, _service):
         if task.input_data["product"] == "fail":
-            return [_ExplodingStep()]
+            return [ExplodingStep()]
         return build_landing_page_steps(task, service)
 
-    try:
+    with pytest.raises(ParallelTaskExecutionError, match="index=1") as exc_info:
         service.execute_tasks_parallel(tasks, steps_builder=failing_builder, max_workers=2)
-        assert False, "Expected RuntimeError from worker"
-    except RuntimeError as exc:
-        assert "boom" in str(exc)
+
+    assert exc_info.value.task_index == 1
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+    assert "boom" in str(exc_info.value.__cause__)
