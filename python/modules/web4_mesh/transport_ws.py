@@ -82,7 +82,11 @@ class WebSocketTransport:
         existing = self._outgoing.get(uri)
         if existing is not None and existing.state == State.OPEN:
             return
-        conn = await websockets.connect(uri)
+        try:
+            conn = await websockets.connect(uri)
+        except OSError as exc:
+            logger.warning("connect_to_peer failed %s: %s", uri, exc)
+            raise
         self._outgoing[uri] = conn
         self._reader_tasks.append(asyncio.create_task(self._read_loop(conn, uri)))
 

@@ -31,3 +31,16 @@ def test_economics_audit_empty() -> None:
     assert report.total_events == 0
     assert report.proposal_count == 0
     assert report.economic_efficiency_score == 0.0
+
+
+def test_economics_audit_clamps_rates_to_one() -> None:
+    events = [
+        {"event_type": "proposal_created", "ts": 100, "data": {"proposal_id": "p1"}},
+        {"event_type": "task_disputed", "ts": 110, "data": {"proposal_id": "p1"}},
+        {"event_type": "task_disputed", "ts": 120, "data": {"proposal_id": "p1"}},
+        {"event_type": "rollback_applied", "ts": 130, "data": {"proposal_id": "p1"}},
+        {"event_type": "rollback_applied", "ts": 140, "data": {"proposal_id": "p1"}},
+    ]
+    report = EconomicsAudit().summarize(events)
+    assert report.dispute_rate == 1.0
+    assert report.rollback_rate == 1.0

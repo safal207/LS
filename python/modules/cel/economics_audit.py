@@ -93,8 +93,8 @@ class EconomicsAudit:
             payout_events=payout_count,
             median_payout_latency_s=round(med_latency, 6),
             p95_payout_latency_s=round(p95, 6),
-            dispute_rate=round(dispute_rate, 6),
-            rollback_rate=round(rollback_rate, 6),
+            dispute_rate=round(min(1.0, dispute_rate), 6),
+            rollback_rate=round(min(1.0, rollback_rate), 6),
             verification_pass_rate=round(verification_pass_rate, 6),
             economic_efficiency_score=round(efficiency, 6),
         )

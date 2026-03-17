@@ -168,6 +168,7 @@ class Web4MeshNode:
 
         self._seen_reflection_ids.add(reflection_id)
         self.reflections.append(reflection)
+        # Store canonical reflection form without transport signature metadata.
         self.memory_graph[reflection_id] = reflection
         self._graph_inserted_at[reflection_id] = time.time()
 
