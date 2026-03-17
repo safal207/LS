@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import logging
+
 from typing import Any, Optional
 
 from .presence import PresenceState
 from .transition_engine import TransitionEngine
+
+
+logger = logging.getLogger(__name__)
 
 
 class CognitiveFlow:
@@ -58,5 +63,5 @@ class CognitiveFlow:
             if self.presence.phase is None:
                 self.presence.phase = "perceive"
         except Exception:
-            # Cognitive Flow - best-effort
+            logger.warning("CognitiveFlow.step() failed", exc_info=True)
             return

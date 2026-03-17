@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Dict
 
@@ -9,6 +10,7 @@ import yaml
 
 _CONFIG_CACHE: Dict[str, Dict[str, Any]] = {}
 _APP_ALIASES_CACHE: Dict[str, str] | None = None
+_CACHE_LOCK = threading.Lock()
 
 
 def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
@@ -38,8 +40,9 @@ def _repo_root() -> Path:
 
 def _load_app_aliases() -> Dict[str, str]:
     global _APP_ALIASES_CACHE
-    if _APP_ALIASES_CACHE is not None:
-        return _APP_ALIASES_CACHE
+    with _CACHE_LOCK:
+        if _APP_ALIASES_CACHE is not None:
+            return _APP_ALIASES_CACHE
 
     default_aliases = {
         "console": "console",
@@ -51,29 +54,32 @@ def _load_app_aliases() -> Dict[str, str]:
     registry = _load_yaml(_repo_root() / "config" / "apps.yaml")
     apps = registry.get("apps") if isinstance(registry, dict) else None
     if not isinstance(apps, dict):
-        _APP_ALIASES_CACHE = default_aliases
+        computed = default_aliases
+    else:
+        aliases: Dict[str, str] = {}
+        for app_name, app_cfg in apps.items():
+            if not isinstance(app_name, str) or not app_name.strip():
+                raise ValueError("Invalid app name in config/apps.yaml")
+            normalized_name = app_name.strip().lower()
+            aliases[normalized_name] = normalized_name
+
+            if not isinstance(app_cfg, dict):
+                raise ValueError(f"Invalid app config in config/apps.yaml for '{app_name}'")
+            app_aliases = app_cfg.get("aliases", [])
+            if not isinstance(app_aliases, list):
+                raise ValueError(f"'aliases' must be a list for app '{app_name}'")
+
+            for alias in app_aliases:
+                if not isinstance(alias, str) or not alias.strip():
+                    raise ValueError(f"Alias must be a non-empty string for app '{app_name}'")
+                aliases[alias.strip().lower()] = normalized_name
+        computed = aliases or default_aliases
+
+    with _CACHE_LOCK:
+        if _APP_ALIASES_CACHE is not None:
+            return _APP_ALIASES_CACHE
+        _APP_ALIASES_CACHE = computed
         return _APP_ALIASES_CACHE
-
-    aliases: Dict[str, str] = {}
-    for app_name, app_cfg in apps.items():
-        if not isinstance(app_name, str) or not app_name.strip():
-            raise ValueError("Invalid app name in config/apps.yaml")
-        normalized_name = app_name.strip().lower()
-        aliases[normalized_name] = normalized_name
-
-        if not isinstance(app_cfg, dict):
-            raise ValueError(f"Invalid app config in config/apps.yaml for '{app_name}'")
-        app_aliases = app_cfg.get("aliases", [])
-        if not isinstance(app_aliases, list):
-            raise ValueError(f"'aliases' must be a list for app '{app_name}'")
-
-        for alias in app_aliases:
-            if not isinstance(alias, str) or not alias.strip():
-                raise ValueError(f"Alias must be a non-empty string for app '{app_name}'")
-            aliases[alias.strip().lower()] = normalized_name
-
-    _APP_ALIASES_CACHE = aliases or default_aliases
-    return _APP_ALIASES_CACHE
 
 
 def _normalize_app_name(app: str) -> str:
@@ -133,8 +139,9 @@ def _validate_runtime_schema(config: Dict[str, Any], app: str) -> None:
 
 def load_config(app: str) -> Dict[str, Any]:
     normalized_app = _normalize_app_name(app)
-    if normalized_app in _CONFIG_CACHE:
-        return _CONFIG_CACHE[normalized_app]
+    with _CACHE_LOCK:
+        if normalized_app in _CONFIG_CACHE:
+            return _CONFIG_CACHE[normalized_app]
 
     root = _repo_root()
     cfg = _load_yaml(root / "config" / "base.yaml")
@@ -151,7 +158,11 @@ def load_config(app: str) -> Dict[str, Any]:
     _validate_runtime_schema(cfg, normalized_app)
 
     os.environ.setdefault("LS_APP", normalized_app)
-    _CONFIG_CACHE[normalized_app] = cfg
+    with _CACHE_LOCK:
+        cached = _CONFIG_CACHE.get(normalized_app)
+        if cached is not None:
+            return cached
+        _CONFIG_CACHE[normalized_app] = cfg
     return cfg
 
 
