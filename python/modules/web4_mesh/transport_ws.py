@@ -3,9 +3,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, Optional
+from typing import Callable, Dict, Iterable, Optional
 
 import websockets
 from websockets.exceptions import ConnectionClosed
@@ -16,6 +17,16 @@ from .node import Web4MeshNode
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class DeliveryEvent:
+    run: str
+    envelope_id: str
+    origin: str
+    destination: str
+    latency_s: float
+    delivered_bool: bool
+
+
 @dataclass
 class WebSocketTransport:
     """Async WebSocket transport for cross-process Web4 mesh communication."""
@@ -23,6 +34,8 @@ class WebSocketTransport:
     node: Web4MeshNode
     host: str = "127.0.0.1"
     port: int = 9001
+    on_delivery: Callable[[DeliveryEvent], None] | None = None
+    run_id: str = "default"
     _server: websockets.asyncio.server.Server | None = field(default=None, init=False)
     _outgoing: Dict[str, websockets.ClientConnection] = field(default_factory=dict, init=False)
     _reader_tasks: list[asyncio.Task[None]] = field(default_factory=list, init=False)
@@ -116,6 +129,8 @@ class WebSocketTransport:
 
     async def _accept_and_dispatch(self, envelope: MeshEnvelope) -> None:
         self._learn_origin_address(envelope)
+        delivery_latency = self._latency_from_envelope(envelope)
+        self._emit_delivery(envelope, delivery_latency, True)
         out = self.node.receive(envelope)
         if out:
             await self.send_many_routed(out)
@@ -132,6 +147,7 @@ class WebSocketTransport:
     def _serialize_envelope(self, env: MeshEnvelope) -> str:
         payload = dict(env.payload)
         payload.setdefault("origin_address", self.listen_uri)
+        payload.setdefault("transport_sent_at", time.time())
         data = {
             "message_type": env.message_type,
             "origin": env.origin,
@@ -162,3 +178,33 @@ class WebSocketTransport:
         except Exception:
             logger.warning("Envelope decode failed for node %s", self.node.peer_id, exc_info=True)
             return None
+
+    def _latency_from_envelope(self, envelope: MeshEnvelope) -> float:
+        sent_at = envelope.payload.get("transport_sent_at")
+        if isinstance(sent_at, (int, float)):
+            latency = max(0.0, time.time() - float(sent_at))
+            return latency
+        return 0.0
+
+    def _emit_delivery(self, envelope: MeshEnvelope, latency_s: float, delivered_bool: bool) -> None:
+        logger.info(
+            "mesh_delivery node=%s env=%s origin=%s dest=%s latency_s=%.6f delivered=%s",
+            self.node.peer_id,
+            envelope.envelope_id,
+            envelope.origin,
+            envelope.destination,
+            latency_s,
+            delivered_bool,
+        )
+        if self.on_delivery is None:
+            return
+        self.on_delivery(
+            DeliveryEvent(
+                run=self.run_id,
+                envelope_id=envelope.envelope_id,
+                origin=envelope.origin,
+                destination=envelope.destination,
+                latency_s=latency_s,
+                delivered_bool=delivered_bool,
+            )
+        )

@@ -76,3 +76,5 @@ Web4 Mesh в LS — это не просто сетевой слой, а **ко�
 - A публикует reflection, B/C получают по WebSocket transport.
 - D подключается позже и получает граф через `SYNC_GRAPH_REQUEST`/`SYNC_GRAPH_CHUNK`.
 - Запуск: `PYTHONPATH=python python tools/run_mesh_ws.py`.
+
+- Расширенный запуск с метриками: `PYTHONPATH=python python tools/run_mesh_ws.py --collect-metrics`.

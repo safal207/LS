@@ -9,10 +9,12 @@ from .node import (
     PUSH_REFLECTION,
     SYNC_GRAPH_CHUNK,
     SYNC_GRAPH_REQUEST,
+    RotatingMeshSigner,
+    RotatingMeshVerifier,
     Web4MeshNode,
     Web4MeshNodeConfig,
 )
-from .transport_ws import WebSocketTransport
+from .transport_ws import DeliveryEvent, WebSocketTransport
 
 __all__ = [
     "MeshEnvelope",
@@ -30,10 +32,13 @@ __all__ = [
     "TrustLink",
     "TrustLevel",
     "Web4MeshNode",
+    "RotatingMeshSigner",
+    "RotatingMeshVerifier",
     "Web4MeshNodeConfig",
     "ANNOUNCE",
     "SYNC_GRAPH_CHUNK",
     "SYNC_GRAPH_REQUEST",
     "PUSH_REFLECTION",
     "WebSocketTransport",
+    "DeliveryEvent",
 ]

@@ -1,6 +1,6 @@
 import asyncio
 
-from modules.web4_mesh import Web4MeshNode
+from modules.web4_mesh import DeliveryEvent, Web4MeshNode
 from modules.web4_mesh.mesh_envelope import MeshEnvelope
 from modules.web4_mesh.node import PUSH_REFLECTION
 from modules.web4_mesh.transport_ws import WebSocketTransport
@@ -26,10 +26,12 @@ def test_ws_transport_serialization_roundtrip() -> None:
 
 def test_ws_transport_reflection_and_sync_late_join() -> None:
     async def _run() -> None:
+        events: list[DeliveryEvent] = []
+
         node_a = Web4MeshNode("node-a", "ws://127.0.0.1:9111")
         node_b = Web4MeshNode("node-b", "ws://127.0.0.1:9112")
-        t_a = WebSocketTransport(node=node_a, port=9111)
-        t_b = WebSocketTransport(node=node_b, port=9112)
+        t_a = WebSocketTransport(node=node_a, port=9111, on_delivery=events.append, run_id="test")
+        t_b = WebSocketTransport(node=node_b, port=9112, on_delivery=events.append, run_id="test")
         await t_a.start()
         await t_b.start()
 
@@ -45,7 +47,7 @@ def test_ws_transport_reflection_and_sync_late_join() -> None:
         assert "r1" in node_b.memory_graph
 
         node_d = Web4MeshNode("node-d", "ws://127.0.0.1:9114")
-        t_d = WebSocketTransport(node=node_d, port=9114)
+        t_d = WebSocketTransport(node=node_d, port=9114, on_delivery=events.append, run_id="test")
         await t_d.start()
 
         node_d.add_peer("node-a", t_a.listen_uri)
@@ -57,6 +59,8 @@ def test_ws_transport_reflection_and_sync_late_join() -> None:
         await t_d.send(req, t_a.listen_uri)
         await asyncio.sleep(0.4)
         assert "r1" in node_d.memory_graph
+        assert events
+        assert any(event.latency_s >= 0.0 for event in events)
 
         await asyncio.gather(t_a.stop(), t_b.stop(), t_d.stop())
 

@@ -7,6 +7,8 @@ from modules.web4_mesh.node import (
     PUSH_REFLECTION,
     SYNC_GRAPH_CHUNK,
     SYNC_GRAPH_REQUEST,
+    RotatingMeshSigner,
+    RotatingMeshVerifier,
     Web4MeshNode,
     Web4MeshNodeConfig,
 )
@@ -16,6 +18,9 @@ from modules.web4_mesh.node import (
 class DummySigner:
     def sign(self, payload: Mapping[str, object]) -> str:
         return f"sig:{payload.get('id', 'na')}"
+
+    def rotate_keys(self) -> str:
+        return "k2"
 
 
 @dataclass
@@ -144,3 +149,38 @@ def test_signed_envelope_without_verifier_is_rejected() -> None:
     )
     node_b.receive(rejected)
     assert "r-sec" not in node_b.memory_graph
+
+
+def test_rotating_signer_with_key_history_verifier() -> None:
+    signer = RotatingMeshSigner(signer_id="node-a")
+    verifier = RotatingMeshVerifier(keyring={"node-a": dict(signer.key_history)})
+
+    node_a = Web4MeshNode("node-a", "mesh://a", signer=signer)
+    node_b = Web4MeshNode("node-b", "mesh://b", verifier=verifier)
+    node_a.add_peer("node-b", "mesh://b")
+
+    first = node_a.push_reflection("one", "r1")[0]
+    node_b.receive(MeshEnvelope(message_type=PUSH_REFLECTION, origin="node-a", destination="node-b", payload=first.payload, envelope_id="first"))
+    assert "r1" in node_b.memory_graph
+
+    signer.rotate_keys()
+    # old verifier keyring intentionally stale => reject new signatures
+    second = node_a.push_reflection("two", "r2")[0]
+    node_b.receive(MeshEnvelope(message_type=PUSH_REFLECTION, origin="node-a", destination="node-b", payload=second.payload, envelope_id="second"))
+    assert "r2" not in node_b.memory_graph
+
+    # update keyring with history/current and retry with fresh envelope
+    verifier.keyring["node-a"] = dict(signer.key_history)
+    node_b.trust.on_verified("node-a")
+    third = node_a.push_reflection("three", "r3")[0]
+    node_b.receive(MeshEnvelope(message_type=PUSH_REFLECTION, origin="node-a", destination="node-b", payload=third.payload, envelope_id="third"))
+    assert "r3" in node_b.memory_graph
+
+
+def test_ttl_gc_expired_removes_entries() -> None:
+    node = Web4MeshNode("node-a", "mesh://a", config=Web4MeshNodeConfig(entry_ttl_seconds=1))
+    node.push_reflection("ttl", "r-ttl")
+    assert "r-ttl" in node.memory_graph
+    removed = node.gc_expired(now=node._graph_inserted_at["r-ttl"] + 2)
+    assert removed == 1
+    assert "r-ttl" not in node.memory_graph
