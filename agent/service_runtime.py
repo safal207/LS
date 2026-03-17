@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Protocol, Sequence
+from typing import Any, Callable, Dict, List, Optional, Protocol, Sequence
 
 
 @dataclass
@@ -118,6 +119,39 @@ class ServiceLayer:
 
         runtime = RuntimeBuilder(task, self.llm_service, steps=steps)
         return runtime.run()
+
+    def execute_tasks_parallel(
+        self,
+        tasks: Sequence[Task],
+        steps_builder: Optional[Callable[[Task, "ServiceLayer"], Sequence[RuntimeStep]]] = None,
+        max_workers: Optional[int] = None,
+    ) -> List[Result]:
+        """Execute multiple tasks in parallel while preserving input order.
+
+        Args:
+            tasks: Task batch to execute.
+            steps_builder: Optional function to build a custom step chain per task.
+            max_workers: Thread pool size passed to ThreadPoolExecutor.
+        """
+
+        if not tasks:
+            return []
+
+        results: List[Optional[Result]] = [None] * len(tasks)
+
+        def _run_one(index: int, task: Task) -> None:
+            if steps_builder is None:
+                result = self.execute_task(task)
+            else:
+                result = self.execute_task_with_steps(task, steps_builder(task, self))
+            results[index] = result
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(_run_one, idx, task) for idx, task in enumerate(tasks)]
+            for future in futures:
+                future.result()
+
+        return [result for result in results if result is not None]
 
 
 class EchoLLMService:
