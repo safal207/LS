@@ -104,7 +104,7 @@ def run_benchmark(runs: int = 8, token_count: int = 16, per_token_delay_s: float
         nonstream_ttft: list[float] = []
         nonstream_total: list[float] = []
 
-        for _ in range(runs):
+        for _run in range(runs):
             first_token_at = None
             started = time.perf_counter()
 
@@ -113,14 +113,14 @@ def run_benchmark(runs: int = 8, token_count: int = 16, per_token_delay_s: float
                 if first_token_at is None:
                     first_token_at = time.perf_counter()
 
-            _ = handler.generate_response("bench", stream=True, on_token=_on_token)
+            _stream_result = handler.generate_response("bench", stream=True, on_token=_on_token)
             ended = time.perf_counter()
             assert first_token_at is not None
             stream_ttft.append((first_token_at - started) * 1000)
             stream_total.append((ended - started) * 1000)
 
             started = time.perf_counter()
-            _ = handler.generate_response("bench", stream=False)
+            _nonstream_result = handler.generate_response("bench", stream=False)
             ended = time.perf_counter()
             elapsed_ms = (ended - started) * 1000
             nonstream_ttft.append(elapsed_ms)
@@ -156,7 +156,7 @@ def _benchmark_python_parser(frame: str, iterations: int) -> float:
     started = time.perf_counter()
     for _ in range(iterations):
         parsed = json.loads(frame)
-        _ = parsed.get("response", "")
+        _token = parsed.get("response", "")
     return (time.perf_counter() - started) * 1000
 
 

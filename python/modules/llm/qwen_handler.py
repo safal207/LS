@@ -103,13 +103,15 @@ class QwenHandler:
         _ensure_requests_available()
         self.session = requests.Session()
         # Reuse one HTTP session to reduce handshake latency between calls.
+        # Note: requests.Session does not support a global timeout attribute;
+        # timeout must be passed per request (as done in each .post/.get call).
         self.session.headers.update({"Connection": "keep-alive"})
 
     @staticmethod
     def _default_num_predict() -> int:
         try:
             value = int(os.getenv("OLLAMA_NUM_PREDICT", "150"))
-            return max(1, value)
+            return min(max(1, value), 4096)
         except (TypeError, ValueError):
             return 150
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import ctypes
-from ctypes import c_char_p, c_int, create_string_buffer, byref
+from ctypes import c_char_p, c_int, create_string_buffer, byref, POINTER, c_char
 from pathlib import Path
 from typing import Optional
 
@@ -26,7 +26,7 @@ def _load_lib() -> Optional[ctypes.CDLL]:
         if not path.exists():
             continue
         lib = ctypes.CDLL(str(path))
-        lib.extract_ollama_token_cpp.argtypes = [c_char_p, c_int, c_char_p, c_int, ctypes.POINTER(c_int)]
+        lib.extract_ollama_token_cpp.argtypes = [c_char_p, c_int, POINTER(c_char), c_int, ctypes.POINTER(c_int)]
         lib.extract_ollama_token_cpp.restype = c_int
         _lib = lib
         return _lib

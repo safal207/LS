@@ -96,10 +96,10 @@ This dual-lane architecture gives you both speed and quality:
   - `coach_balanced`
   - `deep_answer`
 - Add confidence gate before speaking hints (avoid noisy/unsafe suggestions).
-- Add anti-detection UX mode:
+- Add low-distraction UX mode:
   - concise one-liners,
-  - timing randomization,
-  - optional keyboard-only overlays.
+  - compact overlays,
+  - user-controlled verbosity and pacing.
 
 ## Safety and compliance note
 

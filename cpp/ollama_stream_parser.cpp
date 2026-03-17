@@ -34,6 +34,9 @@ extern "C" int extract_ollama_token_cpp(
             out[0] = '\0';
             return 0;
         }
+        // Fast-path limitation: this is a substring search from the `"message"` anchor
+        // and not a full JSON structural parser. If ambiguous/escaped content is detected,
+        // we return 0 and let Rust/Python JSON parser handle the frame safely.
         value = find_value_start(msg, "\"content\"");
     } else {
         value = find_value_start(frame, "\"response\"");
