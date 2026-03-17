@@ -2,6 +2,11 @@ from agent.landing_page_pipeline import build_landing_page_steps
 from agent.service_runtime import EchoLLMService, ServiceLayer
 
 
+class _ExplodingStep:
+    def execute(self, payload):
+        raise RuntimeError("boom")
+
+
 def test_service_layer_executes_default_runtime_pipeline():
     service = ServiceLayer(EchoLLMService())
 
@@ -48,3 +53,22 @@ def test_parallel_landing_generation_with_custom_steps_preserves_order():
     ]
     assert all("[SEO Score: 85]" in item.result["summary"] for item in results)
     assert all("[Analytics: Page should target tech-savvy audience.]" in item.result["summary"] for item in results)
+
+
+def test_parallel_landing_generation_raises_when_worker_fails():
+    service = ServiceLayer(EchoLLMService())
+    tasks = [
+        service.create_task("landing_page", {"product": "ok"}),
+        service.create_task("landing_page", {"product": "fail"}),
+    ]
+
+    def failing_builder(task, _service):
+        if task.input_data["product"] == "fail":
+            return [_ExplodingStep()]
+        return build_landing_page_steps(task, service)
+
+    try:
+        service.execute_tasks_parallel(tasks, steps_builder=failing_builder, max_workers=2)
+        assert False, "Expected RuntimeError from worker"
+    except RuntimeError as exc:
+        assert "boom" in str(exc)

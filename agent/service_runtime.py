@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+import logging
 from typing import Any, Callable, Dict, List, Optional, Protocol, Sequence
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -137,21 +141,26 @@ class ServiceLayer:
         if not tasks:
             return []
 
-        results: List[Optional[Result]] = [None] * len(tasks)
+        indexed_results: dict[int, Result] = {}
 
-        def _run_one(index: int, task: Task) -> None:
+        def _run_one(index: int, task: Task) -> tuple[int, Result]:
             if steps_builder is None:
                 result = self.execute_task(task)
             else:
                 result = self.execute_task_with_steps(task, steps_builder(task, self))
-            results[index] = result
+            return index, result
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(_run_one, idx, task) for idx, task in enumerate(tasks)]
-            for future in futures:
-                future.result()
+            for future in as_completed(futures):
+                try:
+                    index, result = future.result()
+                    indexed_results[index] = result
+                except Exception:
+                    logger.exception("Parallel task execution failed")
+                    raise
 
-        return [result for result in results if result is not None]
+        return [indexed_results[idx] for idx in sorted(indexed_results)]
 
 
 class EchoLLMService:
