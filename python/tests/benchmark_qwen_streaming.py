@@ -155,6 +155,12 @@ def render_markdown(results: list[BenchResult], token_count: int, per_token_dela
     speedup = next(r for r in results if r.mode == "non_streaming").avg_ttft_ms / next(
         r for r in results if r.mode == "streaming"
     ).avg_ttft_ms
+    parser = benchmark_parser_speed()
+    rust_line = (
+        f"- Rust JSON token parser: `{parser['rust_ms']:.2f} ms` for {int(parser['iterations'])} frames (~{parser['speedup']:.2f}x vs Python)."
+        if parser["rust_ms"] is not None and parser["speedup"] is not None
+        else f"- Rust JSON token parser: unavailable ({parser.get('error','unknown')})."
+    )
     lines = [
         "# Qwen Streaming Benchmark Results",
         "",
@@ -167,9 +173,38 @@ def render_markdown(results: list[BenchResult], token_count: int, per_token_dela
         "",
         f"**TTFT improvement (streaming vs non-streaming): ~{speedup:.1f}x faster**.",
         "",
+        "Parser micro-benchmark:",
+        f"- Python JSON parser: `{parser['python_ms']:.2f} ms` for {int(parser['iterations'])} frames.",
+        rust_line,
+        "",
         "Interpretation: streaming drastically reduces *time-to-first-token*, while full completion time remains approximately equal.",
     ]
     return "\n".join(lines) + "\n"
+
+def benchmark_parser_speed(iterations: int = 20000) -> dict[str, float | None | str]:
+    frame = json.dumps({"response": "token"})
+
+    started = time.perf_counter()
+    for _ in range(iterations):
+        parsed = json.loads(frame)
+        _ = parsed.get("response", "")
+    py_ms = (time.perf_counter() - started) * 1000
+
+    rust_ms: float | None = None
+    speedup: float | None = None
+    try:
+        import ghostgpt_core
+
+        started = time.perf_counter()
+        for _ in range(iterations):
+            _ = ghostgpt_core.extract_ollama_token(frame, False)
+        rust_ms = (time.perf_counter() - started) * 1000
+        if rust_ms > 0:
+            speedup = py_ms / rust_ms
+    except Exception as exc:
+        return {"python_ms": py_ms, "rust_ms": None, "speedup": None, "iterations": float(iterations), "error": str(exc)}
+
+    return {"python_ms": py_ms, "rust_ms": rust_ms, "speedup": speedup, "iterations": float(iterations), "error": ""}
 
 
 if __name__ == "__main__":

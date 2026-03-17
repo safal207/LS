@@ -95,3 +95,26 @@ def test_generate_response_streaming_path_uses_callback(monkeypatch):
 
     assert seen == ["A", "B"]
     assert result == "AB"
+
+
+def test_extract_stream_token_uses_rust_fast_path(monkeypatch):
+    class _Rust:
+        @staticmethod
+        def extract_ollama_token(frame_line, has_messages):
+            assert has_messages is False
+            return "R"
+
+    monkeypatch.setattr(qwen_handler, "_ghostgpt_core", _Rust())
+    token = qwen_handler._extract_stream_token('{"response":"x"}', False)
+    assert token == "R"
+
+
+def test_extract_stream_token_falls_back_to_python_when_rust_errors(monkeypatch):
+    class _Rust:
+        @staticmethod
+        def extract_ollama_token(frame_line, has_messages):
+            raise RuntimeError("bridge fail")
+
+    monkeypatch.setattr(qwen_handler, "_ghostgpt_core", _Rust())
+    token = qwen_handler._extract_stream_token('{"response":"fallback"}', False)
+    assert token == "fallback"

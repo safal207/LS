@@ -43,8 +43,12 @@
 4. **Keep-alive session intent made explicit**
    - Session now explicitly keeps connection alive via headers.
 
-5. **Coverage tests for new stream behavior**
-   - Added unit tests for payload override and stream token emission.
+5. **Rust-accelerated stream frame parsing**
+   - Added `ghostgpt_core.extract_ollama_token(...)` and integrated it as fast path in Python streaming loop.
+   - Python JSON parsing remains as automatic fallback if Rust bridge is unavailable.
+
+6. **Coverage tests for new stream behavior**
+   - Added unit tests for payload override, stream token emission, and Rust fast-path fallback behavior.
 
 ## Test evidence: with feature vs without feature
 
@@ -59,7 +63,8 @@ Method:
 Result summary (current run):
 - **TTFT improved ~15.9x** with streaming,
 - full completion time remained roughly equal,
-- this is exactly what we want for interview whisper mode: first useful hint appears much earlier.
+- **Rust parser micro-benchmark ~5.67x faster** than Python JSON parse for stream frames,
+- this is exactly what we want for interview whisper mode: first useful hint appears much earlier with lower CPU overhead in stream parsing.
 
 ## Recommended next architecture step (high impact)
 

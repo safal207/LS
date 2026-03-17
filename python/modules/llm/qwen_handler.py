@@ -48,6 +48,34 @@ from .errors import (
 
 logger = logging.getLogger(__name__)
 
+try:
+    import ghostgpt_core as _ghostgpt_core
+except Exception:
+    _ghostgpt_core = None
+
+
+def _extract_stream_token(frame_line: str, has_messages: bool) -> str:
+    """Fast path token extraction from Ollama JSONL frame (Rust if available)."""
+    if _ghostgpt_core is not None:
+        try:
+            token = _ghostgpt_core.extract_ollama_token(frame_line, has_messages)
+            if token is None:
+                return ""
+            if not isinstance(token, str):
+                raise LLMInvalidFormatError("Expected streamed token to be a string")
+            return token
+        except Exception:
+            # fallback to Python parser on any bridge/runtime error
+            pass
+
+    frame = json.loads(frame_line)
+    token = frame.get("message", {}).get("content") if has_messages else frame.get("response", "")
+    if token is None:
+        return ""
+    if not isinstance(token, str):
+        raise LLMInvalidFormatError("Expected streamed token to be a string")
+    return token
+
 
 DEFAULT_TIMEOUT = 30
 
@@ -173,10 +201,7 @@ class QwenHandler:
                 for raw_line in response.iter_lines(decode_unicode=True):
                     if not raw_line:
                         continue
-                    frame = json.loads(raw_line)
-                    token = frame.get("message", {}).get("content") if messages else frame.get("response", "")
-                    if not isinstance(token, str):
-                        raise LLMInvalidFormatError("Expected streamed token to be a string")
+                    token = _extract_stream_token(raw_line, messages is not None)
                     if not token:
                         continue
                     chunks.append(token)
