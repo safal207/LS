@@ -354,8 +354,11 @@ def _register_nonce(sender: str, nonce_b64: str, now_ts: int, max_skew_seconds: 
     """Register nonce in replay cache, returns False if already seen in the active time window."""
     with _REPLAY_CACHE_LOCK:
         min_valid_ts = now_ts - max_skew_seconds
+        # OrderedDict preserves insertion order; we intentionally keep replay entries
+        # ordered by insertion time (and move updated keys to end) so we can evict
+        # only expired oldest entries until the first fresh record.
         while _REPLAY_CACHE:
-            (_, _), seen_ts = next(iter(_REPLAY_CACHE.items()))
+            oldest_key, seen_ts = next(iter(_REPLAY_CACHE.items()))
             if seen_ts >= min_valid_ts:
                 break
             _REPLAY_CACHE.popitem(last=False)
