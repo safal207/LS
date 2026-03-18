@@ -22,7 +22,7 @@ from modules.agent.sinks import build_event_sink
 from modules.audio.audio_module import AudioIngestion
 from modules.stt.stt_module import SpeechToText
 from modules.llm.llm_module import LanguageModel
-from utils import check_system_resources
+from shared.utils import check_system_resources
 
 # Configure logging
 logging.basicConfig(

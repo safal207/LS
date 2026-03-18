@@ -1,4 +1,5 @@
-import json, os
+import json
+import os
 
 class DMP:
     def __init__(self):
@@ -10,8 +11,9 @@ class DMP:
             self.facts = []
 
     def get_context(self, question):
+        if not question or not question.strip():
+            return ""
         q = question.lower()
-        relevant = []
         # Simple keyword search (for speed)
         triggers = ["проект", "опыт", "стек", "stack", "project", "experience"]
         if any(t in q for t in triggers):

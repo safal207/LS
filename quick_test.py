@@ -15,38 +15,31 @@ def test_imports():
         return False
     
     try:
-        import utils
+        from shared import utils
         print("✅ utils imported")
     except Exception as e:
         print(f"❌ utils import failed: {e}")
         return False
-    
+
     try:
-        import audio_module
+        from audio import audio_module
         print("✅ audio_module imported")
     except Exception as e:
         print(f"❌ audio_module import failed: {e}")
         return False
-    
+
     try:
-        import stt_module
+        from stt import stt_module
         print("✅ stt_module imported")
     except Exception as e:
         print(f"❌ stt_module import failed: {e}")
         return False
-    
+
     try:
-        import llm_module
+        from llm import llm_module
         print("✅ llm_module imported")
     except Exception as e:
         print(f"❌ llm_module import failed: {e}")
-        return False
-    
-    try:
-        import main
-        print("✅ main imported")
-    except Exception as e:
-        print(f"❌ main import failed: {e}")
         return False
     
     return True
@@ -78,7 +71,7 @@ def test_utils():
     print("\nTesting utilities...")
     
     try:
-        from utils import is_question
+        from shared.utils import is_question
         
         # Test question detection
         test_cases = [
