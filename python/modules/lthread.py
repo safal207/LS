@@ -13,9 +13,13 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-_REPLAY_CACHE: "OrderedDict[tuple[str, str], None]" = OrderedDict()
+_REPLAY_CACHE: "OrderedDict[tuple[str, str], int]" = OrderedDict()
 _REPLAY_CACHE_LOCK = threading.Lock()
 _REPLAY_CACHE_MAX = 4096
+
+_DERIVED_KEY_CACHE: "OrderedDict[tuple[str, str], bytes]" = OrderedDict()
+_DERIVED_KEY_CACHE_LOCK = threading.Lock()
+_DERIVED_KEY_CACHE_MAX = 1024
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +203,7 @@ def _get_keyring(override: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
 
 
 def _derive_key(key_material: Any, sender: Optional[str], keyring: Optional[Dict[str, Any]]) -> bytes:
-    """Derive a stable shared key for encryption/authentication."""
+    """Derive a stable shared key for encryption/authentication (with LRU cache)."""
     resolved_keyring = _get_keyring(keyring)
 
     if key_material is None and sender and sender in resolved_keyring:
@@ -213,7 +217,25 @@ def _derive_key(key_material: Any, sender: Optional[str], keyring: Optional[Dict
     else:
         base_secret = str(key_material).encode("utf-8")
 
-    return hashlib.pbkdf2_hmac("sha256", base_secret, b"lthread-v2-master", 600_000, dklen=32)
+    sender_key = sender or ""
+    key_fingerprint = hashlib.sha256(base_secret).hexdigest()
+    cache_key = (sender_key, key_fingerprint)
+
+    with _DERIVED_KEY_CACHE_LOCK:
+        cached = _DERIVED_KEY_CACHE.get(cache_key)
+        if cached is not None:
+            _DERIVED_KEY_CACHE.move_to_end(cache_key)
+            return cached
+
+    derived = hashlib.pbkdf2_hmac("sha256", base_secret, b"lthread-v2-master", 600_000, dklen=32)
+
+    with _DERIVED_KEY_CACHE_LOCK:
+        _DERIVED_KEY_CACHE[cache_key] = derived
+        _DERIVED_KEY_CACHE.move_to_end(cache_key)
+        if len(_DERIVED_KEY_CACHE) > _DERIVED_KEY_CACHE_MAX:
+            _DERIVED_KEY_CACHE.popitem(last=False)
+
+    return derived
 
 
 def _derive_subkeys(master_key: bytes) -> tuple[bytes, bytes]:
@@ -230,6 +252,9 @@ def _build_aad(target_device: Any, sender: str, ts: int) -> bytes:
 def encrypt_and_sign(data: Any, key: Any = None, **kwargs) -> bytes:
     """
     Create a signed encrypted envelope as JSON bytes.
+
+    NOTE: This uses a Blake2s-derived stream construction for dev/sandbox mode.
+    TODO: Replace with standard AEAD (ChaCha20-Poly1305 or AES-GCM) for production.
     """
     target_device = kwargs.get("target_device", key)
     sender = str(kwargs.get("sender", "unknown_agent"))
@@ -325,15 +350,25 @@ def start_bloodstream_sync(user_id: str, peers: List[str]):
     logger.info(f"Starting bloodstream sync for {user_id} with {peers}")
 
 
-def _register_nonce(sender: str, nonce_b64: str) -> bool:
-    """Register nonce in replay cache, returns False if already seen."""
+def _register_nonce(sender: str, nonce_b64: str, now_ts: int, max_skew_seconds: int) -> bool:
+    """Register nonce in replay cache, returns False if already seen in the active time window."""
     with _REPLAY_CACHE_LOCK:
+        min_valid_ts = now_ts - max_skew_seconds
+        while _REPLAY_CACHE:
+            (_, _), seen_ts = next(iter(_REPLAY_CACHE.items()))
+            if seen_ts >= min_valid_ts:
+                break
+            _REPLAY_CACHE.popitem(last=False)
+
         replay_key = (sender, nonce_b64)
         if replay_key in _REPLAY_CACHE:
             return False
-        _REPLAY_CACHE[replay_key] = None
-        if len(_REPLAY_CACHE) > _REPLAY_CACHE_MAX:
+
+        _REPLAY_CACHE[replay_key] = now_ts
+        _REPLAY_CACHE.move_to_end(replay_key)
+        while len(_REPLAY_CACHE) > _REPLAY_CACHE_MAX:
             _REPLAY_CACHE.popitem(last=False)
+
         return True
 
 
@@ -393,7 +428,7 @@ def verify_and_decrypt(package_path: str, **kwargs) -> tuple[bool, Any]:
         enc_key, mac_key = _derive_subkeys(master_key)
 
         nonce_b64 = package["nonce"]
-        if enforce_replay_protection and not _register_nonce(sender, nonce_b64):
+        if enforce_replay_protection and not _register_nonce(sender, nonce_b64, now_ts, max_skew_seconds):
             logger.warning("Replay attack detected: duplicate nonce")
             return False, None
 
