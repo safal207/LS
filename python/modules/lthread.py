@@ -7,15 +7,14 @@ import hmac
 import base64
 import secrets
 import time
+import os
+import threading
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-AGENT_KEYS: Dict[str, str] = {
-    "agent_A": "agent-a-shared-dev-key",
-    "agent_B": "agent-b-shared-dev-key",
-}
-
-_REPLAY_CACHE: set[tuple[str, str]] = set()
+_REPLAY_CACHE: "OrderedDict[tuple[str, str], None]" = OrderedDict()
+_REPLAY_CACHE_LOCK = threading.Lock()
 _REPLAY_CACHE_MAX = 4096
 
 logger = logging.getLogger(__name__)
@@ -179,13 +178,32 @@ def verify_audit_trail(package: Dict[str, Any]) -> bool:
     expected_signature = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     return signature == expected_signature
 
+def _load_agent_keys_from_env() -> Dict[str, str]:
+    """Load agent shared keys from env (`LS_AGENT_KEYS_JSON`)."""
+    raw = os.getenv("LS_AGENT_KEYS_JSON", "")
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+        if isinstance(data, dict):
+            return {str(k): str(v) for k, v in data.items()}
+    except Exception as e:
+        logger.warning(f"Failed to parse LS_AGENT_KEYS_JSON: {e}")
+    return {}
+
+
+def _get_keyring(override: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+    if override is not None:
+        return {str(k): str(v) for k, v in override.items()}
+    return _load_agent_keys_from_env()
+
+
 def _derive_key(key_material: Any, sender: Optional[str], keyring: Optional[Dict[str, Any]]) -> bytes:
     """Derive a stable shared key for encryption/authentication."""
-    if keyring is None:
-        keyring = AGENT_KEYS
+    resolved_keyring = _get_keyring(keyring)
 
-    if key_material is None and sender and sender in keyring:
-        key_material = keyring[sender]
+    if key_material is None and sender and sender in resolved_keyring:
+        key_material = resolved_keyring[sender]
 
     if key_material is None:
         key_material = "local-dev-key"
@@ -195,14 +213,18 @@ def _derive_key(key_material: Any, sender: Optional[str], keyring: Optional[Dict
     else:
         base_secret = str(key_material).encode("utf-8")
 
-    return hashlib.pbkdf2_hmac("sha256", base_secret, b"lthread-v2-master", 12000, dklen=32)
+    return hashlib.pbkdf2_hmac("sha256", base_secret, b"lthread-v2-master", 600_000, dklen=32)
 
 
 def _derive_subkeys(master_key: bytes) -> tuple[bytes, bytes]:
     """Derive independent keys for stream generation and MAC."""
-    enc_key = hmac.new(master_key, b"enc", hashlib.sha256).digest()
-    mac_key = hmac.new(master_key, b"mac", hashlib.sha256).digest()
+    enc_key = hmac.digest(master_key, b"lthread-v2/subkey/encryption", "sha256")
+    mac_key = hmac.digest(master_key, b"lthread-v2/subkey/authentication", "sha256")
     return enc_key, mac_key
+
+
+def _build_aad(target_device: Any, sender: str, ts: int) -> bytes:
+    return f"{target_device or ''}|{sender}|{ts}".encode("utf-8")
 
 
 def encrypt_and_sign(data: Any, key: Any = None, **kwargs) -> bytes:
@@ -210,7 +232,7 @@ def encrypt_and_sign(data: Any, key: Any = None, **kwargs) -> bytes:
     Create a signed encrypted envelope as JSON bytes.
     """
     target_device = kwargs.get("target_device", key)
-    sender = kwargs.get("sender", "unknown_agent")
+    sender = str(kwargs.get("sender", "unknown_agent"))
     ts = int(kwargs.get("ts", time.time()))
 
     keyring = kwargs.get("agent_keys")
@@ -235,8 +257,8 @@ def encrypt_and_sign(data: Any, key: Any = None, **kwargs) -> bytes:
         for i, b in enumerate(chunk):
             ciphertext[offset + i] = b ^ stream_block[i]
 
-    aad = f"{target_device or ''}|{sender}|{ts}".encode("utf-8")
-    mac = hmac.new(mac_key, nonce + aad + bytes(ciphertext), hashlib.sha256).digest()
+    aad = _build_aad(target_device, sender, ts)
+    mac = hmac.digest(mac_key, nonce + aad + bytes(ciphertext), "sha256")
 
     return json.dumps({
         "v": 2,
@@ -246,7 +268,7 @@ def encrypt_and_sign(data: Any, key: Any = None, **kwargs) -> bytes:
         "tag": base64.b64encode(mac).decode("ascii"),
         "ts": ts,
         "sender": sender,
-        "_synthetic_target": target_device
+        "_synthetic_target": target_device,
     }).encode("utf-8")
 
 
@@ -273,6 +295,7 @@ def send_package(package: Any, destination: str, **kwargs) -> str:
 def get_current_snapshot(user_id: str) -> Dict[str, Any]:
     """Возвращает текущий снимок Amygdala для синхронизации."""
     from codex.causal_memory.memory import MemoryService
+
     service = MemoryService(user_id=user_id)
     return service.load() or {}
 
@@ -302,6 +325,18 @@ def start_bloodstream_sync(user_id: str, peers: List[str]):
     logger.info(f"Starting bloodstream sync for {user_id} with {peers}")
 
 
+def _register_nonce(sender: str, nonce_b64: str) -> bool:
+    """Register nonce in replay cache, returns False if already seen."""
+    with _REPLAY_CACHE_LOCK:
+        replay_key = (sender, nonce_b64)
+        if replay_key in _REPLAY_CACHE:
+            return False
+        _REPLAY_CACHE[replay_key] = None
+        if len(_REPLAY_CACHE) > _REPLAY_CACHE_MAX:
+            _REPLAY_CACHE.popitem(last=False)
+        return True
+
+
 def verify_and_decrypt(package_path: str, **kwargs) -> tuple[bool, Any]:
     """
     Verify package integrity and decrypt payload.
@@ -310,6 +345,7 @@ def verify_and_decrypt(package_path: str, **kwargs) -> tuple[bool, Any]:
     now_ts = int(kwargs.get("now_ts", time.time()))
     max_skew_seconds = int(kwargs.get("max_skew_seconds", 30))
     enforce_replay_protection = kwargs.get("enforce_replay_protection", True)
+    allow_legacy_v1 = kwargs.get("allow_legacy_v1", False)
 
     try:
         data = Path(package_path).read_bytes()
@@ -317,11 +353,16 @@ def verify_and_decrypt(package_path: str, **kwargs) -> tuple[bool, Any]:
 
         if current_device_id and "_synthetic_target" in package:
             if package["_synthetic_target"] != current_device_id:
-                logger.warning(f"Synthetic device ID mismatch: {package['_synthetic_target']} != {current_device_id}")
+                logger.warning(
+                    f"Synthetic device ID mismatch: {package['_synthetic_target']} != {current_device_id}"
+                )
                 return False, None
 
         ct = package.get("ct", "")
         if isinstance(ct, str) and ct.startswith("enc:"):
+            if not allow_legacy_v1:
+                logger.warning("Legacy v1 package rejected: allow_legacy_v1=False")
+                return False, None
             payload_str = ct[4:]
             try:
                 return True, json.loads(payload_str)
@@ -336,35 +377,32 @@ def verify_and_decrypt(package_path: str, **kwargs) -> tuple[bool, Any]:
         if sender is None or ts is None:
             logger.warning("Missing sender/ts in package")
             return False, None
+        sender = str(sender)
+        ts = int(ts)
 
-        if abs(now_ts - int(ts)) > max_skew_seconds:
+        if abs(now_ts - ts) > max_skew_seconds:
             logger.warning("Package timestamp outside allowed skew")
             return False, None
 
         keyring = kwargs.get("agent_keys")
         key_material = kwargs.get("shared_key")
-        if key_material is None and not (keyring is None and sender in AGENT_KEYS) and not (keyring and sender in keyring):
+        if key_material is None and current_device_id and not _get_keyring(keyring).get(sender):
             key_material = current_device_id
+
         master_key = _derive_key(key_material, sender, keyring)
         enc_key, mac_key = _derive_subkeys(master_key)
 
-
         nonce_b64 = package["nonce"]
-        if enforce_replay_protection:
-            replay_key = (str(sender), nonce_b64)
-            if replay_key in _REPLAY_CACHE:
-                logger.warning("Replay attack detected: duplicate nonce")
-                return False, None
-            if len(_REPLAY_CACHE) >= _REPLAY_CACHE_MAX:
-                _REPLAY_CACHE.clear()
-            _REPLAY_CACHE.add(replay_key)
+        if enforce_replay_protection and not _register_nonce(sender, nonce_b64):
+            logger.warning("Replay attack detected: duplicate nonce")
+            return False, None
 
         nonce = base64.b64decode(nonce_b64)
         ciphertext = base64.b64decode(package["ct"])
         tag = base64.b64decode(package["tag"])
 
-        aad = f"{package.get('_synthetic_target') or ''}|{sender}|{ts}".encode("utf-8")
-        expected_tag = hmac.new(mac_key, nonce + aad + ciphertext, hashlib.sha256).digest()
+        aad = _build_aad(package.get("_synthetic_target"), sender, ts)
+        expected_tag = hmac.digest(mac_key, nonce + aad + ciphertext, "sha256")
         if not hmac.compare_digest(tag, expected_tag):
             logger.warning("Package signature verification failed")
             return False, None
@@ -374,7 +412,7 @@ def verify_and_decrypt(package_path: str, **kwargs) -> tuple[bool, Any]:
         for offset in range(0, len(ciphertext), block_size):
             counter = (offset // block_size).to_bytes(4, "big")
             stream_block = hashlib.blake2s(enc_key + nonce + counter).digest()
-            chunk = ciphertext[offset:offset + block_size]
+            chunk = ciphertext[offset : offset + block_size]
             for i, b in enumerate(chunk):
                 plaintext[offset + i] = b ^ stream_block[i]
 
