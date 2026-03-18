@@ -46,6 +46,11 @@ class AudioWorker(QThread):
         return None, None
 
     def run(self):
+        """Entry point for the QThread.
+
+        Creates a PyAudio instance and delegates to ``_run_with_pyaudio``,
+        guaranteeing ``p.terminate()`` runs even on early return or exception.
+        """
         self.status_update.emit("Audio: initializing")
         p = pyaudio.PyAudio()
         try:
@@ -54,6 +59,12 @@ class AudioWorker(QThread):
             p.terminate()
 
     def _run_with_pyaudio(self, p):
+        """Core audio capture loop using the given PyAudio instance.
+
+        Finds a preferred input device, opens a stream, transcribes audio in
+        a loop, and emits ``text_ready`` when a question is detected.
+        The caller is responsible for calling ``p.terminate()``.
+        """
         dev_idx, dev_info = self._find_preferred_device(p)
         if dev_idx is None:
             self.status_update.emit("Audio: no input devices found")
@@ -117,7 +128,6 @@ class AudioWorker(QThread):
 
         stream.stop_stream()
         stream.close()
-        p.terminate()
 
     def stop(self):
         self.running = False

@@ -103,7 +103,30 @@ class LanguageModel:
 
     def _generate(self, question: str, *, cancel_event=None, messages: Optional[list[dict]] = None,
                   stream: bool = False, on_token=None, label: str = "local") -> Optional[str]:
-        """Core generation logic shared by local and cloud paths."""
+        """Core generation logic shared by local and cloud paths.
+
+        Sends the question through prompt composition and the QwenHandler,
+        applying circuit-breaker protection, cancellation checks, and
+        optional streaming callbacks.
+
+        Args:
+            question: The user question to answer.
+            cancel_event: Optional threading.Event; if set, generation aborts.
+            messages: Optional conversation history for context.
+            stream: If True, invokes on_token for each generated token.
+            on_token: Callback ``(str) -> None`` invoked per token when streaming.
+            label: ``"local"`` or ``"cloud"``; controls fallback eligibility
+                   and log messages.
+
+        Returns:
+            The generated response string, or None if cancelled / failed.
+
+        Known limitations:
+            - Fallback is only attempted when ``label="local"`` and
+              ``fallback_model != primary_model``. Cloud fallback can be
+              enabled by passing ``label="cloud"`` once a cloud fallback
+              model is configured.
+        """
         prompt = ""
         active_messages = _compress_messages_for_hint(messages) if os.getenv("WHISPER_MODE", "0") == "1" else messages
         try:
@@ -145,18 +168,38 @@ class LanguageModel:
             else:
                 logger.error("Error generating %s response (%s): %s", label, err.kind, err)
 
-            # Fallback only for local mode
-            if label == "local" and self.fallback_model != self.primary_model:
-                return self._try_fallback(prompt, active_messages, stream, on_token)
+            if self.fallback_model != self.primary_model:
+                return self._try_fallback(prompt, active_messages, stream, on_token, label=label)
             return None
 
-    def _try_fallback(self, prompt: str, active_messages, stream: bool, on_token) -> Optional[str]:
-        """Attempt generation with the fallback model."""
+    def _try_fallback(self, prompt: str, active_messages, stream: bool, on_token,
+                      *, label: str = "local") -> Optional[str]:
+        """Attempt generation with the fallback model.
+
+        Temporarily swaps ``qwen_handler.model_name`` to ``fallback_model``,
+        attempts generation, and promotes the fallback to primary on success.
+        On failure the original model is restored.
+
+        Args:
+            prompt: The already-composed prompt string.
+            active_messages: Conversation history (possibly compressed).
+            stream: Whether to stream tokens.
+            on_token: Streaming callback.
+            label: ``"local"`` or ``"cloud"``; used only for logging.
+
+        Returns:
+            The fallback response string, or None on failure.
+
+        Known limitations:
+            - On success, ``primary_model`` is permanently updated to
+              ``fallback_model`` for the lifetime of this instance.
+        """
         current_model = self.qwen_handler.model_name
         fallback_succeeded = False
         try:
             logger.warning(
-                "Primary model %s failed, switching to fallback %s",
+                "%s: primary model %s failed, switching to fallback %s",
+                label,
                 self.primary_model,
                 self.fallback_model,
             )
@@ -174,11 +217,19 @@ class LanguageModel:
         return None
 
     def generate_response_local(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
-        """Generate response using local Ollama Qwen."""
+        """Generate response using the local Ollama backend.
+
+        Delegates to ``_generate(label="local")``, which enables model
+        fallback on failure.
+        """
         return self._generate(question, cancel_event=cancel_event, messages=messages, stream=stream, on_token=on_token, label="local")
 
     def generate_response_cloud(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
-        """Generate response using cloud Qwen API."""
+        """Generate response using the cloud Qwen API.
+
+        Delegates to ``_generate(label="cloud")``. Fallback is attempted
+        when ``fallback_model != primary_model``.
+        """
         return self._generate(question, cancel_event=cancel_event, messages=messages, stream=stream, on_token=on_token, label="cloud")
     
     def generate_response(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:

@@ -159,15 +159,28 @@ class HybridVAD:
 
 # Memory-efficient audio buffer
 class AudioRingBuffer:
-    """Efficient ring buffer for audio data"""
-    
+    """Fixed-capacity ring buffer for audio chunks backed by ``collections.deque``.
+
+    Oldest entries are automatically evicted when ``max_chunks`` is exceeded.
+    All append/evict operations are O(1).
+
+    Use when buffering a sliding window of recent audio for STT or VAD.
+
+    Known limitations:
+        - Not thread-safe; callers must synchronize externally if
+          accessed from multiple threads.
+    """
+
     def __init__(self, max_chunks: int = 100):
         self.max_chunks = max_chunks
         self.chunks: collections.deque = collections.deque(maxlen=max_chunks)
         self.timestamps: collections.deque = collections.deque(maxlen=max_chunks)
 
     def add_chunk(self, audio_data: np.ndarray, timestamp: float, is_voice: bool):
-        """Add audio chunk to buffer"""
+        """Append a chunk, evicting the oldest if at capacity.
+
+        ``audio_data`` is copied to prevent aliasing issues with reused buffers.
+        """
         chunk_info = {
             'data': audio_data.copy(),  # Copy to prevent reference issues
             'timestamp': timestamp,
@@ -178,11 +191,15 @@ class AudioRingBuffer:
         self.timestamps.append(timestamp)
     
     def get_voice_chunks(self) -> List[np.ndarray]:
-        """Get only voice-active chunks"""
+        """Return audio data arrays for chunks where ``is_voice`` is True."""
         return [chunk['data'] for chunk in self.chunks if chunk['is_voice']]
     
     def get_recent_chunks(self, duration_ms: int, sample_rate: int = 16000) -> List[np.ndarray]:
-        """Get chunks from recent duration"""
+        """Return up to ``duration_ms`` milliseconds of recent audio data.
+
+        Works backwards through chunks and concatenates into a single array.
+        Returns fewer samples than requested if the buffer is underfilled.
+        """
         samples_needed = int(duration_ms * sample_rate / 1000)
         recent_data = []
         
