@@ -101,8 +101,9 @@ class LanguageModel:
     def _is_cancelled(self, cancel_event) -> bool:
         return cancel_event is not None and getattr(cancel_event, "is_set", lambda: False)()
 
-    def generate_response_local(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
-        """Generate response using local Ollama Qwen"""
+    def _generate(self, question: str, *, cancel_event=None, messages: Optional[list[dict]] = None,
+                  stream: bool = False, on_token=None, label: str = "local") -> Optional[str]:
+        """Core generation logic shared by local and cloud paths."""
         prompt = ""
         active_messages = _compress_messages_for_hint(messages) if os.getenv("WHISPER_MODE", "0") == "1" else messages
         try:
@@ -118,9 +119,9 @@ class LanguageModel:
                     self.breaker.before_call()
                 except CircuitOpenError:
                     return "LLM temporarily unavailable. Please try again later."
-            
-            logger.debug(f"Sending to Qwen: {question[:50]}...")
-            
+
+            logger.debug("Sending to Qwen (%s): %s...", label, question[:50])
+
             response = self.qwen_handler.generate_response(prompt, messages=active_messages, stream=stream, on_token=on_token)
             if response is None or (isinstance(response, str) and not response.strip()):
                 raise LLMEmptyResponseError()
@@ -131,10 +132,10 @@ class LanguageModel:
                 self.breaker.after_success()
             if self._is_cancelled(cancel_event):
                 return None
-             
-            logger.info(f"Generated response: {response[:100]}...")
+
+            logger.info("Generated %s response: %s...", label, response[:100])
             return response
-                 
+
         except Exception as exc:
             err = as_llm_error(exc)
             if self.breaker and err.trip_breaker:
@@ -142,72 +143,43 @@ class LanguageModel:
             if isinstance(err, LLMEmptyResponseError):
                 logger.warning(str(err))
             else:
-                logger.error(f"Error generating local response ({err.kind}): {err}")
+                logger.error("Error generating %s response (%s): %s", label, err.kind, err)
 
-            if self.fallback_model != self.primary_model:
-                current_model = self.qwen_handler.model_name
-                fallback_succeeded = False
-                try:
-                    logger.warning(
-                        "Primary model %s failed, switching to fallback %s",
-                        self.primary_model,
-                        self.fallback_model,
-                    )
-                    self.qwen_handler.model_name = self.fallback_model
-                    fallback_response = self.qwen_handler.generate_response(prompt, messages=active_messages, stream=stream, on_token=on_token)
-                    if isinstance(fallback_response, str) and fallback_response.strip():
-                        self.primary_model = self.fallback_model
-                        fallback_succeeded = True
-                        return fallback_response
-                except Exception as fallback_exc:
-                    logger.error("Fallback model %s also failed: %s", self.fallback_model, fallback_exc)
-                finally:
-                    if not fallback_succeeded:
-                        self.qwen_handler.model_name = current_model
+            # Fallback only for local mode
+            if label == "local" and self.fallback_model != self.primary_model:
+                return self._try_fallback(prompt, active_messages, stream, on_token)
             return None
-    
-    def generate_response_cloud(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
-        """Generate response using cloud Qwen API"""
-        active_messages = _compress_messages_for_hint(messages) if os.getenv("WHISPER_MODE", "0") == "1" else messages
+
+    def _try_fallback(self, prompt: str, active_messages, stream: bool, on_token) -> Optional[str]:
+        """Attempt generation with the fallback model."""
+        current_model = self.qwen_handler.model_name
+        fallback_succeeded = False
         try:
-            if self._is_cancelled(cancel_event):
-                return None
-            prompt = self._compose_prompt(question)
+            logger.warning(
+                "Primary model %s failed, switching to fallback %s",
+                self.primary_model,
+                self.fallback_model,
+            )
+            self.qwen_handler.model_name = self.fallback_model
+            fallback_response = self.qwen_handler.generate_response(prompt, messages=active_messages, stream=stream, on_token=on_token)
+            if isinstance(fallback_response, str) and fallback_response.strip():
+                self.primary_model = self.fallback_model
+                fallback_succeeded = True
+                return fallback_response
+        except Exception as fallback_exc:
+            logger.error("Fallback model %s also failed: %s", self.fallback_model, fallback_exc)
+        finally:
+            if not fallback_succeeded:
+                self.qwen_handler.model_name = current_model
+        return None
 
-            if self._is_cancelled(cancel_event):
-                return None
+    def generate_response_local(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
+        """Generate response using local Ollama Qwen."""
+        return self._generate(question, cancel_event=cancel_event, messages=messages, stream=stream, on_token=on_token, label="local")
 
-            if self.breaker:
-                try:
-                    self.breaker.before_call()
-                except CircuitOpenError:
-                    return "LLM temporarily unavailable. Please try again later."
-            
-            logger.debug(f"Sending to Qwen Cloud: {question[:50]}...")
-            
-            response = self.qwen_handler.generate_response(prompt, messages=active_messages, stream=stream, on_token=on_token)
-            if response is None or (isinstance(response, str) and not response.strip()):
-                raise LLMEmptyResponseError()
-            if not isinstance(response, str):
-                raise LLMInvalidFormatError("Expected string response")
-
-            if self.breaker:
-                self.breaker.after_success()
-            if self._is_cancelled(cancel_event):
-                return None
-             
-            logger.info(f"Generated cloud response: {response[:100]}...")
-            return response
-                 
-        except Exception as exc:
-            err = as_llm_error(exc)
-            if self.breaker and err.trip_breaker:
-                self.breaker.after_failure(err)
-            if isinstance(err, LLMEmptyResponseError):
-                logger.warning(str(err))
-            else:
-                logger.error(f"Error generating cloud response ({err.kind}): {err}")
-            return None
+    def generate_response_cloud(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
+        """Generate response using cloud Qwen API."""
+        return self._generate(question, cancel_event=cancel_event, messages=messages, stream=stream, on_token=on_token, label="cloud")
     
     def generate_response(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
         """Generate response using either local or cloud LLM"""
@@ -267,7 +239,6 @@ class LanguageModel:
                     
                     if item['type'] == 'question':
                         question = item['text']
-                        item['timestamp']
                         
                         logger.info(f"Processing question: {question}")
                         

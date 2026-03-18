@@ -197,7 +197,7 @@ class SpeechToText:
         while not self.input_queue.empty():
             try:
                 self.input_queue.get_nowait()
-            except Exception:
+            except queue.Empty:
                 break
                 
         logger.info("Speech-to-Text module stopped")

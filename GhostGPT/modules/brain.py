@@ -1,6 +1,9 @@
-﻿from openai import OpenAI
+﻿import logging
+from openai import OpenAI
 import config
 from typing import List, Dict
+
+logger = logging.getLogger(__name__)
 
 
 class Brain:
@@ -17,8 +20,8 @@ class Brain:
                     api_key=config.GROQ_API_KEY,
                     timeout=120.0,
                 )
-            except Exception:
-                print("Groq connect failed")
+            except Exception as e:
+                logger.error("Groq connect failed: %s", e)
 
     def estimate_tokens(self, text: str) -> int:
         """Rough token estimation (1 token ~ 4 characters)"""
@@ -35,7 +38,7 @@ class Brain:
 
         if total_tokens > self.max_history_tokens:
             self.dialogue_history = self.dialogue_history[-8:]
-            print("Trimmed history to prevent context overflow")
+            logger.info("Trimmed history to prevent context overflow")
 
     def add_to_history(self, role: str, content: str):
         """Add message to dialogue history"""
@@ -81,4 +84,4 @@ class Brain:
         """Clear dialogue history"""
         self.dialogue_history.clear()
         self.current_tokens = 0
-        print("Dialogue history cleared")
+        logger.info("Dialogue history cleared")

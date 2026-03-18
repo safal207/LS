@@ -1,8 +1,11 @@
-﻿import pyaudio
+﻿import logging
+import pyaudio
 import numpy as np
 from faster_whisper import WhisperModel
 from PyQt6.QtCore import QThread, pyqtSignal
 import config
+
+logger = logging.getLogger(__name__)
 
 
 class AudioWorker(QThread):
@@ -33,7 +36,8 @@ class AudioWorker(QThread):
         try:
             info = p.get_default_input_device_info()
             return info['index'], info
-        except Exception:
+        except Exception as e:
+            logger.warning("Default input device unavailable: %s", e)
             for i in range(p.get_device_count()):
                 info = p.get_device_info_by_index(i)
                 if info.get('maxInputChannels', 0) > 0:
@@ -44,7 +48,12 @@ class AudioWorker(QThread):
     def run(self):
         self.status_update.emit("Audio: initializing")
         p = pyaudio.PyAudio()
+        try:
+            self._run_with_pyaudio(p)
+        finally:
+            p.terminate()
 
+    def _run_with_pyaudio(self, p):
         dev_idx, dev_info = self._find_preferred_device(p)
         if dev_idx is None:
             self.status_update.emit("Audio: no input devices found")
@@ -84,7 +93,8 @@ class AudioWorker(QThread):
                     dev_info = info
                     self.status_update.emit(f"Audio: using {info.get('name', 'device')} (index {i})")
                     break
-                except Exception:
+                except Exception as e:
+                    logger.debug("Device %d failed: %s", i, e)
                     continue
 
         if stream is None:

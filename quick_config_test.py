@@ -41,7 +41,7 @@ def test_current_setup():
     # Test 4: Check Qwen handler
     print("\n4. Qwen Handler:")
     try:
-        from qwen_handler import QwenHandler
+        from llm.qwen_handler import QwenHandler
         handler = QwenHandler(use_cloud_api=False)
         print("   ✅ QwenHandler imported successfully")
         print("   ✅ Local mode ready")

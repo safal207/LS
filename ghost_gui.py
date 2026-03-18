@@ -16,11 +16,11 @@ from PyQt6.QtCore import Qt, QPoint, QTimer, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QMouseEvent, QPalette, QColor
 
 # Import our backend modules
-from audio_module import AudioIngestion
-from stt_module import SpeechToText
-from llm_module import LanguageModel
+from audio.audio_module import AudioIngestion
+from stt.stt_module import SpeechToText
+from llm.llm_module import LanguageModel
 from config import SYSTEM_PROMPT
-from utils import check_system_resources
+from shared.utils import check_system_resources
 
 class BackendController(QObject):
     """Controller that manages all backend modules"""
@@ -310,15 +310,16 @@ class GhostWindow(QMainWindow):
         
     def toggle_pause(self):
         """Toggle pause/resume functionality"""
-        # TODO: Implement actual pause/resume logic
         if "Pause" in self.pause_button.text():
             self.pause_button.setText("▶ Resume")
             self.update_status("⏸ Paused")
-            # Here you would pause the backend
+            if hasattr(self, 'backend'):
+                self.backend.stop_backend()
         else:
             self.pause_button.setText("⏸ Pause")
             self.update_status("🎧 Listening")
-            # Here you would resume the backend
+            if hasattr(self, 'backend'):
+                self.backend.start_backend()
             
     def toggle_visibility(self):
         """Toggle window visibility"""
@@ -393,7 +394,7 @@ def main():
             ram_bars = "●" * int(ram_percent/20) + "○" * (5 - int(ram_percent/20))
             
             window.system_info.setText(f"CPU: {cpu_bars}  RAM: {ram_bars}")
-        except:
+        except Exception:
             pass
     
     # Update system info every 2 seconds
