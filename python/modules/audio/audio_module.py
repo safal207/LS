@@ -19,15 +19,27 @@ logger = logging.getLogger(__name__)
 
 class AudioIngestion:
     def __init__(self, output_queue: queue.Queue):
+        """Initialize audio ingestion.
+
+        The PyAudio instance is created lazily in :meth:`start_stream` to avoid
+        resource leaks when the module is instantiated but never started.
+        Callers must invoke :meth:`stop` (or use :meth:`run`, which calls it
+        automatically) to release resources.
+        """
         self.output_queue = output_queue
-        self.p = pyaudio.PyAudio()
+        self.p: Optional[pyaudio.PyAudio] = None
         self.stream = None
         self.running = False
         self.device_index = None
         self.chunk_size = int(SAMPLE_RATE * AUDIO_CHUNK_DURATION)
 
     def find_vb_cable_device(self) -> Optional[int]:
-        """Find VB-Cable output device index"""
+        """Find VB-Cable output device index.
+
+        Searches for devices with 'cable' and 'output' or 'vb-audio' in their
+        name.  Falls back to any device containing 'cable'.  Returns ``None``
+        if no match is found.
+        """
         try:
             for i in range(self.p.get_device_count()):
                 info = self.p.get_device_info_by_index(i)
@@ -114,8 +126,15 @@ class AudioIngestion:
             return ""
 
     def start_stream(self) -> bool:
-        """Initialize and start audio stream"""
+        """Initialize PyAudio (if needed) and start the audio capture stream.
+
+        Returns:
+            ``True`` on success, ``False`` if no suitable device is found or
+            the stream cannot be opened.
+        """
         try:
+            if self.p is None:
+                self.p = pyaudio.PyAudio()
             self.device_index = self.find_vb_cable_device()
 
             if self.device_index is None:
@@ -208,7 +227,11 @@ class AudioIngestion:
             logger.error(f"Failed to restart stream: {e}")
 
     def stop(self):
-        """Stop audio capture"""
+        """Stop audio capture and release all PyAudio resources.
+
+        Safe to call multiple times or even if :meth:`start_stream` was never
+        invoked.
+        """
         logger.info("Stopping Audio Ingestion module")
         self.running = False
 
@@ -218,11 +241,14 @@ class AudioIngestion:
                 self.stream.close()
             except Exception:
                 pass
+            self.stream = None
 
-        try:
-            self.p.terminate()
-        except Exception:
-            pass
+        if self.p is not None:
+            try:
+                self.p.terminate()
+            except Exception:
+                pass
+            self.p = None
 
         logger.info("Audio Ingestion module stopped")
 

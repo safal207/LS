@@ -18,6 +18,15 @@ class AudioWorker(QThread):
         self.model = WhisperModel("base", device="cpu", compute_type="int8")
 
     def _find_preferred_device(self, p):
+        """Find the best available input device for audio capture.
+
+        Preference order: VB-Cable output device > any VB-Cable device >
+        default input device > first device with input channels.
+
+        Returns:
+            Tuple of ``(device_index, device_info)`` or ``(None, None)`` if
+            no suitable device is found.
+        """
         candidates = []
         for i in range(p.get_device_count()):
             info = p.get_device_info_by_index(i)
@@ -54,6 +63,11 @@ class AudioWorker(QThread):
             p.terminate()
 
     def _run_with_pyaudio(self, p):
+        """Core audio capture loop.  Caller owns *p* and must call ``p.terminate()``.
+
+        Opens a stream, reads chunks, transcribes, and emits detected
+        questions.  Stream is always closed via try/finally.
+        """
         dev_idx, dev_info = self._find_preferred_device(p)
         if dev_idx is None:
             self.status_update.emit("Audio: no input devices found")
@@ -101,23 +115,23 @@ class AudioWorker(QThread):
             self.status_update.emit("Audio: no working input device")
             return
 
-        while self.running:
-            frames = []
-            for _ in range(0, int(config.SAMPLE_RATE / 4096 * config.CHUNK_DURATION)):
-                data = stream.read(4096, exception_on_overflow=False)
-                frames.append(np.frombuffer(data, dtype=np.int16))
+        try:
+            while self.running:
+                frames = []
+                for _ in range(0, int(config.SAMPLE_RATE / 4096 * config.CHUNK_DURATION)):
+                    data = stream.read(4096, exception_on_overflow=False)
+                    frames.append(np.frombuffer(data, dtype=np.int16))
 
-            audio = np.concatenate(frames).astype(np.float32) / 32768.0
+                audio = np.concatenate(frames).astype(np.float32) / 32768.0
 
-            segments, _ = self.model.transcribe(audio, language="ru", beam_size=1)
-            text = " ".join([s.text for s in segments]).strip()
+                segments, _ = self.model.transcribe(audio, language="ru", beam_size=1)
+                text = " ".join([s.text for s in segments]).strip()
 
-            if len(text) > 10 and "?" in text:
-                self.text_ready.emit(text)
-
-        stream.stop_stream()
-        stream.close()
-        p.terminate()
+                if len(text) > 10 and "?" in text:
+                    self.text_ready.emit(text)
+        finally:
+            stream.stop_stream()
+            stream.close()
 
     def stop(self):
         self.running = False
