@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 #[pyclass]
@@ -65,12 +65,20 @@ impl ChannelKind {
     }
 }
 
+/// Transport handle with reduced lock contention:
+/// - `channels`: `RwLock` — reads dominate (stats, routing lookups)
+/// - `state_queues` / `knowledge_queues` / `control_queues`: separate `Mutex` per kind —
+///   prevents cross-kind contention when State, Knowledge, and Control channels are
+///   operating concurrently.
+/// - `sessions`: `Mutex` — session lifecycle is infrequent, single lock is sufficient.
 #[pyclass]
 pub struct TransportHandle {
     config: TransportConfig,
     next_id: AtomicU64,
-    channels: Mutex<HashMap<u64, ChannelInfo>>,
-    queues: Mutex<HashMap<u64, VecDeque<Vec<u8>>>>,
+    channels: RwLock<HashMap<u64, ChannelInfo>>,
+    state_queues: Mutex<HashMap<u64, VecDeque<Vec<u8>>>>,
+    knowledge_queues: Mutex<HashMap<u64, VecDeque<Vec<u8>>>>,
+    control_queues: Mutex<HashMap<u64, VecDeque<Vec<u8>>>>,
     sessions: Mutex<HashMap<u64, PeerSession>>,
 }
 
@@ -93,6 +101,29 @@ struct PeerSession {
 type ChannelStats = (String, Option<u64>, usize, u64, u64, u64, u64);
 type ChannelStatsEntry = (u64, String, Option<u64>, usize, u64, u64, u64, u64);
 
+impl TransportHandle {
+    /// Returns the queue length for a channel from the appropriate per-kind queue.
+    fn queue_len_for(&self, channel: u64, kind: ChannelKind) -> PyResult<usize> {
+        match kind {
+            ChannelKind::State => {
+                let q = self.state_queues.lock()
+                    .map_err(|_| PyRuntimeError::new_err("state queue lock poisoned"))?;
+                Ok(q.get(&channel).map(|v| v.len()).unwrap_or(0))
+            }
+            ChannelKind::Knowledge => {
+                let q = self.knowledge_queues.lock()
+                    .map_err(|_| PyRuntimeError::new_err("knowledge queue lock poisoned"))?;
+                Ok(q.get(&channel).map(|v| v.len()).unwrap_or(0))
+            }
+            ChannelKind::Control => {
+                let q = self.control_queues.lock()
+                    .map_err(|_| PyRuntimeError::new_err("control queue lock poisoned"))?;
+                Ok(q.get(&channel).map(|v| v.len()).unwrap_or(0))
+            }
+        }
+    }
+}
+
 #[pymethods]
 impl TransportHandle {
     #[new]
@@ -100,8 +131,10 @@ impl TransportHandle {
         Self {
             config,
             next_id: AtomicU64::new(1),
-            channels: Mutex::new(HashMap::new()),
-            queues: Mutex::new(HashMap::new()),
+            channels: RwLock::new(HashMap::new()),
+            state_queues: Mutex::new(HashMap::new()),
+            knowledge_queues: Mutex::new(HashMap::new()),
+            control_queues: Mutex::new(HashMap::new()),
             sessions: Mutex::new(HashMap::new()),
         }
     }
@@ -139,29 +172,46 @@ impl TransportHandle {
             }
         }
         let channel_id = self.next_id.fetch_add(1, Ordering::SeqCst);
-        let mut channels = self
-            .channels
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
-        if channels.len() as u64 >= self.config.max_channels {
-            return Err(PyNotImplementedError::new_err("max channels exceeded"));
+        {
+            let mut channels = self
+                .channels
+                .write()
+                .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
+            if channels.len() as u64 >= self.config.max_channels {
+                return Err(PyNotImplementedError::new_err("max channels exceeded"));
+            }
+            channels.insert(
+                channel_id,
+                ChannelInfo {
+                    kind: channel_kind,
+                    session_id,
+                    sent_count: 0,
+                    recv_count: 0,
+                    sent_bytes: 0,
+                    recv_bytes: 0,
+                },
+            );
         }
-        channels.insert(
-            channel_id,
-            ChannelInfo {
-                kind: channel_kind,
-                session_id,
-                sent_count: 0,
-                recv_count: 0,
-                sent_bytes: 0,
-                recv_bytes: 0,
-            },
-        );
-        let mut queues = self
-            .queues
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
-        queues.insert(channel_id, VecDeque::new());
+        match channel_kind {
+            ChannelKind::State => {
+                self.state_queues
+                    .lock()
+                    .map_err(|_| PyRuntimeError::new_err("state queue lock poisoned"))?
+                    .insert(channel_id, VecDeque::new());
+            }
+            ChannelKind::Knowledge => {
+                self.knowledge_queues
+                    .lock()
+                    .map_err(|_| PyRuntimeError::new_err("knowledge queue lock poisoned"))?
+                    .insert(channel_id, VecDeque::new());
+            }
+            ChannelKind::Control => {
+                self.control_queues
+                    .lock()
+                    .map_err(|_| PyRuntimeError::new_err("control queue lock poisoned"))?
+                    .insert(channel_id, VecDeque::new());
+            }
+        }
         Ok(channel_id)
     }
 
@@ -176,7 +226,7 @@ impl TransportHandle {
         drop(sessions);
         let mut channels = self
             .channels
-            .lock()
+            .write()
             .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         let entry = channels
             .get_mut(&channel)
@@ -278,7 +328,7 @@ impl TransportHandle {
         let channel_info = {
             let channels = self
                 .channels
-                .lock()
+                .read()
                 .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
             channels
                 .get(&channel)
@@ -295,24 +345,44 @@ impl TransportHandle {
                 return Err(PyValueError::new_err("channel session closed"));
             }
         }
-        {
-            let mut queues = self
-                .queues
-                .lock()
-                .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
-            let queue = queues
-                .get_mut(&channel)
-                .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
-            if queue.len() >= self.config.max_queue_depth {
-                return Err(PyValueError::new_err("channel queue full"));
+
+        match channel_info.kind {
+            ChannelKind::State => {
+                let mut q = self.state_queues.lock()
+                    .map_err(|_| PyRuntimeError::new_err("state queue lock poisoned"))?;
+                let queue = q.get_mut(&channel)
+                    .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
+                if queue.len() >= self.config.max_queue_depth {
+                    return Err(PyValueError::new_err("channel queue full"));
+                }
+                queue.push_back(payload.to_vec());
             }
-            queue.push_back(payload.to_vec());
+            ChannelKind::Knowledge => {
+                let mut q = self.knowledge_queues.lock()
+                    .map_err(|_| PyRuntimeError::new_err("knowledge queue lock poisoned"))?;
+                let queue = q.get_mut(&channel)
+                    .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
+                if queue.len() >= self.config.max_queue_depth {
+                    return Err(PyValueError::new_err("channel queue full"));
+                }
+                queue.push_back(payload.to_vec());
+            }
+            ChannelKind::Control => {
+                let mut q = self.control_queues.lock()
+                    .map_err(|_| PyRuntimeError::new_err("control queue lock poisoned"))?;
+                let queue = q.get_mut(&channel)
+                    .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
+                if queue.len() >= self.config.max_queue_depth {
+                    return Err(PyValueError::new_err("channel queue full"));
+                }
+                queue.push_back(payload.to_vec());
+            }
         }
 
         {
             let mut channels = self
                 .channels
-                .lock()
+                .write()
                 .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
             if let Some(info) = channels.get_mut(&channel) {
                 info.sent_count = info.sent_count.saturating_add(1);
@@ -326,7 +396,7 @@ impl TransportHandle {
         let channel_info = {
             let channels = self
                 .channels
-                .lock()
+                .read()
                 .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
             channels
                 .get(&channel)
@@ -343,21 +413,38 @@ impl TransportHandle {
                 return Err(PyValueError::new_err("channel session closed"));
             }
         }
-        let payload = {
-            let mut queues = self
-                .queues
-                .lock()
-                .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
-            let queue = queues
-                .get_mut(&channel)
-                .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
-            queue.pop_front().unwrap_or_default()
+
+        let payload = match channel_info.kind {
+            ChannelKind::State => {
+                let mut q = self.state_queues.lock()
+                    .map_err(|_| PyRuntimeError::new_err("state queue lock poisoned"))?;
+                q.get_mut(&channel)
+                    .ok_or_else(|| PyValueError::new_err("channel queue missing"))?
+                    .pop_front()
+                    .unwrap_or_default()
+            }
+            ChannelKind::Knowledge => {
+                let mut q = self.knowledge_queues.lock()
+                    .map_err(|_| PyRuntimeError::new_err("knowledge queue lock poisoned"))?;
+                q.get_mut(&channel)
+                    .ok_or_else(|| PyValueError::new_err("channel queue missing"))?
+                    .pop_front()
+                    .unwrap_or_default()
+            }
+            ChannelKind::Control => {
+                let mut q = self.control_queues.lock()
+                    .map_err(|_| PyRuntimeError::new_err("control queue lock poisoned"))?;
+                q.get_mut(&channel)
+                    .ok_or_else(|| PyValueError::new_err("channel queue missing"))?
+                    .pop_front()
+                    .unwrap_or_default()
+            }
         };
 
         if !payload.is_empty() {
             let mut channels = self
                 .channels
-                .lock()
+                .write()
                 .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
             if let Some(info) = channels.get_mut(&channel) {
                 info.recv_count = info.recv_count.saturating_add(1);
@@ -368,89 +455,136 @@ impl TransportHandle {
     }
 
     fn queue_len(&self, channel: u64) -> PyResult<usize> {
-        let channels = self
-            .channels
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
-        if !channels.contains_key(&channel) {
-            return Err(PyValueError::new_err("unknown channel"));
-        }
-        drop(channels);
-        let queues = self
-            .queues
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
-        queues
-            .get(&channel)
-            .map(|queue| queue.len())
-            .ok_or_else(|| PyValueError::new_err("channel queue missing"))
+        let kind = {
+            let channels = self
+                .channels
+                .read()
+                .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
+            channels
+                .get(&channel)
+                .map(|info| info.kind)
+                .ok_or_else(|| PyValueError::new_err("unknown channel"))?
+        };
+        self.queue_len_for(channel, kind)
     }
 
     fn drain(&self, channel: u64, max_items: Option<usize>) -> PyResult<Vec<Vec<u8>>> {
-        let channels = self
-            .channels
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
-        if !channels.contains_key(&channel) {
-            return Err(PyValueError::new_err("unknown channel"));
+        let kind = {
+            let channels = self
+                .channels
+                .read()
+                .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
+            channels
+                .get(&channel)
+                .map(|info| info.kind)
+                .ok_or_else(|| PyValueError::new_err("unknown channel"))?
+        };
+
+        macro_rules! drain_queue {
+            ($queue_map:expr, $err:literal) => {{
+                let mut q = $queue_map
+                    .lock()
+                    .map_err(|_| PyRuntimeError::new_err($err))?;
+                let queue = q
+                    .get_mut(&channel)
+                    .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
+                let limit = max_items.unwrap_or(queue.len());
+                let mut drained = Vec::with_capacity(limit.min(queue.len()));
+                for _ in 0..limit.min(queue.len()) {
+                    if let Some(payload) = queue.pop_front() {
+                        drained.push(payload);
+                    }
+                }
+                drained
+            }};
         }
-        drop(channels);
-        let mut queues = self
-            .queues
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
-        let queue = queues
-            .get_mut(&channel)
-            .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
-        let limit = max_items.unwrap_or(queue.len());
-        let mut drained = Vec::with_capacity(limit.min(queue.len()));
-        for _ in 0..limit.min(queue.len()) {
-            if let Some(payload) = queue.pop_front() {
-                drained.push(payload);
-            }
-        }
-        Ok(drained)
+
+        let result = match kind {
+            ChannelKind::State => drain_queue!(self.state_queues, "state queue lock poisoned"),
+            ChannelKind::Knowledge => drain_queue!(self.knowledge_queues, "knowledge queue lock poisoned"),
+            ChannelKind::Control => drain_queue!(self.control_queues, "control queue lock poisoned"),
+        };
+        Ok(result)
     }
 
     fn close_channel(&self, channel: u64) -> PyResult<()> {
-        let mut channels = self
-            .channels
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
-        channels.remove(&channel);
-        let mut queues = self
-            .queues
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
-        queues.remove(&channel);
+        let kind = {
+            let mut channels = self
+                .channels
+                .write()
+                .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
+            let kind = channels.get(&channel).map(|info| info.kind);
+            channels.remove(&channel);
+            kind
+        };
+        if let Some(kind) = kind {
+            match kind {
+                ChannelKind::State => {
+                    self.state_queues.lock()
+                        .map_err(|_| PyRuntimeError::new_err("state queue lock poisoned"))?
+                        .remove(&channel);
+                }
+                ChannelKind::Knowledge => {
+                    self.knowledge_queues.lock()
+                        .map_err(|_| PyRuntimeError::new_err("knowledge queue lock poisoned"))?
+                        .remove(&channel);
+                }
+                ChannelKind::Control => {
+                    self.control_queues.lock()
+                        .map_err(|_| PyRuntimeError::new_err("control queue lock poisoned"))?
+                        .remove(&channel);
+                }
+            }
+        }
         Ok(())
     }
 
     fn clear_channel(&self, channel: u64) -> PyResult<usize> {
-        let channels = self
-            .channels
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
-        if !channels.contains_key(&channel) {
-            return Err(PyValueError::new_err("unknown channel"));
+        let kind = {
+            let channels = self
+                .channels
+                .read()
+                .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
+            channels
+                .get(&channel)
+                .map(|info| info.kind)
+                .ok_or_else(|| PyValueError::new_err("unknown channel"))?
+        };
+        match kind {
+            ChannelKind::State => {
+                let mut q = self.state_queues.lock()
+                    .map_err(|_| PyRuntimeError::new_err("state queue lock poisoned"))?;
+                let queue = q.get_mut(&channel)
+                    .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
+                let cleared = queue.len();
+                queue.clear();
+                Ok(cleared)
+            }
+            ChannelKind::Knowledge => {
+                let mut q = self.knowledge_queues.lock()
+                    .map_err(|_| PyRuntimeError::new_err("knowledge queue lock poisoned"))?;
+                let queue = q.get_mut(&channel)
+                    .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
+                let cleared = queue.len();
+                queue.clear();
+                Ok(cleared)
+            }
+            ChannelKind::Control => {
+                let mut q = self.control_queues.lock()
+                    .map_err(|_| PyRuntimeError::new_err("control queue lock poisoned"))?;
+                let queue = q.get_mut(&channel)
+                    .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
+                let cleared = queue.len();
+                queue.clear();
+                Ok(cleared)
+            }
         }
-        drop(channels);
-        let mut queues = self
-            .queues
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
-        let queue = queues
-            .get_mut(&channel)
-            .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
-        let cleared = queue.len();
-        queue.clear();
-        Ok(cleared)
     }
 
     fn channel_info(&self, channel: u64) -> PyResult<(String, Option<u64>)> {
         let channels = self
             .channels
-            .lock()
+            .read()
             .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         let info = channels
             .get(&channel)
@@ -459,37 +593,32 @@ impl TransportHandle {
     }
 
     fn channel_stats(&self, channel: u64) -> PyResult<ChannelStats> {
-        let channels = self
-            .channels
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
-        let info = channels
-            .get(&channel)
-            .ok_or_else(|| PyValueError::new_err("unknown channel"))?;
-        let kind = info.kind.as_str().to_string();
-        let session_id = info.session_id;
-        let sent_count = info.sent_count;
-        let recv_count = info.recv_count;
-        let sent_bytes = info.sent_bytes;
-        let recv_bytes = info.recv_bytes;
-        drop(channels);
-        let queues = self
-            .queues
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
-        let queue_len = queues
-            .get(&channel)
-            .map(|queue| queue.len())
-            .ok_or_else(|| PyValueError::new_err("channel queue missing"))?;
+        let (kind, session_id, sent_count, recv_count, sent_bytes, recv_bytes) = {
+            let channels = self
+                .channels
+                .read()
+                .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
+            let info = channels
+                .get(&channel)
+                .ok_or_else(|| PyValueError::new_err("unknown channel"))?;
+            (info.kind, info.session_id, info.sent_count, info.recv_count, info.sent_bytes, info.recv_bytes)
+        };
+        let queue_len = self.queue_len_for(channel, kind)?;
         Ok((
-            kind, session_id, queue_len, sent_count, recv_count, sent_bytes, recv_bytes,
+            kind.as_str().to_string(),
+            session_id,
+            queue_len,
+            sent_count,
+            recv_count,
+            sent_bytes,
+            recv_bytes,
         ))
     }
 
     fn list_channels(&self) -> PyResult<Vec<(u64, String, Option<u64>)>> {
         let channels = self
             .channels
-            .lock()
+            .read()
             .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
         let mut snapshot = Vec::with_capacity(channels.len());
         for (channel_id, info) in channels.iter() {
@@ -499,59 +628,129 @@ impl TransportHandle {
     }
 
     fn list_channel_stats(&self) -> PyResult<Vec<ChannelStatsEntry>> {
-        let channels = self
-            .channels
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
-        let queues = self
-            .queues
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
-        let mut snapshot = Vec::with_capacity(channels.len());
-        for (channel_id, info) in channels.iter() {
-            let queue_len = queues.get(channel_id).map(|queue| queue.len()).unwrap_or(0);
-            snapshot.push((
-                *channel_id,
-                info.kind.as_str().to_string(),
-                info.session_id,
-                queue_len,
-                info.sent_count,
-                info.recv_count,
-                info.sent_bytes,
-                info.recv_bytes,
-            ));
+        // Snapshot channel metadata under read lock — no queue locks held simultaneously.
+        let channel_snapshot: Vec<(u64, ChannelInfo)> = {
+            let channels = self
+                .channels
+                .read()
+                .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
+            channels.iter().map(|(id, info)| (*id, info.clone())).collect()
+        };
+
+        // Collect per-kind channel IDs to minimize queue lock acquisitions.
+        let mut state_ids: Vec<u64> = Vec::new();
+        let mut knowledge_ids: Vec<u64> = Vec::new();
+        let mut control_ids: Vec<u64> = Vec::new();
+        for (id, info) in &channel_snapshot {
+            match info.kind {
+                ChannelKind::State => state_ids.push(*id),
+                ChannelKind::Knowledge => knowledge_ids.push(*id),
+                ChannelKind::Control => control_ids.push(*id),
+            }
         }
-        Ok(snapshot)
+
+        let mut queue_lens: HashMap<u64, usize> = HashMap::with_capacity(channel_snapshot.len());
+        {
+            let q = self.state_queues.lock()
+                .map_err(|_| PyRuntimeError::new_err("state queue lock poisoned"))?;
+            for id in &state_ids {
+                queue_lens.insert(*id, q.get(id).map(|v| v.len()).unwrap_or(0));
+            }
+        }
+        {
+            let q = self.knowledge_queues.lock()
+                .map_err(|_| PyRuntimeError::new_err("knowledge queue lock poisoned"))?;
+            for id in &knowledge_ids {
+                queue_lens.insert(*id, q.get(id).map(|v| v.len()).unwrap_or(0));
+            }
+        }
+        {
+            let q = self.control_queues.lock()
+                .map_err(|_| PyRuntimeError::new_err("control queue lock poisoned"))?;
+            for id in &control_ids {
+                queue_lens.insert(*id, q.get(id).map(|v| v.len()).unwrap_or(0));
+            }
+        }
+
+        let result = channel_snapshot
+            .into_iter()
+            .map(|(id, info)| {
+                let queue_len = *queue_lens.get(&id).unwrap_or(&0);
+                (
+                    id,
+                    info.kind.as_str().to_string(),
+                    info.session_id,
+                    queue_len,
+                    info.sent_count,
+                    info.recv_count,
+                    info.sent_bytes,
+                    info.recv_bytes,
+                )
+            })
+            .collect();
+        Ok(result)
     }
 
     fn close_session(&self, session_id: u64) -> PyResult<()> {
-        let mut sessions = self
-            .sessions
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("session lock poisoned"))?;
-        sessions.remove(&session_id);
-        drop(sessions);
-        let mut channels = self
-            .channels
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
-        let mut queues = self
-            .queues
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("queue lock poisoned"))?;
-        let to_remove: Vec<u64> = channels
-            .iter()
-            .filter_map(|(channel_id, info)| {
-                if info.session_id == Some(session_id) {
-                    Some(*channel_id)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        for channel_id in to_remove {
-            channels.remove(&channel_id);
-            queues.remove(&channel_id);
+        {
+            let mut sessions = self
+                .sessions
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("session lock poisoned"))?;
+            sessions.remove(&session_id);
+        }
+        // Collect channels belonging to this session along with their kinds, then remove them.
+        let to_remove: Vec<(u64, ChannelKind)> = {
+            let mut channels = self
+                .channels
+                .write()
+                .map_err(|_| PyRuntimeError::new_err("channel lock poisoned"))?;
+            let ids: Vec<(u64, ChannelKind)> = channels
+                .iter()
+                .filter_map(|(channel_id, info)| {
+                    if info.session_id == Some(session_id) {
+                        Some((*channel_id, info.kind))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            for (channel_id, _) in &ids {
+                channels.remove(channel_id);
+            }
+            ids
+        };
+        // Remove from per-kind queues — acquire each lock only once.
+        let mut state_ids: Vec<u64> = Vec::new();
+        let mut knowledge_ids: Vec<u64> = Vec::new();
+        let mut control_ids: Vec<u64> = Vec::new();
+        for (channel_id, kind) in to_remove {
+            match kind {
+                ChannelKind::State => state_ids.push(channel_id),
+                ChannelKind::Knowledge => knowledge_ids.push(channel_id),
+                ChannelKind::Control => control_ids.push(channel_id),
+            }
+        }
+        if !state_ids.is_empty() {
+            let mut q = self.state_queues.lock()
+                .map_err(|_| PyRuntimeError::new_err("state queue lock poisoned"))?;
+            for id in state_ids {
+                q.remove(&id);
+            }
+        }
+        if !knowledge_ids.is_empty() {
+            let mut q = self.knowledge_queues.lock()
+                .map_err(|_| PyRuntimeError::new_err("knowledge queue lock poisoned"))?;
+            for id in knowledge_ids {
+                q.remove(&id);
+            }
+        }
+        if !control_ids.is_empty() {
+            let mut q = self.control_queues.lock()
+                .map_err(|_| PyRuntimeError::new_err("control queue lock poisoned"))?;
+            for id in control_ids {
+                q.remove(&id);
+            }
         }
         Ok(())
     }

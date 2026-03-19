@@ -79,3 +79,12 @@ KEY_LRI_CTO = _get(["hotkeys", "lri_cto"], "F3")
 
 # Access protocol prompt (GhostGPT)
 ACCESS_PROTOCOL_PROMPT = _get(["access_protocol_prompt"], "")
+
+# ReflexArc cognitive thresholds
+REFLEX_RESONANCE_WEIGHT  = _get(["cognitive", "reflex", "resonance_weight"],  0.4)
+REFLEX_PAIN_WEIGHT       = _get(["cognitive", "reflex", "pain_weight"],        0.4)
+REFLEX_CORTISOL_WEIGHT   = _get(["cognitive", "reflex", "cortisol_weight"],    0.2)
+REFLEX_THREAT_BOOST      = _get(["cognitive", "reflex", "threat_boost"],       0.5)
+REFLEX_DANGER_THRESHOLD  = _get(["cognitive", "reflex", "danger_threshold"],   0.85)
+REFLEX_LEARN_STRENGTH    = _get(["cognitive", "reflex", "learn_strength"],     0.6)
+REFLEX_LOW_RESONANCE     = _get(["cognitive", "reflex", "low_resonance"],      0.3)

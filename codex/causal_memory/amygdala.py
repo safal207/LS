@@ -20,6 +20,16 @@ from .immune import ImmuneMemory
 
 logger = logging.getLogger(__name__)
 
+# Adaptation logic thresholds (module-level named constants)
+_VOLATILITY_HIGH         = 0.18
+_BLOCKED_RATIO_HIGH      = 0.5
+_THREAT_RATIO_HIGH       = 0.25
+_BLOCKED_RATIO_VERY_HIGH = 0.55
+_THREAT_RATIO_LOW        = 0.2
+_BLOCKED_RATIO_CRITICAL  = 0.6
+_BLOCKED_RATIO_STABLE    = 0.15
+_STATE_LOW               = 0.4
+
 """
 Теория струн как метафора регулятора:
 Z-ось — причинность, T-ось — время, P-ось — частота привязанности/эмпатии.
@@ -651,19 +661,19 @@ class Amygdala:
         center_error = 0.5 - avg_state
         self.adaptive_bias = max(-0.2, min(0.2, self.adaptive_bias + (center_error * self.adaptation_rate * 0.3)))
 
-        if volatility > 0.18:
+        if volatility > _VOLATILITY_HIGH:
             self.smoothing = max(0.1, self.smoothing - (self.adaptation_rate * 0.2))
 
-        if blocked_ratio > 0.5 and threat_ratio > 0.25:
+        if blocked_ratio > _BLOCKED_RATIO_HIGH and threat_ratio > _THREAT_RATIO_HIGH:
             self.threat_affect = max(-0.95, self.threat_affect - (self.adaptation_rate * 0.4))
 
-        if blocked_ratio > 0.55 and threat_ratio < 0.2:
+        if blocked_ratio > _BLOCKED_RATIO_VERY_HIGH and threat_ratio < _THREAT_RATIO_LOW:
             self.smoothing = max(0.1, self.smoothing - (self.adaptation_rate * 0.1))
 
         if len(self.history) >= 20:
-            if blocked_ratio > 0.6:
+            if blocked_ratio > _BLOCKED_RATIO_CRITICAL:
                 self.protection_shift = max(-0.25, self.protection_shift - (self.adaptation_rate * 0.45))
-            elif blocked_ratio < 0.15 and avg_state < 0.4:
+            elif blocked_ratio < _BLOCKED_RATIO_STABLE and avg_state < _STATE_LOW:
                 self.protection_shift = min(0.15, self.protection_shift + (self.adaptation_rate * 0.2))
 
     def _calculate_pressure(

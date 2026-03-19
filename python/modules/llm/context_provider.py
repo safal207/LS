@@ -4,6 +4,7 @@ import importlib
 import importlib.util
 import json
 import logging
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -21,6 +22,9 @@ _MAX_CODEX_EVENTS = 20
 _RUST_MODULE = None
 _TRACKER = None
 _REGISTRY_MANAGER = None
+_tracker_lock = threading.Lock()
+_registry_lock = threading.Lock()
+_codex_write_lock = threading.Lock()
 
 
 def load_rust_module():
@@ -37,28 +41,36 @@ def load_rust_module():
 
 def get_focus_tracker():
     global _TRACKER
-    if _TRACKER is not None:
+    if _TRACKER is not None:  # fast path — no lock needed once initialized
         return _TRACKER
-
-    rust_module = load_rust_module()
-    if rust_module is None:
-        return None
-
-    tracker_cls = getattr(rust_module, "FocusTracker", None)
-    if tracker_cls is None:
-        return None
-
-    _TRACKER = tracker_cls()
+    with _tracker_lock:
+        if _TRACKER is not None:  # double-checked locking
+            return _TRACKER
+        rust_module = load_rust_module()
+        if rust_module is None:
+            return None
+        tracker_cls = getattr(rust_module, "FocusTracker", None)
+        if tracker_cls is None:
+            return None
+        _TRACKER = tracker_cls()
     return _TRACKER
 
 
 def get_registry_manager(yaml_path: str = "config/base.yaml"):
-    rust_module = load_rust_module()
-    if rust_module is None:
-        return None
-
-    manager_cls = getattr(rust_module, "RegistryManager", None)
-    return manager_cls(yaml_path) if manager_cls is not None else None
+    global _REGISTRY_MANAGER
+    if _REGISTRY_MANAGER is not None:  # fast path
+        return _REGISTRY_MANAGER
+    with _registry_lock:
+        if _REGISTRY_MANAGER is not None:  # double-checked locking
+            return _REGISTRY_MANAGER
+        rust_module = load_rust_module()
+        if rust_module is None:
+            return None
+        manager_cls = getattr(rust_module, "RegistryManager", None)
+        if manager_cls is None:
+            return None
+        _REGISTRY_MANAGER = manager_cls(yaml_path)
+    return _REGISTRY_MANAGER
 
 
 def save_to_codex(event_data: dict) -> Optional[Path]:
@@ -81,42 +93,45 @@ def save_to_codex(event_data: dict) -> Optional[Path]:
         provider = "windows_context_v1"
 
     target_dir.mkdir(parents=True, exist_ok=True)
+    # Each event file has a unique timestamp-derived name — no lock needed here.
     event_file = target_dir / f"{prefix}_{safe_ts}.json"
     event_file.write_text(json.dumps(event_data, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    index_payload = {
-        "provider": provider,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        "max_in_memory": 10,
-        "max_index_entries": _MAX_CODEX_EVENTS,
-        "events": [],
-    }
-    if index_path.exists():
-        try:
-            existing = json.loads(index_path.read_text(encoding="utf-8"))
-            if isinstance(existing, dict):
-                index_payload.update(existing)
-        except (OSError, json.JSONDecodeError, TypeError, ValueError):
-            logger.warning("Failed to parse codex index, rebuilding from scratch")
+    # The shared index file is a read-modify-write; serialize concurrent updates.
+    with _codex_write_lock:
+        index_payload = {
+            "provider": provider,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "max_in_memory": 10,
+            "max_index_entries": _MAX_CODEX_EVENTS,
+            "events": [],
+        }
+        if index_path.exists():
+            try:
+                existing = json.loads(index_path.read_text(encoding="utf-8"))
+                if isinstance(existing, dict):
+                    index_payload.update(existing)
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                logger.warning("Failed to parse codex index, rebuilding from scratch")
 
-    events = index_payload.get("events", [])
-    if not isinstance(events, list):
-        events = []
+        events = index_payload.get("events", [])
+        if not isinstance(events, list):
+            events = []
 
-    events.insert(
-        0,
-        {
-            "timestamp": timestamp,
-            "event_type": event_type,
-            "path": str(event_file),
-            "confusion_score": event_data.get("confusion_score", 0.0),
-            "confidence": event_data.get("confidence", 0.9),
-        },
-    )
+        events.insert(
+            0,
+            {
+                "timestamp": timestamp,
+                "event_type": event_type,
+                "path": str(event_file),
+                "confusion_score": event_data.get("confusion_score", 0.0),
+                "confidence": event_data.get("confidence", 0.9),
+            },
+        )
 
-    index_payload["events"] = events[:_MAX_CODEX_EVENTS]
-    index_payload["updated_at"] = datetime.now(timezone.utc).isoformat()
-    index_path.write_text(json.dumps(index_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        index_payload["events"] = events[:_MAX_CODEX_EVENTS]
+        index_payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+        index_path.write_text(json.dumps(index_payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return event_file
 
 
