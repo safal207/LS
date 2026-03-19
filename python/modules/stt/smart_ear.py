@@ -19,32 +19,62 @@ All significant decisions are published to EventBus for observability:
 * ``smart_ear_candidates``  — phonetic expansion results
 * ``smart_ear_selected``    — committed text with composite confidence
 * ``smart_ear_rejected``    — dropped items with reason
+
+Configuration via ``config.py`` (``[smart_ear]`` section):
+* ``weights.asr``            — ASR confidence weight (default 0.50)
+* ``weights.context``        — CausalMemory context match weight (default 0.25)
+* ``weights.vocab``          — Domain vocab match weight (default 0.25)
+* ``threshold``              — Minimum composite to pass FilterStage (default 0.25)
+* ``low_word_prob``          — Per-word probability below which phonetic correction
+                               is attempted (default 0.50)
+* ``vocab_similarity``       — Similarity threshold for fuzzy vocab match (default 0.60)
+* ``selection_margin``       — Score advantage corrected must have over original (default 1)
+* ``vocab_min_length``       — Minimum term length for dynamic vocab (default 3)
+* ``vocab_refresh_every``    — Refresh dynamic vocab every N items (default 60)
 """
 
 from __future__ import annotations
 
+import difflib
 import logging
 import queue
-import time
+import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from .phonetic import PhoneticCorrector, STATIC_IT_VOCAB
+from shared.utils import is_question
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Composite confidence weights
+# Load weights from config (with graceful fallback to defaults)
 # ---------------------------------------------------------------------------
-W_ASR     = 0.50   # Raw Whisper score (dominant signal)
-W_CONTEXT = 0.25   # overlap with recent CausalMemory context
-W_VOCAB   = 0.25   # fraction of words found in domain_vocab
+try:
+    from config import (
+        SMART_EAR_W_ASR,
+        SMART_EAR_W_CONTEXT,
+        SMART_EAR_W_VOCAB,
+        SMART_EAR_THRESHOLD,
+        SMART_EAR_LOW_WORD_PROB,
+        SMART_EAR_VOCAB_SIMILARITY,
+        SMART_EAR_SELECTION_MARGIN,
+        SMART_EAR_VOCAB_MIN_LENGTH,
+        SMART_EAR_VOCAB_REFRESH_EVERY,
+    )
+except ImportError:
+    SMART_EAR_W_ASR              = 0.50
+    SMART_EAR_W_CONTEXT          = 0.25
+    SMART_EAR_W_VOCAB            = 0.25
+    SMART_EAR_THRESHOLD          = 0.25
+    SMART_EAR_LOW_WORD_PROB      = 0.50
+    SMART_EAR_VOCAB_SIMILARITY   = 0.60
+    SMART_EAR_SELECTION_MARGIN   = 1
+    SMART_EAR_VOCAB_MIN_LENGTH   = 3
+    SMART_EAR_VOCAB_REFRESH_EVERY = 60
 
-# Minimum composite confidence to pass FilterStage
-DEFAULT_THRESHOLD = 0.25
-
-# Low per-word probability threshold: words below this are phonetic candidates
-LOW_WORD_PROB = 0.50
+# Regex: term looks like an IT/Latin identifier (used when filtering dynamic vocab)
+_IT_TERM_RE = re.compile(r'^[A-Za-z][A-Za-z0-9_./-]{1,}$')
 
 
 # ---------------------------------------------------------------------------
@@ -63,8 +93,13 @@ class _Event:
 class FilterStage:
     """Gate noisy / low-confidence STT items using a composite score.
 
-    Context match (CausalMemory) is computed here so ContextStage is not
-    needed as a separate class.
+    Key design decisions:
+    * Single-word items are still allowed if ``is_question()`` returns True
+      (e.g. "Docker?" is a valid question).
+    * Vocab match uses fuzzy similarity (not binary membership) so partial
+      matches and morphological variants contribute a non-zero score.
+    * Amygdala.state is read as a stress signal to tighten the threshold
+      under high cognitive load — no Amygdala API calls that could break.
     """
 
     def __init__(
@@ -72,15 +107,20 @@ class FilterStage:
         amygdala=None,
         causal_memory=None,
         phonetic_corrector: PhoneticCorrector | None = None,
-        threshold: float = DEFAULT_THRESHOLD,
+        threshold: float = SMART_EAR_THRESHOLD,
     ) -> None:
         self.amygdala = amygdala
         self.causal_memory = causal_memory
         self._corrector = phonetic_corrector
         self.threshold = threshold
+        self._vocab_lower: List[str] = [
+            v.lower() for v in (
+                phonetic_corrector.domain_vocab if phonetic_corrector else STATIC_IT_VOCAB
+            )
+        ]
 
     # ------------------------------------------------------------------
-    # Helpers
+    # CausalMemory
     # ------------------------------------------------------------------
 
     def _get_recent_context(self) -> str:
@@ -96,6 +136,10 @@ class FilterStage:
             logger.debug("FilterStage: causal_memory access failed: %s", exc)
         return ""
 
+    # ------------------------------------------------------------------
+    # Scoring helpers
+    # ------------------------------------------------------------------
+
     def _context_match(self, text: str, context: str) -> float:
         if not context:
             return 0.0
@@ -105,30 +149,42 @@ class FilterStage:
         return min(1.0, len(overlap) / max(len(txt_words), 1))
 
     def _vocab_match(self, text: str) -> float:
-        vocab_set = {w.lower() for w in (
-            self._corrector.domain_vocab if self._corrector else STATIC_IT_VOCAB
-        )}
+        """Fuzzy vocab match: each word gets similarity score against vocab.
+
+        Uses SequenceMatcher to handle morphological variants and partial matches.
+        Score ≥ SMART_EAR_VOCAB_SIMILARITY contributes 1.0; below that → raw score.
+        """
         words = text.lower().split()
-        return sum(1 for w in words if w in vocab_set) / max(len(words), 1)
+        if not words:
+            return 0.0
+
+        total = 0.0
+        for word in words:
+            best = max(
+                (difflib.SequenceMatcher(None, word, v).ratio() for v in self._vocab_lower),
+                default=0.0,
+            )
+            total += min(best, 1.0)
+
+        return total / len(words)
 
     def compute_composite(self, text: str, asr_confidence: float, context: str) -> float:
-        ctx = self._context_match(text, context)
+        ctx   = self._context_match(text, context)
         vocab = self._vocab_match(text)
-        return W_ASR * asr_confidence + W_CONTEXT * ctx + W_VOCAB * vocab
+        return SMART_EAR_W_ASR * asr_confidence + SMART_EAR_W_CONTEXT * ctx + SMART_EAR_W_VOCAB * vocab
 
     # ------------------------------------------------------------------
-    # Amygdala stress boost
+    # Amygdala stress adjustment
     # ------------------------------------------------------------------
 
-    def _amygdala_threshold_boost(self) -> float:
-        """If Amygdala reports high stress, tighten the threshold."""
+    def _threshold_boost(self) -> float:
+        """Tighten threshold when Amygdala is under stress."""
         if self.amygdala is None:
             return 0.0
         try:
-            # amygdala.state is a float [0,1]; higher = more stressed
             state = float(getattr(self.amygdala, "state", 0.0))
             if state > 0.8:
-                return 0.15  # tighten by 15 pp under heavy load
+                return 0.15
             if state > 0.6:
                 return 0.07
         except Exception:
@@ -140,19 +196,24 @@ class FilterStage:
     # ------------------------------------------------------------------
 
     def process(self, item: dict) -> Optional[dict]:
-        text: str = item.get("text", "")
+        text: str = item.get("text", "").strip()
         words = text.split()
 
-        # Hard reject: too short (noise)
-        if len(words) < 2:
-            logger.debug("FilterStage: rejected (too short): %r", text)
+        # Hard reject: empty
+        if not words:
+            logger.debug("FilterStage: rejected (empty)")
+            return None
+
+        # Single-word: only pass if it looks like a question ("Docker?", "Почему?")
+        if len(words) == 1 and not is_question(text):
+            logger.debug("FilterStage: rejected (single non-question word): %r", text)
             return None
 
         asr_confidence: float = item.get("_asr_confidence", 0.0)
         context = self._get_recent_context()
         composite = self.compute_composite(text, asr_confidence, context)
 
-        effective_threshold = self.threshold + self._amygdala_threshold_boost()
+        effective_threshold = self.threshold + self._threshold_boost()
 
         if composite < effective_threshold:
             logger.debug(
@@ -173,8 +234,9 @@ class FilterStage:
 class HypothesisStage:
     """Correct low-confidence words via PhoneticCorrector.
 
-    Only words where ``probability < LOW_WORD_PROB`` are passed to the
-    corrector; high-confidence words are kept as-is.
+    When per-word probability data is available (``_words`` key from STT),
+    only words with ``probability < SMART_EAR_LOW_WORD_PROB`` are candidates.
+    Otherwise falls back to full-text correction.
     """
 
     def __init__(self, phonetic_corrector: PhoneticCorrector) -> None:
@@ -185,14 +247,11 @@ class HypothesisStage:
         words_with_prob: List[dict] = item.get("_words", [])
 
         if words_with_prob:
-            # Targeted correction via PhoneticCorrector.correct_words_with_prob():
-            # only uncertain words (probability < LOW_WORD_PROB) are touched.
             corrected_words, corrections = self.corrector.correct_words_with_prob(
-                words_with_prob, low_prob_threshold=LOW_WORD_PROB
+                words_with_prob, low_prob_threshold=SMART_EAR_LOW_WORD_PROB
             )
             corrected_text = " ".join(corrected_words)
         else:
-            # Fallback: no per-word probability — correct all words heuristically
             corrected_text, corrections = self.corrector.correct_text(text)
 
         per_word_candidates = self.corrector.all_candidates_for_text(text)
@@ -208,7 +267,12 @@ class HypothesisStage:
 # ---------------------------------------------------------------------------
 
 class SelectionStage:
-    """Choose between original and phonetically corrected text."""
+    """Choose between original and phonetically corrected text.
+
+    Corrected text is preferred only when its domain+context score exceeds
+    the original by at least SMART_EAR_SELECTION_MARGIN.  This prevents
+    spurious substitutions when scores are equal.
+    """
 
     def __init__(self, phonetic_corrector: PhoneticCorrector) -> None:
         self.corrector = phonetic_corrector
@@ -217,6 +281,7 @@ class SelectionStage:
         original_text: str = item.get("text", "")
         corrected_text: str = item.get("_corrected_text", original_text)
         context: str = item.get("_recent_context", "")
+        composite: float = item.get("_composite_confidence", 0.0)
 
         selected = original_text
         source = "original"
@@ -228,16 +293,17 @@ class SelectionStage:
             orig_words = set(original_text.lower().split())
             corr_words = set(corrected_text.lower().split())
 
-            # Accept correction when it has better domain/context coverage
             orig_score = len(orig_words & vocab_set) + len(orig_words & ctx_words)
             corr_score = len(corr_words & vocab_set) + len(corr_words & ctx_words)
 
-            if corr_score >= orig_score:
+            # Require corrected to be strictly better by SELECTION_MARGIN
+            if corr_score >= orig_score + SMART_EAR_SELECTION_MARGIN:
                 selected = corrected_text
                 source = "phonetic"
 
         item["text"] = selected
         item["_selection_source"] = source
+        item["_final_composite"] = composite
         item["type"] = "question"
         return item
 
@@ -252,8 +318,7 @@ class SmartEar:
     Processes each STT item through:
         FilterStage → HypothesisStage → SelectionStage
 
-    Stateless by design (no internal partial buffer): sentence buffering is
-    already handled upstream by SpeechToText.  This keeps latency minimal.
+    Stateless by design: sentence buffering is handled upstream by STT.
     """
 
     def __init__(
@@ -266,7 +331,7 @@ class SmartEar:
         event_bus=None,
         cognitive_flow=None,
         domain_vocab: List[str] | None = None,
-        confidence_threshold: float = DEFAULT_THRESHOLD,
+        confidence_threshold: float = SMART_EAR_THRESHOLD,
     ) -> None:
         self.input_queue = input_queue
         self.output_queue = output_queue
@@ -279,7 +344,6 @@ class SmartEar:
             threshold=0.35,
         )
 
-        # Stages (3 instead of 4 — ContextStage merged into FilterStage)
         self._filter = FilterStage(
             amygdala=amygdala,
             causal_memory=causal_memory,
@@ -289,9 +353,7 @@ class SmartEar:
         self._hypothesis = HypothesisStage(self._corrector)
         self._selection = SelectionStage(self._corrector)
 
-        # Dynamic vocab refresh counter
         self._vocab_refresh_counter = 0
-        self._vocab_refresh_every = 60
         self._causal_memory = causal_memory
 
     # ------------------------------------------------------------------
@@ -319,21 +381,36 @@ class SmartEar:
             logger.debug("SmartEar._step_flow failed: %s", exc)
 
     # ------------------------------------------------------------------
-    # Dynamic vocab
+    # Dynamic vocab refresh — with IT-term filtering
     # ------------------------------------------------------------------
 
     def _maybe_refresh_vocab(self) -> None:
         self._vocab_refresh_counter += 1
-        if self._vocab_refresh_counter % self._vocab_refresh_every != 0:
+        if self._vocab_refresh_counter % SMART_EAR_VOCAB_REFRESH_EVERY != 0:
             return
         if self._causal_memory is None:
             return
         try:
-            if hasattr(self._causal_memory, "get_frequent_terms"):
-                terms = self._causal_memory.get_frequent_terms(top_k=50)
-                if terms:
-                    self._corrector.update_vocab(terms)
-                    logger.debug("SmartEar: refreshed vocab (+%d terms)", len(terms))
+            if not hasattr(self._causal_memory, "get_frequent_terms"):
+                return
+            raw_terms: List[str] = self._causal_memory.get_frequent_terms(top_k=50)
+            if not raw_terms:
+                return
+
+            # Filter: only accept IT-like terms (Latin, min length, no numbers-only)
+            clean: List[str] = [
+                t for t in raw_terms
+                if (
+                    isinstance(t, str)
+                    and len(t) >= SMART_EAR_VOCAB_MIN_LENGTH
+                    and _IT_TERM_RE.match(t)
+                )
+            ]
+            if clean:
+                self._corrector.update_vocab(clean)
+                # Rebuild vocab_lower in FilterStage
+                self._filter._vocab_lower = [v.lower() for v in self._corrector.domain_vocab]
+                logger.debug("SmartEar: vocab refreshed (+%d clean terms)", len(clean))
         except Exception as exc:
             logger.debug("SmartEar vocab refresh failed: %s", exc)
 
@@ -342,7 +419,6 @@ class SmartEar:
     # ------------------------------------------------------------------
 
     def _process(self, item: dict) -> Optional[dict]:
-        """Run item through Filter → Hypothesis → Selection. Returns enriched item or None."""
         original_text = item.get("text", "")
 
         self._step_flow("perceive", {"text": original_text})
@@ -356,7 +432,7 @@ class SmartEar:
             })
             return None
 
-        # Stage 2 — Hypothesis (phonetic correction)
+        # Stage 2 — Hypothesis
         item = self._hypothesis.process(item)
         if item is None:
             return None
@@ -403,8 +479,12 @@ class SmartEar:
             try:
                 result = self._process(item)
                 if result is not None:
-                    logger.info("SmartEar → AgentLoop: %r (source=%s)",
-                                result["text"], result.get("_selection_source", "?"))
+                    logger.info(
+                        "SmartEar → AgentLoop: %r (src=%s, conf=%.3f)",
+                        result["text"],
+                        result.get("_selection_source", "?"),
+                        result.get("_composite_confidence", 0.0),
+                    )
                     try:
                         self.output_queue.put_nowait(result)
                     except queue.Full:

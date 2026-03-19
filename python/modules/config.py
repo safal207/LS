@@ -80,6 +80,17 @@ KEY_LRI_CTO = _get(["hotkeys", "lri_cto"], "F3")
 # Access protocol prompt (GhostGPT)
 ACCESS_PROTOCOL_PROMPT = _get(["access_protocol_prompt"], "")
 
+# SmartEar perception layer
+SMART_EAR_W_ASR     = _get(["smart_ear", "weights", "asr"],     0.50)
+SMART_EAR_W_CONTEXT = _get(["smart_ear", "weights", "context"], 0.25)
+SMART_EAR_W_VOCAB   = _get(["smart_ear", "weights", "vocab"],   0.25)
+SMART_EAR_THRESHOLD = _get(["smart_ear", "threshold"],          0.25)
+SMART_EAR_LOW_WORD_PROB      = _get(["smart_ear", "low_word_prob"],      0.50)
+SMART_EAR_VOCAB_SIMILARITY   = _get(["smart_ear", "vocab_similarity"],   0.60)
+SMART_EAR_SELECTION_MARGIN   = _get(["smart_ear", "selection_margin"],   1)
+SMART_EAR_VOCAB_MIN_LENGTH   = _get(["smart_ear", "vocab_min_length"],   3)
+SMART_EAR_VOCAB_REFRESH_EVERY = _get(["smart_ear", "vocab_refresh_every"], 60)
+
 # ReflexArc cognitive thresholds
 REFLEX_RESONANCE_WEIGHT  = _get(["cognitive", "reflex", "resonance_weight"],  0.4)
 REFLEX_PAIN_WEIGHT       = _get(["cognitive", "reflex", "pain_weight"],        0.4)
