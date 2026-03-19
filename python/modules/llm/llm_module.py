@@ -16,7 +16,7 @@ from .cot_adapter import COTAdapter
 from .errors import LLMEmptyResponseError, LLMInvalidFormatError, as_llm_error
 from .qwen_handler import QwenHandler
 from .ram_model_selector import get_available_ram_gb, select_model
-from ..config import (
+from config import (
     OLLAMA_HOST,
     SYSTEM_PROMPT,
     USE_CLOUD_LLM,

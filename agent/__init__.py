@@ -1,5 +1,9 @@
 """Agent modules."""
 
+from pkgutil import extend_path
+
+__path__ = extend_path(__path__, __name__)
+
 from .cognitive_illusions import CognitiveIllusionDetector
 from .counterfactual_engine import CounterfactualEngine
 from .cognition import (
