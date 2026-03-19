@@ -236,7 +236,7 @@ class LanguageModel:
             logger.info("Using cloud LLM (Groq)")
             return self.generate_response_cloud(question, cancel_event=cancel_event, messages=messages, stream=stream, on_token=on_token)
         else:
-            logger.info("Using local LLM (Ollama phi3)")
+            logger.info("Using local LLM (Ollama %s)", self.qwen_handler.model_name)
             return self.generate_response_local(question, cancel_event=cancel_event, messages=messages, stream=stream, on_token=on_token)
     
     def format_response(self, response: str) -> str:

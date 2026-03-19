@@ -4,6 +4,7 @@ import importlib
 import importlib.util
 import json
 import logging
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -21,6 +22,7 @@ _MAX_CODEX_EVENTS = 20
 _RUST_MODULE = None
 _TRACKER = None
 _REGISTRY_MANAGER = None
+_init_lock = threading.Lock()
 
 
 def load_rust_module():
@@ -37,18 +39,18 @@ def load_rust_module():
 
 def get_focus_tracker():
     global _TRACKER
-    if _TRACKER is not None:
+    if _TRACKER is not None:  # fast path — no lock needed once initialized
         return _TRACKER
-
-    rust_module = load_rust_module()
-    if rust_module is None:
-        return None
-
-    tracker_cls = getattr(rust_module, "FocusTracker", None)
-    if tracker_cls is None:
-        return None
-
-    _TRACKER = tracker_cls()
+    with _init_lock:
+        if _TRACKER is not None:  # double-checked locking
+            return _TRACKER
+        rust_module = load_rust_module()
+        if rust_module is None:
+            return None
+        tracker_cls = getattr(rust_module, "FocusTracker", None)
+        if tracker_cls is None:
+            return None
+        _TRACKER = tracker_cls()
     return _TRACKER
 
 
