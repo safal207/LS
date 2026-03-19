@@ -16,7 +16,7 @@ from .cot_adapter import COTAdapter
 from .errors import LLMEmptyResponseError, LLMInvalidFormatError, as_llm_error
 from .qwen_handler import QwenHandler
 from .ram_model_selector import get_available_ram_gb, select_model
-from ..config import (
+from config import (
     OLLAMA_HOST,
     SYSTEM_PROMPT,
     USE_CLOUD_LLM,
@@ -32,6 +32,11 @@ from ..config import (
 logger = logging.getLogger(__name__)
 
 def _compress_messages_for_hint(messages: Optional[list[dict]], max_messages: int = 2) -> Optional[list[dict]]:
+    """Compress chat history to system messages plus the most recent turns.
+
+    Used when ``WHISPER_MODE=1`` to reduce prompt size for hint-style
+    generation.  Returns *messages* unchanged when it is ``None`` or empty.
+    """
     if not messages:
         return messages
     system = [m for m in messages if m.get("role") == "system"]
@@ -99,11 +104,35 @@ class LanguageModel:
             return False
         
     def _is_cancelled(self, cancel_event) -> bool:
+        """Return ``True`` if *cancel_event* is set, signalling abort.
+
+        Accepts any object with an ``is_set()`` method (e.g.
+        ``threading.Event``).  Returns ``False`` when *cancel_event* is
+        ``None``.
+        """
         return cancel_event is not None and getattr(cancel_event, "is_set", lambda: False)()
 
     def _generate(self, question: str, *, cancel_event=None, messages: Optional[list[dict]] = None,
                   stream: bool = False, on_token=None, label: str = "local") -> Optional[str]:
-        """Core generation logic shared by local and cloud paths."""
+        """Core generation logic shared by local and cloud paths.
+
+        Args:
+            question: The user question or prompt text.
+            cancel_event: Optional threading.Event; when set, generation is
+                          abandoned early and ``None`` is returned.
+            messages: Optional chat-history list for multi-turn conversations.
+            stream: If ``True``, use streaming generation with *on_token*.
+            on_token: Callback invoked with each streamed token string.
+            label: ``"local"`` or ``"cloud"`` — controls logging context and
+                   fallback eligibility.
+
+        Returns:
+            Generated response string, or ``None`` on failure/cancellation.
+
+        Raises:
+            No exceptions escape this method; all are caught, logged, and may
+            trigger fallback via :meth:`_try_fallback`.
+        """
         prompt = ""
         active_messages = _compress_messages_for_hint(messages) if os.getenv("WHISPER_MODE", "0") == "1" else messages
         try:
@@ -145,18 +174,38 @@ class LanguageModel:
             else:
                 logger.error("Error generating %s response (%s): %s", label, err.kind, err)
 
-            # Fallback only for local mode
-            if label == "local" and self.fallback_model != self.primary_model:
-                return self._try_fallback(prompt, active_messages, stream, on_token)
+            if self.fallback_model != self.primary_model:
+                return self._try_fallback(label, prompt, active_messages, stream, on_token)
             return None
 
-    def _try_fallback(self, prompt: str, active_messages, stream: bool, on_token) -> Optional[str]:
-        """Attempt generation with the fallback model."""
+    def _try_fallback(self, label: str, prompt: str, active_messages, stream: bool, on_token) -> Optional[str]:
+        """Attempt generation with the fallback model.
+
+        Temporarily swaps the handler's model to :attr:`fallback_model` and
+        retries.  On success the fallback is promoted to primary; on failure
+        the original model is restored.
+
+        Args:
+            label: ``"local"`` or ``"cloud"`` — used for log context only.
+            prompt: Already-composed prompt string.
+            active_messages: Chat-history messages (may be compressed).
+            stream: Whether to use streaming generation.
+            on_token: Optional streaming token callback.
+
+        Returns:
+            Fallback response string, or ``None`` if the fallback also fails.
+
+        Known limitations:
+            The fallback always uses the same :attr:`fallback_model` regardless
+            of *label*.  A future iteration may select different fallback
+            targets per label.
+        """
         current_model = self.qwen_handler.model_name
         fallback_succeeded = False
         try:
             logger.warning(
-                "Primary model %s failed, switching to fallback %s",
+                "Primary %s model %s failed, switching to fallback %s",
+                label,
                 self.primary_model,
                 self.fallback_model,
             )
@@ -167,7 +216,7 @@ class LanguageModel:
                 fallback_succeeded = True
                 return fallback_response
         except Exception as fallback_exc:
-            logger.error("Fallback model %s also failed: %s", self.fallback_model, fallback_exc)
+            logger.error("Fallback model %s also failed (%s): %s", self.fallback_model, label, fallback_exc)
         finally:
             if not fallback_succeeded:
                 self.qwen_handler.model_name = current_model

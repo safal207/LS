@@ -20,7 +20,7 @@ from pathlib import Path  # noqa: F401
 from typing import Callable, Optional
 
 try:
-    from ..config import OLLAMA_HOST, LLM_MODEL_NAME
+    from config import OLLAMA_HOST, LLM_MODEL_NAME
 except Exception:  # optional for replay/context helpers
     OLLAMA_HOST = "http://localhost:11434"
     LLM_MODEL_NAME = "qwen2.5:latest"

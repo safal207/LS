@@ -6,10 +6,10 @@ import threading
 import time
 from typing import Any, Callable, Optional
 
-from ..llm.temporal import TemporalContext
-from ..cognitive_flow import CognitiveFlow, PresenceState, TransitionEngine
-from ..cognitive_flow.liminal import is_liminal_phase
-from ..memory.causal import CausalMemory
+from llm.temporal import TemporalContext
+from cognitive_flow import CognitiveFlow, PresenceState, TransitionEngine
+from cognitive_flow.liminal import is_liminal_phase
+from memory.causal import CausalMemory
 from codex.causal_memory.amygdala import Amygdala, AmygdalaBlockError, BlockReason
 from codex.causal_memory.transitions import CausalMemoryTransitions
 from codex.causal_memory.reflex import ReflexArc
@@ -17,12 +17,12 @@ from codex.causal_memory.reflex import ReflexArc
 from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
-from ..shared.event_bus import EventBus
-from ..perception.coordinator import VisionSubsystem
-from .. import lthread
+from shared.event_bus import EventBus
+from perception.coordinator import VisionSubsystem
+import lthread
 
 try:
-    from ..llm.temporal_graph import get_context_for_question
+    from llm.temporal_graph import get_context_for_question
 
     _TEMPORAL_GRAPH_ENABLED = True
 except ImportError:
@@ -152,7 +152,7 @@ class AgentLoop:
 
     def _maybe_enter_sleep_mode(self):
         try:
-            from ..config import SLEEP_CONFIG
+            from config import SLEEP_CONFIG
         except Exception:
             from .sleep_config import SleepConfig
             SLEEP_CONFIG = SleepConfig()
@@ -164,7 +164,7 @@ class AgentLoop:
 
     def _enter_sleep_mode(self):
         try:
-            from ..config import SLEEP_CONFIG
+            from config import SLEEP_CONFIG
         except Exception:
             from .sleep_config import SleepConfig
             SLEEP_CONFIG = SleepConfig()
@@ -255,7 +255,7 @@ class AgentLoop:
             self._next_context_poll_at = now + self._context_poll_interval_s
 
         try:
-            from ..llm.context_provider import collect_windows_context
+            from llm.context_provider import collect_windows_context
 
             context_event = collect_windows_context(session_id=session_id)
             if isinstance(context_event, dict):
@@ -789,7 +789,7 @@ class AgentLoop:
                 customer_id = self.causal_memory.add_intent(question)
                 customer_axis = self.causal_memory.get_axis_position(customer_id)
                 if self.temporal:
-                    from ..hexagon_core.temporal_graph import TemporalNode
+                    from hexagon_core.temporal_graph import TemporalNode
                     with self.temporal._graph_lock:
                         self.temporal.nodes[customer_id] = TemporalNode(id=customer_id, resonance=1.0)
 
@@ -807,7 +807,7 @@ class AgentLoop:
                 )
                 harmony_score = consumer_node.harmony_score
                 if self.temporal:
-                    from ..hexagon_core.temporal_graph import TemporalNode
+                    from hexagon_core.temporal_graph import TemporalNode
                     self.temporal.nodes[consumer_id] = TemporalNode(
                         id=consumer_id, resonance=consumer_resonance, harmony_bonus=harmony_score
                     )
@@ -829,7 +829,7 @@ class AgentLoop:
                 )
                 harmony_score = execution_node.harmony_score
                 if self.temporal:
-                    from ..hexagon_core.temporal_graph import TemporalNode
+                    from hexagon_core.temporal_graph import TemporalNode
                     self.temporal.nodes[execution_id] = TemporalNode(
                         id=execution_id, resonance=execution_resonance, harmony_bonus=harmony_score
                     )
@@ -851,7 +851,7 @@ class AgentLoop:
                 )
                 harmony_score = stability_node.harmony_score
                 if self.temporal:
-                    from ..hexagon_core.temporal_graph import TemporalNode
+                    from hexagon_core.temporal_graph import TemporalNode
                     self.temporal.nodes[stability_id] = TemporalNode(
                         id=stability_id, resonance=stability_resonance, harmony_bonus=harmony_score
                     )
@@ -895,8 +895,8 @@ class AgentLoop:
             memory_context = ""
             if _TEMPORAL_GRAPH_ENABLED:
                 try:
-                    from ..llm.causal_memory import replay_thread
-                    from ..llm.context_provider import get_registry_manager
+                    from llm.causal_memory import replay_thread
+                    from llm.context_provider import get_registry_manager
 
                     thread_id = str(task_id)
                     memory_context = get_context_for_question(
@@ -1004,12 +1004,12 @@ class AgentLoop:
                 last_coherence = memory.get("last_coherence", 0.95)
 
                 try:
-                    from ..llm.causal_memory import (
+                    from llm.causal_memory import (
                         build_default_trace_payloads,
                         get_causal_trace_confidence,
                         save_causal_trace,
                     )
-                    from ..llm.context_provider import get_registry_manager, save_to_codex
+                    from llm.context_provider import get_registry_manager, save_to_codex
 
                     lce, ltp_trace, lri_core = build_default_trace_payloads(
                         question, str(task_id), prev_coherence=last_coherence
