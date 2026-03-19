@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
 Speech-to-Text Module (Module 2: STT Processing)
-Processes audio files using Faster-Whisper and detects questions
+Processes audio files using Faster-Whisper and detects questions.
+Returns N-best hypotheses with per-segment confidence scores.
 """
 
+import math
 import threading
 import time
 import logging
 import queue
 import os
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from faster_whisper import WhisperModel
 from config import WHISPER_MODEL_SIZE
 from shared.utils import is_question
@@ -45,16 +47,23 @@ class SpeechToText:
             logger.error(f"Failed to load Whisper model: {e}")
             return False
     
-    def transcribe_audio(self, audio_file: str) -> str:
-        """Transcribe audio file to text"""
+    def transcribe_audio(self, audio_file: str) -> List[Dict[str, Any]]:
+        “””Transcribe audio file and return N-best hypotheses with confidence scores.
+
+        Returns a list of hypothesis dicts: ``[{“text”: str, “confidence”: float}]``.
+        Each hypothesis corresponds to one Whisper segment.  ``confidence`` is
+        derived from ``segment.avg_logprob`` mapped to ``[0, 1]`` via ``math.exp``.
+        Returns an empty list on failure.
+        “””
         try:
             if not self.model:
-                logger.error("Model not loaded")
-                return ""
-            
-            logger.debug(f"Transcribing: {audio_file}")
-            
-            # Transcribe with optimized settings
+                logger.error(“Model not loaded”)
+                return []
+
+            logger.debug(f”Transcribing: {audio_file}”)
+
+            # Transcribe with optimized settings — beam_size=5 already produces
+            # rich per-segment scores we can surface as N-best hypotheses.
             segments, info = self.model.transcribe(
                 audio_file,
                 beam_size=5,
@@ -73,65 +82,79 @@ class SpeechToText:
                 without_timestamps=True,
                 max_initial_timestamp=1.0,
                 word_timestamps=False,
-                prepend_punctuations="\"'“¿([{-",
-                append_punctuations="\"'.。,，!！?？:：”)]}、"
+                prepend_punctuations=”\”'”¿([{-”,
+                append_punctuations=”\”'.。,，!！?？:：”)]}、”
             )
-            
-            # Extract text from segments
-            transcript = ""
+
+            hypotheses: List[Dict[str, Any]] = []
             for segment in segments:
-                transcript += segment.text
-            
-            # Clean up transcript
-            transcript = transcript.strip()
-            
-            if transcript:
-                logger.debug(f"Transcription result: {transcript}")
-            
-            return transcript
-            
+                text = segment.text.strip()
+                if not text:
+                    continue
+                # avg_logprob is in (-inf, 0]; exp() maps it to (0, 1]
+                confidence = math.exp(max(segment.avg_logprob, -10.0))
+                hypotheses.append({“text”: text, “confidence”: round(confidence, 4)})
+
+            if hypotheses:
+                logger.debug(f”Hypotheses: {hypotheses}”)
+
+            return hypotheses
+
         except Exception as e:
-            logger.error(f"Transcription error for {audio_file}: {e}")
-            return ""
+            logger.error(f”Transcription error for {audio_file}: {e}”)
+            return []
         finally:
             # Clean up temporary file
             try:
                 if os.path.exists(audio_file):
                     os.unlink(audio_file)
             except Exception as e:
-                logger.warning(f"Failed to delete temp file {audio_file}: {e}")
+                logger.warning(f”Failed to delete temp file {audio_file}: {e}”)
     
-    def process_transcript(self, transcript: str) -> Optional[str]:
+    def process_hypotheses(self, hypotheses: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Accumulate hypotheses into sentence buffer; emit when question detected.
+
+        Returns ``{"hypotheses": list, "text": str}`` when a complete question is
+        buffered, otherwise ``None``.  The best hypothesis (highest confidence) is
+        used to accumulate the sentence buffer; all hypotheses are forwarded so that
+        SmartEar can run its own selection logic.
         """
-        Process transcript to detect questions and accumulate context
-        Returns response text if question detected, None otherwise
-        """
-        if not transcript:
+        if not hypotheses:
             return None
-        
-        # Accumulate in current sentence buffer
+
+        # Pick the hypothesis with highest confidence as the representative text
+        best = max(hypotheses, key=lambda h: h["confidence"])
+        transcript = best["text"]
+
         self.current_sentence += " " + transcript
         self.current_sentence = self.current_sentence.strip()
-        
+
         logger.debug(f"Current buffer: {self.current_sentence}")
-        
-        # Check if this looks like a question
+
         if is_question(self.current_sentence):
             logger.info(f"Question detected: {self.current_sentence}")
-            
-            # Return the accumulated sentence for LLM processing
             question = self.current_sentence
-            
-            # Reset buffer for next sentence
             self.current_sentence = ""
-            
-            return question
-        
-        # Check if buffer is getting too long (prevent memory issues)
-        if len(self.current_sentence) > 500:  # Rough character limit
+            return {"text": question, "hypotheses": hypotheses}
+
+        if len(self.current_sentence) > 500:
             logger.debug("Buffer too long, resetting")
             self.current_sentence = ""
-        
+
+        return None
+
+    def process_transcript(self, transcript: str) -> Optional[str]:
+        """Legacy helper kept for backward-compatibility.  Prefer process_hypotheses."""
+        if not transcript:
+            return None
+        self.current_sentence += " " + transcript
+        self.current_sentence = self.current_sentence.strip()
+        if is_question(self.current_sentence):
+            question = self.current_sentence
+            self.current_sentence = ""
+            return question
+        if len(self.current_sentence) > 500:
+            self.current_sentence = ""
         return None
     
     def run(self):
@@ -144,35 +167,35 @@ class SpeechToText:
             return
         
         self.running = True
-        
+
         try:
             while self.running:
                 try:
                     # Get audio file from queue (non-blocking)
                     audio_file = self.input_queue.get(timeout=1.0)
-                    
-                    # Transcribe audio
+
+                    # Transcribe audio — returns N-best hypotheses
                     start_time = time.time()
-                    transcript = self.transcribe_audio(audio_file)
+                    hypotheses = self.transcribe_audio(audio_file)
                     transcription_time = time.time() - start_time
-                    
+
                     logger.debug(f"Transcription took {transcription_time:.2f}s")
-                    
-                    # Process transcript for questions
-                    question = self.process_transcript(transcript)
-                    
-                    if question:
-                        # Send to LLM module
+
+                    # Process hypotheses for questions
+                    result = self.process_hypotheses(hypotheses)
+
+                    if result:
                         try:
                             self.output_queue.put_nowait({
                                 'type': 'question',
-                                'text': question,
-                                'timestamp': time.time()
+                                'text': result['text'],
+                                'hypotheses': result['hypotheses'],
+                                'timestamp': time.time(),
                             })
-                            logger.info(f"Sent question to LLM queue: {question}")
+                            logger.info(f"Sent question to queue: {result['text']}")
                         except queue.Full:
-                            logger.warning("LLM queue full, dropping question")
-                    
+                            logger.warning("Output queue full, dropping question")
+
                     self.input_queue.task_done()
                     
                 except queue.Empty:

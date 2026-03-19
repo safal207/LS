@@ -11,22 +11,37 @@ import logging
 import queue
 import tempfile
 import os
+from dataclasses import dataclass, field
 from typing import Optional
 from config import SAMPLE_RATE, AUDIO_CHUNK_DURATION, VOLUME_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class SimpleEvent:
+    """Minimal event compatible with EventBus.publish / publish_async."""
+    type: str
+    payload: dict = field(default_factory=dict)
+
+
 class AudioIngestion:
-    def __init__(self, output_queue: queue.Queue):
+    def __init__(self, output_queue: queue.Queue, event_bus=None):
         """Initialize audio ingestion.
 
         The PyAudio instance is created lazily in :meth:`start_stream` to avoid
         resource leaks when the module is instantiated but never started.
         Callers must invoke :meth:`stop` (or use :meth:`run`, which calls it
         automatically) to release resources.
+
+        Args:
+            output_queue: Queue to push temp WAV file paths for STT.
+            event_bus: Optional ``EventBus`` instance.  When provided, VAD
+                decisions are published as ``voice_detected`` / ``silence_detected``
+                events for downstream cognitive modules.
         """
         self.output_queue = output_queue
+        self.event_bus = event_bus
         self.p: Optional[pyaudio.PyAudio] = None
         self.stream = None
         self.running = False
@@ -168,6 +183,7 @@ class AudioIngestion:
         try:
             audio_data = np.frombuffer(in_data, dtype=np.float32)
 
+            rms = float(np.sqrt(np.mean(audio_data.astype(np.float32) ** 2)))
             if self.is_voice_active(audio_data):
                 temp_filename = self.save_audio_chunk(audio_data)
 
@@ -181,8 +197,23 @@ class AudioIngestion:
                             os.unlink(temp_filename)
                         except Exception:
                             pass
+
+                if self.event_bus is not None:
+                    try:
+                        self.event_bus.publish_async(
+                            SimpleEvent("voice_detected", {"rms": round(rms, 6), "timestamp": time.time()})
+                        )
+                    except Exception:
+                        pass
             else:
                 logger.debug("No voice activity detected")
+                if self.event_bus is not None:
+                    try:
+                        self.event_bus.publish_async(
+                            SimpleEvent("silence_detected", {"rms": round(rms, 6), "timestamp": time.time()})
+                        )
+                    except Exception:
+                        pass
 
         except Exception as e:
             logger.error(f"Error in audio callback: {e}")
