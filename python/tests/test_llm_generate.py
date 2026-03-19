@@ -3,26 +3,13 @@
 import logging
 import os
 import queue
-import sys
-from pathlib import Path
 from threading import Event
-from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Bootstrap: add ``python/`` to sys.path so ``modules.llm`` resolves its
-# relative imports (``from ..config``, ``from ..hexagon_core``).
-# This mirrors the pattern used by existing tests (e.g. test_oscillation_control).
-# ---------------------------------------------------------------------------
-_python_dir = str(Path(__file__).resolve().parent.parent)
-if _python_dir not in sys.path:
-    sys.path.insert(0, _python_dir)
-
 from modules.llm.llm_module import LanguageModel
-from modules.llm.errors import LLMEmptyResponseError, LLMInvalidFormatError, LLMProviderError
-from modules.llm.breaker import CircuitBreaker, CircuitOpenError
+from modules.llm.errors import LLMEmptyResponseError, LLMProviderError
 
 
 @pytest.fixture
