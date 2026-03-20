@@ -73,6 +73,7 @@ try:
     from intent.why_strategy import analyze_why_and_strategy as _analyze_strategy
     from intent.interviewer_profile import InterviewerProfile as _InterviewerProfile
     from intent.empathy_negotiation import EmpathyNegotiationLayer as _EmpathyNegotiationLayer
+    from intent.body_aware_copilot import BodyAwareCopilot as _BodyAwareCopilot
     _INTENT_AVAILABLE = True
 except Exception:
     _INTENT_AVAILABLE = False
@@ -81,6 +82,7 @@ except Exception:
     _analyze_strategy = None             # type: ignore[assignment,misc]
     _InterviewerProfile = None           # type: ignore[assignment,misc]
     _EmpathyNegotiationLayer = None      # type: ignore[assignment,misc]
+    _BodyAwareCopilot = None             # type: ignore[assignment,misc]
 
 # ConversationAnchor (optional — graceful fallback)
 try:
@@ -877,6 +879,8 @@ class SmartEar:
         anchor=None,
         # Empathy & Negotiation Layer (Stage 7)
         empathy_enabled: bool = True,
+        # Body-Aware Copilot (Stage 8)
+        copilot_enabled: bool = True,
         # Cognitive Cycle Logger
         cycle_log_path: str = "",
         cycle_log_max_mb: float = 50,
@@ -995,6 +999,19 @@ class SmartEar:
                 logger.info("SmartEar: EmpathyNegotiationLayer enabled")
             except Exception as exc:
                 logger.warning("SmartEar: EmpathyNegotiationLayer init failed: %s", exc)
+
+        # Stage 8 — Body-Aware Copilot
+        self._copilot: Optional["_BodyAwareCopilot"] = None  # type: ignore[type-arg]
+        if (
+            copilot_enabled
+            and _INTENT_AVAILABLE
+            and _BodyAwareCopilot is not None
+        ):
+            try:
+                self._copilot = _BodyAwareCopilot()
+                logger.info("SmartEar: BodyAwareCopilot enabled")
+            except Exception as exc:
+                logger.warning("SmartEar: BodyAwareCopilot init failed: %s", exc)
 
         # Cognitive Cycle Logger
         self._cycle_logger = None
@@ -1188,6 +1205,10 @@ class SmartEar:
         # Stage 7 — Empathy & Negotiation
         if self._empathy is not None:
             item = self._empathy.process(item)
+
+        # Stage 8 — Body-Aware Copilot (assembles final_prompt + body cues)
+        if self._copilot is not None:
+            item = self._copilot.process(item)
 
         final_text = item["text"]
         source = item.get("_selection_source", "original")

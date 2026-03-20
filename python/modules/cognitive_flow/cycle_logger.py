@@ -191,24 +191,34 @@ class CognitiveCycleLogger:
         why_strategy = item.get("_why_strategy")
         anchor_ctx = item.get("_anchor_context")
         empathy_result = item.get("_empathy_result")
+        copilot_output = item.get("_copilot_output")
+        body_cues = (
+            copilot_output.get("empathy_cues") if copilot_output else None
+        )
         return {
-            "cycle_id":           cycle_id,
-            "ts":                 _now_iso(),
-            "input":              final_text,
-            "raw_stt":            raw_stt,
-            "corrected":          corrected,
-            "confidence":         round(float(item.get("_composite_confidence", 0.0)), 4),
-            "decision_zone":      item.get("_routing_zone", ""),
-            "selection_source":   item.get("_selection_source", ""),
-            "intent":             item.get("_intent"),
-            "why":                item.get("_why"),
-            "why_strategy":       why_strategy,
-            "anchor_used":        anchor_ctx or [],
+            "cycle_id":            cycle_id,
+            "ts":                  _now_iso(),
+            "input":               final_text,
+            "raw_stt":             raw_stt,
+            "corrected":           corrected,
+            "confidence":          round(float(item.get("_composite_confidence", 0.0)), 4),
+            "decision_zone":       item.get("_routing_zone", ""),
+            "selection_source":    item.get("_selection_source", ""),
+            "intent":              item.get("_intent"),
+            "why":                 item.get("_why"),
+            "why_strategy":        why_strategy,
+            "anchor_used":         anchor_ctx or [],
             "interviewer_profile": item.get("_interviewer_profile"),
-            "empathy":            empathy_result,
-            "final_output":       None,
-            "generation_time":    None,
-            "user_feedback":      None,
+            "empathy":             empathy_result,
+            "body_cues":           body_cues,
+            "copilot": {
+                "pre_prompt":         copilot_output.get("pre_prompt") if copilot_output else None,
+                "intervention_level": copilot_output.get("intervention_level") if copilot_output else None,
+                "active_rules":       copilot_output.get("active_rules") if copilot_output else [],
+            } if copilot_output else None,
+            "final_output":        None,
+            "generation_time":     None,
+            "user_feedback":       None,
         }
 
     def _flush(self, record: dict) -> None:

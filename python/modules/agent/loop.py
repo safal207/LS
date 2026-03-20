@@ -605,15 +605,25 @@ class AgentLoop:
         return [injection] + history  # strictly at the beginning
 
     def _inject_strategy_context(self, messages: list[dict], item: dict) -> list[dict]:
-        """Inject WHY strategy hints and anchor context into the message list.
+        """Inject copilot context into the message list.
 
         Appends a single system message at the *end* of the list (just before
         the live user turn) so the LLM sees it as fresh guidance without
         overriding the conversation history.
 
-        Both blocks are optional: if the item carries no strategy / anchor
-        data, the messages list is returned unchanged.
+        If Stage 8 BodyAwareCopilot ran, its pre-assembled ``final_prompt`` is
+        used directly.  Otherwise falls back to piecemeal construction from
+        individual stage outputs so the method works even when Stage 8 is
+        disabled or unavailable.
         """
+        # ---- Fast path: Stage 8 pre-assembled the full block ----
+        copilot = item.get("_copilot_output")
+        if copilot and isinstance(copilot, dict):
+            content = copilot.get("final_prompt", "")
+            if content:
+                return messages + [{"role": "system", "content": content}]
+
+        # ---- Fallback: piecemeal build from individual stage outputs ----
         parts: list[str] = []
 
         strategy = item.get("_why_strategy")
@@ -622,7 +632,6 @@ class AgentLoop:
             hints = strategy.get("hints") or []
             answer_type = strategy.get("answer_type", "")
             pressure = strategy.get("pressure", "")
-            # Micro-trigger is always first: the one thing readable in 0.5s
             block_parts: list[str] = []
             if trigger:
                 block_parts.append(f"🧠 Сейчас: {trigger}")
@@ -638,7 +647,6 @@ class AgentLoop:
         anchor_ctx = item.get("_anchor_context")
         if anchor_ctx and isinstance(anchor_ctx, list) and any(anchor_ctx):
             lines = "\n".join(f"- {x}" for x in anchor_ctx if x)
-            # If strategy forces experiential, the anchor is mandatory not optional
             force_anchor = (
                 strategy.get("answer_type") == "experiential"
                 if strategy and isinstance(strategy, dict) else False
@@ -663,9 +671,7 @@ class AgentLoop:
             if interviewer.get("interrupt_count", 0) > 0:
                 flags.append("перебивает — будь лаконичен")
             if flags:
-                parts.append(
-                    f"Интервьюер (давление {p:.0%}): {', '.join(flags)}."
-                )
+                parts.append(f"Интервьюер (давление {p:.0%}): {', '.join(flags)}.")
 
         empathy = item.get("_empathy_result")
         if empathy and isinstance(empathy, dict):
@@ -688,11 +694,7 @@ class AgentLoop:
         if not parts:
             return messages
 
-        injection = {
-            "role": "system",
-            "content": "\n\n".join(parts),
-        }
-        return messages + [injection]  # append: after history, before user turn
+        return messages + [{"role": "system", "content": "\n\n".join(parts)}]
 
     def _remember_answer(self, answer: Any, duration: float) -> None:
         if isinstance(answer, str) and self.memory_max_chars:
