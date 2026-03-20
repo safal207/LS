@@ -11,6 +11,14 @@ with a model-driven decision::
     if score > 0.5:
         selected = corrected_text
 
+Model support:
+    LightGBM (preferred) → XGBoost → sklearn Pipeline (legacy)
+    The model is loaded from a ``.pkl`` file produced by ``train_model.py``.
+
+Calibration:
+    An optional :class:`~smart_ear.calibration.ProbabilityCalibrator` can be
+    attached (``model.calibrator = cal``) to post-process raw probabilities.
+
 Fallback behaviour:
     When the model file does not exist (e.g. first run before any training),
     the class transparently falls back to the original heuristic using the
@@ -21,6 +29,11 @@ Thread safety:
     ``predict()`` is read-only after ``load_model()`` — safe to call from
     multiple threads without locking.
 
+3-zone routing (production-grade):
+    prob < 0.25   → "ml_strong_original"  (confident — keep original)
+    prob > 0.75   → "ml_strong_correct"   (confident — use corrected)
+    0.25–0.75     → "uncertain"           (fallback to heuristic)
+
 Usage::
 
     from smart_ear.decision_model import SmartEarDecisionModel
@@ -29,8 +42,8 @@ Usage::
     model.load_model()  # no-op if model file missing
 
     features = extract_features(item)
-    prob = model.predict(features)   # float in [0, 1]
-    confidence = model.predict_proba(features)  # same as predict for sklearn
+    result = model.decide(features)
+    # result["decision_zone"], result["calibrated_proba"], ...
 """
 
 from __future__ import annotations
@@ -38,7 +51,8 @@ from __future__ import annotations
 import logging
 import os
 import pickle
-from typing import Any, Optional
+import time
+from typing import Any, Dict, Optional
 
 from .features import features_to_vector
 
@@ -48,9 +62,13 @@ _DEFAULT_MODEL_PATH = os.path.join(
     os.path.dirname(__file__), "..", "..", "..", "models", "smart_ear_model.pkl"
 )
 
+# Zone thresholds (production-grade, tighter than old 0.30/0.70)
+_STRONG_ORIGINAL_THRESHOLD = 0.25   # below → ml_strong_original
+_STRONG_CORRECT_THRESHOLD  = 0.75   # above → ml_strong_correct
+
 
 class SmartEarDecisionModel:
-    """Wrapper around a trained sklearn classifier for SmartEar selection.
+    """Wrapper around a trained classifier for SmartEar selection.
 
     Parameters
     ----------
@@ -65,25 +83,15 @@ class SmartEarDecisionModel:
         Decision threshold applied to the predicted probability.
         Corrected text is chosen when ``predict() > threshold``.
     low_threshold:
-        Below this confidence → keep original (zone: "original").
-        Default 0.30.
+        Below this confidence → zone "ml_strong_original" (default 0.25).
     high_threshold:
-        Above this confidence → use corrected (zone: "corrected").
-        Default 0.70.
-        Values between ``low_threshold`` and ``high_threshold`` enter the
-        "uncertain" zone where the heuristic fallback is used instead.
-
-    3-zone routing
-    --------------
-    When both ``low_threshold`` and ``high_threshold`` are set the model
-    operates in three zones::
-
-        prob < low_threshold   → "original"   (confident keep)
-        low_threshold ≤ prob ≤ high_threshold → "uncertain" (heuristic)
-        prob > high_threshold  → "corrected"  (confident use)
-
-    Set ``low_threshold = 0`` and ``high_threshold = threshold`` to disable
-    the uncertain zone and use classic binary thresholding.
+        Above this confidence → zone "ml_strong_correct" (default 0.75).
+        Values between low and high → "uncertain" zone → heuristic fallback.
+    calibrator:
+        Optional :class:`~smart_ear.calibration.ProbabilityCalibrator`.
+        Can be set after construction: ``model.calibrator = cal``.
+    model_version:
+        Version tag used in audit logs (e.g. "v20260320").
     """
 
     def __init__(
@@ -91,14 +99,18 @@ class SmartEarDecisionModel:
         model_path: str = _DEFAULT_MODEL_PATH,
         heuristic_margin: float = 1.0,
         threshold: float = 0.5,
-        low_threshold: float = 0.30,
-        high_threshold: float = 0.70,
+        low_threshold: float = _STRONG_ORIGINAL_THRESHOLD,
+        high_threshold: float = _STRONG_CORRECT_THRESHOLD,
+        calibrator=None,
+        model_version: str = "unknown",
     ) -> None:
         self.model_path = os.path.abspath(model_path)
         self.heuristic_margin = heuristic_margin
         self.threshold = threshold
         self.low_threshold = low_threshold
         self.high_threshold = high_threshold
+        self.calibrator = calibrator
+        self.model_version = model_version
         self._model: Optional[Any] = None
         self._loaded = False
 
@@ -122,17 +134,29 @@ class SmartEarDecisionModel:
 
         try:
             with open(self.model_path, "rb") as fh:
-                candidate = pickle.load(fh)
+                payload = pickle.load(fh)
+
+            # Support versioned payloads: dict with 'model' and 'version' keys
+            if isinstance(payload, dict) and "model" in payload:
+                candidate = payload["model"]
+                self.model_version = payload.get("version", self.model_version)
+                # Load calibrator from payload if present and not already set
+                if self.calibrator is None and "calibrator" in payload:
+                    self.calibrator = payload["calibrator"]
+            else:
+                candidate = payload
+
             if not hasattr(candidate, "predict_proba"):
                 raise ValueError(
                     f"Model object {type(candidate)} missing predict_proba — "
-                    "expected a fitted sklearn classifier"
+                    "expected a fitted classifier"
                 )
             self._model = candidate
             self._loaded = True
             logger.info(
-                "SmartEarDecisionModel: loaded %s from %s",
+                "SmartEarDecisionModel: loaded %s (version=%s) from %s",
                 type(self._model).__name__,
+                self.model_version,
                 self.model_path,
             )
             return True
@@ -167,21 +191,19 @@ class SmartEarDecisionModel:
     def zone_from_prob(self, prob: float) -> str:
         """Map an already-computed probability to a routing zone.
 
-        Avoids a second model inference when the caller has already called
-        :meth:`predict_proba`.
-
-        * ``"original"``  — prob < ``low_threshold``
-        * ``"corrected"`` — prob > ``high_threshold``
-        * ``"uncertain"`` — in between; use heuristic fallback
+        Zones:
+        * ``"ml_strong_original"`` — prob < ``low_threshold`` (confident: keep)
+        * ``"ml_strong_correct"``  — prob > ``high_threshold`` (confident: use)
+        * ``"uncertain"``          — in between; use heuristic fallback
 
         When the model is not loaded, always returns ``"uncertain"``.
         """
         if not (self._loaded and self._model is not None):
             return "uncertain"
         if prob < self.low_threshold:
-            return "original"
+            return "ml_strong_original"
         if prob > self.high_threshold:
-            return "corrected"
+            return "ml_strong_correct"
         return "uncertain"
 
     def zone(self, features: dict) -> str:
@@ -192,15 +214,86 @@ class SmartEarDecisionModel:
         """
         return self.zone_from_prob(self.predict_proba(features))
 
+    def decide(self, features: dict) -> Dict[str, Any]:
+        """Full decision with ML internals — for use in SelectionStage.
+
+        Returns a dict containing all fields needed for audit logging and
+        routing decisions::
+
+            {
+                "ml_proba":         float,   # raw model probability
+                "calibrated_proba": float,   # after calibration (or same as ml_proba)
+                "decision_zone":    str,     # "ml_strong_original" / "ml_strong_correct" / "uncertain"
+                "fallback_used":    bool,    # True when heuristic overrides ML
+                "model_version":    str,
+                "feature_extraction_time": float,  # seconds
+                "model_inference_time":    float,  # seconds
+                "total_decision_time":     float,  # seconds
+            }
+
+        The caller uses ``decision_zone`` to route:
+            * "ml_strong_correct"  → use corrected text
+            * "ml_strong_original" → keep original text
+            * "uncertain"          → apply heuristic (``_predict_heuristic``)
+        """
+        t_start = time.perf_counter()
+
+        # Feature extraction is already done by the caller, so we only
+        # measure inference time here. We track a zero feature_extraction_time
+        # to keep the audit schema consistent; callers that time extraction
+        # separately may pass it in via features["_feature_extraction_time"].
+        feature_extraction_time = float(features.get("_feature_extraction_time", 0.0))
+
+        t_infer_start = time.perf_counter()
+        ml_proba = self.predict(features)
+        t_infer_end = time.perf_counter()
+        model_inference_time = t_infer_end - t_infer_start
+
+        # Calibration — only apply when the ML model is actually loaded.
+        # If we're in heuristic fallback mode the calibrator (trained on ML
+        # outputs) has no meaningful mapping for heuristic 0.0/1.0 outputs.
+        calibrated_proba = ml_proba
+        if (
+            self._loaded
+            and self.calibrator is not None
+            and getattr(self.calibrator, "is_fitted", False)
+        ):
+            try:
+                calibrated_proba = float(self.calibrator.transform(ml_proba))
+            except Exception as exc:
+                logger.debug("Calibration transform failed (%s) — using raw proba", exc)
+
+        decision_zone = self.zone_from_prob(calibrated_proba)
+        fallback_used = decision_zone == "uncertain"
+
+        t_end = time.perf_counter()
+        total_decision_time = t_end - t_start
+
+        return {
+            "ml_proba":                ml_proba,
+            "calibrated_proba":        calibrated_proba,
+            "decision_zone":           decision_zone,
+            "fallback_used":           fallback_used,
+            "model_version":           self.model_version,
+            "feature_extraction_time": feature_extraction_time,
+            "model_inference_time":    model_inference_time,
+            "total_decision_time":     total_decision_time,
+        }
+
     def _predict_model(self, features: dict) -> float:
         vector = features_to_vector(features)
         try:
             if hasattr(self._model, "predict_proba"):
                 proba = self._model.predict_proba([vector])[0]
-                # class 1 = "corrected" chosen
-                classes = list(self._model.classes_)
-                idx = classes.index(1) if 1 in classes else -1
-                return float(proba[idx]) if idx >= 0 else float(proba[-1])
+                # All supported backends (sklearn Pipeline, LightGBM, XGBoost)
+                # expose a classes_ attribute. Use it to find the class-1 index
+                # so the code stays correct regardless of training class order.
+                if hasattr(self._model, "classes_"):
+                    classes = list(self._model.classes_)
+                    idx = classes.index(1) if 1 in classes else -1
+                    return float(proba[idx]) if idx >= 0 else float(proba[-1])
+                # Fallback: assume binary [p_neg, p_pos]
+                return float(proba[1]) if len(proba) > 1 else float(proba[0])
             # Fallback for models without predict_proba
             return float(self._model.predict([vector])[0])
         except Exception as exc:
