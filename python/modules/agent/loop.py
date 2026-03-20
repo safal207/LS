@@ -667,6 +667,24 @@ class AgentLoop:
                     f"Интервьюер (давление {p:.0%}): {', '.join(flags)}."
                 )
 
+        empathy = item.get("_empathy_result")
+        if empathy and isinstance(empathy, dict):
+            tone_trigger = empathy.get("tone_trigger", "")
+            empathy_hints = empathy.get("hints") or []
+            nego_move = empathy.get("negotiation_move")
+            if tone_trigger or empathy_hints:
+                emp_lines: list[str] = []
+                if tone_trigger:
+                    emp_lines.append(f"💬 Тон: {tone_trigger}")
+                if empathy_hints:
+                    emp_lines.append(
+                        "Эмпатия/переговоры:\n"
+                        + "\n".join(f"- {h}" for h in empathy_hints)
+                    )
+                if nego_move:
+                    emp_lines.append(f'Открой с: "{nego_move}"')
+                parts.append("\n".join(emp_lines))
+
         if not parts:
             return messages
 

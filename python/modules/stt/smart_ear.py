@@ -72,13 +72,15 @@ try:
     from intent.why_layer import WhyLayer as _WhyLayer
     from intent.why_strategy import analyze_why_and_strategy as _analyze_strategy
     from intent.interviewer_profile import InterviewerProfile as _InterviewerProfile
+    from intent.empathy_negotiation import EmpathyNegotiationLayer as _EmpathyNegotiationLayer
     _INTENT_AVAILABLE = True
 except Exception:
     _INTENT_AVAILABLE = False
-    _IntentLayer = None              # type: ignore[assignment,misc]
-    _WhyLayer = None                 # type: ignore[assignment,misc]
-    _analyze_strategy = None         # type: ignore[assignment,misc]
-    _InterviewerProfile = None       # type: ignore[assignment,misc]
+    _IntentLayer = None                  # type: ignore[assignment,misc]
+    _WhyLayer = None                     # type: ignore[assignment,misc]
+    _analyze_strategy = None             # type: ignore[assignment,misc]
+    _InterviewerProfile = None           # type: ignore[assignment,misc]
+    _EmpathyNegotiationLayer = None      # type: ignore[assignment,misc]
 
 # ConversationAnchor (optional — graceful fallback)
 try:
@@ -873,6 +875,8 @@ class SmartEar:
         # WHY Strategy + Anchor (Stage 6)
         strategy_enabled: bool = True,
         anchor=None,
+        # Empathy & Negotiation Layer (Stage 7)
+        empathy_enabled: bool = True,
         # Cognitive Cycle Logger
         cycle_log_path: str = "",
         cycle_log_max_mb: float = 50,
@@ -978,6 +982,19 @@ class SmartEar:
         if strategy_enabled:
             _anchor_info = f", anchor={len(anchor)} items" if anchor else ""
             logger.info("SmartEar: WhyStrategyStage enabled%s", _anchor_info)
+
+        # Stage 7 — Empathy & Negotiation Layer
+        self._empathy: Optional["_EmpathyNegotiationLayer"] = None  # type: ignore[type-arg]
+        if (
+            empathy_enabled
+            and _INTENT_AVAILABLE
+            and _EmpathyNegotiationLayer is not None
+        ):
+            try:
+                self._empathy = _EmpathyNegotiationLayer()
+                logger.info("SmartEar: EmpathyNegotiationLayer enabled")
+            except Exception as exc:
+                logger.warning("SmartEar: EmpathyNegotiationLayer init failed: %s", exc)
 
         # Cognitive Cycle Logger
         self._cycle_logger = None
@@ -1167,6 +1184,10 @@ class SmartEar:
         item = self._strategy.process(item)
         if item is None:
             return None
+
+        # Stage 7 — Empathy & Negotiation
+        if self._empathy is not None:
+            item = self._empathy.process(item)
 
         final_text = item["text"]
         source = item.get("_selection_source", "original")
