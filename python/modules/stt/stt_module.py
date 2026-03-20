@@ -46,8 +46,9 @@ class SpeechToText:
         self.output_queue = output_queue
         self.model: Optional[WhisperModel] = None
         self.running = False
-        self.current_sentence = ""          # sentence accumulation buffer
-        self._current_words: List[dict] = []  # per-word data for current buffer
+        self.current_sentence = ""           # sentence accumulation buffer
+        self._current_words: List[dict] = [] # per-word data for current buffer
+        self._current_log_probs: List[float] = []  # raw log_probs across chunks
         # Dynamic prompt: updated with each committed question so the next chunk
         # benefits from recent vocabulary.
         self._dynamic_prompt: str = _BASE_INITIAL_PROMPT
@@ -113,14 +114,14 @@ class SpeechToText:
 
             text_parts: List[str] = []
             words_out: List[dict] = []
-            log_probs: List[float] = []
+            chunk_log_probs: List[float] = []
 
             for segment in segments:
                 seg_text = segment.text.strip()
                 if not seg_text:
                     continue
                 text_parts.append(seg_text)
-                log_probs.append(segment.avg_logprob)
+                chunk_log_probs.append(segment.avg_logprob)
 
                 # Collect per-word data when available
                 if segment.words:
@@ -136,16 +137,17 @@ class SpeechToText:
                 return {}
 
             transcript = " ".join(text_parts)
-            avg_logprob = sum(log_probs) / len(log_probs)
-            asr_confidence = math.exp(max(avg_logprob, -10.0))
 
             result = {
                 "text": transcript,
                 "words": words_out,
-                "asr_confidence": round(asr_confidence, 4),
+                # Return raw log_probs so process_result can accumulate them
+                # across chunks before computing final asr_confidence.
+                "_chunk_log_probs": chunk_log_probs,
             }
-            logger.debug("Transcription: %r (conf=%.3f, words=%d)",
-                         transcript, asr_confidence, len(words_out))
+            avg_lp = sum(chunk_log_probs) / len(chunk_log_probs) if chunk_log_probs else -10.0
+            logger.debug("Transcription: %r (logprob=%.3f, words=%d)",
+                         transcript, avg_lp, len(words_out))
             return result
 
         except Exception as e:
@@ -177,10 +179,11 @@ class SpeechToText:
             return None
 
         words: List[dict] = result.get("words", [])
-        asr_confidence: float = result.get("asr_confidence", 0.0)
+        chunk_log_probs: List[float] = result.get("_chunk_log_probs", [])
 
         self.current_sentence = (self.current_sentence + " " + transcript).strip()
         self._current_words.extend(words)
+        self._current_log_probs.extend(chunk_log_probs)
 
         logger.debug(f"Buffer: {self.current_sentence!r}")
 
@@ -189,12 +192,21 @@ class SpeechToText:
             question = self.current_sentence
             buffered_words = list(self._current_words)
 
+            # Average log_probs across ALL chunks that formed this question,
+            # then convert to confidence — more accurate than using last chunk.
+            if self._current_log_probs:
+                avg_logprob = sum(self._current_log_probs) / len(self._current_log_probs)
+                asr_confidence = round(math.exp(max(avg_logprob, -10.0)), 4)
+            else:
+                asr_confidence = 0.0
+
             # Update dynamic prompt with latest question context
             self._dynamic_prompt = _BASE_INITIAL_PROMPT + "  " + question[:200]
 
             # Reset buffers
             self.current_sentence = ""
             self._current_words = []
+            self._current_log_probs = []
 
             return {
                 "type": "question",
@@ -209,6 +221,7 @@ class SpeechToText:
             logger.debug("Buffer overflow, resetting")
             self.current_sentence = ""
             self._current_words = []
+            self._current_log_probs = []
 
         return None
 

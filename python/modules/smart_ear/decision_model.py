@@ -122,7 +122,13 @@ class SmartEarDecisionModel:
 
         try:
             with open(self.model_path, "rb") as fh:
-                self._model = pickle.load(fh)
+                candidate = pickle.load(fh)
+            if not hasattr(candidate, "predict_proba"):
+                raise ValueError(
+                    f"Model object {type(candidate)} missing predict_proba — "
+                    "expected a fitted sklearn classifier"
+                )
+            self._model = candidate
             self._loaded = True
             logger.info(
                 "SmartEarDecisionModel: loaded %s from %s",
@@ -158,25 +164,33 @@ class SmartEarDecisionModel:
         """Alias for :meth:`predict` — returns probability in ``[0, 1]``."""
         return self.predict(features)
 
-    def zone(self, features: dict) -> str:
-        """Return routing zone: ``"original"``, ``"uncertain"``, or ``"corrected"``.
+    def zone_from_prob(self, prob: float) -> str:
+        """Map an already-computed probability to a routing zone.
 
-        * ``"original"``  — model confident: keep original text.
-        * ``"corrected"`` — model confident: use corrected text.
-        * ``"uncertain"`` — model is in the grey zone; use heuristic fallback.
+        Avoids a second model inference when the caller has already called
+        :meth:`predict_proba`.
 
-        When the model is not loaded, always returns ``"uncertain"`` so the
-        heuristic takes over.
+        * ``"original"``  — prob < ``low_threshold``
+        * ``"corrected"`` — prob > ``high_threshold``
+        * ``"uncertain"`` — in between; use heuristic fallback
+
+        When the model is not loaded, always returns ``"uncertain"``.
         """
         if not (self._loaded and self._model is not None):
             return "uncertain"
-
-        prob = self._predict_model(features)
         if prob < self.low_threshold:
             return "original"
         if prob > self.high_threshold:
             return "corrected"
         return "uncertain"
+
+    def zone(self, features: dict) -> str:
+        """Return routing zone from raw features (runs one inference).
+
+        Prefer :meth:`zone_from_prob` when you have already called
+        :meth:`predict_proba` to avoid a redundant model call.
+        """
+        return self.zone_from_prob(self.predict_proba(features))
 
     def _predict_model(self, features: dict) -> float:
         vector = features_to_vector(features)

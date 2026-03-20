@@ -104,6 +104,9 @@ class SmartEarMetrics:
             True when this decision was triggered by ``user_feedback()``,
             meaning the human disagreed with the system's prior choice.
         """
+        log_msg: Optional[str] = None
+        log_level = "warning"
+
         with self._lock:
             self._confidences.append(model_confidence)
             self._sources.append(source)
@@ -120,17 +123,29 @@ class SmartEarMetrics:
             now = time.monotonic()
             if now - self._last_drift_check >= self._drift_check_interval:
                 self._last_drift_check = now
-                self._check_drift()
+                log_msg, log_level = self._check_drift()
+
+        # I/O outside the lock — avoids holding the lock during logging
+        if log_msg:
+            if log_level == "warning":
+                logger.warning("SmartEarMetrics: %s", log_msg)
+            else:
+                logger.info("SmartEarMetrics: %s", log_msg)
 
     # ------------------------------------------------------------------
     # Drift detection
     # ------------------------------------------------------------------
 
-    def _check_drift(self) -> None:
-        """Called under lock — updates _drift_detected."""
+    def _check_drift(self) -> tuple:
+        """Called under lock — updates _drift_detected.
+
+        Returns ``(message, level)`` for the caller to log *outside* the lock,
+        avoiding I/O inside a critical section.  Returns ``(None, None)`` when
+        there is nothing to log.
+        """
         n = len(self._confidences)
         if n < 20:
-            return  # not enough data
+            return None, None
 
         ml_confs = [c for c, s in zip(self._confidences, self._sources) if "ml" in s]
         if len(ml_confs) >= 10:
@@ -140,8 +155,7 @@ class SmartEarMetrics:
                 self._drift_reason = (
                     f"avg_ml_confidence={avg_conf:.3f} < floor={self.drift_confidence_floor}"
                 )
-                logger.warning("SmartEarMetrics: DRIFT detected — %s", self._drift_reason)
-                return
+                return f"DRIFT detected — {self._drift_reason}", "warning"
 
         fb_rate = sum(self._feedback_flags) / n
         if fb_rate > self.drift_feedback_rate:
@@ -149,14 +163,15 @@ class SmartEarMetrics:
             self._drift_reason = (
                 f"feedback_rate={fb_rate:.1%} > threshold={self.drift_feedback_rate:.1%}"
             )
-            logger.warning("SmartEarMetrics: DRIFT detected — %s", self._drift_reason)
-            return
+            return f"DRIFT detected — {self._drift_reason}", "warning"
 
         # All checks pass — clear drift flag
-        if self._drift_detected:
-            logger.info("SmartEarMetrics: drift cleared")
+        was_drifted = self._drift_detected
         self._drift_detected = False
         self._drift_reason = None
+        if was_drifted:
+            return "drift cleared", "info"
+        return None, None
 
     def clear_drift(self) -> None:
         """Manually clear drift flag (e.g. after a successful retrain)."""

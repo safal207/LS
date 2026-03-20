@@ -78,10 +78,12 @@ class SmartEarAutoTrainer:
         retrain_every: int = 50,
         poll_interval: float = 30.0,
         min_samples: int = 20,
+        metrics=None,
     ) -> None:
         self.dataset_path = dataset_path
         self.model_path = model_path
         self._model = decision_model
+        self._metrics = metrics
         self.retrain_every = retrain_every
         self.poll_interval = poll_interval
         self.min_samples = min_samples
@@ -200,7 +202,7 @@ class SmartEarAutoTrainer:
             return False
 
     def _hot_swap(self) -> None:
-        """Reload the freshly trained model into the live decision instance."""
+        """Reload the freshly trained model and clear drift flag."""
         try:
             loaded = self._model.load_model()
             if loaded:
@@ -208,6 +210,9 @@ class SmartEarAutoTrainer:
                     "AutoTrainer: hot-swapped model (retrain #%d)",
                     self._total_retrains,
                 )
+                # Clear drift so SelectionStage uses the new model immediately
+                if self._metrics is not None:
+                    self._metrics.clear_drift()
             else:
                 logger.warning("AutoTrainer: hot-swap failed — model file not found after training")
         except Exception as exc:

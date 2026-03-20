@@ -63,9 +63,13 @@ from typing import List, Optional
 from .phonetic import PhoneticCorrector, STATIC_IT_VOCAB
 
 # ML decision layer (optional — graceful fallback if sklearn missing)
+# Add the modules root to sys.path idempotently so sibling package smart_ear
+# can be imported without permanently mutating the interpreter's path.
+_modules_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 try:
     import sys as _sys
-    _sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+    if _modules_root not in _sys.path:
+        _sys.path.insert(0, _modules_root)
     from smart_ear.features import extract_features, features_to_vector
     from smart_ear.decision_model import SmartEarDecisionModel
     from smart_ear.metrics import SmartEarMetrics
@@ -523,11 +527,21 @@ class SelectionStage:
         self.corrector = phonetic_corrector
         self._model = decision_model
         self._metrics = metrics
+        # Cached vocab set — rebuilt only when domain_vocab grows
+        self._vocab_cache: Optional[frozenset] = None
+        self._vocab_cache_len: int = 0
+
+    def _get_vocab_set(self) -> frozenset:
+        current_len = len(self.corrector.domain_vocab)
+        if self._vocab_cache is None or current_len != self._vocab_cache_len:
+            self._vocab_cache = frozenset(w.lower() for w in self.corrector.domain_vocab)
+            self._vocab_cache_len = current_len
+        return self._vocab_cache
 
     def _vocab_scores(
         self, original_text: str, corrected_text: str, context: str
     ) -> tuple[float, float]:
-        vocab_set = {w.lower() for w in self.corrector.domain_vocab}
+        vocab_set = self._get_vocab_set()
         ctx_words = set(context.lower().split())
 
         def score(text: str) -> float:
@@ -573,8 +587,8 @@ class SelectionStage:
 
             if ml_active:
                 features = extract_features(item)
-                model_confidence = self._model.predict_proba(features)
-                z = self._model.zone(features)
+                model_confidence = self._model.predict_proba(features)  # single inference
+                z = self._model.zone_from_prob(model_confidence)         # no second call
                 item["_model_confidence"] = round(model_confidence, 4)
                 item["_routing_zone"]     = z
 
@@ -712,6 +726,7 @@ class SmartEar:
                 model_path=_model_path,
                 decision_model=_decision_model,
                 retrain_every=retrain_every,
+                metrics=_metrics,
             )
 
         self._filter = FilterStage(
