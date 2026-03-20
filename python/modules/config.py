@@ -90,6 +90,9 @@ SMART_EAR_VOCAB_SIMILARITY   = _get(["smart_ear", "vocab_similarity"],   0.60)
 SMART_EAR_SELECTION_MARGIN   = _get(["smart_ear", "selection_margin"],   1)
 SMART_EAR_VOCAB_MIN_LENGTH   = _get(["smart_ear", "vocab_min_length"],   3)
 SMART_EAR_VOCAB_REFRESH_EVERY = _get(["smart_ear", "vocab_refresh_every"], 60)
+SMART_EAR_DOMAIN_PACKS  = _get(["smart_ear", "domain_packs"],  [])          # e.g. ["web_dev","devops"]
+SMART_EAR_AUDIT_LOG     = _get(["smart_ear", "audit_log"],     "")          # path to JSONL log (empty = disabled)
+SMART_EAR_AUDIT_MAX_MB  = _get(["smart_ear", "audit_max_mb"],  10)          # max log file size before rotation
 
 # ReflexArc cognitive thresholds
 REFLEX_RESONANCE_WEIGHT  = _get(["cognitive", "reflex", "resonance_weight"],  0.4)

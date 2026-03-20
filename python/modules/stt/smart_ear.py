@@ -12,43 +12,72 @@ SmartEar processes each STT item through three explicit stages:
 2. **HypothesisStage**— PhoneticCorrector: low-confidence words → domain candidates
 3. **SelectionStage** — pick original or corrected text; add context boost
 
-Context enrichment (CausalMemory) is folded into FilterStage to avoid an
-extra dict-passing hop.
+Additionally provides:
 
-All significant decisions are published to EventBus for observability:
-* ``smart_ear_candidates``  — phonetic expansion results
-* ``smart_ear_selected``    — committed text with composite confidence
-* ``smart_ear_rejected``    — dropped items with reason
+* **SmartEarAuditLog** — JSONL file with every decision (accepted / rejected /
+  corrected).  Rotated when the file exceeds ``SMART_EAR_AUDIT_MAX_MB``.
+  Serves as the *gold mine* for offline tuning and error analysis.
+
+* **Feedback loop** — ``SmartEar.user_feedback(original, correct)`` lets the
+  caller tell the system "this is what was actually meant".  The correct terms
+  are added to the domain vocab immediately, logged, and published on EventBus.
+
+* **Domain packs** — named vocabulary sets (``web_dev``, ``devops``,
+  ``crypto``, ``qa``) that can be loaded via ``SMART_EAR_DOMAIN_PACKS`` config
+  or the ``domain_packs`` constructor argument.
 
 Configuration via ``config.py`` (``[smart_ear]`` section):
-* ``weights.asr``            — ASR confidence weight (default 0.50)
-* ``weights.context``        — CausalMemory context match weight (default 0.25)
-* ``weights.vocab``          — Domain vocab match weight (default 0.25)
-* ``threshold``              — Minimum composite to pass FilterStage (default 0.25)
-* ``low_word_prob``          — Per-word probability below which phonetic correction
-                               is attempted (default 0.50)
-* ``vocab_similarity``       — Similarity threshold for fuzzy vocab match (default 0.60)
-* ``selection_margin``       — Score advantage corrected must have over original (default 1)
-* ``vocab_min_length``       — Minimum term length for dynamic vocab (default 3)
-* ``vocab_refresh_every``    — Refresh dynamic vocab every N items (default 60)
+* ``weights.asr``           — ASR weight (default 0.50)
+* ``weights.context``       — CausalMemory context match weight (default 0.25)
+* ``weights.vocab``         — Domain vocab match weight (default 0.25)
+* ``threshold``             — Min composite to pass FilterStage (default 0.25)
+* ``low_word_prob``         — Per-word probability threshold (default 0.50)
+* ``vocab_similarity``      — Fuzzy vocab-match threshold (default 0.60)
+* ``selection_margin``      — Corrected must beat original by this much (default 1)
+* ``vocab_min_length``      — Min length for dynamic vocab terms (default 3)
+* ``vocab_refresh_every``   — Refresh interval in processed items (default 60)
+* ``domain_packs``          — List of pack names to load (default [])
+* ``audit_log``             — Path to JSONL audit log file (default "" = disabled)
+* ``audit_max_mb``          — Rotate log when it exceeds this size (default 10)
+
+EventBus topics:
+* ``smart_ear_candidates``  — phonetic expansion results
+* ``smart_ear_selected``    — committed text + composite confidence
+* ``smart_ear_rejected``    — dropped items with reason
+* ``smart_ear_feedback``    — user-provided correction recorded
 """
 
 from __future__ import annotations
 
 import difflib
+import json
 import logging
+import os
 import queue
 import re
+import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from .phonetic import PhoneticCorrector, STATIC_IT_VOCAB
-from shared.utils import is_question
+
+try:
+    from shared.utils import is_question
+except ImportError:
+    def is_question(text: str) -> bool:  # type: ignore[misc]
+        """Minimal fallback: ends with '?' or starts with a question word."""
+        text = text.strip()
+        if text.endswith("?"):
+            return True
+        _Q = {"что", "как", "почему", "зачем", "когда", "где", "кто",
+              "what", "how", "why", "when", "where", "who", "which"}
+        return text.lower().split()[0] in _Q if text else False
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Load weights from config (with graceful fallback to defaults)
+# Load weights / settings from config (graceful fallback)
 # ---------------------------------------------------------------------------
 try:
     from config import (
@@ -61,29 +90,123 @@ try:
         SMART_EAR_SELECTION_MARGIN,
         SMART_EAR_VOCAB_MIN_LENGTH,
         SMART_EAR_VOCAB_REFRESH_EVERY,
+        SMART_EAR_DOMAIN_PACKS,
+        SMART_EAR_AUDIT_LOG,
+        SMART_EAR_AUDIT_MAX_MB,
     )
 except ImportError:
-    SMART_EAR_W_ASR              = 0.50
-    SMART_EAR_W_CONTEXT          = 0.25
-    SMART_EAR_W_VOCAB            = 0.25
-    SMART_EAR_THRESHOLD          = 0.25
-    SMART_EAR_LOW_WORD_PROB      = 0.50
-    SMART_EAR_VOCAB_SIMILARITY   = 0.60
-    SMART_EAR_SELECTION_MARGIN   = 1
-    SMART_EAR_VOCAB_MIN_LENGTH   = 3
+    SMART_EAR_W_ASR               = 0.50
+    SMART_EAR_W_CONTEXT           = 0.25
+    SMART_EAR_W_VOCAB             = 0.25
+    SMART_EAR_THRESHOLD           = 0.25
+    SMART_EAR_LOW_WORD_PROB       = 0.50
+    SMART_EAR_VOCAB_SIMILARITY    = 0.60
+    SMART_EAR_SELECTION_MARGIN    = 1
+    SMART_EAR_VOCAB_MIN_LENGTH    = 3
     SMART_EAR_VOCAB_REFRESH_EVERY = 60
+    SMART_EAR_DOMAIN_PACKS        = []
+    SMART_EAR_AUDIT_LOG           = ""
+    SMART_EAR_AUDIT_MAX_MB        = 10
 
-# Regex: term looks like an IT/Latin identifier (used when filtering dynamic vocab)
+# Regex: term looks like an IT/Latin identifier
 _IT_TERM_RE = re.compile(r'^[A-Za-z][A-Za-z0-9_./-]{1,}$')
 
 
 # ---------------------------------------------------------------------------
-# Tiny event wrapper (mirrors audio_module.SimpleEvent)
+# Tiny event wrapper
 # ---------------------------------------------------------------------------
 @dataclass
 class _Event:
     type: str
     payload: dict = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# SmartEarAuditLog — JSONL decision log
+# ---------------------------------------------------------------------------
+
+class SmartEarAuditLog:
+    """Append-only JSONL log of every SmartEar decision.
+
+    Records:
+    * ``accepted`` — item passed all stages (includes final text & corrections)
+    * ``rejected`` — item dropped by FilterStage (reason included)
+    * ``feedback`` — user-supplied correction (original → correct terms)
+
+    The log is rotated (old file renamed to ``<path>.bak``) when it exceeds
+    ``max_bytes``.  This keeps disk usage bounded without losing the last run.
+
+    When ``path`` is empty the logger is a no-op.
+    """
+
+    def __init__(self, path: str = "", max_bytes: int = 10 * 1024 * 1024) -> None:
+        self.path = path
+        self.max_bytes = max_bytes
+        self._enabled = bool(path)
+
+    def _rotate_if_needed(self) -> None:
+        try:
+            if os.path.getsize(self.path) >= self.max_bytes:
+                bak = self.path + ".bak"
+                if os.path.exists(bak):
+                    os.remove(bak)
+                os.rename(self.path, bak)
+                logger.info("SmartEarAuditLog rotated → %s", bak)
+        except OSError:
+            pass
+
+    def _write(self, record: dict) -> None:
+        if not self._enabled:
+            return
+        record["ts"] = datetime.now(timezone.utc).isoformat()
+        try:
+            self._rotate_if_needed()
+            with open(self.path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception as exc:
+            logger.debug("SmartEarAuditLog write failed: %s", exc)
+
+    def log_accepted(
+        self,
+        original: str,
+        final: str,
+        source: str,
+        composite: float,
+        corrections: List[dict],
+    ) -> None:
+        self._write({
+            "event": "accepted",
+            "original": original,
+            "final": final,
+            "source": source,
+            "composite": round(composite, 4),
+            "corrections": corrections,
+        })
+
+    def log_rejected(self, text: str, reason: str, composite: float = 0.0) -> None:
+        self._write({
+            "event": "rejected",
+            "text": text,
+            "reason": reason,
+            "composite": round(composite, 4),
+        })
+
+    def log_feedback(self, original: str, correct: str, new_terms: List[str]) -> None:
+        self._write({
+            "event": "feedback",
+            "original": original,
+            "correct": correct,
+            "new_terms": new_terms,
+        })
+
+    def log_no_correction(self, word: str, asr_prob: float, candidates: List) -> None:
+        """Word was low-confidence but nothing in vocab matched well enough."""
+        self._write({
+            "event": "no_correction",
+            "word": word,
+            "asr_prob": round(asr_prob, 4),
+            "top_candidates": candidates[:3],
+        })
 
 
 # ---------------------------------------------------------------------------
@@ -95,11 +218,11 @@ class FilterStage:
 
     Key design decisions:
     * Single-word items are still allowed if ``is_question()`` returns True
-      (e.g. "Docker?" is a valid question).
-    * Vocab match uses fuzzy similarity (not binary membership) so partial
-      matches and morphological variants contribute a non-zero score.
-    * Amygdala.state is read as a stress signal to tighten the threshold
-      under high cognitive load — no Amygdala API calls that could break.
+      (e.g. "Docker?" or "Почему?" are valid inputs).
+    * Vocab match uses fuzzy SequenceMatcher — handles morphological variants
+      and partial matches without binary in/not-in.
+    * Amygdala.state is read as a stress signal to tighten threshold under
+      high cognitive load.  No Amygdala API calls — attribute access only.
     """
 
     def __init__(
@@ -108,11 +231,14 @@ class FilterStage:
         causal_memory=None,
         phonetic_corrector: PhoneticCorrector | None = None,
         threshold: float = SMART_EAR_THRESHOLD,
+        audit_log: SmartEarAuditLog | None = None,
     ) -> None:
         self.amygdala = amygdala
         self.causal_memory = causal_memory
         self._corrector = phonetic_corrector
         self.threshold = threshold
+        self._audit = audit_log or SmartEarAuditLog()
+
         self._vocab_lower: List[str] = [
             v.lower() for v in (
                 phonetic_corrector.domain_vocab if phonetic_corrector else STATIC_IT_VOCAB
@@ -149,11 +275,7 @@ class FilterStage:
         return min(1.0, len(overlap) / max(len(txt_words), 1))
 
     def _vocab_match(self, text: str) -> float:
-        """Fuzzy vocab match: each word gets similarity score against vocab.
-
-        Uses SequenceMatcher to handle morphological variants and partial matches.
-        Score ≥ SMART_EAR_VOCAB_SIMILARITY contributes 1.0; below that → raw score.
-        """
+        """Fuzzy vocab match: each word scored via SequenceMatcher against vocab."""
         words = text.lower().split()
         if not words:
             return 0.0
@@ -178,7 +300,6 @@ class FilterStage:
     # ------------------------------------------------------------------
 
     def _threshold_boost(self) -> float:
-        """Tighten threshold when Amygdala is under stress."""
         if self.amygdala is None:
             return 0.0
         try:
@@ -199,23 +320,23 @@ class FilterStage:
         text: str = item.get("text", "").strip()
         words = text.split()
 
-        # Hard reject: empty
         if not words:
-            logger.debug("FilterStage: rejected (empty)")
+            self._audit.log_rejected(text, "empty")
             return None
 
-        # Single-word: only pass if it looks like a question ("Docker?", "Почему?")
+        # Single-word: pass only if it looks like a question
         if len(words) == 1 and not is_question(text):
+            self._audit.log_rejected(text, "single_non_question")
             logger.debug("FilterStage: rejected (single non-question word): %r", text)
             return None
 
         asr_confidence: float = item.get("_asr_confidence", 0.0)
         context = self._get_recent_context()
         composite = self.compute_composite(text, asr_confidence, context)
-
         effective_threshold = self.threshold + self._threshold_boost()
 
         if composite < effective_threshold:
+            self._audit.log_rejected(text, "low_composite", composite)
             logger.debug(
                 "FilterStage: rejected (composite=%.3f < %.3f): %r",
                 composite, effective_threshold, text,
@@ -234,13 +355,17 @@ class FilterStage:
 class HypothesisStage:
     """Correct low-confidence words via PhoneticCorrector.
 
-    When per-word probability data is available (``_words`` key from STT),
-    only words with ``probability < SMART_EAR_LOW_WORD_PROB`` are candidates.
-    Otherwise falls back to full-text correction.
+    Logs ``no_correction`` events for words that were low-confidence but had
+    no good candidate — these are the most valuable entries for vocab expansion.
     """
 
-    def __init__(self, phonetic_corrector: PhoneticCorrector) -> None:
+    def __init__(
+        self,
+        phonetic_corrector: PhoneticCorrector,
+        audit_log: SmartEarAuditLog | None = None,
+    ) -> None:
         self.corrector = phonetic_corrector
+        self._audit = audit_log or SmartEarAuditLog()
 
     def process(self, item: dict) -> Optional[dict]:
         text: str = item.get("text", "")
@@ -251,6 +376,15 @@ class HypothesisStage:
                 words_with_prob, low_prob_threshold=SMART_EAR_LOW_WORD_PROB
             )
             corrected_text = " ".join(corrected_words)
+
+            # Log words that were low-confidence but didn't get corrected
+            corrected_originals = {c["original"].lower() for c in corrections}
+            for entry in words_with_prob:
+                word = entry.get("word", "").strip()
+                prob = float(entry.get("probability", 1.0))
+                if prob < SMART_EAR_LOW_WORD_PROB and word.lower() not in corrected_originals:
+                    cands = self.corrector.candidates(word)
+                    self._audit.log_no_correction(word, prob, cands)
         else:
             corrected_text, corrections = self.corrector.correct_text(text)
 
@@ -269,9 +403,8 @@ class HypothesisStage:
 class SelectionStage:
     """Choose between original and phonetically corrected text.
 
-    Corrected text is preferred only when its domain+context score exceeds
-    the original by at least SMART_EAR_SELECTION_MARGIN.  This prevents
-    spurious substitutions when scores are equal.
+    Corrected text wins only if its score exceeds original by
+    ``SMART_EAR_SELECTION_MARGIN`` — equal scores keep original.
     """
 
     def __init__(self, phonetic_corrector: PhoneticCorrector) -> None:
@@ -296,7 +429,6 @@ class SelectionStage:
             orig_score = len(orig_words & vocab_set) + len(orig_words & ctx_words)
             corr_score = len(corr_words & vocab_set) + len(corr_words & ctx_words)
 
-            # Require corrected to be strictly better by SELECTION_MARGIN
             if corr_score >= orig_score + SMART_EAR_SELECTION_MARGIN:
                 selected = corrected_text
                 source = "phonetic"
@@ -318,7 +450,10 @@ class SmartEar:
     Processes each STT item through:
         FilterStage → HypothesisStage → SelectionStage
 
-    Stateless by design: sentence buffering is handled upstream by STT.
+    Public methods:
+        run()                       — blocking worker loop
+        stop()                      — signal shutdown
+        user_feedback(orig, correct)— teach the system: "I meant <correct>"
     """
 
     def __init__(
@@ -331,7 +466,10 @@ class SmartEar:
         event_bus=None,
         cognitive_flow=None,
         domain_vocab: List[str] | None = None,
+        domain_packs: List[str] | None = None,
         confidence_threshold: float = SMART_EAR_THRESHOLD,
+        audit_log_path: str = SMART_EAR_AUDIT_LOG,
+        audit_max_mb: int = SMART_EAR_AUDIT_MAX_MB,
     ) -> None:
         self.input_queue = input_queue
         self.output_queue = output_queue
@@ -339,9 +477,27 @@ class SmartEar:
         self.cognitive_flow = cognitive_flow
         self.running = False
 
-        self._corrector = PhoneticCorrector(
-            domain_vocab=list(domain_vocab or STATIC_IT_VOCAB),
-            threshold=0.35,
+        # Build vocabulary: static + domain packs + caller-supplied
+        vocab = list(STATIC_IT_VOCAB)
+        packs_to_load = domain_packs if domain_packs is not None else SMART_EAR_DOMAIN_PACKS
+        if packs_to_load:
+            try:
+                from .domain_packs import load_packs
+                pack_terms = load_packs(packs_to_load)
+                vocab = list({*vocab, *pack_terms})
+                logger.info("SmartEar: loaded domain packs %s (+%d terms)", packs_to_load, len(pack_terms))
+            except Exception as exc:
+                logger.warning("SmartEar: domain_packs load failed: %s", exc)
+
+        if domain_vocab:
+            vocab = list({*vocab, *domain_vocab})
+
+        self._corrector = PhoneticCorrector(domain_vocab=vocab, threshold=0.35)
+
+        # Audit log
+        self._audit = SmartEarAuditLog(
+            path=audit_log_path,
+            max_bytes=audit_max_mb * 1024 * 1024,
         )
 
         self._filter = FilterStage(
@@ -349,12 +505,44 @@ class SmartEar:
             causal_memory=causal_memory,
             phonetic_corrector=self._corrector,
             threshold=confidence_threshold,
+            audit_log=self._audit,
         )
-        self._hypothesis = HypothesisStage(self._corrector)
+        self._hypothesis = HypothesisStage(self._corrector, audit_log=self._audit)
         self._selection = SelectionStage(self._corrector)
 
         self._vocab_refresh_counter = 0
         self._causal_memory = causal_memory
+
+    # ------------------------------------------------------------------
+    # Public: feedback loop
+    # ------------------------------------------------------------------
+
+    def user_feedback(self, original_text: str, correct_text: str) -> None:
+        """Tell SmartEar what you actually meant.
+
+        New terms extracted from *correct_text* are added to the domain vocab
+        immediately so the next utterance benefits from the correction.
+
+        Args:
+            original_text: What the system heard / produced.
+            correct_text:  What the user actually said / intended.
+        """
+        new_terms = [
+            t for t in correct_text.split()
+            if _IT_TERM_RE.match(t) and len(t) >= SMART_EAR_VOCAB_MIN_LENGTH
+        ]
+        if new_terms:
+            self._corrector.update_vocab(new_terms)
+            # Keep FilterStage fuzzy-vocab in sync
+            self._filter._vocab_lower = [v.lower() for v in self._corrector.domain_vocab]
+            logger.info("SmartEar feedback: added %d terms from correction: %s", len(new_terms), new_terms)
+
+        self._audit.log_feedback(original_text, correct_text, new_terms)
+        self._publish("smart_ear_feedback", {
+            "original": original_text,
+            "correct": correct_text,
+            "new_terms": new_terms,
+        })
 
     # ------------------------------------------------------------------
     # EventBus
@@ -397,7 +585,6 @@ class SmartEar:
             if not raw_terms:
                 return
 
-            # Filter: only accept IT-like terms (Latin, min length, no numbers-only)
             clean: List[str] = [
                 t for t in raw_terms
                 if (
@@ -408,7 +595,6 @@ class SmartEar:
             ]
             if clean:
                 self._corrector.update_vocab(clean)
-                # Rebuild vocab_lower in FilterStage
                 self._filter._vocab_lower = [v.lower() for v in self._corrector.domain_vocab]
                 logger.debug("SmartEar: vocab refreshed (+%d clean terms)", len(clean))
         except Exception as exc:
@@ -426,10 +612,7 @@ class SmartEar:
         # Stage 1 — Filter
         item = self._filter.process(item)
         if item is None:
-            self._publish("smart_ear_rejected", {
-                "text": original_text,
-                "reason": "filter_stage",
-            })
+            self._publish("smart_ear_rejected", {"text": original_text, "reason": "filter_stage"})
             return None
 
         # Stage 2 — Hypothesis
@@ -451,11 +634,17 @@ class SmartEar:
 
         self._step_flow("interpret", {"text": item.get("text", "")})
 
+        final_text = item["text"]
+        source = item.get("_selection_source", "original")
+        composite = item.get("_composite_confidence", 0.0)
+        corrections = item.get("_phonetic_corrections", [])
+
+        self._audit.log_accepted(original_text, final_text, source, composite, corrections)
         self._publish("smart_ear_selected", {
-            "text": item["text"],
-            "composite_confidence": item.get("_composite_confidence", 0.0),
-            "source": item.get("_selection_source", "original"),
-            "corrections": item.get("_phonetic_corrections", []),
+            "text": final_text,
+            "composite_confidence": composite,
+            "source": source,
+            "corrections": corrections,
         })
 
         return item
@@ -465,7 +654,7 @@ class SmartEar:
     # ------------------------------------------------------------------
 
     def run(self) -> None:
-        logger.info("SmartEar started")
+        logger.info("SmartEar started (vocab=%d terms)", len(self._corrector.domain_vocab))
         self.running = True
 
         while self.running:
