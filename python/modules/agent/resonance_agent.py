@@ -466,7 +466,6 @@ class ResonanceAgent:
     ) -> dict:
         """Build the spec-compliant output dict."""
         strategy  = item.get("_why_strategy")  or {}
-        empathy   = item.get("_empathy_result") or {}
         copilot   = item.get("_copilot_output") or {}
         intent    = item.get("_intent")
         why       = item.get("_why")
