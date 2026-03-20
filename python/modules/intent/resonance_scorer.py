@@ -49,6 +49,7 @@ _GOOD_TONE_PAIRS: set[tuple[str, str]] = {
     ("warm",      "experiential"),
     ("assertive", "definition"),
     ("assertive", "reasoning"),
+    ("assertive", "defense"),     # confident pushback on challenge questions
     ("brief",     "short"),
     ("calm",      "short"),
     ("grounded",  "defense"),

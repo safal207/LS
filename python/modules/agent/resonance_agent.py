@@ -216,6 +216,11 @@ class ResonanceAgent:
             else None
         )
 
+        # Short-lived cache of completed cycle records (last 50) so feedback()
+        # can look up the actual resonance_score rather than assuming 0.0.
+        self._recent_cycles: dict[str, dict] = {}
+        self._max_cached    = 50
+
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
             len(self._anchor),
@@ -259,18 +264,28 @@ class ResonanceAgent:
     def feedback(self, cycle_id: str, feedback_text: str) -> None:
         """Record user feedback for a completed cycle and trigger learning.
 
+        Looks up the actual resonance_score from the recent-cycle cache so the
+        learner receives the correct signal instead of a hard-coded 0.0.
+        Positive feedback ("отлично", "good", "yes"…) preserves the original
+        score as a reinforcement signal; negative/corrective feedback triggers
+        the reversal multiplier inside ResonanceLearner.
+
         Args:
             cycle_id:      ID returned in the cycle dict (``result["cycle_id"]``).
             feedback_text: Short description of what was wrong / right.
         """
         if self._logger:
             self._logger.add_feedback(cycle_id, feedback_text)
-        # Build a minimal cycle record for the learner
         if self._learner:
+            cached = self._recent_cycles.get(cycle_id) or {}
             self._learner.learn({
-                "resonance_score": 0.0,   # negative signal on explicit feedback
-                "copilot":         {},
-                "user_feedback":   feedback_text,
+                "resonance_score": cached.get("resonance_score", 0.5),
+                "copilot": {
+                    "active_rules": (
+                        (cached.get("_copilot_output") or {}).get("active_rules") or []
+                    ),
+                },
+                "user_feedback": feedback_text,
             })
 
     # ------------------------------------------------------------------
@@ -292,17 +307,17 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.debug("ResonanceAgent: logger.start_cycle failed: %s", exc)
 
-        # Stage 2 — Intent
+        # Stage 4 — Intent
         if self._intent:
             try:
-                item = self._intent.process(item)
+                item = self._intent.process_item(item)
             except Exception as exc:
                 logger.debug("ResonanceAgent: IntentLayer failed: %s", exc)
 
-        # Stage 3 — WHY
+        # Stage 5 — WHY
         if self._why:
             try:
-                item = self._why.process(item)
+                item = self._why.process_item(item)
             except Exception as exc:
                 logger.debug("ResonanceAgent: WhyLayer failed: %s", exc)
 
@@ -374,7 +389,14 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.debug("ResonanceAgent: learner.learn failed: %s", exc)
 
-        return self._build_output(item, final_output, generation_time, cycle_id)
+        result = self._build_output(item, final_output, generation_time, cycle_id)
+        # Cache the item (not the output dict) so feedback() can access
+        # resonance_score and active_rules via the original pipeline keys.
+        self._recent_cycles[cycle_id] = item
+        if len(self._recent_cycles) > self._max_cached:
+            # Evict the oldest entry (dict preserves insertion order in 3.7+)
+            self._recent_cycles.pop(next(iter(self._recent_cycles)))
+        return result
 
     # ------------------------------------------------------------------
     # LLM call

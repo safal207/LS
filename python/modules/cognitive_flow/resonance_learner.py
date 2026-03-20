@@ -51,29 +51,46 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import threading
+import time
 from typing import Dict
 
 logger = logging.getLogger(__name__)
 
-_LEARNING_RATE:   float = 0.05
-_MAX_BIAS:        float = 0.40
-_FEEDBACK_PENALTY: float = 3.0   # explicit negative feedback multiplier
-_MIN_RESONANCE_GOOD: float = 0.70
-_MAX_RESONANCE_BAD:  float = 0.45
+_LEARNING_RATE:    float = 0.05
+_MAX_BIAS:         float = 0.40
+_FEEDBACK_PENALTY: float = 3.0   # negative feedback multiplier (reversal)
+
+# Patterns that indicate POSITIVE user feedback — do not reverse the signal.
+_POSITIVE_FB_RE = re.compile(
+    r"\b(отлично|хорошо|правильно|верно|супер|ок|ok|good|correct|"
+    r"great|perfect|nice|yes|да|👍|👌|молодец|exactly)\b",
+    re.I,
+)
 
 
 class ResonanceLearner:
     """Continuous learner that adapts rule biases from completed cycle records.
 
     Args:
-        path:      JSON file for weight persistence.  Empty string → no I/O.
-        auto_save: If True, save() is called automatically after every learn().
+        path:           JSON file for weight persistence.  Empty string → no I/O.
+        auto_save:      If True, save() is called automatically after learn(),
+                        but no more than once per ``save_debounce_secs`` seconds
+                        to avoid excessive I/O at high call rates.
+        save_debounce_secs: Minimum interval between auto-saves (default 5 s).
     """
 
-    def __init__(self, path: str = "", auto_save: bool = True) -> None:
+    def __init__(
+        self,
+        path: str = "",
+        auto_save: bool = True,
+        save_debounce_secs: float = 5.0,
+    ) -> None:
         self._path     = path
         self._auto_save = auto_save
+        self._save_debounce = save_debounce_secs
+        self._last_save_ts: float = 0.0   # monotonic time of last auto-save
         self._lock     = threading.Lock()
         self._weights: Dict[str, float] = {}  # rule_name → bias
         self._cycle_count = 0
@@ -100,9 +117,13 @@ class ResonanceLearner:
         if not rules:
             return  # nothing to update
 
-        # Explicit negative feedback reverses the learning signal
-        negative_fb = isinstance(feedback, str) and bool(feedback.strip())
-        delta_sign  = -_FEEDBACK_PENALTY if negative_fb else 1.0
+        # Positive feedback reinforces the signal; negative feedback reverses it.
+        # Empty / None feedback → neutral (no sign flip).
+        if feedback and isinstance(feedback, str) and feedback.strip():
+            is_positive = bool(_POSITIVE_FB_RE.search(feedback))
+            delta_sign  = 1.0 if is_positive else -_FEEDBACK_PENALTY
+        else:
+            delta_sign = 1.0
 
         # Equal credit attribution across all active rules
         contribution = 1.0 / len(rules)
@@ -116,12 +137,15 @@ class ResonanceLearner:
             self._cycle_count += 1
 
         logger.debug(
-            "ResonanceLearner: learned from cycle (resonance=%.3f rules=%s Δ=%.4f neg_fb=%s)",
-            resonance, rules, delta_per_rule, negative_fb,
+            "ResonanceLearner: learned from cycle (resonance=%.3f rules=%s Δ=%.4f sign=%.1f)",
+            resonance, rules, delta_per_rule, delta_sign,
         )
 
         if self._auto_save and self._path:
-            self.save()
+            now = time.monotonic()
+            if now - self._last_save_ts >= self._save_debounce:
+                self._last_save_ts = now
+                self.save()
 
     def get_bias(self, rule: str) -> float:
         """Return the current learned bias for *rule* (0.0 if unknown)."""
@@ -167,7 +191,7 @@ class ResonanceLearner:
     # ------------------------------------------------------------------
 
     def _load_locked(self) -> None:
-        """Load weights from disk — caller must NOT hold _lock."""
+        """Load weights from disk — caller MUST hold _lock (or be __init__)."""
         if not self._path or not os.path.exists(self._path):
             return
         try:
