@@ -618,16 +618,22 @@ class AgentLoop:
 
         strategy = item.get("_why_strategy")
         if strategy and isinstance(strategy, dict):
+            trigger = strategy.get("micro_trigger", "")
             hints = strategy.get("hints") or []
             answer_type = strategy.get("answer_type", "")
             pressure = strategy.get("pressure", "")
+            # Micro-trigger is always first: the one thing readable in 0.5s
+            block_parts: list[str] = []
+            if trigger:
+                block_parts.append(f"🧠 Сейчас: {trigger}")
             if hints:
                 hints_text = "\n".join(f"- {h}" for h in hints)
-                parts.append(
-                    f"Стратегия ответа:\n"
-                    f"Тип: {answer_type}  |  Давление: {pressure}\n"
+                block_parts.append(
+                    f"Стратегия: {answer_type}  |  Давление: {pressure}\n"
                     f"Подсказки:\n{hints_text}"
                 )
+            if block_parts:
+                parts.append("\n\n".join(block_parts))
 
         anchor_ctx = item.get("_anchor_context")
         if anchor_ctx and isinstance(anchor_ctx, list) and any(anchor_ctx):

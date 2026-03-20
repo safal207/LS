@@ -23,38 +23,61 @@ from dataclasses import dataclass, field
 from typing import List, Tuple
 
 
+# Micro-trigger: one line per answer_type, read in 0.5 sec under stress.
+# This is the only thing that matters when the brain freezes.
+_MICRO_TRIGGERS: dict[str, str] = {
+    "reasoning":    "объясни причину + добавь кейс",
+    "defense":      "защити решение + покажи trade-offs",
+    "list":         "просто перечисли",
+    "definition":   "дай определение + пример",
+    "practical":    "опиши шаги + edge-case",
+    "experiential": "STAR: ситуация → что сделал → результат",
+    "short":        "ответь кратко",
+}
+
+
 @dataclass
 class WhyStrategy:
     """Actionable answer strategy for a single question.
 
     Attributes:
-        goal:        Why this question is being asked.
-        pressure:    low | medium | high — stakes of a shallow answer.
-        answer_type: reasoning | defense | list | definition | short
-        hints:       Ordered coaching tips (first = most important).
-        confidence:  Pattern-match confidence 0.0–1.0.
+        goal:          Why this question is being asked.
+        pressure:      low | medium | high — stakes of a shallow answer.
+        answer_type:   reasoning | defense | list | definition | short
+        hints:         Ordered coaching tips (first = most important).
+        confidence:    Pattern-match confidence 0.0–1.0.
+        micro_trigger: Single-line directive for zero-latency recall under stress.
     """
-    goal:        str
-    pressure:    str
-    answer_type: str
-    hints:       List[str] = field(default_factory=list)
-    confidence:  float = 0.5
+    goal:          str
+    pressure:      str
+    answer_type:   str
+    hints:         List[str] = field(default_factory=list)
+    confidence:    float = 0.5
+    micro_trigger: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.micro_trigger:
+            self.micro_trigger = _MICRO_TRIGGERS.get(self.answer_type, "ответь кратко")
 
     def to_dict(self) -> dict:
         return {
-            "goal":        self.goal,
-            "pressure":    self.pressure,
-            "answer_type": self.answer_type,
-            "hints":       self.hints,
-            "confidence":  round(self.confidence, 4),
+            "goal":          self.goal,
+            "pressure":      self.pressure,
+            "answer_type":   self.answer_type,
+            "micro_trigger": self.micro_trigger,
+            "hints":         self.hints,
+            "confidence":    round(self.confidence, 4),
         }
 
     def format_prompt_block(self) -> str:
-        """Return a compact block ready for injection into a system prompt."""
+        """Return a compact block ready for injection into a system prompt.
+
+        The micro-trigger is the first line — it must be visible at a glance.
+        """
         hints_text = "\n".join(f"- {h}" for h in self.hints)
         return (
-            f"Стратегия ответа:\n"
-            f"Тип: {self.answer_type}  |  Давление: {self.pressure}\n"
+            f"🧠 Сейчас: {self.micro_trigger}\n\n"
+            f"Стратегия: {self.answer_type}  |  Давление: {self.pressure}\n"
             f"Подсказки:\n{hints_text}"
         )
 
