@@ -125,6 +125,7 @@ class AgentLoop:
         self._idle_cancel: threading.Event | None = None
         self._bloodstream_thread: threading.Thread | None = None
         self._bloodstream_lock = threading.Lock()
+        self._bloodstream_stop = threading.Event()  # BUG-17 fix: used for fast shutdown
         self._cancel_grace_until = 0.0
 
         self.cancel_on_new_input = cancel_on_new_input
@@ -172,6 +173,11 @@ class AgentLoop:
             from .sleep_config import SleepConfig
             SLEEP_CONFIG = SleepConfig()
 
+        # BUG-18 fix: when temporal is None, self.state always returns "idle"
+        # which would incorrectly allow sleep mode entry at any time.
+        # Guard: skip sleep entirely when temporal tracking is disabled.
+        if self.temporal is None:
+            return
         if self.state != "idle":
             return
         if time.time() - self.last_input_time > SLEEP_CONFIG.idle_timeout:
@@ -234,14 +240,19 @@ class AgentLoop:
             self._transition("idle")
 
     def _bloodstream_loop(self):
-        """Цикл работы кровеносной системы."""
-        while self.running:
+        """Цикл работы кровеносной системы.
+
+        BUG-17 fix: replaced time.sleep(30) with Event.wait(30) so the loop
+        can be interrupted immediately when the agent stops, instead of waiting
+        up to 30 seconds for the sleep to expire.
+        """
+        while self.running and not self._bloodstream_stop.is_set():
             try:
                 self.bloodstream.pump()
                 self.bloodstream.filter_toxins()
             except Exception as e:
                 logger.error(f"Bloodstream loop error: {e}")
-            time.sleep(30)
+            self._bloodstream_stop.wait(timeout=30)
 
     def _maybe_run_maintenance(self) -> None:
         amygdala = getattr(self.causal_transitions, "amygdala", None)
@@ -1346,6 +1357,7 @@ class AgentLoop:
 
     def stop(self) -> None:
         self.running = False
+        self._bloodstream_stop.set()  # BUG-17 fix: wake up bloodstream wait immediately
         self.vision.stop() # Stop Screen Perception v2
         with self._bloodstream_lock:
             bloodstream_thread = self._bloodstream_thread

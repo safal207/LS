@@ -90,9 +90,19 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
             raise RuntimeError("service_factory is not configured")
         return self.service_factory()
 
+    # BUG-API-01: Limit request body to 1 MB to prevent DoS via unbounded reads
+    _MAX_BODY = 1_048_576
+
     def _read_json_body(self) -> Dict[str, Any]:
-        content_length = int(self.headers.get("Content-Length", "0"))
-        raw = self.rfile.read(max(content_length, 0))
+        raw_cl = self.headers.get("Content-Length", "0")
+        try:
+            content_length = max(int(raw_cl), 0)
+        except (TypeError, ValueError):
+            content_length = 0
+        # BUG-API-01: Reject oversized bodies before reading
+        if content_length > self._MAX_BODY:
+            raise ValueError(f"request body too large ({content_length} > {self._MAX_BODY})")
+        raw = self.rfile.read(min(content_length, self._MAX_BODY))
         if not raw:
             return {}
         decoded = json.loads(raw.decode("utf-8"))
@@ -110,8 +120,10 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def log_message(self, *args: Any) -> None:
-        pass
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+        # BUG-API-02: Restore minimal server-side logging so errors are visible
+        import logging as _logging
+        _logging.getLogger(__name__).debug("reflection_api %s", format % args)
 
 
 def create_handler(service_factory: Callable[[], ReflectionDashboardService]) -> type[ReflectionDashboardApiHandler]:
