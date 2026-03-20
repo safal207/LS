@@ -1,1 +1,51 @@
-{"nodes":{},"edges":[]}
+{
+  "nodes": {
+    "node1": {
+      "id": "node1",
+      "thread_id": "th_001",
+      "cause": "user_input",
+      "solution": "process_question",
+      "ts": "2025-03-20T10:00:00",
+      "lri_core": {
+        "emotional_drift": -0.2
+      }
+    },
+    "node2": {
+      "id": "node2",
+      "thread_id": "th_001",
+      "cause": "analysis",
+      "solution": "generate_response",
+      "ts": "2025-03-20T10:00:05",
+      "lri_core": {
+        "emotional_drift": 0.3
+      }
+    },
+    "node3": {
+      "id": "node3",
+      "thread_id": "th_002",
+      "cause": "feedback",
+      "solution": "refine",
+      "ts": "2025-03-20T10:00:10",
+      "lri_core": {
+        "emotional_drift": 0.0
+      }
+    }
+  },
+  "edges": [
+    {
+      "source": "node1",
+      "target": "node2",
+      "type": "temporal"
+    },
+    {
+      "source": "node2",
+      "target": "node3",
+      "type": "causal"
+    },
+    {
+      "source": "node1",
+      "target": "node3",
+      "type": "resonance"
+    }
+  ]
+}
