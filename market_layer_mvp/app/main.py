@@ -24,6 +24,12 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Market Layer MVP", version="1.0.0", lifespan=lifespan)
 
+# BUG-ML-01: Add a health-check endpoint so load balancers and monitoring tools
+# can verify the service is alive without touching the database.
+@app.get("/health", include_in_schema=False)
+def health() -> dict:
+    return {"status": "ok"}
+
 
 @app.post("/agents", response_model=schemas.AgentOut)
 def create_agent(agent: schemas.AgentCreate, db: Session = Depends(get_db)):

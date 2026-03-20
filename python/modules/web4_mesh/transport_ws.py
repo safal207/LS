@@ -146,11 +146,22 @@ class WebSocketTransport:
         if out:
             await self.send_many_routed(out)
 
+    # BUG-WS-01: Max allowed size of a single incoming WebSocket message (1 MB).
+    _MAX_MESSAGE_BYTES = 1_048_576
+
     def _learn_origin_address(self, envelope: MeshEnvelope) -> None:
         origin_address = envelope.payload.get("origin_address")
         if not isinstance(origin_address, str):
             return
-        if not origin_address.startswith("ws://"):
+        # BUG-WS-02: Validate URI format strictly — accept only ws:// or wss:// on
+        # an explicit host:port so an attacker cannot inject arbitrary addresses.
+        import re as _re
+        if not _re.fullmatch(r"wss?://[A-Za-z0-9._\-]+(:\d{1,5})?(/[^\s]*)?", origin_address):
+            logger.warning(
+                "Rejected suspicious origin_address %r from peer %s",
+                origin_address,
+                envelope.origin,
+            )
             return
         if not self.node.registry.has(envelope.origin):
             self.node.add_peer(envelope.origin, origin_address)
@@ -170,7 +181,15 @@ class WebSocketTransport:
         }
         return json.dumps(data, ensure_ascii=False)
 
-    def _deserialize_envelope(self, raw: str) -> Optional[MeshEnvelope]:
+    def _deserialize_envelope(self, raw: str | bytes) -> Optional[MeshEnvelope]:
+        # BUG-WS-01: Drop messages that exceed the size cap before parsing.
+        if isinstance(raw, (str, bytes)) and len(raw) > self._MAX_MESSAGE_BYTES:
+            logger.warning(
+                "Dropped oversized message (%d bytes) for node %s",
+                len(raw),
+                self.node.peer_id,
+            )
+            return None
         try:
             data = json.loads(raw)
         except json.JSONDecodeError:

@@ -85,7 +85,8 @@ class ArtifactSubmit(BaseModel):
     agent_id: int
     hash: str = Field(min_length=8, max_length=128)
     quality_score: float = Field(ge=0, le=1)
-    content: str = ""
+    # BUG-ML-02: Cap artifact content at 512 KB to prevent unbounded DB row sizes.
+    content: str = Field(default="", max_length=524_288)
 
 
 class ArtifactOut(BaseModel):
