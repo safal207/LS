@@ -139,10 +139,8 @@ class GhostWindow(QMainWindow):
         # Variables for window dragging
         self.drag_position = None
         
-        # Auto-hide timer (optional feature)
-        self.auto_hide_timer = QTimer()
-        self.auto_hide_timer.timeout.connect(self.toggle_visibility)
         self.auto_hidden = False
+        # BUG-13 fix: removed dead auto_hide_timer that was created but never started.
         
     def setup_ui(self):
         """Setup the user interface"""
@@ -258,6 +256,7 @@ class GhostWindow(QMainWindow):
     def connect_signals(self):
         """Connect backend signals to GUI slots"""
         self.backend.status_update.connect(self.update_status)
+        self.backend.question_detected.connect(self.display_question)  # BUG-10 fix: was never connected
         self.backend.answer_ready.connect(self.display_answer)
         self.backend.error_occurred.connect(self.show_error)
         
@@ -276,6 +275,11 @@ class GhostWindow(QMainWindow):
             
         self.status_label.setStyleSheet(f"color: {color}; font-weight: bold; font-size: 12px;")
         
+    def display_question(self, question):
+        """Display incoming question immediately (BUG-10 fix)."""
+        self.question_label.setText(f"❓ {question}")
+        self.update_status("🤔 Thinking...")
+
     def display_answer(self, question, answer):
         """Display question and answer"""
         # Format question
@@ -309,17 +313,22 @@ class GhostWindow(QMainWindow):
         self.update_status("🧹 Cleared")
         
     def toggle_pause(self):
-        """Toggle pause/resume functionality"""
+        """Toggle pause/resume functionality.
+
+        BUG-11 fix: stop_backend/start_backend created new threads on every
+        Resume, leaking the old ones.  Now we only toggle the audio module's
+        pause flag (if available); the existing threads keep running.
+        """
         if "Pause" in self.pause_button.text():
             self.pause_button.setText("▶ Resume")
             self.update_status("⏸ Paused")
-            if hasattr(self, 'backend'):
-                self.backend.stop_backend()
+            if hasattr(self, 'backend') and hasattr(self.backend, 'audio_module'):
+                self.backend.audio_module.pause()
         else:
             self.pause_button.setText("⏸ Pause")
             self.update_status("🎧 Listening")
-            if hasattr(self, 'backend'):
-                self.backend.start_backend()
+            if hasattr(self, 'backend') and hasattr(self.backend, 'audio_module'):
+                self.backend.audio_module.resume()
             
     def toggle_visibility(self):
         """Toggle window visibility"""
@@ -360,8 +369,7 @@ class GhostWindow(QMainWindow):
             print("👋 Force quitting application")
             self.close()
         elif event.key() == Qt.Key.Key_Space:
-            # Pause/resume (if implemented)
-            print("⏯️ Toggle pause/resume")
+            self.toggle_pause()  # BUG-12 fix: was only printing, now calls the actual handler
         else:
             super().keyPressEvent(event)
         

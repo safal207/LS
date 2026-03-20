@@ -284,8 +284,12 @@ class ResonanceAgent:
         if self._learner:
             with self._cycles_lock:
                 cached = self._recent_cycles.get(cycle_id) or {}
+            # BUG-16 fix: use 0.0 as default when cycle is not in cache so the
+            # learner receives a genuine "unknown/failed" signal instead of a
+            # neutral 0.5 that would incorrectly reinforce absent cycles.
+            score = cached.get("_resonance_score", 0.0) if cached else 0.0
             self._learner.learn({
-                "resonance_score": cached.get("resonance_score", 0.5),
+                "resonance_score": score,
                 "copilot": {
                     "active_rules": (
                         (cached.get("_copilot_output") or {}).get("active_rules") or []
@@ -472,12 +476,14 @@ class ResonanceAgent:
         else:  # experiential, defense
             length_score = 1.0 if 50 <= words <= 200 else 0.7
 
-        # Anchor citation bonus
+        # Anchor citation bonus — also record which anchors were cited (BUG-15 fix)
         anchor_bonus = 0.0
         if anchor_ctx:
             resp_lower = response.lower()
-            if any(a.split(":")[0].lower() in resp_lower for a in anchor_ctx if a):
+            cited = [a for a in anchor_ctx if a and a.split(":")[0].lower() in resp_lower]
+            if cited:
                 anchor_bonus = 0.10
+            item["_cited_anchors"] = cited  # stored for _build_output
 
         return round(min(1.0, length_score * 0.9 + anchor_bonus), 3)
 
@@ -513,7 +519,9 @@ class ResonanceAgent:
             ),
             # Strategy
             "strategy":        strategy.get("micro_trigger", ""),
-            "anchor_used":     item.get("_anchor_context") or [],
+            # BUG-15 fix: return only anchors actually cited in the LLM output,
+            # not the full context list (use _cited_anchors set by _rate_response).
+            "anchor_used":     item.get("_cited_anchors") or [],
             # Body cues for UI overlay
             "empathy_cues":    copilot.get("empathy_cues"),
             "pre_prompt":      copilot.get("pre_prompt", ""),

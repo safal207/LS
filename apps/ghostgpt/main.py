@@ -103,7 +103,10 @@ class GhostGPT:
             self.window.show()
 
     def _build_reflection_dashboard(self):
-        return ReflectionDashboard(self.reflection_pipeline)
+        # BUG-19 fix: use decision_pipeline (which is defined in __init__)
+        # instead of self.reflection_pipeline which never existed.
+        from apps.ghostgpt.reflection_dashboard import ReflectionDashboard
+        return ReflectionDashboard(self.decision_pipeline)
 
     def run(self):
         self.window.show()
