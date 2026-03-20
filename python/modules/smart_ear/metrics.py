@@ -24,7 +24,7 @@ Usage::
         model_confidence=0.82,
         calibrated_confidence=0.76,
         decision_zone="ml_strong_correct",
-        was_corrected=True,
+        is_feedback=True,
     )
 
     # Anywhere for monitoring:

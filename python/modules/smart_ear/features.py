@@ -126,7 +126,17 @@ def extract_features(item: dict) -> dict:
 
 
 def _entropy(probs: List[float]) -> float:
-    """Shannon entropy: -sum(p * log(p)), with p clipped to (0, 1]."""
+    """Per-word surprise score: -sum(p * log(p)) over word probabilities.
+
+    Note — this is intentionally *unnormalized* (word probs do not sum to 1).
+    It measures total acoustic uncertainty across the utterance rather than a
+    proper information-theoretic entropy.  The value therefore grows with
+    utterance length, but ``text_length`` is a separate feature that lets
+    tree-based models account for that correlation automatically.
+
+    For the LogisticRegression fallback the two features are correlated, but
+    the effect is bounded because StandardScaler centers both independently.
+    """
     result = 0.0
     for p in probs:
         p = max(1e-12, min(1.0, p))  # clip to avoid log(0)

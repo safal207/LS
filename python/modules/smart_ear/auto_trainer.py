@@ -39,7 +39,7 @@ import os
 import subprocess
 import sys
 import threading
-from typing import Optional
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +104,9 @@ class SmartEarAutoTrainer:
         self._total_retrains: int = 0
         # Track last known model accuracy for the validation gate
         self._last_accuracy: Optional[float] = None
+        # Cooldown: how many extra retrain_every increments to skip after a
+        # rejected/failed training run to avoid thrashing on the same data
+        self._reject_cooldown: int = 0
 
     # ------------------------------------------------------------------
     # Public
@@ -168,10 +171,12 @@ class SmartEarAutoTrainer:
             return
 
         new_samples = current - self._last_trained_count
-        if new_samples < self.retrain_every and self._last_trained_count > 0:
+        # Apply cooldown: require extra samples before retrying after a rejection
+        required = self.retrain_every * (1 + self._reject_cooldown)
+        if new_samples < required and self._last_trained_count > 0:
             logger.debug(
-                "AutoTrainer: only %d new samples (need %d), skipping",
-                new_samples, self.retrain_every,
+                "AutoTrainer: only %d new samples (need %d, cooldown=%d), skipping",
+                new_samples, required, self._reject_cooldown,
             )
             return
 
@@ -183,11 +188,21 @@ class SmartEarAutoTrainer:
         if success:
             self._last_trained_count = current
             self._total_retrains += 1
+            self._reject_cooldown = 0  # reset cooldown on success
             if new_accuracy is not None:
                 self._last_accuracy = new_accuracy
             self._hot_swap()
+        else:
+            # Advance the baseline so we don't re-attempt on the exact same count,
+            # but require retrain_every *more* samples before the next attempt.
+            self._last_trained_count = current
+            self._reject_cooldown = min(self._reject_cooldown + 1, 4)  # cap at 4×
+            logger.info(
+                "AutoTrainer: retrain rejected — cooldown set to %d× retrain_every",
+                self._reject_cooldown,
+            )
 
-    def _run_training(self) -> tuple:
+    def _run_training(self) -> Tuple[bool, Optional[float]]:
         """Run train_model.py in a subprocess.
 
         Returns
@@ -250,11 +265,11 @@ class SmartEarAutoTrainer:
 
 
 def _parse_accuracy(stdout: str) -> Optional[float]:
-    """Extract accuracy float from train_model.py stdout."""
+    """Extract accuracy from the structured METRIC:accuracy=... marker."""
     for line in stdout.splitlines():
-        if "Accuracy" in line and ":" in line:
+        if line.startswith("METRIC:accuracy="):
             try:
-                return float(line.split(":")[-1].strip())
+                return float(line.split("=", 1)[1].strip())
             except ValueError:
                 pass
     return None

@@ -249,9 +249,15 @@ class SmartEarDecisionModel:
         t_infer_end = time.perf_counter()
         model_inference_time = t_infer_end - t_infer_start
 
-        # Calibration
+        # Calibration — only apply when the ML model is actually loaded.
+        # If we're in heuristic fallback mode the calibrator (trained on ML
+        # outputs) has no meaningful mapping for heuristic 0.0/1.0 outputs.
         calibrated_proba = ml_proba
-        if self.calibrator is not None and getattr(self.calibrator, "is_fitted", False):
+        if (
+            self._loaded
+            and self.calibrator is not None
+            and getattr(self.calibrator, "is_fitted", False)
+        ):
             try:
                 calibrated_proba = float(self.calibrator.transform(ml_proba))
             except Exception as exc:
@@ -279,12 +285,14 @@ class SmartEarDecisionModel:
         try:
             if hasattr(self._model, "predict_proba"):
                 proba = self._model.predict_proba([vector])[0]
-                # For sklearn pipelines: find class 1 index
+                # All supported backends (sklearn Pipeline, LightGBM, XGBoost)
+                # expose a classes_ attribute. Use it to find the class-1 index
+                # so the code stays correct regardless of training class order.
                 if hasattr(self._model, "classes_"):
                     classes = list(self._model.classes_)
                     idx = classes.index(1) if 1 in classes else -1
                     return float(proba[idx]) if idx >= 0 else float(proba[-1])
-                # LightGBM / XGBoost: predict_proba returns [[p0, p1]]
+                # Fallback: assume binary [p_neg, p_pos]
                 return float(proba[1]) if len(proba) > 1 else float(proba[0])
             # Fallback for models without predict_proba
             return float(self._model.predict([vector])[0])

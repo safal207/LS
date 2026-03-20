@@ -149,7 +149,6 @@ def _build_model() -> Tuple[Any, str]:
             n_estimators=200,
             learning_rate=0.05,
             max_depth=6,
-            use_label_encoder=False,
             eval_metric="logloss",
             random_state=42,
         )
@@ -329,11 +328,15 @@ def train(
         "model_name": model_name,
     }
 
-    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    model_dir = os.path.dirname(model_path)
+    if model_dir:
+        os.makedirs(model_dir, exist_ok=True)
 
     # Primary path (hot-swap target)
     with open(model_path, "wb") as fh:
         pickle.dump(bundle, fh)
+    # Emit structured marker so auto_trainer can parse accuracy reliably
+    print(f"METRIC:accuracy={acc:.4f}")
     logger.info("Model saved → %s  (version=%s, acc=%.4f)", model_path, version, acc)
 
     # Versioned copy
