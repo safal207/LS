@@ -11,27 +11,46 @@ import logging
 import queue
 import tempfile
 import os
+from dataclasses import dataclass, field
 from typing import Optional
 from config import SAMPLE_RATE, AUDIO_CHUNK_DURATION, VOLUME_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class SimpleEvent:
+    """Minimal event compatible with EventBus.publish / publish_async."""
+    type: str
+    payload: dict = field(default_factory=dict)
+
+
 class AudioIngestion:
-    def __init__(self, output_queue: queue.Queue):
+    def __init__(self, output_queue: queue.Queue, event_bus=None):
         """Initialize audio ingestion.
 
         The PyAudio instance is created lazily in :meth:`start_stream` to avoid
         resource leaks when the module is instantiated but never started.
         Callers must invoke :meth:`stop` (or use :meth:`run`, which calls it
         automatically) to release resources.
+
+        Args:
+            output_queue: Queue to push temp WAV file paths for STT.
+            event_bus: Optional ``EventBus`` instance.  When provided, VAD
+                state *transitions* (voice→silence and silence→voice) are
+                published as ``voice_detected`` / ``silence_detected`` events.
+                Only transitions are published, not every chunk, to avoid
+                flooding the EventBus.
         """
         self.output_queue = output_queue
+        self.event_bus = event_bus
         self.p: Optional[pyaudio.PyAudio] = None
         self.stream = None
         self.running = False
         self.device_index = None
         self.chunk_size = int(SAMPLE_RATE * AUDIO_CHUNK_DURATION)
+        # Edge detection: only emit events on VAD state *change*
+        self._was_voice_active: bool = False
 
     def find_vb_cable_device(self) -> Optional[int]:
         """Find VB-Cable output device index.
@@ -168,9 +187,11 @@ class AudioIngestion:
         try:
             audio_data = np.frombuffer(in_data, dtype=np.float32)
 
-            if self.is_voice_active(audio_data):
-                temp_filename = self.save_audio_chunk(audio_data)
+            rms = float(np.sqrt(np.mean(audio_data.astype(np.float32) ** 2)))
+            is_active = self.is_voice_active(audio_data)
 
+            if is_active:
+                temp_filename = self.save_audio_chunk(audio_data)
                 if temp_filename:
                     try:
                         self.output_queue.put_nowait(temp_filename)
@@ -183,6 +204,17 @@ class AudioIngestion:
                             pass
             else:
                 logger.debug("No voice activity detected")
+
+            # Publish EventBus event only on VAD state *transition* (edge detection)
+            if self.event_bus is not None and is_active != self._was_voice_active:
+                event_type = "voice_detected" if is_active else "silence_detected"
+                try:
+                    self.event_bus.publish_async(
+                        SimpleEvent(event_type, {"rms": round(rms, 6), "timestamp": time.time()})
+                    )
+                except Exception:
+                    pass
+                self._was_voice_active = is_active
 
         except Exception as e:
             logger.error(f"Error in audio callback: {e}")

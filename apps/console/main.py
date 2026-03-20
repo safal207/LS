@@ -21,6 +21,7 @@ from modules.agent.loop import AgentLoop
 from modules.agent.sinks import build_event_sink
 from modules.audio.audio_module import AudioIngestion
 from modules.stt.stt_module import SpeechToText
+from modules.stt.smart_ear import SmartEar
 from modules.llm.llm_module import LanguageModel
 from shared.utils import check_system_resources
 
@@ -34,16 +35,23 @@ logger = logging.getLogger(__name__)
 class InterviewCopilot:
     def __init__(self):
         self.transcribe_queue = queue.Queue(maxsize=10)
+        # smart_ear_queue sits between STT output and AgentLoop input
+        self.smart_ear_queue = queue.Queue(maxsize=10)
         self.llm_queue = queue.Queue(maxsize=10)  # Queue for questions to LLM
         self.ui_queue = queue.Queue(maxsize=10)
-        
+
         # Check system resources before starting
         if not check_system_resources():
             logger.warning("System resources may be insufficient!")
-        
+
         # Initialize modules
-        self.audio_module = AudioIngestion(self.transcribe_queue)
-        self.stt_module = SpeechToText(self.transcribe_queue, self.llm_queue)
+        # AudioIngestion now publishes VAD events to event_bus
+        self.audio_module = AudioIngestion(
+            self.transcribe_queue,
+            event_bus=ctx.event_bus,
+        )
+        # STT now emits N-best hypotheses; its output goes to smart_ear_queue
+        self.stt_module = SpeechToText(self.transcribe_queue, self.smart_ear_queue)
         self.llm_module = LanguageModel(self.llm_queue, self.ui_queue)
         ctx.services.register("llm", self.llm_module)
         ctx.services.register("memory", {})
@@ -65,7 +73,28 @@ class InterviewCopilot:
             event_sink=event_sink,
             event_bus=ctx.event_bus,
         ) if config.AGENT_ENABLED else None
-        
+
+        # SmartEar wired between STT output and AgentLoop input.
+        # Borrows Amygdala and CausalMemory from AgentLoop when available.
+        _amygdala = None
+        _causal_memory = None
+        _cognitive_flow = None
+        if self.agent_loop is not None:
+            _amygdala = getattr(
+                getattr(self.agent_loop, "causal_transitions", None), "amygdala", None
+            )
+            _causal_memory = getattr(self.agent_loop, "causal_memory", None)
+            _cognitive_flow = getattr(self.agent_loop, "cognitive_flow", None)
+
+        self.smart_ear = SmartEar(
+            self.smart_ear_queue,
+            self.llm_queue,
+            amygdala=_amygdala,
+            causal_memory=_causal_memory,
+            cognitive_flow=_cognitive_flow,
+            event_bus=ctx.event_bus,
+        )
+
         self.running = False
         
     def start(self):
@@ -77,14 +106,16 @@ class InterviewCopilot:
         # Start threads
         audio_thread = threading.Thread(target=self.audio_module.run, daemon=True)
         stt_thread = threading.Thread(target=self.stt_module.run, daemon=True)
+        smart_ear_thread = threading.Thread(target=self.smart_ear.run, daemon=True)
         llm_thread = threading.Thread(
             target=self.agent_loop.run if self.agent_loop else self.llm_module.run,
             daemon=True,
         )
         ui_thread = threading.Thread(target=self._ui_display_loop, daemon=True)
-        
+
         audio_thread.start()
         stt_thread.start()
+        smart_ear_thread.start()
         llm_thread.start()
         ui_thread.start()
         
@@ -103,6 +134,7 @@ class InterviewCopilot:
         self.running = False
         self.audio_module.stop()
         self.stt_module.stop()
+        self.smart_ear.stop()
         if self.agent_loop:
             self.agent_loop.stop()
         else:
