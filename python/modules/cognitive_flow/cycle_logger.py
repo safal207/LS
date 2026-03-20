@@ -51,7 +51,10 @@ import threading
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
+
+if TYPE_CHECKING:
+    from cognitive_flow.resonance_learner import ResonanceLearner
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +80,14 @@ class CognitiveCycleLogger:
         self,
         path: str = _DEFAULT_LOG,
         max_mb: float = _DEFAULT_MAX_MB,
+        learner: "Optional[ResonanceLearner]" = None,
     ) -> None:
         self.path = path
         self.max_bytes = int(max_mb * 1024 * 1024)
         self._enabled = bool(path)
         self._lock = threading.Lock()
+        # Optional learner — if provided, learn() is called after each complete_cycle
+        self._learner = learner
         # In-memory pending cycles: cycle_id → (partial_record, created_monotonic)
         # TTL eviction prevents unbounded growth when complete_cycle is never called.
         self._pending: Dict[str, Tuple[dict, float]] = {}
@@ -140,6 +146,12 @@ class CognitiveCycleLogger:
         record["user_feedback"] = feedback
         self._flush(record)
         logger.debug("CognitiveCycleLogger: completed cycle %s", cycle_id)
+        # Trigger learning on the completed record (non-blocking — learner is fast)
+        if self._learner is not None:
+            try:
+                self._learner.learn(record)
+            except Exception as _le:
+                logger.debug("CognitiveCycleLogger: learner.learn failed: %s", _le)
 
     # ------------------------------------------------------------------
     # Convenience: one-shot
@@ -222,6 +234,8 @@ class CognitiveCycleLogger:
                 "intervention_level": copilot_output.get("intervention_level") if copilot_output else None,
                 "active_rules":       copilot_output.get("active_rules") if copilot_output else [],
             } if copilot_output else None,
+            "resonance_score":     item.get("_resonance_score"),
+            "resonance_detail":    item.get("_resonance_detail"),
             "final_output":        None,
             "generation_time":     None,
             "user_feedback":       None,

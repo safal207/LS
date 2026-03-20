@@ -74,6 +74,7 @@ try:
     from intent.interviewer_profile import InterviewerProfile as _InterviewerProfile
     from intent.empathy_negotiation import EmpathyNegotiationLayer as _EmpathyNegotiationLayer
     from intent.body_aware_copilot import BodyAwareCopilot as _BodyAwareCopilot
+    from intent.resonance_scorer import ResonanceScorer as _ResonanceScorer
     _INTENT_AVAILABLE = True
 except Exception:
     _INTENT_AVAILABLE = False
@@ -83,6 +84,7 @@ except Exception:
     _InterviewerProfile = None           # type: ignore[assignment,misc]
     _EmpathyNegotiationLayer = None      # type: ignore[assignment,misc]
     _BodyAwareCopilot = None             # type: ignore[assignment,misc]
+    _ResonanceScorer = None              # type: ignore[assignment,misc]
 
 # ConversationAnchor (optional — graceful fallback)
 try:
@@ -881,6 +883,8 @@ class SmartEar:
         empathy_enabled: bool = True,
         # Body-Aware Copilot (Stage 8)
         copilot_enabled: bool = True,
+        # Resonance Scorer (Stage 9)
+        resonance_enabled: bool = True,
         # Cognitive Cycle Logger
         cycle_log_path: str = "",
         cycle_log_max_mb: float = 50,
@@ -1012,6 +1016,19 @@ class SmartEar:
                 logger.info("SmartEar: BodyAwareCopilot enabled")
             except Exception as exc:
                 logger.warning("SmartEar: BodyAwareCopilot init failed: %s", exc)
+
+        # Stage 9 — Resonance Scorer
+        self._resonance_scorer: Optional["_ResonanceScorer"] = None  # type: ignore[type-arg]
+        if (
+            resonance_enabled
+            and _INTENT_AVAILABLE
+            and _ResonanceScorer is not None
+        ):
+            try:
+                self._resonance_scorer = _ResonanceScorer()
+                logger.info("SmartEar: ResonanceScorer enabled")
+            except Exception as exc:
+                logger.warning("SmartEar: ResonanceScorer init failed: %s", exc)
 
         # Cognitive Cycle Logger
         # Exposed as ``self.cycle_logger`` (public) so the caller that wires
@@ -1217,6 +1234,10 @@ class SmartEar:
         # Stage 8 — Body-Aware Copilot (assembles final_prompt + body cues)
         if self._copilot is not None:
             item = self._copilot.process(item)
+
+        # Stage 9 — Resonance Scorer
+        if self._resonance_scorer is not None:
+            item = self._resonance_scorer.process(item)
 
         final_text = item["text"]
         source = item.get("_selection_source", "original")
