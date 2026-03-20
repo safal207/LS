@@ -62,6 +62,50 @@ from typing import List, Optional
 
 from .phonetic import PhoneticCorrector, STATIC_IT_VOCAB
 
+# Intent Layer (optional — graceful fallback if module unavailable)
+try:
+    import sys as _sys_intent
+    _intent_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if _intent_root not in _sys_intent.path:
+        _sys_intent.path.insert(0, _intent_root)
+    from intent.intent_layer import IntentLayer as _IntentLayer
+    from intent.why_layer import WhyLayer as _WhyLayer
+    from intent.why_strategy import analyze_why_and_strategy as _analyze_strategy
+    from intent.interviewer_profile import InterviewerProfile as _InterviewerProfile
+    from intent.empathy_negotiation import EmpathyNegotiationLayer as _EmpathyNegotiationLayer
+    from intent.body_aware_copilot import BodyAwareCopilot as _BodyAwareCopilot
+    from intent.resonance_scorer import ResonanceScorer as _ResonanceScorer
+    _INTENT_AVAILABLE = True
+except Exception:
+    _INTENT_AVAILABLE = False
+    _IntentLayer = None                  # type: ignore[assignment,misc]
+    _WhyLayer = None                     # type: ignore[assignment,misc]
+    _analyze_strategy = None             # type: ignore[assignment,misc]
+    _InterviewerProfile = None           # type: ignore[assignment,misc]
+    _EmpathyNegotiationLayer = None      # type: ignore[assignment,misc]
+    _BodyAwareCopilot = None             # type: ignore[assignment,misc]
+    _ResonanceScorer = None              # type: ignore[assignment,misc]
+
+# ConversationAnchor (optional — graceful fallback)
+try:
+    from context.conversation_anchor import (
+        ConversationAnchor as _ConversationAnchor,
+        get_relevant_items as _get_relevant_items,
+    )
+    _ANCHOR_AVAILABLE = True
+except Exception:
+    _ANCHOR_AVAILABLE = False
+    _ConversationAnchor = None     # type: ignore[assignment,misc]
+    _get_relevant_items = None     # type: ignore[assignment,misc]
+
+# CognitiveCycleLogger (optional — graceful fallback)
+try:
+    from cognitive_flow.cycle_logger import CognitiveCycleLogger as _CycleCognitiveLogger
+    _CYCLE_LOGGER_AVAILABLE = True
+except Exception:
+    _CYCLE_LOGGER_AVAILABLE = False
+    _CycleCognitiveLogger = None  # type: ignore[assignment,misc]
+
 # ML decision layer (optional — graceful fallback if sklearn missing)
 # Add the modules root to sys.path idempotently so sibling package smart_ear
 # can be imported without permanently mutating the interpreter's path.
@@ -651,6 +695,149 @@ class SelectionStage:
 
 
 # ---------------------------------------------------------------------------
+# Stage 4: IntentStage
+# ---------------------------------------------------------------------------
+
+class IntentStage:
+    """Extract structured intent from the resolved utterance.
+
+    Transforms ``item["text"]`` into a typed IntentResult stored at
+    ``item["_intent"]``.  Requires the ``intent`` package; graceful no-op
+    when unavailable.
+
+    Example output added to item::
+
+        item["_intent"] = {
+            "type": "definition",
+            "entity": "React",
+            "params": {"domain": "web_dev"},
+            "confidence": 0.95,
+            "raw_text": "что такое React",
+        }
+    """
+
+    def __init__(self, intent_layer=None) -> None:
+        self._layer = intent_layer
+
+    def process(self, item: dict) -> Optional[dict]:
+        if self._layer is None:
+            return item
+        try:
+            self._layer.process_item(item)
+        except Exception as exc:
+            logger.debug("IntentStage failed: %s", exc)
+        return item
+
+
+# ---------------------------------------------------------------------------
+# Stage 5: WhyStage
+# ---------------------------------------------------------------------------
+
+class WhyStage:
+    """Extract *causal* intent — WHY was this question asked?
+
+    Reads ``item["text"]`` and the ``item["_intent"]`` dict (from IntentStage)
+    to produce a :class:`~intent.why_layer.WhyIntent` stored at
+    ``item["_why"]``.  Requires the ``intent`` package; graceful no-op when
+    unavailable.
+
+    Example output added to item::
+
+        item["_why"] = {
+            "goal": "evaluate_reasoning",
+            "pressure_level": "medium",
+            "expected_answer_type": "tradeoff",
+            "follow_up_expected": True,
+            "hints": [
+                "Объясни не только ЧТО, но и ПОЧЕМУ",
+                "Добавь trade-offs ...",
+                "Упомяни альтернативы ...",
+            ],
+            "confidence": 0.88,
+        }
+    """
+
+    def __init__(self, why_layer=None) -> None:
+        self._layer = why_layer
+
+    def process(self, item: dict) -> Optional[dict]:
+        if self._layer is None:
+            return item
+        try:
+            self._layer.process_item(item)
+        except Exception as exc:
+            logger.debug("WhyStage failed: %s", exc)
+        return item
+
+
+# ---------------------------------------------------------------------------
+# Stage 6: WhyStrategyStage
+# ---------------------------------------------------------------------------
+
+class WhyStrategyStage:
+    """Battle-ready answer strategy extraction + session anchor context.
+
+    Sets two fields on the item:
+
+    ``item["_why_strategy"]``::
+
+        {
+          "goal": "evaluate_reasoning",
+          "pressure": "high",
+          "answer_type": "reasoning",
+          "hints": ["скажи причину", "добавь плюсы и минусы", "упомяни альтернативу"],
+          "confidence": 0.9
+        }
+
+    ``item["_anchor_context"]``::
+
+        ["Оптимизировал индексы: с 4s до 0.2s", "Работал с PostgreSQL 3 года"]
+
+    Both are injected into the LLM system prompt by AgentLoop before each
+    generation call.
+    """
+
+    def __init__(self, anchor=None) -> None:
+        self._anchor = anchor
+        # InterviewerProfile persists for the whole session — one observation per question
+        self._interviewer = (
+            _InterviewerProfile()
+            if (_INTENT_AVAILABLE and _InterviewerProfile is not None)
+            else None
+        )
+
+    def process(self, item: dict) -> Optional[dict]:
+        text = item.get("text", "")
+
+        # WHY Strategy + InterviewerProfile bias
+        if _INTENT_AVAILABLE and _analyze_strategy is not None:
+            try:
+                strategy = _analyze_strategy(text)
+                # Update interviewer model and apply hard bindings
+                if self._interviewer is not None:
+                    self._interviewer.observe(text, strategy)
+                    strategy.apply_interviewer_bias(self._interviewer)
+                    item["_interviewer_profile"] = self._interviewer.to_dict()
+                item["_why_strategy"] = strategy.to_dict()
+            except Exception as exc:
+                logger.debug("WhyStrategyStage: strategy failed: %s", exc)
+
+        # Anchor context
+        if (
+            self._anchor is not None
+            and _ANCHOR_AVAILABLE
+            and _get_relevant_items is not None
+        ):
+            try:
+                relevant = _get_relevant_items(self._anchor, text, top_k=2)
+                item["_anchor_context"] = [r.text for r in relevant]
+            except Exception as exc:
+                logger.debug("WhyStrategyStage: anchor failed: %s", exc)
+
+        return item
+
+
+# ---------------------------------------------------------------------------
 # SmartEar — orchestrator
 # ---------------------------------------------------------------------------
 
@@ -685,6 +872,22 @@ class SmartEar:
         auto_retrain: bool = False,
         retrain_every: int = 50,
         metrics_window: int = 200,
+        # Intent Layer (Stage 4)
+        intent_enabled: bool = True,
+        # WHY Layer (Stage 5)
+        why_enabled: bool = True,
+        # WHY Strategy + Anchor (Stage 6)
+        strategy_enabled: bool = True,
+        anchor=None,
+        # Empathy & Negotiation Layer (Stage 7)
+        empathy_enabled: bool = True,
+        # Body-Aware Copilot (Stage 8)
+        copilot_enabled: bool = True,
+        # Resonance Scorer (Stage 9)
+        resonance_enabled: bool = True,
+        # Cognitive Cycle Logger
+        cycle_log_path: str = "",
+        cycle_log_max_mb: float = 50,
     ) -> None:
         self.input_queue = input_queue
         self.output_queue = output_queue
@@ -760,6 +963,94 @@ class SmartEar:
             decision_model=_decision_model,
             metrics=_metrics,
         )
+
+        # Stage 4 — Intent Layer
+        _intent_layer = None
+        if intent_enabled and _INTENT_AVAILABLE and _IntentLayer is not None:
+            try:
+                _intent_layer = _IntentLayer()
+                logger.info("SmartEar: IntentLayer enabled")
+            except Exception as exc:
+                logger.warning("SmartEar: IntentLayer init failed: %s", exc)
+        self._intent = IntentStage(intent_layer=_intent_layer)
+
+        # Stage 5 — WHY Layer
+        _why_layer = None
+        if why_enabled and _INTENT_AVAILABLE and _WhyLayer is not None:
+            try:
+                _why_layer = _WhyLayer()
+                logger.info("SmartEar: WhyLayer enabled")
+            except Exception as exc:
+                logger.warning("SmartEar: WhyLayer init failed: %s", exc)
+        self._why = WhyStage(why_layer=_why_layer)
+
+        # Stage 6 — WHY Strategy + Anchor
+        _stage6_anchor = anchor if strategy_enabled else None
+        self._strategy = WhyStrategyStage(anchor=_stage6_anchor)
+        if strategy_enabled:
+            _anchor_info = f", anchor={len(anchor)} items" if anchor else ""
+            logger.info("SmartEar: WhyStrategyStage enabled%s", _anchor_info)
+
+        # Stage 7 — Empathy & Negotiation Layer
+        self._empathy: Optional["_EmpathyNegotiationLayer"] = None  # type: ignore[type-arg]
+        if (
+            empathy_enabled
+            and _INTENT_AVAILABLE
+            and _EmpathyNegotiationLayer is not None
+        ):
+            try:
+                self._empathy = _EmpathyNegotiationLayer()
+                logger.info("SmartEar: EmpathyNegotiationLayer enabled")
+            except Exception as exc:
+                logger.warning("SmartEar: EmpathyNegotiationLayer init failed: %s", exc)
+
+        # Stage 8 — Body-Aware Copilot
+        self._copilot: Optional["_BodyAwareCopilot"] = None  # type: ignore[type-arg]
+        if (
+            copilot_enabled
+            and _INTENT_AVAILABLE
+            and _BodyAwareCopilot is not None
+        ):
+            try:
+                self._copilot = _BodyAwareCopilot()
+                logger.info("SmartEar: BodyAwareCopilot enabled")
+            except Exception as exc:
+                logger.warning("SmartEar: BodyAwareCopilot init failed: %s", exc)
+
+        # Stage 9 — Resonance Scorer
+        self._resonance_scorer: Optional["_ResonanceScorer"] = None  # type: ignore[type-arg]
+        if (
+            resonance_enabled
+            and _INTENT_AVAILABLE
+            and _ResonanceScorer is not None
+        ):
+            try:
+                self._resonance_scorer = _ResonanceScorer()
+                logger.info("SmartEar: ResonanceScorer enabled")
+            except Exception as exc:
+                logger.warning("SmartEar: ResonanceScorer init failed: %s", exc)
+
+        # Cognitive Cycle Logger
+        # Exposed as ``self.cycle_logger`` (public) so the caller that wires
+        # SmartEar + AgentLoop together can pass the SAME instance to both:
+        #
+        #   smart_ear = SmartEar(...)
+        #   loop = AgentLoop(..., cycle_logger=smart_ear.cycle_logger)
+        #
+        self.cycle_logger = None
+        if _CYCLE_LOGGER_AVAILABLE and _CycleCognitiveLogger is not None:
+            _cycle_path = cycle_log_path or os.path.join(
+                os.path.dirname(__file__), "..", "..", "..", "logs", "cognitive_cycle.jsonl"
+            )
+            try:
+                self.cycle_logger = _CycleCognitiveLogger(
+                    path=_cycle_path, max_mb=cycle_log_max_mb
+                )
+                logger.info("SmartEar: CognitiveCycleLogger → %s", _cycle_path)
+            except Exception as exc:
+                logger.warning("SmartEar: CognitiveCycleLogger init failed: %s", exc)
+        # Keep private alias for internal use (backward compat with _process)
+        self._cycle_logger = self.cycle_logger
 
         self._vocab_refresh_counter = 0
         self._causal_memory = causal_memory
@@ -917,6 +1208,37 @@ class SmartEar:
 
         self._step_flow("interpret", {"text": item.get("text", "")})
 
+        # Stage 4 — Intent extraction
+        item = self._intent.process(item)
+        if item is None:
+            return None
+
+        self._step_flow("intent", {"intent": item.get("_intent", {})})
+
+        # Stage 5 — WHY (causal intent)
+        item = self._why.process(item)
+        if item is None:
+            return None
+
+        self._step_flow("why", {"why": item.get("_why", {})})
+
+        # Stage 6 — WHY Strategy + Anchor
+        item = self._strategy.process(item)
+        if item is None:
+            return None
+
+        # Stage 7 — Empathy & Negotiation
+        if self._empathy is not None:
+            item = self._empathy.process(item)
+
+        # Stage 8 — Body-Aware Copilot (assembles final_prompt + body cues)
+        if self._copilot is not None:
+            item = self._copilot.process(item)
+
+        # Stage 9 — Resonance Scorer
+        if self._resonance_scorer is not None:
+            item = self._resonance_scorer.process(item)
+
         final_text = item["text"]
         source = item.get("_selection_source", "original")
         composite = item.get("_composite_confidence", 0.0)
@@ -931,7 +1253,17 @@ class SmartEar:
             "composite_confidence": composite,
             "source": source,
             "corrections": corrections,
+            "intent": item.get("_intent"),
+            "why": item.get("_why"),
         })
+
+        # Cognitive Cycle Logger — Phase 1: start cycle
+        if self._cycle_logger is not None:
+            try:
+                cycle_id = self._cycle_logger.start_cycle(item)
+                item["_cycle_id"] = cycle_id
+            except Exception as exc:
+                logger.debug("CognitiveCycleLogger.start_cycle failed: %s", exc)
 
         return item
 

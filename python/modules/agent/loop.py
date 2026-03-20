@@ -21,6 +21,19 @@ from shared.event_bus import EventBus
 from perception.coordinator import VisionSubsystem
 import lthread
 
+# CognitiveCycleLogger (optional — graceful fallback)
+try:
+    import sys as _sys_ccl
+    import os as _os_ccl
+    _ccl_root = _os_ccl.path.abspath(_os_ccl.path.join(_os_ccl.path.dirname(__file__), ".."))
+    if _ccl_root not in _sys_ccl.path:
+        _sys_ccl.path.insert(0, _ccl_root)
+    from cognitive_flow.cycle_logger import CognitiveCycleLogger
+    _CCL_AVAILABLE = True
+except Exception:
+    _CCL_AVAILABLE = False
+    CognitiveCycleLogger = None  # type: ignore[assignment,misc]
+
 try:
     from llm.temporal_graph import get_context_for_question
 
@@ -75,6 +88,7 @@ class AgentLoop:
         observability_enabled: bool = True,
         amygdala: Amygdala | None = None,
         event_bus: EventBus | None = None,
+        cycle_logger: "CognitiveCycleLogger | None" = None,
     ) -> None:
         if (llm is None) == (handler is None):
             raise ValueError("Provide exactly one of llm or handler")
@@ -86,6 +100,7 @@ class AgentLoop:
         self.on_event = on_event
         self.event_bus = event_bus
         self.running = False
+        self.cycle_logger = cycle_logger
 
         self.temporal = temporal if temporal_enabled else None
         if temporal_enabled and self.temporal is None:
@@ -589,6 +604,98 @@ class AgentLoop:
         }
         return [injection] + history  # strictly at the beginning
 
+    def _inject_strategy_context(self, messages: list[dict], item: dict) -> list[dict]:
+        """Inject copilot context into the message list.
+
+        Appends a single system message at the *end* of the list (just before
+        the live user turn) so the LLM sees it as fresh guidance without
+        overriding the conversation history.
+
+        If Stage 8 BodyAwareCopilot ran, its pre-assembled ``final_prompt`` is
+        used directly.  Otherwise falls back to piecemeal construction from
+        individual stage outputs so the method works even when Stage 8 is
+        disabled or unavailable.
+        """
+        # ---- Fast path: Stage 8 pre-assembled the full block ----
+        copilot = item.get("_copilot_output")
+        if copilot and isinstance(copilot, dict):
+            content = copilot.get("final_prompt", "")
+            if content:
+                return messages + [{"role": "system", "content": content}]
+
+        # ---- Fallback: piecemeal build from individual stage outputs ----
+        parts: list[str] = []
+
+        strategy = item.get("_why_strategy")
+        if strategy and isinstance(strategy, dict):
+            trigger = strategy.get("micro_trigger", "")
+            hints = strategy.get("hints") or []
+            answer_type = strategy.get("answer_type", "")
+            pressure = strategy.get("pressure", "")
+            block_parts: list[str] = []
+            if trigger:
+                block_parts.append(f"🧠 Сейчас: {trigger}")
+            if hints:
+                hints_text = "\n".join(f"- {h}" for h in hints)
+                block_parts.append(
+                    f"Стратегия: {answer_type}  |  Давление: {pressure}\n"
+                    f"Подсказки:\n{hints_text}"
+                )
+            if block_parts:
+                parts.append("\n\n".join(block_parts))
+
+        anchor_ctx = item.get("_anchor_context")
+        if anchor_ctx and isinstance(anchor_ctx, list) and any(anchor_ctx):
+            lines = "\n".join(f"- {x}" for x in anchor_ctx if x)
+            force_anchor = (
+                strategy.get("answer_type") == "experiential"
+                if strategy and isinstance(strategy, dict) else False
+            )
+            anchor_label = (
+                "ОБЯЗАТЕЛЬНО используй этот опыт в ответе:"
+                if force_anchor
+                else "Используй контекст, если уместно:"
+            )
+            parts.append(f"{anchor_label}\n{lines}")
+
+        interviewer = item.get("_interviewer_profile")
+        if interviewer and isinstance(interviewer, dict) and interviewer.get("questions_seen", 0) >= 2:
+            p = interviewer.get("pressure_level", 0)
+            flags = []
+            if interviewer.get("prefers_examples"):
+                flags.append("любит конкретные кейсы")
+            if interviewer.get("prefers_reasoning"):
+                flags.append("любит глубокие рассуждения")
+            if interviewer.get("prefers_theory"):
+                flags.append("любит теорию и определения")
+            if interviewer.get("interrupt_count", 0) > 0:
+                flags.append("перебивает — будь лаконичен")
+            if flags:
+                parts.append(f"Интервьюер (давление {p:.0%}): {', '.join(flags)}.")
+
+        empathy = item.get("_empathy_result")
+        if empathy and isinstance(empathy, dict):
+            tone_trigger = empathy.get("tone_trigger", "")
+            empathy_hints = empathy.get("hints") or []
+            nego_move = empathy.get("negotiation_move")
+            if tone_trigger or empathy_hints:
+                emp_lines: list[str] = []
+                if tone_trigger:
+                    emp_lines.append(f"💬 Тон: {tone_trigger}")
+                if empathy_hints:
+                    emp_lines.append(
+                        "Эмпатия/переговоры:\n"
+                        + "\n".join(f"- {h}" for h in empathy_hints)
+                    )
+                if nego_move:
+                    emp_lines.append(f'Открой с: "{nego_move}"')
+                parts.append("\n".join(emp_lines))
+
+        if not parts:
+            return messages
+
+        return messages + [{"role": "system", "content": "\n\n".join(parts)}]
+
     def _remember_answer(self, answer: Any, duration: float) -> None:
         if isinstance(answer, str) and self.memory_max_chars:
             answer = answer[: self.memory_max_chars]
@@ -772,6 +879,9 @@ class AgentLoop:
 
             # Prepare hidden context with reflection
             messages = self._inject_reflection_into_context(list(self.memory["history"]), question=question, force_show_silent=force_show_silent)
+
+            # Inject WHY strategy hints + anchor context (interview copilot)
+            messages = self._inject_strategy_context(messages, item)
 
             self._remember_question(question)
 
@@ -1077,6 +1187,18 @@ class AgentLoop:
                 else:
                     self._emit("output_ready", payload, task_id=task_id)
                 self._publish_metrics()
+
+                # Cognitive Cycle Logger — Phase 2: complete cycle
+                cycle_id = item.get("_cycle_id")
+                if self.cycle_logger is not None and cycle_id:
+                    try:
+                        self.cycle_logger.complete_cycle(
+                            cycle_id=cycle_id,
+                            output=str(payload.get("response", "")),
+                            generation_time=float(payload.get("generation_time", 0.0)),
+                        )
+                    except Exception as _ccl_exc:
+                        logger.debug("CognitiveCycleLogger.complete_cycle failed: %s", _ccl_exc)
 
             self.causal_transitions.amygdala.learn_from_outcome(
                 stable_interaction=result is not None,
