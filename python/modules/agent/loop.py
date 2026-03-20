@@ -21,6 +21,19 @@ from shared.event_bus import EventBus
 from perception.coordinator import VisionSubsystem
 import lthread
 
+# CognitiveCycleLogger (optional — graceful fallback)
+try:
+    import sys as _sys_ccl
+    import os as _os_ccl
+    _ccl_root = _os_ccl.path.abspath(_os_ccl.path.join(_os_ccl.path.dirname(__file__), ".."))
+    if _ccl_root not in _sys_ccl.path:
+        _sys_ccl.path.insert(0, _ccl_root)
+    from cognitive_flow.cycle_logger import CognitiveCycleLogger
+    _CCL_AVAILABLE = True
+except Exception:
+    _CCL_AVAILABLE = False
+    CognitiveCycleLogger = None  # type: ignore[assignment,misc]
+
 try:
     from llm.temporal_graph import get_context_for_question
 
@@ -75,6 +88,7 @@ class AgentLoop:
         observability_enabled: bool = True,
         amygdala: Amygdala | None = None,
         event_bus: EventBus | None = None,
+        cycle_logger: "CognitiveCycleLogger | None" = None,
     ) -> None:
         if (llm is None) == (handler is None):
             raise ValueError("Provide exactly one of llm or handler")
@@ -86,6 +100,7 @@ class AgentLoop:
         self.on_event = on_event
         self.event_bus = event_bus
         self.running = False
+        self.cycle_logger = cycle_logger
 
         self.temporal = temporal if temporal_enabled else None
         if temporal_enabled and self.temporal is None:
@@ -1077,6 +1092,18 @@ class AgentLoop:
                 else:
                     self._emit("output_ready", payload, task_id=task_id)
                 self._publish_metrics()
+
+                # Cognitive Cycle Logger — Phase 2: complete cycle
+                cycle_id = item.get("_cycle_id")
+                if self.cycle_logger is not None and cycle_id:
+                    try:
+                        self.cycle_logger.complete_cycle(
+                            cycle_id=cycle_id,
+                            output=str(payload.get("response", "")),
+                            generation_time=float(payload.get("generation_time", 0.0)),
+                        )
+                    except Exception as _ccl_exc:
+                        logger.debug("CognitiveCycleLogger.complete_cycle failed: %s", _ccl_exc)
 
             self.causal_transitions.amygdala.learn_from_outcome(
                 stable_interaction=result is not None,

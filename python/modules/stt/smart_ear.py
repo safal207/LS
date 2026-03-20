@@ -62,6 +62,26 @@ from typing import List, Optional
 
 from .phonetic import PhoneticCorrector, STATIC_IT_VOCAB
 
+# Intent Layer (optional — graceful fallback if module unavailable)
+try:
+    import sys as _sys_intent
+    _intent_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if _intent_root not in _sys_intent.path:
+        _sys_intent.path.insert(0, _intent_root)
+    from intent.intent_layer import IntentLayer as _IntentLayer
+    _INTENT_AVAILABLE = True
+except Exception:
+    _INTENT_AVAILABLE = False
+    _IntentLayer = None  # type: ignore[assignment,misc]
+
+# CognitiveCycleLogger (optional — graceful fallback)
+try:
+    from cognitive_flow.cycle_logger import CognitiveCycleLogger as _CycleCognitiveLogger
+    _CYCLE_LOGGER_AVAILABLE = True
+except Exception:
+    _CYCLE_LOGGER_AVAILABLE = False
+    _CycleCognitiveLogger = None  # type: ignore[assignment,misc]
+
 # ML decision layer (optional — graceful fallback if sklearn missing)
 # Add the modules root to sys.path idempotently so sibling package smart_ear
 # can be imported without permanently mutating the interpreter's path.
@@ -651,6 +671,41 @@ class SelectionStage:
 
 
 # ---------------------------------------------------------------------------
+# Stage 4: IntentStage
+# ---------------------------------------------------------------------------
+
+class IntentStage:
+    """Extract structured intent from the resolved utterance.
+
+    Transforms ``item["text"]`` into a typed IntentResult stored at
+    ``item["_intent"]``.  Requires the ``intent`` package; graceful no-op
+    when unavailable.
+
+    Example output added to item::
+
+        item["_intent"] = {
+            "type": "definition",
+            "entity": "React",
+            "params": {"domain": "web_dev"},
+            "confidence": 0.95,
+            "raw_text": "что такое React",
+        }
+    """
+
+    def __init__(self, intent_layer=None) -> None:
+        self._layer = intent_layer
+
+    def process(self, item: dict) -> Optional[dict]:
+        if self._layer is None:
+            return item
+        try:
+            self._layer.process_item(item)
+        except Exception as exc:
+            logger.debug("IntentStage failed: %s", exc)
+        return item
+
+
+# ---------------------------------------------------------------------------
 # SmartEar — orchestrator
 # ---------------------------------------------------------------------------
 
@@ -685,6 +740,11 @@ class SmartEar:
         auto_retrain: bool = False,
         retrain_every: int = 50,
         metrics_window: int = 200,
+        # Intent Layer (Stage 4)
+        intent_enabled: bool = True,
+        # Cognitive Cycle Logger
+        cycle_log_path: str = "",
+        cycle_log_max_mb: float = 50,
     ) -> None:
         self.input_queue = input_queue
         self.output_queue = output_queue
@@ -760,6 +820,30 @@ class SmartEar:
             decision_model=_decision_model,
             metrics=_metrics,
         )
+
+        # Stage 4 — Intent Layer
+        _intent_layer = None
+        if intent_enabled and _INTENT_AVAILABLE and _IntentLayer is not None:
+            try:
+                _intent_layer = _IntentLayer()
+                logger.info("SmartEar: IntentLayer enabled")
+            except Exception as exc:
+                logger.warning("SmartEar: IntentLayer init failed: %s", exc)
+        self._intent = IntentStage(intent_layer=_intent_layer)
+
+        # Cognitive Cycle Logger
+        self._cycle_logger = None
+        if _CYCLE_LOGGER_AVAILABLE and _CycleCognitiveLogger is not None:
+            _cycle_path = cycle_log_path or os.path.join(
+                os.path.dirname(__file__), "..", "..", "..", "logs", "cognitive_cycle.jsonl"
+            )
+            try:
+                self._cycle_logger = _CycleCognitiveLogger(
+                    path=_cycle_path, max_mb=cycle_log_max_mb
+                )
+                logger.info("SmartEar: CognitiveCycleLogger → %s", _cycle_path)
+            except Exception as exc:
+                logger.warning("SmartEar: CognitiveCycleLogger init failed: %s", exc)
 
         self._vocab_refresh_counter = 0
         self._causal_memory = causal_memory
@@ -917,6 +1001,13 @@ class SmartEar:
 
         self._step_flow("interpret", {"text": item.get("text", "")})
 
+        # Stage 4 — Intent extraction
+        item = self._intent.process(item)
+        if item is None:
+            return None
+
+        self._step_flow("intent", {"intent": item.get("_intent", {})})
+
         final_text = item["text"]
         source = item.get("_selection_source", "original")
         composite = item.get("_composite_confidence", 0.0)
@@ -931,7 +1022,16 @@ class SmartEar:
             "composite_confidence": composite,
             "source": source,
             "corrections": corrections,
+            "intent": item.get("_intent"),
         })
+
+        # Cognitive Cycle Logger — Phase 1: start cycle
+        if self._cycle_logger is not None:
+            try:
+                cycle_id = self._cycle_logger.start_cycle(item)
+                item["_cycle_id"] = cycle_id
+            except Exception as exc:
+                logger.debug("CognitiveCycleLogger.start_cycle failed: %s", exc)
 
         return item
 
