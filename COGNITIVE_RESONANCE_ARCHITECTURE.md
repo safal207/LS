@@ -333,9 +333,9 @@ Tone:               ASSERTIVE (challenge response)
 Intervention:       high (needs coaching)
 Body Cues:          pause=1.5s, inhale, confident+steady, [smile, open_posture]
 Pre-prompt:         🧠 Сейчас: защити решение + покажи trade-offs  ⏸ 1.5с → inhale → confident+steady
-Resonance Score:    0.627
+Resonance Score:    0.725
   ├─ base:          0.565 (high pressure reduces base)
-  ├─ tone_match:    0.0 (assertive ≠ defense, but close enough)
+  ├─ tone_match:    +0.10 (assertive + defense ✓ confident pushback)
   ├─ anchor_bonus:  +0.10 (Redis experience injected)
   ├─ nego_bonus:    +0.08 (de-escalation opener)
   └─ intervention:  -0.12 (high coaching needed)
@@ -373,7 +373,7 @@ Resonance Score:    0.889
 ```
 
 **Learner Adaptation:** After 5 cycles, the learner identifies that:
-- `high_pressure_body` rule correlates with 0.627 resonance → weight = +0.008 (slightly boosted)
+- `high_pressure_body` rule correlates with 0.725 resonance → weight = +0.008 (slightly boosted)
 - `experience_goal_with_anchor` rule correlates with 0.861 resonance → weight = +0.015 (more boosted)
 - Future cycles will favor experience-grounded strategies over pure defensive ones
 
@@ -517,7 +517,7 @@ agent = ResonanceAgent(
 )
 
 result = agent.process_text("почему не использовали Redis?")
-print(result["resonance_score"])      # 0.627
+print(result["resonance_score"])      # 0.725
 print(result["pre_prompt"])            # 🧠 Сейчас: защити решение…
 ```
 

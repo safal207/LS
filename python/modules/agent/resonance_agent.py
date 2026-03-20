@@ -62,6 +62,7 @@ Usage::
 from __future__ import annotations
 
 import logging
+import threading
 import time
 import uuid
 from typing import Callable, List, Optional
@@ -176,15 +177,15 @@ class ResonanceAgent:
         self._llm_fn      = llm_fn
         self._orientation = orientation
 
-        # Stage 2 — Intent
+        # Stage 4 — Intent
         self._intent = _IntentLayer() if _INTENT_OK and _IntentLayer else None
 
-        # Stage 3/4 — WHY
+        # Stage 5 — WHY
         self._why = _WhyLayer() if _WHY_OK and _WhyLayer else None
 
-        # Stage 5 — WHY Strategy is a function, not a class (called per item)
+        # Stage 6 — WHY Strategy is a function, not a class (called per item)
 
-        # Stage 6 — InterviewerProfile (shared, mutated per question)
+        # Stage 6b — InterviewerProfile (shared, mutated per question)
         self._profile = (
             _InterviewerProfile() if _PROFILE_OK and _InterviewerProfile else None
         )
@@ -216,10 +217,14 @@ class ResonanceAgent:
             else None
         )
 
-        # Short-lived cache of completed cycle records (last 50) so feedback()
-        # can look up the actual resonance_score rather than assuming 0.0.
+        # Short-lived cache of completed cycle items (last 50) so feedback()
+        # can look up the actual resonance_score and active_rules rather than
+        # assuming 0.0.  Bounded at _max_cached entries, LRU-evicted by
+        # insertion order.  Guarded by _cycles_lock for multi-thread safety
+        # (~15 KB/cycle × 50 = ~750 KB worst-case footprint).
         self._recent_cycles: dict[str, dict] = {}
         self._max_cached    = 50
+        self._cycles_lock   = threading.Lock()
 
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
@@ -277,7 +282,8 @@ class ResonanceAgent:
         if self._logger:
             self._logger.add_feedback(cycle_id, feedback_text)
         if self._learner:
-            cached = self._recent_cycles.get(cycle_id) or {}
+            with self._cycles_lock:
+                cached = self._recent_cycles.get(cycle_id) or {}
             self._learner.learn({
                 "resonance_score": cached.get("resonance_score", 0.5),
                 "copilot": {
@@ -321,7 +327,7 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.debug("ResonanceAgent: WhyLayer failed: %s", exc)
 
-        # Stage 5 — WHY Strategy + Anchor + InterviewerProfile
+        # Stage 6 — WHY Strategy + Anchor + InterviewerProfile
         if _STRATEGY_OK and _analyze:
             try:
                 strategy = _analyze(text)
@@ -390,12 +396,13 @@ class ResonanceAgent:
                 logger.debug("ResonanceAgent: learner.learn failed: %s", exc)
 
         result = self._build_output(item, final_output, generation_time, cycle_id)
-        # Cache the item (not the output dict) so feedback() can access
-        # resonance_score and active_rules via the original pipeline keys.
-        self._recent_cycles[cycle_id] = item
-        if len(self._recent_cycles) > self._max_cached:
-            # Evict the oldest entry (dict preserves insertion order in 3.7+)
-            self._recent_cycles.pop(next(iter(self._recent_cycles)))
+        # Cache the pipeline item so feedback() can look up the real
+        # resonance_score and active_rules (not the sanitised output dict).
+        with self._cycles_lock:
+            self._recent_cycles[cycle_id] = item
+            if len(self._recent_cycles) > self._max_cached:
+                # Evict oldest (dict preserves insertion order in 3.7+)
+                self._recent_cycles.pop(next(iter(self._recent_cycles)))
         return result
 
     # ------------------------------------------------------------------
