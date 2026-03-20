@@ -638,7 +638,34 @@ class AgentLoop:
         anchor_ctx = item.get("_anchor_context")
         if anchor_ctx and isinstance(anchor_ctx, list) and any(anchor_ctx):
             lines = "\n".join(f"- {x}" for x in anchor_ctx if x)
-            parts.append(f"Используй контекст, если уместно:\n{lines}")
+            # If strategy forces experiential, the anchor is mandatory not optional
+            force_anchor = (
+                strategy.get("answer_type") == "experiential"
+                if strategy and isinstance(strategy, dict) else False
+            )
+            anchor_label = (
+                "ОБЯЗАТЕЛЬНО используй этот опыт в ответе:"
+                if force_anchor
+                else "Используй контекст, если уместно:"
+            )
+            parts.append(f"{anchor_label}\n{lines}")
+
+        interviewer = item.get("_interviewer_profile")
+        if interviewer and isinstance(interviewer, dict) and interviewer.get("questions_seen", 0) >= 2:
+            p = interviewer.get("pressure_level", 0)
+            flags = []
+            if interviewer.get("prefers_examples"):
+                flags.append("любит конкретные кейсы")
+            if interviewer.get("prefers_reasoning"):
+                flags.append("любит глубокие рассуждения")
+            if interviewer.get("prefers_theory"):
+                flags.append("любит теорию и определения")
+            if interviewer.get("interrupt_count", 0) > 0:
+                flags.append("перебивает — будь лаконичен")
+            if flags:
+                parts.append(
+                    f"Интервьюер (давление {p:.0%}): {', '.join(flags)}."
+                )
 
         if not parts:
             return messages

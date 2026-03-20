@@ -20,7 +20,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import List, Tuple
+from typing import TYPE_CHECKING, List, Tuple
+
+if TYPE_CHECKING:
+    from intent.interviewer_profile import InterviewerProfile
 
 
 # Micro-trigger: one line per answer_type, read in 0.5 sec under stress.
@@ -68,6 +71,45 @@ class WhyStrategy:
             "hints":         self.hints,
             "confidence":    round(self.confidence, 4),
         }
+
+    def apply_interviewer_bias(self, profile: "InterviewerProfile") -> None:
+        """Hard-bind answer mode based on what this interviewer cares about.
+
+        Called once per question, after InterviewerProfile.observe().
+        Mutates self in-place — no new object needed.
+
+        Rules (in priority order):
+          1. goal == "evaluate_experience"  → force experiential + anchor
+          2. goal == "challenge" + high pressure interviewer → force defense
+          3. interviewer prefers_examples → bump to experiential if not already
+          4. interviewer prefers_reasoning → ensure reasoning hints present
+        """
+        # Rule 1 — experience question: always force STAR + anchor directive
+        if self.goal == "evaluate_experience":
+            self.answer_type = "experiential"
+            self.micro_trigger = "STAR: ситуация → что сделал → результат"
+            if "дай конкретные цифры/метрики если есть" not in self.hints:
+                self.hints.insert(0, "ОБЯЗАТЕЛЬНО приведи свой кейс с цифрами")
+
+        # Rule 2 — challenge under a high-pressure interviewer
+        elif self.goal == "challenge" and profile.pressure_level >= 0.7:
+            self.answer_type = "defense"
+            self.pressure = "high"
+            self.micro_trigger = "защити решение + покажи trade-offs"
+            if "покажи trade-offs" not in " ".join(self.hints):
+                self.hints.insert(0, "покажи trade-offs явно")
+
+        # Rule 3 — interviewer consistently wants real examples
+        elif profile.prefers_examples and self.answer_type == "reasoning":
+            self.answer_type = "experiential"
+            self.micro_trigger = "STAR: ситуация → что сделал → результат"
+            self.hints.append("добавь свой кейс в конце")
+
+        # Rule 4 — interviewer likes reasoning: strengthen reasoning hints
+        elif profile.prefers_reasoning and self.answer_type == "definition":
+            self.answer_type = "reasoning"
+            self.micro_trigger = _MICRO_TRIGGERS["reasoning"]
+            self.hints.append("объясни своими словами почему")
 
     def format_prompt_block(self) -> str:
         """Return a compact block ready for injection into a system prompt.

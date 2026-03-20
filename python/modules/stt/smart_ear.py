@@ -71,12 +71,14 @@ try:
     from intent.intent_layer import IntentLayer as _IntentLayer
     from intent.why_layer import WhyLayer as _WhyLayer
     from intent.why_strategy import analyze_why_and_strategy as _analyze_strategy
+    from intent.interviewer_profile import InterviewerProfile as _InterviewerProfile
     _INTENT_AVAILABLE = True
 except Exception:
     _INTENT_AVAILABLE = False
-    _IntentLayer = None           # type: ignore[assignment,misc]
-    _WhyLayer = None              # type: ignore[assignment,misc]
-    _analyze_strategy = None      # type: ignore[assignment,misc]
+    _IntentLayer = None              # type: ignore[assignment,misc]
+    _WhyLayer = None                 # type: ignore[assignment,misc]
+    _analyze_strategy = None         # type: ignore[assignment,misc]
+    _InterviewerProfile = None       # type: ignore[assignment,misc]
 
 # ConversationAnchor (optional — graceful fallback)
 try:
@@ -791,14 +793,25 @@ class WhyStrategyStage:
 
     def __init__(self, anchor=None) -> None:
         self._anchor = anchor
+        # InterviewerProfile persists for the whole session — one observation per question
+        self._interviewer = (
+            _InterviewerProfile()
+            if (_INTENT_AVAILABLE and _InterviewerProfile is not None)
+            else None
+        )
 
     def process(self, item: dict) -> Optional[dict]:
         text = item.get("text", "")
 
-        # WHY Strategy
+        # WHY Strategy + InterviewerProfile bias
         if _INTENT_AVAILABLE and _analyze_strategy is not None:
             try:
                 strategy = _analyze_strategy(text)
+                # Update interviewer model and apply hard bindings
+                if self._interviewer is not None:
+                    self._interviewer.observe(text, strategy)
+                    strategy.apply_interviewer_bias(self._interviewer)
+                    item["_interviewer_profile"] = self._interviewer.to_dict()
                 item["_why_strategy"] = strategy.to_dict()
             except Exception as exc:
                 logger.debug("WhyStrategyStage: strategy failed: %s", exc)
