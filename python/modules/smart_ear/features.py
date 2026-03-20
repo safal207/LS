@@ -24,7 +24,7 @@ vector fed to the model (callers must drop it before predict()).
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import List
 
 
 def extract_features(item: dict) -> dict:

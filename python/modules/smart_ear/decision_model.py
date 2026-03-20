@@ -38,9 +38,9 @@ from __future__ import annotations
 import logging
 import os
 import pickle
-from typing import Any, List, Optional
+from typing import Any, Optional
 
-from .features import FEATURE_NAMES, features_to_vector
+from .features import features_to_vector
 
 logger = logging.getLogger(__name__)
 
