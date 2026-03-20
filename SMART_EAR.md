@@ -20,6 +20,7 @@ AudioIngestion → SpeechToText → [stt_queue]
 - [Feedback loop](#feedback-loop)
 - [Мониторинг и дашборд](#мониторинг-и-дашборд)
 - [Скрипты](#скрипты)
+- **[📘 SmartEar ML Production Upgrade (2026-03-20)](docs/SMARTEAR_ML_PRODUCTION_UPGRADE.md)** ← LightGBM, calibration, validation gate
 
 ---
 
