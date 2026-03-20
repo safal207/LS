@@ -55,11 +55,28 @@ import logging
 import os
 import queue
 import re
+import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import List, Optional
 
 from .phonetic import PhoneticCorrector, STATIC_IT_VOCAB
+
+# ML decision layer (optional — graceful fallback if sklearn missing)
+try:
+    import sys as _sys
+    _sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+    from smart_ear.features import extract_features, features_to_vector
+    from smart_ear.decision_model import SmartEarDecisionModel
+    _ML_AVAILABLE = True
+except Exception:
+    _ML_AVAILABLE = False
+    SmartEarDecisionModel = None  # type: ignore[assignment,misc]
+    def extract_features(item: dict) -> dict:  # type: ignore[misc]
+        return {}
+    def features_to_vector(f: dict) -> list:  # type: ignore[misc]
+        return []
 
 try:
     from shared.utils import is_question
@@ -206,6 +223,84 @@ class SmartEarAuditLog:
             "asr_prob": round(asr_prob, 4),
             "top_candidates": candidates[:3],
         })
+
+
+# ---------------------------------------------------------------------------
+# SmartEarDatasetLogger — training data collector
+# ---------------------------------------------------------------------------
+
+class SmartEarDatasetLogger:
+    """Collects labeled examples for training the learned decision model.
+
+    Writes to a JSONL file one record per processed item that contained at
+    least one phonetic correction.  Thread-safe via a per-instance lock.
+
+    Record format::
+
+        {
+          "original_text":        "что такое реак",
+          "corrected_text":       "что такое React",
+          "asr_confidence":       0.42,
+          "composite_confidence": 0.38,
+          "num_corrections":      1,
+          "avg_word_prob":        0.45,
+          "context_overlap":      0.2,
+          "vocab_score_original": 0.1,
+          "vocab_score_corrected":0.8,
+          "model_confidence":     0.0,
+          "chosen":               "corrected"
+        }
+
+    When ``path`` is empty the logger is a no-op.
+    """
+
+    def __init__(self, path: str = "") -> None:
+        self.path = path
+        self._enabled = bool(path)
+        self._lock = threading.Lock()
+
+    def log(self, item: dict) -> None:
+        """Write one training record if item has corrections."""
+        if not self._enabled:
+            return
+
+        corrections: List[dict] = item.get("_phonetic_corrections", [])
+        if not corrections:
+            return  # Only log items where correction was attempted
+
+        original_text: str = item.get("_original_text", item.get("text", ""))
+        corrected_text: str = item.get("_corrected_text", original_text)
+
+        # avg_word_prob from per-word Whisper data
+        words: List[dict] = item.get("_words", [])
+        if words:
+            probs = [float(w.get("probability", 1.0)) for w in words if w.get("word", "").strip()]
+            avg_word_prob = sum(probs) / len(probs) if probs else float(item.get("_asr_confidence", 0.0))
+        else:
+            avg_word_prob = float(item.get("_asr_confidence", 0.0))
+
+        record = {
+            "original_text":         original_text,
+            "corrected_text":        corrected_text,
+            "asr_confidence":        round(float(item.get("_asr_confidence", 0.0)), 4),
+            "composite_confidence":  round(float(item.get("_composite_confidence", 0.0)), 4),
+            "num_corrections":       len(corrections),
+            "avg_word_prob":         round(avg_word_prob, 4),
+            "context_overlap":       round(float(item.get("_context_overlap", 0.0)), 4),
+            "vocab_score_original":  round(float(item.get("_vocab_score_original", 0.0)), 4),
+            "vocab_score_corrected": round(float(item.get("_vocab_score_corrected", 0.0)), 4),
+            "model_confidence":      round(float(item.get("_model_confidence", 0.0)), 4),
+            "chosen":                item.get("_selection_source", "original").replace("_ml", ""),
+        }
+
+        line = json.dumps(record, ensure_ascii=False) + "\n"
+        try:
+            with self._lock:
+                os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
+                with open(self.path, "a", encoding="utf-8") as fh:
+                    fh.write(line)
+        except Exception as exc:
+            logger.debug("SmartEarDatasetLogger write failed: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -402,12 +497,35 @@ class HypothesisStage:
 class SelectionStage:
     """Choose between original and phonetically corrected text.
 
-    Corrected text wins only if its score exceeds original by
-    ``SMART_EAR_SELECTION_MARGIN`` — equal scores keep original.
+    Decision priority:
+    1. ML model (``SmartEarDecisionModel``) when loaded — returns probability.
+    2. Heuristic fallback: corrected wins if vocab+context score is higher by
+       ``SMART_EAR_SELECTION_MARGIN``.
+
+    Stores vocab scores on item so dataset logger and feature extractor can
+    read them without recomputing.
     """
 
-    def __init__(self, phonetic_corrector: PhoneticCorrector) -> None:
+    def __init__(
+        self,
+        phonetic_corrector: PhoneticCorrector,
+        decision_model: "SmartEarDecisionModel | None" = None,
+    ) -> None:
         self.corrector = phonetic_corrector
+        self._model = decision_model
+
+    def _vocab_scores(
+        self, original_text: str, corrected_text: str, context: str
+    ) -> tuple[float, float]:
+        """Return (orig_score, corr_score) as normalised floats."""
+        vocab_set = {w.lower() for w in self.corrector.domain_vocab}
+        ctx_words = set(context.lower().split())
+
+        def score(text: str) -> float:
+            words = set(text.lower().split())
+            return float(len(words & vocab_set) + len(words & ctx_words))
+
+        return score(original_text), score(corrected_text)
 
     def process(self, item: dict) -> Optional[dict]:
         original_text: str = item.get("text", "")
@@ -417,23 +535,50 @@ class SelectionStage:
 
         selected = original_text
         source = "original"
+        model_confidence = 0.0
 
         if corrected_text != original_text:
-            vocab_set = {w.lower() for w in self.corrector.domain_vocab}
+            orig_score, corr_score = self._vocab_scores(original_text, corrected_text, context)
+
+            # Store scores for feature extractor / dataset logger
+            item["_vocab_score_original"]  = orig_score
+            item["_vocab_score_corrected"] = corr_score
+            item["_original_text"]         = original_text
+
+            # Context overlap fraction (for feature extractor)
             ctx_words = set(context.lower().split())
+            txt_words = set(original_text.lower().split())
+            item["_context_overlap"] = (
+                len(ctx_words & txt_words) / max(len(txt_words), 1)
+            )
 
-            orig_words = set(original_text.lower().split())
-            corr_words = set(corrected_text.lower().split())
+            # ── ML decision ──────────────────────────────────────────
+            if _ML_AVAILABLE and self._model is not None and self._model.is_loaded:
+                features = extract_features(item)
+                model_confidence = self._model.predict_proba(features)
+                item["_model_confidence"] = round(model_confidence, 4)
 
-            orig_score = len(orig_words & vocab_set) + len(orig_words & ctx_words)
-            corr_score = len(corr_words & vocab_set) + len(corr_words & ctx_words)
-
-            if corr_score >= orig_score + SMART_EAR_SELECTION_MARGIN:
-                selected = corrected_text
-                source = "phonetic"
+                if model_confidence > self._model.threshold:
+                    selected = corrected_text
+                    source = "phonetic_ml"
+                    logger.debug(
+                        "SelectionStage [ML]: corrected (conf=%.3f) %r → %r",
+                        model_confidence, original_text, corrected_text,
+                    )
+                else:
+                    logger.debug(
+                        "SelectionStage [ML]: original (conf=%.3f) kept: %r",
+                        model_confidence, original_text,
+                    )
+            # ── Heuristic fallback ───────────────────────────────────
+            else:
+                if corr_score >= orig_score + SMART_EAR_SELECTION_MARGIN:
+                    selected = corrected_text
+                    source = "phonetic"
 
         item["text"] = selected
         item["_selection_source"] = source
+        item["_model_confidence"] = round(model_confidence, 4)
         item["_final_composite"] = composite
         item["type"] = "question"
         return item
@@ -469,6 +614,8 @@ class SmartEar:
         confidence_threshold: float = SMART_EAR_THRESHOLD,
         audit_log_path: str = SMART_EAR_AUDIT_LOG,
         audit_max_mb: int = SMART_EAR_AUDIT_MAX_MB,
+        dataset_log_path: str = "",
+        model_path: str = "",
     ) -> None:
         self.input_queue = input_queue
         self.output_queue = output_queue
@@ -499,6 +646,19 @@ class SmartEar:
             max_bytes=audit_max_mb * 1024 * 1024,
         )
 
+        # Dataset logger (for training ML decision model)
+        self._dataset_log = SmartEarDatasetLogger(path=dataset_log_path)
+
+        # ML decision model
+        _decision_model = None
+        if _ML_AVAILABLE and SmartEarDecisionModel is not None:
+            _decision_model = SmartEarDecisionModel(
+                model_path=model_path or os.path.join(
+                    os.path.dirname(__file__), "..", "..", "..", "models", "smart_ear_model.pkl"
+                )
+            )
+            _decision_model.load_model()
+
         self._filter = FilterStage(
             amygdala=amygdala,
             causal_memory=causal_memory,
@@ -507,7 +667,7 @@ class SmartEar:
             audit_log=self._audit,
         )
         self._hypothesis = HypothesisStage(self._corrector, audit_log=self._audit)
-        self._selection = SelectionStage(self._corrector)
+        self._selection = SelectionStage(self._corrector, decision_model=_decision_model)
 
         self._vocab_refresh_counter = 0
         self._causal_memory = causal_memory
@@ -637,6 +797,9 @@ class SmartEar:
         source = item.get("_selection_source", "original")
         composite = item.get("_composite_confidence", 0.0)
         corrections = item.get("_phonetic_corrections", [])
+
+        # Dataset logging — write training record when correction was attempted
+        self._dataset_log.log(item)
 
         self._audit.log_accepted(original_text, final_text, source, composite, corrections)
         self._publish("smart_ear_selected", {
