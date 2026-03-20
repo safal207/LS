@@ -109,8 +109,6 @@ class SpeechToText:
                 suppress_tokens=[-1],
                 without_timestamps=False,   # needed for word_timestamps
                 word_timestamps=True,       # gives per-word probability
-                prepend_punctuations="\"'"¿([{-",
-                append_punctuations="\"'.。,，!！?？:：")]}、",
             )
 
             text_parts: List[str] = []
