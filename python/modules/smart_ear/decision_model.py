@@ -64,6 +64,26 @@ class SmartEarDecisionModel:
     threshold:
         Decision threshold applied to the predicted probability.
         Corrected text is chosen when ``predict() > threshold``.
+    low_threshold:
+        Below this confidence → keep original (zone: "original").
+        Default 0.30.
+    high_threshold:
+        Above this confidence → use corrected (zone: "corrected").
+        Default 0.70.
+        Values between ``low_threshold`` and ``high_threshold`` enter the
+        "uncertain" zone where the heuristic fallback is used instead.
+
+    3-zone routing
+    --------------
+    When both ``low_threshold`` and ``high_threshold`` are set the model
+    operates in three zones::
+
+        prob < low_threshold   → "original"   (confident keep)
+        low_threshold ≤ prob ≤ high_threshold → "uncertain" (heuristic)
+        prob > high_threshold  → "corrected"  (confident use)
+
+    Set ``low_threshold = 0`` and ``high_threshold = threshold`` to disable
+    the uncertain zone and use classic binary thresholding.
     """
 
     def __init__(
@@ -71,10 +91,14 @@ class SmartEarDecisionModel:
         model_path: str = _DEFAULT_MODEL_PATH,
         heuristic_margin: float = 1.0,
         threshold: float = 0.5,
+        low_threshold: float = 0.30,
+        high_threshold: float = 0.70,
     ) -> None:
         self.model_path = os.path.abspath(model_path)
         self.heuristic_margin = heuristic_margin
         self.threshold = threshold
+        self.low_threshold = low_threshold
+        self.high_threshold = high_threshold
         self._model: Optional[Any] = None
         self._loaded = False
 
@@ -133,6 +157,26 @@ class SmartEarDecisionModel:
     def predict_proba(self, features: dict) -> float:
         """Alias for :meth:`predict` — returns probability in ``[0, 1]``."""
         return self.predict(features)
+
+    def zone(self, features: dict) -> str:
+        """Return routing zone: ``"original"``, ``"uncertain"``, or ``"corrected"``.
+
+        * ``"original"``  — model confident: keep original text.
+        * ``"corrected"`` — model confident: use corrected text.
+        * ``"uncertain"`` — model is in the grey zone; use heuristic fallback.
+
+        When the model is not loaded, always returns ``"uncertain"`` so the
+        heuristic takes over.
+        """
+        if not (self._loaded and self._model is not None):
+            return "uncertain"
+
+        prob = self._predict_model(features)
+        if prob < self.low_threshold:
+            return "original"
+        if prob > self.high_threshold:
+            return "corrected"
+        return "uncertain"
 
     def _predict_model(self, features: dict) -> float:
         vector = features_to_vector(features)

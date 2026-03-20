@@ -68,10 +68,14 @@ try:
     _sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
     from smart_ear.features import extract_features, features_to_vector
     from smart_ear.decision_model import SmartEarDecisionModel
+    from smart_ear.metrics import SmartEarMetrics
+    from smart_ear.auto_trainer import SmartEarAutoTrainer
     _ML_AVAILABLE = True
 except Exception:
     _ML_AVAILABLE = False
     SmartEarDecisionModel = None  # type: ignore[assignment,misc]
+    SmartEarMetrics = None        # type: ignore[assignment,misc]
+    SmartEarAutoTrainer = None    # type: ignore[assignment,misc]
     def extract_features(item: dict) -> dict:  # type: ignore[misc]
         return {}
     def features_to_vector(f: dict) -> list:  # type: ignore[misc]
@@ -496,27 +500,33 @@ class HypothesisStage:
 class SelectionStage:
     """Choose between original and phonetically corrected text.
 
-    Decision priority:
-    1. ML model (``SmartEarDecisionModel``) when loaded — returns probability.
-    2. Heuristic fallback: corrected wins if vocab+context score is higher by
-       ``SMART_EAR_SELECTION_MARGIN``.
+    Decision routing (in priority order):
 
-    Stores vocab scores on item so dataset logger and feature extractor can
-    read them without recomputing.
+    1. **3-zone ML routing** (when model loaded and metrics show no drift):
+       * ``prob < low_threshold``  → "original"  (confident, skip heuristic)
+       * ``prob > high_threshold`` → "corrected" (confident)
+       * ``low ≤ prob ≤ high``     → "uncertain" → falls through to heuristic
+
+    2. **Heuristic fallback** (model absent, not loaded, or uncertain zone):
+       corrected wins if ``corr_score >= orig_score + margin``
+
+    Stores vocab/context scores on item so dataset logger and feature
+    extractor can read them without recomputing.
     """
 
     def __init__(
         self,
         phonetic_corrector: PhoneticCorrector,
         decision_model: "SmartEarDecisionModel | None" = None,
+        metrics: "SmartEarMetrics | None" = None,
     ) -> None:
         self.corrector = phonetic_corrector
         self._model = decision_model
+        self._metrics = metrics
 
     def _vocab_scores(
         self, original_text: str, corrected_text: str, context: str
     ) -> tuple[float, float]:
-        """Return (orig_score, corr_score) as normalised floats."""
         vocab_set = {w.lower() for w in self.corrector.domain_vocab}
         ctx_words = set(context.lower().split())
 
@@ -525,6 +535,12 @@ class SelectionStage:
             return float(len(words & vocab_set) + len(words & ctx_words))
 
         return score(original_text), score(corrected_text)
+
+    def _heuristic(self, orig_score: float, corr_score: float) -> tuple[bool, str]:
+        """Returns (use_corrected, source_tag)."""
+        if corr_score >= orig_score + SMART_EAR_SELECTION_MARGIN:
+            return True, "phonetic"
+        return False, "original"
 
     def process(self, item: dict) -> Optional[dict]:
         original_text: str = item.get("text", "")
@@ -539,46 +555,65 @@ class SelectionStage:
         if corrected_text != original_text:
             orig_score, corr_score = self._vocab_scores(original_text, corrected_text, context)
 
-            # Store scores for feature extractor / dataset logger
+            # Persist scores for feature extractor & dataset logger
             item["_vocab_score_original"]  = orig_score
             item["_vocab_score_corrected"] = corr_score
             item["_original_text"]         = original_text
 
-            # Context overlap fraction (for feature extractor)
             ctx_words = set(context.lower().split())
             txt_words = set(original_text.lower().split())
-            item["_context_overlap"] = (
-                len(ctx_words & txt_words) / max(len(txt_words), 1)
+            item["_context_overlap"] = len(ctx_words & txt_words) / max(len(txt_words), 1)
+
+            ml_active = (
+                _ML_AVAILABLE
+                and self._model is not None
+                and self._model.is_loaded
+                and not (self._metrics and self._metrics.is_drifted)
             )
 
-            # ── ML decision ──────────────────────────────────────────
-            if _ML_AVAILABLE and self._model is not None and self._model.is_loaded:
+            if ml_active:
                 features = extract_features(item)
                 model_confidence = self._model.predict_proba(features)
+                z = self._model.zone(features)
                 item["_model_confidence"] = round(model_confidence, 4)
+                item["_routing_zone"]     = z
 
-                if model_confidence > self._model.threshold:
+                if z == "corrected":
                     selected = corrected_text
                     source = "phonetic_ml"
                     logger.debug(
-                        "SelectionStage [ML]: corrected (conf=%.3f) %r → %r",
+                        "SelectionStage [ML/high]: corrected (conf=%.3f) %r → %r",
                         model_confidence, original_text, corrected_text,
                     )
-                else:
+                elif z == "original":
+                    # Confident keep — skip heuristic
                     logger.debug(
-                        "SelectionStage [ML]: original (conf=%.3f) kept: %r",
+                        "SelectionStage [ML/low]: keep original (conf=%.3f): %r",
                         model_confidence, original_text,
                     )
-            # ── Heuristic fallback ───────────────────────────────────
+                else:
+                    # "uncertain" zone — fall through to heuristic
+                    use_corr, source = self._heuristic(orig_score, corr_score)
+                    if use_corr:
+                        selected = corrected_text
+                    logger.debug(
+                        "SelectionStage [uncertain→heuristic]: conf=%.3f, src=%s",
+                        model_confidence, source,
+                    )
             else:
-                if corr_score >= orig_score + SMART_EAR_SELECTION_MARGIN:
+                # No model / drift active — pure heuristic
+                use_corr, source = self._heuristic(orig_score, corr_score)
+                if use_corr:
                     selected = corrected_text
-                    source = "phonetic"
+
+        # Record in metrics
+        if self._metrics is not None:
+            self._metrics.record(source=source, model_confidence=model_confidence)
 
         item["text"] = selected
         item["_selection_source"] = source
         item["_model_confidence"] = round(model_confidence, 4)
-        item["_final_composite"] = composite
+        item["_final_composite"]  = composite
         item["type"] = "question"
         return item
 
@@ -615,6 +650,9 @@ class SmartEar:
         audit_max_mb: int = SMART_EAR_AUDIT_MAX_MB,
         dataset_log_path: str = "",
         model_path: str = "",
+        auto_retrain: bool = False,
+        retrain_every: int = 50,
+        metrics_window: int = 200,
     ) -> None:
         self.input_queue = input_queue
         self.output_queue = output_queue
@@ -648,15 +686,33 @@ class SmartEar:
         # Dataset logger (for training ML decision model)
         self._dataset_log = SmartEarDatasetLogger(path=dataset_log_path)
 
+        # Online metrics + drift detection
+        _metrics = None
+        if _ML_AVAILABLE and SmartEarMetrics is not None:
+            _metrics = SmartEarMetrics(window=metrics_window)
+        self._metrics = _metrics
+
+        # Resolved model path
+        _model_path = model_path or os.path.join(
+            os.path.dirname(__file__), "..", "..", "..", "models", "smart_ear_model.pkl"
+        )
+
         # ML decision model
         _decision_model = None
         if _ML_AVAILABLE and SmartEarDecisionModel is not None:
-            _decision_model = SmartEarDecisionModel(
-                model_path=model_path or os.path.join(
-                    os.path.dirname(__file__), "..", "..", "..", "models", "smart_ear_model.pkl"
-                )
-            )
+            _decision_model = SmartEarDecisionModel(model_path=_model_path)
             _decision_model.load_model()
+        self._decision_model = _decision_model
+
+        # Auto-retrain watchdog
+        self._auto_trainer = None
+        if auto_retrain and _ML_AVAILABLE and SmartEarAutoTrainer is not None and dataset_log_path:
+            self._auto_trainer = SmartEarAutoTrainer(
+                dataset_path=dataset_log_path,
+                model_path=_model_path,
+                decision_model=_decision_model,
+                retrain_every=retrain_every,
+            )
 
         self._filter = FilterStage(
             amygdala=amygdala,
@@ -666,7 +722,11 @@ class SmartEar:
             audit_log=self._audit,
         )
         self._hypothesis = HypothesisStage(self._corrector, audit_log=self._audit)
-        self._selection = SelectionStage(self._corrector, decision_model=_decision_model)
+        self._selection = SelectionStage(
+            self._corrector,
+            decision_model=_decision_model,
+            metrics=_metrics,
+        )
 
         self._vocab_refresh_counter = 0
         self._causal_memory = causal_memory
@@ -680,6 +740,10 @@ class SmartEar:
 
         New terms extracted from *correct_text* are added to the domain vocab
         immediately so the next utterance benefits from the correction.
+
+        Also writes a **gold-label training record** to the dataset JSONL
+        (``chosen = "corrected"``) — human corrections are the highest-quality
+        training signal available.
 
         Args:
             original_text: What the system heard / produced.
@@ -695,12 +759,40 @@ class SmartEar:
             self._filter._vocab_lower = [v.lower() for v in self._corrector.domain_vocab]
             logger.info("SmartEar feedback: added %d terms from correction: %s", len(new_terms), new_terms)
 
+        # ── Gold-label dataset record ────────────────────────────────
+        self._dataset_log.log({
+            "_original_text":         original_text,
+            "_corrected_text":        correct_text,
+            "_asr_confidence":        0.0,   # not available at feedback time
+            "_composite_confidence":  0.0,
+            "_phonetic_corrections":  [{"feedback": True}],  # non-empty → triggers log
+            "_words":                 [],
+            "_vocab_score_original":  0.0,
+            "_vocab_score_corrected": 1.0,   # human says corrected is right
+            "_context_overlap":       0.0,
+            "_model_confidence":      0.0,
+            "_selection_source":      "corrected",  # gold label
+        })
+
+        # Mark as feedback event in metrics
+        if self._metrics is not None:
+            self._metrics.record(source="feedback", model_confidence=0.0, is_feedback=True)
+
         self._audit.log_feedback(original_text, correct_text, new_terms)
         self._publish("smart_ear_feedback", {
             "original": original_text,
             "correct": correct_text,
             "new_terms": new_terms,
         })
+
+    def get_metrics(self) -> dict:
+        """Return current runtime metrics snapshot (for monitoring / dashboards).
+
+        Returns an empty dict when the metrics module is unavailable.
+        """
+        if self._metrics is None:
+            return {}
+        return self._metrics.get_dashboard()
 
     # ------------------------------------------------------------------
     # EventBus
@@ -817,6 +909,8 @@ class SmartEar:
     def run(self) -> None:
         logger.info("SmartEar started (vocab=%d terms)", len(self._corrector.domain_vocab))
         self.running = True
+        if self._auto_trainer is not None:
+            self._auto_trainer.start()
 
         while self.running:
             self._maybe_refresh_vocab()
@@ -851,3 +945,5 @@ class SmartEar:
 
     def stop(self) -> None:
         self.running = False
+        if self._auto_trainer is not None:
+            self._auto_trainer.stop()
