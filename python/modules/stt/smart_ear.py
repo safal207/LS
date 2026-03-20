@@ -69,10 +69,12 @@ try:
     if _intent_root not in _sys_intent.path:
         _sys_intent.path.insert(0, _intent_root)
     from intent.intent_layer import IntentLayer as _IntentLayer
+    from intent.why_layer import WhyLayer as _WhyLayer
     _INTENT_AVAILABLE = True
 except Exception:
     _INTENT_AVAILABLE = False
     _IntentLayer = None  # type: ignore[assignment,misc]
+    _WhyLayer = None     # type: ignore[assignment,misc]
 
 # CognitiveCycleLogger (optional — graceful fallback)
 try:
@@ -706,6 +708,47 @@ class IntentStage:
 
 
 # ---------------------------------------------------------------------------
+# Stage 5: WhyStage
+# ---------------------------------------------------------------------------
+
+class WhyStage:
+    """Extract *causal* intent — WHY was this question asked?
+
+    Reads ``item["text"]`` and the ``item["_intent"]`` dict (from IntentStage)
+    to produce a :class:`~intent.why_layer.WhyIntent` stored at
+    ``item["_why"]``.  Requires the ``intent`` package; graceful no-op when
+    unavailable.
+
+    Example output added to item::
+
+        item["_why"] = {
+            "goal": "evaluate_reasoning",
+            "pressure_level": "medium",
+            "expected_answer_type": "tradeoff",
+            "follow_up_expected": True,
+            "hints": [
+                "Объясни не только ЧТО, но и ПОЧЕМУ",
+                "Добавь trade-offs ...",
+                "Упомяни альтернативы ...",
+            ],
+            "confidence": 0.88,
+        }
+    """
+
+    def __init__(self, why_layer=None) -> None:
+        self._layer = why_layer
+
+    def process(self, item: dict) -> Optional[dict]:
+        if self._layer is None:
+            return item
+        try:
+            self._layer.process_item(item)
+        except Exception as exc:
+            logger.debug("WhyStage failed: %s", exc)
+        return item
+
+
+# ---------------------------------------------------------------------------
 # SmartEar — orchestrator
 # ---------------------------------------------------------------------------
 
@@ -742,6 +785,8 @@ class SmartEar:
         metrics_window: int = 200,
         # Intent Layer (Stage 4)
         intent_enabled: bool = True,
+        # WHY Layer (Stage 5)
+        why_enabled: bool = True,
         # Cognitive Cycle Logger
         cycle_log_path: str = "",
         cycle_log_max_mb: float = 50,
@@ -830,6 +875,16 @@ class SmartEar:
             except Exception as exc:
                 logger.warning("SmartEar: IntentLayer init failed: %s", exc)
         self._intent = IntentStage(intent_layer=_intent_layer)
+
+        # Stage 5 — WHY Layer
+        _why_layer = None
+        if why_enabled and _INTENT_AVAILABLE and _WhyLayer is not None:
+            try:
+                _why_layer = _WhyLayer()
+                logger.info("SmartEar: WhyLayer enabled")
+            except Exception as exc:
+                logger.warning("SmartEar: WhyLayer init failed: %s", exc)
+        self._why = WhyStage(why_layer=_why_layer)
 
         # Cognitive Cycle Logger
         self._cycle_logger = None
@@ -1008,6 +1063,13 @@ class SmartEar:
 
         self._step_flow("intent", {"intent": item.get("_intent", {})})
 
+        # Stage 5 — WHY (causal intent)
+        item = self._why.process(item)
+        if item is None:
+            return None
+
+        self._step_flow("why", {"why": item.get("_why", {})})
+
         final_text = item["text"]
         source = item.get("_selection_source", "original")
         composite = item.get("_composite_confidence", 0.0)
@@ -1023,6 +1085,7 @@ class SmartEar:
             "source": source,
             "corrections": corrections,
             "intent": item.get("_intent"),
+            "why": item.get("_why"),
         })
 
         # Cognitive Cycle Logger — Phase 1: start cycle

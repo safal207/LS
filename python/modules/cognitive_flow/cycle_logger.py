@@ -189,18 +189,19 @@ class CognitiveCycleLogger:
         final_text = item.get("text", corrected)
 
         return {
-            "cycle_id":      cycle_id,
-            "ts":            _now_iso(),
-            "input":         final_text,
-            "raw_stt":       raw_stt,
-            "corrected":     corrected,
-            "confidence":    round(float(item.get("_composite_confidence", 0.0)), 4),
-            "decision_zone": item.get("_routing_zone", ""),
+            "cycle_id":         cycle_id,
+            "ts":               _now_iso(),
+            "input":            final_text,
+            "raw_stt":          raw_stt,
+            "corrected":        corrected,
+            "confidence":       round(float(item.get("_composite_confidence", 0.0)), 4),
+            "decision_zone":    item.get("_routing_zone", ""),
             "selection_source": item.get("_selection_source", ""),
-            "intent":        item.get("_intent"),
-            "final_output":  None,
-            "generation_time": None,
-            "user_feedback": None,
+            "intent":           item.get("_intent"),
+            "why":              item.get("_why"),
+            "final_output":     None,
+            "generation_time":  None,
+            "user_feedback":    None,
         }
 
     def _flush(self, record: dict) -> None:
