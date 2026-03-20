@@ -255,8 +255,16 @@ class SmartEarDatasetLogger:
           "vocab_score_original": 0.1,
           "vocab_score_corrected":0.8,
           "model_confidence":     0.0,
+          "routing_zone":         "corrected",
+          "decision_source":      "phonetic_ml",
           "chosen":               "corrected"
         }
+
+    ``chosen`` is a **binary training label**: ``"corrected"`` if the corrected
+    text was used (any source), ``"original"`` if the original was kept.
+
+    ``decision_source`` preserves the full source tag (``"phonetic"``,
+    ``"phonetic_ml"``, ``"original"``, ``"feedback"``) for analysis.
 
     When ``path`` is empty the logger is a no-op.
     """
@@ -286,6 +294,14 @@ class SmartEarDatasetLogger:
         else:
             avg_word_prob = float(item.get("_asr_confidence", 0.0))
 
+        decision_source: str = item.get("_selection_source", "original")
+        # Binary training label: "corrected" if any non-original source was
+        # chosen; "original" otherwise.  Keeping these two concepts separate
+        # prevents self-confirmation in the dataset: "phonetic_ml" was
+        # previously stripped to "phonetic" → label 0 (original), meaning the
+        # model's own correct decisions were trained away.
+        chosen = "corrected" if decision_source != "original" else "original"
+
         record = {
             "original_text":         original_text,
             "corrected_text":        corrected_text,
@@ -297,7 +313,9 @@ class SmartEarDatasetLogger:
             "vocab_score_original":  round(float(item.get("_vocab_score_original", 0.0)), 4),
             "vocab_score_corrected": round(float(item.get("_vocab_score_corrected", 0.0)), 4),
             "model_confidence":      round(float(item.get("_model_confidence", 0.0)), 4),
-            "chosen":                item.get("_selection_source", "original").replace("_ml", ""),
+            "routing_zone":          item.get("_routing_zone", ""),
+            "decision_source":       decision_source,
+            "chosen":                chosen,
         }
 
         line = json.dumps(record, ensure_ascii=False) + "\n"

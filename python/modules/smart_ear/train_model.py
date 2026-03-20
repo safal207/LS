@@ -52,8 +52,11 @@ DEFAULT_TEST_FRAC = 0.20
 def load_dataset(path: str) -> Tuple[List[List[float]], List[int]]:
     """Read JSONL dataset and return (X, y).
 
-    y = 1  if chosen == "corrected"
-    y = 0  otherwise (original / fallback)
+    y = 1  if chosen == "corrected"  (binary training label)
+    y = 0  otherwise (original kept)
+
+    ``decision_source`` (optional field) is ignored during training but
+    present in newer records for analysis (e.g. "phonetic_ml" vs "phonetic").
     """
     X: List[List[float]] = []
     y: List[int] = []
