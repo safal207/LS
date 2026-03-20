@@ -5,9 +5,14 @@ Design:
 * Runs as a daemon thread (stops when main process exits).
 * Polls ``dataset_path`` every ``poll_interval`` seconds.
 * Retrains when ``(current_line_count - last_trained_count) >= retrain_every``.
+* Enforces minimum dataset size (default 200) before any training run.
+* Validation gate: rejects new model if its accuracy is lower than the
+  previously loaded model's accuracy.
+* Saves versioned model copies (``smart_ear_model_v{timestamp}.pkl``) so
+  previous checkpoints are preserved.
 * Loads the new ``.pkl`` into the live ``SmartEarDecisionModel`` instance
   via ``model.load_model()`` — no restart required.
-* All heavy sklearn work happens in a subprocess via ``subprocess.run`` to
+* All heavy training work happens in a subprocess via ``subprocess.run`` to
   keep the main process responsive and avoid GIL contention.
 
 Usage::
@@ -20,6 +25,7 @@ Usage::
         decision_model=decision_model_instance,   # live model to hot-swap
         retrain_every=50,     # retrain after every 50 new samples
         poll_interval=30.0,   # check dataset every 30 s
+        min_samples=200,      # skip training if dataset smaller than this
     )
     trainer.start()   # non-blocking
     # ... later ...
@@ -67,7 +73,11 @@ class SmartEarAutoTrainer:
     poll_interval:
         Seconds between dataset size checks (default 30).
     min_samples:
-        Minimum total samples required before the first training run (default 20).
+        Minimum total samples required before any training run (default 200).
+        Below this threshold training is always skipped regardless of growth.
+    metrics:
+        Optional :class:`~smart_ear.metrics.SmartEarMetrics` instance.
+        Drift flag is cleared after a successful hot-swap.
     """
 
     def __init__(
@@ -77,7 +87,7 @@ class SmartEarAutoTrainer:
         decision_model,
         retrain_every: int = 50,
         poll_interval: float = 30.0,
-        min_samples: int = 20,
+        min_samples: int = 200,
         metrics=None,
     ) -> None:
         self.dataset_path = dataset_path
@@ -92,6 +102,8 @@ class SmartEarAutoTrainer:
         self._stop_event = threading.Event()
         self._last_trained_count: int = 0
         self._total_retrains: int = 0
+        # Track last known model accuracy for the validation gate
+        self._last_accuracy: Optional[float] = None
 
     # ------------------------------------------------------------------
     # Public
@@ -109,9 +121,10 @@ class SmartEarAutoTrainer:
         )
         self._thread.start()
         logger.info(
-            "SmartEarAutoTrainer started (retrain_every=%d, poll=%.0fs)",
+            "SmartEarAutoTrainer started (retrain_every=%d, poll=%.0fs, min_samples=%d)",
             self.retrain_every,
             self.poll_interval,
+            self.min_samples,
         )
 
     def stop(self) -> None:
@@ -145,6 +158,8 @@ class SmartEarAutoTrainer:
             return
 
         current = _count_lines(self.dataset_path)
+
+        # ── Minimum dataset gate ─────────────────────────────────────────
         if current < self.min_samples:
             logger.debug(
                 "AutoTrainer: dataset too small (%d < %d min), skipping",
@@ -164,20 +179,32 @@ class SmartEarAutoTrainer:
             "AutoTrainer: %d new samples → starting retrain (total=%d)",
             new_samples, current,
         )
-        success = self._run_training()
+        success, new_accuracy = self._run_training()
         if success:
             self._last_trained_count = current
             self._total_retrains += 1
+            if new_accuracy is not None:
+                self._last_accuracy = new_accuracy
             self._hot_swap()
 
-    def _run_training(self) -> bool:
-        """Run train_model.py in a subprocess. Returns True on success."""
+    def _run_training(self) -> tuple:
+        """Run train_model.py in a subprocess.
+
+        Returns
+        -------
+        (success: bool, accuracy: Optional[float])
+        """
         cmd = [
             sys.executable,
             _TRAIN_SCRIPT,
             "--dataset", self.dataset_path,
             "--model",   self.model_path,
+            "--min-samples", str(self.min_samples),
         ]
+        # Pass previous accuracy to enable validation gate in train_model.py
+        if self._last_accuracy is not None:
+            cmd += ["--previous-accuracy", str(self._last_accuracy)]
+
         try:
             result = subprocess.run(
                 cmd,
@@ -187,19 +214,21 @@ class SmartEarAutoTrainer:
             )
             if result.returncode == 0:
                 logger.info("AutoTrainer: training succeeded\n%s", result.stdout.strip())
-                return True
+                # Parse accuracy from stdout for tracking
+                new_accuracy = _parse_accuracy(result.stdout)
+                return True, new_accuracy
             else:
                 logger.warning(
-                    "AutoTrainer: training failed (exit %d)\n%s",
+                    "AutoTrainer: training failed or rejected (exit %d)\n%s",
                     result.returncode, result.stderr.strip(),
                 )
-                return False
+                return False, None
         except subprocess.TimeoutExpired:
             logger.warning("AutoTrainer: training timed out (>120s)")
-            return False
+            return False, None
         except Exception as exc:
             logger.warning("AutoTrainer: training subprocess error: %s", exc)
-            return False
+            return False, None
 
     def _hot_swap(self) -> None:
         """Reload the freshly trained model and clear drift flag."""
@@ -207,8 +236,9 @@ class SmartEarAutoTrainer:
             loaded = self._model.load_model()
             if loaded:
                 logger.info(
-                    "AutoTrainer: hot-swapped model (retrain #%d)",
+                    "AutoTrainer: hot-swapped model (retrain #%d, version=%s)",
                     self._total_retrains,
+                    getattr(self._model, "model_version", "unknown"),
                 )
                 # Clear drift so SelectionStage uses the new model immediately
                 if self._metrics is not None:
@@ -217,3 +247,14 @@ class SmartEarAutoTrainer:
                 logger.warning("AutoTrainer: hot-swap failed — model file not found after training")
         except Exception as exc:
             logger.warning("AutoTrainer: hot-swap error: %s", exc)
+
+
+def _parse_accuracy(stdout: str) -> Optional[float]:
+    """Extract accuracy float from train_model.py stdout."""
+    for line in stdout.splitlines():
+        if "Accuracy" in line and ":" in line:
+            try:
+                return float(line.split(":")[-1].strip())
+            except ValueError:
+                pass
+    return None

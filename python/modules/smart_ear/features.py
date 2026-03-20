@@ -15,6 +15,11 @@ Features extracted from a SmartEar pipeline item dict:
 | vocab_score_original     | _vocab_score_original                      |
 | vocab_score_corrected    | _vocab_score_corrected                     |
 | context_overlap          | _context_overlap                           |
+| model_confidence         | _model_confidence (prior inference)        |
+| correction_ratio         | num_corrections / text_length              |
+| avg_candidate_score      | mean of _candidates scores                 |
+| max_candidate_score      | max of _candidates scores                  |
+| entropy_word_probs       | -sum(p * log(p)) over word probabilities   |
 +--------------------------+--------------------------------------------+
 
 ``selection_source`` (``"original"`` / ``"phonetic"``) is kept in the
@@ -24,6 +29,7 @@ vector fed to the model (callers must drop it before predict()).
 
 from __future__ import annotations
 
+import math
 from typing import List
 
 
@@ -51,11 +57,12 @@ def extract_features(item: dict) -> dict:
         avg_word_probability = sum(probs) / len(probs) if probs else 1.0
     else:
         # Fall back to ASR confidence as proxy
+        probs = []
         avg_word_probability = asr_confidence
 
     # Text length in tokens
     original_text: str = item.get("_original_text", item.get("text", ""))
-    text_length: int = len(original_text.split())
+    text_length: int = max(len(original_text.split()), 1)  # avoid div by zero
 
     # Vocab scores — set by SelectionStage if available, else 0
     vocab_score_original: float = float(item.get("_vocab_score_original", 0.0))
@@ -70,8 +77,35 @@ def extract_features(item: dict) -> dict:
     # model_confidence from a previous inference pass (0 if not available)
     model_confidence: float = float(item.get("_model_confidence", 0.0))
 
+    # ── New features ─────────────────────────────────────────────────────
+
+    # Ratio of corrections to text length
+    correction_ratio: float = float(num_corrections) / float(text_length)
+
+    # Candidate scores (list of dicts with "score" key, or plain floats)
+    candidates: List = item.get("_candidates", [])
+    candidate_scores: List[float] = []
+    for c in candidates:
+        if isinstance(c, dict):
+            s = c.get("score", c.get("confidence", 0.0))
+        else:
+            s = float(c) if c is not None else 0.0
+        try:
+            candidate_scores.append(float(s))
+        except (TypeError, ValueError):
+            pass
+
+    avg_candidate_score: float = (
+        sum(candidate_scores) / len(candidate_scores) if candidate_scores else 0.0
+    )
+    max_candidate_score: float = max(candidate_scores) if candidate_scores else 0.0
+
+    # Shannon entropy over word probabilities: -sum(p * log(p))
+    # Uses per-word probs if available, else falls back to asr_confidence singleton
+    entropy_word_probs: float = _entropy(probs if probs else [asr_confidence])
+
     return {
-        # ── Features ─────────────────────────────────────────────────
+        # ── Original features ────────────────────────────────────────────
         "asr_confidence":       asr_confidence,
         "composite_confidence": composite_confidence,
         "num_corrections":      float(num_corrections),
@@ -81,12 +115,26 @@ def extract_features(item: dict) -> dict:
         "vocab_score_corrected":vocab_score_corrected,
         "context_overlap":      context_overlap,
         "model_confidence":     model_confidence,
-        # ── Label (training only) ─────────────────────────────────────
+        # ── New features ─────────────────────────────────────────────────
+        "correction_ratio":     correction_ratio,
+        "avg_candidate_score":  avg_candidate_score,
+        "max_candidate_score":  max_candidate_score,
+        "entropy_word_probs":   entropy_word_probs,
+        # ── Label (training only) ─────────────────────────────────────────
         "selection_source":     selection_source,
     }
 
 
-# Ordered list of feature names (same order fed to sklearn)
+def _entropy(probs: List[float]) -> float:
+    """Shannon entropy: -sum(p * log(p)), with p clipped to (0, 1]."""
+    result = 0.0
+    for p in probs:
+        p = max(1e-12, min(1.0, p))  # clip to avoid log(0)
+        result -= p * math.log(p)
+    return result
+
+
+# Ordered list of feature names (same order fed to sklearn / LightGBM)
 FEATURE_NAMES: List[str] = [
     "asr_confidence",
     "composite_confidence",
@@ -97,11 +145,15 @@ FEATURE_NAMES: List[str] = [
     "vocab_score_corrected",
     "context_overlap",
     "model_confidence",
+    "correction_ratio",
+    "avg_candidate_score",
+    "max_candidate_score",
+    "entropy_word_probs",
 ]
 
 
 def features_to_vector(features: dict) -> List[float]:
-    """Convert a feature dict to an ordered list suitable for sklearn.
+    """Convert a feature dict to an ordered list suitable for sklearn/LightGBM.
 
     Args:
         features: Dict produced by :func:`extract_features`.
