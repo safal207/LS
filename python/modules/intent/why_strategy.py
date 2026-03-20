@@ -79,13 +79,13 @@ class WhyStrategy:
         Mutates self in-place — no new object needed.
 
         Rules (in priority order):
-          1. goal == "evaluate_experience"  → force experiential + anchor
+          1. goal == "check_experience"  → force experiential + anchor
           2. goal == "challenge" + high pressure interviewer → force defense
           3. interviewer prefers_examples → bump to experiential if not already
           4. interviewer prefers_reasoning → ensure reasoning hints present
         """
         # Rule 1 — experience question: always force STAR + anchor directive
-        if self.goal == "evaluate_experience":
+        if self.goal in ("check_experience", "evaluate_experience"):
             self.answer_type = "experiential"
             self.micro_trigger = "STAR: ситуация → что сделал → результат"
             if "дай конкретные цифры/метрики если есть" not in self.hints:

@@ -1014,18 +1014,26 @@ class SmartEar:
                 logger.warning("SmartEar: BodyAwareCopilot init failed: %s", exc)
 
         # Cognitive Cycle Logger
-        self._cycle_logger = None
+        # Exposed as ``self.cycle_logger`` (public) so the caller that wires
+        # SmartEar + AgentLoop together can pass the SAME instance to both:
+        #
+        #   smart_ear = SmartEar(...)
+        #   loop = AgentLoop(..., cycle_logger=smart_ear.cycle_logger)
+        #
+        self.cycle_logger = None
         if _CYCLE_LOGGER_AVAILABLE and _CycleCognitiveLogger is not None:
             _cycle_path = cycle_log_path or os.path.join(
                 os.path.dirname(__file__), "..", "..", "..", "logs", "cognitive_cycle.jsonl"
             )
             try:
-                self._cycle_logger = _CycleCognitiveLogger(
+                self.cycle_logger = _CycleCognitiveLogger(
                     path=_cycle_path, max_mb=cycle_log_max_mb
                 )
                 logger.info("SmartEar: CognitiveCycleLogger → %s", _cycle_path)
             except Exception as exc:
                 logger.warning("SmartEar: CognitiveCycleLogger init failed: %s", exc)
+        # Keep private alias for internal use (backward compat with _process)
+        self._cycle_logger = self.cycle_logger
 
         self._vocab_refresh_counter = 0
         self._causal_memory = causal_memory

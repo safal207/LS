@@ -48,9 +48,10 @@ import json
 import logging
 import os
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,8 @@ _DEFAULT_LOG = os.environ.get(
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "logs", "cognitive_cycle.jsonl"),
 )
 _DEFAULT_MAX_MB = 50
+# Pending cycles older than this are evicted (never completed — timeout / crash)
+_PENDING_TTL_SECS = 300  # 5 minutes
 
 
 class CognitiveCycleLogger:
@@ -79,8 +82,9 @@ class CognitiveCycleLogger:
         self.max_bytes = int(max_mb * 1024 * 1024)
         self._enabled = bool(path)
         self._lock = threading.Lock()
-        # In-memory pending cycles: cycle_id → partial record
-        self._pending: Dict[str, dict] = {}
+        # In-memory pending cycles: cycle_id → (partial_record, created_monotonic)
+        # TTL eviction prevents unbounded growth when complete_cycle is never called.
+        self._pending: Dict[str, Tuple[dict, float]] = {}
 
     # ------------------------------------------------------------------
     # Phase 1: start
@@ -96,7 +100,8 @@ class CognitiveCycleLogger:
         cycle_id = str(uuid.uuid4())
         record = self._build_perception_record(cycle_id, item)
         with self._lock:
-            self._pending[cycle_id] = record
+            self._pending[cycle_id] = (record, time.monotonic())
+            self._evict_stale_locked()
         logger.debug("CognitiveCycleLogger: started cycle %s", cycle_id)
         return cycle_id
 
@@ -120,8 +125,9 @@ class CognitiveCycleLogger:
             feedback:        Optional immediate user feedback string.
         """
         with self._lock:
-            record = self._pending.pop(cycle_id, None)
+            entry = self._pending.pop(cycle_id, None)
 
+        record = entry[0] if entry is not None else None
         if record is None:
             logger.debug(
                 "CognitiveCycleLogger: unknown cycle_id %s — writing standalone record",
@@ -236,13 +242,28 @@ class CognitiveCycleLogger:
         except Exception as exc:
             logger.warning("CognitiveCycleLogger: write failed: %s", exc)
 
+    def _evict_stale_locked(self) -> None:
+        """Drop _pending entries older than _PENDING_TTL_SECS (caller holds lock)."""
+        cutoff = time.monotonic() - _PENDING_TTL_SECS
+        stale = [cid for cid, (_, ts) in self._pending.items() if ts < cutoff]
+        for cid in stale:
+            self._pending.pop(cid, None)
+        if stale:
+            logger.debug(
+                "CognitiveCycleLogger: evicted %d stale pending cycle(s): %s",
+                len(stale), stale,
+            )
+
     def _rotate_if_needed(self) -> None:
-        """Rotate log file when it exceeds max_bytes (caller holds lock)."""
+        """Rotate log file when it exceeds max_bytes (caller holds lock).
+
+        Uses a timestamp in the backup name so successive rotations never
+        overwrite each other: cognitive_cycle.jsonl.2025-01-01T120000.bak
+        """
         try:
             if os.path.getsize(self.path) >= self.max_bytes:
-                bak = self.path + ".bak"
-                if os.path.exists(bak):
-                    os.remove(bak)
+                ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+                bak = f"{self.path}.{ts}.bak"
                 os.rename(self.path, bak)
                 logger.info("CognitiveCycleLogger: rotated → %s", bak)
         except OSError:
@@ -254,8 +275,9 @@ class CognitiveCycleLogger:
 
     @property
     def pending_count(self) -> int:
-        """Number of cycles started but not yet completed."""
+        """Number of cycles started but not yet completed (excludes stale)."""
         with self._lock:
+            self._evict_stale_locked()
             return len(self._pending)
 
 

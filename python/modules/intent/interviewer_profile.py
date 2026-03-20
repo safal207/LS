@@ -26,6 +26,7 @@ Usage::
 from __future__ import annotations
 
 import re
+import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -74,12 +75,20 @@ class InterviewerProfile:
     _reason_count: int   = field(default=0, repr=False)
     _example_count: int  = field(default=0, repr=False)
     _theory_count: int   = field(default=0, repr=False)
+    # lock is not part of the dataclass repr/eq/hash
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def observe(self, question: str, strategy: "WhyStrategy") -> None:
         """Update the profile from a single (question, strategy) pair.
 
         Call this once per question, before apply_interviewer_bias().
+        Thread-safe: multiple pipeline threads may call observe() concurrently.
         """
+        with self._lock:
+            self._observe_locked(question, strategy)
+
+    def _observe_locked(self, question: str, strategy: "WhyStrategy") -> None:
+        """Inner implementation — must be called with self._lock held."""
         self._n += 1
         text = question or ""
 
@@ -109,11 +118,12 @@ class InterviewerProfile:
         self.prefers_theory    = self._theory_count >= threshold
 
     def to_dict(self) -> dict:
-        return {
-            "pressure_level":    self.pressure_level,
-            "prefers_reasoning": self.prefers_reasoning,
-            "prefers_examples":  self.prefers_examples,
-            "prefers_theory":    self.prefers_theory,
-            "interrupt_count":   self.interrupt_count,
-            "questions_seen":    self._n,
-        }
+        with self._lock:
+            return {
+                "pressure_level":    self.pressure_level,
+                "prefers_reasoning": self.prefers_reasoning,
+                "prefers_examples":  self.prefers_examples,
+                "prefers_theory":    self.prefers_theory,
+                "interrupt_count":   self.interrupt_count,
+                "questions_seen":    self._n,
+            }

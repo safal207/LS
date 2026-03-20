@@ -46,6 +46,16 @@ class _Tone:
     BRIEF     = "brief"      # short, interruptible
 
 
+# Higher number = higher priority.  A rule can only RAISE the tone level,
+# never lower it (BRIEF beats GROUNDED beats ASSERTIVE beats WARM beats CALM).
+_TONE_PRIORITY: dict[str, int] = {
+    _Tone.CALM:      0,
+    _Tone.WARM:      1,
+    _Tone.GROUNDED:  2,
+    _Tone.ASSERTIVE: 3,
+    _Tone.BRIEF:     4,
+}
+
 # Tone → first-line trigger visible in < 0.3 s
 _TONE_TRIGGER: dict[str, str] = {
     _Tone.CALM:      "говори спокойно — короткие фразы",
@@ -124,7 +134,7 @@ _RE_THEORY_CHECK = re.compile(
 def _compute_pressure(strategy: dict, interviewer: dict) -> float:
     """Synthesise a 0-1 pressure score from strategy + interviewer."""
     base = {"low": 0.2, "medium": 0.5, "high": 0.85}.get(
-        strategy.get("pressure", "low"), 0.5
+        str(strategy.get("pressure", "low")).lower(), 0.5
     )
     interviewer_p = interviewer.get("pressure_level", 0.0) if interviewer else 0.0
     # weighted average: current question 60%, session history 40%
@@ -181,9 +191,15 @@ class EmpathyNegotiationLayer:
         rules:  List[str] = []
         nego_move: Optional[str] = None
 
-        # ---- Rule 1: High pressure → calm + soft opener ----
+        def _set_tone(candidate: str) -> None:
+            """Raise tone only if candidate has strictly higher priority."""
+            nonlocal tone
+            if _TONE_PRIORITY[candidate] > _TONE_PRIORITY[tone]:
+                tone = candidate
+
+        # ---- Rule 1: High pressure → warm + soft opener ----
         if pressure >= 0.75:
-            tone = _Tone.WARM
+            _set_tone(_Tone.WARM)
             hints.append(f"Используй мягкий тон (давление {pressure:.0%})")
             hints.append('Подтверди понимание: "Да, понимаю..."')
             nego_move = _SOFTENERS["opening"]
@@ -191,30 +207,29 @@ class EmpathyNegotiationLayer:
 
         # ---- Rule 2: Repeated / insistent WHY → grounded + bridge ----
         if _RE_REPEATED_WHY.search(text) or _RE_STRESS_MARKERS.search(text):
-            tone = _Tone.GROUNDED
+            _set_tone(_Tone.GROUNDED)
             hints.append("Говори только через конкретный пример — не абстрактно")
             hints.append('Используй мост: "Из своего опыта..."')
             nego_move = _SOFTENERS["bridge"]
             rules.append("repeated_why_grounded")
 
-        # ---- Rule 3: Interrupting interviewer → be brief ----
+        # ---- Rule 3: Interrupting interviewer → be brief (highest priority) ----
         if interrupted:
-            tone = _Tone.BRIEF
+            _set_tone(_Tone.BRIEF)
             hints.append("Отвечай коротко — интервьюер перебивает")
             hints.append("Одна мысль — одно предложение")
             rules.append("interviewer_interrupts_brief")
 
         # ---- Rule 4: Experience goal + anchor available → ground in case ----
         if goal in ("evaluate_experience", "check_experience") and has_anchor:
-            if _Tone.GROUNDED not in (tone,):
-                tone = _Tone.GROUNDED
+            _set_tone(_Tone.GROUNDED)
             hints.append("Начни с конкретного кейса из Anchor")
             hints.append("Цифры/метрики обязательны — интервьюер проверяет опыт")
             rules.append("experience_goal_with_anchor")
 
         # ---- Rule 5: Theory/definition question → assertive, not flat ----
         if _RE_THEORY_CHECK.search(text) or answer_type == "definition":
-            tone = _Tone.ASSERTIVE
+            _set_tone(_Tone.ASSERTIVE)
             hints.append("Дай определение — затем сразу пример из практики")
             hints.append("Не читай учебник — говори как практик")
             rules.append("theory_question_assertive")
@@ -226,7 +241,7 @@ class EmpathyNegotiationLayer:
 
         # ---- Rule 7: First few questions — build rapport ----
         if 1 <= questions_n <= 3 and not rules:
-            tone = _Tone.WARM
+            _set_tone(_Tone.WARM)
             hints.append("Начало интервью — установи контакт: краткий и уверенный ответ")
             nego_move = _SOFTENERS["redirect"]
             rules.append("rapport_building_start")
@@ -237,8 +252,17 @@ class EmpathyNegotiationLayer:
             hints.append("Отвечай спокойно и по делу")
             rules.append("default_calm")
 
-        # Always add pause-phrase for high-pressure scenarios as last hint
-        if pressure >= 0.75 and _SOFTENERS["pause_phrase"] not in hints:
+        # When BRIEF wins, drop hints that contradict brevity (soft openers)
+        if tone == _Tone.BRIEF:
+            _brief_conflicts = {
+                'Подтверди понимание: "Да, понимаю..."',
+                f'Пауза допустима: "{_SOFTENERS["pause_phrase"]}"',
+            }
+            hints = [h for h in hints if h not in _brief_conflicts]
+            nego_move = None  # don't open with a softener when brevity is key
+
+        # Add pause-phrase for high-pressure scenarios (unless BRIEF tone won)
+        elif pressure >= 0.75:
             hints.append(f'Пауза допустима: "{_SOFTENERS["pause_phrase"]}"')
 
         return EmpathyResult(

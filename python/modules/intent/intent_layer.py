@@ -149,8 +149,8 @@ _PATTERNS_RU: List[Tuple[re.Pattern, str, float]] = [
 
 # Cleanup noise in extracted entity
 _ENTITY_NOISE = re.compile(
-    r"\b(такое|это|есть|please|мне|please|подробно|кратко|быстро|"
-    r"exactly|please|quickly|briefly|мне|нам)\b",
+    r"\b(такое|это|есть|мне|нам|подробно|кратко|быстро|"
+    r"please|exactly|quickly|briefly)\b",
     re.I,
 )
 
