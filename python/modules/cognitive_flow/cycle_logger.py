@@ -188,6 +188,8 @@ class CognitiveCycleLogger:
         # If no correction happened, raw == corrected
         final_text = item.get("text", corrected)
 
+        why_strategy = item.get("_why_strategy")
+        anchor_ctx = item.get("_anchor_context")
         return {
             "cycle_id":         cycle_id,
             "ts":               _now_iso(),
@@ -199,6 +201,8 @@ class CognitiveCycleLogger:
             "selection_source": item.get("_selection_source", ""),
             "intent":           item.get("_intent"),
             "why":              item.get("_why"),
+            "why_strategy":     why_strategy,
+            "anchor_used":      anchor_ctx or [],
             "final_output":     None,
             "generation_time":  None,
             "user_feedback":    None,

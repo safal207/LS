@@ -604,6 +604,45 @@ class AgentLoop:
         }
         return [injection] + history  # strictly at the beginning
 
+    def _inject_strategy_context(self, messages: list[dict], item: dict) -> list[dict]:
+        """Inject WHY strategy hints and anchor context into the message list.
+
+        Appends a single system message at the *end* of the list (just before
+        the live user turn) so the LLM sees it as fresh guidance without
+        overriding the conversation history.
+
+        Both blocks are optional: if the item carries no strategy / anchor
+        data, the messages list is returned unchanged.
+        """
+        parts: list[str] = []
+
+        strategy = item.get("_why_strategy")
+        if strategy and isinstance(strategy, dict):
+            hints = strategy.get("hints") or []
+            answer_type = strategy.get("answer_type", "")
+            pressure = strategy.get("pressure", "")
+            if hints:
+                hints_text = "\n".join(f"- {h}" for h in hints)
+                parts.append(
+                    f"Стратегия ответа:\n"
+                    f"Тип: {answer_type}  |  Давление: {pressure}\n"
+                    f"Подсказки:\n{hints_text}"
+                )
+
+        anchor_ctx = item.get("_anchor_context")
+        if anchor_ctx and isinstance(anchor_ctx, list) and any(anchor_ctx):
+            lines = "\n".join(f"- {x}" for x in anchor_ctx if x)
+            parts.append(f"Используй контекст, если уместно:\n{lines}")
+
+        if not parts:
+            return messages
+
+        injection = {
+            "role": "system",
+            "content": "\n\n".join(parts),
+        }
+        return messages + [injection]  # append: after history, before user turn
+
     def _remember_answer(self, answer: Any, duration: float) -> None:
         if isinstance(answer, str) and self.memory_max_chars:
             answer = answer[: self.memory_max_chars]
@@ -787,6 +826,9 @@ class AgentLoop:
 
             # Prepare hidden context with reflection
             messages = self._inject_reflection_into_context(list(self.memory["history"]), question=question, force_show_silent=force_show_silent)
+
+            # Inject WHY strategy hints + anchor context (interview copilot)
+            messages = self._inject_strategy_context(messages, item)
 
             self._remember_question(question)
 

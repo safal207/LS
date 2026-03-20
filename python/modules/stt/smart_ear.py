@@ -70,11 +70,25 @@ try:
         _sys_intent.path.insert(0, _intent_root)
     from intent.intent_layer import IntentLayer as _IntentLayer
     from intent.why_layer import WhyLayer as _WhyLayer
+    from intent.why_strategy import analyze_why_and_strategy as _analyze_strategy
     _INTENT_AVAILABLE = True
 except Exception:
     _INTENT_AVAILABLE = False
-    _IntentLayer = None  # type: ignore[assignment,misc]
-    _WhyLayer = None     # type: ignore[assignment,misc]
+    _IntentLayer = None           # type: ignore[assignment,misc]
+    _WhyLayer = None              # type: ignore[assignment,misc]
+    _analyze_strategy = None      # type: ignore[assignment,misc]
+
+# ConversationAnchor (optional — graceful fallback)
+try:
+    from context.conversation_anchor import (
+        ConversationAnchor as _ConversationAnchor,
+        get_relevant_items as _get_relevant_items,
+    )
+    _ANCHOR_AVAILABLE = True
+except Exception:
+    _ANCHOR_AVAILABLE = False
+    _ConversationAnchor = None     # type: ignore[assignment,misc]
+    _get_relevant_items = None     # type: ignore[assignment,misc]
 
 # CognitiveCycleLogger (optional — graceful fallback)
 try:
@@ -749,6 +763,62 @@ class WhyStage:
 
 
 # ---------------------------------------------------------------------------
+# Stage 6: WhyStrategyStage
+# ---------------------------------------------------------------------------
+
+class WhyStrategyStage:
+    """Battle-ready answer strategy extraction + session anchor context.
+
+    Sets two fields on the item:
+
+    ``item["_why_strategy"]``::
+
+        {
+          "goal": "evaluate_reasoning",
+          "pressure": "high",
+          "answer_type": "reasoning",
+          "hints": ["скажи причину", "добавь плюсы и минусы", "упомяни альтернативу"],
+          "confidence": 0.9
+        }
+
+    ``item["_anchor_context"]``::
+
+        ["Оптимизировал индексы: с 4s до 0.2s", "Работал с PostgreSQL 3 года"]
+
+    Both are injected into the LLM system prompt by AgentLoop before each
+    generation call.
+    """
+
+    def __init__(self, anchor=None) -> None:
+        self._anchor = anchor
+
+    def process(self, item: dict) -> Optional[dict]:
+        text = item.get("text", "")
+
+        # WHY Strategy
+        if _INTENT_AVAILABLE and _analyze_strategy is not None:
+            try:
+                strategy = _analyze_strategy(text)
+                item["_why_strategy"] = strategy.to_dict()
+            except Exception as exc:
+                logger.debug("WhyStrategyStage: strategy failed: %s", exc)
+
+        # Anchor context
+        if (
+            self._anchor is not None
+            and _ANCHOR_AVAILABLE
+            and _get_relevant_items is not None
+        ):
+            try:
+                relevant = _get_relevant_items(self._anchor, text, top_k=2)
+                item["_anchor_context"] = [r.text for r in relevant]
+            except Exception as exc:
+                logger.debug("WhyStrategyStage: anchor failed: %s", exc)
+
+        return item
+
+
+# ---------------------------------------------------------------------------
 # SmartEar — orchestrator
 # ---------------------------------------------------------------------------
 
@@ -787,6 +857,9 @@ class SmartEar:
         intent_enabled: bool = True,
         # WHY Layer (Stage 5)
         why_enabled: bool = True,
+        # WHY Strategy + Anchor (Stage 6)
+        strategy_enabled: bool = True,
+        anchor=None,
         # Cognitive Cycle Logger
         cycle_log_path: str = "",
         cycle_log_max_mb: float = 50,
@@ -885,6 +958,13 @@ class SmartEar:
             except Exception as exc:
                 logger.warning("SmartEar: WhyLayer init failed: %s", exc)
         self._why = WhyStage(why_layer=_why_layer)
+
+        # Stage 6 — WHY Strategy + Anchor
+        _stage6_anchor = anchor if strategy_enabled else None
+        self._strategy = WhyStrategyStage(anchor=_stage6_anchor)
+        if strategy_enabled:
+            _anchor_info = f", anchor={len(anchor)} items" if anchor else ""
+            logger.info("SmartEar: WhyStrategyStage enabled%s", _anchor_info)
 
         # Cognitive Cycle Logger
         self._cycle_logger = None
@@ -1069,6 +1149,11 @@ class SmartEar:
             return None
 
         self._step_flow("why", {"why": item.get("_why", {})})
+
+        # Stage 6 — WHY Strategy + Anchor
+        item = self._strategy.process(item)
+        if item is None:
+            return None
 
         final_text = item["text"]
         source = item.get("_selection_source", "original")
