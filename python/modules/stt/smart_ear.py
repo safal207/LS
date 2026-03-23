@@ -1181,6 +1181,10 @@ class SmartEar:
     # Core processing
     # ------------------------------------------------------------------
 
+    def process_item(self, item: dict) -> Optional[dict]:
+        """Public entry point for a single structured utterance."""
+        return self._process(item)
+
     def _process(self, item: dict) -> Optional[dict]:
         item = ensure_interview_item(item, default_source="local_stt")
         original_text = item.get("text", "")

@@ -5,10 +5,17 @@ Connects Glass UI with Audio, STT, LLM, Digital Soul, and Conscious Logging
 """
 
 import sys
+from pathlib import Path
+import queue
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer, QThread, pyqtSignal
 import time
 import threading
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_PYTHON_MODULES = _REPO_ROOT / "python" / "modules"
+if str(_PYTHON_MODULES) not in sys.path:
+    sys.path.insert(0, str(_PYTHON_MODULES))
 
 # Import system components
 from gui_dashboard import GhostDashboard
@@ -17,12 +24,15 @@ from modules.brain import Brain
 from modules.access_protocol import AccessProtocol
 from self_love_agent import SelfLoveAgent
 from conscious_logger import conscious_logger
+from stt.smart_ear import SmartEar
+from shared.interview_schema import ensure_interview_item
 
 class IntegratedSystem:
     def __init__(self):
         self.app = QApplication(sys.argv)
         self.dashboard = GhostDashboard()
         self.audio_worker = None
+        self.voice_interpreter = None
         self.brain = Brain()
         self.protocol = None
         self.soul = SelfLoveAgent()
@@ -60,14 +70,22 @@ class IntegratedSystem:
         print(f"📝 Manual question: {question}")
         self.process_question(question)
         
-    def process_question(self, question):
-        """Process question through full pipeline with logging"""
-        # Detect language
+    def process_question(self, question, utterance=None):
+        """Process question through full pipeline with logging."""
+        utterance = ensure_interview_item(
+            utterance or {"text": question, "source": "manual_input"},
+            default_source="manual_input",
+        )
+        question = utterance.get("text", question) or question
+        clean_text = utterance.get("clean_text") or question
         language = self.detect_language(question)
-        
-        # Update UI status
+
         self.dashboard.chat_history.append(f"<b>Processing ({language}):</b> {question}")
-        
+        if utterance:
+            self.dashboard.chat_history.append(
+                f"<b>SmartEar:</b> {self.format_voice_summary(utterance)}"
+            )
+
         # Apply digital soul philosophy
         soul_response = self.apply_soul_filter(question)
         
@@ -83,7 +101,11 @@ class IntegratedSystem:
         # Get AI response through protocol
         try:
             # Simulate protocol cycle (in real system this connects to audio pipeline)
-            full_context = f"{soul_response}\n\nQuestion: {question}"
+            full_context = (
+                f"{soul_response}\n\n"
+                f"Question: {clean_text}\n\n"
+                f"{self.format_voice_context(utterance)}"
+            )
             answer = self.brain.think(full_context)
             
             # Log the interaction consciously
@@ -128,18 +150,87 @@ class IntegratedSystem:
         self.dashboard.chat_history.append(f"<b>Voice ({self.detect_language(text)}):</b> {text}")
         self.process_question(text)
 
+    def _get_voice_interpreter(self):
+        """Lazy-init a lightweight SmartEar interpreter for structured voice payloads."""
+        if self.voice_interpreter is not None:
+            return self.voice_interpreter
+        try:
+            self.voice_interpreter = SmartEar(
+                input_queue=queue.Queue(),
+                output_queue=queue.Queue(),
+                intent_enabled=True,
+                why_enabled=True,
+                strategy_enabled=True,
+                empathy_enabled=False,
+                copilot_enabled=False,
+                resonance_enabled=False,
+                auto_retrain=False,
+                dataset_log_path="",
+                model_path="",
+            )
+            return self.voice_interpreter
+        except Exception as e:
+            print(f"🗣️ SmartEar init failed: {e}")
+            self.voice_interpreter = None
+            return None
+
+    def format_voice_summary(self, utterance):
+        """Compact summary for dashboard display."""
+        if not isinstance(utterance, dict):
+            return str(utterance)
+        parts = [
+            f"src={utterance.get('source', 'unknown')}",
+            f"conf={float(utterance.get('confidence', utterance.get('_asr_confidence', 0.0)) or 0.0):.2f}",
+        ]
+        if utterance.get("intent"):
+            parts.append(f"intent={utterance.get('intent')}")
+        if utterance.get("why"):
+            parts.append(f"why={utterance.get('why')}")
+        return "; ".join(parts)
+
+    def format_voice_context(self, utterance):
+        """Serialize SmartEar metadata into a compact prompt block."""
+        if not isinstance(utterance, dict):
+            return "SmartEar: unavailable"
+        return (
+            "SmartEar metadata:\n"
+            f"- source: {utterance.get('source', 'unknown')}\n"
+            f"- confidence: {float(utterance.get('confidence', utterance.get('_asr_confidence', 0.0)) or 0.0):.2f}\n"
+            f"- intent: {utterance.get('_intent', utterance.get('intent', {}))}\n"
+            f"- why: {utterance.get('_why', utterance.get('why', {}))}\n"
+            f"- strategy: {utterance.get('_why_strategy', {})}\n"
+            f"- interviewer_profile: {utterance.get('_interviewer_profile', {})}\n"
+            f"- anchor_context: {utterance.get('_anchor_context', utterance.get('anchor_context', []))}\n"
+        )
+
     def handle_voice_utterance(self, utterance):
         """Handle structured STT payloads emitted by the audio worker."""
         try:
-            text = utterance.get("text", "") if isinstance(utterance, dict) else str(utterance)
-            source = utterance.get("source", "unknown") if isinstance(utterance, dict) else "unknown"
-            confidence = utterance.get("confidence", utterance.get("_asr_confidence", 0.0)) if isinstance(utterance, dict) else 0.0
-            print(f"🗣️ STT utterance ({source}, conf={confidence:.2f}): {text}")
+            item = ensure_interview_item(utterance, default_source="local_stt")
+            source = item.get("source", "unknown")
+            confidence = float(item.get("confidence", item.get("_asr_confidence", 0.0)) or 0.0)
+            print(f"🗣️ STT utterance ({source}, conf={confidence:.2f}): {item.get('text', '')}")
             self.dashboard.chat_history.append(
-                f"<b>STT ({source}, conf={confidence:.2f}):</b> {text}"
+                f"<b>STT ({source}, conf={confidence:.2f}):</b> {item.get('text', '')}"
             )
+
+            interpreter = self._get_voice_interpreter()
+            enriched = item
+            if interpreter is not None:
+                processed = interpreter.process_item(item)
+                if processed is None:
+                    self.dashboard.chat_history.append(
+                        f"<b>SmartEar:</b> rejected {self.format_voice_summary(item)}"
+                    )
+                    return
+                enriched = processed
+                self.dashboard.chat_history.append(
+                    f"<b>SmartEar:</b> {self.format_voice_summary(enriched)}"
+                )
+
+            text = enriched.get("text", "") if isinstance(enriched, dict) else str(enriched)
             if text:
-                self.process_question(text)
+                self.process_question(text, utterance=enriched)
         except Exception as e:
             print(f"🗣️ STT utterance parse error: {e}")
     
