@@ -10,6 +10,7 @@ from .runtime_manifest import RuntimeManifest, build_manifest
 from .module_loader import DynamicModuleLoader, RuntimeModule, ModuleLifecycleEvent
 from .plugin_manager import PluginManager, Plugin, PluginLifecycleEvent, PluginPermissions
 from .monitoring import MonitorService, MonitorAlert
+from .interview_schema import InterviewUtterance, ensure_interview_item
 
 __all__ = [
     "load_config",
@@ -29,6 +30,8 @@ __all__ = [
     "PluginPermissions",
     "MonitorService",
     "MonitorAlert",
+    "InterviewUtterance",
+    "ensure_interview_item",
     "check_system_resources",
     "format_latency",
     "is_question",
