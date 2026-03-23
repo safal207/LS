@@ -89,6 +89,10 @@ python/modules/stt/adapters.py
     local / cloud adapters
     fallback routing by confidence
 
+python/modules/stt/factory.py
+    backend selection helper
+    profile-driven local / fallback / cloud wiring
+
 python/modules/stt/smart_ear.py
     semantic normalization layer
     filter / hypothesis / selection / intent / why / strategy
@@ -203,6 +207,7 @@ The current working local STT profile is `manual-small` in `scripts/live_ru_stt.
 
 1. Introduce `InterviewUtterance` as a shared contract.
 2. Add `LocalSTTAdapter` and `CloudSTTAdapter`.
-3. Make `SmartEar` consume and enrich the shared contract.
-4. Keep `AgentLoop` as the runtime shell and answer router.
-5. Add explicit `local -> cloud` fallback when STT confidence is low.
+3. Add a factory that wires adapters from profile/config.
+4. Make `SmartEar` consume and enrich the shared contract.
+5. Keep `AgentLoop` as the runtime shell and answer router.
+6. Add explicit `local -> cloud` fallback when STT confidence is low.
