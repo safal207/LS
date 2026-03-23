@@ -84,6 +84,11 @@ python/modules/stt/stt_module.py
     reusable STT interface
     model load, transcription, question emission
 
+python/modules/stt/adapters.py
+    STT adapter contract
+    local / cloud adapters
+    fallback routing by confidence
+
 python/modules/stt/smart_ear.py
     semantic normalization layer
     filter / hypothesis / selection / intent / why / strategy
