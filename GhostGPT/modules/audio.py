@@ -1,21 +1,39 @@
-﻿import logging
-import pyaudio
+import logging
+import sys
+from pathlib import Path
+
 import numpy as np
-from faster_whisper import WhisperModel
+import pyaudio
 from PyQt6.QtCore import QThread, pyqtSignal
+
 import config
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_SHARED_MODULES = _REPO_ROOT / "python" / "modules"
+if str(_SHARED_MODULES) not in sys.path:
+    sys.path.insert(0, str(_SHARED_MODULES))
+
+from stt.factory import build_local_whisper_adapter
 
 logger = logging.getLogger(__name__)
 
 
 class AudioWorker(QThread):
     text_ready = pyqtSignal(str)
+    utterance_ready = pyqtSignal(object)
     status_update = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
         self.running = True
-        self.model = WhisperModel("base", device="cpu", compute_type="int8")
+        whisper_size = getattr(config, "WHISPER_MODEL_SIZE", "base")
+        self.stt = build_local_whisper_adapter(
+            model_size=whisper_size,
+            device="cpu",
+            compute_type="int8",
+            vad_filter=True,
+            local_files_only=False,
+        )
 
     def _find_preferred_device(self, p):
         """Find the best available input device for audio capture.
@@ -63,10 +81,10 @@ class AudioWorker(QThread):
             p.terminate()
 
     def _run_with_pyaudio(self, p):
-        """Core audio capture loop.  Caller owns *p* and must call ``p.terminate()``.
+        """Core audio capture loop. Caller owns *p* and must call ``p.terminate()``.
 
         Opens a stream, reads chunks, transcribes, and emits detected
-        questions.  Stream is always closed via try/finally.
+        questions. Stream is always closed via try/finally.
         """
         dev_idx, dev_info = self._find_preferred_device(p)
         if dev_idx is None:
@@ -74,6 +92,7 @@ class AudioWorker(QThread):
             return
 
         self.status_update.emit(f"Audio: using {dev_info.get('name', 'device')} (index {dev_idx})")
+        self.status_update.emit(f"Audio: STT backend {self.stt.name}")
 
         try:
             stream = p.open(
@@ -89,7 +108,6 @@ class AudioWorker(QThread):
             stream = None
 
         if stream is None:
-            # Try all available input devices
             for i in range(p.get_device_count()):
                 info = p.get_device_info_by_index(i)
                 if info.get('maxInputChannels', 0) <= 0:
@@ -123,11 +141,11 @@ class AudioWorker(QThread):
                     frames.append(np.frombuffer(data, dtype=np.int16))
 
                 audio = np.concatenate(frames).astype(np.float32) / 32768.0
-
-                segments, _ = self.model.transcribe(audio, language="ru", beam_size=1)
-                text = " ".join([s.text for s in segments]).strip()
+                result = self.stt.transcribe_audio(audio)
+                text = result.get("text", "").strip()
 
                 if len(text) > 10 and "?" in text:
+                    self.utterance_ready.emit(result)
                     self.text_ready.emit(text)
         finally:
             stream.stop_stream()

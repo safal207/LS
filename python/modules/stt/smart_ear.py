@@ -131,6 +131,7 @@ except Exception:
 
 try:
     from shared.utils import is_question
+    from shared.interview_schema import ensure_interview_item
 except ImportError:
     def is_question(text: str) -> bool:  # type: ignore[misc]
         """Minimal fallback: ends with '?' or starts with a question word."""
@@ -140,6 +141,8 @@ except ImportError:
         _Q = {"что", "как", "почему", "зачем", "когда", "где", "кто",
               "what", "how", "why", "when", "where", "who", "which"}
         return text.lower().split()[0] in _Q if text else False
+    def ensure_interview_item(item, *, default_source: str = "unknown"):  # type: ignore[misc]
+        return item
 
 logger = logging.getLogger(__name__)
 
@@ -1178,7 +1181,12 @@ class SmartEar:
     # Core processing
     # ------------------------------------------------------------------
 
+    def process_item(self, item: dict) -> Optional[dict]:
+        """Public entry point for a single structured utterance."""
+        return self._process(item)
+
     def _process(self, item: dict) -> Optional[dict]:
+        item = ensure_interview_item(item, default_source="local_stt")
         original_text = item.get("text", "")
 
         self._step_flow("perceive", {"text": original_text})
