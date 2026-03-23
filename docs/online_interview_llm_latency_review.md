@@ -83,6 +83,8 @@ This dual-lane architecture gives you both speed and quality:
 - lane A = ultra-fast hints,
 - lane B = deeper synthesized answer.
 
+See also: `docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md` for the end-to-end `Mic -> STT -> SmartEar -> AgentLoop -> LLM` contract and backend placement.
+
 ## Competitive target SLOs (practical)
 
 - TTFT (local Ollama): `< 350ms` for short hints on warmed model.

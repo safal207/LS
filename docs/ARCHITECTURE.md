@@ -168,3 +168,14 @@ graph TB
 Для масштабирования multi-agent режима вводится слой Intent Routing + Capability Index, который переводит топологию вызовов из статических связей в динамический capability matching.
 
 См. RFC: `docs/RFC_INTENT_CAPABILITY_ROUTING_LAYER_RU.md`.
+
+---
+
+## Interview STT / SmartEar / AgentLoop Flow
+
+See `docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md` for the canonical interview pipeline:
+
+- STT is perception only.
+- SmartEar handles semantic interpretation.
+- AgentLoop handles answer policy and runtime orchestration.
+- Local / cloud selection happens only at the STT and LLM boundaries.

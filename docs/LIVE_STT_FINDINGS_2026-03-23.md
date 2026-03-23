@@ -51,3 +51,4 @@ The remaining issue is quality under fast speech and background noise, not a dea
 2. Continue adding targeted corrections based on real logs.
 3. Benchmark this local mode against a remote/server STT path on the same phrase set.
 4. If strong real-time noisy STT is required, move to server-side ASR or a larger local model plus stronger preprocessing.
+5. See `docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md` for the STT -> SmartEar -> AgentLoop integration schema.
