@@ -16,6 +16,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _PYTHON_MODULES = _REPO_ROOT / "python" / "modules"
 if str(_PYTHON_MODULES) not in sys.path:
     sys.path.insert(0, str(_PYTHON_MODULES))
+_AGENT_MODULES = _PYTHON_MODULES / "agent"
+if str(_AGENT_MODULES) not in sys.path:
+    sys.path.insert(0, str(_AGENT_MODULES))
 
 # Import system components
 from gui_dashboard import GhostDashboard
@@ -25,6 +28,7 @@ from modules.access_protocol import AccessProtocol
 from self_love_agent import SelfLoveAgent
 from conscious_logger import conscious_logger
 from stt.smart_ear import SmartEar
+from resonance_agent import ResonanceAgent
 from shared.interview_schema import ensure_interview_item
 
 class IntegratedSystem:
@@ -33,6 +37,7 @@ class IntegratedSystem:
         self.dashboard = GhostDashboard()
         self.audio_worker = None
         self.voice_interpreter = None
+        self.voice_resonance_agent = None
         self.brain = Brain()
         self.protocol = None
         self.soul = SelfLoveAgent()
@@ -72,6 +77,9 @@ class IntegratedSystem:
         
     def process_question(self, question, utterance=None):
         """Process question through full pipeline with logging."""
+        if utterance is not None:
+            return self.process_structured_question(question, utterance)
+
         utterance = ensure_interview_item(
             utterance or {"text": question, "source": "manual_input"},
             default_source="manual_input",
@@ -120,6 +128,56 @@ class IntegratedSystem:
             
         except Exception as e:
             error_msg = f"Error processing question: {str(e)}"
+            self.dashboard.update_chat(question, error_msg)
+
+    def process_structured_question(self, question, utterance):
+        """Process a structured voice utterance through SmartEar + ResonanceAgent."""
+        item = ensure_interview_item(utterance, default_source="local_stt")
+        question = item.get("text", question) or question
+        clean_text = item.get("clean_text") or question
+        language = self.detect_language(question)
+
+        self.dashboard.chat_history.append(f"<b>Processing ({language}):</b> {question}")
+        self.dashboard.chat_history.append(
+            f"<b>SmartEar:</b> {self.format_voice_summary(item)}"
+        )
+
+        soul_response = self.apply_soul_filter(question)
+
+        try:
+            agent = self._get_voice_resonance_agent()
+            if agent is not None:
+                result = agent.process_item(item)
+                answer = ""
+                if isinstance(result, dict):
+                    answer = result.get("final_output", "") or result.get("pre_prompt", "")
+                    pre_prompt = result.get("pre_prompt", "")
+                    if pre_prompt:
+                        self.dashboard.chat_history.append(f"<b>Resonance:</b> {pre_prompt}")
+                if answer and not answer.startswith("Error: API Key missing or Offline."):
+                    conscious_logger.log_interaction(
+                        user_input=question,
+                        ai_response=answer,
+                        language=language,
+                    )
+                    self.dashboard.update_chat(question, answer)
+                    return
+
+            # Brain fallback
+            full_context = (
+                f"{soul_response}\n\n"
+                f"Question: {clean_text}\n\n"
+                f"{self.format_voice_context(item)}"
+            )
+            answer = self.brain.think(full_context)
+            conscious_logger.log_interaction(
+                user_input=question,
+                ai_response=answer,
+                language=language,
+            )
+            self.dashboard.update_chat(question, answer)
+        except Exception as e:
+            error_msg = f"Error processing structured question: {str(e)}"
             self.dashboard.update_chat(question, error_msg)
             
     def apply_soul_filter(self, question):
@@ -172,6 +230,24 @@ class IntegratedSystem:
         except Exception as e:
             print(f"🗣️ SmartEar init failed: {e}")
             self.voice_interpreter = None
+            return None
+
+    def _get_voice_resonance_agent(self):
+        """Lazy-init ResonanceAgent for interview-aware voice answers."""
+        if self.voice_resonance_agent is not None:
+            return self.voice_resonance_agent
+        try:
+            self.voice_resonance_agent = ResonanceAgent(
+                anchor=[],
+                llm_fn=lambda user_prompt, system_prompt: self.brain.think(
+                    f"{system_prompt}\n\n{user_prompt}"
+                ),
+                orientation="Ghost dashboard voice route",
+            )
+            return self.voice_resonance_agent
+        except Exception as e:
+            print(f"🗣️ ResonanceAgent init failed: {e}")
+            self.voice_resonance_agent = None
             return None
 
     def format_voice_summary(self, utterance):
