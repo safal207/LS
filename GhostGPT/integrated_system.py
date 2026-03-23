@@ -8,9 +8,7 @@ import sys
 from pathlib import Path
 import queue
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QTimer, QThread, pyqtSignal
-import time
-import threading
+from PyQt6.QtCore import QTimer
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _PYTHON_MODULES = _REPO_ROOT / "python" / "modules"
@@ -24,7 +22,6 @@ if str(_AGENT_MODULES) not in sys.path:
 from gui_dashboard import GhostDashboard
 from modules.audio import AudioWorker
 from modules.brain import Brain
-from modules.access_protocol import AccessProtocol
 from self_love_agent import SelfLoveAgent
 from conscious_logger import conscious_logger
 from stt.smart_ear import SmartEar
@@ -39,7 +36,6 @@ class IntegratedSystem:
         self.voice_interpreter = None
         self.voice_resonance_agent = None
         self.brain = Brain()
-        self.protocol = None
         self.soul = SelfLoveAgent()
         
         # Setup connections
@@ -76,73 +72,49 @@ class IntegratedSystem:
         self.process_question(question)
         
     def process_question(self, question, utterance=None):
-        """Process question through full pipeline with logging."""
-        if utterance is not None:
-            return self.process_structured_question(question, utterance)
-
+        """Canonical entry point for both manual and voice questions."""
         utterance = ensure_interview_item(
             utterance or {"text": question, "source": "manual_input"},
             default_source="manual_input",
         )
         question = utterance.get("text", question) or question
-        clean_text = utterance.get("clean_text") or question
         language = self.detect_language(question)
 
         self.dashboard.chat_history.append(f"<b>Processing ({language}):</b> {question}")
-        if utterance:
-            self.dashboard.chat_history.append(
-                f"<b>SmartEar:</b> {self.format_voice_summary(utterance)}"
-            )
-
-        # Apply digital soul philosophy
         soul_response = self.apply_soul_filter(question)
-        
-        # Use Access Protocol for structured response
-        if self.protocol is None:
-            # Create protocol with mock GUI for now
-            class MockGUI:
-                def update_status(self, msg): pass
-                def update_ui(self, q, a, mode): pass
-                def signal_world_resonance_check(self): pass
-            self.protocol = AccessProtocol(MockGUI(), None)
-        
-        # Get AI response through protocol
-        try:
-            # Simulate protocol cycle (in real system this connects to audio pipeline)
-            full_context = (
-                f"{soul_response}\n\n"
-                f"Question: {clean_text}\n\n"
-                f"{self.format_voice_context(utterance)}"
-            )
-            answer = self.brain.think(full_context)
-            
-            # Log the interaction consciously
-            conscious_logger.log_interaction(
-                user_input=question,
-                ai_response=answer,
-                language=language
-            )
-            
-            # Update dashboard
-            self.dashboard.update_chat(question, answer)
-            
-        except Exception as e:
-            error_msg = f"Error processing question: {str(e)}"
-            self.dashboard.update_chat(question, error_msg)
 
-    def process_structured_question(self, question, utterance):
-        """Process a structured voice utterance through SmartEar + ResonanceAgent."""
+        interpreter = self._get_voice_interpreter()
+        enriched = utterance
+        if interpreter is not None:
+            processed = interpreter.process_item(utterance)
+            if processed is None:
+                self.dashboard.chat_history.append(
+                    f"<b>SmartEar:</b> rejected {self.format_voice_summary(utterance)}"
+                )
+                return
+            enriched = processed
+            self.dashboard.chat_history.append(
+                f"<b>SmartEar:</b> {self.format_voice_summary(enriched)}"
+            )
+        else:
+            self.dashboard.chat_history.append(
+                f"<b>SmartEar:</b> unavailable {self.format_voice_summary(utterance)}"
+            )
+
+        return self.process_structured_question(
+            question,
+            enriched,
+            language=language,
+            soul_response=soul_response,
+        )
+
+    def process_structured_question(self, question, utterance, language=None, soul_response=None):
+        """Process an interpreted utterance through ResonanceAgent + fallback."""
         item = ensure_interview_item(utterance, default_source="local_stt")
         question = item.get("text", question) or question
         clean_text = item.get("clean_text") or question
-        language = self.detect_language(question)
-
-        self.dashboard.chat_history.append(f"<b>Processing ({language}):</b> {question}")
-        self.dashboard.chat_history.append(
-            f"<b>SmartEar:</b> {self.format_voice_summary(item)}"
-        )
-
-        soul_response = self.apply_soul_filter(question)
+        language = language or self.detect_language(question)
+        soul_response = soul_response or self.apply_soul_filter(question)
 
         try:
             agent = self._get_voice_resonance_agent()
@@ -290,23 +262,9 @@ class IntegratedSystem:
                 f"<b>STT ({source}, conf={confidence:.2f}):</b> {item.get('text', '')}"
             )
 
-            interpreter = self._get_voice_interpreter()
-            enriched = item
-            if interpreter is not None:
-                processed = interpreter.process_item(item)
-                if processed is None:
-                    self.dashboard.chat_history.append(
-                        f"<b>SmartEar:</b> rejected {self.format_voice_summary(item)}"
-                    )
-                    return
-                enriched = processed
-                self.dashboard.chat_history.append(
-                    f"<b>SmartEar:</b> {self.format_voice_summary(enriched)}"
-                )
-
-            text = enriched.get("text", "") if isinstance(enriched, dict) else str(enriched)
+            text = item.get("text", "") if isinstance(item, dict) else str(item)
             if text:
-                self.process_question(text, utterance=enriched)
+                self.process_question(text, utterance=item)
         except Exception as e:
             print(f"🗣️ STT utterance parse error: {e}")
     
