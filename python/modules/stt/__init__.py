@@ -1,4 +1,5 @@
-from .stt_module import SpeechToText
+from __future__ import annotations
+
 from .adapters import (
     STTAdapter,
     LocalWhisperAdapter,
@@ -18,3 +19,10 @@ __all__ = [
     "STTFactoryConfig",
     "build_stt_adapter",
 ]
+
+
+def __getattr__(name: str):
+    if name == "SpeechToText":
+        from .stt_module import SpeechToText
+        return SpeechToText
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
