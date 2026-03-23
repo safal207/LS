@@ -108,7 +108,7 @@ class IntegratedSystem:
         """Start voice capture system"""
         if self.audio_worker is None:
             self.audio_worker = AudioWorker()
-            self.audio_worker.text_ready.connect(self.handle_voice_input)
+            self.audio_worker.utterance_ready.connect(self.handle_voice_utterance)
             self.audio_worker.status_update.connect(self.update_status)
             self.audio_worker.start()
             print("🎤 Voice capture started")
@@ -127,6 +127,21 @@ class IntegratedSystem:
         print(f"🗣️ Voice input: {text}")
         self.dashboard.chat_history.append(f"<b>Voice ({self.detect_language(text)}):</b> {text}")
         self.process_question(text)
+
+    def handle_voice_utterance(self, utterance):
+        """Handle structured STT payloads emitted by the audio worker."""
+        try:
+            text = utterance.get("text", "") if isinstance(utterance, dict) else str(utterance)
+            source = utterance.get("source", "unknown") if isinstance(utterance, dict) else "unknown"
+            confidence = utterance.get("confidence", utterance.get("_asr_confidence", 0.0)) if isinstance(utterance, dict) else 0.0
+            print(f"🗣️ STT utterance ({source}, conf={confidence:.2f}): {text}")
+            self.dashboard.chat_history.append(
+                f"<b>STT ({source}, conf={confidence:.2f}):</b> {text}"
+            )
+            if text:
+                self.process_question(text)
+        except Exception as e:
+            print(f"🗣️ STT utterance parse error: {e}")
     
     def update_status(self, status):
         """Update system status"""

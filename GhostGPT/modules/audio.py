@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class AudioWorker(QThread):
     text_ready = pyqtSignal(str)
+    utterance_ready = pyqtSignal(object)
     status_update = pyqtSignal(str)
 
     def __init__(self):
@@ -144,6 +145,7 @@ class AudioWorker(QThread):
                 text = result.get("text", "").strip()
 
                 if len(text) > 10 and "?" in text:
+                    self.utterance_ready.emit(result)
                     self.text_ready.emit(text)
         finally:
             stream.stop_stream()
