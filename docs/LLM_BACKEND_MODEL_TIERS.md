@@ -98,6 +98,33 @@ Repository default routing is now:
 - Fallback: `local -> qwen2.5:1.5b`
 - Rescue path: `gonka` or `cloud`
 
+## Quality Comparison Object
+
+When comparing multiple backends on the same question, use a shared assessment object:
+
+```json
+{
+  "adequacy": 0.0,
+  "relevance": 0.0,
+  "thread_relevance": 0.0,
+  "coherence": 0.0,
+  "hallucination_risk": 0.0,
+  "overall": 0.0,
+  "notes": ["balanced"]
+}
+```
+
+Meaning:
+
+- `adequacy` - does the answer actually answer the question
+- `relevance` - lexical/semantic overlap with the question
+- `thread_relevance` - alignment with the current conversation thread
+- `coherence` - whether the text is structurally complete and readable
+- `hallucination_risk` - likelihood of unsupported specifics
+- `overall` - single ranking score for comparison
+
+The comparison script is `scripts/test_llm_route.py --compare`.
+
 ## Known availability notes
 
 - `qwen/qwen3-32b-fp8` was attempted on Gonka and returned `model_not_found` in this environment.

@@ -5,6 +5,11 @@ import json
 import sys
 from pathlib import Path
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYTHON_DIR = REPO_ROOT / "python"
@@ -21,6 +26,7 @@ from config import (  # noqa: E402
     SYSTEM_PROMPT,
     TEMPERATURE,
 )
+from modules.llm.quality import evaluate_llm_answer_quality  # noqa: E402
 from llm.backends.router import build_llm_backend  # noqa: E402
 
 
@@ -53,6 +59,16 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only print resolved route, do not call the backend.",
     )
+    parser.add_argument(
+        "--compare",
+        action="store_true",
+        help="Compare Gonka, cloud, and local backends independently and score them.",
+    )
+    parser.add_argument(
+        "--thread-context",
+        default=None,
+        help="Optional conversation thread context for quality scoring.",
+    )
     return parser.parse_args()
 
 
@@ -67,6 +83,16 @@ def main() -> int:
 
     if args.dry_run:
         return 0
+
+    if args.compare:
+        return _compare_backends(
+            backend=backend,
+            question=args.question,
+            system_prompt=args.system_prompt,
+            temperature=args.temperature,
+            max_tokens=args.max_tokens,
+            thread_context=args.thread_context,
+        )
 
     response = backend.generate(
         messages=[{"role": "user", "content": args.question}],
@@ -93,6 +119,73 @@ def main() -> int:
         print("route.trace =")
         print(json.dumps(route_info, ensure_ascii=False, indent=2))
     return 0 if response.ok else 1
+
+
+def _compare_backends(
+    *,
+    backend,
+    question: str,
+    system_prompt: str,
+    temperature: float,
+    max_tokens: int,
+    thread_context: str | None,
+) -> int:
+    route = backend.route
+    scores = []
+    print("compare.route =", route)
+    print("compare.question =", question)
+    print("compare.thread_context =", thread_context or question)
+    print("")
+
+    for backend_name in ("gonka", "cloud", "local"):
+        candidate = backend.backends.get(backend_name)
+        if candidate is None:
+            continue
+        response = candidate.generate(
+            messages=[{"role": "user", "content": question}],
+            system_prompt=system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            metadata={"source": "scripts/test_llm_route.py", "backend": backend_name},
+        )
+        quality = evaluate_llm_answer_quality(
+            question=question,
+            answer=response.text or "",
+            thread_context=thread_context or question,
+        )
+        scores.append((backend_name, response, quality))
+        print(f"[{backend_name}] provider={response.provider} model={response.model}")
+        print(f"[{backend_name}] ok={response.ok} latency_ms={round(float(response.latency_ms), 2)}")
+        print(f"[{backend_name}] error={response.error}")
+        print(
+            f"[{backend_name}] quality="
+            f"adequacy={quality.adequacy} "
+            f"relevance={quality.relevance} "
+            f"thread_relevance={quality.thread_relevance} "
+            f"coherence={quality.coherence} "
+            f"hallucination_risk={quality.hallucination_risk} "
+            f"overall={quality.overall}"
+        )
+        print(f"[{backend_name}] notes={', '.join(quality.notes)}")
+        print(f"[{backend_name}] quality.object=")
+        print(json.dumps(quality.to_dict(), ensure_ascii=False, indent=2))
+        print(f"[{backend_name}] answer={response.text}")
+        print("")
+
+    if not scores:
+        print("No backends available for comparison.")
+        return 1
+
+    ranked = sorted(scores, key=lambda item: item[2].overall, reverse=True)
+    print("ranking:")
+    for idx, (backend_name, response, quality) in enumerate(ranked, start=1):
+        print(
+            f"{idx}. {backend_name} | provider={response.provider} | model={response.model} | "
+            f"overall={quality.overall} | relevance={quality.relevance} | "
+            f"thread={quality.thread_relevance} | coherence={quality.coherence} | "
+            f"hallucination_risk={quality.hallucination_risk}"
+        )
+    return 0
 
 
 if __name__ == "__main__":
