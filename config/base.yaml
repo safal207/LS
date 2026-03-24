@@ -19,6 +19,13 @@ llm:
   use_breaker: false
   backend: gonka
   fallback_backend: cloud,local
+  meritocracy:
+    enabled: false
+    backends: gonka,cloud,local
+    min_overall: 0.35
+    min_relevance: 0.25
+    min_thread_relevance: 0.25
+    max_hallucination_risk: 0.65
   temporal_enabled: true
   breaker:
     failure_threshold: 3

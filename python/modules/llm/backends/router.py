@@ -15,6 +15,12 @@ from config import (
     GROQ_TIMEOUT_SEC,
     LLM_BACKEND,
     LLM_FALLBACK_BACKEND,
+    LLM_MERITOCRACY_BACKENDS,
+    LLM_MERITOCRACY_ENABLED,
+    LLM_MERITOCRACY_MAX_HALLUCINATION_RISK,
+    LLM_MERITOCRACY_MIN_OVERALL,
+    LLM_MERITOCRACY_MIN_RELEVANCE,
+    LLM_MERITOCRACY_MIN_THREAD_RELEVANCE,
     USE_CLOUD_LLM,
     USE_GROQ,
 )
@@ -22,6 +28,7 @@ from config import (
 from .base import LLMResponse
 from .cloud_adapter import CloudLLMAdapter
 from .gonka_adapter import GonkaLLMAdapter
+from .meritocracy import MeritocracyLLMAdapter
 from .local_adapter import LocalLLMAdapter
 
 logger = logging.getLogger(__name__)
@@ -153,6 +160,8 @@ def build_llm_backend(
     if not fallbacks:
         if primary == "gonka":
             fallbacks = ["cloud", "local"]
+        elif primary == "meritocracy":
+            fallbacks = ["cloud", "local"]
         elif primary == "cloud":
             fallbacks = ["local"]
         else:
@@ -179,5 +188,16 @@ def build_llm_backend(
             enabled=bool(GONKA_ENABLED and GONKA_API_KEY),
         ),
     }
+    if primary == "meritocracy" or LLM_MERITOCRACY_ENABLED:
+        candidate_order = _parse_route(LLM_MERITOCRACY_BACKENDS) or ["gonka", "cloud", "local"]
+        backends["meritocracy"] = MeritocracyLLMAdapter(
+            backends=backends,
+            candidate_order=candidate_order,
+            enabled=bool(primary == "meritocracy" or LLM_MERITOCRACY_ENABLED),
+            min_overall=LLM_MERITOCRACY_MIN_OVERALL,
+            min_relevance=LLM_MERITOCRACY_MIN_RELEVANCE,
+            min_thread_relevance=LLM_MERITOCRACY_MIN_THREAD_RELEVANCE,
+            max_hallucination_risk=LLM_MERITOCRACY_MAX_HALLUCINATION_RISK,
+        )
     return LLMBackendRouter(primary=primary, fallback_chain=fallbacks, backends=backends)
 

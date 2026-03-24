@@ -61,6 +61,12 @@ os.environ.setdefault("OLLAMA_NUM_PREDICT", str(OLLAMA_NUM_PREDICT))
 # Routed backend settings
 LLM_BACKEND = os.getenv("LLM_BACKEND", _get(["llm", "backend"], ""))
 LLM_FALLBACK_BACKEND = os.getenv("LLM_FALLBACK_BACKEND", _get(["llm", "fallback_backend"], ""))
+LLM_MERITOCRACY_ENABLED = str(os.getenv("LLM_MERITOCRACY_ENABLED", _get(["llm", "meritocracy", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+LLM_MERITOCRACY_BACKENDS = os.getenv("LLM_MERITOCRACY_BACKENDS", _get(["llm", "meritocracy", "backends"], "gonka,cloud,local"))
+LLM_MERITOCRACY_MIN_OVERALL = float(os.getenv("LLM_MERITOCRACY_MIN_OVERALL", _get(["llm", "meritocracy", "min_overall"], 0.35)))
+LLM_MERITOCRACY_MIN_RELEVANCE = float(os.getenv("LLM_MERITOCRACY_MIN_RELEVANCE", _get(["llm", "meritocracy", "min_relevance"], 0.25)))
+LLM_MERITOCRACY_MIN_THREAD_RELEVANCE = float(os.getenv("LLM_MERITOCRACY_MIN_THREAD_RELEVANCE", _get(["llm", "meritocracy", "min_thread_relevance"], 0.25)))
+LLM_MERITOCRACY_MAX_HALLUCINATION_RISK = float(os.getenv("LLM_MERITOCRACY_MAX_HALLUCINATION_RISK", _get(["llm", "meritocracy", "max_hallucination_risk"], 0.65)))
 
 # Groq / generic cloud settings
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", _get(["llm", "groq", "api_key"], ""))

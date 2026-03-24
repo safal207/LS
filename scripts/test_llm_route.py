@@ -137,7 +137,7 @@ def _compare_backends(
     print("compare.thread_context =", thread_context or question)
     print("")
 
-    for backend_name in ("gonka", "cloud", "local"):
+    for backend_name in ("meritocracy", "gonka", "cloud", "local"):
         candidate = backend.backends.get(backend_name)
         if candidate is None:
             continue
@@ -169,6 +169,11 @@ def _compare_backends(
         print(f"[{backend_name}] notes={', '.join(quality.notes)}")
         print(f"[{backend_name}] quality.object=")
         print(json.dumps(quality.to_dict(), ensure_ascii=False, indent=2))
+        meritocracy_info = (response.raw or {}).get("meritocracy") if isinstance(response.raw, dict) else None
+        if meritocracy_info:
+            print(f"[{backend_name}] meritocracy.selected_backend = {meritocracy_info.get('selected_backend')}")
+            print(f"[{backend_name}] meritocracy.selected_model = {meritocracy_info.get('selected_model')}")
+            print(f"[{backend_name}] meritocracy.selected_provider = {meritocracy_info.get('selected_provider')}")
         print(f"[{backend_name}] answer={response.text}")
         print("")
 

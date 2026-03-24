@@ -92,6 +92,13 @@ Repository default routing is now:
 
 - `gonka -> cloud -> local`
 
+Meritocracy mode is also available:
+
+- Enable with `LLM_BACKEND=meritocracy`
+- Candidate order defaults to `gonka,cloud,local`
+- Selection uses the shared quality object below
+- The selected candidate and full ranking are stored in `response.raw["meritocracy"]`
+
 ### Local-first mode
 
 - Primary: `local -> qwen2.5:7b-instruct-q5_k_m`

@@ -8,6 +8,7 @@ from .backends import (
     LLMBackend,
     LLMBackendRouter,
     LLMResponse,
+    MeritocracyLLMAdapter,
     LocalLLMAdapter,
     OpenAICompatibleLLMAdapter,
     build_llm_backend,
@@ -55,6 +56,7 @@ __all__ = [
     "LocalLLMAdapter",
     "CloudLLMAdapter",
     "GonkaLLMAdapter",
+    "MeritocracyLLMAdapter",
     "LLMBackendRouter",
     "build_llm_backend",
 ]
