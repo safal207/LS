@@ -65,6 +65,7 @@ class LLMBackendRouter:
         on_token=None,
     ) -> LLMResponse:
         errors: list[str] = []
+        attempts: list[dict[str, object]] = []
         chain = self.route
         for index, backend_name in enumerate(chain):
             backend = self.backends[backend_name]
@@ -78,11 +79,31 @@ class LLMBackendRouter:
                 stream=stream,
                 on_token=on_token,
             )
+            attempts.append(
+                {
+                    "backend": backend_name,
+                    "provider": response.provider,
+                    "model": response.model,
+                    "ok": response.ok,
+                    "error": response.error,
+                    "latency_ms": response.latency_ms,
+                    "was_fallback_used": response.was_fallback_used,
+                    "fallback_from": response.fallback_from,
+                    "fallback_to": response.fallback_to,
+                }
+            )
             if response.ok:
                 if index > 0:
                     response.was_fallback_used = True
                     response.fallback_from = chain[0]
                     response.fallback_to = backend_name
+                response.raw = response.raw or {}
+                response.raw["route"] = {
+                    "primary": self.primary,
+                    "fallback_chain": list(self.fallback_chain),
+                    "effective": list(chain),
+                    "attempts": attempts,
+                }
                 self.last_response = response
                 return response
             errors.append(f"{backend_name}: {response.error or 'unknown error'}")
@@ -96,6 +117,14 @@ class LLMBackendRouter:
             was_fallback_used=len(chain) > 1,
             fallback_from=chain[0] if len(chain) > 1 else None,
             fallback_to=chain[-1] if len(chain) > 1 else None,
+            raw={
+                "route": {
+                    "primary": self.primary,
+                    "fallback_chain": list(self.fallback_chain),
+                    "effective": list(chain),
+                    "attempts": attempts,
+                }
+            },
         )
         self.last_response = final
         logger.warning("llm router failed route=%s error=%s", "->".join(chain), final.error)

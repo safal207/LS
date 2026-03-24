@@ -88,6 +88,10 @@ def main() -> int:
     print(response.text)
     print("response.raw =")
     print(json.dumps(response.raw, ensure_ascii=False, indent=2) if response.raw else "null")
+    route_info = (response.raw or {}).get("route") if isinstance(response.raw, dict) else None
+    if route_info:
+        print("route.trace =")
+        print(json.dumps(route_info, ensure_ascii=False, indent=2))
     return 0 if response.ok else 1
 
 
