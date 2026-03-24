@@ -17,8 +17,8 @@ llm:
   use_cloud: false
   use_cotcore: false
   use_breaker: false
-  backend: ""
-  fallback_backend: ""
+  backend: gonka
+  fallback_backend: cloud,local
   temporal_enabled: true
   breaker:
     failure_threshold: 3

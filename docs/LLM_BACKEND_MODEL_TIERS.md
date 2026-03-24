@@ -88,6 +88,10 @@ For this repository today, the practical order from strongest to weakest is:
 - Fallback 2: `local -> qwen2.5:7b-instruct-q5_k_m`
 - Fallback 3: `local -> qwen2.5:1.5b`
 
+Repository default routing is now:
+
+- `gonka -> cloud -> local`
+
 ### Local-first mode
 
 - Primary: `local -> qwen2.5:7b-instruct-q5_k_m`
@@ -116,4 +120,3 @@ STT models are not part of the LLM ranking. For speech recognition in this proje
 - `python/modules/llm/backends/gonka_adapter.py`
 - `python/modules/llm/backends/router.py`
 - `python/modules/config.py`
-
