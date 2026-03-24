@@ -55,6 +55,8 @@ VOLUME_THRESHOLD = _get(["audio", "volume_threshold"], 0.01)
 OLLAMA_HOST = _get(["llm", "ollama", "host"], "http://localhost:11434")
 OLLAMA_TIMEOUT = _get(["llm", "ollama", "timeout"], 30)
 OLLAMA_MODEL = _get(["llm", "ollama", "model"], "")
+OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", _get(["llm", "ollama", "num_predict"], 220)))
+os.environ.setdefault("OLLAMA_NUM_PREDICT", str(OLLAMA_NUM_PREDICT))
 
 # Routed backend settings
 LLM_BACKEND = os.getenv("LLM_BACKEND", _get(["llm", "backend"], ""))

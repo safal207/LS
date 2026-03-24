@@ -42,6 +42,7 @@ llm:
   ollama:
     host: http://localhost:11434
     timeout: 30
+    num_predict: 220
 
 agent:
   enabled: false
