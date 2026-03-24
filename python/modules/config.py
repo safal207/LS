@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 try:
@@ -55,10 +56,23 @@ OLLAMA_HOST = _get(["llm", "ollama", "host"], "http://localhost:11434")
 OLLAMA_TIMEOUT = _get(["llm", "ollama", "timeout"], 30)
 OLLAMA_MODEL = _get(["llm", "ollama", "model"], "")
 
-# Groq settings (fallback)
-GROQ_API_KEY = _get(["llm", "groq", "api_key"], "")
-GROQ_MODEL = _get(["llm", "groq", "model"], "")
+# Routed backend settings
+LLM_BACKEND = os.getenv("LLM_BACKEND", _get(["llm", "backend"], ""))
+LLM_FALLBACK_BACKEND = os.getenv("LLM_FALLBACK_BACKEND", _get(["llm", "fallback_backend"], ""))
+
+# Groq / generic cloud settings
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", _get(["llm", "groq", "api_key"], ""))
+GROQ_MODEL = os.getenv("GROQ_MODEL", _get(["llm", "groq", "model"], ""))
+GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", _get(["llm", "groq", "base_url"], "https://api.groq.com/openai/v1"))
+GROQ_TIMEOUT_SEC = float(os.getenv("GROQ_TIMEOUT_SEC", _get(["llm", "groq", "timeout_sec"], 120)))
 USE_GROQ = _get(["llm", "use_groq"], False)
+
+# Gonka settings
+GONKA_ENABLED = str(os.getenv("GONKA_ENABLED", _get(["llm", "gonka", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GONKA_API_KEY = os.getenv("GONKA_API_KEY", _get(["llm", "gonka", "api_key"], ""))
+GONKA_BASE_URL = os.getenv("GONKA_BASE_URL", _get(["llm", "gonka", "base_url"], "https://api.gonkagate.com/v1"))
+GONKA_MODEL = os.getenv("GONKA_MODEL", _get(["llm", "gonka", "model"], "openai/gpt-oss-120b"))
+GONKA_TIMEOUT_SEC = float(os.getenv("GONKA_TIMEOUT_SEC", _get(["llm", "gonka", "timeout_sec"], 120)))
 
 # Model generation settings (GhostGPT)
 TEMPERATURE = _get(["llm", "temperature"], 0.6)

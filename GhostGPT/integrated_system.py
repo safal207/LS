@@ -211,8 +211,13 @@ class IntegratedSystem:
         try:
             self.voice_resonance_agent = ResonanceAgent(
                 anchor=[],
-                llm_fn=lambda user_prompt, system_prompt: self.brain.think(
-                    f"{system_prompt}\n\n{user_prompt}"
+                llm_backend=self.brain.backend,
+                llm_fn=(
+                    None
+                    if self.brain.backend is not None
+                    else lambda user_prompt, system_prompt: self.brain.think(
+                        f"{system_prompt}\n\n{user_prompt}"
+                    )
                 ),
                 orientation="Ghost dashboard voice route",
             )

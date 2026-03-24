@@ -17,6 +17,8 @@ llm:
   use_cloud: false
   use_cotcore: false
   use_breaker: false
+  backend: ""
+  fallback_backend: ""
   temporal_enabled: true
   breaker:
     failure_threshold: 3
@@ -29,6 +31,14 @@ llm:
   groq:
     api_key: ""
     model: llama3-8b-8192
+    base_url: https://api.groq.com/openai/v1
+    timeout_sec: 120
+  gonka:
+    enabled: false
+    api_key: ""
+    base_url: https://api.gonkagate.com/v1
+    model: openai/gpt-oss-120b
+    timeout_sec: 120
   ollama:
     host: http://localhost:11434
     timeout: 30

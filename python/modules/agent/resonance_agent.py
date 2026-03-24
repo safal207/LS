@@ -67,6 +67,7 @@ import time
 import uuid
 from typing import Callable, List, Optional
 
+from config import MAX_TOKENS, TEMPERATURE
 from shared.interview_schema import ensure_interview_item
 
 logger = logging.getLogger(__name__)
@@ -170,6 +171,7 @@ class ResonanceAgent:
         self,
         anchor:       Optional[List[str]] = None,
         llm_fn:       Optional[Callable[[str, str], str]] = None,
+        llm_backend = None,
         weights_path: str = "",
         log_path:     str = "",
         log_max_mb:   float = 50.0,
@@ -177,6 +179,7 @@ class ResonanceAgent:
     ) -> None:
         self._anchor      = list(anchor or [])
         self._llm_fn      = llm_fn
+        self._llm_backend = llm_backend
         self._orientation = orientation
 
         # Stage 4 — Intent
@@ -231,7 +234,7 @@ class ResonanceAgent:
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
             len(self._anchor),
-            "yes" if llm_fn else "dry-run",
+            "yes" if (llm_backend or llm_fn) else "dry-run",
             "yes" if self._learner else "no",
         )
 
@@ -397,6 +400,7 @@ class ResonanceAgent:
                     cycle_id=log_cycle_id,
                     output=final_output,
                     generation_time=generation_time,
+                    llm_metadata=item.get("_llm_backend"),
                 )
             except Exception as exc:
                 logger.debug("ResonanceAgent: logger.complete_cycle failed: %s", exc)
@@ -428,10 +432,44 @@ class ResonanceAgent:
         """Assemble the system prompt and call llm_fn."""
         system = self._build_system_prompt(item)
         user   = item.get("text", "")
+        if self._llm_backend:
+            response = self._llm_backend.generate(
+                messages=[{"role": "user", "content": user}],
+                system_prompt=system,
+                temperature=TEMPERATURE,
+                max_tokens=MAX_TOKENS,
+                metadata={
+                    "cycle_id": item.get("_cycle_id"),
+                    "source": item.get("source", "resonance_agent"),
+                },
+            )
+            item["_llm_backend"] = response.to_dict()
+            if response.ok:
+                return response.text
+            raise RuntimeError(response.error or "LLM backend failed")
         if self._llm_fn:
-            return self._llm_fn(user, system)
+            text = self._llm_fn(user, system)
+            item["_llm_backend"] = {
+                "provider": "callable",
+                "model": "",
+                "latency_ms": 0.0,
+                "error": None,
+                "was_fallback_used": False,
+                "fallback_from": None,
+                "fallback_to": None,
+            }
+            return text
         # Dry-run: return the pre_prompt so the caller can see the overlay
         copilot = item.get("_copilot_output") or {}
+        item["_llm_backend"] = {
+            "provider": "dry_run",
+            "model": "",
+            "latency_ms": 0.0,
+            "error": None,
+            "was_fallback_used": False,
+            "fallback_from": None,
+            "fallback_to": None,
+        }
         return copilot.get("pre_prompt") or "ответь по существу"
 
     def _build_system_prompt(self, item: dict) -> str:
@@ -514,6 +552,7 @@ class ResonanceAgent:
         copilot   = item.get("_copilot_output") or {}
         intent    = item.get("_intent")
         why       = item.get("_why")
+        llm_meta  = item.get("_llm_backend") or {}
 
         return {
             # Identity
@@ -542,6 +581,13 @@ class ResonanceAgent:
             # Output
             "final_output":    final_output,
             "generation_time": round(generation_time, 4),
+            "llm_provider":    llm_meta.get("provider"),
+            "llm_model":       llm_meta.get("model"),
+            "llm_latency_ms":  llm_meta.get("latency_ms"),
+            "llm_error":       llm_meta.get("error"),
+            "llm_fallback_used": llm_meta.get("was_fallback_used", False),
+            "llm_fallback_from": llm_meta.get("fallback_from"),
+            "llm_fallback_to": llm_meta.get("fallback_to"),
             "feedback":        None,
             # Resonance
             "resonance_score":  item.get("_resonance_score", 0.5),

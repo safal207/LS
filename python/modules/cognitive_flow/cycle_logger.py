@@ -121,6 +121,7 @@ class CognitiveCycleLogger:
         output: str,
         generation_time: float = 0.0,
         feedback: Optional[str] = None,
+        llm_metadata: Optional[dict] = None,
     ) -> None:
         """Finalise a cycle and flush to disk.
 
@@ -144,6 +145,8 @@ class CognitiveCycleLogger:
         record["final_output"] = output
         record["generation_time"] = round(generation_time, 4)
         record["user_feedback"] = feedback
+        if llm_metadata:
+            record["llm"] = llm_metadata
         self._flush(record)
         logger.debug("CognitiveCycleLogger: completed cycle %s", cycle_id)
         # Trigger learning on the completed record (non-blocking — learner is fast)
@@ -163,6 +166,7 @@ class CognitiveCycleLogger:
         output: str,
         generation_time: float = 0.0,
         feedback: Optional[str] = None,
+        llm_metadata: Optional[dict] = None,
     ) -> str:
         """Log a full cycle in a single call (no start/complete split).
 
@@ -173,6 +177,8 @@ class CognitiveCycleLogger:
         record["final_output"] = output
         record["generation_time"] = round(generation_time, 4)
         record["user_feedback"] = feedback
+        if llm_metadata:
+            record["llm"] = llm_metadata
         self._flush(record)
         return cycle_id
 

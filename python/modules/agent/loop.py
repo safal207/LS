@@ -1203,10 +1203,18 @@ class AgentLoop:
                 cycle_id = item.get("_cycle_id")
                 if self.cycle_logger is not None and cycle_id:
                     try:
+                        llm_metadata = None
+                        last_response = getattr(self.llm, "last_response", None)
+                        if last_response is not None:
+                            if hasattr(last_response, "to_dict"):
+                                llm_metadata = last_response.to_dict()
+                            elif isinstance(last_response, dict):
+                                llm_metadata = last_response
                         self.cycle_logger.complete_cycle(
                             cycle_id=cycle_id,
                             output=str(payload.get("response", "")),
                             generation_time=float(payload.get("generation_time", 0.0)),
+                            llm_metadata=llm_metadata,
                         )
                     except Exception as _ccl_exc:
                         logger.debug("CognitiveCycleLogger.complete_cycle failed: %s", _ccl_exc)

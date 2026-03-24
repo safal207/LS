@@ -2,6 +2,16 @@ from typing import TYPE_CHECKING
 
 from .breaker import CircuitBreaker, CircuitOpenError
 from .cot_adapter import COTAdapter
+from .backends import (
+    CloudLLMAdapter,
+    GonkaLLMAdapter,
+    LLMBackend,
+    LLMBackendRouter,
+    LLMResponse,
+    LocalLLMAdapter,
+    OpenAICompatibleLLMAdapter,
+    build_llm_backend,
+)
 from .errors import (
     LLMEmptyResponseError,
     LLMError,
@@ -39,4 +49,12 @@ __all__ = [
     "LanguageModel",
     "QwenHandler",
     "TemporalContext",
+    "LLMBackend",
+    "LLMResponse",
+    "OpenAICompatibleLLMAdapter",
+    "LocalLLMAdapter",
+    "CloudLLMAdapter",
+    "GonkaLLMAdapter",
+    "LLMBackendRouter",
+    "build_llm_backend",
 ]
