@@ -98,6 +98,7 @@ Meritocracy mode is also available:
 - Candidate order defaults to `gonka,cloud,local`
 - Selection uses the shared quality object below
 - The selected candidate and full ranking are stored in `response.raw["meritocracy"]`
+- Future Rust hot path plan: `docs/RUST_MERITOCRACY_CORE_PLAN.md`
 
 ### Local-first mode
 

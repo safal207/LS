@@ -204,6 +204,7 @@ Good for:
 The current working local STT profile is `manual-small` in `scripts/live_ru_stt.py`. It is useful for noisy rooms and manual phrase capture, but it is still a perception layer only. Interview logic should stay in `SmartEar`, `ResonanceAgent`, and `AgentLoop`.
 
 Current LLM backend tiers and routing guidance are documented in `docs/LLM_BACKEND_MODEL_TIERS.md`.
+The future Rust hot path for meritocracy selection is documented in `docs/RUST_MERITOCRACY_CORE_PLAN.md`.
 
 ## Recommended Next Implementation Step
 
