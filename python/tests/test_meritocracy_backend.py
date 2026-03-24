@@ -70,3 +70,42 @@ def test_meritocracy_disabled_returns_error():
 
     assert not result.ok
     assert "disabled" in (result.error or "").lower()
+
+
+def test_meritocracy_uses_rust_bridge_when_available(monkeypatch):
+    backends = {
+        "gonka": _FakeBackend("gonka", "gonka-model", "off topic answer"),
+        "local": _FakeBackend("local", "local-model", "safe local answer"),
+    }
+    adapter = MeritocracyLLMAdapter(
+        backends=backends,
+        candidate_order=["gonka", "local"],
+        enabled=True,
+    )
+
+    monkeypatch.setattr("modules.llm.backends.meritocracy.rust_meritocracy_available", lambda: True)
+    monkeypatch.setattr(
+        "modules.llm.backends.meritocracy.rust_meritocracy_select",
+        lambda **kwargs: {
+            "selected_backend": "local",
+            "selected_provider": "local",
+            "selected_model": "local-model",
+            "selected_quality": {"overall": 0.77},
+            "ranking": [
+                {"backend": "local", "quality": {"overall": 0.77}},
+                {"backend": "gonka", "quality": {"overall": 0.10}},
+            ],
+        },
+    )
+    adapter.rust_available = True
+
+    result = adapter.generate(
+        messages=[{"role": "user", "content": "Почему вы выбрали этот стек?"}],
+        metadata={"thread_context": "Мы обсуждаем выбор стека."},
+    )
+
+    assert result.provider == "local"
+    assert result.model == "local-model"
+    assert result.raw is not None
+    assert result.raw["meritocracy"]["selection_engine"] == "rust"
+    assert result.raw["meritocracy"]["selected_backend"] == "local"

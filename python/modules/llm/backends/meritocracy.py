@@ -5,6 +5,7 @@ from time import perf_counter
 from typing import Any, Optional
 
 from modules.llm.quality import LLMQualityAssessment, evaluate_llm_answer_quality
+from modules.llm.rust_meritocracy import rust_meritocracy_available, rust_meritocracy_select
 
 from .base import LLMResponse, normalize_messages
 
@@ -40,6 +41,7 @@ class MeritocracyLLMAdapter:
         self.min_thread_relevance = float(min_thread_relevance)
         self.max_hallucination_risk = float(max_hallucination_risk)
         self.last_selection: Optional[dict[str, Any]] = None
+        self.rust_available = rust_meritocracy_available()
 
     def _extract_question(self, messages, system_prompt: Optional[str] = None) -> str:
         prompt_messages = normalize_messages(messages, system_prompt=system_prompt)
@@ -62,6 +64,38 @@ class MeritocracyLLMAdapter:
             answer=answer,
             thread_context=thread_context,
         )
+
+    def _selection_policy(self) -> dict[str, float]:
+        return {
+            "min_overall": self.min_overall,
+            "min_relevance": self.min_relevance,
+            "min_thread_relevance": self.min_thread_relevance,
+            "max_hallucination_risk": self.max_hallucination_risk,
+        }
+
+    def _rank_candidates_python(self, candidates: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        ranked = sorted(
+            candidates,
+            key=lambda item: (
+                1 if item["ok"] else 0,
+                item["quality"]["overall"],
+                item["quality"]["relevance"],
+                item["quality"]["thread_relevance"],
+                -item["quality"]["hallucination_risk"],
+                -item["latency_ms"],
+            ),
+            reverse=True,
+        )
+
+        passing = [
+            item
+            for item in ranked
+            if item["quality"]["overall"] >= self.min_overall
+            and item["quality"]["relevance"] >= self.min_relevance
+            and item["quality"]["thread_relevance"] >= self.min_thread_relevance
+            and item["quality"]["hallucination_risk"] <= self.max_hallucination_risk
+        ]
+        return ranked, (passing[0] if passing else ranked[0])
 
     def generate(
         self,
@@ -139,28 +173,60 @@ class MeritocracyLLMAdapter:
                 error="meritocracy backend has no candidates",
             )
 
-        ranked = sorted(
-            candidates,
-            key=lambda item: (
-                1 if item["ok"] else 0,
-                item["quality"]["overall"],
-                item["quality"]["relevance"],
-                item["quality"]["thread_relevance"],
-                -item["quality"]["hallucination_risk"],
-                -item["latency_ms"],
-            ),
-            reverse=True,
-        )
+        selected_backend = None
+        selected_provider = None
+        selected_model = None
+        selected_quality = None
+        rust_result = None
+        if self.rust_available:
+            rust_result = rust_meritocracy_select(
+                question=question,
+                thread_context=thread_context,
+                candidates=[
+                    {
+                        "backend": item["backend"],
+                        "provider": item["provider"],
+                        "model": item["model"],
+                        "text": item["response"].text,
+                        "ok": item["ok"],
+                        "latency_ms": item["latency_ms"],
+                        "error": item["error"],
+                    }
+                    for item in candidates
+                ],
+                policy=self._selection_policy(),
+            )
 
-        passing = [
-            item
-            for item in ranked
-            if item["quality"]["overall"] >= self.min_overall
-            and item["quality"]["relevance"] >= self.min_relevance
-            and item["quality"]["thread_relevance"] >= self.min_thread_relevance
-            and item["quality"]["hallucination_risk"] <= self.max_hallucination_risk
-        ]
-        chosen = passing[0] if passing else ranked[0]
+        if rust_result:
+            ranking_by_backend = {item["backend"]: item for item in candidates}
+            ranked = []
+            for ranked_item in rust_result.get("ranking", []):
+                backend_name = ranked_item.get("backend")
+                original = ranking_by_backend.get(backend_name)
+                if not original:
+                    continue
+                merged = dict(original)
+                merged["quality"] = ranked_item.get("quality", original["quality"])
+                ranked.append(merged)
+            if not ranked:
+                ranked, chosen = self._rank_candidates_python(candidates)
+                selected_backend = chosen["backend"]
+                selected_provider = chosen["provider"]
+                selected_model = chosen["model"]
+                selected_quality = chosen["quality"]
+            else:
+                selected_backend = rust_result.get("selected_backend")
+                chosen = next((item for item in ranked if item["backend"] == selected_backend), ranked[0])
+                selected_provider = rust_result.get("selected_provider", chosen["provider"])
+                selected_model = rust_result.get("selected_model", chosen["model"])
+                selected_quality = rust_result.get("selected_quality", chosen["quality"])
+        else:
+            ranked, chosen = self._rank_candidates_python(candidates)
+            selected_backend = chosen["backend"]
+            selected_provider = chosen["provider"]
+            selected_model = chosen["model"]
+            selected_quality = chosen["quality"]
+
         winner: LLMResponse = chosen["response"]
 
         latency_ms = (perf_counter() - start) * 1000
@@ -169,6 +235,7 @@ class MeritocracyLLMAdapter:
             "question": question,
             "thread_context": thread_context,
             "candidate_order": list(self.candidate_order),
+            "selection_engine": "rust" if rust_result else "python",
             "ranking": [
                 {
                     "backend": item["backend"],
@@ -181,10 +248,10 @@ class MeritocracyLLMAdapter:
                 }
                 for item in ranked
             ],
-            "selected_backend": chosen["backend"],
-            "selected_provider": chosen["provider"],
-            "selected_model": chosen["model"],
-            "selected_quality": chosen["quality"],
+            "selected_backend": selected_backend,
+            "selected_provider": selected_provider,
+            "selected_model": selected_model,
+            "selected_quality": selected_quality,
             "selection_policy": {
                 "min_overall": self.min_overall,
                 "min_relevance": self.min_relevance,
