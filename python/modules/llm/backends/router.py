@@ -9,6 +9,11 @@ from config import (
     GONKA_ENABLED,
     GONKA_MODEL,
     GONKA_TIMEOUT_SEC,
+    MIMO_API_KEY,
+    MIMO_BASE_URL,
+    MIMO_ENABLED,
+    MIMO_MODEL,
+    MIMO_TIMEOUT_SEC,
     GROQ_API_KEY,
     GROQ_BASE_URL,
     GROQ_MODEL,
@@ -29,6 +34,7 @@ from .base import LLMResponse
 from .cloud_adapter import CloudLLMAdapter
 from .gonka_adapter import GonkaLLMAdapter
 from .meritocracy import MeritocracyLLMAdapter
+from .mimo_adapter import MimoLLMAdapter
 from .local_adapter import LocalLLMAdapter
 
 logger = logging.getLogger(__name__)
@@ -152,6 +158,8 @@ def build_llm_backend(
     if not primary:
         if GONKA_ENABLED and GONKA_API_KEY:
             primary = "gonka"
+        elif MIMO_ENABLED and MIMO_API_KEY:
+            primary = "mimo"
         elif USE_GROQ or USE_CLOUD_LLM:
             primary = "cloud"
         else:
@@ -159,9 +167,11 @@ def build_llm_backend(
 
     if not fallbacks:
         if primary == "gonka":
+            fallbacks = ["mimo", "cloud", "local"]
+        elif primary == "mimo":
             fallbacks = ["cloud", "local"]
         elif primary == "meritocracy":
-            fallbacks = ["cloud", "local"]
+            fallbacks = ["mimo", "cloud", "local"]
         elif primary == "cloud":
             fallbacks = ["local"]
         else:
@@ -187,9 +197,16 @@ def build_llm_backend(
             timeout_sec=GONKA_TIMEOUT_SEC,
             enabled=bool(GONKA_ENABLED and GONKA_API_KEY),
         ),
+        "mimo": MimoLLMAdapter(
+            model=MIMO_MODEL,
+            base_url=MIMO_BASE_URL,
+            api_key=MIMO_API_KEY,
+            timeout_sec=MIMO_TIMEOUT_SEC,
+            enabled=bool(MIMO_ENABLED and MIMO_API_KEY),
+        ),
     }
     if primary == "meritocracy" or LLM_MERITOCRACY_ENABLED:
-        candidate_order = _parse_route(LLM_MERITOCRACY_BACKENDS) or ["gonka", "cloud", "local"]
+        candidate_order = _parse_route(LLM_MERITOCRACY_BACKENDS) or ["gonka", "mimo", "cloud", "local"]
         backends["meritocracy"] = MeritocracyLLMAdapter(
             backends=backends,
             candidate_order=candidate_order,

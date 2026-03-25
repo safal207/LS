@@ -11,6 +11,7 @@ if str(MODULES) not in sys.path:
 
 from modules.llm.backends.base import LLMResponse
 from modules.llm.backends.gonka_adapter import GonkaLLMAdapter
+from modules.llm.backends.mimo_adapter import MimoLLMAdapter
 from modules.llm.backends.router import LLMBackendRouter
 
 
@@ -85,5 +86,45 @@ def test_gonka_adapter_with_mock_client():
     assert result.ok
     assert result.text == "cloud ok"
     assert result.provider == "gonka"
+    fake_client.chat.completions.create.assert_called_once()
+
+
+def test_mimo_adapter_missing_config_does_not_crash():
+    adapter = MimoLLMAdapter(
+        model="",
+        base_url="",
+        api_key="",
+        enabled=False,
+    )
+
+    result = adapter.generate(messages=[{"role": "user", "content": "test"}])
+
+    assert not result.ok
+    assert result.provider == "mimo"
+    assert "disabled" in (result.error or "").lower()
+
+
+def test_mimo_adapter_with_mock_client():
+    adapter = MimoLLMAdapter(
+        model="mimo-model",
+        base_url="https://platform.xiaomimimo.com/v1",
+        api_key="secret",
+        enabled=True,
+    )
+    fake_client = MagicMock()
+    fake_completion = MagicMock()
+    fake_completion.choices = [MagicMock(message=MagicMock(content="mimo ok"))]
+    fake_completion.model_dump.return_value = {"id": "cmpl_mimo_1"}
+    fake_client.chat.completions.create.return_value = fake_completion
+    adapter._client = fake_client
+
+    result = adapter.generate(
+        messages=[{"role": "user", "content": "test"}],
+        system_prompt="sys",
+    )
+
+    assert result.ok
+    assert result.text == "mimo ok"
+    assert result.provider == "mimo"
     fake_client.chat.completions.create.assert_called_once()
 

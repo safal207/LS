@@ -62,7 +62,7 @@ os.environ.setdefault("OLLAMA_NUM_PREDICT", str(OLLAMA_NUM_PREDICT))
 LLM_BACKEND = os.getenv("LLM_BACKEND", _get(["llm", "backend"], ""))
 LLM_FALLBACK_BACKEND = os.getenv("LLM_FALLBACK_BACKEND", _get(["llm", "fallback_backend"], ""))
 LLM_MERITOCRACY_ENABLED = str(os.getenv("LLM_MERITOCRACY_ENABLED", _get(["llm", "meritocracy", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
-LLM_MERITOCRACY_BACKENDS = os.getenv("LLM_MERITOCRACY_BACKENDS", _get(["llm", "meritocracy", "backends"], "gonka,cloud,local"))
+LLM_MERITOCRACY_BACKENDS = os.getenv("LLM_MERITOCRACY_BACKENDS", _get(["llm", "meritocracy", "backends"], "gonka,mimo,cloud,local"))
 LLM_MERITOCRACY_MIN_OVERALL = float(os.getenv("LLM_MERITOCRACY_MIN_OVERALL", _get(["llm", "meritocracy", "min_overall"], 0.35)))
 LLM_MERITOCRACY_MIN_RELEVANCE = float(os.getenv("LLM_MERITOCRACY_MIN_RELEVANCE", _get(["llm", "meritocracy", "min_relevance"], 0.25)))
 LLM_MERITOCRACY_MIN_THREAD_RELEVANCE = float(os.getenv("LLM_MERITOCRACY_MIN_THREAD_RELEVANCE", _get(["llm", "meritocracy", "min_thread_relevance"], 0.25)))
@@ -81,6 +81,13 @@ GONKA_API_KEY = os.getenv("GONKA_API_KEY", _get(["llm", "gonka", "api_key"], "")
 GONKA_BASE_URL = os.getenv("GONKA_BASE_URL", _get(["llm", "gonka", "base_url"], "https://api.gonkagate.com/v1"))
 GONKA_MODEL = os.getenv("GONKA_MODEL", _get(["llm", "gonka", "model"], "openai/gpt-oss-120b"))
 GONKA_TIMEOUT_SEC = float(os.getenv("GONKA_TIMEOUT_SEC", _get(["llm", "gonka", "timeout_sec"], 120)))
+
+# Xiaomi MiMo settings
+MIMO_ENABLED = str(os.getenv("MIMO_ENABLED", _get(["llm", "mimo", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+MIMO_API_KEY = os.getenv("MIMO_API_KEY", _get(["llm", "mimo", "api_key"], ""))
+MIMO_BASE_URL = os.getenv("MIMO_BASE_URL", _get(["llm", "mimo", "base_url"], "https://platform.xiaomimimo.com/v1"))
+MIMO_MODEL = os.getenv("MIMO_MODEL", _get(["llm", "mimo", "model"], ""))
+MIMO_TIMEOUT_SEC = float(os.getenv("MIMO_TIMEOUT_SEC", _get(["llm", "mimo", "timeout_sec"], 120)))
 
 # Model generation settings (GhostGPT)
 TEMPERATURE = _get(["llm", "temperature"], 0.6)

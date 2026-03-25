@@ -137,7 +137,7 @@ def _compare_backends(
     print("compare.thread_context =", thread_context or question)
     print("")
 
-    for backend_name in ("meritocracy", "gonka", "cloud", "local"):
+    for backend_name in ("meritocracy", "gonka", "mimo", "cloud", "local"):
         candidate = backend.backends.get(backend_name)
         if candidate is None:
             continue

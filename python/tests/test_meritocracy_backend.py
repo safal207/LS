@@ -30,6 +30,7 @@ class _FakeBackend:
 def test_meritocracy_selects_best_answer():
     backends = {
         "gonka": _FakeBackend("gonka", "gonka-model", "Я люблю кофе и путешествия."),
+        "mimo": _FakeBackend("mimo", "mimo-model", "Этот стек мне просто нравится."),
         "cloud": _FakeBackend(
             "cloud",
             "cloud-model",
@@ -43,7 +44,7 @@ def test_meritocracy_selects_best_answer():
     }
     adapter = MeritocracyLLMAdapter(
         backends=backends,
-        candidate_order=["gonka", "cloud", "local"],
+        candidate_order=["gonka", "mimo", "cloud", "local"],
         enabled=True,
     )
 

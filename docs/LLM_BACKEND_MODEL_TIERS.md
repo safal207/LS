@@ -95,10 +95,16 @@ Repository default routing is now:
 Meritocracy mode is also available:
 
 - Enable with `LLM_BACKEND=meritocracy`
-- Candidate order defaults to `gonka,cloud,local`
+- Candidate order defaults to `gonka,mimo,cloud,local`
 - Selection uses the shared quality object below
 - The selected candidate and full ranking are stored in `response.raw["meritocracy"]`
 - Future Rust hot path plan: `docs/RUST_MERITOCRACY_CORE_PLAN.md`
+
+MiMo backend is also wired as an OpenAI-compatible provider:
+
+- Enable with `MIMO_ENABLED=true`
+- Configure with `MIMO_API_KEY`, `MIMO_BASE_URL`, `MIMO_MODEL`
+- It participates in compare mode and meritocracy when configured
 
 ### Local-first mode
 

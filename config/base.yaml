@@ -21,7 +21,7 @@ llm:
   fallback_backend: cloud,local
   meritocracy:
     enabled: false
-    backends: gonka,cloud,local
+    backends: gonka,mimo,cloud,local
     min_overall: 0.35
     min_relevance: 0.25
     min_thread_relevance: 0.25
@@ -45,6 +45,12 @@ llm:
     api_key: ""
     base_url: https://api.gonkagate.com/v1
     model: openai/gpt-oss-120b
+    timeout_sec: 120
+  mimo:
+    enabled: false
+    api_key: ""
+    base_url: https://platform.xiaomimimo.com/v1
+    model: ""
     timeout_sec: 120
   ollama:
     host: http://localhost:11434
