@@ -31,6 +31,50 @@ class CooperativeGraphEngine:
     def __init__(self, backends: dict[str, Any]) -> None:
         self.backends = backends
 
+    def _build_draft_prompt(self, thread_context: str | None) -> str:
+        thread_block = f"\n\nКонтекст разговора:\n{thread_context}" if thread_context else ""
+        return (
+            "Роль: draft.\n"
+            "Дай первичный ответ на вопрос собеседования.\n"
+            "Требования:\n"
+            "- отвечай по существу\n"
+            "- не выдумывай цифры и кейсы\n"
+            "- не уходи в лишнюю теорию\n"
+            "- держи ответ в 4-7 предложениях\n"
+            f"{thread_block}"
+        )
+
+    def _build_critic_prompt(self, draft_answer: str, thread_context: str | None) -> str:
+        thread_block = f"\n\nКонтекст разговора:\n{thread_context}" if thread_context else ""
+        return (
+            "Роль: critic.\n"
+            "Проверь draft-ответ и верни только краткие буллеты критики.\n"
+            "Ищи:\n"
+            "- off-topic\n"
+            "- выдуманные факты\n"
+            "- пропущенные trade-offs\n"
+            "- слабую связь с вопросом и нитью разговора\n"
+            "- лишнюю воду\n"
+            f"{thread_block}\n\nDraft:\n{draft_answer}"
+        )
+
+    def _build_compressor_prompt(self, draft_answer: str, critique_answer: str | None, thread_context: str | None) -> str:
+        thread_block = f"\n\nКонтекст разговора:\n{thread_context}" if thread_context else ""
+        prompt = (
+            "Роль: compressor.\n"
+            "Собери финальный ответ на интервью-вопрос.\n"
+            "Требования:\n"
+            "- используй сильные части draft\n"
+            "- исправь замечания из critique\n"
+            "- сделай ответ плотным и естественным\n"
+            "- не упоминай draft или critique\n"
+            "- не выдумывай детали\n"
+            f"{thread_block}\n\nDraft:\n{draft_answer}"
+        )
+        if critique_answer:
+            prompt += f"\n\nCritique:\n{critique_answer}"
+        return prompt
+
     def _call_backend(
         self,
         backend_name: str,
@@ -57,14 +101,9 @@ class CooperativeGraphEngine:
                 metadata={"error": "empty-question"},
             )
 
-        thread_block = f"\n\nThread context:\n{thread_context}" if thread_context else ""
         result = CooperativeExecutionResult(route_key=route_key)
 
-        draft_prompt = (
-            "Role: draft.\n"
-            "Answer the interview question directly, clearly, and without filler."
-            f"{thread_block}"
-        )
+        draft_prompt = self._build_draft_prompt(thread_context)
         draft_response = self._call_backend(
             "local",
             user_text=text,
@@ -111,12 +150,7 @@ class CooperativeGraphEngine:
                 metadata={"error": "no-draft"},
             )
 
-        critique_prompt = (
-            "Role: critic.\n"
-            "Review the draft answer. Point out weak reasoning, hallucinations, missing trade-offs, "
-            "and thread mismatch. Return concise critique bullets only."
-            f"{thread_block}\n\nDraft:\n{result.draft_answer}"
-        )
+        critique_prompt = self._build_critic_prompt(result.draft_answer, thread_context)
         critique_response = self._call_backend(
             "gonka",
             user_text=text,
@@ -134,15 +168,11 @@ class CooperativeGraphEngine:
                 }
             )
 
-        compressor_prompt = (
-            "Role: compressor.\n"
-            "Produce the final interview answer using the question, draft, and critique. "
-            "Make it tighter, clearer, and aligned with the thread context. "
-            "Do not mention that there was a draft or critique."
-            f"{thread_block}\n\nDraft:\n{result.draft_answer}"
+        compressor_prompt = self._build_compressor_prompt(
+            result.draft_answer,
+            result.critique_answer,
+            thread_context,
         )
-        if result.critique_answer:
-            compressor_prompt += f"\n\nCritique:\n{result.critique_answer}"
 
         compressor_response = self._call_backend(
             "mimo",
@@ -171,5 +201,6 @@ class CooperativeGraphEngine:
             "critic_backend": next((p["backend"] for p in result.participants if p["role"] == "critic"), None),
             "compressor_backend": next((p["backend"] for p in result.participants if p["role"] == "compressor"), None),
             "final_source": "compressor" if result.compressed_answer else "draft",
+            "degraded": not bool(result.critique_answer and result.compressed_answer),
         }
         return result

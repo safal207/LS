@@ -81,3 +81,17 @@ def test_path_selector_can_explore_alternative_route(tmp_path):
 
     assert decision.exploration_used is True
     assert decision.selected_backend in {"local", "gonka"}
+
+
+def test_path_selector_prefers_default_cooperative_route_when_full_coalition_available(tmp_path):
+    store = RouteStatsStore(tmp_path / "routes.json")
+    selector = PathSelector(store, exploration_rate=0.0)
+
+    decision = selector.choose_route(
+        graph_mode="full_run",
+        available_backends=["local", "gonka", "mimo"],
+        default_backend="local",
+    )
+
+    assert decision.route_key == "full_run>local>gonka>mimo"
+    assert decision.selected_backend == "cooperative"

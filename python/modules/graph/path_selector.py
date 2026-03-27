@@ -69,6 +69,21 @@ class PathSelector:
             )
 
         use_exploration = len(candidates) > 1 and self.rng.random() < self.exploration_rate
+        cooperative_candidate = next((item for item in candidates if item[1] == "cooperative"), None)
+        if cooperative_candidate is not None:
+            cooperative_zero_history = cooperative_candidate[2].runs == 0
+            all_zero_history = all(item[2].runs == 0 for item in candidates)
+            if cooperative_zero_history and all_zero_history and not use_exploration:
+                route_key, backend, stats = cooperative_candidate
+                self.store.touch_route(route_key)
+                return PathSelectionDecision(
+                    route_key=route_key,
+                    reason="default-cooperative",
+                    exploration_used=False,
+                    pheromone_weight=stats.pheromone_weight,
+                    selected_backend=backend,
+                )
+
         if use_exploration:
             route_key, backend, stats = self.rng.choice(candidates)
             reason = "exploration"
