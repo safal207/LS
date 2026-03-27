@@ -2,6 +2,10 @@
 
 This document defines a practical design for a cooperative multi-model network on top of the existing interview pipeline.
 
+Related control-layer design:
+
+- `docs/NETWORK_ORIENTATION_AND_TRAJECTORY.md`
+
 The goal is not only to rank backend answers, but to let the network:
 
 - reuse prior solutions instead of regenerating everything
