@@ -75,6 +75,11 @@ graph:
   coalitions:
     enabled: false
     store_path: data/graph_memory/coalitions.json
+  derived_modules:
+    enabled: false
+    store_path: data/graph_memory/derived_modules.json
+    min_quality: 0.72
+    min_trust: 0.62
 
 question_keywords:
   - "почему"

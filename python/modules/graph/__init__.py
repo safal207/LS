@@ -1,4 +1,5 @@
 from .coalition_registry import CoalitionRecord, CoalitionRegistry
+from .derived_module_registry import DerivedModuleRegistry
 from .memory_store import MemoryGraphStore
 from .cooperative_engine import CooperativeExecutionResult, CooperativeGraphEngine
 from .models import (
@@ -24,6 +25,7 @@ __all__ = [
     "CoalitionRegistry",
     "CooperativeExecutionResult",
     "CooperativeGraphEngine",
+    "DerivedModuleRegistry",
     "ContributionRecord",
     "DerivedModule",
     "GraphCandidate",

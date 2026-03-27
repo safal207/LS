@@ -70,6 +70,10 @@ from typing import Callable, List, Optional
 from config import (
     GRAPH_COALITION_ENABLED,
     GRAPH_COALITION_STORE_PATH,
+    GRAPH_DERIVED_MODULE_ENABLED,
+    GRAPH_DERIVED_MODULE_MIN_QUALITY,
+    GRAPH_DERIVED_MODULE_MIN_TRUST,
+    GRAPH_DERIVED_MODULE_STORE_PATH,
     GRAPH_TRAIL_DECAY,
     GRAPH_TRAIL_ENABLED,
     GRAPH_TRAIL_EXPLORATION_RATE,
@@ -152,6 +156,7 @@ except Exception:
 try:
     from graph import CooperativeGraphEngine as _CooperativeGraphEngine
     from graph import CoalitionRegistry as _CoalitionRegistry
+    from graph import DerivedModuleRegistry as _DerivedModuleRegistry
     from graph import GraphMemoryRuntime as _GraphMemoryRuntime
     from graph import PathExecutionRecord as _PathExecutionRecord
     from graph import PathSelector as _PathSelector
@@ -162,6 +167,7 @@ except Exception:
     _GRAPH_OK = False
     _CooperativeGraphEngine = None  # type: ignore[assignment]
     _CoalitionRegistry = None  # type: ignore[assignment]
+    _DerivedModuleRegistry = None  # type: ignore[assignment]
     _GraphMemoryRuntime = None  # type: ignore[assignment]
     _PathExecutionRecord = None  # type: ignore[assignment]
     _PathSelector = None  # type: ignore[assignment]
@@ -225,9 +231,16 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.debug("ResonanceAgent: coalition registry init failed: %s", exc)
                 self._coalition_registry = None
+        self._derived_module_registry = None
+        if GRAPH_DERIVED_MODULE_ENABLED and _GRAPH_OK and _DerivedModuleRegistry:
+            try:
+                self._derived_module_registry = _DerivedModuleRegistry(GRAPH_DERIVED_MODULE_STORE_PATH)
+            except Exception as exc:
+                logger.debug("ResonanceAgent: derived module registry init failed: %s", exc)
+                self._derived_module_registry = None
         self._route_stats_store = (
             _RouteStatsStore(GRAPH_TRAIL_STORE_PATH)
-            if (GRAPH_TRAIL_ENABLED or GRAPH_COALITION_ENABLED) and _GRAPH_OK and _RouteStatsStore
+            if (GRAPH_TRAIL_ENABLED or GRAPH_COALITION_ENABLED or GRAPH_DERIVED_MODULE_ENABLED) and _GRAPH_OK and _RouteStatsStore
             else None
         )
         self._path_selector = (
@@ -443,6 +456,9 @@ class ResonanceAgent:
                 logger.debug("ResonanceAgent: ResonanceScorer failed: %s", exc)
 
         graph_decision = None
+        available_backends: list[str] = []
+        intent_tag = self._intent_tag(item)
+        why_tag = self._why_tag(item)
         if self._graph_runtime:
             try:
                 graph_decision = self._graph_runtime.process(
@@ -457,6 +473,40 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.debug("ResonanceAgent: graph runtime failed: %s", exc)
 
+        if self._llm_backend is not None and hasattr(self._llm_backend, "backends"):
+            available_backends = [
+                name for name in ("gonka", "mimo", "cloud", "local")
+                if name in getattr(self._llm_backend, "backends", {})
+            ]
+
+        derived_module = None
+        if (
+            self._derived_module_registry
+            and graph_decision
+            and graph_decision.mode != "reuse"
+            and available_backends
+        ):
+            try:
+                derived_module = self._derived_module_registry.find_best(
+                    available_backends=available_backends,
+                    domain=intent_tag,
+                    task_type=why_tag,
+                    min_quality=GRAPH_DERIVED_MODULE_MIN_QUALITY,
+                    min_trust=GRAPH_DERIVED_MODULE_MIN_TRUST,
+                )
+                if derived_module is not None:
+                    item["_derived_module"] = derived_module.to_dict()
+                    item["_path_selection"] = {
+                        "route_key": f"derived>{derived_module.module_id}",
+                        "reason": "derived-module",
+                        "exploration_used": False,
+                        "pheromone_weight": derived_module.trust_score,
+                        "selected_backend": derived_module.preferred_backend,
+                    }
+            except Exception as exc:
+                logger.debug("ResonanceAgent: derived module lookup failed: %s", exc)
+                derived_module = None
+
         path_decision = None
         original_primary = None
         original_fallback = None
@@ -464,21 +514,18 @@ class ResonanceAgent:
             self._path_selector
             and graph_decision
             and graph_decision.mode != "reuse"
+            and derived_module is None
             and self._llm_backend is not None
             and hasattr(self._llm_backend, "backends")
         ):
             try:
-                available_backends = [
-                    name for name in ("gonka", "mimo", "cloud", "local")
-                    if name in getattr(self._llm_backend, "backends", {})
-                ]
                 default_backend = getattr(self._llm_backend, "primary", None)
                 path_decision = self._path_selector.choose_route(
                     graph_mode=graph_decision.mode,
                     available_backends=available_backends,
                     default_backend=default_backend,
-                    intent=str(item.get("intent") or item.get("_intent") or "") or None,
-                    why_tag=(item.get("_why_strategy") or {}).get("micro_trigger") or (item.get("_why") if isinstance(item.get("_why"), str) else None),
+                    intent=intent_tag,
+                    why_tag=why_tag,
                 )
                 item["_path_selection"] = path_decision.to_dict()
                 selected_backend = path_decision.selected_backend
@@ -525,6 +572,16 @@ class ResonanceAgent:
                 "fallback_from": None,
                 "fallback_to": None,
             }
+        elif derived_module is not None:
+            derived_output = self._call_derived_module(item, derived_module.to_dict())
+            if derived_output:
+                final_output = derived_output
+            else:
+                try:
+                    final_output = self._call_llm(item)
+                except Exception as exc:
+                    logger.warning("ResonanceAgent: derived module fallback LLM call failed: %s", exc)
+                    final_output = item.get("_copilot_output", {}).get("pre_prompt", "")
         elif cooperative_result and cooperative_result.success and cooperative_result.final_answer:
             final_output = cooperative_result.final_answer
             participant_backends = [p.get("backend") for p in cooperative_result.participants]
@@ -648,17 +705,50 @@ class ResonanceAgent:
             try:
                 path_meta = item.get("_path_selection") or {}
                 route_key = path_meta.get("route_key")
-                if route_key and route_key != "reuse":
+                if route_key and route_key != "reuse" and not str(route_key).startswith("derived>"):
                     coalition = self._coalition_registry.update_after_run(
                         route_key=route_key,
                         quality_score=float(item.get("_resonance_score", 0.5) or 0.5),
                         success=bool(final_output),
-                        intent=str(item.get("intent") or item.get("_intent") or "") or None,
-                        why_tag=(item.get("_why_strategy") or {}).get("micro_trigger") or (item.get("_why") if isinstance(item.get("_why"), str) else None),
+                        intent=intent_tag,
+                        why_tag=why_tag,
                     )
                     item["_coalition"] = coalition.to_dict()
             except Exception as exc:
                 logger.debug("ResonanceAgent: coalition update failed: %s", exc)
+
+        if self._derived_module_registry and final_output:
+            try:
+                quality_score = float(item.get("_resonance_score", 0.5) or 0.5)
+                existing_module = item.get("_derived_module") or {}
+                if existing_module.get("module_id"):
+                    updated_module = self._derived_module_registry.mark_used(
+                        existing_module["module_id"],
+                        quality_score=quality_score,
+                        success=bool(final_output),
+                    )
+                    if updated_module is not None:
+                        item["_derived_module"] = updated_module.to_dict()
+                else:
+                    path_meta = item.get("_path_selection") or {}
+                    route_key = path_meta.get("route_key") or ""
+                    cooperative_like = ">" in route_key and route_key.count(">") >= 2
+                    if cooperative_like and quality_score >= GRAPH_DERIVED_MODULE_MIN_QUALITY:
+                        parent_coalition_id = ((item.get("_coalition") or {}).get("coalition_id") or route_key.replace(">", "-"))
+                        preferred_backend = "local" if "local" in available_backends else (available_backends[0] if available_backends else "local")
+                        module = self._derived_module_registry.create_or_update_from_success(
+                            parent_coalition_id=parent_coalition_id,
+                            source_route_key=route_key,
+                            domain=intent_tag or "generic",
+                            task_type=why_tag or "generic",
+                            preferred_backend=preferred_backend,
+                            policy_type="prompt_policy",
+                            policy_text=self._build_derived_policy(item, final_output, route_key=route_key),
+                            quality_score=quality_score,
+                        )
+                        item["_derived_module"] = module.to_dict()
+            except Exception as exc:
+                logger.debug("ResonanceAgent: derived module update failed: %s", exc)
 
         result = self._build_output(item, final_output, generation_time, cycle_id)
         # Cache the pipeline item so feedback() can look up the real
@@ -717,6 +807,81 @@ class ResonanceAgent:
             "fallback_to": None,
         }
         return copilot.get("pre_prompt") or "ответь по существу"
+
+    def _intent_tag(self, item: dict) -> str | None:
+        intent = item.get("_intent", item.get("intent"))
+        if isinstance(intent, dict):
+            value = intent.get("type") or intent.get("intent")
+            return str(value).strip() if value else None
+        return str(intent).strip() if intent else None
+
+    def _why_tag(self, item: dict) -> str | None:
+        strategy = item.get("_why_strategy") or {}
+        if isinstance(strategy, dict):
+            value = strategy.get("micro_trigger") or strategy.get("strategy")
+            if value:
+                return str(value).strip()
+        why = item.get("_why")
+        if isinstance(why, dict):
+            value = why.get("reason") or why.get("why")
+            if value:
+                return str(value).strip()
+        return str(why).strip() if isinstance(why, str) and why else None
+
+    def _build_derived_policy(self, item: dict, final_output: str, *, route_key: str) -> str:
+        intent_tag = self._intent_tag(item) or "generic"
+        why_tag = self._why_tag(item) or "generic"
+        thread_context = item.get("thread_context") or self._orientation or ""
+        style_example = (final_output or "").strip()
+        if len(style_example) > 400:
+            style_example = style_example[:400].rstrip() + "..."
+        parts = [
+            "Ð Ð¾Ð»ÑŒ: derived micro-module.",
+            "ÐžÑ‚Ð²ÐµÑ‡Ð°Ð¹ Ð½Ð° Ð²Ð¾Ð¿Ñ€Ð¾Ñ ÑÐ¾Ð±ÐµÑÐµÐ´Ð¾Ð²Ð°Ð½Ð¸Ñ ÐºÐ¾Ñ€Ð¾Ñ‚ÐºÐ¾, Ð¿Ð¾ ÑÑƒÑ‰ÐµÑÑ‚Ð²Ñƒ Ð¸ Ð±ÐµÐ· Ð²Ð¾Ð´Ñ‹.",
+            "ÐÐµ Ð²Ñ‹Ð´ÑƒÐ¼Ñ‹Ð²Ð°Ð¹ Ñ†Ð¸Ñ„Ñ€Ñ‹, Ð¿Ñ€Ð¾ÐµÐºÑ‚Ñ‹, ÐºÐµÐ¹ÑÑ‹ Ð¸ Ñ„Ð°ÐºÑ‚Ñ‹.",
+            "Ð¡Ð¾Ñ…Ñ€Ð°Ð½ÑÐ¹ ÑÐ²ÑÐ·ÑŒ Ñ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð¼, why-ÐºÐ¾Ð½Ñ‚ÐµÐºÑÑ‚Ð¾Ð¼ Ð¸ Ð½Ð¸Ñ‚ÑŒÑŽ Ñ€Ð°Ð·Ð³Ð¾Ð²Ð¾Ñ€Ð°.",
+            f"Ð”Ð¾Ð¼ÐµÐ½: {intent_tag}.",
+            f"Ð¢Ð¸Ð¿ Ð·Ð°Ð´Ð°Ñ‡Ð¸: {why_tag}.",
+            f"Ð Ð¾Ð´Ð¸Ñ‚ÐµÐ»ÑŒÑÐºÐ¸Ð¹ Ð¼Ð°Ñ€ÑˆÑ€ÑƒÑ‚: {route_key}.",
+        ]
+        if thread_context:
+            parts.append(f"ÐšÐ¾Ð½Ñ‚ÐµÐºÑÑ‚ Ñ€Ð°Ð·Ð³Ð¾Ð²Ð¾Ñ€Ð°:\\n{thread_context}")
+        if style_example:
+            parts.append(f"ÐžÑ€Ð¸ÐµÐ½Ñ‚Ð¸Ñ€ Ð¿Ð¾ ÑÑ‚Ð¸Ð»ÑŽ ÑƒÐ´Ð°Ñ‡Ð½Ð¾Ð³Ð¾ Ð¾Ñ‚Ð²ÐµÑ‚Ð°:\\n{style_example}")
+        return "\\n\\n".join(parts)
+
+    def _call_derived_module(self, item: dict, module_meta: dict) -> str | None:
+        if self._llm_backend is None or not hasattr(self._llm_backend, "backends"):
+            return None
+        backend_name = str(module_meta.get("preferred_backend") or "local")
+        backend = getattr(self._llm_backend, "backends", {}).get(backend_name)
+        if backend is None:
+            return None
+        system_prompt = str(module_meta.get("policy_text") or "").strip()
+        if not system_prompt:
+            return None
+        prior_answer = item.get("_graph_prior_answer")
+        if prior_answer:
+            system_prompt += f"\\n\\nBase draft from memory:\\n{prior_answer}"
+        response = backend.generate(
+            messages=[{"role": "user", "content": item.get("text", "")}],
+            system_prompt=system_prompt,
+            temperature=TEMPERATURE,
+            max_tokens=MAX_TOKENS,
+            metadata={
+                "cycle_id": item.get("_cycle_id"),
+                "source": "derived_module",
+                "module_id": module_meta.get("module_id"),
+            },
+        )
+        if not response.ok:
+            return None
+        response_dict = response.to_dict()
+        response_dict["provider"] = "derived_module"
+        response_dict["model"] = str(module_meta.get("module_id") or response.model)
+        response_dict["derived_backend"] = backend_name
+        item["_llm_backend"] = response_dict
+        return response.text
 
     def _build_system_prompt(self, item: dict) -> str:
         """Assemble the full LLM system prompt from all pipeline stages."""
@@ -818,6 +983,7 @@ class ResonanceAgent:
         graph_meta = item.get("_graph_runtime") or {}
         trail_meta = item.get("_trail_route") or {}
         coalition_meta = item.get("_coalition") or {}
+        derived_meta = item.get("_derived_module") or {}
         fallback_route_key = (
             "reuse"
             if graph_meta.get("mode") == "reuse"
@@ -873,6 +1039,10 @@ class ResonanceAgent:
             "coalition_used":  bool(coalition_meta),
             "coalition_route_key": coalition_meta.get("route_key"),
             "coalition_trust_score": coalition_meta.get("trust_score"),
+            "derived_module_used": bool(derived_meta),
+            "derived_module_id": derived_meta.get("module_id"),
+            "derived_module_parent_coalition": derived_meta.get("parent_coalition_id"),
+            "derived_module_backend": ((item.get("_llm_backend") or {}).get("derived_backend") or derived_meta.get("preferred_backend")),
             "cooperative_used": bool(item.get("_cooperative")),
             "cooperative_route_key": (item.get("_cooperative") or {}).get("route_key"),
             "cooperative_participants": (item.get("_cooperative") or {}).get("participants"),

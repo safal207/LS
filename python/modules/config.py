@@ -50,6 +50,10 @@ GRAPH_TRAIL_DECAY = float(os.getenv("GRAPH_TRAIL_DECAY", _get(["graph", "trail",
 GRAPH_TRAIL_EXPLORATION_RATE = float(os.getenv("GRAPH_TRAIL_EXPLORATION_RATE", _get(["graph", "trail", "exploration_rate"], 0.10)))
 GRAPH_COALITION_ENABLED = str(os.getenv("GRAPH_COALITION_ENABLED", _get(["graph", "coalitions", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
 GRAPH_COALITION_STORE_PATH = os.getenv("GRAPH_COALITION_STORE_PATH", _get(["graph", "coalitions", "store_path"], "data/graph_memory/coalitions.json"))
+GRAPH_DERIVED_MODULE_ENABLED = str(os.getenv("GRAPH_DERIVED_MODULE_ENABLED", _get(["graph", "derived_modules", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GRAPH_DERIVED_MODULE_STORE_PATH = os.getenv("GRAPH_DERIVED_MODULE_STORE_PATH", _get(["graph", "derived_modules", "store_path"], "data/graph_memory/derived_modules.json"))
+GRAPH_DERIVED_MODULE_MIN_QUALITY = float(os.getenv("GRAPH_DERIVED_MODULE_MIN_QUALITY", _get(["graph", "derived_modules", "min_quality"], 0.72)))
+GRAPH_DERIVED_MODULE_MIN_TRUST = float(os.getenv("GRAPH_DERIVED_MODULE_MIN_TRUST", _get(["graph", "derived_modules", "min_trust"], 0.62)))
 
 # Audio settings
 AUDIO_CHUNK_DURATION = _get(["audio", "chunk_duration"], 3.0)

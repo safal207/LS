@@ -111,8 +111,37 @@ class DerivedModule:
     domain: str
     task_type: str
     policy_type: str
+    policy_text: str = ""
+    preferred_backend: str = "local"
+    source_route_key: str = ""
+    trust_score: float = 0.0
     quality_score: float = 0.0
     usage_count: int = 0
+    runs: int = 0
+    successes: int = 0
+    last_used_at: Optional[str] = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "DerivedModule":
+        return cls(
+            module_id=str(data.get("module_id", "")),
+            parent_coalition_id=str(data.get("parent_coalition_id", "")),
+            domain=str(data.get("domain", "")),
+            task_type=str(data.get("task_type", "")),
+            policy_type=str(data.get("policy_type", "")),
+            policy_text=str(data.get("policy_text", "")),
+            preferred_backend=str(data.get("preferred_backend", "local") or "local"),
+            source_route_key=str(data.get("source_route_key", "")),
+            trust_score=float(data.get("trust_score", 0.0) or 0.0),
+            quality_score=float(data.get("quality_score", 0.0) or 0.0),
+            usage_count=int(data.get("usage_count", 0) or 0),
+            runs=int(data.get("runs", 0) or 0),
+            successes=int(data.get("successes", 0) or 0),
+            last_used_at=data.get("last_used_at"),
+        )
 
 
 @dataclass

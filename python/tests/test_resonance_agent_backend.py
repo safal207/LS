@@ -163,3 +163,63 @@ def test_resonance_agent_updates_coalition_registry(monkeypatch):
         assert result["coalition_used"] is True
         assert result["coalition_route_key"] == "full_run>local>gonka>mimo"
         assert result["coalition_trust_score"] is not None
+
+
+def test_resonance_agent_uses_derived_module_when_available(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_ENABLED", False)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_ENABLED", False)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_ENABLED", True)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_STORE_PATH", str(Path(tmpdir) / "derived.json"))
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_QUALITY", 0.7)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_TRUST", 0.6)
+
+        from graph.derived_module_registry import DerivedModuleRegistry
+
+        registry = DerivedModuleRegistry(Path(tmpdir) / "derived.json")
+        registry.create_or_update_from_success(
+            parent_coalition_id="coalition-local-gonka-mimo",
+            source_route_key="full_run>local>gonka>mimo",
+            domain="unknown",
+            task_type="evaluate_reasoning",
+            preferred_backend="local",
+            policy_type="prompt_policy",
+            policy_text="Use concise answers and do not invent facts.",
+            quality_score=0.84,
+        )
+
+        agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+        result = agent.process_text("Почему вы выбрали этот стек?")
+
+        assert result["derived_module_used"] is True
+        assert result["llm_provider"] == "derived_module"
+        assert result["derived_module_backend"] == "local"
+
+
+def test_resonance_agent_creates_derived_module_from_successful_cooperative_run(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_ENABLED", False)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_ENABLED", True)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_STORE_PATH", str(Path(tmpdir) / "coalitions.json"))
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_ENABLED", True)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_STORE_PATH", str(Path(tmpdir) / "derived.json"))
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_QUALITY", 0.6)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_TRUST", 0.5)
+
+        class FixedSelector:
+            def choose_route(self, **kwargs):
+                from graph.path_selector import PathSelectionDecision
+                return PathSelectionDecision(
+                    route_key="full_run>local>gonka>mimo",
+                    reason="fixed-test-route",
+                    exploration_used=False,
+                    pheromone_weight=0.0,
+                    selected_backend="cooperative",
+                )
+
+        agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+        agent._path_selector = FixedSelector()
+        result = agent.process_text("Почему вы выбрали этот стек?")
+
+        assert result["derived_module_used"] is True
+        assert result["derived_module_id"] is not None
