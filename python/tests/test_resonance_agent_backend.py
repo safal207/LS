@@ -16,12 +16,14 @@ from graph.route_stats import RouteStatsStore
 
 
 class FakeBackend:
-    provider = "gonka"
-    model = "gonka-test"
+    def __init__(self, provider="gonka", model="gonka-test", text="backend answer"):
+        self.provider = provider
+        self.model = model
+        self.text = text
 
     def generate(self, messages, system_prompt=None, temperature=None, max_tokens=None, timeout=None, metadata=None, *, stream=False, on_token=None):
         return LLMResponse(
-            text="backend answer",
+            text=self.text,
             model=self.model,
             provider=self.provider,
             latency_ms=12.5,
@@ -70,6 +72,20 @@ class FakeGraphRuntimeFullRun:
         return None
 
 
+class FakeRouter:
+    def __init__(self):
+        self.primary = "local"
+        self.fallback_chain = ["gonka", "mimo"]
+        self.backends = {
+            "local": FakeBackend(provider="local", model="local-test", text="draft answer"),
+            "gonka": FakeBackend(provider="gonka", model="gonka-test", text="critique answer"),
+            "mimo": FakeBackend(provider="mimo", model="mimo-test", text="compressed answer"),
+        }
+
+    def generate(self, *args, **kwargs):
+        return self.backends[self.primary].generate(*args, **kwargs)
+
+
 def test_resonance_agent_can_reuse_graph_answer_without_llm_call():
     agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), graph_runtime=FakeGraphRuntime(), orientation="test")
 
@@ -97,3 +113,27 @@ def test_resonance_agent_updates_trail_stats_after_answer(monkeypatch):
         assert result["route_key"] == "full_run>gonka"
         assert stats is not None
         assert stats.runs >= 1
+
+
+def test_resonance_agent_uses_cooperative_route_metadata(monkeypatch):
+    with tempfile.TemporaryDirectory():
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_ENABLED", False)
+
+        class FixedSelector:
+            def choose_route(self, **kwargs):
+                from graph.path_selector import PathSelectionDecision
+                return PathSelectionDecision(
+                    route_key="full_run>local>gonka>mimo",
+                    reason="fixed-test-route",
+                    exploration_used=False,
+                    pheromone_weight=0.0,
+                    selected_backend="cooperative",
+                )
+
+        agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+        agent._path_selector = FixedSelector()
+        result = agent.process_text("Почему вы выбрали этот стек?")
+
+        assert result["cooperative_used"] is True
+        assert result["cooperative_route_key"] == "full_run>local>gonka>mimo"
+        assert isinstance(result["cooperative_participants"], list)

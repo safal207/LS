@@ -1,4 +1,5 @@
 from .memory_store import MemoryGraphStore
+from .cooperative_engine import CooperativeExecutionResult, CooperativeGraphEngine
 from .models import (
     Coalition,
     ContributionRecord,
@@ -18,6 +19,8 @@ from .trail_updater import PathExecutionRecord, TrailUpdater, compute_route_rewa
 
 __all__ = [
     "Coalition",
+    "CooperativeExecutionResult",
+    "CooperativeGraphEngine",
     "ContributionRecord",
     "DerivedModule",
     "GraphCandidate",

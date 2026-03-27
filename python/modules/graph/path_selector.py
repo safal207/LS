@@ -49,10 +49,15 @@ class PathSelector:
             )
 
         candidates: list[tuple[str, str, RouteStats]] = []
+        backend_set = set(available_backends)
         for backend in available_backends:
             route_key = f"{graph_mode}>{backend}"
             stats = self.store.get_route(route_key) or RouteStats(route_key=route_key)
             candidates.append((route_key, backend, stats))
+        if {"local", "gonka", "mimo"}.issubset(backend_set):
+            cooperative_route = f"{graph_mode}>local>gonka>mimo"
+            cooperative_stats = self.store.get_route(cooperative_route) or RouteStats(route_key=cooperative_route)
+            candidates.append((cooperative_route, "cooperative", cooperative_stats))
 
         if not candidates:
             route_key = graph_mode or "full_run"
@@ -70,7 +75,9 @@ class PathSelector:
         else:
             candidates.sort(key=lambda item: (item[2].pheromone_weight, item[2].avg_quality), reverse=True)
             route_key, backend, stats = candidates[0]
-            if stats.runs == 0 and default_backend:
+            if stats.runs == 0 and backend == "cooperative":
+                reason = "default-cooperative"
+            elif stats.runs == 0 and default_backend:
                 route_key = f"{graph_mode}>{default_backend}"
                 backend = default_backend
                 stats = self.store.get_route(route_key) or RouteStats(route_key=route_key)

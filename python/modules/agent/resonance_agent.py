@@ -148,6 +148,7 @@ except Exception:
     _WhyLayer = None  # type: ignore[assignment]
 
 try:
+    from graph import CooperativeGraphEngine as _CooperativeGraphEngine
     from graph import GraphMemoryRuntime as _GraphMemoryRuntime
     from graph import PathExecutionRecord as _PathExecutionRecord
     from graph import PathSelector as _PathSelector
@@ -156,6 +157,7 @@ try:
     _GRAPH_OK = True
 except Exception:
     _GRAPH_OK = False
+    _CooperativeGraphEngine = None  # type: ignore[assignment]
     _GraphMemoryRuntime = None  # type: ignore[assignment]
     _PathExecutionRecord = None  # type: ignore[assignment]
     _PathSelector = None  # type: ignore[assignment]
@@ -205,6 +207,11 @@ class ResonanceAgent:
         self._llm_backend = llm_backend
         self._graph_runtime = graph_runtime or (
             _GraphMemoryRuntime() if _GRAPH_OK and _GraphMemoryRuntime else None
+        )
+        self._cooperative_engine = (
+            _CooperativeGraphEngine(getattr(llm_backend, "backends", {}))
+            if _GRAPH_OK and _CooperativeGraphEngine and llm_backend is not None and hasattr(llm_backend, "backends")
+            else None
         )
         self._route_stats_store = (
             _RouteStatsStore(GRAPH_TRAIL_STORE_PATH)
@@ -473,6 +480,23 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.debug("ResonanceAgent: path selector failed: %s", exc)
 
+        cooperative_result = None
+        if (
+            self._cooperative_engine
+            and path_decision
+            and path_decision.route_key in {"full_run>local>gonka>mimo", "refine>local>gonka>mimo"}
+        ):
+            try:
+                cooperative_result = self._cooperative_engine.run(
+                    item,
+                    path_decision.route_key,
+                    thread_context=item.get("thread_context") or self._orientation or None,
+                )
+                item["_cooperative"] = cooperative_result.to_dict()
+            except Exception as exc:
+                logger.debug("ResonanceAgent: cooperative engine failed: %s", exc)
+                cooperative_result = None
+
         # Phase 2 — build system prompt and call LLM
         t0 = time.perf_counter()
         if graph_decision and graph_decision.mode == "reuse" and graph_decision.prior_answer:
@@ -485,6 +509,19 @@ class ResonanceAgent:
                 "was_fallback_used": False,
                 "fallback_from": None,
                 "fallback_to": None,
+            }
+        elif cooperative_result and cooperative_result.success and cooperative_result.final_answer:
+            final_output = cooperative_result.final_answer
+            participant_backends = [p.get("backend") for p in cooperative_result.participants]
+            item["_llm_backend"] = {
+                "provider": "cooperative",
+                "model": cooperative_result.route_key,
+                "latency_ms": 0.0,
+                "error": None,
+                "was_fallback_used": False,
+                "fallback_from": None,
+                "fallback_to": None,
+                "participants": participant_backends,
             }
         else:
             try:
@@ -529,16 +566,26 @@ class ResonanceAgent:
             try:
                 llm_meta = item.get("_llm_backend") or {}
                 contributors = []
-                provider = llm_meta.get("provider")
-                model = llm_meta.get("model")
-                if provider or model:
-                    contributors.append(
-                        {
-                            "backend": provider or "unknown",
-                            "model": model or "",
-                            "role": "answer",
-                        }
-                    )
+                if cooperative_result and cooperative_result.participants:
+                    for participant in cooperative_result.participants:
+                        contributors.append(
+                            {
+                                "backend": participant.get("backend", "unknown"),
+                                "model": participant.get("model", ""),
+                                "role": participant.get("role", "answer"),
+                            }
+                        )
+                else:
+                    provider = llm_meta.get("provider")
+                    model = llm_meta.get("model")
+                    if provider or model:
+                        contributors.append(
+                            {
+                                "backend": provider or "unknown",
+                                "model": model or "",
+                                "role": "answer",
+                            }
+                        )
                 self._graph_runtime.remember_success(
                     item,
                     answer_text=final_output,
@@ -788,6 +835,11 @@ class ResonanceAgent:
             "exploration_used": path_meta.get("exploration_used", False),
             "trail_updated":   bool(trail_meta),
             "route_reward":    item.get("_trail_reward"),
+            "cooperative_used": bool(item.get("_cooperative")),
+            "cooperative_route_key": (item.get("_cooperative") or {}).get("route_key"),
+            "cooperative_participants": (item.get("_cooperative") or {}).get("participants"),
+            "cooperative_success": (item.get("_cooperative") or {}).get("success", False),
+            "cooperative_final_source": ((item.get("_cooperative") or {}).get("metadata") or {}).get("final_source"),
             "feedback":        None,
             # Resonance
             "resonance_score":  item.get("_resonance_score", 0.5),
