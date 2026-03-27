@@ -306,3 +306,36 @@ def test_resonance_agent_exposes_observer_metadata(monkeypatch):
 
     assert result["observer_status"] == "watch"
     assert result["observer_summary"]["trend"] == "degrading"
+
+
+def test_resonance_agent_uses_network_control_center(monkeypatch):
+    class FakeControlCenter:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def create_plan(self, item, *, thread_context=None, intent=None, why_tag=None):
+            return type(
+                "Plan",
+                (),
+                {
+                    "to_dict": lambda self_: {
+                        "mode": "full_run",
+                        "route_key": "full_run>local",
+                        "reason": "control-center-test",
+                        "confidence": 0.7,
+                    },
+                    "graph_decision": None,
+                    "derived_module": None,
+                    "path_decision": None,
+                    "adequacy_report": {"status": "stable", "risks": [], "recommendations": []},
+                    "observer_report": {"status": "stable", "summary": {"trend": "stable"}},
+                    "available_backends": ["local"],
+                },
+            )()
+
+    monkeypatch.setattr("modules.agent.resonance_agent._NetworkControlCenter", FakeControlCenter)
+    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(provider="local", model="local-test", text="ok"), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+    result = agent.process_text("Почему вы выбрали этот стек?")
+
+    assert result["orientation_reason"] == "control-center-test"
+    assert result["observer_status"] == "stable"

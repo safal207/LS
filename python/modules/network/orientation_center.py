@@ -31,15 +31,25 @@ class OrientationCenter:
         self.derived_min_quality = derived_min_quality
         self.derived_min_trust = derived_min_trust
 
-    def decide(self, item: dict[str, Any], *, thread_context: str | None = None, intent: str | None = None, why_tag: str | None = None) -> NetworkExecutionPlan:
+    def decide(
+        self,
+        item: dict[str, Any],
+        *,
+        thread_context: str | None = None,
+        intent: str | None = None,
+        why_tag: str | None = None,
+        observer_report: dict[str, Any] | None = None,
+    ) -> NetworkExecutionPlan:
         graph_decision = None
         graph_meta = None
-        observer_meta = None
+        observer_meta = observer_report
         adequacy_meta = None
         if self.graph_runtime is not None:
             graph_decision = self.graph_runtime.process(item, thread_context=thread_context)
             graph_meta = graph_decision.to_dict()
-        if self.observer_core is not None:
+        if observer_meta is not None:
+            adequacy_meta = observer_meta.get("adequacy")
+        elif self.observer_core is not None:
             observer_meta = self.observer_core.evaluate().to_dict()
             adequacy_meta = observer_meta.get("adequacy")
         elif self.adequacy_core is not None:

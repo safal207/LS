@@ -182,12 +182,14 @@ except Exception:
 
 try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
+    from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
     from network.orientation_center import OrientationCenter as _NetworkOrientationCenter
     _NETWORK_OK = True
 except Exception:
     _NETWORK_OK = False
     _CognitiveAdequacyCore = None  # type: ignore[assignment]
+    _NetworkControlCenter = None  # type: ignore[assignment]
     _NetworkObserver = None  # type: ignore[assignment]
     _NetworkOrientationCenter = None  # type: ignore[assignment]
 
@@ -300,6 +302,14 @@ class ResonanceAgent:
             if _NETWORK_OK and _NetworkOrientationCenter and (
                 self._graph_runtime or self._path_selector or self._derived_module_registry
             )
+            else None
+        )
+        self._control_center = (
+            _NetworkControlCenter(
+                orientation_center=self._orientation_center,
+                observer_core=(_NetworkObserver() if _NETWORK_OK and _NetworkObserver else None),
+            )
+            if _NETWORK_OK and _NetworkControlCenter and self._orientation_center
             else None
         )
         self._orientation = orientation
@@ -505,9 +515,9 @@ class ResonanceAgent:
         intent_tag = self._intent_tag(item)
         why_tag = self._why_tag(item)
         orientation_plan = None
-        if self._orientation_center:
+        if self._control_center:
             try:
-                orientation_plan = self._orientation_center.decide(
+                orientation_plan = self._control_center.create_plan(
                     item,
                     thread_context=item.get("thread_context") or self._orientation or None,
                     intent=intent_tag,
@@ -542,7 +552,7 @@ class ResonanceAgent:
                     graph_decision = _PlanGraphDecision(graph_meta)
                 available_backends = orientation_plan.available_backends or []
             except Exception as exc:
-                logger.debug("ResonanceAgent: orientation center failed: %s", exc)
+                logger.debug("ResonanceAgent: network control center failed: %s", exc)
 
         if not available_backends and self._llm_backend is not None and hasattr(self._llm_backend, "backends"):
             available_backends = [
