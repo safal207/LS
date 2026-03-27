@@ -7,6 +7,7 @@ This document defines the next control layer above graph memory, trail routing, 
 Vocabulary companion:
 
 - `docs/NETWORK_VOCABULARY.md`
+- `docs/NETWORK_OPERATIONS.md`
 
 The goal is to give the network:
 
