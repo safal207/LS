@@ -154,6 +154,17 @@ Current MVP behavior:
 - blocks easy promotion paths and forces more exploration when the network is in `intervene`
 - feeds adequacy metadata back into `OrientationCenter`
 
+### Observer Report
+
+The current control layer now also supports a unified observer view:
+
+- `RetrospectiveCouncil`
+- `TemporalTrajectoryLayer`
+- `CognitiveAdequacyCore`
+
+These are aggregated into one `ObserverReport`, so routing code does not need
+to manually reconcile three different reports.
+
 ## New Data Objects
 
 ### NetworkExecutionPlan

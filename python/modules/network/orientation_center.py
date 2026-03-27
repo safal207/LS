@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .cognitive_adequacy import CognitiveAdequacyCore
+from .observer import NetworkObserver
 from .models import NetworkExecutionPlan
 
 
@@ -17,6 +18,7 @@ class OrientationCenter:
         derived_module_registry=None,
         llm_backend=None,
         adequacy_core: CognitiveAdequacyCore | None = None,
+        observer_core: NetworkObserver | None = None,
         derived_min_quality: float = 0.72,
         derived_min_trust: float = 0.62,
     ) -> None:
@@ -25,17 +27,22 @@ class OrientationCenter:
         self.derived_module_registry = derived_module_registry
         self.llm_backend = llm_backend
         self.adequacy_core = adequacy_core
+        self.observer_core = observer_core
         self.derived_min_quality = derived_min_quality
         self.derived_min_trust = derived_min_trust
 
     def decide(self, item: dict[str, Any], *, thread_context: str | None = None, intent: str | None = None, why_tag: str | None = None) -> NetworkExecutionPlan:
         graph_decision = None
         graph_meta = None
+        observer_meta = None
         adequacy_meta = None
         if self.graph_runtime is not None:
             graph_decision = self.graph_runtime.process(item, thread_context=thread_context)
             graph_meta = graph_decision.to_dict()
-        if self.adequacy_core is not None:
+        if self.observer_core is not None:
+            observer_meta = self.observer_core.evaluate().to_dict()
+            adequacy_meta = observer_meta.get("adequacy")
+        elif self.adequacy_core is not None:
             adequacy_meta = self.adequacy_core.evaluate().to_dict()
 
         available_backends: list[str] = []
@@ -66,6 +73,7 @@ class OrientationCenter:
                 confidence=float(graph_decision.similarity or 0.0),
                 graph_decision=graph_meta,
                 adequacy_report=adequacy_meta,
+                observer_report=observer_meta,
                 available_backends=available_backends,
             )
 
@@ -92,6 +100,7 @@ class OrientationCenter:
                 graph_decision=graph_meta,
                 derived_module=module_meta,
                 adequacy_report=adequacy_meta,
+                observer_report=observer_meta,
                 available_backends=available_backends,
             )
 
@@ -122,6 +131,7 @@ class OrientationCenter:
                 graph_decision=graph_meta,
                 path_decision=path_meta,
                 adequacy_report=adequacy_meta,
+                observer_report=observer_meta,
                 available_backends=available_backends,
             )
 
@@ -136,5 +146,6 @@ class OrientationCenter:
             confidence=float(graph_decision.similarity or 0.0) if graph_decision is not None else 0.0,
             graph_decision=graph_meta,
             adequacy_report=adequacy_meta,
+            observer_report=observer_meta,
             available_backends=available_backends,
         )

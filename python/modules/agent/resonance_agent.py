@@ -182,11 +182,13 @@ except Exception:
 
 try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
+    from network.observer import NetworkObserver as _NetworkObserver
     from network.orientation_center import OrientationCenter as _NetworkOrientationCenter
     _NETWORK_OK = True
 except Exception:
     _NETWORK_OK = False
     _CognitiveAdequacyCore = None  # type: ignore[assignment]
+    _NetworkObserver = None  # type: ignore[assignment]
     _NetworkOrientationCenter = None  # type: ignore[assignment]
 
 
@@ -291,6 +293,7 @@ class ResonanceAgent:
                 derived_module_registry=self._derived_module_registry,
                 llm_backend=self._llm_backend,
                 adequacy_core=(_CognitiveAdequacyCore() if _NETWORK_OK and _CognitiveAdequacyCore else None),
+                observer_core=(_NetworkObserver() if _NETWORK_OK and _NetworkObserver else None),
                 derived_min_quality=GRAPH_DERIVED_MODULE_MIN_QUALITY,
                 derived_min_trust=GRAPH_DERIVED_MODULE_MIN_TRUST,
             )
@@ -523,6 +526,8 @@ class ResonanceAgent:
                     item["_path_selection"] = orientation_plan.path_decision
                 if orientation_plan.adequacy_report:
                     item["_adequacy_report"] = orientation_plan.adequacy_report
+                if orientation_plan.observer_report:
+                    item["_observer_report"] = orientation_plan.observer_report
                 graph_meta = orientation_plan.graph_decision or {}
                 graph_mode = graph_meta.get("mode")
                 if graph_mode:
@@ -1056,6 +1061,7 @@ class ResonanceAgent:
         care_meta = item.get("_care_cycle") or {}
         orientation_meta = item.get("_network_plan") or {}
         adequacy_meta = item.get("_adequacy_report") or {}
+        observer_meta = item.get("_observer_report") or {}
         fallback_route_key = (
             "reuse"
             if graph_meta.get("mode") == "reuse"
@@ -1108,6 +1114,8 @@ class ResonanceAgent:
             "adequacy_status": adequacy_meta.get("status"),
             "adequacy_risks": adequacy_meta.get("risks"),
             "adequacy_recommendations": adequacy_meta.get("recommendations"),
+            "observer_status": observer_meta.get("status"),
+            "observer_summary": observer_meta.get("summary"),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),

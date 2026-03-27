@@ -18,6 +18,7 @@ class NetworkExecutionPlan:
     path_decision: Optional[dict[str, Any]] = None
     derived_module: Optional[dict[str, Any]] = None
     adequacy_report: Optional[dict[str, Any]] = None
+    observer_report: Optional[dict[str, Any]] = None
     available_backends: list[str] | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -92,6 +93,18 @@ class AdequacyReport:
     recommendations: list[str]
     observer_summary: dict[str, Any]
     tuning_fork: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class ObserverReport:
+    retrospective: dict[str, Any]
+    trajectory: dict[str, Any]
+    adequacy: dict[str, Any]
+    status: str
+    summary: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

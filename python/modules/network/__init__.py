@@ -1,6 +1,7 @@
 from .cognitive_adequacy import CognitiveAdequacyCore
 from .future_planner import FuturePlanner
-from .models import AdequacyReport, FutureScenario, NetworkExecutionPlan, NetworkSnapshot, TrajectoryRecord, TuningFork
+from .models import AdequacyReport, FutureScenario, NetworkExecutionPlan, NetworkSnapshot, ObserverReport, TrajectoryRecord, TuningFork
+from .observer import NetworkObserver
 from .orientation_center import OrientationCenter
 from .temporal_trajectory import TemporalTrajectoryLayer, TemporalTrajectoryResult
 from .trajectory_analyzer import TrajectoryAnalyzer
@@ -12,6 +13,8 @@ __all__ = [
     "FuturePlanner",
     "FutureScenario",
     "NetworkExecutionPlan",
+    "NetworkObserver",
+    "ObserverReport",
     "NetworkSnapshot",
     "OrientationCenter",
     "TemporalTrajectoryLayer",

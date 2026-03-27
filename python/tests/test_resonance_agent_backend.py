@@ -281,3 +281,28 @@ def test_resonance_agent_exposes_adequacy_metadata(monkeypatch):
 
     assert result["adequacy_status"] == "watch"
     assert "route dominance risk" in (result["adequacy_risks"] or [])
+
+
+def test_resonance_agent_exposes_observer_metadata(monkeypatch):
+    class FakeObserver:
+        def evaluate(self):
+            return type(
+                "Observer",
+                (),
+                {
+                    "to_dict": lambda self_: {
+                        "status": "watch",
+                        "summary": {"trend": "degrading", "stale_modules": 2},
+                        "adequacy": {"status": "watch", "risks": ["route dominance risk"], "recommendations": ["increase exploration"]},
+                        "retrospective": {"weak_routes": ["full_run>cloud"]},
+                        "trajectory": {"record": {"trend": "degrading"}},
+                    }
+                },
+            )()
+
+    monkeypatch.setattr("modules.agent.resonance_agent._NetworkObserver", FakeObserver)
+    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+    result = agent.process_text("Почему вы выбрали этот стек?")
+
+    assert result["observer_status"] == "watch"
+    assert result["observer_summary"]["trend"] == "degrading"

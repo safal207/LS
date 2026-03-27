@@ -67,6 +67,23 @@ class FakeAdequacyCore:
         )()
 
 
+class FakeObserverCore:
+    def evaluate(self):
+        return type(
+            "Observer",
+            (),
+            {
+                "to_dict": lambda self_: {
+                    "status": "watch",
+                    "summary": {"trend": "degrading", "stale_modules": 1},
+                    "adequacy": {"status": "watch", "risks": ["route dominance risk"], "recommendations": ["increase exploration"]},
+                    "retrospective": {"weak_routes": ["full_run>cloud"]},
+                    "trajectory": {"record": {"trend": "degrading"}},
+                }
+            },
+        )()
+
+
 def test_orientation_center_prefers_reuse():
     center = OrientationCenter(
         graph_runtime=FakeGraphRuntime(
@@ -138,3 +155,18 @@ def test_orientation_center_blocks_derived_module_when_adequacy_intervenes(tmp_p
     assert plan.adequacy_report is not None
     assert plan.adequacy_report["status"] == "intervene"
     assert plan.route_key in {"full_run>local>gonka>mimo", "full_run>local", "full_run>gonka", "full_run>mimo"}
+
+
+def test_orientation_center_surfaces_observer_report(tmp_path):
+    center = OrientationCenter(
+        graph_runtime=FakeGraphRuntime(FakeGraphDecision(mode="full_run", reason="no-match")),
+        path_selector=PathSelector(RouteStatsStore(tmp_path / "routes.json"), exploration_rate=0.0),
+        llm_backend=FakeRouter(),
+        observer_core=FakeObserverCore(),
+    )
+
+    plan = center.decide({"text": "Почему вы выбрали этот стек?"}, intent="technical_reasoning", why_tag="evaluate_reasoning")
+
+    assert plan.observer_report is not None
+    assert plan.observer_report["status"] == "watch"
+    assert plan.adequacy_report["status"] == "watch"
