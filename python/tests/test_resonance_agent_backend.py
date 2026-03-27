@@ -345,3 +345,32 @@ def test_resonance_agent_uses_network_control_center(monkeypatch):
     assert result["observer_status"] == "stable"
     assert result["need_priority"] == "balanced"
     assert result["goal_style"] == "structured"
+
+
+def test_resonance_agent_system_prompt_uses_goal_vector_guidance() -> None:
+    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(provider="local", model="local-test", text="ok"), orientation="test")
+    item = {
+        "text": "Почему вы выбрали этот стек?",
+        "_network_plan": {
+            "need_profile": {"priority": "safe_correction", "route_bias": "explore_and_verify", "compute_budget": 0.9},
+            "goal_vector": {
+                "style": "careful",
+                "strategy_bias": "verify_first",
+                "target_relevance": 0.8,
+                "target_thread_alignment": 0.8,
+                "target_hallucination_max": 0.15,
+                "target_latency_ms": 12000.0,
+            },
+        },
+        "_copilot_output": {},
+        "_graph_runtime": {},
+        "_path_selection": {},
+        "_resonance_score": 0.5,
+    }
+
+    system_prompt = agent._build_system_prompt(item)
+
+    assert "Профиль потребности сети" in system_prompt
+    assert "Целевой профиль ответа" in system_prompt
+    assert "Отвечай осторожно" in system_prompt
+    assert "точность и проверяемость важнее скорости" in system_prompt

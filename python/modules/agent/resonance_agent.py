@@ -997,6 +997,9 @@ class ResonanceAgent:
         graph = item.get("_graph_runtime") or {}
         prior_answer = item.get("_graph_prior_answer")
         path_selection = item.get("_path_selection") or {}
+        network_plan = item.get("_network_plan") or {}
+        need_profile = network_plan.get("need_profile") or {}
+        goal_vector = network_plan.get("goal_vector") or {}
         if graph.get("mode") == "refine" and prior_answer:
             parts.append(
                 "Есть похожий прошлый кейс. Используй его как черновую базу, "
@@ -1008,6 +1011,39 @@ class ResonanceAgent:
                 "Маршрут решения выбран по истории успешных путей: "
                 f"{path_selection.get('route_key')}."
             )
+        if need_profile:
+            parts.append(
+                "Профиль потребности сети: "
+                f"priority={need_profile.get('priority')}, "
+                f"route_bias={need_profile.get('route_bias')}, "
+                f"compute_budget={need_profile.get('compute_budget')}."
+            )
+        if goal_vector:
+            parts.append(
+                "Целевой профиль ответа: "
+                f"style={goal_vector.get('style')}, "
+                f"strategy_bias={goal_vector.get('strategy_bias')}, "
+                f"target_relevance={goal_vector.get('target_relevance')}, "
+                f"target_thread_alignment={goal_vector.get('target_thread_alignment')}, "
+                f"target_hallucination_max={goal_vector.get('target_hallucination_max')}, "
+                f"target_latency_ms={goal_vector.get('target_latency_ms')}."
+            )
+            style = goal_vector.get("style")
+            strategy_bias = goal_vector.get("strategy_bias")
+            if style == "concise":
+                parts.append("Отвечай кратко, плотно и без лишней воды.")
+            elif style == "careful":
+                parts.append("Отвечай осторожно, не выдумывай детали и явно держи связь с вопросом.")
+            elif style == "structured":
+                parts.append("Строй ответ структурно: решение, причина, trade-off, итог.")
+            if strategy_bias == "speed_first":
+                parts.append("Приоритет: быстрый и ясный ответ без лишних ветвлений.")
+            elif strategy_bias == "verify_first":
+                parts.append("Приоритет: точность и проверяемость важнее скорости и красноречия.")
+            elif strategy_bias == "cooperative_reasoning":
+                parts.append("Приоритет: показать рассуждение и trade-offs, а не просто вывод.")
+            elif strategy_bias == "grounded":
+                parts.append("Приоритет: grounded answer without invented metrics or fake projects.")
 
         return "\n\n".join(parts)
 
