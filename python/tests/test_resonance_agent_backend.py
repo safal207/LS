@@ -223,3 +223,38 @@ def test_resonance_agent_creates_derived_module_from_successful_cooperative_run(
 
         assert result["derived_module_used"] is True
         assert result["derived_module_id"] is not None
+
+
+def test_resonance_agent_runs_care_cycle_for_derived_module(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_ENABLED", False)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_ENABLED", False)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_ENABLED", True)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_STORE_PATH", str(Path(tmpdir) / "derived.json"))
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_QUALITY", 0.7)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_TRUST", 0.6)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_CARE_CYCLES_ENABLED", True)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_CARE_CYCLES_MIN_QUALITY", 0.68)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_CARE_CYCLES_MIN_TRUST", 0.58)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_CARE_CYCLES_RETIRE_TRUST", 0.35)
+
+        from graph.derived_module_registry import DerivedModuleRegistry
+
+        registry = DerivedModuleRegistry(Path(tmpdir) / "derived.json")
+        registry.create_or_update_from_success(
+            parent_coalition_id="coalition-local-gonka-mimo",
+            source_route_key="full_run>local>gonka>mimo",
+            domain="generic",
+            task_type="generic",
+            preferred_backend="local",
+            policy_type="prompt_policy",
+            policy_text="Use concise answers and do not invent facts.",
+            quality_score=0.84,
+        )
+
+        agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+        result = agent.process_text("Почему вы выбрали этот стек?")
+
+        assert result["care_cycle_used"] is True
+        assert result["care_cycle_action"] in {"promote", "keep", "demote", "retire"}
+        assert result["care_cycle_state"] in {"active", "review", "retired"}

@@ -68,6 +68,10 @@ import uuid
 from typing import Callable, List, Optional
 
 from config import (
+    GRAPH_CARE_CYCLES_ENABLED,
+    GRAPH_CARE_CYCLES_MIN_QUALITY,
+    GRAPH_CARE_CYCLES_MIN_TRUST,
+    GRAPH_CARE_CYCLES_RETIRE_TRUST,
     GRAPH_COALITION_ENABLED,
     GRAPH_COALITION_STORE_PATH,
     GRAPH_DERIVED_MODULE_ENABLED,
@@ -154,6 +158,7 @@ except Exception:
     _WhyLayer = None  # type: ignore[assignment]
 
 try:
+    from graph import CareCycleRunner as _CareCycleRunner
     from graph import CooperativeGraphEngine as _CooperativeGraphEngine
     from graph import CoalitionRegistry as _CoalitionRegistry
     from graph import DerivedModuleRegistry as _DerivedModuleRegistry
@@ -165,6 +170,7 @@ try:
     _GRAPH_OK = True
 except Exception:
     _GRAPH_OK = False
+    _CareCycleRunner = None  # type: ignore[assignment]
     _CooperativeGraphEngine = None  # type: ignore[assignment]
     _CoalitionRegistry = None  # type: ignore[assignment]
     _DerivedModuleRegistry = None  # type: ignore[assignment]
@@ -238,6 +244,18 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.debug("ResonanceAgent: derived module registry init failed: %s", exc)
                 self._derived_module_registry = None
+        self._care_cycle_runner = None
+        if GRAPH_CARE_CYCLES_ENABLED and self._derived_module_registry and _GRAPH_OK and _CareCycleRunner:
+            try:
+                self._care_cycle_runner = _CareCycleRunner(
+                    self._derived_module_registry,
+                    min_quality=GRAPH_CARE_CYCLES_MIN_QUALITY,
+                    min_trust=GRAPH_CARE_CYCLES_MIN_TRUST,
+                    retire_trust=GRAPH_CARE_CYCLES_RETIRE_TRUST,
+                )
+            except Exception as exc:
+                logger.debug("ResonanceAgent: care cycle init failed: %s", exc)
+                self._care_cycle_runner = None
         self._route_stats_store = (
             _RouteStatsStore(GRAPH_TRAIL_STORE_PATH)
             if (GRAPH_TRAIL_ENABLED or GRAPH_COALITION_ENABLED or GRAPH_DERIVED_MODULE_ENABLED) and _GRAPH_OK and _RouteStatsStore
@@ -750,6 +768,20 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.debug("ResonanceAgent: derived module update failed: %s", exc)
 
+        if self._care_cycle_runner:
+            try:
+                derived_meta = item.get("_derived_module") or {}
+                module_id = derived_meta.get("module_id")
+                if module_id:
+                    care_result = self._care_cycle_runner.review(module_id)
+                    if care_result is not None:
+                        item["_care_cycle"] = care_result.to_dict()
+                        refreshed = self._derived_module_registry.get_module(module_id) if self._derived_module_registry else None
+                        if refreshed is not None:
+                            item["_derived_module"] = refreshed.to_dict()
+            except Exception as exc:
+                logger.debug("ResonanceAgent: care cycle failed: %s", exc)
+
         result = self._build_output(item, final_output, generation_time, cycle_id)
         # Cache the pipeline item so feedback() can look up the real
         # resonance_score and active_rules (not the sanitised output dict).
@@ -984,6 +1016,7 @@ class ResonanceAgent:
         trail_meta = item.get("_trail_route") or {}
         coalition_meta = item.get("_coalition") or {}
         derived_meta = item.get("_derived_module") or {}
+        care_meta = item.get("_care_cycle") or {}
         fallback_route_key = (
             "reuse"
             if graph_meta.get("mode") == "reuse"
@@ -1043,6 +1076,10 @@ class ResonanceAgent:
             "derived_module_id": derived_meta.get("module_id"),
             "derived_module_parent_coalition": derived_meta.get("parent_coalition_id"),
             "derived_module_backend": ((item.get("_llm_backend") or {}).get("derived_backend") or derived_meta.get("preferred_backend")),
+            "care_cycle_used": bool(care_meta),
+            "care_cycle_action": care_meta.get("action"),
+            "care_cycle_state": care_meta.get("state"),
+            "care_cycle_reason": care_meta.get("reason"),
             "cooperative_used": bool(item.get("_cooperative")),
             "cooperative_route_key": (item.get("_cooperative") or {}).get("route_key"),
             "cooperative_participants": (item.get("_cooperative") or {}).get("participants"),

@@ -80,6 +80,11 @@ graph:
     store_path: data/graph_memory/derived_modules.json
     min_quality: 0.72
     min_trust: 0.62
+  care_cycles:
+    enabled: false
+    min_quality: 0.68
+    min_trust: 0.58
+    retire_trust: 0.35
 
 question_keywords:
   - "почему"

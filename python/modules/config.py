@@ -54,6 +54,10 @@ GRAPH_DERIVED_MODULE_ENABLED = str(os.getenv("GRAPH_DERIVED_MODULE_ENABLED", _ge
 GRAPH_DERIVED_MODULE_STORE_PATH = os.getenv("GRAPH_DERIVED_MODULE_STORE_PATH", _get(["graph", "derived_modules", "store_path"], "data/graph_memory/derived_modules.json"))
 GRAPH_DERIVED_MODULE_MIN_QUALITY = float(os.getenv("GRAPH_DERIVED_MODULE_MIN_QUALITY", _get(["graph", "derived_modules", "min_quality"], 0.72)))
 GRAPH_DERIVED_MODULE_MIN_TRUST = float(os.getenv("GRAPH_DERIVED_MODULE_MIN_TRUST", _get(["graph", "derived_modules", "min_trust"], 0.62)))
+GRAPH_CARE_CYCLES_ENABLED = str(os.getenv("GRAPH_CARE_CYCLES_ENABLED", _get(["graph", "care_cycles", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GRAPH_CARE_CYCLES_MIN_QUALITY = float(os.getenv("GRAPH_CARE_CYCLES_MIN_QUALITY", _get(["graph", "care_cycles", "min_quality"], 0.68)))
+GRAPH_CARE_CYCLES_MIN_TRUST = float(os.getenv("GRAPH_CARE_CYCLES_MIN_TRUST", _get(["graph", "care_cycles", "min_trust"], 0.58)))
+GRAPH_CARE_CYCLES_RETIRE_TRUST = float(os.getenv("GRAPH_CARE_CYCLES_RETIRE_TRUST", _get(["graph", "care_cycles", "retire_trust"], 0.35)))
 
 # Audio settings
 AUDIO_CHUNK_DURATION = _get(["audio", "chunk_duration"], 3.0)

@@ -119,7 +119,10 @@ class DerivedModule:
     usage_count: int = 0
     runs: int = 0
     successes: int = 0
+    state: str = "active"
+    care_cycles: int = 0
     last_used_at: Optional[str] = None
+    last_reviewed_at: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -140,7 +143,10 @@ class DerivedModule:
             usage_count=int(data.get("usage_count", 0) or 0),
             runs=int(data.get("runs", 0) or 0),
             successes=int(data.get("successes", 0) or 0),
+            state=str(data.get("state", "active") or "active"),
+            care_cycles=int(data.get("care_cycles", 0) or 0),
             last_used_at=data.get("last_used_at"),
+            last_reviewed_at=data.get("last_reviewed_at"),
         )
 
 

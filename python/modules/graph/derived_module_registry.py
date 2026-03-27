@@ -114,7 +114,10 @@ class DerivedModuleRegistry:
                 usage_count=0,
                 runs=0,
                 successes=0,
+                state="active",
+                care_cycles=0,
                 last_used_at=_utc_now(),
+                last_reviewed_at=None,
             )
             return self.save_module(module)
 
@@ -126,6 +129,7 @@ class DerivedModuleRegistry:
         module.preferred_backend = preferred_backend or module.preferred_backend
         module.quality_score = round(((module.quality_score * runs) + quality_score) / (runs + 1), 4)
         module.trust_score = round((module.trust_score * 0.9) + (0.1 * quality_score), 4)
+        module.state = "active"
         module.last_used_at = _utc_now()
         return self.save_module(module)
 
@@ -139,5 +143,6 @@ class DerivedModuleRegistry:
         module.successes += 1 if success else 0
         module.quality_score = round(((module.quality_score * runs) + quality_score) / (runs + 1), 4)
         module.trust_score = round((module.trust_score * 0.9) + (0.1 * quality_score), 4)
+        module.state = "active" if success else module.state
         module.last_used_at = _utc_now()
         return self.save_module(module)
