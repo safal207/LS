@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .goal_vector import GoalVectorBuilder
 from .models import NetworkExecutionPlan
 from .need_profile import NeedProfiler
 from .observer import NetworkObserver
@@ -17,10 +18,12 @@ class NetworkControlCenter:
         orientation_center: OrientationCenter | None = None,
         observer_core: NetworkObserver | None = None,
         need_profiler: NeedProfiler | None = None,
+        goal_vector_builder: GoalVectorBuilder | None = None,
     ) -> None:
         self.orientation_center = orientation_center or OrientationCenter()
         self.observer_core = observer_core or NetworkObserver()
         self.need_profiler = need_profiler or NeedProfiler()
+        self.goal_vector_builder = goal_vector_builder or GoalVectorBuilder()
 
     def create_plan(
         self,
@@ -43,6 +46,12 @@ class NetworkControlCenter:
             observer_report=observer_report,
             graph_decision=graph_decision,
         ).to_dict()
+        goal_vector = self.goal_vector_builder.build(
+            item,
+            need_profile=need_profile,
+            intent=intent,
+            why_tag=why_tag,
+        ).to_dict()
         plan = self.orientation_center.decide(
             item,
             thread_context=thread_context,
@@ -51,6 +60,7 @@ class NetworkControlCenter:
             observer_report=observer_report,
         )
         plan.need_profile = need_profile
+        plan.goal_vector = goal_vector
         if need_profile["route_bias"] == "cheap_or_reuse" and plan.route_key and plan.route_key.startswith("full_run>"):
             if "local" in plan.route_key:
                 plan.confidence = max(plan.confidence, 0.72)

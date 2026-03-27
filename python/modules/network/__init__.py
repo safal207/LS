@@ -1,7 +1,8 @@
 from .control_center import NetworkControlCenter
 from .cognitive_adequacy import CognitiveAdequacyCore
 from .future_planner import FuturePlanner
-from .models import AdequacyReport, FutureScenario, NeedProfile, NetworkExecutionPlan, NetworkSnapshot, ObserverReport, TrajectoryRecord, TuningFork
+from .goal_vector import GoalVectorBuilder
+from .models import AdequacyReport, FutureScenario, GoalVector, NeedProfile, NetworkExecutionPlan, NetworkSnapshot, ObserverReport, TrajectoryRecord, TuningFork
 from .need_profile import NeedProfiler
 from .observer import NetworkObserver
 from .orientation_center import OrientationCenter
@@ -14,6 +15,8 @@ __all__ = [
     "CognitiveAdequacyCore",
     "FuturePlanner",
     "FutureScenario",
+    "GoalVector",
+    "GoalVectorBuilder",
     "NeedProfile",
     "NeedProfiler",
     "NetworkControlCenter",

@@ -18,6 +18,7 @@ class NetworkExecutionPlan:
     path_decision: Optional[dict[str, Any]] = None
     derived_module: Optional[dict[str, Any]] = None
     need_profile: Optional[dict[str, Any]] = None
+    goal_vector: Optional[dict[str, Any]] = None
     adequacy_report: Optional[dict[str, Any]] = None
     observer_report: Optional[dict[str, Any]] = None
     available_backends: list[str] | None = None
@@ -120,6 +121,19 @@ class NeedProfile:
     compute_budget: float
     priority: str
     route_bias: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class GoalVector:
+    target_relevance: float
+    target_thread_alignment: float
+    target_hallucination_max: float
+    target_latency_ms: float
+    style: str
+    strategy_bias: str
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

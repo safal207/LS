@@ -87,6 +87,14 @@ Engineering translation:
 - `GoalVector`
 - `target_quality_profile`
 
+Current MVP:
+
+- `GoalVectorBuilder` derives a target answer profile from:
+  - `NeedProfile`
+  - question wording
+  - intent / why tags
+- `NetworkControlCenter` attaches this vector to the execution plan
+
 ## Vector
 
 Vector is the direction of the solution.
