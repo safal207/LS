@@ -68,6 +68,8 @@ import uuid
 from typing import Callable, List, Optional
 
 from config import (
+    GRAPH_COALITION_ENABLED,
+    GRAPH_COALITION_STORE_PATH,
     GRAPH_TRAIL_DECAY,
     GRAPH_TRAIL_ENABLED,
     GRAPH_TRAIL_EXPLORATION_RATE,
@@ -149,6 +151,7 @@ except Exception:
 
 try:
     from graph import CooperativeGraphEngine as _CooperativeGraphEngine
+    from graph import CoalitionRegistry as _CoalitionRegistry
     from graph import GraphMemoryRuntime as _GraphMemoryRuntime
     from graph import PathExecutionRecord as _PathExecutionRecord
     from graph import PathSelector as _PathSelector
@@ -158,6 +161,7 @@ try:
 except Exception:
     _GRAPH_OK = False
     _CooperativeGraphEngine = None  # type: ignore[assignment]
+    _CoalitionRegistry = None  # type: ignore[assignment]
     _GraphMemoryRuntime = None  # type: ignore[assignment]
     _PathExecutionRecord = None  # type: ignore[assignment]
     _PathSelector = None  # type: ignore[assignment]
@@ -213,14 +217,23 @@ class ResonanceAgent:
             if _GRAPH_OK and _CooperativeGraphEngine and llm_backend is not None and hasattr(llm_backend, "backends")
             else None
         )
+        self._coalition_registry = None
+        if GRAPH_COALITION_ENABLED and _GRAPH_OK and _CoalitionRegistry:
+            try:
+                self._coalition_registry = _CoalitionRegistry(GRAPH_COALITION_STORE_PATH)
+                self._coalition_registry.seed_default()
+            except Exception as exc:
+                logger.debug("ResonanceAgent: coalition registry init failed: %s", exc)
+                self._coalition_registry = None
         self._route_stats_store = (
             _RouteStatsStore(GRAPH_TRAIL_STORE_PATH)
-            if GRAPH_TRAIL_ENABLED and _GRAPH_OK and _RouteStatsStore
+            if (GRAPH_TRAIL_ENABLED or GRAPH_COALITION_ENABLED) and _GRAPH_OK and _RouteStatsStore
             else None
         )
         self._path_selector = (
             _PathSelector(
                 self._route_stats_store,
+                coalition_registry=self._coalition_registry,
                 exploration_rate=GRAPH_TRAIL_EXPLORATION_RATE,
             )
             if self._route_stats_store and _PathSelector
@@ -464,10 +477,12 @@ class ResonanceAgent:
                     graph_mode=graph_decision.mode,
                     available_backends=available_backends,
                     default_backend=default_backend,
+                    intent=str(item.get("intent") or item.get("_intent") or "") or None,
+                    why_tag=(item.get("_why_strategy") or {}).get("micro_trigger") or (item.get("_why") if isinstance(item.get("_why"), str) else None),
                 )
                 item["_path_selection"] = path_decision.to_dict()
                 selected_backend = path_decision.selected_backend
-                if selected_backend and hasattr(self._llm_backend, "primary"):
+                if selected_backend and selected_backend != "cooperative" and hasattr(self._llm_backend, "primary"):
                     original_primary = getattr(self._llm_backend, "primary", None)
                     original_fallback = list(getattr(self._llm_backend, "fallback_chain", []))
                     ordered_fallbacks = [
@@ -523,6 +538,9 @@ class ResonanceAgent:
                 "fallback_to": None,
                 "participants": participant_backends,
             }
+            if original_primary is not None and hasattr(self._llm_backend, "primary"):
+                self._llm_backend.primary = original_primary
+                self._llm_backend.fallback_chain = original_fallback or []
         else:
             try:
                 final_output = self._call_llm(item)
@@ -625,6 +643,22 @@ class ResonanceAgent:
                 item["_trail_reward"] = reward
             except Exception as exc:
                 logger.debug("ResonanceAgent: trail update failed: %s", exc)
+
+        if self._coalition_registry:
+            try:
+                path_meta = item.get("_path_selection") or {}
+                route_key = path_meta.get("route_key")
+                if route_key and route_key != "reuse":
+                    coalition = self._coalition_registry.update_after_run(
+                        route_key=route_key,
+                        quality_score=float(item.get("_resonance_score", 0.5) or 0.5),
+                        success=bool(final_output),
+                        intent=str(item.get("intent") or item.get("_intent") or "") or None,
+                        why_tag=(item.get("_why_strategy") or {}).get("micro_trigger") or (item.get("_why") if isinstance(item.get("_why"), str) else None),
+                    )
+                    item["_coalition"] = coalition.to_dict()
+            except Exception as exc:
+                logger.debug("ResonanceAgent: coalition update failed: %s", exc)
 
         result = self._build_output(item, final_output, generation_time, cycle_id)
         # Cache the pipeline item so feedback() can look up the real
@@ -783,6 +817,7 @@ class ResonanceAgent:
         path_meta = item.get("_path_selection") or {}
         graph_meta = item.get("_graph_runtime") or {}
         trail_meta = item.get("_trail_route") or {}
+        coalition_meta = item.get("_coalition") or {}
         fallback_route_key = (
             "reuse"
             if graph_meta.get("mode") == "reuse"
@@ -835,6 +870,9 @@ class ResonanceAgent:
             "exploration_used": path_meta.get("exploration_used", False),
             "trail_updated":   bool(trail_meta),
             "route_reward":    item.get("_trail_reward"),
+            "coalition_used":  bool(coalition_meta),
+            "coalition_route_key": coalition_meta.get("route_key"),
+            "coalition_trust_score": coalition_meta.get("trust_score"),
             "cooperative_used": bool(item.get("_cooperative")),
             "cooperative_route_key": (item.get("_cooperative") or {}).get("route_key"),
             "cooperative_participants": (item.get("_cooperative") or {}).get("participants"),

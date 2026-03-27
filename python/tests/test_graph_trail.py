@@ -9,6 +9,7 @@ MODULES = ROOT / "python" / "modules"
 if str(MODULES) not in sys.path:
     sys.path.insert(0, str(MODULES))
 
+from graph.coalition_registry import CoalitionRecord, CoalitionRegistry
 from graph.path_selector import PathSelector
 from graph.route_stats import RouteStats, RouteStatsStore
 from graph.trail_updater import PathExecutionRecord, TrailUpdater
@@ -95,3 +96,30 @@ def test_path_selector_prefers_default_cooperative_route_when_full_coalition_ava
 
     assert decision.route_key == "full_run>local>gonka>mimo"
     assert decision.selected_backend == "cooperative"
+
+
+def test_path_selector_prefers_matching_coalition_registry_route(tmp_path):
+    store = RouteStatsStore(tmp_path / "routes.json")
+    registry = CoalitionRegistry(tmp_path / "coalitions.json")
+    registry.save_coalition(
+        CoalitionRecord(
+            coalition_id="coalition-a",
+            route_key="full_run>local>gonka>mimo",
+            members=["local", "gonka", "mimo"],
+            intents=["technical_reasoning"],
+            why_tags=["evaluate_reasoning"],
+            trust_score=0.91,
+        )
+    )
+    selector = PathSelector(store, coalition_registry=registry, exploration_rate=0.0)
+
+    decision = selector.choose_route(
+        graph_mode="full_run",
+        available_backends=["local", "gonka", "mimo"],
+        default_backend="local",
+        intent="technical_reasoning",
+        why_tag="evaluate_reasoning",
+    )
+
+    assert decision.route_key == "full_run>local>gonka>mimo"
+    assert decision.reason == "coalition-registry"

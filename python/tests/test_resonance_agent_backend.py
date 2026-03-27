@@ -137,3 +137,29 @@ def test_resonance_agent_uses_cooperative_route_metadata(monkeypatch):
         assert result["cooperative_used"] is True
         assert result["cooperative_route_key"] == "full_run>local>gonka>mimo"
         assert isinstance(result["cooperative_participants"], list)
+
+
+def test_resonance_agent_updates_coalition_registry(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_ENABLED", False)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_ENABLED", True)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_STORE_PATH", str(Path(tmpdir) / "coalitions.json"))
+
+        class FixedSelector:
+            def choose_route(self, **kwargs):
+                from graph.path_selector import PathSelectionDecision
+                return PathSelectionDecision(
+                    route_key="full_run>local>gonka>mimo",
+                    reason="fixed-test-route",
+                    exploration_used=False,
+                    pheromone_weight=0.0,
+                    selected_backend="cooperative",
+                )
+
+        agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+        agent._path_selector = FixedSelector()
+        result = agent.process_text("Почему вы выбрали этот стек?")
+
+        assert result["coalition_used"] is True
+        assert result["coalition_route_key"] == "full_run>local>gonka>mimo"
+        assert result["coalition_trust_score"] is not None

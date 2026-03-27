@@ -4,6 +4,7 @@ import random
 from dataclasses import asdict, dataclass
 from typing import Optional
 
+from .coalition_registry import CoalitionRegistry
 from .route_stats import RouteStats, RouteStatsStore
 
 
@@ -24,10 +25,12 @@ class PathSelector:
         self,
         store: RouteStatsStore,
         *,
+        coalition_registry: CoalitionRegistry | None = None,
         exploration_rate: float = 0.10,
         rng: random.Random | None = None,
     ) -> None:
         self.store = store
+        self.coalition_registry = coalition_registry
         self.exploration_rate = max(0.0, min(1.0, exploration_rate))
         self.rng = rng or random.Random()
 
@@ -37,6 +40,8 @@ class PathSelector:
         graph_mode: str,
         available_backends: list[str],
         default_backend: str | None = None,
+        intent: str | None = None,
+        why_tag: str | None = None,
     ) -> PathSelectionDecision:
         if graph_mode == "reuse":
             route = self.store.touch_route("reuse")
@@ -66,6 +71,24 @@ class PathSelector:
                 route_key=route_key,
                 reason="no-backend-candidates",
                 pheromone_weight=route.pheromone_weight,
+            )
+
+        coalition = None
+        if self.coalition_registry is not None:
+            coalition = self.coalition_registry.select_best(
+                available_backends=available_backends,
+                intent=intent,
+                why_tag=why_tag,
+            )
+        if coalition is not None:
+            stats = self.store.get_route(coalition.route_key) or RouteStats(route_key=coalition.route_key)
+            self.store.touch_route(coalition.route_key)
+            return PathSelectionDecision(
+                route_key=coalition.route_key,
+                reason="coalition-registry",
+                exploration_used=False,
+                pheromone_weight=max(stats.pheromone_weight, coalition.trust_score),
+                selected_backend="cooperative" if len(coalition.members) > 1 else (coalition.members[0] if coalition.members else None),
             )
 
         use_exploration = len(candidates) > 1 and self.rng.random() < self.exploration_rate

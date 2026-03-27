@@ -72,6 +72,9 @@ graph:
     store_path: data/graph_memory/routes.json
     decay: 0.95
     exploration_rate: 0.10
+  coalitions:
+    enabled: false
+    store_path: data/graph_memory/coalitions.json
 
 question_keywords:
   - "почему"

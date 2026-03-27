@@ -48,6 +48,8 @@ GRAPH_TRAIL_ENABLED = str(os.getenv("GRAPH_TRAIL_ENABLED", _get(["graph", "trail
 GRAPH_TRAIL_STORE_PATH = os.getenv("GRAPH_TRAIL_STORE_PATH", _get(["graph", "trail", "store_path"], "data/graph_memory/routes.json"))
 GRAPH_TRAIL_DECAY = float(os.getenv("GRAPH_TRAIL_DECAY", _get(["graph", "trail", "decay"], 0.95)))
 GRAPH_TRAIL_EXPLORATION_RATE = float(os.getenv("GRAPH_TRAIL_EXPLORATION_RATE", _get(["graph", "trail", "exploration_rate"], 0.10)))
+GRAPH_COALITION_ENABLED = str(os.getenv("GRAPH_COALITION_ENABLED", _get(["graph", "coalitions", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GRAPH_COALITION_STORE_PATH = os.getenv("GRAPH_COALITION_STORE_PATH", _get(["graph", "coalitions", "store_path"], "data/graph_memory/coalitions.json"))
 
 # Audio settings
 AUDIO_CHUNK_DURATION = _get(["audio", "chunk_duration"], 3.0)
