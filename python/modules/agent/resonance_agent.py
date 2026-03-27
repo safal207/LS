@@ -180,6 +180,13 @@ except Exception:
     _RouteStatsStore = None  # type: ignore[assignment]
     _TrailUpdater = None  # type: ignore[assignment]
 
+try:
+    from network.orientation_center import OrientationCenter as _NetworkOrientationCenter
+    _NETWORK_OK = True
+except Exception:
+    _NETWORK_OK = False
+    _NetworkOrientationCenter = None  # type: ignore[assignment]
+
 
 # ---------------------------------------------------------------------------
 # ResonanceAgent
@@ -273,6 +280,20 @@ class ResonanceAgent:
         self._trail_updater = (
             _TrailUpdater(self._route_stats_store, decay=GRAPH_TRAIL_DECAY)
             if self._route_stats_store and _TrailUpdater
+            else None
+        )
+        self._orientation_center = (
+            _NetworkOrientationCenter(
+                graph_runtime=self._graph_runtime,
+                path_selector=self._path_selector,
+                derived_module_registry=self._derived_module_registry,
+                llm_backend=self._llm_backend,
+                derived_min_quality=GRAPH_DERIVED_MODULE_MIN_QUALITY,
+                derived_min_trust=GRAPH_DERIVED_MODULE_MIN_TRUST,
+            )
+            if _NETWORK_OK and _NetworkOrientationCenter and (
+                self._graph_runtime or self._path_selector or self._derived_module_registry
+            )
             else None
         )
         self._orientation = orientation
@@ -477,55 +498,53 @@ class ResonanceAgent:
         available_backends: list[str] = []
         intent_tag = self._intent_tag(item)
         why_tag = self._why_tag(item)
-        if self._graph_runtime:
+        orientation_plan = None
+        if self._orientation_center:
             try:
-                graph_decision = self._graph_runtime.process(
+                orientation_plan = self._orientation_center.decide(
                     item,
                     thread_context=item.get("thread_context") or self._orientation or None,
+                    intent=intent_tag,
+                    why_tag=why_tag,
                 )
-                item["_graph_runtime"] = graph_decision.to_dict()
-                if graph_decision.prior_answer:
-                    item["_graph_prior_answer"] = graph_decision.prior_answer
-                if graph_decision.prior_case:
-                    item["_graph_prior_case"] = graph_decision.prior_case
+                item["_network_plan"] = orientation_plan.to_dict()
+                if orientation_plan.graph_decision:
+                    item["_graph_runtime"] = orientation_plan.graph_decision
+                    if orientation_plan.graph_decision.get("prior_answer"):
+                        item["_graph_prior_answer"] = orientation_plan.graph_decision["prior_answer"]
+                    if orientation_plan.graph_decision.get("prior_case"):
+                        item["_graph_prior_case"] = orientation_plan.graph_decision["prior_case"]
+                if orientation_plan.derived_module:
+                    item["_derived_module"] = orientation_plan.derived_module
+                if orientation_plan.path_decision:
+                    item["_path_selection"] = orientation_plan.path_decision
+                graph_meta = orientation_plan.graph_decision or {}
+                graph_mode = graph_meta.get("mode")
+                if graph_mode:
+                    class _PlanGraphDecision:
+                        def __init__(self, meta: dict):
+                            self.mode = meta.get("mode")
+                            self.matched_case_id = meta.get("matched_case_id")
+                            self.similarity = meta.get("similarity")
+                            self.prior_answer = meta.get("prior_answer")
+                            self.prior_case = meta.get("prior_case")
+                            self.reason = meta.get("reason")
+                    graph_decision = _PlanGraphDecision(graph_meta)
+                available_backends = orientation_plan.available_backends or []
             except Exception as exc:
-                logger.debug("ResonanceAgent: graph runtime failed: %s", exc)
+                logger.debug("ResonanceAgent: orientation center failed: %s", exc)
 
-        if self._llm_backend is not None and hasattr(self._llm_backend, "backends"):
+        if not available_backends and self._llm_backend is not None and hasattr(self._llm_backend, "backends"):
             available_backends = [
                 name for name in ("gonka", "mimo", "cloud", "local")
                 if name in getattr(self._llm_backend, "backends", {})
             ]
 
-        derived_module = None
-        if (
-            self._derived_module_registry
-            and graph_decision
-            and graph_decision.mode != "reuse"
-            and available_backends
-        ):
-            try:
-                derived_module = self._derived_module_registry.find_best(
-                    available_backends=available_backends,
-                    domain=intent_tag,
-                    task_type=why_tag,
-                    min_quality=GRAPH_DERIVED_MODULE_MIN_QUALITY,
-                    min_trust=GRAPH_DERIVED_MODULE_MIN_TRUST,
-                )
-                if derived_module is not None:
-                    item["_derived_module"] = derived_module.to_dict()
-                    item["_path_selection"] = {
-                        "route_key": f"derived>{derived_module.module_id}",
-                        "reason": "derived-module",
-                        "exploration_used": False,
-                        "pheromone_weight": derived_module.trust_score,
-                        "selected_backend": derived_module.preferred_backend,
-                    }
-            except Exception as exc:
-                logger.debug("ResonanceAgent: derived module lookup failed: %s", exc)
-                derived_module = None
+        derived_module = item.get("_derived_module")
+        if derived_module is not None and hasattr(derived_module, "to_dict"):
+            derived_module = derived_module.to_dict()
 
-        path_decision = None
+        path_decision = item.get("_path_selection")
         original_primary = None
         original_fallback = None
         if (
@@ -535,6 +554,7 @@ class ResonanceAgent:
             and derived_module is None
             and self._llm_backend is not None
             and hasattr(self._llm_backend, "backends")
+            and path_decision is None
         ):
             try:
                 default_backend = getattr(self._llm_backend, "primary", None)
@@ -546,30 +566,41 @@ class ResonanceAgent:
                     why_tag=why_tag,
                 )
                 item["_path_selection"] = path_decision.to_dict()
-                selected_backend = path_decision.selected_backend
-                if selected_backend and selected_backend != "cooperative" and hasattr(self._llm_backend, "primary"):
-                    original_primary = getattr(self._llm_backend, "primary", None)
-                    original_fallback = list(getattr(self._llm_backend, "fallback_chain", []))
-                    ordered_fallbacks = [
-                        backend
-                        for backend in original_fallback
-                        if backend != selected_backend
-                    ]
-                    self._llm_backend.primary = selected_backend
-                    self._llm_backend.fallback_chain = ordered_fallbacks
             except Exception as exc:
                 logger.debug("ResonanceAgent: path selector failed: %s", exc)
+
+        if path_decision and hasattr(path_decision, "to_dict"):
+            item["_path_selection"] = path_decision.to_dict()
+            selected_backend = path_decision.selected_backend
+        elif isinstance(path_decision, dict):
+            selected_backend = path_decision.get("selected_backend")
+        else:
+            selected_backend = None
+        if selected_backend and selected_backend != "cooperative" and hasattr(self._llm_backend, "primary"):
+            original_primary = getattr(self._llm_backend, "primary", None)
+            original_fallback = list(getattr(self._llm_backend, "fallback_chain", []))
+            ordered_fallbacks = [
+                backend
+                for backend in original_fallback
+                if backend != selected_backend
+            ]
+            self._llm_backend.primary = selected_backend
+            self._llm_backend.fallback_chain = ordered_fallbacks
 
         cooperative_result = None
         if (
             self._cooperative_engine
             and path_decision
-            and path_decision.route_key in {"full_run>local>gonka>mimo", "refine>local>gonka>mimo"}
+            and (
+                (hasattr(path_decision, "route_key") and path_decision.route_key in {"full_run>local>gonka>mimo", "refine>local>gonka>mimo"})
+                or (isinstance(path_decision, dict) and path_decision.get("route_key") in {"full_run>local>gonka>mimo", "refine>local>gonka>mimo"})
+            )
         ):
             try:
+                cooperative_route_key = path_decision.route_key if hasattr(path_decision, "route_key") else path_decision.get("route_key")
                 cooperative_result = self._cooperative_engine.run(
                     item,
-                    path_decision.route_key,
+                    cooperative_route_key,
                     thread_context=item.get("thread_context") or self._orientation or None,
                 )
                 item["_cooperative"] = cooperative_result.to_dict()
@@ -591,7 +622,8 @@ class ResonanceAgent:
                 "fallback_to": None,
             }
         elif derived_module is not None:
-            derived_output = self._call_derived_module(item, derived_module.to_dict())
+            module_meta = derived_module.to_dict() if hasattr(derived_module, "to_dict") else dict(derived_module)
+            derived_output = self._call_derived_module(item, module_meta)
             if derived_output:
                 final_output = derived_output
             else:
@@ -1017,6 +1049,7 @@ class ResonanceAgent:
         coalition_meta = item.get("_coalition") or {}
         derived_meta = item.get("_derived_module") or {}
         care_meta = item.get("_care_cycle") or {}
+        orientation_meta = item.get("_network_plan") or {}
         fallback_route_key = (
             "reuse"
             if graph_meta.get("mode") == "reuse"
@@ -1063,6 +1096,9 @@ class ResonanceAgent:
             "graph_reason":    graph_meta.get("reason"),
             "was_reused":      graph_meta.get("mode") == "reuse",
             "was_refined":     graph_meta.get("mode") == "refine",
+            "orientation_reason": orientation_meta.get("reason"),
+            "orientation_confidence": orientation_meta.get("confidence"),
+            "orientation_route_key": orientation_meta.get("route_key"),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),

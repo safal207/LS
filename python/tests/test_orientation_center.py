@@ -1,0 +1,91 @@
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+MODULES = ROOT / "python" / "modules"
+if str(MODULES) not in sys.path:
+    sys.path.insert(0, str(MODULES))
+
+from graph.path_selector import PathSelector
+from graph.route_stats import RouteStatsStore
+from graph.derived_module_registry import DerivedModuleRegistry
+from network.orientation_center import OrientationCenter
+
+
+class FakeGraphDecision:
+    def __init__(self, mode="full_run", matched_case_id=None, similarity=0.0, prior_answer=None, prior_case=None, reason="no-match"):
+        self.mode = mode
+        self.matched_case_id = matched_case_id
+        self.similarity = similarity
+        self.prior_answer = prior_answer
+        self.prior_case = prior_case
+        self.reason = reason
+
+    def to_dict(self):
+        return {
+            "mode": self.mode,
+            "matched_case_id": self.matched_case_id,
+            "similarity": self.similarity,
+            "prior_answer": self.prior_answer,
+            "prior_case": self.prior_case,
+            "reason": self.reason,
+        }
+
+
+class FakeGraphRuntime:
+    def __init__(self, decision):
+        self.decision = decision
+
+    def process(self, item, thread_context=None):
+        return self.decision
+
+
+class FakeRouter:
+    def __init__(self):
+        self.primary = "local"
+        self.backends = {"local": object(), "gonka": object(), "mimo": object()}
+
+
+def test_orientation_center_prefers_reuse():
+    center = OrientationCenter(
+        graph_runtime=FakeGraphRuntime(
+            FakeGraphDecision(mode="reuse", matched_case_id="case-1", similarity=0.98, prior_answer="cached", reason="high-similarity")
+        ),
+        llm_backend=FakeRouter(),
+    )
+
+    plan = center.decide({"text": "Почему вы выбрали этот стек?"}, intent="technical_reasoning", why_tag="evaluate_reasoning")
+
+    assert plan.mode == "reuse"
+    assert plan.route_key == "reuse"
+    assert plan.memory_case_id == "case-1"
+
+
+def test_orientation_center_prefers_derived_module_when_available(tmp_path):
+    derived = DerivedModuleRegistry(tmp_path / "derived.json")
+    derived.create_or_update_from_success(
+        parent_coalition_id="coalition-local-gonka-mimo",
+        source_route_key="full_run>local>gonka>mimo",
+        domain="technical_reasoning",
+        task_type="evaluate_reasoning",
+        preferred_backend="local",
+        policy_type="prompt_policy",
+        policy_text="Use concise interview answers.",
+        quality_score=0.84,
+    )
+    center = OrientationCenter(
+        graph_runtime=FakeGraphRuntime(FakeGraphDecision(mode="full_run", reason="no-match")),
+        path_selector=PathSelector(RouteStatsStore(tmp_path / "routes.json"), exploration_rate=0.0),
+        derived_module_registry=derived,
+        llm_backend=FakeRouter(),
+        derived_min_quality=0.7,
+        derived_min_trust=0.6,
+    )
+
+    plan = center.decide({"text": "Почему вы выбрали этот стек?"}, intent="technical_reasoning", why_tag="evaluate_reasoning")
+
+    assert plan.derived_module_id is not None
+    assert plan.reason == "derived-module"
+    assert plan.selected_backend == "local"

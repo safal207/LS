@@ -1,0 +1,119 @@
+from __future__ import annotations
+
+from typing import Any
+
+from .models import NetworkExecutionPlan
+
+
+class OrientationCenter:
+    """Unifies graph-memory, route selection, coalition preference, and derived modules."""
+
+    def __init__(
+        self,
+        *,
+        graph_runtime=None,
+        path_selector=None,
+        derived_module_registry=None,
+        llm_backend=None,
+        derived_min_quality: float = 0.72,
+        derived_min_trust: float = 0.62,
+    ) -> None:
+        self.graph_runtime = graph_runtime
+        self.path_selector = path_selector
+        self.derived_module_registry = derived_module_registry
+        self.llm_backend = llm_backend
+        self.derived_min_quality = derived_min_quality
+        self.derived_min_trust = derived_min_trust
+
+    def decide(self, item: dict[str, Any], *, thread_context: str | None = None, intent: str | None = None, why_tag: str | None = None) -> NetworkExecutionPlan:
+        graph_decision = None
+        graph_meta = None
+        if self.graph_runtime is not None:
+            graph_decision = self.graph_runtime.process(item, thread_context=thread_context)
+            graph_meta = graph_decision.to_dict()
+
+        available_backends: list[str] = []
+        if self.llm_backend is not None and hasattr(self.llm_backend, "backends"):
+            available_backends = [
+                name for name in ("gonka", "mimo", "cloud", "local")
+                if name in getattr(self.llm_backend, "backends", {})
+            ]
+
+        if graph_decision is not None and graph_decision.mode == "reuse":
+            return NetworkExecutionPlan(
+                mode="reuse",
+                route_key="reuse",
+                coalition_id=None,
+                derived_module_id=None,
+                memory_case_id=graph_decision.matched_case_id,
+                reason=graph_decision.reason,
+                confidence=float(graph_decision.similarity or 0.0),
+                graph_decision=graph_meta,
+                available_backends=available_backends,
+            )
+
+        derived_module = None
+        if self.derived_module_registry is not None and available_backends:
+            derived_module = self.derived_module_registry.find_best(
+                available_backends=available_backends,
+                domain=intent,
+                task_type=why_tag,
+                min_quality=self.derived_min_quality,
+                min_trust=self.derived_min_trust,
+            )
+        if derived_module is not None:
+            module_meta = derived_module.to_dict()
+            return NetworkExecutionPlan(
+                mode=(graph_decision.mode if graph_decision is not None else "full_run"),
+                route_key=f"derived>{derived_module.module_id}",
+                coalition_id=derived_module.parent_coalition_id or None,
+                derived_module_id=derived_module.module_id,
+                memory_case_id=(graph_decision.matched_case_id if graph_decision is not None else None),
+                reason="derived-module",
+                confidence=float(derived_module.trust_score or 0.0),
+                selected_backend=derived_module.preferred_backend,
+                graph_decision=graph_meta,
+                derived_module=module_meta,
+                available_backends=available_backends,
+            )
+
+        path_decision = None
+        if self.path_selector is not None and graph_decision is not None and graph_decision.mode != "reuse":
+            default_backend = getattr(self.llm_backend, "primary", None) if self.llm_backend is not None else None
+            path_decision = self.path_selector.choose_route(
+                graph_mode=graph_decision.mode,
+                available_backends=available_backends,
+                default_backend=default_backend,
+                intent=intent,
+                why_tag=why_tag,
+            )
+            path_meta = path_decision.to_dict()
+            coalition_id = None
+            if path_decision.reason == "coalition-registry" and path_decision.route_key:
+                coalition_id = path_decision.route_key.replace(">", "-")
+            return NetworkExecutionPlan(
+                mode=graph_decision.mode,
+                route_key=path_decision.route_key,
+                coalition_id=coalition_id,
+                derived_module_id=None,
+                memory_case_id=graph_decision.matched_case_id,
+                reason=path_decision.reason,
+                confidence=float(path_decision.pheromone_weight or 0.0),
+                selected_backend=path_decision.selected_backend,
+                graph_decision=graph_meta,
+                path_decision=path_meta,
+                available_backends=available_backends,
+            )
+
+        fallback_mode = graph_decision.mode if graph_decision is not None else "full_run"
+        return NetworkExecutionPlan(
+            mode=fallback_mode,
+            route_key=None,
+            coalition_id=None,
+            derived_module_id=None,
+            memory_case_id=(graph_decision.matched_case_id if graph_decision is not None else None),
+            reason="orientation-fallback",
+            confidence=float(graph_decision.similarity or 0.0) if graph_decision is not None else 0.0,
+            graph_decision=graph_meta,
+            available_backends=available_backends,
+        )
