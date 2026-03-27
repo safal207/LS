@@ -622,6 +622,7 @@ class ResonanceAgent:
                     item,
                     cooperative_route_key,
                     thread_context=item.get("thread_context") or self._orientation or None,
+                    goal_vector=((item.get("_network_plan") or {}).get("goal_vector") or None),
                 )
                 item["_cooperative"] = cooperative_result.to_dict()
             except Exception as exc:

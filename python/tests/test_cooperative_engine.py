@@ -85,3 +85,29 @@ def test_cooperative_engine_uses_role_specific_prompts():
     assert "Роль: draft" in (local.last_system_prompt or "")
     assert "Роль: critic" in (gonka.last_system_prompt or "")
     assert "Роль: compressor" in (mimo.last_system_prompt or "")
+
+
+def test_cooperative_engine_propagates_goal_vector_into_role_prompts():
+    local = FakeBackend("local", "local-model", "draft answer")
+    gonka = FakeBackend("gonka", "gonka-model", "critique answer")
+    mimo = FakeBackend("mimo", "mimo-model", "final compressed answer")
+    engine = CooperativeGraphEngine({"local": local, "gonka": gonka, "mimo": mimo})
+
+    engine.run(
+        {"text": "?????? ?? ??????? ???? ?????"},
+        "full_run>local>gonka>mimo",
+        thread_context="?? ????????? trade-offs.",
+        goal_vector={
+            "style": "careful",
+            "strategy_bias": "verify_first",
+            "target_relevance": 0.8,
+            "target_thread_alignment": 0.8,
+            "target_hallucination_max": 0.15,
+            "target_latency_ms": 12000.0,
+        },
+    )
+
+    assert "??????? ??????? ??????" in (local.last_system_prompt or "")
+    assert "????? ?????? ???? ??????????" in (local.last_system_prompt or "")
+    assert "verify_first" in (gonka.last_system_prompt or "")
+    assert "??????????? ?????????????" in (mimo.last_system_prompt or "")
