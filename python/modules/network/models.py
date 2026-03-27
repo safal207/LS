@@ -64,3 +64,33 @@ class FutureScenario:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass
+class TuningFork:
+    adequacy_target: float = 0.68
+    latency_target: float = 0.55
+    drift_ceiling: float = 0.35
+    stale_module_limit: int = 1
+    weak_route_limit: int = 1
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class AdequacyReport:
+    status: str
+    adequacy_gap: float
+    latency_gap: float
+    drift_gap: float
+    route_dominance_risk: bool
+    coalition_inflation_risk: bool
+    module_drift_risk: bool
+    risks: list[str]
+    recommendations: list[str]
+    observer_summary: dict[str, Any]
+    tuning_fork: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
