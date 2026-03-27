@@ -20,7 +20,7 @@ def test_graph_runtime_returns_reuse_on_exact_match(tmp_path):
         clean_text="Почему вы выбрали этот стек?",
         answer_text="Потому что он дал баланс скорости и поддержки.",
     )
-    runtime = MemoryGraphRuntime(store=store, retriever=MemoryGraphRetriever(store))
+    runtime = GraphMemoryRuntime(store=store, retriever=MemoryGraphRetriever(store))
 
     decision = runtime.process({"text": "Почему вы выбрали этот стек?", "clean_text": "Почему вы выбрали этот стек?"})
 
@@ -32,17 +32,18 @@ def test_graph_runtime_returns_reuse_on_exact_match(tmp_path):
 def test_graph_runtime_returns_refine_on_medium_similarity(tmp_path):
     store = MemoryGraphStore(tmp_path / "cases.jsonl")
     store.remember(
-        question_text="Почему вы выбрали этот стек для проекта?",
-        clean_text="Почему вы выбрали этот стек для проекта?",
-        answer_text="Потому что он дал баланс скорости и поддержки.",
+        question_text="Why did you choose this stack for project delivery?",
+        clean_text="Why did you choose this stack for project delivery?",
+        answer_text="Because it balanced speed and maintainability.",
     )
-    runtime = MemoryGraphRuntime(
+    runtime = GraphMemoryRuntime(
         store=store,
         retriever=MemoryGraphRetriever(store),
+        reuse_threshold=0.95,
         min_similarity=0.2,
     )
 
-    decision = runtime.process({"text": "Почему вы выбрали этот стек?", "clean_text": "Почему вы выбрали этот стек?"})
+    decision = runtime.process({"text": "Why did you choose this stack for the project?", "clean_text": "Why did you choose this stack for the project?"})
 
     assert decision.mode == "refine"
     assert decision.prior_answer
@@ -55,7 +56,7 @@ def test_graph_runtime_returns_full_run_when_no_good_match(tmp_path):
         clean_text="Что такое Docker?",
         answer_text="Это контейнеризация.",
     )
-    runtime = MemoryGraphRuntime(store=store, retriever=MemoryGraphRetriever(store))
+    runtime = GraphMemoryRuntime(store=store, retriever=MemoryGraphRetriever(store))
 
     decision = runtime.process({"text": "Почему вы выбрали этот стек?", "clean_text": "Почему вы выбрали этот стек?"})
 
