@@ -2,6 +2,12 @@
 
 This document defines how live speech recognition connects to interview-question interpretation and answer generation in this repository.
 
+Related design docs:
+
+- `docs/LLM_BACKEND_MODEL_TIERS.md`
+- `docs/RUST_MERITOCRACY_CORE_PLAN.md`
+- `docs/COOPERATIVE_MERITOCRACY_NETWORK.md`
+
 ## Core Principle
 
 - `STT = perception`

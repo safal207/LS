@@ -20,8 +20,19 @@ for candidate in (str(PYTHON_DIR), str(MODULES_DIR)):
         sys.path.insert(0, candidate)
 
 from config import (  # noqa: E402
+    GONKA_API_KEY,
+    GONKA_BASE_URL,
+    GONKA_ENABLED,
+    GONKA_MODEL,
+    GROQ_API_KEY,
+    GROQ_BASE_URL,
+    GROQ_MODEL,
     LLM_BACKEND,
     LLM_FALLBACK_BACKEND,
+    MIMO_API_KEY,
+    MIMO_BASE_URL,
+    MIMO_ENABLED,
+    MIMO_MODEL,
     MAX_TOKENS,
     SYSTEM_PROMPT,
     TEMPERATURE,
@@ -69,7 +80,106 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Optional conversation thread context for quality scoring.",
     )
+    parser.add_argument(
+        "--require-all",
+        action="store_true",
+        help="Fail fast if any compared backend is not configured and ready.",
+    )
     return parser.parse_args()
+
+
+def _backend_status() -> list[dict[str, object]]:
+    status = []
+    status.append(
+        {
+            "name": "gonka",
+            "enabled": bool(GONKA_ENABLED),
+            "configured": bool(GONKA_API_KEY and GONKA_BASE_URL and GONKA_MODEL),
+            "model": GONKA_MODEL,
+            "missing": [
+                name
+                for name, ok in (
+                    ("GONKA_ENABLED=true", bool(GONKA_ENABLED)),
+                    ("GONKA_API_KEY", bool(GONKA_API_KEY)),
+                    ("GONKA_BASE_URL", bool(GONKA_BASE_URL)),
+                    ("GONKA_MODEL", bool(GONKA_MODEL)),
+                )
+                if not ok
+            ],
+        }
+    )
+    status.append(
+        {
+            "name": "mimo",
+            "enabled": bool(MIMO_ENABLED),
+            "configured": bool(MIMO_API_KEY and MIMO_BASE_URL and MIMO_MODEL),
+            "model": MIMO_MODEL,
+            "missing": [
+                name
+                for name, ok in (
+                    ("MIMO_ENABLED=true", bool(MIMO_ENABLED)),
+                    ("MIMO_API_KEY", bool(MIMO_API_KEY)),
+                    ("MIMO_BASE_URL", bool(MIMO_BASE_URL)),
+                    ("MIMO_MODEL", bool(MIMO_MODEL)),
+                )
+                if not ok
+            ],
+        }
+    )
+    status.append(
+        {
+            "name": "cloud",
+            "enabled": bool(GROQ_API_KEY),
+            "configured": bool(GROQ_API_KEY and GROQ_BASE_URL and GROQ_MODEL),
+            "model": GROQ_MODEL,
+            "missing": [
+                name
+                for name, ok in (
+                    ("GROQ_API_KEY", bool(GROQ_API_KEY)),
+                    ("GROQ_BASE_URL", bool(GROQ_BASE_URL)),
+                    ("GROQ_MODEL", bool(GROQ_MODEL)),
+                )
+                if not ok
+            ],
+        }
+    )
+    status.append(
+        {
+            "name": "local",
+            "enabled": True,
+            "configured": True,
+            "model": backend_model_name("local"),
+            "missing": [],
+        }
+    )
+    return status
+
+
+def backend_model_name(name: str) -> str:
+    if name == "gonka":
+        return GONKA_MODEL
+    if name == "mimo":
+        return MIMO_MODEL
+    if name == "cloud":
+        return GROQ_MODEL
+    if name == "local":
+        return "qwen2.5:1.5b"
+    return ""
+
+
+def _print_backend_status() -> list[dict[str, object]]:
+    status = _backend_status()
+    print("backend.status:")
+    for item in status:
+        ready = bool(item["enabled"] and item["configured"])
+        print(
+            f"- {item['name']}: ready={ready} enabled={item['enabled']} "
+            f"configured={item['configured']} model={item['model'] or '<unset>'}"
+        )
+        if item["missing"]:
+            print(f"  missing: {', '.join(item['missing'])}")
+    print("")
+    return status
 
 
 def main() -> int:
@@ -82,6 +192,7 @@ def main() -> int:
     print("route.effective =", route)
 
     if args.dry_run:
+        _print_backend_status()
         return 0
 
     if args.compare:
@@ -92,6 +203,7 @@ def main() -> int:
             temperature=args.temperature,
             max_tokens=args.max_tokens,
             thread_context=args.thread_context,
+            require_all=args.require_all,
         )
 
     response = backend.generate(
@@ -129,6 +241,7 @@ def _compare_backends(
     temperature: float,
     max_tokens: int,
     thread_context: str | None,
+    require_all: bool,
 ) -> int:
     route = backend.route
     scores = []
@@ -136,6 +249,12 @@ def _compare_backends(
     print("compare.question =", question)
     print("compare.thread_context =", thread_context or question)
     print("")
+    status = _print_backend_status()
+    unavailable = [item["name"] for item in status if not (item["enabled"] and item["configured"])]
+    if require_all and unavailable:
+        print("compare.error = missing required backend configuration")
+        print("compare.unavailable =", ", ".join(unavailable))
+        return 2
 
     for backend_name in ("meritocracy", "gonka", "mimo", "cloud", "local"):
         candidate = backend.backends.get(backend_name)

@@ -140,6 +140,13 @@ except Exception:
     _WHY_OK = False
     _WhyLayer = None  # type: ignore[assignment]
 
+try:
+    from graph import GraphMemoryRuntime as _GraphMemoryRuntime
+    _GRAPH_OK = True
+except Exception:
+    _GRAPH_OK = False
+    _GraphMemoryRuntime = None  # type: ignore[assignment]
+
 
 # ---------------------------------------------------------------------------
 # ResonanceAgent
@@ -172,6 +179,7 @@ class ResonanceAgent:
         anchor:       Optional[List[str]] = None,
         llm_fn:       Optional[Callable[[str, str], str]] = None,
         llm_backend = None,
+        graph_runtime = None,
         weights_path: str = "",
         log_path:     str = "",
         log_max_mb:   float = 50.0,
@@ -180,6 +188,9 @@ class ResonanceAgent:
         self._anchor      = list(anchor or [])
         self._llm_fn      = llm_fn
         self._llm_backend = llm_backend
+        self._graph_runtime = graph_runtime or (
+            _GraphMemoryRuntime() if _GRAPH_OK and _GraphMemoryRuntime else None
+        )
         self._orientation = orientation
 
         # Stage 4 — Intent
@@ -378,13 +389,40 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.debug("ResonanceAgent: ResonanceScorer failed: %s", exc)
 
+        graph_decision = None
+        if self._graph_runtime:
+            try:
+                graph_decision = self._graph_runtime.process(
+                    item,
+                    thread_context=item.get("thread_context") or self._orientation or None,
+                )
+                item["_graph_runtime"] = graph_decision.to_dict()
+                if graph_decision.prior_answer:
+                    item["_graph_prior_answer"] = graph_decision.prior_answer
+                if graph_decision.prior_case:
+                    item["_graph_prior_case"] = graph_decision.prior_case
+            except Exception as exc:
+                logger.debug("ResonanceAgent: graph runtime failed: %s", exc)
+
         # Phase 2 — build system prompt and call LLM
         t0 = time.perf_counter()
-        try:
-            final_output = self._call_llm(item)
-        except Exception as exc:
-            logger.warning("ResonanceAgent: LLM call failed: %s", exc)
-            final_output = item.get("_copilot_output", {}).get("pre_prompt", "")
+        if graph_decision and graph_decision.mode == "reuse" and graph_decision.prior_answer:
+            final_output = graph_decision.prior_answer
+            item["_llm_backend"] = {
+                "provider": "graph_reuse",
+                "model": "",
+                "latency_ms": 0.0,
+                "error": None,
+                "was_fallback_used": False,
+                "fallback_from": None,
+                "fallback_to": None,
+            }
+        else:
+            try:
+                final_output = self._call_llm(item)
+            except Exception as exc:
+                logger.warning("ResonanceAgent: LLM call failed: %s", exc)
+                final_output = item.get("_copilot_output", {}).get("pre_prompt", "")
         generation_time = time.perf_counter() - t0
 
         # After LLM: update resonance_score with response quality signal
@@ -413,6 +451,32 @@ class ResonanceAgent:
                 ))
             except Exception as exc:
                 logger.debug("ResonanceAgent: learner.learn failed: %s", exc)
+
+        if self._graph_runtime and final_output:
+            try:
+                llm_meta = item.get("_llm_backend") or {}
+                contributors = []
+                provider = llm_meta.get("provider")
+                model = llm_meta.get("model")
+                if provider or model:
+                    contributors.append(
+                        {
+                            "backend": provider or "unknown",
+                            "model": model or "",
+                            "role": "answer",
+                        }
+                    )
+                self._graph_runtime.remember_success(
+                    item,
+                    answer_text=final_output,
+                    thread_context=item.get("thread_context") or self._orientation or None,
+                    answer_quality={
+                        "resonance_score": item.get("_resonance_score", 0.5),
+                    },
+                    contributors=contributors,
+                )
+            except Exception as exc:
+                logger.debug("ResonanceAgent: graph remember failed: %s", exc)
 
         result = self._build_output(item, final_output, generation_time, cycle_id)
         # Cache the pipeline item so feedback() can look up the real
@@ -498,6 +562,15 @@ class ResonanceAgent:
                 "✅ Высокий резонанс — хороший контакт.  "
                 "Продолжай в том же ритме — конкретно и уверенно."
             )
+
+        graph = item.get("_graph_runtime") or {}
+        prior_answer = item.get("_graph_prior_answer")
+        if graph.get("mode") == "refine" and prior_answer:
+            parts.append(
+                "Есть похожий прошлый кейс. Используй его как черновую базу, "
+                "но адаптируй под текущий вопрос и контекст."
+            )
+            parts.append(f"Base draft from memory:\n{prior_answer}")
 
         return "\n\n".join(parts)
 
@@ -588,6 +661,12 @@ class ResonanceAgent:
             "llm_fallback_used": llm_meta.get("was_fallback_used", False),
             "llm_fallback_from": llm_meta.get("fallback_from"),
             "llm_fallback_to": llm_meta.get("fallback_to"),
+            "graph_mode":      (item.get("_graph_runtime") or {}).get("mode"),
+            "graph_matched_case_id": (item.get("_graph_runtime") or {}).get("matched_case_id"),
+            "graph_similarity": (item.get("_graph_runtime") or {}).get("similarity"),
+            "graph_reason":    (item.get("_graph_runtime") or {}).get("reason"),
+            "was_reused":      (item.get("_graph_runtime") or {}).get("mode") == "reuse",
+            "was_refined":     (item.get("_graph_runtime") or {}).get("mode") == "refine",
             "feedback":        None,
             # Resonance
             "resonance_score":  item.get("_resonance_score", 0.5),

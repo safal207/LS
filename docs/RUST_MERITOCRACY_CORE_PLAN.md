@@ -1,5 +1,11 @@
 # Rust Meritocracy Core Plan
 
+Related design docs:
+
+- `docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md`
+- `docs/LLM_BACKEND_MODEL_TIERS.md`
+- `docs/COOPERATIVE_MERITOCRACY_NETWORK.md`
+
 This document defines the hot-path portion of the meritocracy layer that is worth moving to Rust.
 
 ## Why Rust here

@@ -79,14 +79,14 @@ USE_GROQ = _get(["llm", "use_groq"], False)
 GONKA_ENABLED = str(os.getenv("GONKA_ENABLED", _get(["llm", "gonka", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
 GONKA_API_KEY = os.getenv("GONKA_API_KEY", _get(["llm", "gonka", "api_key"], ""))
 GONKA_BASE_URL = os.getenv("GONKA_BASE_URL", _get(["llm", "gonka", "base_url"], "https://api.gonkagate.com/v1"))
-GONKA_MODEL = os.getenv("GONKA_MODEL", _get(["llm", "gonka", "model"], "openai/gpt-oss-120b"))
+GONKA_MODEL = os.getenv("GONKA_MODEL", _get(["llm", "gonka", "model"], "qwen/qwen3-235b-a22b-instruct-2507-fp8"))
 GONKA_TIMEOUT_SEC = float(os.getenv("GONKA_TIMEOUT_SEC", _get(["llm", "gonka", "timeout_sec"], 120)))
 
 # Xiaomi MiMo settings
 MIMO_ENABLED = str(os.getenv("MIMO_ENABLED", _get(["llm", "mimo", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
 MIMO_API_KEY = os.getenv("MIMO_API_KEY", _get(["llm", "mimo", "api_key"], ""))
-MIMO_BASE_URL = os.getenv("MIMO_BASE_URL", _get(["llm", "mimo", "base_url"], "https://platform.xiaomimimo.com/v1"))
-MIMO_MODEL = os.getenv("MIMO_MODEL", _get(["llm", "mimo", "model"], ""))
+MIMO_BASE_URL = os.getenv("MIMO_BASE_URL", _get(["llm", "mimo", "base_url"], "https://api.xiaomimimo.com/anthropic"))
+MIMO_MODEL = os.getenv("MIMO_MODEL", _get(["llm", "mimo", "model"], "mimo-v2-flash"))
 MIMO_TIMEOUT_SEC = float(os.getenv("MIMO_TIMEOUT_SEC", _get(["llm", "mimo", "timeout_sec"], 120)))
 
 # Model generation settings (GhostGPT)

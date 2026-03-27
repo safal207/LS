@@ -14,6 +14,12 @@ This is not a public benchmark leaderboard. It is a project-facing ranking based
 
 The ranking is meant for routing and fallback decisions.
 
+Related design docs:
+
+- `docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md`
+- `docs/RUST_MERITOCRACY_CORE_PLAN.md`
+- `docs/COOPERATIVE_MERITOCRACY_NETWORK.md`
+
 ## LLM Tiers
 
 ### Tier 1 — strongest currently verified

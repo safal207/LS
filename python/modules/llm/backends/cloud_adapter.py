@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 import logging
+import re
 from time import perf_counter
 from typing import Any, Optional
 
 from .base import LLMResponse, normalize_messages
 
 logger = logging.getLogger(__name__)
+
+_THINK_BLOCK_RE = re.compile(r"<think>.*?</think>\s*", re.IGNORECASE | re.DOTALL)
+
+
+def _sanitize_model_text(text: str) -> str:
+    if not text:
+        return ""
+    return _THINK_BLOCK_RE.sub("", text).strip()
 
 
 class OpenAICompatibleLLMAdapter:
@@ -93,7 +102,7 @@ class OpenAICompatibleLLMAdapter:
                     parts.append(delta)
                     if on_token is not None:
                         on_token(delta)
-                text = "".join(parts).strip()
+                text = _sanitize_model_text("".join(parts))
                 raw = None
             else:
                 completion = client.chat.completions.create(
@@ -103,7 +112,7 @@ class OpenAICompatibleLLMAdapter:
                     max_tokens=max_tokens,
                     timeout=timeout or self.timeout_sec,
                 )
-                text = (completion.choices[0].message.content or "").strip()
+                text = _sanitize_model_text(completion.choices[0].message.content or "")
                 raw = completion.model_dump() if hasattr(completion, "model_dump") else None
             latency_ms = (perf_counter() - start) * 1000
             if not text:

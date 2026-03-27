@@ -44,13 +44,13 @@ llm:
     enabled: false
     api_key: ""
     base_url: https://api.gonkagate.com/v1
-    model: openai/gpt-oss-120b
+    model: qwen/qwen3-235b-a22b-instruct-2507-fp8
     timeout_sec: 120
   mimo:
     enabled: false
     api_key: ""
-    base_url: https://platform.xiaomimimo.com/v1
-    model: ""
+    base_url: https://api.xiaomimimo.com/anthropic
+    model: mimo-v2-flash
     timeout_sec: 120
   ollama:
     host: http://localhost:11434
