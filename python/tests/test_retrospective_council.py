@@ -16,8 +16,26 @@ from retrospective import RetrospectiveCouncil
 
 def test_retrospective_council_builds_report(tmp_path):
     route_store = RouteStatsStore(tmp_path / "routes.json")
-    route_store.save_route(RouteStats(route_key="full_run>local>gonka>mimo", pheromone_weight=0.8, runs=4, successes=4, avg_quality=0.82))
-    route_store.save_route(RouteStats(route_key="full_run>cloud", pheromone_weight=0.01, runs=3, successes=0, avg_quality=0.42))
+    route_store.save_route(
+        RouteStats(
+            route_key="full_run>local>gonka>mimo",
+            pheromone_weight=0.8,
+            runs=4,
+            successes=4,
+            avg_quality=0.82,
+            avg_goal_alignment=0.81,
+        )
+    )
+    route_store.save_route(
+        RouteStats(
+            route_key="full_run>cloud",
+            pheromone_weight=0.01,
+            runs=3,
+            successes=0,
+            avg_quality=0.42,
+            avg_goal_alignment=0.34,
+        )
+    )
 
     coalition_registry = CoalitionRegistry(tmp_path / "coalitions.json")
     coalition_registry.save_coalition(

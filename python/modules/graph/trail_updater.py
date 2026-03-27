@@ -31,13 +31,15 @@ def compute_route_reward(quality: dict[str, Any], latency_ms: float) -> float:
     relevance = _quality_value(quality, "relevance", overall)
     thread_relevance = _quality_value(quality, "thread_relevance", overall)
     coherence = _quality_value(quality, "coherence", overall)
+    goal_alignment = _quality_value(quality, "goal_alignment_score", overall)
     hallucination_risk = _quality_value(quality, "hallucination_risk", max(0.0, 1.0 - overall))
     latency_penalty = min(1.0, max(0.0, float(latency_ms) / 30000.0))
     reward = (
-        0.35 * overall
-        + 0.20 * relevance
-        + 0.20 * thread_relevance
-        + 0.15 * coherence
+        0.28 * overall
+        + 0.18 * relevance
+        + 0.18 * thread_relevance
+        + 0.12 * coherence
+        + 0.14 * goal_alignment
         - 0.20 * hallucination_risk
         - 0.10 * latency_penalty
     )
@@ -57,13 +59,16 @@ class TrailUpdater:
         route.runs = runs + 1
         route.successes += 1 if reward > 0 else 0
         overall = _quality_value(record.quality, "overall", _quality_value(record.quality, "resonance_score", 0.5))
+        goal_alignment = _quality_value(record.quality, "goal_alignment_score", overall)
         route.avg_quality = round(((route.avg_quality * runs) + overall) / (runs + 1), 4)
+        route.avg_goal_alignment = round(((route.avg_goal_alignment * runs) + goal_alignment) / (runs + 1), 4)
         route.avg_latency_ms = round(((route.avg_latency_ms * runs) + float(record.latency_ms)) / (runs + 1), 2)
         updated = self.store.touch_route(route.route_key)
         updated.pheromone_weight = route.pheromone_weight
         updated.runs = route.runs
         updated.successes = route.successes
         updated.avg_quality = route.avg_quality
+        updated.avg_goal_alignment = route.avg_goal_alignment
         updated.avg_latency_ms = route.avg_latency_ms
         saved = self.store.save_route(updated)
         return saved, reward

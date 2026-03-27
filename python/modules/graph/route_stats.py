@@ -18,6 +18,7 @@ class RouteStats:
     runs: int = 0
     successes: int = 0
     avg_quality: float = 0.0
+    avg_goal_alignment: float = 0.0
     avg_latency_ms: float = 0.0
     last_used_at: Optional[str] = None
 
@@ -32,6 +33,7 @@ class RouteStats:
             runs=int(data.get("runs", 0) or 0),
             successes=int(data.get("successes", 0) or 0),
             avg_quality=float(data.get("avg_quality", 0.0) or 0.0),
+            avg_goal_alignment=float(data.get("avg_goal_alignment", 0.0) or 0.0),
             avg_latency_ms=float(data.get("avg_latency_ms", 0.0) or 0.0),
             last_used_at=data.get("last_used_at"),
         )

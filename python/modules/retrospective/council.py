@@ -33,12 +33,12 @@ class RetrospectiveCouncil:
         strong_routes = [
             route.route_key
             for route in routes
-            if route.runs >= 2 and route.avg_quality >= 0.7 and route.pheromone_weight >= 0.25
+            if route.runs >= 2 and route.avg_quality >= 0.7 and route.avg_goal_alignment >= 0.65 and route.pheromone_weight >= 0.25
         ]
         weak_routes = [
             route.route_key
             for route in routes
-            if route.runs >= 2 and (route.avg_quality < 0.55 or route.pheromone_weight < 0.05)
+            if route.runs >= 2 and (route.avg_quality < 0.55 or route.avg_goal_alignment < 0.5 or route.pheromone_weight < 0.05)
         ]
         strong_coalitions = [
             coalition.route_key
@@ -82,5 +82,6 @@ class RetrospectiveCouncil:
                 "route_count": len(routes),
                 "coalition_count": len(coalitions),
                 "derived_module_count": len(modules),
+                "avg_route_goal_alignment": round(sum(route.avg_goal_alignment for route in routes) / len(routes), 4) if routes else 0.0,
             },
         )

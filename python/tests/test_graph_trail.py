@@ -23,7 +23,7 @@ def test_trail_update_increases_pheromone_on_good_result(tmp_path):
         question_text="Почему вы выбрали этот стек?",
         graph_mode="full_run",
         selected_backend="local",
-        quality={"overall": 0.9, "relevance": 0.8, "thread_relevance": 0.8, "coherence": 0.9, "hallucination_risk": 0.1},
+        quality={"overall": 0.9, "relevance": 0.8, "thread_relevance": 0.8, "coherence": 0.9, "hallucination_risk": 0.1, "goal_alignment_score": 0.88},
         latency_ms=5000,
     )
 
@@ -32,18 +32,19 @@ def test_trail_update_increases_pheromone_on_good_result(tmp_path):
     assert reward > 0
     assert route.pheromone_weight > 0
     assert route.runs == 1
+    assert route.avg_goal_alignment > 0
 
 
 def test_trail_update_applies_decay(tmp_path):
     store = RouteStatsStore(tmp_path / "routes.json")
-    store.save_route(RouteStats(route_key="full_run>local", pheromone_weight=1.0, runs=1, successes=1))
+    store.save_route(RouteStats(route_key="full_run>local", pheromone_weight=1.0, runs=1, successes=1, avg_goal_alignment=0.9))
     updater = TrailUpdater(store, decay=0.5)
     record = PathExecutionRecord(
         route_key="full_run>local",
         question_text="Почему вы выбрали этот стек?",
         graph_mode="full_run",
         selected_backend="local",
-        quality={"overall": 0.0, "relevance": 0.0, "thread_relevance": 0.0, "coherence": 0.0, "hallucination_risk": 1.0},
+        quality={"overall": 0.0, "relevance": 0.0, "thread_relevance": 0.0, "coherence": 0.0, "hallucination_risk": 1.0, "goal_alignment_score": 0.0},
         latency_ms=30000,
     )
 
