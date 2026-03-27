@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
-from .models import MemoryCase
+from .models import MemoryCase, ResonanceKnowledgeUnit
 
 
 def _utc_now() -> str:
@@ -97,3 +97,88 @@ class MemoryGraphStore:
         with self.path.open("w", encoding="utf-8") as handle:
             for case in cases:
                 handle.write(json.dumps(case.to_dict(), ensure_ascii=False) + "\n")
+
+    # ──────────────────────────────────────────────────────────────
+    # ResonanceKnowledgeUnit — хранилище проверенных маршрутов мышления
+    # ──────────────────────────────────────────────────────────────
+
+    def _resonance_path(self) -> Path:
+        """Отдельный JSONL-файл для когнитивных маршрутов."""
+        return self.path.with_name("resonance_units.jsonl")
+
+    def store_resonance_unit(self, unit: ResonanceKnowledgeUnit) -> ResonanceKnowledgeUnit:
+        """Сохраняет или обновляет единицу проверенного когнитивного маршрута."""
+        units = self._load_resonance_units()
+
+        if not unit.unit_id:
+            unit.unit_id = str(uuid4())
+        if not unit.timestamp:
+            unit.timestamp = _utc_now()
+
+        updated = False
+        for i, existing in enumerate(units):
+            if existing.unit_id == unit.unit_id:
+                units[i] = unit
+                updated = True
+                break
+
+        if not updated:
+            units.append(unit)
+
+        self._write_resonance_units(units)
+        return unit
+
+    def find_relevant_units(
+        self,
+        *,
+        intent: str | None = None,
+        why: str | None = None,
+        goal_vector: list[float] | None = None,  # TODO: cosine similarity in follow-up
+        query_text: str | None = None,
+        top_k: int = 5,
+    ) -> list[ResonanceKnowledgeUnit]:
+        """Heuristic retrieval для проверенных когнитивных маршрутов (MVP).
+
+        Пока не использует embeddings / graph traversal — только простое совпадение.
+        """
+        units = self._load_resonance_units()
+        scored: list[tuple[ResonanceKnowledgeUnit, float]] = []
+
+        top_k = max(1, int(top_k or 1))
+
+        for u in units:
+            score = 0.0
+
+            if intent and u.intent and intent.lower() in u.intent.lower():
+                score += 0.4
+            if why and u.why and why.lower() in u.why.lower():
+                score += 0.4
+            if query_text and u.source_question and query_text.lower() in u.source_question.lower():
+                score += 0.3
+
+            # TODO: later add goal_vector cosine + resonance_score + alignment_score
+            if score > 0.0:
+                scored.append((u, score))
+
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [u for u, _ in scored[:top_k]]
+
+    def _load_resonance_units(self) -> list[ResonanceKnowledgeUnit]:
+        path = self._resonance_path()
+        if not path.exists():
+            return []
+
+        units: list[ResonanceKnowledgeUnit] = []
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if line:
+                    units.append(ResonanceKnowledgeUnit.from_dict(json.loads(line)))
+        return units
+
+    def _write_resonance_units(self, units: list[ResonanceKnowledgeUnit]) -> None:
+        """⚠️ MVP-only: без atomic write / file lock. Для production нужен follow-up."""
+        path = self._resonance_path()
+        with path.open("w", encoding="utf-8") as handle:
+            for unit in units:
+                handle.write(json.dumps(unit.to_dict(), ensure_ascii=False) + "\n")
