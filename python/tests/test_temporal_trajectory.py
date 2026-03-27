@@ -8,10 +8,10 @@ MODULES = ROOT / "python" / "modules"
 if str(MODULES) not in sys.path:
     sys.path.insert(0, str(MODULES))
 
-from graph.coalition_registry import CoalitionRecord, CoalitionRegistry
-from graph.derived_module_registry import DerivedModuleRegistry
-from graph.route_stats import RouteStats, RouteStatsStore
-from network import TemporalTrajectoryLayer, TrajectoryStore
+from graph.coalition_registry import CoalitionRecord, CoalitionRegistry  # noqa: E402
+from graph.derived_module_registry import DerivedModuleRegistry  # noqa: E402
+from graph.route_stats import RouteStats, RouteStatsStore  # noqa: E402
+from network import TemporalTrajectoryLayer, TrajectoryStore  # noqa: E402
 
 
 def test_temporal_trajectory_layer_builds_snapshot_record_and_scenarios(tmp_path):
