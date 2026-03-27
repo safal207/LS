@@ -4,6 +4,10 @@ Date: `2026-03-27`
 
 This document defines the next control layer above graph memory, trail routing, coalitions, and derived modules.
 
+Vocabulary companion:
+
+- `docs/NETWORK_VOCABULARY.md`
+
 The goal is to give the network:
 
 - a single orientation center for choosing routes, coalitions, and derived modules
@@ -346,4 +350,3 @@ Then add:
 Only after that add:
 
 5. adequacy core promotion / demotion rules
-
