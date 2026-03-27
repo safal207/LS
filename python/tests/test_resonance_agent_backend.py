@@ -11,6 +11,7 @@ if str(MODULES) not in sys.path:
 
 from modules.agent.resonance_agent import ResonanceAgent
 from modules.llm.backends.base import LLMResponse
+from modules.network.models import NetworkExecutionPlan
 from graph.runtime import GraphRuntimeDecision
 from graph.route_stats import RouteStatsStore
 
@@ -30,8 +31,19 @@ class FakeBackend:
         )
 
 
+def _make_control_center_class(plan: NetworkExecutionPlan):
+    class FakeControlCenter:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def create_plan(self, item, *, thread_context=None, intent=None, why_tag=None):
+            return plan
+
+    return FakeControlCenter
+
+
 def test_resonance_agent_uses_backend_contract():
-    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), orientation="test")
+    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
 
     result = agent.process_text("Почему вы выбрали этот стек?")
 
@@ -108,9 +120,9 @@ def test_resonance_agent_updates_trail_stats_after_answer(monkeypatch):
         agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
         result = agent.process_text("Почему вы выбрали этот стек?")
 
-        stats = route_store.get_route("full_run>gonka")
+        stats = route_store.get_route("full_run")
         assert result["trail_updated"] is True
-        assert result["route_key"] == "full_run>gonka"
+        assert result["route_key"] == "full_run"
         assert stats is not None
         assert stats.runs >= 1
 
@@ -145,20 +157,28 @@ def test_resonance_agent_updates_coalition_registry(monkeypatch):
         monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_ENABLED", True)
         monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_STORE_PATH", str(Path(tmpdir) / "coalitions.json"))
 
-        class FixedSelector:
-            def choose_route(self, **kwargs):
-                from graph.path_selector import PathSelectionDecision
-                return PathSelectionDecision(
-                    route_key="full_run>local>gonka>mimo",
-                    reason="fixed-test-route",
-                    exploration_used=False,
-                    pheromone_weight=0.0,
-                    selected_backend="cooperative",
-                )
-
+        plan = NetworkExecutionPlan(
+            mode="full_run",
+            route_key="full_run>local>gonka>mimo",
+            coalition_id="full_run-local-gonka-mimo",
+            derived_module_id=None,
+            memory_case_id=None,
+            reason="fixed-test-route",
+            confidence=0.7,
+            selected_backend="cooperative",
+            graph_decision=FakeGraphRuntimeFullRun().process({}).to_dict(),
+            path_decision={
+                "route_key": "full_run>local>gonka>mimo",
+                "reason": "fixed-test-route",
+                "exploration_used": False,
+                "pheromone_weight": 0.0,
+                "selected_backend": "cooperative",
+            },
+            available_backends=["local", "gonka", "mimo"],
+        )
+        monkeypatch.setattr("modules.agent.resonance_agent._NetworkControlCenter", _make_control_center_class(plan))
         agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
-        agent._path_selector = FixedSelector()
-        result = agent.process_text("Почему вы выбрали этот стек?")
+        result = agent.process_text("???????????? ???? ?????????????? ???????? ?????????")
 
         assert result["coalition_used"] is True
         assert result["coalition_route_key"] == "full_run>local>gonka>mimo"
@@ -187,9 +207,25 @@ def test_resonance_agent_uses_derived_module_when_available(monkeypatch):
             policy_text="Use concise answers and do not invent facts.",
             quality_score=0.84,
         )
+        module = registry.get_module("derived-unknown-evaluate-reasoning-local")
+        assert module is not None
 
+        plan = NetworkExecutionPlan(
+            mode="full_run",
+            route_key=f"derived>{module.module_id}",
+            coalition_id=module.parent_coalition_id,
+            derived_module_id=module.module_id,
+            memory_case_id=None,
+            reason="derived-module",
+            confidence=module.trust_score,
+            selected_backend=module.preferred_backend,
+            graph_decision=FakeGraphRuntimeFullRun().process({}).to_dict(),
+            derived_module=module.to_dict(),
+            available_backends=["local", "gonka", "mimo"],
+        )
+        monkeypatch.setattr("modules.agent.resonance_agent._NetworkControlCenter", _make_control_center_class(plan))
         agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
-        result = agent.process_text("Почему вы выбрали этот стек?")
+        result = agent.process_text("???????????? ???? ?????????????? ???????? ?????????")
 
         assert result["derived_module_used"] is True
         assert result["llm_provider"] == "derived_module"
@@ -206,20 +242,28 @@ def test_resonance_agent_creates_derived_module_from_successful_cooperative_run(
         monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_QUALITY", 0.6)
         monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_TRUST", 0.5)
 
-        class FixedSelector:
-            def choose_route(self, **kwargs):
-                from graph.path_selector import PathSelectionDecision
-                return PathSelectionDecision(
-                    route_key="full_run>local>gonka>mimo",
-                    reason="fixed-test-route",
-                    exploration_used=False,
-                    pheromone_weight=0.0,
-                    selected_backend="cooperative",
-                )
-
+        plan = NetworkExecutionPlan(
+            mode="full_run",
+            route_key="full_run>local>gonka>mimo",
+            coalition_id="full_run-local-gonka-mimo",
+            derived_module_id=None,
+            memory_case_id=None,
+            reason="fixed-test-route",
+            confidence=0.7,
+            selected_backend="cooperative",
+            graph_decision=FakeGraphRuntimeFullRun().process({}).to_dict(),
+            path_decision={
+                "route_key": "full_run>local>gonka>mimo",
+                "reason": "fixed-test-route",
+                "exploration_used": False,
+                "pheromone_weight": 0.0,
+                "selected_backend": "cooperative",
+            },
+            available_backends=["local", "gonka", "mimo"],
+        )
+        monkeypatch.setattr("modules.agent.resonance_agent._NetworkControlCenter", _make_control_center_class(plan))
         agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
-        agent._path_selector = FixedSelector()
-        result = agent.process_text("Почему вы выбрали этот стек?")
+        result = agent.process_text("???????????? ???? ?????????????? ???????? ?????????")
 
         assert result["derived_module_used"] is True
         assert result["derived_module_id"] is not None
@@ -251,9 +295,25 @@ def test_resonance_agent_runs_care_cycle_for_derived_module(monkeypatch):
             policy_text="Use concise answers and do not invent facts.",
             quality_score=0.84,
         )
+        module = registry.get_module("derived-generic-generic-local")
+        assert module is not None
 
+        plan = NetworkExecutionPlan(
+            mode="full_run",
+            route_key=f"derived>{module.module_id}",
+            coalition_id=module.parent_coalition_id,
+            derived_module_id=module.module_id,
+            memory_case_id=None,
+            reason="derived-module",
+            confidence=module.trust_score,
+            selected_backend=module.preferred_backend,
+            graph_decision=FakeGraphRuntimeFullRun().process({}).to_dict(),
+            derived_module=module.to_dict(),
+            available_backends=["local", "gonka", "mimo"],
+        )
+        monkeypatch.setattr("modules.agent.resonance_agent._NetworkControlCenter", _make_control_center_class(plan))
         agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
-        result = agent.process_text("Почему вы выбрали этот стек?")
+        result = agent.process_text("???????????? ???? ?????????????? ???????? ?????????")
 
         assert result["care_cycle_used"] is True
         assert result["care_cycle_action"] in {"promote", "keep", "demote", "retire"}
@@ -261,23 +321,29 @@ def test_resonance_agent_runs_care_cycle_for_derived_module(monkeypatch):
 
 
 def test_resonance_agent_exposes_adequacy_metadata(monkeypatch):
-    class FakeAdequacyCore:
+    class FakeObserver:
         def evaluate(self):
             return type(
-                "Adequacy",
+                "Observer",
                 (),
                 {
                     "to_dict": lambda self_: {
                         "status": "watch",
-                        "risks": ["route dominance risk"],
-                        "recommendations": ["increase exploration"],
+                        "summary": {"trend": "watch"},
+                        "adequacy": {
+                            "status": "watch",
+                            "risks": ["route dominance risk"],
+                            "recommendations": ["increase exploration"],
+                        },
+                        "retrospective": {},
+                        "trajectory": {},
                     }
                 },
             )()
 
-    monkeypatch.setattr("modules.agent.resonance_agent._CognitiveAdequacyCore", FakeAdequacyCore)
+    monkeypatch.setattr("modules.agent.resonance_agent._NetworkObserver", FakeObserver)
     agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
-    result = agent.process_text("Почему вы выбрали этот стек?")
+    result = agent.process_text("???????????? ???? ?????????????? ???????? ?????????")
 
     assert result["adequacy_status"] == "watch"
     assert "route dominance risk" in (result["adequacy_risks"] or [])
