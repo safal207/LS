@@ -56,3 +56,5 @@ def test_network_control_center_passes_observer_into_orientation() -> None:
     assert orientation.last_observer_report is not None
     assert orientation.last_observer_report["status"] == "watch"
     assert plan.observer_report["summary"]["trend"] == "stable"
+    assert plan.need_profile is not None
+    assert plan.need_profile["priority"] in {"balanced", "safe_correction", "deep_reasoning", "fast_response"}

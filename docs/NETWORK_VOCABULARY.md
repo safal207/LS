@@ -44,6 +44,14 @@ Engineering translation:
 - `priority`
 - `compute_budget`
 
+Current MVP:
+
+- `NeedProfiler` derives a lightweight `NeedProfile` from:
+  - question wording
+  - graph similarity / memory gap
+  - observer status
+- `NetworkControlCenter` attaches this profile to the execution plan
+
 ## Energy
 
 Energy is the usable resource available to satisfy the need.

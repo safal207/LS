@@ -17,6 +17,7 @@ class NetworkExecutionPlan:
     graph_decision: Optional[dict[str, Any]] = None
     path_decision: Optional[dict[str, Any]] = None
     derived_module: Optional[dict[str, Any]] = None
+    need_profile: Optional[dict[str, Any]] = None
     adequacy_report: Optional[dict[str, Any]] = None
     observer_report: Optional[dict[str, Any]] = None
     available_backends: list[str] | None = None
@@ -105,6 +106,20 @@ class ObserverReport:
     adequacy: dict[str, Any]
     status: str
     summary: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class NeedProfile:
+    urgency: float
+    novelty: float
+    uncertainty: float
+    memory_gap: float
+    compute_budget: float
+    priority: str
+    route_bias: str
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

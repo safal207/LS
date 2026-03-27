@@ -323,10 +323,12 @@ def test_resonance_agent_uses_network_control_center(monkeypatch):
                         "route_key": "full_run>local",
                         "reason": "control-center-test",
                         "confidence": 0.7,
+                        "need_profile": {"priority": "balanced", "route_bias": "adaptive"},
                     },
                     "graph_decision": None,
                     "derived_module": None,
                     "path_decision": None,
+                    "need_profile": {"priority": "balanced", "route_bias": "adaptive"},
                     "adequacy_report": {"status": "stable", "risks": [], "recommendations": []},
                     "observer_report": {"status": "stable", "summary": {"trend": "stable"}},
                     "available_backends": ["local"],
@@ -339,3 +341,4 @@ def test_resonance_agent_uses_network_control_center(monkeypatch):
 
     assert result["orientation_reason"] == "control-center-test"
     assert result["observer_status"] == "stable"
+    assert result["need_priority"] == "balanced"
