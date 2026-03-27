@@ -9,9 +9,12 @@ from .models import (
     RetrievedCase,
     ReuseDecision,
 )
+from .path_selector import PathSelectionDecision, PathSelector
 from .retriever import MemoryGraphRetriever, compute_question_similarity
+from .route_stats import RouteStats, RouteStatsStore
 from .runtime import GraphMemoryRuntime, GraphRuntimeDecision
 from .reuse import decide_reuse
+from .trail_updater import PathExecutionRecord, TrailUpdater, compute_route_reward
 
 __all__ = [
     "Coalition",
@@ -24,8 +27,15 @@ __all__ = [
     "MemoryGraphRetriever",
     "MemoryGraphStore",
     "NetworkQuestion",
+    "PathExecutionRecord",
+    "PathSelectionDecision",
+    "PathSelector",
     "RetrievedCase",
     "ReuseDecision",
+    "RouteStats",
+    "RouteStatsStore",
+    "TrailUpdater",
     "compute_question_similarity",
+    "compute_route_reward",
     "decide_reuse",
 ]

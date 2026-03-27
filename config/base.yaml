@@ -66,6 +66,13 @@ agent:
   observability_enabled: true
   event_sink: "print"
 
+graph:
+  trail:
+    enabled: false
+    store_path: data/graph_memory/routes.json
+    decay: 0.95
+    exploration_rate: 0.10
+
 question_keywords:
   - "почему"
   - "зачем"

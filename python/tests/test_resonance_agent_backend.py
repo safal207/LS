@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -11,6 +12,7 @@ if str(MODULES) not in sys.path:
 from modules.agent.resonance_agent import ResonanceAgent
 from modules.llm.backends.base import LLMResponse
 from graph.runtime import GraphRuntimeDecision
+from graph.route_stats import RouteStatsStore
 
 
 class FakeBackend:
@@ -53,6 +55,21 @@ class FakeGraphRuntime:
         return None
 
 
+class FakeGraphRuntimeFullRun:
+    def process(self, item, thread_context=None):
+        return GraphRuntimeDecision(
+            mode="full_run",
+            matched_case_id=None,
+            similarity=0.0,
+            prior_answer=None,
+            prior_case=None,
+            reason="no-similar-case",
+        )
+
+    def remember_success(self, item, *, answer_text, thread_context=None, answer_quality=None, contributors=None):
+        return None
+
+
 def test_resonance_agent_can_reuse_graph_answer_without_llm_call():
     agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), graph_runtime=FakeGraphRuntime(), orientation="test")
 
@@ -62,3 +79,21 @@ def test_resonance_agent_can_reuse_graph_answer_without_llm_call():
     assert result["llm_provider"] == "graph_reuse"
     assert result["graph_mode"] == "reuse"
     assert result["was_reused"] is True
+
+
+def test_resonance_agent_updates_trail_stats_after_answer(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        route_store = RouteStatsStore(Path(tmpdir) / "routes.json")
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_ENABLED", True)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_STORE_PATH", str(Path(tmpdir) / "routes.json"))
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_EXPLORATION_RATE", 0.0)
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_DECAY", 0.95)
+
+        agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+        result = agent.process_text("Почему вы выбрали этот стек?")
+
+        stats = route_store.get_route("full_run>gonka")
+        assert result["trail_updated"] is True
+        assert result["route_key"] == "full_run>gonka"
+        assert stats is not None
+        assert stats.runs >= 1

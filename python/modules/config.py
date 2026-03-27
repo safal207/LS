@@ -44,6 +44,10 @@ AGENT_MEMORY_MAX_CHARS = _get(["agent", "memory_max_chars"], 2000)
 AGENT_METRICS_ENABLED = _get(["agent", "metrics_enabled"], True)
 AGENT_OBSERVABILITY_ENABLED = _get(["agent", "observability_enabled"], True)
 AGENT_EVENT_SINK = _get(["agent", "event_sink"], "print")
+GRAPH_TRAIL_ENABLED = str(os.getenv("GRAPH_TRAIL_ENABLED", _get(["graph", "trail", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GRAPH_TRAIL_STORE_PATH = os.getenv("GRAPH_TRAIL_STORE_PATH", _get(["graph", "trail", "store_path"], "data/graph_memory/routes.json"))
+GRAPH_TRAIL_DECAY = float(os.getenv("GRAPH_TRAIL_DECAY", _get(["graph", "trail", "decay"], 0.95)))
+GRAPH_TRAIL_EXPLORATION_RATE = float(os.getenv("GRAPH_TRAIL_EXPLORATION_RATE", _get(["graph", "trail", "exploration_rate"], 0.10)))
 
 # Audio settings
 AUDIO_CHUNK_DURATION = _get(["audio", "chunk_duration"], 3.0)

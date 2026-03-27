@@ -67,7 +67,14 @@ import time
 import uuid
 from typing import Callable, List, Optional
 
-from config import MAX_TOKENS, TEMPERATURE
+from config import (
+    GRAPH_TRAIL_DECAY,
+    GRAPH_TRAIL_ENABLED,
+    GRAPH_TRAIL_EXPLORATION_RATE,
+    GRAPH_TRAIL_STORE_PATH,
+    MAX_TOKENS,
+    TEMPERATURE,
+)
 from shared.interview_schema import ensure_interview_item
 
 logger = logging.getLogger(__name__)
@@ -142,10 +149,18 @@ except Exception:
 
 try:
     from graph import GraphMemoryRuntime as _GraphMemoryRuntime
+    from graph import PathExecutionRecord as _PathExecutionRecord
+    from graph import PathSelector as _PathSelector
+    from graph import RouteStatsStore as _RouteStatsStore
+    from graph import TrailUpdater as _TrailUpdater
     _GRAPH_OK = True
 except Exception:
     _GRAPH_OK = False
     _GraphMemoryRuntime = None  # type: ignore[assignment]
+    _PathExecutionRecord = None  # type: ignore[assignment]
+    _PathSelector = None  # type: ignore[assignment]
+    _RouteStatsStore = None  # type: ignore[assignment]
+    _TrailUpdater = None  # type: ignore[assignment]
 
 
 # ---------------------------------------------------------------------------
@@ -190,6 +205,24 @@ class ResonanceAgent:
         self._llm_backend = llm_backend
         self._graph_runtime = graph_runtime or (
             _GraphMemoryRuntime() if _GRAPH_OK and _GraphMemoryRuntime else None
+        )
+        self._route_stats_store = (
+            _RouteStatsStore(GRAPH_TRAIL_STORE_PATH)
+            if GRAPH_TRAIL_ENABLED and _GRAPH_OK and _RouteStatsStore
+            else None
+        )
+        self._path_selector = (
+            _PathSelector(
+                self._route_stats_store,
+                exploration_rate=GRAPH_TRAIL_EXPLORATION_RATE,
+            )
+            if self._route_stats_store and _PathSelector
+            else None
+        )
+        self._trail_updater = (
+            _TrailUpdater(self._route_stats_store, decay=GRAPH_TRAIL_DECAY)
+            if self._route_stats_store and _TrailUpdater
+            else None
         )
         self._orientation = orientation
 
@@ -404,6 +437,42 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.debug("ResonanceAgent: graph runtime failed: %s", exc)
 
+        path_decision = None
+        original_primary = None
+        original_fallback = None
+        if (
+            self._path_selector
+            and graph_decision
+            and graph_decision.mode != "reuse"
+            and self._llm_backend is not None
+            and hasattr(self._llm_backend, "backends")
+        ):
+            try:
+                available_backends = [
+                    name for name in ("gonka", "mimo", "cloud", "local")
+                    if name in getattr(self._llm_backend, "backends", {})
+                ]
+                default_backend = getattr(self._llm_backend, "primary", None)
+                path_decision = self._path_selector.choose_route(
+                    graph_mode=graph_decision.mode,
+                    available_backends=available_backends,
+                    default_backend=default_backend,
+                )
+                item["_path_selection"] = path_decision.to_dict()
+                selected_backend = path_decision.selected_backend
+                if selected_backend and hasattr(self._llm_backend, "primary"):
+                    original_primary = getattr(self._llm_backend, "primary", None)
+                    original_fallback = list(getattr(self._llm_backend, "fallback_chain", []))
+                    ordered_fallbacks = [
+                        backend
+                        for backend in original_fallback
+                        if backend != selected_backend
+                    ]
+                    self._llm_backend.primary = selected_backend
+                    self._llm_backend.fallback_chain = ordered_fallbacks
+            except Exception as exc:
+                logger.debug("ResonanceAgent: path selector failed: %s", exc)
+
         # Phase 2 — build system prompt and call LLM
         t0 = time.perf_counter()
         if graph_decision and graph_decision.mode == "reuse" and graph_decision.prior_answer:
@@ -423,6 +492,10 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.warning("ResonanceAgent: LLM call failed: %s", exc)
                 final_output = item.get("_copilot_output", {}).get("pre_prompt", "")
+            finally:
+                if original_primary is not None and hasattr(self._llm_backend, "primary"):
+                    self._llm_backend.primary = original_primary
+                    self._llm_backend.fallback_chain = original_fallback or []
         generation_time = time.perf_counter() - t0
 
         # After LLM: update resonance_score with response quality signal
@@ -477,6 +550,34 @@ class ResonanceAgent:
                 )
             except Exception as exc:
                 logger.debug("ResonanceAgent: graph remember failed: %s", exc)
+
+        if self._trail_updater and _PathExecutionRecord:
+            try:
+                llm_meta = item.get("_llm_backend") or {}
+                graph_meta = item.get("_graph_runtime") or {}
+                route_key = "reuse" if graph_meta.get("mode") == "reuse" else None
+                if not route_key:
+                    route_key = (
+                        (item.get("_path_selection") or {}).get("route_key")
+                        or f"{graph_meta.get('mode', 'full_run')}>{llm_meta.get('provider', 'unknown')}"
+                    )
+                quality = {
+                    "overall": item.get("_resonance_score", 0.5),
+                    "resonance_score": item.get("_resonance_score", 0.5),
+                }
+                record = _PathExecutionRecord(
+                    route_key=route_key,
+                    question_text=item.get("text", ""),
+                    graph_mode=graph_meta.get("mode", "full_run"),
+                    selected_backend=str(llm_meta.get("provider", "unknown")),
+                    quality=quality,
+                    latency_ms=float(llm_meta.get("latency_ms") or generation_time * 1000),
+                )
+                route_stats, reward = self._trail_updater.update(record)
+                item["_trail_route"] = route_stats.to_dict()
+                item["_trail_reward"] = reward
+            except Exception as exc:
+                logger.debug("ResonanceAgent: trail update failed: %s", exc)
 
         result = self._build_output(item, final_output, generation_time, cycle_id)
         # Cache the pipeline item so feedback() can look up the real
@@ -565,12 +666,18 @@ class ResonanceAgent:
 
         graph = item.get("_graph_runtime") or {}
         prior_answer = item.get("_graph_prior_answer")
+        path_selection = item.get("_path_selection") or {}
         if graph.get("mode") == "refine" and prior_answer:
             parts.append(
                 "Есть похожий прошлый кейс. Используй его как черновую базу, "
                 "но адаптируй под текущий вопрос и контекст."
             )
             parts.append(f"Base draft from memory:\n{prior_answer}")
+        if path_selection.get("route_key"):
+            parts.append(
+                "Маршрут решения выбран по истории успешных путей: "
+                f"{path_selection.get('route_key')}."
+            )
 
         return "\n\n".join(parts)
 
@@ -626,6 +733,14 @@ class ResonanceAgent:
         intent    = item.get("_intent")
         why       = item.get("_why")
         llm_meta  = item.get("_llm_backend") or {}
+        path_meta = item.get("_path_selection") or {}
+        graph_meta = item.get("_graph_runtime") or {}
+        trail_meta = item.get("_trail_route") or {}
+        fallback_route_key = (
+            "reuse"
+            if graph_meta.get("mode") == "reuse"
+            else f"{graph_meta.get('mode', 'full_run')}>{llm_meta.get('provider', 'unknown')}"
+        )
 
         return {
             # Identity
@@ -661,12 +776,18 @@ class ResonanceAgent:
             "llm_fallback_used": llm_meta.get("was_fallback_used", False),
             "llm_fallback_from": llm_meta.get("fallback_from"),
             "llm_fallback_to": llm_meta.get("fallback_to"),
-            "graph_mode":      (item.get("_graph_runtime") or {}).get("mode"),
-            "graph_matched_case_id": (item.get("_graph_runtime") or {}).get("matched_case_id"),
-            "graph_similarity": (item.get("_graph_runtime") or {}).get("similarity"),
-            "graph_reason":    (item.get("_graph_runtime") or {}).get("reason"),
-            "was_reused":      (item.get("_graph_runtime") or {}).get("mode") == "reuse",
-            "was_refined":     (item.get("_graph_runtime") or {}).get("mode") == "refine",
+            "graph_mode":      graph_meta.get("mode"),
+            "graph_matched_case_id": graph_meta.get("matched_case_id"),
+            "graph_similarity": graph_meta.get("similarity"),
+            "graph_reason":    graph_meta.get("reason"),
+            "was_reused":      graph_meta.get("mode") == "reuse",
+            "was_refined":     graph_meta.get("mode") == "refine",
+            "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
+            "route_reason":    path_meta.get("reason") or "trail-fallback",
+            "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
+            "exploration_used": path_meta.get("exploration_used", False),
+            "trail_updated":   bool(trail_meta),
+            "route_reward":    item.get("_trail_reward"),
             "feedback":        None,
             # Resonance
             "resonance_score":  item.get("_resonance_score", 0.5),
