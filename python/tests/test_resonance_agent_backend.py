@@ -374,3 +374,25 @@ def test_resonance_agent_system_prompt_uses_goal_vector_guidance() -> None:
     assert "Целевой профиль ответа" in system_prompt
     assert "Отвечай осторожно" in system_prompt
     assert "точность и проверяемость важнее скорости" in system_prompt
+
+
+def test_resonance_agent_goal_alignment_score_rewards_matching_profile() -> None:
+    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(provider="local", model="local-test", text="ok"), orientation="test")
+    item = {
+        "_network_plan": {
+            "goal_vector": {
+                "style": "careful",
+                "strategy_bias": "verify_first",
+                "target_relevance": 0.8,
+                "target_thread_alignment": 0.8,
+                "target_hallucination_max": 0.15,
+                "target_latency_ms": 12000.0,
+            }
+        }
+    }
+
+    good = agent._goal_alignment_score("Я выбрал этот стек, потому что он лучше подходил под задачу и команду, без лишних зависимостей.", item)
+    bad = agent._goal_alignment_score("Мы ускорили всё на 300% и сэкономили 40% бюджета.", item)
+
+    assert good > bad
+    assert good <= 1.0

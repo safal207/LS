@@ -684,7 +684,9 @@ class ResonanceAgent:
         # After LLM: update resonance_score with response quality signal
         base_score = item.get("_resonance_score", 0.5)
         response_score = self._rate_response(final_output, item)
-        final_score = round((base_score * 0.7 + response_score * 0.3), 3)
+        goal_alignment_score = self._goal_alignment_score(final_output, item)
+        item["_goal_alignment_score"] = goal_alignment_score
+        final_score = round((base_score * 0.55 + response_score * 0.25 + goal_alignment_score * 0.20), 3)
         item["_resonance_score"] = final_score
 
         # Phase 2 — complete log cycle
@@ -738,6 +740,7 @@ class ResonanceAgent:
                     thread_context=item.get("thread_context") or self._orientation or None,
                     answer_quality={
                         "resonance_score": item.get("_resonance_score", 0.5),
+                        "goal_alignment_score": item.get("_goal_alignment_score", 0.5),
                     },
                     contributors=contributors,
                 )
@@ -757,6 +760,7 @@ class ResonanceAgent:
                 quality = {
                     "overall": item.get("_resonance_score", 0.5),
                     "resonance_score": item.get("_resonance_score", 0.5),
+                    "goal_alignment_score": item.get("_goal_alignment_score", 0.5),
                 }
                 record = _PathExecutionRecord(
                     route_key=route_key,
@@ -1083,6 +1087,44 @@ class ResonanceAgent:
 
         return round(min(1.0, length_score * 0.9 + anchor_bonus), 3)
 
+    def _goal_alignment_score(self, response: str, item: dict) -> float:
+        goal_vector = ((item.get("_network_plan") or {}).get("goal_vector") or {})
+        if not response:
+            return 0.2
+        if not goal_vector:
+            return 0.5
+
+        text = response.strip()
+        lower = text.lower()
+        words = len(text.split())
+        score = 0.25
+
+        style = goal_vector.get("style")
+        if style == "concise":
+            score += 0.35 if words <= 60 else 0.15 if words <= 90 else 0.0
+        elif style == "careful":
+            risky_markers = any(token in text for token in ("%", "$", "x", "X"))
+            score += 0.30 if not risky_markers else 0.10
+        elif style == "structured":
+            structured = any(sep in text for sep in ("\n", ":", ";", " - "))
+            score += 0.35 if structured else 0.15
+
+        strategy_bias = goal_vector.get("strategy_bias")
+        if strategy_bias == "speed_first":
+            score += 0.25 if words <= 45 else 0.10
+        elif strategy_bias == "verify_first":
+            score += 0.25 if not any(ch.isdigit() for ch in text) else 0.10
+        elif strategy_bias == "cooperative_reasoning":
+            score += 0.25 if any(marker in lower for marker in ("потому что", "однако", "но", "компромисс", "trade-off")) else 0.10
+        elif strategy_bias == "grounded":
+            score += 0.25 if not any(ch.isdigit() for ch in text) else 0.05
+
+        target_latency_ms = float(goal_vector.get("target_latency_ms") or 0.0)
+        if target_latency_ms and target_latency_ms <= 5500:
+            score += 0.10 if words <= 50 else 0.0
+
+        return round(min(1.0, score), 3)
+
     # ------------------------------------------------------------------
     # Output assembly
     # ------------------------------------------------------------------
@@ -1164,6 +1206,7 @@ class ResonanceAgent:
             "goal_vector": orientation_meta.get("goal_vector"),
             "goal_style": (orientation_meta.get("goal_vector") or {}).get("style"),
             "goal_strategy_bias": (orientation_meta.get("goal_vector") or {}).get("strategy_bias"),
+            "goal_alignment_score": item.get("_goal_alignment_score"),
             "adequacy_status": adequacy_meta.get("status"),
             "adequacy_risks": adequacy_meta.get("risks"),
             "adequacy_recommendations": adequacy_meta.get("recommendations"),
