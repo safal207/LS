@@ -14,9 +14,11 @@ from network import NetworkControlCenter, NetworkExecutionPlan  # noqa: E402
 class FakeOrientationCenter:
     def __init__(self):
         self.last_observer_report = None
+        self.last_goal_vector = None
 
-    def decide(self, item, *, thread_context=None, intent=None, why_tag=None, observer_report=None):
+    def decide(self, item, *, thread_context=None, intent=None, why_tag=None, observer_report=None, goal_vector=None):
         self.last_observer_report = observer_report
+        self.last_goal_vector = goal_vector
         return NetworkExecutionPlan(
             mode="full_run",
             route_key="full_run>local>gonka>mimo",
@@ -55,6 +57,7 @@ def test_network_control_center_passes_observer_into_orientation() -> None:
     assert plan.reason == "control-center"
     assert orientation.last_observer_report is not None
     assert orientation.last_observer_report["status"] == "watch"
+    assert orientation.last_goal_vector is not None
     assert plan.observer_report["summary"]["trend"] == "stable"
     assert plan.need_profile is not None
     assert plan.goal_vector is not None

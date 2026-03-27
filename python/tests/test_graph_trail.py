@@ -123,3 +123,35 @@ def test_path_selector_prefers_matching_coalition_registry_route(tmp_path):
 
     assert decision.route_key == "full_run>local>gonka>mimo"
     assert decision.reason == "coalition-registry"
+
+
+def test_path_selector_prefers_cooperative_route_for_goal_vector(tmp_path):
+    store = RouteStatsStore(tmp_path / "routes.json")
+    selector = PathSelector(store, exploration_rate=0.0)
+
+    decision = selector.choose_route(
+        graph_mode="full_run",
+        available_backends=["local", "gonka", "mimo"],
+        default_backend="local",
+        goal_style="structured",
+        strategy_bias="cooperative_reasoning",
+    )
+
+    assert decision.route_key == "full_run>local>gonka>mimo"
+    assert decision.reason == "goal-vector-cooperative"
+
+
+def test_path_selector_prefers_local_route_for_concise_goal(tmp_path):
+    store = RouteStatsStore(tmp_path / "routes.json")
+    selector = PathSelector(store, exploration_rate=0.0)
+
+    decision = selector.choose_route(
+        graph_mode="full_run",
+        available_backends=["local", "gonka"],
+        default_backend="gonka",
+        goal_style="concise",
+        strategy_bias="speed_first",
+    )
+
+    assert decision.route_key == "full_run>local"
+    assert decision.reason == "goal-vector-concise"

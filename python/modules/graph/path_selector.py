@@ -43,6 +43,8 @@ class PathSelector:
         intent: str | None = None,
         why_tag: str | None = None,
         force_exploration: bool = False,
+        goal_style: str | None = None,
+        strategy_bias: str | None = None,
     ) -> PathSelectionDecision:
         if graph_mode == "reuse":
             route = self.store.touch_route("reuse")
@@ -92,8 +94,31 @@ class PathSelector:
                 selected_backend="cooperative" if len(coalition.members) > 1 else (coalition.members[0] if coalition.members else None),
             )
 
-        use_exploration = force_exploration or (len(candidates) > 1 and self.rng.random() < self.exploration_rate)
         cooperative_candidate = next((item for item in candidates if item[1] == "cooperative"), None)
+        if strategy_bias == "cooperative_reasoning" and cooperative_candidate is not None and not force_exploration:
+            route_key, backend, stats = cooperative_candidate
+            self.store.touch_route(route_key)
+            return PathSelectionDecision(
+                route_key=route_key,
+                reason="goal-vector-cooperative",
+                exploration_used=False,
+                pheromone_weight=max(stats.pheromone_weight, stats.avg_quality),
+                selected_backend=backend,
+            )
+
+        if goal_style == "concise" and "local" in backend_set and not force_exploration:
+            route_key = f"{graph_mode}>local"
+            stats = self.store.get_route(route_key) or RouteStats(route_key=route_key)
+            self.store.touch_route(route_key)
+            return PathSelectionDecision(
+                route_key=route_key,
+                reason="goal-vector-concise",
+                exploration_used=False,
+                pheromone_weight=max(stats.pheromone_weight, stats.avg_quality),
+                selected_backend="local",
+            )
+
+        use_exploration = force_exploration or (len(candidates) > 1 and self.rng.random() < self.exploration_rate)
         if cooperative_candidate is not None:
             cooperative_zero_history = cooperative_candidate[2].runs == 0
             all_zero_history = all(item[2].runs == 0 for item in candidates)

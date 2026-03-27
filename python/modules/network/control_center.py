@@ -58,6 +58,7 @@ class NetworkControlCenter:
             intent=intent,
             why_tag=why_tag,
             observer_report=observer_report,
+            goal_vector=goal_vector,
         )
         plan.need_profile = need_profile
         plan.goal_vector = goal_vector

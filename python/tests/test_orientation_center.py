@@ -170,3 +170,21 @@ def test_orientation_center_surfaces_observer_report(tmp_path):
     assert plan.observer_report is not None
     assert plan.observer_report["status"] == "watch"
     assert plan.adequacy_report["status"] == "watch"
+
+
+def test_orientation_center_uses_goal_vector_for_route_choice(tmp_path):
+    center = OrientationCenter(
+        graph_runtime=FakeGraphRuntime(FakeGraphDecision(mode="full_run", reason="no-match")),
+        path_selector=PathSelector(RouteStatsStore(tmp_path / "routes.json"), exploration_rate=0.0),
+        llm_backend=FakeRouter(),
+    )
+
+    plan = center.decide(
+        {"text": "Почему вы выбрали этот стек?"},
+        intent="technical_reasoning",
+        why_tag="evaluate_reasoning",
+        goal_vector={"style": "structured", "strategy_bias": "cooperative_reasoning"},
+    )
+
+    assert plan.goal_vector is not None
+    assert plan.route_key == "full_run>local>gonka>mimo"

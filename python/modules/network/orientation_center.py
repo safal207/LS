@@ -39,6 +39,7 @@ class OrientationCenter:
         intent: str | None = None,
         why_tag: str | None = None,
         observer_report: dict[str, Any] | None = None,
+        goal_vector: dict[str, Any] | None = None,
     ) -> NetworkExecutionPlan:
         graph_decision = None
         graph_meta = None
@@ -82,6 +83,7 @@ class OrientationCenter:
                 reason=graph_decision.reason,
                 confidence=float(graph_decision.similarity or 0.0),
                 graph_decision=graph_meta,
+                goal_vector=goal_vector,
                 adequacy_report=adequacy_meta,
                 observer_report=observer_meta,
                 available_backends=available_backends,
@@ -109,6 +111,7 @@ class OrientationCenter:
                 selected_backend=derived_module.preferred_backend,
                 graph_decision=graph_meta,
                 derived_module=module_meta,
+                goal_vector=goal_vector,
                 adequacy_report=adequacy_meta,
                 observer_report=observer_meta,
                 available_backends=available_backends,
@@ -124,6 +127,8 @@ class OrientationCenter:
                 intent=intent,
                 why_tag=why_tag,
                 force_exploration=(adequacy_status == "intervene"),
+                goal_style=(goal_vector or {}).get("style"),
+                strategy_bias=(goal_vector or {}).get("strategy_bias"),
             )
             path_meta = path_decision.to_dict()
             coalition_id = None
@@ -140,6 +145,7 @@ class OrientationCenter:
                 selected_backend=path_decision.selected_backend,
                 graph_decision=graph_meta,
                 path_decision=path_meta,
+                goal_vector=goal_vector,
                 adequacy_report=adequacy_meta,
                 observer_report=observer_meta,
                 available_backends=available_backends,
@@ -155,6 +161,7 @@ class OrientationCenter:
             reason="orientation-fallback",
             confidence=float(graph_decision.similarity or 0.0) if graph_decision is not None else 0.0,
             graph_decision=graph_meta,
+            goal_vector=goal_vector,
             adequacy_report=adequacy_meta,
             observer_report=observer_meta,
             available_backends=available_backends,
