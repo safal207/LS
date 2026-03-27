@@ -147,6 +147,13 @@ Suggested file:
 
 - `python/modules/network/cognitive_adequacy.py`
 
+Current MVP behavior:
+
+- produces `stable / watch / intervene`
+- tightens `derived module` admission thresholds when the network is in `watch`
+- blocks easy promotion paths and forces more exploration when the network is in `intervene`
+- feeds adequacy metadata back into `OrientationCenter`
+
 ## New Data Objects
 
 ### NetworkExecutionPlan
@@ -255,6 +262,12 @@ decide(item) -> NetworkExecutionPlan
 ```
 
 The rest of the network should not need to manually inspect 4 different registries.
+
+With the adequacy core connected, `OrientationCenter` also becomes the place where:
+
+- `derived modules` can be held back when drift is rising
+- route exploration can be increased when one path dominates without enough adequacy
+- network-level safety signals affect execution before response generation
 
 ## Retrospective Council Responsibilities In Detail
 

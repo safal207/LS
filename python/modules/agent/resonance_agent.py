@@ -181,10 +181,12 @@ except Exception:
     _TrailUpdater = None  # type: ignore[assignment]
 
 try:
+    from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.orientation_center import OrientationCenter as _NetworkOrientationCenter
     _NETWORK_OK = True
 except Exception:
     _NETWORK_OK = False
+    _CognitiveAdequacyCore = None  # type: ignore[assignment]
     _NetworkOrientationCenter = None  # type: ignore[assignment]
 
 
@@ -288,6 +290,7 @@ class ResonanceAgent:
                 path_selector=self._path_selector,
                 derived_module_registry=self._derived_module_registry,
                 llm_backend=self._llm_backend,
+                adequacy_core=(_CognitiveAdequacyCore() if _NETWORK_OK and _CognitiveAdequacyCore else None),
                 derived_min_quality=GRAPH_DERIVED_MODULE_MIN_QUALITY,
                 derived_min_trust=GRAPH_DERIVED_MODULE_MIN_TRUST,
             )
@@ -518,6 +521,8 @@ class ResonanceAgent:
                     item["_derived_module"] = orientation_plan.derived_module
                 if orientation_plan.path_decision:
                     item["_path_selection"] = orientation_plan.path_decision
+                if orientation_plan.adequacy_report:
+                    item["_adequacy_report"] = orientation_plan.adequacy_report
                 graph_meta = orientation_plan.graph_decision or {}
                 graph_mode = graph_meta.get("mode")
                 if graph_mode:
@@ -1050,6 +1055,7 @@ class ResonanceAgent:
         derived_meta = item.get("_derived_module") or {}
         care_meta = item.get("_care_cycle") or {}
         orientation_meta = item.get("_network_plan") or {}
+        adequacy_meta = item.get("_adequacy_report") or {}
         fallback_route_key = (
             "reuse"
             if graph_meta.get("mode") == "reuse"
@@ -1099,6 +1105,9 @@ class ResonanceAgent:
             "orientation_reason": orientation_meta.get("reason"),
             "orientation_confidence": orientation_meta.get("confidence"),
             "orientation_route_key": orientation_meta.get("route_key"),
+            "adequacy_status": adequacy_meta.get("status"),
+            "adequacy_risks": adequacy_meta.get("risks"),
+            "adequacy_recommendations": adequacy_meta.get("recommendations"),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),

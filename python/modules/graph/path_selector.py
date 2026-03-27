@@ -42,6 +42,7 @@ class PathSelector:
         default_backend: str | None = None,
         intent: str | None = None,
         why_tag: str | None = None,
+        force_exploration: bool = False,
     ) -> PathSelectionDecision:
         if graph_mode == "reuse":
             route = self.store.touch_route("reuse")
@@ -91,7 +92,7 @@ class PathSelector:
                 selected_backend="cooperative" if len(coalition.members) > 1 else (coalition.members[0] if coalition.members else None),
             )
 
-        use_exploration = len(candidates) > 1 and self.rng.random() < self.exploration_rate
+        use_exploration = force_exploration or (len(candidates) > 1 and self.rng.random() < self.exploration_rate)
         cooperative_candidate = next((item for item in candidates if item[1] == "cooperative"), None)
         if cooperative_candidate is not None:
             cooperative_zero_history = cooperative_candidate[2].runs == 0

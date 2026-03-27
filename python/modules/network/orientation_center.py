@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .cognitive_adequacy import CognitiveAdequacyCore
 from .models import NetworkExecutionPlan
 
 
@@ -15,6 +16,7 @@ class OrientationCenter:
         path_selector=None,
         derived_module_registry=None,
         llm_backend=None,
+        adequacy_core: CognitiveAdequacyCore | None = None,
         derived_min_quality: float = 0.72,
         derived_min_trust: float = 0.62,
     ) -> None:
@@ -22,15 +24,19 @@ class OrientationCenter:
         self.path_selector = path_selector
         self.derived_module_registry = derived_module_registry
         self.llm_backend = llm_backend
+        self.adequacy_core = adequacy_core
         self.derived_min_quality = derived_min_quality
         self.derived_min_trust = derived_min_trust
 
     def decide(self, item: dict[str, Any], *, thread_context: str | None = None, intent: str | None = None, why_tag: str | None = None) -> NetworkExecutionPlan:
         graph_decision = None
         graph_meta = None
+        adequacy_meta = None
         if self.graph_runtime is not None:
             graph_decision = self.graph_runtime.process(item, thread_context=thread_context)
             graph_meta = graph_decision.to_dict()
+        if self.adequacy_core is not None:
+            adequacy_meta = self.adequacy_core.evaluate().to_dict()
 
         available_backends: list[str] = []
         if self.llm_backend is not None and hasattr(self.llm_backend, "backends"):
@@ -38,6 +44,16 @@ class OrientationCenter:
                 name for name in ("gonka", "mimo", "cloud", "local")
                 if name in getattr(self.llm_backend, "backends", {})
             ]
+
+        adequacy_status = (adequacy_meta or {}).get("status")
+        derived_min_quality = self.derived_min_quality
+        derived_min_trust = self.derived_min_trust
+        if adequacy_status == "watch":
+            derived_min_quality = max(derived_min_quality, 0.78)
+            derived_min_trust = max(derived_min_trust, 0.68)
+        elif adequacy_status == "intervene":
+            derived_min_quality = max(derived_min_quality, 0.85)
+            derived_min_trust = max(derived_min_trust, 0.78)
 
         if graph_decision is not None and graph_decision.mode == "reuse":
             return NetworkExecutionPlan(
@@ -49,6 +65,7 @@ class OrientationCenter:
                 reason=graph_decision.reason,
                 confidence=float(graph_decision.similarity or 0.0),
                 graph_decision=graph_meta,
+                adequacy_report=adequacy_meta,
                 available_backends=available_backends,
             )
 
@@ -58,8 +75,8 @@ class OrientationCenter:
                 available_backends=available_backends,
                 domain=intent,
                 task_type=why_tag,
-                min_quality=self.derived_min_quality,
-                min_trust=self.derived_min_trust,
+                min_quality=derived_min_quality,
+                min_trust=derived_min_trust,
             )
         if derived_module is not None:
             module_meta = derived_module.to_dict()
@@ -74,6 +91,7 @@ class OrientationCenter:
                 selected_backend=derived_module.preferred_backend,
                 graph_decision=graph_meta,
                 derived_module=module_meta,
+                adequacy_report=adequacy_meta,
                 available_backends=available_backends,
             )
 
@@ -86,6 +104,7 @@ class OrientationCenter:
                 default_backend=default_backend,
                 intent=intent,
                 why_tag=why_tag,
+                force_exploration=(adequacy_status == "intervene"),
             )
             path_meta = path_decision.to_dict()
             coalition_id = None
@@ -102,6 +121,7 @@ class OrientationCenter:
                 selected_backend=path_decision.selected_backend,
                 graph_decision=graph_meta,
                 path_decision=path_meta,
+                adequacy_report=adequacy_meta,
                 available_backends=available_backends,
             )
 
@@ -115,5 +135,6 @@ class OrientationCenter:
             reason="orientation-fallback",
             confidence=float(graph_decision.similarity or 0.0) if graph_decision is not None else 0.0,
             graph_decision=graph_meta,
+            adequacy_report=adequacy_meta,
             available_backends=available_backends,
         )

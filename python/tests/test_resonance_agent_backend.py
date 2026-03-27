@@ -258,3 +258,26 @@ def test_resonance_agent_runs_care_cycle_for_derived_module(monkeypatch):
         assert result["care_cycle_used"] is True
         assert result["care_cycle_action"] in {"promote", "keep", "demote", "retire"}
         assert result["care_cycle_state"] in {"active", "review", "retired"}
+
+
+def test_resonance_agent_exposes_adequacy_metadata(monkeypatch):
+    class FakeAdequacyCore:
+        def evaluate(self):
+            return type(
+                "Adequacy",
+                (),
+                {
+                    "to_dict": lambda self_: {
+                        "status": "watch",
+                        "risks": ["route dominance risk"],
+                        "recommendations": ["increase exploration"],
+                    }
+                },
+            )()
+
+    monkeypatch.setattr("modules.agent.resonance_agent._CognitiveAdequacyCore", FakeAdequacyCore)
+    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+    result = agent.process_text("Почему вы выбрали этот стек?")
+
+    assert result["adequacy_status"] == "watch"
+    assert "route dominance risk" in (result["adequacy_risks"] or [])

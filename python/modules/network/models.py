@@ -17,6 +17,7 @@ class NetworkExecutionPlan:
     graph_decision: Optional[dict[str, Any]] = None
     path_decision: Optional[dict[str, Any]] = None
     derived_module: Optional[dict[str, Any]] = None
+    adequacy_report: Optional[dict[str, Any]] = None
     available_backends: list[str] | None = None
 
     def to_dict(self) -> dict[str, Any]:

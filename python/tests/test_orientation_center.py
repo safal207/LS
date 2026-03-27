@@ -48,6 +48,25 @@ class FakeRouter:
         self.backends = {"local": object(), "gonka": object(), "mimo": object()}
 
 
+class FakeAdequacyCore:
+    def __init__(self, status="stable", risks=None):
+        self.status = status
+        self.risks = risks or []
+
+    def evaluate(self):
+        return type(
+            "Adequacy",
+            (),
+            {
+                "to_dict": lambda self_: {
+                    "status": self.status,
+                    "risks": self.risks,
+                    "recommendations": [],
+                }
+            },
+        )()
+
+
 def test_orientation_center_prefers_reuse():
     center = OrientationCenter(
         graph_runtime=FakeGraphRuntime(
@@ -89,3 +108,33 @@ def test_orientation_center_prefers_derived_module_when_available(tmp_path):
     assert plan.derived_module_id is not None
     assert plan.reason == "derived-module"
     assert plan.selected_backend == "local"
+
+
+def test_orientation_center_blocks_derived_module_when_adequacy_intervenes(tmp_path):
+    derived = DerivedModuleRegistry(tmp_path / "derived.json")
+    derived.create_or_update_from_success(
+        parent_coalition_id="coalition-local-gonka-mimo",
+        source_route_key="full_run>local>gonka>mimo",
+        domain="technical_reasoning",
+        task_type="evaluate_reasoning",
+        preferred_backend="local",
+        policy_type="prompt_policy",
+        policy_text="Use concise interview answers.",
+        quality_score=0.84,
+    )
+    center = OrientationCenter(
+        graph_runtime=FakeGraphRuntime(FakeGraphDecision(mode="full_run", reason="no-match")),
+        path_selector=PathSelector(RouteStatsStore(tmp_path / "routes.json"), exploration_rate=0.0),
+        derived_module_registry=derived,
+        llm_backend=FakeRouter(),
+        adequacy_core=FakeAdequacyCore(status="intervene", risks=["derived module drift"]),
+        derived_min_quality=0.7,
+        derived_min_trust=0.6,
+    )
+
+    plan = center.decide({"text": "Почему вы выбрали этот стек?"}, intent="technical_reasoning", why_tag="evaluate_reasoning")
+
+    assert plan.derived_module_id is None
+    assert plan.adequacy_report is not None
+    assert plan.adequacy_report["status"] == "intervene"
+    assert plan.route_key in {"full_run>local>gonka>mimo", "full_run>local", "full_run>gonka", "full_run>mimo"}
