@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from difflib import SequenceMatcher
-from typing import Iterable, Optional
+from typing import Optional
 
 from shared.interview_schema import InterviewUtterance, ensure_interview_item
 
