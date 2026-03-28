@@ -176,12 +176,7 @@ def _build_resonance_unit(
         goal_profile = None
     else:
         goal_vector = []
-        goal_profile = (
-            _to_json_safe(goal_vector_raw)
-            if isinstance(goal_vector_raw, (dict, str, int, float, bool))
-            or goal_vector_raw is None
-            else _to_json_safe(goal_vector_raw)
-        )
+        goal_profile = _to_json_safe(goal_vector_raw)
 
     resonance_score = _as_float(item.get("_resonance_score"), 0.0)
     alignment_score = _as_float(
