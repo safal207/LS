@@ -23,7 +23,18 @@ class FakeBackend:
         self.model = model
         self.text = text
 
-    def generate(self, messages, system_prompt=None, temperature=None, max_tokens=None, timeout=None, metadata=None, *, stream=False, on_token=None):
+    def generate(
+        self,
+        messages,
+        system_prompt=None,
+        temperature=None,
+        max_tokens=None,
+        timeout=None,
+        metadata=None,
+        *,
+        stream=False,
+        on_token=None,
+    ):
         return LLMResponse(
             text=self.text,
             model=self.model,
@@ -44,7 +55,12 @@ def _make_control_center_class(plan: NetworkExecutionPlan):
 
 
 def test_resonance_agent_uses_backend_contract():
-    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(),
+        graph_runtime=FakeGraphRuntimeFullRun(),
+        orientation="test",
+    )
 
     result = agent.process_text("Почему вы выбрали этот стек?")
 
@@ -66,7 +82,15 @@ class FakeGraphRuntime:
             reason="high-similarity",
         )
 
-    def remember_success(self, item, *, answer_text, thread_context=None, answer_quality=None, contributors=None):
+    def remember_success(
+        self,
+        item,
+        *,
+        answer_text,
+        thread_context=None,
+        answer_quality=None,
+        contributors=None,
+    ):
         return None
 
 
@@ -81,7 +105,15 @@ class FakeGraphRuntimeFullRun:
             reason="no-similar-case",
         )
 
-    def remember_success(self, item, *, answer_text, thread_context=None, answer_quality=None, contributors=None):
+    def remember_success(
+        self,
+        item,
+        *,
+        answer_text,
+        thread_context=None,
+        answer_quality=None,
+        contributors=None,
+    ):
         return None
 
 
@@ -90,9 +122,15 @@ class FakeRouter:
         self.primary = "local"
         self.fallback_chain = ["gonka", "mimo"]
         self.backends = {
-            "local": FakeBackend(provider="local", model="local-test", text="draft answer"),
-            "gonka": FakeBackend(provider="gonka", model="gonka-test", text="critique answer"),
-            "mimo": FakeBackend(provider="mimo", model="mimo-test", text="compressed answer"),
+            "local": FakeBackend(
+                provider="local", model="local-test", text="draft answer"
+            ),
+            "gonka": FakeBackend(
+                provider="gonka", model="gonka-test", text="critique answer"
+            ),
+            "mimo": FakeBackend(
+                provider="mimo", model="mimo-test", text="compressed answer"
+            ),
         }
 
     def generate(self, *args, **kwargs):
@@ -100,7 +138,12 @@ class FakeRouter:
 
 
 def test_resonance_agent_can_reuse_graph_answer_without_llm_call():
-    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), graph_runtime=FakeGraphRuntime(), orientation="test")
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(),
+        graph_runtime=FakeGraphRuntime(),
+        orientation="test",
+    )
 
     result = agent.process_text("Почему вы выбрали этот стек?")
 
@@ -114,11 +157,21 @@ def test_resonance_agent_updates_trail_stats_after_answer(monkeypatch):
     with tempfile.TemporaryDirectory() as tmpdir:
         route_store = RouteStatsStore(Path(tmpdir) / "routes.json")
         monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_ENABLED", True)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_STORE_PATH", str(Path(tmpdir) / "routes.json"))
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_EXPLORATION_RATE", 0.0)
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_TRAIL_STORE_PATH",
+            str(Path(tmpdir) / "routes.json"),
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_TRAIL_EXPLORATION_RATE", 0.0
+        )
         monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_DECAY", 0.95)
 
-        agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+        agent = ResonanceAgent(
+            anchor=[],
+            llm_backend=FakeBackend(),
+            graph_runtime=FakeGraphRuntimeFullRun(),
+            orientation="test",
+        )
         result = agent.process_text("Почему вы выбрали этот стек?")
 
         stats = route_store.get_route("full_run")
@@ -135,6 +188,7 @@ def test_resonance_agent_uses_cooperative_route_metadata(monkeypatch):
         class FixedSelector:
             def choose_route(self, **kwargs):
                 from graph.path_selector import PathSelectionDecision
+
                 return PathSelectionDecision(
                     route_key="full_run>local>gonka>mimo",
                     reason="fixed-test-route",
@@ -143,7 +197,12 @@ def test_resonance_agent_uses_cooperative_route_metadata(monkeypatch):
                     selected_backend="cooperative",
                 )
 
-        agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+        agent = ResonanceAgent(
+            anchor=[],
+            llm_backend=FakeRouter(),
+            graph_runtime=FakeGraphRuntimeFullRun(),
+            orientation="test",
+        )
         agent._path_selector = FixedSelector()
         result = agent.process_text("Почему вы выбрали этот стек?")
 
@@ -155,8 +214,13 @@ def test_resonance_agent_uses_cooperative_route_metadata(monkeypatch):
 def test_resonance_agent_updates_coalition_registry(monkeypatch):
     with tempfile.TemporaryDirectory() as tmpdir:
         monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_ENABLED", False)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_ENABLED", True)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_STORE_PATH", str(Path(tmpdir) / "coalitions.json"))
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_COALITION_ENABLED", True
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_COALITION_STORE_PATH",
+            str(Path(tmpdir) / "coalitions.json"),
+        )
 
         plan = NetworkExecutionPlan(
             mode="full_run",
@@ -177,9 +241,19 @@ def test_resonance_agent_updates_coalition_registry(monkeypatch):
             },
             available_backends=["local", "gonka", "mimo"],
         )
-        monkeypatch.setattr("modules.agent.resonance_agent._NetworkControlCenter", _make_control_center_class(plan))
-        agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
-        result = agent.process_text("???????????? ???? ?????????????? ???????? ?????????")
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent._NetworkControlCenter",
+            _make_control_center_class(plan),
+        )
+        agent = ResonanceAgent(
+            anchor=[],
+            llm_backend=FakeRouter(),
+            graph_runtime=FakeGraphRuntimeFullRun(),
+            orientation="test",
+        )
+        result = agent.process_text(
+            "???????????? ???? ?????????????? ???????? ?????????"
+        )
 
         assert result["coalition_used"] is True
         assert result["coalition_route_key"] == "full_run>local>gonka>mimo"
@@ -189,11 +263,22 @@ def test_resonance_agent_updates_coalition_registry(monkeypatch):
 def test_resonance_agent_uses_derived_module_when_available(monkeypatch):
     with tempfile.TemporaryDirectory() as tmpdir:
         monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_ENABLED", False)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_ENABLED", False)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_ENABLED", True)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_STORE_PATH", str(Path(tmpdir) / "derived.json"))
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_QUALITY", 0.7)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_TRUST", 0.6)
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_COALITION_ENABLED", False
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_ENABLED", True
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_STORE_PATH",
+            str(Path(tmpdir) / "derived.json"),
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_QUALITY", 0.7
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_TRUST", 0.6
+        )
 
         from graph.derived_module_registry import DerivedModuleRegistry
 
@@ -224,24 +309,50 @@ def test_resonance_agent_uses_derived_module_when_available(monkeypatch):
             derived_module=module.to_dict(),
             available_backends=["local", "gonka", "mimo"],
         )
-        monkeypatch.setattr("modules.agent.resonance_agent._NetworkControlCenter", _make_control_center_class(plan))
-        agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
-        result = agent.process_text("???????????? ???? ?????????????? ???????? ?????????")
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent._NetworkControlCenter",
+            _make_control_center_class(plan),
+        )
+        agent = ResonanceAgent(
+            anchor=[],
+            llm_backend=FakeRouter(),
+            graph_runtime=FakeGraphRuntimeFullRun(),
+            orientation="test",
+        )
+        result = agent.process_text(
+            "???????????? ???? ?????????????? ???????? ?????????"
+        )
 
         assert result["derived_module_used"] is True
         assert result["llm_provider"] == "derived_module"
         assert result["derived_module_backend"] == "local"
 
 
-def test_resonance_agent_creates_derived_module_from_successful_cooperative_run(monkeypatch):
+def test_resonance_agent_creates_derived_module_from_successful_cooperative_run(
+    monkeypatch,
+):
     with tempfile.TemporaryDirectory() as tmpdir:
         monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_ENABLED", False)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_ENABLED", True)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_STORE_PATH", str(Path(tmpdir) / "coalitions.json"))
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_ENABLED", True)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_STORE_PATH", str(Path(tmpdir) / "derived.json"))
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_QUALITY", 0.6)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_TRUST", 0.5)
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_COALITION_ENABLED", True
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_COALITION_STORE_PATH",
+            str(Path(tmpdir) / "coalitions.json"),
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_ENABLED", True
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_STORE_PATH",
+            str(Path(tmpdir) / "derived.json"),
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_QUALITY", 0.6
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_TRUST", 0.5
+        )
 
         plan = NetworkExecutionPlan(
             mode="full_run",
@@ -262,9 +373,19 @@ def test_resonance_agent_creates_derived_module_from_successful_cooperative_run(
             },
             available_backends=["local", "gonka", "mimo"],
         )
-        monkeypatch.setattr("modules.agent.resonance_agent._NetworkControlCenter", _make_control_center_class(plan))
-        agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
-        result = agent.process_text("???????????? ???? ?????????????? ???????? ?????????")
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent._NetworkControlCenter",
+            _make_control_center_class(plan),
+        )
+        agent = ResonanceAgent(
+            anchor=[],
+            llm_backend=FakeRouter(),
+            graph_runtime=FakeGraphRuntimeFullRun(),
+            orientation="test",
+        )
+        result = agent.process_text(
+            "???????????? ???? ?????????????? ???????? ?????????"
+        )
 
         assert result["derived_module_used"] is True
         assert result["derived_module_id"] is not None
@@ -273,15 +394,34 @@ def test_resonance_agent_creates_derived_module_from_successful_cooperative_run(
 def test_resonance_agent_runs_care_cycle_for_derived_module(monkeypatch):
     with tempfile.TemporaryDirectory() as tmpdir:
         monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_ENABLED", False)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_COALITION_ENABLED", False)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_ENABLED", True)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_STORE_PATH", str(Path(tmpdir) / "derived.json"))
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_QUALITY", 0.7)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_TRUST", 0.6)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_CARE_CYCLES_ENABLED", True)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_CARE_CYCLES_MIN_QUALITY", 0.68)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_CARE_CYCLES_MIN_TRUST", 0.58)
-        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_CARE_CYCLES_RETIRE_TRUST", 0.35)
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_COALITION_ENABLED", False
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_ENABLED", True
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_STORE_PATH",
+            str(Path(tmpdir) / "derived.json"),
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_QUALITY", 0.7
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_DERIVED_MODULE_MIN_TRUST", 0.6
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_CARE_CYCLES_ENABLED", True
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_CARE_CYCLES_MIN_QUALITY", 0.68
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_CARE_CYCLES_MIN_TRUST", 0.58
+        )
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent.GRAPH_CARE_CYCLES_RETIRE_TRUST", 0.35
+        )
 
         from graph.derived_module_registry import DerivedModuleRegistry
 
@@ -312,9 +452,19 @@ def test_resonance_agent_runs_care_cycle_for_derived_module(monkeypatch):
             derived_module=module.to_dict(),
             available_backends=["local", "gonka", "mimo"],
         )
-        monkeypatch.setattr("modules.agent.resonance_agent._NetworkControlCenter", _make_control_center_class(plan))
-        agent = ResonanceAgent(anchor=[], llm_backend=FakeRouter(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
-        result = agent.process_text("???????????? ???? ?????????????? ???????? ?????????")
+        monkeypatch.setattr(
+            "modules.agent.resonance_agent._NetworkControlCenter",
+            _make_control_center_class(plan),
+        )
+        agent = ResonanceAgent(
+            anchor=[],
+            llm_backend=FakeRouter(),
+            graph_runtime=FakeGraphRuntimeFullRun(),
+            orientation="test",
+        )
+        result = agent.process_text(
+            "???????????? ???? ?????????????? ???????? ?????????"
+        )
 
         assert result["care_cycle_used"] is True
         assert result["care_cycle_action"] in {"promote", "keep", "demote", "retire"}
@@ -343,7 +493,12 @@ def test_resonance_agent_exposes_adequacy_metadata(monkeypatch):
             )()
 
     monkeypatch.setattr("modules.agent.resonance_agent._NetworkObserver", FakeObserver)
-    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(),
+        graph_runtime=FakeGraphRuntimeFullRun(),
+        orientation="test",
+    )
     result = agent.process_text("???????????? ???? ?????????????? ???????? ?????????")
 
     assert result["adequacy_status"] == "watch"
@@ -360,7 +515,11 @@ def test_resonance_agent_exposes_observer_metadata(monkeypatch):
                     "to_dict": lambda self_: {
                         "status": "watch",
                         "summary": {"trend": "degrading", "stale_modules": 2},
-                        "adequacy": {"status": "watch", "risks": ["route dominance risk"], "recommendations": ["increase exploration"]},
+                        "adequacy": {
+                            "status": "watch",
+                            "risks": ["route dominance risk"],
+                            "recommendations": ["increase exploration"],
+                        },
                         "retrospective": {"weak_routes": ["full_run>cloud"]},
                         "trajectory": {"record": {"trend": "degrading"}},
                     }
@@ -368,7 +527,12 @@ def test_resonance_agent_exposes_observer_metadata(monkeypatch):
             )()
 
     monkeypatch.setattr("modules.agent.resonance_agent._NetworkObserver", FakeObserver)
-    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(),
+        graph_runtime=FakeGraphRuntimeFullRun(),
+        orientation="test",
+    )
     result = agent.process_text("Почему вы выбрали этот стек?")
 
     assert result["observer_status"] == "watch"
@@ -390,22 +554,45 @@ def test_resonance_agent_uses_network_control_center(monkeypatch):
                         "route_key": "full_run>local",
                         "reason": "control-center-test",
                         "confidence": 0.7,
-                        "need_profile": {"priority": "balanced", "route_bias": "adaptive"},
-                        "goal_vector": {"style": "structured", "strategy_bias": "cooperative_reasoning"},
+                        "need_profile": {
+                            "priority": "balanced",
+                            "route_bias": "adaptive",
+                        },
+                        "goal_vector": {
+                            "style": "structured",
+                            "strategy_bias": "cooperative_reasoning",
+                        },
                     },
                     "graph_decision": None,
                     "derived_module": None,
                     "path_decision": None,
                     "need_profile": {"priority": "balanced", "route_bias": "adaptive"},
-                    "goal_vector": {"style": "structured", "strategy_bias": "cooperative_reasoning"},
-                    "adequacy_report": {"status": "stable", "risks": [], "recommendations": []},
-                    "observer_report": {"status": "stable", "summary": {"trend": "stable"}},
+                    "goal_vector": {
+                        "style": "structured",
+                        "strategy_bias": "cooperative_reasoning",
+                    },
+                    "adequacy_report": {
+                        "status": "stable",
+                        "risks": [],
+                        "recommendations": [],
+                    },
+                    "observer_report": {
+                        "status": "stable",
+                        "summary": {"trend": "stable"},
+                    },
                     "available_backends": ["local"],
                 },
             )()
 
-    monkeypatch.setattr("modules.agent.resonance_agent._NetworkControlCenter", FakeControlCenter)
-    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(provider="local", model="local-test", text="ok"), graph_runtime=FakeGraphRuntimeFullRun(), orientation="test")
+    monkeypatch.setattr(
+        "modules.agent.resonance_agent._NetworkControlCenter", FakeControlCenter
+    )
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(provider="local", model="local-test", text="ok"),
+        graph_runtime=FakeGraphRuntimeFullRun(),
+        orientation="test",
+    )
     result = agent.process_text("Почему вы выбрали этот стек?")
 
     assert result["orientation_reason"] == "control-center-test"
@@ -415,11 +602,19 @@ def test_resonance_agent_uses_network_control_center(monkeypatch):
 
 
 def test_resonance_agent_system_prompt_uses_goal_vector_guidance() -> None:
-    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(provider="local", model="local-test", text="ok"), orientation="test")
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(provider="local", model="local-test", text="ok"),
+        orientation="test",
+    )
     item = {
         "text": "Почему вы выбрали этот стек?",
         "_network_plan": {
-            "need_profile": {"priority": "safe_correction", "route_bias": "explore_and_verify", "compute_budget": 0.9},
+            "need_profile": {
+                "priority": "safe_correction",
+                "route_bias": "explore_and_verify",
+                "compute_budget": 0.9,
+            },
             "goal_vector": {
                 "style": "careful",
                 "strategy_bias": "verify_first",
@@ -444,7 +639,11 @@ def test_resonance_agent_system_prompt_uses_goal_vector_guidance() -> None:
 
 
 def test_resonance_agent_goal_alignment_score_rewards_matching_profile() -> None:
-    agent = ResonanceAgent(anchor=[], llm_backend=FakeBackend(provider="local", model="local-test", text="ok"), orientation="test")
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(provider="local", model="local-test", text="ok"),
+        orientation="test",
+    )
     item = {
         "_network_plan": {
             "goal_vector": {
@@ -458,8 +657,13 @@ def test_resonance_agent_goal_alignment_score_rewards_matching_profile() -> None
         }
     }
 
-    good = agent._goal_alignment_score("Я выбрал этот стек, потому что он лучше подходил под задачу и команду, без лишних зависимостей.", item)
-    bad = agent._goal_alignment_score("Мы ускорили всё на 300% и сэкономили 40% бюджета.", item)
+    good = agent._goal_alignment_score(
+        "Я выбрал этот стек, потому что он лучше подходил под задачу и команду, без лишних зависимостей.",
+        item,
+    )
+    bad = agent._goal_alignment_score(
+        "Мы ускорили всё на 300% и сэкономили 40% бюджета.", item
+    )
 
     assert good > bad
     assert good <= 1.0

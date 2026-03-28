@@ -23,7 +23,12 @@ def test_graph_runtime_returns_reuse_on_exact_match(tmp_path):
     )
     runtime = GraphMemoryRuntime(store=store, retriever=MemoryGraphRetriever(store))
 
-    decision = runtime.process({"text": "Почему вы выбрали этот стек?", "clean_text": "Почему вы выбрали этот стек?"})
+    decision = runtime.process(
+        {
+            "text": "Почему вы выбрали этот стек?",
+            "clean_text": "Почему вы выбрали этот стек?",
+        }
+    )
 
     assert decision.mode == "reuse"
     assert decision.prior_answer == "Потому что он дал баланс скорости и поддержки."
@@ -44,7 +49,12 @@ def test_graph_runtime_returns_refine_on_medium_similarity(tmp_path):
         min_similarity=0.2,
     )
 
-    decision = runtime.process({"text": "Why did you choose this stack for the project?", "clean_text": "Why did you choose this stack for the project?"})
+    decision = runtime.process(
+        {
+            "text": "Why did you choose this stack for the project?",
+            "clean_text": "Why did you choose this stack for the project?",
+        }
+    )
 
     assert decision.mode == "refine"
     assert decision.prior_answer
@@ -59,6 +69,11 @@ def test_graph_runtime_returns_full_run_when_no_good_match(tmp_path):
     )
     runtime = GraphMemoryRuntime(store=store, retriever=MemoryGraphRetriever(store))
 
-    decision = runtime.process({"text": "Почему вы выбрали этот стек?", "clean_text": "Почему вы выбрали этот стек?"})
+    decision = runtime.process(
+        {
+            "text": "Почему вы выбрали этот стек?",
+            "clean_text": "Почему вы выбрали этот стек?",
+        }
+    )
 
     assert decision.mode == "full_run"

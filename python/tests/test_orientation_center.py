@@ -16,7 +16,15 @@ from network.orientation_center import OrientationCenter
 
 
 class FakeGraphDecision:
-    def __init__(self, mode="full_run", matched_case_id=None, similarity=0.0, prior_answer=None, prior_case=None, reason="no-match"):
+    def __init__(
+        self,
+        mode="full_run",
+        matched_case_id=None,
+        similarity=0.0,
+        prior_answer=None,
+        prior_case=None,
+        reason="no-match",
+    ):
         self.mode = mode
         self.matched_case_id = matched_case_id
         self.similarity = similarity
@@ -77,7 +85,11 @@ class FakeObserverCore:
                 "to_dict": lambda self_: {
                     "status": "watch",
                     "summary": {"trend": "degrading", "stale_modules": 1},
-                    "adequacy": {"status": "watch", "risks": ["route dominance risk"], "recommendations": ["increase exploration"]},
+                    "adequacy": {
+                        "status": "watch",
+                        "risks": ["route dominance risk"],
+                        "recommendations": ["increase exploration"],
+                    },
                     "retrospective": {"weak_routes": ["full_run>cloud"]},
                     "trajectory": {"record": {"trend": "degrading"}},
                 }
@@ -88,12 +100,22 @@ class FakeObserverCore:
 def test_orientation_center_prefers_reuse():
     center = OrientationCenter(
         graph_runtime=FakeGraphRuntime(
-            FakeGraphDecision(mode="reuse", matched_case_id="case-1", similarity=0.98, prior_answer="cached", reason="high-similarity")
+            FakeGraphDecision(
+                mode="reuse",
+                matched_case_id="case-1",
+                similarity=0.98,
+                prior_answer="cached",
+                reason="high-similarity",
+            )
         ),
         llm_backend=FakeRouter(),
     )
 
-    plan = center.decide({"text": "Почему вы выбрали этот стек?"}, intent="technical_reasoning", why_tag="evaluate_reasoning")
+    plan = center.decide(
+        {"text": "Почему вы выбрали этот стек?"},
+        intent="technical_reasoning",
+        why_tag="evaluate_reasoning",
+    )
 
     assert plan.mode == "reuse"
     assert plan.route_key == "reuse"
@@ -113,15 +135,23 @@ def test_orientation_center_prefers_derived_module_when_available(tmp_path):
         quality_score=0.84,
     )
     center = OrientationCenter(
-        graph_runtime=FakeGraphRuntime(FakeGraphDecision(mode="full_run", reason="no-match")),
-        path_selector=PathSelector(RouteStatsStore(tmp_path / "routes.json"), exploration_rate=0.0),
+        graph_runtime=FakeGraphRuntime(
+            FakeGraphDecision(mode="full_run", reason="no-match")
+        ),
+        path_selector=PathSelector(
+            RouteStatsStore(tmp_path / "routes.json"), exploration_rate=0.0
+        ),
         derived_module_registry=derived,
         llm_backend=FakeRouter(),
         derived_min_quality=0.7,
         derived_min_trust=0.6,
     )
 
-    plan = center.decide({"text": "Почему вы выбрали этот стек?"}, intent="technical_reasoning", why_tag="evaluate_reasoning")
+    plan = center.decide(
+        {"text": "Почему вы выбрали этот стек?"},
+        intent="technical_reasoning",
+        why_tag="evaluate_reasoning",
+    )
 
     assert plan.derived_module_id is not None
     assert plan.reason == "derived-module"
@@ -141,32 +171,55 @@ def test_orientation_center_blocks_derived_module_when_adequacy_intervenes(tmp_p
         quality_score=0.84,
     )
     center = OrientationCenter(
-        graph_runtime=FakeGraphRuntime(FakeGraphDecision(mode="full_run", reason="no-match")),
-        path_selector=PathSelector(RouteStatsStore(tmp_path / "routes.json"), exploration_rate=0.0),
+        graph_runtime=FakeGraphRuntime(
+            FakeGraphDecision(mode="full_run", reason="no-match")
+        ),
+        path_selector=PathSelector(
+            RouteStatsStore(tmp_path / "routes.json"), exploration_rate=0.0
+        ),
         derived_module_registry=derived,
         llm_backend=FakeRouter(),
-        adequacy_core=FakeAdequacyCore(status="intervene", risks=["derived module drift"]),
+        adequacy_core=FakeAdequacyCore(
+            status="intervene", risks=["derived module drift"]
+        ),
         derived_min_quality=0.7,
         derived_min_trust=0.6,
     )
 
-    plan = center.decide({"text": "Почему вы выбрали этот стек?"}, intent="technical_reasoning", why_tag="evaluate_reasoning")
+    plan = center.decide(
+        {"text": "Почему вы выбрали этот стек?"},
+        intent="technical_reasoning",
+        why_tag="evaluate_reasoning",
+    )
 
     assert plan.derived_module_id is None
     assert plan.adequacy_report is not None
     assert plan.adequacy_report["status"] == "intervene"
-    assert plan.route_key in {"full_run>local>gonka>mimo", "full_run>local", "full_run>gonka", "full_run>mimo"}
+    assert plan.route_key in {
+        "full_run>local>gonka>mimo",
+        "full_run>local",
+        "full_run>gonka",
+        "full_run>mimo",
+    }
 
 
 def test_orientation_center_surfaces_observer_report(tmp_path):
     center = OrientationCenter(
-        graph_runtime=FakeGraphRuntime(FakeGraphDecision(mode="full_run", reason="no-match")),
-        path_selector=PathSelector(RouteStatsStore(tmp_path / "routes.json"), exploration_rate=0.0),
+        graph_runtime=FakeGraphRuntime(
+            FakeGraphDecision(mode="full_run", reason="no-match")
+        ),
+        path_selector=PathSelector(
+            RouteStatsStore(tmp_path / "routes.json"), exploration_rate=0.0
+        ),
         llm_backend=FakeRouter(),
         observer_core=FakeObserverCore(),
     )
 
-    plan = center.decide({"text": "Почему вы выбрали этот стек?"}, intent="technical_reasoning", why_tag="evaluate_reasoning")
+    plan = center.decide(
+        {"text": "Почему вы выбрали этот стек?"},
+        intent="technical_reasoning",
+        why_tag="evaluate_reasoning",
+    )
 
     assert plan.observer_report is not None
     assert plan.observer_report["status"] == "watch"
@@ -175,8 +228,12 @@ def test_orientation_center_surfaces_observer_report(tmp_path):
 
 def test_orientation_center_uses_goal_vector_for_route_choice(tmp_path):
     center = OrientationCenter(
-        graph_runtime=FakeGraphRuntime(FakeGraphDecision(mode="full_run", reason="no-match")),
-        path_selector=PathSelector(RouteStatsStore(tmp_path / "routes.json"), exploration_rate=0.0),
+        graph_runtime=FakeGraphRuntime(
+            FakeGraphDecision(mode="full_run", reason="no-match")
+        ),
+        path_selector=PathSelector(
+            RouteStatsStore(tmp_path / "routes.json"), exploration_rate=0.0
+        ),
         llm_backend=FakeRouter(),
     )
 
