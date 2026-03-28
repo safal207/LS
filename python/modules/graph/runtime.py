@@ -100,7 +100,9 @@ def _should_store_resonance_unit(
 
     graph_runtime = item.get("_graph_runtime") or {}
     graph_mode = (
-        item.get("_graph_mode") or item.get("graph_mode") or graph_runtime.get("mode")
+        item.get("_graph_mode")
+        or item.get("graph_mode")
+        or graph_runtime.get("mode")
     )
     if graph_mode == "reuse":
         return False
@@ -135,7 +137,13 @@ def _build_resonance_unit(
     contributors: list[dict[str, Any]] | None,
 ) -> ResonanceKnowledgeUnit:
     network_plan = item.get("_network_plan") or {}
+    graph_runtime = item.get("_graph_runtime") or {}
     quality_payload = answer_quality or {}
+    graph_mode = (
+        item.get("_graph_mode")
+        or item.get("graph_mode")
+        or graph_runtime.get("mode")
+    )
     goal_vector_raw = network_plan.get("goal_vector")
 
     if isinstance(goal_vector_raw, list):
@@ -168,7 +176,7 @@ def _build_resonance_unit(
         metadata={
             "answer_text": answer_text,
             "thread_context": thread_context,
-            "graph_mode": item.get("_graph_mode") or item.get("graph_mode"),
+            "graph_mode": graph_mode,
             "answer_quality": dict(quality_payload),
             "contributors": _normalize_contributors(contributors),
             "route_key": network_plan.get("route_key"),
@@ -289,5 +297,6 @@ class GraphMemoryRuntime:
             except Exception as exc:
                 self._logger.debug("Failed to store ResonanceKnowledgeUnit: %s", exc)
             return saved_case
-        except Exception:
+        except Exception as exc:
+            self._logger.debug("Graph remember_success failed: %s", exc)
             return None
