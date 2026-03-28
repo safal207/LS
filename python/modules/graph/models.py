@@ -189,7 +189,9 @@ class ResonanceKnowledgeUnit:
     source_question: str
 
     unit_id: str = field(default_factory=lambda: str(uuid4()))
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     clean_question: Optional[str] = None
     intent: Optional[str] = None
     why: Optional[str] = None
@@ -206,9 +208,11 @@ class ResonanceKnowledgeUnit:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ResonanceKnowledgeUnit":
         return cls(
-            source_question=str(data.get("source_question", "")),
+            source_question=str(data.get("source_question") or ""),
             unit_id=str(data.get("unit_id") or str(uuid4())),
-            timestamp=str(data.get("timestamp") or datetime.now(timezone.utc).isoformat()),
+            timestamp=str(
+                data.get("timestamp") or datetime.now(timezone.utc).isoformat()
+            ),
             clean_question=data.get("clean_question"),
             intent=data.get("intent"),
             why=data.get("why"),

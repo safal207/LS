@@ -9,10 +9,10 @@ MODULES = ROOT / "python" / "modules"
 if str(MODULES) not in sys.path:
     sys.path.insert(0, str(MODULES))
 
-from graph.coalition_registry import CoalitionRecord, CoalitionRegistry  # noqa: E402
-from graph.derived_module_registry import DerivedModuleRegistry  # noqa: E402
-from graph.route_stats import RouteStats, RouteStatsStore  # noqa: E402
-from retrospective import RetrospectiveCouncil  # noqa: E402
+from graph.coalition_registry import CoalitionRecord, CoalitionRegistry
+from graph.derived_module_registry import DerivedModuleRegistry
+from graph.route_stats import RouteStats, RouteStatsStore
+from retrospective import RetrospectiveCouncil
 
 
 def test_retrospective_council_builds_report(tmp_path):

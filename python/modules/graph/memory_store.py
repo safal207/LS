@@ -106,7 +106,10 @@ class MemoryGraphStore:
         """Отдельный JSONL-файл для когнитивных маршрутов."""
         return self.path.with_name("resonance_units.jsonl")
 
-    def store_resonance_unit(self, unit: ResonanceKnowledgeUnit) -> ResonanceKnowledgeUnit:
+    def store_resonance_unit(
+        self,
+        unit: ResonanceKnowledgeUnit,
+    ) -> ResonanceKnowledgeUnit:
         """Сохраняет или обновляет единицу проверенного когнитивного маршрута."""
         units = self._load_resonance_units()
 
@@ -133,18 +136,21 @@ class MemoryGraphStore:
         *,
         intent: str | None = None,
         why: str | None = None,
-        goal_vector: list[float] | None = None,  # TODO: cosine similarity in follow-up
+        goal_vector: list[float] | None = None,
         query_text: str | None = None,
         top_k: int = 5,
     ) -> list[ResonanceKnowledgeUnit]:
-        """Heuristic retrieval для проверенных когнитивных маршрутов (MVP).
+        """Heuristic retrieval для проверенных когнитивных маршрутов.
 
-        Пока не использует embeddings / graph traversal — только простое совпадение.
+        MVP-версия пока не использует embeddings / graph traversal —
+        только простое совпадение.
         """
         units = self._load_resonance_units()
         scored: list[tuple[ResonanceKnowledgeUnit, float]] = []
 
         top_k = max(1, int(top_k or 1))
+        _ = goal_vector  # TODO: add cosine similarity in follow-up
+        query_text_lower = query_text.lower() if query_text else None
 
         for u in units:
             score = 0.0
@@ -153,10 +159,19 @@ class MemoryGraphStore:
                 score += 0.4
             if why and u.why and why.lower() in u.why.lower():
                 score += 0.4
-            if query_text and u.source_question and query_text.lower() in u.source_question.lower():
+
+            query_match = (
+                query_text_lower
+                and u.source_question
+                and query_text_lower in u.source_question.lower()
+            )
+            if query_match:
                 score += 0.3
 
-            # TODO: later add goal_vector cosine + resonance_score + alignment_score
+            # TODO:
+            # - add goal_vector cosine
+            # - add resonance_score
+            # - add alignment_score
             if score > 0.0:
                 scored.append((u, score))
 
@@ -177,7 +192,10 @@ class MemoryGraphStore:
         return units
 
     def _write_resonance_units(self, units: list[ResonanceKnowledgeUnit]) -> None:
-        """⚠️ MVP-only: без atomic write / file lock. Для production нужен follow-up."""
+        """MVP-only storage.
+
+        No atomic write / file lock yet. Production follow-up required.
+        """
         path = self._resonance_path()
         with path.open("w", encoding="utf-8") as handle:
             for unit in units:
