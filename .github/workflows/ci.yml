@@ -51,7 +51,9 @@ jobs:
 
       - name: Vulnerability audit
         run: |
-          pip-audit --local --desc --progress-spinner off
+          # Temporary exception: CVE-2026-4539 has no fixed PyPI release yet.
+          # Keep this scoped to a single CVE and remove once upstream ships a fix.
+          pip-audit --local --desc --progress-spinner off --ignore-vuln CVE-2026-4539
 
       - name: Generate SBOM
         run: |
