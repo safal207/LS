@@ -19,6 +19,20 @@ def _as_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _normalize_contributors(
+    contributors: list[Any] | None,
+) -> list[dict[str, Any] | str]:
+    normalized: list[dict[str, Any] | str] = []
+    for contributor in contributors or []:
+        if hasattr(contributor, "to_dict"):
+            normalized.append(contributor.to_dict())
+        elif isinstance(contributor, dict):
+            normalized.append(contributor)
+        else:
+            normalized.append(str(contributor))
+    return normalized
+
+
 def _build_resonance_causal_path(item: dict[str, Any]) -> list[dict[str, Any]]:
     path: list[dict[str, Any]] = []
 
@@ -84,7 +98,10 @@ def _should_store_resonance_unit(
     if not (answer_text or "").strip():
         return False
 
-    graph_mode = item.get("_graph_mode") or item.get("graph_mode")
+    graph_runtime = item.get("_graph_runtime") or {}
+    graph_mode = (
+        item.get("_graph_mode") or item.get("graph_mode") or graph_runtime.get("mode")
+    )
     if graph_mode == "reuse":
         return False
 
@@ -98,7 +115,13 @@ def _should_store_resonance_unit(
         return False
 
     resonance_score = _as_float(item.get("_resonance_score"), 0.0)
-    overall = _as_float((answer_quality or {}).get("overall"), 0.0)
+    quality_payload = answer_quality or {}
+    overall = _as_float(
+        quality_payload.get("overall")
+        or quality_payload.get("score")
+        or quality_payload.get("quality"),
+        0.0,
+    )
 
     return resonance_score >= 0.55 or overall >= 0.70
 
@@ -112,6 +135,7 @@ def _build_resonance_unit(
     contributors: list[dict[str, Any]] | None,
 ) -> ResonanceKnowledgeUnit:
     network_plan = item.get("_network_plan") or {}
+    quality_payload = answer_quality or {}
     goal_vector_raw = network_plan.get("goal_vector")
 
     if isinstance(goal_vector_raw, list):
@@ -119,11 +143,16 @@ def _build_resonance_unit(
         goal_profile = None
     else:
         goal_vector = []
-        goal_profile = goal_vector_raw
+        goal_profile = (
+            goal_vector_raw
+            if isinstance(goal_vector_raw, (dict, str, int, float, bool))
+            or goal_vector_raw is None
+            else str(goal_vector_raw)
+        )
 
     resonance_score = _as_float(item.get("_resonance_score"), 0.0)
     alignment_score = _as_float(
-        item.get("_goal_alignment_score") or (answer_quality or {}).get("goal_alignment"),
+        item.get("_goal_alignment_score") or quality_payload.get("goal_alignment"),
         0.0,
     )
 
@@ -140,8 +169,8 @@ def _build_resonance_unit(
             "answer_text": answer_text,
             "thread_context": thread_context,
             "graph_mode": item.get("_graph_mode") or item.get("graph_mode"),
-            "answer_quality": dict(answer_quality or {}),
-            "contributors": list(contributors or []),
+            "answer_quality": dict(quality_payload),
+            "contributors": _normalize_contributors(contributors),
             "route_key": network_plan.get("route_key"),
             "llm_provider": item.get("llm_provider"),
             "llm_model": item.get("llm_model"),
