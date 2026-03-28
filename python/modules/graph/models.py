@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Optional
+from uuid import uuid4
 
 
 @dataclass
@@ -159,3 +161,65 @@ class ContributionRecord:
     accepted_fragments: int = 0
     rejected_fragments: int = 0
     helped_final_answer: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ContributionRecord":
+        return cls(
+            backend=str(data.get("backend", "")),
+            model=str(data.get("model", "")),
+            role=str(data.get("role", "")),
+            delta_score=float(data.get("delta_score", 0.0) or 0.0),
+            helped_final_answer=bool(data.get("helped_final_answer", False)),
+            accepted_fragments=int(data.get("accepted_fragments", 0)),
+            rejected_fragments=int(data.get("rejected_fragments", 0)),
+        )
+
+
+@dataclass
+class ResonanceKnowledgeUnit:
+    """Единица проверенного когнитивного маршрута.
+
+    Хранит не просто ответ, а структуру мышления:
+    question -> intent -> why -> causal_path -> outcome/resonance.
+    """
+
+    source_question: str
+
+    unit_id: str = field(default_factory=lambda: str(uuid4()))
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    clean_question: Optional[str] = None
+    intent: Optional[str] = None
+    why: Optional[str] = None
+    goal_vector: list[float] = field(default_factory=list)
+    causal_path: list[dict[str, Any]] = field(default_factory=list)
+    resonance_score: float = 0.0
+    alignment_score: float = 0.0
+    edges: list[dict[str, Any]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ResonanceKnowledgeUnit":
+        return cls(
+            source_question=str(data.get("source_question") or ""),
+            unit_id=str(data.get("unit_id") or str(uuid4())),
+            timestamp=str(
+                data.get("timestamp") or datetime.now(timezone.utc).isoformat()
+            ),
+            clean_question=data.get("clean_question"),
+            intent=data.get("intent"),
+            why=data.get("why"),
+            goal_vector=list(data.get("goal_vector") or []),
+            causal_path=list(data.get("causal_path") or []),
+            resonance_score=float(data.get("resonance_score", 0.0) or 0.0),
+            alignment_score=float(data.get("alignment_score", 0.0) or 0.0),
+            edges=list(data.get("edges") or []),
+            metadata=dict(data.get("metadata") or {}),
+        )

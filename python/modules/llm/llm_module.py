@@ -9,6 +9,7 @@ import time
 import logging
 import queue
 import os
+import threading
 from typing import Optional
 from .breaker import CircuitBreaker, CircuitOpenError
 from .cot_adapter import COTAdapter
