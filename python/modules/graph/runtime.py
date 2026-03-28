@@ -19,18 +19,65 @@ def _as_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _extract_graph_mode(item: dict[str, Any]) -> Any:
+    graph_runtime = item.get("_graph_runtime") or {}
+    return (
+        item.get("_graph_mode")
+        or item.get("graph_mode")
+        or graph_runtime.get("mode")
+    )
+
+
+def _extract_quality_score(answer_quality: dict[str, Any] | None) -> float:
+    quality_payload = answer_quality or {}
+    return _as_float(
+        quality_payload.get("overall")
+        or quality_payload.get("score")
+        or quality_payload.get("quality")
+        or quality_payload.get("final_score"),
+        0.0,
+    )
+
+
+def _to_json_safe(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): _to_json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_to_json_safe(v) for v in value]
+    if hasattr(value, "to_dict"):
+        return _to_json_safe(value.to_dict())
+    return str(value)
+
+
 def _normalize_contributors(
     contributors: list[Any] | None,
 ) -> list[dict[str, Any] | str]:
     normalized: list[dict[str, Any] | str] = []
     for contributor in contributors or []:
         if hasattr(contributor, "to_dict"):
-            normalized.append(contributor.to_dict())
+            normalized.append(_to_json_safe(contributor.to_dict()))
         elif isinstance(contributor, dict):
-            normalized.append(contributor)
+            normalized.append(_to_json_safe(contributor))
         else:
             normalized.append(str(contributor))
     return normalized
+
+
+def _has_semantic_signal(item: dict[str, Any]) -> bool:
+    intent = item.get("_intent") or item.get("intent")
+    why = item.get("_why") or item.get("why")
+    why_strategy = item.get("_why_strategy") or {}
+    network_plan = item.get("_network_plan") or {}
+    return any(
+        [
+            bool(str(intent).strip()) if intent is not None else False,
+            bool(str(why).strip()) if why is not None else False,
+            bool(why_strategy),
+            bool(network_plan.get("route_key") or network_plan.get("goal_vector")),
+        ]
+    )
 
 
 def _build_resonance_causal_path(item: dict[str, Any]) -> list[dict[str, Any]]:
@@ -98,32 +145,15 @@ def _should_store_resonance_unit(
     if not (answer_text or "").strip():
         return False
 
-    graph_runtime = item.get("_graph_runtime") or {}
-    graph_mode = (
-        item.get("_graph_mode")
-        or item.get("graph_mode")
-        or graph_runtime.get("mode")
-    )
+    graph_mode = _extract_graph_mode(item)
     if graph_mode == "reuse":
         return False
 
-    intent = item.get("_intent") or item.get("intent")
-    why = item.get("_why") or item.get("why")
-    why_strategy = item.get("_why_strategy") or {}
-    network_plan = item.get("_network_plan") or {}
-
-    has_semantic_signal = any([intent, why, bool(why_strategy), bool(network_plan)])
-    if not has_semantic_signal:
+    if not _has_semantic_signal(item):
         return False
 
     resonance_score = _as_float(item.get("_resonance_score"), 0.0)
-    quality_payload = answer_quality or {}
-    overall = _as_float(
-        quality_payload.get("overall")
-        or quality_payload.get("score")
-        or quality_payload.get("quality"),
-        0.0,
-    )
+    overall = _extract_quality_score(answer_quality)
 
     return resonance_score >= 0.55 or overall >= 0.70
 
@@ -137,25 +167,20 @@ def _build_resonance_unit(
     contributors: list[dict[str, Any]] | None,
 ) -> ResonanceKnowledgeUnit:
     network_plan = item.get("_network_plan") or {}
-    graph_runtime = item.get("_graph_runtime") or {}
     quality_payload = answer_quality or {}
-    graph_mode = (
-        item.get("_graph_mode")
-        or item.get("graph_mode")
-        or graph_runtime.get("mode")
-    )
+    graph_mode = _extract_graph_mode(item)
     goal_vector_raw = network_plan.get("goal_vector")
 
     if isinstance(goal_vector_raw, list):
-        goal_vector = goal_vector_raw
+        goal_vector = _to_json_safe(goal_vector_raw)
         goal_profile = None
     else:
         goal_vector = []
         goal_profile = (
-            goal_vector_raw
+            _to_json_safe(goal_vector_raw)
             if isinstance(goal_vector_raw, (dict, str, int, float, bool))
             or goal_vector_raw is None
-            else str(goal_vector_raw)
+            else _to_json_safe(goal_vector_raw)
         )
 
     resonance_score = _as_float(item.get("_resonance_score"), 0.0)
@@ -177,7 +202,7 @@ def _build_resonance_unit(
             "answer_text": answer_text,
             "thread_context": thread_context,
             "graph_mode": graph_mode,
-            "answer_quality": dict(quality_payload),
+            "answer_quality": _to_json_safe(dict(quality_payload)),
             "contributors": _normalize_contributors(contributors),
             "route_key": network_plan.get("route_key"),
             "llm_provider": item.get("llm_provider"),
