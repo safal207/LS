@@ -14,6 +14,8 @@ class TrajectoryAnalyzer:
                     "adequacy_delta": current.adequacy_score,
                     "latency_delta": current.latency_score,
                     "drift_delta": current.drift_score,
+                    "resonance_unit_delta": current.resonance_health.get("count", 0),
+                    "resonance_alignment_delta": current.resonance_health.get("avg_alignment_score", 0.0),
                 },
                 trend="bootstrap",
                 risks=[],
@@ -23,6 +25,12 @@ class TrajectoryAnalyzer:
         adequacy_delta = round(current.adequacy_score - previous.adequacy_score, 4)
         latency_delta = round(current.latency_score - previous.latency_score, 4)
         drift_delta = round(current.drift_score - previous.drift_score, 4)
+        resonance_unit_delta = int(current.resonance_health.get("count", 0)) - int(previous.resonance_health.get("count", 0))
+        resonance_alignment_delta = round(
+            float(current.resonance_health.get("avg_alignment_score", 0.0) or 0.0)
+            - float(previous.resonance_health.get("avg_alignment_score", 0.0) or 0.0),
+            4,
+        )
 
         risks: list[str] = []
         opportunities: list[str] = []
@@ -32,12 +40,20 @@ class TrajectoryAnalyzer:
             risks.append("latency profile is worsening")
         if drift_delta > 0.05:
             risks.append("network drift is increasing")
+        if resonance_unit_delta < 0:
+            risks.append("resonance memory coverage is shrinking")
+        if resonance_alignment_delta < -0.05:
+            risks.append("resonance alignment is degrading")
         if adequacy_delta > 0.05:
             opportunities.append("adequacy trend is improving")
         if latency_delta > 0.05:
             opportunities.append("latency profile is improving")
         if drift_delta < -0.05:
             opportunities.append("network drift is decreasing")
+        if resonance_unit_delta > 0:
+            opportunities.append("resonance memory coverage is growing")
+        if resonance_alignment_delta > 0.05:
+            opportunities.append("resonance alignment is improving")
         if not risks and not opportunities:
             opportunities.append("network state is stable")
 
@@ -55,6 +71,8 @@ class TrajectoryAnalyzer:
                 "adequacy_delta": adequacy_delta,
                 "latency_delta": latency_delta,
                 "drift_delta": drift_delta,
+                "resonance_unit_delta": resonance_unit_delta,
+                "resonance_alignment_delta": resonance_alignment_delta,
             },
             trend=trend,
             risks=risks,

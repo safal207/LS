@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from graph import CoalitionRegistry, DerivedModuleRegistry, RouteStatsStore
+from graph import CoalitionRegistry, DerivedModuleRegistry, MemoryGraphStore, RouteStatsStore
 
 from .reports import RetrospectiveReport
 
@@ -20,15 +20,18 @@ class RetrospectiveCouncil:
         route_store: RouteStatsStore | None = None,
         coalition_registry: CoalitionRegistry | None = None,
         derived_module_registry: DerivedModuleRegistry | None = None,
+        memory_store: MemoryGraphStore | None = None,
     ) -> None:
         self.route_store = route_store or RouteStatsStore()
         self.coalition_registry = coalition_registry or CoalitionRegistry()
         self.derived_module_registry = derived_module_registry or DerivedModuleRegistry()
+        self.memory_store = memory_store or MemoryGraphStore()
 
     def analyze(self) -> RetrospectiveReport:
         routes = self.route_store.list_routes()
         coalitions = self.coalition_registry.list_coalitions()
         modules = self.derived_module_registry.list_modules()
+        resonance_units = self.memory_store.list_resonance_units()
 
         strong_routes = [
             route.route_key
@@ -67,6 +70,12 @@ class RetrospectiveCouncil:
             recommendations.append(f"review weak coalitions: {', '.join(weak_coalitions[:3])}")
         if stale_modules:
             recommendations.append(f"run care cycles or retire stale modules: {', '.join(stale_modules[:3])}")
+        if not resonance_units:
+            recommendations.append("seed resonance memory with strong non-reuse cooperative answers")
+        else:
+            avg_alignment = sum(unit.alignment_score for unit in resonance_units) / len(resonance_units)
+            if avg_alignment < 0.6:
+                recommendations.append("improve resonance alignment before promoting more route trust")
         if not recommendations:
             recommendations.append("network state is stable; continue collecting evidence")
 
@@ -78,10 +87,19 @@ class RetrospectiveCouncil:
             weak_coalitions=weak_coalitions,
             stale_modules=stale_modules,
             recommendations=recommendations,
+            resonance_summary={
+                "count": len(resonance_units),
+                "avg_resonance_score": round(sum(unit.resonance_score for unit in resonance_units) / len(resonance_units), 4) if resonance_units else 0.0,
+                "avg_alignment_score": round(sum(unit.alignment_score for unit in resonance_units) / len(resonance_units), 4) if resonance_units else 0.0,
+                "top_intents": sorted(
+                    {str(unit.intent) for unit in resonance_units if unit.intent}
+                )[:3],
+            },
             summary={
                 "route_count": len(routes),
                 "coalition_count": len(coalitions),
                 "derived_module_count": len(modules),
+                "resonance_unit_count": len(resonance_units),
                 "avg_route_goal_alignment": round(sum(route.avg_goal_alignment for route in routes) / len(routes), 4) if routes else 0.0,
             },
         )

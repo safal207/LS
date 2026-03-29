@@ -28,6 +28,7 @@ def _trajectory() -> TemporalTrajectoryResult:
         adequacy_score=0.76,
         latency_score=0.73,
         drift_score=0.12,
+        resonance_health={"count": 2, "avg_resonance_score": 0.81, "avg_alignment_score": 0.78, "top_intents": ["technical_reasoning"]},
     )
     record = TrajectoryRecord(
         period="test",
@@ -54,6 +55,7 @@ def test_network_observer_aggregates_all_views() -> None:
 
     assert report.status == "stable"
     assert report.summary["trend"] == "improving"
+    assert report.summary["resonance_units"] == 0
     assert report.retrospective["strong_routes"] == ["full_run>local>gonka>mimo"]
     assert report.trajectory["snapshot"]["snapshot_id"] == "snapshot-observer"
     assert report.adequacy["status"] == "stable"

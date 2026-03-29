@@ -13,6 +13,7 @@ class RetrospectiveReport:
     weak_coalitions: list[str] = field(default_factory=list)
     stale_modules: list[str] = field(default_factory=list)
     recommendations: list[str] = field(default_factory=list)
+    resonance_summary: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

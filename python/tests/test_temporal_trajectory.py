@@ -10,6 +10,8 @@ if str(MODULES) not in sys.path:
     sys.path.insert(0, str(MODULES))
 
 from graph.coalition_registry import CoalitionRecord, CoalitionRegistry
+from graph.memory_store import MemoryGraphStore
+from graph.models import ResonanceKnowledgeUnit
 from graph.derived_module_registry import DerivedModuleRegistry
 from graph.route_stats import RouteStats, RouteStatsStore
 from network import TemporalTrajectoryLayer, TrajectoryStore
@@ -65,17 +67,31 @@ def test_temporal_trajectory_layer_builds_snapshot_record_and_scenarios(tmp_path
     module.state = "active"
     derived_registry.save_module(module)
 
+    memory_store = MemoryGraphStore(tmp_path / "cases.jsonl")
+    memory_store.store_resonance_unit(
+        ResonanceKnowledgeUnit(
+            source_question="Почему вы выбрали этот стек?",
+            intent="technical_reasoning",
+            why="evaluate_reasoning",
+            resonance_score=0.91,
+            alignment_score=0.83,
+        )
+    )
+
     layer = TemporalTrajectoryLayer(
         store=TrajectoryStore(
             tmp_path / "trajectory.json",
             route_store=route_store,
             coalition_registry=coalition_registry,
             derived_module_registry=derived_registry,
+            memory_store=memory_store,
         )
     )
 
     result = layer.evaluate()
 
     assert result.snapshot.route_health["count"] == 2
+    assert result.snapshot.resonance_health["count"] == 1
+    assert "resonance_unit_delta" in result.record.deltas
     assert result.record.trend in {"bootstrap", "stable", "improving", "degrading"}
     assert len(result.scenarios) == 3

@@ -42,6 +42,8 @@ class NetworkObserver:
             "strong_routes": len(retrospective_report.strong_routes),
             "weak_routes": len(retrospective_report.weak_routes),
             "stale_modules": len(retrospective_report.stale_modules),
+            "resonance_units": (retrospective_report.resonance_summary or {}).get("count", 0),
+            "resonance_alignment": (retrospective_report.resonance_summary or {}).get("avg_alignment_score", 0.0),
             "future_scenarios": len(trajectory_result.scenarios),
         }
 

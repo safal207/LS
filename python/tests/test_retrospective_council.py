@@ -10,6 +10,8 @@ if str(MODULES) not in sys.path:
     sys.path.insert(0, str(MODULES))
 
 from graph.coalition_registry import CoalitionRecord, CoalitionRegistry
+from graph.memory_store import MemoryGraphStore
+from graph.models import ResonanceKnowledgeUnit
 from graph.derived_module_registry import DerivedModuleRegistry
 from graph.route_stats import RouteStats, RouteStatsStore
 from retrospective import RetrospectiveCouncil
@@ -66,10 +68,22 @@ def test_retrospective_council_builds_report(tmp_path):
     stale.trust_score = 0.3
     derived_registry.save_module(stale)
 
+    memory_store = MemoryGraphStore(tmp_path / "cases.jsonl")
+    memory_store.store_resonance_unit(
+        ResonanceKnowledgeUnit(
+            source_question="Почему вы выбрали этот стек?",
+            intent="technical_reasoning",
+            why="evaluate_reasoning",
+            resonance_score=0.88,
+            alignment_score=0.79,
+        )
+    )
+
     council = RetrospectiveCouncil(
         route_store=route_store,
         coalition_registry=coalition_registry,
         derived_module_registry=derived_registry,
+        memory_store=memory_store,
     )
 
     report = council.analyze()
@@ -78,4 +92,6 @@ def test_retrospective_council_builds_report(tmp_path):
     assert "full_run>cloud" in report.weak_routes
     assert "full_run>local>gonka>mimo" in report.strong_coalitions
     assert stale.module_id in report.stale_modules
+    assert report.resonance_summary["count"] == 1
+    assert report.summary["resonance_unit_count"] == 1
     assert report.recommendations

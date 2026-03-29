@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from graph import CoalitionRegistry, DerivedModuleRegistry, RouteStatsStore
+from graph import CoalitionRegistry, DerivedModuleRegistry, MemoryGraphStore, RouteStatsStore
 
 from .models import NetworkSnapshot
 
@@ -22,12 +22,14 @@ class TrajectoryStore:
         route_store: RouteStatsStore | None = None,
         coalition_registry: CoalitionRegistry | None = None,
         derived_module_registry: DerivedModuleRegistry | None = None,
+        memory_store: MemoryGraphStore | None = None,
     ) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.route_store = route_store or RouteStatsStore()
         self.coalition_registry = coalition_registry or CoalitionRegistry()
         self.derived_module_registry = derived_module_registry or DerivedModuleRegistry()
+        self.memory_store = memory_store or MemoryGraphStore()
 
     def list_snapshots(self) -> list[NetworkSnapshot]:
         if not self.path.exists():
@@ -53,6 +55,7 @@ class TrajectoryStore:
         routes = self.route_store.list_routes()
         coalitions = self.coalition_registry.list_coalitions()
         modules = self.derived_module_registry.list_modules()
+        resonance_units = self.memory_store.list_resonance_units()
 
         route_health = {
             "count": len(routes),
@@ -91,6 +94,12 @@ class TrajectoryStore:
             "avg_trust": round(sum(module.trust_score for module in modules) / len(modules), 4) if modules else 0.0,
             "avg_quality": round(sum(module.quality_score for module in modules) / len(modules), 4) if modules else 0.0,
         }
+        resonance_health = {
+            "count": len(resonance_units),
+            "avg_resonance_score": round(sum(unit.resonance_score for unit in resonance_units) / len(resonance_units), 4) if resonance_units else 0.0,
+            "avg_alignment_score": round(sum(unit.alignment_score for unit in resonance_units) / len(resonance_units), 4) if resonance_units else 0.0,
+            "top_intents": sorted({str(unit.intent) for unit in resonance_units if unit.intent})[:3],
+        }
 
         adequacy_score = round(
             (
@@ -113,6 +122,7 @@ class TrajectoryStore:
             route_health=route_health,
             coalition_health=coalition_health,
             derived_module_health=derived_module_health,
+            resonance_health=resonance_health,
             adequacy_score=adequacy_score,
             latency_score=latency_score,
             drift_score=drift_score,
