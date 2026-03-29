@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,40 @@ from config import (  # noqa: E402
 )
 from graph import CoalitionRegistry, DerivedModuleRegistry, MemoryGraphStore, RouteStatsStore  # noqa: E402
 from network import NetworkObserver  # noqa: E402
+
+
+def _operator_env_status() -> dict[str, Any]:
+    override = Path(os.environ.get("GRAPH_OPERATOR_ENV_FILE", ".env.network"))
+    if not override.is_absolute():
+        env_path = ROOT / override
+    else:
+        env_path = override
+
+    overrides: dict[str, str] = {}
+    if env_path.exists():
+        try:
+            for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip()
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+                    value = value[1:-1]
+                overrides[key] = value
+        except Exception:
+            overrides = {}
+    return {
+        "path": str(env_path),
+        "exists": env_path.exists(),
+        "active_overrides": overrides,
+        "count": len(overrides),
+    }
+
+
+def _safe_text(value: Any) -> str:
+    return str(value).encode("ascii", "backslashreplace").decode("ascii")
 
 
 def _top_route(route_store: RouteStatsStore) -> dict[str, Any] | None:
@@ -160,6 +195,7 @@ def build_report() -> dict[str, Any]:
         "weak_coalitions": retrospective.get("weak_coalitions"),
         "top_derived_module": _top_derived_module(derived_registry),
         "resonance_units": _resonance_summary(memory_store),
+        "operator_env": _operator_env_status(),
         "stale_modules": retrospective.get("stale_modules"),
         "future_scenarios": [item.get("title") for item in (trajectory.get("scenarios") or [])],
         "store_paths": {
@@ -227,6 +263,14 @@ def main() -> int:
             why=top_unit.get("why", "<none>"),
             score=top_unit.get("resonance_score", 0.0),
             alignment=top_unit.get("alignment_score", 0.0),
+        )
+    )
+    operator_env = report["operator_env"] or {}
+    print(
+        "operator.env_file = {path}  exists={exists}  overrides={count}".format(
+            path=_safe_text(operator_env.get("path", "<none>")),
+            exists=operator_env.get("exists", False),
+            count=operator_env.get("count", 0),
         )
     )
 

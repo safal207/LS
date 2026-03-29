@@ -137,6 +137,16 @@ If this is low or zero:
 - the network still remembers answers and routes,
 - but it does not yet have enough reusable cognitive-path memory.
 
+### `operator.env_file`
+
+This shows:
+- which env override file is active
+- whether it exists
+- how many safe operator overrides are currently loaded
+
+If `exists=false` and `overrides=0`:
+- the network is running without operator-applied policy overrides
+
 ### `coalition.active`
 
 This shows the strongest cooperative group if one exists.

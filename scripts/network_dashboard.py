@@ -15,6 +15,10 @@ from scripts.network_health_explain import build_explanation  # noqa: E402
 from scripts.network_health_fix_plan import build_fix_plan  # noqa: E402
 
 
+def _safe_text(value: object) -> str:
+    return str(value).encode("ascii", "backslashreplace").decode("ascii")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Unified network dashboard for health, explanation, and fix plan.")
     parser.add_argument("--json", action="store_true", help="Print one combined JSON payload.")
@@ -65,6 +69,14 @@ def main() -> int:
                 intent=top_unit.get("intent", "<none>"),
                 why=top_unit.get("why", "<none>"),
                 score=top_unit.get("resonance_score", 0.0),
+            )
+        )
+        operator_env = report.get("operator_env") or {}
+        print(
+            "operator.env_file = {path}  exists={exists}  overrides={count}".format(
+                path=_safe_text(operator_env.get("path", "<none>")),
+                exists=operator_env.get("exists", False),
+                count=operator_env.get("count", 0),
             )
         )
         print("")
