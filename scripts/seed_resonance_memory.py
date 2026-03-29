@@ -55,6 +55,12 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print structured JSON instead of text output.",
     )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Run only the first N questions.",
+    )
     return parser.parse_args()
 
 
@@ -75,6 +81,8 @@ def _load_questions(path: str | None) -> list[str]:
 def main() -> int:
     args = _parse_args()
     questions = _load_questions(args.questions_file)
+    if args.limit is not None:
+        questions = questions[: max(1, int(args.limit))]
     backend = build_llm_backend()
     agent = ResonanceAgent(
         llm_backend=backend,
@@ -84,7 +92,14 @@ def main() -> int:
     before_units = len(store.list_resonance_units())
 
     results: list[dict[str, object]] = []
+    if not args.json:
+        print(f"seeding.questions = {len(questions)}", flush=True)
+        print(f"resonance.units.before = {before_units}", flush=True)
+        print("progress = starting", flush=True)
+        print("", flush=True)
     for index, question in enumerate(questions, start=1):
+        if not args.json:
+            print(f"[{index}/{len(questions)}] start = {question}", flush=True)
         item = {
             "type": "question",
             "text": question,
@@ -94,19 +109,32 @@ def main() -> int:
             "source": "seed_resonance_memory",
         }
         result = agent.process_item(item)
-        results.append(
-            {
-                "index": index,
-                "question": question,
-                "route_key": result.get("orientation_route_key") or result.get("route_key"),
-                "was_reused": result.get("was_reused"),
-                "provider": result.get("llm_provider"),
-                "model": result.get("llm_model"),
-                "goal_alignment_score": result.get("goal_alignment_score"),
-                "resonance_score": result.get("resonance_score"),
-                "output": result.get("final_output"),
-            }
-        )
+        entry = {
+            "index": index,
+            "question": question,
+            "route_key": result.get("orientation_route_key") or result.get("route_key"),
+            "was_reused": result.get("was_reused"),
+            "provider": result.get("llm_provider"),
+            "model": result.get("llm_model"),
+            "goal_alignment_score": result.get("goal_alignment_score"),
+            "resonance_score": result.get("resonance_score"),
+            "output": result.get("final_output"),
+        }
+        results.append(entry)
+        if not args.json:
+            print(
+                "[{idx}/{total}] done = route={route} reused={reused} provider={provider} goal_alignment={goal} resonance={resonance}".format(
+                    idx=index,
+                    total=len(questions),
+                    route=entry["route_key"],
+                    reused=entry["was_reused"],
+                    provider=entry["provider"],
+                    goal=entry["goal_alignment_score"],
+                    resonance=entry["resonance_score"],
+                ),
+                flush=True,
+            )
+            print("", flush=True)
 
     after_units = len(store.list_resonance_units())
     payload = {
