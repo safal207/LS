@@ -19,7 +19,7 @@ from config import (  # noqa: E402
     GRAPH_DERIVED_MODULE_STORE_PATH,
     GRAPH_TRAIL_STORE_PATH,
 )
-from graph import CoalitionRegistry, DerivedModuleRegistry, RouteStatsStore  # noqa: E402
+from graph import CoalitionRegistry, DerivedModuleRegistry, MemoryGraphStore, RouteStatsStore  # noqa: E402
 from network import NetworkObserver  # noqa: E402
 
 
@@ -86,10 +86,59 @@ def _top_derived_module(registry: DerivedModuleRegistry) -> dict[str, Any] | Non
     }
 
 
+def _resonance_summary(store: MemoryGraphStore) -> dict[str, Any]:
+    units = store.list_resonance_units()
+    if not units:
+        return {
+            "count": 0,
+            "top_unit": None,
+            "top_intents": [],
+            "top_whys": [],
+        }
+
+    units.sort(
+        key=lambda item: (item.resonance_score, item.alignment_score, item.timestamp),
+        reverse=True,
+    )
+    top = units[0]
+
+    intent_counts: dict[str, int] = {}
+    why_counts: dict[str, int] = {}
+    for unit in units:
+        if unit.intent:
+            intent_counts[str(unit.intent)] = intent_counts.get(str(unit.intent), 0) + 1
+        if unit.why:
+            why_counts[str(unit.why)] = why_counts.get(str(unit.why), 0) + 1
+
+    top_intents = [
+        {"intent": key, "count": value}
+        for key, value in sorted(intent_counts.items(), key=lambda item: item[1], reverse=True)[:3]
+    ]
+    top_whys = [
+        {"why": key, "count": value}
+        for key, value in sorted(why_counts.items(), key=lambda item: item[1], reverse=True)[:3]
+    ]
+
+    return {
+        "count": len(units),
+        "top_unit": {
+            "unit_id": top.unit_id,
+            "intent": top.intent,
+            "why": top.why,
+            "resonance_score": top.resonance_score,
+            "alignment_score": top.alignment_score,
+            "route_key": (top.metadata or {}).get("route_key"),
+        },
+        "top_intents": top_intents,
+        "top_whys": top_whys,
+    }
+
+
 def build_report() -> dict[str, Any]:
     route_store = RouteStatsStore(GRAPH_TRAIL_STORE_PATH)
     coalition_registry = CoalitionRegistry(GRAPH_COALITION_STORE_PATH)
     derived_registry = DerivedModuleRegistry(GRAPH_DERIVED_MODULE_STORE_PATH)
+    memory_store = MemoryGraphStore()
     observer = NetworkObserver()
     report = observer.evaluate().to_dict()
     retrospective = report.get("retrospective") or {}
@@ -110,9 +159,12 @@ def build_report() -> dict[str, Any]:
         "strong_coalitions": retrospective.get("strong_coalitions"),
         "weak_coalitions": retrospective.get("weak_coalitions"),
         "top_derived_module": _top_derived_module(derived_registry),
+        "resonance_units": _resonance_summary(memory_store),
         "stale_modules": retrospective.get("stale_modules"),
         "future_scenarios": [item.get("title") for item in (trajectory.get("scenarios") or [])],
         "store_paths": {
+            "cases": str(memory_store.path),
+            "resonance_units": str(memory_store._resonance_path()),
             "routes": GRAPH_TRAIL_STORE_PATH,
             "coalitions": GRAPH_COALITION_STORE_PATH,
             "derived_modules": GRAPH_DERIVED_MODULE_STORE_PATH,
@@ -164,6 +216,17 @@ def main() -> int:
             state=top_module.get("state", "<none>"),
             trust=top_module.get("trust_score", 0.0),
             quality=top_module.get("quality_score", 0.0),
+        )
+    )
+    resonance = report["resonance_units"] or {}
+    top_unit = resonance.get("top_unit") or {}
+    print(
+        "resonance.units = {count}  top_intent={intent}  top_why={why}  score={score}  alignment={alignment}".format(
+            count=resonance.get("count", 0),
+            intent=top_unit.get("intent", "<none>"),
+            why=top_unit.get("why", "<none>"),
+            score=top_unit.get("resonance_score", 0.0),
+            alignment=top_unit.get("alignment_score", 0.0),
         )
     )
 

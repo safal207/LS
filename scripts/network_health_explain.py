@@ -18,6 +18,8 @@ def build_explanation(report: dict[str, Any]) -> dict[str, Any]:
     top_route = report.get("top_route") or {}
     top_coalition = report.get("top_coalition") or {}
     top_module = report.get("top_derived_module") or {}
+    resonance = report.get("resonance_units") or {}
+    top_unit = resonance.get("top_unit") or {}
     risks = list(report.get("adequacy_risks") or [])
     weak_routes = list(report.get("weak_routes") or [])
     strong_routes = list(report.get("strong_routes") or [])
@@ -38,6 +40,18 @@ def build_explanation(report: dict[str, Any]) -> dict[str, Any]:
     else:
         bad.append("no active route history yet")
         next_actions.append("run the system on a few real questions to accumulate route history")
+
+    if resonance.get("count", 0):
+        good.append(
+            "resonance memory has {count} units; top unit tracks intent {intent} with score {score}".format(
+                count=resonance.get("count", 0),
+                intent=top_unit.get("intent", "<none>"),
+                score=top_unit.get("resonance_score", 0.0),
+            )
+        )
+    else:
+        bad.append("no resonance knowledge units have been stored yet")
+        next_actions.append("collect more strong non-reuse answers so the network can store verified reasoning routes")
 
     if strong_routes:
         good.append("strong routes exist: " + ", ".join(strong_routes))

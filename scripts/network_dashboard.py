@@ -57,6 +57,16 @@ def main() -> int:
                 goal_alignment=top_route.get("avg_goal_alignment", 0.0),
             )
         )
+        resonance = report.get("resonance_units") or {}
+        top_unit = resonance.get("top_unit") or {}
+        print(
+            "resonance.units = {count}  top_intent={intent}  top_why={why}  score={score}".format(
+                count=resonance.get("count", 0),
+                intent=top_unit.get("intent", "<none>"),
+                why=top_unit.get("why", "<none>"),
+                score=top_unit.get("resonance_score", 0.0),
+            )
+        )
         print("")
 
     if args.section in {"all", "explain"}:

@@ -20,6 +20,7 @@ def build_operator_actions(report: dict[str, Any], fix_plan: dict[str, Any]) -> 
     weak_routes = list(report.get("weak_routes") or [])
     observer_status = report.get("observer_status")
     top_route = report.get("top_route") or {}
+    resonance = report.get("resonance_units") or {}
 
     env_overrides: dict[str, str] = {}
     config_hints: list[dict[str, str]] = []
@@ -68,6 +69,15 @@ def build_operator_actions(report: dict[str, Any], fix_plan: dict[str, Any]) -> 
                 "action": "keep_primary_route",
                 "targets": str(top_route.get("route_key")),
                 "reason": "keep the strongest current backbone while repairing weak paths around it",
+            }
+        )
+
+    if int(resonance.get("count", 0) or 0) == 0:
+        route_actions.append(
+            {
+                "action": "seed_resonance_memory",
+                "targets": "strong non-reuse cooperative answers",
+                "reason": "the network does not yet have reusable reasoning-route memory",
             }
         )
 

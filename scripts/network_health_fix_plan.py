@@ -26,6 +26,7 @@ def build_fix_plan(report: dict[str, Any]) -> dict[str, Any]:
     stale_modules = list(report.get("stale_modules") or [])
     top_route = report.get("top_route") or {}
     top_module = report.get("top_derived_module") or {}
+    resonance = report.get("resonance_units") or {}
     observer_status = report.get("observer_status")
 
     do_now: list[dict[str, str]] = []
@@ -54,6 +55,14 @@ def build_fix_plan(report: dict[str, Any]) -> dict[str, Any]:
                 "grow-coalition-trust",
                 "network has no coalition that clearly stands out",
                 "run more cooperative local>gonka>mimo paths and only promote coalition trust from strong outcomes",
+            )
+        )
+    if int(resonance.get("count", 0) or 0) == 0:
+        do_now.append(
+            _priority(
+                "seed-resonance-memory",
+                "there is no resonance-route memory yet",
+                "run a few strong non-reuse answers so the network can store verified reasoning routes",
             )
         )
 

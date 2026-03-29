@@ -44,6 +44,7 @@ This shows:
 - `adequacy.status`
 - `trajectory.trend`
 - active route
+- resonance knowledge units
 - strong/weak routes
 - top coalition
 - top derived module
@@ -103,6 +104,14 @@ This is the current strongest route by:
 - run history
 
 It is the current backbone of the network, not permanent truth.
+
+### `resonance.units`
+
+This shows how many verified reasoning-route units the network has stored.
+
+If this is low or zero:
+- the network still remembers answers and routes,
+- but it does not yet have enough reusable cognitive-path memory.
 
 ### `coalition.active`
 

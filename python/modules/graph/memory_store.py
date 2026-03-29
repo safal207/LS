@@ -131,6 +131,9 @@ class MemoryGraphStore:
         self._write_resonance_units(units)
         return unit
 
+    def list_resonance_units(self) -> list[ResonanceKnowledgeUnit]:
+        return self._load_resonance_units()
+
     def find_relevant_units(
         self,
         *,
