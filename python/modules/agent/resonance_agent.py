@@ -1200,6 +1200,8 @@ class ResonanceAgent:
             "orientation_reason": orientation_meta.get("reason"),
             "orientation_confidence": orientation_meta.get("confidence"),
             "orientation_route_key": orientation_meta.get("route_key"),
+            "orientation_resonance_signal": orientation_meta.get("resonance_signal"),
+            "orientation_resonance_unit_count": (orientation_meta.get("resonance_signal") or {}).get("count", 0),
             "need_profile": orientation_meta.get("need_profile"),
             "need_priority": (orientation_meta.get("need_profile") or {}).get("priority"),
             "need_route_bias": (orientation_meta.get("need_profile") or {}).get("route_bias"),

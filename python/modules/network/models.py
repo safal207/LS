@@ -17,6 +17,7 @@ class NetworkExecutionPlan:
     graph_decision: Optional[dict[str, Any]] = None
     path_decision: Optional[dict[str, Any]] = None
     derived_module: Optional[dict[str, Any]] = None
+    resonance_signal: Optional[dict[str, Any]] = None
     need_profile: Optional[dict[str, Any]] = None
     goal_vector: Optional[dict[str, Any]] = None
     adequacy_report: Optional[dict[str, Any]] = None

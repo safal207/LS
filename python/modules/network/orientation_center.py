@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .cognitive_adequacy import CognitiveAdequacyCore
+from graph.memory_store import MemoryGraphStore
 from .observer import NetworkObserver
 from .models import NetworkExecutionPlan
 
@@ -16,6 +17,7 @@ class OrientationCenter:
         graph_runtime=None,
         path_selector=None,
         derived_module_registry=None,
+        memory_store: MemoryGraphStore | None = None,
         llm_backend=None,
         adequacy_core: CognitiveAdequacyCore | None = None,
         observer_core: NetworkObserver | None = None,
@@ -25,6 +27,7 @@ class OrientationCenter:
         self.graph_runtime = graph_runtime
         self.path_selector = path_selector
         self.derived_module_registry = derived_module_registry
+        self.memory_store = memory_store
         self.llm_backend = llm_backend
         self.adequacy_core = adequacy_core
         self.observer_core = observer_core
@@ -43,6 +46,7 @@ class OrientationCenter:
     ) -> NetworkExecutionPlan:
         graph_decision = None
         graph_meta = None
+        resonance_signal = None
         observer_meta = observer_report
         adequacy_meta = None
         if self.graph_runtime is not None:
@@ -55,6 +59,36 @@ class OrientationCenter:
             adequacy_meta = observer_meta.get("adequacy")
         elif self.adequacy_core is not None:
             adequacy_meta = self.adequacy_core.evaluate().to_dict()
+
+        if self.memory_store is None and self.graph_runtime is not None:
+            runtime_store = getattr(self.graph_runtime, "store", None)
+            if runtime_store is not None:
+                self.memory_store = runtime_store
+
+        resonance_units = []
+        if self.memory_store is not None:
+            query_text = (
+                item.get("clean_text")
+                or item.get("text")
+                or item.get("question")
+                or item.get("raw_text")
+            )
+            resonance_units = self.memory_store.find_relevant_units(
+                intent=intent,
+                why=why_tag,
+                query_text=str(query_text or ""),
+                top_k=3,
+            )
+            if resonance_units:
+                top_unit = resonance_units[0]
+                resonance_signal = {
+                    "count": len(resonance_units),
+                    "top_unit_id": top_unit.unit_id,
+                    "top_intent": top_unit.intent,
+                    "top_why": top_unit.why,
+                    "top_resonance_score": float(top_unit.resonance_score or 0.0),
+                    "top_alignment_score": float(top_unit.alignment_score or 0.0),
+                }
 
         available_backends: list[str] = []
         if self.llm_backend is not None and hasattr(self.llm_backend, "backends"):
@@ -83,6 +117,7 @@ class OrientationCenter:
                 reason=graph_decision.reason,
                 confidence=float(graph_decision.similarity or 0.0),
                 graph_decision=graph_meta,
+                resonance_signal=resonance_signal,
                 goal_vector=goal_vector,
                 adequacy_report=adequacy_meta,
                 observer_report=observer_meta,
@@ -111,6 +146,7 @@ class OrientationCenter:
                 selected_backend=derived_module.preferred_backend,
                 graph_decision=graph_meta,
                 derived_module=module_meta,
+                resonance_signal=resonance_signal,
                 goal_vector=goal_vector,
                 adequacy_report=adequacy_meta,
                 observer_report=observer_meta,
@@ -134,17 +170,27 @@ class OrientationCenter:
             coalition_id = None
             if path_decision.reason == "coalition-registry" and path_decision.route_key:
                 coalition_id = path_decision.route_key.replace(">", "-")
+            resonance_boost = 0.0
+            reason = path_decision.reason
+            confidence = float(path_decision.pheromone_weight or 0.0)
+            if resonance_signal is not None:
+                top_resonance = resonance_signal["top_resonance_score"]
+                top_alignment = resonance_signal["top_alignment_score"]
+                resonance_boost = min(0.12, (top_resonance * 0.08) + (top_alignment * 0.04))
+                confidence += resonance_boost
+                reason = f"{reason}+resonance-memory"
             return NetworkExecutionPlan(
                 mode=graph_decision.mode,
                 route_key=path_decision.route_key,
                 coalition_id=coalition_id,
                 derived_module_id=None,
                 memory_case_id=graph_decision.matched_case_id,
-                reason=path_decision.reason,
-                confidence=float(path_decision.pheromone_weight or 0.0),
+                reason=reason,
+                confidence=confidence,
                 selected_backend=path_decision.selected_backend,
                 graph_decision=graph_meta,
                 path_decision=path_meta,
+                resonance_signal=resonance_signal,
                 goal_vector=goal_vector,
                 adequacy_report=adequacy_meta,
                 observer_report=observer_meta,
@@ -161,6 +207,7 @@ class OrientationCenter:
             reason="orientation-fallback",
             confidence=float(graph_decision.similarity or 0.0) if graph_decision is not None else 0.0,
             graph_decision=graph_meta,
+            resonance_signal=resonance_signal,
             goal_vector=goal_vector,
             adequacy_report=adequacy_meta,
             observer_report=observer_meta,

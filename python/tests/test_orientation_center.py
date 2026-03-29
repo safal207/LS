@@ -12,6 +12,8 @@ if str(MODULES) not in sys.path:
 from graph.path_selector import PathSelector
 from graph.route_stats import RouteStatsStore
 from graph.derived_module_registry import DerivedModuleRegistry
+from graph.memory_store import MemoryGraphStore
+from graph.models import ResonanceKnowledgeUnit
 from network.orientation_center import OrientationCenter
 
 
@@ -246,3 +248,41 @@ def test_orientation_center_uses_goal_vector_for_route_choice(tmp_path):
 
     assert plan.goal_vector is not None
     assert plan.route_key == "full_run>local>gonka>mimo"
+
+
+def test_orientation_center_uses_resonance_memory_as_weak_signal(tmp_path):
+    store = MemoryGraphStore(tmp_path / "cases.jsonl")
+    store.store_resonance_unit(
+        ResonanceKnowledgeUnit(
+            source_question="Почему вы выбрали этот стек?",
+            clean_question="Почему вы выбрали этот стек?",
+            intent="technical_reasoning",
+            why="evaluate_reasoning",
+            resonance_score=0.9,
+            alignment_score=0.8,
+            metadata={"route_key": "full_run>local>gonka>mimo"},
+        )
+    )
+    center = OrientationCenter(
+        graph_runtime=FakeGraphRuntime(
+            FakeGraphDecision(mode="full_run", reason="no-match")
+        ),
+        path_selector=PathSelector(
+            RouteStatsStore(tmp_path / "routes.json"), exploration_rate=0.0
+        ),
+        llm_backend=FakeRouter(),
+        memory_store=store,
+    )
+
+    plan = center.decide(
+        {"text": "Почему вы выбрали этот стек?"},
+        intent="technical_reasoning",
+        why_tag="evaluate_reasoning",
+        goal_vector={"style": "structured", "strategy_bias": "cooperative_reasoning"},
+    )
+
+    assert plan.route_key == "full_run>local>gonka>mimo"
+    assert plan.reason.endswith("+resonance-memory")
+    assert plan.resonance_signal is not None
+    assert plan.resonance_signal["count"] == 1
+    assert plan.confidence > 0.0
