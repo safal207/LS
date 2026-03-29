@@ -77,6 +77,30 @@ This produces:
 - `do_next`
 - `keep`
 
+### 5. Operator loop
+
+```powershell
+python scripts/network_operator_loop.py
+python scripts/network_operator_loop.py --json
+```
+
+Записать safe overrides в локальный env-файл:
+
+```powershell
+python scripts/network_operator_loop.py --apply-env-file
+```
+
+Или в конкретный файл:
+
+```powershell
+python scripts/network_operator_loop.py --apply-env-file .env.network
+```
+
+`python/modules/config.py` автоматически читает `.env.network` через `GRAPH_OPERATOR_ENV_FILE` как низкоприоритетный слой overrides:
+- значения из `.env.network` применяются только если такие env ещё не заданы в системе;
+- явные системные env-переменные сильнее;
+- это безопасный слой для временных операторских корректировок.
+
 ## How to read the dashboard
 
 ### `observer.status`
@@ -175,6 +199,21 @@ python scripts/network_dashboard.py --section fix
    - `observer.status` improved
    - weak routes shrank
    - adequacy risks decreased
+
+### Apply-safe override loop
+
+1. Generate and write safe overrides:
+```powershell
+python scripts/network_operator_loop.py --apply-env-file
+```
+2. Re-run:
+```powershell
+python scripts/network_dashboard.py
+```
+3. Compare whether:
+   - `observer.status` improved
+   - `adequacy.status` improved
+   - weak routes shrank
 
 ## Related docs
 
