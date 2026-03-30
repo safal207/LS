@@ -596,6 +596,18 @@ class ResonanceAgent:
             selected_backend = path_decision.get("selected_backend")
         else:
             selected_backend = None
+
+        if self._graph_runtime and not (graph_decision and graph_decision.mode == "reuse"):
+            try:
+                self._graph_runtime.inject_resonance_hints(
+                    item,
+                    thread_context=item.get("thread_context") or self._orientation or None,
+                    top_k=3,
+                )
+            except Exception as exc:
+                logger.debug("ResonanceAgent: resonance hints injection failed: %s", exc)
+                item["_resonance_hints"] = []
+
         if selected_backend and selected_backend != "cooperative" and hasattr(self._llm_backend, "primary"):
             original_primary = getattr(self._llm_backend, "primary", None)
             original_fallback = list(getattr(self._llm_backend, "fallback_chain", []))
@@ -1016,6 +1028,37 @@ class ResonanceAgent:
                 "Маршрут решения выбран по истории успешных путей: "
                 f"{path_selection.get('route_key')}."
             )
+        resonance_hints = item.get("_resonance_hints") or []
+        if resonance_hints:
+            hint_lines: list[str] = []
+            for idx, hint in enumerate(resonance_hints[:3], start=1):
+                if not isinstance(hint, dict):
+                    continue
+                fields = [
+                    f"intent={hint.get('intent')}" if hint.get("intent") else None,
+                    f"why={hint.get('why')}" if hint.get("why") else None,
+                    f"route={hint.get('route_key')}" if hint.get("route_key") else None,
+                    f"path={hint.get('causal_path')}" if hint.get("causal_path") else None,
+                    f"pattern={hint.get('answer_pattern')}" if hint.get("answer_pattern") else None,
+                    (
+                        f"res={float(hint.get('resonance_score')):.2f}"
+                        if hint.get("resonance_score") is not None
+                        else None
+                    ),
+                    (
+                        f"align={float(hint.get('alignment_score')):.2f}"
+                        if hint.get("alignment_score") is not None
+                        else None
+                    ),
+                ]
+                compact = "; ".join(part for part in fields if part)
+                if compact:
+                    hint_lines.append(f"{idx}) {compact}")
+            if hint_lines:
+                parts.append(
+                    "Слабые подсказки из resonance-memory (используй как soft guidance, не копируй дословно):\n"
+                    + "\n".join(hint_lines)
+                )
         if need_profile:
             parts.append(
                 "Профиль потребности сети: "
