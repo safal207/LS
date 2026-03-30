@@ -163,3 +163,25 @@ def test_cooperative_engine_adds_grounding_guardrails_to_all_role_prompts():
         assert "Grounding rules:" in (prompt or "")
         assert "Do not name concrete technologies" in (prompt or "")
         assert "Answer in Russian." in (prompt or "") or "answer in Russian" in (prompt or "")
+
+
+def test_cooperative_engine_scrubs_fabricated_stack_specifics_when_stack_not_given():
+    engine = CooperativeGraphEngine(
+        {
+            "local": FakeBackend("local", "local-model", "Мы выбрали Node.js и React, потому что это удобно."),
+            "gonka": FakeBackend("gonka", "gonka-model", "- draft invents stack names"),
+            "mimo": FakeBackend("mimo", "mimo-model", "Мы выбрали Node.js, React и MongoDB из-за скорости."),
+        }
+    )
+
+    result = engine.run(
+        {"text": "Почему вы выбрали этот стек?"},
+        "full_run>local>gonka>mimo",
+        thread_context="Мы обсуждаем компромиссы и не называем технологии.",
+    )
+
+    assert result.success is True
+    assert "Node.js" not in (result.final_answer or "")
+    assert "React" not in (result.final_answer or "")
+    assert result.metadata["grounding_scrubbed"] is True
+    assert "node.js" in result.metadata["grounding_scrubbed_terms"]

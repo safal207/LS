@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+import re
 from typing import Any, Optional
 
 
@@ -21,6 +22,37 @@ class CooperativeExecutionResult:
 
 class CooperativeGraphEngine:
     """Minimal cooperative execution for one coalition route."""
+
+    _TECH_TERMS = (
+        "node.js",
+        "nodejs",
+        "react",
+        "express",
+        "mongodb",
+        "mongo",
+        "spring",
+        "spring boot",
+        "asp.net",
+        "asp.net core",
+        ".net",
+        "python",
+        "java",
+        "c#",
+        "go",
+        "golang",
+        "redis",
+        "kafka",
+        "postgres",
+        "postgresql",
+        "mysql",
+        "django",
+        "flask",
+        "fastapi",
+        "angular",
+        "vue",
+        "next.js",
+        "nestjs",
+    )
 
     def __init__(self, backends: dict[str, Any]) -> None:
         self.backends = backends
@@ -147,6 +179,40 @@ class CooperativeGraphEngine:
             metadata=metadata or {},
         )
 
+    def _combined_context(self, item: dict[str, Any], thread_context: str | None) -> str:
+        parts = []
+        for key in ("clean_text", "text", "thread_context"):
+            value = item.get(key) if isinstance(item, dict) else None
+            if value:
+                parts.append(str(value))
+        if thread_context:
+            parts.append(str(thread_context))
+        return "\n".join(parts).lower()
+
+    def _stack_is_unspecified(self, item: dict[str, Any], thread_context: str | None) -> bool:
+        context = self._combined_context(item, thread_context)
+        return not any(term in context for term in self._TECH_TERMS)
+
+    def _fabricated_terms(self, answer: str, item: dict[str, Any], thread_context: str | None) -> list[str]:
+        context = self._combined_context(item, thread_context)
+        answer_lower = str(answer or "").lower()
+        fabricated = []
+        for term in self._TECH_TERMS:
+            if term in answer_lower and term not in context:
+                fabricated.append(term)
+        return fabricated
+
+    def _rewrite_generic_tradeoff_answer(self, question: str, thread_context: str | None) -> str:
+        thread_hint = ""
+        if thread_context:
+            thread_hint = " В таком объяснении я бы опирался на обсуждаемые компромиссы скорости разработки, стоимости поддержки и устойчивости решения."
+        return (
+            "Я бы не привязывал ответ к конкретному стеку, если он не был явно назван в вопросе. "
+            "В таком случае правильнее объяснить выбор через компромиссы: почему этот набор технологий лучше подходит по скорости разработки, "
+            "поддержке, управляемости сложности и допустимому риску ошибок, а также в каких условиях более простой стек мог бы быть разумнее."
+            f"{thread_hint}"
+        )
+
     def run(self, item: dict, route_key: str, thread_context: str | None = None, goal_vector: dict[str, Any] | None = None) -> CooperativeExecutionResult:
         text = str(item.get("text", "") or "")
         if not text:
@@ -184,6 +250,12 @@ class CooperativeGraphEngine:
         else:
             result.final_answer = result.draft_answer
 
+        scrubbed_terms: list[str] = []
+        if result.final_answer and self._stack_is_unspecified(item, thread_context):
+            scrubbed_terms = self._fabricated_terms(result.final_answer, item, thread_context)
+            if scrubbed_terms:
+                result.final_answer = self._rewrite_generic_tradeoff_answer(text, thread_context)
+
         result.success = bool(result.final_answer)
         result.metadata = {
             "cooperative_route_key": route_key,
@@ -194,5 +266,7 @@ class CooperativeGraphEngine:
             "degraded": not bool(result.critique_answer and result.compressed_answer),
             "goal_style": (goal_vector or {}).get("style"),
             "goal_strategy_bias": (goal_vector or {}).get("strategy_bias"),
+            "grounding_scrubbed": bool(scrubbed_terms),
+            "grounding_scrubbed_terms": scrubbed_terms,
         }
         return result
