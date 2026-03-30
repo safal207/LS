@@ -25,6 +25,27 @@ class CooperativeGraphEngine:
     def __init__(self, backends: dict[str, Any]) -> None:
         self.backends = backends
 
+    def _grounding_guardrails(self, item: dict[str, Any], thread_context: str | None) -> str:
+        known_facts: list[str] = []
+        for key in ("clean_text", "text", "thread_context"):
+            value = item.get(key) if isinstance(item, dict) else None
+            if value:
+                known_facts.append(str(value))
+        if thread_context:
+            known_facts.append(str(thread_context))
+        context_block = "\n".join(f"- {fact}" for fact in known_facts if fact) or "- no explicit project facts were provided"
+        return (
+            "Grounding rules:\n"
+            "- Use only facts explicitly present in the user question or conversation context.\n"
+            "- Do not name concrete technologies, companies, team size, benchmarks, or architecture choices unless they are explicitly given.\n"
+            "- If the stack or alternatives are not specified, answer conditionally using phrases like 'в таком случае', 'если приоритет был ...', 'я бы объяснил выбор через компромиссы', not fabricated specifics.\n"
+            "- If information is missing, state the uncertainty briefly instead of filling gaps.\n"
+            "- Remove any invented examples from the final answer.\n"
+            "- Answer in Russian.\n"
+            "Known context:\n"
+            f"{context_block}"
+        )
+
     def _goal_guidance(self, goal_vector: dict[str, Any] | None) -> str:
         if not goal_vector:
             return ""
@@ -65,6 +86,8 @@ class CooperativeGraphEngine:
             "- stay on point\n"
             "- do not invent metrics or case studies\n"
             "- avoid unnecessary theory\n"
+            "- if the question does not specify the stack, do not guess the stack\n"
+            "- answer in Russian\n"
             "- keep the answer within 4-7 sentences\n"
             f"{thread_block}{goal_block}"
         )
@@ -78,9 +101,11 @@ class CooperativeGraphEngine:
             "Look for:\n"
             "- off-topic content\n"
             "- invented facts\n"
+            "- invented technology names or architecture details not present in the question\n"
             "- missing trade-offs\n"
             "- weak connection to the question or thread\n"
             "- excess verbosity\n"
+            "- any place where the draft sounds too specific without evidence\n"
             f"{thread_block}{goal_block}\n\nDraft:\n{draft_answer}"
         )
 
@@ -96,6 +121,9 @@ class CooperativeGraphEngine:
             "- make the answer compact and natural\n"
             "- do not mention draft or critique\n"
             "- do not invent details\n"
+            "- if the stack was not explicitly named, do not name a stack in the final answer\n"
+            "- prefer trade-off framing over fabricated specifics\n"
+            "- answer in Russian\n"
             f"{thread_block}{goal_block}\n\nDraft:\n{draft_answer}"
         )
         if critique_answer:
@@ -125,8 +153,9 @@ class CooperativeGraphEngine:
             return CooperativeExecutionResult(route_key=route_key, success=False, metadata={"error": "empty-question"})
 
         result = CooperativeExecutionResult(route_key=route_key)
+        grounding_block = self._grounding_guardrails(item, thread_context)
 
-        draft_prompt = self._build_draft_prompt(thread_context, goal_vector)
+        draft_prompt = self._build_draft_prompt(thread_context, goal_vector) + "\n\n" + grounding_block
         draft_response = self._call_backend("local", user_text=text, system_prompt=draft_prompt, metadata={"role": "draft", "route_key": route_key})
         if draft_response and draft_response.ok:
             result.draft_answer = draft_response.text
@@ -140,13 +169,13 @@ class CooperativeGraphEngine:
         if not result.draft_answer:
             return CooperativeExecutionResult(route_key=route_key, success=False, metadata={"error": "no-draft"})
 
-        critique_prompt = self._build_critic_prompt(result.draft_answer, thread_context, goal_vector)
+        critique_prompt = self._build_critic_prompt(result.draft_answer, thread_context, goal_vector) + "\n\n" + grounding_block
         critique_response = self._call_backend("gonka", user_text=text, system_prompt=critique_prompt, metadata={"role": "critic", "route_key": route_key})
         if critique_response and critique_response.ok:
             result.critique_answer = critique_response.text
             result.participants.append({"backend": critique_response.provider, "model": critique_response.model, "role": "critic", "ok": True})
 
-        compressor_prompt = self._build_compressor_prompt(result.draft_answer, result.critique_answer, thread_context, goal_vector)
+        compressor_prompt = self._build_compressor_prompt(result.draft_answer, result.critique_answer, thread_context, goal_vector) + "\n\n" + grounding_block
         compressor_response = self._call_backend("mimo", user_text=text, system_prompt=compressor_prompt, metadata={"role": "compressor", "route_key": route_key})
         if compressor_response and compressor_response.ok:
             result.compressed_answer = compressor_response.text

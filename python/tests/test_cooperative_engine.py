@@ -112,9 +112,9 @@ def test_cooperative_engine_uses_role_specific_prompts():
         thread_context="Мы обсуждаем trade-offs.",
     )
 
-    assert "Роль: draft" in (local.last_system_prompt or "")
-    assert "Роль: critic" in (gonka.last_system_prompt or "")
-    assert "Роль: compressor" in (mimo.last_system_prompt or "")
+    assert "Role: draft" in (local.last_system_prompt or "")
+    assert "Role: critic" in (gonka.last_system_prompt or "")
+    assert "Role: compressor" in (mimo.last_system_prompt or "")
 
 
 def test_cooperative_engine_propagates_goal_vector_into_role_prompts():
@@ -124,9 +124,9 @@ def test_cooperative_engine_propagates_goal_vector_into_role_prompts():
     engine = CooperativeGraphEngine({"local": local, "gonka": gonka, "mimo": mimo})
 
     engine.run(
-        {"text": "?????? ?? ??????? ???? ?????"},
+        {"text": "Почему вы выбрали этот стек?"},
         "full_run>local>gonka>mimo",
-        thread_context="?? ????????? trade-offs.",
+        thread_context="Мы обсуждаем trade-offs.",
         goal_vector={
             "style": "careful",
             "strategy_bias": "verify_first",
@@ -137,7 +137,29 @@ def test_cooperative_engine_propagates_goal_vector_into_role_prompts():
         },
     )
 
-    assert "??????? ??????? ??????" in (local.last_system_prompt or "")
-    assert "????? ?????? ???? ??????????" in (local.last_system_prompt or "")
+    assert "Target answer profile:" in (local.last_system_prompt or "")
+    assert "Keep the answer careful and do not invent details." in (local.last_system_prompt or "")
     assert "verify_first" in (gonka.last_system_prompt or "")
-    assert "??????????? ?????????????" in (mimo.last_system_prompt or "")
+    assert "Prefer verifiability and groundedness." in (mimo.last_system_prompt or "")
+
+
+def test_cooperative_engine_adds_grounding_guardrails_to_all_role_prompts():
+    local = FakeBackend("local", "local-model", "draft answer")
+    gonka = FakeBackend("gonka", "gonka-model", "critique answer")
+    mimo = FakeBackend("mimo", "mimo-model", "final compressed answer")
+    engine = CooperativeGraphEngine({"local": local, "gonka": gonka, "mimo": mimo})
+
+    engine.run(
+        {
+            "text": "Почему вы выбрали этот стек?",
+            "clean_text": "Почему вы выбрали этот стек?",
+            "thread_context": "Мы обсуждаем компромиссы, без выдуманных цифр.",
+        },
+        "full_run>local>gonka>mimo",
+        thread_context="Мы обсуждаем компромиссы, без выдуманных цифр.",
+    )
+
+    for prompt in (local.last_system_prompt, gonka.last_system_prompt, mimo.last_system_prompt):
+        assert "Grounding rules:" in (prompt or "")
+        assert "Do not name concrete technologies" in (prompt or "")
+        assert "Answer in Russian." in (prompt or "") or "answer in Russian" in (prompt or "")
