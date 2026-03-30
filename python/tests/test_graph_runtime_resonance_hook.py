@@ -78,7 +78,7 @@ def test_inject_resonance_hints_returns_compact_hints_when_units_exist(tmp_path)
             "_goal_alignment_score": 0.77,
             "_network_plan": {"route_key": "perf_route"},
         },
-        answer_text="Use bounded queues and micro-batch sizing to keep throughput stable.",
+        answer_text="Use bounded queues\n\n and   micro-batch sizing to keep throughput stable.",
         answer_quality={"overall": 0.85},
     )
 
@@ -96,6 +96,7 @@ def test_inject_resonance_hints_returns_compact_hints_when_units_exist(tmp_path)
     assert hints[0]["route_key"] == "perf_route"
     assert isinstance(hints[0]["resonance_score"], float)
     assert "bounded queues" in (hints[0]["answer_pattern"] or "")
+    assert "\n" not in (hints[0]["answer_pattern"] or "")
 
 
 def test_inject_resonance_hints_is_empty_when_no_relevant_units(tmp_path):

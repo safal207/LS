@@ -208,7 +208,7 @@ def _build_resonance_unit(
 
 
 def _shorten_text(value: Any, *, limit: int = 220) -> str | None:
-    text = str(value or "").strip()
+    text = " ".join(str(value or "").split())
     if not text:
         return None
     if len(text) <= limit:

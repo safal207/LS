@@ -43,6 +43,16 @@ class FakeBackend:
         )
 
 
+class CapturingBackend(FakeBackend):
+    def __init__(self, provider="local", model="local-test", text="backend answer"):
+        super().__init__(provider=provider, model=model, text=text)
+        self.last_system_prompt = ""
+
+    def generate(self, *args, **kwargs):
+        self.last_system_prompt = str(kwargs.get("system_prompt") or "")
+        return super().generate(*args, **kwargs)
+
+
 def _make_control_center_class(plan: NetworkExecutionPlan):
     class FakeControlCenter:
         def __init__(self, *args, **kwargs):
@@ -168,6 +178,22 @@ def test_resonance_agent_can_reuse_graph_answer_without_llm_call():
     assert result["llm_provider"] == "graph_reuse"
     assert result["graph_mode"] == "reuse"
     assert result["was_reused"] is True
+
+
+def test_resonance_agent_process_text_full_run_injects_hints_into_prompt():
+    backend = CapturingBackend(provider="local", model="local-test", text="ok")
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=backend,
+        graph_runtime=FakeGraphRuntimeFullRun(),
+        orientation="test",
+    )
+
+    result = agent.process_text("Почему вы выбрали этот стек?")
+
+    assert result["graph_mode"] == "full_run"
+    assert "Слабые подсказки из resonance-memory" in backend.last_system_prompt
+    assert "intent=architecture" in backend.last_system_prompt
 
 
 def test_resonance_agent_updates_trail_stats_after_answer(monkeypatch):
