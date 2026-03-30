@@ -519,7 +519,7 @@ class ResonanceAgent:
             try:
                 orientation_plan = self._control_center.create_plan(
                     item,
-                    thread_context=item.get("thread_context") or self._orientation or None,
+                    thread_context=item.get("thread_context"),
                     intent=intent_tag,
                     why_tag=why_tag,
                 )
@@ -601,7 +601,7 @@ class ResonanceAgent:
             try:
                 self._graph_runtime.inject_resonance_hints(
                     item,
-                    thread_context=item.get("thread_context") or self._orientation or None,
+                    thread_context=item.get("thread_context"),
                     top_k=3,
                 )
             except Exception as exc:
@@ -633,7 +633,7 @@ class ResonanceAgent:
                 cooperative_result = self._cooperative_engine.run(
                     item,
                     cooperative_route_key,
-                    thread_context=item.get("thread_context") or self._orientation or None,
+                    thread_context=item.get("thread_context"),
                     goal_vector=((item.get("_network_plan") or {}).get("goal_vector") or None),
                 )
                 item["_cooperative"] = cooperative_result.to_dict()
@@ -749,7 +749,7 @@ class ResonanceAgent:
                 self._graph_runtime.remember_success(
                     item,
                     answer_text=final_output,
-                    thread_context=item.get("thread_context") or self._orientation or None,
+                    thread_context=item.get("thread_context"),
                     answer_quality={
                         "resonance_score": item.get("_resonance_score", 0.5),
                         "goal_alignment_score": item.get("_goal_alignment_score", 0.5),

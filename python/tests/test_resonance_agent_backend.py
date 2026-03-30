@@ -108,6 +108,10 @@ class FakeGraphRuntime:
 
 
 class FakeGraphRuntimeFullRun:
+    def __init__(self):
+        self.inject_thread_context = None
+        self.remember_thread_context = None
+
     def process(self, item, thread_context=None):
         return GraphRuntimeDecision(
             mode="full_run",
@@ -127,9 +131,11 @@ class FakeGraphRuntimeFullRun:
         answer_quality=None,
         contributors=None,
     ):
+        self.remember_thread_context = thread_context
         return None
 
     def inject_resonance_hints(self, item, *, thread_context=None, top_k=3):
+        self.inject_thread_context = thread_context
         item["_resonance_hints"] = [
             {
                 "intent": "architecture",
@@ -142,6 +148,30 @@ class FakeGraphRuntimeFullRun:
             }
         ]
         return item["_resonance_hints"]
+
+
+class CapturingControlCenter:
+    def __init__(self, plan: NetworkExecutionPlan):
+        self.plan = plan
+        self.thread_context = None
+
+    def create_plan(self, item, *, thread_context=None, intent=None, why_tag=None):
+        self.thread_context = thread_context
+        return self.plan
+
+
+def _full_run_plan() -> NetworkExecutionPlan:
+    return NetworkExecutionPlan(
+        mode="full_run",
+        route_key="full_run>local",
+        coalition_id=None,
+        derived_module_id=None,
+        memory_case_id=None,
+        reason="test-full-run",
+        confidence=0.9,
+        graph_decision={"mode": "full_run"},
+        available_backends=["local"],
+    )
 
 
 class FakeRouter:
@@ -194,6 +224,53 @@ def test_resonance_agent_process_text_full_run_injects_hints_into_prompt():
     assert result["graph_mode"] == "full_run"
     assert "Слабые подсказки из resonance-memory" in backend.last_system_prompt
     assert "intent=architecture" in backend.last_system_prompt
+
+
+def test_resonance_agent_does_not_fallback_to_orientation_for_thread_context():
+    backend = CapturingBackend(provider="local", model="local-test", text="ok")
+    graph_runtime = FakeGraphRuntimeFullRun()
+    plan = _full_run_plan()
+    control_center = CapturingControlCenter(plan)
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=backend,
+        graph_runtime=graph_runtime,
+        orientation="session-orientation",
+    )
+    agent._control_center = control_center
+
+    result = agent.process_text("Почему вы выбрали этот стек?")
+
+    assert result["graph_mode"] == "full_run"
+    assert control_center.thread_context is None
+    assert graph_runtime.inject_thread_context is None
+    assert graph_runtime.remember_thread_context is None
+
+
+def test_resonance_agent_passes_explicit_thread_context_to_runtime_components():
+    backend = CapturingBackend(provider="local", model="local-test", text="ok")
+    graph_runtime = FakeGraphRuntimeFullRun()
+    plan = _full_run_plan()
+    control_center = CapturingControlCenter(plan)
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=backend,
+        graph_runtime=graph_runtime,
+        orientation="session-orientation",
+    )
+    agent._control_center = control_center
+
+    result = agent.process_item(
+        {
+            "text": "Почему вы выбрали этот стек?",
+            "thread_context": "candidate-42/thread-a",
+        }
+    )
+
+    assert result["graph_mode"] == "full_run"
+    assert control_center.thread_context == "candidate-42/thread-a"
+    assert graph_runtime.inject_thread_context == "candidate-42/thread-a"
+    assert graph_runtime.remember_thread_context == "candidate-42/thread-a"
 
 
 def test_resonance_agent_updates_trail_stats_after_answer(monkeypatch):
