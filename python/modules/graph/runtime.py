@@ -207,6 +207,53 @@ def _build_resonance_unit(
     )
 
 
+def _shorten_text(value: Any, *, limit: int = 220) -> str | None:
+    text = " ".join(str(value or "").split())
+    if not text:
+        return None
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3].rstrip() + "..."
+
+
+def _short_causal_path(causal_path: list[dict[str, Any]]) -> str | None:
+    if not causal_path:
+        return None
+    fragments: list[str] = []
+    for step in causal_path[:2]:
+        if not isinstance(step, dict):
+            continue
+        step_name = str(step.get("step") or "").strip()
+        strategy = str(step.get("strategy") or "").strip()
+        outcome = str(step.get("outcome") or "").strip()
+        if not (step_name or strategy or outcome):
+            continue
+        left = ":".join([part for part in [step_name, strategy] if part])
+        fragments.append("→".join([part for part in [left, outcome] if part]))
+    return " | ".join(fragments) if fragments else None
+
+
+def _build_resonance_hints(units: list[ResonanceKnowledgeUnit]) -> list[dict[str, Any]]:
+    hints: list[dict[str, Any]] = []
+    for unit in units:
+        metadata = unit.metadata or {}
+        answer_pattern = metadata.get("answer_pattern")
+        if not answer_pattern:
+            answer_pattern = metadata.get("answer_text")
+        hint = {
+            "intent": _shorten_text(unit.intent, limit=80),
+            "why": _shorten_text(unit.why, limit=120),
+            "route_key": _shorten_text(metadata.get("route_key"), limit=120),
+            "causal_path": _short_causal_path(unit.causal_path),
+            "answer_pattern": _shorten_text(answer_pattern, limit=220),
+            "resonance_score": round(_as_float(unit.resonance_score, 0.0), 3),
+            "alignment_score": round(_as_float(unit.alignment_score, 0.0), 3),
+        }
+        if any(value not in (None, "", []) for value in hint.values()):
+            hints.append(hint)
+    return hints
+
+
 @dataclass
 class GraphRuntimeDecision:
     mode: str = "full_run"
@@ -320,3 +367,33 @@ class GraphMemoryRuntime:
         except Exception as exc:
             self._logger.debug("Graph remember_success failed: %s", exc)
             return None
+
+    def inject_resonance_hints(
+        self,
+        item: dict[str, Any],
+        *,
+        thread_context: str | None = None,
+        top_k: int = 3,
+    ) -> list[dict[str, Any]]:
+        try:
+            question = self.retriever.normalize_question(item)
+            if thread_context is not None:
+                question.thread_context = str(thread_context)
+            query_text = (question.clean_text or question.text or "").strip()
+            if not query_text:
+                item["_resonance_hints"] = []
+                return []
+
+            relevant_units = self.store.find_relevant_units(
+                intent=question.intent or None,
+                why=question.why or None,
+                query_text=query_text,
+                top_k=max(1, min(int(top_k or 1), 3)),
+            )
+            hints = _build_resonance_hints(relevant_units)
+            item["_resonance_hints"] = hints
+            return hints
+        except Exception as exc:
+            self._logger.debug("Graph inject_resonance_hints failed: %s", exc)
+            item["_resonance_hints"] = []
+            return []

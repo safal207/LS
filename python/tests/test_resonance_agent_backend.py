@@ -43,6 +43,16 @@ class FakeBackend:
         )
 
 
+class CapturingBackend(FakeBackend):
+    def __init__(self, provider="local", model="local-test", text="backend answer"):
+        super().__init__(provider=provider, model=model, text=text)
+        self.last_system_prompt = ""
+
+    def generate(self, *args, **kwargs):
+        self.last_system_prompt = str(kwargs.get("system_prompt") or "")
+        return super().generate(*args, **kwargs)
+
+
 def _make_control_center_class(plan: NetworkExecutionPlan):
     class FakeControlCenter:
         def __init__(self, *args, **kwargs):
@@ -93,6 +103,9 @@ class FakeGraphRuntime:
     ):
         return None
 
+    def inject_resonance_hints(self, item, *, thread_context=None, top_k=3):
+        raise AssertionError("inject_resonance_hints should not be called in reuse mode")
+
 
 class FakeGraphRuntimeFullRun:
     def process(self, item, thread_context=None):
@@ -115,6 +128,20 @@ class FakeGraphRuntimeFullRun:
         contributors=None,
     ):
         return None
+
+    def inject_resonance_hints(self, item, *, thread_context=None, top_k=3):
+        item["_resonance_hints"] = [
+            {
+                "intent": "architecture",
+                "why": "compare trade-offs",
+                "route_key": "full_run>local",
+                "causal_path": "intent_detected:architecture→intent_attached",
+                "answer_pattern": "Сначала сравни варианты, потом выбери компромисс.",
+                "resonance_score": 0.82,
+                "alignment_score": 0.79,
+            }
+        ]
+        return item["_resonance_hints"]
 
 
 class FakeRouter:
@@ -151,6 +178,22 @@ def test_resonance_agent_can_reuse_graph_answer_without_llm_call():
     assert result["llm_provider"] == "graph_reuse"
     assert result["graph_mode"] == "reuse"
     assert result["was_reused"] is True
+
+
+def test_resonance_agent_process_text_full_run_injects_hints_into_prompt():
+    backend = CapturingBackend(provider="local", model="local-test", text="ok")
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=backend,
+        graph_runtime=FakeGraphRuntimeFullRun(),
+        orientation="test",
+    )
+
+    result = agent.process_text("Почему вы выбрали этот стек?")
+
+    assert result["graph_mode"] == "full_run"
+    assert "Слабые подсказки из resonance-memory" in backend.last_system_prompt
+    assert "intent=architecture" in backend.last_system_prompt
 
 
 def test_resonance_agent_updates_trail_stats_after_answer(monkeypatch):
@@ -636,6 +679,38 @@ def test_resonance_agent_system_prompt_uses_goal_vector_guidance() -> None:
     assert "Целевой профиль ответа" in system_prompt
     assert "Отвечай осторожно" in system_prompt
     assert "точность и проверяемость важнее скорости" in system_prompt
+
+
+def test_resonance_agent_system_prompt_includes_resonance_hints_when_present() -> None:
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(provider="local", model="local-test", text="ok"),
+        orientation="test",
+    )
+    item = {
+        "text": "Почему вы выбрали этот стек?",
+        "_copilot_output": {},
+        "_graph_runtime": {},
+        "_path_selection": {},
+        "_resonance_score": 0.5,
+        "_resonance_hints": [
+            {
+                "intent": "architecture",
+                "why": "compare trade-offs",
+                "route_key": "full_run>local",
+                "causal_path": "intent_detected:architecture→intent_attached",
+                "answer_pattern": "Сначала сравни варианты, потом выбери компромисс.",
+                "resonance_score": 0.82,
+                "alignment_score": 0.79,
+            }
+        ],
+    }
+
+    system_prompt = agent._build_system_prompt(item)
+
+    assert "Слабые подсказки из resonance-memory" in system_prompt
+    assert "intent=architecture" in system_prompt
+    assert "route=full_run>local" in system_prompt
 
 
 def test_resonance_agent_goal_alignment_score_rewards_matching_profile() -> None:
