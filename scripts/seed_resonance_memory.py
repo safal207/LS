@@ -61,6 +61,11 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Run only the first N questions.",
     )
+    parser.add_argument(
+        "--force-cooperative",
+        action="store_true",
+        help="Force the cooperative local>gonka>mimo route instead of relying on selector choice.",
+    )
     return parser.parse_args()
 
 
@@ -95,8 +100,18 @@ def main() -> int:
     if not args.json:
         print(f"seeding.questions = {len(questions)}", flush=True)
         print(f"resonance.units.before = {before_units}", flush=True)
+        print(f"force.cooperative = {args.force_cooperative}", flush=True)
         print("progress = starting", flush=True)
         print("", flush=True)
+
+    forced_goal_vector = {
+        "style": "structured",
+        "strategy_bias": "cooperative_reasoning",
+        "target_relevance": 0.8,
+        "target_thread_alignment": 0.8,
+        "target_hallucination_max": 0.2,
+        "target_latency_ms": 20000.0,
+    }
     for index, question in enumerate(questions, start=1):
         if not args.json:
             print(f"[{index}/{len(questions)}] start = {question}", flush=True)
@@ -108,6 +123,27 @@ def main() -> int:
             "confidence": 1.0,
             "source": "seed_resonance_memory",
         }
+        if args.force_cooperative:
+            item["_path_selection"] = {
+                "route_key": "full_run>local>gonka>mimo",
+                "selected_backend": "cooperative",
+                "reason": "forced-cooperative-seed",
+                "exploration_used": False,
+                "pheromone_weight": 0.0,
+            }
+            item["_network_plan"] = {
+                "mode": "full_run",
+                "route_key": "full_run>local>gonka>mimo",
+                "reason": "forced-cooperative-seed",
+                "confidence": 1.0,
+                "goal_vector": forced_goal_vector,
+                "need_profile": {
+                    "priority": "deep_reasoning",
+                    "route_bias": "cooperative_only",
+                    "compute_budget": 1.0,
+                },
+            }
+            agent._control_center = None  # type: ignore[attr-defined]
         result = agent.process_item(item)
         entry = {
             "index": index,
