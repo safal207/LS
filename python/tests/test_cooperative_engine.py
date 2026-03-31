@@ -97,7 +97,8 @@ def test_cooperative_engine_degrades_gracefully_if_compressor_unavailable():
     )
 
     assert result.success is True
-    assert result.final_answer == "draft answer"
+    assert result.metadata["deterministic_rewrite_used"] is True
+    assert result.final_answer
 
 
 def test_cooperative_engine_uses_role_specific_prompts():
@@ -185,3 +186,24 @@ def test_cooperative_engine_scrubs_fabricated_stack_specifics_when_stack_not_giv
     assert "React" not in (result.final_answer or "")
     assert result.metadata["grounding_scrubbed"] is True
     assert "node.js" in result.metadata["grounding_scrubbed_terms"]
+
+
+def test_cooperative_engine_rewrites_degraded_local_only_output():
+    engine = CooperativeGraphEngine(
+        {
+            "local": FakeBackend("local", "local-model", "Плюсами этого стека являются скорость и устойчивость. Таким образом, выбор этого стека оправдан."),
+            "gonka": FakeBackend("gonka", "gonka-model", "", ok=False),
+            "mimo": FakeBackend("mimo", "mimo-model", "", ok=False),
+        }
+    )
+
+    result = engine.run(
+        {"text": "Почему вы выбрали этот стек?"},
+        "full_run>local>gonka>mimo",
+        thread_context="Мы обсуждаем компромиссы, без конкретного названия технологий.",
+    )
+
+    assert result.success is True
+    assert result.metadata["deterministic_rewrite_used"] is True
+    assert "Node.js" not in (result.final_answer or "")
+    assert "Я бы не привязывал ответ к конкретному стеку" in (result.final_answer or "")
