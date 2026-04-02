@@ -387,7 +387,6 @@ class SelfModel:
             alignment = float(getattr(intent_engine, "intent_alignment", 1.0))
         else:
             snapshot = intent_engine if isinstance(intent_engine, dict) else {}
-            # FIX: Use "active_intents" key as per IntentEngine.to_context_snapshot
             active = snapshot.get("active_intents", []) or []
             conflicts = snapshot.get("intent_conflicts", []) or []
             strength = float(snapshot.get("intent_strength", 0.0))
@@ -438,8 +437,7 @@ class SelfModel:
             level = float(snapshot.get("autonomy_level", 0.0))
             # Prefer primary_strategy from context if provided, else snapshot (future-proof)
             selected = primary_strategy or snapshot.get("selected_strategy", {}) or {}
-            # Note: We will add autonomy_conflicts and selfdirectedgoals to snapshot in AutonomyEngine
-            conflicts = snapshot.get("conflicts", []) or []
+            conflicts = snapshot.get("autonomy_conflicts", []) or []
             goals = snapshot.get("selfdirectedgoals", []) or []
 
         entry = {
