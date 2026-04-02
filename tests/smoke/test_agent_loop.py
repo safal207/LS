@@ -50,6 +50,62 @@ class TestAgentLoop(unittest.TestCase):
         self.assertIn("suggested_mode", latest)
         self.assertIn("route", latest)
 
+    def test_subconscious_feeds_temporal_graph(self):
+        """Subconscious pass should create a TemporalNode in the temporal graph."""
+        loop = AgentLoop(output_queue=queue.Queue(), llm=DummyLLM())
+        loop.memory["history"] = [
+            {"role": "user", "content": "why does this happen"},
+            {"role": "assistant", "content": "answer"},
+            {"role": "user", "content": "how can I explain this to someone else"},
+            {"role": "assistant", "content": "answer"},
+        ]
+
+        loop._run_subconscious_pass()
+
+        # TemporalGraph should have a node for the detected mode
+        latest = loop.memory.get("subconscious_latest", {})
+        mode = latest.get("suggested_mode")
+        self.assertIsNotNone(mode)
+        node_id = f"subconscious:{mode}"
+        self.assertIn(node_id, loop.temporal.nodes)
+        node = loop.temporal.nodes[node_id]
+        self.assertGreater(node.resonance, 0.0)
+
+    def test_subconscious_resonance_accumulates(self):
+        """Repeated subconscious passes on same mode should strengthen the TemporalNode."""
+        loop = AgentLoop(output_queue=queue.Queue(), llm=DummyLLM())
+        deliberative_history = [
+            {"role": "user", "content": "why does this algorithm fail on large inputs"},
+            {"role": "assistant", "content": "answer"},
+            {"role": "user", "content": "can you explain the reason in more depth"},
+            {"role": "assistant", "content": "answer"},
+        ]
+        loop.memory["history"] = deliberative_history
+
+        loop._run_subconscious_pass()
+        first_resonance = loop.temporal.nodes.get("subconscious:deliberative")
+        self.assertIsNotNone(first_resonance)
+        r1 = first_resonance.resonance
+
+        loop._run_subconscious_pass()
+        r2 = loop.temporal.nodes["subconscious:deliberative"].resonance
+
+        self.assertGreater(r2, r1, "Resonance should increase on repeated detection")
+
+    def test_temporal_axis_drives_explanation_hint(self):
+        """When TemporalGraph axis is a high-resonance subconscious node, explanation includes it."""
+        loop = AgentLoop(output_queue=queue.Queue(), llm=DummyLLM())
+
+        # Manually inject a high-resonance temporal node
+        from hexagon_core.temporal_graph import TemporalNode
+        loop.temporal.nodes["subconscious:deliberative"] = TemporalNode(
+            id="subconscious:deliberative", resonance=0.92, harmony_bonus=0.2
+        )
+
+        explanation = loop._explain_mode_for_item("why?", {})
+        self.assertIn("deliberative", explanation)
+        self.assertIn("резонанс", explanation)
+
 
 if __name__ == "__main__":
     unittest.main()

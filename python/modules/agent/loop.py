@@ -339,6 +339,32 @@ class AgentLoop:
         self.memory["subconscious_insights"] = insights[-20:]
         self.memory["subconscious_latest"] = insight
 
+        # Feed insight into TemporalGraph so subconscious patterns accumulate resonance
+        if self.temporal is not None:
+            try:
+                from hexagon_core.temporal_graph import TemporalNode
+                node_id = f"subconscious:{suggested_mode}"
+                with self.temporal._graph_lock:
+                    existing = self.temporal.nodes.get(node_id)
+                    if existing is not None:
+                        # Repeated pattern — strengthen the node
+                        existing.resonance = min(1.0, existing.resonance + confidence * 0.12)
+                    else:
+                        new_node = TemporalNode(
+                            id=node_id,
+                            resonance=confidence,
+                            harmony_bonus=len(route) * 0.05,
+                        )
+                        self.temporal.nodes[node_id] = new_node
+                        self.temporal.align_to_axis(new_node)
+                logger.debug(
+                    "Subconscious → temporal: node=%s resonance=%.3f",
+                    node_id,
+                    self.temporal.nodes[node_id].resonance,
+                )
+            except Exception as exc:
+                logger.debug("Subconscious temporal write failed: %s", exc)
+
     def _maybe_collect_windows_context(self, *, session_id: str) -> None:
         now = time.time()
 
@@ -796,6 +822,8 @@ class AgentLoop:
         explicit = item.get("_mode_explanation")
         if isinstance(explicit, str) and explicit.strip():
             return explicit.strip()
+
+        # Short-term: last subconscious pass hypothesis
         subconscious_hint = ""
         latest = self.memory.get("subconscious_latest")
         if isinstance(latest, dict):
@@ -806,9 +834,22 @@ class AgentLoop:
                         subconscious_hint = f" Фон: {hypothesis}"
             except Exception:
                 subconscious_hint = ""
+
+        # Long-term: dominant cognitive pattern from TemporalGraph axis
+        temporal_hint = ""
+        if self.temporal is not None:
+            try:
+                axis = self.temporal.get_meritocratic_axis()
+                if axis is not None and axis.id.startswith("subconscious:"):
+                    dominant_mode = axis.id.split(":", 1)[1]
+                    if axis.resonance >= 0.80:
+                        temporal_hint = f" Доминирующий паттерн: {dominant_mode} (резонанс {axis.resonance:.2f})."
+            except Exception:
+                temporal_hint = ""
+
         detector = self._mode_detector
         if detector is None:
-            return f"Режим выбран автоматически по текущему контексту.{subconscious_hint}".strip()
+            return f"Режим выбран автоматически по текущему контексту.{temporal_hint}{subconscious_hint}".strip()
         try:
             analysis = detector.analyze(
                 input_data=question,
@@ -816,9 +857,12 @@ class AgentLoop:
                 system_load=0.0,
             )
             route = ", ".join(analysis.engine_route)
-            return f"Режим {analysis.cognitive_mode}: {analysis.reason}. Маршрут: {route}.{subconscious_hint}"
+            return (
+                f"Режим {analysis.cognitive_mode}: {analysis.reason}. "
+                f"Маршрут: {route}.{temporal_hint}{subconscious_hint}"
+            )
         except Exception:
-            return f"Режим выбран автоматически по текущему контексту.{subconscious_hint}".strip()
+            return f"Режим выбран автоматически по текущему контексту.{temporal_hint}{subconscious_hint}".strip()
 
     def _blocked_response_text(self) -> str:
         visceral_influence = getattr(self.causal_transitions.amygdala, "visceral", None)
