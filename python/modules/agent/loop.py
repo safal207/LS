@@ -143,6 +143,9 @@ class AgentLoop:
         self._subconscious_thread: threading.Thread | None = None
         self._subconscious_stop = threading.Event()
         self._subconscious_interval_s = 20.0
+        self._world_thread: threading.Thread | None = None
+        self._world_stop = threading.Event()
+        self._world_poller: Any | None = None
         self._cancel_grace_until = 0.0
 
         self.cancel_on_new_input = cancel_on_new_input
@@ -177,6 +180,21 @@ class AgentLoop:
         # Bloodstream Integration (PR #232)
         from codex.causal_memory.bloodstream import Bloodstream
         self.bloodstream = Bloodstream(self.causal_transitions.amygdala, self.temporal)
+
+        # World Poller — external event awareness (git/logs → TemporalGraph)
+        if self.temporal is not None:
+            try:
+                from agent.world_poller import WorldPoller
+                import os as _os
+                repo_path = _os.environ.get("LS_REPO_PATH", _os.getcwd())
+                log_path = _os.environ.get("LS_LOG_PATH")  # optional
+                self._world_poller = WorldPoller(
+                    temporal=self.temporal,
+                    repo_path=repo_path,
+                    log_path=log_path,
+                )
+            except Exception as exc:
+                logger.debug("WorldPoller init skipped: %s", exc)
 
         # Vision Subsystem Integration (Screen Perception v2)
         self.vision = VisionSubsystem()
@@ -400,6 +418,16 @@ class AgentLoop:
                 )
             except Exception as exc:
                 logger.debug("Subconscious temporal write failed: %s", exc)
+
+    def _world_loop(self) -> None:
+        """Background world-awareness loop: polls git/logs → TemporalGraph world nodes."""
+        while self.running and not self._world_stop.is_set():
+            try:
+                if self._world_poller is not None:
+                    self._world_poller.tick()
+            except Exception as exc:
+                logger.debug("World poller loop error: %s", exc)
+            self._world_stop.wait(timeout=60.0)
 
     def _apply_quality_feedback(self, signal: str, text: str) -> None:
         """Strengthen or weaken the last active TemporalNode based on user feedback.
@@ -1552,6 +1580,16 @@ class AgentLoop:
                     name="subconscious",
                 )
                 self._subconscious_thread.start()
+            if self._world_poller is not None and (
+                self._world_thread is None or not self._world_thread.is_alive()
+            ):
+                self._world_stop.clear()
+                self._world_thread = threading.Thread(
+                    target=self._world_loop,
+                    daemon=True,
+                    name="world-poller",
+                )
+                self._world_thread.start()
         self.vision.start() # Start Screen Perception v2
 
         while self.running:
@@ -1625,14 +1663,18 @@ class AgentLoop:
         self.running = False
         self._bloodstream_stop.set()  # BUG-17 fix: wake up bloodstream wait immediately
         self._subconscious_stop.set()
+        self._world_stop.set()
         self.vision.stop() # Stop Screen Perception v2
         with self._bloodstream_lock:
             bloodstream_thread = self._bloodstream_thread
             subconscious_thread = self._subconscious_thread
+            world_thread = self._world_thread
         if bloodstream_thread is not None and bloodstream_thread.is_alive():
             bloodstream_thread.join(timeout=3.0)
         if subconscious_thread is not None and subconscious_thread.is_alive():
             subconscious_thread.join(timeout=3.0)
+        if world_thread is not None and world_thread.is_alive():
+            world_thread.join(timeout=3.0)
         with self._task_lock:
             active_cancel = self._active_cancel
         if active_cancel:
