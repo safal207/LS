@@ -8,7 +8,7 @@ from ls.memory.edge import MemoryEdge
 from ls.memory.memory_graph import MemoryGraph
 
 if TYPE_CHECKING:
-    from ls.cognition.motivation_engine import AgentGoal, AgentNeed, Strategy
+    from ls.cognition.motivation_engine import AgentNeed
 
 
 @dataclass(frozen=True)
