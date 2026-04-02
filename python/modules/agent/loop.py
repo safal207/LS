@@ -126,6 +126,9 @@ class AgentLoop:
         self._bloodstream_thread: threading.Thread | None = None
         self._bloodstream_lock = threading.Lock()
         self._bloodstream_stop = threading.Event()  # BUG-17 fix: used for fast shutdown
+        self._subconscious_thread: threading.Thread | None = None
+        self._subconscious_stop = threading.Event()
+        self._subconscious_interval_s = 20.0
         self._cancel_grace_until = 0.0
 
         self.cancel_on_new_input = cancel_on_new_input
@@ -270,12 +273,70 @@ class AgentLoop:
             pruned = self.temporal.prune_weak_nodes(threshold=0.25, active_window=100)
             if pruned > 0:
                 amygdala.metabolism.compost_pruned_nodes(pruned)
-
         compacted = 0
         if hasattr(amygdala, "visceral") and amygdala.visceral:
             compacted = amygdala.visceral.compact_history()
-
         logger.info(f"Maintenance: pruned {pruned} weak nodes, compacted {compacted} visceral history records")
+
+    def _subconscious_loop(self) -> None:
+        """Background reflective loop: builds soft hypotheses for deeper routing."""
+        while self.running and not self._subconscious_stop.is_set():
+            try:
+                self._run_subconscious_pass()
+            except Exception as exc:
+                logger.debug("Subconscious loop error: %s", exc)
+            self._subconscious_stop.wait(timeout=self._subconscious_interval_s)
+
+    def _run_subconscious_pass(self) -> None:
+        history = self.memory.get("history", [])
+        if not isinstance(history, list) or len(history) < 4:
+            return
+
+        user_turns = [
+            str(msg.get("content", "")).strip()
+            for msg in history[-12:]
+            if isinstance(msg, dict) and msg.get("role") == "user" and str(msg.get("content", "")).strip()
+        ]
+        if len(user_turns) < 2:
+            return
+
+        long_turns = sum(1 for text in user_turns if len(text.split()) >= 10)
+        joined = " ".join(user_turns).lower()
+        explanation_cues = ("why", "how", "explain", "reason", "pochemu", "kak", "obyasni")
+        creative_cues = ("creative", "brainstorm", "invent", "design", "story", "ideya", "pridumay")
+
+        if any(cue in joined for cue in creative_cues):
+            suggested_mode = "creative"
+            route = ["ideation_engine", "reasoning_engine", "novelty_guard"]
+            hypothesis = "User trend: seeks idea generation and broader variation."
+            confidence = 0.76
+        elif any(cue in joined for cue in explanation_cues) or long_turns >= 2:
+            suggested_mode = "deliberative"
+            route = ["reasoning_engine", "context_sync", "verifier", "explanation_engine"]
+            hypothesis = "User trend: repeatedly asks for causal explanation and depth."
+            confidence = 0.78
+        else:
+            suggested_mode = "reactive"
+            route = ["perception", "policy_executor"]
+            hypothesis = "User trend: short operational flow, speed is preferred."
+            confidence = 0.66
+
+        insight = {
+            "ts": time.time(),
+            "kind": "subconscious_route_hypothesis",
+            "suggested_mode": suggested_mode,
+            "route": route,
+            "hypothesis": hypothesis,
+            "confidence": confidence,
+            "sample_size": len(user_turns),
+        }
+
+        insights = self.memory.get("subconscious_insights")
+        if not isinstance(insights, list):
+            insights = []
+        insights.append(insight)
+        self.memory["subconscious_insights"] = insights[-20:]
+        self.memory["subconscious_latest"] = insight
 
     def _maybe_collect_windows_context(self, *, session_id: str) -> None:
         now = time.time()
@@ -734,9 +795,19 @@ class AgentLoop:
         explicit = item.get("_mode_explanation")
         if isinstance(explicit, str) and explicit.strip():
             return explicit.strip()
+        subconscious_hint = ""
+        latest = self.memory.get("subconscious_latest")
+        if isinstance(latest, dict):
+            try:
+                if float(latest.get("confidence", 0.0)) >= 0.72:
+                    hypothesis = str(latest.get("hypothesis", "")).strip()
+                    if hypothesis:
+                        subconscious_hint = f" Фон: {hypothesis}"
+            except Exception:
+                subconscious_hint = ""
         detector = self._mode_detector
         if detector is None:
-            return "Режим выбран автоматически по текущему контексту."
+            return f"Режим выбран автоматически по текущему контексту.{subconscious_hint}".strip()
         try:
             analysis = detector.analyze(
                 input_data=question,
@@ -744,9 +815,9 @@ class AgentLoop:
                 system_load=0.0,
             )
             route = ", ".join(analysis.engine_route)
-            return f"Режим {analysis.cognitive_mode}: {analysis.reason}. Маршрут: {route}."
+            return f"Режим {analysis.cognitive_mode}: {analysis.reason}. Маршрут: {route}.{subconscious_hint}"
         except Exception:
-            return "Режим выбран автоматически по текущему контексту."
+            return f"Режим выбран автоматически по текущему контексту.{subconscious_hint}".strip()
 
     def _blocked_response_text(self) -> str:
         visceral_influence = getattr(self.causal_transitions.amygdala, "visceral", None)
@@ -763,7 +834,10 @@ class AgentLoop:
             try:
                 return self.llm.generate_response(question, cancel_event=cancel_event, messages=messages)
             except TypeError:
-                return self.llm.generate_response(question, cancel_event=cancel_event)
+                try:
+                    return self.llm.generate_response(question, cancel_event=cancel_event)
+                except TypeError:
+                    return self.llm.generate_response(question)
         return self.handler(question)
 
     def _cancel_active(self, reason: str) -> None:
@@ -1318,6 +1392,8 @@ class AgentLoop:
             raise RuntimeError("input_queue is required for run()")
 
         self.running = True
+        self._bloodstream_stop.clear()
+        self._subconscious_stop.clear()
         with self._bloodstream_lock:
             if self._bloodstream_thread is None or not self._bloodstream_thread.is_alive():
                 self._bloodstream_thread = threading.Thread(
@@ -1326,6 +1402,14 @@ class AgentLoop:
                     name="bloodstream",
                 )
                 self._bloodstream_thread.start()
+            if self._subconscious_thread is None or not self._subconscious_thread.is_alive():
+                self._subconscious_stop.clear()
+                self._subconscious_thread = threading.Thread(
+                    target=self._subconscious_loop,
+                    daemon=True,
+                    name="subconscious",
+                )
+                self._subconscious_thread.start()
         self.vision.start() # Start Screen Perception v2
 
         while self.running:
@@ -1398,12 +1482,17 @@ class AgentLoop:
     def stop(self) -> None:
         self.running = False
         self._bloodstream_stop.set()  # BUG-17 fix: wake up bloodstream wait immediately
+        self._subconscious_stop.set()
         self.vision.stop() # Stop Screen Perception v2
         with self._bloodstream_lock:
             bloodstream_thread = self._bloodstream_thread
+            subconscious_thread = self._subconscious_thread
         if bloodstream_thread is not None and bloodstream_thread.is_alive():
             bloodstream_thread.join(timeout=3.0)
+        if subconscious_thread is not None and subconscious_thread.is_alive():
+            subconscious_thread.join(timeout=3.0)
         with self._task_lock:
             active_cancel = self._active_cancel
         if active_cancel:
             active_cancel.set()
+        self._transition("idle")
