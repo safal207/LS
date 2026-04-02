@@ -68,6 +68,8 @@ class AutonomyEngine:
             "normcompliancefactor": self.normcompliancefactor,
             "culturalstrategyadjustment": dict(self.culturalstrategyadjustment),
             "strategies": list(self.strategy_profile.get("strategies", [])),
+            "autonomy_conflicts": [dict(c) for c in self.autonomy_conflicts],
+            "selfdirectedgoals": [dict(g) for g in self.selfdirectedgoals],
         }
 
     def _get_attr(self, obj: Any, key: str, default: Any) -> Any:

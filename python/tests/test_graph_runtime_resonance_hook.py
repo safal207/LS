@@ -14,6 +14,16 @@ if str(MODULES) not in sys.path:
 from graph.runtime import GraphMemoryRuntime
 
 
+class _ExplodingResonanceStore:
+    def store_resonance_unit(self, unit):  # pragma: no cover - helper
+        raise RuntimeError("boom")
+
+
+class _ExplodingRetrievalStore:
+    def find_relevant_units(self, **kwargs):  # pragma: no cover - helper
+        raise RuntimeError("boom")
+
+
 def test_remember_success_stores_resonance_unit_when_signal_and_quality_pass(tmp_path):
     runtime = GraphMemoryRuntime(store_path=tmp_path / "cases.jsonl")
     item = {
@@ -41,6 +51,10 @@ def test_remember_success_stores_resonance_unit_when_signal_and_quality_pass(tmp
     )
     assert len(units) == 1
     assert units[0].metadata.get("graph_mode") == "full_run"
+    metrics = runtime.get_resonance_metrics()
+    assert metrics["units_saved"] == 1
+    assert metrics["units_save_skipped"] == 0
+    assert metrics["units_save_errors"] == 0
 
 
 def test_remember_success_skips_resonance_unit_in_reuse_mode(tmp_path):
@@ -63,6 +77,10 @@ def test_remember_success_skips_resonance_unit_in_reuse_mode(tmp_path):
     assert saved is not None
     units = runtime.store.find_relevant_units(query_text="repeat prior answer", top_k=3)
     assert units == []
+    metrics = runtime.get_resonance_metrics()
+    assert metrics["units_saved"] == 0
+    assert metrics["units_save_skipped"] == 1
+    assert metrics["units_save_errors"] == 0
 
 
 def test_inject_resonance_hints_returns_compact_hints_when_units_exist(tmp_path):
@@ -97,6 +115,15 @@ def test_inject_resonance_hints_returns_compact_hints_when_units_exist(tmp_path)
     assert isinstance(hints[0]["resonance_score"], float)
     assert "bounded queues" in (hints[0]["answer_pattern"] or "")
     assert "\n" not in (hints[0]["answer_pattern"] or "")
+    metrics = runtime.get_resonance_metrics()
+    assert metrics["hint_injection_calls"] == 1
+    assert metrics["retrieval_hit"] == 1
+    assert metrics["retrieval_miss"] == 0
+    assert metrics["retrieval_empty_query"] == 0
+    assert metrics["hint_count_total"] == len(hints)
+    assert metrics["avg_hints_per_hit"] == float(len(hints))
+    assert metrics["avg_hint_resonance_score"] > 0.0
+    assert metrics["avg_hint_alignment_score"] > 0.0
 
 
 def test_inject_resonance_hints_is_empty_when_no_relevant_units(tmp_path):
@@ -111,3 +138,72 @@ def test_inject_resonance_hints_is_empty_when_no_relevant_units(tmp_path):
 
     assert hints == []
     assert item["_resonance_hints"] == []
+    metrics = runtime.get_resonance_metrics()
+    assert metrics["hint_injection_calls"] == 1
+    assert metrics["retrieval_miss"] == 1
+    assert metrics["retrieval_hit"] == 0
+    assert metrics["hint_count_total"] == 0
+
+
+def test_inject_resonance_hints_empty_query_updates_metrics_and_safe_averages(tmp_path):
+    runtime = GraphMemoryRuntime(store_path=tmp_path / "cases.jsonl")
+    item = {
+        "text": "   ",
+        "clean_text": "",
+    }
+
+    hints = runtime.inject_resonance_hints(item, top_k=3)
+
+    assert hints == []
+    assert item["_resonance_hints"] == []
+    metrics = runtime.get_resonance_metrics()
+    assert metrics["hint_injection_calls"] == 1
+    assert metrics["retrieval_empty_query"] == 1
+    assert metrics["retrieval_miss"] == 0
+    assert metrics["retrieval_hit"] == 0
+    assert metrics["avg_hints_per_hit"] == 0.0
+    assert metrics["avg_hint_resonance_score"] == 0.0
+    assert metrics["avg_hint_alignment_score"] == 0.0
+
+
+def test_remember_success_store_resonance_exception_updates_error_counter(tmp_path):
+    runtime = GraphMemoryRuntime(store_path=tmp_path / "cases.jsonl")
+    runtime.store.store_resonance_unit = _ExplodingResonanceStore().store_resonance_unit
+    item = {
+        "text": "How do I speed up batching in this pipeline?",
+        "clean_text": "speed up batching pipeline",
+        "_intent": "optimization",
+        "_why": "reduce latency",
+        "_graph_mode": "full_run",
+        "_resonance_score": 0.8,
+        "_network_plan": {"route_key": "perf_route"},
+    }
+
+    saved = runtime.remember_success(
+        item,
+        answer_text="Use bounded queues and micro-batch sizing.",
+        answer_quality={"overall": 0.85},
+    )
+
+    assert saved is not None
+    metrics = runtime.get_resonance_metrics()
+    assert metrics["units_saved"] == 0
+    assert metrics["units_save_errors"] == 1
+
+
+def test_inject_resonance_hints_exception_path_updates_error_counter(tmp_path):
+    runtime = GraphMemoryRuntime(store_path=tmp_path / "cases.jsonl")
+    runtime.store.find_relevant_units = _ExplodingRetrievalStore().find_relevant_units
+    item = {
+        "text": "Need known route",
+        "clean_text": "need known route",
+        "_intent": "optimization",
+    }
+
+    hints = runtime.inject_resonance_hints(item, top_k=3)
+
+    assert hints == []
+    assert item["_resonance_hints"] == []
+    metrics = runtime.get_resonance_metrics()
+    assert metrics["hint_injection_calls"] == 1
+    assert metrics["hint_injection_errors"] == 1

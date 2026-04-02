@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+import re
 from typing import Any, Optional
 
 
@@ -212,6 +213,23 @@ class CooperativeGraphEngine:
             f"{thread_hint}"
         )
 
+    def _deterministic_rewrite(self, answer: str, item: dict[str, Any], thread_context: str | None) -> str:
+        text = " ".join(str(answer or "").split())
+        if not text:
+            return self._rewrite_generic_tradeoff_answer(str(item.get("text", "") or ""), thread_context)
+        sentences = [chunk.strip() for chunk in re.split(r"(?<=[.!?])\s+", text) if chunk.strip()]
+        compact = " ".join(sentences[:3]).strip()
+        for phrase in (
+            "Плюсами этого стека являются",
+            "Таким образом, выбор этого стека",
+            "Вместо более простого набора технологий, мы выбрали этот стек из-за",
+        ):
+            compact = re.sub(re.escape(phrase), "", compact, flags=re.IGNORECASE)
+        compact = re.sub(r"\s+", " ", compact).strip(" ,.-")
+        if self._stack_is_unspecified(item, thread_context):
+            return self._rewrite_generic_tradeoff_answer(str(item.get("text", "") or ""), thread_context)
+        return compact or self._rewrite_generic_tradeoff_answer(str(item.get("text", "") or ""), thread_context)
+
     def run(self, item: dict, route_key: str, thread_context: str | None = None, goal_vector: dict[str, Any] | None = None) -> CooperativeExecutionResult:
         text = str(item.get("text", "") or "")
         if not text:
@@ -255,6 +273,10 @@ class CooperativeGraphEngine:
             if scrubbed_terms:
                 result.final_answer = self._rewrite_generic_tradeoff_answer(text, thread_context)
 
+        rewrite_used = bool(result.final_answer and not result.compressed_answer)
+        if rewrite_used:
+            result.final_answer = self._deterministic_rewrite(result.final_answer or "", item, thread_context)
+
         result.success = bool(result.final_answer)
         result.metadata = {
             "cooperative_route_key": route_key,
@@ -267,5 +289,6 @@ class CooperativeGraphEngine:
             "goal_strategy_bias": (goal_vector or {}).get("strategy_bias"),
             "grounding_scrubbed": bool(scrubbed_terms),
             "grounding_scrubbed_terms": scrubbed_terms,
+            "deterministic_rewrite_used": rewrite_used,
         }
         return result

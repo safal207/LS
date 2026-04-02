@@ -267,6 +267,85 @@ class GraphRuntimeDecision:
         return asdict(self)
 
 
+@dataclass
+class ResonanceMemoryMetrics:
+    hint_injection_calls: int = 0
+    hint_injection_nonempty: int = 0
+    hint_injection_errors: int = 0
+    retrieval_empty_query: int = 0
+    retrieval_miss: int = 0
+    retrieval_hit: int = 0
+    hint_count_total: int = 0
+    units_saved: int = 0
+    units_save_skipped: int = 0
+    units_save_errors: int = 0
+    _hint_resonance_score_sum: float = 0.0
+    _hint_alignment_score_sum: float = 0.0
+    _hint_score_count: int = 0
+
+    def record_hint_injection_call(self) -> None:
+        self.hint_injection_calls += 1
+
+    def record_hint_injection_error(self) -> None:
+        self.hint_injection_errors += 1
+
+    def record_retrieval_empty_query(self) -> None:
+        self.retrieval_empty_query += 1
+
+    def record_retrieval_miss(self) -> None:
+        self.retrieval_miss += 1
+
+    def record_retrieval_hit(self, hints: list[dict[str, Any]]) -> None:
+        self.retrieval_hit += 1
+        self.hint_injection_nonempty += 1
+        self.hint_count_total += len(hints)
+        for hint in hints:
+            resonance_score = _as_float(hint.get("resonance_score"), 0.0)
+            alignment_score = _as_float(hint.get("alignment_score"), 0.0)
+            self._hint_resonance_score_sum += resonance_score
+            self._hint_alignment_score_sum += alignment_score
+            self._hint_score_count += 1
+
+    def record_unit_saved(self) -> None:
+        self.units_saved += 1
+
+    def record_unit_save_skipped(self) -> None:
+        self.units_save_skipped += 1
+
+    def record_unit_save_error(self) -> None:
+        self.units_save_errors += 1
+
+    def to_dict(self) -> dict[str, Any]:
+        avg_hints_per_hit = (
+            self.hint_count_total / self.retrieval_hit if self.retrieval_hit else 0.0
+        )
+        avg_hint_resonance_score = (
+            self._hint_resonance_score_sum / self._hint_score_count
+            if self._hint_score_count
+            else 0.0
+        )
+        avg_hint_alignment_score = (
+            self._hint_alignment_score_sum / self._hint_score_count
+            if self._hint_score_count
+            else 0.0
+        )
+        return {
+            "hint_injection_calls": self.hint_injection_calls,
+            "hint_injection_nonempty": self.hint_injection_nonempty,
+            "hint_injection_errors": self.hint_injection_errors,
+            "retrieval_empty_query": self.retrieval_empty_query,
+            "retrieval_miss": self.retrieval_miss,
+            "retrieval_hit": self.retrieval_hit,
+            "hint_count_total": self.hint_count_total,
+            "units_saved": self.units_saved,
+            "units_save_skipped": self.units_save_skipped,
+            "units_save_errors": self.units_save_errors,
+            "avg_hints_per_hit": avg_hints_per_hit,
+            "avg_hint_resonance_score": avg_hint_resonance_score,
+            "avg_hint_alignment_score": avg_hint_alignment_score,
+        }
+
+
 class GraphMemoryRuntime:
     """Thin orchestration layer for graph-memory reuse decisions."""
 
@@ -286,6 +365,10 @@ class GraphMemoryRuntime:
         self.reuse_threshold = reuse_threshold
         self.refine_threshold = refine_threshold
         self.min_similarity = min_similarity
+        self._resonance_metrics = ResonanceMemoryMetrics()
+
+    def get_resonance_metrics(self) -> dict[str, Any]:
+        return self._resonance_metrics.to_dict()
 
     def process(self, item, thread_context: str | None = None) -> GraphRuntimeDecision:
         try:
@@ -361,7 +444,11 @@ class GraphMemoryRuntime:
                         contributors=contributors,
                     )
                     self.store.store_resonance_unit(unit)
+                    self._resonance_metrics.record_unit_saved()
+                else:
+                    self._resonance_metrics.record_unit_save_skipped()
             except Exception as exc:
+                self._resonance_metrics.record_unit_save_error()
                 self._logger.debug("Failed to store ResonanceKnowledgeUnit: %s", exc)
             return saved_case
         except Exception as exc:
@@ -375,12 +462,14 @@ class GraphMemoryRuntime:
         thread_context: str | None = None,
         top_k: int = 3,
     ) -> list[dict[str, Any]]:
+        self._resonance_metrics.record_hint_injection_call()
         try:
             question = self.retriever.normalize_question(item)
             if thread_context is not None:
                 question.thread_context = str(thread_context)
             query_text = (question.clean_text or question.text or "").strip()
             if not query_text:
+                self._resonance_metrics.record_retrieval_empty_query()
                 item["_resonance_hints"] = []
                 return []
 
@@ -391,9 +480,14 @@ class GraphMemoryRuntime:
                 top_k=max(1, min(int(top_k or 1), 3)),
             )
             hints = _build_resonance_hints(relevant_units)
+            if relevant_units:
+                self._resonance_metrics.record_retrieval_hit(hints)
+            else:
+                self._resonance_metrics.record_retrieval_miss()
             item["_resonance_hints"] = hints
             return hints
         except Exception as exc:
+            self._resonance_metrics.record_hint_injection_error()
             self._logger.debug("Graph inject_resonance_hints failed: %s", exc)
             item["_resonance_hints"] = []
             return []
