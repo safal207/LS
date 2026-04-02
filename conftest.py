@@ -11,21 +11,17 @@ PYTHON_DIR = ROOT / "python"
 MODULES_DIR = PYTHON_DIR / "modules"
 
 # Keep python/modules and python at the front so they win import precedence.
-for path in [MODULES_DIR, PYTHON_DIR]:
+# ROOT must come before MODULES_DIR so root-level packages (e.g. agent/) are not
+# shadowed by python/modules/agent/.
+for path in [MODULES_DIR, ROOT, PYTHON_DIR]:
     path_str = str(path)
     if path_str in sys.path:
         sys.path.remove(path_str)
     if path.exists():
         sys.path.insert(0, path_str)
 
-# Project root is fallback for root-level packages.
-root_str = str(ROOT)
-if root_str not in sys.path:
-    sys.path.append(root_str)
-
 # Legacy import aliases used by part of the test-suite.
 _aliases = {
-    "agent": "modules.agent",
     "agent.loop": "modules.agent.loop",
     "agent.sinks": "modules.agent.sinks",
     "agent.event_schema": "modules.agent.event_schema",
