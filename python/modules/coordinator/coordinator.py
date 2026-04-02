@@ -23,6 +23,8 @@ import time
 class CoordinationDecision:
     """Result of C's decision-making."""
     mode: Literal["A", "B", "both"]
+    cognitive_mode: Literal["reactive", "deliberative", "creative"]
+    engine_route: list[str]
     reason: str
     confidence: float
     timestamp: float
@@ -30,6 +32,8 @@ class CoordinationDecision:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "mode": self.mode,
+            "cognitive_mode": self.cognitive_mode,
+            "engine_route": list(self.engine_route),
             "reason": self.reason,
             "confidence": self.confidence,
             "timestamp": self.timestamp,
@@ -160,6 +164,8 @@ class Coordinator:
         confidence = max(0.1, 1.0 - float(getattr(analysis, "ambiguity_score", 0.0)))
         decision = CoordinationDecision(
             mode=analysis.mode,
+            cognitive_mode=analysis.cognitive_mode,
+            engine_route=list(analysis.engine_route),
             reason=analysis.reason,
             confidence=confidence,
             timestamp=time.time(),
