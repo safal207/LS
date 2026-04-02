@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Callable, Dict
 from urllib.parse import parse_qs, urlparse
+
+logger = logging.getLogger(__name__)
 
 from .decision_pipeline import DecisionPipeline
 from .reflection import ReflectionPipeline
@@ -62,6 +65,7 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path != "/api/reflection/snapshot":
+            logger.warning("reflection_api 404 GET %s", parsed.path)
             self._send_json(404, {"error": "not_found"})
             return
 
@@ -72,6 +76,7 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path != "/api/reflection/action":
+            logger.warning("reflection_api 404 POST %s", parsed.path)
             self._send_json(404, {"error": "not_found"})
             return
 
@@ -80,6 +85,7 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
             payload = self._read_json_body()
             result = execute_action(service, payload)
         except ValueError as error:
+            logger.warning("reflection_api 400 POST %s: %s", parsed.path, error)
             self._send_json(400, {"error": str(error)})
             return
 
@@ -101,12 +107,18 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
             content_length = 0
         # BUG-API-01: Reject oversized bodies before reading
         if content_length > self._MAX_BODY:
+            logger.warning("reflection_api request body too large: %d > %d", content_length, self._MAX_BODY)
             raise ValueError(f"request body too large ({content_length} > {self._MAX_BODY})")
         raw = self.rfile.read(min(content_length, self._MAX_BODY))
         if not raw:
             return {}
-        decoded = json.loads(raw.decode("utf-8"))
+        try:
+            decoded = json.loads(raw.decode("utf-8"))
+        except json.JSONDecodeError as error:
+            logger.warning("reflection_api invalid JSON: %s", error)
+            raise ValueError(f"invalid JSON: {error}") from error
         if not isinstance(decoded, dict):
+            logger.warning("reflection_api payload not an object")
             raise ValueError("payload must be a JSON object")
         return decoded
 
@@ -122,8 +134,7 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
         # BUG-API-02: Restore minimal server-side logging so errors are visible
-        import logging as _logging
-        _logging.getLogger(__name__).debug("reflection_api %s", format % args)
+        logger.info("reflection_api %s", format % args)
 
 
 def create_handler(service_factory: Callable[[], ReflectionDashboardService]) -> type[ReflectionDashboardApiHandler]:
@@ -132,7 +143,7 @@ def create_handler(service_factory: Callable[[], ReflectionDashboardService]) ->
     class BoundReflectionDashboardApiHandler(ReflectionDashboardApiHandler):
         pass
 
-    BoundReflectionDashboardApiHandler.service_factory = service_factory
+    BoundReflectionDashboardApiHandler.service_factory = staticmethod(service_factory)
     return BoundReflectionDashboardApiHandler
 
 
