@@ -103,7 +103,10 @@ class QwenOmniWorker:
                 return None
 
             if self.on_response is not None:
-                self.on_response(model_response)
+                try:
+                    self.on_response(model_response)
+                except Exception as exc:
+                    logger.debug("QwenOmniWorker on_response failed: %s", exc)
 
             insight = self._build_insight(
                 model_response=model_response,
