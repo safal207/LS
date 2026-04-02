@@ -220,16 +220,35 @@ class Coordinator:
         self.last_orientation = orientation_output.to_dict()
         self.last_orientation["temporal_signal"] = temporal_signal
 
-        # Apply OrientationCenter forces back to TemporalGraph (the force ladder)
+        # Apply full force ladder to TemporalGraph
         if temporal_graph is not None:
             try:
+                # Force 1+2: Orientation forces (chaos/harmony/drift/rhythm)
                 orientation_deltas = temporal_graph.apply_orientation_forces(
                     chaos_score=float(self.last_orientation.get("chaos_score", 0.0)),
                     harmony_score=float(self.last_orientation.get("harmony_score", 0.0)),
                     drift_pressure=float(self.last_orientation.get("drift_pressure", 0.0)),
                     rhythm_phase=str(self.last_orientation.get("rhythm_phase", "neutral")),
                 )
+                # Force 3: Stabilization (mean-reversion + axis hysteresis)
+                stab_deltas = temporal_graph.apply_stabilization_forces(strength=0.06)
+
+                # Force 4: Forgetting curve (natural decay by node half-life)
+                decay_deltas = temporal_graph.apply_decay(dt_s=30.0)
+
+                # Force 5: Cross-node interference (anti-split-brain)
+                interference_deltas = temporal_graph.apply_interference()
+
+                # Record orientation snapshot for trajectory tracking
+                temporal_graph.record_orientation_snapshot(self.last_orientation)
+
+                # Surface momentum in orientation payload
+                momentum_data = temporal_graph.get_orientation_momentum()
                 self.last_orientation["orientation_force_deltas"] = orientation_deltas
+                self.last_orientation["stabilization_deltas"] = stab_deltas
+                self.last_orientation["decay_deltas"] = decay_deltas
+                self.last_orientation["interference_deltas"] = interference_deltas
+                self.last_orientation["orientation_momentum"] = momentum_data
             except Exception:
                 pass
 
