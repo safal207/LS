@@ -360,8 +360,7 @@ class AgentLoop:
                 with self.temporal._graph_lock:
                     existing = self.temporal.nodes.get(node_id)
                     if existing is not None:
-                        # Repeated pattern — strengthen the node
-                        existing.resonance = min(1.0, existing.resonance + confidence * 0.12)
+                        existing.update_resonance(existing.resonance + confidence * 0.12)
                     else:
                         new_node = TemporalNode(
                             id=node_id,
@@ -370,10 +369,10 @@ class AgentLoop:
                         )
                         self.temporal.nodes[node_id] = new_node
                         self.temporal.align_to_axis(new_node)
+                node = self.temporal.nodes[node_id]
                 logger.debug(
-                    "Subconscious → temporal: node=%s resonance=%.3f",
-                    node_id,
-                    self.temporal.nodes[node_id].resonance,
+                    "Subconscious → temporal: node=%s resonance=%.3f velocity=%.4f/s",
+                    node_id, node.resonance, node.velocity,
                 )
             except Exception as exc:
                 logger.debug("Subconscious temporal write failed: %s", exc)
@@ -401,10 +400,10 @@ class AgentLoop:
                     node = TemporalNode(id=node_id, resonance=0.5, harmony_bonus=0.1)
                     self.temporal.nodes[node_id] = node
                 if signal == "positive":
-                    node.resonance = min(1.0, node.resonance + 0.18)
+                    node.update_resonance(node.resonance + 0.18)
                     node.harmony_bonus = min(0.5, node.harmony_bonus + 0.05)
                 else:
-                    node.resonance = max(0.0, node.resonance - 0.25)
+                    node.update_resonance(node.resonance - 0.25)
             logger.info(
                 "Quality feedback [%s] → temporal node %s resonance=%.3f",
                 signal, node_id, self.temporal.nodes[node_id].resonance,
@@ -899,7 +898,16 @@ class AgentLoop:
                 if axis is not None and axis.id.startswith("subconscious:"):
                     dominant_mode = axis.id.split(":", 1)[1]
                     if axis.resonance >= 0.80:
-                        temporal_hint = f" Доминирующий паттерн: {dominant_mode} (резонанс {axis.resonance:.2f})."
+                        vscore = axis.velocity_score()
+                        trend = ""
+                        if vscore > 0.05:
+                            trend = " ↑"
+                        elif vscore < -0.05:
+                            trend = " ↓"
+                        temporal_hint = (
+                            f" Доминирующий паттерн: {dominant_mode}"
+                            f" (резонанс {axis.resonance:.2f}{trend})."
+                        )
             except Exception:
                 temporal_hint = ""
 

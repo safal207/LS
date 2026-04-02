@@ -1,17 +1,45 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
-from dataclasses import dataclass
+
+import time
+from dataclasses import dataclass, field
 import threading
-from typing import Dict
+from typing import Dict, List, Tuple
+
 
 @dataclass
 class TemporalNode:
     id: str
     resonance: float = 1.0
     harmony_bonus: float = 0.5
+    # Temporal velocity tracking
+    last_updated: float = field(default_factory=time.time)
+    velocity: float = 0.0          # resonance / second (positive = growing)
+    _velocity_alpha: float = 0.4   # EMA smoothing factor (not serialised)
+
+    def update_resonance(self, new_value: float) -> None:
+        """Update resonance and recalculate velocity via EMA."""
+        now = time.time()
+        delta_r = new_value - self.resonance
+        delta_t = max(now - self.last_updated, 0.1)   # floor at 100ms
+        instant_velocity = delta_r / delta_t
+        # Exponential moving average to smooth noisy spikes
+        self.velocity = self._velocity_alpha * instant_velocity + (1 - self._velocity_alpha) * self.velocity
+        self.resonance = max(0.0, min(1.0, new_value))
+        self.last_updated = now
+
+    def velocity_score(self, horizon_s: float = 60.0) -> float:
+        """Projected resonance gain/loss over horizon_s seconds.
+
+        Clamped to [-0.30, +0.40] so velocity can meaningfully shift axis
+        selection without dominating pure resonance.
+        """
+        raw = self.velocity * horizon_s
+        return max(-0.30, min(0.40, raw))
+
 
 class TemporalGraph:
-    def __init__(self):
+    def __init__(self) -> None:
         self.nodes: Dict[str, TemporalNode] = {}
         self._graph_lock = threading.Lock()
 
@@ -21,7 +49,7 @@ class TemporalGraph:
         with self._graph_lock:
             for node in self.nodes.values():
                 if node.resonance > threshold:
-                    node.resonance = min(1.0, node.resonance + boost)
+                    node.update_resonance(node.resonance + boost)
                     count += 1
         return count
 
@@ -29,25 +57,38 @@ class TemporalGraph:
         """Удаляет узлы с resonance ниже threshold."""
         with self._graph_lock:
             snapshot = list(self.nodes.items())
-        to_remove = [node_id for node_id, node in snapshot if node.resonance < threshold]
+        to_remove = [nid for nid, n in snapshot if n.resonance < threshold]
         with self._graph_lock:
-            for node_id in to_remove:
-                self.nodes.pop(node_id, None)
+            for nid in to_remove:
+                self.nodes.pop(nid, None)
         return len(to_remove)
 
     def get_meritocratic_axis(self) -> TemporalNode | None:
-        """Возвращает главный узел оси — с максимальным resonance + harmony."""
+        """Return the dominant node by resonance × (1 + harmony) + velocity_score.
+
+        Velocity shifts the axis toward fast-growing patterns even before their
+        absolute resonance catches up — predictive, not just reactive.
+        """
         with self._graph_lock:
             nodes = list(self.nodes.values())
         if not nodes:
             return None
-        return max(nodes, key=lambda n: n.resonance * (1 + getattr(n, 'harmony_bonus', 0)))
+        return max(
+            nodes,
+            key=lambda n: n.resonance * (1 + n.harmony_bonus) + n.velocity_score(),
+        )
+
+    def velocity_leaders(self, n: int = 3) -> List[Tuple[str, float]]:
+        """Return top-n nodes sorted by velocity (fastest growing first)."""
+        with self._graph_lock:
+            snapshot = [(node.id, node.velocity) for node in self.nodes.values()]
+        return sorted(snapshot, key=lambda x: x[1], reverse=True)[:n]
 
     def align_to_axis(self, new_node: TemporalNode) -> float:
-        """Выравнивает новую связь по оси. Возвращает синергию (0–1)."""
+        """Align new node to axis. Returns synergy (0–1)."""
         axis = self.get_meritocratic_axis()
         if not axis:
             return 0.0
         synergy = min(1.0, new_node.resonance * 0.7 + (1 - abs(new_node.resonance - axis.resonance)) * 0.3)
-        new_node.resonance = min(1.0, new_node.resonance + synergy * 0.1)  # лёгкое усиление
+        new_node.update_resonance(new_node.resonance + synergy * 0.1)
         return synergy

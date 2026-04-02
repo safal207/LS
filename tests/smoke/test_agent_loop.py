@@ -144,6 +144,57 @@ class TestAgentLoop(unittest.TestCase):
 
         self.assertIn("subconscious:creative", loop.temporal.nodes)
 
+    def test_velocity_calculated_on_resonance_update(self):
+        """update_resonance() should set non-zero velocity after a change."""
+        from hexagon_core.temporal_graph import TemporalNode
+        import time
+
+        node = TemporalNode(id="test:node", resonance=0.50, harmony_bonus=0.1)
+        time.sleep(0.05)  # ensure delta_t > 0
+        node.update_resonance(0.80)
+
+        # velocity should be positive (resonance went up)
+        self.assertGreater(node.velocity, 0.0)
+        self.assertAlmostEqual(node.resonance, 0.80, places=5)
+
+    def test_velocity_leaders_returns_fastest_growing(self):
+        """velocity_leaders() returns nodes sorted by velocity descending."""
+        from hexagon_core.temporal_graph import TemporalGraph, TemporalNode
+        import time
+
+        tg = TemporalGraph()
+        slow = TemporalNode(id="slow", resonance=0.5, harmony_bonus=0.0)
+        fast = TemporalNode(id="fast", resonance=0.5, harmony_bonus=0.0)
+        time.sleep(0.05)
+        slow.update_resonance(0.55)   # small delta
+        fast.update_resonance(0.90)   # large delta
+        tg.nodes["slow"] = slow
+        tg.nodes["fast"] = fast
+
+        leaders = tg.velocity_leaders(n=2)
+        self.assertEqual(leaders[0][0], "fast")
+        self.assertGreater(leaders[0][1], leaders[1][1])
+
+    def test_fast_growing_node_wins_axis_over_stale_high_resonance(self):
+        """A fast-growing node should beat a stale high-resonance node on axis."""
+        from hexagon_core.temporal_graph import TemporalGraph, TemporalNode
+        import time
+
+        tg = TemporalGraph()
+        # Stale high-resonance node — hasn't changed recently, velocity ≈ 0
+        stale = TemporalNode(id="subconscious:reactive", resonance=0.88, harmony_bonus=0.1)
+        tg.nodes["subconscious:reactive"] = stale
+
+        # Fast-growing node — just got strong positive feedback
+        rising = TemporalNode(id="subconscious:deliberative", resonance=0.70, harmony_bonus=0.1)
+        time.sleep(0.05)
+        rising.update_resonance(0.70 + 0.18 + 0.18)   # two rapid positive feedbacks
+        tg.nodes["subconscious:deliberative"] = rising
+
+        axis = tg.get_meritocratic_axis()
+        # The rising node should win because its velocity_score pushes it ahead
+        self.assertEqual(axis.id, "subconscious:deliberative")
+
     def test_temporal_axis_drives_explanation_hint(self):
         """When TemporalGraph axis is a high-resonance subconscious node, explanation includes it."""
         loop = AgentLoop(output_queue=queue.Queue(), llm=DummyLLM())
