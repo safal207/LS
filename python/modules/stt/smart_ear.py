@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """SmartEar — cognitive interpretation layer between STT and AgentLoop.
 
 Pipeline position::

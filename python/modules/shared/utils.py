@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import psutil
 import logging
 from config import MAX_RAM_USAGE_MB

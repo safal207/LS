@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ruff: noqa: E402
 import sys
 from pathlib import Path

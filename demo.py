@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Simulation mode for testing without audio hardware
 Simulates interview scenarios for testing the pipeline

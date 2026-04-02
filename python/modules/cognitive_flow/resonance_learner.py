@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """ResonanceLearner — continuous learning from completed cognitive cycles.
 
 After each cycle is completed (LLM responded, optional user feedback added),

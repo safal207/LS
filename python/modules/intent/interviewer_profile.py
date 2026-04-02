@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """InterviewerProfile — real-time model of the interviewer built from their questions.
 
 Each question is observed and the profile updates automatically.

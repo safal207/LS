@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from apps.multi_agent_demo import run_demo
 
 

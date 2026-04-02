@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Language Model Module (Module 3: LLM Processing)
 Connects to Ollama phi3 API and generates responses to questions

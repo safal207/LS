@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """IntentLayer — structured intent extraction from interpreted text.
 
 Sits between SmartEar (Interpretation) and AgentLoop (Decision).

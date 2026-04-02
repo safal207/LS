@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import pytest
 from codex.causal_memory.amygdala import Amygdala
 from codex.causal_memory.reflex import ReflexArc

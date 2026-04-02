@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """ConversationAnchor — session-level experience/fact store for interview copilot.
 
 The anchor holds short, high-value facts about the candidate's real experience.

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """CognitiveCycleLogger — full cognitive cycle JSONL logger.
 
 Records every complete pass through the pipeline:

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Blockchain / Crypto / Web3 vocabulary pack."""
 
 VOCAB = [

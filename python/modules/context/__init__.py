@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Conversation context anchoring — pins session facts for retrieval.
 
 Usage::

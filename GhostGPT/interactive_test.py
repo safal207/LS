@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Interactive System Test
 Tests the full integrated GhostGPT system with language mirroring

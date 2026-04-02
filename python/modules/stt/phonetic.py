@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Phonetic / fuzzy correction layer for ASR output.
 
 Used inside SmartEar's HypothesisStage.  Operates entirely on stdlib
