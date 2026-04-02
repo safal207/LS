@@ -116,6 +116,7 @@ class QwenOmniWorker:
     def _capture_screen_frame(self) -> tuple[str | None, dict[str, Any]]:
         try:
             import mss  # type: ignore[import-not-found]
+            import mss.tools  # type: ignore[import-not-found]
         except Exception:
             return None, {"capture": "unavailable", "reason": "mss-not-installed"}
 
@@ -123,13 +124,14 @@ class QwenOmniWorker:
             with mss.mss() as sct:
                 monitor = sct.monitors[1]
                 shot = sct.grab(monitor)
-                # PNG bytes are sufficient for MVP transport.
-                encoded = base64.b64encode(shot.rgb).decode("ascii")
+                png_bytes = mss.tools.to_png(shot.rgb, shot.size)
+                encoded = base64.b64encode(png_bytes).decode("ascii")
                 return encoded, {
                     "capture": "ok",
                     "width": int(shot.width),
                     "height": int(shot.height),
                     "monitor": 1,
+                    "image_encoding": "png",
                 }
         except Exception as exc:
             return None, {"capture": "error", "reason": str(exc)}

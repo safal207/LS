@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Optional
@@ -7,6 +8,8 @@ from typing import Optional
 from .derived_module_registry import DerivedModuleRegistry
 from .memory_store import MemoryGraphStore
 from .models import DerivedModule, ResonanceKnowledgeUnit
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> str:
@@ -102,8 +105,11 @@ class CareCycleRunner:
                 alignment_score=float(alignment_score or 0.0),
                 metadata={"source": "care_cycle", "cycle_id": cycle_id},
             )
-            # TODO: evolve route graph from repeated high-quality units.
-            self.graph_store.store_resonance_unit(unit)
+            try:
+                # TODO: evolve route graph from repeated high-quality units.
+                self.graph_store.store_resonance_unit(unit)
+            except Exception as exc:
+                logger.debug("CareCycleRunner resonance unit store skipped: %s", exc)
         return CareCycleResult(
             module_id=saved.module_id,
             action=action,

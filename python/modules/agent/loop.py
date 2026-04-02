@@ -204,13 +204,19 @@ class AgentLoop:
         self._mode_detector = None
         self._coordinator = None
 
+        graph_store_path = os.environ.get(
+            "GRAPH_MEMORY_STORE_PATH",
+            "data/graph_memory/cases.jsonl",
+        )
+        self._graph_store = MemoryGraphStore(graph_store_path)
+
         self._qwen_omni_worker: Any | None = None
         if str(os.environ.get("QWEN_OMNI_ENABLED", "0")).lower() in {"1", "true", "yes", "on"}:
             try:
                 from omni import QwenOmniWorker
 
                 self._qwen_omni_worker = QwenOmniWorker(
-                    graph_store=MemoryGraphStore(),
+                    graph_store=self._graph_store,
                     cycle_interval_s=self._subconscious_interval_s,
                 )
             except Exception as exc:

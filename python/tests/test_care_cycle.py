@@ -57,3 +57,37 @@ def test_care_cycle_demotes_and_retires_weak_module(tmp_path):
     assert result is not None
     assert result.action == "retire"
     assert result.state == "retired"
+
+
+def test_care_cycle_store_resonance_unit_is_best_effort(tmp_path):
+    class _ExplodingStore:
+        def store_resonance_unit(self, _unit):
+            raise RuntimeError("boom")
+
+    registry = DerivedModuleRegistry(tmp_path / "derived.json")
+    module = registry.create_or_update_from_success(
+        parent_coalition_id="coalition-local-gonka-mimo",
+        source_route_key="full_run>local>gonka>mimo",
+        domain="generic",
+        task_type="generic",
+        preferred_backend="local",
+        policy_type="prompt_policy",
+        policy_text="ok",
+        quality_score=0.9,
+    )
+    runner = CareCycleRunner(
+        registry,
+        graph_store=_ExplodingStore(),
+        min_quality=0.7,
+        min_trust=0.6,
+        retire_trust=0.3,
+    )
+
+    result = runner.review(
+        module.module_id,
+        source_question="what is on screen",
+        resonance_score=0.9,
+    )
+
+    assert result is not None
+    assert result.state == "active"
