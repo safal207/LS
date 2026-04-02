@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """BodyAwareCopilot — Stage 8 of the SmartEar cognitive pipeline.
 
 Assembles the final, ready-to-use copilot output for each question cycle:

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """WHY Strategy — battle-ready answer strategy from question type.
 
 Lightweight, zero-dependency module for real-time interview coaching.

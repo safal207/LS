@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Intent + WHY layers — structured intent and causal intent extraction.
 
 Pipeline position::

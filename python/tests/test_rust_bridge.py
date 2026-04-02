@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import importlib
 import importlib.machinery
 import importlib.util

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """ResonanceAgent — unified cognitive resonance pipeline agent.
 
 Single entry point that runs the complete pipeline:

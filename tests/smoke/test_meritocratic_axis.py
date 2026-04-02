@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import pytest
 from unittest.mock import MagicMock
 from python.modules.hexagon_core.temporal_graph import TemporalGraph, TemporalNode

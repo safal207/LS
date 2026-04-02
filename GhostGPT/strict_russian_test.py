@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Strict Russian Language Test
 Tests elimination of English internal thoughts in Russian responses

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 def test_get_context_returns_related_solutions():
     entries = [
         {

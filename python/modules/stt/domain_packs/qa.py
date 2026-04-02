@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """QA / Testing vocabulary pack."""
 
 VOCAB = [

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """WHY Layer — causal intent extraction: *why* was this asked?
 
 Pipeline position::

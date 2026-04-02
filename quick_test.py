@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Quick test to verify all modules can be imported and basic functionality works
 """

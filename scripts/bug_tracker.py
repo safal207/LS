@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Bug Tracker Script
 Автоматический анализатор кода на потенциальные баги

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """EmpathyNegotiationLayer — Stage 7 of the SmartEar cognitive pipeline.
 
 Adds empathic and negotiation-aware hints to the LLM prompt, based on:

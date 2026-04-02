@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Conscious Logging Test with Truncation Detection
 Tests the dialogue logging system and verifies complete response display

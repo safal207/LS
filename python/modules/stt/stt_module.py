@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Speech-to-Text Module (Module 2: STT Processing)
 Processes audio files using Faster-Whisper.
