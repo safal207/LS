@@ -8,7 +8,7 @@ from ls.memory.edge import MemoryEdge
 from ls.memory.memory_graph import MemoryGraph
 
 if TYPE_CHECKING:
-    from ls.cognition.motivation_engine import AgentGoal, AgentNeed, Strategy
+    from ls.cognition.motivation_engine import AgentNeed
 
 
 @dataclass(frozen=True)
@@ -85,16 +85,6 @@ class NeedMarketEngine:
 
         contracts.sort(key=lambda item: item.priority, reverse=True)
         return contracts[:max_contracts]
-
-    @staticmethod
-    def build_strategy(contract: GoalContract, goal: "AgentGoal") -> "Strategy":
-        """Build a capability-aware strategy; TODO: replace with richer planning policy."""
-        from ls.cognition.motivation_engine import Strategy
-
-        steps = [f"assess_need:{contract.need_id}"]
-        steps.extend(f"apply_capability:{capability_id}" for capability_id in contract.capability_ids)
-        steps.append(f"verify_result:{goal.id}")
-        return Strategy(goal=goal, steps=steps)
 
     @staticmethod
     def _best_idea_for_need(ideas):
