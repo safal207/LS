@@ -1174,6 +1174,8 @@ class AgentLoop:
                     "amygdala_state": self.memory.get("amygdala_state", 0.5),
                     "amygdala_harmony": self.memory.get("amygdala_harmony", 0.5),
                     "amygdala_history_size": self.memory.get("amygdala_history_size", 0),
+                    "smart_ear_drift_detected": bool(item.get("_smart_ear_drift_detected", False)),
+                    "smart_ear_drift_reason": item.get("_smart_ear_drift_reason"),
                     "personality_p": float(getattr(self.causal_transitions.amygdala, "personality_p", 0.5)),
                 }
                 if stability_ok is not None:

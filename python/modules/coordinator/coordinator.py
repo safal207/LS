@@ -59,9 +59,14 @@ class Coordinator:
         from .field_coordination import FieldCoordination
         from .meta_adaptation import MetaAdaptationLayer
         from .meta_hygiene import MetaHygiene
-        from orientation import OrientationCenter
-        from trajectory import TrajectoryLayer
-        from field import ConsensusEngine
+        try:
+            from orientation import OrientationCenter
+            from trajectory import TrajectoryLayer
+            from field import ConsensusEngine
+        except ImportError:
+            from python.modules.orientation import OrientationCenter
+            from python.modules.trajectory import TrajectoryLayer
+            from python.modules.field import ConsensusEngine
 
         self.mode_detector = ModeDetector()
         self.context_sync = ContextSync()
