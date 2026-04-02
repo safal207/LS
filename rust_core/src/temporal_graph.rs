@@ -439,9 +439,10 @@ mod tests {
 
     #[test]
     fn builds_graph_and_finds_temporal_path() {
+        let now = Utc::now();
         let entries = vec![
-            serde_json::json!({"ts":"2026-02-25T10:00:00Z","cause":"A","solution":"B","ltp_trace":{"thread_id":"thread-1"},"lri_core":{"resonance_map":{"focus":0.9}}}),
-            serde_json::json!({"ts":"2026-02-25T10:00:05Z","cause":"B issue","solution":"C","ltp_trace":{"thread_id":"thread-1"},"lri_core":{"resonance_map":{"focus":0.8}}}),
+            serde_json::json!({"ts":(now - chrono::Duration::hours(2)).to_rfc3339(),"cause":"A","solution":"B","ltp_trace":{"thread_id":"thread-1"},"lri_core":{"resonance_map":{"focus":0.9}}}),
+            serde_json::json!({"ts":(now - chrono::Duration::hours(1)).to_rfc3339(),"cause":"B issue","solution":"C","ltp_trace":{"thread_id":"thread-1"},"lri_core":{"resonance_map":{"focus":0.8}}}),
         ];
 
         let graph = TemporalGraph::build_from_causal_memory(&entries);
@@ -475,9 +476,10 @@ mod tests {
 
     #[test]
     fn test_causal_edge() {
+        let now = Utc::now();
         let entries = vec![
-            serde_json::json!({"ts":"2026-02-25T10:00:00Z","cause":"Initial issue","solution":"Patch auth", "ltp_trace":{"thread_id":"t1"}}),
-            serde_json::json!({"ts":"2026-02-25T10:00:01Z","cause":"Need to apply patch auth soon","solution":"Done", "ltp_trace":{"thread_id":"t2"}}),
+            serde_json::json!({"ts":(now - chrono::Duration::hours(2)).to_rfc3339(),"cause":"Initial issue","solution":"Patch auth", "ltp_trace":{"thread_id":"t1"}}),
+            serde_json::json!({"ts":(now - chrono::Duration::hours(1)).to_rfc3339(),"cause":"Need to apply patch auth soon","solution":"Done", "ltp_trace":{"thread_id":"t2"}}),
         ];
 
         let graph = TemporalGraph::build_from_causal_memory(&entries);
@@ -486,9 +488,10 @@ mod tests {
 
     #[test]
     fn test_resonance_weight() {
+        let now = Utc::now();
         let entries = vec![
-            serde_json::json!({"ts":"2026-02-25T10:00:00Z","cause":"A","solution":"B","ltp_trace":{"thread_id":"t1"},"lri_core":{"resonance_map":{"focus":0.8}}}),
-            serde_json::json!({"ts":"2026-02-25T10:00:01Z","cause":"C","solution":"D","ltp_trace":{"thread_id":"t2"},"lri_core":{"resonance_map":{"focus":0.9}}}),
+            serde_json::json!({"ts":(now - chrono::Duration::hours(2)).to_rfc3339(),"cause":"A","solution":"B","ltp_trace":{"thread_id":"t1"},"lri_core":{"resonance_map":{"focus":0.8}}}),
+            serde_json::json!({"ts":(now - chrono::Duration::hours(1)).to_rfc3339(),"cause":"C","solution":"D","ltp_trace":{"thread_id":"t2"},"lri_core":{"resonance_map":{"focus":0.9}}}),
         ];
 
         let graph = TemporalGraph::build_from_causal_memory(&entries);
@@ -516,5 +519,25 @@ mod tests {
 
         let graph = TemporalGraph::build_from_causal_memory(&entries);
         assert!(graph.nodes.len() <= MAX_NODES);
+    }
+
+    #[test]
+    fn test_build_from_empty_json() {
+        let entries = vec![];
+        let graph = TemporalGraph::build_from_causal_memory(&entries);
+        assert_eq!(graph.nodes.len(), 0);
+        assert_eq!(graph.edges.len(), 0);
+    }
+
+    #[test]
+    fn test_build_from_minimal_json() {
+        let entries = vec![serde_json::json!({})];
+        let graph = TemporalGraph::build_from_causal_memory(&entries);
+        assert_eq!(graph.nodes.len(), 1);
+        assert_eq!(graph.edges.len(), 0);
+        let node = graph.nodes.values().next().unwrap();
+        assert_eq!(node.thread_id, "unknown");
+        assert_eq!(node.cause, "");
+        assert_eq!(node.solution, "");
     }
 }
