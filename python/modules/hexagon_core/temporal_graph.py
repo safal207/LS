@@ -108,6 +108,29 @@ class TemporalGraph:
 
     # ── Core graph ops ────────────────────────────────────────────────────────
 
+    def add_or_update(
+        self,
+        node_id: str,
+        resonance: float,
+        harmony_bonus: float = 0.25,
+        resting_resonance: Optional[float] = None,
+    ) -> TemporalNode:
+        """Create node if absent, else boost resonance. Thread-safe."""
+        with self._graph_lock:
+            if node_id in self.nodes:
+                self.nodes[node_id].update_resonance(
+                    min(1.0, self.nodes[node_id].resonance + resonance * 0.12)
+                )
+                return self.nodes[node_id]
+            node = TemporalNode(
+                id=node_id,
+                resonance=resonance,
+                harmony_bonus=harmony_bonus,
+                resting_resonance=resting_resonance if resting_resonance is not None else resonance * 0.7,
+            )
+            self.nodes[node_id] = node
+            return node
+
     def strengthen_strong_links(self, threshold: float = 0.75, boost: float = 0.15) -> int:
         count = 0
         with self._graph_lock:

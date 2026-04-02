@@ -18,6 +18,11 @@ from typing import Literal, Optional, Dict, Any
 from dataclasses import dataclass
 import time
 
+try:
+    from hexagon_core.system_observer import SystemObserver
+except ImportError:
+    from python.modules.hexagon_core.system_observer import SystemObserver
+
 
 @dataclass
 class CoordinationDecision:
@@ -82,6 +87,9 @@ class Coordinator:
         self.field_adapter = None
         self.field_resonance = None
         self.field_bias = None
+
+        # Наблюдатель адекватности (Сила 6)
+        self.observer = SystemObserver()
 
         # Metadata
         self.last_decision: Optional[CoordinationDecision] = None
@@ -239,16 +247,29 @@ class Coordinator:
                 # Force 5: Cross-node interference (anti-split-brain)
                 interference_deltas = temporal_graph.apply_interference()
 
+                # Force 6: Observer — мета-когнитивный наблюдатель адекватности
+                momentum_data = temporal_graph.get_orientation_momentum()
+                chaos_trend = momentum_data.get("chaos_trend", 0.0)
+                adequacy_report = self.observer.observe_and_correct(
+                    temporal_graph, chaos_trend=chaos_trend
+                )
+
                 # Record orientation snapshot for trajectory tracking
                 temporal_graph.record_orientation_snapshot(self.last_orientation)
 
-                # Surface momentum in orientation payload
-                momentum_data = temporal_graph.get_orientation_momentum()
                 self.last_orientation["orientation_force_deltas"] = orientation_deltas
                 self.last_orientation["stabilization_deltas"] = stab_deltas
                 self.last_orientation["decay_deltas"] = decay_deltas
                 self.last_orientation["interference_deltas"] = interference_deltas
                 self.last_orientation["orientation_momentum"] = momentum_data
+                self.last_orientation["adequacy"] = {
+                    "score":       round(adequacy_report.score, 3),
+                    "adequate":    adequacy_report.adequate,
+                    "critical":    adequacy_report.critical,
+                    "pathologies": adequacy_report.pathologies,
+                    "corrections": adequacy_report.corrections,
+                    "trend":       self.observer.adequacy_trend(),
+                }
             except Exception:
                 pass
 
