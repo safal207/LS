@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from .models import MemoryCase, ResonanceKnowledgeUnit
@@ -98,10 +100,32 @@ class MemoryGraphStore:
         case.last_reused_at = _utc_now()
         return self.save_case(case)
 
+    def _atomic_write_jsonl(self, path: Path, rows: list[dict[str, Any]]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(path.parent),
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                for row in rows:
+                    handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_name, path)
+        finally:
+            if os.path.exists(tmp_name):
+                try:
+                    os.remove(tmp_name)
+                except OSError:
+                    pass
+
     def _write_cases(self, cases: list[MemoryCase]) -> None:
-        with self.path.open("w", encoding="utf-8") as handle:
-            for case in cases:
-                handle.write(json.dumps(case.to_dict(), ensure_ascii=False) + "\n")
+        self._atomic_write_jsonl(
+            self.path,
+            [case.to_dict() for case in cases],
+        )
 
     # ──────────────────────────────────────────────────────────────
     # ResonanceKnowledgeUnit — хранилище проверенных маршрутов мышления
@@ -202,9 +226,10 @@ class MemoryGraphStore:
     def _write_resonance_units(self, units: list[ResonanceKnowledgeUnit]) -> None:
         """MVP-only storage.
 
-        No atomic write / file lock yet. Production follow-up required.
+        Atomic file replace is used; graph-store backend can come later.
         """
         path = self._resonance_path()
-        with path.open("w", encoding="utf-8") as handle:
-            for unit in units:
-                handle.write(json.dumps(unit.to_dict(), ensure_ascii=False) + "\n")
+        self._atomic_write_jsonl(
+            path,
+            [unit.to_dict() for unit in units],
+        )

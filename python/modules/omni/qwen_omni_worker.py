@@ -41,6 +41,7 @@ class QwenOmniWorker:
         instructions: str | None = None,
         fps: float = 1.0,
         cycle_interval_s: float = 20.0,
+        min_store_resonance_score: float = 0.3,
     ) -> None:
         self.graph_store = graph_store
         self.audio_provider = audio_provider
@@ -53,6 +54,7 @@ class QwenOmniWorker:
         )
         self.api_key = os.getenv("DASHSCOPE_API_KEY", "").strip()
         self.max_fps = min(5.0, max(1.0, float(fps)))
+        self.min_store_resonance_score = max(0.0, float(min_store_resonance_score))
         self.cycle_interval_s = max(5.0, float(cycle_interval_s))
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
@@ -109,6 +111,13 @@ class QwenOmniWorker:
                 audio_text=audio_text,
                 trigger=trigger,
             )
+            if insight.resonance_score < self.min_store_resonance_score:
+                logger.debug(
+                    "QwenOmniWorker skipped low-signal insight: resonance=%.3f trigger=%s",
+                    insight.resonance_score,
+                    trigger,
+                )
+                return None
             unit = self._build_unit_from_insight(insight)
             self.graph_store.store_resonance_unit(unit)
             return unit
