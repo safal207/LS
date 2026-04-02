@@ -93,6 +93,8 @@ class CareCycleRunner:
         if (
             self.graph_store is not None
             and source_question
+            and saved.state == "active"
+            and action in {"keep", "promote"}
             and float(resonance_score or 0.0) > self.resonance_unit_threshold
         ):
             unit = ResonanceKnowledgeUnit(

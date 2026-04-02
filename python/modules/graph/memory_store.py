@@ -12,6 +12,20 @@ from uuid import uuid4
 
 from .models import MemoryCase, ResonanceKnowledgeUnit
 
+_STORE_LOCKS: dict[str, threading.RLock] = {}
+_STORE_LOCKS_GUARD = threading.Lock()
+
+
+def _get_store_lock(path: Path) -> threading.RLock:
+    """Return a process-wide reentrant lock for a concrete store path."""
+    key = str(path.resolve())
+    with _STORE_LOCKS_GUARD:
+        lock = _STORE_LOCKS.get(key)
+        if lock is None:
+            lock = threading.RLock()
+            _STORE_LOCKS[key] = lock
+        return lock
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -27,7 +41,7 @@ class MemoryGraphStore:
     def __init__(self, path: str | Path = "data/graph_memory/cases.jsonl") -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._lock = threading.RLock()
+        self._lock = _get_store_lock(self.path)
 
     def list_cases(self) -> list[MemoryCase]:
         with self._lock:
