@@ -517,4 +517,24 @@ mod tests {
         let graph = TemporalGraph::build_from_causal_memory(&entries);
         assert!(graph.nodes.len() <= MAX_NODES);
     }
+
+    #[test]
+    fn test_build_from_empty_json() {
+        let entries = vec![];
+        let graph = TemporalGraph::build_from_causal_memory(&entries);
+        assert_eq!(graph.nodes.len(), 0);
+        assert_eq!(graph.edges.len(), 0);
+    }
+
+    #[test]
+    fn test_build_from_minimal_json() {
+        let entries = vec![serde_json::json!({})];
+        let graph = TemporalGraph::build_from_causal_memory(&entries);
+        assert_eq!(graph.nodes.len(), 1);
+        assert_eq!(graph.edges.len(), 0);
+        let node = graph.nodes.values().next().unwrap();
+        assert_eq!(node.thread_id, "unknown");
+        assert_eq!(node.cause, "");
+        assert_eq!(node.solution, "");
+    }
 }
