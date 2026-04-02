@@ -87,16 +87,6 @@ class NeedMarketEngine:
         return contracts[:max_contracts]
 
     @staticmethod
-    def build_strategy(contract: GoalContract, goal: "AgentGoal") -> "Strategy":
-        """Build a capability-aware strategy; TODO: replace with richer planning policy."""
-        from ls.cognition.motivation_engine import Strategy
-
-        steps = [f"assess_need:{contract.need_id}"]
-        steps.extend(f"apply_capability:{capability_id}" for capability_id in contract.capability_ids)
-        steps.append(f"verify_result:{goal.id}")
-        return Strategy(goal=goal, steps=steps)
-
-    @staticmethod
     def _best_idea_for_need(ideas):
         return ideas[0] if ideas else None
 

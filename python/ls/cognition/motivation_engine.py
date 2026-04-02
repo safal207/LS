@@ -16,6 +16,8 @@ from ls.cognition.cognitive_energy_model import CognitiveEnergyModel
 from ls.cognition.cognitive_phase_space import CognitivePhaseSpace
 from ls.cognition.counterfactual_engine import CounterfactualEngine
 from ls.cognition.state_tracker import AgentState
+from ls.cognition.strategy_planner import StrategyPlanner
+from ls.cognition.utils import clamp01, clamp11
 
 
 class NeedCategory(Enum):
@@ -35,15 +37,15 @@ class AgentNeed:
     category: NeedCategory = NeedCategory.NEUTRAL
 
     def update_intensity(self, delta: float) -> None:
-        self.intensity = _clamp01(self.intensity + delta)
+        self.intensity = clamp01(self.intensity + delta)
 
     def satisfy(self, amount: float) -> None:
-        self.satisfaction = _clamp01(self.satisfaction + amount)
-        self.intensity = _clamp01(self.intensity - amount)
+        self.satisfaction = clamp01(self.satisfaction + amount)
+        self.intensity = clamp01(self.intensity - amount)
 
     def decay(self, factor: float = 0.05) -> None:
-        self.satisfaction = _clamp01(self.satisfaction - factor)
-        self.intensity = _clamp01(self.intensity + factor)
+        self.satisfaction = clamp01(self.satisfaction - factor)
+        self.intensity = clamp01(self.intensity + factor)
 
 
 @dataclass
@@ -61,7 +63,7 @@ class EmotionalState:
     stress: float = 0.0
 
     def normalized_stress(self) -> float:
-        return _clamp01(self.stress)
+        return clamp01(self.stress)
 
 
 class EmotionRegulationEngine:
@@ -76,7 +78,7 @@ class EmotionRegulationEngine:
                 stress -= self.stress_down_per_success * max(outcome.effect, 0.0)
             else:
                 stress += self.stress_up_per_failure * max(outcome.effect, 0.2)
-        return EmotionalState(stress=_clamp01(stress))
+        return EmotionalState(stress=clamp01(stress))
 
 
 @dataclass
@@ -107,13 +109,13 @@ class CognitiveMomentum:
     def update(self, goal_id: str, success: bool) -> None:
         previous = self.goal_momentum.get(goal_id, 0.0)
         if success:
-            self.goal_momentum[goal_id] = _clamp01((previous * 0.8) + 0.3)
+            self.goal_momentum[goal_id] = clamp01((previous * 0.8) + 0.3)
         else:
-            self.goal_momentum[goal_id] = _clamp01(previous * 0.6)
+            self.goal_momentum[goal_id] = clamp01(previous * 0.6)
 
     def decay(self) -> None:
         for goal_id, momentum in list(self.goal_momentum.items()):
-            self.goal_momentum[goal_id] = _clamp01(momentum * self.cycle_decay)
+            self.goal_momentum[goal_id] = clamp01(momentum * self.cycle_decay)
 
     def momentum(self, goal_id: str) -> float:
         return self.goal_momentum.get(goal_id, 0.0)
@@ -139,7 +141,7 @@ class GoalAttractorField:
                 delta = 0.1 if distance == 1 else -0.03
                 key = (source_goal, target_goal)
                 previous = self.goal_goal.get(key, 0.0)
-                self.goal_goal[key] = _clamp11((previous * 0.9) + delta)
+                self.goal_goal[key] = clamp11((previous * 0.9) + delta)
 
 
 class MotivationEngine:
@@ -158,6 +160,7 @@ class MotivationEngine:
         self.regulation_engine = regulation_engine or EmotionRegulationEngine()
         self.emotional_state = initial_emotional_state or EmotionalState()
         self.identity = identity
+        self.planner = StrategyPlanner()
         self.counterfactual_engine = CounterfactualEngine()
         self.phase_space = CognitivePhaseSpace()
         self.energy_model = CognitiveEnergyModel()
@@ -320,11 +323,6 @@ class MotivationEngine:
         identity_alignment = identity.value_for(category) if identity else 1.0
         return base_weight * identity_alignment
 
-    @staticmethod
-    def build_strategy(goal: AgentGoal) -> Strategy:
-        """Baseline fallback strategy; TODO: replace with richer planning policy."""
-        return Strategy(goal=goal, steps=[f"assess:{goal.id}", f"execute:{goal.id}", f"verify:{goal.id}"])
-
     def reflect(self, outcome: ActionOutcome, goal: AgentGoal, need_node_ids: list[str], outcome_node_id: str) -> None:
         for need in goal.linked_needs:
             if outcome.success:
@@ -357,10 +355,9 @@ class MotivationEngine:
     ) -> tuple[Strategy, str, list[str]]:
         need_node_ids, goal_node_id = self._link_need_to_goal(goal, emotion_node_id)
 
-        if contract is not None:
-            from ls.cognition.need_market_engine import NeedMarketEngine
+        strategy = self.planner.build_strategy(goal, contract)
 
-            strategy = NeedMarketEngine.build_strategy(contract, goal)
+        if contract is not None:
             strategy_node = self.memory_graph.add_node(
                 node_type="strategy",
                 content={"goal_id": goal.id, "contract_id": contract.id, "steps": strategy.steps},
@@ -387,7 +384,6 @@ class MotivationEngine:
             self.memory_graph.add_edge(MemoryEdge(emotion_node_id, strategy_node.node_id, "modulates", 1.0))
             return strategy, strategy_node.node_id, need_node_ids
 
-        strategy = self.build_strategy(goal)
         strategy_node = self.memory_graph.add_node(node_type="strategy", content={"goal_id": goal.id, "steps": strategy.steps})
         self.memory_graph.add_edge(MemoryEdge(goal_node_id, strategy_node.node_id, "produces", goal.priority))
         return strategy, strategy_node.node_id, need_node_ids
@@ -587,7 +583,7 @@ class MotivationEngine:
                 for category in goal_categories.get(goal.id, set()):
                     edge_key = (goal.id, category.value)
                     previous = self.resonance_map.get(edge_key, 0.0)
-                    self.resonance_map[edge_key] = _clamp11((previous * 0.7) + (real_effect * 0.3))
+                    self.resonance_map[edge_key] = clamp11((previous * 0.7) + (real_effect * 0.3))
 
             alternatives = [candidate for candidate in goals if candidate.id != goal.id]
             if not alternatives:
@@ -612,7 +608,7 @@ class MotivationEngine:
 
                     edge_key = (goal.id, category.value)
                     previous = self.resonance_map.get(edge_key, 0.0)
-                    self.resonance_map[edge_key] = _clamp11((previous * 0.8) + (category_effect * 0.2))
+                    self.resonance_map[edge_key] = clamp11((previous * 0.8) + (category_effect * 0.2))
 
                     if self.identity:
                         self.identity.update_simulated(category, category_effect, baseline=baseline)
@@ -637,9 +633,3 @@ class MotivationEngine:
         ]
 
 
-def _clamp01(value: float) -> float:
-    return max(0.0, min(1.0, value))
-
-
-def _clamp11(value: float) -> float:
-    return max(-1.0, min(1.0, value))
