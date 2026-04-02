@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -24,18 +25,20 @@ class MemoryGraphStore:
     def __init__(self, path: str | Path = "data/graph_memory/cases.jsonl") -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
 
     def list_cases(self) -> list[MemoryCase]:
-        if not self.path.exists():
-            return []
-        cases: list[MemoryCase] = []
-        with self.path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                cases.append(MemoryCase.from_dict(json.loads(line)))
-        return cases
+        with self._lock:
+            if not self.path.exists():
+                return []
+            cases: list[MemoryCase] = []
+            with self.path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    cases.append(MemoryCase.from_dict(json.loads(line)))
+            return cases
 
     def get_case(self, case_id: str) -> Optional[MemoryCase]:
         for case in self.list_cases():
@@ -44,21 +47,22 @@ class MemoryGraphStore:
         return None
 
     def save_case(self, case: MemoryCase) -> MemoryCase:
-        cases = self.list_cases()
-        if not case.case_id:
-            case.case_id = str(uuid4())
-        if not case.created_at:
-            case.created_at = _utc_now()
-        updated = False
-        for index, existing in enumerate(cases):
-            if existing.case_id == case.case_id:
-                cases[index] = case
-                updated = True
-                break
-        if not updated:
-            cases.append(case)
-        self._write_cases(cases)
-        return case
+        with self._lock:
+            cases = self.list_cases()
+            if not case.case_id:
+                case.case_id = str(uuid4())
+            if not case.created_at:
+                case.created_at = _utc_now()
+            updated = False
+            for index, existing in enumerate(cases):
+                if existing.case_id == case.case_id:
+                    cases[index] = case
+                    updated = True
+                    break
+            if not updated:
+                cases.append(case)
+            self._write_cases(cases)
+            return case
 
     def remember(
         self,
@@ -112,25 +116,26 @@ class MemoryGraphStore:
         unit: ResonanceKnowledgeUnit,
     ) -> ResonanceKnowledgeUnit:
         """Сохраняет или обновляет единицу проверенного когнитивного маршрута."""
-        units = self._load_resonance_units()
+        with self._lock:
+            units = self._load_resonance_units()
 
-        if not unit.unit_id:
-            unit.unit_id = str(uuid4())
-        if not unit.timestamp:
-            unit.timestamp = _utc_now()
+            if not unit.unit_id:
+                unit.unit_id = str(uuid4())
+            if not unit.timestamp:
+                unit.timestamp = _utc_now()
 
-        updated = False
-        for i, existing in enumerate(units):
-            if existing.unit_id == unit.unit_id:
-                units[i] = unit
-                updated = True
-                break
+            updated = False
+            for i, existing in enumerate(units):
+                if existing.unit_id == unit.unit_id:
+                    units[i] = unit
+                    updated = True
+                    break
 
-        if not updated:
-            units.append(unit)
+            if not updated:
+                units.append(unit)
 
-        self._write_resonance_units(units)
-        return unit
+            self._write_resonance_units(units)
+            return unit
 
     def list_resonance_units(self) -> list[ResonanceKnowledgeUnit]:
         return self._load_resonance_units()
@@ -181,17 +186,18 @@ class MemoryGraphStore:
         return [u for u, _ in scored[:top_k]]
 
     def _load_resonance_units(self) -> list[ResonanceKnowledgeUnit]:
-        path = self._resonance_path()
-        if not path.exists():
-            return []
+        with self._lock:
+            path = self._resonance_path()
+            if not path.exists():
+                return []
 
-        units: list[ResonanceKnowledgeUnit] = []
-        with path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if line:
-                    units.append(ResonanceKnowledgeUnit.from_dict(json.loads(line)))
-        return units
+            units: list[ResonanceKnowledgeUnit] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if line:
+                        units.append(ResonanceKnowledgeUnit.from_dict(json.loads(line)))
+            return units
 
     def _write_resonance_units(self, units: list[ResonanceKnowledgeUnit]) -> None:
         """MVP-only storage.

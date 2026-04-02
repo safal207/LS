@@ -465,13 +465,6 @@ class AgentLoop:
                 )
             except Exception as exc:
                 logger.debug("Subconscious temporal write failed: %s", exc)
-        if self._qwen_omni_worker is not None:
-            try:
-                unit = self._qwen_omni_worker.capture_and_analyze(trigger="subconscious_pass")
-                if unit is not None:
-                    self.memory["subconscious_last_omni_unit"] = unit.to_dict()
-            except Exception as exc:
-                logger.debug("Subconscious omni pass failed: %s", exc)
 
     def _compute_feedback_proxy(self, user_msg: str) -> None:
         """

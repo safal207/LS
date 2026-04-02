@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 
 from .derived_module_registry import DerivedModuleRegistry
 from .memory_store import MemoryGraphStore
@@ -60,7 +60,6 @@ class CareCycleRunner:
         causal_path: list[dict] | None = None,
         resonance_score: float | None = None,
         alignment_score: float | None = None,
-        omni_worker: Any | None = None,
     ) -> Optional[CareCycleResult]:
         current = self.registry.get_module(module) if isinstance(module, str) else module
         if current is None:
@@ -88,12 +87,6 @@ class CareCycleRunner:
         current.care_cycles += 1
         current.last_reviewed_at = _utc_now()
         saved = self.registry.save_module(current)
-        if omni_worker is not None and hasattr(omni_worker, "capture_and_analyze"):
-            try:
-                omni_worker.capture_and_analyze(trigger="care_cycle")
-            except Exception:
-                # Best-effort: care cycle must not fail on multimodal background worker.
-                pass
         if (
             self.graph_store is not None
             and source_question

@@ -57,6 +57,7 @@ class QwenOmniWorker:
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._last_frame_ts = 0.0
+        self._capture_lock = threading.Lock()
 
     @property
     def realtime_enabled(self) -> bool:
@@ -83,24 +84,34 @@ class QwenOmniWorker:
             self._stop_event.wait(timeout=self.cycle_interval_s)
 
     def capture_and_analyze(self, *, trigger: str = "manual") -> Optional[ResonanceKnowledgeUnit]:
-        now = time.time()
-        if now - self._last_frame_ts < 1.0 / self.max_fps:
-            return None
+        with self._capture_lock:
+            now = time.time()
+            if now - self._last_frame_ts < 1.0 / self.max_fps:
+                return None
 
-        self._last_frame_ts = now
-        frame_payload, frame_meta = self._capture_screen_frame()
-        audio_text = self._capture_audio_text()
-        model_response = self._analyze_with_model(frame_payload=frame_payload, frame_meta=frame_meta, audio_text=audio_text)
-        if model_response is None:
-            return None
+            self._last_frame_ts = now
+            frame_payload, frame_meta = self._capture_screen_frame()
+            audio_text = self._capture_audio_text()
+            model_response = self._analyze_with_model(
+                frame_payload=frame_payload,
+                frame_meta=frame_meta,
+                audio_text=audio_text,
+            )
+            if model_response is None:
+                return None
 
-        if self.on_response is not None:
-            self.on_response(model_response)
+            if self.on_response is not None:
+                self.on_response(model_response)
 
-        insight = self._build_insight(model_response=model_response, frame_meta=frame_meta, audio_text=audio_text, trigger=trigger)
-        unit = self._build_unit_from_insight(insight)
-        self.graph_store.store_resonance_unit(unit)
-        return unit
+            insight = self._build_insight(
+                model_response=model_response,
+                frame_meta=frame_meta,
+                audio_text=audio_text,
+                trigger=trigger,
+            )
+            unit = self._build_unit_from_insight(insight)
+            self.graph_store.store_resonance_unit(unit)
+            return unit
 
     def _capture_screen_frame(self) -> tuple[str | None, dict[str, Any]]:
         try:
