@@ -164,6 +164,12 @@ class AgentLoop:
         # Vision Subsystem Integration (Screen Perception v2)
         self.vision = VisionSubsystem()
         self.vision.intent_bus.subscribe(self._handle_vision_intent)
+        self._mode_detector = None
+        try:
+            from coordinator import ModeDetector
+            self._mode_detector = ModeDetector()
+        except Exception:
+            self._mode_detector = None
 
 
     def _maybe_enter_sleep_mode(self):
@@ -724,6 +730,24 @@ class AgentLoop:
                 return response
         return response
 
+    def _explain_mode_for_item(self, question: str, item: dict) -> str:
+        explicit = item.get("_mode_explanation")
+        if isinstance(explicit, str) and explicit.strip():
+            return explicit.strip()
+        detector = self._mode_detector
+        if detector is None:
+            return "Режим выбран автоматически по текущему контексту."
+        try:
+            analysis = detector.analyze(
+                input_data=question,
+                context=item if isinstance(item, dict) else {},
+                system_load=0.0,
+            )
+            route = ", ".join(analysis.engine_route)
+            return f"Режим {analysis.cognitive_mode}: {analysis.reason}. Маршрут: {route}."
+        except Exception:
+            return "Режим выбран автоматически по текущему контексту."
+
     def _blocked_response_text(self) -> str:
         visceral_influence = getattr(self.causal_transitions.amygdala, "visceral", None)
         visceral_influence = float(visceral_influence.get_influence()) if visceral_influence else 0.0
@@ -801,6 +825,7 @@ class AgentLoop:
                 return
 
             question = item.get("text", "")
+            mode_explanation = self._explain_mode_for_item(question, item)
 
             if question.strip() == "/sleep":
                 self._enter_sleep_mode()
@@ -829,7 +854,8 @@ class AgentLoop:
                     "generation_time": 0.5,
                     "timestamp": time.time(),
                     "vision_task": True,
-                    "priority": "P1"
+                    "priority": "P1",
+                    "mode_explanation": mode_explanation,
                 }
                 self._emit("output_ready", payload, task_id=task_id)
                 if self.output_queue:
@@ -851,7 +877,8 @@ class AgentLoop:
                     "generation_time": 0.0,
                     "timestamp": time.time(),
                     "reflex_triggered": True,
-                    "danger_level": self.reflex.danger_level
+                    "danger_level": self.reflex.danger_level,
+                    "mode_explanation": mode_explanation,
                 }
                 self._emit("output_ready", payload, task_id=task_id)
                 if self.output_queue:
@@ -867,7 +894,8 @@ class AgentLoop:
                     "generation_time": 0.0,
                     "timestamp": time.time(),
                     "amygdala_status": "blocked",
-                    "amygdala_reason": "prompt_injection"
+                    "amygdala_reason": "prompt_injection",
+                    "mode_explanation": mode_explanation,
                 }
                 self._emit("output_ready", payload, task_id=task_id)
                 if self.output_queue:
@@ -1060,6 +1088,7 @@ class AgentLoop:
                     "amygdala_history_size": len(self.causal_transitions.amygdala.history),
                     "personality_p": float(getattr(self.causal_transitions.amygdala, "personality_p", 0.5)),
                     "causal_rollback_layer": rollback_layer,
+                    "mode_explanation": mode_explanation,
                 }
                 self._increment_metric("outputs", 1)
                 with self._task_lock:
@@ -1177,6 +1206,7 @@ class AgentLoop:
                     "smart_ear_drift_detected": bool(item.get("_smart_ear_drift_detected", False)),
                     "smart_ear_drift_reason": item.get("_smart_ear_drift_reason"),
                     "personality_p": float(getattr(self.causal_transitions.amygdala, "personality_p", 0.5)),
+                    "mode_explanation": mode_explanation,
                 }
                 if stability_ok is not None:
                     payload["causal_stability_ok"] = stability_ok
