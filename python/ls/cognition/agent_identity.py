@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ls.cognition.motivation_engine import NeedCategory
+from ls.cognition.utils import clamp01
 
 
 @dataclass
@@ -27,7 +28,7 @@ class AgentIdentity:
             delta = self.learning_rate * max(outcome_effect, 0.0)
         else:
             delta = -self.learning_rate * 0.5
-        self.values[category.value] = _clamp01(current + delta)
+        self.values[category.value] = clamp01(current + delta)
 
     def update_real(self, category: NeedCategory, effect: float, baseline: float = 0.0) -> None:
         """Update identity from real outcomes."""
@@ -41,8 +42,4 @@ class AgentIdentity:
     def _update_value(self, category: NeedCategory, learning_rate: float, effect: float, baseline: float) -> None:
         current = self.values.get(category.value, 1.0)
         delta = learning_rate * (effect - baseline)
-        self.values[category.value] = _clamp01(current + delta)
-
-
-def _clamp01(value: float) -> float:
-    return max(0.0, min(1.0, value))
+        self.values[category.value] = clamp01(current + delta)
