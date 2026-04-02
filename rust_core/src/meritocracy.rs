@@ -224,7 +224,7 @@ fn evaluate_quality(question: &str, answer: &str, thread_context: &str) -> Quali
 }
 
 #[pyfunction]
-#[pyo3(signature = (question, thread_context=None, candidates_json=\"[]\", policy_json=None))]
+#[pyo3(signature = (question, thread_context=None, candidates_json="[]", policy_json=None))]
 pub fn meritocracy_select_json(
     question: &str,
     thread_context: Option<&str>,
