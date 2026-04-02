@@ -181,11 +181,7 @@ class ContributionRecord:
 
 @dataclass
 class ResonanceKnowledgeUnit:
-    """Единица проверенного когнитивного маршрута.
-
-    Хранит не просто ответ, а структуру мышления:
-    question -> intent -> why -> causal_path -> outcome/resonance.
-    """
+    """Единица проверенного когнитивного маршрута (структура мышления, а не просто ответ)."""
 
     source_question: str
 
@@ -208,6 +204,7 @@ class ResonanceKnowledgeUnit:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ResonanceKnowledgeUnit":
+        # Совместимость с JSONL-снапшотами MVP.
         return cls(
             source_question=str(data.get("source_question") or ""),
             unit_id=str(data.get("unit_id") or str(uuid4())),

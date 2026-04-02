@@ -172,10 +172,8 @@ class MemoryGraphStore:
             if query_match:
                 score += 0.3
 
-            # TODO:
-            # - add goal_vector cosine
-            # - add resonance_score
-            # - add alignment_score
+            # TODO: add goal_vector cosine similarity.
+            # TODO: add evolve-oriented route scoring.
             if score > 0.0:
                 scored.append((u, score))
 

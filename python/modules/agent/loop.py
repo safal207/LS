@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import queue
 import re
 import threading
@@ -21,6 +22,7 @@ from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
 from shared.event_bus import EventBus
 from perception.coordinator import VisionSubsystem
+from graph.memory_store import MemoryGraphStore
 import lthread
 
 # CognitiveCycleLogger (optional — graceful fallback)
@@ -201,6 +203,18 @@ class AgentLoop:
         self.vision.intent_bus.subscribe(self._handle_vision_intent)
         self._mode_detector = None
         self._coordinator = None
+
+        self._qwen_omni_worker: Any | None = None
+        if str(os.environ.get("QWEN_OMNI_ENABLED", "0")).lower() in {"1", "true", "yes", "on"}:
+            try:
+                from omni import QwenOmniWorker
+
+                self._qwen_omni_worker = QwenOmniWorker(
+                    graph_store=MemoryGraphStore(),
+                    cycle_interval_s=self._subconscious_interval_s,
+                )
+            except Exception as exc:
+                logger.debug("QwenOmniWorker init skipped: %s", exc)
         try:
             from coordinator import ModeDetector
             self._mode_detector = ModeDetector()
@@ -451,6 +465,13 @@ class AgentLoop:
                 )
             except Exception as exc:
                 logger.debug("Subconscious temporal write failed: %s", exc)
+        if self._qwen_omni_worker is not None:
+            try:
+                unit = self._qwen_omni_worker.capture_and_analyze(trigger="subconscious_pass")
+                if unit is not None:
+                    self.memory["subconscious_last_omni_unit"] = unit.to_dict()
+            except Exception as exc:
+                logger.debug("Subconscious omni pass failed: %s", exc)
 
     def _compute_feedback_proxy(self, user_msg: str) -> None:
         """
@@ -1706,6 +1727,8 @@ class AgentLoop:
                 )
                 self._world_thread.start()
         self.vision.start() # Start Screen Perception v2
+        if self._qwen_omni_worker is not None:
+            self._qwen_omni_worker.start()
 
         while self.running:
             self._maybe_collect_windows_context(session_id="agent_loop")
@@ -1780,6 +1803,8 @@ class AgentLoop:
         self._subconscious_stop.set()
         self._world_stop.set()
         self.vision.stop() # Stop Screen Perception v2
+        if self._qwen_omni_worker is not None:
+            self._qwen_omni_worker.stop()
         with self._bloodstream_lock:
             bloodstream_thread = self._bloodstream_thread
             subconscious_thread = self._subconscious_thread
