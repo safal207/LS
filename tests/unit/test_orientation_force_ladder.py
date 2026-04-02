@@ -142,6 +142,45 @@ class TestOrientationForces(unittest.TestCase):
         self.assertGreaterEqual(signal_after["trajectory_signal"],
                                 signal["trajectory_signal"] - 0.01)  # small tolerance
 
+    def test_coactivation_reinforces_links(self):
+        tg = self._graph_with_nodes()
+        # Pre-existing near-zero link
+        tg.link_nodes("subconscious:reactive", "lesson:approach_worked", weight=0.01)
+        before = dict(tg.get_linked_nodes("subconscious:reactive"))
+
+        tg.apply_orientation_forces(
+            chaos_score=0.1,
+            harmony_score=0.8,
+            drift_pressure=0.9,   # boosts lessons
+            rhythm_phase="inhale" # boosts reactive
+        )
+        after = dict(tg.get_linked_nodes("subconscious:reactive"))
+        self.assertIn("lesson:approach_worked", after)
+        self.assertGreater(
+            after["lesson:approach_worked"],
+            before.get("lesson:approach_worked", 0.0),
+            "Co-activated nodes should strengthen associative edge",
+        )
+
+    def test_linked_node_gets_weak_propagation_boost(self):
+        tg = self._graph_with_nodes()
+        tg.link_nodes("subconscious:reactive", "lesson:approach_worked", weight=0.4)
+        lesson_before = tg.nodes["lesson:approach_worked"].resonance
+
+        # Inhale strongly activates reactive; lesson should receive a weak propagated boost.
+        tg.apply_orientation_forces(
+            chaos_score=0.0,
+            harmony_score=0.2,
+            drift_pressure=0.0,
+            rhythm_phase="inhale",
+        )
+        lesson_after = tg.nodes["lesson:approach_worked"].resonance
+        self.assertGreater(
+            lesson_after,
+            lesson_before,
+            "Linked lesson node should receive weak propagated resonance",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

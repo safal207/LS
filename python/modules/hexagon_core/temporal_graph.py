@@ -100,6 +100,7 @@ class OrientationSnapshot:
 class TemporalGraph:
     def __init__(self) -> None:
         self.nodes: Dict[str, TemporalNode] = {}
+        self.links: Dict[str, Dict[str, float]] = {}
         self._graph_lock = threading.Lock()
 
         # Orientation trajectory history (last 60 snapshots)
@@ -118,9 +119,13 @@ class TemporalGraph:
         """Create node if absent, else boost resonance. Thread-safe."""
         with self._graph_lock:
             if node_id in self.nodes:
+                before = self.nodes[node_id].resonance
                 self.nodes[node_id].update_resonance(
                     min(1.0, self.nodes[node_id].resonance + resonance * 0.12)
                 )
+                after = self.nodes[node_id].resonance
+                if after > before:
+                    self._propagate_associative_boost_unlocked(node_id, after - before)
                 return self.nodes[node_id]
             node = TemporalNode(
                 id=node_id,
@@ -129,7 +134,61 @@ class TemporalGraph:
                 resting_resonance=resting_resonance if resting_resonance is not None else resonance * 0.7,
             )
             self.nodes[node_id] = node
+            self.links.setdefault(node_id, {})
             return node
+
+    def link_nodes(self, source_id: str, target_id: str, weight: float = 0.12, bidirectional: bool = True) -> None:
+        """Create or strengthen a causal-associative edge between two nodes."""
+        if source_id == target_id:
+            return
+        clamped = max(0.01, min(1.0, float(weight)))
+        with self._graph_lock:
+            self.links.setdefault(source_id, {})
+            self.links.setdefault(target_id, {})
+            current = self.links[source_id].get(target_id, 0.0)
+            self.links[source_id][target_id] = max(current, clamped)
+            if bidirectional:
+                current_back = self.links[target_id].get(source_id, 0.0)
+                self.links[target_id][source_id] = max(current_back, clamped)
+
+    def get_linked_nodes(self, node_id: str) -> List[Tuple[str, float]]:
+        with self._graph_lock:
+            linked = list(self.links.get(node_id, {}).items())
+        return sorted(linked, key=lambda item: item[1], reverse=True)
+
+    def _propagate_associative_boost_unlocked(self, source_id: str, source_delta: float) -> Dict[str, float]:
+        """Apply weak one-hop boost to linked nodes. Requires graph lock."""
+        if source_delta <= 0:
+            return {}
+        deltas: Dict[str, float] = {}
+        for target_id, weight in self.links.get(source_id, {}).items():
+            target = self.nodes.get(target_id)
+            if target is None:
+                continue
+            boost = min(0.035, source_delta * weight * 0.35)
+            if boost <= 0:
+                continue
+            before = target.resonance
+            target.update_resonance(before + boost)
+            actual = target.resonance - before
+            if actual > 0:
+                deltas[target_id] = deltas.get(target_id, 0.0) + actual
+        return deltas
+
+    def _reinforce_coactivation_unlocked(self, deltas: Dict[str, float]) -> None:
+        """If nodes are co-activated together, reinforce their association edge."""
+        activated = [nid for nid, delta in deltas.items() if delta > 0.0]
+        if len(activated) < 2:
+            return
+        for i in range(len(activated)):
+            for j in range(i + 1, len(activated)):
+                a = activated[i]
+                b = activated[j]
+                strength = max(0.01, min(0.25, min(deltas[a], deltas[b]) * 2.0))
+                self.links.setdefault(a, {})
+                self.links.setdefault(b, {})
+                self.links[a][b] = min(1.0, self.links[a].get(b, 0.0) + strength)
+                self.links[b][a] = min(1.0, self.links[b].get(a, 0.0) + strength)
 
     def strengthen_strong_links(self, threshold: float = 0.75, boost: float = 0.15) -> int:
         count = 0
@@ -147,6 +206,10 @@ class TemporalGraph:
         with self._graph_lock:
             for nid in to_remove:
                 self.nodes.pop(nid, None)
+                self.links.pop(nid, None)
+            for edges in self.links.values():
+                for nid in to_remove:
+                    edges.pop(nid, None)
         return len(to_remove)
 
     def get_meritocratic_axis(self) -> Optional[TemporalNode]:
@@ -217,8 +280,19 @@ class TemporalGraph:
                     delta += 0.03
 
                 if delta != 0.0:
+                    before = node.resonance
                     node.update_resonance(node.resonance + delta)
-                    deltas[nid] = delta
+                    actual = node.resonance - before
+                    deltas[nid] = actual
+            self._reinforce_coactivation_unlocked(deltas)
+            propagated: Dict[str, float] = {}
+            for nid, actual in list(deltas.items()):
+                if actual > 0:
+                    linked_deltas = self._propagate_associative_boost_unlocked(nid, actual)
+                    for target_id, boost in linked_deltas.items():
+                        propagated[target_id] = propagated.get(target_id, 0.0) + boost
+            for nid, boost in propagated.items():
+                deltas[nid] = deltas.get(nid, 0.0) + boost
 
         return deltas
 
