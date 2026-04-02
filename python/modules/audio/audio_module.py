@@ -11,23 +11,54 @@ import logging
 import queue
 import tempfile
 import os
+from dataclasses import dataclass, field
 from typing import Optional
 from config import SAMPLE_RATE, AUDIO_CHUNK_DURATION, VOLUME_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class SimpleEvent:
+    """Minimal event compatible with EventBus.publish / publish_async."""
+    type: str
+    payload: dict = field(default_factory=dict)
+
+
 class AudioIngestion:
-    def __init__(self, output_queue: queue.Queue):
+    def __init__(self, output_queue: queue.Queue, event_bus=None):
+        """Initialize audio ingestion.
+
+        The PyAudio instance is created lazily in :meth:`start_stream` to avoid
+        resource leaks when the module is instantiated but never started.
+        Callers must invoke :meth:`stop` (or use :meth:`run`, which calls it
+        automatically) to release resources.
+
+        Args:
+            output_queue: Queue to push temp WAV file paths for STT.
+            event_bus: Optional ``EventBus`` instance.  When provided, VAD
+                state *transitions* (voice→silence and silence→voice) are
+                published as ``voice_detected`` / ``silence_detected`` events.
+                Only transitions are published, not every chunk, to avoid
+                flooding the EventBus.
+        """
         self.output_queue = output_queue
-        self.p = pyaudio.PyAudio()
+        self.event_bus = event_bus
+        self.p: Optional[pyaudio.PyAudio] = None
         self.stream = None
         self.running = False
         self.device_index = None
         self.chunk_size = int(SAMPLE_RATE * AUDIO_CHUNK_DURATION)
+        # Edge detection: only emit events on VAD state *change*
+        self._was_voice_active: bool = False
 
     def find_vb_cable_device(self) -> Optional[int]:
-        """Find VB-Cable output device index"""
+        """Find VB-Cable output device index.
+
+        Searches for devices with 'cable' and 'output' or 'vb-audio' in their
+        name.  Falls back to any device containing 'cable'.  Returns ``None``
+        if no match is found.
+        """
         try:
             for i in range(self.p.get_device_count()):
                 info = self.p.get_device_info_by_index(i)
@@ -114,8 +145,15 @@ class AudioIngestion:
             return ""
 
     def start_stream(self) -> bool:
-        """Initialize and start audio stream"""
+        """Initialize PyAudio (if needed) and start the audio capture stream.
+
+        Returns:
+            ``True`` on success, ``False`` if no suitable device is found or
+            the stream cannot be opened.
+        """
         try:
+            if self.p is None:
+                self.p = pyaudio.PyAudio()
             self.device_index = self.find_vb_cable_device()
 
             if self.device_index is None:
@@ -149,9 +187,11 @@ class AudioIngestion:
         try:
             audio_data = np.frombuffer(in_data, dtype=np.float32)
 
-            if self.is_voice_active(audio_data):
-                temp_filename = self.save_audio_chunk(audio_data)
+            rms = float(np.sqrt(np.mean(audio_data.astype(np.float32) ** 2)))
+            is_active = self.is_voice_active(audio_data)
 
+            if is_active:
+                temp_filename = self.save_audio_chunk(audio_data)
                 if temp_filename:
                     try:
                         self.output_queue.put_nowait(temp_filename)
@@ -164,6 +204,17 @@ class AudioIngestion:
                             pass
             else:
                 logger.debug("No voice activity detected")
+
+            # Publish EventBus event only on VAD state *transition* (edge detection)
+            if self.event_bus is not None and is_active != self._was_voice_active:
+                event_type = "voice_detected" if is_active else "silence_detected"
+                try:
+                    self.event_bus.publish_async(
+                        SimpleEvent(event_type, {"rms": round(rms, 6), "timestamp": time.time()})
+                    )
+                except Exception:
+                    pass
+                self._was_voice_active = is_active
 
         except Exception as e:
             logger.error(f"Error in audio callback: {e}")
@@ -208,7 +259,11 @@ class AudioIngestion:
             logger.error(f"Failed to restart stream: {e}")
 
     def stop(self):
-        """Stop audio capture"""
+        """Stop audio capture and release all PyAudio resources.
+
+        Safe to call multiple times or even if :meth:`start_stream` was never
+        invoked.
+        """
         logger.info("Stopping Audio Ingestion module")
         self.running = False
 
@@ -218,11 +273,14 @@ class AudioIngestion:
                 self.stream.close()
             except Exception:
                 pass
+            self.stream = None
 
-        try:
-            self.p.terminate()
-        except Exception:
-            pass
+        if self.p is not None:
+            try:
+                self.p.terminate()
+            except Exception:
+                pass
+            self.p = None
 
         logger.info("Audio Ingestion module stopped")
 

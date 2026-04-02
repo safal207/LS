@@ -24,8 +24,10 @@
 - **12-Layer Cognitive Architecture**: Including Metabolism (knowledge processing), Amygdala (emotional balance), and Sleep/Homeostasis (memory consolidation).
 - **Rust Optimization Layer**: High-performance pattern matching and SIMD-accelerated vector search for real-time responsiveness.
 - **Temporal Memory**: A graph-based belief system that tracks the evolution of knowledge over time.
+- **Reasoning Diff**: Compare agent reasoning traces and detect divergence points.
 - **Local-First & Privacy-Centric**: Designed to run entirely on your hardware with built-in PII redaction and safety gates.
 - **Web4 Integration**: Ready for the next generation of decentralized AI protocols.
+- **AI Venture Engine + PFC**: Portfolio-level admission, stage-gate, and capital allocation controls for turning idea flow into execution throughput.
 
 ## 🛠 Architecture
 
@@ -82,6 +84,109 @@ python apps/console/main.py
 - [Architecture Deep Dive](docs/ARCHITECTURE.md) — Data flow and system components.
 - [Web4 Overview](docs/WEB4_OVERVIEW.md) — Vision for the decentralized future.
 - [HCP & CIP Specs](docs/HCP_SPEC.md) — Protocol specifications for human and agent interactions.
+- [AI Venture Engine Positioning](docs/AI_VENTURE_ENGINE_PFC_POSITIONING.md) — Product documentation and marketing positioning for Portfolio Flow Controller.
+
+
+## ⚡ LLM Speed Evolution (Python / Rust / C++)
+
+We now publish repeatable acceleration benchmarks for the interview-copilot streaming path:
+
+- Fast connect + high-speed guide: [`docs/FAST_CONNECT_AND_PERFORMANCE.md`](docs/FAST_CONNECT_AND_PERFORMANCE.md)
+- Roadmap: [`docs/LLM_ACCELERATION_ROADMAP.md`](docs/LLM_ACCELERATION_ROADMAP.md)
+- Latest benchmark report: [`docs/online_interview_llm_latency_results.md`](docs/online_interview_llm_latency_results.md)
+- Architecture review: [`docs/online_interview_llm_latency_review.md`](docs/online_interview_llm_latency_review.md)
+
+Current snapshot includes:
+- TTFT comparison (streaming vs non-streaming),
+- Parser micro-benchmark (Python vs Rust vs C++),
+- practical startup path for fastest connect and response.
+
+
+## Reasoning Diff
+
+Reasoning Diff allows developers to compare two reasoning traces and detect where agent decisions diverged.
+
+### Why it matters
+
+AI debugging often requires comparing:
+- a working reasoning path;
+- a failed reasoning path.
+
+Reasoning Diff highlights the divergence point so you can quickly isolate where the run started to drift, including potential hallucination branches.
+
+### Visual example
+
+Trace A (success)
+`start → plan → execute → verify → finish`
+
+Trace B (failure)
+`start → plan → execute → assumption → hallucination → contradiction`
+
+Diff output:
+
+```text
+start
+plan
+execute
+--- divergence detected ---
+verify
+vs
+assumption
+```
+
+The system highlights the first conflicting transition, then lets you inspect the branches that follow.
+
+### CLI-style usage
+
+```bash
+ltp diff trace-success.json trace-failure.json
+```
+
+Example output:
+
+```text
+Comparing reasoning traces...
+
+Shared path:
+start → plan → execute
+
+Divergence point:
+Trace A: verify
+Trace B: assumption
+
+Possible hallucination path detected.
+```
+
+### Developer example (TypeScript)
+
+```ts
+const diff = ReasoningDiff.compare(traceA, traceB)
+
+console.log(diff.sharedPath)
+console.log(diff.divergencePoint)
+console.log(diff.branchA)
+console.log(diff.branchB)
+```
+
+This gives developers a compact way to inspect how two runs split and which branch introduced unstable reasoning.
+
+### Comparing successful vs failed reasoning
+
+Common debugging flow:
+1. Agent run succeeds.
+2. Another run fails.
+3. Developer compares traces.
+4. Reasoning Diff highlights divergence.
+
+### Relation to Reasoning State Graph
+
+Reasoning Diff operates on the Reasoning State Graph and extends Trace Replay capabilities.
+Because reasoning is represented as a graph of transitions, the system can:
+- compare paths;
+- detect divergence;
+- visualize alternate reasoning routes.
+
+Together with trace, replay, and rewind capabilities, Reasoning Diff completes the core AI reasoning observability toolkit.
 
 ---
 
@@ -114,8 +219,11 @@ LS (Local Cognitive System) — локальная когнитивная сис
 - `docs/RUST_TRANSPORT_SPEC.md` — спецификация Rust‑транспорта
 - `docs/ARCH_DIAGRAMS.md` — архитектурные диаграммы (Mermaid)
 - `docs/ROADMAP.md` — дорожная карта
+- `docs/FAST_CONNECT_AND_PERFORMANCE.md` — быстрый старт и high-speed режим для пользователей
 - `docs/INVESTMENT_ANALYSIS_RU.md` — инвестиционный анализ и рекомендации по позиционированию
+- `docs/AI_VENTURE_ENGINE_PFC_POSITIONING.md` — документация и маркетинговое позиционирование AI Venture Engine + PFC
 - `docs/architecture/layers.md` — полный каталог 12 архитектурных слоев (v1.1)
+- `docs/MODEL_ECONOMY_LAYER.md` — MEL: экономика моделей, реестр, metering и revenue split
 - `schemas/*.schema.json` — формальные JSON Schema протоколов
 
 ## Архитектура GhostGPT (Март 2026)
@@ -298,3 +406,84 @@ Env:
 
 ---
 © 2026 GhostGPT Team. Strictly Local. Strictly Cognitive.
+
+## Adaptive Plugin & Monitoring System
+
+Новый архитектурный слой добавляет hot-load плагинов и централизованный мониторинг.
+
+### Плагины
+
+- Директория плагинов: `python/plugins/`.
+- Контракт плагина:
+
+```python
+class Plugin:
+    name: str
+    def setup(ctx: RuntimeContext) -> None: ...
+    def shutdown(ctx: RuntimeContext) -> None: ...
+```
+
+- Менеджер: `PluginManager` (`python/modules/shared/plugin_manager.py`):
+  - `load_all()` — загружает все плагины из `python/plugins/*.py` без рестарта приложения.
+  - `load_from_path(path)` — загружает конкретный плагин.
+  - `reload(name)` — безопасно перезагружает плагин на лету.
+  - `unload(name)` — выгружает плагин и очищает его сервисы/подписки.
+- Изоляция: ошибки плагина не останавливают агент; публикуются lifecycle-события `plugin_failed`, `plugin_load_failed`, `plugin_shutdown_failed`.
+- Права плагинов: `PluginPermissions` (filesystem/network/process) с deny-by-default политикой в `PluginManager`.
+
+Пример:
+
+```python
+from modules.shared.bootstrap import bootstrap_app
+from modules.shared.plugin_manager import PluginManager
+
+ctx = bootstrap_app(__file__, "console")
+pm = PluginManager(ctx)
+pm.load_all()
+```
+
+### Мониторинг
+
+- Сервис: `MonitorService` (`python/modules/shared/monitoring.py`).
+- Регистрация в runtime:
+
+```python
+monitor = MonitorService(ctx)
+monitor.register()  # ctx.services.register("monitor", monitor)
+```
+
+- API:
+  - `get_queue_stats()` — размер/емкость/utilization/throughput очередей (`llm_queue`, `ui_queue`, `audio_queue`).
+  - `get_resource_usage()` — CPU, RAM, диск.
+  - `get_event_bus_stats()` — число подписчиков EventBus.
+  - `subscribe_alert(event_type, callback)` — подписка на алерты (`queue_high_utilization`, `llm_timeout`).
+
+Пример:
+
+```python
+monitor = ctx.services.get("monitor")
+stats = monitor.snapshot()
+print(stats["queues"], stats["resources"], stats["event_bus"])
+```
+
+
+CLI-утилита для операционного управления плагинами:
+
+```bash
+python apps/console/plugins_cli.py list
+python apps/console/plugins_cli.py load --path python/plugins/echo_plugin.py
+python apps/console/plugins_cli.py reload echo_plugin
+python apps/console/plugins_cli.py unload echo_plugin
+```
+
+`EventBus` также поддерживает неблокирующий dispatch через `publish_async(event)`.
+
+
+## Cognitive Loop & Memory Graph
+
+Добавлен новый когнитивный runtime-модуль (`python/ls/`) с:
+- `ls.memory.MemoryGraph` для граф-памяти (nodes/edges/search/context),
+- `ls.cognition.ReflectionEngine` для state comparison, progress score и self-reflection,
+- JSON persistence через `JsonGraphStore` (`data/memory_graph.json`).
+
+Подробная архитектура и цикл: `docs/cognitive_loop.md`.

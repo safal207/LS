@@ -1,10 +1,38 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any
 
-from shared.config_loader import get_config
+try:
+    from shared.config_loader import get_config
+except ImportError:
+    from .shared.config_loader import get_config
 
-from .agent.sleep_config import SleepConfig
+
+def _load_env_file(path: str | Path) -> None:
+    env_path = Path(path)
+    if not env_path.exists():
+        return
+    try:
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            continue
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        os.environ.setdefault(key, value)
+
+
+_load_env_file(os.getenv("GRAPH_OPERATOR_ENV_FILE", ".env.network"))
 
 _cfg = get_config()
 
@@ -26,9 +54,9 @@ TARGET_LATENCY_SEC = _get(["hardware", "target_latency_sec"], 7)
 WHISPER_MODEL_SIZE = _get(["stt", "whisper_model_size"], "small")
 LLM_MODEL_NAME = _get(["llm", "model_name"], "qwen2.5:7b")
 LLM_RAM_AWARE = _get(["llm", "ram_aware"], False)
-LLM_HEAVY_MODEL = _get(["llm", "heavy_model"], LLM_MODEL_NAME)
-LLM_LIGHT_MODEL = _get(["llm", "light_model"], LLM_MODEL_NAME)
-LLM_RAM_THRESHOLD_GB = float(_get(["llm", "ram_threshold_gb"], 6.0))
+LLM_HEAVY_MODEL = _get(["llm", "heavy_model"], "qwen2.5:7b")
+LLM_LIGHT_MODEL = _get(["llm", "light_model"], "qwen2.5:1.5b")
+LLM_RAM_THRESHOLD_GB = _get(["llm", "ram_threshold_gb"], 8.0)
 USE_CLOUD_LLM = _get(["llm", "use_cloud"], False)
 USE_COTCORE = _get(["llm", "use_cotcore"], False)
 USE_BREAKER = _get(["llm", "use_breaker"], False)
@@ -42,6 +70,20 @@ AGENT_MEMORY_MAX_CHARS = _get(["agent", "memory_max_chars"], 2000)
 AGENT_METRICS_ENABLED = _get(["agent", "metrics_enabled"], True)
 AGENT_OBSERVABILITY_ENABLED = _get(["agent", "observability_enabled"], True)
 AGENT_EVENT_SINK = _get(["agent", "event_sink"], "print")
+GRAPH_TRAIL_ENABLED = str(os.getenv("GRAPH_TRAIL_ENABLED", _get(["graph", "trail", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GRAPH_TRAIL_STORE_PATH = os.getenv("GRAPH_TRAIL_STORE_PATH", _get(["graph", "trail", "store_path"], "data/graph_memory/routes.json"))
+GRAPH_TRAIL_DECAY = float(os.getenv("GRAPH_TRAIL_DECAY", _get(["graph", "trail", "decay"], 0.95)))
+GRAPH_TRAIL_EXPLORATION_RATE = float(os.getenv("GRAPH_TRAIL_EXPLORATION_RATE", _get(["graph", "trail", "exploration_rate"], 0.10)))
+GRAPH_COALITION_ENABLED = str(os.getenv("GRAPH_COALITION_ENABLED", _get(["graph", "coalitions", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GRAPH_COALITION_STORE_PATH = os.getenv("GRAPH_COALITION_STORE_PATH", _get(["graph", "coalitions", "store_path"], "data/graph_memory/coalitions.json"))
+GRAPH_DERIVED_MODULE_ENABLED = str(os.getenv("GRAPH_DERIVED_MODULE_ENABLED", _get(["graph", "derived_modules", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GRAPH_DERIVED_MODULE_STORE_PATH = os.getenv("GRAPH_DERIVED_MODULE_STORE_PATH", _get(["graph", "derived_modules", "store_path"], "data/graph_memory/derived_modules.json"))
+GRAPH_DERIVED_MODULE_MIN_QUALITY = float(os.getenv("GRAPH_DERIVED_MODULE_MIN_QUALITY", _get(["graph", "derived_modules", "min_quality"], 0.72)))
+GRAPH_DERIVED_MODULE_MIN_TRUST = float(os.getenv("GRAPH_DERIVED_MODULE_MIN_TRUST", _get(["graph", "derived_modules", "min_trust"], 0.62)))
+GRAPH_CARE_CYCLES_ENABLED = str(os.getenv("GRAPH_CARE_CYCLES_ENABLED", _get(["graph", "care_cycles", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GRAPH_CARE_CYCLES_MIN_QUALITY = float(os.getenv("GRAPH_CARE_CYCLES_MIN_QUALITY", _get(["graph", "care_cycles", "min_quality"], 0.68)))
+GRAPH_CARE_CYCLES_MIN_TRUST = float(os.getenv("GRAPH_CARE_CYCLES_MIN_TRUST", _get(["graph", "care_cycles", "min_trust"], 0.58)))
+GRAPH_CARE_CYCLES_RETIRE_TRUST = float(os.getenv("GRAPH_CARE_CYCLES_RETIRE_TRUST", _get(["graph", "care_cycles", "retire_trust"], 0.35)))
 
 # Audio settings
 AUDIO_CHUNK_DURATION = _get(["audio", "chunk_duration"], 3.0)
@@ -53,11 +95,39 @@ VOLUME_THRESHOLD = _get(["audio", "volume_threshold"], 0.01)
 OLLAMA_HOST = _get(["llm", "ollama", "host"], "http://localhost:11434")
 OLLAMA_TIMEOUT = _get(["llm", "ollama", "timeout"], 30)
 OLLAMA_MODEL = _get(["llm", "ollama", "model"], "")
+OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", _get(["llm", "ollama", "num_predict"], 220)))
+os.environ.setdefault("OLLAMA_NUM_PREDICT", str(OLLAMA_NUM_PREDICT))
 
-# Groq settings (fallback)
-GROQ_API_KEY = _get(["llm", "groq", "api_key"], "")
-GROQ_MODEL = _get(["llm", "groq", "model"], "")
+# Routed backend settings
+LLM_BACKEND = os.getenv("LLM_BACKEND", _get(["llm", "backend"], ""))
+LLM_FALLBACK_BACKEND = os.getenv("LLM_FALLBACK_BACKEND", _get(["llm", "fallback_backend"], ""))
+LLM_MERITOCRACY_ENABLED = str(os.getenv("LLM_MERITOCRACY_ENABLED", _get(["llm", "meritocracy", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+LLM_MERITOCRACY_BACKENDS = os.getenv("LLM_MERITOCRACY_BACKENDS", _get(["llm", "meritocracy", "backends"], "gonka,mimo,cloud,local"))
+LLM_MERITOCRACY_MIN_OVERALL = float(os.getenv("LLM_MERITOCRACY_MIN_OVERALL", _get(["llm", "meritocracy", "min_overall"], 0.35)))
+LLM_MERITOCRACY_MIN_RELEVANCE = float(os.getenv("LLM_MERITOCRACY_MIN_RELEVANCE", _get(["llm", "meritocracy", "min_relevance"], 0.25)))
+LLM_MERITOCRACY_MIN_THREAD_RELEVANCE = float(os.getenv("LLM_MERITOCRACY_MIN_THREAD_RELEVANCE", _get(["llm", "meritocracy", "min_thread_relevance"], 0.25)))
+LLM_MERITOCRACY_MAX_HALLUCINATION_RISK = float(os.getenv("LLM_MERITOCRACY_MAX_HALLUCINATION_RISK", _get(["llm", "meritocracy", "max_hallucination_risk"], 0.65)))
+
+# Groq / generic cloud settings
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", _get(["llm", "groq", "api_key"], ""))
+GROQ_MODEL = os.getenv("GROQ_MODEL", _get(["llm", "groq", "model"], ""))
+GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", _get(["llm", "groq", "base_url"], "https://api.groq.com/openai/v1"))
+GROQ_TIMEOUT_SEC = float(os.getenv("GROQ_TIMEOUT_SEC", _get(["llm", "groq", "timeout_sec"], 120)))
 USE_GROQ = _get(["llm", "use_groq"], False)
+
+# Gonka settings
+GONKA_ENABLED = str(os.getenv("GONKA_ENABLED", _get(["llm", "gonka", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GONKA_API_KEY = os.getenv("GONKA_API_KEY", _get(["llm", "gonka", "api_key"], ""))
+GONKA_BASE_URL = os.getenv("GONKA_BASE_URL", _get(["llm", "gonka", "base_url"], "https://api.gonkagate.com/v1"))
+GONKA_MODEL = os.getenv("GONKA_MODEL", _get(["llm", "gonka", "model"], "qwen/qwen3-235b-a22b-instruct-2507-fp8"))
+GONKA_TIMEOUT_SEC = float(os.getenv("GONKA_TIMEOUT_SEC", _get(["llm", "gonka", "timeout_sec"], 120)))
+
+# Xiaomi MiMo settings
+MIMO_ENABLED = str(os.getenv("MIMO_ENABLED", _get(["llm", "mimo", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+MIMO_API_KEY = os.getenv("MIMO_API_KEY", _get(["llm", "mimo", "api_key"], ""))
+MIMO_BASE_URL = os.getenv("MIMO_BASE_URL", _get(["llm", "mimo", "base_url"], "https://api.xiaomimimo.com/anthropic"))
+MIMO_MODEL = os.getenv("MIMO_MODEL", _get(["llm", "mimo", "model"], "mimo-v2-flash"))
+MIMO_TIMEOUT_SEC = float(os.getenv("MIMO_TIMEOUT_SEC", _get(["llm", "mimo", "timeout_sec"], 120)))
 
 # Model generation settings (GhostGPT)
 TEMPERATURE = _get(["llm", "temperature"], 0.6)
@@ -79,13 +149,25 @@ KEY_LRI_CTO = _get(["hotkeys", "lri_cto"], "F3")
 # Access protocol prompt (GhostGPT)
 ACCESS_PROTOCOL_PROMPT = _get(["access_protocol_prompt"], "")
 
-# Sleep & Consolidation (PR #236)
-SLEEP_CONFIG = SleepConfig(
-    idle_timeout=_get(["agent", "sleep", "idle_timeout"], 1800),
-    prune_threshold=_get(["agent", "sleep", "prune_threshold"], 0.2),
-    active_window=_get(["agent", "sleep", "active_window"], 200),
-    reflection_energy=_get(["agent", "sleep", "reflection_energy"], 0.05),
-    compost_boost_per_node=_get(["agent", "sleep", "compost_boost_per_node"], 0.01),
-    immune_threshold=_get(["agent", "sleep", "immune_threshold"], 0.7),
-    immune_decay=_get(["agent", "sleep", "immune_decay"], 0.9),
-)
+# SmartEar perception layer
+SMART_EAR_W_ASR     = _get(["smart_ear", "weights", "asr"],     0.50)
+SMART_EAR_W_CONTEXT = _get(["smart_ear", "weights", "context"], 0.25)
+SMART_EAR_W_VOCAB   = _get(["smart_ear", "weights", "vocab"],   0.25)
+SMART_EAR_THRESHOLD = _get(["smart_ear", "threshold"],          0.25)
+SMART_EAR_LOW_WORD_PROB      = _get(["smart_ear", "low_word_prob"],      0.50)
+SMART_EAR_VOCAB_SIMILARITY   = _get(["smart_ear", "vocab_similarity"],   0.60)
+SMART_EAR_SELECTION_MARGIN   = _get(["smart_ear", "selection_margin"],   1)
+SMART_EAR_VOCAB_MIN_LENGTH   = _get(["smart_ear", "vocab_min_length"],   3)
+SMART_EAR_VOCAB_REFRESH_EVERY = _get(["smart_ear", "vocab_refresh_every"], 60)
+SMART_EAR_DOMAIN_PACKS  = _get(["smart_ear", "domain_packs"],  [])          # e.g. ["web_dev","devops"]
+SMART_EAR_AUDIT_LOG     = _get(["smart_ear", "audit_log"],     "")          # path to JSONL log (empty = disabled)
+SMART_EAR_AUDIT_MAX_MB  = _get(["smart_ear", "audit_max_mb"],  10)          # max log file size before rotation
+
+# ReflexArc cognitive thresholds
+REFLEX_RESONANCE_WEIGHT  = _get(["cognitive", "reflex", "resonance_weight"],  0.4)
+REFLEX_PAIN_WEIGHT       = _get(["cognitive", "reflex", "pain_weight"],        0.4)
+REFLEX_CORTISOL_WEIGHT   = _get(["cognitive", "reflex", "cortisol_weight"],    0.2)
+REFLEX_THREAT_BOOST      = _get(["cognitive", "reflex", "threat_boost"],       0.5)
+REFLEX_DANGER_THRESHOLD  = _get(["cognitive", "reflex", "danger_threshold"],   0.85)
+REFLEX_LEARN_STRENGTH    = _get(["cognitive", "reflex", "learn_strength"],     0.6)
+REFLEX_LOW_RESONANCE     = _get(["cognitive", "reflex", "low_resonance"],      0.3)

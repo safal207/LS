@@ -6,10 +6,10 @@ import threading
 import time
 from typing import Any, Callable, Optional
 
-from ..llm.temporal import TemporalContext
-from ..cognitive_flow import CognitiveFlow, PresenceState, TransitionEngine
-from ..cognitive_flow.liminal import is_liminal_phase
-from ..memory.causal import CausalMemory
+from llm.temporal import TemporalContext
+from cognitive_flow import CognitiveFlow, PresenceState, TransitionEngine
+from cognitive_flow.liminal import is_liminal_phase
+from memory.causal import CausalMemory
 from codex.causal_memory.amygdala import Amygdala, AmygdalaBlockError, BlockReason
 from codex.causal_memory.transitions import CausalMemoryTransitions
 from codex.causal_memory.reflex import ReflexArc
@@ -17,10 +17,25 @@ from codex.causal_memory.reflex import ReflexArc
 from .event_schema import build_observability_event
 from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
-from ..perception.coordinator import VisionSubsystem
+from shared.event_bus import EventBus
+from perception.coordinator import VisionSubsystem
+import lthread
+
+# CognitiveCycleLogger (optional — graceful fallback)
+try:
+    import sys as _sys_ccl
+    import os as _os_ccl
+    _ccl_root = _os_ccl.path.abspath(_os_ccl.path.join(_os_ccl.path.dirname(__file__), ".."))
+    if _ccl_root not in _sys_ccl.path:
+        _sys_ccl.path.insert(0, _ccl_root)
+    from cognitive_flow.cycle_logger import CognitiveCycleLogger
+    _CCL_AVAILABLE = True
+except Exception:
+    _CCL_AVAILABLE = False
+    CognitiveCycleLogger = None  # type: ignore[assignment,misc]
 
 try:
-    from ..llm.temporal_graph import get_context_for_question
+    from llm.temporal_graph import get_context_for_question
 
     _TEMPORAL_GRAPH_ENABLED = True
 except ImportError:
@@ -36,6 +51,22 @@ REFLECTION_SYSTEM_PROMPT = (
     "Не используй клише. Максимум 180 токенов. "
     "Не повторяй дословно предыдущие рефлексии."
 )
+
+PINNED_ROLES = {"system", "context_anchor"}
+
+
+def trim_history(history: list[dict], max_size: int = 10) -> list[dict]:
+    """Keep pinned system/context messages while applying a sliding window to the rest."""
+    pinned = [m for m in history if m.get("role") in PINNED_ROLES]
+    sliding = [m for m in history if m.get("role") not in PINNED_ROLES]
+    if len(pinned) >= max_size:
+        logger.warning(
+            "Pinned history entries (%s) exceed/equal max_size (%s); dropping non-pinned history",
+            len(pinned),
+            max_size,
+        )
+    available = max(max_size - len(pinned), 0)
+    return pinned + sliding[-available:]
 
 
 class AgentLoop:
@@ -56,6 +87,8 @@ class AgentLoop:
         event_sink: EventSink | None = None,
         observability_enabled: bool = True,
         amygdala: Amygdala | None = None,
+        event_bus: EventBus | None = None,
+        cycle_logger: "CognitiveCycleLogger | None" = None,
     ) -> None:
         if (llm is None) == (handler is None):
             raise ValueError("Provide exactly one of llm or handler")
@@ -65,7 +98,9 @@ class AgentLoop:
         self.llm = llm
         self.handler = handler
         self.on_event = on_event
+        self.event_bus = event_bus
         self.running = False
+        self.cycle_logger = cycle_logger
 
         self.temporal = temporal if temporal_enabled else None
         if temporal_enabled and self.temporal is None:
@@ -79,12 +114,18 @@ class AgentLoop:
         self.causal_memory = CausalMemory()
         self.causal_transitions = CausalMemoryTransitions(amygdala=amygdala)
         self.reflex = ReflexArc(self.causal_transitions.amygdala)
-        self._task_lock = threading.Lock()
+        # NOTE: must remain RLock because _emit/_step_flow may re-acquire on paths
+        # that already hold this lock (e.g. cancellation flow).
+        self._task_lock = threading.RLock()
         self._task_counter = 0
-        self._active_task_id = 0
+        self._active_task_id: int | None = 0
         self._active_thread: threading.Thread | None = None
         self._active_cancel: threading.Event | None = None
         self._pending_item: dict | None = None
+        self._idle_cancel: threading.Event | None = None
+        self._bloodstream_thread: threading.Thread | None = None
+        self._bloodstream_lock = threading.Lock()
+        self._bloodstream_stop = threading.Event()  # BUG-17 fix: used for fast shutdown
         self._cancel_grace_until = 0.0
 
         self.cancel_on_new_input = cancel_on_new_input
@@ -119,7 +160,6 @@ class AgentLoop:
         # Bloodstream Integration (PR #232)
         from codex.causal_memory.bloodstream import Bloodstream
         self.bloodstream = Bloodstream(self.causal_transitions.amygdala, self.temporal)
-        threading.Thread(target=self._bloodstream_loop, daemon=True).start()
 
         # Vision Subsystem Integration (Screen Perception v2)
         self.vision = VisionSubsystem()
@@ -128,11 +168,16 @@ class AgentLoop:
 
     def _maybe_enter_sleep_mode(self):
         try:
-            from ..config import SLEEP_CONFIG
+            from config import SLEEP_CONFIG
         except Exception:
             from .sleep_config import SleepConfig
             SLEEP_CONFIG = SleepConfig()
 
+        # BUG-18 fix: when temporal is None, self.state always returns "idle"
+        # which would incorrectly allow sleep mode entry at any time.
+        # Guard: skip sleep entirely when temporal tracking is disabled.
+        if self.temporal is None:
+            return
         if self.state != "idle":
             return
         if time.time() - self.last_input_time > SLEEP_CONFIG.idle_timeout:
@@ -140,7 +185,7 @@ class AgentLoop:
 
     def _enter_sleep_mode(self):
         try:
-            from ..config import SLEEP_CONFIG
+            from config import SLEEP_CONFIG
         except Exception:
             from .sleep_config import SleepConfig
             SLEEP_CONFIG = SleepConfig()
@@ -195,14 +240,19 @@ class AgentLoop:
             self._transition("idle")
 
     def _bloodstream_loop(self):
-        """Цикл работы кровеносной системы."""
-        while self.running:
+        """Цикл работы кровеносной системы.
+
+        BUG-17 fix: replaced time.sleep(30) with Event.wait(30) so the loop
+        can be interrupted immediately when the agent stops, instead of waiting
+        up to 30 seconds for the sleep to expire.
+        """
+        while self.running and not self._bloodstream_stop.is_set():
             try:
                 self.bloodstream.pump()
                 self.bloodstream.filter_toxins()
             except Exception as e:
                 logger.error(f"Bloodstream loop error: {e}")
-            time.sleep(30)
+            self._bloodstream_stop.wait(timeout=30)
 
     def _maybe_run_maintenance(self) -> None:
         amygdala = getattr(self.causal_transitions, "amygdala", None)
@@ -231,7 +281,7 @@ class AgentLoop:
             self._next_context_poll_at = now + self._context_poll_interval_s
 
         try:
-            from ..llm.context_provider import collect_windows_context
+            from llm.context_provider import collect_windows_context
 
             context_event = collect_windows_context(session_id=session_id)
             if isinstance(context_event, dict):
@@ -255,15 +305,17 @@ class AgentLoop:
             return self._task_counter
 
     def _set_active(self, task_id: int, cancel_event: threading.Event, thread: threading.Thread | None) -> None:
-        self._active_task_id = task_id
-        self._active_cancel = cancel_event
-        self._active_thread = thread
+        with self._task_lock:
+            self._active_task_id = task_id
+            self._active_cancel = cancel_event
+            self._active_thread = thread
         self._touch_presence(task_id=task_id)
 
     def _is_active(self, task_id: int, cancel_event: threading.Event) -> bool:
         if cancel_event.is_set():
             return False
-        return task_id == self._active_task_id
+        with self._task_lock:
+            return task_id == self._active_task_id
 
     def _touch_presence(self, *, task_id: int | None = None) -> None:
         if self.presence is None:
@@ -277,15 +329,16 @@ class AgentLoop:
             return
         before = self.presence.phase if self.presence is not None else None
         try:
+            with self._task_lock:
+                active_task_id = self._active_task_id
             self.cognitive_flow.step({
                 "type": event_type,
                 "payload": payload,
-                "task_id": str(task_id or self._active_task_id),
+                "task_id": str(task_id or active_task_id),
                 "state": self.temporal.state if self.temporal else None,
             })
         except Exception:
-            # cognitive flow should be best-effort for now
-            pass
+            logger.warning("CognitiveFlow.step() failed", exc_info=True)
             return
         after = self.presence.phase if self.presence is not None else None
         if before != after and after is not None:
@@ -307,11 +360,13 @@ class AgentLoop:
         if not self.observability_enabled:
             return
         state = self.temporal.state if self.temporal else None
+        with self._task_lock:
+            active_task_id = self._active_task_id
         event = build_observability_event(
             event_type,
             payload,
             state,
-            str(task_id or self._active_task_id),
+            str(task_id or active_task_id),
         )
         if event is None:
             return
@@ -327,13 +382,18 @@ class AgentLoop:
         payload = payload or {}
         self._touch_presence(task_id=task_id)
         self._step_flow(event_type, payload, task_id=task_id)
+        event = AgentEvent(type=event_type, payload=payload)
+        if self.event_bus:
+            self.event_bus.publish(event)
         if self.on_event:
-            self.on_event(AgentEvent(type=event_type, payload=payload))
+            self.on_event(event)
         self._emit_observability(event_type, payload, task_id=task_id)
 
     def _transition(self, state: str, *, task_id: int | None = None) -> None:
-        if task_id is not None and task_id != self._active_task_id:
-            return
+        if task_id is not None:
+            with self._task_lock:
+                if task_id != self._active_task_id:
+                    return
         if self.temporal:
             self.temporal.transition(state)
         if self.presence is not None:
@@ -440,7 +500,12 @@ class AgentLoop:
                         {"role": "user", "content": reflection_prompt}
                     ]
                     # Note: LanguageModel.generate_response will use messages if provided
-                    silent_ref = self.llm.generate_response(reflection_prompt, messages=messages)
+                    self._idle_cancel = threading.Event()
+                    silent_ref = self.llm.generate_response(
+                        reflection_prompt,
+                        messages=messages,
+                        cancel_event=self._idle_cancel,
+                    )
                     if silent_ref and len(silent_ref.strip()) > 10:
                         amygdala.last_silent_reflection = silent_ref.strip()
                         logger.info(f"Silent reflection generated: {silent_ref[:80]}...")
@@ -448,6 +513,8 @@ class AgentLoop:
                         amygdala.metabolism.digest_old_reflections()
             except Exception as e:
                 logger.warning(f"Silent reflection generation failed: {e}")
+            finally:
+                self._idle_cancel = None
 
         # 3. Обновляем last_reflection, чтобы не спамило
         amygdala.last_reflection = datetime.datetime.now()
@@ -548,6 +615,98 @@ class AgentLoop:
         }
         return [injection] + history  # strictly at the beginning
 
+    def _inject_strategy_context(self, messages: list[dict], item: dict) -> list[dict]:
+        """Inject copilot context into the message list.
+
+        Appends a single system message at the *end* of the list (just before
+        the live user turn) so the LLM sees it as fresh guidance without
+        overriding the conversation history.
+
+        If Stage 8 BodyAwareCopilot ran, its pre-assembled ``final_prompt`` is
+        used directly.  Otherwise falls back to piecemeal construction from
+        individual stage outputs so the method works even when Stage 8 is
+        disabled or unavailable.
+        """
+        # ---- Fast path: Stage 8 pre-assembled the full block ----
+        copilot = item.get("_copilot_output")
+        if copilot and isinstance(copilot, dict):
+            content = copilot.get("final_prompt", "")
+            if content:
+                return messages + [{"role": "system", "content": content}]
+
+        # ---- Fallback: piecemeal build from individual stage outputs ----
+        parts: list[str] = []
+
+        strategy = item.get("_why_strategy")
+        if strategy and isinstance(strategy, dict):
+            trigger = strategy.get("micro_trigger", "")
+            hints = strategy.get("hints") or []
+            answer_type = strategy.get("answer_type", "")
+            pressure = strategy.get("pressure", "")
+            block_parts: list[str] = []
+            if trigger:
+                block_parts.append(f"🧠 Сейчас: {trigger}")
+            if hints:
+                hints_text = "\n".join(f"- {h}" for h in hints)
+                block_parts.append(
+                    f"Стратегия: {answer_type}  |  Давление: {pressure}\n"
+                    f"Подсказки:\n{hints_text}"
+                )
+            if block_parts:
+                parts.append("\n\n".join(block_parts))
+
+        anchor_ctx = item.get("_anchor_context")
+        if anchor_ctx and isinstance(anchor_ctx, list) and any(anchor_ctx):
+            lines = "\n".join(f"- {x}" for x in anchor_ctx if x)
+            force_anchor = (
+                strategy.get("answer_type") == "experiential"
+                if strategy and isinstance(strategy, dict) else False
+            )
+            anchor_label = (
+                "ОБЯЗАТЕЛЬНО используй этот опыт в ответе:"
+                if force_anchor
+                else "Используй контекст, если уместно:"
+            )
+            parts.append(f"{anchor_label}\n{lines}")
+
+        interviewer = item.get("_interviewer_profile")
+        if interviewer and isinstance(interviewer, dict) and interviewer.get("questions_seen", 0) >= 2:
+            p = interviewer.get("pressure_level", 0)
+            flags = []
+            if interviewer.get("prefers_examples"):
+                flags.append("любит конкретные кейсы")
+            if interviewer.get("prefers_reasoning"):
+                flags.append("любит глубокие рассуждения")
+            if interviewer.get("prefers_theory"):
+                flags.append("любит теорию и определения")
+            if interviewer.get("interrupt_count", 0) > 0:
+                flags.append("перебивает — будь лаконичен")
+            if flags:
+                parts.append(f"Интервьюер (давление {p:.0%}): {', '.join(flags)}.")
+
+        empathy = item.get("_empathy_result")
+        if empathy and isinstance(empathy, dict):
+            tone_trigger = empathy.get("tone_trigger", "")
+            empathy_hints = empathy.get("hints") or []
+            nego_move = empathy.get("negotiation_move")
+            if tone_trigger or empathy_hints:
+                emp_lines: list[str] = []
+                if tone_trigger:
+                    emp_lines.append(f"💬 Тон: {tone_trigger}")
+                if empathy_hints:
+                    emp_lines.append(
+                        "Эмпатия/переговоры:\n"
+                        + "\n".join(f"- {h}" for h in empathy_hints)
+                    )
+                if nego_move:
+                    emp_lines.append(f'Открой с: "{nego_move}"')
+                parts.append("\n".join(emp_lines))
+
+        if not parts:
+            return messages
+
+        return messages + [{"role": "system", "content": "\n\n".join(parts)}]
+
     def _remember_answer(self, answer: Any, duration: float) -> None:
         if isinstance(answer, str) and self.memory_max_chars:
             answer = answer[: self.memory_max_chars]
@@ -584,10 +743,29 @@ class AgentLoop:
         return self.handler(question)
 
     def _cancel_active(self, reason: str) -> None:
-        if self._active_thread and self._active_thread.is_alive() and self._active_cancel:
-            self._active_cancel.set()
-            self._emit("cancelled", {"reason": reason}, task_id=self._active_task_id)
-            self._track_cancellation(self._active_cancel)
+        with self._task_lock:
+            cancel = self._active_cancel
+            thread = self._active_thread
+            task_id = self._active_task_id
+            self._active_task_id = None
+            self._active_cancel = None
+            self._active_thread = None
+            idle_cancel = self._idle_cancel
+        if cancel:
+            cancel.set()
+        if idle_cancel:
+            idle_cancel.set()
+        if thread and thread.is_alive():
+            thread.join(timeout=2.0)
+            if thread.is_alive():
+                logger.warning("Timed out waiting for active task thread to stop", extra={"task_id": task_id})
+                if cancel:
+                    self._emit("cancelled", {"reason": reason, "timed_out": True}, task_id=task_id)
+                    self._track_cancellation(cancel)
+                return
+        if cancel:
+            self._emit("cancelled", {"reason": reason}, task_id=task_id)
+            self._track_cancellation(cancel)
             if self.cancel_grace_ms:
                 self._cancel_grace_until = time.time() + (self.cancel_grace_ms / 1000.0)
 
@@ -681,7 +859,6 @@ class AgentLoop:
                 return
 
             # Prompt Injection Protection (PR #226)
-            from python.modules import lthread
             if lthread.detect_prompt_injection(question):
                 logger.warning(f"Blocking potential prompt injection: {question[:100]}...")
                 payload = {
@@ -709,10 +886,13 @@ class AgentLoop:
             self.memory["history"].append({"role": "user", "content": question})
             # Trim history to last 10 messages (5 rounds) to stay within context
             if len(self.memory["history"]) > 10:
-                self.memory["history"] = self.memory["history"][-10:]
+                self.memory["history"] = trim_history(self.memory["history"], max_size=10)
 
             # Prepare hidden context with reflection
             messages = self._inject_reflection_into_context(list(self.memory["history"]), question=question, force_show_silent=force_show_silent)
+
+            # Inject WHY strategy hints + anchor context (interview copilot)
+            messages = self._inject_strategy_context(messages, item)
 
             self._remember_question(question)
 
@@ -730,8 +910,9 @@ class AgentLoop:
                 customer_id = self.causal_memory.add_intent(question)
                 customer_axis = self.causal_memory.get_axis_position(customer_id)
                 if self.temporal:
-                    from ..hexagon_core.temporal_graph import TemporalNode
-                    self.temporal.nodes[customer_id] = TemporalNode(id=customer_id, resonance=1.0)
+                    from hexagon_core.temporal_graph import TemporalNode
+                    with self.temporal._graph_lock:
+                        self.temporal.nodes[customer_id] = TemporalNode(id=customer_id, resonance=1.0)
 
                 consumer_id = self.causal_memory.transition_down(customer_id, question, "Consumer")
                 consumer_resonance = self.causal_memory.check_resonance(consumer_id)
@@ -747,7 +928,7 @@ class AgentLoop:
                 )
                 harmony_score = consumer_node.harmony_score
                 if self.temporal:
-                    from ..hexagon_core.temporal_graph import TemporalNode
+                    from hexagon_core.temporal_graph import TemporalNode
                     self.temporal.nodes[consumer_id] = TemporalNode(
                         id=consumer_id, resonance=consumer_resonance, harmony_bonus=harmony_score
                     )
@@ -769,7 +950,7 @@ class AgentLoop:
                 )
                 harmony_score = execution_node.harmony_score
                 if self.temporal:
-                    from ..hexagon_core.temporal_graph import TemporalNode
+                    from hexagon_core.temporal_graph import TemporalNode
                     self.temporal.nodes[execution_id] = TemporalNode(
                         id=execution_id, resonance=execution_resonance, harmony_bonus=harmony_score
                     )
@@ -791,7 +972,7 @@ class AgentLoop:
                 )
                 harmony_score = stability_node.harmony_score
                 if self.temporal:
-                    from ..hexagon_core.temporal_graph import TemporalNode
+                    from hexagon_core.temporal_graph import TemporalNode
                     self.temporal.nodes[stability_id] = TemporalNode(
                         id=stability_id, resonance=stability_resonance, harmony_bonus=harmony_score
                     )
@@ -835,8 +1016,8 @@ class AgentLoop:
             memory_context = ""
             if _TEMPORAL_GRAPH_ENABLED:
                 try:
-                    from ..llm.causal_memory import replay_thread
-                    from ..llm.context_provider import get_registry_manager
+                    from llm.causal_memory import replay_thread
+                    from llm.context_provider import get_registry_manager
 
                     thread_id = str(task_id)
                     memory_context = get_context_for_question(
@@ -924,7 +1105,6 @@ class AgentLoop:
             if result is not None:
                 # Trace Verification (PR #226)
                 try:
-                    from python.modules import lthread
                     logger.info(f"Verifying trace for: {str(result)[:50]}...")
                     trace = lthread.capture_trace(question, str(result))
                     if not lthread.verify_trace(trace):
@@ -945,12 +1125,12 @@ class AgentLoop:
                 last_coherence = memory.get("last_coherence", 0.95)
 
                 try:
-                    from ..llm.causal_memory import (
+                    from llm.causal_memory import (
                         build_default_trace_payloads,
                         get_causal_trace_confidence,
                         save_causal_trace,
                     )
-                    from ..llm.context_provider import get_registry_manager, save_to_codex
+                    from llm.context_provider import get_registry_manager, save_to_codex
 
                     lce, ltp_trace, lri_core = build_default_trace_payloads(
                         question, str(task_id), prev_coherence=last_coherence
@@ -1019,6 +1199,26 @@ class AgentLoop:
                     self._emit("output_ready", payload, task_id=task_id)
                 self._publish_metrics()
 
+                # Cognitive Cycle Logger — Phase 2: complete cycle
+                cycle_id = item.get("_cycle_id")
+                if self.cycle_logger is not None and cycle_id:
+                    try:
+                        llm_metadata = None
+                        last_response = getattr(self.llm, "last_response", None)
+                        if last_response is not None:
+                            if hasattr(last_response, "to_dict"):
+                                llm_metadata = last_response.to_dict()
+                            elif isinstance(last_response, dict):
+                                llm_metadata = last_response
+                        self.cycle_logger.complete_cycle(
+                            cycle_id=cycle_id,
+                            output=str(payload.get("response", "")),
+                            generation_time=float(payload.get("generation_time", 0.0)),
+                            llm_metadata=llm_metadata,
+                        )
+                    except Exception as _ccl_exc:
+                        logger.debug("CognitiveCycleLogger.complete_cycle failed: %s", _ccl_exc)
+
             self.causal_transitions.amygdala.learn_from_outcome(
                 stable_interaction=result is not None,
                 user_engaged=not cancel_event.is_set(),
@@ -1086,13 +1286,23 @@ class AgentLoop:
             raise RuntimeError("input_queue is required for run()")
 
         self.running = True
+        with self._bloodstream_lock:
+            if self._bloodstream_thread is None or not self._bloodstream_thread.is_alive():
+                self._bloodstream_thread = threading.Thread(
+                    target=self._bloodstream_loop,
+                    daemon=True,
+                    name="bloodstream",
+                )
+                self._bloodstream_thread.start()
         self.vision.start() # Start Screen Perception v2
 
         while self.running:
             self._maybe_collect_windows_context(session_id="agent_loop")
             self._maybe_enter_idle_yoga()
             self._maybe_enter_sleep_mode()
-            if self._active_thread and self._active_thread.is_alive():
+            with self._task_lock:
+                active_thread = self._active_thread
+            if active_thread and active_thread.is_alive():
                 if not self.cancel_on_new_input:
                     time.sleep(0.05)
                     continue
@@ -1103,7 +1313,8 @@ class AgentLoop:
 
                 self._cancel_active("superseded")
                 # latest-wins semantics: keep only the most recent pending item
-                self._pending_item = item
+                with self._task_lock:
+                    self._pending_item = item
                 self._transition("listening")
                 try:
                     # We do not rely on queue.join(); task_done is called immediately.
@@ -1112,10 +1323,14 @@ class AgentLoop:
                     pass
                 continue
 
-            if self._pending_item is not None:
-                item = self._pending_item
-                self._pending_item = None
-            else:
+            with self._task_lock:
+                pending_item = self._pending_item
+                if pending_item is not None:
+                    item = pending_item
+                    self._pending_item = None
+                else:
+                    item = None
+            if item is None:
                 try:
                     item = self.input_queue.get(timeout=0.2)
                 except queue.Empty:
@@ -1150,6 +1365,13 @@ class AgentLoop:
 
     def stop(self) -> None:
         self.running = False
+        self._bloodstream_stop.set()  # BUG-17 fix: wake up bloodstream wait immediately
         self.vision.stop() # Stop Screen Perception v2
-        if self._active_cancel:
-            self._active_cancel.set()
+        with self._bloodstream_lock:
+            bloodstream_thread = self._bloodstream_thread
+        if bloodstream_thread is not None and bloodstream_thread.is_alive():
+            bloodstream_thread.join(timeout=3.0)
+        with self._task_lock:
+            active_cancel = self._active_cancel
+        if active_cancel:
+            active_cancel.set()

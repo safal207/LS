@@ -1,13 +1,23 @@
 #!/usr/bin/env python3
 """
 Simplified Ghost GUI for Golden Master
+
+BUG-14 fix: wired BackendController signals so the GUI actually updates.
 """
 
 import sys
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QHBoxLayout, QLabel, QPushButton, QFrame)
-from PyQt6.QtCore import Qt, QTimer, QPoint
+from PyQt6.QtCore import Qt, QTimer, QPoint, pyqtSignal, QObject
 from PyQt6.QtGui import QMouseEvent
+
+class _BackendBridge(QObject):
+    """Thin Qt signal bridge so BackendController can update the UI thread safely."""
+    status_changed = pyqtSignal(str)
+    question_ready = pyqtSignal(str)
+    answer_ready   = pyqtSignal(str, str)
+    error_occurred = pyqtSignal(str)
+
 
 class GhostWindow(QMainWindow):
     """
@@ -18,6 +28,7 @@ class GhostWindow(QMainWindow):
         super().__init__()
         self.init_ui()
         self.drag_position = None
+        self._connect_backend()  # BUG-14 fix: wire up backend signals
         
     def init_ui(self):
         """Initialize the user interface"""
@@ -132,6 +143,53 @@ class GhostWindow(QMainWindow):
         
         main_layout.addLayout(footer_layout)
     
+    def _connect_backend(self):
+        """Wire backend → UI signals (BUG-14 fix)."""
+        try:
+            import queue, threading
+            from audio.audio_module import AudioIngestion
+            from stt.stt_module import SpeechToText
+            from llm.llm_module import LanguageModel
+
+            self._bridge = _BackendBridge()
+            self._bridge.status_changed.connect(lambda t: self.lbl_status.setText(t))
+            self._bridge.question_ready.connect(lambda q: self.lbl_question.setText(f"❓ {q}"))
+            self._bridge.answer_ready.connect(self.update_ui)
+            self._bridge.error_occurred.connect(
+                lambda e: (self.lbl_answer.setText(f"❌ {e}"), self.lbl_status.setText("❌ Error"))
+            )
+
+            self._tq = queue.Queue(maxsize=5)
+            self._lq = queue.Queue(maxsize=5)
+            self._uq = queue.Queue(maxsize=5)
+
+            self._audio = AudioIngestion(self._tq)
+            self._stt   = SpeechToText(self._tq, self._lq)
+            self._llm   = LanguageModel(self._lq, self._uq)
+            self._running = True
+
+            for target in (self._audio.run, self._stt.run, self._llm.run, self._ui_processor):
+                threading.Thread(target=target, daemon=True).start()
+
+            self._bridge.status_changed.emit("🎧 Listening...")
+        except Exception as exc:
+            self.lbl_status.setText(f"⚠ Backend: {exc}")
+
+    def _ui_processor(self):
+        import queue as _q
+        while self._running:
+            try:
+                item = self._uq.get(timeout=1.0)
+                if isinstance(item, dict) and "question" in item and "response" in item:
+                    self._bridge.question_ready.emit(item["question"])
+                    self._bridge.answer_ready.emit(item["question"], item["response"])
+                    self._bridge.status_changed.emit("🎧 Listening...")
+                self._uq.task_done()
+            except _q.Empty:
+                continue
+            except Exception as exc:
+                self._bridge.error_occurred.emit(str(exc))
+
     def update_ui(self, question, answer):
         """Update the UI with new question and answer"""
         # Update question
@@ -180,15 +238,20 @@ class GhostWindow(QMainWindow):
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts"""
         if event.key() == Qt.Key.Key_Escape:
-            # Emergency hide
             self.hide()
-            print("👻 Window hidden. Press Alt+Tab to restore")
         elif event.key() == Qt.Key.Key_F12:
-            # Force quit
-            print("👋 Force quitting")
             self.close()
         else:
             super().keyPressEvent(event)
+
+    def closeEvent(self, event):
+        if hasattr(self, "_running"):
+            self._running = False
+            for mod in ("_audio", "_stt", "_llm"):
+                obj = getattr(self, mod, None)
+                if obj and hasattr(obj, "stop"):
+                    obj.stop()
+        event.accept()
 
 def main():
     """Test the simplified GUI"""

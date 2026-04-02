@@ -1,5 +1,7 @@
 {
-  "nav": { "switch": "EN" },
+  "nav": {
+    "switch": "EN"
+  },
   "hero": {
     "title": "GhostGPT: Ваш ИИ, который помнит вас. Децентрализованный интеллект для новой эры.",
     "subtitle": "Local Cognitive System делает ИИ умнее, безопаснее и надежнее для реальных задач.",
@@ -19,20 +21,47 @@
   "features": {
     "title": "Ключевые возможности",
     "list": {
-      "local": { "title": "Local-first", "desc": "Ваши данные остаются под вашим контролем." },
-      "causal": { "title": "Causal Memory", "desc": "Понимает не только что, но и почему." },
-      "human": { "title": "Human-Centric Design", "desc": "Уважает намерения и автономность человека." },
-      "anti": { "title": "Anti-Hallucination", "desc": "Проверяемая логика для надежных ответов." },
-      "identity": { "title": "Evolving Identity", "desc": "Развивается вместе с вашими целями и стилем." }
+      "local": {
+        "title": "Local-first",
+        "desc": "Ваши данные остаются под вашим контролем."
+      },
+      "causal": {
+        "title": "Causal Memory",
+        "desc": "Понимает не только что, но и почему."
+      },
+      "human": {
+        "title": "Human-Centric Design",
+        "desc": "Уважает намерения и автономность человека."
+      },
+      "anti": {
+        "title": "Anti-Hallucination",
+        "desc": "Проверяемая логика для надежных ответов."
+      },
+      "identity": {
+        "title": "Evolving Identity",
+        "desc": "Развивается вместе с вашими целями и стилем."
+      }
     }
   },
   "roadmap": {
     "title": "Дорожная карта",
     "phases": [
-      { "q": "Q2 2026", "name": "Adaptive Reflection Dashboard" },
-      { "q": "Q3 2026", "name": "Temporal Graph Intelligence Layer" },
-      { "q": "Q4 2026", "name": "Cross-device Web4 Mesh" },
-      { "q": "Q1 2027", "name": "HCP Intelligence Marketplace" }
+      {
+        "q": "Q2 2026",
+        "name": "Adaptive Reflection Dashboard"
+      },
+      {
+        "q": "Q3 2026",
+        "name": "Temporal Graph Intelligence Layer"
+      },
+      {
+        "q": "Q4 2026",
+        "name": "Cross-device Web4 Mesh"
+      },
+      {
+        "q": "Q1 2027",
+        "name": "HCP Intelligence Marketplace"
+      }
     ]
   },
   "visuals": {
@@ -47,5 +76,39 @@
     "demo": "Попробовать демо",
     "community": "Присоединиться к сообществу",
     "contact": "Связаться с нами"
+  },
+  "runtime": {
+    "eyebrow": "LS: Reflective AI Runtime",
+    "title": "Операционная система управления мышлением AI",
+    "problem": {
+      "title": "Problem",
+      "body": "AI-решения остаются непрозрачными: сложно объяснить, проверить и исправить поведение агента."
+    },
+    "solution": {
+      "title": "Solution",
+      "body": "Reflection Runtime добавляет контур контроля: reflection → review → approve/reject/edit → обновление поведения."
+    },
+    "architecture": {
+      "title": "Architecture",
+      "items": [
+        "Memory Graph",
+        "Decision Pipeline",
+        "Reflection Dashboard",
+        "Human Feedback Loop"
+      ]
+    }
+  },
+  "runtimeLive": {
+    "title": "Runtime Live Panel",
+    "loading": "загрузка",
+    "live": "live",
+    "error": "Ошибка API",
+    "metrics": "Metrics",
+    "heatmap": "Heatmap",
+    "timeline": "Action timeline",
+    "proposals": "Top proposals",
+    "approve": "Approve",
+    "reject": "Reject",
+    "noProposals": "Нет предложений для отображения"
   }
 }

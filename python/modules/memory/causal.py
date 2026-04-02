@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 from typing import Any
 
 try:
@@ -10,7 +11,7 @@ except Exception:  # fallback in environments without rust extension
 
 class _PythonFallbackCausalMemory:
     def __init__(self) -> None:
-        self._next = 1
+        self._id_counter = itertools.count(start=1)
         self._nodes: dict[str, dict[str, Any]] = {}
         self._axis_map = {
             "Customer": -1.0,
@@ -22,8 +23,7 @@ class _PythonFallbackCausalMemory:
     def add_intent(self, layer: str, content: str) -> str:
         if layer != "Customer":
             raise ValueError("add_intent supports only Customer layer")
-        node_id = str(self._next)
-        self._next += 1
+        node_id = str(next(self._id_counter))
         self._nodes[node_id] = {
             "content": content,
             "layer": layer,
@@ -42,8 +42,7 @@ class _PythonFallbackCausalMemory:
         score = overlap / union
         if score < 0.35:
             raise ValueError("ResonanceError")
-        node_id = str(self._next)
-        self._next += 1
+        node_id = str(next(self._id_counter))
         self._nodes[node_id] = {
             "content": new_content,
             "layer": new_layer,

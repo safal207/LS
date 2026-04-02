@@ -1,7 +1,7 @@
 # Core Dependencies
 faster-whisper==1.0.3
 pyaudio==0.2.14
-requests==2.32.4
+requests==2.33.0
 PyYAML==6.0.1
 numpy>=2.0.0
 sounddevice==0.5.5
@@ -11,7 +11,7 @@ pyinstaller==6.18.0
 soundfile==0.12.1
 sentence-transformers>=2.2.2
 torch>=2.1.0
-cryptography>=41.0.0
+cryptography>=46.0.6
 Pillow>=10.0.0
 
 # Vision Subsystem

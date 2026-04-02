@@ -1,0 +1,44 @@
+{
+  "replacements": [
+    {
+      "pattern": "\\bаликс\\b",
+      "replacement": "Алекс"
+    },
+    {
+      "pattern": "\\bалис\\b",
+      "replacement": "Алекс"
+    },
+    {
+      "pattern": "\\bалиц\\b",
+      "replacement": "Алекс"
+    },
+    {
+      "pattern": "\\bтимас\\b",
+      "replacement": "дела"
+    },
+    {
+      "pattern": "\\bвоспредведения\\b",
+      "replacement": "воспроизведения"
+    },
+    {
+      "pattern": "\\bвоспредъявить\\b",
+      "replacement": "воспроизвести"
+    },
+    {
+      "pattern": "\\bиспознательная\\b",
+      "replacement": "распознавания"
+    },
+    {
+      "pattern": "\\bтвой дела\\b",
+      "replacement": "твои дела"
+    },
+    {
+      "pattern": "\\bтвоей дела\\b",
+      "replacement": "твои дела"
+    },
+    {
+      "pattern": "\\bкак твой\\b",
+      "replacement": "как твои"
+    }
+  ]
+}

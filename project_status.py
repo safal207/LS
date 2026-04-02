@@ -13,9 +13,12 @@ def check_project_status():
     # 1. Check file structure
     print("📁 File Structure:")
     required_files = [
-        "main.py", "config.py", "utils.py",
-        "audio_module.py", "stt_module.py", "llm_module.py",
-        "ghost_gui.py", "qwen_handler.py",
+        "apps/console/main.py", "python/modules/config.py",
+        "python/modules/shared/utils.py",
+        "python/modules/audio/audio_module.py",
+        "python/modules/stt/stt_module.py",
+        "python/modules/llm/llm_module.py",
+        "ghost_gui.py", "python/modules/llm/qwen_handler.py",
         "requirements.txt"
     ]
     
@@ -71,10 +74,10 @@ def check_project_status():
     # 5. Check modules
     print("\n🧩 Module Status:")
     modules = [
-        ("Audio Module", "audio_module"),
-        ("STT Module", "stt_module"), 
-        ("LLM Module", "llm_module"),
-        ("Qwen Handler", "qwen_handler"),
+        ("Audio Module", "audio.audio_module"),
+        ("STT Module", "stt.stt_module"),
+        ("LLM Module", "llm.llm_module"),
+        ("Qwen Handler", "llm.qwen_handler"),
         ("GUI Module", "ghost_gui")
     ]
     

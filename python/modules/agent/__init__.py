@@ -1,3 +1,7 @@
+from pkgutil import extend_path
+
+__path__ = extend_path(__path__, __name__)
+
 from .counterfactual_engine import CounterfactualEngine
 from .events import AgentEvent, EventType
 from .loop import AgentLoop

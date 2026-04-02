@@ -74,7 +74,6 @@ class TestStressSuiteV3_2:
         c = capu.register_belief("The earth is flat", {})
 
         # Try to reinforce 20 times rapidly (spam)
-
         for _ in range(20):
              capu.reinforce_belief(c.id, "spam_bot", {}, 1.0)
 
@@ -138,7 +137,6 @@ class TestStressSuiteV3_2:
             pytest.skip("Phase 1: HomeostasisMonitor not implemented yet")
 
         # Force ABAB pattern in CTE
-
         # We need to access CTE directly to simulate this rapid sequence or mock it
         # Assuming capu._cte is accessible
 

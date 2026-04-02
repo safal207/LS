@@ -215,7 +215,14 @@
         }
         return JSON.parse(saved);
       } catch (error) {
+        // BUG-WEB-04 fix: delete corrupted localStorage and warn user
         console.warn("Не удалось восстановить сохранённый вид", error);
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+          console.log("Удалены повреждённые данные вида");
+        } catch (e) {
+          // ignore
+        }
         return {};
       }
     }
@@ -277,12 +284,14 @@
     let graphElements = null;
 
     function showToast(message) {
+      // BUG-WEB-02 fix: separate timer handles autoremoval, not overridden by message updates
       toast.textContent = message;
-      toast.classList.add("visible");
-      clearTimeout(hideToastTimer);
-      hideToastTimer = setTimeout(() => {
-        toast.classList.remove("visible");
-      }, 1600);
+      if (!toast.classList.contains("visible")) {
+        toast.classList.add("visible");
+        hideToastTimer = setTimeout(() => {
+          toast.classList.remove("visible");
+        }, 1600);
+      }
     }
 
     function applyFilter(query) {
@@ -312,6 +321,11 @@
       });
 
       currentMatchedIds = matchedIds;
+
+      // BUG-WEB-03 fix: notify user when search returns no results
+      if (matchedIds.size === 0 && normalized !== "") {
+        showToast(`No results for: "${normalized}"`);
+      }
 
       node
         .style("display", (d) => (matchedIds.has(d.id) ? null : "none"))
@@ -360,14 +374,19 @@
       const image = new Image();
       image.onload = () => {
         const canvas = document.createElement("canvas");
-        // Учитываем текущий масштаб для чёткости
-        const scale = Math.max(1, currentTransform.k);
-        canvas.width = Math.floor(width * scale);
-        canvas.height = Math.floor(height * scale);
+        // BUG-WEB-05 fix: export actual visible size, not clamped to 1x
+        // Also account for devicePixelRatio for Retina displays (BUG-WEB-10)
+        const scale = Math.max(0.25, currentTransform.k); // allow zoomed-out exports
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(width * scale * dpr);
+        canvas.height = Math.floor(height * scale * dpr);
         const ctx = canvas.getContext("2d");
+        if (dpr !== 1) {
+          ctx.scale(dpr, dpr); // compensate for devicePixelRatio scaling
+        }
         ctx.fillStyle = "#11111b";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+        ctx.drawImage(image, 0, 0, canvas.width / dpr, canvas.height / dpr);
         URL.revokeObjectURL(url);
 
         const pngUrl = canvas.toDataURL("image/png");
@@ -377,6 +396,10 @@
         document.body.appendChild(link);
         link.click();
         link.remove();
+
+        // BUG-WEB-09 fix: cleanup canvas element to avoid memory leak
+        URL.revokeObjectURL(pngUrl);
+
         showToast("PNG экспортирован (с учётом зума)");
       };
       image.onerror = () => {
@@ -424,8 +447,9 @@
           <div><strong>ts:</strong> ${d.ts ?? ""}</div>
           <div><strong>emotional_drift:</strong> ${emotionalDrift}</div>
         `)
-        .style("left", `${event.pageX + 12}px`)
-        .style("top", `${event.pageY + 12}px`);
+        // BUG-WEB-06 fix: use clientX/Y for viewport-relative positioning, not pageX/Y
+        .style("left", `${event.clientX + 12}px`)
+        .style("top", `${event.clientY + 12}px`);
     }
 
     function highlightConnectedNode(nodeDatum) {
@@ -506,6 +530,28 @@
             .text("Граф пуст или данные отсутствуют");
           return;
         }
+
+        // BUG-WEB-07 fix: warn if graph is too large to render efficiently
+        if (nodes.length > 5000) {
+          showToast(`⚠️ Graph has ${nodes.length} nodes - may be slow to render`);
+        }
+        if (nodes.length > 10000) {
+          container.append("text")
+            .attr("x", width / 2)
+            .attr("y", height / 2)
+            .attr("text-anchor", "middle")
+            .attr("dy", "-1em")
+            .style("fill", "#f38ba8")
+            .text(`Graph too large (${nodes.length} nodes)`);
+          container.append("text")
+            .attr("x", width / 2)
+            .attr("y", (height / 2) + 24)
+            .attr("text-anchor", "middle")
+            .style("fill", "#94e2d5")
+            .style("font-size", "14px")
+            .text("Please downsample or filter the data");
+          return;
+        }
         const links = normalizeLinks(data.edges);
 
         const degreeById = new Map(nodes.map((n) => [n.id, 0]));
@@ -540,8 +586,9 @@
           .join("circle")
           .attr("r", (d) => nodeRadiusById.get(d.id) || 11)
           .attr("fill", (d) => {
-            const drift = d.lri_core?.emotional_drift ?? 0;
-            const hue = (drift + 1) * 60;
+            // BUG-WEB-01 fix: handle NaN/undefined drift values
+            const drift = d.lri_core?.emotional_drift;
+            const hue = (typeof drift === "number") ? (drift + 1) * 60 : 60; // fallback to yellow (60)
             return `hsl(${hue}, 85%, 58%)`;
           })
           .attr("stroke", "#1e66f5")
@@ -663,12 +710,15 @@
       const target = event.target;
       const isTyping = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
 
+      // BUG-WEB-08 fix: "/" should focus search when typed outside input,
+      // but NOT prevent it when already in input (it should be typed normally)
       if (event.key === "/" && !isTyping) {
         event.preventDefault();
         searchInput.focus();
         searchInput.select();
         return;
       }
+      // If "/" is pressed IN the input, let it type normally (don't prevent)
 
       if (event.key === "Escape") {
         event.preventDefault();
