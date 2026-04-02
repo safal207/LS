@@ -17,6 +17,15 @@ llm:
   use_cloud: false
   use_cotcore: false
   use_breaker: false
+  backend: gonka
+  fallback_backend: cloud,local
+  meritocracy:
+    enabled: false
+    backends: gonka,mimo,cloud,local
+    min_overall: 0.35
+    min_relevance: 0.25
+    min_thread_relevance: 0.25
+    max_hallucination_risk: 0.65
   temporal_enabled: true
   breaker:
     failure_threshold: 3
@@ -29,9 +38,24 @@ llm:
   groq:
     api_key: ""
     model: llama3-8b-8192
+    base_url: https://api.groq.com/openai/v1
+    timeout_sec: 120
+  gonka:
+    enabled: false
+    api_key: ""
+    base_url: https://api.gonkagate.com/v1
+    model: qwen/qwen3-235b-a22b-instruct-2507-fp8
+    timeout_sec: 120
+  mimo:
+    enabled: false
+    api_key: ""
+    base_url: https://api.xiaomimimo.com/anthropic
+    model: mimo-v2-flash
+    timeout_sec: 120
   ollama:
     host: http://localhost:11434
     timeout: 30
+    num_predict: 220
 
 agent:
   enabled: false
@@ -41,6 +65,26 @@ agent:
   metrics_enabled: true
   observability_enabled: true
   event_sink: "print"
+
+graph:
+  trail:
+    enabled: false
+    store_path: data/graph_memory/routes.json
+    decay: 0.95
+    exploration_rate: 0.10
+  coalitions:
+    enabled: false
+    store_path: data/graph_memory/coalitions.json
+  derived_modules:
+    enabled: false
+    store_path: data/graph_memory/derived_modules.json
+    min_quality: 0.72
+    min_trust: 0.62
+  care_cycles:
+    enabled: false
+    min_quality: 0.68
+    min_trust: 0.58
+    retire_trust: 0.35
 
 question_keywords:
   - "почему"

@@ -1,11 +1,38 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any
 
 try:
     from shared.config_loader import get_config
 except ImportError:
     from .shared.config_loader import get_config
+
+
+def _load_env_file(path: str | Path) -> None:
+    env_path = Path(path)
+    if not env_path.exists():
+        return
+    try:
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            continue
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        os.environ.setdefault(key, value)
+
+
+_load_env_file(os.getenv("GRAPH_OPERATOR_ENV_FILE", ".env.network"))
 
 _cfg = get_config()
 
@@ -43,6 +70,20 @@ AGENT_MEMORY_MAX_CHARS = _get(["agent", "memory_max_chars"], 2000)
 AGENT_METRICS_ENABLED = _get(["agent", "metrics_enabled"], True)
 AGENT_OBSERVABILITY_ENABLED = _get(["agent", "observability_enabled"], True)
 AGENT_EVENT_SINK = _get(["agent", "event_sink"], "print")
+GRAPH_TRAIL_ENABLED = str(os.getenv("GRAPH_TRAIL_ENABLED", _get(["graph", "trail", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GRAPH_TRAIL_STORE_PATH = os.getenv("GRAPH_TRAIL_STORE_PATH", _get(["graph", "trail", "store_path"], "data/graph_memory/routes.json"))
+GRAPH_TRAIL_DECAY = float(os.getenv("GRAPH_TRAIL_DECAY", _get(["graph", "trail", "decay"], 0.95)))
+GRAPH_TRAIL_EXPLORATION_RATE = float(os.getenv("GRAPH_TRAIL_EXPLORATION_RATE", _get(["graph", "trail", "exploration_rate"], 0.10)))
+GRAPH_COALITION_ENABLED = str(os.getenv("GRAPH_COALITION_ENABLED", _get(["graph", "coalitions", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GRAPH_COALITION_STORE_PATH = os.getenv("GRAPH_COALITION_STORE_PATH", _get(["graph", "coalitions", "store_path"], "data/graph_memory/coalitions.json"))
+GRAPH_DERIVED_MODULE_ENABLED = str(os.getenv("GRAPH_DERIVED_MODULE_ENABLED", _get(["graph", "derived_modules", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GRAPH_DERIVED_MODULE_STORE_PATH = os.getenv("GRAPH_DERIVED_MODULE_STORE_PATH", _get(["graph", "derived_modules", "store_path"], "data/graph_memory/derived_modules.json"))
+GRAPH_DERIVED_MODULE_MIN_QUALITY = float(os.getenv("GRAPH_DERIVED_MODULE_MIN_QUALITY", _get(["graph", "derived_modules", "min_quality"], 0.72)))
+GRAPH_DERIVED_MODULE_MIN_TRUST = float(os.getenv("GRAPH_DERIVED_MODULE_MIN_TRUST", _get(["graph", "derived_modules", "min_trust"], 0.62)))
+GRAPH_CARE_CYCLES_ENABLED = str(os.getenv("GRAPH_CARE_CYCLES_ENABLED", _get(["graph", "care_cycles", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GRAPH_CARE_CYCLES_MIN_QUALITY = float(os.getenv("GRAPH_CARE_CYCLES_MIN_QUALITY", _get(["graph", "care_cycles", "min_quality"], 0.68)))
+GRAPH_CARE_CYCLES_MIN_TRUST = float(os.getenv("GRAPH_CARE_CYCLES_MIN_TRUST", _get(["graph", "care_cycles", "min_trust"], 0.58)))
+GRAPH_CARE_CYCLES_RETIRE_TRUST = float(os.getenv("GRAPH_CARE_CYCLES_RETIRE_TRUST", _get(["graph", "care_cycles", "retire_trust"], 0.35)))
 
 # Audio settings
 AUDIO_CHUNK_DURATION = _get(["audio", "chunk_duration"], 3.0)
@@ -54,11 +95,39 @@ VOLUME_THRESHOLD = _get(["audio", "volume_threshold"], 0.01)
 OLLAMA_HOST = _get(["llm", "ollama", "host"], "http://localhost:11434")
 OLLAMA_TIMEOUT = _get(["llm", "ollama", "timeout"], 30)
 OLLAMA_MODEL = _get(["llm", "ollama", "model"], "")
+OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", _get(["llm", "ollama", "num_predict"], 220)))
+os.environ.setdefault("OLLAMA_NUM_PREDICT", str(OLLAMA_NUM_PREDICT))
 
-# Groq settings (fallback)
-GROQ_API_KEY = _get(["llm", "groq", "api_key"], "")
-GROQ_MODEL = _get(["llm", "groq", "model"], "")
+# Routed backend settings
+LLM_BACKEND = os.getenv("LLM_BACKEND", _get(["llm", "backend"], ""))
+LLM_FALLBACK_BACKEND = os.getenv("LLM_FALLBACK_BACKEND", _get(["llm", "fallback_backend"], ""))
+LLM_MERITOCRACY_ENABLED = str(os.getenv("LLM_MERITOCRACY_ENABLED", _get(["llm", "meritocracy", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+LLM_MERITOCRACY_BACKENDS = os.getenv("LLM_MERITOCRACY_BACKENDS", _get(["llm", "meritocracy", "backends"], "gonka,mimo,cloud,local"))
+LLM_MERITOCRACY_MIN_OVERALL = float(os.getenv("LLM_MERITOCRACY_MIN_OVERALL", _get(["llm", "meritocracy", "min_overall"], 0.35)))
+LLM_MERITOCRACY_MIN_RELEVANCE = float(os.getenv("LLM_MERITOCRACY_MIN_RELEVANCE", _get(["llm", "meritocracy", "min_relevance"], 0.25)))
+LLM_MERITOCRACY_MIN_THREAD_RELEVANCE = float(os.getenv("LLM_MERITOCRACY_MIN_THREAD_RELEVANCE", _get(["llm", "meritocracy", "min_thread_relevance"], 0.25)))
+LLM_MERITOCRACY_MAX_HALLUCINATION_RISK = float(os.getenv("LLM_MERITOCRACY_MAX_HALLUCINATION_RISK", _get(["llm", "meritocracy", "max_hallucination_risk"], 0.65)))
+
+# Groq / generic cloud settings
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", _get(["llm", "groq", "api_key"], ""))
+GROQ_MODEL = os.getenv("GROQ_MODEL", _get(["llm", "groq", "model"], ""))
+GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", _get(["llm", "groq", "base_url"], "https://api.groq.com/openai/v1"))
+GROQ_TIMEOUT_SEC = float(os.getenv("GROQ_TIMEOUT_SEC", _get(["llm", "groq", "timeout_sec"], 120)))
 USE_GROQ = _get(["llm", "use_groq"], False)
+
+# Gonka settings
+GONKA_ENABLED = str(os.getenv("GONKA_ENABLED", _get(["llm", "gonka", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+GONKA_API_KEY = os.getenv("GONKA_API_KEY", _get(["llm", "gonka", "api_key"], ""))
+GONKA_BASE_URL = os.getenv("GONKA_BASE_URL", _get(["llm", "gonka", "base_url"], "https://api.gonkagate.com/v1"))
+GONKA_MODEL = os.getenv("GONKA_MODEL", _get(["llm", "gonka", "model"], "qwen/qwen3-235b-a22b-instruct-2507-fp8"))
+GONKA_TIMEOUT_SEC = float(os.getenv("GONKA_TIMEOUT_SEC", _get(["llm", "gonka", "timeout_sec"], 120)))
+
+# Xiaomi MiMo settings
+MIMO_ENABLED = str(os.getenv("MIMO_ENABLED", _get(["llm", "mimo", "enabled"], False))).strip().lower() in {"1", "true", "yes", "on"}
+MIMO_API_KEY = os.getenv("MIMO_API_KEY", _get(["llm", "mimo", "api_key"], ""))
+MIMO_BASE_URL = os.getenv("MIMO_BASE_URL", _get(["llm", "mimo", "base_url"], "https://api.xiaomimimo.com/anthropic"))
+MIMO_MODEL = os.getenv("MIMO_MODEL", _get(["llm", "mimo", "model"], "mimo-v2-flash"))
+MIMO_TIMEOUT_SEC = float(os.getenv("MIMO_TIMEOUT_SEC", _get(["llm", "mimo", "timeout_sec"], 120)))
 
 # Model generation settings (GhostGPT)
 TEMPERATURE = _get(["llm", "temperature"], 0.6)

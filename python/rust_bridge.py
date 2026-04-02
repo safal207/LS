@@ -101,7 +101,6 @@ class RustOptimizer:
         except Exception as e:
             logger.error(f"Rust Pattern Add Error: {e}")
             return False
-        return False
 
     def find_similar(self, query: list, k: int = 5):
         if not self.available:
@@ -123,7 +122,6 @@ class RustOptimizer:
         except Exception as e:
             logger.error(f"Rust Save Error: {e}")
             return False
-        return False
 
     def load_from_storage(self, key: str):
         if not self.available:
@@ -163,8 +161,8 @@ class RustOptimizer:
         if self.available and self.storage:
             try:
                 self.storage.flush()
-            except Exception:
-                pass
+            except OSError as e:
+                logger.debug("Failed to flush storage on close: %s", e)
 
     def transport_available(self) -> bool:
         return self.available and self.transport is not None

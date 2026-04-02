@@ -8,11 +8,12 @@ import requests
 import time
 import logging
 import queue
-import threading
 import os
+import threading
 from typing import Optional
 from .breaker import CircuitBreaker, CircuitOpenError
 from .cot_adapter import COTAdapter
+from .backends import LLMResponse, build_llm_backend
 from .errors import LLMEmptyResponseError, LLMInvalidFormatError, as_llm_error
 from .qwen_handler import QwenHandler
 from .ram_model_selector import get_available_ram_gb, select_model
@@ -20,11 +21,15 @@ from config import (
     OLLAMA_HOST,
     SYSTEM_PROMPT,
     USE_CLOUD_LLM,
+    USE_GROQ,
+    GONKA_ENABLED,
     GROQ_API_KEY,
     USE_COTCORE,
     USE_BREAKER,
     LLM_RAM_AWARE,
     LLM_MODEL_NAME,
+    LLM_BACKEND,
+    LLM_FALLBACK_BACKEND,
     BREAKER_THRESHOLD,
     BREAKER_COOLDOWN,
 )
@@ -61,12 +66,36 @@ class LanguageModel:
         # Initialize Qwen handler
         qwen_api_key = os.getenv("QWEN_API_KEY", "")
         self.primary_model, self.fallback_model = self._resolve_models()
-        self.qwen_handler = QwenHandler(
+        self._qwen_handler = QwenHandler(
             use_cloud_api=USE_CLOUD_LLM,
             api_key=qwen_api_key,
             model_name=self.primary_model,
             raise_on_error=True,
         )
+        router_local_handler = self._qwen_handler
+        if USE_CLOUD_LLM:
+            router_local_handler = QwenHandler(
+                use_cloud_api=False,
+                model_name=self.primary_model,
+                raise_on_error=True,
+            )
+        self.backend_router = build_llm_backend(
+            local_handler=router_local_handler,
+            local_model=self.primary_model,
+            local_fallback_model=self.fallback_model,
+        )
+        self.last_response: Optional[LLMResponse] = None
+
+    @property
+    def qwen_handler(self):
+        return self._qwen_handler
+
+    @qwen_handler.setter
+    def qwen_handler(self, value) -> None:
+        self._qwen_handler = value
+        local_backend = getattr(self.backend_router, "backends", {}).get("local")
+        if local_backend is not None and hasattr(local_backend, "handler"):
+            local_backend.handler = value
 
     def _resolve_models(self) -> tuple[str, str]:
         if not LLM_RAM_AWARE:
@@ -162,6 +191,12 @@ class LanguageModel:
             if self._is_cancelled(cancel_event):
                 return None
 
+            self.last_response = LLMResponse(
+                text=response,
+                model=getattr(self.qwen_handler, "model_name", self.primary_model),
+                provider=label,
+                latency_ms=0.0,
+            )
             logger.info("Generated %s response: %s...", label, response[:100])
             return response
 
@@ -173,6 +208,13 @@ class LanguageModel:
                 logger.warning(str(err))
             else:
                 logger.error("Error generating %s response (%s): %s", label, err.kind, err)
+            self.last_response = LLMResponse(
+                text="",
+                model=getattr(self.qwen_handler, "model_name", self.primary_model),
+                provider=label,
+                latency_ms=0.0,
+                error=str(err),
+            )
 
             if self.fallback_model != self.primary_model:
                 return self._try_fallback(label, prompt, active_messages, stream, on_token)
@@ -214,6 +256,15 @@ class LanguageModel:
             if isinstance(fallback_response, str) and fallback_response.strip():
                 self.primary_model = self.fallback_model
                 fallback_succeeded = True
+                self.last_response = LLMResponse(
+                    text=fallback_response,
+                    model=self.fallback_model,
+                    provider=label,
+                    latency_ms=0.0,
+                    was_fallback_used=True,
+                    fallback_from=current_model,
+                    fallback_to=self.fallback_model,
+                )
                 return fallback_response
         except Exception as fallback_exc:
             logger.error("Fallback model %s also failed (%s): %s", self.fallback_model, label, fallback_exc)
@@ -229,9 +280,70 @@ class LanguageModel:
     def generate_response_cloud(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
         """Generate response using cloud Qwen API."""
         return self._generate(question, cancel_event=cancel_event, messages=messages, stream=stream, on_token=on_token, label="cloud")
+
+    def _use_backend_router(self) -> bool:
+        return bool(
+            LLM_BACKEND
+            or LLM_FALLBACK_BACKEND
+            or USE_CLOUD_LLM
+            or USE_GROQ
+            or GONKA_ENABLED
+        )
+
+    def _generate_via_router(
+        self,
+        question: str,
+        *,
+        cancel_event=None,
+        messages: Optional[list[dict]] = None,
+        stream: bool = False,
+        on_token=None,
+    ) -> Optional[str]:
+        if self._is_cancelled(cancel_event):
+            return None
+        active_messages = _compress_messages_for_hint(messages) if os.getenv("WHISPER_MODE", "0") == "1" else messages
+        if active_messages:
+            routed_messages = active_messages
+            system_prompt = None
+        else:
+            routed_messages = [{"role": "user", "content": question}]
+            system_prompt = SYSTEM_PROMPT
+
+        response = self.backend_router.generate(
+            messages=routed_messages,
+            system_prompt=system_prompt,
+            metadata={"question": question},
+            stream=stream,
+            on_token=on_token,
+        )
+        self.last_response = response
+        if response.ok:
+            logger.info(
+                "Generated response via provider=%s model=%s fallback=%s",
+                response.provider,
+                response.model,
+                response.was_fallback_used,
+            )
+            return response.text
+        logger.error(
+            "LLM backend route failed provider=%s error=%s fallback_from=%s fallback_to=%s",
+            response.provider,
+            response.error,
+            response.fallback_from,
+            response.fallback_to,
+        )
+        return None
     
     def generate_response(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
         """Generate response using either local or cloud LLM"""
+        if self._use_backend_router():
+            return self._generate_via_router(
+                question,
+                cancel_event=cancel_event,
+                messages=messages,
+                stream=stream,
+                on_token=on_token,
+            )
         if USE_CLOUD_LLM:
             logger.info("Using cloud LLM (Groq)")
             return self.generate_response_cloud(question, cancel_event=cancel_event, messages=messages, stream=stream, on_token=on_token)

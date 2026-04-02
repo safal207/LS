@@ -38,15 +38,14 @@ def test_microphones():
                 frames_per_buffer=1024
             )
             
-            # Test for 2 seconds
+            # Test for 2 seconds (32 * 1024 / 16000 = 2.048s)
             max_level = 0
-            for _ in range(20):  # 2 seconds at 0.1s intervals
+            for _ in range(32):
                 data = stream.read(1024, exception_on_overflow=False)
                 audio_np = np.frombuffer(data, dtype=np.int16)
                 audio_float = audio_np.astype(np.float32) / 32768.0
                 rms = np.sqrt(np.mean(audio_float**2))
                 max_level = max(max_level, rms)
-                time.sleep(0.1)
             
             stream.stop_stream()
             stream.close()

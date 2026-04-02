@@ -5,7 +5,6 @@ Transparent overlay window that integrates with Phase 1 backend
 """
 
 import sys
-import time
 import threading
 import queue
 from typing import Optional
