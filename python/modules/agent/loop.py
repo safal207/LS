@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import queue
+import re
 import threading
 import time
 from typing import Any, Callable, Optional
@@ -54,6 +55,18 @@ REFLECTION_SYSTEM_PROMPT = (
 )
 
 PINNED_ROLES = {"system", "context_anchor"}
+
+# Quality feedback detection — fired BEFORE routing new questions
+_POSITIVE_FB_RE = re.compile(
+    r"\b(отлично|хорошо|правильно|верно|супер|ок|точно|именно|да|yes|ok|good|"
+    r"correct|great|perfect|nice|exactly|молодец|👍|👌|🔥|💯|thanks|спасибо)\b",
+    re.I,
+)
+_NEGATIVE_FB_RE = re.compile(
+    r"\b(неправильно|нет|неверно|не то|не так|ошибка|плохо|no|wrong|"
+    r"incorrect|bad|нет смысла|не понял|не понятно|👎)\b",
+    re.I,
+)
 
 
 def trim_history(history: list[dict], max_size: int = 10) -> list[dict]:
@@ -364,6 +377,49 @@ class AgentLoop:
                 )
             except Exception as exc:
                 logger.debug("Subconscious temporal write failed: %s", exc)
+
+    def _apply_quality_feedback(self, signal: str, text: str) -> None:
+        """Strengthen or weaken the last active TemporalNode based on user feedback.
+
+        signal: "positive" | "negative"
+        """
+        if self.temporal is None:
+            return
+        latest = self.memory.get("subconscious_latest")
+        if not isinstance(latest, dict):
+            return
+        mode = latest.get("suggested_mode")
+        if not mode:
+            return
+        node_id = f"subconscious:{mode}"
+        try:
+            from hexagon_core.temporal_graph import TemporalNode
+            with self.temporal._graph_lock:
+                node = self.temporal.nodes.get(node_id)
+                if node is None:
+                    # Node doesn't exist yet — create it so feedback isn't lost
+                    node = TemporalNode(id=node_id, resonance=0.5, harmony_bonus=0.1)
+                    self.temporal.nodes[node_id] = node
+                if signal == "positive":
+                    node.resonance = min(1.0, node.resonance + 0.18)
+                    node.harmony_bonus = min(0.5, node.harmony_bonus + 0.05)
+                else:
+                    node.resonance = max(0.0, node.resonance - 0.25)
+            logger.info(
+                "Quality feedback [%s] → temporal node %s resonance=%.3f",
+                signal, node_id, self.temporal.nodes[node_id].resonance,
+            )
+            # Record feedback in memory for diagnostics
+            self.memory.setdefault("feedback_log", []).append({
+                "ts": time.time(),
+                "signal": signal,
+                "node": node_id,
+                "text_snippet": text[:80],
+                "resonance_after": self.temporal.nodes[node_id].resonance,
+            })
+            self.memory["feedback_log"] = self.memory["feedback_log"][-50:]
+        except Exception as exc:
+            logger.debug("Quality feedback write failed: %s", exc)
 
     def _maybe_collect_windows_context(self, *, session_id: str) -> None:
         now = time.time()
@@ -945,6 +1001,13 @@ class AgentLoop:
 
             question = item.get("text", "")
             mode_explanation = self._explain_mode_for_item(question, item)
+
+            # Detect quality feedback before routing — short replies only
+            if len(question.split()) <= 6:
+                if _POSITIVE_FB_RE.search(question):
+                    self._apply_quality_feedback("positive", question)
+                elif _NEGATIVE_FB_RE.search(question):
+                    self._apply_quality_feedback("negative", question)
 
             if question.strip() == "/sleep":
                 self._enter_sleep_mode()

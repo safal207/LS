@@ -92,6 +92,58 @@ class TestAgentLoop(unittest.TestCase):
 
         self.assertGreater(r2, r1, "Resonance should increase on repeated detection")
 
+    def test_positive_feedback_strengthens_temporal_node(self):
+        """Positive user signal boosts resonance of the last active mode node."""
+        loop = AgentLoop(output_queue=queue.Queue(), llm=DummyLLM())
+
+        from hexagon_core.temporal_graph import TemporalNode
+        loop.temporal.nodes["subconscious:deliberative"] = TemporalNode(
+            id="subconscious:deliberative", resonance=0.75, harmony_bonus=0.1
+        )
+        loop.memory["subconscious_latest"] = {
+            "suggested_mode": "deliberative",
+            "hypothesis": "test",
+            "confidence": 0.78,
+        }
+
+        loop._apply_quality_feedback("positive", "да, точно")
+
+        node = loop.temporal.nodes["subconscious:deliberative"]
+        self.assertGreater(node.resonance, 0.75)
+        self.assertEqual(loop.memory["feedback_log"][-1]["signal"], "positive")
+
+    def test_negative_feedback_weakens_temporal_node(self):
+        """Negative user signal reduces resonance of the last active mode node."""
+        loop = AgentLoop(output_queue=queue.Queue(), llm=DummyLLM())
+
+        from hexagon_core.temporal_graph import TemporalNode
+        loop.temporal.nodes["subconscious:reactive"] = TemporalNode(
+            id="subconscious:reactive", resonance=0.80, harmony_bonus=0.1
+        )
+        loop.memory["subconscious_latest"] = {
+            "suggested_mode": "reactive",
+            "hypothesis": "test",
+            "confidence": 0.66,
+        }
+
+        loop._apply_quality_feedback("negative", "нет, не то")
+
+        node = loop.temporal.nodes["subconscious:reactive"]
+        self.assertLess(node.resonance, 0.80)
+
+    def test_feedback_creates_node_if_missing(self):
+        """Positive feedback creates a TemporalNode if it doesn't exist yet."""
+        loop = AgentLoop(output_queue=queue.Queue(), llm=DummyLLM())
+        loop.memory["subconscious_latest"] = {
+            "suggested_mode": "creative",
+            "hypothesis": "test",
+            "confidence": 0.76,
+        }
+
+        loop._apply_quality_feedback("positive", "отлично")
+
+        self.assertIn("subconscious:creative", loop.temporal.nodes)
+
     def test_temporal_axis_drives_explanation_hint(self):
         """When TemporalGraph axis is a high-resonance subconscious node, explanation includes it."""
         loop = AgentLoop(output_queue=queue.Queue(), llm=DummyLLM())
