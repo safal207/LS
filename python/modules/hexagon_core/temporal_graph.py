@@ -84,6 +84,31 @@ class TemporalGraph:
             snapshot = [(node.id, node.velocity) for node in self.nodes.values()]
         return sorted(snapshot, key=lambda x: x[1], reverse=True)[:n]
 
+    def ingest_reflection(self, reason: str, progress: float) -> TemporalNode:
+        """Convert a reflection result into a TemporalNode and add it to the graph.
+
+        Nodes created here represent consolidated wisdom — lessons the system
+        learned about itself. They have high harmony_bonus so they survive
+        competition with transient subconscious nodes.
+
+        resonance = clamp(0.1, 0.95, 0.5 + progress * 0.45)
+        harmony_bonus = 0.35 (lessons are structurally valuable)
+        """
+        resonance = max(0.10, min(0.95, 0.5 + progress * 0.45))
+        # Stable id: first 12 chars of reason as slug, avoids duplicates on repeated ingestion
+        slug = "".join(c if c.isalnum() else "_" for c in reason[:20]).strip("_").lower()
+        node_id = f"lesson:{slug}"
+        with self._graph_lock:
+            existing = self.nodes.get(node_id)
+            if existing is not None:
+                # Lesson confirmed again — strengthen it
+                existing.update_resonance(max(existing.resonance, resonance))
+                return existing
+            node = TemporalNode(id=node_id, resonance=resonance, harmony_bonus=0.35)
+            self.nodes[node_id] = node
+        self.align_to_axis(node)
+        return node
+
     def align_to_axis(self, new_node: TemporalNode) -> float:
         """Align new node to axis. Returns synergy (0–1)."""
         axis = self.get_meritocratic_axis()

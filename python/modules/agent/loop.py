@@ -236,6 +236,18 @@ class AgentLoop:
             # 2. Фаза 2: Анаболизм — переработка рефлексий
             reflection_energy = amygdala.metabolism.digest_old_reflections()
 
+            # 2.1 Уроки из рефлексии → TemporalGraph nodes
+            if self.temporal and reflection_energy > 0:
+                lessons = getattr(amygdala.metabolism, "lessons", [])
+                if lessons:
+                    latest_lesson = lessons[-1]
+                    progress_signal = min(1.0, reflection_energy * 10)  # energy 0.05 → progress 0.5
+                    lesson_node = self.temporal.ingest_reflection(latest_lesson, progress_signal)
+                    logger.info(
+                        "Reflection → temporal: node=%s resonance=%.3f",
+                        lesson_node.id, lesson_node.resonance,
+                    )
+
             # 3. Фаза 3: Метаболическое укрепление (вся энергия цикла)
             total_energy = compost_energy + reflection_energy
             boost = amygdala.metabolism.feed_growth(energy=total_energy)
@@ -290,6 +302,18 @@ class AgentLoop:
         compacted = 0
         if hasattr(amygdala, "visceral") and amygdala.visceral:
             compacted = amygdala.visceral.compact_history()
+
+        # Ingest any unprocessed lessons into TemporalGraph
+        if self.temporal:
+            lessons = getattr(getattr(amygdala, "metabolism", None), "lessons", [])
+            last_ingested = self.memory.get("_lessons_last_ingested", 0)
+            new_lessons = lessons[last_ingested:]
+            for lesson in new_lessons:
+                node = self.temporal.ingest_reflection(lesson, progress=0.3)
+                logger.debug("Maintenance reflection → temporal: %s resonance=%.3f", node.id, node.resonance)
+            if new_lessons:
+                self.memory["_lessons_last_ingested"] = len(lessons)
+
         logger.info(f"Maintenance: pruned {pruned} weak nodes, compacted {compacted} visceral history records")
 
     def _subconscious_loop(self) -> None:
@@ -895,15 +919,17 @@ class AgentLoop:
         if self.temporal is not None:
             try:
                 axis = self.temporal.get_meritocratic_axis()
-                if axis is not None and axis.id.startswith("subconscious:"):
-                    dominant_mode = axis.id.split(":", 1)[1]
-                    if axis.resonance >= 0.80:
-                        vscore = axis.velocity_score()
-                        trend = ""
-                        if vscore > 0.05:
-                            trend = " ↑"
-                        elif vscore < -0.05:
-                            trend = " ↓"
+                if axis is not None:
+                    vscore = axis.velocity_score()
+                    trend = " ↑" if vscore > 0.05 else (" ↓" if vscore < -0.05 else "")
+                    if axis.id.startswith("lesson:") and axis.resonance >= 0.60:
+                        lesson_label = axis.id[7:].replace("_", " ")
+                        temporal_hint = (
+                            f" Урок: «{lesson_label}»"
+                            f" (резонанс {axis.resonance:.2f}{trend})."
+                        )
+                    elif axis.id.startswith("subconscious:") and axis.resonance >= 0.80:
+                        dominant_mode = axis.id.split(":", 1)[1]
                         temporal_hint = (
                             f" Доминирующий паттерн: {dominant_mode}"
                             f" (резонанс {axis.resonance:.2f}{trend})."

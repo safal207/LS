@@ -144,6 +144,56 @@ class TestAgentLoop(unittest.TestCase):
 
         self.assertIn("subconscious:creative", loop.temporal.nodes)
 
+    def test_ingest_reflection_creates_lesson_node(self):
+        """ingest_reflection() should create a lesson: TemporalNode with correct resonance."""
+        from hexagon_core.temporal_graph import TemporalGraph
+
+        tg = TemporalGraph()
+        node = tg.ingest_reflection("Goal moved closer: completion 0.40 -> 0.70.", progress=0.5)
+
+        self.assertTrue(node.id.startswith("lesson:"))
+        # resonance = 0.5 + 0.5 * 0.45 = 0.725 base, may be slightly higher after align_to_axis
+        self.assertGreaterEqual(node.resonance, 0.72)
+        self.assertLessEqual(node.resonance, 1.0)
+        self.assertEqual(node.harmony_bonus, 0.35)
+        self.assertIn(node.id, tg.nodes)
+
+    def test_ingest_reflection_negative_progress_lowers_resonance(self):
+        """Negative progress should produce resonance < 0.5."""
+        from hexagon_core.temporal_graph import TemporalGraph
+
+        tg = TemporalGraph()
+        node = tg.ingest_reflection("Goal moved farther: completion 0.70 -> 0.40.", progress=-0.5)
+
+        self.assertLess(node.resonance, 0.5)
+
+    def test_ingest_reflection_repeated_strengthens_node(self):
+        """Ingesting the same reflection twice should strengthen (not duplicate) the node."""
+        from hexagon_core.temporal_graph import TemporalGraph
+
+        tg = TemporalGraph()
+        n1 = tg.ingest_reflection("lesson repeated test", progress=0.3)
+        r1 = n1.resonance
+        n2 = tg.ingest_reflection("lesson repeated test", progress=0.6)
+
+        self.assertEqual(n1.id, n2.id)  # same node, not duplicated
+        self.assertGreaterEqual(n2.resonance, r1)
+
+    def test_lesson_node_can_become_axis(self):
+        """A high-resonance lesson node should win the meritocratic axis."""
+        from hexagon_core.temporal_graph import TemporalGraph, TemporalNode
+
+        tg = TemporalGraph()
+        # Competing subconscious node
+        tg.nodes["subconscious:reactive"] = TemporalNode(
+            id="subconscious:reactive", resonance=0.70, harmony_bonus=0.1
+        )
+        # Strong lesson from reflection
+        lesson = tg.ingest_reflection("deliberative approach worked well here", progress=0.9)
+
+        axis = tg.get_meritocratic_axis()
+        self.assertTrue(axis.id.startswith("lesson:"))
+
     def test_velocity_calculated_on_resonance_update(self):
         """update_resonance() should set non-zero velocity after a change."""
         from hexagon_core.temporal_graph import TemporalNode
