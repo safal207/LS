@@ -1,222 +1,287 @@
-# -*- coding: utf-8 -*-
-# Subconscious → TemporalGraph Feedback Loop
+# Subconscious → TemporalGraph Feedback Loop + Five-Force Cognitive Field
 
 ## Обзор
 
 Система обладает фоновым процессом — **подсознанием** (`_subconscious_loop`), который
 непрерывно анализирует историю диалога между ответами и строит гипотезы о когнитивном
-режиме пользователя. Начиная с коммита `32adf97`, эти гипотезы записываются в
-**TemporalGraph**, где резонанс паттернов накапливается со временем и начинает влиять
-на долгосрочное поведение системы.
+режиме пользователя. Эти гипотезы записываются в **TemporalGraph**, где резонанс паттернов
+накапливается со временем и начинает влиять на долгосрочное поведение системы.
+
+Дополнительно система поддерживает **пять динамических сил**, которые действуют на каждый
+узел графа в каждом цикле `Coordinator.decide()` — создавая живое когнитивное поле, где
+узлы конкурируют, забываются, стабилизируются и взаимодействуют друг с другом.
 
 ---
 
 ## Архитектура петли обратной связи
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        AgentLoop                                │
-│                                                                  │
-│  ┌──────────────┐   каждые 20с   ┌──────────────────────────┐  │
-│  │  Диалог /    │ ─────────────► │  _run_subconscious_pass  │  │
-│  │  history     │                │                          │  │
-│  └──────────────┘                │  Анализирует last 12     │  │
-│                                  │  сообщений пользователя  │  │
-│                                  │                          │  │
-│                                  │  → creative (0.76)       │  │
-│                                  │  → deliberative (0.78)   │  │
-│                                  │  → reactive (0.66)       │  │
-│                                  └────────────┬─────────────┘  │
-│                                               │                 │
-│                          ┌────────────────────▼──────────┐     │
-│                          │  memory["subconscious_latest"] │     │
-│                          │  memory["subconscious_insights"]│     │
-│                          └────────────────────┬──────────┘     │
-│                                               │                 │
-│                          ┌────────────────────▼──────────┐     │
-│                          │         TemporalGraph          │     │
-│                          │                               │     │
-│                          │  nodes["subconscious:mode"]   │     │
-│                          │    resonance += conf * 0.12   │     │
-│                          │    (каждый повторный проход)  │     │
-│                          └────────────────────┬──────────┘     │
-│                                               │                 │
-│                          ┌────────────────────▼──────────┐     │
-│                          │    get_meritocratic_axis()     │     │
-│                          │                               │     │
-│                          │  Возвращает узел с макс.      │     │
-│                          │  resonance * (1+harmony)      │     │
-│                          └────────────────────┬──────────┘     │
-│                                               │                 │
-│                          ┌────────────────────▼──────────┐     │
-│                          │   _explain_mode_for_item()     │     │
-│                          │                               │     │
-│                          │  Если resonance >= 0.80:      │     │
-│                          │  "Доминирующий паттерн:       │     │
-│                          │   deliberative (резонанс 0.92)"│     │
-│                          └───────────────────────────────┘     │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              AgentLoop                                       │
+│                                                                              │
+│  ┌──────────────┐   каждые 20с   ┌──────────────────────────┐              │
+│  │  Диалог /    │ ─────────────► │  _run_subconscious_pass  │              │
+│  │  history     │                │  Анализирует last 12     │              │
+│  └──────────────┘                │  сообщений пользователя  │              │
+│                                  └────────────┬─────────────┘              │
+│                                               │                              │
+│  ┌──────────────┐                ┌────────────▼──────────────┐             │
+│  │ WorldPoller  │ ─────────────► │       TemporalGraph        │             │
+│  │ (git/logs)   │                │                            │             │
+│  └──────────────┘                │  nodes["subconscious:*"]   │             │
+│                                  │  nodes["lesson:*"]         │             │
+│  ┌──────────────┐                │  nodes["world:*"]          │             │
+│  │  Quality FB  │                │                            │             │
+│  │  (да/нет)    │ ─────────────► │  get_meritocratic_axis()  │             │
+│  └──────────────┘                └────────────┬──────────────┘             │
+│                                               │                              │
+│                          ┌────────────────────▼───────────────────┐        │
+│                          │      Coordinator.decide() — 5 Forces    │        │
+│                          │                                          │        │
+│                          │  F1: apply_orientation_forces()          │        │
+│                          │  F2: apply_stabilization_forces()        │        │
+│                          │  F3: apply_decay()                       │        │
+│                          │  F4: apply_interference()                │        │
+│                          │  F5: ← bidirectional signal back         │        │
+│                          └────────────────────┬───────────────────┘        │
+│                                               │                              │
+│                          ┌────────────────────▼───────────────────┐        │
+│                          │   _explain_mode_for_item()              │        │
+│                          │   "Доминирующий паттерн: deliberative"  │        │
+│                          └────────────────────────────────────────┘        │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Компоненты
+## Пять сил когнитивного поля
 
-### 1. `_subconscious_loop` — фоновый поток
-**Файл:** `python/modules/agent/loop.py`
+Каждый вызов `Coordinator.decide()` прогоняет все пять сил через TemporalGraph
+в определённом порядке:
 
-Запускается при старте `AgentLoop.start()` как daemon-поток с именем `"subconscious"`.
-Выполняет `_run_subconscious_pass()` каждые **20 секунд** (настраивается через
-`_subconscious_interval_s`). Корректно завершается при `stop()` через
-`_subconscious_stop` Event.
+### Сила 1: Ориентационные силы (`apply_orientation_forces`)
 
-### 2. `_run_subconscious_pass` — анализ паттерна
-Берёт последние **12 сообщений** из `history`, извлекает реплики пользователя и
-классифицирует паттерн:
+Переводит внешние сигналы OrientationCenter в резонансные изменения узлов:
+
+| Сигнал | Действие |
+|--------|----------|
+| `chaos_score` высокий | Ослабляет все узлы пропорционально `chaos * 0.12` |
+| `harmony_score` высокий | Усиляет ось (meritocratic axis) на `harmony * 0.10` |
+| `drift_pressure` высокий | Усиляет `lesson:*` узлы на `drift * 0.08` |
+| `rhythm_phase="inhale"` | Буст `subconscious:reactive` +0.06 |
+| `rhythm_phase="exhale"` | Буст `subconscious:deliberative` +0.06 |
+
+Возвращает dict `{node_id: delta}` для observability.
+
+### Сила 2: Стабилизация (`apply_stabilization_forces`)
+
+Mean-reversion к позиции покоя + гистерезис оси:
+
+```
+delta = (resting_resonance - current_resonance) * strength * (1 - stability_bias)
+```
+
+- Узел выше покоя → тянется вниз
+- Узел ниже покоя → тянется вверх  
+- Высокий `stability_bias` сопротивляется изменению
+- Ось с `stability_bias > 0.5` получает дополнительный consolidation boost (+0.006)
+
+### Сила 3: Кривая забывания (`apply_decay`)
+
+Экспоненциальный распад по типу узла (период полураспада):
+
+| Тип узла | Период полураспада |
+|----------|--------------------|
+| `lesson:*` | 24 часа |
+| `world:git:*` | 1 час |
+| `world:error:*` | 30 минут |
+| `world:custom:*` | 30 минут |
+| `subconscious:*` | 10 минут |
+| `world:critical:*` | 5 минут |
+| остальные | 5 минут |
+
+Формула: `decay = (r - resting) * (1 - 2^(-dt/half_life)) * (1 - stability_bias * 0.5)`
+
+Узлы со стабильностью забываются медленнее. Резонанс не опускается ниже `resting_resonance`.
+
+### Сила 4: Интерференция (`apply_interference`)
+
+Предотвращает split-brain: конкурирующие режимы гасят друг друга.
+
+Пары интерференции:
+```python
+("subconscious:reactive", "subconscious:deliberative")
+("subconscious:reactive", "subconscious:creative")
+```
+
+Более слабый узел в паре теряет `gap * 0.08` резонанса (gap = разница резонансов).
+Более сильный остаётся неизменным.
+
+**Эффект:** система не может одновременно быть высокорезонансно reactive И deliberative —
+один режим доминирует, другой отступает.
+
+### Сила 5: Обратный сигнал в OrientationCenter
+
+```
+trajectory_error_blended = base_error * 0.7 + (1 - axis_resonance) * 0.3
+```
+
+Высокий резонанс оси → снижает воспринимаемую ошибку траектории → более стабильная
+ориентация в следующем цикле. **Двунаправленный поток.**
+
+---
+
+## Обучение с трёх источников
+
+### 1. Подсознание (unsupervised, каждые 20с)
+`_run_subconscious_pass()` анализирует последние 12 сообщений:
 
 | Режим | Условие | Confidence |
 |-------|---------|-----------|
-| `creative` | cues: brainstorm, invent, design, story, ideya... | 0.76 |
-| `deliberative` | cues: why, how, explain, reason / 2+ длинных реплики | 0.78 |
+| `creative` | brainstorm/invent/design/story... | 0.76 |
+| `deliberative` | why/how/explain + 2 длинных реплики | 0.78 |
 | `reactive` | всё остальное | 0.66 |
 
-**После классификации:**
-1. Сохраняет insight в `memory["subconscious_latest"]` и `memory["subconscious_insights"][-20:]`
-2. Записывает/усиляет `TemporalNode` в `self.temporal.nodes`
+При повторном обнаружении: `resonance += confidence * 0.12`
 
-### 3. TemporalNode для когнитивного режима
+### 2. Качественная обратная связь (supervised)
+Пользователь говорит "да", "отлично", "нет", "плохо" →
+`_apply_quality_feedback` изменяет резонанс последнего активного узла:
+- Позитив: `+0.18`
+- Негатив: `-0.25` (более жёсткий сигнал)
 
-```python
-TemporalNode(
-    id=f"subconscious:{suggested_mode}",   # e.g. "subconscious:deliberative"
-    resonance=confidence,                   # начальный (0.66–0.78)
-    harmony_bonus=len(route) * 0.05,       # +0.05 за каждый движок в маршруте
-)
-```
+### 3. Рефлексия/уроки (self-directed)
+`ingest_reflection(reason, progress)` → `lesson:{slug}` узлы (24ч half-life).
+При сне-консолидации (`digest_old_reflections`) — автоматически.
 
-**При повторном обнаружении того же режима:**
-```python
-existing.resonance = min(1.0, existing.resonance + confidence * 0.12)
-```
-
-Пример роста при трёх deliberative-проходах:
-```
-Pass 1:  0.780  (начальный)
-Pass 2:  0.874  (+0.094)
-Pass 3:  0.967  (+0.094)  ← пересекает порог 0.80
-```
-
-### 4. `_explain_mode_for_item` — двухуровневый контекст
-
-Функция теперь собирает **два слоя** контекста:
-
-**Краткосрочный** (subconscious_latest, порог confidence ≥ 0.72):
-```
-Фон: User trend: repeatedly asks for causal explanation and depth.
-```
-
-**Долгосрочный** (TemporalGraph axis, порог resonance ≥ 0.80):
-```
-Доминирующий паттерн: deliberative (резонанс 0.97).
-```
-
-Итоговое объяснение режима:
-```
-Режим deliberative: глубокий анализ. Маршрут: reasoning_engine, verifier.
-Доминирующий паттерн: deliberative (резонанс 0.97). Фон: User trend: ...
-```
+### 4. Внешние события — WorldPoller
+Daemon-поток читает git-историю и лог-файлы:
+- `world:git:{hash}` — резонанс 0.55–0.75 по размеру коммита
+- `world:error:{slug}` — резонанс 0.75
+- `world:critical:{slug}` — резонанс 0.90, быстро забывается (5 мин)
 
 ---
 
-## Жизненный цикл резонанса
+## Траектория ориентации
 
+`record_orientation_snapshot()` сохраняет до 100 последних состояний OrientationCenter.
+`get_orientation_momentum()` вычисляет тренды:
+
+```python
+{
+    "chaos_trend":      +0.12,   # chaos растёт (плохо)
+    "harmony_trend":    -0.05,   # harmony падает
+    "axis_stability":    0.87,   # стабильность оси (хорошо)
+    "momentum":         -0.23,   # итоговый импульс (chaos↑ > harmony↓)
+}
 ```
-Новый разговор
-    ↓
-Нет узлов в TemporalGraph
-    ↓
-Подсознание работает 20с, нет достаточной истории → pass
-    ↓
-4+ сообщений накоплено → первая классификация
-    ↓
-Создаётся TemporalNode (resonance ~0.7)
-    ↓
-Паттерн повторяется → resonance накапливается
-    ↓
-resonance >= 0.80 → узел становится осью (meritocratic axis)
-    ↓
-Ось влияет на объяснение каждого ответа
-    ↓
-prune_weak_nodes(threshold=0.25) не удаляет его (resonance >> 0.25)
-    ↓
-Доминирование сохраняется до смены паттерна
-```
+
+Momentum = `harmony_trend * 0.4 - chaos_trend * 0.5 + axis_stability * 0.1`
+
+Это значение поверхностно через `to_orientation_signal()` → `Coordinator.decide()` payload.
 
 ---
 
-## Смена паттерна
+## Stability Bias — инерция узла
 
-Если пользователь резко меняет стиль (переходит с `deliberative` на `creative`),
-начинает накапливаться **новый узел** `subconscious:creative`, пока старый
-`subconscious:deliberative` постепенно не подвергнется `prune_weak_nodes` или пока
-новый не выйдет на более высокий резонанс и не займёт ось.
+`stability_bias` (0.0–1.0) нарастает когда узел статичен, падает при быстрых изменениях:
 
-Нет принудительного сброса — смена происходит органично через конкуренцию резонансов.
+```python
+def update_resonance(self, new_value):
+    velocity = |delta| / dt_s
+    if velocity < 0.001:
+        stability_bias = min(1.0, bias + 0.08)  # нарастает при покое
+    else:
+        stability_bias = max(0.0, bias - velocity * 5)  # падает при хаосе
+```
+
+Влияет на:
+- **Выбор оси**: `stability_score = bias * 0.18` добавляется к meritocratic score
+- **Распад**: узел с `bias=0.9` теряет в 1.45× меньше резонанса
+- **Стабилизацию**: меньше тянется к resting position
+- **Интерференцию**: устойчивые узлы сильнее сопротивляются вытеснению
 
 ---
 
 ## Конфигурация
 
-| Параметр | Значение по умолчанию | Описание |
-|----------|-----------------------|---------|
-| `_subconscious_interval_s` | `20.0` | Интервал между проходами (сек) |
-| min history len | `4` | Минимум сообщений для анализа |
-| max history window | `12` | Кол-во последних сообщений для анализа |
-| long turn threshold | `10 слов` | Порог "длинной" реплики |
-| confidence boost per pass | `* 0.12` | Усиление резонанса при повторении |
-| resonance threshold for hint | `0.80` | Порог вывода доминирующего паттерна |
-| subconscious confidence threshold | `0.72` | Порог для Фон-подсказки |
-| max stored insights | `20` | Размер окна `subconscious_insights` |
+| Параметр | Значение | Описание |
+|----------|---------|---------|
+| `_subconscious_interval_s` | 20.0 | Интервал подсознания (сек) |
+| subconscious confidence boost | × 0.12 | Усиление резонанса при повторении |
+| resonance threshold for hint | 0.80 | Порог доминирующего паттерна |
+| quality feedback positive | +0.18 | Буст за позитивный сигнал |
+| quality feedback negative | -0.25 | Штраф за негативный сигнал |
+| stabilization strength | 0.06 | Сила mean-reversion |
+| decay dt per cycle | 30.0s | Время шага распада |
+| orientation forces | per cycle | Силы применяются в каждом decide() |
+| trajectory history | 100 | Размер окна снимков ориентации |
 
 ---
 
 ## Тесты
 
-`tests/smoke/test_agent_loop.py`:
+### `tests/unit/test_stabilization_forces.py` (17 тестов)
+- `TestStabilityBias` — нарастание/падение stability_bias, влияние на ось и хаос
+- `TestStabilizationForce` — mean-reversion вверх/вниз, consolidation boost для оси
+- `TestForgettingCurve` — порядок half-life, decay reduces resonance, stable decays slower
+- `TestInterference` — слабый теряет, сильный не меняется, no-op при одном узле
+- `TestOrientationTrajectory` — snapshot записывается, momentum+/-, stability_index в сигнале
 
-| Тест | Что проверяет |
-|------|--------------|
-| `test_subconscious_pass_creates_latest_insight` | insight создаётся в memory |
-| `test_subconscious_feeds_temporal_graph` | TemporalNode создаётся в temporal.nodes |
-| `test_subconscious_resonance_accumulates` | повторный проход усиляет резонанс |
-| `test_temporal_axis_drives_explanation_hint` | axis с resonance≥0.80 попадает в объяснение |
+### `tests/unit/test_orientation_force_ladder.py` (9 тестов)
+- chaos ослабляет все узлы
+- harmony усиляет ось
+- drift_pressure буcтит lesson-узлы
+- inhale/exhale буcтят reactive/deliberative
+- to_orientation_signal содержит все ключи
+- пустой граф → trajectory_signal = 0.5
+- высокий резонанс оси снижает trajectory_error
+- bidirectional: signal out → forces in → signal out изменился
 
----
-
-## Связанные компоненты
-
-- **`hexagon_core/temporal_graph.py`** — `TemporalNode`, `TemporalGraph`, `get_meritocratic_axis`, `align_to_axis`
-- **`python/modules/llm/temporal.py`** — `TemporalContext(TemporalGraph)` — живёт внутри AgentLoop
-- **`python/modules/coordinator/coordinator.py`** — Coordinator v0.2 читает `subconscious_latest` для pre-routing
-- **`python/modules/coordinator/mode_detector.py`** — синхронный анализ текущего вопроса (краткосрочный)
-- **`codex/causal_memory/amygdala.py`** — эмоциональный фон, влияет на `_blocked_response_text`
+### `tests/smoke/test_agent_loop.py` (10 тестов)
+- subconscious создаёт insight и TemporalNode
+- resonance накапливается при повторении
+- качественная обратная связь усиляет/ослабляет узлы
+- velocity вычисляется и влияет на выбор оси
+- reflection lesson может стать осью
 
 ---
 
 ## Эволюция архитектуры
 
 ```
-До (реактивная система):
+v1: Реактивная система
   Запрос → mode_detector → ответ
 
-После (проактивная система):
-  Запрос → mode_detector + subconscious_latest + temporal_axis → ответ
-             ↑                        ↑                 ↑
-             синхронно            краткосрочно     долгосрочно
-             (текущий вопрос)     (20с окно)       (весь разговор)
+v2: Кратковременная память (подсознание)
+  Запрос → mode_detector + subconscious_latest → ответ
+  (краткосрочный 20с паттерн)
+
+v3: Долговременная ось (TemporalGraph)
+  Запрос → mode_detector + subconscious → temporal_axis → ответ
+  (resonance накапливается через разговоры)
+
+v4: Самообучение (velocity + feedback + reflection + world)
+  4 источника знаний → TemporalGraph
+  → velocity_leaders предсказывают будущую ось
+
+v5: Пятисильное когнитивное поле (текущее)
+  OrientationCenter ↔ TemporalGraph (двунаправленный поток)
+  5 сил создают динамическое равновесие:
+    F1: orientation → chaos/harmony изменяют резонанс узлов
+    F2: stabilization → mean-reversion + гистерезис оси
+    F3: forgetting → экспоненциальный распад по типу узла
+    F4: interference → конкурирующие режимы вытесняют друг друга
+    F5: axis signal → снижает trajectory_error в OrientationCenter
 ```
 
-Это третий слой непрерывного состояния системы наряду с:
-1. **EndocrineSystem** — эмоциональный гормональный фон
-2. **TemporalGraph (causal)** — причинно-следственная память событий
-3. **Subconscious → TemporalGraph** — когнитивный характер разговора *(новое)*
+---
+
+## Связанные компоненты
+
+- **`hexagon_core/temporal_graph.py`** — TemporalNode, TemporalGraph, все 5 сил
+- **`python/modules/agent/loop.py`** — AgentLoop с subconscious/world потоками и quality feedback
+- **`python/modules/agent/world_poller.py`** — WorldPoller: git/logs → TemporalNodes
+- **`python/modules/coordinator/coordinator.py`** — Coordinator.decide() запускает все 5 сил
+- **`python/modules/llm/temporal.py`** — TemporalContext живёт внутри AgentLoop
+- **`python/modules/orientation/center.py`** — OrientationCenter: внешний источник сигналов
