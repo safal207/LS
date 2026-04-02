@@ -84,6 +84,95 @@ class TemporalGraph:
             snapshot = [(node.id, node.velocity) for node in self.nodes.values()]
         return sorted(snapshot, key=lambda x: x[1], reverse=True)[:n]
 
+    def apply_orientation_forces(
+        self,
+        chaos_score: float,
+        harmony_score: float,
+        drift_pressure: float,
+        rhythm_phase: str = "neutral",
+    ) -> dict[str, float]:
+        """Apply OrientationCenter signals as forces on all nodes.
+
+        Force rules (the "force ladder"):
+          - chaos_score high  → weaken ALL nodes (disorder erodes patterns)
+          - harmony_score high → strengthen the current axis node (coherence crystallises)
+          - drift_pressure high → boost lesson:* nodes (drift calls for grounding in lessons)
+          - rhythm_phase "inhale" → mild boost to reactive nodes
+          - rhythm_phase "exhale" → mild boost to deliberative/creative nodes
+
+        Returns dict of {node_id: delta_applied}.
+        """
+        deltas: dict[str, float] = {}
+        chaos = max(0.0, min(1.0, chaos_score))
+        harmony = max(0.0, min(1.0, harmony_score))
+        drift = max(0.0, min(1.0, drift_pressure))
+
+        # Determine current axis before modifying
+        axis = self.get_meritocratic_axis()
+        axis_id = axis.id if axis else None
+
+        with self._graph_lock:
+            for nid, node in list(self.nodes.items()):
+                delta = 0.0
+
+                # Chaos weakens everything (scaled: chaos 0.8 → -0.04 per node)
+                if chaos > 0.3:
+                    delta -= (chaos - 0.3) * 0.10
+
+                # Harmony strengthens the axis
+                if nid == axis_id and harmony > 0.5:
+                    delta += (harmony - 0.5) * 0.16
+
+                # Drift pressure boosts lesson nodes (grounding in experience)
+                if nid.startswith("lesson:") and drift > 0.4:
+                    delta += (drift - 0.4) * 0.12
+
+                # Rhythm phase boosts matching mode
+                if rhythm_phase == "inhale" and "reactive" in nid:
+                    delta += 0.03
+                elif rhythm_phase == "exhale" and any(m in nid for m in ("deliberative", "creative")):
+                    delta += 0.03
+
+                if delta != 0.0:
+                    node.update_resonance(node.resonance + delta)
+                    deltas[nid] = delta
+
+        return deltas
+
+    def to_orientation_signal(self) -> dict[str, float]:
+        """Extract a trajectory/state signal from the temporal graph for OrientationCenter.
+
+        Returns:
+            trajectory_signal: axis resonance (0–1)      → quality of dominant pattern
+            temporal_harmony:  mean resonance of nodes   → overall temporal coherence
+            temporal_chaos:    std-dev of resonance      → how fragmented the graph is
+            lesson_pressure:   sum of lesson resonances  → accumulated wisdom weight
+        """
+        with self._graph_lock:
+            nodes = list(self.nodes.values())
+        if not nodes:
+            return {"trajectory_signal": 0.5, "temporal_harmony": 0.5,
+                    "temporal_chaos": 0.0, "lesson_pressure": 0.0}
+
+        resonances = [n.resonance for n in nodes]
+        mean_r = sum(resonances) / len(resonances)
+        variance = sum((r - mean_r) ** 2 for r in resonances) / len(resonances)
+        std_r = variance ** 0.5
+
+        axis = self.get_meritocratic_axis()
+        axis_resonance = axis.resonance if axis else mean_r
+
+        lesson_pressure = sum(
+            n.resonance for n in nodes if n.id.startswith("lesson:")
+        )
+
+        return {
+            "trajectory_signal": round(axis_resonance, 4),
+            "temporal_harmony": round(mean_r, 4),
+            "temporal_chaos": round(std_r, 4),
+            "lesson_pressure": round(min(1.0, lesson_pressure / max(1, len(nodes))), 4),
+        }
+
     def ingest_reflection(self, reason: str, progress: float) -> TemporalNode:
         """Convert a reflection result into a TemporalNode and add it to the graph.
 

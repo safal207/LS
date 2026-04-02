@@ -200,11 +200,17 @@ class AgentLoop:
         self.vision = VisionSubsystem()
         self.vision.intent_bus.subscribe(self._handle_vision_intent)
         self._mode_detector = None
+        self._coordinator = None
         try:
             from coordinator import ModeDetector
             self._mode_detector = ModeDetector()
         except Exception:
             self._mode_detector = None
+        try:
+            from coordinator.coordinator import Coordinator
+            self._coordinator = Coordinator()
+        except Exception:
+            self._coordinator = None
 
 
     def _maybe_enter_sleep_mode(self):
@@ -964,6 +970,37 @@ class AgentLoop:
                         )
             except Exception:
                 temporal_hint = ""
+
+        # Try full Coordinator with force-ladder (OrientationCenter ↔ TemporalGraph)
+        if self._coordinator is not None:
+            try:
+                ctx = dict(item) if isinstance(item, dict) else {}
+                ctx["_temporal_graph"] = self.temporal  # inject for force ladder
+                payload = self._coordinator.decide(
+                    input_data=question,
+                    context=ctx,
+                    system_load=0.0,
+                )
+                mode = payload.get("cognitive_mode", "reactive")
+                route = ", ".join(payload.get("engine_route", []))
+                reason = payload.get("reason", "")
+                orientation = payload.get("orientation", {})
+                rhythm = orientation.get("rhythm_phase", "")
+                chaos = orientation.get("chaos_score", 0.0)
+                harmony = orientation.get("harmony_score", 0.0)
+                orientation_note = ""
+                if rhythm:
+                    orientation_note = f" Ритм: {rhythm}"
+                if chaos > 0.6:
+                    orientation_note += f", хаос ↑{chaos:.2f}"
+                elif harmony > 0.7:
+                    orientation_note += f", гармония ↑{harmony:.2f}"
+                return (
+                    f"Режим {mode}: {reason}. Маршрут: {route}."
+                    f"{temporal_hint}{orientation_note}{subconscious_hint}"
+                ).strip()
+            except Exception:
+                pass
 
         detector = self._mode_detector
         if detector is None:

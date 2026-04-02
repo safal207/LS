@@ -197,11 +197,41 @@ class Coordinator:
         Does not change decision logic.
         """
         orientation_inputs = self._build_orientation_inputs(telemetry, retrospective)
+
+        # Read temporal signal BEFORE orientation so it can inform trajectory_error
+        temporal_signal: Dict[str, Any] = {}
+        temporal_graph = context.get("_temporal_graph")
+        if temporal_graph is not None:
+            try:
+                temporal_signal = temporal_graph.to_orientation_signal()
+                # Use temporal trajectory_signal to override/blend trajectory_error
+                t_signal = float(temporal_signal.get("trajectory_signal", 0.5))
+                base_err = self.last_trajectory_error or 0.0
+                # Blend: high axis resonance reduces perceived trajectory error
+                blended_error = base_err * 0.7 + (1.0 - t_signal) * 0.3
+                self.last_trajectory_error = round(blended_error, 4)
+            except Exception:
+                pass
+
         orientation_output = self.orientation.evaluate(
             **orientation_inputs,
             trajectory_error=self.last_trajectory_error,
         )
         self.last_orientation = orientation_output.to_dict()
+        self.last_orientation["temporal_signal"] = temporal_signal
+
+        # Apply OrientationCenter forces back to TemporalGraph (the force ladder)
+        if temporal_graph is not None:
+            try:
+                orientation_deltas = temporal_graph.apply_orientation_forces(
+                    chaos_score=float(self.last_orientation.get("chaos_score", 0.0)),
+                    harmony_score=float(self.last_orientation.get("harmony_score", 0.0)),
+                    drift_pressure=float(self.last_orientation.get("drift_pressure", 0.0)),
+                    rhythm_phase=str(self.last_orientation.get("rhythm_phase", "neutral")),
+                )
+                self.last_orientation["orientation_force_deltas"] = orientation_deltas
+            except Exception:
+                pass
 
         weight = self._compute_orientation_weight(self.last_orientation.get("rhythm_phase"))
         tendency = self._compute_orientation_tendency(self.last_orientation)
