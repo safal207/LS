@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
 
+from .decay import ResonanceDecayConfig, prune_expired
 from .models import MemoryCase, RelationalFieldSnapshot, ResonanceKnowledgeUnit
 
 _STORE_LOCKS: dict[str, threading.RLock] = {}
@@ -222,6 +223,39 @@ class MemoryGraphStore:
 
         scored.sort(key=lambda x: x[1], reverse=True)
         return [u for u, _ in scored[:top_k]]
+
+    def list_live_resonance_units(
+        self,
+        config: ResonanceDecayConfig | None = None,
+    ) -> list[ResonanceKnowledgeUnit]:
+        """Return only non-expired resonance units after applying decay.
+
+        Units whose effective score has dropped below ``config.floor_score``
+        are excluded.  The returned list is not sorted — call
+        :func:`~graph.decay.apply_decay` directly if you need ordering.
+
+        Args:
+            config: Decay configuration; uses defaults when omitted.
+        """
+        decay_config = config or ResonanceDecayConfig()
+        return prune_expired(self._load_resonance_units(), decay_config)
+
+    def confirm_resonance_unit(self, unit_id: str) -> Optional[ResonanceKnowledgeUnit]:
+        """Refresh a unit's timestamp, resetting its decay clock.
+
+        Called when a resonance unit is successfully reused in a live route —
+        confirmation is the memory equivalent of a half-life extension.
+
+        Returns the updated unit, or None if not found.
+        """
+        with self._lock:
+            units = self._load_resonance_units()
+            for unit in units:
+                if unit.unit_id == unit_id:
+                    unit.timestamp = _utc_now()
+                    self._write_resonance_units(units)
+                    return unit
+        return None
 
     def _load_resonance_units(self) -> list[ResonanceKnowledgeUnit]:
         with self._lock:

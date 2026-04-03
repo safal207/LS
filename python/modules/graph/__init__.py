@@ -1,4 +1,11 @@
 from .care_cycle import CareCycleResult, CareCycleRunner
+from .decay import (
+    ResonanceDecayConfig,
+    apply_decay,
+    effective_score,
+    is_expired,
+    prune_expired,
+)
 from .coalition_registry import CoalitionRecord, CoalitionRegistry
 from .derived_module_registry import DerivedModuleRegistry
 from .memory_store import MemoryGraphStore
@@ -51,6 +58,11 @@ __all__ = [
     "PathSelectionDecision",
     "PathSelector",
     "CareCycleStatus",
+    "ResonanceDecayConfig",
+    "apply_decay",
+    "effective_score",
+    "is_expired",
+    "prune_expired",
     "GraphMemoryStatus",
     "OmniWorkerStatus",
     "RelationalFieldAnalyzer",
