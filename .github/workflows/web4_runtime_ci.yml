@@ -175,6 +175,12 @@ jobs:
         run: |
           cargo test --all --release --no-default-features --features python-embed
 
+      - name: Summarize quality artifacts
+        if: always()
+        uses: ./.github/actions/summarize-quality-artifacts
+        with:
+          label: web4-runtime
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4

@@ -61,6 +61,11 @@ jobs:
             --cov=codex
             --cov=python/modules
             --cov-report=xml:artifacts/security-coverage.xml
+      - name: Summarize quality artifacts
+        if: always()
+        uses: ./.github/actions/summarize-quality-artifacts
+        with:
+          label: security-and-tests
 
       - name: Vulnerability audit
         run: |
