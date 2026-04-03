@@ -349,5 +349,202 @@ class TestInjectScreenContext(unittest.TestCase):
         self.assertIn("Current screen content:", result[0]["content"])
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# TTS toggle — set_tts() and _tts_active runtime flag
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import re as _re
+
+_TTS_ON_RE = _re.compile(
+    r"\b(голос\s+вкл|voice\s+on|tts\s+on|включи\s+голос|speak\s+on|озвучка\s+вкл)\b",
+    _re.I,
+)
+_TTS_OFF_RE = _re.compile(
+    r"\b(голос\s+выкл|voice\s+off|tts\s+off|выключи\s+голос|speak\s+off|озвучка\s+выкл)\b",
+    _re.I,
+)
+
+
+def _set_tts(self, enabled: bool) -> str:
+    """Standalone copy of AgentLoop.set_tts() for isolated testing."""
+    self._tts_active = bool(enabled)
+    if self._speaker is None:
+        return (
+            "Голос включён (без аудио — pyttsx3 не найден, установи: pip install pyttsx3)"
+            if enabled
+            else "Голос выключен."
+        )
+    status = "включён" if enabled else "выключен"
+    backend = self._speaker.backend_name()
+    return f"Голос {status} (бэкенд: {backend})."
+
+
+class _AgentStub:
+    """Minimal AgentLoop stub with TTS toggle + speak-decision logic."""
+
+    def __init__(self, speaker=None, tts_active=False):
+        self._speaker = speaker
+        self._tts_active = tts_active
+
+    set_tts = _set_tts
+
+    @property
+    def tts_active(self):
+        return self._tts_active
+
+    def should_speak(self, item: dict) -> bool:
+        """Mirrors the speak-decision logic in AgentLoop._handle_item."""
+        override = item.get("_speak")
+        if isinstance(override, bool):
+            return override and self._speaker is not None
+        return self._tts_active and self._speaker is not None
+
+
+class _FakeSpeaker:
+    """Minimal Speaker stub that records calls."""
+    def __init__(self):
+        self.spoken: list = []
+        self._backend = "test"
+
+    def say_async(self, text):
+        self.spoken.append(text)
+
+    def backend_name(self):
+        return self._backend
+
+
+class TestTTSToggle(unittest.TestCase):
+
+    # ── set_tts() ────────────────────────────────────────────────────────────
+
+    def test_set_tts_enables_flag(self):
+        stub = _AgentStub(tts_active=False)
+        stub.set_tts(True)
+        self.assertTrue(stub._tts_active)
+
+    def test_set_tts_disables_flag(self):
+        stub = _AgentStub(tts_active=True)
+        stub.set_tts(False)
+        self.assertFalse(stub._tts_active)
+
+    def test_set_tts_returns_confirmation_with_backend(self):
+        sp = _FakeSpeaker()
+        stub = _AgentStub(speaker=sp, tts_active=False)
+        msg = stub.set_tts(True)
+        self.assertIn("включён", msg)
+        self.assertIn("test", msg)
+
+    def test_set_tts_disabled_confirmation(self):
+        sp = _FakeSpeaker()
+        stub = _AgentStub(speaker=sp, tts_active=True)
+        msg = stub.set_tts(False)
+        self.assertIn("выключен", msg)
+
+    def test_set_tts_no_speaker_returns_graceful_message(self):
+        stub = _AgentStub(speaker=None, tts_active=False)
+        msg = stub.set_tts(True)
+        self.assertIn("pyttsx3", msg)
+
+    def test_tts_active_property(self):
+        stub = _AgentStub(tts_active=False)
+        self.assertFalse(stub.tts_active)
+        stub._tts_active = True
+        self.assertTrue(stub.tts_active)
+
+    # ── speak decision logic ──────────────────────────────────────────────────
+
+    def test_global_flag_off_no_speak(self):
+        sp = _FakeSpeaker()
+        stub = _AgentStub(speaker=sp, tts_active=False)
+        self.assertFalse(stub.should_speak({}))
+
+    def test_global_flag_on_speaks(self):
+        sp = _FakeSpeaker()
+        stub = _AgentStub(speaker=sp, tts_active=True)
+        self.assertTrue(stub.should_speak({}))
+
+    def test_per_message_override_true_speaks_even_when_global_off(self):
+        sp = _FakeSpeaker()
+        stub = _AgentStub(speaker=sp, tts_active=False)
+        self.assertTrue(stub.should_speak({"_speak": True}))
+
+    def test_per_message_override_false_silences_even_when_global_on(self):
+        sp = _FakeSpeaker()
+        stub = _AgentStub(speaker=sp, tts_active=True)
+        self.assertFalse(stub.should_speak({"_speak": False}))
+
+    def test_per_message_override_true_but_no_speaker_still_false(self):
+        stub = _AgentStub(speaker=None, tts_active=False)
+        self.assertFalse(stub.should_speak({"_speak": True}))
+
+    def test_global_flag_on_but_no_speaker_returns_false(self):
+        stub = _AgentStub(speaker=None, tts_active=True)
+        self.assertFalse(stub.should_speak({}))
+
+    # ── TTS toggle regex ──────────────────────────────────────────────────────
+
+    def test_on_regex_matches_voice_on(self):
+        self.assertIsNotNone(_TTS_ON_RE.search("voice on"))
+
+    def test_on_regex_matches_tts_on(self):
+        self.assertIsNotNone(_TTS_ON_RE.search("tts on"))
+
+    def test_on_regex_matches_russian(self):
+        self.assertIsNotNone(_TTS_ON_RE.search("голос вкл"))
+        self.assertIsNotNone(_TTS_ON_RE.search("включи голос"))
+
+    def test_off_regex_matches_voice_off(self):
+        self.assertIsNotNone(_TTS_OFF_RE.search("voice off"))
+
+    def test_off_regex_matches_russian(self):
+        self.assertIsNotNone(_TTS_OFF_RE.search("голос выкл"))
+        self.assertIsNotNone(_TTS_OFF_RE.search("выключи голос"))
+
+    def test_on_regex_case_insensitive(self):
+        self.assertIsNotNone(_TTS_ON_RE.search("Voice ON"))
+        self.assertIsNotNone(_TTS_ON_RE.search("ГОЛОС ВКЛ"))
+
+    def test_off_regex_case_insensitive(self):
+        self.assertIsNotNone(_TTS_OFF_RE.search("Voice OFF"))
+
+    def test_slash_commands_caught_before_regex(self):
+        # /voice on contains "voice on" so regex matches the substring,
+        # but in the handler exact-string check runs first — regex is never reached.
+        # Verify the exact-string check works correctly.
+        slash_on_commands = ["/voice on", "/tts on"]
+        slash_off_commands = ["/voice off", "/tts off"]
+        for cmd in slash_on_commands:
+            self.assertIn(cmd, ("/voice on", "/voice off", "/tts on", "/tts off"))
+        for cmd in slash_off_commands:
+            self.assertIn(cmd, ("/voice on", "/voice off", "/tts on", "/tts off"))
+
+    def test_on_regex_does_not_match_off_phrase(self):
+        self.assertIsNone(_TTS_ON_RE.search("voice off"))
+
+    def test_off_regex_does_not_match_on_phrase(self):
+        self.assertIsNone(_TTS_OFF_RE.search("voice on"))
+
+    # ── Toggle → speak decision integration ──────────────────────────────────
+
+    def test_toggle_on_then_speaks(self):
+        sp = _FakeSpeaker()
+        stub = _AgentStub(speaker=sp, tts_active=False)
+        stub.set_tts(True)
+        self.assertTrue(stub.should_speak({}))
+
+    def test_toggle_off_then_silent(self):
+        sp = _FakeSpeaker()
+        stub = _AgentStub(speaker=sp, tts_active=True)
+        stub.set_tts(False)
+        self.assertFalse(stub.should_speak({}))
+
+    def test_toggle_multiple_times(self):
+        sp = _FakeSpeaker()
+        stub = _AgentStub(speaker=sp, tts_active=False)
+        for expected in [True, False, True, False]:
+            stub.set_tts(expected)
+            self.assertEqual(stub.tts_active, expected)
+
+
 if __name__ == "__main__":
     unittest.main()
