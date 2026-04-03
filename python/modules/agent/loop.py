@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import queue
+import re
 import threading
 import time
 from typing import Any, Callable, Optional
@@ -54,6 +55,18 @@ REFLECTION_SYSTEM_PROMPT = (
 )
 
 PINNED_ROLES = {"system", "context_anchor"}
+
+# Quality feedback detection — fired BEFORE routing new questions
+_POSITIVE_FB_RE = re.compile(
+    r"\b(отлично|хорошо|правильно|верно|супер|ок|точно|именно|да|yes|ok|good|"
+    r"correct|great|perfect|nice|exactly|молодец|👍|👌|🔥|💯|thanks|спасибо)\b",
+    re.I,
+)
+_NEGATIVE_FB_RE = re.compile(
+    r"\b(неправильно|нет|неверно|не то|не так|ошибка|плохо|no|wrong|"
+    r"incorrect|bad|нет смысла|не понял|не понятно|👎)\b",
+    re.I,
+)
 
 
 def trim_history(history: list[dict], max_size: int = 10) -> list[dict]:
@@ -127,6 +140,12 @@ class AgentLoop:
         self._bloodstream_thread: threading.Thread | None = None
         self._bloodstream_lock = threading.Lock()
         self._bloodstream_stop = threading.Event()  # BUG-17 fix: used for fast shutdown
+        self._subconscious_thread: threading.Thread | None = None
+        self._subconscious_stop = threading.Event()
+        self._subconscious_interval_s = 20.0
+        self._world_thread: threading.Thread | None = None
+        self._world_stop = threading.Event()
+        self._world_poller: Any | None = None
         self._cancel_grace_until = 0.0
 
         self.cancel_on_new_input = cancel_on_new_input
@@ -162,9 +181,47 @@ class AgentLoop:
         from codex.causal_memory.bloodstream import Bloodstream
         self.bloodstream = Bloodstream(self.causal_transitions.amygdala, self.temporal)
 
+        # World Poller — external event awareness (git/logs → TemporalGraph)
+        if self.temporal is not None:
+            try:
+                from agent.world_poller import WorldPoller
+                import os as _os
+                repo_path = _os.environ.get("LS_REPO_PATH", _os.getcwd())
+                log_path = _os.environ.get("LS_LOG_PATH")  # optional
+                self._world_poller = WorldPoller(
+                    temporal=self.temporal,
+                    repo_path=repo_path,
+                    log_path=log_path,
+                )
+            except Exception as exc:
+                logger.debug("WorldPoller init skipped: %s", exc)
+
         # Vision Subsystem Integration (Screen Perception v2)
         self.vision = VisionSubsystem()
         self.vision.intent_bus.subscribe(self._handle_vision_intent)
+        self._mode_detector = None
+        self._coordinator = None
+        try:
+            from coordinator import ModeDetector
+            self._mode_detector = ModeDetector()
+        except Exception:
+            self._mode_detector = None
+        try:
+            from coordinator.coordinator import Coordinator
+            self._coordinator = Coordinator()
+        except Exception:
+            self._coordinator = None
+
+        # Feature 4: UserProfileStore — per-user mode patterns
+        try:
+            from hexagon_core.user_profile import UserProfileStore
+            self._user_profiles = UserProfileStore()
+        except Exception:
+            self._user_profiles = None
+
+        # Feature 5: Auto feedback proxy state
+        self._last_response_word_count: int = 0
+        self._last_response_mode: str | None = None
 
         # TTS Speaker — optional, graceful fallback to console
         import os as _os_tts
@@ -226,6 +283,18 @@ class AgentLoop:
             # 2. Фаза 2: Анаболизм — переработка рефлексий
             reflection_energy = amygdala.metabolism.digest_old_reflections()
 
+            # 2.1 Уроки из рефлексии → TemporalGraph nodes
+            if self.temporal and reflection_energy > 0:
+                lessons = getattr(amygdala.metabolism, "lessons", [])
+                if lessons:
+                    latest_lesson = lessons[-1]
+                    progress_signal = min(1.0, reflection_energy * 10)  # energy 0.05 → progress 0.5
+                    lesson_node = self.temporal.ingest_reflection(latest_lesson, progress_signal)
+                    logger.info(
+                        "Reflection → temporal: node=%s resonance=%.3f",
+                        lesson_node.id, lesson_node.resonance,
+                    )
+
             # 3. Фаза 3: Метаболическое укрепление (вся энергия цикла)
             total_energy = compost_energy + reflection_energy
             boost = amygdala.metabolism.feed_growth(energy=total_energy)
@@ -236,6 +305,22 @@ class AgentLoop:
                     amygdala.immune.learn_threat(
                         ab["pattern"], ab["type"], ab["strength"] * SLEEP_CONFIG.immune_decay
                     )
+
+            # Feature 6: Ночной отчёт наблюдателя — пишет lesson:session:* узлы
+            if self.temporal is not None and self._coordinator is not None:
+                try:
+                    observer = getattr(self._coordinator, "observer", None)
+                    if observer is not None:
+                        session_data = observer.session_report(self.temporal)
+                        logger.info(
+                            "Observer session report: quality=%s avg=%.3f cycles=%d injected=%s",
+                            session_data.get("session_quality", "?"),
+                            session_data.get("avg_adequacy", 0.0),
+                            session_data.get("total_cycles", 0),
+                            session_data.get("lesson_nodes_injected", []),
+                        )
+                except Exception as exc:
+                    logger.debug("Session report failed: %s", exc)
 
             sleep_duration = time.time() - start_time
             logger.info(f"Sleep completed in {sleep_duration:.1f}s | Axis boost: {boost:.2f} | Pruned: {pruned}")
@@ -277,12 +362,191 @@ class AgentLoop:
             pruned = self.temporal.prune_weak_nodes(threshold=0.25, active_window=100)
             if pruned > 0:
                 amygdala.metabolism.compost_pruned_nodes(pruned)
-
         compacted = 0
         if hasattr(amygdala, "visceral") and amygdala.visceral:
             compacted = amygdala.visceral.compact_history()
 
+        # Ingest any unprocessed lessons into TemporalGraph
+        if self.temporal:
+            lessons = getattr(getattr(amygdala, "metabolism", None), "lessons", [])
+            last_ingested = self.memory.get("_lessons_last_ingested", 0)
+            new_lessons = lessons[last_ingested:]
+            for lesson in new_lessons:
+                node = self.temporal.ingest_reflection(lesson, progress=0.3)
+                logger.debug("Maintenance reflection → temporal: %s resonance=%.3f", node.id, node.resonance)
+            if new_lessons:
+                self.memory["_lessons_last_ingested"] = len(lessons)
+
         logger.info(f"Maintenance: pruned {pruned} weak nodes, compacted {compacted} visceral history records")
+
+    def _subconscious_loop(self) -> None:
+        """Background reflective loop: builds soft hypotheses for deeper routing."""
+        while self.running and not self._subconscious_stop.is_set():
+            try:
+                self._run_subconscious_pass()
+            except Exception as exc:
+                logger.debug("Subconscious loop error: %s", exc)
+            self._subconscious_stop.wait(timeout=self._subconscious_interval_s)
+
+    def _run_subconscious_pass(self) -> None:
+        history = self.memory.get("history", [])
+        if not isinstance(history, list) or len(history) < 4:
+            return
+
+        user_turns = [
+            str(msg.get("content", "")).strip()
+            for msg in history[-12:]
+            if isinstance(msg, dict) and msg.get("role") == "user" and str(msg.get("content", "")).strip()
+        ]
+        if len(user_turns) < 2:
+            return
+
+        long_turns = sum(1 for text in user_turns if len(text.split()) >= 10)
+        joined = " ".join(user_turns).lower()
+        explanation_cues = ("why", "how", "explain", "reason", "pochemu", "kak", "obyasni")
+        creative_cues = ("creative", "brainstorm", "invent", "design", "story", "ideya", "pridumay")
+
+        if any(cue in joined for cue in creative_cues):
+            suggested_mode = "creative"
+            route = ["ideation_engine", "reasoning_engine", "novelty_guard"]
+            hypothesis = "User trend: seeks idea generation and broader variation."
+            confidence = 0.76
+        elif any(cue in joined for cue in explanation_cues) or long_turns >= 2:
+            suggested_mode = "deliberative"
+            route = ["reasoning_engine", "context_sync", "verifier", "explanation_engine"]
+            hypothesis = "User trend: repeatedly asks for causal explanation and depth."
+            confidence = 0.78
+        else:
+            suggested_mode = "reactive"
+            route = ["perception", "policy_executor"]
+            hypothesis = "User trend: short operational flow, speed is preferred."
+            confidence = 0.66
+
+        insight = {
+            "ts": time.time(),
+            "kind": "subconscious_route_hypothesis",
+            "suggested_mode": suggested_mode,
+            "route": route,
+            "hypothesis": hypothesis,
+            "confidence": confidence,
+            "sample_size": len(user_turns),
+        }
+
+        insights = self.memory.get("subconscious_insights")
+        if not isinstance(insights, list):
+            insights = []
+        insights.append(insight)
+        self.memory["subconscious_insights"] = insights[-20:]
+        self.memory["subconscious_latest"] = insight
+
+        # Feed insight into TemporalGraph so subconscious patterns accumulate resonance
+        if self.temporal is not None:
+            try:
+                from hexagon_core.temporal_graph import TemporalNode
+                node_id = f"subconscious:{suggested_mode}"
+                with self.temporal._graph_lock:
+                    existing = self.temporal.nodes.get(node_id)
+                    if existing is not None:
+                        existing.update_resonance(existing.resonance + confidence * 0.12)
+                    else:
+                        new_node = TemporalNode(
+                            id=node_id,
+                            resonance=confidence,
+                            harmony_bonus=len(route) * 0.05,
+                        )
+                        self.temporal.nodes[node_id] = new_node
+                        self.temporal.align_to_axis(new_node)
+                node = self.temporal.nodes[node_id]
+                logger.debug(
+                    "Subconscious → temporal: node=%s resonance=%.3f velocity=%.4f/s",
+                    node_id, node.resonance, node.velocity,
+                )
+            except Exception as exc:
+                logger.debug("Subconscious temporal write failed: %s", exc)
+
+    def _compute_feedback_proxy(self, user_msg: str) -> None:
+        """
+        Feature 5: Авто-прокси качества из длины ответа пользователя.
+
+        Длинный ответ агента + короткая реакция пользователя = вероятный промах.
+        Короткий ответ агента + развёрнутая реакция = попадание в цель.
+        Слабее явного "да/нет" — применяется только при отсутствии явного сигнала.
+        """
+        if self.temporal is None:
+            return
+        prev_len = self._last_response_word_count
+        user_len = len(user_msg.split())
+        # Не применяем если пользователь уже дал явный feedback
+        if len(user_msg.split()) <= 6 and (
+            _POSITIVE_FB_RE.search(user_msg) or _NEGATIVE_FB_RE.search(user_msg)
+        ):
+            return
+
+        proxy_signal: str | None = None
+        if prev_len > 200 and user_len < 5:
+            proxy_signal = "negative"   # длинный ответ, короткая реакция — не попали
+        elif prev_len < 80 and user_len > 20:
+            proxy_signal = "positive"   # лаконичный ответ, развёрнутая реакция — зацепило
+
+        if proxy_signal is not None:
+            self._apply_quality_feedback(proxy_signal, user_msg)
+            logger.debug(
+                "Feedback proxy %s (agent_words=%d, user_words=%d)",
+                proxy_signal, prev_len, user_len,
+            )
+
+    def _world_loop(self) -> None:
+        """Background world-awareness loop: polls git/logs → TemporalGraph world nodes."""
+        while self.running and not self._world_stop.is_set():
+            try:
+                if self._world_poller is not None:
+                    self._world_poller.tick()
+            except Exception as exc:
+                logger.debug("World poller loop error: %s", exc)
+            self._world_stop.wait(timeout=60.0)
+
+    def _apply_quality_feedback(self, signal: str, text: str) -> None:
+        """Strengthen or weaken the last active TemporalNode based on user feedback.
+
+        signal: "positive" | "negative"
+        """
+        if self.temporal is None:
+            return
+        latest = self.memory.get("subconscious_latest")
+        if not isinstance(latest, dict):
+            return
+        mode = latest.get("suggested_mode")
+        if not mode:
+            return
+        node_id = f"subconscious:{mode}"
+        try:
+            from hexagon_core.temporal_graph import TemporalNode
+            with self.temporal._graph_lock:
+                node = self.temporal.nodes.get(node_id)
+                if node is None:
+                    # Node doesn't exist yet — create it so feedback isn't lost
+                    node = TemporalNode(id=node_id, resonance=0.5, harmony_bonus=0.1)
+                    self.temporal.nodes[node_id] = node
+                if signal == "positive":
+                    node.update_resonance(node.resonance + 0.18)
+                    node.harmony_bonus = min(0.5, node.harmony_bonus + 0.05)
+                else:
+                    node.update_resonance(node.resonance - 0.25)
+            logger.info(
+                "Quality feedback [%s] → temporal node %s resonance=%.3f",
+                signal, node_id, self.temporal.nodes[node_id].resonance,
+            )
+            # Record feedback in memory for diagnostics
+            self.memory.setdefault("feedback_log", []).append({
+                "ts": time.time(),
+                "signal": signal,
+                "node": node_id,
+                "text_snippet": text[:80],
+                "resonance_after": self.temporal.nodes[node_id].resonance,
+            })
+            self.memory["feedback_log"] = self.memory["feedback_log"][-50:]
+        except Exception as exc:
+            logger.debug("Quality feedback write failed: %s", exc)
 
     def _maybe_collect_windows_context(self, *, session_id: str) -> None:
         now = time.time()
@@ -741,6 +1005,9 @@ class AgentLoop:
         self.memory["last_duration"] = duration
         if self.temporal is not None:
             self.temporal.metadata["last_answer"] = answer
+        # Feature 5: сохраняем длину ответа для следующего feedback proxy
+        if isinstance(answer, str):
+            self._last_response_word_count = len(answer.split())
 
     def _format_response(self, response: Any) -> Any:
         if self.llm and hasattr(self.llm, "format_response"):
@@ -749,6 +1016,94 @@ class AgentLoop:
             except Exception:
                 return response
         return response
+
+    def _explain_mode_for_item(self, question: str, item: dict) -> str:
+        explicit = item.get("_mode_explanation")
+        if isinstance(explicit, str) and explicit.strip():
+            return explicit.strip()
+
+        # Short-term: last subconscious pass hypothesis
+        subconscious_hint = ""
+        latest = self.memory.get("subconscious_latest")
+        if isinstance(latest, dict):
+            try:
+                if float(latest.get("confidence", 0.0)) >= 0.72:
+                    hypothesis = str(latest.get("hypothesis", "")).strip()
+                    if hypothesis:
+                        subconscious_hint = f" Фон: {hypothesis}"
+            except Exception:
+                subconscious_hint = ""
+
+        # Long-term: dominant cognitive pattern from TemporalGraph axis
+        temporal_hint = ""
+        if self.temporal is not None:
+            try:
+                axis = self.temporal.get_meritocratic_axis()
+                if axis is not None:
+                    vscore = axis.velocity_score()
+                    trend = " ↑" if vscore > 0.05 else (" ↓" if vscore < -0.05 else "")
+                    if axis.id.startswith("lesson:") and axis.resonance >= 0.60:
+                        lesson_label = axis.id[7:].replace("_", " ")
+                        temporal_hint = (
+                            f" Урок: «{lesson_label}»"
+                            f" (резонанс {axis.resonance:.2f}{trend})."
+                        )
+                    elif axis.id.startswith("subconscious:") and axis.resonance >= 0.80:
+                        dominant_mode = axis.id.split(":", 1)[1]
+                        temporal_hint = (
+                            f" Доминирующий паттерн: {dominant_mode}"
+                            f" (резонанс {axis.resonance:.2f}{trend})."
+                        )
+            except Exception:
+                temporal_hint = ""
+
+        # Try full Coordinator with force-ladder (OrientationCenter ↔ TemporalGraph)
+        if self._coordinator is not None:
+            try:
+                ctx = dict(item) if isinstance(item, dict) else {}
+                ctx["_temporal_graph"] = self.temporal  # inject for force ladder
+                payload = self._coordinator.decide(
+                    input_data=question,
+                    context=ctx,
+                    system_load=0.0,
+                )
+                mode = payload.get("cognitive_mode", "reactive")
+                route = ", ".join(payload.get("engine_route", []))
+                reason = payload.get("reason", "")
+                orientation = payload.get("orientation", {})
+                rhythm = orientation.get("rhythm_phase", "")
+                chaos = orientation.get("chaos_score", 0.0)
+                harmony = orientation.get("harmony_score", 0.0)
+                orientation_note = ""
+                if rhythm:
+                    orientation_note = f" Ритм: {rhythm}"
+                if chaos > 0.6:
+                    orientation_note += f", хаос ↑{chaos:.2f}"
+                elif harmony > 0.7:
+                    orientation_note += f", гармония ↑{harmony:.2f}"
+                return (
+                    f"Режим {mode}: {reason}. Маршрут: {route}."
+                    f"{temporal_hint}{orientation_note}{subconscious_hint}"
+                ).strip()
+            except Exception:
+                pass
+
+        detector = self._mode_detector
+        if detector is None:
+            return f"Режим выбран автоматически по текущему контексту.{temporal_hint}{subconscious_hint}".strip()
+        try:
+            analysis = detector.analyze(
+                input_data=question,
+                context=item if isinstance(item, dict) else {},
+                system_load=0.0,
+            )
+            route = ", ".join(analysis.engine_route)
+            return (
+                f"Режим {analysis.cognitive_mode}: {analysis.reason}. "
+                f"Маршрут: {route}.{temporal_hint}{subconscious_hint}"
+            )
+        except Exception:
+            return f"Режим выбран автоматически по текущему контексту.{temporal_hint}{subconscious_hint}".strip()
 
     def _blocked_response_text(self) -> str:
         visceral_influence = getattr(self.causal_transitions.amygdala, "visceral", None)
@@ -765,7 +1120,10 @@ class AgentLoop:
             try:
                 return self.llm.generate_response(question, cancel_event=cancel_event, messages=messages)
             except TypeError:
-                return self.llm.generate_response(question, cancel_event=cancel_event)
+                try:
+                    return self.llm.generate_response(question, cancel_event=cancel_event)
+                except TypeError:
+                    return self.llm.generate_response(question)
         return self.handler(question)
 
     def _cancel_active(self, reason: str) -> None:
@@ -827,6 +1185,31 @@ class AgentLoop:
                 return
 
             question = item.get("text", "")
+            mode_explanation = self._explain_mode_for_item(question, item)
+
+            # Feature 5: Авто-прокси качества перед явным feedback-детектом
+            self._compute_feedback_proxy(question)
+
+            # Detect quality feedback before routing — short replies only
+            if len(question.split()) <= 6:
+                if _POSITIVE_FB_RE.search(question):
+                    self._apply_quality_feedback("positive", question)
+                elif _NEGATIVE_FB_RE.search(question):
+                    self._apply_quality_feedback("negative", question)
+
+            # Feature 4: Записываем режим в профиль пользователя
+            if self._user_profiles is not None:
+                try:
+                    latest = self.memory.get("subconscious_latest")
+                    detected_mode = (
+                        latest.get("suggested_mode") if isinstance(latest, dict) else None
+                    )
+                    if detected_mode:
+                        user_id = item.get("user_id") or item.get("session_id") or "default"
+                        self._user_profiles.record_turn(user_id, detected_mode)
+                        self._last_response_mode = detected_mode
+                except Exception:
+                    pass
 
             if question.strip() == "/sleep":
                 self._enter_sleep_mode()
@@ -855,7 +1238,8 @@ class AgentLoop:
                     "generation_time": 0.5,
                     "timestamp": time.time(),
                     "vision_task": True,
-                    "priority": "P1"
+                    "priority": "P1",
+                    "mode_explanation": mode_explanation,
                 }
                 self._emit("output_ready", payload, task_id=task_id)
                 if self.output_queue:
@@ -877,7 +1261,8 @@ class AgentLoop:
                     "generation_time": 0.0,
                     "timestamp": time.time(),
                     "reflex_triggered": True,
-                    "danger_level": self.reflex.danger_level
+                    "danger_level": self.reflex.danger_level,
+                    "mode_explanation": mode_explanation,
                 }
                 self._emit("output_ready", payload, task_id=task_id)
                 if self.output_queue:
@@ -893,7 +1278,8 @@ class AgentLoop:
                     "generation_time": 0.0,
                     "timestamp": time.time(),
                     "amygdala_status": "blocked",
-                    "amygdala_reason": "prompt_injection"
+                    "amygdala_reason": "prompt_injection",
+                    "mode_explanation": mode_explanation,
                 }
                 self._emit("output_ready", payload, task_id=task_id)
                 if self.output_queue:
@@ -1089,6 +1475,7 @@ class AgentLoop:
                     "amygdala_history_size": len(self.causal_transitions.amygdala.history),
                     "personality_p": float(getattr(self.causal_transitions.amygdala, "personality_p", 0.5)),
                     "causal_rollback_layer": rollback_layer,
+                    "mode_explanation": mode_explanation,
                 }
                 self._increment_metric("outputs", 1)
                 with self._task_lock:
@@ -1209,7 +1596,10 @@ class AgentLoop:
                     "amygdala_state": self.memory.get("amygdala_state", 0.5),
                     "amygdala_harmony": self.memory.get("amygdala_harmony", 0.5),
                     "amygdala_history_size": self.memory.get("amygdala_history_size", 0),
+                    "smart_ear_drift_detected": bool(item.get("_smart_ear_drift_detected", False)),
+                    "smart_ear_drift_reason": item.get("_smart_ear_drift_reason"),
                     "personality_p": float(getattr(self.causal_transitions.amygdala, "personality_p", 0.5)),
+                    "mode_explanation": mode_explanation,
                 }
                 if stability_ok is not None:
                     payload["causal_stability_ok"] = stability_ok
@@ -1321,6 +1711,8 @@ class AgentLoop:
             raise RuntimeError("input_queue is required for run()")
 
         self.running = True
+        self._bloodstream_stop.clear()
+        self._subconscious_stop.clear()
         with self._bloodstream_lock:
             if self._bloodstream_thread is None or not self._bloodstream_thread.is_alive():
                 self._bloodstream_thread = threading.Thread(
@@ -1329,6 +1721,24 @@ class AgentLoop:
                     name="bloodstream",
                 )
                 self._bloodstream_thread.start()
+            if self._subconscious_thread is None or not self._subconscious_thread.is_alive():
+                self._subconscious_stop.clear()
+                self._subconscious_thread = threading.Thread(
+                    target=self._subconscious_loop,
+                    daemon=True,
+                    name="subconscious",
+                )
+                self._subconscious_thread.start()
+            if self._world_poller is not None and (
+                self._world_thread is None or not self._world_thread.is_alive()
+            ):
+                self._world_stop.clear()
+                self._world_thread = threading.Thread(
+                    target=self._world_loop,
+                    daemon=True,
+                    name="world-poller",
+                )
+                self._world_thread.start()
         self.vision.start() # Start Screen Perception v2
 
         while self.running:
@@ -1411,9 +1821,16 @@ class AgentLoop:
                 pass
         with self._bloodstream_lock:
             bloodstream_thread = self._bloodstream_thread
+            subconscious_thread = self._subconscious_thread
+            world_thread = self._world_thread
         if bloodstream_thread is not None and bloodstream_thread.is_alive():
             bloodstream_thread.join(timeout=3.0)
+        if subconscious_thread is not None and subconscious_thread.is_alive():
+            subconscious_thread.join(timeout=3.0)
+        if world_thread is not None and world_thread.is_alive():
+            world_thread.join(timeout=3.0)
         with self._task_lock:
             active_cancel = self._active_cancel
         if active_cancel:
             active_cancel.set()
+        self._transition("idle")

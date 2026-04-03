@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 import uuid
 from collections import deque
+import json
 from typing import Any
 
 from ls.memory.edge import MemoryEdge
@@ -14,6 +15,10 @@ class MemoryGraph:
         self._nodes: dict[str, MemoryNode] = {}
         self._edges: list[MemoryEdge] = []
         self._adj: dict[str, list[MemoryEdge]] = {}
+        self._type_index: dict[str, set[str]] = {}
+        self._content_index: dict[str, dict[str, set[str]]] = {}
+        self._token_index: dict[str, set[str]] = {}
+        self._node_tokens: dict[str, set[str]] = {}
 
     def add_node(self, node: MemoryNode | None = None, *, node_type: str | None = None, content: dict[str, Any] | None = None) -> MemoryNode:
         if node is None:
@@ -25,8 +30,12 @@ class MemoryGraph:
                 content=content or {},
                 timestamp=time.time(),
             )
+        previous = self._nodes.get(node.node_id)
+        if previous is not None:
+            self._deindex_node(previous)
         self._nodes[node.node_id] = node
         self._adj.setdefault(node.node_id, [])
+        self._index_node(node)
         return node
 
     def add_edge(self, edge: MemoryEdge) -> None:
@@ -39,9 +48,18 @@ class MemoryGraph:
         return self._nodes.get(node_id)
 
     def find_nodes(self, *, node_type: str | None = None, content_key: str | None = None, content_value: Any | None = None) -> list[MemoryNode]:
-        # TODO: add internal indexes by node_type/content keys for large graphs.
+        candidate_ids: set[str] | None = None
+        if node_type is not None:
+            candidate_ids = set(self._type_index.get(node_type, set()))
+        if content_key is not None and content_value is not None:
+            encoded = self._encode_content_value(content_value)
+            content_matches = self._content_index.get(content_key, {}).get(encoded, set())
+            candidate_ids = set(content_matches) if candidate_ids is None else candidate_ids.intersection(content_matches)
+
         out: list[MemoryNode] = []
         for node in self._nodes.values():
+            if candidate_ids is not None and node.node_id not in candidate_ids:
+                continue
             if node_type is not None and node.node_type != node_type:
                 continue
             if content_key is not None and node.content.get(content_key) != content_value:
@@ -86,8 +104,18 @@ class MemoryGraph:
 
     def semantic_search(self, query: str, limit: int = 5) -> list[MemoryNode]:
         q_tokens = self._tokenize(query)
+        if not q_tokens:
+            return []
+        candidate_ids: set[str] = set()
+        for token in q_tokens:
+            candidate_ids.update(self._token_index.get(token, set()))
+        if not candidate_ids:
+            return []
         scored: list[tuple[float, MemoryNode]] = []
-        for node in self._nodes.values():
+        for node_id in candidate_ids:
+            node = self._nodes.get(node_id)
+            if node is None:
+                continue
             text = self._node_text(node)
             n_tokens = self._tokenize(text)
             if not n_tokens:
@@ -144,6 +172,10 @@ class MemoryGraph:
         self._nodes.clear()
         self._edges.clear()
         self._adj.clear()
+        self._type_index.clear()
+        self._content_index.clear()
+        self._token_index.clear()
+        self._node_tokens.clear()
 
         for raw_node in data.get("nodes", []):
             node = MemoryNode.from_dict(raw_node)
@@ -170,3 +202,52 @@ class MemoryGraph:
     @staticmethod
     def _tokenize(text: str) -> set[str]:
         return {t.strip(".,!?;:()[]{}\"'").lower() for t in text.split() if t.strip()}
+
+    @staticmethod
+    def _encode_content_value(value: Any) -> str:
+        if isinstance(value, (dict, list, tuple)):
+            return json.dumps(value, ensure_ascii=True, sort_keys=True, default=str)
+        return str(value)
+
+    def _index_node(self, node: MemoryNode) -> None:
+        node_id = node.node_id
+        self._type_index.setdefault(node.node_type, set()).add(node_id)
+
+        for key, value in node.content.items():
+            encoded = self._encode_content_value(value)
+            by_value = self._content_index.setdefault(str(key), {})
+            by_value.setdefault(encoded, set()).add(node_id)
+
+        tokens = self._tokenize(self._node_text(node))
+        self._node_tokens[node_id] = tokens
+        for token in tokens:
+            self._token_index.setdefault(token, set()).add(node_id)
+
+    def _deindex_node(self, node: MemoryNode) -> None:
+        node_id = node.node_id
+        typed = self._type_index.get(node.node_type)
+        if typed is not None:
+            typed.discard(node_id)
+            if not typed:
+                self._type_index.pop(node.node_type, None)
+
+        for key, value in node.content.items():
+            encoded = self._encode_content_value(value)
+            by_value = self._content_index.get(str(key))
+            if by_value is None:
+                continue
+            bucket = by_value.get(encoded)
+            if bucket is not None:
+                bucket.discard(node_id)
+                if not bucket:
+                    by_value.pop(encoded, None)
+            if not by_value:
+                self._content_index.pop(str(key), None)
+
+        for token in self._node_tokens.pop(node_id, set()):
+            owners = self._token_index.get(token)
+            if owners is None:
+                continue
+            owners.discard(node_id)
+            if not owners:
+                self._token_index.pop(token, None)

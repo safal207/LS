@@ -23,7 +23,8 @@ def test_secure_export_import_roundtrip(memory_service, temp_memory_dir):
     target_device = "test_user" # Decryption will use current_device_id=self.user_id
     package_path = memory_service.export_soul_secure(target_device)
     assert os.path.exists(package_path)
-    assert "temp-pytest" in package_path or "pytest-of-jules" in package_path # verify it's not in ~/.ghostgpt
+    assert "pytest" in package_path.lower()
+    assert ".ghostgpt" not in package_path.lower()
 
     # 3. Clear existing data to simulate new device
     memory_service.save({})
@@ -87,3 +88,32 @@ def test_device_id_validation(memory_service):
     verified, data = lthread.verify_and_decrypt(pkg_path, current_device_id="wrong_device")
     assert verified is False
     assert data is None
+
+
+def test_lthread_default_envelope_is_v3(tmp_path):
+    from python.modules import lthread
+
+    payload = {"hello": "world"}
+    encrypted = lthread.encrypt_and_sign(payload, "device-a")
+    package = json.loads(encrypted.decode("utf-8"))
+    assert package["v"] == 3
+    assert package["alg"] == "chacha20poly1305"
+
+    pkg_path = lthread.send_package(encrypted, "device-a", base_dir=str(tmp_path))
+    verified, data = lthread.verify_and_decrypt(pkg_path, current_device_id="device-a")
+    assert verified is True
+    assert data["hello"] == "world"
+
+
+def test_lthread_v2_compatibility_decode(tmp_path):
+    from python.modules import lthread
+
+    payload = {"legacy": True}
+    encrypted = lthread.encrypt_and_sign(payload, "device-b", envelope_version=2)
+    package = json.loads(encrypted.decode("utf-8"))
+    assert package["v"] == 2
+
+    pkg_path = lthread.send_package(encrypted, "device-b", base_dir=str(tmp_path))
+    verified, data = lthread.verify_and_decrypt(pkg_path, current_device_id="device-b")
+    assert verified is True
+    assert data["legacy"] is True

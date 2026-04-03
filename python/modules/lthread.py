@@ -9,10 +9,12 @@ import base64
 import secrets
 import time
 import os
+import tempfile
 import threading
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 
 _REPLAY_CACHE: "OrderedDict[tuple[str, str], int]" = OrderedDict()
 _REPLAY_CACHE_LOCK = threading.Lock()
@@ -246,32 +248,25 @@ def _derive_subkeys(master_key: bytes) -> tuple[bytes, bytes]:
     return enc_key, mac_key
 
 
+def _derive_aead_key(master_key: bytes) -> bytes:
+    """Derive AEAD key for v3 envelope."""
+    return hmac.digest(master_key, b"lthread-v3/subkey/chacha20poly1305", "sha256")
+
+
 def _build_aad(target_device: Any, sender: str, ts: int) -> bytes:
     return f"{target_device or ''}|{sender}|{ts}".encode("utf-8")
 
 
-def encrypt_and_sign(data: Any, key: Any = None, **kwargs) -> bytes:
-    """
-    Create a signed encrypted envelope as JSON bytes.
-
-    NOTE: This uses a Blake2s-derived stream construction for dev/sandbox mode.
-    TODO: Replace with standard AEAD (ChaCha20-Poly1305 or AES-GCM) for production.
-    """
-    target_device = kwargs.get("target_device", key)
-    sender = str(kwargs.get("sender", "unknown_agent"))
-    ts = int(kwargs.get("ts", time.time()))
-
-    keyring = kwargs.get("agent_keys")
-    master_key = _derive_key(kwargs.get("shared_key", key), sender, keyring)
-    enc_key, mac_key = _derive_subkeys(master_key)
-
+def _serialize_payload(data: Any) -> bytes:
     if isinstance(data, (dict, list)):
-        payload_bytes = json.dumps(data, sort_keys=True).encode("utf-8")
-    elif isinstance(data, bytes):
-        payload_bytes = data
-    else:
-        payload_bytes = str(data).encode("utf-8")
+        return json.dumps(data, sort_keys=True).encode("utf-8")
+    if isinstance(data, bytes):
+        return data
+    return str(data).encode("utf-8")
 
+
+def _encrypt_v2(payload_bytes: bytes, *, master_key: bytes, sender: str, ts: int, target_device: Any) -> bytes:
+    enc_key, mac_key = _derive_subkeys(master_key)
     nonce = secrets.token_bytes(16)
     ciphertext = bytearray(len(payload_bytes))
 
@@ -298,14 +293,63 @@ def encrypt_and_sign(data: Any, key: Any = None, **kwargs) -> bytes:
     }).encode("utf-8")
 
 
+def _encrypt_v3(payload_bytes: bytes, *, master_key: bytes, sender: str, ts: int, target_device: Any) -> bytes:
+    aead_key = _derive_aead_key(master_key)
+    nonce = secrets.token_bytes(12)
+    aad = _build_aad(target_device, sender, ts)
+    aead = ChaCha20Poly1305(aead_key)
+    ciphertext = aead.encrypt(nonce, payload_bytes, aad)
+    return json.dumps({
+        "v": 3,
+        "alg": "chacha20poly1305",
+        "nonce": base64.b64encode(nonce).decode("ascii"),
+        "ct": base64.b64encode(ciphertext).decode("ascii"),
+        "ts": ts,
+        "sender": sender,
+        "_synthetic_target": target_device,
+    }).encode("utf-8")
+
+
+def encrypt_and_sign(data: Any, key: Any = None, **kwargs) -> bytes:
+    """Create a signed encrypted envelope as JSON bytes."""
+    target_device = kwargs.get("target_device", key)
+    sender = str(kwargs.get("sender", "unknown_agent"))
+    ts = int(kwargs.get("ts", time.time()))
+    envelope_version = int(kwargs.get("envelope_version", 3))
+
+    keyring = kwargs.get("agent_keys")
+    key_source = kwargs.get("shared_key", key if key is not None else target_device)
+    master_key = _derive_key(key_source, sender, keyring)
+    payload_bytes = _serialize_payload(data)
+
+    if envelope_version == 2:
+        return _encrypt_v2(
+            payload_bytes,
+            master_key=master_key,
+            sender=sender,
+            ts=ts,
+            target_device=target_device,
+        )
+    if envelope_version != 3:
+        raise ValueError("Unsupported envelope_version, expected 2 or 3")
+    return _encrypt_v3(
+        payload_bytes,
+        master_key=master_key,
+        sender=sender,
+        ts=ts,
+        target_device=target_device,
+    )
+
+
 def send_package(package: Any, destination: str, **kwargs) -> str:
     """
     Placeholder for sending a package over LTP.
     Returns the path to the 'sent' package.
     """
     logger.info(f"Sending package to {destination}")
-    base_dir = kwargs.get("base_dir", "/tmp")
+    base_dir = kwargs.get("base_dir", tempfile.gettempdir())
     path = Path(base_dir) / f"soul_package_{destination}.bin"
+    path.parent.mkdir(parents=True, exist_ok=True)
 
     if isinstance(package, dict):
         data = json.dumps(package).encode()
@@ -408,7 +452,8 @@ def verify_and_decrypt(package_path: str, **kwargs) -> tuple[bool, Any]:
             except json.JSONDecodeError:
                 return True, payload_str
 
-        if package.get("v") != 2:
+        version = int(package.get("v", 0))
+        if version not in (2, 3):
             return False, None
 
         sender = package.get("sender")
@@ -429,7 +474,6 @@ def verify_and_decrypt(package_path: str, **kwargs) -> tuple[bool, Any]:
             key_material = current_device_id
 
         master_key = _derive_key(key_material, sender, keyring)
-        enc_key, mac_key = _derive_subkeys(master_key)
 
         nonce_b64 = package["nonce"]
         if enforce_replay_protection and not _register_nonce(sender, nonce_b64, now_ts, max_skew_seconds):
@@ -438,24 +482,31 @@ def verify_and_decrypt(package_path: str, **kwargs) -> tuple[bool, Any]:
 
         nonce = base64.b64decode(nonce_b64)
         ciphertext = base64.b64decode(package["ct"])
-        tag = base64.b64decode(package["tag"])
-
         aad = _build_aad(package.get("_synthetic_target"), sender, ts)
-        expected_tag = hmac.digest(mac_key, nonce + aad + ciphertext, "sha256")
-        if not hmac.compare_digest(tag, expected_tag):
-            logger.warning("Package signature verification failed")
-            return False, None
 
-        plaintext = bytearray(len(ciphertext))
-        block_size = 32
-        for offset in range(0, len(ciphertext), block_size):
-            counter = (offset // block_size).to_bytes(4, "big")
-            stream_block = hashlib.blake2s(enc_key + nonce + counter).digest()
-            chunk = ciphertext[offset : offset + block_size]
-            for i, b in enumerate(chunk):
-                plaintext[offset + i] = b ^ stream_block[i]
+        if version == 2:
+            enc_key, mac_key = _derive_subkeys(master_key)
+            tag = base64.b64decode(package["tag"])
+            expected_tag = hmac.digest(mac_key, nonce + aad + ciphertext, "sha256")
+            if not hmac.compare_digest(tag, expected_tag):
+                logger.warning("Package signature verification failed")
+                return False, None
 
-        payload_str = bytes(plaintext).decode("utf-8", errors="replace")
+            plaintext = bytearray(len(ciphertext))
+            block_size = 32
+            for offset in range(0, len(ciphertext), block_size):
+                counter = (offset // block_size).to_bytes(4, "big")
+                stream_block = hashlib.blake2s(enc_key + nonce + counter).digest()
+                chunk = ciphertext[offset : offset + block_size]
+                for i, b in enumerate(chunk):
+                    plaintext[offset + i] = b ^ stream_block[i]
+            payload_raw = bytes(plaintext)
+        else:
+            aead_key = _derive_aead_key(master_key)
+            aead = ChaCha20Poly1305(aead_key)
+            payload_raw = aead.decrypt(nonce, ciphertext, aad)
+
+        payload_str = payload_raw.decode("utf-8", errors="replace")
         try:
             return True, json.loads(payload_str)
         except json.JSONDecodeError:

@@ -1257,6 +1257,10 @@ class SmartEar:
         self._dataset_log.log(item)
 
         self._audit.log_accepted(original_text, final_text, source, composite, corrections)
+        drift_detected = bool(self._metrics and self._metrics.is_drifted)
+        drift_reason = self._metrics.drift_reason if self._metrics is not None else None
+        item["_smart_ear_drift_detected"] = drift_detected
+        item["_smart_ear_drift_reason"] = drift_reason
         self._publish("smart_ear_selected", {
             "text": final_text,
             "composite_confidence": composite,
@@ -1264,6 +1268,8 @@ class SmartEar:
             "corrections": corrections,
             "intent": item.get("_intent"),
             "why": item.get("_why"),
+            "drift_detected": drift_detected,
+            "drift_reason": drift_reason,
         })
 
         # Cognitive Cycle Logger — Phase 1: start cycle

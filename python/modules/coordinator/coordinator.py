@@ -18,11 +18,18 @@ from typing import Literal, Optional, Dict, Any
 from dataclasses import dataclass
 import time
 
+try:
+    from hexagon_core.system_observer import SystemObserver
+except ImportError:
+    from python.modules.hexagon_core.system_observer import SystemObserver
+
 
 @dataclass
 class CoordinationDecision:
     """Result of C's decision-making."""
     mode: Literal["A", "B", "both"]
+    cognitive_mode: Literal["reactive", "deliberative", "creative"]
+    engine_route: list[str]
     reason: str
     confidence: float
     timestamp: float
@@ -30,6 +37,8 @@ class CoordinationDecision:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "mode": self.mode,
+            "cognitive_mode": self.cognitive_mode,
+            "engine_route": list(self.engine_route),
             "reason": self.reason,
             "confidence": self.confidence,
             "timestamp": self.timestamp,
@@ -55,9 +64,14 @@ class Coordinator:
         from .field_coordination import FieldCoordination
         from .meta_adaptation import MetaAdaptationLayer
         from .meta_hygiene import MetaHygiene
-        from orientation import OrientationCenter
-        from trajectory import TrajectoryLayer
-        from field import ConsensusEngine
+        try:
+            from orientation import OrientationCenter
+            from trajectory import TrajectoryLayer
+            from field import ConsensusEngine
+        except ImportError:
+            from python.modules.orientation import OrientationCenter
+            from python.modules.trajectory import TrajectoryLayer
+            from python.modules.field import ConsensusEngine
 
         self.mode_detector = ModeDetector()
         self.context_sync = ContextSync()
@@ -73,6 +87,9 @@ class Coordinator:
         self.field_adapter = None
         self.field_resonance = None
         self.field_bias = None
+
+        # Наблюдатель адекватности (Сила 6)
+        self.observer = SystemObserver()
 
         # Metadata
         self.last_decision: Optional[CoordinationDecision] = None
@@ -160,6 +177,8 @@ class Coordinator:
         confidence = max(0.1, 1.0 - float(getattr(analysis, "ambiguity_score", 0.0)))
         decision = CoordinationDecision(
             mode=analysis.mode,
+            cognitive_mode=analysis.cognitive_mode,
+            engine_route=list(analysis.engine_route),
             reason=analysis.reason,
             confidence=confidence,
             timestamp=time.time(),
@@ -186,11 +205,79 @@ class Coordinator:
         Does not change decision logic.
         """
         orientation_inputs = self._build_orientation_inputs(telemetry, retrospective)
+
+        # Read temporal signal BEFORE orientation so it can inform trajectory_error
+        temporal_signal: Dict[str, Any] = {}
+        temporal_graph = context.get("_temporal_graph")
+        if temporal_graph is not None:
+            try:
+                temporal_signal = temporal_graph.to_orientation_signal()
+                # Use temporal trajectory_signal to override/blend trajectory_error
+                t_signal = float(temporal_signal.get("trajectory_signal", 0.5))
+                base_err = self.last_trajectory_error or 0.0
+                # Blend: high axis resonance reduces perceived trajectory error
+                blended_error = base_err * 0.7 + (1.0 - t_signal) * 0.3
+                self.last_trajectory_error = round(blended_error, 4)
+            except Exception:
+                pass
+
         orientation_output = self.orientation.evaluate(
             **orientation_inputs,
             trajectory_error=self.last_trajectory_error,
         )
         self.last_orientation = orientation_output.to_dict()
+        self.last_orientation["temporal_signal"] = temporal_signal
+
+        # Apply full force ladder to TemporalGraph
+        if temporal_graph is not None:
+            try:
+                # Force 1+2: Orientation forces (chaos/harmony/drift/rhythm)
+                orientation_deltas = temporal_graph.apply_orientation_forces(
+                    chaos_score=float(self.last_orientation.get("chaos_score", 0.0)),
+                    harmony_score=float(self.last_orientation.get("harmony_score", 0.0)),
+                    drift_pressure=float(self.last_orientation.get("drift_pressure", 0.0)),
+                    rhythm_phase=str(self.last_orientation.get("rhythm_phase", "neutral")),
+                )
+                # Force 3: Stabilization (mean-reversion + axis hysteresis)
+                stab_deltas = temporal_graph.apply_stabilization_forces(strength=0.06)
+
+                # Force 4: Forgetting curve (natural decay by node half-life)
+                decay_deltas = temporal_graph.apply_decay(dt_s=30.0)
+
+                # Force 5: Cross-node interference (anti-split-brain)
+                interference_deltas = temporal_graph.apply_interference()
+
+                # Force 7: Explicit associative boost (linked nodes amplify each other)
+                assoc_deltas = temporal_graph.apply_association_boost(
+                    threshold=0.72, boost_factor=0.07
+                )
+
+                # Force 6: Observer — мета-когнитивный наблюдатель адекватности
+                momentum_data = temporal_graph.get_orientation_momentum()
+                chaos_trend = momentum_data.get("chaos_trend", 0.0)
+                adequacy_report = self.observer.observe_and_correct(
+                    temporal_graph, chaos_trend=chaos_trend
+                )
+
+                # Record orientation snapshot for trajectory tracking
+                temporal_graph.record_orientation_snapshot(self.last_orientation)
+
+                self.last_orientation["orientation_force_deltas"] = orientation_deltas
+                self.last_orientation["stabilization_deltas"] = stab_deltas
+                self.last_orientation["decay_deltas"] = decay_deltas
+                self.last_orientation["interference_deltas"] = interference_deltas
+                self.last_orientation["association_deltas"] = assoc_deltas
+                self.last_orientation["orientation_momentum"] = momentum_data
+                self.last_orientation["adequacy"] = {
+                    "score":       round(adequacy_report.score, 3),
+                    "adequate":    adequacy_report.adequate,
+                    "critical":    adequacy_report.critical,
+                    "pathologies": adequacy_report.pathologies,
+                    "corrections": adequacy_report.corrections,
+                    "trend":       self.observer.adequacy_trend(),
+                }
+            except Exception:
+                pass
 
         weight = self._compute_orientation_weight(self.last_orientation.get("rhythm_phase"))
         tendency = self._compute_orientation_tendency(self.last_orientation)
