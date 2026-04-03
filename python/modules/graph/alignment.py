@@ -4,6 +4,22 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
+def _as_str_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        normalized = value.strip()
+        return [normalized] if normalized else []
+    if isinstance(value, (list, tuple, set)):
+        output: list[str] = []
+        for item in value:
+            text = str(item).strip()
+            if text:
+                output.append(text)
+        return output
+    return [str(value).strip()] if str(value).strip() else []
+
+
 @dataclass
 class InteractionParticipant:
     participant_id: str
@@ -30,9 +46,9 @@ class InteractionParticipant:
             role=str(data.get("role") or ""),
             intent=str(data.get("intent") or ""),
             why=str(data.get("why") or ""),
-            background_state=[str(v) for v in (data.get("background_state") or [])],
-            foreground_expression=[str(v) for v in (data.get("foreground_expression") or [])],
-            need_vector=[str(v) for v in (data.get("need_vector") or [])],
+            background_state=_as_str_list(data.get("background_state")),
+            foreground_expression=_as_str_list(data.get("foreground_expression")),
+            need_vector=_as_str_list(data.get("need_vector")),
             tension_signal=float(data.get("tension_signal", 0.0) or 0.0),
             resonance_signal=float(data.get("resonance_signal", 0.0) or 0.0),
             metadata=dict(data.get("metadata") or {}),
@@ -101,7 +117,10 @@ class InteractionAlignmentAnalyzer:
                 tension_total += pair["tension"]
                 mismatch_reasons.update(pair["mismatch_reasons"])
                 agreement_reasons.update(pair["agreement_reasons"])
-                if pair["tension"] >= 0.45 or pair["alignment"] <= 0.25:
+                if pair["has_evidence"] and (
+                    pair["tension"] >= 0.45
+                    or bool(pair["mismatch_reasons"])
+                ):
                     pairwise_hotspots.append(pair)
 
         alignment_score = round(min(1.0, align_total / max(1, pair_count)), 3)
@@ -157,42 +176,51 @@ class InteractionAlignmentAnalyzer:
     def _pairwise(self, left: InteractionParticipant, right: InteractionParticipant) -> dict[str, Any]:
         agreement_reasons: list[str] = []
         mismatch_reasons: list[str] = []
-        alignment = 0.25
-        tension = 0.2
+        alignment = 0.15
+        tension = 0.05
+        has_evidence = False
 
         if left.intent and right.intent and left.intent == right.intent:
             alignment += 0.25
             agreement_reasons.append(f"shared_intent:{left.intent}")
+            has_evidence = True
         elif left.intent and right.intent and left.intent != right.intent:
             tension += 0.20
             mismatch_reasons.append(f"intent_conflict:{left.intent}!={right.intent}")
+            has_evidence = True
 
         if left.why and right.why and left.why == right.why:
             alignment += 0.20
             agreement_reasons.append(f"shared_why:{left.why}")
+            has_evidence = True
         elif left.why and right.why and left.why != right.why:
             tension += 0.18
             mismatch_reasons.append("why_mismatch")
+            has_evidence = True
 
         shared_needs = set(left.need_vector).intersection(right.need_vector)
         if shared_needs:
             alignment += min(0.25, 0.08 * len(shared_needs))
             agreement_reasons.append(f"shared_needs:{','.join(sorted(shared_needs))}")
+            has_evidence = True
 
         pressure_conflict = self._detect_pressure_conflict(left.need_vector, right.need_vector)
         if pressure_conflict:
             tension += 0.22
             mismatch_reasons.append(f"need_pressure_conflict:{pressure_conflict}")
+            has_evidence = True
 
         expression_overlap = set(left.foreground_expression).intersection(right.foreground_expression)
         if expression_overlap:
             alignment += 0.08
             agreement_reasons.append("foreground_overlap")
+            has_evidence = True
 
         unresolved_background = set(left.background_state).symmetric_difference(right.background_state)
         if unresolved_background and not shared_needs:
             tension += 0.08
             mismatch_reasons.append("background_state_divergence")
+            has_evidence = True
 
         tension += min(0.20, (left.tension_signal + right.tension_signal) * 0.15)
         alignment += min(0.10, (left.resonance_signal + right.resonance_signal) * 0.10)
@@ -203,6 +231,7 @@ class InteractionAlignmentAnalyzer:
             "tension": round(min(1.0, tension), 3),
             "mismatch_reasons": mismatch_reasons,
             "agreement_reasons": agreement_reasons,
+            "has_evidence": has_evidence,
         }
 
     def _detect_pressure_conflict(self, left_needs: list[str], right_needs: list[str]) -> str:

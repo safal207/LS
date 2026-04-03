@@ -72,6 +72,21 @@ def test_alignment_analyzer_is_safe_with_missing_optional_fields() -> None:
     assert payload["dominant_axis"] in {"alignment", "tension", "balanced"}
 
 
+def test_alignment_analyzer_coerces_string_fields_without_character_splitting() -> None:
+    analyzer = InteractionAlignmentAnalyzer()
+
+    report = analyzer.analyze(
+        [
+            {"participant_id": "h1", "background_state": "stress", "need_vector": "clarity"},
+            {"participant_id": "a1", "background_state": "stress", "need_vector": "clarity"},
+        ]
+    )
+
+    first = report.participants[0]
+    assert first["background_state"] == ["stress"]
+    assert first["need_vector"] == ["clarity"]
+
+
 def test_alignment_analyzer_multi_participant_returns_pairwise_hotspots() -> None:
     analyzer = InteractionAlignmentAnalyzer()
 
@@ -91,6 +106,20 @@ def test_alignment_analyzer_multi_participant_returns_pairwise_hotspots() -> Non
 
     assert report.pairwise_hotspots
     assert any("human-2" in hotspot["participants"] for hotspot in report.pairwise_hotspots)
+
+
+def test_alignment_analyzer_does_not_flag_hotspot_without_pairwise_evidence() -> None:
+    analyzer = InteractionAlignmentAnalyzer()
+
+    report = analyzer.analyze(
+        [
+            {"participant_id": "human-1"},
+            {"participant_id": "agent-1"},
+            {"participant_id": "human-2"},
+        ]
+    )
+
+    assert report.pairwise_hotspots == []
 
 
 def test_alignment_report_attached_to_agent_flow_without_breaking_output() -> None:
