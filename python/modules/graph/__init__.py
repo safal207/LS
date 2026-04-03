@@ -23,6 +23,7 @@ from .models import (
     ReuseDecision,
 )
 from .relational_field import RelationalFieldAnalyzer
+from .tension import TensionAnalyzer, TensionObservation
 from .runtime_snapshot import (
     CareCycleStatus,
     GraphMemoryStatus,
@@ -67,6 +68,8 @@ __all__ = [
     "GraphMemoryStatus",
     "OmniWorkerStatus",
     "RelationalFieldAnalyzer",
+    "TensionAnalyzer",
+    "TensionObservation",
     "RelationalFieldSnapshot",
     "RuntimeStatusSnapshot",
     "collect_runtime_status",
