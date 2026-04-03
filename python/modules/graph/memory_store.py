@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
 
+from .decay import ResonanceDecayConfig, effective_score, prune_expired
+from .evolve import RouteSnapshot
 from .models import MemoryCase, RelationalFieldSnapshot, ResonanceKnowledgeUnit
 
 _STORE_LOCKS: dict[str, threading.RLock] = {}
@@ -186,13 +188,17 @@ class MemoryGraphStore:
         goal_vector: list[float] | None = None,
         query_text: str | None = None,
         top_k: int = 5,
+        decay_config: ResonanceDecayConfig | None = None,
     ) -> list[ResonanceKnowledgeUnit]:
-        """Heuristic retrieval для проверенных когнитивных маршрутов.
+        """Heuristic retrieval for confirmed cognitive routes.
 
-        MVP-версия пока не использует embeddings / graph traversal —
-        только простое совпадение.
+        Only live (non-expired) units are considered.  Match scores are
+        weighted by effective_score so recently confirmed, high-resonance
+        units rank above stale ones that happen to share keywords.
         """
-        units = self._load_resonance_units()
+        config = decay_config or ResonanceDecayConfig()
+        # Search only the live set — expired units must not pollute hints.
+        units = prune_expired(self._load_resonance_units(), config)
         scored: list[tuple[ResonanceKnowledgeUnit, float]] = []
 
         top_k = max(1, int(top_k or 1))
@@ -200,12 +206,12 @@ class MemoryGraphStore:
         query_text_lower = query_text.lower() if query_text else None
 
         for u in units:
-            score = 0.0
+            match_score = 0.0
 
             if intent and u.intent and intent.lower() in u.intent.lower():
-                score += 0.4
+                match_score += 0.4
             if why and u.why and why.lower() in u.why.lower():
-                score += 0.4
+                match_score += 0.4
 
             query_match = (
                 query_text_lower
@@ -213,15 +219,48 @@ class MemoryGraphStore:
                 and query_text_lower in u.source_question.lower()
             )
             if query_match:
-                score += 0.3
+                match_score += 0.3
 
-            # TODO: add goal_vector cosine similarity.
-            # TODO: add evolve-oriented route scoring.
-            if score > 0.0:
-                scored.append((u, score))
+            if match_score > 0.0:
+                # Multiply by decay weight: fresh/confirmed units rank higher.
+                decay_weight = effective_score(u, config)
+                scored.append((u, match_score * decay_weight))
 
         scored.sort(key=lambda x: x[1], reverse=True)
         return [u for u, _ in scored[:top_k]]
+
+    def list_live_resonance_units(
+        self,
+        config: ResonanceDecayConfig | None = None,
+    ) -> list[ResonanceKnowledgeUnit]:
+        """Return only non-expired resonance units after applying decay.
+
+        Units whose effective score has dropped below ``config.floor_score``
+        are excluded.  The returned list is not sorted — call
+        :func:`~graph.decay.apply_decay` directly if you need ordering.
+
+        Args:
+            config: Decay configuration; uses defaults when omitted.
+        """
+        decay_config = config or ResonanceDecayConfig()
+        return prune_expired(self._load_resonance_units(), decay_config)
+
+    def confirm_resonance_unit(self, unit_id: str) -> Optional[ResonanceKnowledgeUnit]:
+        """Refresh a unit's timestamp, resetting its decay clock.
+
+        Called when a resonance unit is successfully reused in a live route —
+        confirmation is the memory equivalent of a half-life extension.
+
+        Returns the updated unit, or None if not found.
+        """
+        with self._lock:
+            units = self._load_resonance_units()
+            for unit in units:
+                if unit.unit_id == unit_id:
+                    unit.timestamp = _utc_now()
+                    self._write_resonance_units(units)
+                    return unit
+        return None
 
     def _load_resonance_units(self) -> list[ResonanceKnowledgeUnit]:
         with self._lock:
@@ -296,3 +335,57 @@ class MemoryGraphStore:
             self._relational_snapshots_path(),
             [snapshot.to_dict() for snapshot in snapshots],
         )
+
+    # ──────────────────────────────────────────────────────────────
+    # RouteSnapshot — versioned evolved route candidates
+    # ──────────────────────────────────────────────────────────────
+
+    def _route_snapshots_path(self) -> Path:
+        return self.path.with_name("route_snapshots.jsonl")
+
+    def store_route_snapshot(self, snapshot: RouteSnapshot) -> RouteSnapshot:
+        """Upsert a RouteSnapshot keyed by snapshot_id (latest version wins)."""
+        with self._lock:
+            snapshots = self._load_route_snapshots()
+            updated = False
+            for i, existing in enumerate(snapshots):
+                if existing.snapshot_id == snapshot.snapshot_id:
+                    snapshots[i] = snapshot
+                    updated = True
+                    break
+            if not updated:
+                snapshots.append(snapshot)
+            self._atomic_write_jsonl(
+                self._route_snapshots_path(),
+                [s.to_dict() for s in snapshots],
+            )
+            return snapshot
+
+    def list_route_snapshots(self) -> list[RouteSnapshot]:
+        return self._load_route_snapshots()
+
+    def list_promoted_snapshots(self) -> list[RouteSnapshot]:
+        """Return only promoted, non-rolled-back snapshots."""
+        return [
+            s for s in self._load_route_snapshots()
+            if s.promoted and not s.rolled_back
+        ]
+
+    def get_route_snapshot(self, snapshot_id: str) -> Optional[RouteSnapshot]:
+        for s in self._load_route_snapshots():
+            if s.snapshot_id == snapshot_id:
+                return s
+        return None
+
+    def _load_route_snapshots(self) -> list[RouteSnapshot]:
+        with self._lock:
+            path = self._route_snapshots_path()
+            if not path.exists():
+                return []
+            snapshots: list[RouteSnapshot] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if line:
+                        snapshots.append(RouteSnapshot.from_dict(json.loads(line)))
+            return snapshots

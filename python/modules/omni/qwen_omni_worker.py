@@ -12,6 +12,8 @@ from typing import Any, Callable, Optional
 from graph.memory_store import MemoryGraphStore  # type: ignore[import-not-found]
 from graph.models import ResonanceKnowledgeUnit  # type: ignore[import-not-found]
 
+from .admission import AdmissionDecision, ResonanceAdmissionGate, ResonanceAdmissionPolicy
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,6 +44,7 @@ class QwenOmniWorker:
         fps: float = 1.0,
         cycle_interval_s: float = 20.0,
         min_store_resonance_score: float = 0.3,
+        admission_gate: ResonanceAdmissionGate | None = None,
     ) -> None:
         self.graph_store = graph_store
         self.audio_provider = audio_provider
@@ -60,6 +63,20 @@ class QwenOmniWorker:
         self._thread: threading.Thread | None = None
         self._last_frame_ts = 0.0
         self._capture_lock = threading.Lock()
+        # If no gate is provided, build a default one from min_store_resonance_score
+        # so the existing threshold behaviour is preserved.
+        if admission_gate is not None:
+            self._admission_gate = admission_gate
+        else:
+            # Default gate replicates the pre-gate behaviour: a single flat
+            # threshold applied to all providers.  Callers who want the
+            # stricter fallback penalty should pass an explicit gate.
+            self._admission_gate = ResonanceAdmissionGate(
+                ResonanceAdmissionPolicy(
+                    min_resonance_score=self.min_store_resonance_score,
+                    fallback_min_resonance_score=self.min_store_resonance_score,
+                )
+            )
 
     @property
     def realtime_enabled(self) -> bool:
@@ -114,14 +131,15 @@ class QwenOmniWorker:
                 audio_text=audio_text,
                 trigger=trigger,
             )
-            if insight.resonance_score < self.min_store_resonance_score:
+            unit = self._build_unit_from_insight(insight)
+            decision: AdmissionDecision = self._admission_gate.admit(unit)
+            if not decision.allowed:
                 logger.debug(
-                    "QwenOmniWorker skipped low-signal insight: resonance=%.3f trigger=%s",
-                    insight.resonance_score,
+                    "QwenOmniWorker admission denied: %s (trigger=%s)",
+                    decision.reason,
                     trigger,
                 )
                 return None
-            unit = self._build_unit_from_insight(insight)
             try:
                 self.graph_store.store_resonance_unit(unit)
             except Exception as exc:

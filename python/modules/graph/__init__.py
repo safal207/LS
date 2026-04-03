@@ -1,4 +1,12 @@
 from .care_cycle import CareCycleResult, CareCycleRunner
+from .decay import (
+    ResonanceDecayConfig,
+    apply_decay,
+    effective_score,
+    is_expired,
+    prune_expired,
+)
+from .evolve import RouteEvolveConfig, RouteEvolver, RouteSnapshot
 from .coalition_registry import CoalitionRecord, CoalitionRegistry
 from .derived_module_registry import DerivedModuleRegistry
 from .memory_store import MemoryGraphStore
@@ -15,6 +23,14 @@ from .models import (
     ReuseDecision,
 )
 from .relational_field import RelationalFieldAnalyzer
+from .tension import TensionAnalyzer, TensionObservation
+from .runtime_snapshot import (
+    CareCycleStatus,
+    GraphMemoryStatus,
+    OmniWorkerStatus,
+    RuntimeStatusSnapshot,
+    collect_runtime_status,
+)
 from .path_selector import PathSelectionDecision, PathSelector
 from .retriever import MemoryGraphRetriever, compute_question_similarity
 from .route_stats import RouteStats, RouteStatsStore
@@ -43,10 +59,25 @@ __all__ = [
     "PathExecutionRecord",
     "PathSelectionDecision",
     "PathSelector",
+    "CareCycleStatus",
+    "ResonanceDecayConfig",
+    "apply_decay",
+    "effective_score",
+    "is_expired",
+    "prune_expired",
+    "GraphMemoryStatus",
+    "OmniWorkerStatus",
     "RelationalFieldAnalyzer",
+    "TensionAnalyzer",
+    "TensionObservation",
     "RelationalFieldSnapshot",
+    "RuntimeStatusSnapshot",
+    "collect_runtime_status",
     "RetrievedCase",
     "ReuseDecision",
+    "RouteEvolveConfig",
+    "RouteEvolver",
+    "RouteSnapshot",
     "RouteStats",
     "RouteStatsStore",
     "TrailUpdater",
