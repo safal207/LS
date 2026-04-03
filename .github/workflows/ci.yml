@@ -13,6 +13,9 @@ jobs:
       actions: read
       contents: read
       security-events: write
+    env:
+      LIMINALQA_URL: ${{ secrets.LIMINALQA_URL }}
+      LIMINALQA_TOKEN: ${{ secrets.LIMINALQA_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
@@ -38,16 +41,39 @@ jobs:
 
       - name: Install security and test tools
         run: |
-          pip install pip-audit cyclonedx-bom pip-tools pytest mock
+          pip install pip-audit cyclonedx-bom pip-tools pytest pytest-cov mock
+
+      - name: Install LiminalQA pytest plugin
+        run: |
+          if [ -n "$LIMINALQA_URL" ]; then
+            python -m pip install "git+https://github.com/safal207/LiminalQAengineer.git#subdirectory=pytest-liminalqa"
+          else
+            echo "LiminalQA disabled: LIMINALQA_URL secret is not set."
+          fi
 
       - name: Compile and Install dependencies
         run: |
           pip-compile requirements.in --output-file requirements.txt
           pip install -r requirements.txt
 
+      - name: Create artifacts dir
+        run: mkdir -p artifacts
+
       - name: Run hardening verification tests
         run: |
-          PYTHONPATH=. python -m pytest tests/test_hardening_verification.py tests/test_vision_extended.py
+          LIMINALQA_ARGS=()
+          if [ -n "$LIMINALQA_URL" ]; then
+            LIMINALQA_ARGS+=(--liminalqa-url "$LIMINALQA_URL" --liminalqa-token "$LIMINALQA_TOKEN" --liminalqa-plan "critical-smoke")
+          fi
+          PYTHONPATH=. python -m pytest \
+            tests/test_hardening_verification.py \
+            tests/test_vision_extended.py \
+            --junitxml=artifacts/security-junit.xml \
+            --cov=agent \
+            --cov=codex \
+            --cov=python/modules \
+            --cov-report=xml:artifacts/security-coverage.xml \
+            "${LIMINALQA_ARGS[@]}"
 
       - name: Vulnerability audit
         run: |
@@ -64,6 +90,13 @@ jobs:
         with:
           name: sbom
           path: sbom.json
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-ci-artifacts
+          path: artifacts/
 
       - name: CodeQL Analysis
         uses: github/codeql-action/analyze@v3

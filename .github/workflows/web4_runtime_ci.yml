@@ -48,6 +48,9 @@ jobs:
   web4-runtime:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      LIMINALQA_URL: ${{ secrets.LIMINALQA_URL }}
+      LIMINALQA_TOKEN: ${{ secrets.LIMINALQA_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,10 +68,21 @@ jobs:
       - name: Install Python tooling
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest ruff mypy requests PyYAML psutil websockets
+          python -m pip install pytest pytest-cov ruff mypy requests PyYAML psutil websockets
           if [ -f requirements-dev.txt ]; then
             python -m pip install -r requirements-dev.txt
           fi
+
+      - name: Install LiminalQA pytest plugin
+        run: |
+          if [ -n "$LIMINALQA_URL" ]; then
+            python -m pip install "git+https://github.com/safal207/LiminalQAengineer.git#subdirectory=pytest-liminalqa"
+          else
+            echo "LiminalQA disabled: LIMINALQA_URL secret is not set."
+          fi
+
+      - name: Create artifacts dir
+        run: mkdir -p artifacts
 
       - name: Lint (ruff)
         run: |
@@ -85,15 +99,59 @@ jobs:
 
       - name: Run Python smoke tests
         run: |
-          PYTHONPATH=python python -m pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_interoperability.py python/tests/test_web4_bio.py
+          LIMINALQA_ARGS=()
+          if [ -n "$LIMINALQA_URL" ]; then
+            LIMINALQA_ARGS+=(--liminalqa-url "$LIMINALQA_URL" --liminalqa-token "$LIMINALQA_TOKEN" --liminalqa-plan "python-runtime")
+          fi
+          PYTHONPATH=python python -m pytest \
+            python/tests/test_web4_runtime.py \
+            python/tests/test_web4_mesh.py \
+            python/tests/test_web4_graph.py \
+            python/tests/test_web4_interoperability.py \
+            python/tests/test_web4_bio.py \
+            --junitxml=artifacts/web4-runtime-smoke-junit.xml \
+            --cov=python/modules/web4_runtime \
+            --cov=python/modules/web4_mesh \
+            --cov=python/modules/web4_graph \
+            --cov=python/modules/web4_bio \
+            --cov-report=xml:artifacts/web4-runtime-smoke-coverage.xml \
+            "${LIMINALQA_ARGS[@]}"
 
       - name: Run Web4 runtime contract and load-smoke tests
         run: |
-          PYTHONPATH=python:python/modules python -m pytest python/tests/test_web4_transport.py python/tests/test_web4_federation_policy.py python/tests/test_global_flow.py python/tests/test_async_rtt.py python/tests/test_fuzzy_runtime.py python/tests/test_web4_runtime_loadtest.py
+          LIMINALQA_ARGS=()
+          if [ -n "$LIMINALQA_URL" ]; then
+            LIMINALQA_ARGS+=(--liminalqa-url "$LIMINALQA_URL" --liminalqa-token "$LIMINALQA_TOKEN" --liminalqa-plan "python-runtime")
+          fi
+          PYTHONPATH=python:python/modules python -m pytest \
+            python/tests/test_web4_transport.py \
+            python/tests/test_web4_federation_policy.py \
+            python/tests/test_global_flow.py \
+            python/tests/test_async_rtt.py \
+            python/tests/test_fuzzy_runtime.py \
+            python/tests/test_web4_runtime_loadtest.py \
+            --junitxml=artifacts/web4-runtime-contract-junit.xml \
+            --cov=python/modules/web4_runtime \
+            --cov=python/modules/web4_mesh \
+            --cov=python/modules/hexagon_core \
+            --cov-report=xml:artifacts/web4-runtime-contract-coverage.xml \
+            "${LIMINALQA_ARGS[@]}"
 
       - name: Run hexagon_core unit tests
         run: |
-          PYTHONPATH=python:python/modules python -m pytest python/tests/test_temporal_index.py python/tests/test_belief_system.py python/tests/test_circuit_breaker.py python/tests/test_mission_state.py
+          LIMINALQA_ARGS=()
+          if [ -n "$LIMINALQA_URL" ]; then
+            LIMINALQA_ARGS+=(--liminalqa-url "$LIMINALQA_URL" --liminalqa-token "$LIMINALQA_TOKEN" --liminalqa-plan "python-runtime")
+          fi
+          PYTHONPATH=python:python/modules python -m pytest \
+            python/tests/test_temporal_index.py \
+            python/tests/test_belief_system.py \
+            python/tests/test_circuit_breaker.py \
+            python/tests/test_mission_state.py \
+            --junitxml=artifacts/hexagon-core-junit.xml \
+            --cov=python/modules/hexagon_core \
+            --cov-report=xml:artifacts/hexagon-core-coverage.xml \
+            "${LIMINALQA_ARGS[@]}"
 
       - name: Rust build
         working-directory: rust_core
@@ -106,11 +164,30 @@ jobs:
 
       - name: Test Rust Python Bridge
         run: |
-          PYTHONPATH=python:python/modules python -m pytest python/tests/test_rust_bridge.py
+          LIMINALQA_ARGS=()
+          if [ -n "$LIMINALQA_URL" ]; then
+            LIMINALQA_ARGS+=(--liminalqa-url "$LIMINALQA_URL" --liminalqa-token "$LIMINALQA_TOKEN" --liminalqa-plan "rust-bridge")
+          fi
+          PYTHONPATH=python:python/modules python -m pytest \
+            python/tests/test_rust_bridge.py \
+            --junitxml=artifacts/rust-bridge-junit.xml \
+            --cov=python/rust_bridge.py \
+            --cov-report=xml:artifacts/rust-bridge-coverage.xml \
+            "${LIMINALQA_ARGS[@]}"
 
       - name: Test API Parity (Rust vs Fallback)
         run: |
-          PYTHONPATH=python:python/modules python -m pytest python/tests/test_api_parity.py
+          LIMINALQA_ARGS=()
+          if [ -n "$LIMINALQA_URL" ]; then
+            LIMINALQA_ARGS+=(--liminalqa-url "$LIMINALQA_URL" --liminalqa-token "$LIMINALQA_TOKEN" --liminalqa-plan "rust-bridge")
+          fi
+          PYTHONPATH=python:python/modules python -m pytest \
+            python/tests/test_api_parity.py \
+            --junitxml=artifacts/api-parity-junit.xml \
+            --cov=python/rust_bridge.py \
+            --cov=python/modules/web4_runtime \
+            --cov-report=xml:artifacts/api-parity-coverage.xml \
+            "${LIMINALQA_ARGS[@]}"
 
       - name: Run Rust tests
         working-directory: rust_core
@@ -118,3 +195,10 @@ jobs:
           PYO3_PYTHON: python3
         run: |
           cargo test --all --release --no-default-features --features python-embed
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web4-runtime-artifacts
+          path: artifacts/
