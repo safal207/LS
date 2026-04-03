@@ -11,6 +11,7 @@ from typing import Any, Optional
 from uuid import uuid4
 
 from .decay import ResonanceDecayConfig, prune_expired
+from .evolve import RouteSnapshot
 from .models import MemoryCase, RelationalFieldSnapshot, ResonanceKnowledgeUnit
 
 _STORE_LOCKS: dict[str, threading.RLock] = {}
@@ -330,3 +331,57 @@ class MemoryGraphStore:
             self._relational_snapshots_path(),
             [snapshot.to_dict() for snapshot in snapshots],
         )
+
+    # ──────────────────────────────────────────────────────────────
+    # RouteSnapshot — versioned evolved route candidates
+    # ──────────────────────────────────────────────────────────────
+
+    def _route_snapshots_path(self) -> Path:
+        return self.path.with_name("route_snapshots.jsonl")
+
+    def store_route_snapshot(self, snapshot: RouteSnapshot) -> RouteSnapshot:
+        """Upsert a RouteSnapshot keyed by snapshot_id (latest version wins)."""
+        with self._lock:
+            snapshots = self._load_route_snapshots()
+            updated = False
+            for i, existing in enumerate(snapshots):
+                if existing.snapshot_id == snapshot.snapshot_id:
+                    snapshots[i] = snapshot
+                    updated = True
+                    break
+            if not updated:
+                snapshots.append(snapshot)
+            self._atomic_write_jsonl(
+                self._route_snapshots_path(),
+                [s.to_dict() for s in snapshots],
+            )
+            return snapshot
+
+    def list_route_snapshots(self) -> list[RouteSnapshot]:
+        return self._load_route_snapshots()
+
+    def list_promoted_snapshots(self) -> list[RouteSnapshot]:
+        """Return only promoted, non-rolled-back snapshots."""
+        return [
+            s for s in self._load_route_snapshots()
+            if s.promoted and not s.rolled_back
+        ]
+
+    def get_route_snapshot(self, snapshot_id: str) -> Optional[RouteSnapshot]:
+        for s in self._load_route_snapshots():
+            if s.snapshot_id == snapshot_id:
+                return s
+        return None
+
+    def _load_route_snapshots(self) -> list[RouteSnapshot]:
+        with self._lock:
+            path = self._route_snapshots_path()
+            if not path.exists():
+                return []
+            snapshots: list[RouteSnapshot] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if line:
+                        snapshots.append(RouteSnapshot.from_dict(json.loads(line)))
+            return snapshots

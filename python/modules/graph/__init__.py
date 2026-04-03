@@ -6,6 +6,7 @@ from .decay import (
     is_expired,
     prune_expired,
 )
+from .evolve import RouteEvolveConfig, RouteEvolver, RouteSnapshot
 from .coalition_registry import CoalitionRecord, CoalitionRegistry
 from .derived_module_registry import DerivedModuleRegistry
 from .memory_store import MemoryGraphStore
@@ -71,6 +72,9 @@ __all__ = [
     "collect_runtime_status",
     "RetrievedCase",
     "ReuseDecision",
+    "RouteEvolveConfig",
+    "RouteEvolver",
+    "RouteSnapshot",
     "RouteStats",
     "RouteStatsStore",
     "TrailUpdater",
