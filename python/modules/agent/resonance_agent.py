@@ -200,15 +200,29 @@ try:
         build_alignment_guidance as _build_alignment_guidance,
     )
     _ALIGNMENT_GUIDANCE_OK = True
-except Exception:
+except ImportError:
     try:
         from agent.alignment_guidance import (
             build_alignment_guidance as _build_alignment_guidance,
         )
         _ALIGNMENT_GUIDANCE_OK = True
-    except Exception:
+    except ImportError:
         _ALIGNMENT_GUIDANCE_OK = False
         _build_alignment_guidance = None  # type: ignore[assignment]
+    except Exception as exc:
+        logger.debug(
+            "ResonanceAgent: unexpected alignment guidance import failure (agent.*): %s",
+            exc,
+        )
+        _ALIGNMENT_GUIDANCE_OK = False
+        _build_alignment_guidance = None  # type: ignore[assignment]
+except Exception as exc:
+    logger.debug(
+        "ResonanceAgent: unexpected alignment guidance import failure (modules.*): %s",
+        exc,
+    )
+    _ALIGNMENT_GUIDANCE_OK = False
+    _build_alignment_guidance = None  # type: ignore[assignment]
 
 try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
