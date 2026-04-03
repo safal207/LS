@@ -31,8 +31,8 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
-from .relational_field import RelationalFieldAnalyzer
 from .models import RelationalFieldSnapshot
+from .relational_field import RelationalFieldAnalyzer
 
 
 def _utc_now() -> str:
@@ -201,8 +201,10 @@ class TensionAnalyzer:
     def __init__(
         self,
         field_analyzer: Optional[RelationalFieldAnalyzer] = None,
+        graph_store: Any = None,
     ) -> None:
         self._fa = field_analyzer or RelationalFieldAnalyzer()
+        self._graph_store = graph_store  # duck-typed: needs store_relational_snapshot()
 
     def observe(
         self,
@@ -211,6 +213,7 @@ class TensionAnalyzer:
         participants: list[str] | None = None,
         interaction_scope: str = "human-human",
         context: dict[str, Any] | None = None,
+        graph_store: Any = None,
     ) -> TensionObservation:
         """Analyze *text* and return a TensionObservation.
 
@@ -220,6 +223,10 @@ class TensionAnalyzer:
             interaction_scope: One of "human-human", "human-agent",
                                "agent-agent".  Default: "human-human".
             context:           Optional extra dict stored in metadata.
+            graph_store:       Optional store instance (duck-typed).  When
+                               provided, the underlying RelationalFieldSnapshot
+                               is persisted via ``store_relational_snapshot()``.
+                               Failures are best-effort (logged, not raised).
 
         Returns:
             A frozen TensionObservation.
@@ -230,6 +237,17 @@ class TensionAnalyzer:
             interaction_scope=interaction_scope,
             context=context,
         )
+
+        # Persist the base snapshot if a store is available (best-effort).
+        active_store = graph_store if graph_store is not None else self._graph_store
+        if active_store is not None:
+            try:
+                active_store.store_relational_snapshot(snap)
+            except Exception as exc:
+                import logging as _logging
+                _logging.getLogger(__name__).debug(
+                    "TensionAnalyzer snapshot store skipped: %s", exc
+                )
 
         foreground = list(snap.foreground_expression)
         background = list(snap.background_pressure)

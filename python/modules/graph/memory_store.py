@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
 
-from .decay import ResonanceDecayConfig, prune_expired
+from .decay import ResonanceDecayConfig, effective_score, prune_expired
 from .evolve import RouteSnapshot
 from .models import MemoryCase, RelationalFieldSnapshot, ResonanceKnowledgeUnit
 
@@ -188,13 +188,17 @@ class MemoryGraphStore:
         goal_vector: list[float] | None = None,
         query_text: str | None = None,
         top_k: int = 5,
+        decay_config: ResonanceDecayConfig | None = None,
     ) -> list[ResonanceKnowledgeUnit]:
-        """Heuristic retrieval для проверенных когнитивных маршрутов.
+        """Heuristic retrieval for confirmed cognitive routes.
 
-        MVP-версия пока не использует embeddings / graph traversal —
-        только простое совпадение.
+        Only live (non-expired) units are considered.  Match scores are
+        weighted by effective_score so recently confirmed, high-resonance
+        units rank above stale ones that happen to share keywords.
         """
-        units = self._load_resonance_units()
+        config = decay_config or ResonanceDecayConfig()
+        # Search only the live set — expired units must not pollute hints.
+        units = prune_expired(self._load_resonance_units(), config)
         scored: list[tuple[ResonanceKnowledgeUnit, float]] = []
 
         top_k = max(1, int(top_k or 1))
@@ -202,12 +206,12 @@ class MemoryGraphStore:
         query_text_lower = query_text.lower() if query_text else None
 
         for u in units:
-            score = 0.0
+            match_score = 0.0
 
             if intent and u.intent and intent.lower() in u.intent.lower():
-                score += 0.4
+                match_score += 0.4
             if why and u.why and why.lower() in u.why.lower():
-                score += 0.4
+                match_score += 0.4
 
             query_match = (
                 query_text_lower
@@ -215,12 +219,12 @@ class MemoryGraphStore:
                 and query_text_lower in u.source_question.lower()
             )
             if query_match:
-                score += 0.3
+                match_score += 0.3
 
-            # TODO: add goal_vector cosine similarity.
-            # TODO: add evolve-oriented route scoring.
-            if score > 0.0:
-                scored.append((u, score))
+            if match_score > 0.0:
+                # Multiply by decay weight: fresh/confirmed units rank higher.
+                decay_weight = effective_score(u, config)
+                scored.append((u, match_score * decay_weight))
 
         scored.sort(key=lambda x: x[1], reverse=True)
         return [u for u, _ in scored[:top_k]]
