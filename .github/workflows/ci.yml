@@ -43,37 +43,24 @@ jobs:
         run: |
           pip install pip-audit cyclonedx-bom pip-tools pytest pytest-cov mock
 
-      - name: Install LiminalQA pytest plugin
-        run: |
-          if [ -n "$LIMINALQA_URL" ]; then
-            python -m pip install "git+https://github.com/safal207/LiminalQAengineer.git#subdirectory=pytest-liminalqa"
-          else
-            echo "LiminalQA disabled: LIMINALQA_URL secret is not set."
-          fi
-
       - name: Compile and Install dependencies
         run: |
           pip-compile requirements.in --output-file requirements.txt
           pip install -r requirements.txt
 
-      - name: Create artifacts dir
-        run: mkdir -p artifacts
-
       - name: Run hardening verification tests
-        run: |
-          LIMINALQA_ARGS=()
-          if [ -n "$LIMINALQA_URL" ]; then
-            LIMINALQA_ARGS+=(--liminalqa-url "$LIMINALQA_URL" --liminalqa-token "$LIMINALQA_TOKEN" --liminalqa-plan "critical-smoke")
-          fi
-          PYTHONPATH=. python -m pytest \
-            tests/test_hardening_verification.py \
-            tests/test_vision_extended.py \
-            --junitxml=artifacts/security-junit.xml \
-            --cov=agent \
-            --cov=codex \
-            --cov=python/modules \
-            --cov-report=xml:artifacts/security-coverage.xml \
-            "${LIMINALQA_ARGS[@]}"
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: critical-smoke
+          pytest-invocation: >-
+            PYTHONPATH=. python -m pytest
+            tests/test_hardening_verification.py
+            tests/test_vision_extended.py
+            --junitxml=artifacts/security-junit.xml
+            --cov=agent
+            --cov=codex
+            --cov=python/modules
+            --cov-report=xml:artifacts/security-coverage.xml
 
       - name: Vulnerability audit
         run: |

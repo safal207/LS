@@ -73,17 +73,6 @@ jobs:
             python -m pip install -r requirements-dev.txt
           fi
 
-      - name: Install LiminalQA pytest plugin
-        run: |
-          if [ -n "$LIMINALQA_URL" ]; then
-            python -m pip install "git+https://github.com/safal207/LiminalQAengineer.git#subdirectory=pytest-liminalqa"
-          else
-            echo "LiminalQA disabled: LIMINALQA_URL secret is not set."
-          fi
-
-      - name: Create artifacts dir
-        run: mkdir -p artifacts
-
       - name: Lint (ruff)
         run: |
           ruff check python/modules/web4_runtime python/modules/web4_mesh python/modules/web4_graph python/modules/web4_bio python/modules/hexagon_core scripts/web4_demo.py scripts/web4_mesh_demo.py scripts/web4meshdemo.py scripts/web4meshinspect.py scripts/web4meshtopology.py python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_bio.py
@@ -98,60 +87,54 @@ jobs:
             -p python.modules.hexagon_core
 
       - name: Run Python smoke tests
-        run: |
-          LIMINALQA_ARGS=()
-          if [ -n "$LIMINALQA_URL" ]; then
-            LIMINALQA_ARGS+=(--liminalqa-url "$LIMINALQA_URL" --liminalqa-token "$LIMINALQA_TOKEN" --liminalqa-plan "python-runtime")
-          fi
-          PYTHONPATH=python python -m pytest \
-            python/tests/test_web4_runtime.py \
-            python/tests/test_web4_mesh.py \
-            python/tests/test_web4_graph.py \
-            python/tests/test_web4_interoperability.py \
-            python/tests/test_web4_bio.py \
-            --junitxml=artifacts/web4-runtime-smoke-junit.xml \
-            --cov=python/modules/web4_runtime \
-            --cov=python/modules/web4_mesh \
-            --cov=python/modules/web4_graph \
-            --cov=python/modules/web4_bio \
-            --cov-report=xml:artifacts/web4-runtime-smoke-coverage.xml \
-            "${LIMINALQA_ARGS[@]}"
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: python-runtime
+          pytest-invocation: >-
+            PYTHONPATH=python python -m pytest
+            python/tests/test_web4_runtime.py
+            python/tests/test_web4_mesh.py
+            python/tests/test_web4_graph.py
+            python/tests/test_web4_interoperability.py
+            python/tests/test_web4_bio.py
+            --junitxml=artifacts/web4-runtime-smoke-junit.xml
+            --cov=python/modules/web4_runtime
+            --cov=python/modules/web4_mesh
+            --cov=python/modules/web4_graph
+            --cov=python/modules/web4_bio
+            --cov-report=xml:artifacts/web4-runtime-smoke-coverage.xml
 
       - name: Run Web4 runtime contract and load-smoke tests
-        run: |
-          LIMINALQA_ARGS=()
-          if [ -n "$LIMINALQA_URL" ]; then
-            LIMINALQA_ARGS+=(--liminalqa-url "$LIMINALQA_URL" --liminalqa-token "$LIMINALQA_TOKEN" --liminalqa-plan "python-runtime")
-          fi
-          PYTHONPATH=python:python/modules python -m pytest \
-            python/tests/test_web4_transport.py \
-            python/tests/test_web4_federation_policy.py \
-            python/tests/test_global_flow.py \
-            python/tests/test_async_rtt.py \
-            python/tests/test_fuzzy_runtime.py \
-            python/tests/test_web4_runtime_loadtest.py \
-            --junitxml=artifacts/web4-runtime-contract-junit.xml \
-            --cov=python/modules/web4_runtime \
-            --cov=python/modules/web4_mesh \
-            --cov=python/modules/hexagon_core \
-            --cov-report=xml:artifacts/web4-runtime-contract-coverage.xml \
-            "${LIMINALQA_ARGS[@]}"
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: python-runtime
+          pytest-invocation: >-
+            PYTHONPATH=python:python/modules python -m pytest
+            python/tests/test_web4_transport.py
+            python/tests/test_web4_federation_policy.py
+            python/tests/test_global_flow.py
+            python/tests/test_async_rtt.py
+            python/tests/test_fuzzy_runtime.py
+            python/tests/test_web4_runtime_loadtest.py
+            --junitxml=artifacts/web4-runtime-contract-junit.xml
+            --cov=python/modules/web4_runtime
+            --cov=python/modules/web4_mesh
+            --cov=python/modules/hexagon_core
+            --cov-report=xml:artifacts/web4-runtime-contract-coverage.xml
 
       - name: Run hexagon_core unit tests
-        run: |
-          LIMINALQA_ARGS=()
-          if [ -n "$LIMINALQA_URL" ]; then
-            LIMINALQA_ARGS+=(--liminalqa-url "$LIMINALQA_URL" --liminalqa-token "$LIMINALQA_TOKEN" --liminalqa-plan "python-runtime")
-          fi
-          PYTHONPATH=python:python/modules python -m pytest \
-            python/tests/test_temporal_index.py \
-            python/tests/test_belief_system.py \
-            python/tests/test_circuit_breaker.py \
-            python/tests/test_mission_state.py \
-            --junitxml=artifacts/hexagon-core-junit.xml \
-            --cov=python/modules/hexagon_core \
-            --cov-report=xml:artifacts/hexagon-core-coverage.xml \
-            "${LIMINALQA_ARGS[@]}"
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: python-runtime
+          pytest-invocation: >-
+            PYTHONPATH=python:python/modules python -m pytest
+            python/tests/test_temporal_index.py
+            python/tests/test_belief_system.py
+            python/tests/test_circuit_breaker.py
+            python/tests/test_mission_state.py
+            --junitxml=artifacts/hexagon-core-junit.xml
+            --cov=python/modules/hexagon_core
+            --cov-report=xml:artifacts/hexagon-core-coverage.xml
 
       - name: Rust build
         working-directory: rust_core
@@ -163,31 +146,27 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Test Rust Python Bridge
-        run: |
-          LIMINALQA_ARGS=()
-          if [ -n "$LIMINALQA_URL" ]; then
-            LIMINALQA_ARGS+=(--liminalqa-url "$LIMINALQA_URL" --liminalqa-token "$LIMINALQA_TOKEN" --liminalqa-plan "rust-bridge")
-          fi
-          PYTHONPATH=python:python/modules python -m pytest \
-            python/tests/test_rust_bridge.py \
-            --junitxml=artifacts/rust-bridge-junit.xml \
-            --cov=python/rust_bridge.py \
-            --cov-report=xml:artifacts/rust-bridge-coverage.xml \
-            "${LIMINALQA_ARGS[@]}"
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: rust-bridge
+          pytest-invocation: >-
+            PYTHONPATH=python:python/modules python -m pytest
+            python/tests/test_rust_bridge.py
+            --junitxml=artifacts/rust-bridge-junit.xml
+            --cov=python/rust_bridge.py
+            --cov-report=xml:artifacts/rust-bridge-coverage.xml
 
       - name: Test API Parity (Rust vs Fallback)
-        run: |
-          LIMINALQA_ARGS=()
-          if [ -n "$LIMINALQA_URL" ]; then
-            LIMINALQA_ARGS+=(--liminalqa-url "$LIMINALQA_URL" --liminalqa-token "$LIMINALQA_TOKEN" --liminalqa-plan "rust-bridge")
-          fi
-          PYTHONPATH=python:python/modules python -m pytest \
-            python/tests/test_api_parity.py \
-            --junitxml=artifacts/api-parity-junit.xml \
-            --cov=python/rust_bridge.py \
-            --cov=python/modules/web4_runtime \
-            --cov-report=xml:artifacts/api-parity-coverage.xml \
-            "${LIMINALQA_ARGS[@]}"
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: rust-bridge
+          pytest-invocation: >-
+            PYTHONPATH=python:python/modules python -m pytest
+            python/tests/test_api_parity.py
+            --junitxml=artifacts/api-parity-junit.xml
+            --cov=python/rust_bridge.py
+            --cov=python/modules/web4_runtime
+            --cov-report=xml:artifacts/api-parity-coverage.xml
 
       - name: Run Rust tests
         working-directory: rust_core

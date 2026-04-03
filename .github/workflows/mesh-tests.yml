@@ -40,34 +40,21 @@ jobs:
           if [ -f requirements-dev.txt ]; then
             python -m pip install -r requirements-dev.txt
           fi
-      - name: Install LiminalQA pytest plugin
-        run: |
-          if [ -n "$LIMINALQA_URL" ]; then
-            python -m pip install "git+https://github.com/safal207/LiminalQAengineer.git#subdirectory=pytest-liminalqa"
-          else
-            echo "LiminalQA disabled: LIMINALQA_URL secret is not set."
-          fi
-      - name: Create artifacts dir
-        run: mkdir -p artifacts
       - name: Run mesh/runtime tests
-        env:
-          PYTHONPATH: python
-        run: |
-          LIMINALQA_ARGS=()
-          if [ -n "$LIMINALQA_URL" ]; then
-            LIMINALQA_ARGS+=(--liminalqa-url "$LIMINALQA_URL" --liminalqa-token "$LIMINALQA_TOKEN" --liminalqa-plan "mesh-runtime")
-          fi
-          pytest -q \
-            tests/test_service_runtime.py \
-            python/tests/test_web4_mesh.py \
-            python/tests/test_web4_mesh_node.py \
-            python/tests/test_web4_mesh_transport_ws.py \
-            --junitxml=artifacts/mesh-junit.xml \
-            --cov=agent \
-            --cov=python/modules/web4_mesh \
-            --cov-report=xml:artifacts/coverage.xml \
-            --timeout=30 \
-            "${LIMINALQA_ARGS[@]}"
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: mesh-runtime
+          pytest-invocation: >-
+            PYTHONPATH=python pytest -q
+            tests/test_service_runtime.py
+            python/tests/test_web4_mesh.py
+            python/tests/test_web4_mesh_node.py
+            python/tests/test_web4_mesh_transport_ws.py
+            --junitxml=artifacts/mesh-junit.xml
+            --cov=agent
+            --cov=python/modules/web4_mesh
+            --cov-report=xml:artifacts/coverage.xml
+            --timeout=30
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
