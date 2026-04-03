@@ -239,6 +239,33 @@ except ImportError:
         _analyze_softening_signals = None  # type: ignore[assignment]
 
 try:
+    from agent.alignment_memory import (
+        AlignmentMemoryMetrics as _AlignmentMemoryMetrics,
+        AlignmentMemoryUnit as _AlignmentMemoryUnit,
+        append_alignment_memory_unit as _append_alignment_memory_unit,
+        build_alignment_memory_unit as _build_alignment_memory_unit,
+        should_store_alignment_memory_unit as _should_store_alignment_memory_unit,
+    )
+    _ALIGNMENT_MEMORY_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_memory import (
+            AlignmentMemoryMetrics as _AlignmentMemoryMetrics,
+            AlignmentMemoryUnit as _AlignmentMemoryUnit,
+            append_alignment_memory_unit as _append_alignment_memory_unit,
+            build_alignment_memory_unit as _build_alignment_memory_unit,
+            should_store_alignment_memory_unit as _should_store_alignment_memory_unit,
+        )
+        _ALIGNMENT_MEMORY_OK = True
+    except ImportError:
+        _ALIGNMENT_MEMORY_OK = False
+        _AlignmentMemoryMetrics = None  # type: ignore[assignment,misc]
+        _AlignmentMemoryUnit = None  # type: ignore[assignment,misc]
+        _append_alignment_memory_unit = None  # type: ignore[assignment]
+        _build_alignment_memory_unit = None  # type: ignore[assignment]
+        _should_store_alignment_memory_unit = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -524,6 +551,30 @@ class ResonanceAgent:
             "_signal_dialogue_invitation_structural": 0,
         }
 
+        # Alignment memory — bounded in-memory store + optional JSONL path.
+        # Max 100 units; oldest evicted when full. Advisory-only.
+        self._alignment_memory_units: list = []
+        self._alignment_memory_max = 100
+        self._alignment_memory_lock = threading.Lock()
+        self._alignment_memory_metrics = (
+            _AlignmentMemoryMetrics() if _ALIGNMENT_MEMORY_OK and _AlignmentMemoryMetrics else None
+        )
+        # JSONL path follows the existing data/graph_memory/ convention.
+        # Resolved relative to the store path used by MemoryGraphStore when
+        # available; falls back to a path derived from the process cwd.
+        _mem_store_path = getattr(self._graph_runtime, "_store", None)
+        _mem_store_path = getattr(_mem_store_path, "path", None)
+        if _mem_store_path is not None:
+            from pathlib import Path as _Path
+            self._alignment_memory_path = _Path(_mem_store_path).with_name(
+                "alignment_memory_units.jsonl"
+            )
+        else:
+            from pathlib import Path as _Path
+            self._alignment_memory_path = (
+                _Path("data/graph_memory/alignment_memory_units.jsonl")
+            )
+
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
             len(self._anchor),
@@ -640,6 +691,86 @@ class ResonanceAgent:
             "softening_neutral_count": softening_neutral,
             "softening_signal_counts": signal_counts,
         }
+
+    def get_alignment_memory_metrics(self) -> dict:
+        """Return aggregate observability counters for alignment memory writes."""
+        if self._alignment_memory_metrics is None:
+            return {"alignment_memory_available": False}
+        with self._alignment_memory_lock:
+            d = self._alignment_memory_metrics.to_dict()
+            d["units_in_memory"] = len(self._alignment_memory_units)
+        return d
+
+    def get_alignment_memory_units(self) -> list:
+        """Return a copy of all in-memory alignment memory units as dicts."""
+        with self._alignment_memory_lock:
+            return [u.to_dict() for u in self._alignment_memory_units]
+
+    def _maybe_store_alignment_memory_unit(self, item: dict, final_output: str) -> None:
+        """Best-effort: build and store an alignment memory unit for this cycle.
+
+        Never raises. Errors are counted in metrics and logged at DEBUG.
+        Does NOT modify item, route_key, graph_mode, or any routing state.
+        """
+        if not (_ALIGNMENT_MEMORY_OK and _build_alignment_memory_unit):
+            return
+
+        alignment_outcome: dict = item.get("_alignment_outcome") or {}
+        metrics = self._alignment_memory_metrics  # may be None if import failed
+
+        if metrics is not None:
+            metrics.builder_calls += 1
+
+        try:
+            unit = _build_alignment_memory_unit(item, final_output, alignment_outcome)
+        except Exception as exc:
+            logger.debug("alignment_memory: build_alignment_memory_unit failed: %s", exc)
+            if metrics is not None:
+                metrics.save_errors += 1
+            return
+
+        if unit is None:
+            if metrics is not None:
+                metrics.skipped_total += 1
+            return
+
+        # Decide whether to store
+        should_store = _should_store_alignment_memory_unit(
+            alignment_hotspot=unit.alignment_hotspot,
+            mismatch_reasons=unit.mismatch_reasons,
+            guidance_applied=unit.guidance_applied,
+            softening_detected=unit.softening_detected,
+            guidance_effective=unit.guidance_effective,
+        )
+
+        if not should_store:
+            if metrics is not None:
+                metrics.skipped_total += 1
+            return
+
+        # In-memory store (bounded, LRU-evicted by insertion order)
+        with self._alignment_memory_lock:
+            self._alignment_memory_units.append(unit)
+            if len(self._alignment_memory_units) > self._alignment_memory_max:
+                self._alignment_memory_units.pop(0)
+
+        # Best-effort JSONL write
+        if _append_alignment_memory_unit:
+            try:
+                _append_alignment_memory_unit(unit, self._alignment_memory_path)
+            except Exception as exc:
+                logger.debug("alignment_memory: JSONL write failed: %s", exc)
+                if metrics is not None:
+                    metrics.save_errors += 1
+
+        if metrics is not None:
+            metrics.saved_total += 1
+            if unit.alignment_hotspot:
+                metrics.saved_because_hotspot += 1
+            if unit.softening_detected:
+                metrics.saved_because_softening += 1
+            if unit.guidance_effective:
+                metrics.saved_because_guidance_effective += 1
 
     # ------------------------------------------------------------------
     # Internal pipeline
@@ -948,6 +1079,8 @@ class ResonanceAgent:
             response_score=response_score,
             goal_alignment_score=goal_alignment_score,
         )
+        # Best-effort alignment memory write (advisory-only, never raises)
+        self._maybe_store_alignment_memory_unit(item, final_output)
 
         # Phase 2 — complete log cycle
         if self._logger and log_cycle_id:
@@ -1658,6 +1791,7 @@ class ResonanceAgent:
             "alignment_report": alignment_meta,
             "alignment_outcome": alignment_outcome,
             "alignment_observability": self.get_alignment_outcome_metrics(),
+            "alignment_memory_metrics": self.get_alignment_memory_metrics(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
