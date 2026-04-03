@@ -105,4 +105,3 @@
 *   **RU:** **PROPOSED.** Отдельный runtime-слой, разделяющий наблюдаемый сигнал (front), гипотезу скрытого фона (back) и состояние поля между участниками (field). Ключевая формула: `signal ≠ cause`.
 *   **EN:** **PROPOSED.** Dedicated runtime layer separating observable front signals, hidden-background hypotheses, and shared interaction field state. Core rule: `signal ≠ cause`.
 *   **Code/Spec:** `docs/architecture/RELATIONAL_FIELD_LAYER_RFC.md`.
-
