@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
 from .derived_module_registry import DerivedModuleRegistry
-from .models import DerivedModule
+from .memory_store import MemoryGraphStore
+from .models import DerivedModule, ResonanceKnowledgeUnit
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> str:
@@ -29,21 +33,37 @@ class CareCycleRunner:
     def __init__(
         self,
         registry: DerivedModuleRegistry,
+        graph_store: MemoryGraphStore | None = None,
         *,
         min_quality: float = 0.68,
         min_trust: float = 0.58,
         retire_trust: float = 0.35,
         promote_bonus: float = 0.03,
         demote_penalty: float = 0.08,
+        resonance_unit_threshold: float = 0.3,
     ) -> None:
         self.registry = registry
+        self.graph_store = graph_store
         self.min_quality = min_quality
         self.min_trust = min_trust
         self.retire_trust = retire_trust
         self.promote_bonus = promote_bonus
         self.demote_penalty = demote_penalty
+        self.resonance_unit_threshold = resonance_unit_threshold
 
-    def review(self, module: DerivedModule | str) -> Optional[CareCycleResult]:
+    def review(
+        self,
+        module: DerivedModule | str,
+        *,
+        cycle_id: str | None = None,
+        source_question: str | None = None,
+        intent: str | None = None,
+        why: str | None = None,
+        goal_vector: list[float] | None = None,
+        causal_path: list[dict] | None = None,
+        resonance_score: float | None = None,
+        alignment_score: float | None = None,
+    ) -> Optional[CareCycleResult]:
         current = self.registry.get_module(module) if isinstance(module, str) else module
         if current is None:
             return None
@@ -70,6 +90,28 @@ class CareCycleRunner:
         current.care_cycles += 1
         current.last_reviewed_at = _utc_now()
         saved = self.registry.save_module(current)
+        if (
+            self.graph_store is not None
+            and source_question
+            and saved.state == "active"
+            and action in {"keep", "promote"}
+            and float(resonance_score or 0.0) > self.resonance_unit_threshold
+        ):
+            unit = ResonanceKnowledgeUnit(
+                source_question=source_question,
+                intent=intent,
+                why=why,
+                goal_vector=list(goal_vector or []),
+                causal_path=list(causal_path or []),
+                resonance_score=float(resonance_score or 0.0),
+                alignment_score=float(alignment_score or 0.0),
+                metadata={"source": "care_cycle", "cycle_id": cycle_id},
+            )
+            try:
+                # TODO: evolve route graph from repeated high-quality units.
+                self.graph_store.store_resonance_unit(unit)
+            except Exception as exc:
+                logger.debug("CareCycleRunner resonance unit store skipped: %s", exc)
         return CareCycleResult(
             module_id=saved.module_id,
             action=action,
