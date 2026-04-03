@@ -45,6 +45,25 @@ class ScreenCapturer:
             logger.error(f"Error capturing screen frame: {e}")
             return None
 
+    def extract_ocr_text(self, frame: Optional[np.ndarray] = None) -> str:
+        """
+        Захватить экран (или использовать переданный кадр) и вернуть OCR-текст.
+        Graceful: возвращает "" если OCR недоступен или экран пустой.
+        """
+        try:
+            from perception.ocr import extract_text
+        except ImportError:
+            try:
+                from .ocr import extract_text
+            except ImportError:
+                return ""
+
+        if frame is None:
+            frame = self.capture_frame()
+        if frame is None:
+            return ""
+        return extract_text(frame)
+
     def get_frame_metadata(self) -> Dict[str, Any]:
         """Returns metadata about the captured frame."""
         if not self.sct:

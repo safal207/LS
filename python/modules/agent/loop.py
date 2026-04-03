@@ -166,6 +166,18 @@ class AgentLoop:
         self.vision = VisionSubsystem()
         self.vision.intent_bus.subscribe(self._handle_vision_intent)
 
+        # TTS Speaker — optional, graceful fallback to console
+        import os as _os_tts
+        _tts_enabled = _os_tts.environ.get("LS_TTS_ENABLED", "0") == "1"
+        self._speaker = None
+        if _tts_enabled:
+            try:
+                from tts.speaker import Speaker
+                self._speaker = Speaker()
+                logger.info("TTS speaker initialised (backend=%s)", self._speaker.backend_name())
+            except Exception as _tts_exc:
+                logger.debug("TTS init skipped: %s", _tts_exc)
+
 
     def _maybe_enter_sleep_mode(self):
         try:
@@ -616,6 +628,19 @@ class AgentLoop:
         }
         return [injection] + history  # strictly at the beginning
 
+    def _inject_screen_context(self, messages: list[dict], max_chars: int = 1200) -> list[dict]:
+        """Append current screen OCR text as a system message (best-effort)."""
+        try:
+            screen_text = self.vision.get_latest_screen_text()
+        except Exception:
+            return messages
+        if not screen_text or not screen_text.strip():
+            return messages
+        snippet = screen_text.strip()[:max_chars]
+        if len(screen_text.strip()) > max_chars:
+            snippet += " …[truncated]"
+        return messages + [{"role": "system", "content": f"Current screen content:\n{snippet}"}]
+
     def _inject_strategy_context(self, messages: list[dict], item: dict) -> list[dict]:
         """Inject copilot context into the message list.
 
@@ -895,6 +920,9 @@ class AgentLoop:
             # Inject WHY strategy hints + anchor context (interview copilot)
             messages = self._inject_strategy_context(messages, item)
 
+            # Inject live screen content so the agent can see what the user sees
+            messages = self._inject_screen_context(messages)
+
             self._remember_question(question)
 
             stability_ok = None
@@ -1164,6 +1192,12 @@ class AgentLoop:
                 self.memory["history"].append({"role": "assistant", "content": str(result)})
                 formatted = self._format_response(result)
                 self._remember_answer(formatted, duration)
+                # TTS: speak the response asynchronously if speaker is active
+                if self._speaker is not None:
+                    try:
+                        self._speaker.say_async(str(formatted))
+                    except Exception as _tts_exc:
+                        logger.debug("TTS say_async failed: %s", _tts_exc)
                 payload = {
                     "question": question,
                     "response": formatted,
@@ -1367,7 +1401,14 @@ class AgentLoop:
     def stop(self) -> None:
         self.running = False
         self._bloodstream_stop.set()  # BUG-17 fix: wake up bloodstream wait immediately
-        self.vision.stop() # Stop Screen Perception v2
+        self._subconscious_stop.set()
+        self._world_stop.set()
+        self.vision.stop()  # Stop Screen Perception v2
+        if self._speaker is not None:
+            try:
+                self._speaker.stop()
+            except Exception:
+                pass
         with self._bloodstream_lock:
             bloodstream_thread = self._bloodstream_thread
         if bloodstream_thread is not None and bloodstream_thread.is_alive():
