@@ -115,6 +115,8 @@ class VisionSubsystem:
         self._thread: Optional[threading.Thread] = None
         self._last_degraded_log_ts = 0.0
         self._ocr_unavailable_warned = False
+        self._latest_screen_text: str = ""
+        self._screen_text_lock = threading.Lock()
 
         self._fallback_to_python_components(self._monitor_index)
         self._try_enable_rust_acceleration(self._monitor_index)
@@ -347,6 +349,9 @@ class VisionSubsystem:
                     if hasattr(self.privacy_redactor, "redact")
                     else raw_ocr
                 )
+                if safe_ocr:
+                    with self._screen_text_lock:
+                        self._latest_screen_text = safe_ocr
                 frame_id = self.buffer.add_frame(frame_data, metadata=window_context)
                 self.event_bus.emit(
                     "FrameCaptured",
@@ -388,3 +393,8 @@ class VisionSubsystem:
             except Exception as e:
                 logger.error(f"Error in VisionSubsystem loop: {e}")
                 time.sleep(1.0)
+
+    def get_latest_screen_text(self) -> str:
+        """Return the most recent OCR-extracted screen text (empty string if none yet)."""
+        with self._screen_text_lock:
+            return self._latest_screen_text

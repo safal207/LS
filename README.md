@@ -86,24 +86,59 @@ After 3 occurrences of the same pathology → writes a `lesson:meta:*` memory no
 
 ---
 
+## Interview Pipeline — Eyes + Ears + Voice
+
+GhostGPT can now act as a **silent interview co-pilot**:
+
+- **Eyes (screen reading)** — `VisionSubsystem` captures your screen every 0.5 s and runs OCR (pytesseract or easyocr). The latest text is exposed via `get_latest_screen_text()` and injected into every LLM call as a `system` message, so the agent can see the question on the interviewer's screen before you say a word.
+- **Ears (voice input)** — `faster-whisper` + PyAudio capture your microphone and transcribe speech to text in real-time. The transcript is fed to the agent as the user message.
+- **Voice output (TTS)** — `Speaker` (pyttsx3, fully offline) reads the agent's answer aloud so you hear it in your earpiece without looking at the screen.
+
+```
+┌──────────┐   OCR    ┌──────────────────┐   system msg   ┌──────────┐
+│  Screen  │ ──────►  │  VisionSubsystem  │ ──────────────►│          │
+└──────────┘          └──────────────────┘                 │  Agent   │
+                                                           │  Loop    │ ──► TTS ──► earpiece
+┌──────────┐  Whisper  ┌───────────────┐  user message    │          │
+│   Mic    │ ────────► │  AudioInput   │ ────────────────► │          │
+└──────────┘           └───────────────┘                   └──────────┘
+```
+
+### Activate
+
+```bash
+pip install pyttsx3                     # TTS (offline)
+pip install pytesseract                 # OCR backend (or: pip install easyocr)
+# For pytesseract: also install tesseract binary for your OS
+
+export LS_TTS_ENABLED=1                 # turn on voice output
+python apps/console/main.py
+```
+
+---
+
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        AgentLoop                            │
-│                                                             │
-│  Subconscious (20s) ──►                                     │
-│  WorldPoller     ──────►   TemporalGraph                    │
-│  Quality FB      ──────►   (resonance nodes + causal edges) │
-│  Auto Proxy      ──────►                                    │
-│                               │                             │
-│                    Coordinator.decide()                     │
-│                    7 Forces per cycle                       │
-│                               │                             │
-│                    OrientationCenter ◄──► signal back       │
-│                                                             │
-│  Sleep consolidation → session_report → lesson:session:*   │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                          AgentLoop                             │
+│                                                                │
+│  Screen OCR    ──────────►                                     │
+│  Mic / Whisper ──────────►  TemporalGraph                      │
+│  Subconscious (20s)  ────►  (resonance nodes + causal edges)   │
+│  WorldPoller (git)   ────►                                     │
+│  Quality FB          ────►                                     │
+│  Auto Proxy          ────►                                     │
+│                                │                               │
+│                     Coordinator.decide()                       │
+│                     7 Forces per cycle                         │
+│                                │                               │
+│                     OrientationCenter ◄──► signal back         │
+│                                                                │
+│  Sleep consolidation → session_report → lesson:session:*       │
+│                                                                │
+│  TTS Speaker ◄── response                                      │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 **Stack:**
@@ -171,6 +206,8 @@ python/
     orientation/      OrientationCenter, RhythmEngine
     graph/            MemoryGraphStore, ResonanceKnowledgeUnit, CareCycle
     omni/             QwenOmniWorker (multimodal background worker)
+    perception/       VisionSubsystem, ScreenCapturer, OCR module
+    tts/              Speaker — offline TTS (pyttsx3 + console fallback)
     llm/              LLM pipeline (Ollama / Groq / Qwen)
     shared/           Config, EventBus, plugins
   tests/
@@ -203,6 +240,7 @@ Key env vars:
 | `GRAPH_MEMORY_STORE_PATH` | `data/graph_memory/cases.jsonl` | Memory store path |
 | `ENABLE_QUERY_REWRITING` | `true` | Rewrite queries before vector search |
 | `LS_REPO_PATH` | `cwd` | Repo path for WorldPoller git monitoring |
+| `LS_TTS_ENABLED` | `0` | Speak agent responses aloud via pyttsx3 |
 
 ---
 
@@ -215,6 +253,7 @@ python3 tests/unit/test_system_observer.py
 python3 tests/unit/test_new_features.py
 python3 tests/unit/test_orientation_force_ladder.py
 python3 tests/unit/test_world_poller.py
+python3 tests/unit/test_interview_pipeline.py
 
 # Qwen Omni + memory store
 pytest python/tests/test_qwen_omni_worker.py
@@ -228,6 +267,7 @@ pytest python/tests/test_memory_store_locking.py
 | `test_new_features.py` | 30 | Causal graph, predictive axis, meta-lessons, user profiles, session report |
 | `test_orientation_force_ladder.py` | 11+ | Forces 1–2, co-activation, propagation |
 | `test_world_poller.py` | 7 | WorldPoller git/logs |
+| `test_interview_pipeline.py` | 32 | OCR module, VisionSubsystem cache, TTS Speaker, _inject_screen_context |
 | `test_qwen_omni_worker.py` | 4 | Multimodal worker fallback + store |
 
 ---
@@ -254,6 +294,8 @@ pytest python/tests/test_memory_store_locking.py
 | Self-awareness | None | Observer detects + corrects pathologies |
 | User model | None | Per-user profile, mode prediction |
 | Failure mode | Silent drift | Detected and self-corrected |
+| Input | Text only | Text + voice (Whisper) + screen (OCR) |
+| Output | Text only | Text + voice (TTS, offline) |
 
 ---
 
@@ -334,21 +376,56 @@ GhostGPT **живёт между ответами**:
 
 ---
 
+## Пайплайн для собеседований — Глаза + Уши + Голос
+
+GhostGPT умеет работать как **тихий помощник на собесе**:
+
+- **Глаза (чтение экрана)** — `VisionSubsystem` снимает скриншот каждые 0.5с и распознаёт текст через OCR (pytesseract или easyocr). Последний текст экрана добавляется в каждый LLM-запрос как системное сообщение — агент видит вопрос интервьюера ещё до того, как ты его задашь.
+- **Уши (голосовой ввод)** — `faster-whisper` + PyAudio слушают микрофон и транскрибируют речь в текст в реальном времени. Транскрипт идёт в агент как сообщение пользователя.
+- **Голос (TTS)** — `Speaker` (pyttsx3, полностью оффлайн) читает ответ агента вслух в наушник.
+
+```
+┌──────────┐   OCR     ┌──────────────────┐  system msg   ┌──────────┐
+│  Экран   │ ────────► │  VisionSubsystem  │ ────────────► │          │
+└──────────┘           └──────────────────┘               │  Agent   │ ──► TTS ──► наушник
+                                                           │  Loop    │
+┌──────────┐  Whisper  ┌───────────────┐  user msg        │          │
+│   Мик    │ ────────► │  AudioInput   │ ───────────────► │          │
+└──────────┘           └───────────────┘                  └──────────┘
+```
+
+### Активация
+
+```bash
+pip install pyttsx3               # TTS (оффлайн)
+pip install pytesseract           # OCR (или: pip install easyocr)
+# для pytesseract: установи бинарник tesseract для своей ОС
+
+export LS_TTS_ENABLED=1           # включить голосовой вывод
+python apps/console/main.py
+```
+
+---
+
 ## Архитектура
 
 ```
 AgentLoop
-  ├── Subconscious loop (20s)  ─►
-  ├── WorldPoller (git/logs)   ─►  TemporalGraph
-  ├── Quality feedback         ─►  (узлы + рёбра)
-  └── Auto feedback proxy      ─►
-                                    │
-                          Coordinator.decide()
-                          7 сил за цикл
-                                    │
-                          OrientationCenter ◄──► сигнал обратно
-                                    │
-                    sleep → session_report → lesson:session:*
+  ├── Screen OCR (VisionSubsystem) ─►
+  ├── Mic / Whisper                ─►  TemporalGraph
+  ├── Subconscious loop (20s)      ─►  (узлы + рёбра)
+  ├── WorldPoller (git/logs)       ─►
+  ├── Quality feedback             ─►
+  └── Auto feedback proxy          ─►
+                                        │
+                              Coordinator.decide()
+                              7 сил за цикл
+                                        │
+                              OrientationCenter ◄──► сигнал обратно
+                                        │
+                        sleep → session_report → lesson:session:*
+                                        │
+                              TTS Speaker ◄── ответ
 ```
 
 ---
@@ -376,6 +453,14 @@ export DASHSCOPE_API_KEY=your_key   # без ключа — fallback режим
 python apps/ghostgpt/main.py
 ```
 
+### Пайплайн для собеседований (опционально)
+
+```bash
+pip install pyttsx3 pytesseract     # или easyocr вместо pytesseract
+export LS_TTS_ENABLED=1
+python apps/console/main.py
+```
+
 ---
 
 ## Документация
@@ -399,6 +484,8 @@ python apps/ghostgpt/main.py
 | Самоконтроль | Нет | Наблюдатель корректирует патологии |
 | Модель пользователя | Нет | Профиль + предсказание режима |
 | Отказ | Тихий дрейф | Обнаруживается и исправляется |
+| Вход | Только текст | Текст + голос + экран (OCR) |
+| Выход | Только текст | Текст + голос (TTS) |
 
 ---
 

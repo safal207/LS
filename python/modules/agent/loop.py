@@ -70,6 +70,16 @@ _NEGATIVE_FB_RE = re.compile(
     re.I,
 )
 
+# TTS toggle detection — matches user commands that switch voice on/off
+_TTS_ON_RE = re.compile(
+    r"\b(голос\s+вкл|voice\s+on|tts\s+on|включи\s+голос|speak\s+on|озвучка\s+вкл)\b",
+    re.I,
+)
+_TTS_OFF_RE = re.compile(
+    r"\b(голос\s+выкл|voice\s+off|tts\s+off|выключи\s+голос|speak\s+off|озвучка\s+выкл)\b",
+    re.I,
+)
+
 
 def trim_history(history: list[dict], max_size: int = 10) -> list[dict]:
     """Keep pinned system/context messages while applying a sliding window to the rest."""
@@ -242,6 +252,22 @@ class AgentLoop:
         # Feature 5: Auto feedback proxy state
         self._last_response_word_count: int = 0
         self._last_response_mode: str | None = None
+
+        # TTS Speaker — инициализируется всегда (если pyttsx3 доступен).
+        # Активность управляется runtime-флагом _tts_active.
+        # LS_TTS_ENABLED=1 — включить с самого старта; иначе выкл по умолчанию.
+        import os as _os_tts
+        self._tts_active: bool = _os_tts.environ.get("LS_TTS_ENABLED", "0") == "1"
+        self._speaker = None
+        try:
+            from tts.speaker import Speaker
+            self._speaker = Speaker()
+            logger.info(
+                "TTS speaker ready (backend=%s, active=%s)",
+                self._speaker.backend_name(), self._tts_active,
+            )
+        except Exception as _tts_exc:
+            logger.debug("TTS speaker unavailable: %s", _tts_exc)
 
 
     def _maybe_enter_sleep_mode(self):
@@ -900,6 +926,19 @@ class AgentLoop:
         }
         return [injection] + history  # strictly at the beginning
 
+    def _inject_screen_context(self, messages: list[dict], max_chars: int = 1200) -> list[dict]:
+        """Append current screen OCR text as a system message (best-effort)."""
+        try:
+            screen_text = self.vision.get_latest_screen_text()
+        except Exception:
+            return messages
+        if not screen_text or not screen_text.strip():
+            return messages
+        snippet = screen_text.strip()[:max_chars]
+        if len(screen_text.strip()) > max_chars:
+            snippet += " …[truncated]"
+        return messages + [{"role": "system", "content": f"Current screen content:\n{snippet}"}]
+
     def _inject_strategy_context(self, messages: list[dict], item: dict) -> list[dict]:
         """Inject copilot context into the message list.
 
@@ -1210,6 +1249,37 @@ class AgentLoop:
                 self._enter_sleep_mode()
                 return
 
+            # TTS toggle commands — handled before LLM routing
+            _q_stripped = question.strip()
+            if _q_stripped in ("/voice on", "/voice off", "/tts on", "/tts off"):
+                _tts_on = _q_stripped in ("/voice on", "/tts on")
+                confirmation = self.set_tts(_tts_on)
+                if self.output_queue is not None:
+                    try:
+                        self.output_queue.put_nowait({"response": confirmation, "tts_toggled": _tts_on})
+                    except queue.Full:
+                        pass
+                self._emit("output_ready", {"response": confirmation, "tts_toggled": _tts_on}, task_id=task_id)
+                return
+            if _TTS_ON_RE.search(question):
+                confirmation = self.set_tts(True)
+                self._emit("output_ready", {"response": confirmation, "tts_toggled": True}, task_id=task_id)
+                if self.output_queue is not None:
+                    try:
+                        self.output_queue.put_nowait({"response": confirmation, "tts_toggled": True})
+                    except queue.Full:
+                        pass
+                return
+            if _TTS_OFF_RE.search(question):
+                confirmation = self.set_tts(False)
+                self._emit("output_ready", {"response": confirmation, "tts_toggled": False}, task_id=task_id)
+                if self.output_queue is not None:
+                    try:
+                        self.output_queue.put_nowait({"response": confirmation, "tts_toggled": False})
+                    except queue.Full:
+                        pass
+                return
+
             if question.startswith("/vision_observe"):
                 # P1 Task: Vision Observation
                 parts = question.split()
@@ -1300,6 +1370,9 @@ class AgentLoop:
 
             # Inject WHY strategy hints + anchor context (interview copilot)
             messages = self._inject_strategy_context(messages, item)
+
+            # Inject live screen content so the agent can see what the user sees
+            messages = self._inject_screen_context(messages)
 
             self._remember_question(question)
 
@@ -1571,6 +1644,19 @@ class AgentLoop:
                 self.memory["history"].append({"role": "assistant", "content": str(result)})
                 formatted = self._format_response(result)
                 self._remember_answer(formatted, duration)
+                # TTS: speak the response if voice is active.
+                # Per-message override: item["_speak"] = True/False takes priority.
+                _speak_override = item.get("_speak")
+                _should_speak = (
+                    _speak_override
+                    if isinstance(_speak_override, bool)
+                    else self._tts_active
+                )
+                if _should_speak and self._speaker is not None:
+                    try:
+                        self._speaker.say_async(str(formatted))
+                    except Exception as _tts_exc:
+                        logger.debug("TTS say_async failed: %s", _tts_exc)
                 payload = {
                     "question": question,
                     "response": formatted,
@@ -1801,9 +1887,12 @@ class AgentLoop:
         self._bloodstream_stop.set()  # BUG-17 fix: wake up bloodstream wait immediately
         self._subconscious_stop.set()
         self._world_stop.set()
-        self.vision.stop() # Stop Screen Perception v2
-        if self._qwen_omni_worker is not None:
-            self._qwen_omni_worker.stop()
+        self.vision.stop()  # Stop Screen Perception v2
+        if self._speaker is not None:
+            try:
+                self._speaker.stop()
+            except Exception:
+                pass
         with self._bloodstream_lock:
             bloodstream_thread = self._bloodstream_thread
             subconscious_thread = self._subconscious_thread
@@ -1819,3 +1908,26 @@ class AgentLoop:
         if active_cancel:
             active_cancel.set()
         self._transition("idle")
+
+    # ── TTS public API ────────────────────────────────────────────────────────
+
+    def set_tts(self, enabled: bool) -> str:
+        """Enable or disable voice output at runtime.
+
+        Returns a confirmation string suitable for showing to the user.
+        """
+        self._tts_active = bool(enabled)
+        if self._speaker is None:
+            return (
+                "Голос включён (без аудио — pyttsx3 не найден, установи: pip install pyttsx3)"
+                if enabled
+                else "Голос выключен."
+            )
+        status = "включён" if enabled else "выключен"
+        backend = self._speaker.backend_name()
+        return f"Голос {status} (бэкенд: {backend})."
+
+    @property
+    def tts_active(self) -> bool:
+        """True if voice output is currently active."""
+        return self._tts_active
