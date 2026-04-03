@@ -1,12 +1,9 @@
 from .care_cycle import CareCycleResult, CareCycleRunner
-from .decay import (
-    ResonanceDecayConfig,
-    apply_decay,
-    effective_score,
-    is_expired,
-    prune_expired,
+from .alignment import (
+    InteractionAlignmentAnalyzer,
+    InteractionAlignmentReport,
+    InteractionParticipant,
 )
-from .evolve import RouteEvolveConfig, RouteEvolver, RouteSnapshot
 from .coalition_registry import CoalitionRecord, CoalitionRegistry
 from .derived_module_registry import DerivedModuleRegistry
 from .memory_store import MemoryGraphStore
@@ -52,6 +49,9 @@ __all__ = [
     "GraphCandidate",
     "GraphMemoryRuntime",
     "GraphRuntimeDecision",
+    "InteractionAlignmentAnalyzer",
+    "InteractionAlignmentReport",
+    "InteractionParticipant",
     "MemoryCase",
     "MemoryGraphRetriever",
     "MemoryGraphStore",
