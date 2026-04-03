@@ -225,6 +225,47 @@ except Exception as exc:
     _build_alignment_guidance = None  # type: ignore[assignment]
 
 try:
+    from agent.softening_detector import SofteningAnalysis as _SofteningAnalysis
+    from agent.softening_detector import analyze_softening_signals as _analyze_softening_signals
+    _SOFTENING_DETECTOR_OK = True
+except ImportError:
+    try:
+        from modules.agent.softening_detector import SofteningAnalysis as _SofteningAnalysis
+        from modules.agent.softening_detector import analyze_softening_signals as _analyze_softening_signals
+        _SOFTENING_DETECTOR_OK = True
+    except ImportError:
+        _SOFTENING_DETECTOR_OK = False
+        _SofteningAnalysis = None  # type: ignore[assignment,misc]
+        _analyze_softening_signals = None  # type: ignore[assignment]
+
+try:
+    from agent.alignment_memory import (
+        AlignmentMemoryMetrics as _AlignmentMemoryMetrics,
+        AlignmentMemoryUnit as _AlignmentMemoryUnit,
+        append_alignment_memory_unit as _append_alignment_memory_unit,
+        build_alignment_memory_unit as _build_alignment_memory_unit,
+        should_store_alignment_memory_unit as _should_store_alignment_memory_unit,
+    )
+    _ALIGNMENT_MEMORY_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_memory import (
+            AlignmentMemoryMetrics as _AlignmentMemoryMetrics,
+            AlignmentMemoryUnit as _AlignmentMemoryUnit,
+            append_alignment_memory_unit as _append_alignment_memory_unit,
+            build_alignment_memory_unit as _build_alignment_memory_unit,
+            should_store_alignment_memory_unit as _should_store_alignment_memory_unit,
+        )
+        _ALIGNMENT_MEMORY_OK = True
+    except ImportError:
+        _ALIGNMENT_MEMORY_OK = False
+        _AlignmentMemoryMetrics = None  # type: ignore[assignment,misc]
+        _AlignmentMemoryUnit = None  # type: ignore[assignment,misc]
+        _append_alignment_memory_unit = None  # type: ignore[assignment]
+        _build_alignment_memory_unit = None  # type: ignore[assignment]
+        _should_store_alignment_memory_unit = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -236,6 +277,80 @@ except Exception:
     _NetworkControlCenter = None  # type: ignore[assignment]
     _NetworkObserver = None  # type: ignore[assignment]
     _NetworkOrientationCenter = None  # type: ignore[assignment]
+
+# ---------------------------------------------------------------------------
+# Per-cycle alignment outcome helpers (pure, advisory-only)
+# ---------------------------------------------------------------------------
+
+
+def build_effect_reason(
+    *,
+    signals: list[str],
+    softening_detected: bool,
+    guidance_applied: bool,
+    guidance_effective: bool,
+    goal_alignment_score: float,
+) -> str:
+    """Return a short, deterministic, human-readable reason for the cycle outcome.
+
+    Built entirely from already-computed signals and scores — no LLM, no side
+    effects. Never touches route_key / graph_mode / backend selection.
+    """
+    if softening_detected and signals:
+        seen: list[str] = []
+        for s in signals:
+            if s not in seen:
+                seen.append(s)
+        label = " + ".join(seen[:3])  # deduplicated, capped at 3
+        if guidance_applied and guidance_effective:
+            return f"{label} \u2192 cooperative softening (guidance effective)"
+        return f"{label} \u2192 cooperative softening"
+
+    if guidance_applied:
+        if guidance_effective:
+            if goal_alignment_score >= 0.65:
+                return "guidance applied \u2192 goal alignment achieved"
+            return "guidance applied \u2192 response quality improved"
+        return "guidance applied but softening signals were weak"
+
+    return "no clear softening signals detected"
+
+
+def build_alignment_outcome_snapshot(
+    *,
+    guidance_applied: bool,
+    pre_tension_score: float,
+    post_resonance_score: float,
+    post_goal_alignment_score: float,
+    softening_detected: bool,
+    softening_score: float,
+    softening_signals: list[str],
+    guidance_effective: bool,
+) -> dict:
+    """Return a compact, stable per-cycle outcome snapshot.
+
+    Keys are backward-compatible with existing consumers.  The ``effect_reason``
+    field supersedes the raw detector reason string with a composite explanation
+    built from all available cycle signals.
+    """
+    effect_reason = build_effect_reason(
+        signals=softening_signals,
+        softening_detected=softening_detected,
+        guidance_applied=guidance_applied,
+        guidance_effective=guidance_effective,
+        goal_alignment_score=post_goal_alignment_score,
+    )
+    return {
+        "guidance_added": guidance_applied,
+        "pre_tension_score": round(pre_tension_score, 3),
+        "post_resonance_score": round(post_resonance_score, 3),
+        "post_goal_alignment_score": round(post_goal_alignment_score, 3),
+        "response_softened": softening_detected,
+        "softening_score": round(softening_score, 3),
+        "softening_signals": list(softening_signals),
+        "effect_reason": effect_reason,
+        "guidance_effective": guidance_effective,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -425,7 +540,40 @@ class ResonanceAgent:
             "_pre_tension_sum": 0.0,
             "_post_resonance_sum": 0.0,
             "_post_goal_alignment_sum": 0.0,
+            # per-signal softening counters (advisory observability only)
+            "softening_detected_count": 0,
+            "softening_neutral_count": 0,
+            "_signal_bridge_phrase": 0,
+            "_signal_acknowledgment": 0,
+            "_signal_proposal_framing": 0,
+            "_signal_pacing_marker": 0,
+            "_signal_dialogue_invitation": 0,
+            "_signal_dialogue_invitation_structural": 0,
         }
+
+        # Alignment memory — bounded in-memory store + optional JSONL path.
+        # Max 100 units; oldest evicted when full. Advisory-only.
+        self._alignment_memory_units: list = []
+        self._alignment_memory_max = 100
+        self._alignment_memory_lock = threading.Lock()
+        self._alignment_memory_metrics = (
+            _AlignmentMemoryMetrics() if _ALIGNMENT_MEMORY_OK and _AlignmentMemoryMetrics else None
+        )
+        # JSONL path follows the existing data/graph_memory/ convention.
+        # Resolved relative to the store path used by MemoryGraphStore when
+        # available; falls back to a path derived from the process cwd.
+        _mem_store_path = getattr(self._graph_runtime, "_store", None)
+        _mem_store_path = getattr(_mem_store_path, "path", None)
+        if _mem_store_path is not None:
+            from pathlib import Path as _Path
+            self._alignment_memory_path = _Path(_mem_store_path).with_name(
+                "alignment_memory_units.jsonl"
+            )
+        else:
+            from pathlib import Path as _Path
+            self._alignment_memory_path = (
+                _Path("data/graph_memory/alignment_memory_units.jsonl")
+            )
 
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
@@ -510,6 +658,10 @@ class ResonanceAgent:
 
     def get_alignment_outcome_metrics(self) -> dict:
         """Return aggregate observability counters for soft-alignment outcomes."""
+        _SIGNAL_KEYS = (
+            "bridge_phrase", "acknowledgment", "proposal_framing",
+            "pacing_marker", "dialogue_invitation", "dialogue_invitation_structural",
+        )
         with self._alignment_metrics_lock:
             observed = int(self._alignment_outcome_metrics.get("observed_cycles", 0) or 0)
             guidance_added = int(self._alignment_outcome_metrics.get("guidance_added_count", 0) or 0)
@@ -518,6 +670,12 @@ class ResonanceAgent:
             post_goal_sum = float(self._alignment_outcome_metrics.get("_post_goal_alignment_sum", 0.0) or 0.0)
             effective = int(self._alignment_outcome_metrics.get("guidance_effective_count", 0) or 0)
             no_effect = int(self._alignment_outcome_metrics.get("guidance_no_effect_count", 0) or 0)
+            softening_detected = int(self._alignment_outcome_metrics.get("softening_detected_count", 0) or 0)
+            softening_neutral = int(self._alignment_outcome_metrics.get("softening_neutral_count", 0) or 0)
+            signal_counts = {
+                sig: int(self._alignment_outcome_metrics.get(f"_signal_{sig}", 0) or 0)
+                for sig in _SIGNAL_KEYS
+            }
 
         return {
             "observed_cycles": observed,
@@ -528,7 +686,91 @@ class ResonanceAgent:
             "avg_pre_tension_score": (pre_tension_sum / observed) if observed else 0.0,
             "avg_post_resonance_score": (post_resonance_sum / observed) if observed else 0.0,
             "avg_post_goal_alignment_score": (post_goal_sum / observed) if observed else 0.0,
+            # softening observability (advisory only)
+            "softening_detected_count": softening_detected,
+            "softening_neutral_count": softening_neutral,
+            "softening_signal_counts": signal_counts,
         }
+
+    def get_alignment_memory_metrics(self) -> dict:
+        """Return aggregate observability counters for alignment memory writes."""
+        if self._alignment_memory_metrics is None:
+            return {"alignment_memory_available": False}
+        with self._alignment_memory_lock:
+            d = self._alignment_memory_metrics.to_dict()
+            d["units_in_memory"] = len(self._alignment_memory_units)
+        return d
+
+    def get_alignment_memory_units(self) -> list:
+        """Return a copy of all in-memory alignment memory units as dicts."""
+        with self._alignment_memory_lock:
+            return [u.to_dict() for u in self._alignment_memory_units]
+
+    def _maybe_store_alignment_memory_unit(self, item: dict, final_output: str) -> None:
+        """Best-effort: build and store an alignment memory unit for this cycle.
+
+        Never raises. Errors are counted in metrics and logged at DEBUG.
+        Does NOT modify item, route_key, graph_mode, or any routing state.
+        """
+        if not (_ALIGNMENT_MEMORY_OK and _build_alignment_memory_unit):
+            return
+
+        alignment_outcome: dict = item.get("_alignment_outcome") or {}
+        metrics = self._alignment_memory_metrics  # may be None if import failed
+
+        if metrics is not None:
+            metrics.builder_calls += 1
+
+        try:
+            unit = _build_alignment_memory_unit(item, final_output, alignment_outcome)
+        except Exception as exc:
+            logger.debug("alignment_memory: build_alignment_memory_unit failed: %s", exc)
+            if metrics is not None:
+                metrics.save_errors += 1
+            return
+
+        if unit is None:
+            if metrics is not None:
+                metrics.skipped_total += 1
+            return
+
+        # Decide whether to store
+        should_store = _should_store_alignment_memory_unit(
+            alignment_hotspot=unit.alignment_hotspot,
+            mismatch_reasons=unit.mismatch_reasons,
+            guidance_applied=unit.guidance_applied,
+            softening_detected=unit.softening_detected,
+            guidance_effective=unit.guidance_effective,
+        )
+
+        if not should_store:
+            if metrics is not None:
+                metrics.skipped_total += 1
+            return
+
+        # In-memory store (bounded, LRU-evicted by insertion order)
+        with self._alignment_memory_lock:
+            self._alignment_memory_units.append(unit)
+            if len(self._alignment_memory_units) > self._alignment_memory_max:
+                self._alignment_memory_units.pop(0)
+
+        # Best-effort JSONL write
+        if _append_alignment_memory_unit:
+            try:
+                _append_alignment_memory_unit(unit, self._alignment_memory_path)
+            except Exception as exc:
+                logger.debug("alignment_memory: JSONL write failed: %s", exc)
+                if metrics is not None:
+                    metrics.save_errors += 1
+
+        if metrics is not None:
+            metrics.saved_total += 1
+            if unit.alignment_hotspot:
+                metrics.saved_because_hotspot += 1
+            if unit.softening_detected:
+                metrics.saved_because_softening += 1
+            if unit.guidance_effective:
+                metrics.saved_because_guidance_effective += 1
 
     # ------------------------------------------------------------------
     # Internal pipeline
@@ -837,6 +1079,8 @@ class ResonanceAgent:
             response_score=response_score,
             goal_alignment_score=goal_alignment_score,
         )
+        # Best-effort alignment memory write (advisory-only, never raises)
+        self._maybe_store_alignment_memory_unit(item, final_output)
 
         # Phase 2 — complete log cycle
         if self._logger and log_cycle_id:
@@ -1281,10 +1525,24 @@ class ResonanceAgent:
         return " ".join(guidance_parts)
 
     @staticmethod
-    def _is_softening_response(text: str) -> bool:
-        lowered = str(text or "").lower()
-        markers = ("понимаю", "давай", "предлагаю", "можем", "сначала", "вместе")
-        return any(marker in lowered for marker in markers)
+    def _run_softening_detector(text: str) -> "dict":
+        """
+        Run language-agnostic softening detector (advisory only).
+        Falls back to a neutral result if the module is unavailable.
+        """
+        if _SOFTENING_DETECTOR_OK and _analyze_softening_signals is not None:
+            try:
+                result = _analyze_softening_signals(text)
+                return result.to_dict()
+            except Exception as exc:
+                logger.debug("softening_detector failed: %s", exc)
+        # Graceful fallback — keeps backward-compat with old bool field
+        return {
+            "softening_detected": False,
+            "score": 0.0,
+            "signals": [],
+            "reason": "detector_unavailable",
+        }
 
     def _record_alignment_outcome(
         self,
@@ -1302,7 +1560,12 @@ class ResonanceAgent:
                 pre_tension_score = float(report.get("tension_score", 0.0) or 0.0)
             except (TypeError, ValueError):
                 pre_tension_score = 0.0
-        response_softened = self._is_softening_response(response_text)
+
+        # Language-agnostic softening detection (replaces old Russian-only heuristic)
+        softening = self._run_softening_detector(response_text)
+        response_softened: bool = bool(softening.get("softening_detected", False))
+        softening_signals: list = list(softening.get("signals") or [])
+
         guidance_applied = bool(guidance)
         effect_observed = guidance_applied and (
             response_softened
@@ -1310,14 +1573,16 @@ class ResonanceAgent:
             or (response_score >= 0.62 and pre_tension_score >= 0.45)
         )
 
-        item["_alignment_outcome"] = {
-            "guidance_added": guidance_applied,
-            "pre_tension_score": round(pre_tension_score, 3),
-            "post_resonance_score": round(float(item.get("_resonance_score", 0.0) or 0.0), 3),
-            "post_goal_alignment_score": round(float(goal_alignment_score or 0.0), 3),
-            "response_softened": response_softened,
-            "guidance_effective": effect_observed,
-        }
+        item["_alignment_outcome"] = build_alignment_outcome_snapshot(
+            guidance_applied=guidance_applied,
+            pre_tension_score=pre_tension_score,
+            post_resonance_score=float(item.get("_resonance_score", 0.0) or 0.0),
+            post_goal_alignment_score=float(goal_alignment_score or 0.0),
+            softening_detected=response_softened,
+            softening_score=float(softening.get("score", 0.0) or 0.0),
+            softening_signals=softening_signals,
+            guidance_effective=effect_observed,
+        )
 
         with self._alignment_metrics_lock:
             self._alignment_outcome_metrics["observed_cycles"] = int(
@@ -1332,6 +1597,20 @@ class ResonanceAgent:
             self._alignment_outcome_metrics["_post_goal_alignment_sum"] = float(
                 self._alignment_outcome_metrics.get("_post_goal_alignment_sum", 0.0) or 0.0
             ) + float(goal_alignment_score or 0.0)
+            # softening counters
+            if response_softened:
+                self._alignment_outcome_metrics["softening_detected_count"] = int(
+                    self._alignment_outcome_metrics.get("softening_detected_count", 0) or 0
+                ) + 1
+            else:
+                self._alignment_outcome_metrics["softening_neutral_count"] = int(
+                    self._alignment_outcome_metrics.get("softening_neutral_count", 0) or 0
+                ) + 1
+            for sig in softening_signals:
+                key = f"_signal_{sig}"
+                self._alignment_outcome_metrics[key] = int(
+                    self._alignment_outcome_metrics.get(key, 0) or 0
+                ) + 1
             if guidance_applied:
                 self._alignment_outcome_metrics["guidance_added_count"] = int(
                     self._alignment_outcome_metrics.get("guidance_added_count", 0) or 0
@@ -1512,6 +1791,7 @@ class ResonanceAgent:
             "alignment_report": alignment_meta,
             "alignment_outcome": alignment_outcome,
             "alignment_observability": self.get_alignment_outcome_metrics(),
+            "alignment_memory_metrics": self.get_alignment_memory_metrics(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
