@@ -24,6 +24,7 @@
 | 14 | **Augmented Reality Layer** | `CognitiveOverlay`, `VisualHint` | Доставка подсказок и grounding refs прямо в сознание. | ← Cortex | **NEW** |
 | 15 | **Temporal Fusion** | `SceneChangeDetector`, `RhythmAnalyzer` | Семантически устойчивый анализ изменений экрана. | ← Perception | **NEW** |
 | 16 | **Consent & Safety Gate** | `PrivacyRedactor`, `ConsentManager`, `AuditLog` | Privacy-by-design гейт (первый после Perception). | ← Perception | **NEW** |
+| 17 | **Relational Field Layer** | `InteractionFieldState`, `ProjectionDissonanceEngine`, `RelationalRepairPolicy` | Моделирование динамики взаимодействия: front/back/field + выбор восстановительного действия. | ↔ Reflection, ↔ Memory, ↔ AgentLoop | **Proposed** |
 
 ---
 
@@ -99,3 +100,9 @@
 *   **RU:** Визуальный слой. Отображает пульсацию кровеносной системы (Bloodstream) и прогресс метаболизма.
 *   **EN:** Visual layer. Displays bloodstream pulsing and metabolism progress.
 *   **Code:** `GhostGPT/modules/gui.py`.
+
+### 17. Relational Field Layer (Слой реляционного поля)
+*   **RU:** **PROPOSED.** Отдельный runtime-слой, разделяющий наблюдаемый сигнал (front), гипотезу скрытого фона (back) и состояние поля между участниками (field). Ключевая формула: `signal ≠ cause`.
+*   **EN:** **PROPOSED.** Dedicated runtime layer separating observable front signals, hidden-background hypotheses, and shared interaction field state. Core rule: `signal ≠ cause`.
+*   **Code/Spec:** `docs/architecture/RELATIONAL_FIELD_LAYER_RFC.md`.
+
