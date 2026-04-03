@@ -541,8 +541,10 @@ class ResonanceAgent:
                     },
                 )
                 item["_relational_field"] = snapshot.to_dict()
-                if self._graph_runtime and hasattr(self._graph_runtime, "store"):
-                    self._graph_runtime.store.store_relational_snapshot(snapshot)
+                if self._graph_runtime and hasattr(
+                    self._graph_runtime, "remember_relational_snapshot"
+                ):
+                    self._graph_runtime.remember_relational_snapshot(snapshot)
             except Exception as exc:
                 logger.debug("ResonanceAgent: relational field analysis failed: %s", exc)
 

@@ -165,6 +165,9 @@ class FakeGraphRuntimeWithRelational(FakeGraphRuntimeFullRun):
         super().__init__()
         self.store = FakeRelationalStore()
 
+    def remember_relational_snapshot(self, snapshot):
+        return self.store.store_relational_snapshot(snapshot)
+
 
 class CapturingControlCenter:
     def __init__(self, plan: NetworkExecutionPlan):
