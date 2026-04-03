@@ -251,6 +251,80 @@ except Exception:
     _NetworkObserver = None  # type: ignore[assignment]
     _NetworkOrientationCenter = None  # type: ignore[assignment]
 
+# ---------------------------------------------------------------------------
+# Per-cycle alignment outcome helpers (pure, advisory-only)
+# ---------------------------------------------------------------------------
+
+
+def build_effect_reason(
+    *,
+    signals: list[str],
+    softening_detected: bool,
+    guidance_applied: bool,
+    guidance_effective: bool,
+    goal_alignment_score: float,
+) -> str:
+    """Return a short, deterministic, human-readable reason for the cycle outcome.
+
+    Built entirely from already-computed signals and scores — no LLM, no side
+    effects. Never touches route_key / graph_mode / backend selection.
+    """
+    if softening_detected and signals:
+        seen: list[str] = []
+        for s in signals:
+            if s not in seen:
+                seen.append(s)
+        label = " + ".join(seen[:3])  # deduplicated, capped at 3
+        if guidance_applied and guidance_effective:
+            return f"{label} \u2192 cooperative softening (guidance effective)"
+        return f"{label} \u2192 cooperative softening"
+
+    if guidance_applied:
+        if guidance_effective:
+            if goal_alignment_score >= 0.65:
+                return "guidance applied \u2192 goal alignment achieved"
+            return "guidance applied \u2192 response quality improved"
+        return "guidance applied but softening signals were weak"
+
+    return "no clear softening signals detected"
+
+
+def build_alignment_outcome_snapshot(
+    *,
+    guidance_applied: bool,
+    pre_tension_score: float,
+    post_resonance_score: float,
+    post_goal_alignment_score: float,
+    softening_detected: bool,
+    softening_score: float,
+    softening_signals: list[str],
+    guidance_effective: bool,
+) -> dict:
+    """Return a compact, stable per-cycle outcome snapshot.
+
+    Keys are backward-compatible with existing consumers.  The ``effect_reason``
+    field supersedes the raw detector reason string with a composite explanation
+    built from all available cycle signals.
+    """
+    effect_reason = build_effect_reason(
+        signals=softening_signals,
+        softening_detected=softening_detected,
+        guidance_applied=guidance_applied,
+        guidance_effective=guidance_effective,
+        goal_alignment_score=post_goal_alignment_score,
+    )
+    return {
+        "guidance_added": guidance_applied,
+        "pre_tension_score": round(pre_tension_score, 3),
+        "post_resonance_score": round(post_resonance_score, 3),
+        "post_goal_alignment_score": round(post_goal_alignment_score, 3),
+        "response_softened": softening_detected,
+        "softening_score": round(softening_score, 3),
+        "softening_signals": list(softening_signals),
+        "effect_reason": effect_reason,
+        "guidance_effective": guidance_effective,
+    }
+
 
 # ---------------------------------------------------------------------------
 # ResonanceAgent
@@ -1358,7 +1432,6 @@ class ResonanceAgent:
         softening = self._run_softening_detector(response_text)
         response_softened: bool = bool(softening.get("softening_detected", False))
         softening_signals: list = list(softening.get("signals") or [])
-        effect_reason: str | None = softening.get("reason")
 
         guidance_applied = bool(guidance)
         effect_observed = guidance_applied and (
@@ -1367,17 +1440,16 @@ class ResonanceAgent:
             or (response_score >= 0.62 and pre_tension_score >= 0.45)
         )
 
-        item["_alignment_outcome"] = {
-            "guidance_added": guidance_applied,
-            "pre_tension_score": round(pre_tension_score, 3),
-            "post_resonance_score": round(float(item.get("_resonance_score", 0.0) or 0.0), 3),
-            "post_goal_alignment_score": round(float(goal_alignment_score or 0.0), 3),
-            "response_softened": response_softened,
-            "softening_score": round(float(softening.get("score", 0.0) or 0.0), 3),
-            "softening_signals": softening_signals,
-            "effect_reason": effect_reason,
-            "guidance_effective": effect_observed,
-        }
+        item["_alignment_outcome"] = build_alignment_outcome_snapshot(
+            guidance_applied=guidance_applied,
+            pre_tension_score=pre_tension_score,
+            post_resonance_score=float(item.get("_resonance_score", 0.0) or 0.0),
+            post_goal_alignment_score=float(goal_alignment_score or 0.0),
+            softening_detected=response_softened,
+            softening_score=float(softening.get("score", 0.0) or 0.0),
+            softening_signals=softening_signals,
+            guidance_effective=effect_observed,
+        )
 
         with self._alignment_metrics_lock:
             self._alignment_outcome_metrics["observed_cycles"] = int(
