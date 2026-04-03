@@ -182,6 +182,31 @@ class TestDetectOssification(unittest.TestCase):
         obs, report = self._run_n_cycles(g, 10)
         self.assertNotIn(OSSIFICATION, report.pathologies)
 
+    def test_repeated_ossification_injects_meta_lesson(self):
+        g = _graph_with_nodes([("subconscious:deliberative", 0.86, 0.40)])
+        obs = SystemObserver()
+
+        for _ in range(24):
+            # Simulate recurring tendency to re-freeze the same axis over time.
+            g.nodes["subconscious:deliberative"].stability_bias = 0.90
+            obs.observe_and_correct(g)
+
+        self.assertIn("lesson:meta:ossification_tendency", g.nodes)
+        self.assertIn(
+            "lesson:meta:ossification_tendency",
+            obs.stats().get("self_lessons", []),
+        )
+
+    def test_before_third_repetition_meta_lesson_not_injected(self):
+        g = _graph_with_nodes([("subconscious:deliberative", 0.86, 0.40)])
+        obs = SystemObserver()
+
+        for _ in range(16):
+            g.nodes["subconscious:deliberative"].stability_bias = 0.90
+            obs.observe_and_correct(g)
+
+        self.assertNotIn("lesson:meta:ossification_tendency", g.nodes)
+
 
 class TestDetectSplitBrain(unittest.TestCase):
     """SPLIT_BRAIN: два узла > 0.70 с разницей < 0.05."""

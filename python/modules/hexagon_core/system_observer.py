@@ -42,6 +42,17 @@ _OSSIFY_CYCLES   = 8      # циклов без смены оси — оссиф
 _OSSIFY_BIAS     = 0.80   # stability_bias оси при оссификации
 _CHAOS_COLLAPSE  = -0.30  # chaos_trend — лавинный хаос
 _WEAK_AXIS       = 0.35   # resonance оси — коллапс
+_SELF_LEARN_WINDOW_S = 60 * 60
+_SELF_LEARN_REPEAT_THRESHOLD = 3
+
+_SELF_LEARN_LESSON_MAP: Dict[str, str] = {
+    OSSIFICATION: "lesson:meta:ossification_tendency",
+    VACUUM: "lesson:meta:vacuum_tendency",
+    OVERHEATING: "lesson:meta:overheating_tendency",
+    SPLIT_BRAIN: "lesson:meta:split_brain_tendency",
+    RUNAWAY_CHAOS: "lesson:meta:runaway_chaos_tendency",
+    RESONANCE_COLLAPSE: "lesson:meta:resonance_collapse_tendency",
+}
 
 # Штрафы адекватности за каждую патологию
 _PATHOLOGY_DEDUCTIONS: Dict[str, float] = {
@@ -97,11 +108,37 @@ class SystemObserver:
         # Счётчик последовательных циклов с одной и той же осью
         self._axis_tenure: Dict[str, int] = {}
         self._last_axis: Optional[str] = None
-        # Feature 2: накопительный счётчик патологий за сессию
+        # Feature 2: ????????????? ??????? ????????? ?? ??????
         self._pathology_counts: Dict[str, int] = {}
-        # После N повторений патологии → пишем lesson:meta:* узел
+        # ????? N ?????????? ????????? -> ????? lesson:meta:* ????
         _META_LESSON_THRESHOLD: int = 3
         self._meta_lesson_threshold = _META_LESSON_THRESHOLD
+        self._last_self_lessons: set[str] = set()
+
+    def _pathology_count_in_window(self, pathology: str, now_ts: float) -> int:
+        cutoff = now_ts - _SELF_LEARN_WINDOW_S
+        count = 0
+        for report in self._reports:
+            if report.timestamp < cutoff:
+                continue
+            if pathology in report.pathologies:
+                count += 1
+        return count
+
+    def _inject_self_lessons(self, graph: "TemporalGraph", pathologies: List[str], now_ts: float) -> List[str]:
+        injected: List[str] = []
+        self._last_self_lessons = set()
+        for pathology in pathologies:
+            lesson_id = _SELF_LEARN_LESSON_MAP.get(pathology)
+            if lesson_id is None:
+                continue
+            history_hits = self._pathology_count_in_window(pathology, now_ts)
+            if (history_hits + 1) < _SELF_LEARN_REPEAT_THRESHOLD:
+                continue
+            graph.add_or_update(lesson_id, resonance=0.62, harmony_bonus=0.30, resting_resonance=0.45)
+            self._last_self_lessons.add(lesson_id)
+            injected.append(lesson_id)
+        return injected
 
     # ── Главный метод ────────────────────────────────────────────────────────
 
@@ -118,6 +155,7 @@ class SystemObserver:
         """
         pathologies: List[str] = []
         corrections: List[str] = []
+        now_ts = time.time()
 
         nodes = list(graph.nodes.values())
         if not nodes:
@@ -252,7 +290,11 @@ class SystemObserver:
             pathologies=pathologies,
             corrections=corrections,
             axis_id=axis_id,
+            timestamp=now_ts,
         )
+        self_lessons = self._inject_self_lessons(graph, pathologies, now_ts=now_ts)
+        for lesson_id in self_lessons:
+            corrections.append(f"self-learned '{lesson_id}' from repeated pathology")
         self._reports.append(report)
 
         # Feature 2: записываем meta-уроки при повторных патологиях
@@ -346,6 +388,7 @@ class SystemObserver:
                 "critical": False,
                 "pathologies": [],
                 "corrections": [],
+                "self_lessons": [],
                 "axis_tenure": 0,
                 "trend": 0.0,
                 "total_reports": 0,
@@ -357,6 +400,7 @@ class SystemObserver:
             "critical":      last.critical,
             "pathologies":   last.pathologies,
             "corrections":   last.corrections,
+            "self_lessons":  sorted(self._last_self_lessons),
             "axis_id":       last.axis_id,
             "axis_tenure":   self._axis_tenure.get(self._last_axis or "", 0),
             "trend":         self.adequacy_trend(),

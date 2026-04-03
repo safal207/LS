@@ -975,18 +975,18 @@ class ResonanceAgent:
         if len(style_example) > 400:
             style_example = style_example[:400].rstrip() + "..."
         parts = [
-            "Ð Ð¾Ð»ÑŒ: derived micro-module.",
-            "ÐžÑ‚Ð²ÐµÑ‡Ð°Ð¹ Ð½Ð° Ð²Ð¾Ð¿Ñ€Ð¾Ñ ÑÐ¾Ð±ÐµÑÐµÐ´Ð¾Ð²Ð°Ð½Ð¸Ñ ÐºÐ¾Ñ€Ð¾Ñ‚ÐºÐ¾, Ð¿Ð¾ ÑÑƒÑ‰ÐµÑÑ‚Ð²Ñƒ Ð¸ Ð±ÐµÐ· Ð²Ð¾Ð´Ñ‹.",
-            "ÐÐµ Ð²Ñ‹Ð´ÑƒÐ¼Ñ‹Ð²Ð°Ð¹ Ñ†Ð¸Ñ„Ñ€Ñ‹, Ð¿Ñ€Ð¾ÐµÐºÑ‚Ñ‹, ÐºÐµÐ¹ÑÑ‹ Ð¸ Ñ„Ð°ÐºÑ‚Ñ‹.",
-            "Ð¡Ð¾Ñ…Ñ€Ð°Ð½ÑÐ¹ ÑÐ²ÑÐ·ÑŒ Ñ Ð²Ð¾Ð¿Ñ€Ð¾ÑÐ¾Ð¼, why-ÐºÐ¾Ð½Ñ‚ÐµÐºÑÑ‚Ð¾Ð¼ Ð¸ Ð½Ð¸Ñ‚ÑŒÑŽ Ñ€Ð°Ð·Ð³Ð¾Ð²Ð¾Ñ€Ð°.",
-            f"Ð”Ð¾Ð¼ÐµÐ½: {intent_tag}.",
-            f"Ð¢Ð¸Ð¿ Ð·Ð°Ð´Ð°Ñ‡Ð¸: {why_tag}.",
-            f"Ð Ð¾Ð´Ð¸Ñ‚ÐµÐ»ÑŒÑÐºÐ¸Ð¹ Ð¼Ð°Ñ€ÑˆÑ€ÑƒÑ‚: {route_key}.",
+            "Role: derived micro-module.",
+            "Answer the interview question briefly, precisely, and without fluff.",
+            "Do not invent numbers, projects, cases, or facts.",
+            "Keep the response aligned with the question, why-context, and conversation thread.",
+            f"Domain: {intent_tag}.",
+            f"Task type: {why_tag}.",
+            f"Parent route: {route_key}.",
         ]
         if thread_context:
-            parts.append(f"ÐšÐ¾Ð½Ñ‚ÐµÐºÑÑ‚ Ñ€Ð°Ð·Ð³Ð¾Ð²Ð¾Ñ€Ð°:\\n{thread_context}")
+            parts.append(f"Conversation context:\\n{thread_context}")
         if style_example:
-            parts.append(f"ÐžÑ€Ð¸ÐµÐ½Ñ‚Ð¸Ñ€ Ð¿Ð¾ ÑÑ‚Ð¸Ð»ÑŽ ÑƒÐ´Ð°Ñ‡Ð½Ð¾Ð³Ð¾ Ð¾Ñ‚Ð²ÐµÑ‚Ð°:\\n{style_example}")
+            parts.append(f"Style reference from a successful answer:\\n{style_example}")
         return "\\n\\n".join(parts)
 
     def _call_derived_module(self, item: dict, module_meta: dict) -> str | None:
