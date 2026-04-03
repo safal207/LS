@@ -122,7 +122,11 @@ class QwenOmniWorker:
                 )
                 return None
             unit = self._build_unit_from_insight(insight)
-            self.graph_store.store_resonance_unit(unit)
+            try:
+                self.graph_store.store_resonance_unit(unit)
+            except Exception as exc:
+                logger.debug("QwenOmniWorker store_resonance_unit failed: %s", exc)
+                return None
             return unit
 
     def _capture_screen_frame(self) -> tuple[str | None, dict[str, Any]]:

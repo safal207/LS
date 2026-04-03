@@ -73,3 +73,22 @@ def test_qwen_omni_worker_skips_low_signal_fallback_unit(tmp_path, monkeypatch):
 
     assert unit is None
     assert store.list_resonance_units() == []
+
+
+def test_qwen_omni_worker_store_failure_is_best_effort(tmp_path, monkeypatch):
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
+    store = MemoryGraphStore(tmp_path / "cases.jsonl")
+    worker = QwenOmniWorker(
+        graph_store=store,
+        audio_provider=lambda: "user says hello",
+        min_store_resonance_score=0.0,
+    )
+
+    def _boom(_unit):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(store, "store_resonance_unit", _boom)
+    unit = worker.capture_and_analyze(trigger="test")
+
+    assert unit is None
+    assert store.list_resonance_units() == []
