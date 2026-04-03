@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
 
-from .models import MemoryCase, ResonanceKnowledgeUnit
+from .models import MemoryCase, RelationalFieldSnapshot, ResonanceKnowledgeUnit
 
 _STORE_LOCKS: dict[str, threading.RLock] = {}
 _STORE_LOCKS_GUARD = threading.Lock()
@@ -246,4 +246,53 @@ class MemoryGraphStore:
         self._atomic_write_jsonl(
             path,
             [unit.to_dict() for unit in units],
+        )
+
+    # ──────────────────────────────────────────────────────────────
+    # RelationalFieldSnapshot — observational interaction field layer
+    # ──────────────────────────────────────────────────────────────
+
+    def _relational_snapshots_path(self) -> Path:
+        return self.path.with_name("relational_field_snapshots.jsonl")
+
+    def store_relational_snapshot(
+        self,
+        snapshot: RelationalFieldSnapshot,
+    ) -> RelationalFieldSnapshot:
+        with self._lock:
+            snapshots = self._load_relational_snapshots()
+            if not snapshot.field_id:
+                snapshot.field_id = str(uuid4())
+            if not snapshot.timestamp:
+                snapshot.timestamp = _utc_now()
+            snapshots.append(snapshot)
+            self._write_relational_snapshots(snapshots)
+            return snapshot
+
+    def list_relational_snapshots(self) -> list[RelationalFieldSnapshot]:
+        return self._load_relational_snapshots()
+
+    def _load_relational_snapshots(self) -> list[RelationalFieldSnapshot]:
+        with self._lock:
+            path = self._relational_snapshots_path()
+            if not path.exists():
+                return []
+
+            snapshots: list[RelationalFieldSnapshot] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if line:
+                        snapshots.append(
+                            RelationalFieldSnapshot.from_dict(json.loads(line))
+                        )
+            return snapshots
+
+    def _write_relational_snapshots(
+        self,
+        snapshots: list[RelationalFieldSnapshot],
+    ) -> None:
+        self._atomic_write_jsonl(
+            self._relational_snapshots_path(),
+            [snapshot.to_dict() for snapshot in snapshots],
         )

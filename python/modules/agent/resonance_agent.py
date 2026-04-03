@@ -182,6 +182,13 @@ except Exception:
     _TrailUpdater = None  # type: ignore[assignment]
 
 try:
+    from graph.relational_field import RelationalFieldAnalyzer as _RelationalFieldAnalyzer
+    _RELATIONAL_OK = True
+except Exception:
+    _RELATIONAL_OK = False
+    _RelationalFieldAnalyzer = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -341,6 +348,11 @@ class ResonanceAgent:
         # Stage 9 — Resonance Scorer
         self._scorer = (
             _Scorer() if _SCORER_OK and _Scorer else None
+        )
+        self._relational_analyzer = (
+            _RelationalFieldAnalyzer()
+            if _RELATIONAL_OK and _RelationalFieldAnalyzer
+            else None
         )
 
         # Learning
@@ -510,6 +522,29 @@ class ResonanceAgent:
                 item = self._scorer.process(item)
             except Exception as exc:
                 logger.debug("ResonanceAgent: ResonanceScorer failed: %s", exc)
+
+        # Stage 9b — Relational field observation (MVP, no routing side-effects)
+        if self._relational_analyzer:
+            try:
+                snapshot = self._relational_analyzer.analyze(
+                    text=text,
+                    participants=list(item.get("participants") or []),
+                    interaction_scope=str(
+                        item.get("interaction_scope")
+                        or item.get("_interaction_scope")
+                        or "human-human"
+                    ),
+                    context={
+                        "intent": item.get("_intent") or item.get("intent"),
+                        "why": item.get("_why") or item.get("why"),
+                        "cycle_id": item.get("_cycle_id"),
+                    },
+                )
+                item["_relational_field"] = snapshot.to_dict()
+                if self._graph_runtime and hasattr(self._graph_runtime, "store"):
+                    self._graph_runtime.store.store_relational_snapshot(snapshot)
+            except Exception as exc:
+                logger.debug("ResonanceAgent: relational field analysis failed: %s", exc)
 
         graph_decision = None
         available_backends: list[str] = []
@@ -1060,6 +1095,22 @@ class ResonanceAgent:
                     "Слабые подсказки из resonance-memory (используй как soft guidance, не копируй дословно):\n"
                     + "\n".join(hint_lines)
                 )
+        relational = item.get("_relational_field") or {}
+        try:
+            tension_score = float(relational.get("tension_score", 0.0) or 0.0)
+            alignment_score = float(relational.get("alignment_score", 0.0) or 0.0)
+        except (TypeError, ValueError, AttributeError):
+            tension_score = 0.0
+            alignment_score = 0.0
+        if (
+            isinstance(relational, dict)
+            and tension_score > 0.7
+            and alignment_score < 0.4
+        ):
+            parts.append(
+                "В поле есть напряжение. Не дави на решение сразу; "
+                "сначала признай разницу восприятия и снизь конфликтность формулировок."
+            )
         if need_profile:
             parts.append(
                 "Профиль потребности сети: "

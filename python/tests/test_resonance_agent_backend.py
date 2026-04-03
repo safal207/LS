@@ -151,6 +151,21 @@ class FakeGraphRuntimeFullRun:
         return item["_resonance_hints"]
 
 
+class FakeRelationalStore:
+    def __init__(self):
+        self.snapshots = []
+
+    def store_relational_snapshot(self, snapshot):
+        self.snapshots.append(snapshot)
+        return snapshot
+
+
+class FakeGraphRuntimeWithRelational(FakeGraphRuntimeFullRun):
+    def __init__(self):
+        super().__init__()
+        self.store = FakeRelationalStore()
+
+
 class CapturingControlCenter:
     def __init__(self, plan: NetworkExecutionPlan):
         self.plan = plan
@@ -789,6 +804,48 @@ def test_resonance_agent_system_prompt_includes_resonance_hints_when_present() -
     assert "Слабые подсказки из resonance-memory" in system_prompt
     assert "intent=architecture" in system_prompt
     assert "route=full_run>local" in system_prompt
+
+
+def test_resonance_agent_system_prompt_includes_relational_soft_guidance() -> None:
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(provider="local", model="local-test", text="ok"),
+        orientation="test",
+    )
+    item = {
+        "text": "Почему вы выбрали этот стек?",
+        "_copilot_output": {},
+        "_graph_runtime": {},
+        "_path_selection": {},
+        "_resonance_score": 0.5,
+        "_relational_field": {
+            "tension_score": 0.81,
+            "alignment_score": 0.22,
+        },
+    }
+
+    system_prompt = agent._build_system_prompt(item)
+
+    assert "В поле есть напряжение" in system_prompt
+    assert "Не дави на решение сразу" in system_prompt
+
+
+def test_resonance_agent_records_relational_snapshot_as_observation() -> None:
+    backend = CapturingBackend(provider="local", model="local-test", text="ok")
+    graph_runtime = FakeGraphRuntimeWithRelational()
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=backend,
+        graph_runtime=graph_runtime,
+        orientation="test",
+    )
+
+    agent.process_text("Ты опять никогда не слушаешь, это невозможно!")
+
+    assert graph_runtime.store.snapshots
+    snapshot = graph_runtime.store.snapshots[0]
+    assert snapshot.tension_score >= 0.3
+    assert snapshot.interaction_scope == "human-human"
 
 
 def test_resonance_agent_goal_alignment_score_rewards_matching_profile() -> None:

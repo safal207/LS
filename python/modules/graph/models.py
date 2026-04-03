@@ -221,3 +221,39 @@ class ResonanceKnowledgeUnit:
             edges=list(data.get("edges") or []),
             metadata=dict(data.get("metadata") or {}),
         )
+
+
+@dataclass
+class RelationalFieldSnapshot:
+    field_id: str
+    timestamp: str
+    participants: list[str] = field(default_factory=list)
+    interaction_scope: str = "human-human"
+    tension_score: float = 0.0
+    alignment_score: float = 0.0
+    dominant_signal: str = "neutral"
+    background_pressure: list[str] = field(default_factory=list)
+    foreground_expression: list[str] = field(default_factory=list)
+    notes: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RelationalFieldSnapshot":
+        return cls(
+            field_id=str(data.get("field_id") or str(uuid4())),
+            timestamp=str(
+                data.get("timestamp") or datetime.now(timezone.utc).isoformat()
+            ),
+            participants=list(data.get("participants") or []),
+            interaction_scope=str(data.get("interaction_scope") or "human-human"),
+            tension_score=float(data.get("tension_score", 0.0) or 0.0),
+            alignment_score=float(data.get("alignment_score", 0.0) or 0.0),
+            dominant_signal=str(data.get("dominant_signal") or "neutral"),
+            background_pressure=list(data.get("background_pressure") or []),
+            foreground_expression=list(data.get("foreground_expression") or []),
+            notes=str(data.get("notes") or ""),
+            metadata=dict(data.get("metadata") or {}),
+        )
