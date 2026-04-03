@@ -225,6 +225,20 @@ except Exception as exc:
     _build_alignment_guidance = None  # type: ignore[assignment]
 
 try:
+    from agent.softening_detector import SofteningAnalysis as _SofteningAnalysis
+    from agent.softening_detector import analyze_softening_signals as _analyze_softening_signals
+    _SOFTENING_DETECTOR_OK = True
+except ImportError:
+    try:
+        from modules.agent.softening_detector import SofteningAnalysis as _SofteningAnalysis
+        from modules.agent.softening_detector import analyze_softening_signals as _analyze_softening_signals
+        _SOFTENING_DETECTOR_OK = True
+    except ImportError:
+        _SOFTENING_DETECTOR_OK = False
+        _SofteningAnalysis = None  # type: ignore[assignment,misc]
+        _analyze_softening_signals = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -425,6 +439,15 @@ class ResonanceAgent:
             "_pre_tension_sum": 0.0,
             "_post_resonance_sum": 0.0,
             "_post_goal_alignment_sum": 0.0,
+            # per-signal softening counters (advisory observability only)
+            "softening_detected_count": 0,
+            "softening_neutral_count": 0,
+            "_signal_bridge_phrase": 0,
+            "_signal_acknowledgment": 0,
+            "_signal_proposal_framing": 0,
+            "_signal_pacing_marker": 0,
+            "_signal_dialogue_invitation": 0,
+            "_signal_dialogue_invitation_structural": 0,
         }
 
         logger.info(
@@ -510,6 +533,10 @@ class ResonanceAgent:
 
     def get_alignment_outcome_metrics(self) -> dict:
         """Return aggregate observability counters for soft-alignment outcomes."""
+        _SIGNAL_KEYS = (
+            "bridge_phrase", "acknowledgment", "proposal_framing",
+            "pacing_marker", "dialogue_invitation", "dialogue_invitation_structural",
+        )
         with self._alignment_metrics_lock:
             observed = int(self._alignment_outcome_metrics.get("observed_cycles", 0) or 0)
             guidance_added = int(self._alignment_outcome_metrics.get("guidance_added_count", 0) or 0)
@@ -518,6 +545,12 @@ class ResonanceAgent:
             post_goal_sum = float(self._alignment_outcome_metrics.get("_post_goal_alignment_sum", 0.0) or 0.0)
             effective = int(self._alignment_outcome_metrics.get("guidance_effective_count", 0) or 0)
             no_effect = int(self._alignment_outcome_metrics.get("guidance_no_effect_count", 0) or 0)
+            softening_detected = int(self._alignment_outcome_metrics.get("softening_detected_count", 0) or 0)
+            softening_neutral = int(self._alignment_outcome_metrics.get("softening_neutral_count", 0) or 0)
+            signal_counts = {
+                sig: int(self._alignment_outcome_metrics.get(f"_signal_{sig}", 0) or 0)
+                for sig in _SIGNAL_KEYS
+            }
 
         return {
             "observed_cycles": observed,
@@ -528,6 +561,10 @@ class ResonanceAgent:
             "avg_pre_tension_score": (pre_tension_sum / observed) if observed else 0.0,
             "avg_post_resonance_score": (post_resonance_sum / observed) if observed else 0.0,
             "avg_post_goal_alignment_score": (post_goal_sum / observed) if observed else 0.0,
+            # softening observability (advisory only)
+            "softening_detected_count": softening_detected,
+            "softening_neutral_count": softening_neutral,
+            "softening_signal_counts": signal_counts,
         }
 
     # ------------------------------------------------------------------
@@ -1281,10 +1318,24 @@ class ResonanceAgent:
         return " ".join(guidance_parts)
 
     @staticmethod
-    def _is_softening_response(text: str) -> bool:
-        lowered = str(text or "").lower()
-        markers = ("понимаю", "давай", "предлагаю", "можем", "сначала", "вместе")
-        return any(marker in lowered for marker in markers)
+    def _run_softening_detector(text: str) -> "dict":
+        """
+        Run language-agnostic softening detector (advisory only).
+        Falls back to a neutral result if the module is unavailable.
+        """
+        if _SOFTENING_DETECTOR_OK and _analyze_softening_signals is not None:
+            try:
+                result = _analyze_softening_signals(text)
+                return result.to_dict()
+            except Exception as exc:
+                logger.debug("softening_detector failed: %s", exc)
+        # Graceful fallback — keeps backward-compat with old bool field
+        return {
+            "softening_detected": False,
+            "score": 0.0,
+            "signals": [],
+            "reason": "detector_unavailable",
+        }
 
     def _record_alignment_outcome(
         self,
@@ -1302,7 +1353,13 @@ class ResonanceAgent:
                 pre_tension_score = float(report.get("tension_score", 0.0) or 0.0)
             except (TypeError, ValueError):
                 pre_tension_score = 0.0
-        response_softened = self._is_softening_response(response_text)
+
+        # Language-agnostic softening detection (replaces old Russian-only heuristic)
+        softening = self._run_softening_detector(response_text)
+        response_softened: bool = bool(softening.get("softening_detected", False))
+        softening_signals: list = list(softening.get("signals") or [])
+        effect_reason: str | None = softening.get("reason")
+
         guidance_applied = bool(guidance)
         effect_observed = guidance_applied and (
             response_softened
@@ -1316,6 +1373,9 @@ class ResonanceAgent:
             "post_resonance_score": round(float(item.get("_resonance_score", 0.0) or 0.0), 3),
             "post_goal_alignment_score": round(float(goal_alignment_score or 0.0), 3),
             "response_softened": response_softened,
+            "softening_score": round(float(softening.get("score", 0.0) or 0.0), 3),
+            "softening_signals": softening_signals,
+            "effect_reason": effect_reason,
             "guidance_effective": effect_observed,
         }
 
@@ -1332,6 +1392,20 @@ class ResonanceAgent:
             self._alignment_outcome_metrics["_post_goal_alignment_sum"] = float(
                 self._alignment_outcome_metrics.get("_post_goal_alignment_sum", 0.0) or 0.0
             ) + float(goal_alignment_score or 0.0)
+            # softening counters
+            if response_softened:
+                self._alignment_outcome_metrics["softening_detected_count"] = int(
+                    self._alignment_outcome_metrics.get("softening_detected_count", 0) or 0
+                ) + 1
+            else:
+                self._alignment_outcome_metrics["softening_neutral_count"] = int(
+                    self._alignment_outcome_metrics.get("softening_neutral_count", 0) or 0
+                ) + 1
+            for sig in softening_signals:
+                key = f"_signal_{sig}"
+                self._alignment_outcome_metrics[key] = int(
+                    self._alignment_outcome_metrics.get(key, 0) or 0
+                ) + 1
             if guidance_applied:
                 self._alignment_outcome_metrics["guidance_added_count"] = int(
                     self._alignment_outcome_metrics.get("guidance_added_count", 0) or 0
