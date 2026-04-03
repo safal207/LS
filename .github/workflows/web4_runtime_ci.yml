@@ -180,6 +180,15 @@ jobs:
         uses: ./.github/actions/summarize-quality-artifacts
         with:
           label: web4-runtime
+      - name: Quality gate
+        if: always()
+        uses: ./.github/actions/quality-gate
+        with:
+          label: web4-runtime
+          max-failures: "0"
+          require-junit: "true"
+          require-coverage: "true"
+          enforce: "false"
 
       - name: Upload artifacts
         if: always()

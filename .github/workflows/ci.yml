@@ -66,6 +66,15 @@ jobs:
         uses: ./.github/actions/summarize-quality-artifacts
         with:
           label: security-and-tests
+      - name: Quality gate
+        if: always()
+        uses: ./.github/actions/quality-gate
+        with:
+          label: security-and-tests
+          max-failures: "0"
+          require-junit: "true"
+          require-coverage: "true"
+          enforce: "false"
 
       - name: Vulnerability audit
         run: |
