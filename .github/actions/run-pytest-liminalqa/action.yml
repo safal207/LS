@@ -34,7 +34,23 @@ runs:
       shell: bash
       run: |
         EXTRA_ARGS=""
+        TELEMETRY_STATE="disabled"
         if [ -n "${LIMINALQA_URL:-}" ] && [ -n "${{ inputs.liminalqa-plan }}" ]; then
           EXTRA_ARGS=" --liminalqa-url \"${LIMINALQA_URL}\" --liminalqa-token \"${LIMINALQA_TOKEN}\" --liminalqa-plan \"${{ inputs.liminalqa-plan }}\""
+          TELEMETRY_STATE="enabled"
         fi
+        set +e
         eval "${{ inputs.pytest-invocation }}${EXTRA_ARGS}"
+        STATUS=$?
+        set -e
+
+        if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          {
+            echo "### pytest lane"
+            echo ""
+            echo "- plan: \`${{ inputs.liminalqa-plan || 'none' }}\`"
+            echo "- liminalqa telemetry: \`${TELEMETRY_STATE}\`"
+            echo "- artifacts dir: \`artifacts/\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
+        exit $STATUS
