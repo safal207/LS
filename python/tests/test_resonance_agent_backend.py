@@ -169,6 +169,16 @@ class FakeGraphRuntimeWithRelational(FakeGraphRuntimeFullRun):
         return self.store.store_relational_snapshot(snapshot)
 
 
+class FakeGraphRuntimeFacadeOnly(FakeGraphRuntimeFullRun):
+    def __init__(self):
+        super().__init__()
+        self.snapshots = []
+
+    def remember_relational_snapshot(self, snapshot):
+        self.snapshots.append(snapshot)
+        return snapshot
+
+
 class CapturingControlCenter:
     def __init__(self, plan: NetworkExecutionPlan):
         self.plan = plan
@@ -849,6 +859,22 @@ def test_resonance_agent_records_relational_snapshot_as_observation() -> None:
     snapshot = graph_runtime.store.snapshots[0]
     assert snapshot.tension_score >= 0.3
     assert snapshot.interaction_scope == "human-human"
+
+
+def test_resonance_agent_uses_runtime_relational_facade_without_store_attr() -> None:
+    backend = CapturingBackend(provider="local", model="local-test", text="ok")
+    graph_runtime = FakeGraphRuntimeFacadeOnly()
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=backend,
+        graph_runtime=graph_runtime,
+        orientation="test",
+    )
+
+    agent.process_text("Ты опять никогда не слушаешь, это невозможно!")
+
+    assert graph_runtime.snapshots
+    assert graph_runtime.snapshots[0].field_id
 
 
 def test_resonance_agent_goal_alignment_score_rewards_matching_profile() -> None:
