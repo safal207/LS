@@ -152,3 +152,63 @@ def test_alignment_report_attached_to_agent_flow_without_breaking_output() -> No
     assert "alignment_report" in result
     assert isinstance(result["alignment_report"], dict)
     assert "alignment_score" in result["alignment_report"]
+    assert "alignment_outcome" in result
+    assert "alignment_observability" in result
+
+
+def test_alignment_guidance_added_to_system_prompt_when_report_requires_softening() -> None:
+    agent = ResonanceAgent(anchor=[], llm_fn=None, orientation="test")
+    item = {
+        "text": "Как нам договориться без конфликта?",
+        "_copilot_output": {},
+        "_graph_runtime": {},
+        "_path_selection": {},
+        "_resonance_score": 0.5,
+        "_alignment_report": {
+            "requires_softening": True,
+            "requires_clarification": True,
+            "requires_grounding": False,
+            "suggested_mode": "soften",
+        },
+    }
+
+    system_prompt = agent._build_system_prompt(item)
+
+    assert "Alignment guidance" in system_prompt
+    assert item.get("_alignment_guidance")
+
+
+def test_alignment_observability_counts_guidance_outcomes() -> None:
+    agent = ResonanceAgent(anchor=[], llm_fn=lambda _u, _s: "Понимаю, давай сначала уточним контекст.", orientation="test")
+    result = agent.process_item(
+        {
+            "type": "question",
+            "text": "Почему мы опять спорим по одному и тому же?",
+            "participants": [
+                {
+                    "participant_id": "human-1",
+                    "participant_type": "human",
+                    "intent": "ship_now",
+                    "why": "deadline",
+                    "need_vector": ["urgency", "speed"],
+                    "foreground_expression": ["pressure"],
+                    "tension_signal": 0.9,
+                },
+                {
+                    "participant_id": "agent-1",
+                    "participant_type": "agent",
+                    "intent": "verify_safety",
+                    "why": "risk_control",
+                    "need_vector": ["stability", "accuracy"],
+                    "tension_signal": 0.7,
+                },
+            ],
+        }
+    )
+
+    outcome = result["alignment_outcome"]
+    metrics = result["alignment_observability"]
+    assert outcome["guidance_added"] is True
+    assert outcome["guidance_effective"] is True
+    assert metrics["guidance_added_count"] >= 1
+    assert metrics["guidance_effective_count"] >= 1

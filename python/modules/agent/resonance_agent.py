@@ -416,6 +416,16 @@ class ResonanceAgent:
         self._recent_cycles: dict[str, dict] = {}
         self._max_cached    = 50
         self._cycles_lock   = threading.Lock()
+        self._alignment_metrics_lock = threading.Lock()
+        self._alignment_outcome_metrics: dict[str, float | int] = {
+            "observed_cycles": 0,
+            "guidance_added_count": 0,
+            "guidance_effective_count": 0,
+            "guidance_no_effect_count": 0,
+            "_pre_tension_sum": 0.0,
+            "_post_resonance_sum": 0.0,
+            "_post_goal_alignment_sum": 0.0,
+        }
 
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
@@ -497,6 +507,28 @@ class ResonanceAgent:
                 },
                 "user_feedback": feedback_text,
             })
+
+    def get_alignment_outcome_metrics(self) -> dict:
+        """Return aggregate observability counters for soft-alignment outcomes."""
+        with self._alignment_metrics_lock:
+            observed = int(self._alignment_outcome_metrics.get("observed_cycles", 0) or 0)
+            guidance_added = int(self._alignment_outcome_metrics.get("guidance_added_count", 0) or 0)
+            pre_tension_sum = float(self._alignment_outcome_metrics.get("_pre_tension_sum", 0.0) or 0.0)
+            post_resonance_sum = float(self._alignment_outcome_metrics.get("_post_resonance_sum", 0.0) or 0.0)
+            post_goal_sum = float(self._alignment_outcome_metrics.get("_post_goal_alignment_sum", 0.0) or 0.0)
+            effective = int(self._alignment_outcome_metrics.get("guidance_effective_count", 0) or 0)
+            no_effect = int(self._alignment_outcome_metrics.get("guidance_no_effect_count", 0) or 0)
+
+        return {
+            "observed_cycles": observed,
+            "guidance_added_count": guidance_added,
+            "guidance_effective_count": effective,
+            "guidance_no_effect_count": no_effect,
+            "guidance_effect_rate": (effective / guidance_added) if guidance_added else 0.0,
+            "avg_pre_tension_score": (pre_tension_sum / observed) if observed else 0.0,
+            "avg_post_resonance_score": (post_resonance_sum / observed) if observed else 0.0,
+            "avg_post_goal_alignment_score": (post_goal_sum / observed) if observed else 0.0,
+        }
 
     # ------------------------------------------------------------------
     # Internal pipeline
@@ -799,6 +831,12 @@ class ResonanceAgent:
         item["_goal_alignment_score"] = goal_alignment_score
         final_score = round((base_score * 0.55 + response_score * 0.25 + goal_alignment_score * 0.20), 3)
         item["_resonance_score"] = final_score
+        self._record_alignment_outcome(
+            item,
+            response_text=final_output,
+            response_score=response_score,
+            goal_alignment_score=goal_alignment_score,
+        )
 
         # Phase 2 — complete log cycle
         if self._logger and log_cycle_id:
@@ -1174,18 +1212,11 @@ class ResonanceAgent:
                 "В поле есть напряжение. Не дави на решение сразу; "
                 "сначала признай разницу восприятия и снизь конфликтность формулировок."
             )
-        alignment_guidance: list[str] = []
-        if _ALIGNMENT_GUIDANCE_OK and _build_alignment_guidance:
-            try:
-                alignment_guidance = _build_alignment_guidance(item.get("_alignment_report"))
-            except Exception as exc:
-                logger.debug("ResonanceAgent: alignment guidance build failed: %s", exc)
-                alignment_guidance = []
+        alignment_report = item.get("_alignment_report") or {}
+        alignment_guidance = self._build_alignment_guidance(alignment_report)
+        item["_alignment_guidance"] = alignment_guidance
         if alignment_guidance:
-            parts.append(
-                "Alignment guidance (soft behavioral steering):\n"
-                + "\n".join(f"- {line}" for line in alignment_guidance[:5])
-            )
+            parts.append(alignment_guidance)
         if need_profile:
             parts.append(
                 "Профиль потребности сети: "
@@ -1221,6 +1252,98 @@ class ResonanceAgent:
                 parts.append("Приоритет: grounded answer without invented metrics or fake projects.")
 
         return "\n\n".join(parts)
+
+    def _build_alignment_guidance(self, alignment_report: dict) -> str:
+        if not isinstance(alignment_report, dict):
+            return ""
+        suggested_mode = str(alignment_report.get("suggested_mode") or "steady")
+        requires_softening = bool(alignment_report.get("requires_softening", False))
+        requires_clarification = bool(alignment_report.get("requires_clarification", False))
+        requires_grounding = bool(alignment_report.get("requires_grounding", False))
+
+        guidance_parts: list[str] = []
+        if requires_softening:
+            guidance_parts.append(
+                "Alignment guidance: начни с мягкой валидации позиции собеседника, затем предложи следующий шаг."
+            )
+        if requires_clarification:
+            guidance_parts.append(
+                "Alignment guidance: добавь короткий уточняющий фрейм, чтобы синхронизировать ожидания перед решением."
+            )
+        if requires_grounding:
+            guidance_parts.append(
+                "Alignment guidance: опирайся на факты из вопроса и не форсируй вывод без контекста."
+            )
+        if not guidance_parts and suggested_mode in {"soften", "clarify", "ground"}:
+            guidance_parts.append(
+                f"Alignment guidance: используй режим {suggested_mode} и держи ответ кооперативным."
+            )
+        return " ".join(guidance_parts)
+
+    @staticmethod
+    def _is_softening_response(text: str) -> bool:
+        lowered = str(text or "").lower()
+        markers = ("понимаю", "давай", "предлагаю", "можем", "сначала", "вместе")
+        return any(marker in lowered for marker in markers)
+
+    def _record_alignment_outcome(
+        self,
+        item: dict,
+        *,
+        response_text: str,
+        response_score: float,
+        goal_alignment_score: float,
+    ) -> None:
+        report = item.get("_alignment_report") or {}
+        guidance = str(item.get("_alignment_guidance") or "")
+        pre_tension_score = 0.0
+        if isinstance(report, dict):
+            try:
+                pre_tension_score = float(report.get("tension_score", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                pre_tension_score = 0.0
+        response_softened = self._is_softening_response(response_text)
+        guidance_applied = bool(guidance)
+        effect_observed = guidance_applied and (
+            response_softened
+            or goal_alignment_score >= 0.65
+            or (response_score >= 0.62 and pre_tension_score >= 0.45)
+        )
+
+        item["_alignment_outcome"] = {
+            "guidance_added": guidance_applied,
+            "pre_tension_score": round(pre_tension_score, 3),
+            "post_resonance_score": round(float(item.get("_resonance_score", 0.0) or 0.0), 3),
+            "post_goal_alignment_score": round(float(goal_alignment_score or 0.0), 3),
+            "response_softened": response_softened,
+            "guidance_effective": effect_observed,
+        }
+
+        with self._alignment_metrics_lock:
+            self._alignment_outcome_metrics["observed_cycles"] = int(
+                self._alignment_outcome_metrics.get("observed_cycles", 0) or 0
+            ) + 1
+            self._alignment_outcome_metrics["_pre_tension_sum"] = float(
+                self._alignment_outcome_metrics.get("_pre_tension_sum", 0.0) or 0.0
+            ) + pre_tension_score
+            self._alignment_outcome_metrics["_post_resonance_sum"] = float(
+                self._alignment_outcome_metrics.get("_post_resonance_sum", 0.0) or 0.0
+            ) + float(item.get("_resonance_score", 0.0) or 0.0)
+            self._alignment_outcome_metrics["_post_goal_alignment_sum"] = float(
+                self._alignment_outcome_metrics.get("_post_goal_alignment_sum", 0.0) or 0.0
+            ) + float(goal_alignment_score or 0.0)
+            if guidance_applied:
+                self._alignment_outcome_metrics["guidance_added_count"] = int(
+                    self._alignment_outcome_metrics.get("guidance_added_count", 0) or 0
+                ) + 1
+                if effect_observed:
+                    self._alignment_outcome_metrics["guidance_effective_count"] = int(
+                        self._alignment_outcome_metrics.get("guidance_effective_count", 0) or 0
+                    ) + 1
+                else:
+                    self._alignment_outcome_metrics["guidance_no_effect_count"] = int(
+                        self._alignment_outcome_metrics.get("guidance_no_effect_count", 0) or 0
+                    ) + 1
 
     # ------------------------------------------------------------------
     # Response quality heuristic (post-LLM resonance update)
@@ -1322,6 +1445,7 @@ class ResonanceAgent:
         adequacy_meta = item.get("_adequacy_report") or {}
         observer_meta = item.get("_observer_report") or {}
         alignment_meta = item.get("_alignment_report") or {}
+        alignment_outcome = item.get("_alignment_outcome") or {}
         fallback_route_key = (
             "reuse"
             if graph_meta.get("mode") == "reuse"
@@ -1386,6 +1510,8 @@ class ResonanceAgent:
             "observer_status": observer_meta.get("status"),
             "observer_summary": observer_meta.get("summary"),
             "alignment_report": alignment_meta,
+            "alignment_outcome": alignment_outcome,
+            "alignment_observability": self.get_alignment_outcome_metrics(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
