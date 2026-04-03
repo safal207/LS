@@ -1,4 +1,9 @@
 from .care_cycle import CareCycleResult, CareCycleRunner
+from .alignment import (
+    InteractionAlignmentAnalyzer,
+    InteractionAlignmentReport,
+    InteractionParticipant,
+)
 from .coalition_registry import CoalitionRecord, CoalitionRegistry
 from .derived_module_registry import DerivedModuleRegistry
 from .memory_store import MemoryGraphStore
@@ -36,6 +41,9 @@ __all__ = [
     "GraphCandidate",
     "GraphMemoryRuntime",
     "GraphRuntimeDecision",
+    "InteractionAlignmentAnalyzer",
+    "InteractionAlignmentReport",
+    "InteractionParticipant",
     "MemoryCase",
     "MemoryGraphRetriever",
     "MemoryGraphStore",

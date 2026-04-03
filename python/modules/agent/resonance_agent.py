@@ -189,6 +189,13 @@ except Exception:
     _RelationalFieldAnalyzer = None  # type: ignore[assignment]
 
 try:
+    from graph.alignment import InteractionAlignmentAnalyzer as _InteractionAlignmentAnalyzer
+    _ALIGNMENT_OK = True
+except Exception:
+    _ALIGNMENT_OK = False
+    _InteractionAlignmentAnalyzer = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -352,6 +359,11 @@ class ResonanceAgent:
         self._relational_analyzer = (
             _RelationalFieldAnalyzer()
             if _RELATIONAL_OK and _RelationalFieldAnalyzer
+            else None
+        )
+        self._alignment_analyzer = (
+            _InteractionAlignmentAnalyzer()
+            if _ALIGNMENT_OK and _InteractionAlignmentAnalyzer
             else None
         )
 
@@ -547,6 +559,26 @@ class ResonanceAgent:
                     self._graph_runtime.remember_relational_snapshot(snapshot)
             except Exception as exc:
                 logger.debug("ResonanceAgent: relational field analysis failed: %s", exc)
+
+        # Stage 9c — Interaction alignment report (MVP, inspectable only)
+        if self._alignment_analyzer:
+            try:
+                alignment_report = self._alignment_analyzer.analyze(
+                    participants=list(item.get("participants") or []),
+                    context={
+                        "intent": item.get("_intent") or item.get("intent"),
+                        "why": item.get("_why") or item.get("why"),
+                        "interaction_scope": (
+                            item.get("interaction_scope")
+                            or item.get("_interaction_scope")
+                            or "unknown"
+                        ),
+                        "cycle_id": item.get("_cycle_id"),
+                    },
+                )
+                item["_alignment_report"] = alignment_report.to_dict()
+            except Exception as exc:
+                logger.debug("ResonanceAgent: alignment analysis failed: %s", exc)
 
         graph_decision = None
         available_backends: list[str] = []
@@ -1248,6 +1280,7 @@ class ResonanceAgent:
         orientation_meta = item.get("_network_plan") or {}
         adequacy_meta = item.get("_adequacy_report") or {}
         observer_meta = item.get("_observer_report") or {}
+        alignment_meta = item.get("_alignment_report") or {}
         fallback_route_key = (
             "reuse"
             if graph_meta.get("mode") == "reuse"
@@ -1311,6 +1344,7 @@ class ResonanceAgent:
             "adequacy_recommendations": adequacy_meta.get("recommendations"),
             "observer_status": observer_meta.get("status"),
             "observer_summary": observer_meta.get("summary"),
+            "alignment_report": alignment_meta,
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
