@@ -24,7 +24,6 @@ import logging
 import os
 import re
 import subprocess
-import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, List, Optional, TYPE_CHECKING
 
@@ -104,7 +103,6 @@ def _collect_errors(log_path: str, last_pos: int) -> tuple[list[WorldEvent], int
             is_error = "ERROR" in clean
             if not (is_critical or is_error):
                 continue
-            slug = hashlib.md5(clean.encode()).hexdigest()[:12]
             resonance = 0.90 if is_critical else 0.75
             events.append(WorldEvent(
                 source="critical" if is_critical else "error",

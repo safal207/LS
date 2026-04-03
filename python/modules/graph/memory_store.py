@@ -2,12 +2,29 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from .models import MemoryCase, ResonanceKnowledgeUnit
+
+_STORE_LOCKS: dict[str, threading.RLock] = {}
+_STORE_LOCKS_GUARD = threading.Lock()
+
+
+def _get_store_lock(path: Path) -> threading.RLock:
+    """Return a process-wide reentrant lock for a concrete store path."""
+    key = str(path.resolve())
+    with _STORE_LOCKS_GUARD:
+        lock = _STORE_LOCKS.get(key)
+        if lock is None:
+            lock = threading.RLock()
+            _STORE_LOCKS[key] = lock
+        return lock
 
 
 def _utc_now() -> str:
@@ -24,18 +41,20 @@ class MemoryGraphStore:
     def __init__(self, path: str | Path = "data/graph_memory/cases.jsonl") -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = _get_store_lock(self.path)
 
     def list_cases(self) -> list[MemoryCase]:
-        if not self.path.exists():
-            return []
-        cases: list[MemoryCase] = []
-        with self.path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                cases.append(MemoryCase.from_dict(json.loads(line)))
-        return cases
+        with self._lock:
+            if not self.path.exists():
+                return []
+            cases: list[MemoryCase] = []
+            with self.path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    cases.append(MemoryCase.from_dict(json.loads(line)))
+            return cases
 
     def get_case(self, case_id: str) -> Optional[MemoryCase]:
         for case in self.list_cases():
@@ -44,21 +63,22 @@ class MemoryGraphStore:
         return None
 
     def save_case(self, case: MemoryCase) -> MemoryCase:
-        cases = self.list_cases()
-        if not case.case_id:
-            case.case_id = str(uuid4())
-        if not case.created_at:
-            case.created_at = _utc_now()
-        updated = False
-        for index, existing in enumerate(cases):
-            if existing.case_id == case.case_id:
-                cases[index] = case
-                updated = True
-                break
-        if not updated:
-            cases.append(case)
-        self._write_cases(cases)
-        return case
+        with self._lock:
+            cases = self.list_cases()
+            if not case.case_id:
+                case.case_id = str(uuid4())
+            if not case.created_at:
+                case.created_at = _utc_now()
+            updated = False
+            for index, existing in enumerate(cases):
+                if existing.case_id == case.case_id:
+                    cases[index] = case
+                    updated = True
+                    break
+            if not updated:
+                cases.append(case)
+            self._write_cases(cases)
+            return case
 
     def remember(
         self,
@@ -94,10 +114,32 @@ class MemoryGraphStore:
         case.last_reused_at = _utc_now()
         return self.save_case(case)
 
+    def _atomic_write_jsonl(self, path: Path, rows: list[dict[str, Any]]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(path.parent),
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                for row in rows:
+                    handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_name, path)
+        finally:
+            if os.path.exists(tmp_name):
+                try:
+                    os.remove(tmp_name)
+                except OSError:
+                    pass
+
     def _write_cases(self, cases: list[MemoryCase]) -> None:
-        with self.path.open("w", encoding="utf-8") as handle:
-            for case in cases:
-                handle.write(json.dumps(case.to_dict(), ensure_ascii=False) + "\n")
+        self._atomic_write_jsonl(
+            self.path,
+            [case.to_dict() for case in cases],
+        )
 
     # ──────────────────────────────────────────────────────────────
     # ResonanceKnowledgeUnit — хранилище проверенных маршрутов мышления
@@ -112,25 +154,26 @@ class MemoryGraphStore:
         unit: ResonanceKnowledgeUnit,
     ) -> ResonanceKnowledgeUnit:
         """Сохраняет или обновляет единицу проверенного когнитивного маршрута."""
-        units = self._load_resonance_units()
+        with self._lock:
+            units = self._load_resonance_units()
 
-        if not unit.unit_id:
-            unit.unit_id = str(uuid4())
-        if not unit.timestamp:
-            unit.timestamp = _utc_now()
+            if not unit.unit_id:
+                unit.unit_id = str(uuid4())
+            if not unit.timestamp:
+                unit.timestamp = _utc_now()
 
-        updated = False
-        for i, existing in enumerate(units):
-            if existing.unit_id == unit.unit_id:
-                units[i] = unit
-                updated = True
-                break
+            updated = False
+            for i, existing in enumerate(units):
+                if existing.unit_id == unit.unit_id:
+                    units[i] = unit
+                    updated = True
+                    break
 
-        if not updated:
-            units.append(unit)
+            if not updated:
+                units.append(unit)
 
-        self._write_resonance_units(units)
-        return unit
+            self._write_resonance_units(units)
+            return unit
 
     def list_resonance_units(self) -> list[ResonanceKnowledgeUnit]:
         return self._load_resonance_units()
@@ -172,10 +215,8 @@ class MemoryGraphStore:
             if query_match:
                 score += 0.3
 
-            # TODO:
-            # - add goal_vector cosine
-            # - add resonance_score
-            # - add alignment_score
+            # TODO: add goal_vector cosine similarity.
+            # TODO: add evolve-oriented route scoring.
             if score > 0.0:
                 scored.append((u, score))
 
@@ -183,24 +224,26 @@ class MemoryGraphStore:
         return [u for u, _ in scored[:top_k]]
 
     def _load_resonance_units(self) -> list[ResonanceKnowledgeUnit]:
-        path = self._resonance_path()
-        if not path.exists():
-            return []
+        with self._lock:
+            path = self._resonance_path()
+            if not path.exists():
+                return []
 
-        units: list[ResonanceKnowledgeUnit] = []
-        with path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if line:
-                    units.append(ResonanceKnowledgeUnit.from_dict(json.loads(line)))
-        return units
+            units: list[ResonanceKnowledgeUnit] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if line:
+                        units.append(ResonanceKnowledgeUnit.from_dict(json.loads(line)))
+            return units
 
     def _write_resonance_units(self, units: list[ResonanceKnowledgeUnit]) -> None:
         """MVP-only storage.
 
-        No atomic write / file lock yet. Production follow-up required.
+        Atomic file replace is used; graph-store backend can come later.
         """
         path = self._resonance_path()
-        with path.open("w", encoding="utf-8") as handle:
-            for unit in units:
-                handle.write(json.dumps(unit.to_dict(), ensure_ascii=False) + "\n")
+        self._atomic_write_jsonl(
+            path,
+            [unit.to_dict() for unit in units],
+        )

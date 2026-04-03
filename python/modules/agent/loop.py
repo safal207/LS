@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import queue
 import re
 import threading
@@ -21,6 +22,7 @@ from .events import AgentEvent, EventType
 from .sinks import EventSink, NullSink
 from shared.event_bus import EventBus
 from perception.coordinator import VisionSubsystem
+from graph.memory_store import MemoryGraphStore
 import lthread
 
 # CognitiveCycleLogger (optional — graceful fallback)
@@ -211,6 +213,24 @@ class AgentLoop:
         self.vision.intent_bus.subscribe(self._handle_vision_intent)
         self._mode_detector = None
         self._coordinator = None
+
+        graph_store_path = os.environ.get(
+            "GRAPH_MEMORY_STORE_PATH",
+            "data/graph_memory/cases.jsonl",
+        )
+        self._graph_store = MemoryGraphStore(graph_store_path)
+
+        self._qwen_omni_worker: Any | None = None
+        if str(os.environ.get("QWEN_OMNI_ENABLED", "0")).lower() in {"1", "true", "yes", "on"}:
+            try:
+                from omni import QwenOmniWorker
+
+                self._qwen_omni_worker = QwenOmniWorker(
+                    graph_store=self._graph_store,
+                    cycle_interval_s=self._subconscious_interval_s,
+                )
+            except Exception as exc:
+                logger.debug("QwenOmniWorker init skipped: %s", exc)
         try:
             from coordinator import ModeDetector
             self._mode_detector = ModeDetector()
@@ -1792,6 +1812,8 @@ class AgentLoop:
                 )
                 self._world_thread.start()
         self.vision.start() # Start Screen Perception v2
+        if self._qwen_omni_worker is not None:
+            self._qwen_omni_worker.start()
 
         while self.running:
             self._maybe_collect_windows_context(session_id="agent_loop")
