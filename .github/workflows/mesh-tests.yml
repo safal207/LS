@@ -66,9 +66,10 @@ jobs:
         with:
           label: mesh-tests
           max-failures: "0"
+          min-line-coverage: "30"
           require-junit: "true"
           require-coverage: "true"
-          enforce: "false"
+          enforce: "true"
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
