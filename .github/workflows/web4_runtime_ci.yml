@@ -186,9 +186,10 @@ jobs:
         with:
           label: web4-runtime
           max-failures: "0"
+          min-line-coverage: "25"
           require-junit: "true"
           require-coverage: "true"
-          enforce: "false"
+          enforce: "true"
 
       - name: Upload artifacts
         if: always()
