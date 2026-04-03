@@ -72,9 +72,10 @@ jobs:
         with:
           label: security-and-tests
           max-failures: "0"
+          min-line-coverage: "12"
           require-junit: "true"
           require-coverage: "true"
-          enforce: "false"
+          enforce: "true"
 
       - name: Vulnerability audit
         run: |
