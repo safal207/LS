@@ -190,6 +190,55 @@ class TemporalGraph:
                 self.links[a][b] = min(1.0, self.links[a].get(b, 0.0) + strength)
                 self.links[b][a] = min(1.0, self.links[b].get(a, 0.0) + strength)
 
+    # ── Предиктивная ось ──────────────────────────────────────────────────────
+
+    def predictive_axis(self, horizon_s: float = 60.0) -> Optional[TemporalNode]:
+        """
+        Предсказывает, какой узел станет осью через horizon_s секунд,
+        исходя из текущей скорости роста резонанса (velocity).
+        Позволяет системе заранее готовиться к смене доминирующего режима.
+        """
+        with self._graph_lock:
+            nodes = list(self.nodes.values())
+        if not nodes:
+            return None
+        return max(
+            nodes,
+            key=lambda n: (n.resonance + n.velocity * horizon_s) * (1 + n.harmony_bonus),
+        )
+
+    def apply_association_boost(
+        self,
+        threshold: float = 0.72,
+        boost_factor: float = 0.07,
+    ) -> Dict[str, float]:
+        """
+        Force 7: Явный ассоциативный буст.
+        Активные узлы (resonance ≥ threshold) усиливают связанных соседей.
+        Сила: strength × boost_factor × (resonance − threshold).
+        Возвращает {node_id: delta} для observability.
+        """
+        deltas: Dict[str, float] = {}
+        with self._graph_lock:
+            node_snapshot = {nid: n.resonance for nid, n in self.nodes.items()}
+            link_snapshot = {k: dict(v) for k, v in self.links.items()}
+
+        for node_id, res in node_snapshot.items():
+            if res < threshold:
+                continue
+            excess = res - threshold
+            for linked_id, strength in link_snapshot.get(node_id, {}).items():
+                delta = strength * boost_factor * excess
+                if delta <= 0:
+                    continue
+                with self._graph_lock:
+                    if linked_id in self.nodes:
+                        self.nodes[linked_id].resonance = min(
+                            1.0, self.nodes[linked_id].resonance + delta
+                        )
+                deltas[linked_id] = round(deltas.get(linked_id, 0.0) + delta, 5)
+        return deltas
+
     def strengthen_strong_links(self, threshold: float = 0.75, boost: float = 0.15) -> int:
         count = 0
         with self._graph_lock:
@@ -454,9 +503,12 @@ class TemporalGraph:
         with self._graph_lock:
             nodes = list(self.nodes.values())
         if not nodes:
-            return {"trajectory_signal": 0.5, "temporal_harmony": 0.5,
-                    "temporal_chaos": 0.0, "lesson_pressure": 0.0,
-                    "stability_index": 0.0, "momentum": 0.0}
+            return {
+                "trajectory_signal": 0.5, "temporal_harmony": 0.5,
+                "temporal_chaos": 0.0, "lesson_pressure": 0.0,
+                "stability_index": 0.0, "momentum": 0.0,
+                "predicted_axis_id": "", "predicted_axis_resonance": 0.0,
+            }
 
         resonances = [n.resonance for n in nodes]
         mean_r = sum(resonances) / len(resonances)
@@ -469,13 +521,16 @@ class TemporalGraph:
         lesson_pressure = sum(n.resonance for n in nodes if n.id.startswith("lesson:"))
         momentum = self.get_orientation_momentum().get("momentum", 0.0)
 
+        pred = self.predictive_axis(horizon_s=60.0)
         return {
-            "trajectory_signal": round(axis_resonance, 4),
-            "temporal_harmony":  round(mean_r, 4),
-            "temporal_chaos":    round(variance ** 0.5, 4),
-            "lesson_pressure":   round(min(1.0, lesson_pressure / max(1, len(nodes))), 4),
-            "stability_index":   round(stability_index, 4),
-            "momentum":          round(momentum, 4),
+            "trajectory_signal":        round(axis_resonance, 4),
+            "temporal_harmony":         round(mean_r, 4),
+            "temporal_chaos":           round(variance ** 0.5, 4),
+            "lesson_pressure":          round(min(1.0, lesson_pressure / max(1, len(nodes))), 4),
+            "stability_index":          round(stability_index, 4),
+            "momentum":                 round(momentum, 4),
+            "predicted_axis_id":        pred.id if pred else "",
+            "predicted_axis_resonance": round(pred.resonance if pred else 0.0, 4),
         }
 
     # ── Reflection ingestion ───────────────────────────────────────────────────

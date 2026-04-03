@@ -97,6 +97,11 @@ class SystemObserver:
         # Счётчик последовательных циклов с одной и той же осью
         self._axis_tenure: Dict[str, int] = {}
         self._last_axis: Optional[str] = None
+        # Feature 2: накопительный счётчик патологий за сессию
+        self._pathology_counts: Dict[str, int] = {}
+        # После N повторений патологии → пишем lesson:meta:* узел
+        _META_LESSON_THRESHOLD: int = 3
+        self._meta_lesson_threshold = _META_LESSON_THRESHOLD
 
     # ── Главный метод ────────────────────────────────────────────────────────
 
@@ -249,7 +254,71 @@ class SystemObserver:
             axis_id=axis_id,
         )
         self._reports.append(report)
+
+        # Feature 2: записываем meta-уроки при повторных патологиях
+        self._maybe_write_meta_lessons(graph, pathologies)
+
         return report
+
+    # ── Feature 2: Мета-уроки наблюдателя ────────────────────────────────────
+
+    def _maybe_write_meta_lessons(
+        self, graph: "TemporalGraph", pathologies: List[str]
+    ) -> None:
+        """
+        Если одна и та же патология встречается >= _meta_lesson_threshold раз,
+        наблюдатель записывает lesson:meta:* узел в TemporalGraph.
+        Система запоминает собственные паттерны слабостей.
+        """
+        for p in pathologies:
+            self._pathology_counts[p] = self._pathology_counts.get(p, 0) + 1
+            count = self._pathology_counts[p]
+            if count == self._meta_lesson_threshold:
+                node_id = f"lesson:meta:{p.lower()}_pattern"
+                # resonance зависит от серьёзности патологии
+                severity = _PATHOLOGY_DEDUCTIONS.get(p, 0.10)
+                resonance = round(min(0.80, 0.45 + severity * 1.5), 3)
+                graph.add_or_update(node_id, resonance, harmony_bonus=0.20)
+
+    # ── Feature 6: Ночной отчёт сессии ───────────────────────────────────────
+
+    def session_report(self, graph: "TemporalGraph") -> dict:
+        """
+        Итоговый анализ сессии. Вызывается при sleep consolidation.
+        - Классифицирует качество сессии (лёгкая / умеренная / тяжёлая)
+        - Инжектирует lesson:session:* узлы для доминирующих патологий
+        - Возвращает dict для логирования/observability
+        """
+        if not self._reports:
+            return {"session_quality": "нет данных", "total_cycles": 0}
+
+        from collections import Counter
+        scores = [r.score for r in self._reports]
+        avg_score = sum(scores) / len(scores)
+        all_pathologies = [p for r in self._reports for p in r.pathologies]
+        path_counts = Counter(all_pathologies)
+
+        session_quality = (
+            "лёгкая"    if avg_score > 0.80 else
+            "умеренная" if avg_score > 0.60 else
+            "тяжёлая"
+        )
+
+        injected: List[str] = []
+        for pathology, count in path_counts.most_common(3):
+            if count >= 2:
+                node_id = f"lesson:session:{pathology.lower()}"
+                resonance = round(min(0.75, 0.45 + count * 0.05), 3)
+                graph.add_or_update(node_id, resonance, harmony_bonus=0.15)
+                injected.append(node_id)
+
+        return {
+            "session_quality":        session_quality,
+            "avg_adequacy":           round(avg_score, 3),
+            "total_cycles":           len(self._reports),
+            "pathology_counts":       dict(path_counts),
+            "lesson_nodes_injected":  injected,
+        }
 
     # ── Аналитика ─────────────────────────────────────────────────────────────
 

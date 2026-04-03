@@ -247,6 +247,11 @@ class Coordinator:
                 # Force 5: Cross-node interference (anti-split-brain)
                 interference_deltas = temporal_graph.apply_interference()
 
+                # Force 7: Explicit associative boost (linked nodes amplify each other)
+                assoc_deltas = temporal_graph.apply_association_boost(
+                    threshold=0.72, boost_factor=0.07
+                )
+
                 # Force 6: Observer — мета-когнитивный наблюдатель адекватности
                 momentum_data = temporal_graph.get_orientation_momentum()
                 chaos_trend = momentum_data.get("chaos_trend", 0.0)
@@ -261,6 +266,7 @@ class Coordinator:
                 self.last_orientation["stabilization_deltas"] = stab_deltas
                 self.last_orientation["decay_deltas"] = decay_deltas
                 self.last_orientation["interference_deltas"] = interference_deltas
+                self.last_orientation["association_deltas"] = assoc_deltas
                 self.last_orientation["orientation_momentum"] = momentum_data
                 self.last_orientation["adequacy"] = {
                     "score":       round(adequacy_report.score, 3),

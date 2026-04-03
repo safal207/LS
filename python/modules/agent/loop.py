@@ -212,6 +212,17 @@ class AgentLoop:
         except Exception:
             self._coordinator = None
 
+        # Feature 4: UserProfileStore — per-user mode patterns
+        try:
+            from hexagon_core.user_profile import UserProfileStore
+            self._user_profiles = UserProfileStore()
+        except Exception:
+            self._user_profiles = None
+
+        # Feature 5: Auto feedback proxy state
+        self._last_response_word_count: int = 0
+        self._last_response_mode: str | None = None
+
 
     def _maybe_enter_sleep_mode(self):
         try:
@@ -282,6 +293,22 @@ class AgentLoop:
                     amygdala.immune.learn_threat(
                         ab["pattern"], ab["type"], ab["strength"] * SLEEP_CONFIG.immune_decay
                     )
+
+            # Feature 6: Ночной отчёт наблюдателя — пишет lesson:session:* узлы
+            if self.temporal is not None and self._coordinator is not None:
+                try:
+                    observer = getattr(self._coordinator, "observer", None)
+                    if observer is not None:
+                        session_data = observer.session_report(self.temporal)
+                        logger.info(
+                            "Observer session report: quality=%s avg=%.3f cycles=%d injected=%s",
+                            session_data.get("session_quality", "?"),
+                            session_data.get("avg_adequacy", 0.0),
+                            session_data.get("total_cycles", 0),
+                            session_data.get("lesson_nodes_injected", []),
+                        )
+                except Exception as exc:
+                    logger.debug("Session report failed: %s", exc)
 
             sleep_duration = time.time() - start_time
             logger.info(f"Sleep completed in {sleep_duration:.1f}s | Axis boost: {boost:.2f} | Pruned: {pruned}")
@@ -424,6 +451,37 @@ class AgentLoop:
                 )
             except Exception as exc:
                 logger.debug("Subconscious temporal write failed: %s", exc)
+
+    def _compute_feedback_proxy(self, user_msg: str) -> None:
+        """
+        Feature 5: Авто-прокси качества из длины ответа пользователя.
+
+        Длинный ответ агента + короткая реакция пользователя = вероятный промах.
+        Короткий ответ агента + развёрнутая реакция = попадание в цель.
+        Слабее явного "да/нет" — применяется только при отсутствии явного сигнала.
+        """
+        if self.temporal is None:
+            return
+        prev_len = self._last_response_word_count
+        user_len = len(user_msg.split())
+        # Не применяем если пользователь уже дал явный feedback
+        if len(user_msg.split()) <= 6 and (
+            _POSITIVE_FB_RE.search(user_msg) or _NEGATIVE_FB_RE.search(user_msg)
+        ):
+            return
+
+        proxy_signal: str | None = None
+        if prev_len > 200 and user_len < 5:
+            proxy_signal = "negative"   # длинный ответ, короткая реакция — не попали
+        elif prev_len < 80 and user_len > 20:
+            proxy_signal = "positive"   # лаконичный ответ, развёрнутая реакция — зацепило
+
+        if proxy_signal is not None:
+            self._apply_quality_feedback(proxy_signal, user_msg)
+            logger.debug(
+                "Feedback proxy %s (agent_words=%d, user_words=%d)",
+                proxy_signal, prev_len, user_len,
+            )
 
     def _world_loop(self) -> None:
         """Background world-awareness loop: polls git/logs → TemporalGraph world nodes."""
@@ -922,6 +980,9 @@ class AgentLoop:
         self.memory["last_duration"] = duration
         if self.temporal is not None:
             self.temporal.metadata["last_answer"] = answer
+        # Feature 5: сохраняем длину ответа для следующего feedback proxy
+        if isinstance(answer, str):
+            self._last_response_word_count = len(answer.split())
 
     def _format_response(self, response: Any) -> Any:
         if self.llm and hasattr(self.llm, "format_response"):
@@ -1101,12 +1162,29 @@ class AgentLoop:
             question = item.get("text", "")
             mode_explanation = self._explain_mode_for_item(question, item)
 
+            # Feature 5: Авто-прокси качества перед явным feedback-детектом
+            self._compute_feedback_proxy(question)
+
             # Detect quality feedback before routing — short replies only
             if len(question.split()) <= 6:
                 if _POSITIVE_FB_RE.search(question):
                     self._apply_quality_feedback("positive", question)
                 elif _NEGATIVE_FB_RE.search(question):
                     self._apply_quality_feedback("negative", question)
+
+            # Feature 4: Записываем режим в профиль пользователя
+            if self._user_profiles is not None:
+                try:
+                    latest = self.memory.get("subconscious_latest")
+                    detected_mode = (
+                        latest.get("suggested_mode") if isinstance(latest, dict) else None
+                    )
+                    if detected_mode:
+                        user_id = item.get("user_id") or item.get("session_id") or "default"
+                        self._user_profiles.record_turn(user_id, detected_mode)
+                        self._last_response_mode = detected_mode
+                except Exception:
+                    pass
 
             if question.strip() == "/sleep":
                 self._enter_sleep_mode()
