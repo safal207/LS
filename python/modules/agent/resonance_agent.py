@@ -196,6 +196,35 @@ except Exception:
     _InteractionAlignmentAnalyzer = None  # type: ignore[assignment]
 
 try:
+    from modules.agent.alignment_guidance import (
+        build_alignment_guidance as _build_alignment_guidance,
+    )
+    _ALIGNMENT_GUIDANCE_OK = True
+except ImportError:
+    try:
+        from agent.alignment_guidance import (
+            build_alignment_guidance as _build_alignment_guidance,
+        )
+        _ALIGNMENT_GUIDANCE_OK = True
+    except ImportError:
+        _ALIGNMENT_GUIDANCE_OK = False
+        _build_alignment_guidance = None  # type: ignore[assignment]
+    except Exception as exc:
+        logger.debug(
+            "ResonanceAgent: unexpected alignment guidance import failure (agent.*): %s",
+            exc,
+        )
+        _ALIGNMENT_GUIDANCE_OK = False
+        _build_alignment_guidance = None  # type: ignore[assignment]
+except Exception as exc:
+    logger.debug(
+        "ResonanceAgent: unexpected alignment guidance import failure (modules.*): %s",
+        exc,
+    )
+    _ALIGNMENT_GUIDANCE_OK = False
+    _build_alignment_guidance = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -1144,6 +1173,18 @@ class ResonanceAgent:
             parts.append(
                 "В поле есть напряжение. Не дави на решение сразу; "
                 "сначала признай разницу восприятия и снизь конфликтность формулировок."
+            )
+        alignment_guidance: list[str] = []
+        if _ALIGNMENT_GUIDANCE_OK and _build_alignment_guidance:
+            try:
+                alignment_guidance = _build_alignment_guidance(item.get("_alignment_report"))
+            except Exception as exc:
+                logger.debug("ResonanceAgent: alignment guidance build failed: %s", exc)
+                alignment_guidance = []
+        if alignment_guidance:
+            parts.append(
+                "Alignment guidance (soft behavioral steering):\n"
+                + "\n".join(f"- {line}" for line in alignment_guidance[:5])
             )
         if need_profile:
             parts.append(
