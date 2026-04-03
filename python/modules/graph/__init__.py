@@ -10,9 +10,11 @@ from .models import (
     GraphCandidate,
     MemoryCase,
     NetworkQuestion,
+    RelationalFieldSnapshot,
     RetrievedCase,
     ReuseDecision,
 )
+from .relational_field import RelationalFieldAnalyzer
 from .path_selector import PathSelectionDecision, PathSelector
 from .retriever import MemoryGraphRetriever, compute_question_similarity
 from .route_stats import RouteStats, RouteStatsStore
@@ -41,6 +43,8 @@ __all__ = [
     "PathExecutionRecord",
     "PathSelectionDecision",
     "PathSelector",
+    "RelationalFieldAnalyzer",
+    "RelationalFieldSnapshot",
     "RetrievedCase",
     "ReuseDecision",
     "RouteStats",

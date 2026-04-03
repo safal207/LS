@@ -19,7 +19,6 @@ Node id schema
 """
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
 import re
@@ -198,7 +197,8 @@ class WorldPoller:
         """Ingest one WorldEvent. Returns 1 if new node created/strengthened, 0 if skipped."""
         from hexagon_core.temporal_graph import TemporalNode
 
-        slug = hashlib.md5(event.summary.encode()).hexdigest()[:12]
+        normalized = re.sub(r"[^a-z0-9а-яё]+", "-", event.summary.lower()).strip("-")
+        slug = (normalized[:12] or "event").replace("--", "-")
         node_id = f"world:{event.source}:{slug}"
 
         with self._temporal._graph_lock:
