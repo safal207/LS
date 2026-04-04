@@ -290,6 +290,24 @@ except ImportError:
         _build_alignment_digest = None  # type: ignore[assignment]
 
 try:
+    from agent.alignment_success_patterns import (
+        AlignmentSuccessPatternMetrics as _AlignmentSuccessPatternMetrics,
+        build_alignment_success_patterns as _build_alignment_success_patterns,
+    )
+    _ALIGNMENT_SUCCESS_PATTERNS_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_success_patterns import (
+            AlignmentSuccessPatternMetrics as _AlignmentSuccessPatternMetrics,
+            build_alignment_success_patterns as _build_alignment_success_patterns,
+        )
+        _ALIGNMENT_SUCCESS_PATTERNS_OK = True
+    except ImportError:
+        _ALIGNMENT_SUCCESS_PATTERNS_OK = False
+        _AlignmentSuccessPatternMetrics = None  # type: ignore[assignment,misc]
+        _build_alignment_success_patterns = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -606,6 +624,13 @@ class ResonanceAgent:
             else None
         )
 
+        # Alignment success pattern metrics (advisory/observability only)
+        self._success_patterns_metrics = (
+            _AlignmentSuccessPatternMetrics()
+            if _ALIGNMENT_SUCCESS_PATTERNS_OK and _AlignmentSuccessPatternMetrics
+            else None
+        )
+
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
             len(self._anchor),
@@ -765,6 +790,42 @@ class ResonanceAgent:
         if self._digest_metrics is None:
             return {"alignment_digest_available": False}
         return self._digest_metrics.to_dict()
+
+    def get_alignment_success_patterns(self) -> list:
+        """Return repeated successful alignment patterns extracted from session memory.
+
+        Read-only — never modifies units, routing state, or any pipeline field.
+        Returns empty list when fewer than min_support matching units exist.
+        """
+        if not (_ALIGNMENT_SUCCESS_PATTERNS_OK and _build_alignment_success_patterns):
+            return []
+
+        with self._alignment_memory_lock:
+            units = list(self._alignment_memory_units)
+
+        patterns = _build_alignment_success_patterns(units)
+
+        if self._success_patterns_metrics is not None:
+            m = self._success_patterns_metrics
+            m.calls_total += 1
+            m.units_processed_total += len(units)
+            successful = [u for u in units if u.guidance_effective or u.softening_detected or u.effect_reason]
+            m.patterns_built_total += len(patterns)
+            # skipped = successful groups that didn't meet min_support
+            from collections import Counter as _Counter
+            from modules.agent.alignment_success_patterns import make_alignment_pattern_key as _mpk
+            key_counts = _Counter(_mpk(u) for u in successful)
+            m.patterns_skipped_total += sum(1 for c in key_counts.values() if c < 2)
+            m.patterns_with_hotspot += sum(1 for p in patterns if p.get("hotspot"))
+            m.patterns_with_softening += sum(1 for p in patterns if p.get("softening_signals"))
+
+        return patterns
+
+    def get_alignment_success_pattern_metrics(self) -> dict:
+        """Return observability counters for the success pattern build layer."""
+        if self._success_patterns_metrics is None:
+            return {"alignment_success_patterns_available": False}
+        return self._success_patterns_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -1904,6 +1965,7 @@ class ResonanceAgent:
             "alignment_memory_hint": item.get("_alignment_memory_hint"),
             "alignment_memory_metrics": self.get_alignment_memory_metrics(),
             "alignment_digest": self.get_alignment_digest(),
+            "alignment_success_patterns": self.get_alignment_success_patterns(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
