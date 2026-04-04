@@ -1,4 +1,6 @@
-import json, os
+# -*- coding: utf-8 -*-
+import json
+import os
 
 class CML:
     def __init__(self):
@@ -10,6 +12,8 @@ class CML:
             self.db = []
 
     def get_context(self, question):
+        if not question or not question.strip():
+            return ""
         q = question.lower()
         triggers = ["почему", "зачем", "why", "reason", "tradeoff", "выбрал"]
         

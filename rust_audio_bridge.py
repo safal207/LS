@@ -4,7 +4,9 @@ Python bindings for Rust audio processing module
 """
 
 import ctypes
+import collections
 import json
+import time
 from typing import List, Optional
 import numpy as np
 
@@ -161,9 +163,9 @@ class AudioRingBuffer:
     
     def __init__(self, max_chunks: int = 100):
         self.max_chunks = max_chunks
-        self.chunks = []
-        self.timestamps = []
-    
+        self.chunks: collections.deque = collections.deque(maxlen=max_chunks)
+        self.timestamps: collections.deque = collections.deque(maxlen=max_chunks)
+
     def add_chunk(self, audio_data: np.ndarray, timestamp: float, is_voice: bool):
         """Add audio chunk to buffer"""
         chunk_info = {
@@ -171,14 +173,9 @@ class AudioRingBuffer:
             'timestamp': timestamp,
             'is_voice': is_voice
         }
-        
+
         self.chunks.append(chunk_info)
         self.timestamps.append(timestamp)
-        
-        # Maintain buffer size
-        if len(self.chunks) > self.max_chunks:
-            self.chunks.pop(0)
-            self.timestamps.pop(0)
     
     def get_voice_chunks(self) -> List[np.ndarray]:
         """Get only voice-active chunks"""

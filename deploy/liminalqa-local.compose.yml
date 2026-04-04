@@ -1,0 +1,55 @@
+services:
+  pg:
+    image: postgres:16-alpine
+    container_name: liminal-postgres
+    environment:
+      POSTGRES_USER: liminal
+      POSTGRES_PASSWORD: liminal
+      POSTGRES_DB: liminal
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./liminalqa-migrations:/docker-entrypoint-initdb.d:ro
+      - liminal-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U liminal"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - liminal
+
+  ingest:
+    build:
+      context: ${LIMINALQA_REPO_DIR:-../LiminalQAengineer}
+      dockerfile: liminalqa-ingest/Dockerfile
+    container_name: liminal-ingest
+    environment:
+      LIMINAL_DB_PATH: /app/data/liminaldb
+      LIMINAL_AUTH_TOKEN: ${LIMINALQA_TOKEN:-devtoken}
+      RUST_LOG: info
+    ports:
+      - "8080:8080"
+    depends_on:
+      pg:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    networks:
+      - liminal
+    volumes:
+      - liminal-ingest-data:/app/data
+
+volumes:
+  liminal-pg-data:
+    driver: local
+  liminal-ingest-data:
+    driver: local
+
+networks:
+  liminal:
+    driver: bridge

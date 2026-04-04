@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Simple multi-agent demo powered by shared causal memory context."""
 
 from __future__ import annotations

@@ -355,7 +355,11 @@ class ReflectionWidget(QWidget):
         selected_types = {name for name, checkbox in self.activity_filters.items() if checkbox.isChecked()}
         activity_log = self.pipeline.cognitive_state.get("pipeline_activity", [])
         filtered = [entry for entry in activity_log if entry.get("type") in selected_types]
-        latest = filtered[-20:]
+        timeline_entries = [
+            {"timestamp": item.get("timestamp"), "type": item.get("action"), "details": {"actor": item.get("actor")}}
+            for item in self.pipeline.cognitive_state.get("cognitive_timeline", [])
+        ]
+        latest = (filtered + timeline_entries)[-20:]
 
         if not latest:
             self.activity_text.setPlainText("No matching activities.")

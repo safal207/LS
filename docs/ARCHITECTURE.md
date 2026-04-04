@@ -22,6 +22,19 @@
    - `{console,ghostgpt}.yaml` → app overrides
    - `local.yaml` → local overrides (ignored)
 
+
+### Runtime Config Profiles
+
+Профили приложений и alias задаются декларативно в `config/apps.yaml`.
+
+| Canonical profile | Aliases | Effective config merge order |
+|---|---|---|
+| `console` | `console` | `config/base.yaml` → `config/console.yaml` → `config/local.yaml` |
+| `ghostgpt` | `ghostgpt`, `ghost_gui`, `interview_copilot` | `config/base.yaml` → `config/ghostgpt.yaml` → `config/local.yaml` |
+
+Валидация схемы выполняется в `python/modules/shared/config_loader.py` до инициализации runtime.
+
+
 ## Cognitive Lifecycle (12 Layers Stack)
 
 GhostGPT управляется 12-слойным когнитивным стеком, объединяющим восприятие, эмоции, память и метаболизм.
@@ -149,3 +162,20 @@ graph TB
 2. feature flags в `config/base.yaml`
 3. настройки agent loop (cancellation, metrics, observability)
 
+
+## Planned Extension: Intent / Capability Routing Layer (ICRL)
+
+Для масштабирования multi-agent режима вводится слой Intent Routing + Capability Index, который переводит топологию вызовов из статических связей в динамический capability matching.
+
+См. RFC: `docs/RFC_INTENT_CAPABILITY_ROUTING_LAYER_RU.md`.
+
+---
+
+## Interview STT / SmartEar / AgentLoop Flow
+
+See `docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md` for the canonical interview pipeline:
+
+- STT is perception only.
+- SmartEar handles semantic interpretation.
+- AgentLoop handles answer policy and runtime orchestration.
+- Local / cloud selection happens only at the STT and LLM boundaries.

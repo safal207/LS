@@ -1,0 +1,115 @@
+name: mesh-tests
+
+on:
+  push:
+    paths:
+      - 'agent/**'
+      - 'python/modules/web4_mesh/**'
+      - 'python/modules/shared/config_loader.py'
+      - 'python/tests/test_web4_mesh*.py'
+      - 'tests/test_service_runtime.py'
+      - 'tools/run_mesh_ws.py'
+      - 'requirements-dev.txt'
+      - '.github/workflows/mesh-tests.yml'
+  pull_request:
+    paths:
+      - 'agent/**'
+      - 'python/modules/web4_mesh/**'
+      - 'python/modules/shared/config_loader.py'
+      - 'python/tests/test_web4_mesh*.py'
+      - 'tests/test_service_runtime.py'
+      - 'tools/run_mesh_ws.py'
+      - 'requirements-dev.txt'
+      - '.github/workflows/mesh-tests.yml'
+
+jobs:
+  mesh-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      LIMINALQA_URL: ${{ secrets.LIMINALQA_URL }}
+      LIMINALQA_TOKEN: ${{ secrets.LIMINALQA_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov pytest-timeout pyyaml websockets
+          if [ -f requirements-dev.txt ]; then
+            python -m pip install -r requirements-dev.txt
+          fi
+      - name: Run mesh/runtime tests
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: mesh-runtime
+          pytest-invocation: >-
+            PYTHONPATH=python pytest -q
+            tests/test_service_runtime.py
+            python/tests/test_web4_mesh.py
+            python/tests/test_web4_mesh_node.py
+            python/tests/test_web4_mesh_transport_ws.py
+            --junitxml=artifacts/mesh-junit.xml
+            --cov=agent
+            --cov=python/modules/web4_mesh
+            --cov-report=xml:artifacts/coverage.xml
+            --timeout=30
+      - name: Summarize quality artifacts
+        if: always()
+        uses: ./.github/actions/summarize-quality-artifacts
+        with:
+          label: mesh-tests
+      - id: quality_gate
+        name: Quality gate
+        if: always()
+        uses: ./.github/actions/quality-gate
+        with:
+          label: mesh-tests
+          max-failures: "0"
+          min-line-coverage: "30"
+          require-junit: "true"
+          require-coverage: "true"
+          enforce: "true"
+      - name: Write machine-readable quality snapshot
+        if: always()
+        uses: ./.github/actions/write-quality-report
+        with:
+          lane-key: mesh-tests
+          lane-title: Mesh Tests Quality Gate
+          threshold: 30%
+          verdict: ${{ steps.quality_gate.outputs.verdict }}
+          total-failures: ${{ steps.quality_gate.outputs.total-failures }}
+          min-line-coverage: ${{ steps.quality_gate.outputs.min-line-coverage-observed }}
+      - name: Update PR quality comment
+        if: always() && github.event_name == 'pull_request'
+        uses: ./.github/actions/upsert-pr-quality-overview
+        with:
+          lane-key: mesh-tests
+          lane-title: Mesh Tests Quality Gate
+          threshold: 30%
+          verdict: ${{ steps.quality_gate.outputs.verdict }}
+          total-failures: ${{ steps.quality_gate.outputs.total-failures }}
+          min-line-coverage: ${{ steps.quality_gate.outputs.min-line-coverage-observed }}
+      - name: Aggregate workflow quality report
+        if: always()
+        uses: ./.github/actions/aggregate-quality-reports
+        with:
+          label: mesh-tests
+      - name: Publish workflow quality snapshot to LiminalQA
+        if: always()
+        uses: ./.github/actions/publish-quality-report-to-liminalqa
+        with:
+          label: mesh-tests
+          plan-name: mesh-tests-quality-gate
+          liminalqa-url: ${{ env.LIMINALQA_URL }}
+          liminalqa-token: ${{ env.LIMINALQA_TOKEN }}
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesh-test-artifacts
+          path: artifacts/

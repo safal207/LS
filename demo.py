@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Simulation mode for testing without audio hardware
 Simulates interview scenarios for testing the pipeline
@@ -10,8 +11,8 @@ import queue
 import logging
 from typing import List
 
-from stt_module import SpeechToText
-from llm_module import LanguageModel
+from stt.stt_module import SpeechToText
+from llm.llm_module import LanguageModel
 from config import SYSTEM_PROMPT
 
 logging.basicConfig(level=logging.INFO)

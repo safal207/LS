@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Language Protocol Test
 Tests the new Language Mirroring functionality

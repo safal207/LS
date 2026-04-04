@@ -4,7 +4,7 @@ from typing import Tuple
 
 import psutil
 
-from ..config import LLM_HEAVY_MODEL, LLM_LIGHT_MODEL, LLM_RAM_THRESHOLD_GB
+from config import LLM_HEAVY_MODEL, LLM_LIGHT_MODEL, LLM_RAM_THRESHOLD_GB
 
 
 def get_available_ram_gb() -> float:

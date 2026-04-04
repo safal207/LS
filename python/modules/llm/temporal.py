@@ -3,10 +3,10 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, Literal
-from ..hexagon_core.temporal_graph import TemporalGraph
+from hexagon_core.temporal_graph import TemporalGraph
 
 
-State = Literal["idle", "listening", "thinking", "responding"]
+State = Literal["idle", "listening", "thinking", "responding", "sleep"]
 
 
 @dataclass

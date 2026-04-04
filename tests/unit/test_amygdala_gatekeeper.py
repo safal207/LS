@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import pytest
 
 from codex.causal_memory import Amygdala, AmygdalaBlockError, BlockReason, CausalMemoryTransitions

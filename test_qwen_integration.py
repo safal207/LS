@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Test Qwen integration with Interview Copilot
 """
@@ -85,7 +86,7 @@ def test_qwen_performance():
     print("\n=== Qwen Performance Test ===\n")
     
     try:
-        from qwen_handler import QwenHandler
+        from llm.qwen_handler import QwenHandler
         
         # Test with local Ollama
         handler = QwenHandler(use_cloud_api=False)

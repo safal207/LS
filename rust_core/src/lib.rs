@@ -6,6 +6,8 @@ mod causal;
 mod focus_tracker;
 mod fuzzy_coherence;
 mod governance;
+mod llm_stream;
+mod meritocracy;
 mod memory_manager;
 mod pattern_matcher;
 mod registry_manager;
@@ -21,6 +23,8 @@ use fuzzy_coherence::{
     smooth_coherence, tune_backpressure_limits, FuzzyBackpressureConfig, FuzzyCoherenceConfig,
 };
 use governance::AdaptiveGovernor;
+use llm_stream::extract_ollama_token;
+use meritocracy::meritocracy_select_json;
 use memory_manager::MemoryManager;
 use pattern_matcher::PatternMatcher;
 use registry_manager::RegistryManager;
@@ -54,5 +58,7 @@ fn ghostgpt_core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<VisionPipeline>()?;
     m.add_function(wrap_pyfunction!(smooth_coherence, m)?)?;
     m.add_function(wrap_pyfunction!(tune_backpressure_limits, m)?)?;
+    m.add_function(wrap_pyfunction!(extract_ollama_token, m)?)?;
+    m.add_function(wrap_pyfunction!(meritocracy_select_json, m)?)?;
     Ok(())
 }

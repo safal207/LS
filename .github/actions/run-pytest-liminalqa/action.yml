@@ -1,0 +1,56 @@
+name: Run pytest with optional LiminalQA
+description: Runs a pytest command, creating artifacts and attaching optional LiminalQA telemetry.
+
+inputs:
+  pytest-invocation:
+    description: Full pytest invocation without LiminalQA flags.
+    required: true
+  liminalqa-plan:
+    description: Stable LiminalQA plan name for the test lane.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Create artifacts dir
+      shell: bash
+      run: mkdir -p artifacts
+
+    - name: Install LiminalQA pytest plugin
+      shell: bash
+      run: |
+        if [ -n "${LIMINALQA_URL:-}" ]; then
+          if python -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('pytest_liminalqa') else 1)"; then
+            echo "pytest-liminalqa already installed."
+          else
+            python -m pip install "git+https://github.com/safal207/LiminalQAengineer.git#subdirectory=pytest-liminalqa"
+          fi
+        else
+          echo "LiminalQA disabled: LIMINALQA_URL secret is not set."
+        fi
+
+    - name: Run pytest
+      shell: bash
+      run: |
+        EXTRA_ARGS=""
+        TELEMETRY_STATE="disabled"
+        if [ -n "${LIMINALQA_URL:-}" ] && [ -n "${{ inputs.liminalqa-plan }}" ]; then
+          EXTRA_ARGS=" --liminalqa-url \"${LIMINALQA_URL}\" --liminalqa-token \"${LIMINALQA_TOKEN}\" --liminalqa-plan \"${{ inputs.liminalqa-plan }}\""
+          TELEMETRY_STATE="enabled"
+        fi
+        set +e
+        eval "${{ inputs.pytest-invocation }}${EXTRA_ARGS}"
+        STATUS=$?
+        set -e
+
+        if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          {
+            echo "### pytest lane"
+            echo ""
+            echo "- plan: \`${{ inputs.liminalqa-plan || 'none' }}\`"
+            echo "- liminalqa telemetry: \`${TELEMETRY_STATE}\`"
+            echo "- artifacts dir: \`artifacts/\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
+        exit $STATUS

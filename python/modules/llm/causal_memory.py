@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import os
@@ -19,7 +20,7 @@ DEFAULT_CAUSAL_CONFIDENCE = 0.92
 
 
 try:
-    from ..web4_runtime.fuzzy import smooth_coherence
+    from web4_runtime.fuzzy import smooth_coherence
 except (ImportError, ValueError):
     def smooth_coherence(prev: float, measured: float, drift: float, noise: float) -> float:
         """Fallback coherence smoothing if web4_runtime is unavailable."""

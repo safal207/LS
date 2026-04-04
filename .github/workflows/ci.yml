@@ -12,7 +12,11 @@ jobs:
     permissions:
       actions: read
       contents: read
+      issues: write
       security-events: write
+    env:
+      LIMINALQA_URL: ${{ secrets.LIMINALQA_URL }}
+      LIMINALQA_TOKEN: ${{ secrets.LIMINALQA_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +42,7 @@ jobs:
 
       - name: Install security and test tools
         run: |
-          pip install pip-audit cyclonedx-bom pip-tools pytest mock
+          pip install pip-audit cyclonedx-bom pip-tools pytest pytest-cov mock
 
       - name: Compile and Install dependencies
         run: |
@@ -46,12 +50,73 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run hardening verification tests
-        run: |
-          PYTHONPATH=. python -m pytest tests/test_hardening_verification.py tests/test_vision_extended.py
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: critical-smoke
+          pytest-invocation: >-
+            PYTHONPATH=. python -m pytest
+            tests/test_hardening_verification.py
+            tests/test_vision_extended.py
+            --junitxml=artifacts/security-junit.xml
+            --cov=agent
+            --cov=codex
+            --cov=python/modules
+            --cov-report=xml:artifacts/security-coverage.xml
+      - name: Summarize quality artifacts
+        if: always()
+        uses: ./.github/actions/summarize-quality-artifacts
+        with:
+          label: security-and-tests
+      - id: quality_gate
+        name: Quality gate
+        if: always()
+        uses: ./.github/actions/quality-gate
+        with:
+          label: security-and-tests
+          max-failures: "0"
+          min-line-coverage: "12"
+          require-junit: "true"
+          require-coverage: "true"
+          enforce: "true"
+      - name: Write machine-readable quality snapshot
+        if: always()
+        uses: ./.github/actions/write-quality-report
+        with:
+          lane-key: security-and-tests
+          lane-title: Security & CI Quality Gate
+          threshold: 12%
+          verdict: ${{ steps.quality_gate.outputs.verdict }}
+          total-failures: ${{ steps.quality_gate.outputs.total-failures }}
+          min-line-coverage: ${{ steps.quality_gate.outputs.min-line-coverage-observed }}
+      - name: Update PR quality comment
+        if: always() && github.event_name == 'pull_request'
+        uses: ./.github/actions/upsert-pr-quality-overview
+        with:
+          lane-key: security-and-tests
+          lane-title: Security & CI Quality Gate
+          threshold: 12%
+          verdict: ${{ steps.quality_gate.outputs.verdict }}
+          total-failures: ${{ steps.quality_gate.outputs.total-failures }}
+          min-line-coverage: ${{ steps.quality_gate.outputs.min-line-coverage-observed }}
+      - name: Aggregate workflow quality report
+        if: always()
+        uses: ./.github/actions/aggregate-quality-reports
+        with:
+          label: security-and-tests
+      - name: Publish workflow quality snapshot to LiminalQA
+        if: always()
+        uses: ./.github/actions/publish-quality-report-to-liminalqa
+        with:
+          label: security-and-tests
+          plan-name: security-and-tests-quality-gate
+          liminalqa-url: ${{ env.LIMINALQA_URL }}
+          liminalqa-token: ${{ env.LIMINALQA_TOKEN }}
 
       - name: Vulnerability audit
         run: |
-          pip-audit --local --desc --progress-spinner off
+          # Temporary exception: CVE-2026-4539 has no fixed PyPI release yet.
+          # Keep this scoped to a single CVE and remove once upstream ships a fix.
+          pip-audit --local --desc --progress-spinner off --ignore-vuln CVE-2026-4539
 
       - name: Generate SBOM
         run: |
@@ -62,6 +127,13 @@ jobs:
         with:
           name: sbom
           path: sbom.json
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-ci-artifacts
+          path: artifacts/
 
       - name: CodeQL Analysis
         uses: github/codeql-action/analyze@v3

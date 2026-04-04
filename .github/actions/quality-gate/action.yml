@@ -1,0 +1,147 @@
+name: Quality gate
+description: Evaluate JUnit and coverage artifacts, emit PASS/WARN/BLOCK verdicts, and optionally enforce thresholds.
+
+inputs:
+  label:
+    description: Human-readable label for this workflow or job gate.
+    required: false
+    default: "quality-gate"
+  artifacts-dir:
+    description: Directory containing JUnit and coverage XML files.
+    required: false
+    default: "artifacts"
+  max-failures:
+    description: Maximum allowed total failures plus errors across JUnit files.
+    required: false
+    default: "0"
+  min-line-coverage:
+    description: Minimum acceptable line coverage percentage across coverage XML files. Empty disables the threshold.
+    required: false
+    default: ""
+  require-junit:
+    description: Whether at least one JUnit XML file must exist.
+    required: false
+    default: "true"
+  require-coverage:
+    description: Whether at least one coverage XML file must exist.
+    required: false
+    default: "true"
+  enforce:
+    description: Whether to fail the step when verdict is BLOCK.
+    required: false
+    default: "false"
+
+outputs:
+  verdict:
+    description: "Gate verdict: PASS, WARN, or BLOCK."
+    value: ${{ steps.gate.outputs.verdict }}
+  total-failures:
+    description: Total failures plus errors across JUnit files.
+    value: ${{ steps.gate.outputs.total_failures }}
+  min-line-coverage-observed:
+    description: Lowest observed line coverage percentage across coverage XML files.
+    value: ${{ steps.gate.outputs.min_line_coverage_observed }}
+
+runs:
+  using: composite
+  steps:
+    - id: gate
+      name: Evaluate quality gate
+      shell: bash
+      run: |
+        python - <<'PY'
+        import os
+        import pathlib
+        import sys
+        import xml.etree.ElementTree as ET
+
+        label = """${{ inputs.label }}"""
+        artifacts_dir = pathlib.Path("""${{ inputs.artifacts-dir }}""")
+        max_failures = int("""${{ inputs.max-failures }}""")
+        min_line_coverage_raw = """${{ inputs.min-line-coverage }}""".strip()
+        min_line_coverage = float(min_line_coverage_raw) if min_line_coverage_raw else None
+        require_junit = """${{ inputs.require-junit }}""".lower() == "true"
+        require_coverage = """${{ inputs.require-coverage }}""".lower() == "true"
+        enforce = """${{ inputs.enforce }}""".lower() == "true"
+
+        summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+        output_path = os.environ.get("GITHUB_OUTPUT")
+
+        junit_files = sorted(artifacts_dir.glob("*junit.xml"))
+        coverage_files = sorted(artifacts_dir.glob("*coverage.xml"))
+
+        total_tests = total_failures = total_errors = total_skipped = 0
+        total_time = 0.0
+        observed_coverages = []
+        issues = []
+
+        for path in junit_files:
+            root = ET.parse(path).getroot()
+            suites = [root]
+            for suite in suites:
+                total_tests += int(float(suite.attrib.get("tests", 0) or 0))
+                total_failures += int(float(suite.attrib.get("failures", 0) or 0))
+                total_errors += int(float(suite.attrib.get("errors", 0) or 0))
+                total_skipped += int(float(suite.attrib.get("skipped", 0) or 0))
+                total_time += float(suite.attrib.get("time", 0) or 0)
+
+        for path in coverage_files:
+            root = ET.parse(path).getroot()
+            observed_coverages.append(float(root.attrib.get("line-rate", 0) or 0) * 100.0)
+
+        total_failed_like = total_failures + total_errors
+        min_observed_coverage = min(observed_coverages) if observed_coverages else None
+
+        if require_junit and not junit_files:
+          issues.append("JUnit artifacts are missing.")
+        if require_coverage and not coverage_files:
+          issues.append("Coverage artifacts are missing.")
+        if total_failed_like > max_failures:
+          issues.append(f"Failures+errors {total_failed_like} exceed threshold {max_failures}.")
+        if min_line_coverage is not None:
+          if min_observed_coverage is None:
+            issues.append("Coverage threshold configured but no coverage XML files were found.")
+          elif min_observed_coverage < min_line_coverage:
+            issues.append(
+              f"Minimum line coverage {min_observed_coverage:.1f}% is below threshold {min_line_coverage:.1f}%."
+            )
+
+        if issues:
+          verdict = "BLOCK"
+        elif not junit_files or not coverage_files:
+          verdict = "WARN"
+        else:
+          verdict = "PASS"
+
+        lines = [
+          f"## {label} gate",
+          "",
+          f"- verdict: `{verdict}`",
+          f"- junit files: `{len(junit_files)}`",
+          f"- coverage files: `{len(coverage_files)}`",
+          f"- failures+errors: `{total_failed_like}` / threshold `{max_failures}`",
+          f"- min line coverage observed: `{min_observed_coverage:.1f}%`" if min_observed_coverage is not None else "- min line coverage observed: `n/a`",
+          f"- min line coverage threshold: `{min_line_coverage:.1f}%`" if min_line_coverage is not None else "- min line coverage threshold: `disabled`",
+          f"- runtime: `{total_time:.2f}s`",
+        ]
+
+        if issues:
+          lines.extend(["", "### Gate findings", ""])
+          for issue in issues:
+            lines.append(f"- {issue}")
+
+        if summary_path:
+          with open(summary_path, "a", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+        else:
+          print("\n".join(lines))
+
+        if output_path:
+          with open(output_path, "a", encoding="utf-8") as fh:
+            fh.write(f"verdict={verdict}\n")
+            fh.write(f"total_failures={total_failed_like}\n")
+            fh.write(f"min_line_coverage_observed={'' if min_observed_coverage is None else f'{min_observed_coverage:.4f}'}\n")
+
+        if enforce and verdict == "BLOCK":
+          sys.exit(1)
+        PY

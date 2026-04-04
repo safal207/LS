@@ -27,3 +27,12 @@ __pycache__/
 
 # Local config overrides
 config/local.yaml
+.env.liminalqa.local
+
+# Local live STT artifacts
+logs/live_stt_*.txt
+models/faster_whisper/
+
+# Local graph memory runtime artifacts
+data/graph_memory/
+python/data/

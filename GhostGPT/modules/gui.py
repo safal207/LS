@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from PyQt6.QtWidgets import (
     QMainWindow,
     QLabel,
@@ -217,9 +218,8 @@ class GhostWindow(QMainWindow):
         self.btn_export_secure = QPushButton("🔐 Экспорт (L-THREAD)")
         self.btn_import_secure = QPushButton("🔓 Импорт (L-THREAD)")
         self.btn_sleep = QPushButton("🛌 Спать")
-        self.btn_reflect = QPushButton("🪞 Reflect")
+        self.btn_reflect = QPushButton("🪞 Reflect")  # BUG-01 fix: removed duplicate QPushButton("Reflect")
         self.btn_audit = QPushButton("👁️ Аудит")
-        self.btn_reflect = QPushButton("Reflect")
 
         for btn in [self.btn_export, self.btn_import, self.btn_export_secure, self.btn_import_secure, self.btn_sleep, self.btn_reflect, self.btn_audit]:
             btn.setStyleSheet(
@@ -231,9 +231,8 @@ class GhostWindow(QMainWindow):
         self.btn_export_secure.clicked.connect(self.export_soul_secure)
         self.btn_import_secure.clicked.connect(self.import_soul_secure)
         self.btn_sleep.clicked.connect(lambda: self.agent_loop.submit("/sleep") if self.agent_loop else None)
-        self.btn_reflect.clicked.connect(self.open_reflection_dashboard)
+        self.btn_reflect.clicked.connect(self.open_reflection_dashboard)  # BUG-02 fix: connected only once
         self.btn_audit.clicked.connect(self.show_audit_log)
-        self.btn_reflect.clicked.connect(self.open_reflection_dashboard)
 
         soul_row.addWidget(self.btn_export)
         soul_row.addWidget(self.btn_import)
@@ -242,9 +241,8 @@ class GhostWindow(QMainWindow):
         secure_row.addWidget(self.btn_export_secure)
         secure_row.addWidget(self.btn_import_secure)
         secure_row.addWidget(self.btn_sleep)
-        secure_row.addWidget(self.btn_reflect)
+        secure_row.addWidget(self.btn_reflect)  # BUG-03 fix: added only once
         secure_row.addWidget(self.btn_audit)
-        secure_row.addWidget(self.btn_reflect)
 
         self.amygdala_tip_targets = [self.state_bar, self.protection_badge, self.personality_label, self.phantom_bar]
 
@@ -268,6 +266,7 @@ class GhostWindow(QMainWindow):
         self._apply_snapshot_to_ui(self._last_snapshot)
         self._reflection_dashboard_factory = None
         self._reflection_dashboard_window = None
+        self._reflection_widget = None  # BUG-05 fix: initialise here so it exists before set_decision_pipeline
 
     def update_amygdala_visual(self, snapshot: dict) -> None:
         if not isinstance(snapshot, dict):
@@ -344,10 +343,12 @@ class GhostWindow(QMainWindow):
             f"QProgressBar::chunk {{background-color: {phantom_color}; border-radius: 6px;}}"
         )
 
+        # BUG-08 fix: flash alternates between two colours instead of only
+        # overriding in one direction.  Reset flag when leaving full_protection.
         if protection_level == "full_protection":
-            if self._protection_flash_on:
-                self.protection_badge.setStyleSheet("color: #ff8c8c; font-weight: bold;")
-        if protection_level != "full_protection":
+            flash_color = "#ff8c8c" if self._protection_flash_on else "#ff4d4f"
+            self.protection_badge.setStyleSheet(f"color: {flash_color}; font-weight: bold;")
+        else:
             self._protection_flash_on = False
 
         tip = (
@@ -380,7 +381,9 @@ class GhostWindow(QMainWindow):
             peer_count = len(self.agent_loop.bloodstream.peers)
             self.lbl_bloodstream.setText(f"❤️ {peer_count}")
 
-        self._apply_snapshot_to_ui(self._last_snapshot)
+        # BUG-20 fix: _apply_snapshot_to_ui is already called by _flash_timer (450ms).
+        # Calling it here too caused ~4.8 redundant full UI re-renders per second.
+        # Heart-pulse only needs to update lbl_bloodstream (done above).
 
     def _populate_user_profiles(self) -> None:
         memory_dir = Path.home() / ".ghostgpt" / "memory"
@@ -536,10 +539,22 @@ class GhostWindow(QMainWindow):
         self._reflection_widget = None
 
     def open_reflection_dashboard(self) -> None:
-        """Open shared reflection dashboard from GhostGPT UI."""
+        """Open shared reflection dashboard from GhostGPT UI.
+
+        BUG-04 fix: merged two conflicting definitions into one.
+        Prefers _reflection_dashboard_factory when available, falls back
+        to decision_pipeline + create_reflection_dashboard.
+        """
+        # Path 1: factory-based (set by set_reflection_dashboard_factory)
+        if self._reflection_dashboard_factory is not None:
+            self._reflection_dashboard_window = self._reflection_dashboard_factory()
+            self._reflection_dashboard_window.show()
+            return
+
+        # Path 2: pipeline-based (set by set_decision_pipeline)
         pipeline = getattr(self, "decision_pipeline", None)
         if pipeline is None:
-            QMessageBox.warning(self, "Reflection", "DecisionPipeline not initialized.")
+            self.update_status("Reflection dashboard unavailable")
             return
         from agent.reflection_dashboard import create_reflection_dashboard
 
@@ -572,9 +587,18 @@ class GhostWindow(QMainWindow):
         self.current_user_id = selected_user
         if hasattr(self, "agent_loop") and self.agent_loop:
             from codex.causal_memory.amygdala import Amygdala
+            from codex.causal_memory.reflex import ReflexArc
 
-            self.agent_loop.causal_transitions.amygdala = Amygdala(user_id=selected_user, persist_state=True)
-            snapshot = self.agent_loop.causal_transitions.amygdala.last_snapshot
+            new_amygdala = Amygdala(user_id=selected_user, persist_state=True)
+            self.agent_loop.causal_transitions.amygdala = new_amygdala
+
+            # BUG-09 fix: ReflexArc and Bloodstream held a reference to the
+            # old amygdala — update them so they work with the new user's state.
+            self.agent_loop.reflex = ReflexArc(new_amygdala)
+            if hasattr(self.agent_loop, "bloodstream"):
+                self.agent_loop.bloodstream.amygdala = new_amygdala
+
+            snapshot = new_amygdala.last_snapshot
             self.update_amygdala_visual(snapshot)
         self.lbl_status.setText(f"Профиль: {selected_user}")
 
@@ -632,13 +656,6 @@ class GhostWindow(QMainWindow):
     def set_reflection_dashboard_factory(self, factory) -> None:
         self._reflection_dashboard_factory = factory
 
-    def open_reflection_dashboard(self) -> None:
-        if self._reflection_dashboard_factory is None:
-            self.update_status("Reflection dashboard unavailable")
-            return
-        self._reflection_dashboard_window = self._reflection_dashboard_factory()
-        self._reflection_dashboard_window.show()
-
     def update_status(self, text: str):
         self.lbl_status.setText(text)
 
@@ -646,39 +663,49 @@ class GhostWindow(QMainWindow):
         self.lbl_status.setText("World Resonance: Awaiting Feedback")
 
     def test_microphone(self):
-        """Test microphone input and show audio levels"""
-        try:
-            import pyaudio
-            import numpy as np
+        """Test microphone input and show audio levels.
 
-            p = pyaudio.PyAudio()
-            device_index = p.get_default_input_device_info()["index"]
+        BUG-07 fix: runs blocking pyaudio I/O in a background thread
+        so the Qt event loop (and the UI) remain responsive.
+        """
+        import threading
 
-            stream = p.open(
-                format=pyaudio.paInt16,
-                channels=1,
-                rate=16000,
-                input=True,
-                input_device_index=device_index,
-                frames_per_buffer=1024,
-            )
+        self.lbl_status.setText("MIC Testing…")
 
-            data = stream.read(1024, exception_on_overflow=False)
-            audio_np = np.frombuffer(data, dtype=np.int16)
-            audio_float = audio_np.astype(np.float32) / 32768.0
-            rms = np.sqrt(np.mean(audio_float**2))
+        def _probe():
+            try:
+                import pyaudio
+                import numpy as np
 
-            if rms > 0.01:
-                self.lbl_status.setText(f"MIC OK. Level: {rms:.4f}")
-            else:
-                self.lbl_status.setText(f"MIC QUIET. Level: {rms:.4f}")
+                p = pyaudio.PyAudio()
+                device_index = p.get_default_input_device_info()["index"]
 
-            stream.stop_stream()
-            stream.close()
-            p.terminate()
+                stream = p.open(
+                    format=pyaudio.paInt16,
+                    channels=1,
+                    rate=16000,
+                    input=True,
+                    input_device_index=device_index,
+                    frames_per_buffer=1024,
+                )
 
-        except Exception as e:
-            self.lbl_status.setText(f"MIC ERROR: {str(e)[:30]}...")
+                data = stream.read(1024, exception_on_overflow=False)
+                audio_np = np.frombuffer(data, dtype=np.int16)
+                audio_float = audio_np.astype(np.float32) / 32768.0
+                rms = float(np.sqrt(np.mean(audio_float**2)))
+
+                stream.stop_stream()
+                stream.close()
+                p.terminate()
+
+                msg = f"MIC OK. Level: {rms:.4f}" if rms > 0.01 else f"MIC QUIET. Level: {rms:.4f}"
+            except Exception as e:
+                msg = f"MIC ERROR: {str(e)[:30]}…"
+
+            # Qt widgets must be updated from the main thread
+            QTimer.singleShot(0, lambda: self.lbl_status.setText(msg))
+
+        threading.Thread(target=_probe, daemon=True).start()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -689,3 +716,8 @@ class GhostWindow(QMainWindow):
             delta = QPoint(event.globalPosition().toPoint() - self.old_pos)
             self.move(self.x() + delta.x(), self.y() + delta.y())
             self.old_pos = event.globalPosition().toPoint()
+
+    def mouseReleaseEvent(self, event):
+        # BUG-06 fix: reset old_pos so the window stops following the cursor
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.old_pos = None

@@ -8,6 +8,15 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Set
 
 from .counterfactual_engine import CounterfactualEngine
+from .cognition import (
+    CognitiveEventMesh,
+    CognitiveIdentity,
+    CognitiveReducer,
+    CognitiveStore,
+    CognitiveTransaction,
+    CognitiveTransactionLog,
+    LTPEnvelope,
+)
 from .health_scheduler import ToolHealthcheckScheduler
 from .observability import DecisionObservability
 from .reflection_engine import ReflectionEngine
@@ -32,6 +41,17 @@ class DecisionPipeline:
         tool_payload_builders: Mapping[str, Callable[[List[Dict[str, Any]]], Dict[str, Any]]] | None = None,
     ):
         self.cognitive_state = cognitive_state
+        self.cognitive_event_mesh = CognitiveEventMesh()
+        self.cognitive_transaction_log = CognitiveTransactionLog(event_mesh=self.cognitive_event_mesh)
+        self.cognitive_reducer = CognitiveReducer()
+        self.cognitive_store = CognitiveStore(self.cognitive_transaction_log, self.cognitive_reducer, initial_state=self.cognitive_state)
+        identity_payload = self.cognitive_state.get("cognitive_identity", {})
+        self.cognitive_identity = (
+            CognitiveIdentity.from_dict(identity_payload)
+            if isinstance(identity_payload, dict) and identity_payload
+            else CognitiveIdentity.create(capabilities=["decision_pipeline", "reflection"])
+        )
+        self._init_network_bridge()
         self.counterfactual_engine = CounterfactualEngine(cognitive_state)
         self.strategy_engine = StrategyEvolutionEngine(cognitive_state)
         self.simulation_engine = StrategySimulationEngine(cognitive_state)
@@ -106,7 +126,7 @@ class DecisionPipeline:
             actual_outcome=actual_outcome,
             success=success,
         )
-        self.register_action_activity()
+        self.register_sleep_activity()
         if self.should_trigger_sleep_phase():
             self.save_state("reflection_state_pre_sleep.json")
             self.run_sleep_phase_reflection()
@@ -117,16 +137,36 @@ class DecisionPipeline:
         """Run KPI simulation and feed results back into strategy evolution."""
         report = self.simulation_engine.run(scenarios)
         self.strategy_engine.ingest_simulation_feedback(report)
-        self.cognitive_state["last_simulation_metrics"] = {
-            "success_rate": report["success_rate"],
-            "prediction_accuracy": report["prediction_accuracy"],
-            "total_value": report["total_value"],
-        }
+        self._apply_cognitive_update(
+            actor="agent",
+            action="canonical_update",
+            key="last_simulation_metrics",
+            value={
+                "success_rate": report["success_rate"],
+                "prediction_accuracy": report["prediction_accuracy"],
+                "total_value": report["total_value"],
+            },
+        )
         return report
 
     def run_tool_healthchecks(self) -> Dict[str, Dict[str, Any]]:
         """Run active tool healthchecks and persist latest report."""
         return self.tool_runtime.run_active_healthchecks()
+
+    def run_tool_healthcheck_cycle(self, active: bool = True, interval_s: float = 60.0) -> Dict[str, Any]:
+        """Run scheduler-backed healthcheck cycle for compatibility with operator flows."""
+        scheduler = ToolHealthcheckScheduler(self.tool_runtime, interval_s=interval_s)
+        result = scheduler.run_once(active=active)
+        normalized: Dict[str, bool] = {}
+        for name, snapshot in result.get("tool_health", {}).items():
+            if isinstance(snapshot, bool):
+                normalized[name] = snapshot
+            elif isinstance(snapshot, dict):
+                normalized[name] = bool(snapshot.get("ok", snapshot.get("is_healthy", False)))
+            else:
+                normalized[name] = bool(snapshot)
+        result["tool_health"] = normalized
+        return result
 
     def reflect_and_propose(self) -> List[Dict[str, Any]]:
         """Generate reflection proposals from current cognitive state."""
@@ -134,11 +174,16 @@ class DecisionPipeline:
         proposals.extend(self.generate_strategy_mutation_proposals())
         return proposals
 
-    def register_action_activity(self, now: datetime | None = None) -> None:
+    def register_sleep_activity(self, now: datetime | None = None) -> None:
         """Track activity count/time for sleep-phase scheduling."""
         event_time = now or datetime.now(timezone.utc)
-        self.cognitive_state["last_action_at"] = event_time.isoformat()
-        self.cognitive_state["actions_since_sleep"] = int(self.cognitive_state.get("actions_since_sleep", 0)) + 1
+        self._apply_cognitive_update(actor="agent", action="belief_update", key="last_action_at", value=event_time.isoformat())
+        self._apply_cognitive_update(
+            actor="agent",
+            action="belief_update",
+            key="actions_since_sleep",
+            value=int(self.cognitive_state.get("actions_since_sleep", 0)) + 1,
+        )
 
     def should_trigger_sleep_phase(self, now: datetime | None = None) -> bool:
         """Return True when reflection sleep-phase should run."""
@@ -162,9 +207,9 @@ class DecisionPipeline:
             "proposal_count": len(proposals),
             "actions_since_sleep": int(self.cognitive_state.get("actions_since_sleep", 0)),
         }
-        self.cognitive_state["last_sleep_phase_summary"] = summary
-        self.cognitive_state["last_sleep_phase_at"] = now_utc.isoformat()
-        self.cognitive_state["actions_since_sleep"] = 0
+        self._apply_cognitive_update(actor="agent", action="reflection_generated", key="last_sleep_phase_summary", value=summary)
+        self._apply_cognitive_update(actor="agent", action="reflection_generated", key="last_sleep_phase_at", value=now_utc.isoformat())
+        self._apply_cognitive_update(actor="agent", action="reflection_generated", key="actions_since_sleep", value=0)
         return summary
 
     def generate_strategy_mutation_proposals(self) -> List[Dict[str, Any]]:
@@ -222,6 +267,9 @@ class DecisionPipeline:
             "last_simulation_metrics": self.cognitive_state.get("last_simulation_metrics", {}),
             "tool_health": self.cognitive_state.get("tool_health", {}),
             "last_tool_healthcheck": self.cognitive_state.get("last_tool_healthcheck", {}),
+            "cognitive_timeline": self.cognitive_state.get("cognitive_timeline", [])[-50:],
+            "cognitive_identity": self.cognitive_state.get("cognitive_identity", {}),
+            "cognitive_network_outbox_size": len(self.cognitive_state.get("cognitive_network_outbox", [])),
         }
 
     def update_controls(
@@ -240,35 +288,27 @@ class DecisionPipeline:
 
     def register_action_activity(self, activity_type: str, details: Dict[str, Any] | None = None) -> None:
         """Append typed activity event for dashboard operational timeline."""
-        activity_log = self.cognitive_state.setdefault("pipeline_activity", [])
-        activity_log.append(
-            {
+        self._apply_cognitive_update(
+            actor="agent",
+            action="belief_update",
+            key="pipeline_activity",
+            value={
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "type": activity_type,
                 "details": details or {},
-            }
+            },
+            operation="append",
         )
 
-
-    def save_state(self, file_path: str) -> None:
-        """Persist cognitive state snapshot to a JSON file."""
-        with open(file_path, "w", encoding="utf-8") as handle:
-            json.dump(self.cognitive_state, handle, ensure_ascii=False, indent=2)
-
-    def load_state(self, file_path: str) -> None:
-        """Load cognitive state snapshot from JSON and refresh bound engines."""
-        with open(file_path, "r", encoding="utf-8") as handle:
-            loaded_state = json.load(handle)
-
-        self.cognitive_state.clear()
-        self.cognitive_state.update(loaded_state)
-        self._init_reflection_state()
 
     def _init_reflection_state(self) -> None:
         """Ensure reflection-related persistence keys exist."""
         self.cognitive_state.setdefault("reflection_dashboard_log", [])
         self.cognitive_state.setdefault("strategy_mutation_log", [])
         self.cognitive_state.setdefault("actions_since_sleep", 0)
+        self.cognitive_state.setdefault("cognitive_timeline", [])
+        self.cognitive_state.setdefault("cognitive_identity", self.cognitive_identity.to_dict())
+        self.cognitive_state.setdefault("cognitive_network_outbox", [])
 
     def evaluate_strategy_candidate(
         self,
@@ -315,6 +355,21 @@ class DecisionPipeline:
             state = {}
         return cls(state)
 
+    def _init_network_bridge(self) -> None:
+        """Bridge local CTL events to LTP-like mesh envelopes for federation."""
+
+        def _forward(tx: CognitiveTransaction) -> None:
+            envelope = LTPEnvelope.from_transaction(
+                tx=tx,
+                sender=self.cognitive_identity.agent_id,
+                receiver="mesh:broadcast",
+                signing_key=self.cognitive_identity.public_key,
+            )
+            outbox = self.cognitive_state.setdefault("cognitive_network_outbox", [])
+            outbox.append(envelope.to_dict())
+
+        self.cognitive_event_mesh.subscribe(_forward)
+
     def _maybe_execute_tool(self, action: str | None, event_sequence: List[Dict[str, Any]]) -> Dict[str, Any] | None:
         """Execute tool-backed actions with runtime guardrails."""
         if action not in self.allowed_tool_actions:
@@ -358,14 +413,21 @@ class DecisionPipeline:
 
     def _log_decision(self, decision_record: Dict[str, Any]) -> None:
         """Append decision record to cognitive state action log."""
-        action_log = self.cognitive_state.setdefault("action_log", [])
-        action_log.append(decision_record)
+        self._apply_cognitive_update(
+            actor="agent",
+            action="belief_update",
+            key="action_log",
+            value=decision_record,
+            operation="append",
+        )
 
     def _append_action_history(self, decision_record: Dict[str, Any]) -> None:
         """Append compact history records for long-term learning."""
-        action_history = self.cognitive_state.setdefault("action_history", [])
-        action_history.append(
-            {
+        self._apply_cognitive_update(
+            actor="agent",
+            action="belief_update",
+            key="action_history",
+            value={
                 "timestamp": decision_record["timestamp"],
                 "action": decision_record["recommended_action"],
                 "predicted_outcome": decision_record["predicted_outcome"],
@@ -373,18 +435,24 @@ class DecisionPipeline:
                 "success": decision_record["success"],
                 "outcome_value": decision_record["outcome_value"],
                 "fallback_reason": decision_record.get("fallback_reason"),
-            }
+            },
+            operation="append",
         )
 
     def _update_metrics(self, decision_record: Dict[str, Any]) -> None:
         """Store baseline decision metrics in cognitive state."""
-        self.cognitive_state["last_decision_metrics"] = {
-            "confidence": decision_record["confidence"],
-            "calibrated_confidence": decision_record["calibrated_confidence"],
-            "predicted_outcome": decision_record["predicted_outcome"],
-            "action_success": decision_record["success"],
-            "fallback_reason": decision_record.get("fallback_reason"),
-        }
+        self._apply_cognitive_update(
+            actor="agent",
+            action="belief_update",
+            key="last_decision_metrics",
+            value={
+                "confidence": decision_record["confidence"],
+                "calibrated_confidence": decision_record["calibrated_confidence"],
+                "predicted_outcome": decision_record["predicted_outcome"],
+                "action_success": decision_record["success"],
+                "fallback_reason": decision_record.get("fallback_reason"),
+            },
+        )
 
     def _update_long_term_metrics(self) -> None:
         """Update simple long-term learning metrics from action history."""
@@ -396,9 +464,44 @@ class DecisionPipeline:
         attempts = len(history)
         value_sum = sum(float(item.get("outcome_value", 0.0) or 0.0) for item in history)
 
-        self.cognitive_state["long_term_metrics"] = {
-            "total_attempts": attempts,
-            "success_rate": successes / attempts,
-            "total_value": value_sum,
-            "average_value": value_sum / attempts,
-        }
+        self._apply_cognitive_update(
+            actor="agent",
+            action="belief_update",
+            key="long_term_metrics",
+            value={
+                "total_attempts": attempts,
+                "success_rate": successes / attempts,
+                "total_value": value_sum,
+                "average_value": value_sum / attempts,
+            },
+        )
+
+
+    def append_cognitive_transaction(self, tx: CognitiveTransaction) -> None:
+        """Append external cognitive transaction and rebuild materialized state."""
+        self.cognitive_transaction_log.append(tx)
+        next_state = self.cognitive_reducer.apply(self.cognitive_state, tx)
+        self.cognitive_state.clear()
+        self.cognitive_state.update(next_state)
+        self.cognitive_store.state = dict(self.cognitive_state)
+        self.cognitive_store.cursor = self.cognitive_transaction_log.size()
+
+    def _apply_cognitive_update(
+        self,
+        actor: str,
+        action: str,
+        key: str,
+        value: Any,
+        operation: str = "set",
+    ) -> None:
+        tx = CognitiveTransaction.create(
+            actor=actor,
+            action=action,
+            payload={"op": operation, "key": key, "value": value},
+        )
+        self.cognitive_transaction_log.append(tx)
+        next_state = self.cognitive_reducer.apply(self.cognitive_state, tx)
+        self.cognitive_state.clear()
+        self.cognitive_state.update(next_state)
+        self.cognitive_store.state = dict(self.cognitive_state)
+        self.cognitive_store.cursor = self.cognitive_transaction_log.size()

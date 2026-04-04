@@ -1,0 +1,117 @@
+name: Summarize quality artifacts
+description: Parse JUnit and coverage XML artifacts and publish a concise GitHub Actions summary.
+
+inputs:
+  label:
+    description: Human-readable label for this workflow or job summary.
+    required: false
+    default: "quality"
+  artifacts-dir:
+    description: Directory containing JUnit and coverage XML files.
+    required: false
+    default: "artifacts"
+
+runs:
+  using: composite
+  steps:
+    - name: Summarize artifacts
+      shell: bash
+      run: |
+        python - <<'PY'
+        import os
+        import pathlib
+        import xml.etree.ElementTree as ET
+
+        label = """${{ inputs.label }}"""
+        artifacts_dir = pathlib.Path("""${{ inputs.artifacts-dir }}""")
+        summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+
+        junit_files = sorted(artifacts_dir.glob("*junit.xml"))
+        coverage_files = sorted(artifacts_dir.glob("*coverage.xml"))
+
+        total_tests = total_failures = total_errors = total_skipped = 0
+        total_time = 0.0
+        junit_rows = []
+
+        for path in junit_files:
+            root = ET.parse(path).getroot()
+            if root.tag == "testsuites":
+                suites = [root]
+            else:
+                suites = [root]
+            tests = failures = errors = skipped = 0
+            time_taken = 0.0
+            for suite in suites:
+                tests += int(float(suite.attrib.get("tests", 0) or 0))
+                failures += int(float(suite.attrib.get("failures", 0) or 0))
+                errors += int(float(suite.attrib.get("errors", 0) or 0))
+                skipped += int(float(suite.attrib.get("skipped", 0) or 0))
+                time_taken += float(suite.attrib.get("time", 0) or 0)
+            total_tests += tests
+            total_failures += failures
+            total_errors += errors
+            total_skipped += skipped
+            total_time += time_taken
+            passed = max(tests - failures - errors - skipped, 0)
+            junit_rows.append((path.name, tests, passed, failures, errors, skipped, time_taken))
+
+        coverage_rows = []
+        for path in coverage_files:
+            root = ET.parse(path).getroot()
+            line_rate = float(root.attrib.get("line-rate", 0) or 0) * 100.0
+            branch_rate = float(root.attrib.get("branch-rate", 0) or 0) * 100.0
+            lines_covered = int(root.attrib.get("lines-covered", 0) or 0)
+            lines_valid = int(root.attrib.get("lines-valid", 0) or 0)
+            coverage_rows.append((path.name, line_rate, branch_rate, lines_covered, lines_valid))
+
+        lines = [
+            f"## {label} summary",
+            "",
+            f"- artifacts dir: `{artifacts_dir}`",
+            f"- junit files: `{len(junit_files)}`",
+            f"- coverage files: `{len(coverage_files)}`",
+        ]
+
+        if junit_rows:
+            passed_total = max(total_tests - total_failures - total_errors - total_skipped, 0)
+            lines.extend(
+                [
+                    f"- tests total: `{total_tests}`",
+                    f"- passed: `{passed_total}`",
+                    f"- failures: `{total_failures}`",
+                    f"- errors: `{total_errors}`",
+                    f"- skipped: `{total_skipped}`",
+                    f"- runtime: `{total_time:.2f}s`",
+                    "",
+                    "| JUnit file | Tests | Passed | Failed | Errors | Skipped | Time |",
+                    "|---|---:|---:|---:|---:|---:|---:|",
+                ]
+            )
+            for row in junit_rows:
+                lines.append(
+                    f"| `{row[0]}` | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]:.2f}s |"
+                )
+        else:
+            lines.extend(["", "_No JUnit XML files found._"])
+
+        if coverage_rows:
+            lines.extend(
+                [
+                    "",
+                    "| Coverage file | Line % | Branch % | Covered lines | Valid lines |",
+                    "|---|---:|---:|---:|---:|",
+                ]
+            )
+            for row in coverage_rows:
+                lines.append(
+                    f"| `{row[0]}` | {row[1]:.1f}% | {row[2]:.1f}% | {row[3]} | {row[4]} |"
+                )
+        else:
+            lines.extend(["", "_No coverage XML files found._"])
+
+        if summary_path:
+            with open(summary_path, "a", encoding="utf-8") as fh:
+                fh.write("\n".join(lines) + "\n")
+        else:
+            print("\n".join(lines))
+        PY

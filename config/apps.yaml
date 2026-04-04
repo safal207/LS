@@ -1,0 +1,10 @@
+default_app: console
+apps:
+  console:
+    aliases:
+      - console
+  ghostgpt:
+    aliases:
+      - ghostgpt
+      - ghost_gui
+      - interview_copilot

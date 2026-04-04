@@ -11,9 +11,9 @@ import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
 import pyaudio
 
-from stt_module import SpeechToText
-from llm_module import LanguageModel
-from config import *
+from stt.stt_module import SpeechToText
+from llm.llm_module import LanguageModel
+from config import SAMPLE_RATE, AUDIO_CHUNK_DURATION, VOLUME_THRESHOLD
 
 class AudioWorker(QThread):
     """
@@ -117,7 +117,8 @@ class AudioWorker(QThread):
             # Fallback: try default input
             return self.pyaudio_instance.get_default_input_device_info()['index']
             
-        except Exception:
+        except Exception as e:
+            print(f"VB-Cable device search error: {e}")
             return None
     
     def audio_callback(self, in_data, frame_count, time_info, status):

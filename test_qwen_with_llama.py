@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Test Qwen handler with existing llama3.2 model
 """
 
 import time
-from qwen_handler import QwenHandler
+from llm.qwen_handler import QwenHandler
 
 def test_with_existing_model():
     """Test Qwen handler using existing llama3.2 model"""

@@ -1,11 +1,28 @@
+# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import logging
 import json
 import hashlib
+import hmac
+import base64
+import secrets
 import time
+import os
+import tempfile
+import threading
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+
+_REPLAY_CACHE: "OrderedDict[tuple[str, str], int]" = OrderedDict()
+_REPLAY_CACHE_LOCK = threading.Lock()
+_REPLAY_CACHE_MAX = 4096
+
+_DERIVED_KEY_CACHE: "OrderedDict[tuple[str, str], bytes]" = OrderedDict()
+_DERIVED_KEY_CACHE_LOCK = threading.Lock()
+_DERIVED_KEY_CACHE_MAX = 1024
 
 logger = logging.getLogger(__name__)
 
@@ -168,28 +185,161 @@ def verify_audit_trail(package: Dict[str, Any]) -> bool:
     expected_signature = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     return signature == expected_signature
 
-def encrypt_and_sign(data: Any, key: Any = None, **kwargs) -> bytes:
-    """
-    Placeholder for AES-256-GCM encryption and signing.
-    Returns a JSON-encoded bytes object to satisfy tests expecting a JSON file.
-    """
-    target_device = kwargs.get("target_device", key)
+def _load_agent_keys_from_env() -> Dict[str, str]:
+    """Load agent shared keys from env (`LS_AGENT_KEYS_JSON`)."""
+    raw = os.getenv("LS_AGENT_KEYS_JSON", "")
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+        if isinstance(data, dict):
+            return {str(k): str(v) for k, v in data.items()}
+    except Exception as e:
+        logger.warning(f"Failed to parse LS_AGENT_KEYS_JSON: {e}")
+    return {}
 
-    if isinstance(data, (dict, list)):
-        payload_str = json.dumps(data)
-    elif isinstance(data, bytes):
-        payload_str = data.decode(errors="replace")
+
+def _get_keyring(override: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+    if override is not None:
+        return {str(k): str(v) for k, v in override.items()}
+    return _load_agent_keys_from_env()
+
+
+def _derive_key(key_material: Any, sender: Optional[str], keyring: Optional[Dict[str, Any]]) -> bytes:
+    """Derive a stable shared key for encryption/authentication (with LRU cache)."""
+    resolved_keyring = _get_keyring(keyring)
+
+    if key_material is None and sender and sender in resolved_keyring:
+        key_material = resolved_keyring[sender]
+
+    if key_material is None:
+        key_material = "local-dev-key"
+
+    if isinstance(key_material, bytes):
+        base_secret = key_material
     else:
-        payload_str = str(data)
+        base_secret = str(key_material).encode("utf-8")
 
-    # Simple "encryption" prefix
-    encrypted_val = "enc:" + payload_str
+    sender_key = sender or ""
+    key_fingerprint = hashlib.sha256(base_secret).hexdigest()
+    cache_key = (sender_key, key_fingerprint)
 
-    # Return as JSON to satisfy test_liminal_thread.py:test_zk_proof_verification
+    with _DERIVED_KEY_CACHE_LOCK:
+        cached = _DERIVED_KEY_CACHE.get(cache_key)
+        if cached is not None:
+            _DERIVED_KEY_CACHE.move_to_end(cache_key)
+            return cached
+
+    derived = hashlib.pbkdf2_hmac("sha256", base_secret, b"lthread-v2-master", 600_000, dklen=32)
+
+    with _DERIVED_KEY_CACHE_LOCK:
+        _DERIVED_KEY_CACHE[cache_key] = derived
+        _DERIVED_KEY_CACHE.move_to_end(cache_key)
+        if len(_DERIVED_KEY_CACHE) > _DERIVED_KEY_CACHE_MAX:
+            _DERIVED_KEY_CACHE.popitem(last=False)
+
+    return derived
+
+
+def _derive_subkeys(master_key: bytes) -> tuple[bytes, bytes]:
+    """Derive independent keys for stream generation and MAC."""
+    enc_key = hmac.digest(master_key, b"lthread-v2/subkey/encryption", "sha256")
+    mac_key = hmac.digest(master_key, b"lthread-v2/subkey/authentication", "sha256")
+    return enc_key, mac_key
+
+
+def _derive_aead_key(master_key: bytes) -> bytes:
+    """Derive AEAD key for v3 envelope."""
+    return hmac.digest(master_key, b"lthread-v3/subkey/chacha20poly1305", "sha256")
+
+
+def _build_aad(target_device: Any, sender: str, ts: int) -> bytes:
+    return f"{target_device or ''}|{sender}|{ts}".encode("utf-8")
+
+
+def _serialize_payload(data: Any) -> bytes:
+    if isinstance(data, (dict, list)):
+        return json.dumps(data, sort_keys=True).encode("utf-8")
+    if isinstance(data, bytes):
+        return data
+    return str(data).encode("utf-8")
+
+
+def _encrypt_v2(payload_bytes: bytes, *, master_key: bytes, sender: str, ts: int, target_device: Any) -> bytes:
+    enc_key, mac_key = _derive_subkeys(master_key)
+    nonce = secrets.token_bytes(16)
+    ciphertext = bytearray(len(payload_bytes))
+
+    block_size = 32
+    for offset in range(0, len(payload_bytes), block_size):
+        counter = (offset // block_size).to_bytes(4, "big")
+        stream_block = hashlib.blake2s(enc_key + nonce + counter).digest()
+        chunk = payload_bytes[offset:offset + block_size]
+        for i, b in enumerate(chunk):
+            ciphertext[offset + i] = b ^ stream_block[i]
+
+    aad = _build_aad(target_device, sender, ts)
+    mac = hmac.digest(mac_key, nonce + aad + bytes(ciphertext), "sha256")
+
     return json.dumps({
-        "ct": encrypted_val,
-        "_synthetic_target": target_device
-    }).encode()
+        "v": 2,
+        "alg": "blake2s-xor+hmac-sha256",
+        "nonce": base64.b64encode(nonce).decode("ascii"),
+        "ct": base64.b64encode(bytes(ciphertext)).decode("ascii"),
+        "tag": base64.b64encode(mac).decode("ascii"),
+        "ts": ts,
+        "sender": sender,
+        "_synthetic_target": target_device,
+    }).encode("utf-8")
+
+
+def _encrypt_v3(payload_bytes: bytes, *, master_key: bytes, sender: str, ts: int, target_device: Any) -> bytes:
+    aead_key = _derive_aead_key(master_key)
+    nonce = secrets.token_bytes(12)
+    aad = _build_aad(target_device, sender, ts)
+    aead = ChaCha20Poly1305(aead_key)
+    ciphertext = aead.encrypt(nonce, payload_bytes, aad)
+    return json.dumps({
+        "v": 3,
+        "alg": "chacha20poly1305",
+        "nonce": base64.b64encode(nonce).decode("ascii"),
+        "ct": base64.b64encode(ciphertext).decode("ascii"),
+        "ts": ts,
+        "sender": sender,
+        "_synthetic_target": target_device,
+    }).encode("utf-8")
+
+
+def encrypt_and_sign(data: Any, key: Any = None, **kwargs) -> bytes:
+    """Create a signed encrypted envelope as JSON bytes."""
+    target_device = kwargs.get("target_device", key)
+    sender = str(kwargs.get("sender", "unknown_agent"))
+    ts = int(kwargs.get("ts", time.time()))
+    envelope_version = int(kwargs.get("envelope_version", 3))
+
+    keyring = kwargs.get("agent_keys")
+    key_source = kwargs.get("shared_key", key if key is not None else target_device)
+    master_key = _derive_key(key_source, sender, keyring)
+    payload_bytes = _serialize_payload(data)
+
+    if envelope_version == 2:
+        return _encrypt_v2(
+            payload_bytes,
+            master_key=master_key,
+            sender=sender,
+            ts=ts,
+            target_device=target_device,
+        )
+    if envelope_version != 3:
+        raise ValueError("Unsupported envelope_version, expected 2 or 3")
+    return _encrypt_v3(
+        payload_bytes,
+        master_key=master_key,
+        sender=sender,
+        ts=ts,
+        target_device=target_device,
+    )
+
 
 def send_package(package: Any, destination: str, **kwargs) -> str:
     """
@@ -197,8 +347,9 @@ def send_package(package: Any, destination: str, **kwargs) -> str:
     Returns the path to the 'sent' package.
     """
     logger.info(f"Sending package to {destination}")
-    base_dir = kwargs.get("base_dir", "/tmp")
+    base_dir = kwargs.get("base_dir", tempfile.gettempdir())
     path = Path(base_dir) / f"soul_package_{destination}.bin"
+    path.parent.mkdir(parents=True, exist_ok=True)
 
     if isinstance(package, dict):
         data = json.dumps(package).encode()
@@ -210,11 +361,14 @@ def send_package(package: Any, destination: str, **kwargs) -> str:
     path.write_bytes(data)
     return str(path)
 
+
 def get_current_snapshot(user_id: str) -> Dict[str, Any]:
     """Возвращает текущий снимок Amygdala для синхронизации."""
     from codex.causal_memory.memory import MemoryService
+
     service = MemoryService(user_id=user_id)
     return service.load() or {}
+
 
 def receive_from_peer(peer_id: str) -> Optional[Dict[str, Any]]:
     """Placeholder для приема данных от пира."""
@@ -229,39 +383,134 @@ def receive_from_peer(peer_id: str) -> Optional[Dict[str, Any]]:
             pass
     return None
 
+
 def send_toxins(toxins: int, peers: List[str]):
     """Транспорт для вывода токсинов (лимфа)."""
     for peer in peers:
         logger.info(f"Sending {toxins} toxins (lymph) to {peer}")
 
+
 def start_bloodstream_sync(user_id: str, peers: List[str]):
     """Запускает фоновый цикл обмена кровью с пирами."""
     logger.info(f"Starting bloodstream sync for {user_id} with {peers}")
 
+
+def _register_nonce(sender: str, nonce_b64: str, now_ts: int, max_skew_seconds: int) -> bool:
+    """Register nonce in replay cache, returns False if already seen in the active time window."""
+    with _REPLAY_CACHE_LOCK:
+        min_valid_ts = now_ts - max_skew_seconds
+        # OrderedDict preserves insertion order; we intentionally keep replay entries
+        # ordered by insertion time (and move updated keys to end) so we can evict
+        # only expired oldest entries until the first fresh record.
+        while _REPLAY_CACHE:
+            oldest_key, seen_ts = next(iter(_REPLAY_CACHE.items()))
+            if seen_ts >= min_valid_ts:
+                break
+            _REPLAY_CACHE.popitem(last=False)
+
+        replay_key = (sender, nonce_b64)
+        if replay_key in _REPLAY_CACHE:
+            return False
+
+        _REPLAY_CACHE[replay_key] = now_ts
+        _REPLAY_CACHE.move_to_end(replay_key)
+        while len(_REPLAY_CACHE) > _REPLAY_CACHE_MAX:
+            _REPLAY_CACHE.popitem(last=False)
+
+        return True
+
+
 def verify_and_decrypt(package_path: str, **kwargs) -> tuple[bool, Any]:
     """
-    Placeholder for verifying and decrypting a package.
-    Expects a JSON file containing a "ct" field.
+    Verify package integrity and decrypt payload.
     """
     current_device_id = kwargs.get("current_device_id")
+    now_ts = int(kwargs.get("now_ts", time.time()))
+    max_skew_seconds = int(kwargs.get("max_skew_seconds", 30))
+    enforce_replay_protection = kwargs.get("enforce_replay_protection", True)
+    allow_legacy_v1 = kwargs.get("allow_legacy_v1", False)
+
     try:
         data = Path(package_path).read_bytes()
         package = json.loads(data.decode())
 
-        # Synthetic verification of target device
         if current_device_id and "_synthetic_target" in package:
             if package["_synthetic_target"] != current_device_id:
-                logger.warning(f"Synthetic device ID mismatch: {package['_synthetic_target']} != {current_device_id}")
+                logger.warning(
+                    f"Synthetic device ID mismatch: {package['_synthetic_target']} != {current_device_id}"
+                )
                 return False, None
 
         ct = package.get("ct", "")
-        if ct.startswith("enc:"):
+        if isinstance(ct, str) and ct.startswith("enc:"):
+            if not allow_legacy_v1:
+                logger.warning("Legacy v1 package rejected: allow_legacy_v1=False")
+                return False, None
             payload_str = ct[4:]
             try:
-                payload = json.loads(payload_str)
-                return True, payload
+                return True, json.loads(payload_str)
             except json.JSONDecodeError:
                 return True, payload_str
+
+        version = int(package.get("v", 0))
+        if version not in (2, 3):
+            return False, None
+
+        sender = package.get("sender")
+        ts = package.get("ts")
+        if sender is None or ts is None:
+            logger.warning("Missing sender/ts in package")
+            return False, None
+        sender = str(sender)
+        ts = int(ts)
+
+        if abs(now_ts - ts) > max_skew_seconds:
+            logger.warning("Package timestamp outside allowed skew")
+            return False, None
+
+        keyring = kwargs.get("agent_keys")
+        key_material = kwargs.get("shared_key")
+        if key_material is None and current_device_id and not _get_keyring(keyring).get(sender):
+            key_material = current_device_id
+
+        master_key = _derive_key(key_material, sender, keyring)
+
+        nonce_b64 = package["nonce"]
+        if enforce_replay_protection and not _register_nonce(sender, nonce_b64, now_ts, max_skew_seconds):
+            logger.warning("Replay attack detected: duplicate nonce")
+            return False, None
+
+        nonce = base64.b64decode(nonce_b64)
+        ciphertext = base64.b64decode(package["ct"])
+        aad = _build_aad(package.get("_synthetic_target"), sender, ts)
+
+        if version == 2:
+            enc_key, mac_key = _derive_subkeys(master_key)
+            tag = base64.b64decode(package["tag"])
+            expected_tag = hmac.digest(mac_key, nonce + aad + ciphertext, "sha256")
+            if not hmac.compare_digest(tag, expected_tag):
+                logger.warning("Package signature verification failed")
+                return False, None
+
+            plaintext = bytearray(len(ciphertext))
+            block_size = 32
+            for offset in range(0, len(ciphertext), block_size):
+                counter = (offset // block_size).to_bytes(4, "big")
+                stream_block = hashlib.blake2s(enc_key + nonce + counter).digest()
+                chunk = ciphertext[offset : offset + block_size]
+                for i, b in enumerate(chunk):
+                    plaintext[offset + i] = b ^ stream_block[i]
+            payload_raw = bytes(plaintext)
+        else:
+            aead_key = _derive_aead_key(master_key)
+            aead = ChaCha20Poly1305(aead_key)
+            payload_raw = aead.decrypt(nonce, ciphertext, aad)
+
+        payload_str = payload_raw.decode("utf-8", errors="replace")
+        try:
+            return True, json.loads(payload_str)
+        except json.JSONDecodeError:
+            return True, payload_str
     except Exception as e:
         logger.error(f"Decryption failed: {e}")
 

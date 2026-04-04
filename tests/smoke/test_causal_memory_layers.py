@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import queue
 import sys
 from pathlib import Path

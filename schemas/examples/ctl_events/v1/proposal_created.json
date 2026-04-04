@@ -1,0 +1,18 @@
+{
+  "event_id": "evt_01HXYZABCD",
+  "trace_id": "trace_01HXYZABCD",
+  "event_type": "proposal_created",
+  "ts": 1710504000,
+  "producer": "runtime-service",
+  "schema_version": "1.0",
+  "signature": "ed25519:<placeholder>",
+  "data": {
+    "agent_id": "energy-98231",
+    "proposal_id": "prop_003",
+    "asset": "oil",
+    "prediction": "price_up_5pct_7d",
+    "confidence": 0.87,
+    "price_ct": 10,
+    "ttl_sec": 86400
+  }
+}

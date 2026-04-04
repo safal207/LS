@@ -37,6 +37,8 @@ class TestModeDetector(unittest.TestCase):
         """Short, simple input should suggest Mode A."""
         analysis = self.detector.analyze("Hi", context={}, system_load=0.0)
         self.assertEqual(analysis.mode, "A")
+        self.assertEqual(analysis.cognitive_mode, "reactive")
+        self.assertIn("policy_executor", analysis.engine_route)
 
     def test_explanation_request_is_mode_b(self):
         """Input asking 'why' or 'how' should suggest Mode B."""
@@ -46,6 +48,8 @@ class TestModeDetector(unittest.TestCase):
             system_load=0.0,
         )
         self.assertEqual(analysis.mode, "B")
+        self.assertEqual(analysis.cognitive_mode, "deliberative")
+        self.assertIn("explanation_engine", analysis.engine_route)
 
     def test_complex_input_is_mode_b(self):
         """Long, complex input should suggest Mode B."""
@@ -65,6 +69,17 @@ class TestModeDetector(unittest.TestCase):
             system_load=0.9,
         )
         self.assertEqual(analysis.mode, "A")
+        self.assertEqual(analysis.cognitive_mode, "reactive")
+
+    def test_creative_request_selects_creative_mode(self):
+        analysis = self.detector.analyze(
+            "Please brainstorm a novel product concept",
+            context={},
+            system_load=0.1,
+        )
+        self.assertEqual(analysis.cognitive_mode, "creative")
+        self.assertEqual(analysis.mode, "both")
+        self.assertIn("ideation_engine", analysis.engine_route)
 
 
 class TestContextSync(unittest.TestCase):
@@ -130,6 +145,8 @@ class TestCoordinator(unittest.TestCase):
 
         self.assertIsNotNone(decision)
         self.assertIn(decision.mode, ["A", "B", "both"])
+        self.assertIn(decision.cognitive_mode, ["reactive", "deliberative", "creative"])
+        self.assertIsInstance(decision.engine_route, list)
         self.assertGreater(decision.confidence, 0)
 
     def test_finalize_returns_tuple(self):

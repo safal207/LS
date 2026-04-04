@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from modules.llm import temporal_graph
 from modules.llm.temporal_graph import (
     build_graph,

@@ -1,6 +1,6 @@
-# GhostGPT (LCS) — Local Cognitive System
+# GhostGPT — Local Cognitive System (LCS)
 
-[English](README.md#english) | [Русский](README.md#russian)
+[English](#english) | [Русский](#russian)
 
 ---
 
@@ -14,287 +14,482 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](LICENSE)
 [![Rust Powered](https://img.shields.io/badge/Rust-Inside-orange.svg)](#architecture)
 
-**GhostGPT** (built on the **Local Cognitive System** architecture) is an advanced cognitive layer for Large Language Models. It provides a persistent agentic loop, temporal context, and cross-session memory, enabling LLMs to behave as long-running autonomous entities.
+**GhostGPT** is not a chatbot wrapper. It is a **cognitive operating system** for LLMs — an agent that thinks between your messages, learns from you continuously, and knows when it is not thinking clearly.
 
-**Interview Copilot (Ghost Mode)** is one of the primary applications powered by this core.
+---
 
-## 🚀 Key Features
+## What it actually does
 
-- **AgentLoop**: Sophisticated state management (`idle/listening/thinking/responding`) with cooperative cancellation and memory hooks.
-- **12-Layer Cognitive Architecture**: Including Metabolism (knowledge processing), Amygdala (emotional balance), and Sleep/Homeostasis (memory consolidation).
-- **Rust Optimization Layer**: High-performance pattern matching and SIMD-accelerated vector search for real-time responsiveness.
-- **Temporal Memory**: A graph-based belief system that tracks the evolution of knowledge over time.
-- **Local-First & Privacy-Centric**: Designed to run entirely on your hardware with built-in PII redaction and safety gates.
-- **Web4 Integration**: Ready for the next generation of decentralized AI protocols.
+Most AI agents answer and forget. GhostGPT **lives between answers**:
 
-## 🛠 Architecture
+- While you type, a background subconscious thread analyses your conversation patterns
+- When you reply with just "ok" after a long response, the system registers that as weak feedback
+- When the same thinking mode appears three sessions in a row, it becomes a persistent memory node
+- When the system detects it is stuck in one mode for too long, it corrects itself automatically
 
-GhostGPT follows a modular **Hexagon Core** design:
-- **Python Layer**: Handles high-level logic, GUI (Qt6), and agent orchestration.
-- **Rust Core**: Low-level optimizations for vision processing, memory management, and high-speed data transport.
+The result: an agent that develops a **cognitive character** over time and adapts it without being asked.
 
-## 📦 Quick Start
+---
 
-### Prerequisites
-- **Python 3.9+**
-- **Rust & Cargo** (for building core optimizations)
-- [**Ollama**](https://ollama.com/) (recommended for local LLM inference)
+## Core Features
 
-### Installation
+### Cognitive Field — 7 Forces
 
-```bash
-# For users
-pip install "ghostgpt-core[full]"
+Every decision cycle runs 7 forces on the live knowledge graph (`TemporalGraph`):
 
-# For developers / contributors
-git clone https://github.com/safal207/LS.git
-cd LS
-python -m venv venv
-source venv/bin/activate
-pip install -e ".[full]"
+| Force | What it does |
+|-------|-------------|
+| F1+F2 | Orientation: chaos/harmony signals reshape node resonance + associative propagation |
+| F3 | Stabilization: nodes drift back to their natural resting level |
+| F4 | Forgetting: nodes decay by type — lessons last 24h, urgent signals 5 min |
+| F5 | Interference: competing cognitive modes cancel each other (no split-brain) |
+| F6 | Observer: detects pathological states and self-corrects |
+| F7 | Association: active nodes boost their linked neighbours |
+
+### 6 Learning Mechanisms
+
+The system learns from **four sources simultaneously**:
+
+1. **Subconscious loop** (every 20s) — detects your thinking pattern (creative / deliberative / reactive) without asking
+2. **Quality feedback** — explicit "да/нет" updates node resonance ±
+3. **Feedback proxy** — long response + short reply = weak auto-negative signal
+4. **Reflections** — after-action lessons ingested as 24h memory nodes
+5. **World events** — git commits and error logs become temporal nodes
+6. **Association graph** — co-activated nodes auto-strengthen their links
+
+### Self-Monitoring (SystemObserver)
+
+The observer runs every cycle and detects 6 pathological states:
+
+| Pathology | Condition | Auto-correction |
+|-----------|-----------|----------------|
+| OVERHEATING | All nodes inflated | Normalize field ×0.88 |
+| VACUUM | No active nodes | Lift floor + inject anchor |
+| OSSIFICATION | Same axis for 8+ cycles | Reduce stability, nudge down |
+| SPLIT_BRAIN | Two modes tied at high resonance | Suppress weaker by 0.12 |
+| RUNAWAY_CHAOS | Chaos trend collapsing | Boost anchor axis |
+| RESONANCE_COLLAPSE | Axis too weak to guide | Emergency boost |
+
+After 3 occurrences of the same pathology → writes a `lesson:meta:*` memory node. The system remembers its own weaknesses.
+
+### User Profiles
+
+`UserProfileStore` tracks each user's cognitive style across sessions. After 5+ turns it provides a **starting hint** — the agent opens the next conversation already tuned to your style, using a 20-turn sliding window to catch recent drift.
+
+### Predictive Axis
+
+`predictive_axis(horizon_s=60)` — answers: *which node will be dominant in 60 seconds?* Based on current velocity, the system pre-warms for the incoming mode before it arrives.
+
+### Multimodal Worker (optional)
+
+`QwenOmniWorker` captures screen + audio context via DashScope Realtime API (or a safe fallback), stores insights as `ResonanceKnowledgeUnit`. Enabled via `QWEN_OMNI_ENABLED=1`.
+
+---
+
+## Interview Pipeline — Eyes + Ears + Voice
+
+GhostGPT can now act as a **silent interview co-pilot**:
+
+- **Eyes (screen reading)** — `VisionSubsystem` captures your screen every 0.5 s and runs OCR (pytesseract or easyocr). The latest text is exposed via `get_latest_screen_text()` and injected into every LLM call as a `system` message, so the agent can see the question on the interviewer's screen before you say a word.
+- **Ears (voice input)** — `faster-whisper` + PyAudio capture your microphone and transcribe speech to text in real-time. The transcript is fed to the agent as the user message.
+- **Voice output (TTS)** — `Speaker` (pyttsx3, fully offline) reads the agent's answer aloud so you hear it in your earpiece without looking at the screen.
+
+```
+┌──────────┐   OCR    ┌──────────────────┐   system msg   ┌──────────┐
+│  Screen  │ ──────►  │  VisionSubsystem  │ ──────────────►│          │
+└──────────┘          └──────────────────┘                 │  Agent   │
+                                                           │  Loop    │ ──► TTS ──► earpiece
+┌──────────┐  Whisper  ┌───────────────┐  user message    │          │
+│   Mic    │ ────────► │  AudioInput   │ ────────────────► │          │
+└──────────┘           └───────────────┘                   └──────────┘
 ```
 
-> **Note:** `ghostgpt-core` is a core library.
-> The GUI (`apps/ghostgpt/main.py`) and console (`apps/console/main.py`)
-> require cloning the repository and running from source.
-
-### Build Rust Core (for developers)
+### Activate
 
 ```bash
-maturin develop
+pip install pyttsx3                     # TTS (offline)
+pip install pytesseract                 # OCR backend (or: pip install easyocr)
+# For pytesseract: also install tesseract binary for your OS
+
+export LS_TTS_ENABLED=1                 # turn on voice output
+python apps/console/main.py
+```
+
+---
+
+## Architecture
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                          AgentLoop                             │
+│                                                                │
+│  Screen OCR    ──────────►                                     │
+│  Mic / Whisper ──────────►  TemporalGraph                      │
+│  Subconscious (20s)  ────►  (resonance nodes + causal edges)   │
+│  WorldPoller (git)   ────►                                     │
+│  Quality FB          ────►                                     │
+│  Auto Proxy          ────►                                     │
+│                                │                               │
+│                     Coordinator.decide()                       │
+│                     7 Forces per cycle                         │
+│                                │                               │
+│                     OrientationCenter ◄──► signal back         │
+│                                                                │
+│  Sleep consolidation → session_report → lesson:session:*       │
+│                                                                │
+│  TTS Speaker ◄── response                                      │
+└────────────────────────────────────────────────────────────────┘
+```
+
+**Stack:**
+- Python layer — agent orchestration, cognitive field, GUI (Qt6)
+- Rust core — high-performance pattern matching, SIMD vector search
+- Hexagon Core — beliefs, causal memory, temporal graph, orientation
+
+---
+
+## Quick Start
+
+### Prerequisites
+- Python 3.9+
+- Rust & Cargo (for Rust core)
+- [Ollama](https://ollama.com/) (local LLM inference)
+
+### Install
+
+```bash
+# Users
+pip install "ghostgpt-core[full]"
+
+# Developers
+git clone https://github.com/safal207/LS.git
+cd LS
+python -m venv venv && source venv/bin/activate
+pip install -e ".[full]"
+maturin develop  # build Rust core
 ```
 
 ### Launch
 
-**GUI Dashboard (GhostGPT):**
 ```bash
+# GUI
 python apps/ghostgpt/main.py
-```
 
-**Console Mode:**
-```bash
+# Console
 python apps/console/main.py
-```
 
-## 📚 Documentation
-
-- [Final Project Report](FINAL_PROJECT_REPORT.md) — Comprehensive overview of the system.
-- [Architecture Deep Dive](docs/ARCHITECTURE.md) — Data flow and system components.
-- [Web4 Overview](docs/WEB4_OVERVIEW.md) — Vision for the decentralized future.
-- [HCP & CIP Specs](docs/HCP_SPEC.md) — Protocol specifications for human and agent interactions.
-
----
-
-<a name="russian"></a>
-
-# LS — Local Cognitive System (LCS)
-
-[![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
-[![Python tests](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
-[![Rust build](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
-
-LS (Local Cognitive System) — локальная когнитивная система: архитектурный слой поверх LLM, который добавляет агентный цикл, временной контекст, устойчивость и наблюдаемость.
-
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
-[![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
-[![Local--first](https://img.shields.io/badge/Architecture-Local--first-success.svg)](#ls--local-cognitive-system-lcs)
-
-Интервью‑копайлот (Ghost Mode) — **один из режимов/приложений**, а не “ядро” проекта.
-
-Документация:
-- `FINAL_PROJECT_REPORT.md` — основной итоговый отчёт по Golden Master
-- `docs/MANIFESTO.md` — позиционирование и принципы
-- `docs/ARCHITECTURE.md` — архитектура и поток данных
-- `docs/CIP_SPEC.md` — Cognitive Interlink Protocol (агент‑агент)
-- `docs/HCP_SPEC.md` — Human Connection Protocol (человек‑агент)
-- `docs/LIP_SPEC.md` — Liminal Internet Protocol (обучение из интернета)
-- `docs/WEB4_OVERVIEW.md` — обзор Web4
-- `docs/WHITEPAPER_WEB4.md` — whitepaper Web4
-- `docs/RFC_BUNDLE_WEB4.md` — единый RFC‑bundle
-- `docs/RUST_TRANSPORT_SPEC.md` — спецификация Rust‑транспорта
-- `docs/ARCH_DIAGRAMS.md` — архитектурные диаграммы (Mermaid)
-- `docs/ROADMAP.md` — дорожная карта
-- `docs/INVESTMENT_ANALYSIS_RU.md` — инвестиционный анализ и рекомендации по позиционированию
-- `docs/architecture/layers.md` — полный каталог 12 архитектурных слоев (v1.1)
-- `schemas/*.schema.json` — формальные JSON Schema протоколов
-
-## Архитектура GhostGPT (Март 2026)
-
-GhostGPT v1.1 базируется на **12-слойной когнитивной архитектуре**, объединяющей восприятие, эмоциональный баланс (Amygdala), метаболизм знаний и глубокую консолидацию во сне.
-
-Подробное описание: [docs/architecture/layers.md](docs/architecture/layers.md).
-
-Ключевые инновации v1.1:
-- **Metabolism Layer**: Переработка когнитивного опыта в энергию роста.
-- **Immune & Safety**: Адаптивная защита и "антитела" против инъекций.
-- **Sleep & Homeostasis**: Консолидация памяти и очистка "токсинов" во сне.
-
-*Дополнительные экспериментальные подсистемы (Bloodstream, Self-Healing) вынесены в отдельный раздел документации.*
-
-## Структура репозитория
-
-```
-apps/
-  console/   # CLI entrypoint
-  ghostgpt/  # GUI entrypoint
-python/
-  modules/
-    agent/          # AgentLoop + observability
-    audio/          # аудио ingest
-    stt/            # STT пайплайн
-    llm/            # LLM пайплайн
-    shared/         # shared utils + config loader
-    hexagon_core/   # когнитивное ядро (beliefs/causal/mission/COT)
-config/
-  base.yaml
-  console.yaml
-  ghostgpt.yaml
-  local.yaml (ignored)
-```
-
-## Что даёт LCS
-
-- **AgentLoop**: состояния `idle/listening/thinking/responding`, cooperative cancellation, memory hooks, метрики.
-- **Temporal/Belief foundation**: жизненный цикл убеждений и temporal‑индекс в `hexagon_core`.
-- **Stability layer**: circuit breaker для LLM вызовов.
-- **Observability**: event sink + строгий event‑contract (версия `1.0`).
-- **Единый конфиг**: YAML `base → app → local` через `shared.config_loader`.
-
-## Какая боль рынка мы закрываем
-
-- **Недоверие к AI‑решениям в бизнесе**: нет прозрачного протокола для подтверждения фактов, источников и авторства решений.
-- **Фрагментация агентных систем**: разные команды создают несвязанные агенты без общего trust‑ и state‑слоя.
-- **Эскалация галлюцинаций**: ошибки распространяются между продуктами, потому что нет коллективной валидации знаний.
-- **Отсутствие когнитивного контекста**: системы не знают о нагрузке, фокусе и намерении друг друга, из‑за чего UX деградирует.
-- **Слабый слой согласия человека**: нет протокольного уровня для intent/consent/safety, который уважает человека.
-- **Зависимость от централизованных платформ**: локальные команды теряют автономию и контроль над доверительной моделью.
-
-## Quick Start
-
-### Требования
-- Python 3.9+
-- [Ollama](https://ollama.com/) (локальная LLM-служба)
-
-### Installation
-
-```bash
-# Для пользователей
-pip install "ghostgpt-core[full]"
-
-# Для разработчиков / контрибьюторов
-git clone https://github.com/safal207/LS.git
-cd LS
-python -m venv venv
-source venv/bin/activate
-pip install -e ".[full]"
-```
-
-> **Примечание:** `ghostgpt-core` — это библиотека ядра.
-> GUI и консольный режим запускаются только из клонированного репозитория,
-> не через `pip install`.
-
-## Multi-Agent Demo
-
-Запустите 3 параллельных агента, координирующихся через общую память:
-
-```bash
+# Multi-agent demo (3 coordinated agents)
 python -m apps.multi_agent_demo
 ```
 
-Агенты будут задавать вопросы и получать контекст из ответов друг друга.
+### Optional: Multimodal worker
 
-## Конфигурация
+```bash
+export QWEN_OMNI_ENABLED=1
+export DASHSCOPE_API_KEY=your_key   # omit for fallback mode
+python apps/ghostgpt/main.py
+```
 
-Конфиги в YAML:
-- `config/base.yaml` — общие параметры
-- `config/console.yaml` — overrides для консоли
-- `config/ghostgpt.yaml` — overrides для GUI
-- `config/local.yaml` — локальные override (ignored)
+---
 
-Loader находится в `python/modules/shared/config_loader.py`:
+## Repository Structure
+
+```
+apps/
+  console/            CLI entrypoint
+  ghostgpt/           GUI entrypoint
+python/
+  modules/
+    agent/            AgentLoop + subconscious + world poller
+    hexagon_core/     TemporalGraph, SystemObserver, UserProfileStore
+    coordinator/      Coordinator (7 forces), ModeDetector
+    orientation/      OrientationCenter, RhythmEngine
+    graph/            MemoryGraphStore, ResonanceKnowledgeUnit, CareCycle
+    omni/             QwenOmniWorker (multimodal background worker)
+    perception/       VisionSubsystem, ScreenCapturer, OCR module
+    tts/              Speaker — offline TTS (pyttsx3 + console fallback)
+    llm/              LLM pipeline (Ollama / Groq / Qwen)
+    shared/           Config, EventBus, plugins
+  tests/
+    unit/             Unit tests for all cognitive subsystems
+    smoke/            Integration tests for AgentLoop
+config/
+  base.yaml           Shared config
+  console.yaml        Console overrides
+  ghostgpt.yaml       GUI overrides
+  local.yaml          Local secrets (gitignored)
+```
+
+---
+
+## Configuration
+
+Layered YAML: `base → app → local`
+
 ```python
 from shared.config_loader import load_config
 cfg = load_config("console")
 ```
 
-Также работает совместимый импорт:
-```python
-from modules.shared.config_loader import load_config
-```
+Key env vars:
 
-Для локальных настроек используйте шаблон:
-```
-config/local.example.yaml
-```
-Скопируйте его в `config/local.yaml` и внесите свои значения (ключи, модели и т.п.).
-
-Переменная окружения `ENABLE_QUERY_REWRITING` управляет переписыванием пользовательского запроса перед векторным поиском (`true/1/yes` по умолчанию).
-Для полного отключения set `ENABLE_QUERY_REWRITING=false` (полезно для локальной отладки и тестов).
-
-## Режимы (в т.ч. Interview Mode)
-
-Поведение системы в первую очередь задаётся `llm.system_prompt` (см. `config/base.yaml` и overrides в `config/local.yaml`).
-
-Если нужен “интервью‑режим”, задайте системный промпт в `config/local.yaml` (пример):
-```yaml
-llm:
-  system_prompt: |
-    You are a senior developer interviewing candidates.
-    Provide concise, bullet-point answers suitable for technical interviews.
-    Answer in Russian.
-```
-
-## Модули
-
-Единый модульный слой находится в `python/modules/`:
-- `agent/` — AgentLoop и observability
-- `audio/` — ingest/VAD
-- `stt/` — Whisper обработка
-- `llm/` — генерация ответов (Ollama/Groq/Qwen)
-- `shared/` — общие утилиты и конфиг
-- `hexagon_core/` — когнитивное ядро агента
-
-## Smoke‑тесты
-
-```bash
-python apps/console/main.py
-python apps/ghostgpt/main.py
-python -c "from modules.shared.config_loader import load_config; print(load_config('console'))"
-python scripts/smoke.py
-```
-
-## Примечания
-
-- Все вычисления — локально (кроме опционального cloud‑fallback, если включён).
-- Для системного аудио на Windows обычно нужен VB‑Cable или включенный Stereo Mix (зависит от железа/драйверов).
-
-## Resonance v3
-- Используется sentence-transformers (`all-MiniLM-L6-v2`) для точной семантики
-- Глобальный LRU-кэш эмбеддингов (макс. 10 000 записей)
-- Настраиваемый `min_similarity` (по умолчанию 0.35)
-- Логи при загрузке модели и cache miss
-
-
-## Evaluation
-
-Запуск standalone-оценки Resonance v3:
-
-```bash
-python eval/evaluate_resonance.py
-```
-
-Вывод:
-- `eval/results/resonance_eval.json`
-
-Env:
-- `ENABLE_REWRITING_IN_EVAL=false` — отключить rewriting в режиме `rewritten`.
-
-Метрики:
-- `hit_rate` — доля вопросов, где найдены чанки выше `min_similarity`.
-- `avg_similarity` — средняя similarity по всем найденным score.
-- `top_score` — максимальный score среди найденных чанков.
-- `chunks_found` — число чанков выше порога.
-- `latency_ms` — задержка обработки вопроса.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `QWEN_OMNI_ENABLED` | `0` | Enable multimodal background worker |
+| `DASHSCOPE_API_KEY` | — | DashScope key (omit for fallback mode) |
+| `GRAPH_MEMORY_STORE_PATH` | `data/graph_memory/cases.jsonl` | Memory store path |
+| `ENABLE_QUERY_REWRITING` | `true` | Rewrite queries before vector search |
+| `LS_REPO_PATH` | `cwd` | Repo path for WorldPoller git monitoring |
+| `LS_TTS_ENABLED` | `0` | Speak agent responses aloud via pyttsx3 |
 
 ---
+
+## Tests
+
+```bash
+# All unit tests (direct — no pytest lthread conflict)
+python3 tests/unit/test_stabilization_forces.py
+python3 tests/unit/test_system_observer.py
+python3 tests/unit/test_new_features.py
+python3 tests/unit/test_orientation_force_ladder.py
+python3 tests/unit/test_world_poller.py
+python3 tests/unit/test_interview_pipeline.py
+
+# Qwen Omni + memory store
+pytest python/tests/test_qwen_omni_worker.py
+pytest python/tests/test_memory_store_locking.py
+```
+
+| Test file | Tests | Covers |
+|-----------|-------|--------|
+| `test_stabilization_forces.py` | 17 | Forces 3–5, stability_bias, trajectory |
+| `test_system_observer.py` | 35 | All 6 pathologies, score, trend |
+| `test_new_features.py` | 30 | Causal graph, predictive axis, meta-lessons, user profiles, session report |
+| `test_orientation_force_ladder.py` | 11+ | Forces 1–2, co-activation, propagation |
+| `test_world_poller.py` | 7 | WorldPoller git/logs |
+| `test_interview_pipeline.py` | 32 | OCR module, VisionSubsystem cache, TTS Speaker, _inject_screen_context |
+| `test_qwen_omni_worker.py` | 4 | Multimodal worker fallback + store |
+
+---
+
+## Documentation
+
+| File | Contents |
+|------|---------|
+| [COGNITIVE_FIELD_COMPLETE.md](COGNITIVE_FIELD_COMPLETE.md) | Full 7-force architecture, learning mechanisms, all APIs |
+| [SUBCONSCIOUS_TEMPORAL_LOOP.md](SUBCONSCIOUS_TEMPORAL_LOOP.md) | Subconscious loop + feedback loop diagram |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow and system components |
+| [docs/architecture/layers.md](docs/architecture/layers.md) | Full 12-layer catalogue |
+| [docs/LIMINALQA_TEST_STRATEGY.md](docs/LIMINALQA_TEST_STRATEGY.md) | Strategy for integrating LiminalQAengineer with the current pytest and CI stack |
+| [docs/CI_QUALITY_GATES.md](docs/CI_QUALITY_GATES.md) | Active CI quality-gate thresholds, enforcement state, and calibration notes |
+| [docs/LIMINALQA_LOCAL_SETUP.md](docs/LIMINALQA_LOCAL_SETUP.md) | Local deployment model for running LiminalQAengineer next to this repository |
+| [FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md) | Golden Master overview |
+
+---
+
+## How it differs from other agents
+
+| | Typical agent | GhostGPT |
+|--|---------------|----------|
+| Between messages | Idle | Subconscious analysis running |
+| Learning | On request | Continuous (4 sources) |
+| Memory | Flat history | Weighted resonance graph with decay |
+| Self-awareness | None | Observer detects + corrects pathologies |
+| User model | None | Per-user profile, mode prediction |
+| Failure mode | Silent drift | Detected and self-corrected |
+| Input | Text only | Text + voice (Whisper) + screen (OCR) |
+| Output | Text only | Text + voice (TTS, offline) |
+
+---
+
+© 2026 GhostGPT Team. Strictly Local. Strictly Cognitive.
+
+---
+
+<a name="russian"></a>
+
+# GhostGPT — Локальная когнитивная система
+
+[![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
+[![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
+
+GhostGPT — это не обёртка над ChatGPT. Это **когнитивная операционная система** для LLM: агент, который думает между твоими сообщениями, учится у тебя непрерывно и знает, когда сам с собой не в порядке.
+
+---
+
+## Что это такое простыми словами
+
+Обычный ИИ: вопрос → подумал → ответил → забыл.
+
+GhostGPT **живёт между ответами**:
+- Пока ты печатаешь, фоновый поток анализирует твой стиль мышления
+- Когда ты ответил коротко после длинного ответа агента — это сигнал "не попал"
+- Когда один режим мышления повторяется раз за разом — он становится долгосрочной памятью
+- Когда система слишком долго стоит на одном месте — она сама себя исправляет
+
+Итог: агент с **когнитивным характером**, который развивается без явных инструкций.
+
+---
+
+## Ключевые компоненты
+
+### Когнитивное поле — 7 сил
+
+В каждом цикле `Coordinator.decide()` на граф знаний действуют 7 сил:
+
+| Сила | Что делает |
+|------|-----------|
+| F1+F2 | Ориентация: chaos/harmony изменяют резонанс + ассоциативная проводимость |
+| F3 | Стабилизация: узлы возвращаются к своему "положению покоя" |
+| F4 | Забывание: уроки живут 24ч, критические сигналы — 5 минут |
+| F5 | Интерференция: конкурирующие режимы подавляют друг друга |
+| F6 | Наблюдатель: обнаруживает патологии и корректирует поле |
+| F7 | Ассоциация: активные узлы усиливают связанных соседей |
+
+### 6 механизмов обучения
+
+Система учится **одновременно из 4 источников**:
+
+1. **Подсознание** (каждые 20с) — определяет твой режим мышления без вопросов
+2. **Явная обратная связь** — "да/нет" обновляет резонанс узла ±
+3. **Авто-прокси** — длинный ответ + короткая реакция = авто-негативный сигнал
+4. **Рефлексии** — уроки после действий, хранятся 24ч
+5. **Внешние события** — git-коммиты и ошибки в логах становятся узлами памяти
+6. **Ассоциативный граф** — совместно активированные узлы укрепляют связи
+
+### Наблюдатель адекватности
+
+`SystemObserver` работает каждый цикл и детектирует 6 патологий:
+
+| Патология | Условие | Коррекция |
+|-----------|---------|----------|
+| OVERHEATING | Все узлы перегреты | Нормализация поля ×0.88 |
+| VACUUM | Нет активных узлов | Поднять пол + инжект якоря |
+| OSSIFICATION | Одна ось 8+ циклов | Снизить инерцию, сдвинуть вниз |
+| SPLIT_BRAIN | Два режима в клинче | Подавить слабый на 0.12 |
+| RUNAWAY_CHAOS | Коллапс хаоса | Буст якорной оси |
+| RESONANCE_COLLAPSE | Ось слишком слабая | Экстренный буст |
+
+После 3 повторений патологии → пишет `lesson:meta:*`. **Система запоминает свои слабости.**
+
+### Профили пользователей
+
+`UserProfileStore` отслеживает когнитивный стиль каждого пользователя. После 5+ ходов даёт **стартовый хинт** — агент начинает следующий разговор уже настроенным на твой стиль. Скользящее окно 20 ходов ловит изменения стиля.
+
+---
+
+## Пайплайн для собеседований — Глаза + Уши + Голос
+
+GhostGPT умеет работать как **тихий помощник на собесе**:
+
+- **Глаза (чтение экрана)** — `VisionSubsystem` снимает скриншот каждые 0.5с и распознаёт текст через OCR (pytesseract или easyocr). Последний текст экрана добавляется в каждый LLM-запрос как системное сообщение — агент видит вопрос интервьюера ещё до того, как ты его задашь.
+- **Уши (голосовой ввод)** — `faster-whisper` + PyAudio слушают микрофон и транскрибируют речь в текст в реальном времени. Транскрипт идёт в агент как сообщение пользователя.
+- **Голос (TTS)** — `Speaker` (pyttsx3, полностью оффлайн) читает ответ агента вслух в наушник.
+
+```
+┌──────────┐   OCR     ┌──────────────────┐  system msg   ┌──────────┐
+│  Экран   │ ────────► │  VisionSubsystem  │ ────────────► │          │
+└──────────┘           └──────────────────┘               │  Agent   │ ──► TTS ──► наушник
+                                                           │  Loop    │
+┌──────────┐  Whisper  ┌───────────────┐  user msg        │          │
+│   Мик    │ ────────► │  AudioInput   │ ───────────────► │          │
+└──────────┘           └───────────────┘                  └──────────┘
+```
+
+### Активация
+
+```bash
+pip install pyttsx3               # TTS (оффлайн)
+pip install pytesseract           # OCR (или: pip install easyocr)
+# для pytesseract: установи бинарник tesseract для своей ОС
+
+export LS_TTS_ENABLED=1           # включить голосовой вывод
+python apps/console/main.py
+```
+
+---
+
+## Архитектура
+
+```
+AgentLoop
+  ├── Screen OCR (VisionSubsystem) ─►
+  ├── Mic / Whisper                ─►  TemporalGraph
+  ├── Subconscious loop (20s)      ─►  (узлы + рёбра)
+  ├── WorldPoller (git/logs)       ─►
+  ├── Quality feedback             ─►
+  └── Auto feedback proxy          ─►
+                                        │
+                              Coordinator.decide()
+                              7 сил за цикл
+                                        │
+                              OrientationCenter ◄──► сигнал обратно
+                                        │
+                        sleep → session_report → lesson:session:*
+                                        │
+                              TTS Speaker ◄── ответ
+```
+
+---
+
+## Быстрый старт
+
+```bash
+git clone https://github.com/safal207/LS.git
+cd LS
+python -m venv venv && source venv/bin/activate
+pip install -e ".[full]"
+
+# GUI
+python apps/ghostgpt/main.py
+
+# Консоль
+python apps/console/main.py
+```
+
+### Мультимодальный воркер (опционально)
+
+```bash
+export QWEN_OMNI_ENABLED=1
+export DASHSCOPE_API_KEY=your_key   # без ключа — fallback режим
+python apps/ghostgpt/main.py
+```
+
+### Пайплайн для собеседований (опционально)
+
+```bash
+pip install pyttsx3 pytesseract     # или easyocr вместо pytesseract
+export LS_TTS_ENABLED=1
+python apps/console/main.py
+```
+
+---
+
+## Документация
+
+| Файл | Содержимое |
+|------|-----------|
+| [COGNITIVE_FIELD_COMPLETE.md](COGNITIVE_FIELD_COMPLETE.md) | Полная архитектура 7 сил и 6 механизмов обучения |
+| [SUBCONSCIOUS_TEMPORAL_LOOP.md](SUBCONSCIOUS_TEMPORAL_LOOP.md) | Подсознание + петля обратной связи |
+| [docs/architecture/layers.md](docs/architecture/layers.md) | Каталог 12 архитектурных слоёв |
+| [FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md) | Итоговый отчёт Golden Master |
+
+---
+
+## Сравнение с другими агентами
+
+| | Обычный агент | GhostGPT |
+|--|---------------|----------|
+| Между сообщениями | Простаивает | Подсознание работает |
+| Обучение | По запросу | Непрерывно (4 источника) |
+| Память | Плоская история | Граф с резонансом и распадом |
+| Самоконтроль | Нет | Наблюдатель корректирует патологии |
+| Модель пользователя | Нет | Профиль + предсказание режима |
+| Отказ | Тихий дрейф | Обнаруживается и исправляется |
+| Вход | Только текст | Текст + голос + экран (OCR) |
+| Выход | Только текст | Текст + голос (TTS) |
+
+---
+
 © 2026 GhostGPT Team. Strictly Local. Strictly Cognitive.

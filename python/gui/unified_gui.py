@@ -17,8 +17,8 @@ if current_root not in sys.path:
     sys.path.append(current_root)
 
 try:
-    from audio_module import AudioIngestion
-    from stt_module import SpeechToText
+    from audio.audio_module import AudioIngestion
+    from stt.stt_module import SpeechToText
     from python.modules.adaptive_brain import AdaptiveBrain
     from python.modules.self_improving import SelfImprovingBrain
     from python.modules.hexagon_core.lpi import LPI
