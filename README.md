@@ -281,6 +281,7 @@ pytest python/tests/test_memory_store_locking.py
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow and system components |
 | [docs/architecture/layers.md](docs/architecture/layers.md) | Full 12-layer catalogue |
 | [docs/LIMINALQA_TEST_STRATEGY.md](docs/LIMINALQA_TEST_STRATEGY.md) | Strategy for integrating LiminalQAengineer with the current pytest and CI stack |
+| [docs/CI_QUALITY_GATES.md](docs/CI_QUALITY_GATES.md) | Active CI quality-gate thresholds, enforcement state, and calibration notes |
 | [FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md) | Golden Master overview |
 
 ---

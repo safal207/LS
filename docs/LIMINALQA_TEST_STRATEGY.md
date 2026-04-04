@@ -284,3 +284,17 @@ If you want, the next practical step is to implement Phase 1 directly in:
 - `.github/workflows/ci.yml`
 
 with one shared LiminalQA integration pattern.
+
+## Implemented Baseline
+
+As of 2026-04-04, the repository has moved beyond passive observability and now includes:
+
+- shared pytest + optional LiminalQA runner action
+- shared artifact summary action
+- shared quality gate action
+- enforcing gates on:
+  - `mesh-tests.yml`
+  - `ci.yml`
+  - `web4_runtime_ci.yml`
+
+The live thresholds are documented in `docs/CI_QUALITY_GATES.md`.
