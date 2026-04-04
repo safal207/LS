@@ -243,7 +243,9 @@ try:
         AlignmentMemoryMetrics as _AlignmentMemoryMetrics,
         AlignmentMemoryUnit as _AlignmentMemoryUnit,
         append_alignment_memory_unit as _append_alignment_memory_unit,
+        build_alignment_memory_hint as _build_alignment_memory_hint,
         build_alignment_memory_unit as _build_alignment_memory_unit,
+        find_relevant_alignment_units as _find_relevant_alignment_units,
         should_store_alignment_memory_unit as _should_store_alignment_memory_unit,
     )
     _ALIGNMENT_MEMORY_OK = True
@@ -253,7 +255,9 @@ except ImportError:
             AlignmentMemoryMetrics as _AlignmentMemoryMetrics,
             AlignmentMemoryUnit as _AlignmentMemoryUnit,
             append_alignment_memory_unit as _append_alignment_memory_unit,
+            build_alignment_memory_hint as _build_alignment_memory_hint,
             build_alignment_memory_unit as _build_alignment_memory_unit,
+            find_relevant_alignment_units as _find_relevant_alignment_units,
             should_store_alignment_memory_unit as _should_store_alignment_memory_unit,
         )
         _ALIGNMENT_MEMORY_OK = True
@@ -262,8 +266,64 @@ except ImportError:
         _AlignmentMemoryMetrics = None  # type: ignore[assignment,misc]
         _AlignmentMemoryUnit = None  # type: ignore[assignment,misc]
         _append_alignment_memory_unit = None  # type: ignore[assignment]
+        _build_alignment_memory_hint = None  # type: ignore[assignment]
         _build_alignment_memory_unit = None  # type: ignore[assignment]
+        _find_relevant_alignment_units = None  # type: ignore[assignment]
         _should_store_alignment_memory_unit = None  # type: ignore[assignment]
+
+try:
+    from agent.alignment_digest import (
+        AlignmentDigestMetrics as _AlignmentDigestMetrics,
+        build_alignment_digest as _build_alignment_digest,
+    )
+    _ALIGNMENT_DIGEST_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_digest import (
+            AlignmentDigestMetrics as _AlignmentDigestMetrics,
+            build_alignment_digest as _build_alignment_digest,
+        )
+        _ALIGNMENT_DIGEST_OK = True
+    except ImportError:
+        _ALIGNMENT_DIGEST_OK = False
+        _AlignmentDigestMetrics = None  # type: ignore[assignment,misc]
+        _build_alignment_digest = None  # type: ignore[assignment]
+
+try:
+    from agent.alignment_success_patterns import (
+        AlignmentSuccessPatternMetrics as _AlignmentSuccessPatternMetrics,
+        build_alignment_success_patterns as _build_alignment_success_patterns,
+    )
+    _ALIGNMENT_SUCCESS_PATTERNS_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_success_patterns import (
+            AlignmentSuccessPatternMetrics as _AlignmentSuccessPatternMetrics,
+            build_alignment_success_patterns as _build_alignment_success_patterns,
+        )
+        _ALIGNMENT_SUCCESS_PATTERNS_OK = True
+    except ImportError:
+        _ALIGNMENT_SUCCESS_PATTERNS_OK = False
+        _AlignmentSuccessPatternMetrics = None  # type: ignore[assignment,misc]
+        _build_alignment_success_patterns = None  # type: ignore[assignment]
+
+try:
+    from agent.alignment_strategy_recommender import (
+        AlignmentStrategyRecommendationMetrics as _AlignmentStrategyRecommendationMetrics,
+        build_alignment_strategy_recommendations as _build_alignment_strategy_recommendations,
+    )
+    _ALIGNMENT_RECOMMENDER_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_strategy_recommender import (
+            AlignmentStrategyRecommendationMetrics as _AlignmentStrategyRecommendationMetrics,
+            build_alignment_strategy_recommendations as _build_alignment_strategy_recommendations,
+        )
+        _ALIGNMENT_RECOMMENDER_OK = True
+    except ImportError:
+        _ALIGNMENT_RECOMMENDER_OK = False
+        _AlignmentStrategyRecommendationMetrics = None  # type: ignore[assignment,misc]
+        _build_alignment_strategy_recommendations = None  # type: ignore[assignment]
 
 try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
@@ -575,6 +635,27 @@ class ResonanceAgent:
                 _Path("data/graph_memory/alignment_memory_units.jsonl")
             )
 
+        # Alignment digest metrics (advisory/observability only)
+        self._digest_metrics = (
+            _AlignmentDigestMetrics()
+            if _ALIGNMENT_DIGEST_OK and _AlignmentDigestMetrics
+            else None
+        )
+
+        # Alignment success pattern metrics (advisory/observability only)
+        self._success_patterns_metrics = (
+            _AlignmentSuccessPatternMetrics()
+            if _ALIGNMENT_SUCCESS_PATTERNS_OK and _AlignmentSuccessPatternMetrics
+            else None
+        )
+
+        # Alignment strategy recommendation metrics (advisory/observability only)
+        self._recommender_metrics = (
+            _AlignmentStrategyRecommendationMetrics()
+            if _ALIGNMENT_RECOMMENDER_OK and _AlignmentStrategyRecommendationMetrics
+            else None
+        )
+
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
             len(self._anchor),
@@ -705,6 +786,160 @@ class ResonanceAgent:
         """Return a copy of all in-memory alignment memory units as dicts."""
         with self._alignment_memory_lock:
             return [u.to_dict() for u in self._alignment_memory_units]
+
+    def get_alignment_digest(self) -> dict:
+        """Return a compact, deterministic session digest over accumulated alignment units.
+
+        Read-only — never modifies units, routing state, or any pipeline field.
+        """
+        if not (_ALIGNMENT_DIGEST_OK and _build_alignment_digest):
+            return {"alignment_digest_available": False}
+
+        with self._alignment_memory_lock:
+            units = list(self._alignment_memory_units)
+
+        digest = _build_alignment_digest(units)
+
+        if self._digest_metrics is not None:
+            self._digest_metrics.calls_total += 1
+            self._digest_metrics.units_processed_total += len(units)
+            if digest.get("total_units", 0) == 0:
+                self._digest_metrics.empty_total += 1
+            else:
+                self._digest_metrics.nonempty_total += 1
+
+        return digest
+
+    def get_alignment_digest_metrics(self) -> dict:
+        """Return observability counters for the digest build layer."""
+        if self._digest_metrics is None:
+            return {"alignment_digest_available": False}
+        return self._digest_metrics.to_dict()
+
+    def get_alignment_success_patterns(self) -> list:
+        """Return repeated successful alignment patterns extracted from session memory.
+
+        Read-only — never modifies units, routing state, or any pipeline field.
+        Returns empty list when fewer than min_support matching units exist.
+        """
+        if not (_ALIGNMENT_SUCCESS_PATTERNS_OK and _build_alignment_success_patterns):
+            return []
+
+        with self._alignment_memory_lock:
+            units = list(self._alignment_memory_units)
+
+        patterns = _build_alignment_success_patterns(units)
+
+        if self._success_patterns_metrics is not None:
+            m = self._success_patterns_metrics
+            m.calls_total += 1
+            m.units_processed_total += len(units)
+            successful = [u for u in units if u.guidance_effective or u.softening_detected or u.effect_reason]
+            m.patterns_built_total += len(patterns)
+            # skipped = successful groups that didn't meet min_support
+            from collections import Counter as _Counter
+            from modules.agent.alignment_success_patterns import make_alignment_pattern_key as _mpk
+            key_counts = _Counter(_mpk(u) for u in successful)
+            m.patterns_skipped_total += sum(1 for c in key_counts.values() if c < 2)
+            m.patterns_with_hotspot += sum(1 for p in patterns if p.get("hotspot"))
+            m.patterns_with_softening += sum(1 for p in patterns if p.get("softening_signals"))
+
+        return patterns
+
+    def get_alignment_success_pattern_metrics(self) -> dict:
+        """Return observability counters for the success pattern build layer."""
+        if self._success_patterns_metrics is None:
+            return {"alignment_success_patterns_available": False}
+        return self._success_patterns_metrics.to_dict()
+
+    def get_alignment_strategy_recommendations(self, item: dict) -> list:
+        """Return 0–3 strategy recommendations for the current cycle item.
+
+        Advisory-only — never modifies item, route_key, graph_mode, or
+        any session state.  Returns empty list when no patterns qualify.
+        """
+        if not (_ALIGNMENT_RECOMMENDER_OK and _build_alignment_strategy_recommendations):
+            return []
+
+        patterns = self.get_alignment_success_patterns()
+        alignment_report = item.get("_alignment_report") or {}
+        intent_obj = item.get("_intent") or {}
+        if isinstance(intent_obj, dict):
+            intent_str = str(intent_obj.get("type") or intent_obj.get("intent") or "")
+        elif isinstance(intent_obj, str):
+            intent_str = intent_obj
+        else:
+            intent_str = ""
+
+        recommendations, stats = _build_alignment_strategy_recommendations(
+            patterns,
+            alignment_report=alignment_report,
+            intent=intent_str,
+        )
+
+        if self._recommender_metrics is not None:
+            m = self._recommender_metrics
+            m.calls_total += 1
+            m.patterns_considered_total += stats["considered"]
+            m.patterns_filtered_total += stats["filtered"]
+            m.recommendations_built_total += len(recommendations)
+            m.hotspot_overlap_total += stats["hotspot_hits"]
+            m.mismatch_overlap_total += stats["mismatch_hits"]
+            m.intent_match_total += stats["intent_hits"]
+            if recommendations:
+                m.nonempty_total += 1
+            else:
+                m.empty_total += 1
+
+        return recommendations
+
+    def get_alignment_strategy_recommendation_metrics(self) -> dict:
+        """Return observability counters for the strategy recommender."""
+        if self._recommender_metrics is None:
+            return {"alignment_strategy_recommender_available": False}
+        return self._recommender_metrics.to_dict()
+
+    def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
+        """Return a soft advisory hint from past alignment units relevant to item.
+
+        Advisory-only — never modifies item, route_key, or graph_mode.
+        Returns None when memory is empty or no relevant units found.
+        """
+        if not (_ALIGNMENT_MEMORY_OK and _find_relevant_alignment_units and _build_alignment_memory_hint):
+            return None
+
+        with self._alignment_memory_lock:
+            units = list(self._alignment_memory_units)
+
+        if not units:
+            return None
+
+        # Derive query context from already-computed item fields
+        intent_obj = item.get("_intent") or {}
+        if isinstance(intent_obj, dict):
+            query_intent = str(intent_obj.get("type") or intent_obj.get("intent") or "")
+        elif isinstance(intent_obj, str):
+            query_intent = intent_obj
+        else:
+            query_intent = ""
+
+        report = item.get("_alignment_report") or {}
+        query_hotspot = ""
+        if isinstance(report, dict):
+            hotspots = report.get("pairwise_hotspots") or []
+            if hotspots and isinstance(hotspots[0], dict):
+                query_hotspot = str(hotspots[0].get("tension_axis") or "")
+
+        relevant = _find_relevant_alignment_units(
+            units,
+            query_intent=query_intent,
+            query_hotspot=query_hotspot,
+            max_results=3,
+        )
+        hint = _build_alignment_memory_hint(relevant)
+        if hint and self._alignment_memory_metrics is not None:
+            self._alignment_memory_metrics.retrieved_total += 1
+        return hint
 
     def _maybe_store_alignment_memory_unit(self, item: dict, final_output: str) -> None:
         """Best-effort: build and store an alignment memory unit for this cycle.
@@ -1461,6 +1696,14 @@ class ResonanceAgent:
         item["_alignment_guidance"] = alignment_guidance
         if alignment_guidance:
             parts.append(alignment_guidance)
+
+        # Alignment memory hints — soft advisory from past alignment cycles
+        # (advisory-only: never affects route_key / graph_mode / backend)
+        memory_hint = self._build_alignment_memory_hint_for_item(item)
+        if memory_hint:
+            item["_alignment_memory_hint"] = memory_hint
+            parts.append(memory_hint)
+
         if need_profile:
             parts.append(
                 "Профиль потребности сети: "
@@ -1791,7 +2034,11 @@ class ResonanceAgent:
             "alignment_report": alignment_meta,
             "alignment_outcome": alignment_outcome,
             "alignment_observability": self.get_alignment_outcome_metrics(),
+            "alignment_memory_hint": item.get("_alignment_memory_hint"),
             "alignment_memory_metrics": self.get_alignment_memory_metrics(),
+            "alignment_digest": self.get_alignment_digest(),
+            "alignment_success_patterns": self.get_alignment_success_patterns(),
+            "alignment_strategy_recommendations": self.get_alignment_strategy_recommendations(item),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
