@@ -18,7 +18,7 @@ if (-not $Url -and (Test-Path $envFile)) {
 }
 
 if (-not $Url) {
-    $Url = "http://localhost:8088"
+    $Url = "http://localhost:8080"
 }
 
 $healthUrl = $Url.TrimEnd("/") + "/health"

@@ -498,7 +498,7 @@ class TemporalGraph:
 
     # ── Outward signal ─────────────────────────────────────────────────────────
 
-    def to_orientation_signal(self) -> dict[str, float]:
+    def to_orientation_signal(self) -> dict[str, float | str]:
         """Extract temporal state signal for OrientationCenter input."""
         with self._graph_lock:
             nodes = list(self.nodes.values())
