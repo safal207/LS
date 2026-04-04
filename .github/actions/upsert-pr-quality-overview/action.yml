@@ -61,6 +61,29 @@ runs:
           const incidentStartMarker = `<!-- quality-incident-section:${laneKey}:start -->`;
           const incidentEndMarker = `<!-- quality-incident-section:${laneKey}:end -->`;
           const timestamp = new Date().toISOString();
+          let mutationsAllowed = true;
+
+          function isPermissionError(error) {
+            return error?.status === 403 || /Resource not accessible by integration/i.test(String(error?.message || ''));
+          }
+
+          async function safeMutation(label, fn) {
+            if (!mutationsAllowed) {
+              core.warning(`${label} skipped because issue mutations are unavailable for this run.`);
+              return null;
+            }
+            try {
+              return await fn();
+            } catch (error) {
+              if (isPermissionError(error)) {
+                mutationsAllowed = false;
+                core.warning(`${label} skipped: ${error.message}`);
+                return null;
+              }
+              throw error;
+            }
+          }
+
           const { data: artifactData } = await github.rest.actions.listWorkflowRunArtifacts({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -88,11 +111,11 @@ runs:
 
           for (const comment of comments) {
             if (comment.body && comment.body.includes(legacyMarker)) {
-              await github.rest.issues.deleteComment({
+              await safeMutation('Delete legacy quality comment', () => github.rest.issues.deleteComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 comment_id: comment.id,
-              });
+              }));
             }
           }
 
@@ -149,12 +172,12 @@ runs:
           let finalBody;
           if (!existing) {
             finalBody = `${header}${laneSection}\n`;
-            await github.rest.issues.createComment({
+            await safeMutation('Create shared quality comment', () => github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
               body: finalBody,
-            });
+            }));
           } else {
             finalBody = existing.body;
             const sectionRegex = new RegExp(
@@ -172,12 +195,12 @@ runs:
               finalBody = `${header}${finalBody}`;
             }
 
-            await github.rest.issues.updateComment({
+            await safeMutation('Update shared quality comment', () => github.rest.issues.updateComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               comment_id: existing.id,
               body: finalBody,
-            });
+            }));
           }
 
           const sectionVerdicts = [...finalBody.matchAll(/- verdict: `([^`]+)`/g)].map((match) => match[1]);
@@ -201,13 +224,13 @@ runs:
               });
             } catch (error) {
               if (error.status !== 404) throw error;
-              await github.rest.issues.createLabel({
+              await safeMutation(`Create label ${name}`, () => github.rest.issues.createLabel({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 name,
                 color: spec.color,
                 description: spec.description,
-              });
+              }));
             }
           }
 
@@ -225,12 +248,12 @@ runs:
           for (const label of managedLabels) {
             if (currentLabels.includes(label) && label !== desiredLabel) {
               try {
-                await github.rest.issues.removeLabel({
+                await safeMutation(`Remove label ${label}`, () => github.rest.issues.removeLabel({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: context.issue.number,
                   name: label,
-                });
+                }));
               } catch (error) {
                 if (error.status !== 404) throw error;
               }
@@ -239,12 +262,12 @@ runs:
 
           if (currentLabels.includes(flakyLabel) && !flakySuspect) {
             try {
-              await github.rest.issues.removeLabel({
+              await safeMutation(`Remove label ${flakyLabel}`, () => github.rest.issues.removeLabel({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
                 name: flakyLabel,
-              });
+              }));
             } catch (error) {
               if (error.status !== 404) throw error;
             }
@@ -252,42 +275,42 @@ runs:
 
           if (currentLabels.includes(triageLabel) && desiredLabel !== 'quality:block') {
             try {
-              await github.rest.issues.removeLabel({
+              await safeMutation(`Remove label ${triageLabel}`, () => github.rest.issues.removeLabel({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
                 name: triageLabel,
-              });
+              }));
             } catch (error) {
               if (error.status !== 404) throw error;
             }
           }
 
           if (desiredLabel && !currentLabels.includes(desiredLabel)) {
-            await github.rest.issues.addLabels({
+            await safeMutation(`Add label ${desiredLabel}`, () => github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
               labels: [desiredLabel],
-            });
+            }));
           }
 
           if (desiredLabel === 'quality:block' && !currentLabels.includes(triageLabel)) {
-            await github.rest.issues.addLabels({
+            await safeMutation(`Add label ${triageLabel}`, () => github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
               labels: [triageLabel],
-            });
+            }));
           }
 
           if (flakySuspect && !currentLabels.includes(flakyLabel)) {
-            await github.rest.issues.addLabels({
+            await safeMutation(`Add label ${flakyLabel}`, () => github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
               labels: [flakyLabel],
-            });
+            }));
           }
 
           const { data: repoIssues } = await github.rest.issues.listForRepo({
@@ -376,32 +399,32 @@ runs:
 
           if (!existingIncident) {
             if (desiredLabel === 'quality:block') {
-              await github.rest.issues.create({
+              await safeMutation('Create quality incident', () => github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 title: incidentTitle,
                 body: incidentBody,
                 labels: [incidentLabel, triageLabel],
-              });
+              }));
             }
           } else {
             const nextState = anyBlockingLane ? 'open' : 'closed';
-            await github.rest.issues.update({
+            await safeMutation('Update quality incident', () => github.rest.issues.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: existingIncident.number,
               title: incidentTitle,
               body: incidentBody,
               state: nextState,
-            });
+            }));
 
             if (existingIncident.state === 'open' && nextState === 'closed') {
-              await github.rest.issues.createComment({
+              await safeMutation('Comment on closed quality incident', () => github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: existingIncident.number,
                 body: `No blocking lanes remain for PR #${context.issue.number}. Closing incident.`,
-              });
+              }));
             }
           }
 
