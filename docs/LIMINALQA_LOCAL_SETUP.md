@@ -6,7 +6,7 @@ This repository integrates with `LiminalQAengineer`, but the service itself shou
 
 - current repository: `.../deck`
 - LiminalQA repository: `.../LiminalQAengineer`
-- local ingest URL: `http://localhost:8088`
+- local ingest URL: `http://localhost:8080`
 
 That keeps the test target and the quality-memory service separate.
 
@@ -68,7 +68,7 @@ In other words, `LiminalQA` is not a Python module inside this repo. It is a sep
 
 ## Important boundary
 
-`http://localhost:8088` is only reachable from your machine.
+`http://localhost:8080` is only reachable from your machine.
 
 That means:
 
