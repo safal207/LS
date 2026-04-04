@@ -389,6 +389,27 @@ except ImportError:
         _build_strategy_reputation_overlay = None  # type: ignore[assignment]
 
 try:
+    from agent.alignment_recommendation_adoption import (
+        AlignmentRecommendationAdoptionMetrics as _AlignmentRecommendationAdoptionMetrics,
+        build_recommendation_adoption_summary as _build_adoption_summary,
+        build_recommendation_adoption_trace as _build_adoption_trace,
+    )
+    _ALIGNMENT_ADOPTION_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_recommendation_adoption import (
+            AlignmentRecommendationAdoptionMetrics as _AlignmentRecommendationAdoptionMetrics,
+            build_recommendation_adoption_summary as _build_adoption_summary,
+            build_recommendation_adoption_trace as _build_adoption_trace,
+        )
+        _ALIGNMENT_ADOPTION_OK = True
+    except ImportError:
+        _ALIGNMENT_ADOPTION_OK = False
+        _AlignmentRecommendationAdoptionMetrics = None  # type: ignore[assignment,misc]
+        _build_adoption_summary = None  # type: ignore[assignment]
+        _build_adoption_trace = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -739,6 +760,15 @@ class ResonanceAgent:
         self._reputation_metrics = (
             _AlignmentStrategyReputationMetrics()
             if _ALIGNMENT_REPUTATION_OK and _AlignmentStrategyReputationMetrics
+            else None
+        )
+
+        # Recommendation adoption trace — bounded in-memory list, read-only
+        self._recommendation_adoption_traces: list = []
+        self._adoption_traces_max = 200
+        self._adoption_metrics = (
+            _AlignmentRecommendationAdoptionMetrics()
+            if _ALIGNMENT_ADOPTION_OK and _AlignmentRecommendationAdoptionMetrics
             else None
         )
 
@@ -1123,6 +1153,72 @@ class ResonanceAgent:
         if self._reputation_metrics is None:
             return {"alignment_strategy_reputation_available": False}
         return self._reputation_metrics.to_dict()
+
+    def _record_recommendation_adoption_trace(
+        self,
+        recommendations: list,
+        response_text: str,
+        alignment_outcome: dict,
+    ) -> None:
+        """Build and store adoption traces post-response. Advisory-only."""
+        if not (_ALIGNMENT_ADOPTION_OK and _build_adoption_trace):
+            return
+        try:
+            traces = _build_adoption_trace(
+                recommendations, response_text, alignment_outcome
+            )
+        except Exception:
+            return
+        if not traces:
+            return
+        with self._alignment_memory_lock:
+            for tr in traces:
+                if len(self._recommendation_adoption_traces) >= self._adoption_traces_max:
+                    self._recommendation_adoption_traces.pop(0)
+                self._recommendation_adoption_traces.append(tr)
+        m = self._adoption_metrics
+        if m is not None:
+            m.calls_total += 1
+            m.recommendations_processed_total += len(recommendations)
+            m.traces_total += len(traces)
+            for tr in traces:
+                lbl = tr.get("adoption_label", "not_adopted")
+                if lbl == "adopted":
+                    m.adopted_total += 1
+                elif lbl == "partially_adopted":
+                    m.partially_adopted_total += 1
+                else:
+                    m.not_adopted_total += 1
+                m.score_sum += float(tr.get("adoption_score") or 0.0)
+                m.action_matches_total += int(tr.get("matched_action_count") or 0)
+                m.unknown_actions_total += int(
+                    tr.get("total_action_count", 0)
+                    - tr.get("matched_action_count", 0)
+                    - len(tr.get("unmatched_actions") or [])
+                    + len([
+                        a for a in (tr.get("unmatched_actions") or [])
+                        if a not in (tr.get("matched_actions") or [])
+                    ])
+                )
+
+    def get_recommendation_adoption_traces(self) -> list:
+        """Return a snapshot of all session adoption traces (read-only copy)."""
+        with self._alignment_memory_lock:
+            return list(self._recommendation_adoption_traces)
+
+    def get_recommendation_adoption_summary(self) -> dict:
+        """Return aggregated adoption summary for this session."""
+        if not (_ALIGNMENT_ADOPTION_OK and _build_adoption_summary):
+            return {"alignment_recommendation_adoption_available": False}
+        with self._alignment_memory_lock:
+            traces = list(self._recommendation_adoption_traces)
+        return _build_adoption_summary(traces)
+
+    def get_recommendation_adoption_metrics(self) -> dict:
+        """Return observability counters for the adoption trace layer."""
+        if self._adoption_metrics is None:
+            return {"alignment_recommendation_adoption_available": False}
+        return self._adoption_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2199,10 +2295,14 @@ class ResonanceAgent:
             else f"{graph_meta.get('mode', 'full_run')}>{llm_meta.get('provider', 'unknown')}"
         )
 
-        # Strategy recommendations — computed once so feedback can use the same list
+        # Strategy recommendations — computed once so feedback and adoption can share it
         _strategy_recs = self.get_alignment_strategy_recommendations(item)
         # Post-cycle feedback: advisory-only, appends to bounded session list
         self._record_strategy_outcome_feedback(_strategy_recs, alignment_outcome)
+        # Post-response adoption trace: checks recommended actions in final text
+        self._record_recommendation_adoption_trace(
+            _strategy_recs, final_output, alignment_outcome
+        )
 
         return {
             # Identity
@@ -2273,6 +2373,8 @@ class ResonanceAgent:
             "alignment_strategy_feedback_summary": self.get_strategy_feedback_summary(),
             "alignment_strategy_aggregation": self.get_alignment_strategy_aggregation(),
             "alignment_strategy_reputation_overlay": self.get_alignment_strategy_reputation_overlay(item),
+            "alignment_recommendation_adoption_traces": self.get_recommendation_adoption_traces(),
+            "alignment_recommendation_adoption_summary": self.get_recommendation_adoption_summary(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
