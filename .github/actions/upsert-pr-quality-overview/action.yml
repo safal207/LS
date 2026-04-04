@@ -33,6 +33,13 @@ runs:
         script: |
           const sharedMarker = '<!-- quality-gates:overview -->';
           const managedLabels = ['quality:block', 'quality:warn', 'quality:pass'];
+          const triageLabel = 'needs-triage';
+          const managedLabelSpecs = {
+            'quality:block': { color: 'B60205', description: 'CI quality gates are blocking this PR' },
+            'quality:warn': { color: 'FBCA04', description: 'CI quality gates have warnings on this PR' },
+            'quality:pass': { color: '0E8A16', description: 'CI quality gates currently pass on this PR' },
+            'needs-triage': { color: 'D93F0B', description: 'This PR needs human triage due to blocking quality signals' },
+          };
           const laneKey = `${{ inputs.lane-key }}`;
           const laneTitle = `${{ inputs.lane-title }}`;
           const threshold = `${{ inputs.threshold }}`;
@@ -128,6 +135,31 @@ runs:
             desiredLabel = 'quality:pass';
           }
 
+          async function ensureLabel(name) {
+            const spec = managedLabelSpecs[name];
+            if (!spec) return;
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name,
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name,
+                color: spec.color,
+                description: spec.description,
+              });
+            }
+          }
+
+          for (const label of [...managedLabels, triageLabel]) {
+            await ensureLabel(label);
+          }
+
           const { data: issue } = await github.rest.issues.get({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -150,11 +182,33 @@ runs:
             }
           }
 
+          if (currentLabels.includes(triageLabel) && desiredLabel !== 'quality:block') {
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: triageLabel,
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+          }
+
           if (desiredLabel && !currentLabels.includes(desiredLabel)) {
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
               labels: [desiredLabel],
+            });
+          }
+
+          if (desiredLabel === 'quality:block' && !currentLabels.includes(triageLabel)) {
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: [triageLabel],
             });
           }
