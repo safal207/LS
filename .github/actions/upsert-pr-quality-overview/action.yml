@@ -35,12 +35,14 @@ runs:
           const managedLabels = ['quality:block', 'quality:warn', 'quality:pass'];
           const triageLabel = 'needs-triage';
           const incidentLabel = 'quality-incident';
+          const flakyLabel = 'quality:flaky-suspect';
           const managedLabelSpecs = {
             'quality:block': { color: 'B60205', description: 'CI quality gates are blocking this PR' },
             'quality:warn': { color: 'FBCA04', description: 'CI quality gates have warnings on this PR' },
             'quality:pass': { color: '0E8A16', description: 'CI quality gates currently pass on this PR' },
             'needs-triage': { color: 'D93F0B', description: 'This PR needs human triage due to blocking quality signals' },
             'quality-incident': { color: '5319E7', description: 'Tracks a PR blocked by CI quality automation' },
+            'quality:flaky-suspect': { color: 'C5DEF5', description: 'A lane shows multiple recent verdict transitions and may be flaky' },
           };
           const laneKey = `${{ inputs.lane-key }}`;
           const laneTitle = `${{ inputs.lane-title }}`;
@@ -107,6 +109,8 @@ runs:
               `- ${timestamp}: \`${previousCommentVerdict}\` -> \`${verdict}\` ([run](${runUrl}))`
             );
           }
+          const commentTransitionCount = previousCommentHistoryLines.length;
+          const flakySuspect = commentTransitionCount >= 3;
           const commentHistorySection = [
             '<!-- quality-gate-history:start -->',
             '#### Recent Transitions',
@@ -125,6 +129,7 @@ runs:
             `- min line coverage observed: \`${coverage}\``,
             `- threshold: \`${threshold}\``,
             `- workflow run: [open run](${runUrl})`,
+            `- flaky suspicion: \`${flakySuspect ? 'yes' : 'no'}\``,
             ...artifactSection,
             '',
             ...commentHistorySection,
@@ -204,7 +209,7 @@ runs:
             }
           }
 
-          for (const label of [...managedLabels, triageLabel, incidentLabel]) {
+          for (const label of [...managedLabels, triageLabel, incidentLabel, flakyLabel]) {
             await ensureLabel(label);
           }
 
@@ -227,6 +232,19 @@ runs:
               } catch (error) {
                 if (error.status !== 404) throw error;
               }
+            }
+          }
+
+          if (currentLabels.includes(flakyLabel) && !flakySuspect) {
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: flakyLabel,
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
             }
           }
 
@@ -258,6 +276,15 @@ runs:
               repo: context.repo.repo,
               issue_number: context.issue.number,
               labels: [triageLabel],
+            });
+          }
+
+          if (flakySuspect && !currentLabels.includes(flakyLabel)) {
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: [flakyLabel],
             });
           }
 
@@ -328,6 +355,7 @@ runs:
             `- min line coverage observed: \`${coverage}\``,
             `- threshold: \`${threshold}\``,
             `- workflow run: ${runUrl}`,
+            `- flaky suspicion: \`${flakySuspect ? 'yes' : 'no'}\``,
             ...artifactSection,
             '',
             ...incidentHistorySection,
