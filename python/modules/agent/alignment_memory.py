@@ -74,6 +74,7 @@ class AlignmentMemoryMetrics:
     saved_because_hotspot: int = 0
     saved_because_softening: int = 0
     saved_because_guidance_effective: int = 0
+    retrieved_total: int = 0  # times a non-empty hint was produced
 
     def to_dict(self) -> dict[str, int]:
         return {
@@ -84,6 +85,7 @@ class AlignmentMemoryMetrics:
             "saved_because_hotspot": self.saved_because_hotspot,
             "saved_because_softening": self.saved_because_softening,
             "saved_because_guidance_effective": self.saved_because_guidance_effective,
+            "retrieved_total": self.retrieved_total,
         }
 
 
@@ -198,3 +200,106 @@ def append_alignment_memory_unit(unit: AlignmentMemoryUnit, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(unit.to_dict(), ensure_ascii=False) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# Read / retrieval helpers (pure, deterministic, no embeddings)
+# ---------------------------------------------------------------------------
+
+
+def _score_unit_relevance(
+    unit: AlignmentMemoryUnit,
+    query_intent: str,
+    query_hotspot: str,
+) -> float:
+    """Deterministic relevance score for one unit against a query context.
+
+    Scale: 0.0 (no match) to 1.0 (full match on all signals).
+    Uses substring containment — no embeddings, no LLM.
+    """
+    qi = query_intent.lower().strip()
+    qh = query_hotspot.lower().strip()
+    text_score = 0.0
+
+    if qi and unit.intent:
+        ui = unit.intent.lower()
+        if qi == ui:
+            text_score += 0.5
+        elif qi in ui or ui in qi:
+            text_score += 0.3
+
+    if qh and unit.alignment_hotspot:
+        uh = unit.alignment_hotspot.lower()
+        if qh == uh:
+            text_score += 0.3
+        elif qh in uh or uh in qh:
+            text_score += 0.15
+
+    # Bonuses only count when there is at least one text match; this prevents
+    # guidance_effective / softening alone from surfacing unrelated units.
+    if text_score == 0.0:
+        return 0.0
+
+    bonus = 0.0
+    if unit.guidance_effective:
+        bonus += 0.15
+    if unit.softening_detected:
+        bonus += 0.05
+
+    return min(text_score + bonus, 1.0)
+
+
+def find_relevant_alignment_units(
+    units: list[AlignmentMemoryUnit],
+    *,
+    query_intent: str,
+    query_hotspot: str,
+    max_results: int = 3,
+    min_score: float = 0.1,
+) -> list[AlignmentMemoryUnit]:
+    """Return the top-N most relevant alignment units for the current context.
+
+    Purely deterministic — scores by intent/hotspot substring match plus
+    guidance_effective preference.  Returns empty list when nothing qualifies.
+    """
+    if not units:
+        return []
+    scored = [
+        (u, _score_unit_relevance(u, query_intent, query_hotspot))
+        for u in units
+    ]
+    filtered = [(u, s) for u, s in scored if s >= min_score]
+    filtered.sort(key=lambda x: x[1], reverse=True)
+    return [u for u, _ in filtered[:max_results]]
+
+
+def build_alignment_memory_hint(units: list[AlignmentMemoryUnit]) -> str | None:
+    """Build a short, readable advisory block from retrieved alignment units.
+
+    Returns None when the list is empty.  The block is labeled as advisory so
+    the LLM treats it as soft guidance, not a hard instruction.
+    """
+    if not units:
+        return None
+
+    lines: list[str] = []
+    for unit in units:
+        parts: list[str] = []
+        if unit.alignment_hotspot:
+            parts.append(f"hotspot={unit.alignment_hotspot!r}")
+        if unit.intent:
+            parts.append(f"intent={unit.intent!r}")
+        if unit.effect_reason:
+            parts.append(unit.effect_reason)
+        elif unit.guidance_effective:
+            parts.append("guidance was effective")
+        elif unit.softening_detected:
+            parts.append("softening detected")
+        if parts:
+            lines.append("- " + "; ".join(parts))
+
+    if not lines:
+        return None
+
+    header = "Past alignment patterns (advisory — use as soft guidance, do not copy verbatim):"
+    return header + "\n" + "\n".join(lines)

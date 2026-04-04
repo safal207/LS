@@ -243,7 +243,9 @@ try:
         AlignmentMemoryMetrics as _AlignmentMemoryMetrics,
         AlignmentMemoryUnit as _AlignmentMemoryUnit,
         append_alignment_memory_unit as _append_alignment_memory_unit,
+        build_alignment_memory_hint as _build_alignment_memory_hint,
         build_alignment_memory_unit as _build_alignment_memory_unit,
+        find_relevant_alignment_units as _find_relevant_alignment_units,
         should_store_alignment_memory_unit as _should_store_alignment_memory_unit,
     )
     _ALIGNMENT_MEMORY_OK = True
@@ -253,7 +255,9 @@ except ImportError:
             AlignmentMemoryMetrics as _AlignmentMemoryMetrics,
             AlignmentMemoryUnit as _AlignmentMemoryUnit,
             append_alignment_memory_unit as _append_alignment_memory_unit,
+            build_alignment_memory_hint as _build_alignment_memory_hint,
             build_alignment_memory_unit as _build_alignment_memory_unit,
+            find_relevant_alignment_units as _find_relevant_alignment_units,
             should_store_alignment_memory_unit as _should_store_alignment_memory_unit,
         )
         _ALIGNMENT_MEMORY_OK = True
@@ -262,7 +266,9 @@ except ImportError:
         _AlignmentMemoryMetrics = None  # type: ignore[assignment,misc]
         _AlignmentMemoryUnit = None  # type: ignore[assignment,misc]
         _append_alignment_memory_unit = None  # type: ignore[assignment]
+        _build_alignment_memory_hint = None  # type: ignore[assignment]
         _build_alignment_memory_unit = None  # type: ignore[assignment]
+        _find_relevant_alignment_units = None  # type: ignore[assignment]
         _should_store_alignment_memory_unit = None  # type: ignore[assignment]
 
 try:
@@ -705,6 +711,48 @@ class ResonanceAgent:
         """Return a copy of all in-memory alignment memory units as dicts."""
         with self._alignment_memory_lock:
             return [u.to_dict() for u in self._alignment_memory_units]
+
+    def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
+        """Return a soft advisory hint from past alignment units relevant to item.
+
+        Advisory-only — never modifies item, route_key, or graph_mode.
+        Returns None when memory is empty or no relevant units found.
+        """
+        if not (_ALIGNMENT_MEMORY_OK and _find_relevant_alignment_units and _build_alignment_memory_hint):
+            return None
+
+        with self._alignment_memory_lock:
+            units = list(self._alignment_memory_units)
+
+        if not units:
+            return None
+
+        # Derive query context from already-computed item fields
+        intent_obj = item.get("_intent") or {}
+        if isinstance(intent_obj, dict):
+            query_intent = str(intent_obj.get("type") or intent_obj.get("intent") or "")
+        elif isinstance(intent_obj, str):
+            query_intent = intent_obj
+        else:
+            query_intent = ""
+
+        report = item.get("_alignment_report") or {}
+        query_hotspot = ""
+        if isinstance(report, dict):
+            hotspots = report.get("pairwise_hotspots") or []
+            if hotspots and isinstance(hotspots[0], dict):
+                query_hotspot = str(hotspots[0].get("tension_axis") or "")
+
+        relevant = _find_relevant_alignment_units(
+            units,
+            query_intent=query_intent,
+            query_hotspot=query_hotspot,
+            max_results=3,
+        )
+        hint = _build_alignment_memory_hint(relevant)
+        if hint and self._alignment_memory_metrics is not None:
+            self._alignment_memory_metrics.retrieved_total += 1
+        return hint
 
     def _maybe_store_alignment_memory_unit(self, item: dict, final_output: str) -> None:
         """Best-effort: build and store an alignment memory unit for this cycle.
@@ -1461,6 +1509,14 @@ class ResonanceAgent:
         item["_alignment_guidance"] = alignment_guidance
         if alignment_guidance:
             parts.append(alignment_guidance)
+
+        # Alignment memory hints — soft advisory from past alignment cycles
+        # (advisory-only: never affects route_key / graph_mode / backend)
+        memory_hint = self._build_alignment_memory_hint_for_item(item)
+        if memory_hint:
+            item["_alignment_memory_hint"] = memory_hint
+            parts.append(memory_hint)
+
         if need_profile:
             parts.append(
                 "Профиль потребности сети: "
@@ -1791,6 +1847,7 @@ class ResonanceAgent:
             "alignment_report": alignment_meta,
             "alignment_outcome": alignment_outcome,
             "alignment_observability": self.get_alignment_outcome_metrics(),
+            "alignment_memory_hint": item.get("_alignment_memory_hint"),
             "alignment_memory_metrics": self.get_alignment_memory_metrics(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
