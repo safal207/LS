@@ -20,47 +20,34 @@ services:
       - liminal
 
   ingest:
-    image: rust:1.90-bullseye
+    build:
+      context: ${LIMINALQA_REPO_DIR:-../LiminalQAengineer}
+      dockerfile: liminalqa-ingest/Dockerfile
     container_name: liminal-ingest
-    working_dir: /workspace
     environment:
-      LIMINAL_PG_URL: postgres://liminal:liminal@pg:5432/liminal
-      LIMINAL_API_TOKEN: ${LIMINALQA_TOKEN:-devtoken}
-      LIMINAL_BIND_ADDR: 0.0.0.0:8088
+      LIMINAL_DB_PATH: /app/data/liminaldb
+      LIMINAL_AUTH_TOKEN: ${LIMINALQA_TOKEN:-devtoken}
       RUST_LOG: info
-    command: >
-      bash -lc "
-      apt-get update &&
-      apt-get install -y pkg-config libssl-dev clang curl &&
-      cargo run --release -p liminalqa-ingest
-      "
     ports:
-      - "8088:8088"
-    volumes:
-      - ${LIMINALQA_REPO_DIR:-../LiminalQAengineer}:/workspace
-      - liminal-cargo-registry:/usr/local/cargo/registry
-      - liminal-cargo-git:/usr/local/cargo/git
-      - liminal-cargo-target:/workspace/target
+      - "8080:8080"
     depends_on:
       pg:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 18
       start_period: 30s
     networks:
       - liminal
+    volumes:
+      - liminal-ingest-data:/app/data
 
 volumes:
   liminal-pg-data:
     driver: local
-  liminal-cargo-registry:
-    driver: local
-  liminal-cargo-git:
-    driver: local
-  liminal-cargo-target:
+  liminal-ingest-data:
     driver: local
 
 networks:
