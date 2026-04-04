@@ -101,32 +101,41 @@
 </head>
 <body>
   <main>
-    <h1>LiminalQA<br>Local Dashboard</h1>
-    <p class="lede">Small local control surface for the LS to LiminalQA path. Check health, push a smoke batch, and preview the latest query without touching curl.</p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+      <div>
+        <h1 id="title">LiminalQA<br>Local Dashboard</h1>
+        <p id="lede" class="lede">Small local control surface for the LS to LiminalQA path. Check health, push a smoke batch, and preview the latest query without touching curl.</p>
+      </div>
+      <div class="panel" style="padding:12px 14px;min-width:180px;">
+        <div id="lang-label" class="kicker" style="margin-bottom:8px;">Language</div>
+        <button id="lang-ru" type="button">Русский</button>
+        <button id="lang-en" type="button" class="secondary">English</button>
+      </div>
+    </div>
 
     <section class="grid">
       <article class="panel">
-        <div class="kicker">Service Health</div>
+        <div id="health-kicker" class="kicker">Service Health</div>
         <div id="health-status" class="status">Checking...</div>
         <div id="health-meta" class="meta"></div>
         <button id="refresh-health">Refresh Health</button>
       </article>
 
       <article class="panel">
-        <div class="kicker">Smoke Publish</div>
-        <div class="meta">Send one synthetic run with one test and one signal through <code>/ingest/batch</code>.</div>
+        <div id="smoke-kicker" class="kicker">Smoke Publish</div>
+        <div id="smoke-meta" class="meta">Send one synthetic run with one test and one signal through <code>/ingest/batch</code>.</div>
         <button id="publish-smoke" class="secondary">Publish Smoke Batch</button>
       </article>
 
       <article class="panel">
-        <div class="kicker">Query Preview</div>
-        <div class="meta">Request a small <code>/query</code> payload and preview the latest facts visible to the ingest service.</div>
+        <div id="query-kicker" class="kicker">Query Preview</div>
+        <div id="query-meta" class="meta">Request a small <code>/query</code> payload and preview the latest facts visible to the ingest service.</div>
         <button id="run-query">Load Query Preview</button>
       </article>
     </section>
 
     <section class="panel" style="margin-top:16px;">
-      <div class="kicker">Result</div>
+      <div id="result-kicker" class="kicker">Result</div>
       <pre id="result">Waiting for action...</pre>
     </section>
   </main>
@@ -134,11 +143,80 @@
     const result = document.getElementById("result");
     const healthStatus = document.getElementById("health-status");
     const healthMeta = document.getElementById("health-meta");
+    const dictionary = {
+      ru: {
+        title: "LiminalQA<br>Локальная панель",
+        lede: "Маленькая локальная панель для пути LS → LiminalQA. Проверяй здоровье сервиса, отправляй smoke batch и смотри preview query без ручного curl.",
+        langLabel: "Язык",
+        healthKicker: "Здоровье сервиса",
+        healthChecking: "Проверка...",
+        healthHealthy: "Сервис жив",
+        healthUnavailable: "Недоступен",
+        refreshHealth: "Проверить health",
+        smokeKicker: "Smoke Publish",
+        smokeMeta: "Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.",
+        publishSmoke: "Отправить smoke batch",
+        queryKicker: "Query Preview",
+        queryMeta: "Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.",
+        runQuery: "Показать query preview",
+        resultKicker: "Результат",
+        waiting: "Ожидание действия...",
+        working: "Выполняю..."
+      },
+      en: {
+        title: "LiminalQA<br>Local Dashboard",
+        lede: "Small local control surface for the LS to LiminalQA path. Check health, push a smoke batch, and preview the latest query without touching curl.",
+        langLabel: "Language",
+        healthKicker: "Service Health",
+        healthChecking: "Checking...",
+        healthHealthy: "Healthy",
+        healthUnavailable: "Unavailable",
+        refreshHealth: "Refresh Health",
+        smokeKicker: "Smoke Publish",
+        smokeMeta: "Send one synthetic run with one test and one signal through <code>/ingest/batch</code>.",
+        publishSmoke: "Publish Smoke Batch",
+        queryKicker: "Query Preview",
+        queryMeta: "Request a small <code>/query</code> payload and preview the latest facts visible to the ingest service.",
+        runQuery: "Load Query Preview",
+        resultKicker: "Result",
+        waiting: "Waiting for action...",
+        working: "Working..."
+      }
+    };
+    let lang = "ru";
+
+    function t(key) {
+      return dictionary[lang][key];
+    }
+
+    function renderLanguage() {
+      document.documentElement.lang = lang;
+      document.getElementById("title").innerHTML = t("title");
+      document.getElementById("lede").innerHTML = t("lede");
+      document.getElementById("lang-label").textContent = t("langLabel");
+      document.getElementById("health-kicker").textContent = t("healthKicker");
+      document.getElementById("smoke-kicker").textContent = t("smokeKicker");
+      document.getElementById("smoke-meta").innerHTML = t("smokeMeta");
+      document.getElementById("query-kicker").textContent = t("queryKicker");
+      document.getElementById("query-meta").innerHTML = t("queryMeta");
+      document.getElementById("result-kicker").textContent = t("resultKicker");
+      document.getElementById("refresh-health").dataset.label = t("refreshHealth");
+      document.getElementById("publish-smoke").dataset.label = t("publishSmoke");
+      document.getElementById("run-query").dataset.label = t("runQuery");
+      document.getElementById("refresh-health").textContent = t("refreshHealth");
+      document.getElementById("publish-smoke").textContent = t("publishSmoke");
+      document.getElementById("run-query").textContent = t("runQuery");
+      if (!result.textContent || result.textContent === dictionary.en.waiting || result.textContent === dictionary.ru.waiting) {
+        result.textContent = t("waiting");
+      }
+      document.getElementById("lang-ru").className = lang === "ru" ? "secondary" : "";
+      document.getElementById("lang-en").className = lang === "en" ? "secondary" : "";
+    }
 
     function setBusy(button, busy) {
       button.disabled = busy;
       button.dataset.label ||= button.textContent;
-      button.textContent = busy ? "Working..." : button.dataset.label;
+      button.textContent = busy ? t("working") : button.dataset.label;
     }
 
     async function callJson(path, options = {}) {
@@ -150,16 +228,32 @@
     async function refreshHealth() {
       const data = await callJson("/api/health");
       if (data.ok) {
-        healthStatus.textContent = "Healthy";
+        healthStatus.textContent = t("healthHealthy");
         healthStatus.className = "status ok";
         healthMeta.textContent = `${data.payload.service} v${data.payload.version}`;
       } else {
-        healthStatus.textContent = "Unavailable";
+        healthStatus.textContent = t("healthUnavailable");
         healthStatus.className = "status bad";
         healthMeta.textContent = data.payload.error || `HTTP ${data.status}`;
       }
       result.textContent = JSON.stringify(data.payload, null, 2);
     }
+
+    document.getElementById("lang-ru").addEventListener("click", () => {
+      lang = "ru";
+      renderLanguage();
+      if (!healthMeta.textContent) {
+        healthStatus.textContent = t("healthChecking");
+      }
+    });
+
+    document.getElementById("lang-en").addEventListener("click", () => {
+      lang = "en";
+      renderLanguage();
+      if (!healthMeta.textContent) {
+        healthStatus.textContent = t("healthChecking");
+      }
+    });
 
     document.getElementById("refresh-health").addEventListener("click", async (event) => {
       const button = event.currentTarget;
@@ -194,6 +288,8 @@
       }
     });
 
+    renderLanguage();
+    healthStatus.textContent = t("healthChecking");
     refreshHealth();
   </script>
 </body>
