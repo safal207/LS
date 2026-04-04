@@ -103,6 +103,14 @@ jobs:
         uses: ./.github/actions/aggregate-quality-reports
         with:
           label: security-and-tests
+      - name: Publish workflow quality snapshot to LiminalQA
+        if: always()
+        uses: ./.github/actions/publish-quality-report-to-liminalqa
+        with:
+          label: security-and-tests
+          plan-name: security-and-tests-quality-gate
+          liminalqa-url: ${{ env.LIMINALQA_URL }}
+          liminalqa-token: ${{ env.LIMINALQA_TOKEN }}
 
       - name: Vulnerability audit
         run: |

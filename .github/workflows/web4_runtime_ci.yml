@@ -219,6 +219,14 @@ jobs:
         uses: ./.github/actions/aggregate-quality-reports
         with:
           label: web4-runtime
+      - name: Publish workflow quality snapshot to LiminalQA
+        if: always()
+        uses: ./.github/actions/publish-quality-report-to-liminalqa
+        with:
+          label: web4-runtime
+          plan-name: web4-runtime-quality-gate
+          liminalqa-url: ${{ env.LIMINALQA_URL }}
+          liminalqa-token: ${{ env.LIMINALQA_TOKEN }}
 
       - name: Upload artifacts
         if: always()

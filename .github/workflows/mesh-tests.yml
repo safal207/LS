@@ -99,6 +99,14 @@ jobs:
         uses: ./.github/actions/aggregate-quality-reports
         with:
           label: mesh-tests
+      - name: Publish workflow quality snapshot to LiminalQA
+        if: always()
+        uses: ./.github/actions/publish-quality-report-to-liminalqa
+        with:
+          label: mesh-tests
+          plan-name: mesh-tests-quality-gate
+          liminalqa-url: ${{ env.LIMINALQA_URL }}
+          liminalqa-token: ${{ env.LIMINALQA_TOKEN }}
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4

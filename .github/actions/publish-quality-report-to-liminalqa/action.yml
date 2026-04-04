@@ -1,0 +1,217 @@
+name: Publish quality report to LiminalQA
+description: Send an aggregated workflow quality snapshot to LiminalQA as a synthetic run.
+
+inputs:
+  label:
+    description: Human-readable workflow label.
+    required: true
+  plan-name:
+    description: Stable LiminalQA plan name for these quality snapshots.
+    required: true
+  artifacts-dir:
+    description: Directory containing quality-report.json.
+    required: false
+    default: "artifacts"
+  liminalqa-url:
+    description: Base URL for the LiminalQA ingest service.
+    required: false
+    default: ""
+  liminalqa-token:
+    description: Bearer token for the LiminalQA ingest service.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Publish workflow quality snapshot
+      shell: bash
+      env:
+        LIMINALQA_URL: ${{ inputs.liminalqa-url }}
+        LIMINALQA_TOKEN: ${{ inputs.liminalqa-token }}
+      run: |
+        python - <<'PY'
+        import json
+        import os
+        import pathlib
+        import sys
+        import time
+        import urllib.error
+        import urllib.request
+        import warnings
+        from datetime import datetime, timezone
+
+        label = """${{ inputs.label }}"""
+        plan_name = """${{ inputs.plan-name }}"""
+        artifacts_dir = pathlib.Path("""${{ inputs.artifacts-dir }}""")
+        liminalqa_url = os.environ.get("LIMINALQA_URL", "").strip().rstrip("/")
+        liminalqa_token = os.environ.get("LIMINALQA_TOKEN", "").strip()
+        summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+
+        lines = [f"## {label} LiminalQA workflow snapshot", ""]
+
+        if not liminalqa_url:
+            lines.append("- publish state: `skipped`")
+            lines.append("- reason: `LIMINALQA_URL is not configured`")
+            if summary_path:
+                with open(summary_path, "a", encoding="utf-8") as fh:
+                    fh.write("\n".join(lines) + "\n")
+            else:
+                print("\n".join(lines))
+            sys.exit(0)
+
+        report_path = artifacts_dir / "quality-report.json"
+        if not report_path.exists():
+            lines.append("- publish state: `skipped`")
+            lines.append(f"- reason: `missing {report_path}`")
+            if summary_path:
+                with open(summary_path, "a", encoding="utf-8") as fh:
+                    fh.write("\n".join(lines) + "\n")
+            else:
+                print("\n".join(lines))
+            sys.exit(0)
+
+        with report_path.open("r", encoding="utf-8") as fh:
+            report = json.load(fh)
+
+        CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+        def encode_ulid(value: int, length: int) -> str:
+            chars = []
+            for _ in range(length):
+                chars.append(CROCKFORD[value & 0x1F])
+                value >>= 5
+            return "".join(reversed(chars))
+
+        def new_ulid() -> str:
+            ms = int(time.time() * 1000)
+            rand = int.from_bytes(os.urandom(10), "big")
+            return encode_ulid(ms, 10) + encode_ulid(rand, 16)
+
+        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        run_id = new_ulid()
+        build_id = new_ulid()
+
+        def map_status(lane: dict) -> str:
+            verdict = str(lane.get("verdict", "WARN")).upper()
+            if verdict == "PASS" and lane.get("flaky_suspect"):
+                return "flake"
+            if verdict == "PASS":
+                return "pass"
+            if verdict == "BLOCK":
+                return "fail"
+            return "skip"
+
+        tests = []
+        signals = []
+        for lane in report.get("lanes", []):
+            lane_key = str(lane.get("lane_key", "unknown"))
+            lane_title = str(lane.get("lane_title", lane_key))
+            threshold = lane.get("threshold")
+            verdict = str(lane.get("verdict", "WARN")).upper()
+            coverage = lane.get("min_line_coverage_observed")
+            total_failures = int(lane.get("total_failures", 0))
+            flaky_suspect = bool(lane.get("flaky_suspect"))
+            run_url = lane.get("run_url") or report.get("run_url")
+
+            error = None
+            if verdict == "BLOCK":
+                error = {
+                    "error_type": "QualityGateBlock",
+                    "message": (
+                        f"{lane_title} blocked: failures={total_failures}, "
+                        f"min_coverage={coverage}, threshold={threshold}"
+                    ),
+                }
+
+            tests.append(
+                {
+                    "name": lane_key,
+                    "suite": "github-actions.quality-gate",
+                    "guidance": threshold,
+                    "status": map_status(lane),
+                    "duration_ms": None,
+                    "error": error,
+                    "started_at": report.get("generated_at") or now_iso,
+                    "completed_at": report.get("generated_at") or now_iso,
+                }
+            )
+
+            signals.append(
+                {
+                    "test_name": lane_key,
+                    "kind": "system",
+                    "latency_ms": None,
+                    "value": float(total_failures),
+                    "meta": {
+                        "lane_title": lane_title,
+                        "workflow_label": label,
+                        "aggregate_verdict": report.get("aggregate_verdict"),
+                        "lane_verdict": verdict,
+                        "threshold": threshold,
+                        "min_line_coverage_observed": coverage,
+                        "flaky_suspect": flaky_suspect,
+                        "run_url": run_url,
+                    },
+                    "at": report.get("generated_at") or now_iso,
+                }
+            )
+
+        payload = {
+            "run": {
+                "run_id": run_id,
+                "build_id": build_id,
+                "plan_name": plan_name,
+                "env": {
+                    "CI": "true",
+                    "GITHUB_EVENT_NAME": os.environ.get("GITHUB_EVENT_NAME", ""),
+                    "GITHUB_JOB": os.environ.get("GITHUB_JOB", ""),
+                    "GITHUB_REF": os.environ.get("GITHUB_REF", ""),
+                    "GITHUB_REPOSITORY": os.environ.get("GITHUB_REPOSITORY", ""),
+                    "GITHUB_RUN_ATTEMPT": os.environ.get("GITHUB_RUN_ATTEMPT", ""),
+                    "GITHUB_RUN_ID": os.environ.get("GITHUB_RUN_ID", ""),
+                    "GITHUB_SHA": os.environ.get("GITHUB_SHA", ""),
+                    "GITHUB_WORKFLOW": os.environ.get("GITHUB_WORKFLOW", ""),
+                    "QUALITY_AGGREGATE_VERDICT": str(report.get("aggregate_verdict", "")),
+                },
+                "started_at": report.get("generated_at") or now_iso,
+                "runner_version": "github-quality-report-v1",
+            },
+            "tests": tests,
+            "signals": signals,
+            "artifacts": [],
+        }
+
+        headers = {"Content-Type": "application/json"}
+        if liminalqa_token:
+            headers["Authorization"] = f"Bearer {liminalqa_token}"
+
+        try:
+            request = urllib.request.Request(
+                url=f"{liminalqa_url}/ingest/batch",
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            with urllib.request.urlopen(request, timeout=20) as response:
+                status_code = getattr(response, "status", response.getcode())
+                if status_code >= 400:
+                    raise RuntimeError(f"HTTP {status_code}")
+            lines.append("- publish state: `published`")
+            lines.append(f"- endpoint: `{liminalqa_url}/ingest/batch`")
+            lines.append(f"- plan: `{plan_name}`")
+            lines.append(f"- synthetic run id: `{run_id}`")
+            lines.append(f"- lanes sent: `{len(tests)}`")
+        except Exception as exc:  # noqa: BLE001
+            warnings.warn(f"Failed to publish workflow quality snapshot: {exc}", stacklevel=1)
+            lines.append("- publish state: `failed-soft`")
+            lines.append(f"- endpoint: `{liminalqa_url}/ingest/batch`")
+            lines.append(f"- plan: `{plan_name}`")
+            lines.append(f"- error: `{exc}`")
+
+        if summary_path:
+            with open(summary_path, "a", encoding="utf-8") as fh:
+                fh.write("\n".join(lines) + "\n")
+        else:
+            print("\n".join(lines))
+        PY
