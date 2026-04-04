@@ -447,6 +447,24 @@ except ImportError:
         _build_alignment_strategy_playbook = None  # type: ignore[assignment]
 
 try:
+    from agent.multi_party_alignment import (
+        MultiPartyAlignmentMetrics as _MultiPartyAlignmentMetrics,
+        build_multi_party_alignment_state as _build_multi_party_alignment_state,
+    )
+    _MULTI_PARTY_ALIGNMENT_OK = True
+except ImportError:
+    try:
+        from modules.agent.multi_party_alignment import (
+            MultiPartyAlignmentMetrics as _MultiPartyAlignmentMetrics,
+            build_multi_party_alignment_state as _build_multi_party_alignment_state,
+        )
+        _MULTI_PARTY_ALIGNMENT_OK = True
+    except ImportError:
+        _MULTI_PARTY_ALIGNMENT_OK = False
+        _MultiPartyAlignmentMetrics = None  # type: ignore[assignment,misc]
+        _build_multi_party_alignment_state = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -811,6 +829,11 @@ class ResonanceAgent:
         self._reputation_metrics = (
             _AlignmentStrategyReputationMetrics()
             if _ALIGNMENT_REPUTATION_OK and _AlignmentStrategyReputationMetrics
+            else None
+        )
+        self._multi_party_alignment_metrics = (
+            _MultiPartyAlignmentMetrics()
+            if _MULTI_PARTY_ALIGNMENT_OK and _MultiPartyAlignmentMetrics
             else None
         )
 
@@ -1388,6 +1411,57 @@ class ResonanceAgent:
         if self._strategy_playbook_metrics is None:
             return {"alignment_strategy_playbook_available": False}
         return self._strategy_playbook_metrics.to_dict()
+
+    def get_multi_party_alignment_state(
+        self,
+        item: dict,
+        adoption_traces: list | None = None,
+    ) -> dict:
+        """Build per-party alignment state snapshot for the current cycle.
+
+        Advisory-only — never modifies item, route_key, graph_mode, or any
+        upstream state.  Returns a stable schema dict with party-level
+        descriptors and a session-level state label.
+        """
+        if not (_MULTI_PARTY_ALIGNMENT_OK and _build_multi_party_alignment_state):
+            return {"multi_party_alignment_available": False}
+
+        report = item.get("_alignment_report") or {} if isinstance(item, dict) else {}
+        traces = adoption_traces if isinstance(adoption_traces, list) else []
+
+        state = _build_multi_party_alignment_state(
+            report,
+            adoption_traces=traces,
+        )
+
+        m = self._multi_party_alignment_metrics
+        if m is not None:
+            m.calls_total += 1
+            party_count = state.get("party_count") or 0
+            if not report:
+                m.empty_report_total += 1
+            else:
+                m.parties_seen_total += party_count
+                m.hotspots_processed_total += len(
+                    (report.get("pairwise_hotspots") or [])
+                )
+            label = state.get("state_label") or "stable"
+            if label == "escalating":
+                m.escalating_total += 1
+            elif label == "diverging":
+                m.diverging_total += 1
+            elif label == "converging":
+                m.converging_total += 1
+            else:
+                m.stable_total += 1
+
+        return state
+
+    def get_multi_party_alignment_metrics(self) -> dict:
+        """Return observability counters for multi-party alignment state builds."""
+        if self._multi_party_alignment_metrics is None:
+            return {"multi_party_alignment_available": False}
+        return self._multi_party_alignment_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2478,6 +2552,11 @@ class ResonanceAgent:
         self._record_recommendation_adoption_trace(
             _strategy_recs, final_output, alignment_outcome
         )
+        # Multi-party alignment state snapshot (advisory, read-only)
+        _adoption_traces_snapshot = self.get_recommendation_adoption_traces()
+        _multi_party_state = self.get_multi_party_alignment_state(
+            item, adoption_traces=_adoption_traces_snapshot
+        )
 
         return {
             # Identity
@@ -2550,6 +2629,8 @@ class ResonanceAgent:
             "alignment_strategy_feedback_summary": self.get_strategy_feedback_summary(),
             "alignment_strategy_calibration_summary": self.get_strategy_calibration_summary(),
             "alignment_strategy_calibration_metrics": self.get_strategy_calibration_metrics(),
+            "multi_party_alignment_state": _multi_party_state,
+            "multi_party_alignment_metrics": self.get_multi_party_alignment_metrics(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
