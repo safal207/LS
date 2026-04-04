@@ -56,6 +56,7 @@ runs:
           const incidentMarker = `<!-- quality-incident:pr-${context.issue.number} -->`;
           const incidentStartMarker = `<!-- quality-incident-section:${laneKey}:start -->`;
           const incidentEndMarker = `<!-- quality-incident-section:${laneKey}:end -->`;
+          const timestamp = new Date().toISOString();
           const { data: artifactData } = await github.rest.actions.listWorkflowRunArtifacts({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -69,33 +70,10 @@ runs:
           const artifactSection = artifactLines.length
             ? ['- artifacts:', ...artifactLines]
             : ['- artifacts: `none published yet`'];
-
-          const laneSection = [
-            startMarker,
-            `### ${laneTitle}`,
-            '',
-            `- verdict: \`${verdict}\``,
-            `- failures+errors: \`${totalFailures}\``,
-            `- min line coverage observed: \`${coverage}\``,
-            `- threshold: \`${threshold}\``,
-            `- workflow run: [open run](${runUrl})`,
-            ...artifactSection,
-            '',
-            endMarker,
-          ].join('\n');
-          const incidentLaneSection = [
-            incidentStartMarker,
-            `### ${laneTitle}`,
-            '',
-            `- verdict: \`${verdict}\``,
-            `- failures+errors: \`${totalFailures}\``,
-            `- min line coverage observed: \`${coverage}\``,
-            `- threshold: \`${threshold}\``,
-            `- workflow run: ${runUrl}`,
-            ...artifactSection,
-            '',
-            incidentEndMarker,
-          ].join('\n');
+          const sectionRegex = new RegExp(
+            `<!-- quality-gate-section:${laneKey}:start -->[\\s\\S]*?<!-- quality-gate-section:${laneKey}:end -->`,
+            'm'
+          );
 
           const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,
@@ -115,6 +93,44 @@ runs:
           }
 
           const existing = comments.find((comment) => comment.body && comment.body.includes(sharedMarker));
+          const previousCommentSection = existing && existing.body
+            ? (existing.body.match(sectionRegex)?.[0] || '')
+            : '';
+          const previousCommentVerdict = previousCommentSection.match(/- verdict: `([^`]+)`/)?.[1] || null;
+          const previousCommentHistoryBlock = previousCommentSection.match(/<!-- quality-gate-history:start -->([\s\S]*?)<!-- quality-gate-history:end -->/m)?.[1] || '';
+          const previousCommentHistoryLines = previousCommentHistoryBlock
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line && line.startsWith('- '));
+          if (previousCommentVerdict && previousCommentVerdict !== verdict) {
+            previousCommentHistoryLines.unshift(
+              `- ${timestamp}: \`${previousCommentVerdict}\` -> \`${verdict}\` ([run](${runUrl}))`
+            );
+          }
+          const commentHistorySection = [
+            '<!-- quality-gate-history:start -->',
+            '#### Recent Transitions',
+            '',
+            ...(previousCommentHistoryLines.slice(0, 10).length
+              ? previousCommentHistoryLines.slice(0, 10)
+              : ['- no verdict changes recorded yet']),
+            '<!-- quality-gate-history:end -->',
+          ];
+          const laneSection = [
+            startMarker,
+            `### ${laneTitle}`,
+            '',
+            `- verdict: \`${verdict}\``,
+            `- failures+errors: \`${totalFailures}\``,
+            `- min line coverage observed: \`${coverage}\``,
+            `- threshold: \`${threshold}\``,
+            `- workflow run: [open run](${runUrl})`,
+            ...artifactSection,
+            '',
+            ...commentHistorySection,
+            '',
+            endMarker,
+          ].join('\n');
           const header = [
             sharedMarker,
             '## CI Quality Overview',
@@ -280,6 +296,44 @@ runs:
             `<!-- quality-incident-section:${laneKey}:start -->[\\s\\S]*?<!-- quality-incident-section:${laneKey}:end -->`,
             'm'
           );
+          const previousIncidentSection = existingIncident && existingIncident.body
+            ? (existingIncident.body.match(incidentSectionRegex)?.[0] || '')
+            : '';
+          const previousIncidentVerdict = previousIncidentSection.match(/- verdict: `([^`]+)`/)?.[1] || null;
+          const previousIncidentHistoryBlock = previousIncidentSection.match(/<!-- quality-incident-history:start -->([\s\S]*?)<!-- quality-incident-history:end -->/m)?.[1] || '';
+          const previousIncidentHistoryLines = previousIncidentHistoryBlock
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line && line.startsWith('- '));
+          if (previousIncidentVerdict && previousIncidentVerdict !== verdict) {
+            previousIncidentHistoryLines.unshift(
+              `- ${timestamp}: \`${previousIncidentVerdict}\` -> \`${verdict}\` (${runUrl})`
+            );
+          }
+          const incidentHistorySection = [
+            '<!-- quality-incident-history:start -->',
+            '#### Recent Transitions',
+            '',
+            ...(previousIncidentHistoryLines.slice(0, 10).length
+              ? previousIncidentHistoryLines.slice(0, 10)
+              : ['- no verdict changes recorded yet']),
+            '<!-- quality-incident-history:end -->',
+          ];
+          const incidentLaneSection = [
+            incidentStartMarker,
+            `### ${laneTitle}`,
+            '',
+            `- verdict: \`${verdict}\``,
+            `- failures+errors: \`${totalFailures}\``,
+            `- min line coverage observed: \`${coverage}\``,
+            `- threshold: \`${threshold}\``,
+            `- workflow run: ${runUrl}`,
+            ...artifactSection,
+            '',
+            ...incidentHistorySection,
+            '',
+            incidentEndMarker,
+          ].join('\n');
 
           if (incidentSectionRegex.test(incidentBody)) {
             incidentBody = incidentBody.replace(incidentSectionRegex, incidentLaneSection);
