@@ -347,6 +347,30 @@ except ImportError:
         _build_strategy_outcome_feedback = None  # type: ignore[assignment]
 
 try:
+    from agent.alignment_strategy_aggregation import (
+        AlignmentStrategyAggregationMetrics as _AlignmentStrategyAggregationMetrics,
+        build_strategy_feedback_aggregation_summary as _build_aggregation_summary,
+        build_pattern_feedback_stats as _build_pattern_feedback_stats,
+        build_strategy_feedback_stats as _build_strategy_feedback_stats,
+    )
+    _ALIGNMENT_AGGREGATION_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_strategy_aggregation import (
+            AlignmentStrategyAggregationMetrics as _AlignmentStrategyAggregationMetrics,
+            build_strategy_feedback_aggregation_summary as _build_aggregation_summary,
+            build_pattern_feedback_stats as _build_pattern_feedback_stats,
+            build_strategy_feedback_stats as _build_strategy_feedback_stats,
+        )
+        _ALIGNMENT_AGGREGATION_OK = True
+    except ImportError:
+        _ALIGNMENT_AGGREGATION_OK = False
+        _AlignmentStrategyAggregationMetrics = None  # type: ignore[assignment,misc]
+        _build_aggregation_summary = None  # type: ignore[assignment]
+        _build_pattern_feedback_stats = None  # type: ignore[assignment]
+        _build_strategy_feedback_stats = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -686,6 +710,13 @@ class ResonanceAgent:
             else None
         )
 
+        # Per-pattern / per-strategy aggregation metrics (advisory/read-only)
+        self._aggregation_metrics = (
+            _AlignmentStrategyAggregationMetrics()
+            if _ALIGNMENT_AGGREGATION_OK and _AlignmentStrategyAggregationMetrics
+            else None
+        )
+
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
             len(self._anchor),
@@ -989,6 +1020,42 @@ class ResonanceAgent:
         if self._strategy_feedback_metrics is None:
             return {"alignment_strategy_feedback_available": False}
         return self._strategy_feedback_metrics.to_dict()
+
+    def get_alignment_strategy_aggregation(self) -> dict:
+        """Return per-pattern and per-strategy aggregation over session feedback events.
+
+        Read-only: never modifies feedback events, recommender state, or pipeline.
+        """
+        if not (_ALIGNMENT_AGGREGATION_OK and _build_aggregation_summary
+                and _build_pattern_feedback_stats and _build_strategy_feedback_stats):
+            return {"alignment_strategy_aggregation_available": False}
+        with self._alignment_memory_lock:
+            events = list(self._strategy_feedback_events)
+        pat_stats = _build_pattern_feedback_stats(events)
+        strat_stats = _build_strategy_feedback_stats(events)
+        summary = _build_aggregation_summary(events)
+        # Update metrics
+        m = self._aggregation_metrics
+        if m is not None:
+            m.calls_total += 1
+            m.events_processed_total += len(events)
+            m.unique_patterns_total += len(pat_stats)
+            m.unique_strategies_total += len(strat_stats)
+            if pat_stats or strat_stats:
+                m.nonempty_total += 1
+            else:
+                m.empty_total += 1
+        return {
+            "pattern_stats": pat_stats,
+            "strategy_stats": strat_stats,
+            "summary": summary,
+        }
+
+    def get_alignment_strategy_aggregation_metrics(self) -> dict:
+        """Return observability counters for the aggregation layer."""
+        if self._aggregation_metrics is None:
+            return {"alignment_strategy_aggregation_available": False}
+        return self._aggregation_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2137,6 +2204,7 @@ class ResonanceAgent:
             "alignment_strategy_recommendations": _strategy_recs,
             "alignment_strategy_feedback": self.get_strategy_outcome_feedback_events(),
             "alignment_strategy_feedback_summary": self.get_strategy_feedback_summary(),
+            "alignment_strategy_aggregation": self.get_alignment_strategy_aggregation(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
