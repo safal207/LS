@@ -326,6 +326,27 @@ except ImportError:
         _build_alignment_strategy_recommendations = None  # type: ignore[assignment]
 
 try:
+    from agent.alignment_strategy_feedback import (
+        AlignmentStrategyFeedbackMetrics as _AlignmentStrategyFeedbackMetrics,
+        build_strategy_feedback_summary as _build_strategy_feedback_summary,
+        build_strategy_outcome_feedback as _build_strategy_outcome_feedback,
+    )
+    _ALIGNMENT_FEEDBACK_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_strategy_feedback import (
+            AlignmentStrategyFeedbackMetrics as _AlignmentStrategyFeedbackMetrics,
+            build_strategy_feedback_summary as _build_strategy_feedback_summary,
+            build_strategy_outcome_feedback as _build_strategy_outcome_feedback,
+        )
+        _ALIGNMENT_FEEDBACK_OK = True
+    except ImportError:
+        _ALIGNMENT_FEEDBACK_OK = False
+        _AlignmentStrategyFeedbackMetrics = None  # type: ignore[assignment,misc]
+        _build_strategy_feedback_summary = None  # type: ignore[assignment]
+        _build_strategy_outcome_feedback = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -656,6 +677,15 @@ class ResonanceAgent:
             else None
         )
 
+        # Strategy outcome feedback — bounded in-memory list, advisory/read-only
+        self._strategy_feedback_events: list = []
+        self._strategy_feedback_max = 200
+        self._strategy_feedback_metrics = (
+            _AlignmentStrategyFeedbackMetrics()
+            if _ALIGNMENT_FEEDBACK_OK and _AlignmentStrategyFeedbackMetrics
+            else None
+        )
+
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
             len(self._anchor),
@@ -898,6 +928,67 @@ class ResonanceAgent:
         if self._recommender_metrics is None:
             return {"alignment_strategy_recommender_available": False}
         return self._recommender_metrics.to_dict()
+
+    def _record_strategy_outcome_feedback(
+        self,
+        recommendations: list,
+        alignment_outcome: dict,
+    ) -> None:
+        """Append per-recommendation feedback objects to the bounded session list.
+
+        Advisory-only post-cycle reflection — never modifies recommendations,
+        alignment_outcome, routing, graph_mode, or any upstream state.
+        """
+        if not (_ALIGNMENT_FEEDBACK_OK and _build_strategy_outcome_feedback):
+            return
+        try:
+            events = _build_strategy_outcome_feedback(recommendations, alignment_outcome)
+        except Exception:
+            return
+        if not events:
+            return
+        # Bounded append — evict oldest when full
+        with self._alignment_memory_lock:
+            for ev in events:
+                if len(self._strategy_feedback_events) >= self._strategy_feedback_max:
+                    self._strategy_feedback_events.pop(0)
+                self._strategy_feedback_events.append(ev)
+        # Update metrics
+        m = self._strategy_feedback_metrics
+        if m is not None:
+            m.calls_total += 1
+            m.recommendations_processed_total += len(recommendations)
+            m.feedback_events_total += len(events)
+            for ev in events:
+                lbl = ev.get("feedback_label", "neutral")
+                if lbl == "effective":
+                    m.effective_total += 1
+                elif lbl == "ineffective":
+                    m.ineffective_total += 1
+                else:
+                    m.neutral_total += 1
+
+    def get_strategy_outcome_feedback_events(self) -> list:
+        """Return a snapshot of session feedback events (read-only copy)."""
+        with self._alignment_memory_lock:
+            return list(self._strategy_feedback_events)
+
+    def get_strategy_feedback_summary(self) -> dict:
+        """Return aggregated feedback summary for this session."""
+        if not (_ALIGNMENT_FEEDBACK_OK and _build_strategy_feedback_summary):
+            return {"alignment_strategy_feedback_available": False}
+        with self._alignment_memory_lock:
+            events = list(self._strategy_feedback_events)
+        summary = _build_strategy_feedback_summary(events)
+        if self._strategy_feedback_metrics is not None:
+            self._strategy_feedback_metrics.summary_calls_total += 1
+        return summary
+
+    def get_strategy_feedback_metrics(self) -> dict:
+        """Return observability counters for the feedback layer."""
+        if self._strategy_feedback_metrics is None:
+            return {"alignment_strategy_feedback_available": False}
+        return self._strategy_feedback_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -1974,6 +2065,11 @@ class ResonanceAgent:
             else f"{graph_meta.get('mode', 'full_run')}>{llm_meta.get('provider', 'unknown')}"
         )
 
+        # Strategy recommendations — computed once so feedback can use the same list
+        _strategy_recs = self.get_alignment_strategy_recommendations(item)
+        # Post-cycle feedback: advisory-only, appends to bounded session list
+        self._record_strategy_outcome_feedback(_strategy_recs, alignment_outcome)
+
         return {
             # Identity
             "cycle_id":        cycle_id,
@@ -2038,7 +2134,9 @@ class ResonanceAgent:
             "alignment_memory_metrics": self.get_alignment_memory_metrics(),
             "alignment_digest": self.get_alignment_digest(),
             "alignment_success_patterns": self.get_alignment_success_patterns(),
-            "alignment_strategy_recommendations": self.get_alignment_strategy_recommendations(item),
+            "alignment_strategy_recommendations": _strategy_recs,
+            "alignment_strategy_feedback": self.get_strategy_outcome_feedback_events(),
+            "alignment_strategy_feedback_summary": self.get_strategy_feedback_summary(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
