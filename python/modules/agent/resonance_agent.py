@@ -429,6 +429,24 @@ except ImportError:
         _build_adoption_trace = None  # type: ignore[assignment]
 
 try:
+    from agent.alignment_strategy_playbook import (
+        AlignmentStrategyPlaybookMetrics as _AlignmentStrategyPlaybookMetrics,
+        build_alignment_strategy_playbook as _build_alignment_strategy_playbook,
+    )
+    _ALIGNMENT_PLAYBOOK_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_strategy_playbook import (
+            AlignmentStrategyPlaybookMetrics as _AlignmentStrategyPlaybookMetrics,
+            build_alignment_strategy_playbook as _build_alignment_strategy_playbook,
+        )
+        _ALIGNMENT_PLAYBOOK_OK = True
+    except ImportError:
+        _ALIGNMENT_PLAYBOOK_OK = False
+        _AlignmentStrategyPlaybookMetrics = None  # type: ignore[assignment,misc]
+        _build_alignment_strategy_playbook = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -776,6 +794,11 @@ class ResonanceAgent:
         self._strategy_calibration_metrics = (
             _AlignmentStrategyCalibrationMetrics()
             if _ALIGNMENT_CALIBRATION_OK and _AlignmentStrategyCalibrationMetrics
+            else None
+        )
+        self._strategy_playbook_metrics = (
+            _AlignmentStrategyPlaybookMetrics()
+            if _ALIGNMENT_PLAYBOOK_OK and _AlignmentStrategyPlaybookMetrics
             else None
         )
 
@@ -1330,6 +1353,41 @@ class ResonanceAgent:
         if self._strategy_calibration_metrics is None:
             return {"alignment_strategy_calibration_available": False}
         return self._strategy_calibration_metrics.to_dict()
+
+    def build_alignment_strategy_playbook(
+        self,
+        item: dict,
+        recommendations: list[dict],
+        calibration_summary: dict | None = None,
+    ) -> dict:
+        """Build compact strategy playbook from recommendations + current context.
+
+        Advisory-only: never modifies routing, graph_mode, or upstream state.
+        """
+        if not (_ALIGNMENT_PLAYBOOK_OK and _build_alignment_strategy_playbook):
+            return {"alignment_strategy_playbook_available": False}
+        cal = calibration_summary if isinstance(calibration_summary, dict) else {}
+        playbook = _build_alignment_strategy_playbook(
+            recommendations,
+            alignment_report=item.get("_alignment_report") or {},
+            calibration_summary=cal,
+        )
+        m = self._strategy_playbook_metrics
+        if m is not None:
+            m.calls_total += 1
+            selected = len(playbook.get("selected_strategy_ids") or [])
+            m.strategies_selected_total += selected
+            if selected:
+                m.nonempty_total += 1
+            else:
+                m.empty_total += 1
+        return playbook
+
+    def get_alignment_strategy_playbook_metrics(self) -> dict:
+        """Return observability counters for strategy playbook builds."""
+        if self._strategy_playbook_metrics is None:
+            return {"alignment_strategy_playbook_available": False}
+        return self._strategy_playbook_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2412,6 +2470,10 @@ class ResonanceAgent:
         self._record_strategy_adoption_traces(_strategy_recs, final_output)
         # Post-cycle feedback: advisory-only, appends to bounded session list
         self._record_strategy_outcome_feedback(_strategy_recs, alignment_outcome)
+        _strategy_calibration_summary = self.get_strategy_calibration_summary()
+        _strategy_playbook = self.build_alignment_strategy_playbook(
+            item, _strategy_recs, calibration_summary=_strategy_calibration_summary
+        )
         # Post-response adoption trace: checks recommended actions in final text
         self._record_recommendation_adoption_trace(
             _strategy_recs, final_output, alignment_outcome
@@ -2482,6 +2544,8 @@ class ResonanceAgent:
             "alignment_digest": self.get_alignment_digest(),
             "alignment_success_patterns": self.get_alignment_success_patterns(),
             "alignment_strategy_recommendations": _strategy_recs,
+            "alignment_strategy_playbook": _strategy_playbook,
+            "alignment_strategy_playbook_metrics": self.get_alignment_strategy_playbook_metrics(),
             "alignment_strategy_feedback": self.get_strategy_outcome_feedback_events(),
             "alignment_strategy_feedback_summary": self.get_strategy_feedback_summary(),
             "alignment_strategy_calibration_summary": self.get_strategy_calibration_summary(),
