@@ -147,8 +147,9 @@
 
       <article class="panel">
         <div id="quality-kicker" class="kicker">Quality Report</div>
-        <div id="quality-meta" class="meta">Ищет локальный <code>artifacts/quality-report.json</code> и публикует его в LiminalQA как настоящий quality snapshot.</div>
+        <div id="quality-meta" class="meta">Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.</div>
         <div class="button-row">
+          <button id="generate-quality-report" class="secondary">Сгенерировать quality report</button>
           <button id="publish-quality-report">Отправить quality report</button>
         </div>
       </article>
@@ -185,7 +186,8 @@
         smokeMeta: "Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.",
         publishSmoke: "Отправить smoke batch",
         qualityKicker: "Quality Report",
-        qualityMeta: "Ищет локальный <code>artifacts/quality-report.json</code> и публикует его в LiminalQA как настоящий quality snapshot.",
+        qualityMeta: "Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.",
+        generateQualityReport: "Сгенерировать quality report",
         publishQualityReport: "Отправить quality report",
         queryKicker: "Query Preview",
         queryMeta: "Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.",
@@ -207,7 +209,8 @@
         smokeMeta: "Send one synthetic run with one test and one signal through <code>/ingest/batch</code>.",
         publishSmoke: "Publish Smoke Batch",
         qualityKicker: "Quality Report",
-        qualityMeta: "Find a local <code>artifacts/quality-report.json</code> and publish it to LiminalQA as a real quality snapshot.",
+        qualityMeta: "First generate a local <code>artifacts/quality-report.json</code>, then publish it to LiminalQA as a real quality snapshot.",
+        generateQualityReport: "Generate Quality Report",
         publishQualityReport: "Publish Quality Report",
         queryKicker: "Query Preview",
         queryMeta: "Request a small <code>/query</code> payload and preview the latest facts visible to the ingest service.",
@@ -238,10 +241,12 @@
       document.getElementById("result-kicker").textContent = t("resultKicker");
       document.getElementById("refresh-health").dataset.label = t("refreshHealth");
       document.getElementById("publish-smoke").dataset.label = t("publishSmoke");
+      document.getElementById("generate-quality-report").dataset.label = t("generateQualityReport");
       document.getElementById("publish-quality-report").dataset.label = t("publishQualityReport");
       document.getElementById("run-query").dataset.label = t("runQuery");
       document.getElementById("refresh-health").textContent = t("refreshHealth");
       document.getElementById("publish-smoke").textContent = t("publishSmoke");
+      document.getElementById("generate-quality-report").textContent = t("generateQualityReport");
       document.getElementById("publish-quality-report").textContent = t("publishQualityReport");
       document.getElementById("run-query").textContent = t("runQuery");
       if (!result.textContent || result.textContent === dictionary.en.waiting || result.textContent === dictionary.ru.waiting) {
@@ -314,6 +319,19 @@
         const data = await callJson("/api/smoke", { method: "POST" });
         result.textContent = JSON.stringify(data.payload, null, 2);
         await refreshHealth(false);
+      } catch (error) {
+        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
+    document.getElementById("generate-quality-report").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      try {
+        const data = await callJson("/api/generate-quality-report", { method: "POST" });
+        result.textContent = JSON.stringify(data.payload, null, 2);
       } catch (error) {
         result.textContent = JSON.stringify({ error: String(error) }, null, 2);
       } finally {

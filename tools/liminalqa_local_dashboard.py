@@ -7,6 +7,7 @@ import pathlib
 import time
 import urllib.error
 import urllib.request
+from collections import Counter
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -121,6 +122,98 @@ def locate_quality_report() -> pathlib.Path | None:
         return DEFAULT_REPORT_PATH
     candidates = sorted(ROOT.glob("artifacts/**/quality-report.json"))
     return candidates[0] if candidates else None
+
+
+def aggregate_quality_reports(reports: list[dict], label: str = "local-dashboard") -> dict:
+    counts = Counter(report.get("verdict", "UNKNOWN") for report in reports)
+    aggregate_verdict = "PASS"
+    if counts.get("BLOCK"):
+        aggregate_verdict = "BLOCK"
+    elif counts.get("WARN"):
+        aggregate_verdict = "WARN"
+    elif not reports:
+        aggregate_verdict = "WARN"
+
+    min_coverage_values = [
+        report["min_line_coverage_observed"]
+        for report in reports
+        if report.get("min_line_coverage_observed") is not None
+    ]
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "repository": "local/LS",
+        "event_name": "manual",
+        "ref": "local",
+        "sha": None,
+        "run_id": None,
+        "run_attempt": None,
+        "workflow": "local-dashboard",
+        "workflow_job": "local-dashboard",
+        "run_url": f"{resolve_settings()[0]}/health",
+        "label": label,
+        "aggregate_verdict": aggregate_verdict,
+        "lane_count": len(reports),
+        "verdict_counts": dict(counts),
+        "total_failures": sum(int(report.get("total_failures", 0)) for report in reports),
+        "flaky_suspect_lanes": [
+            report.get("lane_key") for report in reports if report.get("flaky_suspect")
+        ],
+        "min_line_coverage_observed": min(min_coverage_values) if min_coverage_values else None,
+        "lanes": reports,
+    }
+
+
+def generate_quality_report() -> tuple[int, object]:
+    quality_dir = ROOT / "artifacts" / "quality"
+    quality_dir.mkdir(parents=True, exist_ok=True)
+    lane_files = sorted(quality_dir.glob("*.json"))
+    reports = []
+
+    for path in lane_files:
+        try:
+            reports.append(json.loads(path.read_text(encoding="utf-8")))
+        except Exception as exc:  # noqa: BLE001
+            return 400, {
+                "error": f"failed to parse lane snapshot: {exc}",
+                "lane_path": str(path),
+            }
+
+    if not reports:
+        bootstrap = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "repository": "local/LS",
+            "event_name": "manual",
+            "ref": "local",
+            "sha": None,
+            "run_id": None,
+            "run_attempt": None,
+            "job": "local-dashboard",
+            "lane_key": "local-dashboard",
+            "lane_title": "Local Dashboard",
+            "verdict": "PASS",
+            "total_failures": 0,
+            "min_line_coverage_observed": None,
+            "threshold": "manual bootstrap",
+            "flaky_suspect": False,
+            "run_url": f"{resolve_settings()[0]}/health",
+        }
+        bootstrap_path = quality_dir / "local-dashboard.json"
+        bootstrap_path.write_text(json.dumps(bootstrap, indent=2) + "\n", encoding="utf-8")
+        reports.append(bootstrap)
+
+    aggregate = aggregate_quality_reports(reports)
+    output_path = ROOT / "artifacts" / "quality-report.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(aggregate, indent=2) + "\n", encoding="utf-8")
+
+    return 200, {
+        "report_path": str(output_path),
+        "aggregate_verdict": aggregate.get("aggregate_verdict"),
+        "lane_count": aggregate.get("lane_count"),
+        "total_failures": aggregate.get("total_failures"),
+        "verdict_counts": aggregate.get("verdict_counts"),
+    }
 
 
 def quality_report_payload(report: dict) -> dict:
@@ -268,6 +361,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         if self.path == "/api/smoke":
             status, payload = api_request("POST", "/ingest/batch", smoke_payload())
+            self._send_json(status, payload)
+            return
+        if self.path == "/api/generate-quality-report":
+            status, payload = generate_quality_report()
             self._send_json(status, payload)
             return
         if self.path == "/api/publish-quality-report":
