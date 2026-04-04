@@ -308,6 +308,24 @@ except ImportError:
         _build_alignment_success_patterns = None  # type: ignore[assignment]
 
 try:
+    from agent.alignment_strategy_recommender import (
+        AlignmentStrategyRecommendationMetrics as _AlignmentStrategyRecommendationMetrics,
+        build_alignment_strategy_recommendations as _build_alignment_strategy_recommendations,
+    )
+    _ALIGNMENT_RECOMMENDER_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_strategy_recommender import (
+            AlignmentStrategyRecommendationMetrics as _AlignmentStrategyRecommendationMetrics,
+            build_alignment_strategy_recommendations as _build_alignment_strategy_recommendations,
+        )
+        _ALIGNMENT_RECOMMENDER_OK = True
+    except ImportError:
+        _ALIGNMENT_RECOMMENDER_OK = False
+        _AlignmentStrategyRecommendationMetrics = None  # type: ignore[assignment,misc]
+        _build_alignment_strategy_recommendations = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -631,6 +649,13 @@ class ResonanceAgent:
             else None
         )
 
+        # Alignment strategy recommendation metrics (advisory/observability only)
+        self._recommender_metrics = (
+            _AlignmentStrategyRecommendationMetrics()
+            if _ALIGNMENT_RECOMMENDER_OK and _AlignmentStrategyRecommendationMetrics
+            else None
+        )
+
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
             len(self._anchor),
@@ -826,6 +851,53 @@ class ResonanceAgent:
         if self._success_patterns_metrics is None:
             return {"alignment_success_patterns_available": False}
         return self._success_patterns_metrics.to_dict()
+
+    def get_alignment_strategy_recommendations(self, item: dict) -> list:
+        """Return 0–3 strategy recommendations for the current cycle item.
+
+        Advisory-only — never modifies item, route_key, graph_mode, or
+        any session state.  Returns empty list when no patterns qualify.
+        """
+        if not (_ALIGNMENT_RECOMMENDER_OK and _build_alignment_strategy_recommendations):
+            return []
+
+        patterns = self.get_alignment_success_patterns()
+        alignment_report = item.get("_alignment_report") or {}
+        intent_obj = item.get("_intent") or {}
+        if isinstance(intent_obj, dict):
+            intent_str = str(intent_obj.get("type") or intent_obj.get("intent") or "")
+        elif isinstance(intent_obj, str):
+            intent_str = intent_obj
+        else:
+            intent_str = ""
+
+        recommendations, stats = _build_alignment_strategy_recommendations(
+            patterns,
+            alignment_report=alignment_report,
+            intent=intent_str,
+        )
+
+        if self._recommender_metrics is not None:
+            m = self._recommender_metrics
+            m.calls_total += 1
+            m.patterns_considered_total += stats["considered"]
+            m.patterns_filtered_total += stats["filtered"]
+            m.recommendations_built_total += len(recommendations)
+            m.hotspot_overlap_total += stats["hotspot_hits"]
+            m.mismatch_overlap_total += stats["mismatch_hits"]
+            m.intent_match_total += stats["intent_hits"]
+            if recommendations:
+                m.nonempty_total += 1
+            else:
+                m.empty_total += 1
+
+        return recommendations
+
+    def get_alignment_strategy_recommendation_metrics(self) -> dict:
+        """Return observability counters for the strategy recommender."""
+        if self._recommender_metrics is None:
+            return {"alignment_strategy_recommender_available": False}
+        return self._recommender_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -1966,6 +2038,7 @@ class ResonanceAgent:
             "alignment_memory_metrics": self.get_alignment_memory_metrics(),
             "alignment_digest": self.get_alignment_digest(),
             "alignment_success_patterns": self.get_alignment_success_patterns(),
+            "alignment_strategy_recommendations": self.get_alignment_strategy_recommendations(item),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
