@@ -371,6 +371,24 @@ except ImportError:
         _build_strategy_feedback_stats = None  # type: ignore[assignment]
 
 try:
+    from agent.alignment_strategy_reputation import (
+        AlignmentStrategyReputationMetrics as _AlignmentStrategyReputationMetrics,
+        build_strategy_reputation_overlay as _build_strategy_reputation_overlay,
+    )
+    _ALIGNMENT_REPUTATION_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_strategy_reputation import (
+            AlignmentStrategyReputationMetrics as _AlignmentStrategyReputationMetrics,
+            build_strategy_reputation_overlay as _build_strategy_reputation_overlay,
+        )
+        _ALIGNMENT_REPUTATION_OK = True
+    except ImportError:
+        _ALIGNMENT_REPUTATION_OK = False
+        _AlignmentStrategyReputationMetrics = None  # type: ignore[assignment,misc]
+        _build_strategy_reputation_overlay = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -717,6 +735,13 @@ class ResonanceAgent:
             else None
         )
 
+        # Strategy reputation overlay metrics (advisory/read-only)
+        self._reputation_metrics = (
+            _AlignmentStrategyReputationMetrics()
+            if _ALIGNMENT_REPUTATION_OK and _AlignmentStrategyReputationMetrics
+            else None
+        )
+
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
             len(self._anchor),
@@ -1056,6 +1081,48 @@ class ResonanceAgent:
         if self._aggregation_metrics is None:
             return {"alignment_strategy_aggregation_available": False}
         return self._aggregation_metrics.to_dict()
+
+    def get_alignment_strategy_reputation_overlay(self, item: dict) -> list:
+        """Return advisory reputation overlay for current cycle's recommendations.
+
+        Reads already-computed recommendations and aggregation — read-only,
+        no side effects, no routing or ranking changes.
+        """
+        if not (_ALIGNMENT_REPUTATION_OK and _build_strategy_reputation_overlay):
+            return []
+        recommendations = self.get_alignment_strategy_recommendations(item)
+        aggregation = self.get_alignment_strategy_aggregation()
+        try:
+            overlays = _build_strategy_reputation_overlay(recommendations, aggregation)
+        except Exception:
+            return []
+        # Update metrics
+        m = self._reputation_metrics
+        if m is not None:
+            m.calls_total += 1
+            m.recommendations_processed_total += len(overlays)
+            for ov in overlays:
+                lbl = ov.get("reputation_label", "insufficient_data")
+                if lbl == "validated_pattern":
+                    m.validated_total += 1
+                elif lbl == "emerging_pattern":
+                    m.emerging_total += 1
+                elif lbl == "weak_pattern":
+                    m.weak_total += 1
+                else:
+                    m.insufficient_total += 1
+                m.confidence_sum += float(ov.get("advisory_confidence") or 0.0)
+                if ov.get("has_pattern_evidence"):
+                    m.pattern_evidence_total += 1
+                else:
+                    m.strategy_only_evidence_total += 1
+        return overlays
+
+    def get_alignment_strategy_reputation_metrics(self) -> dict:
+        """Return observability counters for the reputation overlay layer."""
+        if self._reputation_metrics is None:
+            return {"alignment_strategy_reputation_available": False}
+        return self._reputation_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2205,6 +2272,7 @@ class ResonanceAgent:
             "alignment_strategy_feedback": self.get_strategy_outcome_feedback_events(),
             "alignment_strategy_feedback_summary": self.get_strategy_feedback_summary(),
             "alignment_strategy_aggregation": self.get_alignment_strategy_aggregation(),
+            "alignment_strategy_reputation_overlay": self.get_alignment_strategy_reputation_overlay(item),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
