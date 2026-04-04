@@ -331,6 +331,47 @@ def publish_quality_report() -> tuple[int, object]:
     }
 
 
+def preview_quality_report() -> tuple[int, object]:
+    report_path = locate_quality_report()
+    if report_path is None:
+        return 404, {
+            "error": "quality-report.json not found",
+            "expected_path": str(DEFAULT_REPORT_PATH),
+        }
+
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return 400, {
+            "error": f"failed to parse quality report: {exc}",
+            "report_path": str(report_path),
+        }
+
+    lanes = []
+    for lane in report.get("lanes", []):
+        lanes.append(
+            {
+                "lane_key": lane.get("lane_key"),
+                "lane_title": lane.get("lane_title"),
+                "verdict": lane.get("verdict"),
+                "total_failures": lane.get("total_failures"),
+                "min_line_coverage_observed": lane.get("min_line_coverage_observed"),
+                "flaky_suspect": lane.get("flaky_suspect"),
+            }
+        )
+
+    return 200, {
+        "report_path": str(report_path),
+        "generated_at": report.get("generated_at"),
+        "aggregate_verdict": report.get("aggregate_verdict"),
+        "lane_count": report.get("lane_count"),
+        "total_failures": report.get("total_failures"),
+        "min_line_coverage_observed": report.get("min_line_coverage_observed"),
+        "verdict_counts": report.get("verdict_counts", {}),
+        "lanes": lanes,
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send_json(self, status: int, payload: object) -> None:
         body = json.dumps(payload, indent=2).encode("utf-8")
@@ -354,6 +395,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/health":
             status, payload = api_request("GET", "/health")
+            self._send_json(status, payload)
+            return
+        if self.path == "/api/quality-report-preview":
+            status, payload = preview_quality_report()
             self._send_json(status, payload)
             return
         self._send_json(404, {"error": "not found"})
