@@ -346,6 +346,25 @@ except ImportError:
         _build_strategy_feedback_summary = None  # type: ignore[assignment]
         _build_strategy_outcome_feedback = None  # type: ignore[assignment]
 
+
+try:
+    from agent.alignment_strategy_calibration import (
+        AlignmentStrategyCalibrationMetrics as _AlignmentStrategyCalibrationMetrics,
+        build_strategy_calibration_summary as _build_strategy_calibration_summary,
+    )
+    _ALIGNMENT_CALIBRATION_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_strategy_calibration import (
+            AlignmentStrategyCalibrationMetrics as _AlignmentStrategyCalibrationMetrics,
+            build_strategy_calibration_summary as _build_strategy_calibration_summary,
+        )
+        _ALIGNMENT_CALIBRATION_OK = True
+    except ImportError:
+        _ALIGNMENT_CALIBRATION_OK = False
+        _AlignmentStrategyCalibrationMetrics = None  # type: ignore[assignment,misc]
+        _build_strategy_calibration_summary = None  # type: ignore[assignment]
+
 try:
     from agent.alignment_strategy_aggregation import (
         AlignmentStrategyAggregationMetrics as _AlignmentStrategyAggregationMetrics,
@@ -749,26 +768,14 @@ class ResonanceAgent:
             else None
         )
 
-        # Per-pattern / per-strategy aggregation metrics (advisory/read-only)
-        self._aggregation_metrics = (
-            _AlignmentStrategyAggregationMetrics()
-            if _ALIGNMENT_AGGREGATION_OK and _AlignmentStrategyAggregationMetrics
-            else None
-        )
-
-        # Strategy reputation overlay metrics (advisory/read-only)
-        self._reputation_metrics = (
-            _AlignmentStrategyReputationMetrics()
-            if _ALIGNMENT_REPUTATION_OK and _AlignmentStrategyReputationMetrics
-            else None
-        )
-
-        # Recommendation adoption trace — bounded in-memory list, read-only
-        self._recommendation_adoption_traces: list = []
-        self._adoption_traces_max = 200
-        self._adoption_metrics = (
-            _AlignmentRecommendationAdoptionMetrics()
-            if _ALIGNMENT_ADOPTION_OK and _AlignmentRecommendationAdoptionMetrics
+        # Strategy recommendation/adoption/calibration snapshots (bounded, read-only)
+        self._strategy_recommendation_events: list = []
+        self._strategy_recommendation_max = 200
+        self._strategy_adoption_traces: list = []
+        self._strategy_adoption_max = 200
+        self._strategy_calibration_metrics = (
+            _AlignmentStrategyCalibrationMetrics()
+            if _ALIGNMENT_CALIBRATION_OK and _AlignmentStrategyCalibrationMetrics
             else None
         )
 
@@ -1076,149 +1083,105 @@ class ResonanceAgent:
             return {"alignment_strategy_feedback_available": False}
         return self._strategy_feedback_metrics.to_dict()
 
-    def get_alignment_strategy_aggregation(self) -> dict:
-        """Return per-pattern and per-strategy aggregation over session feedback events.
-
-        Read-only: never modifies feedback events, recommender state, or pipeline.
-        """
-        if not (_ALIGNMENT_AGGREGATION_OK and _build_aggregation_summary
-                and _build_pattern_feedback_stats and _build_strategy_feedback_stats):
-            return {"alignment_strategy_aggregation_available": False}
+    def _record_strategy_recommendations(self, recommendations: list[dict]) -> None:
+        """Append recommendations to bounded session-local history."""
+        if not recommendations:
+            return
         with self._alignment_memory_lock:
-            events = list(self._strategy_feedback_events)
-        pat_stats = _build_pattern_feedback_stats(events)
-        strat_stats = _build_strategy_feedback_stats(events)
-        summary = _build_aggregation_summary(events)
-        # Update metrics
-        m = self._aggregation_metrics
-        if m is not None:
-            m.calls_total += 1
-            m.events_processed_total += len(events)
-            m.unique_patterns_total += len(pat_stats)
-            m.unique_strategies_total += len(strat_stats)
-            if pat_stats or strat_stats:
-                m.nonempty_total += 1
-            else:
-                m.empty_total += 1
-        return {
-            "pattern_stats": pat_stats,
-            "strategy_stats": strat_stats,
-            "summary": summary,
-        }
+            for rec in recommendations:
+                if len(self._strategy_recommendation_events) >= self._strategy_recommendation_max:
+                    self._strategy_recommendation_events.pop(0)
+                self._strategy_recommendation_events.append(dict(rec))
 
-    def get_alignment_strategy_aggregation_metrics(self) -> dict:
-        """Return observability counters for the aggregation layer."""
-        if self._aggregation_metrics is None:
-            return {"alignment_strategy_aggregation_available": False}
-        return self._aggregation_metrics.to_dict()
-
-    def get_alignment_strategy_reputation_overlay(self, item: dict) -> list:
-        """Return advisory reputation overlay for current cycle's recommendations.
-
-        Reads already-computed recommendations and aggregation — read-only,
-        no side effects, no routing or ranking changes.
-        """
-        if not (_ALIGNMENT_REPUTATION_OK and _build_strategy_reputation_overlay):
-            return []
-        recommendations = self.get_alignment_strategy_recommendations(item)
-        aggregation = self.get_alignment_strategy_aggregation()
-        try:
-            overlays = _build_strategy_reputation_overlay(recommendations, aggregation)
-        except Exception:
-            return []
-        # Update metrics
-        m = self._reputation_metrics
-        if m is not None:
-            m.calls_total += 1
-            m.recommendations_processed_total += len(overlays)
-            for ov in overlays:
-                lbl = ov.get("reputation_label", "insufficient_data")
-                if lbl == "validated_pattern":
-                    m.validated_total += 1
-                elif lbl == "emerging_pattern":
-                    m.emerging_total += 1
-                elif lbl == "weak_pattern":
-                    m.weak_total += 1
-                else:
-                    m.insufficient_total += 1
-                m.confidence_sum += float(ov.get("advisory_confidence") or 0.0)
-                if ov.get("has_pattern_evidence"):
-                    m.pattern_evidence_total += 1
-                else:
-                    m.strategy_only_evidence_total += 1
-        return overlays
-
-    def get_alignment_strategy_reputation_metrics(self) -> dict:
-        """Return observability counters for the reputation overlay layer."""
-        if self._reputation_metrics is None:
-            return {"alignment_strategy_reputation_available": False}
-        return self._reputation_metrics.to_dict()
-
-    def _record_recommendation_adoption_trace(
+    def _record_strategy_adoption_traces(
         self,
-        recommendations: list,
-        response_text: str,
-        alignment_outcome: dict,
+        recommendations: list[dict],
+        final_output: str,
     ) -> None:
-        """Build and store adoption traces post-response. Advisory-only."""
-        if not (_ALIGNMENT_ADOPTION_OK and _build_adoption_trace):
+        """Deterministically derive session-local adoption traces from final output."""
+        if not recommendations:
             return
-        try:
-            traces = _build_adoption_trace(
-                recommendations, response_text, alignment_outcome
-            )
-        except Exception:
-            return
+        output_l = (final_output or "").lower()
+        traces: list[dict] = []
+        for rec in recommendations:
+            if not isinstance(rec, dict):
+                continue
+            sid = rec.get("strategy_id") or ""
+            if not sid:
+                continue
+            actions = [str(a).lower() for a in (rec.get("recommended_actions") or []) if a]
+            if not actions:
+                adoption_score = 0.0
+            else:
+                matches = sum(1 for a in actions if a in output_l)
+                adoption_score = matches / len(actions)
+            if adoption_score >= 0.67:
+                label = "adopted"
+            elif adoption_score >= 0.34:
+                label = "partially_adopted"
+            else:
+                label = "not_adopted"
+            traces.append({
+                "strategy_id": sid,
+                "adoption_label": label,
+                "adoption_score": round(adoption_score, 4),
+            })
+
         if not traces:
             return
         with self._alignment_memory_lock:
             for tr in traces:
-                if len(self._recommendation_adoption_traces) >= self._adoption_traces_max:
-                    self._recommendation_adoption_traces.pop(0)
-                self._recommendation_adoption_traces.append(tr)
-        m = self._adoption_metrics
-        if m is not None:
-            m.calls_total += 1
-            m.recommendations_processed_total += len(recommendations)
-            m.traces_total += len(traces)
-            for tr in traces:
-                lbl = tr.get("adoption_label", "not_adopted")
-                if lbl == "adopted":
-                    m.adopted_total += 1
-                elif lbl == "partially_adopted":
-                    m.partially_adopted_total += 1
-                else:
-                    m.not_adopted_total += 1
-                m.score_sum += float(tr.get("adoption_score") or 0.0)
-                m.action_matches_total += int(tr.get("matched_action_count") or 0)
-                m.unknown_actions_total += int(
-                    tr.get("total_action_count", 0)
-                    - tr.get("matched_action_count", 0)
-                    - len(tr.get("unmatched_actions") or [])
-                    + len([
-                        a for a in (tr.get("unmatched_actions") or [])
-                        if a not in (tr.get("matched_actions") or [])
-                    ])
-                )
+                if len(self._strategy_adoption_traces) >= self._strategy_adoption_max:
+                    self._strategy_adoption_traces.pop(0)
+                self._strategy_adoption_traces.append(tr)
 
-    def get_recommendation_adoption_traces(self) -> list:
-        """Return a snapshot of all session adoption traces (read-only copy)."""
+    def get_strategy_recommendation_events(self) -> list:
+        """Return a copy of session recommendation events."""
         with self._alignment_memory_lock:
-            return list(self._recommendation_adoption_traces)
+            return list(self._strategy_recommendation_events)
 
-    def get_recommendation_adoption_summary(self) -> dict:
-        """Return aggregated adoption summary for this session."""
-        if not (_ALIGNMENT_ADOPTION_OK and _build_adoption_summary):
-            return {"alignment_recommendation_adoption_available": False}
+    def get_strategy_recommendation_adoption_traces(self) -> list:
+        """Return a copy of session recommendation adoption traces."""
         with self._alignment_memory_lock:
-            traces = list(self._recommendation_adoption_traces)
-        return _build_adoption_summary(traces)
+            return list(self._strategy_adoption_traces)
 
-    def get_recommendation_adoption_metrics(self) -> dict:
-        """Return observability counters for the adoption trace layer."""
-        if self._adoption_metrics is None:
-            return {"alignment_recommendation_adoption_available": False}
-        return self._adoption_metrics.to_dict()
+    def get_strategy_calibration_summary(self) -> dict:
+        """Return deterministic per-strategy calibration summary (read-only)."""
+        if not (_ALIGNMENT_CALIBRATION_OK and _build_strategy_calibration_summary):
+            return {"alignment_strategy_calibration_available": False}
+        with self._alignment_memory_lock:
+            recommendations = list(self._strategy_recommendation_events)
+            feedback_events = list(self._strategy_feedback_events)
+            adoption_traces = list(self._strategy_adoption_traces)
+        aggregation = {"strategy_stats": {}}
+        summary = _build_strategy_calibration_summary(
+            recommendations,
+            feedback_events,
+            adoption_traces,
+            aggregation,
+        )
+        metrics = self._strategy_calibration_metrics
+        if metrics is not None:
+            overview = summary.get("overview") or {}
+            per = summary.get("per_strategy") or []
+            metrics.calls_total += 1
+            metrics.strategies_processed_total += len(per)
+            metrics.well_calibrated_total += int(overview.get("well_calibrated_total") or 0)
+            metrics.promising_but_thin_total += int(overview.get("promising_total") or 0)
+            metrics.recommended_but_not_adopted_total += int(overview.get("recommended_but_not_adopted_total") or 0)
+            metrics.adopted_but_low_outcome_total += int(overview.get("adopted_but_low_outcome_total") or 0)
+            metrics.weakly_calibrated_total += int(overview.get("weakly_calibrated_total") or 0)
+            metrics.insufficient_data_total += int(overview.get("insufficient_total") or 0)
+            if per:
+                metrics._adoption_rate_sum += sum(float(r.get("adoption_rate") or 0.0) for r in per) / len(per)
+                metrics._effective_rate_sum += sum(float(r.get("effective_rate") or 0.0) for r in per) / len(per)
+        return summary
+
+    def get_strategy_calibration_metrics(self) -> dict:
+        """Return observability counters for calibration summary builds."""
+        if self._strategy_calibration_metrics is None:
+            return {"alignment_strategy_calibration_available": False}
+        return self._strategy_calibration_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2297,6 +2260,8 @@ class ResonanceAgent:
 
         # Strategy recommendations — computed once so feedback and adoption can share it
         _strategy_recs = self.get_alignment_strategy_recommendations(item)
+        self._record_strategy_recommendations(_strategy_recs)
+        self._record_strategy_adoption_traces(_strategy_recs, final_output)
         # Post-cycle feedback: advisory-only, appends to bounded session list
         self._record_strategy_outcome_feedback(_strategy_recs, alignment_outcome)
         # Post-response adoption trace: checks recommended actions in final text
@@ -2371,10 +2336,8 @@ class ResonanceAgent:
             "alignment_strategy_recommendations": _strategy_recs,
             "alignment_strategy_feedback": self.get_strategy_outcome_feedback_events(),
             "alignment_strategy_feedback_summary": self.get_strategy_feedback_summary(),
-            "alignment_strategy_aggregation": self.get_alignment_strategy_aggregation(),
-            "alignment_strategy_reputation_overlay": self.get_alignment_strategy_reputation_overlay(item),
-            "alignment_recommendation_adoption_traces": self.get_recommendation_adoption_traces(),
-            "alignment_recommendation_adoption_summary": self.get_recommendation_adoption_summary(),
+            "alignment_strategy_calibration_summary": self.get_strategy_calibration_summary(),
+            "alignment_strategy_calibration_metrics": self.get_strategy_calibration_metrics(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
