@@ -1,0 +1,85 @@
+name: Write quality report
+description: Persist a machine-readable per-lane quality snapshot for downstream analysis.
+
+inputs:
+  lane-key:
+    description: Stable machine-readable lane identifier.
+    required: true
+  lane-title:
+    description: Human-readable lane title.
+    required: true
+  verdict:
+    description: Gate verdict for this lane.
+    required: true
+  total-failures:
+    description: Total failures plus errors across JUnit files.
+    required: true
+  min-line-coverage:
+    description: Lowest observed line coverage percentage across coverage XML files.
+    required: false
+    default: ""
+  threshold:
+    description: Human-readable coverage or policy threshold for this lane.
+    required: false
+    default: ""
+  flaky-suspect:
+    description: Whether the lane currently looks flaky.
+    required: false
+    default: "false"
+  artifacts-dir:
+    description: Directory where reports should be written.
+    required: false
+    default: "artifacts"
+
+runs:
+  using: composite
+  steps:
+    - name: Write lane quality snapshot
+      shell: bash
+      run: |
+        python - <<'PY'
+        import json
+        import os
+        import pathlib
+        from datetime import datetime, timezone
+
+        lane_key = """${{ inputs.lane-key }}"""
+        lane_title = """${{ inputs.lane-title }}"""
+        verdict = """${{ inputs.verdict }}"""
+        total_failures = int("""${{ inputs.total-failures }}""")
+        raw_coverage = """${{ inputs.min-line-coverage }}""".strip()
+        threshold = """${{ inputs.threshold }}""".strip()
+        flaky_suspect = """${{ inputs.flaky-suspect }}""".lower() == "true"
+        artifacts_dir = pathlib.Path("""${{ inputs.artifacts-dir }}""")
+
+        quality_dir = artifacts_dir / "quality"
+        quality_dir.mkdir(parents=True, exist_ok=True)
+
+        run_url = (
+            f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/"
+            f"{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}"
+        )
+
+        report = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "repository": os.environ.get("GITHUB_REPOSITORY"),
+            "event_name": os.environ.get("GITHUB_EVENT_NAME"),
+            "ref": os.environ.get("GITHUB_REF"),
+            "sha": os.environ.get("GITHUB_SHA"),
+            "run_id": os.environ.get("GITHUB_RUN_ID"),
+            "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+            "job": os.environ.get("GITHUB_JOB"),
+            "lane_key": lane_key,
+            "lane_title": lane_title,
+            "verdict": verdict,
+            "total_failures": total_failures,
+            "min_line_coverage_observed": float(raw_coverage) if raw_coverage else None,
+            "threshold": threshold or None,
+            "flaky_suspect": flaky_suspect,
+            "run_url": run_url,
+        }
+
+        report_path = quality_dir / f"{lane_key}.json"
+        report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        print(f"Wrote {report_path}")
+        PY

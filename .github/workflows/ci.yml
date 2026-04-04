@@ -78,6 +78,16 @@ jobs:
           require-junit: "true"
           require-coverage: "true"
           enforce: "true"
+      - name: Write machine-readable quality snapshot
+        if: always()
+        uses: ./.github/actions/write-quality-report
+        with:
+          lane-key: security-and-tests
+          lane-title: Security & CI Quality Gate
+          threshold: 12%
+          verdict: ${{ steps.quality_gate.outputs.verdict }}
+          total-failures: ${{ steps.quality_gate.outputs.total-failures }}
+          min-line-coverage: ${{ steps.quality_gate.outputs.min-line-coverage-observed }}
       - name: Update PR quality comment
         if: always() && github.event_name == 'pull_request'
         uses: ./.github/actions/upsert-pr-quality-overview
@@ -88,6 +98,11 @@ jobs:
           verdict: ${{ steps.quality_gate.outputs.verdict }}
           total-failures: ${{ steps.quality_gate.outputs.total-failures }}
           min-line-coverage: ${{ steps.quality_gate.outputs.min-line-coverage-observed }}
+      - name: Aggregate workflow quality report
+        if: always()
+        uses: ./.github/actions/aggregate-quality-reports
+        with:
+          label: security-and-tests
 
       - name: Vulnerability audit
         run: |
