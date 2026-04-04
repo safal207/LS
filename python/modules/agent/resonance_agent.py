@@ -779,6 +779,18 @@ class ResonanceAgent:
             else None
         )
 
+        # Aggregation, reputation, adoption metrics (advisory/read-only)
+        self._aggregation_metrics = (
+            _AlignmentStrategyAggregationMetrics()
+            if _ALIGNMENT_AGGREGATION_OK and _AlignmentStrategyAggregationMetrics
+            else None
+        )
+        self._reputation_metrics = (
+            _AlignmentStrategyReputationMetrics()
+            if _ALIGNMENT_REPUTATION_OK and _AlignmentStrategyReputationMetrics
+            else None
+        )
+
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
             len(self._anchor),
@@ -1082,6 +1094,142 @@ class ResonanceAgent:
         if self._strategy_feedback_metrics is None:
             return {"alignment_strategy_feedback_available": False}
         return self._strategy_feedback_metrics.to_dict()
+
+    def get_alignment_strategy_aggregation(self) -> dict:
+        """Return per-pattern and per-strategy aggregation over session feedback events.
+
+        Read-only: never modifies feedback events, recommender state, or pipeline.
+        """
+        if not (_ALIGNMENT_AGGREGATION_OK and _build_aggregation_summary
+                and _build_pattern_feedback_stats and _build_strategy_feedback_stats):
+            return {"alignment_strategy_aggregation_available": False}
+        with self._alignment_memory_lock:
+            events = list(self._strategy_feedback_events)
+        pat_stats = _build_pattern_feedback_stats(events)
+        strat_stats = _build_strategy_feedback_stats(events)
+        summary = _build_aggregation_summary(events)
+        m = self._aggregation_metrics
+        if m is not None:
+            m.calls_total += 1
+            m.events_processed_total += len(events)
+            m.unique_patterns_total += len(pat_stats)
+            m.unique_strategies_total += len(strat_stats)
+            if pat_stats or strat_stats:
+                m.nonempty_total += 1
+            else:
+                m.empty_total += 1
+        return {
+            "pattern_stats": pat_stats,
+            "strategy_stats": strat_stats,
+            "summary": summary,
+        }
+
+    def get_alignment_strategy_aggregation_metrics(self) -> dict:
+        """Return observability counters for the aggregation layer."""
+        if self._aggregation_metrics is None:
+            return {"alignment_strategy_aggregation_available": False}
+        return self._aggregation_metrics.to_dict()
+
+    def get_alignment_strategy_reputation_overlay(self, item: dict) -> list:
+        """Return advisory reputation overlay for current cycle's recommendations.
+
+        Read-only, no side effects, no routing or ranking changes.
+        """
+        if not (_ALIGNMENT_REPUTATION_OK and _build_strategy_reputation_overlay):
+            return []
+        recommendations = self.get_alignment_strategy_recommendations(item)
+        aggregation = self.get_alignment_strategy_aggregation()
+        try:
+            overlays = _build_strategy_reputation_overlay(recommendations, aggregation)
+        except Exception:
+            return []
+        m = self._reputation_metrics
+        if m is not None:
+            m.calls_total += 1
+            m.recommendations_processed_total += len(overlays)
+            for ov in overlays:
+                lbl = ov.get("reputation_label", "insufficient_data")
+                if lbl == "validated_pattern":
+                    m.validated_total += 1
+                elif lbl == "emerging_pattern":
+                    m.emerging_total += 1
+                elif lbl == "weak_pattern":
+                    m.weak_total += 1
+                else:
+                    m.insufficient_total += 1
+                m.confidence_sum += float(ov.get("advisory_confidence") or 0.0)
+                if ov.get("has_pattern_evidence"):
+                    m.pattern_evidence_total += 1
+                else:
+                    m.strategy_only_evidence_total += 1
+        return overlays
+
+    def get_alignment_strategy_reputation_metrics(self) -> dict:
+        """Return observability counters for the reputation overlay layer."""
+        if self._reputation_metrics is None:
+            return {"alignment_strategy_reputation_available": False}
+        return self._reputation_metrics.to_dict()
+
+    def _record_recommendation_adoption_trace(
+        self,
+        recommendations: list,
+        response_text: str,
+        alignment_outcome: dict,
+    ) -> None:
+        """Build and store per-recommendation adoption traces post-response.
+
+        Uses the lexical-cue matching in alignment_recommendation_adoption when
+        available; falls back silently.  Advisory-only.
+        """
+        if not (_ALIGNMENT_ADOPTION_OK and _build_adoption_trace):
+            return
+        try:
+            traces = _build_adoption_trace(
+                recommendations, response_text, alignment_outcome
+            )
+        except Exception:
+            return
+        if not traces:
+            return
+        with self._alignment_memory_lock:
+            for tr in traces:
+                if len(self._strategy_adoption_traces) >= self._strategy_adoption_max:
+                    self._strategy_adoption_traces.pop(0)
+                self._strategy_adoption_traces.append(tr)
+
+    def get_recommendation_adoption_traces(self) -> list:
+        """Return a snapshot of session adoption traces (read-only copy)."""
+        with self._alignment_memory_lock:
+            return list(self._strategy_adoption_traces)
+
+    def get_recommendation_adoption_summary(self) -> dict:
+        """Return aggregated adoption summary for this session."""
+        if not (_ALIGNMENT_ADOPTION_OK and _build_adoption_summary):
+            return {"alignment_recommendation_adoption_available": False}
+        with self._alignment_memory_lock:
+            traces = list(self._strategy_adoption_traces)
+        return _build_adoption_summary(traces)
+
+    def get_recommendation_adoption_metrics(self) -> dict:
+        """Return observability counters for the adoption trace layer."""
+        with self._alignment_memory_lock:
+            traces = list(self._strategy_adoption_traces)
+        adopted = sum(1 for t in traces if t.get("adoption_label") == "adopted")
+        partial = sum(1 for t in traces if t.get("adoption_label") == "partially_adopted")
+        not_ad = len(traces) - adopted - partial
+        score_sum = sum(float(t.get("adoption_score") or 0.0) for t in traces)
+        n = len(traces)
+        return {
+            "calls_total": n,
+            "recommendations_processed_total": n,
+            "traces_total": n,
+            "adopted_total": adopted,
+            "partially_adopted_total": partial,
+            "not_adopted_total": not_ad,
+            "avg_adoption_score": round(score_sum / n, 4) if n else 0.0,
+            "action_matches_total": adopted + partial,
+            "unknown_actions_total": 0,
+        }
 
     def _record_strategy_recommendations(self, recommendations: list[dict]) -> None:
         """Append recommendations to bounded session-local history."""
