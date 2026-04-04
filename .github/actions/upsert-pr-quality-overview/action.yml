@@ -34,11 +34,13 @@ runs:
           const sharedMarker = '<!-- quality-gates:overview -->';
           const managedLabels = ['quality:block', 'quality:warn', 'quality:pass'];
           const triageLabel = 'needs-triage';
+          const incidentLabel = 'quality-incident';
           const managedLabelSpecs = {
             'quality:block': { color: 'B60205', description: 'CI quality gates are blocking this PR' },
             'quality:warn': { color: 'FBCA04', description: 'CI quality gates have warnings on this PR' },
             'quality:pass': { color: '0E8A16', description: 'CI quality gates currently pass on this PR' },
             'needs-triage': { color: 'D93F0B', description: 'This PR needs human triage due to blocking quality signals' },
+            'quality-incident': { color: '5319E7', description: 'Tracks a PR blocked by CI quality automation' },
           };
           const laneKey = `${{ inputs.lane-key }}`;
           const laneTitle = `${{ inputs.lane-title }}`;
@@ -51,6 +53,7 @@ runs:
           const endMarker = `<!-- quality-gate-section:${laneKey}:end -->`;
           const legacyMarker = `<!-- quality-gate:${laneKey} -->`;
           const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+          const incidentMarker = `<!-- quality-incident:pr-${context.issue.number} -->`;
 
           const laneSection = [
             startMarker,
@@ -156,7 +159,7 @@ runs:
             }
           }
 
-          for (const label of [...managedLabels, triageLabel]) {
+          for (const label of [...managedLabels, triageLabel, incidentLabel]) {
             await ensureLabel(label);
           }
 
@@ -210,5 +213,60 @@ runs:
               repo: context.repo.repo,
               issue_number: context.issue.number,
               labels: [triageLabel],
+            });
+          }
+
+          const { data: repoIssues } = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'all',
+            labels: incidentLabel,
+            per_page: 100,
+          });
+          const existingIncident = repoIssues.find((issue) => issue.body && issue.body.includes(incidentMarker));
+
+          if (desiredLabel === 'quality:block') {
+            const incidentTitle = `Quality gate blocked: PR #${context.issue.number}`;
+            const incidentBody = [
+              incidentMarker,
+              `PR #${context.issue.number} is currently blocked by CI quality automation.`,
+              '',
+              `- PR: ${context.payload.pull_request.html_url}`,
+              `- workflow run: ${runUrl}`,
+              `- aggregated label: ${desiredLabel}`,
+              '',
+              'Latest overview is maintained in the PR sticky comment.',
+            ].join('\n');
+
+            if (!existingIncident) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: incidentTitle,
+                body: incidentBody,
+                labels: [incidentLabel, triageLabel],
+              });
+            } else {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIncident.number,
+                title: incidentTitle,
+                body: incidentBody,
+                state: 'open',
+              });
+            }
+          } else if (existingIncident && existingIncident.state === 'open') {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existingIncident.number,
+              body: `Quality automation no longer reports \`quality:block\` for PR #${context.issue.number}. Closing incident.`,
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existingIncident.number,
+              state: 'closed',
             });
           }
