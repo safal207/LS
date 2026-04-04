@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -66,6 +66,12 @@
     }
     .ok { color: var(--accent-2); }
     .bad { color: var(--accent); }
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
     button {
       appearance: none;
       border: 0;
@@ -75,11 +81,17 @@
       color: white;
       font: inherit;
       cursor: pointer;
-      margin-right: 10px;
-      margin-top: 10px;
     }
-    button.secondary { background: var(--accent); }
-    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary {
+      background: var(--accent);
+    }
+    button.active {
+      background: var(--accent-2);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
     pre {
       margin: 0;
       white-space: pre-wrap;
@@ -103,40 +115,48 @@
   <main>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
       <div>
-        <h1 id="title">LiminalQA<br>Local Dashboard</h1>
-        <p id="lede" class="lede">Small local control surface for the LS to LiminalQA path. Check health, push a smoke batch, and preview the latest query without touching curl.</p>
+        <h1 id="title">LiminalQA<br>Локальная панель</h1>
+        <p id="lede" class="lede">Маленькая локальная панель для пути LS -&gt; LiminalQA. Проверяй здоровье сервиса, отправляй smoke batch и смотри preview query без ручного curl.</p>
       </div>
       <div class="panel" style="padding:12px 14px;min-width:180px;">
-        <div id="lang-label" class="kicker" style="margin-bottom:8px;">Language</div>
-        <button id="lang-ru" type="button">Русский</button>
-        <button id="lang-en" type="button" class="secondary">English</button>
+        <div id="lang-label" class="kicker" style="margin-bottom:8px;">Язык</div>
+        <div class="button-row" style="margin-top:0;">
+          <button id="lang-ru" type="button" class="active">Русский</button>
+          <button id="lang-en" type="button">English</button>
+        </div>
       </div>
     </div>
 
     <section class="grid">
       <article class="panel">
-        <div id="health-kicker" class="kicker">Service Health</div>
-        <div id="health-status" class="status">Checking...</div>
+        <div id="health-kicker" class="kicker">Здоровье сервиса</div>
+        <div id="health-status" class="status">Проверка...</div>
         <div id="health-meta" class="meta"></div>
-        <button id="refresh-health">Refresh Health</button>
+        <div class="button-row">
+          <button id="refresh-health">Проверить health</button>
+        </div>
       </article>
 
       <article class="panel">
         <div id="smoke-kicker" class="kicker">Smoke Publish</div>
-        <div id="smoke-meta" class="meta">Send one synthetic run with one test and one signal through <code>/ingest/batch</code>.</div>
-        <button id="publish-smoke" class="secondary">Publish Smoke Batch</button>
+        <div id="smoke-meta" class="meta">Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.</div>
+        <div class="button-row">
+          <button id="publish-smoke" class="secondary">Отправить smoke batch</button>
+        </div>
       </article>
 
       <article class="panel">
         <div id="query-kicker" class="kicker">Query Preview</div>
-        <div id="query-meta" class="meta">Request a small <code>/query</code> payload and preview the latest facts visible to the ingest service.</div>
-        <button id="run-query">Load Query Preview</button>
+        <div id="query-meta" class="meta">Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.</div>
+        <div class="button-row">
+          <button id="run-query">Показать query preview</button>
+        </div>
       </article>
     </section>
 
     <section class="panel" style="margin-top:16px;">
-      <div id="result-kicker" class="kicker">Result</div>
-      <pre id="result">Waiting for action...</pre>
+      <div id="result-kicker" class="kicker">Результат</div>
+      <pre id="result">Ожидание действия...</pre>
     </section>
   </main>
   <script>
@@ -146,7 +166,7 @@
     const dictionary = {
       ru: {
         title: "LiminalQA<br>Локальная панель",
-        lede: "Маленькая локальная панель для пути LS → LiminalQA. Проверяй здоровье сервиса, отправляй smoke batch и смотри preview query без ручного curl.",
+        lede: "Маленькая локальная панель для пути LS -> LiminalQA. Проверяй здоровье сервиса, отправляй smoke batch и смотри preview query без ручного curl.",
         langLabel: "Язык",
         healthKicker: "Здоровье сервиса",
         healthChecking: "Проверка...",
@@ -192,7 +212,7 @@
     function renderLanguage() {
       document.documentElement.lang = lang;
       document.getElementById("title").innerHTML = t("title");
-      document.getElementById("lede").innerHTML = t("lede");
+      document.getElementById("lede").textContent = t("lede");
       document.getElementById("lang-label").textContent = t("langLabel");
       document.getElementById("health-kicker").textContent = t("healthKicker");
       document.getElementById("smoke-kicker").textContent = t("smokeKicker");
@@ -209,8 +229,8 @@
       if (!result.textContent || result.textContent === dictionary.en.waiting || result.textContent === dictionary.ru.waiting) {
         result.textContent = t("waiting");
       }
-      document.getElementById("lang-ru").className = lang === "ru" ? "secondary" : "";
-      document.getElementById("lang-en").className = lang === "en" ? "secondary" : "";
+      document.getElementById("lang-ru").className = lang === "ru" ? "active" : "";
+      document.getElementById("lang-en").className = lang === "en" ? "active" : "";
     }
 
     function setBusy(button, busy) {
@@ -260,6 +280,8 @@
       setBusy(button, true);
       try {
         await refreshHealth();
+      } catch (error) {
+        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
       } finally {
         setBusy(button, false);
       }
@@ -272,6 +294,8 @@
         const data = await callJson("/api/smoke", { method: "POST" });
         result.textContent = JSON.stringify(data.payload, null, 2);
         await refreshHealth();
+      } catch (error) {
+        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
       } finally {
         setBusy(button, false);
       }
@@ -283,6 +307,8 @@
       try {
         const data = await callJson("/api/query", { method: "POST" });
         result.textContent = JSON.stringify(data.payload, null, 2);
+      } catch (error) {
+        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
       } finally {
         setBusy(button, false);
       }
@@ -290,7 +316,9 @@
 
     renderLanguage();
     healthStatus.textContent = t("healthChecking");
-    refreshHealth();
+    refreshHealth().catch((error) => {
+      result.textContent = JSON.stringify({ error: String(error) }, null, 2);
+    });
   </script>
 </body>
 </html>
