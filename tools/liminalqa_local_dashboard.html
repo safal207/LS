@@ -245,7 +245,7 @@
       return { ok: response.ok, status: response.status, payload };
     }
 
-    async function refreshHealth() {
+    async function refreshHealth(updateResult = true) {
       const data = await callJson("/api/health");
       if (data.ok) {
         healthStatus.textContent = t("healthHealthy");
@@ -256,7 +256,9 @@
         healthStatus.className = "status bad";
         healthMeta.textContent = data.payload.error || `HTTP ${data.status}`;
       }
-      result.textContent = JSON.stringify(data.payload, null, 2);
+      if (updateResult) {
+        result.textContent = JSON.stringify(data.payload, null, 2);
+      }
     }
 
     document.getElementById("lang-ru").addEventListener("click", () => {
@@ -293,7 +295,7 @@
       try {
         const data = await callJson("/api/smoke", { method: "POST" });
         result.textContent = JSON.stringify(data.payload, null, 2);
-        await refreshHealth();
+        await refreshHealth(false);
       } catch (error) {
         result.textContent = JSON.stringify({ error: String(error) }, null, 2);
       } finally {
@@ -316,7 +318,7 @@
 
     renderLanguage();
     healthStatus.textContent = t("healthChecking");
-    refreshHealth().catch((error) => {
+    refreshHealth(true).catch((error) => {
       result.textContent = JSON.stringify({ error: String(error) }, null, 2);
     });
   </script>
