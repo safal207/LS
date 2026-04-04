@@ -44,6 +44,24 @@ Health check:
 pwsh ./scripts/liminalqa-local-health.ps1
 ```
 
+Local dashboard:
+
+```powershell
+python tools/liminalqa_local_dashboard.py
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8090
+```
+
+The dashboard gives you:
+
+- health check
+- one-click smoke publish
+- simple query preview
+
 Stop the stack:
 
 ```powershell

@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LiminalQA Local Dashboard</title>
+  <style>
+    :root {
+      --bg: #f2efe8;
+      --panel: #fffaf1;
+      --ink: #161311;
+      --muted: #6d655d;
+      --accent: #a63d2f;
+      --accent-2: #1e6f5c;
+      --line: #d9cdbb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, rgba(166, 61, 47, 0.14), transparent 28rem),
+        radial-gradient(circle at bottom right, rgba(30, 111, 92, 0.12), transparent 28rem),
+        var(--bg);
+      color: var(--ink);
+    }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 4vw, 3.8rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+    .lede {
+      max-width: 680px;
+      color: var(--muted);
+      font-size: 1.05rem;
+      margin-bottom: 28px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 12px 30px rgba(22, 19, 17, 0.06);
+    }
+    .kicker {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .status {
+      font-size: 1.4rem;
+      margin-bottom: 8px;
+    }
+    .ok { color: var(--accent-2); }
+    .bad { color: var(--accent); }
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 16px;
+      background: var(--ink);
+      color: white;
+      font: inherit;
+      cursor: pointer;
+      margin-right: 10px;
+      margin-top: 10px;
+    }
+    button.secondary { background: var(--accent); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #171311;
+      color: #f8f1e3;
+      border-radius: 14px;
+      padding: 14px;
+      min-height: 220px;
+      overflow: auto;
+      font-size: 0.9rem;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>LiminalQA<br>Local Dashboard</h1>
+    <p class="lede">Small local control surface for the LS to LiminalQA path. Check health, push a smoke batch, and preview the latest query without touching curl.</p>
+
+    <section class="grid">
+      <article class="panel">
+        <div class="kicker">Service Health</div>
+        <div id="health-status" class="status">Checking...</div>
+        <div id="health-meta" class="meta"></div>
+        <button id="refresh-health">Refresh Health</button>
+      </article>
+
+      <article class="panel">
+        <div class="kicker">Smoke Publish</div>
+        <div class="meta">Send one synthetic run with one test and one signal through <code>/ingest/batch</code>.</div>
+        <button id="publish-smoke" class="secondary">Publish Smoke Batch</button>
+      </article>
+
+      <article class="panel">
+        <div class="kicker">Query Preview</div>
+        <div class="meta">Request a small <code>/query</code> payload and preview the latest facts visible to the ingest service.</div>
+        <button id="run-query">Load Query Preview</button>
+      </article>
+    </section>
+
+    <section class="panel" style="margin-top:16px;">
+      <div class="kicker">Result</div>
+      <pre id="result">Waiting for action...</pre>
+    </section>
+  </main>
+  <script>
+    const result = document.getElementById("result");
+    const healthStatus = document.getElementById("health-status");
+    const healthMeta = document.getElementById("health-meta");
+
+    function setBusy(button, busy) {
+      button.disabled = busy;
+      button.dataset.label ||= button.textContent;
+      button.textContent = busy ? "Working..." : button.dataset.label;
+    }
+
+    async function callJson(path, options = {}) {
+      const response = await fetch(path, options);
+      const payload = await response.json();
+      return { ok: response.ok, status: response.status, payload };
+    }
+
+    async function refreshHealth() {
+      const data = await callJson("/api/health");
+      if (data.ok) {
+        healthStatus.textContent = "Healthy";
+        healthStatus.className = "status ok";
+        healthMeta.textContent = `${data.payload.service} v${data.payload.version}`;
+      } else {
+        healthStatus.textContent = "Unavailable";
+        healthStatus.className = "status bad";
+        healthMeta.textContent = data.payload.error || `HTTP ${data.status}`;
+      }
+      result.textContent = JSON.stringify(data.payload, null, 2);
+    }
+
+    document.getElementById("refresh-health").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      try {
+        await refreshHealth();
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
+    document.getElementById("publish-smoke").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      try {
+        const data = await callJson("/api/smoke", { method: "POST" });
+        result.textContent = JSON.stringify(data.payload, null, 2);
+        await refreshHealth();
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
+    document.getElementById("run-query").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      try {
+        const data = await callJson("/api/query", { method: "POST" });
+        result.textContent = JSON.stringify(data.payload, null, 2);
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
+    refreshHealth();
+  </script>
+</body>
+</html>
