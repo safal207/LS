@@ -272,6 +272,24 @@ except ImportError:
         _should_store_alignment_memory_unit = None  # type: ignore[assignment]
 
 try:
+    from agent.alignment_digest import (
+        AlignmentDigestMetrics as _AlignmentDigestMetrics,
+        build_alignment_digest as _build_alignment_digest,
+    )
+    _ALIGNMENT_DIGEST_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_digest import (
+            AlignmentDigestMetrics as _AlignmentDigestMetrics,
+            build_alignment_digest as _build_alignment_digest,
+        )
+        _ALIGNMENT_DIGEST_OK = True
+    except ImportError:
+        _ALIGNMENT_DIGEST_OK = False
+        _AlignmentDigestMetrics = None  # type: ignore[assignment,misc]
+        _build_alignment_digest = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -581,6 +599,13 @@ class ResonanceAgent:
                 _Path("data/graph_memory/alignment_memory_units.jsonl")
             )
 
+        # Alignment digest metrics (advisory/observability only)
+        self._digest_metrics = (
+            _AlignmentDigestMetrics()
+            if _ALIGNMENT_DIGEST_OK and _AlignmentDigestMetrics
+            else None
+        )
+
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
             len(self._anchor),
@@ -711,6 +736,35 @@ class ResonanceAgent:
         """Return a copy of all in-memory alignment memory units as dicts."""
         with self._alignment_memory_lock:
             return [u.to_dict() for u in self._alignment_memory_units]
+
+    def get_alignment_digest(self) -> dict:
+        """Return a compact, deterministic session digest over accumulated alignment units.
+
+        Read-only — never modifies units, routing state, or any pipeline field.
+        """
+        if not (_ALIGNMENT_DIGEST_OK and _build_alignment_digest):
+            return {"alignment_digest_available": False}
+
+        with self._alignment_memory_lock:
+            units = list(self._alignment_memory_units)
+
+        digest = _build_alignment_digest(units)
+
+        if self._digest_metrics is not None:
+            self._digest_metrics.calls_total += 1
+            self._digest_metrics.units_processed_total += len(units)
+            if digest.get("total_units", 0) == 0:
+                self._digest_metrics.empty_total += 1
+            else:
+                self._digest_metrics.nonempty_total += 1
+
+        return digest
+
+    def get_alignment_digest_metrics(self) -> dict:
+        """Return observability counters for the digest build layer."""
+        if self._digest_metrics is None:
+            return {"alignment_digest_available": False}
+        return self._digest_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -1849,6 +1903,7 @@ class ResonanceAgent:
             "alignment_observability": self.get_alignment_outcome_metrics(),
             "alignment_memory_hint": item.get("_alignment_memory_hint"),
             "alignment_memory_metrics": self.get_alignment_memory_metrics(),
+            "alignment_digest": self.get_alignment_digest(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
