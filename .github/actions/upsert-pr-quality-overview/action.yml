@@ -32,6 +32,7 @@ runs:
       with:
         script: |
           const sharedMarker = '<!-- quality-gates:overview -->';
+          const managedLabels = ['quality:block', 'quality:warn', 'quality:pass'];
           const laneKey = `${{ inputs.lane-key }}`;
           const laneTitle = `${{ inputs.lane-title }}`;
           const threshold = `${{ inputs.threshold }}`;
@@ -83,36 +84,77 @@ runs:
             '',
           ].join('\n');
 
+          let finalBody;
           if (!existing) {
-            const body = `${header}${laneSection}\n`;
+            finalBody = `${header}${laneSection}\n`;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body,
+              body: finalBody,
             });
-            return;
-          }
-
-          let body = existing.body;
-          const sectionRegex = new RegExp(
-            `<!-- quality-gate-section:${laneKey}:start -->[\\s\\S]*?<!-- quality-gate-section:${laneKey}:end -->`,
-            'm'
-          );
-
-          if (sectionRegex.test(body)) {
-            body = body.replace(sectionRegex, laneSection);
           } else {
-            body = `${body.trim()}\n\n${laneSection}\n`;
+            finalBody = existing.body;
+            const sectionRegex = new RegExp(
+              `<!-- quality-gate-section:${laneKey}:start -->[\\s\\S]*?<!-- quality-gate-section:${laneKey}:end -->`,
+              'm'
+            );
+
+            if (sectionRegex.test(finalBody)) {
+              finalBody = finalBody.replace(sectionRegex, laneSection);
+            } else {
+              finalBody = `${finalBody.trim()}\n\n${laneSection}\n`;
+            }
+
+            if (!finalBody.includes(sharedMarker)) {
+              finalBody = `${header}${finalBody}`;
+            }
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body: finalBody,
+            });
           }
 
-          if (!body.includes(sharedMarker)) {
-            body = `${header}${body}`;
+          const sectionVerdicts = [...finalBody.matchAll(/- verdict: `([^`]+)`/g)].map((match) => match[1]);
+          let desiredLabel = null;
+          if (sectionVerdicts.includes('BLOCK')) {
+            desiredLabel = 'quality:block';
+          } else if (sectionVerdicts.includes('WARN')) {
+            desiredLabel = 'quality:warn';
+          } else if (sectionVerdicts.includes('PASS')) {
+            desiredLabel = 'quality:pass';
           }
 
-          await github.rest.issues.updateComment({
+          const { data: issue } = await github.rest.issues.get({
             owner: context.repo.owner,
             repo: context.repo.repo,
-            comment_id: existing.id,
-            body,
+            issue_number: context.issue.number,
           });
+          const currentLabels = issue.labels.map((label) => typeof label === 'string' ? label : label.name);
+
+          for (const label of managedLabels) {
+            if (currentLabels.includes(label) && label !== desiredLabel) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  name: label,
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
+          }
+
+          if (desiredLabel && !currentLabels.includes(desiredLabel)) {
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: [desiredLabel],
+            });
+          }
