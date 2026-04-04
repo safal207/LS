@@ -1,0 +1,68 @@
+services:
+  pg:
+    image: postgres:16-alpine
+    container_name: liminal-postgres
+    environment:
+      POSTGRES_USER: liminal
+      POSTGRES_PASSWORD: liminal
+      POSTGRES_DB: liminal
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./liminalqa-migrations:/docker-entrypoint-initdb.d:ro
+      - liminal-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U liminal"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - liminal
+
+  ingest:
+    image: rust:1.90-bullseye
+    container_name: liminal-ingest
+    working_dir: /workspace
+    environment:
+      LIMINAL_PG_URL: postgres://liminal:liminal@pg:5432/liminal
+      LIMINAL_API_TOKEN: ${LIMINALQA_TOKEN:-devtoken}
+      LIMINAL_BIND_ADDR: 0.0.0.0:8088
+      RUST_LOG: info
+    command: >
+      bash -lc "
+      apt-get update &&
+      apt-get install -y pkg-config libssl-dev clang curl &&
+      cargo run --release -p liminalqa-ingest
+      "
+    ports:
+      - "8088:8088"
+    volumes:
+      - ${LIMINALQA_REPO_DIR:-../LiminalQAengineer}:/workspace
+      - liminal-cargo-registry:/usr/local/cargo/registry
+      - liminal-cargo-git:/usr/local/cargo/git
+      - liminal-cargo-target:/workspace/target
+    depends_on:
+      pg:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    networks:
+      - liminal
+
+volumes:
+  liminal-pg-data:
+    driver: local
+  liminal-cargo-registry:
+    driver: local
+  liminal-cargo-git:
+    driver: local
+  liminal-cargo-target:
+    driver: local
+
+networks:
+  liminal:
+    driver: bridge
