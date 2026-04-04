@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 HTML_PATH = ROOT / "tools" / "liminalqa_local_dashboard.html"
 ENV_PATH = ROOT / ".env.liminalqa.local"
+DEFAULT_REPORT_PATH = ROOT / "artifacts" / "quality-report.json"
 
 
 def load_local_env() -> dict[str, str]:
@@ -115,6 +116,128 @@ def smoke_payload() -> dict:
     }
 
 
+def locate_quality_report() -> pathlib.Path | None:
+    if DEFAULT_REPORT_PATH.exists():
+        return DEFAULT_REPORT_PATH
+    candidates = sorted(ROOT.glob("artifacts/**/quality-report.json"))
+    return candidates[0] if candidates else None
+
+
+def quality_report_payload(report: dict) -> dict:
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    run_id = ulid_like()
+    build_id = ulid_like()
+
+    def map_status(lane: dict) -> str:
+        verdict = str(lane.get("verdict", "WARN")).upper()
+        if verdict == "PASS" and lane.get("flaky_suspect"):
+            return "flake"
+        if verdict == "PASS":
+            return "pass"
+        if verdict == "BLOCK":
+            return "fail"
+        return "skip"
+
+    tests = []
+    signals = []
+    for lane in report.get("lanes", []):
+        lane_key = str(lane.get("lane_key", "unknown"))
+        lane_title = str(lane.get("lane_title", lane_key))
+        threshold = lane.get("threshold")
+        verdict = str(lane.get("verdict", "WARN")).upper()
+        coverage = lane.get("min_line_coverage_observed")
+        total_failures = int(lane.get("total_failures", 0))
+        flaky_suspect = bool(lane.get("flaky_suspect"))
+        run_url = lane.get("run_url") or report.get("run_url")
+
+        error = None
+        if verdict == "BLOCK":
+            error = {
+                "error_type": "QualityGateBlock",
+                "message": (
+                    f"{lane_title} blocked: failures={total_failures}, "
+                    f"min_coverage={coverage}, threshold={threshold}"
+                ),
+            }
+
+        tests.append(
+            {
+                "name": lane_key,
+                "suite": "github-actions.quality-gate",
+                "guidance": threshold,
+                "status": map_status(lane),
+                "duration_ms": None,
+                "error": error,
+                "started_at": report.get("generated_at") or now_iso,
+                "completed_at": report.get("generated_at") or now_iso,
+            }
+        )
+        signals.append(
+            {
+                "test_name": lane_key,
+                "kind": "system",
+                "latency_ms": None,
+                "value": float(total_failures),
+                "meta": {
+                    "lane_title": lane_title,
+                    "aggregate_verdict": report.get("aggregate_verdict"),
+                    "lane_verdict": verdict,
+                    "threshold": threshold,
+                    "min_line_coverage_observed": coverage,
+                    "flaky_suspect": flaky_suspect,
+                    "run_url": run_url,
+                    "source": "ls-dashboard",
+                },
+                "at": report.get("generated_at") or now_iso,
+            }
+        )
+
+    return {
+        "run": {
+            "run_id": run_id,
+            "build_id": build_id,
+            "plan_name": "ls-local-quality-report",
+            "env": {
+                "CI": "false",
+                "SOURCE": "ls-dashboard",
+                "QUALITY_AGGREGATE_VERDICT": str(report.get("aggregate_verdict", "")),
+            },
+            "started_at": report.get("generated_at") or now_iso,
+            "runner_version": "ls-dashboard-quality-report-v1",
+        },
+        "tests": tests,
+        "signals": signals,
+        "artifacts": [],
+    }
+
+
+def publish_quality_report() -> tuple[int, object]:
+    report_path = locate_quality_report()
+    if report_path is None:
+        return 404, {
+            "error": "quality-report.json not found",
+            "expected_path": str(DEFAULT_REPORT_PATH),
+        }
+
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return 400, {
+            "error": f"failed to parse quality report: {exc}",
+            "report_path": str(report_path),
+        }
+
+    payload = quality_report_payload(report)
+    status, response = api_request("POST", "/ingest/batch", payload)
+    details = response if isinstance(response, dict) else {"response": response}
+    return status, {
+        "report_path": str(report_path),
+        "aggregate_verdict": report.get("aggregate_verdict"),
+        "lane_count": len(report.get("lanes", [])),
+        "ingest": details,
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send_json(self, status: int, payload: object) -> None:
         body = json.dumps(payload, indent=2).encode("utf-8")
@@ -145,6 +268,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         if self.path == "/api/smoke":
             status, payload = api_request("POST", "/ingest/batch", smoke_payload())
+            self._send_json(status, payload)
+            return
+        if self.path == "/api/publish-quality-report":
+            status, payload = publish_quality_report()
             self._send_json(status, payload)
             return
         if self.path == "/api/query":
