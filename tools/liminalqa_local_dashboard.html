@@ -109,6 +109,35 @@
       font-size: 0.9rem;
       margin-top: 10px;
     }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .summary-box {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(255, 250, 241, 0.65);
+    }
+    .summary-label {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .summary-value {
+      font-size: 1.1rem;
+    }
+    .lane-list {
+      margin: 14px 0 0;
+      padding-left: 18px;
+    }
+    .lane-list li {
+      margin: 6px 0;
+    }
   </style>
 </head>
 <body>
@@ -147,8 +176,9 @@
 
       <article class="panel">
         <div id="quality-kicker" class="kicker">Quality Report</div>
-        <div id="quality-meta" class="meta">Ищет локальный <code>artifacts/quality-report.json</code> и публикует его в LiminalQA как настоящий quality snapshot.</div>
+        <div id="quality-meta" class="meta">Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.</div>
         <div class="button-row">
+          <button id="generate-quality-report" class="secondary">Сгенерировать quality report</button>
           <button id="publish-quality-report">Отправить quality report</button>
         </div>
       </article>
@@ -160,6 +190,30 @@
           <button id="run-query">Показать query preview</button>
         </div>
       </article>
+    </section>
+
+    <section class="panel" style="margin-top:16px;">
+      <div id="quality-preview-kicker" class="kicker">Quality Preview</div>
+      <div id="quality-preview-meta" class="meta">Краткая сводка по текущему локальному quality report.</div>
+      <div class="summary-grid">
+        <div class="summary-box">
+          <div id="summary-verdict-label" class="summary-label">Aggregate Verdict</div>
+          <div id="summary-verdict" class="summary-value">n/a</div>
+        </div>
+        <div class="summary-box">
+          <div id="summary-lanes-label" class="summary-label">Lanes</div>
+          <div id="summary-lanes" class="summary-value">0</div>
+        </div>
+        <div class="summary-box">
+          <div id="summary-failures-label" class="summary-label">Failures</div>
+          <div id="summary-failures" class="summary-value">0</div>
+        </div>
+        <div class="summary-box">
+          <div id="summary-coverage-label" class="summary-label">Min Coverage</div>
+          <div id="summary-coverage" class="summary-value">n/a</div>
+        </div>
+      </div>
+      <ul id="lane-list" class="lane-list"></ul>
     </section>
 
     <section class="panel" style="margin-top:16px;">
@@ -185,8 +239,17 @@
         smokeMeta: "Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.",
         publishSmoke: "Отправить smoke batch",
         qualityKicker: "Quality Report",
-        qualityMeta: "Ищет локальный <code>artifacts/quality-report.json</code> и публикует его в LiminalQA как настоящий quality snapshot.",
+        qualityMeta: "Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.",
+        generateQualityReport: "Сгенерировать quality report",
         publishQualityReport: "Отправить quality report",
+        qualityPreviewKicker: "Quality Preview",
+        qualityPreviewMeta: "Краткая сводка по текущему локальному quality report.",
+        summaryVerdictLabel: "Aggregate Verdict",
+        summaryLanesLabel: "Lanes",
+        summaryFailuresLabel: "Failures",
+        summaryCoverageLabel: "Min Coverage",
+        noQualityReport: "Локальный quality report еще не создан.",
+        laneLine: "{title}: {verdict}, failures={failures}, coverage={coverage}",
         queryKicker: "Query Preview",
         queryMeta: "Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.",
         runQuery: "Показать query preview",
@@ -207,8 +270,17 @@
         smokeMeta: "Send one synthetic run with one test and one signal through <code>/ingest/batch</code>.",
         publishSmoke: "Publish Smoke Batch",
         qualityKicker: "Quality Report",
-        qualityMeta: "Find a local <code>artifacts/quality-report.json</code> and publish it to LiminalQA as a real quality snapshot.",
+        qualityMeta: "First generate a local <code>artifacts/quality-report.json</code>, then publish it to LiminalQA as a real quality snapshot.",
+        generateQualityReport: "Generate Quality Report",
         publishQualityReport: "Publish Quality Report",
+        qualityPreviewKicker: "Quality Preview",
+        qualityPreviewMeta: "Short summary of the current local quality report.",
+        summaryVerdictLabel: "Aggregate Verdict",
+        summaryLanesLabel: "Lanes",
+        summaryFailuresLabel: "Failures",
+        summaryCoverageLabel: "Min Coverage",
+        noQualityReport: "No local quality report has been created yet.",
+        laneLine: "{title}: {verdict}, failures={failures}, coverage={coverage}",
         queryKicker: "Query Preview",
         queryMeta: "Request a small <code>/query</code> payload and preview the latest facts visible to the ingest service.",
         runQuery: "Load Query Preview",
@@ -223,6 +295,18 @@
       return dictionary[lang][key];
     }
 
+    function formatCoverage(value) {
+      return value === null || value === undefined ? "n/a" : `${Number(value).toFixed(1)}%`;
+    }
+
+    function laneText(lane) {
+      return t("laneLine")
+        .replace("{title}", lane.lane_title || lane.lane_key || "unknown")
+        .replace("{verdict}", lane.verdict || "n/a")
+        .replace("{failures}", String(lane.total_failures ?? 0))
+        .replace("{coverage}", formatCoverage(lane.min_line_coverage_observed));
+    }
+
     function renderLanguage() {
       document.documentElement.lang = lang;
       document.getElementById("title").innerHTML = t("title");
@@ -233,15 +317,23 @@
       document.getElementById("smoke-meta").innerHTML = t("smokeMeta");
       document.getElementById("quality-kicker").textContent = t("qualityKicker");
       document.getElementById("quality-meta").innerHTML = t("qualityMeta");
+      document.getElementById("quality-preview-kicker").textContent = t("qualityPreviewKicker");
+      document.getElementById("quality-preview-meta").textContent = t("qualityPreviewMeta");
+      document.getElementById("summary-verdict-label").textContent = t("summaryVerdictLabel");
+      document.getElementById("summary-lanes-label").textContent = t("summaryLanesLabel");
+      document.getElementById("summary-failures-label").textContent = t("summaryFailuresLabel");
+      document.getElementById("summary-coverage-label").textContent = t("summaryCoverageLabel");
       document.getElementById("query-kicker").textContent = t("queryKicker");
       document.getElementById("query-meta").innerHTML = t("queryMeta");
       document.getElementById("result-kicker").textContent = t("resultKicker");
       document.getElementById("refresh-health").dataset.label = t("refreshHealth");
       document.getElementById("publish-smoke").dataset.label = t("publishSmoke");
+      document.getElementById("generate-quality-report").dataset.label = t("generateQualityReport");
       document.getElementById("publish-quality-report").dataset.label = t("publishQualityReport");
       document.getElementById("run-query").dataset.label = t("runQuery");
       document.getElementById("refresh-health").textContent = t("refreshHealth");
       document.getElementById("publish-smoke").textContent = t("publishSmoke");
+      document.getElementById("generate-quality-report").textContent = t("generateQualityReport");
       document.getElementById("publish-quality-report").textContent = t("publishQualityReport");
       document.getElementById("run-query").textContent = t("runQuery");
       if (!result.textContent || result.textContent === dictionary.en.waiting || result.textContent === dictionary.ru.waiting) {
@@ -249,6 +341,38 @@
       }
       document.getElementById("lang-ru").className = lang === "ru" ? "active" : "";
       document.getElementById("lang-en").className = lang === "en" ? "active" : "";
+    }
+
+    async function refreshQualityPreview() {
+      const laneList = document.getElementById("lane-list");
+      const data = await callJson("/api/quality-report-preview");
+      if (!data.ok) {
+        document.getElementById("summary-verdict").textContent = "n/a";
+        document.getElementById("summary-lanes").textContent = "0";
+        document.getElementById("summary-failures").textContent = "0";
+        document.getElementById("summary-coverage").textContent = "n/a";
+        laneList.innerHTML = "";
+        const item = document.createElement("li");
+        item.textContent = t("noQualityReport");
+        laneList.appendChild(item);
+        return;
+      }
+
+      document.getElementById("summary-verdict").textContent = data.payload.aggregate_verdict || "n/a";
+      document.getElementById("summary-lanes").textContent = String(data.payload.lane_count ?? 0);
+      document.getElementById("summary-failures").textContent = String(data.payload.total_failures ?? 0);
+      document.getElementById("summary-coverage").textContent = formatCoverage(data.payload.min_line_coverage_observed);
+      laneList.innerHTML = "";
+      for (const lane of data.payload.lanes || []) {
+        const item = document.createElement("li");
+        item.textContent = laneText(lane);
+        laneList.appendChild(item);
+      }
+      if (!laneList.children.length) {
+        const item = document.createElement("li");
+        item.textContent = t("noQualityReport");
+        laneList.appendChild(item);
+      }
     }
 
     function setBusy(button, busy) {
@@ -282,6 +406,7 @@
     document.getElementById("lang-ru").addEventListener("click", () => {
       lang = "ru";
       renderLanguage();
+      refreshQualityPreview().catch(() => {});
       if (!healthMeta.textContent) {
         healthStatus.textContent = t("healthChecking");
       }
@@ -290,6 +415,7 @@
     document.getElementById("lang-en").addEventListener("click", () => {
       lang = "en";
       renderLanguage();
+      refreshQualityPreview().catch(() => {});
       if (!healthMeta.textContent) {
         healthStatus.textContent = t("healthChecking");
       }
@@ -321,6 +447,20 @@
       }
     });
 
+    document.getElementById("generate-quality-report").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      try {
+        const data = await callJson("/api/generate-quality-report", { method: "POST" });
+        result.textContent = JSON.stringify(data.payload, null, 2);
+        await refreshQualityPreview();
+      } catch (error) {
+        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
     document.getElementById("publish-quality-report").addEventListener("click", async (event) => {
       const button = event.currentTarget;
       setBusy(button, true);
@@ -328,6 +468,7 @@
         const data = await callJson("/api/publish-quality-report", { method: "POST" });
         result.textContent = JSON.stringify(data.payload, null, 2);
         await refreshHealth(false);
+        await refreshQualityPreview();
       } catch (error) {
         result.textContent = JSON.stringify({ error: String(error) }, null, 2);
       } finally {
@@ -350,6 +491,7 @@
 
     renderLanguage();
     healthStatus.textContent = t("healthChecking");
+    refreshQualityPreview().catch(() => {});
     refreshHealth(true).catch((error) => {
       result.textContent = JSON.stringify({ error: String(error) }, null, 2);
     });
