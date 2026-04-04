@@ -249,13 +249,14 @@ class SystemObserver:
         if OSSIFICATION in pathologies and axis_node is not None:
             # Lower stability_bias and nudge the axis down, including resting resonance.
             # The axis is frozen; unfreeze it fully, not only at current resonance.
+            axis_key = axis_node.id
             axis_node.stability_bias = max(0.0, axis_node.stability_bias - 0.30)
             axis_node.resting_resonance = max(0.30, axis_node.resting_resonance - 0.08)
             axis_node.resonance = max(axis_node.resting_resonance, axis_node.resonance - 0.08)
             # Reset tenure so other nodes get a chance
-            self._axis_tenure[axis_id] = 0
+            self._axis_tenure[axis_key] = 0
             corrections.append(
-                f"de-ossified '{axis_id}': stability_bias -{0.30:.2f}, nudge -0.08"
+                f"de-ossified '{axis_key}': stability_bias -{0.30:.2f}, nudge -0.08"
             )
 
         if SPLIT_BRAIN in pathologies and len(sorted_nodes) >= 2:
