@@ -54,6 +54,8 @@ runs:
           const legacyMarker = `<!-- quality-gate:${laneKey} -->`;
           const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
           const incidentMarker = `<!-- quality-incident:pr-${context.issue.number} -->`;
+          const incidentStartMarker = `<!-- quality-incident-section:${laneKey}:start -->`;
+          const incidentEndMarker = `<!-- quality-incident-section:${laneKey}:end -->`;
 
           const laneSection = [
             startMarker,
@@ -66,6 +68,18 @@ runs:
             `- workflow run: [open run](${runUrl})`,
             '',
             endMarker,
+          ].join('\n');
+          const incidentLaneSection = [
+            incidentStartMarker,
+            `### ${laneTitle}`,
+            '',
+            `- verdict: \`${verdict}\``,
+            `- failures+errors: \`${totalFailures}\``,
+            `- min line coverage observed: \`${coverage}\``,
+            `- threshold: \`${threshold}\``,
+            `- workflow run: ${runUrl}`,
+            '',
+            incidentEndMarker,
           ].join('\n');
 
           const { data: comments } = await github.rest.issues.listComments({
@@ -224,21 +238,45 @@ runs:
             per_page: 100,
           });
           const existingIncident = repoIssues.find((issue) => issue.body && issue.body.includes(incidentMarker));
+          const incidentTitle = `Quality gate blocked: PR #${context.issue.number}`;
+          const incidentHeader = [
+            incidentMarker,
+            `# Quality Incident For PR #${context.issue.number}`,
+            '',
+            `PR #${context.issue.number} is tracked here whenever one or more CI quality lanes are blocking.`,
+            '',
+            `- PR: ${context.payload.pull_request.html_url}`,
+            `- latest triggering workflow run: ${runUrl}`,
+            '',
+            '## Triage Checklist',
+            '',
+            '- [ ] Confirm whether the failure is deterministic',
+            '- [ ] Check the sticky PR quality overview for lane-level details',
+            '- [ ] Review JUnit and coverage artifacts from the linked workflow run',
+            '- [ ] Decide whether this is a regression, infra issue, or flaky lane',
+            '- [ ] Update or close this issue after the blocking signal clears',
+            '',
+            '## Blocking Lanes',
+            '',
+          ].join('\n');
 
-          if (desiredLabel === 'quality:block') {
-            const incidentTitle = `Quality gate blocked: PR #${context.issue.number}`;
-            const incidentBody = [
-              incidentMarker,
-              `PR #${context.issue.number} is currently blocked by CI quality automation.`,
-              '',
-              `- PR: ${context.payload.pull_request.html_url}`,
-              `- workflow run: ${runUrl}`,
-              `- aggregated label: ${desiredLabel}`,
-              '',
-              'Latest overview is maintained in the PR sticky comment.',
-            ].join('\n');
+          let incidentBody = existingIncident ? existingIncident.body : incidentHeader;
+          const incidentSectionRegex = new RegExp(
+            `<!-- quality-incident-section:${laneKey}:start -->[\\s\\S]*?<!-- quality-incident-section:${laneKey}:end -->`,
+            'm'
+          );
 
-            if (!existingIncident) {
+          if (incidentSectionRegex.test(incidentBody)) {
+            incidentBody = incidentBody.replace(incidentSectionRegex, incidentLaneSection);
+          } else {
+            incidentBody = `${incidentBody.trim()}\n\n${incidentLaneSection}\n`;
+          }
+
+          const incidentSectionVerdicts = [...incidentBody.matchAll(/- verdict: `([^`]+)`/g)].map((match) => match[1]);
+          const anyBlockingLane = incidentSectionVerdicts.includes('BLOCK');
+
+          if (!existingIncident) {
+            if (desiredLabel === 'quality:block') {
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -246,27 +284,24 @@ runs:
                 body: incidentBody,
                 labels: [incidentLabel, triageLabel],
               });
-            } else {
-              await github.rest.issues.update({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: existingIncident.number,
-                title: incidentTitle,
-                body: incidentBody,
-                state: 'open',
-              });
             }
-          } else if (existingIncident && existingIncident.state === 'open') {
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: existingIncident.number,
-              body: `Quality automation no longer reports \`quality:block\` for PR #${context.issue.number}. Closing incident.`,
-            });
+          } else {
+            const nextState = anyBlockingLane ? 'open' : 'closed';
             await github.rest.issues.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: existingIncident.number,
-              state: 'closed',
+              title: incidentTitle,
+              body: incidentBody,
+              state: nextState,
             });
+
+            if (existingIncident.state === 'open' && nextState === 'closed') {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIncident.number,
+                body: `No blocking lanes remain for PR #${context.issue.number}. Closing incident.`,
+              });
+            }
           }
