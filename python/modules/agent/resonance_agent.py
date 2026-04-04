@@ -346,6 +346,25 @@ except ImportError:
         _build_strategy_feedback_summary = None  # type: ignore[assignment]
         _build_strategy_outcome_feedback = None  # type: ignore[assignment]
 
+
+try:
+    from agent.alignment_strategy_calibration import (
+        AlignmentStrategyCalibrationMetrics as _AlignmentStrategyCalibrationMetrics,
+        build_strategy_calibration_summary as _build_strategy_calibration_summary,
+    )
+    _ALIGNMENT_CALIBRATION_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_strategy_calibration import (
+            AlignmentStrategyCalibrationMetrics as _AlignmentStrategyCalibrationMetrics,
+            build_strategy_calibration_summary as _build_strategy_calibration_summary,
+        )
+        _ALIGNMENT_CALIBRATION_OK = True
+    except ImportError:
+        _ALIGNMENT_CALIBRATION_OK = False
+        _AlignmentStrategyCalibrationMetrics = None  # type: ignore[assignment,misc]
+        _build_strategy_calibration_summary = None  # type: ignore[assignment]
+
 try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
@@ -686,6 +705,17 @@ class ResonanceAgent:
             else None
         )
 
+        # Strategy recommendation/adoption/calibration snapshots (bounded, read-only)
+        self._strategy_recommendation_events: list = []
+        self._strategy_recommendation_max = 200
+        self._strategy_adoption_traces: list = []
+        self._strategy_adoption_max = 200
+        self._strategy_calibration_metrics = (
+            _AlignmentStrategyCalibrationMetrics()
+            if _ALIGNMENT_CALIBRATION_OK and _AlignmentStrategyCalibrationMetrics
+            else None
+        )
+
         logger.info(
             "ResonanceAgent ready — anchor=%d items  llm=%s  learner=%s",
             len(self._anchor),
@@ -989,6 +1019,106 @@ class ResonanceAgent:
         if self._strategy_feedback_metrics is None:
             return {"alignment_strategy_feedback_available": False}
         return self._strategy_feedback_metrics.to_dict()
+
+    def _record_strategy_recommendations(self, recommendations: list[dict]) -> None:
+        """Append recommendations to bounded session-local history."""
+        if not recommendations:
+            return
+        with self._alignment_memory_lock:
+            for rec in recommendations:
+                if len(self._strategy_recommendation_events) >= self._strategy_recommendation_max:
+                    self._strategy_recommendation_events.pop(0)
+                self._strategy_recommendation_events.append(dict(rec))
+
+    def _record_strategy_adoption_traces(
+        self,
+        recommendations: list[dict],
+        final_output: str,
+    ) -> None:
+        """Deterministically derive session-local adoption traces from final output."""
+        if not recommendations:
+            return
+        output_l = (final_output or "").lower()
+        traces: list[dict] = []
+        for rec in recommendations:
+            if not isinstance(rec, dict):
+                continue
+            sid = rec.get("strategy_id") or ""
+            if not sid:
+                continue
+            actions = [str(a).lower() for a in (rec.get("recommended_actions") or []) if a]
+            if not actions:
+                adoption_score = 0.0
+            else:
+                matches = sum(1 for a in actions if a in output_l)
+                adoption_score = matches / len(actions)
+            if adoption_score >= 0.67:
+                label = "adopted"
+            elif adoption_score >= 0.34:
+                label = "partially_adopted"
+            else:
+                label = "not_adopted"
+            traces.append({
+                "strategy_id": sid,
+                "adoption_label": label,
+                "adoption_score": round(adoption_score, 4),
+            })
+
+        if not traces:
+            return
+        with self._alignment_memory_lock:
+            for tr in traces:
+                if len(self._strategy_adoption_traces) >= self._strategy_adoption_max:
+                    self._strategy_adoption_traces.pop(0)
+                self._strategy_adoption_traces.append(tr)
+
+    def get_strategy_recommendation_events(self) -> list:
+        """Return a copy of session recommendation events."""
+        with self._alignment_memory_lock:
+            return list(self._strategy_recommendation_events)
+
+    def get_strategy_recommendation_adoption_traces(self) -> list:
+        """Return a copy of session recommendation adoption traces."""
+        with self._alignment_memory_lock:
+            return list(self._strategy_adoption_traces)
+
+    def get_strategy_calibration_summary(self) -> dict:
+        """Return deterministic per-strategy calibration summary (read-only)."""
+        if not (_ALIGNMENT_CALIBRATION_OK and _build_strategy_calibration_summary):
+            return {"alignment_strategy_calibration_available": False}
+        with self._alignment_memory_lock:
+            recommendations = list(self._strategy_recommendation_events)
+            feedback_events = list(self._strategy_feedback_events)
+            adoption_traces = list(self._strategy_adoption_traces)
+        aggregation = {"strategy_stats": {}}
+        summary = _build_strategy_calibration_summary(
+            recommendations,
+            feedback_events,
+            adoption_traces,
+            aggregation,
+        )
+        metrics = self._strategy_calibration_metrics
+        if metrics is not None:
+            overview = summary.get("overview") or {}
+            per = summary.get("per_strategy") or []
+            metrics.calls_total += 1
+            metrics.strategies_processed_total += len(per)
+            metrics.well_calibrated_total += int(overview.get("well_calibrated_total") or 0)
+            metrics.promising_but_thin_total += int(overview.get("promising_total") or 0)
+            metrics.recommended_but_not_adopted_total += int(overview.get("recommended_but_not_adopted_total") or 0)
+            metrics.adopted_but_low_outcome_total += int(overview.get("adopted_but_low_outcome_total") or 0)
+            metrics.weakly_calibrated_total += int(overview.get("weakly_calibrated_total") or 0)
+            metrics.insufficient_data_total += int(overview.get("insufficient_total") or 0)
+            if per:
+                metrics._adoption_rate_sum += sum(float(r.get("adoption_rate") or 0.0) for r in per) / len(per)
+                metrics._effective_rate_sum += sum(float(r.get("effective_rate") or 0.0) for r in per) / len(per)
+        return summary
+
+    def get_strategy_calibration_metrics(self) -> dict:
+        """Return observability counters for calibration summary builds."""
+        if self._strategy_calibration_metrics is None:
+            return {"alignment_strategy_calibration_available": False}
+        return self._strategy_calibration_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2067,6 +2197,8 @@ class ResonanceAgent:
 
         # Strategy recommendations — computed once so feedback can use the same list
         _strategy_recs = self.get_alignment_strategy_recommendations(item)
+        self._record_strategy_recommendations(_strategy_recs)
+        self._record_strategy_adoption_traces(_strategy_recs, final_output)
         # Post-cycle feedback: advisory-only, appends to bounded session list
         self._record_strategy_outcome_feedback(_strategy_recs, alignment_outcome)
 
@@ -2137,6 +2269,8 @@ class ResonanceAgent:
             "alignment_strategy_recommendations": _strategy_recs,
             "alignment_strategy_feedback": self.get_strategy_outcome_feedback_events(),
             "alignment_strategy_feedback_summary": self.get_strategy_feedback_summary(),
+            "alignment_strategy_calibration_summary": self.get_strategy_calibration_summary(),
+            "alignment_strategy_calibration_metrics": self.get_strategy_calibration_metrics(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
