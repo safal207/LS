@@ -49,6 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
+      actions: read
       contents: read
       issues: write
     env:
@@ -206,6 +207,7 @@ jobs:
           min-line-coverage: ${{ steps.quality_gate.outputs.min-line-coverage-observed }}
       - name: Update PR quality comment
         if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
         uses: ./.github/actions/upsert-pr-quality-overview
         with:
           lane-key: web4-runtime

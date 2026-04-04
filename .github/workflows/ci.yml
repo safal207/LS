@@ -90,6 +90,7 @@ jobs:
           min-line-coverage: ${{ steps.quality_gate.outputs.min-line-coverage-observed }}
       - name: Update PR quality comment
         if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
         uses: ./.github/actions/upsert-pr-quality-overview
         with:
           lane-key: security-and-tests

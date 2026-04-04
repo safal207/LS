@@ -366,6 +366,69 @@ except ImportError:
         _build_strategy_calibration_summary = None  # type: ignore[assignment]
 
 try:
+    from agent.alignment_strategy_aggregation import (
+        AlignmentStrategyAggregationMetrics as _AlignmentStrategyAggregationMetrics,
+        build_strategy_feedback_aggregation_summary as _build_aggregation_summary,
+        build_pattern_feedback_stats as _build_pattern_feedback_stats,
+        build_strategy_feedback_stats as _build_strategy_feedback_stats,
+    )
+    _ALIGNMENT_AGGREGATION_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_strategy_aggregation import (
+            AlignmentStrategyAggregationMetrics as _AlignmentStrategyAggregationMetrics,
+            build_strategy_feedback_aggregation_summary as _build_aggregation_summary,
+            build_pattern_feedback_stats as _build_pattern_feedback_stats,
+            build_strategy_feedback_stats as _build_strategy_feedback_stats,
+        )
+        _ALIGNMENT_AGGREGATION_OK = True
+    except ImportError:
+        _ALIGNMENT_AGGREGATION_OK = False
+        _AlignmentStrategyAggregationMetrics = None  # type: ignore[assignment,misc]
+        _build_aggregation_summary = None  # type: ignore[assignment]
+        _build_pattern_feedback_stats = None  # type: ignore[assignment]
+        _build_strategy_feedback_stats = None  # type: ignore[assignment]
+
+try:
+    from agent.alignment_strategy_reputation import (
+        AlignmentStrategyReputationMetrics as _AlignmentStrategyReputationMetrics,
+        build_strategy_reputation_overlay as _build_strategy_reputation_overlay,
+    )
+    _ALIGNMENT_REPUTATION_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_strategy_reputation import (
+            AlignmentStrategyReputationMetrics as _AlignmentStrategyReputationMetrics,
+            build_strategy_reputation_overlay as _build_strategy_reputation_overlay,
+        )
+        _ALIGNMENT_REPUTATION_OK = True
+    except ImportError:
+        _ALIGNMENT_REPUTATION_OK = False
+        _AlignmentStrategyReputationMetrics = None  # type: ignore[assignment,misc]
+        _build_strategy_reputation_overlay = None  # type: ignore[assignment]
+
+try:
+    from agent.alignment_recommendation_adoption import (
+        AlignmentRecommendationAdoptionMetrics as _AlignmentRecommendationAdoptionMetrics,
+        build_recommendation_adoption_summary as _build_adoption_summary,
+        build_recommendation_adoption_trace as _build_adoption_trace,
+    )
+    _ALIGNMENT_ADOPTION_OK = True
+except ImportError:
+    try:
+        from modules.agent.alignment_recommendation_adoption import (
+            AlignmentRecommendationAdoptionMetrics as _AlignmentRecommendationAdoptionMetrics,
+            build_recommendation_adoption_summary as _build_adoption_summary,
+            build_recommendation_adoption_trace as _build_adoption_trace,
+        )
+        _ALIGNMENT_ADOPTION_OK = True
+    except ImportError:
+        _ALIGNMENT_ADOPTION_OK = False
+        _AlignmentRecommendationAdoptionMetrics = None  # type: ignore[assignment,misc]
+        _build_adoption_summary = None  # type: ignore[assignment]
+        _build_adoption_trace = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -2195,12 +2258,16 @@ class ResonanceAgent:
             else f"{graph_meta.get('mode', 'full_run')}>{llm_meta.get('provider', 'unknown')}"
         )
 
-        # Strategy recommendations — computed once so feedback can use the same list
+        # Strategy recommendations — computed once so feedback and adoption can share it
         _strategy_recs = self.get_alignment_strategy_recommendations(item)
         self._record_strategy_recommendations(_strategy_recs)
         self._record_strategy_adoption_traces(_strategy_recs, final_output)
         # Post-cycle feedback: advisory-only, appends to bounded session list
         self._record_strategy_outcome_feedback(_strategy_recs, alignment_outcome)
+        # Post-response adoption trace: checks recommended actions in final text
+        self._record_recommendation_adoption_trace(
+            _strategy_recs, final_output, alignment_outcome
+        )
 
         return {
             # Identity

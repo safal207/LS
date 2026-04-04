@@ -33,6 +33,7 @@ runs:
         script: |
           const fs = require('fs');
           const path = require('path');
+          try {
           const sharedMarker = '<!-- quality-gates:overview -->';
           const managedLabels = ['quality:block', 'quality:warn', 'quality:pass'];
           const triageLabel = 'needs-triage';
@@ -455,3 +456,16 @@ runs:
             recent_transitions: previousCommentHistoryLines.slice(0, 10),
           };
           fs.writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
+          } catch (error) {
+            const message = error && typeof error.message === 'string'
+              ? error.message
+              : String(error);
+            const permissionDenied = error?.status === 403
+              || /Resource not accessible by integration/i.test(message);
+            if (!permissionDenied) {
+              throw error;
+            }
+            core.warning(
+              `Skipping PR quality overview update due to GitHub token restrictions: ${message}`
+            );
+          }
