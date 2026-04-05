@@ -77,10 +77,10 @@ Example output (illustrative):
 ```json
 {
   "coordination_advisory_label": "fragile",
-  "coordination_readiness": 0.42,
+  "coordination_readiness": 0.59,
   "primary_intervention_mode": "stabilization_first",
   "playbook_support_level": "medium",
-  "top_risk_driver": "fragmentation_pressure",
+  "top_risk_driver": "coordination_risk",
   "summary_reason": "scene is fragile: coordination risk is elevated and playbook grounding is limited"
 }
 ```
@@ -112,6 +112,8 @@ For a reusable demo baseline, use:
 - `docs/demo/coordination-advisory-ui-concept.md`
 - `docs/demo/coordination-advisory-output-card.md`
 - `docs/demo/before-after-coordination-view.md`
+- `docs/pitch/investor-hero-opening-slide.md`
+- `docs/pitch/investor-mini-deck-5-slide.md`
 
 ## Optional live demo checklist
 
