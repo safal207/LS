@@ -501,6 +501,24 @@ except ImportError:
         _build_bridge_stabilization_order = None  # type: ignore[assignment]
 
 try:
+    from agent.collective_coordination import (
+        CollectiveCoordinationMetrics as _CollectiveCoordinationMetrics,
+        build_collective_coordination_snapshot as _build_collective_coordination_snapshot,
+    )
+    _COLLECTIVE_COORDINATION_OK = True
+except ImportError:
+    try:
+        from modules.agent.collective_coordination import (
+            CollectiveCoordinationMetrics as _CollectiveCoordinationMetrics,
+            build_collective_coordination_snapshot as _build_collective_coordination_snapshot,
+        )
+        _COLLECTIVE_COORDINATION_OK = True
+    except ImportError:
+        _COLLECTIVE_COORDINATION_OK = False
+        _CollectiveCoordinationMetrics = None  # type: ignore[assignment,misc]
+        _build_collective_coordination_snapshot = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -880,6 +898,11 @@ class ResonanceAgent:
         self._bridge_stabilization_metrics = (
             _BridgeStabilizationMetrics()
             if _BRIDGE_STABILIZATION_OK and _BridgeStabilizationMetrics
+            else None
+        )
+        self._collective_coordination_metrics = (
+            _CollectiveCoordinationMetrics()
+            if _COLLECTIVE_COORDINATION_OK and _CollectiveCoordinationMetrics
             else None
         )
 
@@ -1626,6 +1649,78 @@ class ResonanceAgent:
         if self._bridge_stabilization_metrics is None:
             return {"bridge_stabilization_available": False}
         return self._bridge_stabilization_metrics.to_dict()
+
+    def get_collective_coordination_snapshot(
+        self,
+        item: dict[str, Any],
+        multi_party_state: dict[str, Any] | None = None,
+        bridge_graph_state: dict[str, Any] | None = None,
+        bridge_stabilization_order: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build read-only top-level collective coordination scene snapshot."""
+        if not (_COLLECTIVE_COORDINATION_OK and _build_collective_coordination_snapshot):
+            return {"collective_coordination_available": False}
+
+        mp_state = multi_party_state if isinstance(multi_party_state, dict) else {}
+        graph_state = bridge_graph_state if isinstance(bridge_graph_state, dict) else {}
+        order_state = (
+            bridge_stabilization_order if isinstance(bridge_stabilization_order, dict) else {}
+        )
+
+        snapshot = _build_collective_coordination_snapshot(
+            multi_party_state=mp_state,
+            bridge_graph_state=graph_state,
+            bridge_stabilization_order=order_state,
+        )
+        snapshot_dict = snapshot.to_dict()
+
+        m = self._collective_coordination_metrics
+        if m is not None:
+            m.calls_total += 1
+            if not mp_state and not graph_state and not order_state:
+                m.empty_inputs_total += 1
+            m.snapshots_total += 1
+            risk = float(snapshot_dict.get("coordination_risk") or 0.0)
+            m._coordination_risk_sum += risk
+            if risk >= 0.75:
+                m.high_risk_total += 1
+            elif risk >= 0.45:
+                m.medium_risk_total += 1
+            else:
+                m.low_risk_total += 1
+
+            label = str(snapshot_dict.get("coordination_state_label") or "")
+            if label == "coherent":
+                m.coherent_total += 1
+            elif label == "strained":
+                m.strained_total += 1
+            elif label == "fragmented":
+                m.fragmented_total += 1
+            elif label == "unstable":
+                m.unstable_total += 1
+            elif label == "escalating":
+                m.escalating_total += 1
+
+            state = str(mp_state.get("state_label") or "")
+            if state == "converging":
+                m.converging_total += 1
+            elif state == "diverging":
+                m.diverging_total += 1
+            elif state == "stable":
+                m.stable_total += 1
+
+            if snapshot_dict.get("primary_fracture_line"):
+                m.nonempty_fracture_line_total += 1
+            if [e for e in (order_state.get("urgent_edges") or []) if isinstance(e, dict)]:
+                m.urgent_stabilization_total += 1
+
+        return snapshot_dict
+
+    def get_collective_coordination_metrics(self) -> dict[str, Any]:
+        """Return observability counters for collective coordination snapshots."""
+        if self._collective_coordination_metrics is None:
+            return {"collective_coordination_available": False}
+        return self._collective_coordination_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2729,6 +2824,12 @@ class ResonanceAgent:
             bridge_graph_state=_bridge_graph,
             multi_party_state=_multi_party_state,
         )
+        _collective_coordination_snapshot = self.get_collective_coordination_snapshot(
+            item,
+            multi_party_state=_multi_party_state,
+            bridge_graph_state=_bridge_graph,
+            bridge_stabilization_order=_bridge_stabilization_order,
+        )
 
         return {
             # Identity
@@ -2807,6 +2908,8 @@ class ResonanceAgent:
             "bridge_graph_metrics": self.get_bridge_graph_metrics(),
             "bridge_stabilization_order": _bridge_stabilization_order,
             "bridge_stabilization_metrics": self.get_bridge_stabilization_metrics(),
+            "collective_coordination_snapshot": _collective_coordination_snapshot,
+            "collective_coordination_metrics": self.get_collective_coordination_metrics(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
