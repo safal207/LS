@@ -537,6 +537,24 @@ except ImportError:
         _build_bridge_playbook_advisory = None  # type: ignore[assignment]
 
 try:
+    from agent.coordination_advisory_summary import (
+        CoordinationAdvisorySummaryMetrics as _CoordinationAdvisorySummaryMetrics,
+        build_coordination_advisory_summary as _build_coordination_advisory_summary,
+    )
+    _COORDINATION_ADVISORY_SUMMARY_OK = True
+except ImportError:
+    try:
+        from modules.agent.coordination_advisory_summary import (
+            CoordinationAdvisorySummaryMetrics as _CoordinationAdvisorySummaryMetrics,
+            build_coordination_advisory_summary as _build_coordination_advisory_summary,
+        )
+        _COORDINATION_ADVISORY_SUMMARY_OK = True
+    except ImportError:
+        _COORDINATION_ADVISORY_SUMMARY_OK = False
+        _CoordinationAdvisorySummaryMetrics = None  # type: ignore[assignment,misc]
+        _build_coordination_advisory_summary = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -926,6 +944,11 @@ class ResonanceAgent:
         self._bridge_playbook_metrics = (
             _BridgePlaybookMetrics()
             if _BRIDGE_PLAYBOOK_LINK_OK and _BridgePlaybookMetrics
+            else None
+        )
+        self._coordination_advisory_summary_metrics = (
+            _CoordinationAdvisorySummaryMetrics()
+            if _COORDINATION_ADVISORY_SUMMARY_OK and _CoordinationAdvisorySummaryMetrics
             else None
         )
 
@@ -1815,6 +1838,66 @@ class ResonanceAgent:
         if self._bridge_playbook_metrics is None:
             return {"bridge_playbook_advisory_available": False}
         return self._bridge_playbook_metrics.to_dict()
+
+    def get_coordination_advisory_summary(
+        self,
+        item: dict[str, Any],
+        collective_coordination_snapshot: dict[str, Any] | None = None,
+        bridge_stabilization_order: dict[str, Any] | None = None,
+        bridge_playbook_advisory: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build read-only top-level coordination advisory summary."""
+        if not (_COORDINATION_ADVISORY_SUMMARY_OK and _build_coordination_advisory_summary):
+            return {"coordination_advisory_summary_available": False}
+
+        cs = collective_coordination_snapshot if isinstance(collective_coordination_snapshot, dict) else {}
+        bo = bridge_stabilization_order if isinstance(bridge_stabilization_order, dict) else {}
+        pa = bridge_playbook_advisory if isinstance(bridge_playbook_advisory, dict) else {}
+
+        summary = _build_coordination_advisory_summary(
+            collective_coordination_snapshot=cs,
+            bridge_stabilization_order=bo,
+            bridge_playbook_advisory=pa,
+        )
+        summary_dict = summary.to_dict()
+
+        m = self._coordination_advisory_summary_metrics
+        if m is not None:
+            m.calls_total += 1
+            m.summaries_total += 1
+            label = str(summary_dict.get("coordination_advisory_label") or "")
+            if label == "ready":
+                m.ready_total += 1
+            elif label == "fragile":
+                m.fragile_total += 1
+            elif label == "blocked":
+                m.blocked_total += 1
+            elif label == "insufficient_context":
+                m.insufficient_context_total += 1
+
+            mode = str(summary_dict.get("primary_intervention_mode") or "")
+            if mode == "stabilization_first":
+                m.stabilization_first_total += 1
+            elif mode == "translation_first":
+                m.translation_first_total += 1
+            elif mode == "reframe_first":
+                m.reframe_first_total += 1
+            elif mode == "pacing_first":
+                m.pacing_first_total += 1
+            elif mode == "acknowledge_first":
+                m.acknowledge_first_total += 1
+            elif mode == "mixed":
+                m.mixed_total += 1
+
+            m._readiness_sum += float(summary_dict.get("coordination_readiness") or 0.0)
+
+        return summary_dict
+
+    def get_coordination_advisory_summary_metrics(self) -> dict[str, Any]:
+        """Return observability counters for coordination advisory summaries."""
+        if self._coordination_advisory_summary_metrics is None:
+            return {"coordination_advisory_summary_available": False}
+        return self._coordination_advisory_summary_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2931,6 +3014,12 @@ class ResonanceAgent:
             bridge_stabilization_order=_bridge_stabilization_order,
             collective_snapshot=_collective_coordination_snapshot,
         )
+        _coordination_advisory_summary = self.get_coordination_advisory_summary(
+            item,
+            collective_coordination_snapshot=_collective_coordination_snapshot,
+            bridge_stabilization_order=_bridge_stabilization_order,
+            bridge_playbook_advisory=_bridge_playbook_advisory,
+        )
 
         return {
             # Identity
@@ -3013,6 +3102,8 @@ class ResonanceAgent:
             "collective_coordination_metrics": self.get_collective_coordination_metrics(),
             "bridge_playbook_advisory": _bridge_playbook_advisory,
             "bridge_playbook_metrics": self.get_bridge_playbook_metrics(),
+            "coordination_advisory_summary": _coordination_advisory_summary,
+            "coordination_advisory_summary_metrics": self.get_coordination_advisory_summary_metrics(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
