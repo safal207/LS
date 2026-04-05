@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import copy
 import json
+import unicodedata
+from pathlib import Path
 
 try:
     from agent.collective_coordination import (
@@ -361,3 +363,10 @@ def test_resonance_agent_accessor_read_only_and_metrics_update():
     assert metrics["empty_inputs_total"] >= 1
     assert metrics["nonempty_fracture_line_total"] >= 1
     assert metrics["urgent_stabilization_total"] >= 1
+
+
+def test_collective_coordination_module_has_no_hidden_or_bidi_unicode_controls():
+    module_path = Path(__file__).resolve().parents[1] / "modules" / "agent" / "collective_coordination.py"
+    text = module_path.read_text(encoding="utf-8")
+    for ch in text:
+        assert unicodedata.category(ch) != "Cf"

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Collective Coordination Snapshot MVP — top-level scene snapshot layer.
+"""Collective Coordination Snapshot MVP - top-level scene snapshot layer.
 
 Builds a compact, deterministic, read-only snapshot by aggregating already-existing
 structured layers:
