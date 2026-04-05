@@ -419,22 +419,33 @@ class Amygdala:
             return None
 
         visceral_recent = list(self.visceral.history)[-50:]
+        len_recent = len(visceral_recent)
 
         pain_by_trigger: defaultdict[str, float] = defaultdict(float)
-        for entry in visceral_recent:
-            if entry.get("event") == "pain":
+        resolutions_sum = 0.0
+        resolutions_count = 0
+        healing_moments = []
+
+        for i, entry in enumerate(visceral_recent):
+            event = entry.get("event")
+            if event == "pain":
                 cat = entry.get("trigger_category", "unknown")
                 pain_by_trigger[cat] += float(entry.get("intensity", 0))
+            elif event == "resolve":
+                strength = float(entry.get("strength", 0))
+                resolutions_sum += strength
+                resolutions_count += 1
+
+                if i >= len_recent - 5:
+                    res_strength = float(entry.get("resolution_strength", 0.0))
+                    if res_strength > 0.4:
+                        healing_moments.append({
+                            "resolution_strength": res_strength,
+                            "context": entry.get("context_snippet", "")
+                        })
 
         top_triggers = sorted(pain_by_trigger.items(), key=lambda x: x[1], reverse=True)[:3]
-
-        resolutions = [float(e.get("strength", 0)) for e in visceral_recent if e.get("event") == "resolve"]
-        avg_resolution = sum(resolutions) / max(1, len(resolutions)) if resolutions else 0.0
-
-        healing_moments = [
-            {"resolution_strength": e.get("resolution_strength", 0.0), "context": e.get("context_snippet", "")}
-            for e in visceral_recent[-5:] if e.get("event") == "resolve" and float(e.get("resolution_strength", 0.0)) > 0.4
-        ]
+        avg_resolution = resolutions_sum / max(1, resolutions_count) if resolutions_count > 0 else 0.0
 
         ago = (datetime.datetime.now() - self.last_reflection).total_seconds() / 3600
         if self.last_reflection == datetime.datetime.min:
