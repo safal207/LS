@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any
 import json
 
-from .runtime import RuntimeValidationError, TaskManager
+from .runtime import RuntimeValidationError
+from .runtime.factory import resolve_task_runtime
+from .runtime.protocol import TaskRuntime
 
 
 class MCPValidationError(RuntimeValidationError):
@@ -13,8 +15,8 @@ class MCPValidationError(RuntimeValidationError):
 class MCPToolRegistry:
     """Thin MCP tool adapter over the authoritative TaskManager runtime."""
 
-    def __init__(self, task_manager: TaskManager | None = None) -> None:
-        self.task_manager = task_manager or TaskManager()
+    def __init__(self, task_manager: TaskRuntime | None = None) -> None:
+        self.task_manager = task_manager or resolve_task_runtime()
         self._tools = {
             "ls_plan_task": self._plan_task,
             "ls_run_task": self._run_task,
