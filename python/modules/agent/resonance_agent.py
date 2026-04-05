@@ -519,6 +519,24 @@ except ImportError:
         _build_collective_coordination_snapshot = None  # type: ignore[assignment]
 
 try:
+    from agent.bridge_playbook_link import (
+        BridgePlaybookMetrics as _BridgePlaybookMetrics,
+        build_bridge_playbook_advisory as _build_bridge_playbook_advisory,
+    )
+    _BRIDGE_PLAYBOOK_LINK_OK = True
+except ImportError:
+    try:
+        from modules.agent.bridge_playbook_link import (
+            BridgePlaybookMetrics as _BridgePlaybookMetrics,
+            build_bridge_playbook_advisory as _build_bridge_playbook_advisory,
+        )
+        _BRIDGE_PLAYBOOK_LINK_OK = True
+    except ImportError:
+        _BRIDGE_PLAYBOOK_LINK_OK = False
+        _BridgePlaybookMetrics = None  # type: ignore[assignment,misc]
+        _build_bridge_playbook_advisory = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -903,6 +921,11 @@ class ResonanceAgent:
         self._collective_coordination_metrics = (
             _CollectiveCoordinationMetrics()
             if _COLLECTIVE_COORDINATION_OK and _CollectiveCoordinationMetrics
+            else None
+        )
+        self._bridge_playbook_metrics = (
+            _BridgePlaybookMetrics()
+            if _BRIDGE_PLAYBOOK_LINK_OK and _BridgePlaybookMetrics
             else None
         )
 
@@ -1721,6 +1744,73 @@ class ResonanceAgent:
         if self._collective_coordination_metrics is None:
             return {"collective_coordination_available": False}
         return self._collective_coordination_metrics.to_dict()
+
+    def get_bridge_playbook_advisory(
+        self,
+        item: dict[str, Any],
+        playbook: dict[str, Any] | None = None,
+        bridge_graph_state: dict[str, Any] | None = None,
+        bridge_stabilization_order: dict[str, Any] | None = None,
+        collective_snapshot: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build read-only bridge-to-playbook advisory from structured layers."""
+        if not (_BRIDGE_PLAYBOOK_LINK_OK and _build_bridge_playbook_advisory):
+            return {"bridge_playbook_advisory_available": False}
+
+        pb = playbook if isinstance(playbook, dict) else {}
+        bg = bridge_graph_state if isinstance(bridge_graph_state, dict) else {}
+        bo = bridge_stabilization_order if isinstance(bridge_stabilization_order, dict) else {}
+        cs = collective_snapshot if isinstance(collective_snapshot, dict) else {}
+
+        advisory = _build_bridge_playbook_advisory(
+            playbook=pb,
+            bridge_graph_state=bg,
+            bridge_stabilization_order=bo,
+            collective_snapshot=cs,
+        )
+        advisory_dict = advisory.to_dict()
+
+        m = self._bridge_playbook_metrics
+        if m is not None:
+            m.calls_total += 1
+            m.advisories_total += 1
+            links = [e for e in (advisory_dict.get("step_links") or []) if isinstance(e, dict)]
+            m.step_links_total += len(links)
+            for link in links:
+                label = str(link.get("link_label") or "")
+                if label == "strong_fit":
+                    m.strong_fit_total += 1
+                elif label == "partial_fit":
+                    m.partial_fit_total += 1
+                elif label == "weak_fit":
+                    m.weak_fit_total += 1
+                elif label == "unsupported":
+                    m.unsupported_total += 1
+                elif label == "insufficient_context":
+                    m.insufficient_context_total += 1
+            m._alignment_score_sum += float(advisory_dict.get("playbook_alignment_score") or 0.0)
+            if advisory_dict.get("top_supported_steps"):
+                m.nonempty_supported_steps_total += 1
+            if advisory_dict.get("top_weak_steps"):
+                m.nonempty_weak_steps_total += 1
+
+            alignment_label = str(advisory_dict.get("playbook_alignment_label") or "")
+            if alignment_label == "well_aligned":
+                m.well_aligned_total += 1
+            elif alignment_label == "partially_aligned":
+                m.partially_aligned_total += 1
+            elif alignment_label == "weakly_aligned":
+                m.weakly_aligned_total += 1
+            elif alignment_label == "misaligned":
+                m.misaligned_total += 1
+
+        return advisory_dict
+
+    def get_bridge_playbook_metrics(self) -> dict[str, Any]:
+        """Return observability counters for bridge-to-playbook advisories."""
+        if self._bridge_playbook_metrics is None:
+            return {"bridge_playbook_advisory_available": False}
+        return self._bridge_playbook_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2830,6 +2920,13 @@ class ResonanceAgent:
             bridge_graph_state=_bridge_graph,
             bridge_stabilization_order=_bridge_stabilization_order,
         )
+        _bridge_playbook_advisory = self.get_bridge_playbook_advisory(
+            item,
+            playbook=_strategy_playbook,
+            bridge_graph_state=_bridge_graph,
+            bridge_stabilization_order=_bridge_stabilization_order,
+            collective_snapshot=_collective_coordination_snapshot,
+        )
 
         return {
             # Identity
@@ -2910,6 +3007,8 @@ class ResonanceAgent:
             "bridge_stabilization_metrics": self.get_bridge_stabilization_metrics(),
             "collective_coordination_snapshot": _collective_coordination_snapshot,
             "collective_coordination_metrics": self.get_collective_coordination_metrics(),
+            "bridge_playbook_advisory": _bridge_playbook_advisory,
+            "bridge_playbook_metrics": self.get_bridge_playbook_metrics(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
