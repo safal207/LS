@@ -66,7 +66,7 @@ import logging
 import threading
 import time
 import uuid
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional
 
 from config import (
     GRAPH_CARE_CYCLES_ENABLED,
@@ -483,6 +483,24 @@ except ImportError:
         _build_bridge_graph_state = None  # type: ignore[assignment]
 
 try:
+    from agent.bridge_stabilization import (
+        BridgeStabilizationMetrics as _BridgeStabilizationMetrics,
+        build_bridge_stabilization_order as _build_bridge_stabilization_order,
+    )
+    _BRIDGE_STABILIZATION_OK = True
+except ImportError:
+    try:
+        from modules.agent.bridge_stabilization import (
+            BridgeStabilizationMetrics as _BridgeStabilizationMetrics,
+            build_bridge_stabilization_order as _build_bridge_stabilization_order,
+        )
+        _BRIDGE_STABILIZATION_OK = True
+    except ImportError:
+        _BRIDGE_STABILIZATION_OK = False
+        _BridgeStabilizationMetrics = None  # type: ignore[assignment,misc]
+        _build_bridge_stabilization_order = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -857,6 +875,11 @@ class ResonanceAgent:
         self._bridge_graph_metrics = (
             _BridgeGraphMetrics()
             if _BRIDGE_GRAPH_OK and _BridgeGraphMetrics
+            else None
+        )
+        self._bridge_stabilization_metrics = (
+            _BridgeStabilizationMetrics()
+            if _BRIDGE_STABILIZATION_OK and _BridgeStabilizationMetrics
             else None
         )
 
@@ -1540,6 +1563,69 @@ class ResonanceAgent:
         if self._bridge_graph_metrics is None:
             return {"bridge_graph_available": False}
         return self._bridge_graph_metrics.to_dict()
+
+    def get_bridge_stabilization_order(
+        self,
+        item: dict[str, Any],
+        bridge_graph_state: dict | None = None,
+        multi_party_state: dict | None = None,
+    ) -> dict[str, Any]:
+        """Build read-only advisory stabilization order from bridge graph edges.
+
+        Advisory-only — never modifies item, route_key, graph_mode, reuse mode,
+        backend selection, prompts, playbook, recommendations, or feedback logic.
+        """
+        if not (_BRIDGE_STABILIZATION_OK and _build_bridge_stabilization_order):
+            return {"bridge_stabilization_available": False}
+
+        graph_state = bridge_graph_state if isinstance(bridge_graph_state, dict) else {}
+        mp_state = multi_party_state if isinstance(multi_party_state, dict) else {}
+
+        order = _build_bridge_stabilization_order(graph_state, multi_party_state=mp_state)
+        order_dict = order.to_dict()
+
+        m = self._bridge_stabilization_metrics
+        if m is not None:
+            m.calls_total += 1
+            edges = [e for e in (graph_state.get("edges") or []) if isinstance(e, dict)]
+            if not edges:
+                m.empty_inputs_total += 1
+                return order_dict
+
+            m.orders_total += 1
+            ordered_edges = [e for e in (order_dict.get("ordered_edges") or []) if isinstance(e, dict)]
+            m.edges_processed_total += len(ordered_edges)
+            for edge in ordered_edges:
+                label = str(edge.get("stabilization_label") or "")
+                if label == "urgent_stabilize":
+                    m.urgent_stabilize_total += 1
+                elif label == "early_stabilize":
+                    m.early_stabilize_total += 1
+                elif label == "quick_win":
+                    m.quick_win_total += 1
+                elif label == "monitor":
+                    m.monitor_total += 1
+                elif label == "defer":
+                    m.defer_total += 1
+                m._stabilization_score_sum += float(edge.get("stabilization_score") or 0.0)
+
+            mode = str(order_dict.get("dominant_stabilization_mode") or "")
+            if mode == "crisis_first":
+                m.crisis_first_total += 1
+            elif mode == "high_priority_first":
+                m.high_priority_first_total += 1
+            elif mode == "quick_wins_first":
+                m.quick_wins_first_total += 1
+            else:
+                m.observe_and_stage_total += 1
+
+        return order_dict
+
+    def get_bridge_stabilization_metrics(self) -> dict[str, Any]:
+        """Return observability counters for bridge stabilization order builds."""
+        if self._bridge_stabilization_metrics is None:
+            return {"bridge_stabilization_available": False}
+        return self._bridge_stabilization_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2637,6 +2723,12 @@ class ResonanceAgent:
         )
         # Bridge graph: structural relationship layer over multi-party state
         _bridge_graph = self.get_bridge_graph_state(item, multi_party_state=_multi_party_state)
+        # Bridge stabilization: advisory ordering layer over bridge graph edges
+        _bridge_stabilization_order = self.get_bridge_stabilization_order(
+            item,
+            bridge_graph_state=_bridge_graph,
+            multi_party_state=_multi_party_state,
+        )
 
         return {
             # Identity
@@ -2713,6 +2805,8 @@ class ResonanceAgent:
             "multi_party_alignment_metrics": self.get_multi_party_alignment_metrics(),
             "bridge_graph_state": _bridge_graph,
             "bridge_graph_metrics": self.get_bridge_graph_metrics(),
+            "bridge_stabilization_order": _bridge_stabilization_order,
+            "bridge_stabilization_metrics": self.get_bridge_stabilization_metrics(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
