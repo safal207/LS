@@ -11,7 +11,7 @@ from ls.agent_shell.runtime.executor import Executor
 from ls.agent_shell.runtime.planner import Planner
 from ls.agent_shell.runtime.trace_store import TraceStore
 from ls.agent_shell.schemas.task import Task
-from ls.agent_shell.storage.sqlite_store import SQLiteStore, from_json, to_json
+from ls.agent_shell.storage.sqlite_store import SQLiteStore, to_json
 
 
 def utc_now() -> str:
