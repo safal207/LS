@@ -465,6 +465,24 @@ except ImportError:
         _build_multi_party_alignment_state = None  # type: ignore[assignment]
 
 try:
+    from agent.bridge_graph import (
+        BridgeGraphMetrics as _BridgeGraphMetrics,
+        build_bridge_graph_state as _build_bridge_graph_state,
+    )
+    _BRIDGE_GRAPH_OK = True
+except ImportError:
+    try:
+        from modules.agent.bridge_graph import (
+            BridgeGraphMetrics as _BridgeGraphMetrics,
+            build_bridge_graph_state as _build_bridge_graph_state,
+        )
+        _BRIDGE_GRAPH_OK = True
+    except ImportError:
+        _BRIDGE_GRAPH_OK = False
+        _BridgeGraphMetrics = None  # type: ignore[assignment,misc]
+        _build_bridge_graph_state = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -834,6 +852,11 @@ class ResonanceAgent:
         self._multi_party_alignment_metrics = (
             _MultiPartyAlignmentMetrics()
             if _MULTI_PARTY_ALIGNMENT_OK and _MultiPartyAlignmentMetrics
+            else None
+        )
+        self._bridge_graph_metrics = (
+            _BridgeGraphMetrics()
+            if _BRIDGE_GRAPH_OK and _BridgeGraphMetrics
             else None
         )
 
@@ -1462,6 +1485,61 @@ class ResonanceAgent:
         if self._multi_party_alignment_metrics is None:
             return {"multi_party_alignment_available": False}
         return self._multi_party_alignment_metrics.to_dict()
+
+    def get_bridge_graph_state(
+        self,
+        item: dict,
+        multi_party_state: dict | None = None,
+    ) -> dict:
+        """Build a pairwise bridge graph over the current multi-party alignment state.
+
+        Advisory/structural layer only — never modifies item, route_key,
+        graph_mode, reuse/refine/full_run, playbook, recommendations, or any
+        upstream pipeline state.
+        """
+        if not (_BRIDGE_GRAPH_OK and _build_bridge_graph_state):
+            return {"bridge_graph_available": False}
+
+        mp_state = multi_party_state if isinstance(multi_party_state, dict) else {}
+        report = item.get("_alignment_report") or {} if isinstance(item, dict) else {}
+
+        graph = _build_bridge_graph_state(mp_state, report)
+        graph_dict = graph.to_dict()
+
+        m = self._bridge_graph_metrics
+        if m is not None:
+            m.calls_total += 1
+            party_count = len(mp_state.get("parties") or [])
+            if party_count < 2:
+                m.small_input_total += 1
+            else:
+                m.graph_states_total += 1
+            edges = graph.edges
+            m.edges_total += len(edges)
+            for edge in edges:
+                bt = edge.get("bridge_type") or ""
+                if bt == "acknowledgment_bridge":
+                    m.acknowledgment_bridge_total += 1
+                elif bt == "pacing_bridge":
+                    m.pacing_bridge_total += 1
+                elif bt == "reframing_bridge":
+                    m.reframing_bridge_total += 1
+                elif bt == "translation_bridge":
+                    m.translation_bridge_total += 1
+                elif bt == "stabilization_bridge":
+                    m.stabilization_bridge_total += 1
+                m._strength_sum += float(edge.get("bridge_strength") or 0.0)
+                m._priority_sum += float(edge.get("bridge_priority") or 0.0)
+            if graph.fragmentation_level == "high":
+                m.high_fragmentation_total += 1
+
+        return graph_dict
+
+    def get_bridge_graph_metrics(self) -> dict:
+        """Return observability counters for bridge graph builds."""
+        if self._bridge_graph_metrics is None:
+            return {"bridge_graph_available": False}
+        return self._bridge_graph_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2557,6 +2635,8 @@ class ResonanceAgent:
         _multi_party_state = self.get_multi_party_alignment_state(
             item, adoption_traces=_adoption_traces_snapshot
         )
+        # Bridge graph: structural relationship layer over multi-party state
+        _bridge_graph = self.get_bridge_graph_state(item, multi_party_state=_multi_party_state)
 
         return {
             # Identity
@@ -2631,6 +2711,8 @@ class ResonanceAgent:
             "alignment_strategy_calibration_metrics": self.get_strategy_calibration_metrics(),
             "multi_party_alignment_state": _multi_party_state,
             "multi_party_alignment_metrics": self.get_multi_party_alignment_metrics(),
+            "bridge_graph_state": _bridge_graph,
+            "bridge_graph_metrics": self.get_bridge_graph_metrics(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
