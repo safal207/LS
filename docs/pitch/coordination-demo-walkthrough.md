@@ -101,6 +101,15 @@ Close:
 
 ---
 
+
+## Canonical scenario pack (fintech/compliance wedge)
+
+For a reusable demo baseline, use:
+- `docs/demo/fintech-release-scenario.md`
+- `docs/demo/fintech-release-sample-data.md`
+- `docs/demo/fintech-release-expected-output.md`
+- `docs/demo/fintech-demo-checklist.md`
+
 ## Optional live demo checklist
 
 - Prepare one scenario card (participants, constraints, urgency).
