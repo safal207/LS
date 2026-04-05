@@ -109,6 +109,9 @@ For a reusable demo baseline, use:
 - `docs/demo/fintech-release-sample-data.md`
 - `docs/demo/fintech-release-expected-output.md`
 - `docs/demo/fintech-demo-checklist.md`
+- `docs/demo/coordination-advisory-ui-concept.md`
+- `docs/demo/coordination-advisory-output-card.md`
+- `docs/demo/before-after-coordination-view.md`
 
 ## Optional live demo checklist
 
