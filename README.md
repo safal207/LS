@@ -146,6 +146,27 @@ python apps/console/main.py
 - Rust core — high-performance pattern matching, SIMD vector search
 - Hexagon Core — beliefs, causal memory, temporal graph, orientation
 
+## Coordination Advisory Stack
+
+The coordination advisory stack aggregates structured signals from multi-party alignment,
+bridge stabilization priority, collective coordination pressure, and bridge-to-playbook fit.
+It then emits a compact top-level summary object for operators and downstream systems.
+The summary is deterministic, advisory-only, and bounded to stable fields for easier consumption.
+
+```json
+{
+  "coordination_advisory_label": "fragile",
+  "coordination_readiness": 0.58,
+  "primary_intervention_mode": "stabilization_first",
+  "playbook_support_level": "medium",
+  "top_risk_driver": "coordination_risk",
+  "summary_reason": "scene is fragile: coordination risk is elevated and playbook grounding is limited"
+}
+```
+
+- Easier downstream consumption with one compact advisory object.
+- More explainable coordination reasoning across multiple structured layers.
+
 ---
 
 ## Quick Start
