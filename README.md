@@ -148,6 +148,13 @@ python apps/console/main.py
 
 ---
 
+
+## Positioning
+
+LS also includes a coordination advisory positioning layer for product and technical framing:
+- One-pager: [`docs/positioning/coordination-advisory-one-pager.md`](docs/positioning/coordination-advisory-one-pager.md)
+- Comparison: [`docs/positioning/ls-vs-generic-agent.md`](docs/positioning/ls-vs-generic-agent.md)
+
 ## Quick Start
 
 ### Prerequisites
