@@ -12,6 +12,12 @@ Advisory-only:
 - Never changes routing / graph / backend / reuse logic.
 - Never rewrites playbook or recommendations.
 - No LLM, no embeddings, no external dependencies.
+
+Design constraints:
+- Graph-first matching (bridge graph signal outranks snapshot hint).
+- Lexical cues are deterministic best-effort heuristics, not semantic parsing.
+- Stabilization is a bounded contextual adjustment, not the primary matcher.
+- This module must remain an advisory link layer, not policy/control logic.
 """
 from __future__ import annotations
 
@@ -267,9 +273,8 @@ def _match_playbook_step_to_scene(
 ) -> BridgePlaybookLinkEntry:
     """Deterministically link one playbook step to scene-level bridge signals.
 
-    Matching is graph-first lexical bridge matching with stabilization-aware
-    adjustments (urgent/early stabilization can amplify stabilization-linked
-    steps). No LLM / semantic embeddings.
+    Graph-first lexical matching with bounded stabilization-aware adjustments.
+    Not semantic understanding; not policy execution.
     """
     bridge_present = _bridge_presence(bridge_graph_state)
     dominant_bridge = _dominant_bridge(bridge_graph_state, collective_snapshot)
@@ -339,6 +344,7 @@ def _match_playbook_step_to_scene(
 
     if (
         chosen_bridge == "stabilization_bridge"
+        and "stabilization_bridge" in matched_types
         and stabilization_label in {"urgent_stabilize", "early_stabilize"}
         and label in {_LINK_PARTIAL, _LINK_STRONG, _LINK_WEAK}
     ):

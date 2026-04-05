@@ -207,6 +207,18 @@ def test_stabilization_signal_can_upgrade_weak_to_partial_for_stabilization_step
     assert link["link_label"] in {"partial_fit", "strong_fit"}
 
 
+def test_urgent_stabilization_does_not_force_unrelated_step_to_strong():
+    link = _match_playbook_step_to_scene(
+        "Discuss budget spreadsheet formatting",
+        _bridge_graph("stabilization_bridge"),
+        _order("urgent_stabilize"),
+        _snapshot("stabilization_bridge"),
+        step_id="s1",
+    ).to_dict()
+    assert link["link_label"] in {"weak_fit", "insufficient_context"}
+    assert link["link_label"] != "strong_fit"
+
+
 def test_unrelated_step_is_weak_or_unsupported():
     link = _match_playbook_step_to_scene(
         "Discuss budget spreadsheet formatting",
@@ -278,6 +290,7 @@ def test_advisory_json_serializable_and_keys_stable_and_bounded():
     assert len(adv["step_links"]) <= 10
     assert len(adv["top_supported_steps"]) <= 3
     assert len(adv["top_weak_steps"]) <= 3
+    assert len(adv["summary_reason"]) <= 140
 
 
 def test_summary_reason_uses_full_weak_count_not_top_n_count():
@@ -428,6 +441,21 @@ def test_short_playbook_edge_cases():
     assert 0.0 <= two_mixed["playbook_alignment_score"] <= 1.0
     assert one_strong["playbook_alignment_score"] >= two_mixed["playbook_alignment_score"]
     assert two_mixed["playbook_alignment_score"] >= one_weak_high_risk["playbook_alignment_score"]
+
+
+def test_short_playbook_supported_plus_unsupported_combo_is_deterministic():
+    kwargs = {
+        "playbook": _playbook("Acknowledge tension", "Discuss budget formatting"),
+        "bridge_graph_state": _bridge_graph("acknowledgment_bridge"),
+        "collective_snapshot": _snapshot("acknowledgment_bridge", 0.6),
+    }
+    out1 = build_bridge_playbook_advisory(**kwargs).to_dict()
+    out2 = build_bridge_playbook_advisory(**kwargs).to_dict()
+    assert out1 == out2
+    labels = [s["link_label"] for s in out1["step_links"]]
+    assert any(label in {"strong_fit", "partial_fit"} for label in labels)
+    assert any(label in {"unsupported", "weak_fit", "insufficient_context"} for label in labels)
+    assert 0.0 <= out1["playbook_alignment_score"] <= 1.0
 
 
 def test_resonance_agent_output_contains_bridge_playbook_contract_fields():
