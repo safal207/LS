@@ -1,0 +1,183 @@
+# -*- coding: utf-8 -*-
+"""Contract tests for coordination objects in ResonanceAgent._build_output."""
+from __future__ import annotations
+
+try:
+    from agent.resonance_agent import ResonanceAgent
+except ImportError:
+    from modules.agent.resonance_agent import ResonanceAgent
+
+
+_ALLOWED_PLAYBOOK_ALIGNMENT_LABELS = {
+    "well_aligned",
+    "partially_aligned",
+    "weakly_aligned",
+    "misaligned",
+    "insufficient_context",
+}
+_ALLOWED_BRIDGE_PLAYBOOK_FIT = {
+    "acknowledgment-led",
+    "pacing-led",
+    "reframing-led",
+    "translation-led",
+    "stabilization-led",
+    "mixed",
+    "unknown",
+}
+_ALLOWED_COORDINATION_STATE_LABELS = {
+    "coherent",
+    "strained",
+    "fragmented",
+    "unstable",
+    "escalating",
+}
+_ALLOWED_STABILIZATION_MODES = {
+    "crisis_first",
+    "high_priority_first",
+    "quick_wins_first",
+    "observe_and_stage",
+    "unknown",
+}
+
+
+def _base_item() -> dict:
+    return {
+        "text": "contract test",
+        "_why_strategy": {},
+        "_copilot_output": {},
+        "_intent": {},
+        "_why": {},
+        "_llm_backend": {},
+        "_path_selection": {"route_key": "r1", "reason": "test"},
+        "_graph_runtime": {"mode": "reuse"},
+        "_trail_route": {},
+        "_coalition": {},
+        "_derived_module": {},
+        "_care_cycle": {},
+        "_network_plan": {},
+        "_adequacy_report": {},
+        "_observer_report": {},
+        "_alignment_report": {},
+        "_alignment_outcome": {},
+        "_resonance_score": 0.5,
+    }
+
+
+def test_coordination_output_contract_shape_enums_and_boundedness():
+    agent = ResonanceAgent(anchor=[], llm_fn=None)
+    output = agent._build_output(_base_item(), final_output="ok", generation_time=0.01, cycle_id="cid")
+
+    required_top_level = {
+        "collective_coordination_snapshot",
+        "collective_coordination_metrics",
+        "bridge_stabilization_order",
+        "bridge_stabilization_metrics",
+        "bridge_playbook_advisory",
+        "bridge_playbook_metrics",
+    }
+    assert required_top_level.issubset(output.keys())
+
+    for key in required_top_level:
+        assert isinstance(output[key], dict)
+
+    snapshot = output["collective_coordination_snapshot"]
+    order = output["bridge_stabilization_order"]
+    advisory = output["bridge_playbook_advisory"]
+
+    assert {
+        "coordination_state_label",
+        "coordination_risk",
+        "primary_fracture_line",
+        "dominant_tension_axis",
+        "dominant_bridge_type",
+        "dominant_stabilization_mode",
+        "group_fragmentation_level",
+        "alignment_convergence",
+        "adoption_coverage",
+        "top_bridge_candidates",
+        "top_stabilization_edges",
+        "top_risk_parties",
+        "summary_reason",
+        "confidence",
+    }.issubset(snapshot.keys())
+
+    assert {
+        "ordered_edges",
+        "urgent_edges",
+        "early_stabilization_edges",
+        "quick_win_edges",
+        "defer_edges",
+        "dominant_stabilization_mode",
+        "summary_reason",
+    }.issubset(order.keys())
+
+    assert {
+        "playbook_alignment_label",
+        "playbook_alignment_score",
+        "step_links",
+        "top_supported_steps",
+        "top_weak_steps",
+        "dominant_bridge_playbook_fit",
+        "summary_reason",
+    }.issubset(advisory.keys())
+
+    # Metrics: verify objects and critical stable keys.
+    assert {"calls_total", "snapshots_total", "avg_coordination_risk"}.issubset(
+        output["collective_coordination_metrics"].keys()
+    )
+    assert {"calls_total", "orders_total", "avg_stabilization_score"}.issubset(
+        output["bridge_stabilization_metrics"].keys()
+    )
+    assert {"calls_total", "advisories_total", "avg_playbook_alignment_score"}.issubset(
+        output["bridge_playbook_metrics"].keys()
+    )
+
+    # Enum stability.
+    assert snapshot["coordination_state_label"] in _ALLOWED_COORDINATION_STATE_LABELS
+    assert snapshot["dominant_stabilization_mode"] in _ALLOWED_STABILIZATION_MODES
+    assert order["dominant_stabilization_mode"] in _ALLOWED_STABILIZATION_MODES
+    assert advisory["playbook_alignment_label"] in _ALLOWED_PLAYBOOK_ALIGNMENT_LABELS
+    assert advisory["dominant_bridge_playbook_fit"] in _ALLOWED_BRIDGE_PLAYBOOK_FIT
+
+    # Boundedness and compact reasons.
+    assert len(snapshot["top_bridge_candidates"]) <= 3
+    assert len(snapshot["top_stabilization_edges"]) <= 3
+    assert len(snapshot["top_risk_parties"]) <= 3
+    assert len(advisory["step_links"]) <= 10
+    assert len(advisory["top_supported_steps"]) <= 3
+    assert len(advisory["top_weak_steps"]) <= 3
+
+    assert isinstance(snapshot["summary_reason"], str) and 0 < len(snapshot["summary_reason"]) <= 140
+    assert isinstance(order["summary_reason"], str) and 0 < len(order["summary_reason"]) <= 140
+    assert isinstance(advisory["summary_reason"], str) and 0 < len(advisory["summary_reason"]) <= 140
+
+
+def test_coordination_output_contract_graceful_fallback_empty_shape():
+    agent = ResonanceAgent(anchor=[], llm_fn=None)
+    weak_item = _base_item()
+    weak_item["text"] = ""
+    weak_item["_alignment_report"] = {}
+
+    output = agent._build_output(weak_item, final_output="", generation_time=0.0, cycle_id="cid-empty")
+
+    assert isinstance(output["collective_coordination_snapshot"], dict)
+    assert isinstance(output["bridge_stabilization_order"], dict)
+    assert isinstance(output["bridge_playbook_advisory"], dict)
+
+    snapshot = output["collective_coordination_snapshot"]
+    order = output["bridge_stabilization_order"]
+    advisory = output["bridge_playbook_advisory"]
+
+    # Fallback enums remain valid, with bounded empty arrays.
+    assert snapshot["coordination_state_label"] in _ALLOWED_COORDINATION_STATE_LABELS
+    assert snapshot["dominant_stabilization_mode"] in _ALLOWED_STABILIZATION_MODES
+    assert order["dominant_stabilization_mode"] in _ALLOWED_STABILIZATION_MODES
+    assert advisory["playbook_alignment_label"] in _ALLOWED_PLAYBOOK_ALIGNMENT_LABELS
+    assert advisory["dominant_bridge_playbook_fit"] in _ALLOWED_BRIDGE_PLAYBOOK_FIT
+
+    assert snapshot["top_bridge_candidates"] == []
+    assert snapshot["top_stabilization_edges"] == []
+    assert snapshot["top_risk_parties"] == []
+    assert advisory["step_links"] == []
+    assert advisory["top_supported_steps"] == []
+    assert advisory["top_weak_steps"] == []
