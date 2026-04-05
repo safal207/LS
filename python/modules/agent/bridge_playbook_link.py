@@ -265,6 +265,12 @@ def _match_playbook_step_to_scene(
     *,
     step_id: str,
 ) -> BridgePlaybookLinkEntry:
+    """Deterministically link one playbook step to scene-level bridge signals.
+
+    Matching is graph-first lexical bridge matching with stabilization-aware
+    adjustments (urgent/early stabilization can amplify stabilization-linked
+    steps). No LLM / semantic embeddings.
+    """
     bridge_present = _bridge_presence(bridge_graph_state)
     dominant_bridge = _dominant_bridge(bridge_graph_state, collective_snapshot)
     stabilization_label = _dominant_stabilization_label(bridge_stabilization_order)
@@ -330,6 +336,15 @@ def _match_playbook_step_to_scene(
         else:
             strength = 0.12
             label = _LINK_INSUFFICIENT
+
+    if (
+        chosen_bridge == "stabilization_bridge"
+        and stabilization_label in {"urgent_stabilize", "early_stabilize"}
+        and label in {_LINK_PARTIAL, _LINK_STRONG, _LINK_WEAK}
+    ):
+        strength = _clamp01(strength + 0.08)
+        if label == _LINK_WEAK and strength >= 0.40:
+            label = _LINK_PARTIAL
 
     confidence = 0.5
     if label == _LINK_STRONG:

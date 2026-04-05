@@ -194,6 +194,19 @@ def test_step_linking_stabilization_bridge():
     assert link["linked_bridge_type"] == "stabilization_bridge"
 
 
+def test_stabilization_signal_can_upgrade_weak_to_partial_for_stabilization_step():
+    link = _match_playbook_step_to_scene(
+        "stabilization",
+        _bridge_graph("stabilization_bridge"),
+        _order("urgent_stabilize"),
+        _snapshot("stabilization_bridge"),
+        step_id="s1",
+    ).to_dict()
+    assert link["linked_bridge_type"] == "stabilization_bridge"
+    assert link["link_strength"] >= 0.4
+    assert link["link_label"] in {"partial_fit", "strong_fit"}
+
+
 def test_unrelated_step_is_weak_or_unsupported():
     link = _match_playbook_step_to_scene(
         "Discuss budget spreadsheet formatting",
@@ -364,3 +377,83 @@ def test_bridge_playbook_layer_does_not_change_routing_or_reuse_fields():
     assert item["graph_mode"] == "reuse"
     assert item["_path_selection"]["route_key"] == "r1"
     assert item["_graph_runtime"]["mode"] == "reuse"
+
+
+def test_realistic_playbook_phrases_from_strategy_playbook_are_handled_best_effort():
+    adv = build_bridge_playbook_advisory(
+        playbook=_playbook(
+            "acknowledge shared concern and name the tension",
+            "separate background from visible behavior",
+            "synchronize around shared goal and avoid winner/loser framing",
+            "invite co-ownership through shared options before proposing",
+        ),
+        bridge_graph_state=_bridge_graph(
+            "acknowledgment_bridge",
+            "translation_bridge",
+            "reframing_bridge",
+            "pacing_bridge",
+        ),
+        bridge_stabilization_order=_order("early_stabilize"),
+        collective_snapshot=_snapshot("acknowledgment_bridge", 0.55),
+    ).to_dict()
+    labels = [s["link_label"] for s in adv["step_links"]]
+    assert len(adv["step_links"]) == 4
+    assert any(label in {"strong_fit", "partial_fit"} for label in labels)
+    assert adv["playbook_alignment_label"] in {
+        "well_aligned",
+        "partially_aligned",
+        "weakly_aligned",
+    }
+
+
+def test_short_playbook_edge_cases():
+    one_strong = build_bridge_playbook_advisory(
+        playbook=_playbook("Acknowledge tension"),
+        bridge_graph_state=_bridge_graph("acknowledgment_bridge"),
+        collective_snapshot=_snapshot("acknowledgment_bridge"),
+    ).to_dict()
+    one_weak_high_risk = build_bridge_playbook_advisory(
+        playbook=_playbook("Discuss budget formatting"),
+        bridge_graph_state=_bridge_graph("acknowledgment_bridge"),
+        collective_snapshot=_snapshot("acknowledgment_bridge", 0.9),
+    ).to_dict()
+    two_mixed = build_bridge_playbook_advisory(
+        playbook=_playbook("Acknowledge tension", "Discuss budget formatting"),
+        bridge_graph_state=_bridge_graph("acknowledgment_bridge"),
+        collective_snapshot=_snapshot("acknowledgment_bridge"),
+    ).to_dict()
+
+    assert 0.0 <= one_strong["playbook_alignment_score"] <= 1.0
+    assert 0.0 <= one_weak_high_risk["playbook_alignment_score"] <= 1.0
+    assert 0.0 <= two_mixed["playbook_alignment_score"] <= 1.0
+    assert one_strong["playbook_alignment_score"] >= two_mixed["playbook_alignment_score"]
+    assert two_mixed["playbook_alignment_score"] >= one_weak_high_risk["playbook_alignment_score"]
+
+
+def test_resonance_agent_output_contains_bridge_playbook_contract_fields():
+    agent = ResonanceAgent(anchor=[], llm_fn=None)
+    item = {
+        "text": "test",
+        "_why_strategy": {},
+        "_copilot_output": {},
+        "_intent": {},
+        "_why": {},
+        "_llm_backend": {},
+        "_path_selection": {"route_key": "r1", "reason": "test"},
+        "_graph_runtime": {"mode": "reuse"},
+        "_trail_route": {},
+        "_coalition": {},
+        "_derived_module": {},
+        "_care_cycle": {},
+        "_network_plan": {},
+        "_adequacy_report": {},
+        "_observer_report": {},
+        "_alignment_report": {},
+        "_alignment_outcome": {},
+        "_resonance_score": 0.5,
+    }
+    output = agent._build_output(item, final_output="ok", generation_time=0.01, cycle_id="cid")
+    assert "bridge_playbook_advisory" in output
+    assert "bridge_playbook_metrics" in output
+    assert isinstance(output["bridge_playbook_advisory"], dict)
+    assert isinstance(output["bridge_playbook_metrics"], dict)
