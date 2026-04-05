@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import copy
 import json
+import unicodedata
+from pathlib import Path
 
 try:
     from agent.bridge_stabilization import (
@@ -227,3 +229,13 @@ def test_resonance_agent_metrics_update_for_non_empty_and_empty_inputs():
     assert metrics["orders_total"] >= 1
     assert metrics["edges_processed_total"] >= 1
     assert metrics["empty_inputs_total"] >= 1
+
+
+def test_bridge_stabilization_module_has_no_hidden_or_bidi_unicode_controls():
+    module_path = Path(__file__).resolve().parents[1] / "modules" / "agent" / "bridge_stabilization.py"
+    text = module_path.read_text(encoding="utf-8")
+
+    for ch in text:
+        # Unicode category Cf includes invisible formatting controls (incl. bidi marks).
+        assert unicodedata.category(ch) != "Cf"
+
