@@ -114,6 +114,18 @@ def test_full_inputs_build_rich_advisory_with_summary_and_fit():
     assert isinstance(adv["summary_reason"], str) and adv["summary_reason"]
 
 
+def test_graph_dominant_bridge_takes_precedence_over_snapshot_hint():
+    link = _match_playbook_step_to_scene(
+        "Slow down and avoid rushing the sequence",
+        _bridge_graph("pacing_bridge"),
+        _order(),
+        _snapshot("acknowledgment_bridge"),
+        step_id="s1",
+    ).to_dict()
+    assert link["linked_bridge_type"] == "pacing_bridge"
+    assert "dominant=pacing_bridge" in link["link_reason"]
+
+
 def test_identical_input_is_deterministic():
     kwargs = {
         "playbook": _playbook("Acknowledge tension and shared concern", "Slow down pace"),
@@ -253,6 +265,24 @@ def test_advisory_json_serializable_and_keys_stable_and_bounded():
     assert len(adv["step_links"]) <= 10
     assert len(adv["top_supported_steps"]) <= 3
     assert len(adv["top_weak_steps"]) <= 3
+
+
+def test_summary_reason_uses_full_weak_count_not_top_n_count():
+    pb = _playbook(
+        "Discuss budget spreadsheet formatting A",
+        "Discuss budget spreadsheet formatting B",
+        "Discuss budget spreadsheet formatting C",
+        "Discuss budget spreadsheet formatting D",
+        "Discuss budget spreadsheet formatting E",
+    )
+    adv = build_bridge_playbook_advisory(
+        playbook=pb,
+        bridge_graph_state=_bridge_graph("acknowledgment_bridge"),
+        bridge_stabilization_order=_order(),
+        collective_snapshot=_snapshot("acknowledgment_bridge"),
+    ).to_dict()
+    assert len(adv["top_weak_steps"]) == 3
+    assert "weak steps=5" in adv["summary_reason"]
 
 
 def test_builder_does_not_mutate_inputs():

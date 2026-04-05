@@ -1753,7 +1753,11 @@ class ResonanceAgent:
         bridge_stabilization_order: dict[str, Any] | None = None,
         collective_snapshot: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Build read-only bridge-to-playbook advisory from structured layers."""
+        """Build read-only bridge-to-playbook advisory from structured layers.
+
+        ``item`` is currently reserved for API consistency with other accessors.
+        The advisory itself is derived only from the explicit structured layers.
+        """
         if not (_BRIDGE_PLAYBOOK_LINK_OK and _build_bridge_playbook_advisory):
             return {"bridge_playbook_advisory_available": False}
 

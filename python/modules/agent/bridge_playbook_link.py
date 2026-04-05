@@ -130,11 +130,6 @@ def _bridge_presence(bridge_graph_state: dict[str, Any] | None) -> set[str]:
 
 
 def _dominant_bridge(bridge_graph_state: dict[str, Any] | None, collective_snapshot: dict[str, Any] | None) -> str:
-    cs = collective_snapshot if isinstance(collective_snapshot, dict) else {}
-    snap_bridge = str(cs.get("dominant_bridge_type") or "").strip()
-    if snap_bridge:
-        return snap_bridge
-
     bg = bridge_graph_state if isinstance(bridge_graph_state, dict) else {}
     high = [e for e in (bg.get("highest_priority_edges") or []) if isinstance(e, dict)]
     if high:
@@ -143,6 +138,11 @@ def _dominant_bridge(bridge_graph_state: dict[str, Any] | None, collective_snaps
     edges = [e for e in (bg.get("edges") or []) if isinstance(e, dict)]
     if edges:
         return str(edges[0].get("bridge_type") or "")
+
+    cs = collective_snapshot if isinstance(collective_snapshot, dict) else {}
+    snap_bridge = str(cs.get("dominant_bridge_type") or "").strip()
+    if snap_bridge:
+        return snap_bridge
     return ""
 
 
@@ -453,7 +453,7 @@ def _build_playbook_advisory_reason(fields: dict[str, Any]) -> str:
     if label == _ALIGNMENT_PARTIAL:
         return f"playbook partially matches dominant scene signals ({fit}); weak steps={weak}"
     if label == _ALIGNMENT_WEAK:
-        return f"playbook support is limited in current coordination scene ({fit})"
+        return f"playbook support is limited in current coordination scene ({fit}); weak steps={weak}"
     if label == _ALIGNMENT_MISALIGNED:
         return "current scene needs diverge from playbook direction; stabilization-fit remains low"
     if supported > 0:
@@ -529,12 +529,14 @@ def build_bridge_playbook_advisory(
     ]
 
     fit = _dominant_bridge_playbook_fit(links)
+    supported_count = len(supported)
+    weak_count = len(weak)
     summary = _build_playbook_advisory_reason(
         {
             "playbook_alignment_label": label,
             "dominant_bridge_playbook_fit": fit,
-            "supported_count": len(top_supported),
-            "weak_count": len(top_weak),
+            "supported_count": supported_count,
+            "weak_count": weak_count,
         }
     )[:_MAX_REASON_CHARS]
 
