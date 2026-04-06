@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import CTA from '../components/CTA';
 import Features from '../components/Features';
 import Hero from '../components/Hero';
+import OperatorDelta from '../components/OperatorDelta';
 import ProblemSolution from '../components/ProblemSolution';
 import ReflectiveRuntime from '../components/ReflectiveRuntime';
 import Roadmap from '../components/Roadmap';
@@ -22,6 +23,7 @@ export default function IndexPage() {
       <Features />
       <ReflectiveRuntime />
       <RuntimeLivePanel />
+      <OperatorDelta />
       <Roadmap />
       <Visuals />
       <CTA />

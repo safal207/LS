@@ -1,0 +1,51 @@
+{
+  "benchmark_name": "ls-agent-shell-operator-delta",
+  "generated_at": "2026-04-06T14:08:25Z",
+  "environment": {
+    "platform": "win32",
+    "python": "3.11.9",
+    "queue_size": 5,
+    "ltp_repo_root": "C:\\Users\\safal\\OneDrive\\Рабочий стол\\_lthread_proto"
+  },
+  "scenarios": [
+    {
+      "name": "manual_cli_review",
+      "seconds": 15.4777,
+      "commands": 11,
+      "tasks_reviewed": 5,
+      "notes": "Queue review through list + inspect + approvals per task."
+    },
+    {
+      "name": "manual_ltp_review",
+      "seconds": 40.2597,
+      "commands": 5,
+      "tasks_reviewed": 5,
+      "notes": "One LTP replay/inspect call per waiting task."
+    },
+    {
+      "name": "batch_ltp_review",
+      "seconds": 32.9705,
+      "commands": 1,
+      "tasks_reviewed": 5,
+      "notes": "One queue-wide LTP replay/inspect pass for waiting approvals."
+    }
+  ],
+  "summary": {
+    "tasks_reviewed": 5,
+    "seconds_saved_vs_manual_ltp": 7.2892,
+    "batch_speedup_vs_manual_ltp_pct": 18.11,
+    "manual_review_commands": 11,
+    "batch_review_commands": 1,
+    "command_reduction_pct": 90.91
+  },
+  "investor_takeaway": {
+    "with_ls": "One queue-wide replayable review path for waiting approvals.",
+    "without_ls": "Operator hops across per-task review commands and ad-hoc handoff.",
+    "legal_and_audit": [
+      "Replayable task traces can be re-run outside the original agent session.",
+      "Approval records remain attached to each task and step.",
+      "Batch queue scan gives counsel and compliance a faster evidence pass before approval."
+    ],
+    "disclaimer": "This is a local benchmark snapshot on one development machine, not a universal latency claim or legal opinion."
+  }
+}

@@ -14,6 +14,8 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](LICENSE)
 [![Rust Powered](https://img.shields.io/badge/Rust-Inside-orange.svg)](#architecture)
 
+Live site: [ls.ai](https://ls.ai) | [GitHub Pages mirror](https://safal207.github.io/LS/)
+
 **GhostGPT** is not a chatbot wrapper. It is a **cognitive operating system** for LLMs — an agent that thinks between your messages, learns from you continuously, and knows when it is not thinking clearly.
 
 ---

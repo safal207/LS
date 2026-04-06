@@ -1,0 +1,66 @@
+name: Deploy Landing To Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/pages.yml'
+      - 'ghostgpt-ls-landing/**'
+      - 'CNAME'
+      - '.nojekyll'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ghostgpt-ls-landing/package-lock.json
+
+      - name: Install Landing Dependencies
+        working-directory: ghostgpt-ls-landing
+        run: npm ci
+
+      - name: Build Landing
+        working-directory: ghostgpt-ls-landing
+        run: npm run build
+
+      - name: Prepare Pages Artifact
+        run: |
+          mkdir -p _site
+          cp -R ghostgpt-ls-landing/dist/. _site/
+          cp CNAME _site/CNAME
+          cp .nojekyll _site/.nojekyll
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy To GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

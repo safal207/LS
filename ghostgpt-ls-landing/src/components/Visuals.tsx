@@ -34,13 +34,17 @@ export default function Visuals() {
               </div>
 
               <div className="space-y-3 p-3">
+                <div className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-white/50">
+                  Preview only
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
-                  <button className="flex items-center justify-center gap-1 rounded-md border border-emerald-300/30 bg-emerald-400/10 px-2 py-1 text-xs text-emerald-300 transition hover:bg-emerald-400/20">
+                  <div className="flex items-center justify-center gap-1 rounded-md border border-emerald-300/30 bg-emerald-400/10 px-2 py-1 text-xs text-emerald-300">
                     <Check className="h-3.5 w-3.5" /> approve
-                  </button>
-                  <button className="flex items-center justify-center gap-1 rounded-md border border-rose-300/30 bg-rose-400/10 px-2 py-1 text-xs text-rose-300 transition hover:bg-rose-400/20">
+                  </div>
+                  <div className="flex items-center justify-center gap-1 rounded-md border border-rose-300/30 bg-rose-400/10 px-2 py-1 text-xs text-rose-300">
                     <X className="h-3.5 w-3.5" /> reject
-                  </button>
+                  </div>
                 </div>
 
                 <div>

@@ -6,7 +6,7 @@ export default function ReflectiveRuntime() {
   const architectureItems = t('runtime.architecture.items', { returnObjects: true }) as string[];
 
   return (
-    <section className="section">
+    <section className="section" id="runtime-explainer">
       <div className="glass p-8 md:p-10">
         <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">{t('runtime.eyebrow')}</p>
         <h2 className="mt-3 text-3xl font-semibold md:text-4xl">{t('runtime.title')}</h2>
