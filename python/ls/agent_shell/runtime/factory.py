@@ -4,27 +4,28 @@ from importlib import import_module
 import os
 
 from .protocol import TaskRuntime
-from .task_manager import TaskManager
 
 
-DEFAULT_FACTORY = "ls.agent_shell.runtime.factory:build_default_runtime"
-
-
-def build_default_runtime() -> TaskRuntime:
-    return TaskManager()
+class RuntimeBindingError(ValueError):
+    """Raised when MCP façade cannot bind to a configured shell runtime."""
 
 
 def resolve_task_runtime() -> TaskRuntime:
-    """Resolve runtime factory from env to keep MCP layer thin/pluggable.
+    """Resolve runtime factory from env.
 
-    Set `LS_TASK_RUNTIME_FACTORY` to `<module>:<callable>` to bind MCP façade
-    to an existing runtime implementation from another package.
+    MCP façade intentionally does not ship a default runtime core to avoid
+    drift from the authoritative shell runtime. Set:
+      LS_TASK_RUNTIME_FACTORY=<module>:<callable>
+    where callable returns a TaskRuntime-compatible object.
     """
 
-    target = os.getenv("LS_TASK_RUNTIME_FACTORY", DEFAULT_FACTORY)
+    target = os.getenv("LS_TASK_RUNTIME_FACTORY")
+    if not target:
+        raise RuntimeBindingError("LS_TASK_RUNTIME_FACTORY is required for MCP runtime binding")
+
     module_name, sep, attr = target.partition(":")
     if not sep or not module_name or not attr:
-        raise ValueError("LS_TASK_RUNTIME_FACTORY must be in '<module>:<callable>' format")
+        raise RuntimeBindingError("LS_TASK_RUNTIME_FACTORY must be in '<module>:<callable>' format")
 
     module = import_module(module_name)
     factory = getattr(module, attr)

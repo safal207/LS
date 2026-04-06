@@ -3,17 +3,16 @@ from __future__ import annotations
 from typing import Any
 import json
 
-from .runtime import RuntimeValidationError
-from .runtime.factory import resolve_task_runtime
+from .runtime.factory import RuntimeBindingError, resolve_task_runtime
 from .runtime.protocol import TaskRuntime
 
 
-class MCPValidationError(RuntimeValidationError):
+class MCPValidationError(ValueError):
     """MCP-facing validation error."""
 
 
 class MCPToolRegistry:
-    """Thin MCP tool adapter over the authoritative TaskManager runtime."""
+    """Thin MCP tool adapter over an externally bound TaskRuntime."""
 
     def __init__(self, task_manager: TaskRuntime | None = None) -> None:
         self.task_manager = task_manager or resolve_task_runtime()
@@ -36,7 +35,7 @@ class MCPToolRegistry:
             raise MCPValidationError(f"Unknown tool: {name}")
         try:
             return self._tools[name](arguments)
-        except RuntimeValidationError as exc:
+        except (RuntimeBindingError, ValueError) as exc:
             raise MCPValidationError(str(exc)) from exc
 
     def _plan_task(self, args: dict[str, Any]) -> dict[str, Any]:
