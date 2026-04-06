@@ -174,22 +174,32 @@ def _resolve_ltp_repo_root() -> Path:
 
 
 def _run_ltp_inspect(trace_file: Path, *, ltp_repo_root: Path) -> subprocess.CompletedProcess[str]:
-    pnpm = shutil.which("pnpm")
-    if not pnpm:
-        raise FileNotFoundError("pnpm was not found in PATH; install pnpm to use ltp-inspect")
+    node = shutil.which("node")
+    if not node:
+        raise FileNotFoundError("node was not found in PATH; install Node.js to use ltp-inspect")
+    ts_node_bin = ltp_repo_root / "node_modules" / "ts-node" / "dist" / "bin.js"
+    inspect_script = ltp_repo_root / "tools" / "ltp-inspect" / "inspect.ts"
+    if not ts_node_bin.exists():
+        raise FileNotFoundError(
+            f"LTP toolchain is missing at {_safe_path_text(ts_node_bin)}; run pnpm install in {_safe_path_text(ltp_repo_root)}"
+        )
+    if not inspect_script.exists():
+        raise FileNotFoundError(
+            f"LTP inspect script was not found at {_safe_path_text(inspect_script)}"
+        )
+    args = [
+        node,
+        str(ts_node_bin),
+        str(inspect_script),
+        "trace",
+        "--phase",
+        "two_phase",
+        "--trace",
+        str(trace_file),
+        "--replay",
+    ]
     return subprocess.run(
-        [
-            pnpm,
-            "-w",
-            "ltp:inspect",
-            "--",
-            "trace",
-            "--phase",
-            "two_phase",
-            "--trace",
-            str(trace_file),
-            "--replay",
-        ],
+        args,
         cwd=str(ltp_repo_root),
         text=True,
         encoding="utf-8",

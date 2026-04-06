@@ -256,7 +256,53 @@ def test_cli_ltp_inspect_uses_external_ltp_tool(monkeypatch, tmp_path: Path) -> 
     assert int(captured["lines"]) >= 1
 
 
-def test_cli_ltp_inspect_reports_missing_pnpm(monkeypatch, tmp_path: Path) -> None:
+def test_run_ltp_inspect_invokes_local_ltp_toolchain(monkeypatch, tmp_path: Path) -> None:
+    trace_file = tmp_path / "trace.jsonl"
+    trace_file.write_text('{"timestamp":"2026-01-01T00:00:00Z"}\n', encoding="utf-8")
+    fake_repo = tmp_path / "_lthread_proto"
+    fake_repo.mkdir()
+    ts_node_dist = fake_repo / "node_modules" / "ts-node" / "dist"
+    ts_node_dist.mkdir(parents=True)
+    (ts_node_dist / "bin.js").write_text("// stub\n", encoding="utf-8")
+    inspect_dir = fake_repo / "tools" / "ltp-inspect"
+    inspect_dir.mkdir(parents=True)
+    (inspect_dir / "inspect.ts").write_text("// stub\n", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    def _fake_which(name: str) -> str | None:
+        assert name == "node"
+        return "C:\\node.exe"
+
+    def _fake_run(args, **kwargs):
+        captured["args"] = args
+        captured["cwd"] = kwargs["cwd"]
+        captured["shell"] = kwargs.get("shell")
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout="ok\n", stderr="")
+
+    from ls.agent_shell import cli as cli_module
+
+    monkeypatch.setattr(cli_module.shutil, "which", _fake_which)
+    monkeypatch.setattr(cli_module.subprocess, "run", _fake_run)
+
+    result = cli_module._run_ltp_inspect(trace_file, ltp_repo_root=fake_repo)
+
+    assert result.returncode == 0
+    assert captured["args"] == [
+        "C:\\node.exe",
+        str(fake_repo / "node_modules" / "ts-node" / "dist" / "bin.js"),
+        str(fake_repo / "tools" / "ltp-inspect" / "inspect.ts"),
+        "trace",
+        "--phase",
+        "two_phase",
+        "--trace",
+        str(trace_file),
+        "--replay",
+    ]
+    assert captured["cwd"] == str(fake_repo)
+    assert captured["shell"] is None
+
+
+def test_cli_ltp_inspect_reports_missing_node(monkeypatch, tmp_path: Path) -> None:
     runtime_root = tmp_path / ".ls_agent"
     manager = TaskManager(db_path=runtime_root / "runtime.db", artifacts_root=runtime_root / "artifacts")
     task_id = manager.run_task("Prepare docs", mode="safe-write")
@@ -265,16 +311,16 @@ def test_cli_ltp_inspect_reports_missing_pnpm(monkeypatch, tmp_path: Path) -> No
 
     from ls.agent_shell import cli as cli_module
 
-    def _missing_pnpm(trace_file: Path, *, ltp_repo_root: Path) -> subprocess.CompletedProcess[str]:
-        raise FileNotFoundError("pnpm was not found in PATH; install pnpm to use ltp-inspect")
+    def _missing_node(trace_file: Path, *, ltp_repo_root: Path) -> subprocess.CompletedProcess[str]:
+        raise FileNotFoundError("node was not found in PATH; install Node.js to use ltp-inspect")
 
-    monkeypatch.setattr(cli_module, "_run_ltp_inspect", _missing_pnpm)
+    monkeypatch.setattr(cli_module, "_run_ltp_inspect", _missing_node)
     result = runner.invoke(
         app,
         ["ltp-inspect", task_id, "--runtime-root", str(runtime_root), "--ltp-repo-root", str(fake_repo)],
     )
     assert result.exit_code != 0
-    assert "pnpm was not found in PATH" in (result.stdout + getattr(result, "stderr", ""))
+    assert "node was not found in PATH" in (result.stdout + getattr(result, "stderr", ""))
 
 
 def test_cli_ltp_export_all_filters_by_status(tmp_path: Path) -> None:
