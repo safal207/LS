@@ -175,6 +175,14 @@
       </article>
 
       <article class="panel">
+        <div id="lane-kicker" class="kicker">Local Test Lane</div>
+        <div id="lane-meta" class="meta">Локально запускает реальный <code>mesh-tests</code> через <code>pytest</code>, пишет JUnit и coverage, потом пересчитывает quality report.</div>
+        <div class="button-row">
+          <button id="run-local-lane">Запустить mesh-tests</button>
+        </div>
+      </article>
+
+      <article class="panel">
         <div id="quality-kicker" class="kicker">Quality Report</div>
         <div id="quality-meta" class="meta">Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.</div>
         <div class="button-row">
@@ -238,6 +246,9 @@
         smokeKicker: "Smoke Publish",
         smokeMeta: "Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.",
         publishSmoke: "Отправить smoke batch",
+        laneKicker: "Local Test Lane",
+        laneMeta: "Локально запускает реальный <code>mesh-tests</code> через <code>pytest</code>, пишет JUnit и coverage, потом пересчитывает quality report.",
+        runLocalLane: "Запустить mesh-tests",
         qualityKicker: "Quality Report",
         qualityMeta: "Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.",
         generateQualityReport: "Сгенерировать quality report",
@@ -269,6 +280,9 @@
         smokeKicker: "Smoke Publish",
         smokeMeta: "Send one synthetic run with one test and one signal through <code>/ingest/batch</code>.",
         publishSmoke: "Publish Smoke Batch",
+        laneKicker: "Local Test Lane",
+        laneMeta: "Run the real local <code>mesh-tests</code> lane via <code>pytest</code>, write JUnit and coverage, then rebuild the quality report.",
+        runLocalLane: "Run mesh-tests",
         qualityKicker: "Quality Report",
         qualityMeta: "First generate a local <code>artifacts/quality-report.json</code>, then publish it to LiminalQA as a real quality snapshot.",
         generateQualityReport: "Generate Quality Report",
@@ -315,6 +329,8 @@
       document.getElementById("health-kicker").textContent = t("healthKicker");
       document.getElementById("smoke-kicker").textContent = t("smokeKicker");
       document.getElementById("smoke-meta").innerHTML = t("smokeMeta");
+      document.getElementById("lane-kicker").textContent = t("laneKicker");
+      document.getElementById("lane-meta").innerHTML = t("laneMeta");
       document.getElementById("quality-kicker").textContent = t("qualityKicker");
       document.getElementById("quality-meta").innerHTML = t("qualityMeta");
       document.getElementById("quality-preview-kicker").textContent = t("qualityPreviewKicker");
@@ -328,11 +344,13 @@
       document.getElementById("result-kicker").textContent = t("resultKicker");
       document.getElementById("refresh-health").dataset.label = t("refreshHealth");
       document.getElementById("publish-smoke").dataset.label = t("publishSmoke");
+      document.getElementById("run-local-lane").dataset.label = t("runLocalLane");
       document.getElementById("generate-quality-report").dataset.label = t("generateQualityReport");
       document.getElementById("publish-quality-report").dataset.label = t("publishQualityReport");
       document.getElementById("run-query").dataset.label = t("runQuery");
       document.getElementById("refresh-health").textContent = t("refreshHealth");
       document.getElementById("publish-smoke").textContent = t("publishSmoke");
+      document.getElementById("run-local-lane").textContent = t("runLocalLane");
       document.getElementById("generate-quality-report").textContent = t("generateQualityReport");
       document.getElementById("publish-quality-report").textContent = t("publishQualityReport");
       document.getElementById("run-query").textContent = t("runQuery");
@@ -440,6 +458,20 @@
         const data = await callJson("/api/smoke", { method: "POST" });
         result.textContent = JSON.stringify(data.payload, null, 2);
         await refreshHealth(false);
+      } catch (error) {
+        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
+    document.getElementById("run-local-lane").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      try {
+        const data = await callJson("/api/run-local-lane", { method: "POST" });
+        result.textContent = JSON.stringify(data.payload, null, 2);
+        await refreshQualityPreview();
       } catch (error) {
         result.textContent = JSON.stringify({ error: String(error) }, null, 2);
       } finally {
