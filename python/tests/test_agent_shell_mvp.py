@@ -139,3 +139,37 @@ def test_cli_serve_http_sets_runtime_root(monkeypatch, tmp_path: Path) -> None:
         "port": 8123,
         "runtime_root": str(tmp_path / "custom-root"),
     }
+
+
+def test_cli_tasks_approvals_and_artifact_views(tmp_path: Path) -> None:
+    runtime_root = tmp_path / ".ls_agent"
+    manager = TaskManager(db_path=runtime_root / "runtime.db", artifacts_root=runtime_root / "artifacts")
+    task_id = manager.run_task("Prepare docs", mode="safe-write")
+    status = manager.get_status(task_id)
+    waiting_step = next(step for step in status["steps"] if step["status"] == "waiting_approval")
+
+    tasks_result = runner.invoke(
+        app,
+        ["list", "--status", "waiting_approval", "--runtime-root", str(runtime_root)],
+    )
+    assert tasks_result.exit_code == 0
+    assert task_id in tasks_result.stdout
+
+    approvals_result = runner.invoke(
+        app,
+        ["approvals", "--task-id", task_id, "--runtime-root", str(runtime_root)],
+    )
+    assert approvals_result.exit_code == 0
+    assert task_id in approvals_result.stdout
+    assert "pending" in approvals_result.stdout
+
+    manager.approve(task_id, waiting_step["id"])
+    artifact = manager.list_artifacts(task_id)[0]
+
+    artifact_result = runner.invoke(
+        app,
+        ["artifact", artifact["id"], "--runtime-root", str(runtime_root)],
+    )
+    assert artifact_result.exit_code == 0
+    assert artifact["id"] in artifact_result.stdout
+    assert artifact["title"] in artifact_result.stdout

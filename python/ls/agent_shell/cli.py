@@ -57,6 +57,26 @@ def _status_summary(data: dict) -> None:
     console.print(steps)
 
 
+def _approval_table(approvals: list[dict], *, title: str) -> None:
+    table = Table(title=title)
+    table.add_column("id")
+    table.add_column("task_id")
+    table.add_column("step_id")
+    table.add_column("action")
+    table.add_column("status")
+    table.add_column("reason")
+    for approval in approvals:
+        table.add_row(
+            approval["id"],
+            approval["task_id"],
+            approval["step_id"],
+            approval["action_type"],
+            approval["status"],
+            approval["reason"],
+        )
+    console.print(table)
+
+
 @app.command("run")
 def run_task(
     prompt: str,
@@ -168,6 +188,14 @@ def list_artifacts(task_id: str, runtime_root: Path = runtime_root_option()) -> 
     console.print(table)
 
 
+@app.command("artifact")
+def show_artifact(artifact_id: str, runtime_root: Path = runtime_root_option()) -> None:
+    artifact = manager(runtime_root).get_artifact(artifact_id)
+    console.print(f"[bold]{artifact['id']}[/bold] task={artifact['task_id']} type={artifact['type']}")
+    console.print(f"[cyan]Title:[/cyan] {artifact['title']}")
+    console.print(f"[cyan]Path:[/cyan] {artifact['path_or_url']}")
+
+
 @app.command("trace")
 def trace_task(task_id: str, runtime_root: Path = runtime_root_option()) -> None:
     logs = manager(runtime_root).get_trace(task_id)
@@ -182,8 +210,11 @@ def trace_task(task_id: str, runtime_root: Path = runtime_root_option()) -> None
 
 
 @app.command("list")
-def list_tasks(runtime_root: Path = runtime_root_option()) -> None:
-    tasks = manager(runtime_root).list_tasks()
+def list_tasks(
+    runtime_root: Path = runtime_root_option(),
+    status: str | None = typer.Option(None, "--status", help="Filter tasks by status."),
+) -> None:
+    tasks = manager(runtime_root).list_tasks_filtered(status=status)
     table = Table(title="Tasks")
     table.add_column("id")
     table.add_column("title")
@@ -192,6 +223,16 @@ def list_tasks(runtime_root: Path = runtime_root_option()) -> None:
     for task in tasks:
         table.add_row(task["id"], task["title"], task["mode"], task["status"])
     console.print(table)
+
+
+@app.command("approvals")
+def approvals(
+    task_id: str | None = typer.Option(None, "--task-id", help="Filter approvals by task id."),
+    runtime_root: Path = runtime_root_option(),
+) -> None:
+    items = manager(runtime_root).list_approvals(task_id=task_id)
+    title = f"Approvals for {task_id}" if task_id else "Approvals"
+    _approval_table(items, title=title)
 
 
 @app.command("serve")

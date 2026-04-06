@@ -128,3 +128,43 @@ class TaskManager:
         return self.store.fetch_all(
             "SELECT id, title, mode, status, created_at, updated_at FROM tasks ORDER BY created_at DESC"
         )
+
+    def list_tasks_filtered(self, *, status: str | None = None) -> list[dict]:
+        if not status:
+            return self.list_tasks()
+        return self.store.fetch_all(
+            "SELECT id, title, mode, status, created_at, updated_at FROM tasks WHERE status=:status ORDER BY created_at DESC",
+            status=status,
+        )
+
+    def list_approvals(self, *, task_id: str | None = None) -> list[dict]:
+        if task_id:
+            return self.store.fetch_all(
+                """
+                SELECT id, task_id, step_id, action_type, reason, payload_preview, status, created_at
+                FROM approvals
+                WHERE task_id=:task_id
+                ORDER BY created_at DESC
+                """,
+                task_id=task_id,
+            )
+        return self.store.fetch_all(
+            """
+            SELECT id, task_id, step_id, action_type, reason, payload_preview, status, created_at
+            FROM approvals
+            ORDER BY created_at DESC
+            """
+        )
+
+    def get_artifact(self, artifact_id: str) -> dict:
+        artifact = self.store.fetch_one(
+            """
+            SELECT id, task_id, type, title, path_or_url, metadata_json, created_at
+            FROM artifacts
+            WHERE id=:artifact_id
+            """,
+            artifact_id=artifact_id,
+        )
+        if not artifact:
+            raise ValueError(f"Artifact not found: {artifact_id}")
+        return artifact
