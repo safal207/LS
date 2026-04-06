@@ -15,7 +15,7 @@ if str(PYTHON_ROOT) not in sys.path:
 from ls.agent_shell.mcp_resources import MCPResourceRegistry
 from ls.agent_shell.mcp_server import LSMCPServer
 from ls.agent_shell.mcp_tools import MCPToolRegistry, MCPValidationError
-from ls.agent_shell.runtime.factory import RuntimeBindingError, resolve_task_runtime
+from ls.agent_shell.runtime.factory import resolve_task_runtime
 from ls.agent_shell.testing.runtime_fixture import FixtureRuntime
 
 
@@ -30,10 +30,10 @@ def _new_server(tmp_path: Path) -> LSMCPServer:
 
 
 
-def test_default_shell_binding_path_is_attempted(monkeypatch):
+def test_default_shell_binding_path_resolves_runtime(monkeypatch):
     monkeypatch.delenv("LS_TASK_RUNTIME_FACTORY", raising=False)
-    with pytest.raises(RuntimeBindingError):
-        resolve_task_runtime()
+    runtime = resolve_task_runtime()
+    assert callable(runtime.run_task)
 
 def test_plan_task_generates_blocked_plan(tmp_path):
     server = _new_server(tmp_path)
