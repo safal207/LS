@@ -157,6 +157,29 @@ This writes one JSONL file per task into:
 .ls_agent/ltp/batch/
 ```
 
+## Why this helps Codex and Claude Code
+
+`LTP` is not a replacement for the task runtime. It is an inspection layer on
+top of the runtime trace.
+
+For `Codex` this means:
+
+- faster triage of many `waiting_approval` tasks
+- less manual reading of raw trace rows
+- a second pass that can flag drift or suspicious task flow before approval
+
+For `Claude Code` this means:
+
+- the same trace can be replayed and inspected outside the original run
+- agent behavior becomes easier to audit, compare, and debug
+- approval decisions can be based on a checked trace instead of only final state
+
+For operators this means:
+
+- `ltp-inspect` helps explain one task
+- `ltp-inspect-all --status waiting_approval` helps scan the whole approval queue
+- suspicious tasks can be separated from normal ones before `approve`
+
 ## Recommended operator loop
 
 ```bash
