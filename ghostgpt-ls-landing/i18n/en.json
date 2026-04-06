@@ -3,43 +3,43 @@
     "switch": "RU"
   },
   "hero": {
-    "title": "GhostGPT: Your AI that remembers you. Decentralized intelligence for a new era.",
-    "subtitle": "Local Cognitive System makes AI smarter, safer, and truly reliable for everyday decisions.",
-    "cta": "Try demo"
+    "title": "GhostGPT: your AI that remembers you. Decentralized intelligence for real operators.",
+    "subtitle": "Local Cognitive System turns agent workflows into something teams can inspect, approve, and trust under pressure.",
+    "cta": "See operator demo"
   },
   "problem": {
     "title": "From fragile AI to persistent intelligence",
     "items": {
-      "centralized": "Centralized AI limits ownership and trust.",
-      "size": "Bigger models still miss context.",
-      "hallucinations": "Hallucinations break mission-critical workflows.",
-      "memory": "Most assistants forget your history."
+      "centralized": "Centralized AI limits ownership, traceability, and trust.",
+      "size": "Larger models still lose context at the exact moment operators need clarity.",
+      "hallucinations": "Hallucinations break mission-critical reviews and incident response.",
+      "memory": "Most assistants forget your history, decisions, and prior approvals."
     },
     "solutionTitle": "GhostGPT LS Solution",
-    "solutionBody": "Architecture > Model Size. Causal Memory + Web4 + HCP produce explainable and resilient intelligence."
+    "solutionBody": "Architecture beats raw model size. Causal memory, human approvals, and replayable traces make agent behavior explainable and resilient."
   },
   "features": {
     "title": "Core capabilities",
     "list": {
       "local": {
         "title": "Local-first",
-        "desc": "Your data stays under your control."
+        "desc": "Operational data stays under your control instead of disappearing into a hosted black box."
       },
       "causal": {
         "title": "Causal Memory",
-        "desc": "Understands not just what, but why."
+        "desc": "Remembers what happened, why it happened, and what changed after review."
       },
       "human": {
         "title": "Human-Centric Design",
-        "desc": "Built to respect human intent and agency."
+        "desc": "Approval loops keep human intent attached to every important task transition."
       },
       "anti": {
         "title": "Anti-Hallucination",
-        "desc": "Grounded reasoning for dependable outcomes."
+        "desc": "Traceable reasoning makes suspicious behavior visible before approval."
       },
       "identity": {
         "title": "Evolving Identity",
-        "desc": "Grows with your goals and behavior."
+        "desc": "The system adapts to operator feedback instead of resetting every session."
       }
     }
   },
@@ -69,32 +69,32 @@
     "web4": "Web4 topology",
     "temporal": "Temporal graph",
     "growth": "Cognitive growth",
-    "mockupTitle": "Reflection Dashboard Mockups"
+    "mockupTitle": "Reflection Dashboard mockup"
   },
   "cta": {
-    "title": "Join the next generation of decentralized intelligence",
-    "demo": "Try demo",
-    "community": "Join community",
-    "contact": "Contact us"
+    "title": "Bring explainable agent operations into your stack",
+    "demo": "Open runtime panel",
+    "community": "See operator benchmark",
+    "contact": "Contact the team"
   },
   "runtime": {
     "eyebrow": "LS: Reflective AI Runtime",
     "title": "An operating system for AI behavior control",
     "problem": {
       "title": "Problem",
-      "body": "AI decisions are opaque: teams struggle to explain, verify, and correct agent behavior."
+      "body": "AI decisions are opaque. Teams struggle to explain, verify, and correct agent behavior once a workflow is already moving."
     },
     "solution": {
       "title": "Solution",
-      "body": "Reflection Runtime adds a control loop: reflection → review → approve/reject/edit → behavior update."
+      "body": "Reflection Runtime adds a control loop: reflection -> review -> approve or reject -> behavior update."
     },
     "architecture": {
       "title": "Architecture",
       "items": [
-        "Memory Graph",
-        "Decision Pipeline",
-        "Reflection Dashboard",
-        "Human Feedback Loop"
+        "Memory graph",
+        "Decision pipeline",
+        "Reflection dashboard",
+        "Human feedback loop"
       ]
     }
   },
@@ -102,7 +102,9 @@
     "title": "Runtime Live Panel",
     "loading": "loading",
     "live": "live",
+    "demo": "demo mode",
     "error": "API error",
+    "offlineNote": "Local demo data is shown because the reflection backend is offline. The panel remains interactive so the operator flow stays visible on a static landing.",
     "metrics": "Metrics",
     "heatmap": "Heatmap",
     "timeline": "Action timeline",

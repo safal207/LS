@@ -4,18 +4,46 @@ import argparse
 import json
 import os
 import pathlib
+import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
 from collections import Counter
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import xml.etree.ElementTree as ET
 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 HTML_PATH = ROOT / "tools" / "liminalqa_local_dashboard.html"
 ENV_PATH = ROOT / ".env.liminalqa.local"
 DEFAULT_REPORT_PATH = ROOT / "artifacts" / "quality-report.json"
+ARTIFACTS_DIR = ROOT / "artifacts"
+LANE_CONFIGS = {
+    "mesh-tests": {
+        "lane_key": "mesh-tests",
+        "lane_title": "Mesh Tests Quality Gate",
+        "threshold": "30%",
+        "min_line_coverage": 30.0,
+        "junit_file": ARTIFACTS_DIR / "mesh-junit.xml",
+        "coverage_file": ARTIFACTS_DIR / "coverage.xml",
+        "pytest_args": [
+            "-m",
+            "pytest",
+            "-q",
+            "tests/test_service_runtime.py",
+            "python/tests/test_web4_mesh.py",
+            "python/tests/test_web4_mesh_node.py",
+            "python/tests/test_web4_mesh_transport_ws.py",
+            "--junitxml=artifacts/mesh-junit.xml",
+            "--cov=agent",
+            "--cov=python/modules/web4_mesh",
+            "--cov-report=xml:artifacts/coverage.xml",
+        ],
+        "pythonpath": "python",
+    }
+}
 
 
 def load_local_env() -> dict[str, str]:
@@ -161,6 +189,160 @@ def aggregate_quality_reports(reports: list[dict], label: str = "local-dashboard
         ],
         "min_line_coverage_observed": min(min_coverage_values) if min_coverage_values else None,
         "lanes": reports,
+    }
+
+
+def evaluate_quality_gate(
+    artifacts_dir: pathlib.Path,
+    max_failures: int = 0,
+    min_line_coverage: float | None = None,
+    require_junit: bool = True,
+    require_coverage: bool = True,
+) -> dict:
+    junit_files = sorted(artifacts_dir.glob("*junit.xml"))
+    coverage_files = sorted(artifacts_dir.glob("*coverage.xml"))
+
+    total_tests = total_failures = total_errors = total_skipped = 0
+    total_time = 0.0
+    observed_coverages: list[float] = []
+    issues: list[str] = []
+
+    for path in junit_files:
+        root = ET.parse(path).getroot()
+        total_tests += int(float(root.attrib.get("tests", 0) or 0))
+        total_failures += int(float(root.attrib.get("failures", 0) or 0))
+        total_errors += int(float(root.attrib.get("errors", 0) or 0))
+        total_skipped += int(float(root.attrib.get("skipped", 0) or 0))
+        total_time += float(root.attrib.get("time", 0) or 0)
+
+    for path in coverage_files:
+        root = ET.parse(path).getroot()
+        observed_coverages.append(float(root.attrib.get("line-rate", 0) or 0) * 100.0)
+
+    total_failed_like = total_failures + total_errors
+    min_observed_coverage = min(observed_coverages) if observed_coverages else None
+
+    if require_junit and not junit_files:
+        issues.append("JUnit artifacts are missing.")
+    if require_coverage and not coverage_files:
+        issues.append("Coverage artifacts are missing.")
+    if total_failed_like > max_failures:
+        issues.append(f"Failures+errors {total_failed_like} exceed threshold {max_failures}.")
+    if min_line_coverage is not None:
+        if min_observed_coverage is None:
+            issues.append("Coverage threshold configured but no coverage XML files were found.")
+        elif min_observed_coverage < min_line_coverage:
+            issues.append(
+                f"Minimum line coverage {min_observed_coverage:.1f}% is below threshold {min_line_coverage:.1f}%."
+            )
+
+    if issues:
+        verdict = "BLOCK"
+    elif not junit_files or not coverage_files:
+        verdict = "WARN"
+    else:
+        verdict = "PASS"
+
+    return {
+        "verdict": verdict,
+        "total_tests": total_tests,
+        "total_failures": total_failed_like,
+        "total_skipped": total_skipped,
+        "runtime_seconds": total_time,
+        "min_line_coverage_observed": min_observed_coverage,
+        "junit_files": [path.name for path in junit_files],
+        "coverage_files": [path.name for path in coverage_files],
+        "issues": issues,
+    }
+
+
+def write_lane_snapshot(report: dict) -> pathlib.Path:
+    quality_dir = ARTIFACTS_DIR / "quality"
+    quality_dir.mkdir(parents=True, exist_ok=True)
+    report_path = quality_dir / f"{report['lane_key']}.json"
+    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return report_path
+
+
+def run_local_lane(lane_key: str) -> tuple[int, object]:
+    config = LANE_CONFIGS.get(lane_key)
+    if config is None:
+        return 404, {"error": f"unknown lane: {lane_key}"}
+
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    for artifact_path in [config["junit_file"], config["coverage_file"]]:
+        if artifact_path.exists():
+            artifact_path.unlink()
+
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = config["pythonpath"] if not existing_pythonpath else f"{config['pythonpath']}{os.pathsep}{existing_pythonpath}"
+
+    command = [sys.executable, *config["pytest_args"]]
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+    gate = evaluate_quality_gate(
+        ARTIFACTS_DIR,
+        max_failures=0,
+        min_line_coverage=config["min_line_coverage"],
+        require_junit=True,
+        require_coverage=True,
+    )
+
+    lane_report = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "repository": "local/LS",
+        "event_name": "manual",
+        "ref": "local",
+        "sha": None,
+        "run_id": None,
+        "run_attempt": None,
+        "job": "local-dashboard",
+        "lane_key": config["lane_key"],
+        "lane_title": config["lane_title"],
+        "verdict": gate["verdict"],
+        "total_failures": gate["total_failures"],
+        "min_line_coverage_observed": gate["min_line_coverage_observed"],
+        "threshold": config["threshold"],
+        "flaky_suspect": False,
+        "run_url": f"{resolve_settings()[0]}/health",
+    }
+    lane_snapshot_path = write_lane_snapshot(lane_report)
+    reports = []
+    for path in sorted((ARTIFACTS_DIR / "quality").glob("*.json")):
+        try:
+            reports.append(json.loads(path.read_text(encoding="utf-8")))
+        except Exception:
+            continue
+    aggregate = aggregate_quality_reports(reports)
+    output_path = ROOT / "artifacts" / "quality-report.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(aggregate, indent=2) + "\n", encoding="utf-8")
+
+    return_code = 200 if completed.returncode == 0 and gate["verdict"] != "BLOCK" else 422
+    return return_code, {
+        "lane_key": lane_key,
+        "lane_title": config["lane_title"],
+        "command": " ".join(command),
+        "exit_code": completed.returncode,
+        "verdict": gate["verdict"],
+        "total_failures": gate["total_failures"],
+        "min_line_coverage_observed": gate["min_line_coverage_observed"],
+        "issues": gate["issues"],
+        "junit_files": gate["junit_files"],
+        "coverage_files": gate["coverage_files"],
+        "lane_snapshot_path": str(lane_snapshot_path),
+        "quality_report_path": str(output_path),
+        "stdout_tail": "\n".join(completed.stdout.splitlines()[-40:]),
+        "stderr_tail": "\n".join(completed.stderr.splitlines()[-40:]),
     }
 
 
@@ -397,6 +579,17 @@ class Handler(BaseHTTPRequestHandler):
             status, payload = api_request("GET", "/health")
             self._send_json(status, payload)
             return
+        if self.path == "/api/lane-options":
+            self._send_json(
+                200,
+                {
+                    "lanes": [
+                        {"key": key, "title": value["lane_title"], "threshold": value["threshold"]}
+                        for key, value in LANE_CONFIGS.items()
+                    ]
+                },
+            )
+            return
         if self.path == "/api/quality-report-preview":
             status, payload = preview_quality_report()
             self._send_json(status, payload)
@@ -406,6 +599,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         if self.path == "/api/smoke":
             status, payload = api_request("POST", "/ingest/batch", smoke_payload())
+            self._send_json(status, payload)
+            return
+        if self.path == "/api/run-local-lane":
+            status, payload = run_local_lane("mesh-tests")
             self._send_json(status, payload)
             return
         if self.path == "/api/generate-quality-report":

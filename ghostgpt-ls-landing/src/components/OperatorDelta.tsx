@@ -1,0 +1,272 @@
+import { FileText, Gauge, Scale, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import benchmark from '../data/operatorDeltaBenchmark.json';
+
+type Scenario = {
+  name: string;
+  seconds: number;
+  commands: number;
+  tasks_reviewed: number;
+  notes: string;
+};
+
+type BenchmarkPayload = {
+  scenarios: Scenario[];
+  summary: {
+    tasks_reviewed: number;
+    seconds_saved_vs_manual_ltp: number;
+    batch_speedup_vs_manual_ltp_pct: number;
+    manual_review_commands: number;
+    batch_review_commands: number;
+    command_reduction_pct: number;
+  };
+  investor_takeaway: {
+    with_ls: string;
+    without_ls: string;
+    legal_and_audit: string[];
+    disclaimer: string;
+  };
+};
+
+const payload = benchmark as BenchmarkPayload;
+
+const copy = {
+  en: {
+    eyebrow: 'Operator delta',
+    title: 'With LS + LTP versus without it',
+    subtitle:
+      'A queue-wide inspection path beats ad-hoc per-task review when approvals stack up. The point is fewer blind spots before an operator clicks approve.',
+    withUs: 'With us',
+    withoutUs: 'Without us',
+    withUsBody:
+      'One queue view, one replay path, one place where approvals, artifacts, and LTP inspection line up.',
+    withoutUsBody:
+      'Operators bounce across task IDs, raw traces, and ad-hoc judgment calls that are hard to replay later.',
+    benchmark: 'Measured local snapshot',
+    legal: 'Legal and audit value',
+    disclaimerLabel: 'Disclosure',
+    demoWith: 'With LS + LTP',
+    demoWithout: 'Without LS + LTP',
+    walkthrough: 'Operator walkthrough',
+    statSaved: 'Seconds saved',
+    statSpeed: 'Batch speedup',
+    statCommands: 'Command reduction',
+    statQueue: 'Tasks reviewed',
+    tasks: 'tasks',
+    seconds: 'seconds',
+    commands: 'commands',
+    terminalLabel: 'Review flow preview'
+  },
+  ru: {
+    eyebrow: 'Operator delta',
+    title: 'С нами и без нас: что меняется у оператора',
+    subtitle:
+      'Когда очередь approvals растет, queue-wide inspection полезнее, чем ручной разбор по одной задаче. Смысл в меньшем числе слепых зон перед approve.',
+    withUs: 'С нами',
+    withoutUs: 'Без нас',
+    withUsBody:
+      'Одна очередь, один replay path, одно место, где approvals, artifacts и LTP inspection собраны вместе.',
+    withoutUsBody:
+      'Оператор прыгает между task id, сырыми traces и ручными решениями, которые потом трудно воспроизвести.',
+    benchmark: 'Локальный benchmark snapshot',
+    legal: 'Польза для legal и audit',
+    disclaimerLabel: 'Ограничение',
+    demoWith: 'С LS + LTP',
+    demoWithout: 'Без LS + LTP',
+    walkthrough: 'Путь оператора',
+    statSaved: 'Секунд экономии',
+    statSpeed: 'Ускорение batch',
+    statCommands: 'Снижение числа команд',
+    statQueue: 'Задач в проверке',
+    tasks: 'задач',
+    seconds: 'секунд',
+    commands: 'команд',
+    terminalLabel: 'Превью review-потока'
+  }
+} as const;
+
+const walkthrough = {
+  en: {
+    with: [
+      '$ ls-agent list --status waiting_approval',
+      '5 tasks ready for review',
+      '$ ls-agent ltp-inspect-all --status waiting_approval',
+      'Batch inspect complete: 5 task(s), decision: PROCEED',
+      '$ ls-agent approvals',
+      'Operator sees the exact step that still needs a human decision'
+    ],
+    without: [
+      '$ ls-agent list --status waiting_approval',
+      '5 tasks ready for review',
+      '$ ls-agent inspect task-001',
+      '$ ls-agent ltp-inspect task-001',
+      '$ ls-agent inspect task-002',
+      'Repeat until the queue is finally clear'
+    ]
+  },
+  ru: {
+    with: [
+      '$ ls-agent list --status waiting_approval',
+      '5 задач готовы к review',
+      '$ ls-agent ltp-inspect-all --status waiting_approval',
+      'Batch inspect complete: 5 task(s), decision: PROCEED',
+      '$ ls-agent approvals',
+      'Оператор сразу видит точный шаг, где еще нужно решение человека'
+    ],
+    without: [
+      '$ ls-agent list --status waiting_approval',
+      '5 задач ждут review',
+      '$ ls-agent inspect task-001',
+      '$ ls-agent ltp-inspect task-001',
+      '$ ls-agent inspect task-002',
+      'И так по одной, пока очередь не разберут вручную'
+    ]
+  }
+} as const;
+
+const scenarioLabels = {
+  en: {
+    manual_cli_review: 'Manual CLI review',
+    manual_ltp_review: 'Per-task LTP review',
+    batch_ltp_review: 'Batch LTP review'
+  },
+  ru: {
+    manual_cli_review: 'Ручной CLI review',
+    manual_ltp_review: 'Поштучный LTP review',
+    batch_ltp_review: 'Batch LTP review'
+  }
+} as const;
+
+export default function OperatorDelta() {
+  const { i18n } = useTranslation();
+  const lang = i18n.language === 'ru' ? 'ru' : 'en';
+  const text = copy[lang];
+  const [mode, setMode] = useState<'with' | 'without'>('with');
+
+  const stats = [
+    { label: text.statSaved, value: `${payload.summary.seconds_saved_vs_manual_ltp.toFixed(2)} ${text.seconds}` },
+    { label: text.statSpeed, value: `${payload.summary.batch_speedup_vs_manual_ltp_pct.toFixed(2)}%` },
+    { label: text.statCommands, value: `${payload.summary.command_reduction_pct.toFixed(2)}%` },
+    { label: text.statQueue, value: `${payload.summary.tasks_reviewed} ${text.tasks}` }
+  ];
+
+  return (
+    <section className="section" id="operator-delta">
+      <div className="rounded-[2rem] border border-cyan-300/20 bg-[radial-gradient(circle_at_top,rgba(116,247,255,0.14),transparent_40%),linear-gradient(135deg,rgba(9,20,43,0.9),rgba(4,8,20,0.96))] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.35)] md:p-10">
+        <div className="max-w-3xl">
+          <p className="text-xs uppercase tracking-[0.25em] text-cyan-200">{text.eyebrow}</p>
+          <h2 className="mt-4 text-3xl font-semibold leading-tight md:text-5xl">{text.title}</h2>
+          <p className="mt-4 text-base text-white/75 md:text-lg">{text.subtitle}</p>
+        </div>
+
+        <div className="mt-8 grid gap-4 md:grid-cols-2">
+          <article className="rounded-2xl border border-emerald-300/25 bg-emerald-400/8 p-5">
+            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.18em] text-emerald-200">
+              <ShieldCheck className="h-4 w-4" />
+              {text.withUs}
+            </div>
+            <p className="mt-4 text-lg font-medium">{payload.investor_takeaway.with_ls}</p>
+            <p className="mt-3 text-sm text-white/70">{text.withUsBody}</p>
+          </article>
+          <article className="rounded-2xl border border-rose-300/20 bg-rose-400/8 p-5">
+            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.18em] text-rose-200">
+              <FileText className="h-4 w-4" />
+              {text.withoutUs}
+            </div>
+            <p className="mt-4 text-lg font-medium">{payload.investor_takeaway.without_ls}</p>
+            <p className="mt-3 text-sm text-white/70">{text.withoutUsBody}</p>
+          </article>
+        </div>
+
+        <div className="mt-8 grid gap-4 md:grid-cols-4">
+          {stats.map((stat) => (
+            <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{stat.label}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{stat.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-8 grid gap-6 lg:grid-cols-[1.4fr,0.9fr]">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.16em] text-cyan-200">
+              <Gauge className="h-4 w-4" />
+              {text.benchmark}
+            </div>
+            <div className="mt-5 space-y-3">
+              {payload.scenarios.map((scenario) => (
+                <div key={scenario.name} className="rounded-xl border border-white/8 bg-white/5 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium">
+                        {scenarioLabels[lang][scenario.name as keyof (typeof scenarioLabels)[typeof lang]] || scenario.name}
+                      </p>
+                      <p className="mt-1 text-sm text-white/65">{scenario.notes}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-semibold text-cyan-100">{scenario.seconds.toFixed(2)}s</p>
+                      <p className="text-xs uppercase tracking-[0.15em] text-white/55">{scenario.commands} {text.commands}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.16em] text-cyan-200">
+                <Scale className="h-4 w-4" />
+                {text.legal}
+              </div>
+              <ul className="mt-4 space-y-3 text-sm text-white/80">
+                {payload.investor_takeaway.legal_and_audit.map((item) => (
+                  <li key={item} className="rounded-xl border border-white/8 bg-white/5 px-3 py-3">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="rounded-2xl border border-amber-300/20 bg-amber-400/8 p-5 text-sm text-amber-50/90">
+              <div className="text-xs uppercase tracking-[0.16em] text-amber-100/80">{text.disclaimerLabel}</div>
+              <p className="mt-3">{payload.investor_takeaway.disclaimer}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 rounded-2xl border border-white/10 bg-black/25 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="text-sm uppercase tracking-[0.16em] text-cyan-200">{text.walkthrough}</div>
+              <div className="mt-2 text-lg font-medium text-white">{text.terminalLabel}</div>
+            </div>
+            <div className="inline-flex rounded-full border border-white/10 bg-white/5 p-1">
+              <button
+                onClick={() => setMode('with')}
+                className={`rounded-full px-4 py-2 text-sm transition ${mode === 'with' ? 'bg-cyan-300 text-slate-950' : 'text-white/70'}`}
+              >
+                {text.demoWith}
+              </button>
+              <button
+                onClick={() => setMode('without')}
+                className={`rounded-full px-4 py-2 text-sm transition ${mode === 'without' ? 'bg-cyan-300 text-slate-950' : 'text-white/70'}`}
+              >
+                {text.demoWithout}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-cyan-300/15 bg-slate-950/85 p-4 font-mono text-sm text-cyan-100">
+            {(mode === 'with' ? walkthrough[lang].with : walkthrough[lang].without).map((line, index) => (
+              <div key={`${mode}-${index}`} className={`py-1 ${line.startsWith('$') ? 'text-cyan-200' : 'text-slate-200'}`}>
+                {line}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

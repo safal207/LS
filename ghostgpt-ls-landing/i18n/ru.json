@@ -3,43 +3,43 @@
     "switch": "EN"
   },
   "hero": {
-    "title": "GhostGPT: Ваш ИИ, который помнит вас. Децентрализованный интеллект для новой эры.",
-    "subtitle": "Local Cognitive System делает ИИ умнее, безопаснее и надежнее для реальных задач.",
-    "cta": "Попробовать демо"
+    "title": "GhostGPT: ИИ, который помнит вас. Децентрализованный интеллект для реальных операторов.",
+    "subtitle": "Local Cognitive System превращает агентные процессы в поток, который команда может видеть, проверять и утверждать без слепых зон.",
+    "cta": "Смотреть демо-путь"
   },
   "problem": {
     "title": "От хрупкого ИИ к устойчивому интеллекту",
     "items": {
-      "centralized": "Централизованный ИИ ограничивает контроль и доверие.",
-      "size": "Даже большие модели теряют контекст.",
-      "hallucinations": "Галлюцинации ломают критичные сценарии.",
-      "memory": "Большинство ассистентов не помнят вашу историю."
+      "centralized": "Централизованный ИИ ограничивает контроль, трассируемость и доверие.",
+      "size": "Даже большие модели теряют контекст именно в момент, когда оператору нужна ясность.",
+      "hallucinations": "Галлюцинации ломают критичные review-процессы и triage-инцидентов.",
+      "memory": "Большинство ассистентов не помнят вашу историю, решения и прошлые approvals."
     },
     "solutionTitle": "Решение GhostGPT LS",
-    "solutionBody": "Architecture > Model Size. Causal Memory + Web4 + HCP дают объяснимый и устойчивый интеллект."
+    "solutionBody": "Архитектура важнее размера модели. Causal memory, human approvals и replayable traces делают поведение агента объяснимым и устойчивым."
   },
   "features": {
     "title": "Ключевые возможности",
     "list": {
       "local": {
         "title": "Local-first",
-        "desc": "Ваши данные остаются под вашим контролем."
+        "desc": "Операционные данные остаются под вашим контролем, а не исчезают в чужом black box."
       },
       "causal": {
         "title": "Causal Memory",
-        "desc": "Понимает не только что, но и почему."
+        "desc": "Система помнит не только что произошло, но и почему, и что изменилось после review."
       },
       "human": {
         "title": "Human-Centric Design",
-        "desc": "Уважает намерения и автономность человека."
+        "desc": "Approval loop сохраняет человеческое намерение в каждом важном переходе задачи."
       },
       "anti": {
         "title": "Anti-Hallucination",
-        "desc": "Проверяемая логика для надежных ответов."
+        "desc": "Трассируемое мышление делает подозрительное поведение видимым до approve."
       },
       "identity": {
         "title": "Evolving Identity",
-        "desc": "Развивается вместе с вашими целями и стилем."
+        "desc": "Система адаптируется к обратной связи оператора, а не начинает заново в каждой сессии."
       }
     }
   },
@@ -66,35 +66,35 @@
   },
   "visuals": {
     "title": "Цифровое сознание в движении",
-    "web4": "Web4 топология",
+    "web4": "Web4-топология",
     "temporal": "Временной граф",
     "growth": "Рост когнитивности",
-    "mockupTitle": "Мокапы Reflection Dashboard"
+    "mockupTitle": "Макет Reflection Dashboard"
   },
   "cta": {
-    "title": "Присоединяйтесь к новому поколению децентрализованного интеллекта",
-    "demo": "Попробовать демо",
-    "community": "Присоединиться к сообществу",
-    "contact": "Связаться с нами"
+    "title": "Переведите explainable agent operations в рабочий контур",
+    "demo": "Открыть runtime panel",
+    "community": "Посмотреть operator benchmark",
+    "contact": "Связаться с командой"
   },
   "runtime": {
     "eyebrow": "LS: Reflective AI Runtime",
-    "title": "Операционная система управления мышлением AI",
+    "title": "Операционная система для контроля поведения ИИ",
     "problem": {
-      "title": "Problem",
-      "body": "AI-решения остаются непрозрачными: сложно объяснить, проверить и исправить поведение агента."
+      "title": "Проблема",
+      "body": "Решения ИИ непрозрачны. Командам сложно объяснить, проверить и исправить поведение агента уже в момент выполнения workflow."
     },
     "solution": {
-      "title": "Solution",
-      "body": "Reflection Runtime добавляет контур контроля: reflection → review → approve/reject/edit → обновление поведения."
+      "title": "Решение",
+      "body": "Reflection Runtime добавляет контур управления: reflection -> review -> approve или reject -> обновление поведения."
     },
     "architecture": {
-      "title": "Architecture",
+      "title": "Архитектура",
       "items": [
-        "Memory Graph",
-        "Decision Pipeline",
-        "Reflection Dashboard",
-        "Human Feedback Loop"
+        "Граф памяти",
+        "Decision pipeline",
+        "Reflection dashboard",
+        "Human feedback loop"
       ]
     }
   },
@@ -102,11 +102,13 @@
     "title": "Runtime Live Panel",
     "loading": "загрузка",
     "live": "live",
+    "demo": "демо-режим",
     "error": "Ошибка API",
-    "metrics": "Metrics",
-    "heatmap": "Heatmap",
-    "timeline": "Action timeline",
-    "proposals": "Top proposals",
+    "offlineNote": "Показываются локальные демо-данные, потому что reflection backend сейчас офлайн. Панель остается интерактивной, чтобы поток оператора был виден даже на статическом лендинге.",
+    "metrics": "Метрики",
+    "heatmap": "Тепловая карта",
+    "timeline": "Лента действий",
+    "proposals": "Главные предложения",
     "approve": "Approve",
     "reject": "Reject",
     "noProposals": "Нет предложений для отображения"
