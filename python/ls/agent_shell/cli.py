@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from enum import Enum
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -87,6 +90,84 @@ def _open_path(target: Path) -> None:
         subprocess.run(["open", str(target)], check=True)
         return
     subprocess.run(["xdg-open", str(target)], check=True)
+
+
+def _ltp_decision_from_event(task_status: str, event: dict[str, Any]) -> str:
+    level = str(event.get("level") or "info")
+    message = str(event.get("message") or "")
+    if level == "error" or "rejected" in message.lower() or task_status in {"failed", "blocked"}:
+        return "rejected"
+    if level == "warning":
+        return "drift"
+    return "admissible"
+
+
+def _build_ltp_trace_records(task: dict[str, Any], events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    task_id = task.get("id") or task.get("task_id") or "unknown-task"
+    prompt = str(task.get("prompt") or task.get("title") or "")
+    task_status = str(task.get("status") or "unknown")
+    records: list[dict[str, Any]] = []
+    for index, event in enumerate(events):
+        step_id = event.get("step_id")
+        anchors = [f"task:{task_id}", f"status:{task_status}"]
+        if step_id:
+            anchors.append(f"step:{step_id}")
+        records.append(
+            {
+                "timestamp": event.get("created_at"),
+                "input": prompt if index == 0 else f"task:{task_id}",
+                "output": event.get("message"),
+                "anchors": anchors,
+                "decision": _ltp_decision_from_event(task_status, event),
+            }
+        )
+    if not records:
+        records.append(
+            {
+                "timestamp": None,
+                "input": prompt,
+                "output": f"No trace events available for {task_id}",
+                "anchors": [f"task:{task_id}", f"status:{task_status}"],
+                "decision": "drift",
+            }
+        )
+    return records
+
+
+def _write_ltp_trace_file(task: dict[str, Any], events: list[dict[str, Any]], destination: Path) -> Path:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    records = _build_ltp_trace_records(task, events)
+    payload = "\n".join(json.dumps(record, ensure_ascii=False) for record in records) + "\n"
+    destination.write_text(payload, encoding="utf-8")
+    return destination
+
+
+def _resolve_ltp_repo_root() -> Path:
+    configured = os.getenv("LS_LTP_REPO_ROOT")
+    if configured:
+        return Path(configured)
+    return Path(__file__).resolve().parents[4] / "_lthread_proto"
+
+
+def _run_ltp_inspect(trace_file: Path, *, ltp_repo_root: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            "pnpm",
+            "-w",
+            "ltp:inspect",
+            "--",
+            "trace",
+            "--phase",
+            "two_phase",
+            "--trace",
+            str(trace_file),
+            "--replay",
+        ],
+        cwd=str(ltp_repo_root),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
 
 
 @app.command("run")
@@ -216,6 +297,42 @@ def open_artifact(artifact_id: str, runtime_root: Path = runtime_root_option()) 
         raise typer.BadParameter(f"Artifact path does not exist: {target}")
     _open_path(target)
     console.print(f"[green]Opened[/green] {target}")
+
+
+@app.command("ltp-export")
+def ltp_export(
+    task_id: str,
+    runtime_root: Path = runtime_root_option(),
+    output: Path | None = typer.Option(None, "--output", help="Destination JSONL path."),
+) -> None:
+    task_manager = manager(runtime_root)
+    task = task_manager.get_status(task_id)
+    events = task_manager.get_trace(task_id)
+    destination = output or (runtime_root / "ltp" / f"{task_id}.trace.jsonl")
+    trace_file = _write_ltp_trace_file(task, events, destination)
+    console.print(f"[green]LTP trace exported[/green] {trace_file}")
+
+
+@app.command("ltp-inspect")
+def ltp_inspect_task(
+    task_id: str,
+    runtime_root: Path = runtime_root_option(),
+    ltp_repo_root: Path | None = typer.Option(None, "--ltp-repo-root", help="Path to L-THREAD repo root."),
+) -> None:
+    task_manager = manager(runtime_root)
+    task = task_manager.get_status(task_id)
+    events = task_manager.get_trace(task_id)
+    with tempfile.TemporaryDirectory(prefix="ls-agent-ltp-") as temp_dir:
+        trace_file = _write_ltp_trace_file(task, events, Path(temp_dir) / f"{task_id}.trace.jsonl")
+        repo_root = ltp_repo_root or _resolve_ltp_repo_root()
+        if not repo_root.exists():
+            raise typer.BadParameter(f"LTP repo root not found: {repo_root}")
+        result = _run_ltp_inspect(trace_file, ltp_repo_root=repo_root)
+        if result.stdout:
+            console.print(result.stdout.rstrip())
+        if result.returncode != 0:
+            message = result.stderr.strip() or f"LTP inspect failed with exit code {result.returncode}"
+            raise typer.BadParameter(message)
 
 
 @app.command("trace")

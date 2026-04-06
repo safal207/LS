@@ -1,5 +1,7 @@
 import os
+import json
 from pathlib import Path
+import subprocess
 
 from typer.testing import CliRunner
 
@@ -200,3 +202,54 @@ def test_cli_artifact_open_uses_platform_opener(monkeypatch, tmp_path: Path) -> 
     assert result.exit_code == 0
     assert opened["path"].endswith("report.md")
     assert "Opened" in result.stdout
+
+
+def test_cli_ltp_export_writes_jsonl_trace(tmp_path: Path) -> None:
+    runtime_root = tmp_path / ".ls_agent"
+    manager = TaskManager(db_path=runtime_root / "runtime.db", artifacts_root=runtime_root / "artifacts")
+    task_id = manager.run_task("Prepare docs", mode="safe-write")
+    output = tmp_path / "ltp" / "task.trace.jsonl"
+
+    result = runner.invoke(
+        app,
+        ["ltp-export", task_id, "--runtime-root", str(runtime_root), "--output", str(output)],
+    )
+    assert result.exit_code == 0
+    assert output.exists()
+    rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert rows
+    assert rows[0]["anchors"][0] == f"task:{task_id}"
+    assert rows[0]["decision"] in {"admissible", "drift", "rejected"}
+
+
+def test_cli_ltp_inspect_uses_external_ltp_tool(monkeypatch, tmp_path: Path) -> None:
+    runtime_root = tmp_path / ".ls_agent"
+    manager = TaskManager(db_path=runtime_root / "runtime.db", artifacts_root=runtime_root / "artifacts")
+    task_id = manager.run_task("Prepare docs", mode="safe-write")
+    fake_repo = tmp_path / "_lthread_proto"
+    fake_repo.mkdir()
+    captured: dict[str, object] = {}
+
+    def _fake_run(trace_file: Path, *, ltp_repo_root: Path) -> subprocess.CompletedProcess[str]:
+        captured["trace_file"] = str(trace_file)
+        captured["ltp_repo_root"] = str(ltp_repo_root)
+        lines = trace_file.read_text(encoding="utf-8").splitlines()
+        captured["lines"] = len(lines)
+        return subprocess.CompletedProcess(
+            args=["pnpm"],
+            returncode=0,
+            stdout="LTP inspector ok\nRouting Decisions: Executed=1 Deferred=0 Replayed=0 Frozen=0\n",
+            stderr="",
+        )
+
+    from ls.agent_shell import cli as cli_module
+
+    monkeypatch.setattr(cli_module, "_run_ltp_inspect", _fake_run)
+    result = runner.invoke(
+        app,
+        ["ltp-inspect", task_id, "--runtime-root", str(runtime_root), "--ltp-repo-root", str(fake_repo)],
+    )
+    assert result.exit_code == 0
+    assert "LTP inspector ok" in result.stdout
+    assert captured["ltp_repo_root"] == str(fake_repo)
+    assert int(captured["lines"]) >= 1
