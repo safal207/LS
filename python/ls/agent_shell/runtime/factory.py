@@ -26,6 +26,23 @@ def resolve_task_runtime() -> TaskRuntime:
         module = import_module(module_name)
         factory = getattr(module, attr)
         runtime = factory()
+        required_methods = (
+            "plan_task",
+            "run_task",
+            "resume_task",
+            "get_status",
+            "get_trace",
+            "list_artifacts",
+            "approve",
+            "reject",
+        )
+        missing = [name for name in required_methods if not callable(getattr(runtime, name, None))]
+        if missing:
+            raise RuntimeBindingError(
+                f"Runtime '{target}' does not implement required methods: {', '.join(missing)}"
+            )
         return runtime
+    except RuntimeBindingError:
+        raise
     except Exception as exc:
         raise RuntimeBindingError(f"Unable to resolve runtime binding '{target}': {exc}") from exc

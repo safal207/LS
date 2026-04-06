@@ -16,6 +16,7 @@ from ls.agent_shell.mcp_resources import MCPResourceRegistry
 from ls.agent_shell.mcp_server import LSMCPServer
 from ls.agent_shell.mcp_tools import MCPToolRegistry, MCPValidationError
 from ls.agent_shell.runtime.factory import RuntimeBindingError, resolve_task_runtime
+from ls.agent_shell.runtime.bindings.shell_runtime import build_shell_runtime
 from ls.agent_shell.testing.runtime_fixture import FixtureRuntime
 
 
@@ -30,9 +31,23 @@ def _new_server(tmp_path: Path) -> LSMCPServer:
 
 
 
-def test_default_shell_binding_requires_real_shell_runtime(monkeypatch):
+def test_default_shell_binding_uses_task_manager_layout(monkeypatch, tmp_path):
     monkeypatch.delenv("LS_TASK_RUNTIME_FACTORY", raising=False)
-    with pytest.raises(RuntimeBindingError):
+    monkeypatch.setenv("LS_TASK_RUNTIME_ROOT", str(tmp_path / ".ls_agent"))
+    runtime = resolve_task_runtime()
+    assert runtime.__class__.__name__ == "ShellTaskRuntimeAdapter"
+    assert runtime.manager.store.db_path == (tmp_path / ".ls_agent" / "runtime.db")
+
+
+def test_shell_runtime_binding_honors_root_env(monkeypatch, tmp_path):
+    monkeypatch.setenv("LS_TASK_RUNTIME_ROOT", str(tmp_path / "custom-shell-home"))
+    runtime = build_shell_runtime()
+    assert runtime.manager.store.db_path == (tmp_path / "custom-shell-home" / "runtime.db")
+
+
+def test_invalid_runtime_binding_shape_is_rejected(monkeypatch):
+    monkeypatch.setenv("LS_TASK_RUNTIME_FACTORY", "json:JSONDecoder")
+    with pytest.raises(RuntimeBindingError, match="does not implement required methods"):
         resolve_task_runtime()
 
 def test_plan_task_generates_blocked_plan(tmp_path):
