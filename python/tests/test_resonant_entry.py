@@ -45,6 +45,20 @@ def test_risk_node_reduces_safety_with_sensitive_markers():
     assert "pressure" in result.avoid_styles
 
 
+def test_crisis_precheck_blocks_regular_scoring():
+    module = ResonantEntryModule()
+    result = module.detect(
+        ResonantEntryInput(
+            user_utterance="Я боюсь сорваться и хочу умереть, чтобы всё закончилось",
+            task_intent="построить план",
+        )
+    )
+
+    assert result.entry_node_type == "crisis_node"
+    assert result.safety_blocked is True
+    assert "safety" in result.next_contact_move.lower()
+
+
 def test_as_dict_contains_spec_fields():
     module = ResonantEntryModule()
     payload = ResonantEntryInput(user_utterance="Мне интересно новое направление в продукте")
@@ -54,3 +68,4 @@ def test_as_dict_contains_spec_fields():
     assert "resonance_score" in data
     assert "recommended_entry_style" in data
     assert "next_contact_move" in data
+    assert "safety_blocked" in data

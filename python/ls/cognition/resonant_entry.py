@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Optional, Sequence
 
 
 NODE_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "crisis_node": ("хочу умереть", "хочу исчезнуть", "умереть", "suicide", "kill myself", "self-harm"),
     "interest_node": ("интерес", "любопыт", "увлека", "зажи", "curious", "interest"),
     "pain_node": ("боль", "тяжело", "страда", "frustrat", "hurt", "болит"),
     "goal_node": ("хочу", "цель", "постро", "достич", "goal", "build", "launch", "стартап"),
@@ -17,6 +18,7 @@ NODE_KEYWORDS: dict[str, tuple[str, ...]] = {
 }
 
 STYLE_MAP: dict[str, str] = {
+    "crisis_node": "safety_first_grounding",
     "goal_node": "supportive_precision",
     "identity_node": "reflective_validation",
     "pain_node": "gentle_grounding",
@@ -28,7 +30,19 @@ STYLE_MAP: dict[str, str] = {
     "novelty_node": "guided_exploration",
 }
 
-DEFAULT_AVOID_STYLES = ["pressure", "over-abstraction"]
+DEFAULT_AVOID_STYLES: tuple[str, ...] = ("pressure", "over-abstraction")
+SENSITIVE_MARKERS: tuple[str, ...] = (
+    "травм",
+    "panic",
+    "паник",
+    "abuse",
+    "self-harm",
+    "суицид",
+    "умереть",
+    "исчезнуть",
+    "kill myself",
+    "хочу умереть",
+)
 
 
 @dataclass(frozen=True)
@@ -56,6 +70,7 @@ class ResonantEntryResult:
     supporting_signals: list[str]
     contra_signals: list[str]
     deepening_risk: float
+    safety_blocked: bool
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -73,6 +88,7 @@ class ResonantEntryResult:
             "supporting_signals": self.supporting_signals,
             "contra_signals": self.contra_signals,
             "deepening_risk": round(self.deepening_risk, 3),
+            "safety_blocked": self.safety_blocked,
         }
 
 
@@ -80,12 +96,33 @@ class ResonantEntryModule:
     """Detect the safest high-energy entry point for progressive context deepening."""
 
     def detect(self, payload: ResonantEntryInput) -> ResonantEntryResult:
+        crisis_match = self._detect_crisis(payload.user_utterance)
+        if crisis_match:
+            return ResonantEntryResult(
+                entry_node_type="crisis_node",
+                entry_node_label=f"crisis_node:{crisis_match}",
+                resonance_score=1.0,
+                openness_estimate="low",
+                emotional_charge=1.0,
+                task_relevance=1.0,
+                identity_proximity=0.8,
+                recommended_entry_style=STYLE_MAP["crisis_node"],
+                avoid_styles=list(DEFAULT_AVOID_STYLES),
+                next_contact_move="Prioritize immediate safety, supportive grounding, and crisis escalation protocol.",
+                confidence=1.0,
+                supporting_signals=[crisis_match],
+                contra_signals=[],
+                deepening_risk=1.0,
+                safety_blocked=True,
+            )
+
         corpus = " ".join(
             [payload.user_utterance, payload.task_intent, payload.current_scene_context, *payload.recent_memory]
         ).lower()
 
         scores: dict[str, float] = {}
         support: dict[str, list[str]] = {}
+        sensitive_context = self._has_sensitive_context(payload.user_utterance)
         for node_type, keywords in NODE_KEYWORDS.items():
             hits = [kw for kw in keywords if kw in corpus]
             repetition = sum(corpus.count(kw) for kw in hits)
@@ -97,6 +134,8 @@ class ResonantEntryModule:
             safety = self._safety_multiplier(node_type, payload.user_utterance)
             score = (base * 0.45) + (task_relevance * 0.35) + (openness * 0.2)
             score *= safety
+            if sensitive_context and node_type in {"goal_node", "identity_node"}:
+                score *= 0.45
             scores[node_type] = max(0.0, min(1.0, score))
             support[node_type] = hits
 
@@ -122,12 +161,13 @@ class ResonantEntryModule:
             task_relevance=task_relevance,
             identity_proximity=identity_proximity,
             recommended_entry_style=style,
-            avoid_styles=DEFAULT_AVOID_STYLES,
+            avoid_styles=list(DEFAULT_AVOID_STYLES),
             next_contact_move=next_move,
             confidence=confidence,
             supporting_signals=support[entry_node],
             contra_signals=contra,
             deepening_risk=deepening_risk,
+            safety_blocked=False,
         )
 
     @staticmethod
@@ -159,8 +199,7 @@ class ResonantEntryModule:
     @staticmethod
     def _safety_multiplier(node_type: str, utterance: str) -> float:
         lowered = utterance.lower()
-        sensitive_markers = ("травм", "panic", "паник", "abuse", "self-harm")
-        if any(marker in lowered for marker in sensitive_markers) and node_type in {"pain_node", "risk_node"}:
+        if any(marker in lowered for marker in SENSITIVE_MARKERS) and node_type in {"pain_node", "risk_node"}:
             return 0.65
         if node_type == "risk_node" and "бою" in lowered:
             return 0.8
@@ -198,3 +237,17 @@ class ResonantEntryModule:
         if len(lowered.split()) < 4:
             signals.append("low_context_density")
         return signals
+
+    @staticmethod
+    def _has_sensitive_context(utterance: str) -> bool:
+        lowered = utterance.lower()
+        return any(marker in lowered for marker in SENSITIVE_MARKERS)
+
+    @staticmethod
+    def _detect_crisis(utterance: str) -> Optional[str]:
+        lowered = utterance.lower()
+        crisis_markers = ("хочу умереть", "хочу исчезнуть", "kill myself", "suicide", "self-harm")
+        for marker in crisis_markers:
+            if marker in lowered:
+                return marker
+        return None

@@ -31,6 +31,7 @@ REM identifies **where contact should start now**.
 
 ### Pipeline
 
+0. **Crisis pre-check**: if crisis markers are present, emit `crisis_node` and block normal scoring.
 1. **Signal collection**: repeated words, emotional density, tension, unfinished loops, values/fears.
 2. **Resonance scoring**: intensity, relevance, repetition, openness.
 3. **Entry-node selection**: pick not the loudest node, but the safest productive node.
@@ -44,6 +45,7 @@ REM includes a safety multiplier and must not optimize for manipulation.
 
 - Do not exploit trauma or panic markers.
 - Do not force contact through fear if safer nodes are available.
+- If crisis intent is detected (e.g. self-harm intent), bypass normal entry and route to `crisis_node`.
 - Good resonance increases clarity and safety.
 - Bad resonance increases dependence and confusion.
 
@@ -65,6 +67,7 @@ REM returns structured output via `ResonantEntryResult`:
 - `supporting_signals`
 - `contra_signals`
 - `deepening_risk`
+- `safety_blocked`
 
 ## Example
 
