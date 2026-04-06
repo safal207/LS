@@ -8,7 +8,6 @@ from typing import Any
 # Rebase can keep/adjust this list without touching MCP façade code.
 SHELL_RUNTIME_CANDIDATES = (
     "ls.agent_shell.runtime.task_manager:TaskManager",
-    "ls.agent_shell.runtime.runtime_factory:build_runtime",
     "ls.agent_shell.core.runtime:build_runtime",
 )
 
