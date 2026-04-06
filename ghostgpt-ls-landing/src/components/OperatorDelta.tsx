@@ -1,6 +1,21 @@
-import { FileClock, Gavel, Scale, ShieldCheck, TimerReset, Waypoints } from 'lucide-react';
+import {
+  FileClock,
+  Gavel,
+  Scale,
+  ShieldCheck,
+  TerminalSquare,
+  TimerReset,
+  Waypoints,
+} from 'lucide-react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import benchmark from '../data/operatorDeltaBenchmark.json';
+
+type WalkthroughStep = {
+  title: string;
+  command: string;
+  output: string;
+};
 
 type CopyBlock = {
   eyebrow: string;
@@ -15,6 +30,12 @@ type CopyBlock = {
   legalTitle: string;
   legalNote: string;
   legalPoints: string[];
+  walkthroughTitle: string;
+  walkthroughNote: string;
+  toggleWith: string;
+  toggleWithout: string;
+  walkthroughWith: WalkthroughStep[];
+  walkthroughWithout: WalkthroughStep[];
   metrics: {
     queue: string;
     manualQueue: string;
@@ -22,6 +43,7 @@ type CopyBlock = {
     batchLtp: string;
     speedup: string;
     commandCut: string;
+    generated: string;
   };
 };
 
@@ -40,7 +62,7 @@ const COPY: Record<'ru' | 'en', CopyBlock> = {
     withoutTitle: 'Без этого слоя',
     withoutPoints: [
       'Оператор ходит по задачам по одной и держит контекст в голове.',
-      'Review чаще превращается в смесь логов, скриншотов и ad-hoc handoff.',
+      'Review превращается в смесь логов, скриншотов и ad-hoc handoff.',
       'Batch-картина по очереди и единый replay path отсутствуют.',
     ],
     benchmarkTitle: 'Локальный benchmark snapshot',
@@ -54,6 +76,45 @@ const COPY: Record<'ru' | 'en', CopyBlock> = {
       'Approval-события остаются привязанными к task и step, а не теряются в чате.',
       'Batch queue scan ускоряет первичный legal/risk triage перед approve.',
     ],
+    walkthroughTitle: 'Живой operator walkthrough',
+    walkthroughNote:
+      'Это тот же сценарий очереди waiting_approval, но показан как путь оператора с и без batch LTP layer.',
+    toggleWith: 'С LS + LTP',
+    toggleWithout: 'Без LS + LTP',
+    walkthroughWith: [
+      {
+        title: '1. Смотрим очередь один раз',
+        command: 'ls-agent list --status waiting_approval',
+        output: 'Вся очередь видна в одном снимке, без прыжков по отдельным задачам.',
+      },
+      {
+        title: '2. Прогоняем всю очередь через replay',
+        command: 'ls-agent ltp-inspect-all --status waiting_approval',
+        output: 'Один batch-проход показывает evidence по очереди и подсвечивает подозрительные задачи до approve.',
+      },
+      {
+        title: '3. Подтверждаем уже после triage',
+        command: 'ls-agent approve <task_id> <step_id>',
+        output: 'Решение принимается уже с trace, replay и step history на руках.',
+      },
+    ],
+    walkthroughWithout: [
+      {
+        title: '1. Открываем очередь',
+        command: 'ls-agent list --status waiting_approval',
+        output: 'Оператор видит список, но дальше все равно идет по задачам по одной.',
+      },
+      {
+        title: '2. Ручной разбор каждой задачи',
+        command: 'ls-agent inspect <task_id> + approvals --task-id <task_id>',
+        output: 'Evidence разъезжается по повторяющимся чтениям и памяти оператора.',
+      },
+      {
+        title: '3. Решение после серии handoff',
+        command: 'repeat for each task before approve',
+        output: 'Очередь замедляется, потому что review loop остается task-by-task.',
+      },
+    ],
     metrics: {
       queue: 'Задач в очереди',
       manualQueue: 'Ручной CLI review',
@@ -61,6 +122,7 @@ const COPY: Record<'ru' | 'en', CopyBlock> = {
       batchLtp: 'Batch LTP review',
       speedup: 'Экономия vs поштучный LTP',
       commandCut: 'Снижение числа команд',
+      generated: 'Снято',
     },
   },
   en: {
@@ -91,6 +153,45 @@ const COPY: Record<'ru' | 'en', CopyBlock> = {
       'Approval events stay attached to the task and step instead of disappearing into chat.',
       'Batch queue scan shortens first-pass legal/risk triage before approval.',
     ],
+    walkthroughTitle: 'Live operator walkthrough',
+    walkthroughNote:
+      'This is the same waiting_approval queue, shown as an operator path with and without the batch LTP layer.',
+    toggleWith: 'With LS + LTP',
+    toggleWithout: 'Without LS + LTP',
+    walkthroughWith: [
+      {
+        title: '1. Read the queue once',
+        command: 'ls-agent list --status waiting_approval',
+        output: 'The whole queue is visible in one snapshot instead of per-task hopping.',
+      },
+      {
+        title: '2. Replay the full queue',
+        command: 'ls-agent ltp-inspect-all --status waiting_approval',
+        output: 'One batch pass returns evidence for the queue and flags suspect tasks before approval.',
+      },
+      {
+        title: '3. Approve after triage',
+        command: 'ls-agent approve <task_id> <step_id>',
+        output: 'Approval is taken with trace, replay, and step history already attached.',
+      },
+    ],
+    walkthroughWithout: [
+      {
+        title: '1. Open the queue',
+        command: 'ls-agent list --status waiting_approval',
+        output: 'The operator sees the list, but still has to open tasks one by one.',
+      },
+      {
+        title: '2. Review each task manually',
+        command: 'ls-agent inspect <task_id> + approvals --task-id <task_id>',
+        output: 'Evidence is fragmented across repeated reads and operator memory.',
+      },
+      {
+        title: '3. Decide after multiple handoffs',
+        command: 'repeat for each task before approve',
+        output: 'The queue slows down because the review loop remains task-by-task.',
+      },
+    ],
     metrics: {
       queue: 'Queue size',
       manualQueue: 'Manual CLI review',
@@ -98,6 +199,7 @@ const COPY: Record<'ru' | 'en', CopyBlock> = {
       batchLtp: 'Batch LTP review',
       speedup: 'Saved vs per-task LTP',
       commandCut: 'Command reduction',
+      generated: 'Generated',
     },
   },
 };
@@ -112,11 +214,13 @@ function formatPercent(value: number) {
 
 export default function OperatorDelta() {
   const { i18n } = useTranslation();
+  const [mode, setMode] = useState<'with' | 'without'>('with');
   const lang = i18n.language.startsWith('ru') ? 'ru' : 'en';
   const copy = COPY[lang];
   const scenarioMap = Object.fromEntries(
     benchmark.scenarios.map((scenario) => [scenario.name, scenario])
   ) as Record<string, { seconds: number }>;
+  const walkthrough = mode === 'with' ? copy.walkthroughWith : copy.walkthroughWithout;
 
   return (
     <section className="section">
@@ -174,12 +278,36 @@ export default function OperatorDelta() {
                 {copy.benchmarkTitle}
               </div>
               <div className="grid gap-3 md:grid-cols-3">
-                <MetricCard label={copy.metrics.manualQueue} value={formatSeconds(scenarioMap.manual_cli_review.seconds)} accent="slate" />
-                <MetricCard label={copy.metrics.manualLtp} value={formatSeconds(scenarioMap.manual_ltp_review.seconds)} accent="amber" />
-                <MetricCard label={copy.metrics.batchLtp} value={formatSeconds(scenarioMap.batch_ltp_review.seconds)} accent="cyan" />
-                <MetricCard label={copy.metrics.speedup} value={`${formatSeconds(benchmark.summary.seconds_saved_vs_manual_ltp)} / ${formatPercent(benchmark.summary.batch_speedup_vs_manual_ltp_pct)}`} accent="emerald" />
-                <MetricCard label={copy.metrics.commandCut} value={`${benchmark.summary.manual_review_commands} → ${benchmark.summary.batch_review_commands} (${formatPercent(benchmark.summary.command_reduction_pct)})`} accent="violet" />
-                <MetricCard label="Generated" value={benchmark.generated_at.slice(0, 10)} accent="slate" />
+                <MetricCard
+                  label={copy.metrics.manualQueue}
+                  value={formatSeconds(scenarioMap.manual_cli_review.seconds)}
+                  accent="slate"
+                />
+                <MetricCard
+                  label={copy.metrics.manualLtp}
+                  value={formatSeconds(scenarioMap.manual_ltp_review.seconds)}
+                  accent="amber"
+                />
+                <MetricCard
+                  label={copy.metrics.batchLtp}
+                  value={formatSeconds(scenarioMap.batch_ltp_review.seconds)}
+                  accent="cyan"
+                />
+                <MetricCard
+                  label={copy.metrics.speedup}
+                  value={`${formatSeconds(benchmark.summary.seconds_saved_vs_manual_ltp)} / ${formatPercent(benchmark.summary.batch_speedup_vs_manual_ltp_pct)}`}
+                  accent="emerald"
+                />
+                <MetricCard
+                  label={copy.metrics.commandCut}
+                  value={`${benchmark.summary.manual_review_commands} -> ${benchmark.summary.batch_review_commands} (${formatPercent(benchmark.summary.command_reduction_pct)})`}
+                  accent="violet"
+                />
+                <MetricCard
+                  label={copy.metrics.generated}
+                  value={benchmark.generated_at.slice(0, 10)}
+                  accent="slate"
+                />
               </div>
               <p className="mt-4 text-xs leading-6 text-slate-400">{copy.benchmarkNote}</p>
             </div>
@@ -214,6 +342,60 @@ export default function OperatorDelta() {
             </div>
           </div>
         </div>
+
+        <div className="mt-6 rounded-[2rem] border border-white/10 bg-black/25 p-5 md:p-6">
+          <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="max-w-2xl">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-1 text-xs uppercase tracking-[0.22em] text-violet-100">
+                <TerminalSquare className="h-3.5 w-3.5" />
+                {copy.walkthroughTitle}
+              </div>
+              <p className="text-sm leading-7 text-slate-300">{copy.walkthroughNote}</p>
+            </div>
+            <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1">
+              <ToggleButton active={mode === 'with'} onClick={() => setMode('with')}>
+                {copy.toggleWith}
+              </ToggleButton>
+              <ToggleButton active={mode === 'without'} onClick={() => setMode('without')}>
+                {copy.toggleWithout}
+              </ToggleButton>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[0.88fr_1.12fr]">
+            <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-4">
+              <div className="mb-3 text-xs uppercase tracking-[0.22em] text-slate-500">Terminal</div>
+              <div className="space-y-3 font-mono text-xs leading-6 text-slate-200">
+                {walkthrough.map((step, index) => (
+                  <div key={step.title} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                      Step {index + 1}
+                    </div>
+                    <div className="mt-2 text-slate-100">$ {step.command}</div>
+                    <div className="mt-2 whitespace-pre-wrap text-cyan-100/85">{step.output}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              {walkthrough.map((step, index) => (
+                <div
+                  key={step.title}
+                  className={`rounded-3xl border p-4 ${
+                    mode === 'with'
+                      ? 'border-emerald-300/20 bg-emerald-400/10'
+                      : 'border-rose-300/20 bg-rose-400/10'
+                  }`}
+                >
+                  <div className="text-xs uppercase tracking-[0.22em] text-white/55">Step {index + 1}</div>
+                  <div className="mt-3 text-lg font-semibold text-white">{step.title}</div>
+                  <div className="mt-3 text-sm leading-7 text-white/80">{step.output}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -241,5 +423,26 @@ function MetricCard({
       <div className="text-xs uppercase tracking-[0.18em] text-white/55">{label}</div>
       <div className="mt-3 text-xl font-semibold leading-tight">{value}</div>
     </div>
+  );
+}
+
+function ToggleButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-xl px-4 py-2 text-sm transition ${
+        active ? 'bg-white text-slate-900' : 'text-slate-200 hover:bg-white/10'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
