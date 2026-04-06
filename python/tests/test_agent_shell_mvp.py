@@ -2,6 +2,7 @@ import os
 import json
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 from typer.testing import CliRunner
 
@@ -255,6 +256,27 @@ def test_cli_ltp_inspect_uses_external_ltp_tool(monkeypatch, tmp_path: Path) -> 
     assert int(captured["lines"]) >= 1
 
 
+def test_cli_ltp_inspect_reports_missing_pnpm(monkeypatch, tmp_path: Path) -> None:
+    runtime_root = tmp_path / ".ls_agent"
+    manager = TaskManager(db_path=runtime_root / "runtime.db", artifacts_root=runtime_root / "artifacts")
+    task_id = manager.run_task("Prepare docs", mode="safe-write")
+    fake_repo = tmp_path / "_lthread_proto"
+    fake_repo.mkdir()
+
+    from ls.agent_shell import cli as cli_module
+
+    def _missing_pnpm(trace_file: Path, *, ltp_repo_root: Path) -> subprocess.CompletedProcess[str]:
+        raise FileNotFoundError("pnpm was not found in PATH; install pnpm to use ltp-inspect")
+
+    monkeypatch.setattr(cli_module, "_run_ltp_inspect", _missing_pnpm)
+    result = runner.invoke(
+        app,
+        ["ltp-inspect", task_id, "--runtime-root", str(runtime_root), "--ltp-repo-root", str(fake_repo)],
+    )
+    assert result.exit_code != 0
+    assert "pnpm was not found in PATH" in (result.stdout + getattr(result, "stderr", ""))
+
+
 def test_cli_ltp_export_all_filters_by_status(tmp_path: Path) -> None:
     runtime_root = tmp_path / ".ls_agent"
     manager = TaskManager(db_path=runtime_root / "runtime.db", artifacts_root=runtime_root / "artifacts")
@@ -284,3 +306,11 @@ def test_cli_ltp_export_all_filters_by_status(tmp_path: Path) -> None:
     exported = sorted(path.name for path in output_dir.glob("*.jsonl"))
     assert exported == [f"{waiting_task}.trace.jsonl"]
     assert "Batch export complete" in result.stdout
+
+
+def test_safe_console_text_escapes_unencodable_paths(monkeypatch) -> None:
+    from ls.agent_shell import cli as cli_module
+
+    monkeypatch.setattr(cli_module, "console", SimpleNamespace(file=SimpleNamespace(encoding="cp1252")))
+    rendered = cli_module._safe_console_text("C:/Users/safal/OneDrive/Рабочий стол")
+    assert "\\u0420" in rendered

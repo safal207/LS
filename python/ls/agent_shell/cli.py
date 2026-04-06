@@ -4,6 +4,7 @@ from enum import Enum
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -45,12 +46,18 @@ def runtime_root_option() -> Path:
 
 def _status_summary(data: dict) -> None:
     task_id = data.get("task_id") or data.get("id") or "unknown-task"
-    console.print(f"[bold]{task_id}[/bold] status={data['status']} mode={data['mode']}")
+    console.print(
+        f"[bold]{_safe_console_text(str(task_id))}[/bold] status={data['status']} mode={data['mode']}"
+    )
     waiting_step = next((step for step in data["steps"] if step["status"] == "waiting_approval"), None)
     if waiting_step is not None:
-        console.print(f"[yellow]Waiting approval:[/yellow] {waiting_step['id']} ({waiting_step['title']})")
+        console.print(
+            f"[yellow]Waiting approval:[/yellow] "
+            f"{_safe_console_text(str(waiting_step['id']))} "
+            f"({_safe_console_text(str(waiting_step['title']))})"
+        )
     if data.get("summary"):
-        console.print(f"[cyan]Summary:[/cyan] {data['summary']}")
+        console.print(f"[cyan]Summary:[/cyan] {_safe_console_text(str(data['summary']))}")
 
     steps = Table(title="Steps")
     steps.add_column("id")
@@ -90,6 +97,19 @@ def _open_path(target: Path) -> None:
         subprocess.run(["open", str(target)], check=True)
         return
     subprocess.run(["xdg-open", str(target)], check=True)
+
+
+def _safe_console_text(value: str) -> str:
+    encoding = getattr(console.file, "encoding", None) or sys.stdout.encoding or "utf-8"
+    try:
+        value.encode(encoding)
+        return value
+    except UnicodeEncodeError:
+        return value.encode(encoding, errors="backslashreplace").decode(encoding)
+
+
+def _safe_path_text(path: Path) -> str:
+    return _safe_console_text(str(path))
 
 
 def _ltp_decision_from_event(task_status: str, event: dict[str, Any]) -> str:
@@ -154,9 +174,12 @@ def _resolve_ltp_repo_root() -> Path:
 
 
 def _run_ltp_inspect(trace_file: Path, *, ltp_repo_root: Path) -> subprocess.CompletedProcess[str]:
+    pnpm = shutil.which("pnpm")
+    if not pnpm:
+        raise FileNotFoundError("pnpm was not found in PATH; install pnpm to use ltp-inspect")
     return subprocess.run(
         [
-            "pnpm",
+            pnpm,
             "-w",
             "ltp:inspect",
             "--",
@@ -169,6 +192,8 @@ def _run_ltp_inspect(trace_file: Path, *, ltp_repo_root: Path) -> subprocess.Com
         ],
         cwd=str(ltp_repo_root),
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         check=False,
     )
@@ -181,7 +206,7 @@ def run_task(
     runtime_root: Path = runtime_root_option(),
 ) -> None:
     task_id = manager(runtime_root).run_task(prompt=prompt, mode=approval.value)
-    console.print(f"[green]Task started:[/green] {task_id}")
+    console.print(f"[green]Task started:[/green] {_safe_console_text(task_id)}")
 
 
 @app.command("plan")
@@ -191,7 +216,7 @@ def plan_task(
     runtime_root: Path = runtime_root_option(),
 ) -> None:
     task, plan = manager(runtime_root).plan_only(prompt=prompt, mode=mode.value)
-    console.print(f"[cyan]Task:[/cyan] {task.id}")
+    console.print(f"[cyan]Task:[/cyan] {_safe_console_text(task.id)}")
     table = Table(title="Execution Plan")
     table.add_column("Step")
     table.add_column("Type")
@@ -252,13 +277,15 @@ def inspect_task(task_id: str, runtime_root: Path = runtime_root_option()) -> No
 @app.command("resume")
 def resume_task(task_id: str, runtime_root: Path = runtime_root_option()) -> None:
     manager(runtime_root).resume_task(task_id)
-    console.print(f"[green]Resumed[/green] {task_id}")
+    console.print(f"[green]Resumed[/green] {_safe_console_text(task_id)}")
 
 
 @app.command("approve")
 def approve_task(task_id: str, step_id: str, runtime_root: Path = runtime_root_option()) -> None:
     manager(runtime_root).approve(task_id, step_id)
-    console.print(f"[green]Approved[/green] {step_id} for {task_id}")
+    console.print(
+        f"[green]Approved[/green] {_safe_console_text(step_id)} for {_safe_console_text(task_id)}"
+    )
 
 
 @app.command("reject")
@@ -269,7 +296,9 @@ def reject_task(
     runtime_root: Path = runtime_root_option(),
 ) -> None:
     manager(runtime_root).reject(task_id, step_id, reason)
-    console.print(f"[yellow]Rejected[/yellow] {step_id} for {task_id}")
+    console.print(
+        f"[yellow]Rejected[/yellow] {_safe_console_text(step_id)} for {_safe_console_text(task_id)}"
+    )
 
 
 @app.command("artifacts")
@@ -288,9 +317,12 @@ def list_artifacts(task_id: str, runtime_root: Path = runtime_root_option()) -> 
 @app.command("artifact")
 def show_artifact(artifact_id: str, runtime_root: Path = runtime_root_option()) -> None:
     artifact = manager(runtime_root).get_artifact(artifact_id)
-    console.print(f"[bold]{artifact['id']}[/bold] task={artifact['task_id']} type={artifact['type']}")
-    console.print(f"[cyan]Title:[/cyan] {artifact['title']}")
-    console.print(f"[cyan]Path:[/cyan] {artifact['path_or_url']}")
+    console.print(
+        f"[bold]{_safe_console_text(str(artifact['id']))}[/bold] "
+        f"task={_safe_console_text(str(artifact['task_id']))} type={artifact['type']}"
+    )
+    console.print(f"[cyan]Title:[/cyan] {_safe_console_text(str(artifact['title']))}")
+    console.print(f"[cyan]Path:[/cyan] {_safe_console_text(str(artifact['path_or_url']))}")
 
 
 @app.command("artifact-open")
@@ -300,7 +332,7 @@ def open_artifact(artifact_id: str, runtime_root: Path = runtime_root_option()) 
     if not target.exists():
         raise typer.BadParameter(f"Artifact path does not exist: {target}")
     _open_path(target)
-    console.print(f"[green]Opened[/green] {target}")
+    console.print(f"[green]Opened[/green] {_safe_path_text(target)}")
 
 
 @app.command("ltp-export")
@@ -314,7 +346,7 @@ def ltp_export(
     events = task_manager.get_trace(task_id)
     destination = output or (runtime_root / "ltp" / f"{task_id}.trace.jsonl")
     trace_file = _write_ltp_trace_file(task, events, destination)
-    console.print(f"[green]LTP trace exported[/green] {trace_file}")
+    console.print(f"[green]LTP trace exported[/green] {_safe_path_text(trace_file)}")
 
 
 @app.command("ltp-export-all")
@@ -341,7 +373,9 @@ def ltp_export_all(
             events,
             destination_root / f"{task_id}.trace.jsonl",
         )
-        console.print(f"[green]Exported[/green] {task_id} -> {trace_file}")
+        console.print(
+            f"[green]Exported[/green] {_safe_console_text(task_id)} -> {_safe_path_text(trace_file)}"
+        )
         exported += 1
     console.print(f"[cyan]Batch export complete:[/cyan] {exported} trace file(s)")
 
@@ -360,11 +394,15 @@ def ltp_inspect_task(
         repo_root = ltp_repo_root or _resolve_ltp_repo_root()
         if not repo_root.exists():
             raise typer.BadParameter(f"LTP repo root not found: {repo_root}")
-        result = _run_ltp_inspect(trace_file, ltp_repo_root=repo_root)
+        try:
+            result = _run_ltp_inspect(trace_file, ltp_repo_root=repo_root)
+        except FileNotFoundError as exc:
+            raise typer.BadParameter(str(exc)) from exc
         if result.stdout:
-            console.print(result.stdout.rstrip())
+            console.print(_safe_console_text(result.stdout.rstrip()))
         if result.returncode != 0:
             message = result.stderr.strip() or f"LTP inspect failed with exit code {result.returncode}"
+            message = _safe_console_text(message)
             raise typer.BadParameter(message)
 
 
@@ -417,11 +455,11 @@ def serve(
     os.environ["LS_TASK_RUNTIME_ROOT"] = str(runtime_root)
     if transport is Transport.HTTP:
         console.print(f"[green]Serving HTTP MCP[/green] on http://{host}:{port}")
-        console.print(f"[cyan]Runtime root:[/cyan] {runtime_root}")
+        console.print(f"[cyan]Runtime root:[/cyan] {_safe_path_text(runtime_root)}")
         run_http_server(host=host, port=port)
         return
     console.print("[green]Serving stdio MCP[/green]")
-    console.print(f"[cyan]Runtime root:[/cyan] {runtime_root}")
+    console.print(f"[cyan]Runtime root:[/cyan] {_safe_path_text(runtime_root)}")
     raise typer.Exit(run_stdio_server())
 
 
