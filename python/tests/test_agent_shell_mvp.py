@@ -354,6 +354,94 @@ def test_cli_ltp_export_all_filters_by_status(tmp_path: Path) -> None:
     assert "Batch export complete" in result.stdout
 
 
+def test_cli_ltp_inspect_all_filters_and_reports_success(monkeypatch, tmp_path: Path) -> None:
+    runtime_root = tmp_path / ".ls_agent"
+    manager = TaskManager(db_path=runtime_root / "runtime.db", artifacts_root=runtime_root / "artifacts")
+
+    waiting_task = manager.run_task("Prepare waiting task", mode="safe-write")
+    completed_task = manager.run_task("Prepare completed task", mode="safe-write")
+    completed_status = manager.get_status(completed_task)
+    completed_step = next(
+        step for step in completed_status["steps"] if step["status"] == "waiting_approval"
+    )
+    manager.approve(completed_task, completed_step["id"])
+
+    fake_repo = tmp_path / "_lthread_proto"
+    fake_repo.mkdir()
+    inspected: list[str] = []
+
+    def _fake_run(trace_file: Path, *, ltp_repo_root: Path) -> subprocess.CompletedProcess[str]:
+        task_id = trace_file.name.removesuffix(".trace.jsonl")
+        inspected.append(task_id)
+        return subprocess.CompletedProcess(
+            args=["node"],
+            returncode=0,
+            stdout=f"ok:{task_id}\n",
+            stderr="",
+        )
+
+    from ls.agent_shell import cli as cli_module
+
+    monkeypatch.setattr(cli_module, "_run_ltp_inspect", _fake_run)
+    result = runner.invoke(
+        app,
+        [
+            "ltp-inspect-all",
+            "--status",
+            "waiting_approval",
+            "--runtime-root",
+            str(runtime_root),
+            "--ltp-repo-root",
+            str(fake_repo),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert waiting_task in result.stdout
+    assert completed_task not in result.stdout
+    assert f"ok:{waiting_task}" in result.stdout
+    assert "Batch inspect complete: 1 task(s)" in result.stdout
+    assert inspected == [waiting_task]
+
+
+def test_cli_ltp_inspect_all_fails_when_any_task_fails(monkeypatch, tmp_path: Path) -> None:
+    runtime_root = tmp_path / ".ls_agent"
+    manager = TaskManager(db_path=runtime_root / "runtime.db", artifacts_root=runtime_root / "artifacts")
+    first_task = manager.run_task("Prepare first waiting task", mode="safe-write")
+    second_task = manager.run_task("Prepare second waiting task", mode="safe-write")
+
+    fake_repo = tmp_path / "_lthread_proto"
+    fake_repo.mkdir()
+
+    def _fake_run(trace_file: Path, *, ltp_repo_root: Path) -> subprocess.CompletedProcess[str]:
+        task_id = trace_file.name.removesuffix(".trace.jsonl")
+        if task_id == second_task:
+            return subprocess.CompletedProcess(args=["node"], returncode=2, stdout="", stderr="semantic drift")
+        return subprocess.CompletedProcess(args=["node"], returncode=0, stdout="ok\n", stderr="")
+
+    from ls.agent_shell import cli as cli_module
+
+    monkeypatch.setattr(cli_module, "_run_ltp_inspect", _fake_run)
+    result = runner.invoke(
+        app,
+        [
+            "ltp-inspect-all",
+            "--status",
+            "waiting_approval",
+            "--runtime-root",
+            str(runtime_root),
+            "--ltp-repo-root",
+            str(fake_repo),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert first_task in result.stdout
+    assert second_task in result.stdout
+    assert "Batch inspect failed" in result.stdout
+    assert f"{second_task}: semantic drift" in result.stdout
+
+
 def test_safe_console_text_escapes_unencodable_paths(monkeypatch) -> None:
     from ls.agent_shell import cli as cli_module
 

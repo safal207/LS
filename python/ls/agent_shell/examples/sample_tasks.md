@@ -8,5 +8,6 @@
 - `ls-agent ltp-export task-12345678`
 - `ls-agent ltp-export-all --status waiting_approval`
 - `ls-agent ltp-inspect task-12345678`
+- `ls-agent ltp-inspect-all --status waiting_approval`
 
 See also: `python/ls/agent_shell/README.md`

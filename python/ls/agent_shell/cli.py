@@ -209,6 +209,13 @@ def _run_ltp_inspect(trace_file: Path, *, ltp_repo_root: Path) -> subprocess.Com
     )
 
 
+def _resolve_existing_ltp_repo_root(ltp_repo_root: Path | None) -> Path:
+    repo_root = ltp_repo_root or _resolve_ltp_repo_root()
+    if not repo_root.exists():
+        raise typer.BadParameter(f"LTP repo root not found: {repo_root}")
+    return repo_root
+
+
 @app.command("run")
 def run_task(
     prompt: str,
@@ -399,11 +406,9 @@ def ltp_inspect_task(
     task_manager = manager(runtime_root)
     task = task_manager.get_status(task_id)
     events = task_manager.get_trace(task_id)
+    repo_root = _resolve_existing_ltp_repo_root(ltp_repo_root)
     with tempfile.TemporaryDirectory(prefix="ls-agent-ltp-") as temp_dir:
         trace_file = _write_ltp_trace_file(task, events, Path(temp_dir) / f"{task_id}.trace.jsonl")
-        repo_root = ltp_repo_root or _resolve_ltp_repo_root()
-        if not repo_root.exists():
-            raise typer.BadParameter(f"LTP repo root not found: {repo_root}")
         try:
             result = _run_ltp_inspect(trace_file, ltp_repo_root=repo_root)
         except FileNotFoundError as exc:
@@ -414,6 +419,49 @@ def ltp_inspect_task(
             message = result.stderr.strip() or f"LTP inspect failed with exit code {result.returncode}"
             message = _safe_console_text(message)
             raise typer.BadParameter(message)
+
+
+@app.command("ltp-inspect-all")
+def ltp_inspect_all(
+    runtime_root: Path = runtime_root_option(),
+    status: str | None = typer.Option(None, "--status", help="Filter tasks by status before inspect."),
+    ltp_repo_root: Path | None = typer.Option(None, "--ltp-repo-root", help="Path to L-THREAD repo root."),
+) -> None:
+    task_manager = manager(runtime_root)
+    tasks = task_manager.list_tasks_filtered(status=status)
+    if not tasks:
+        console.print("[yellow]No tasks matched inspect filter.[/yellow]")
+        raise typer.Exit(0)
+
+    repo_root = _resolve_existing_ltp_repo_root(ltp_repo_root)
+    failures: list[str] = []
+    inspected = 0
+    with tempfile.TemporaryDirectory(prefix="ls-agent-ltp-batch-") as temp_dir:
+        temp_root = Path(temp_dir)
+        for task in tasks:
+            task_id = _task_id_of(task)
+            task_detail = task_manager.get_status(task_id)
+            events = task_manager.get_trace(task_id)
+            trace_file = _write_ltp_trace_file(task_detail, events, temp_root / f"{task_id}.trace.jsonl")
+            console.print(f"[bold]Inspecting[/bold] {_safe_console_text(task_id)}")
+            try:
+                result = _run_ltp_inspect(trace_file, ltp_repo_root=repo_root)
+            except FileNotFoundError as exc:
+                raise typer.BadParameter(str(exc)) from exc
+            if result.stdout:
+                console.print(_safe_console_text(result.stdout.rstrip()))
+            if result.returncode != 0:
+                message = result.stderr.strip() or f"LTP inspect failed with exit code {result.returncode}"
+                failures.append(f"{task_id}: {_safe_console_text(message)}")
+            inspected += 1
+
+    if failures:
+        console.print(f"[red]Batch inspect failed[/red] for {len(failures)} task(s)")
+        for failure in failures:
+            console.print(f"- {failure}")
+        raise typer.Exit(1)
+
+    console.print(f"[cyan]Batch inspect complete:[/cyan] {inspected} task(s)")
 
 
 @app.command("trace")

@@ -116,6 +116,17 @@ You can override it with:
 ls-agent ltp-inspect task-12345678 --ltp-repo-root C:/path/to/L-THREAD
 ```
 
+Requirements for live inspect:
+
+```bash
+cd C:/path/to/L-THREAD
+pnpm install
+```
+
+`ltp-inspect` and `ltp-inspect-all` run the local inspector directly through
+`node + node_modules/ts-node/dist/bin.js`, so the repo must already have its
+dependencies installed.
+
 Export one task trace:
 
 ```bash
@@ -126,6 +137,12 @@ Inspect one task trace through `ltp inspect`:
 
 ```bash
 ls-agent ltp-inspect task-12345678
+```
+
+Batch inspect all waiting approvals through the local LTP toolchain:
+
+```bash
+ls-agent ltp-inspect-all --status waiting_approval
 ```
 
 Batch export all waiting approvals:
@@ -147,6 +164,7 @@ ls-agent list --status waiting_approval
 ls-agent inspect task-12345678
 ls-agent approvals --task-id task-12345678
 ls-agent ltp-inspect task-12345678
+ls-agent ltp-inspect-all --status waiting_approval
 ls-agent approve task-12345678 task-12345678-step-4
 ls-agent artifacts task-12345678
 ```
