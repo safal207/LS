@@ -191,3 +191,7 @@ ls-agent ltp-inspect-all --status waiting_approval
 ls-agent approve task-12345678 task-12345678-step-4
 ls-agent artifacts task-12345678
 ```
+
+Investor/legal snapshot for this operator loop:
+
+- `docs/pitch/ls-agent-shell-operator-delta.md`

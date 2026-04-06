@@ -3,6 +3,7 @@ import CTA from '../components/CTA';
 import Features from '../components/Features';
 import Hero from '../components/Hero';
 import ProblemSolution from '../components/ProblemSolution';
+import OperatorDelta from '../components/OperatorDelta';
 import ReflectiveRuntime from '../components/ReflectiveRuntime';
 import Roadmap from '../components/Roadmap';
 import RuntimeLivePanel from '../components/RuntimeLivePanel';
@@ -22,6 +23,7 @@ export default function IndexPage() {
       <Features />
       <ReflectiveRuntime />
       <RuntimeLivePanel />
+      <OperatorDelta />
       <Roadmap />
       <Visuals />
       <CTA />
