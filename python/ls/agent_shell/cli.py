@@ -3,6 +3,8 @@ from __future__ import annotations
 from enum import Enum
 import os
 from pathlib import Path
+import subprocess
+import sys
 
 import typer
 from rich.console import Console
@@ -75,6 +77,16 @@ def _approval_table(approvals: list[dict], *, title: str) -> None:
             approval["reason"],
         )
     console.print(table)
+
+
+def _open_path(target: Path) -> None:
+    if sys.platform.startswith("win"):
+        os.startfile(str(target))  # type: ignore[attr-defined]
+        return
+    if sys.platform == "darwin":
+        subprocess.run(["open", str(target)], check=True)
+        return
+    subprocess.run(["xdg-open", str(target)], check=True)
 
 
 @app.command("run")
@@ -196,6 +208,16 @@ def show_artifact(artifact_id: str, runtime_root: Path = runtime_root_option()) 
     console.print(f"[cyan]Path:[/cyan] {artifact['path_or_url']}")
 
 
+@app.command("artifact-open")
+def open_artifact(artifact_id: str, runtime_root: Path = runtime_root_option()) -> None:
+    artifact = manager(runtime_root).get_artifact(artifact_id)
+    target = Path(artifact["path_or_url"])
+    if not target.exists():
+        raise typer.BadParameter(f"Artifact path does not exist: {target}")
+    _open_path(target)
+    console.print(f"[green]Opened[/green] {target}")
+
+
 @app.command("trace")
 def trace_task(task_id: str, runtime_root: Path = runtime_root_option()) -> None:
     logs = manager(runtime_root).get_trace(task_id)
@@ -245,9 +267,11 @@ def serve(
     os.environ["LS_TASK_RUNTIME_ROOT"] = str(runtime_root)
     if transport is Transport.HTTP:
         console.print(f"[green]Serving HTTP MCP[/green] on http://{host}:{port}")
+        console.print(f"[cyan]Runtime root:[/cyan] {runtime_root}")
         run_http_server(host=host, port=port)
         return
     console.print("[green]Serving stdio MCP[/green]")
+    console.print(f"[cyan]Runtime root:[/cyan] {runtime_root}")
     raise typer.Exit(run_stdio_server())
 
 

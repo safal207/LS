@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -26,7 +27,7 @@ class MCPHTTPHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         if parsed.path == "/health":
-            self._json_response(200, {"ok": True})
+            self._json_response(200, {"ok": True, "runtime_root": os.getenv("LS_TASK_RUNTIME_ROOT", ".ls_agent")})
             return
         if parsed.path == "/resources/read":
             query = parse_qs(parsed.query)

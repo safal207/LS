@@ -134,6 +134,7 @@ def test_cli_serve_http_sets_runtime_root(monkeypatch, tmp_path: Path) -> None:
         ],
     )
     assert result.exit_code == 0
+    assert "Runtime root:" in result.stdout
     assert captured == {
         "host": "127.0.0.1",
         "port": 8123,
@@ -173,3 +174,29 @@ def test_cli_tasks_approvals_and_artifact_views(tmp_path: Path) -> None:
     assert artifact_result.exit_code == 0
     assert artifact["id"] in artifact_result.stdout
     assert artifact["title"] in artifact_result.stdout
+
+
+def test_cli_artifact_open_uses_platform_opener(monkeypatch, tmp_path: Path) -> None:
+    runtime_root = tmp_path / ".ls_agent"
+    manager = TaskManager(db_path=runtime_root / "runtime.db", artifacts_root=runtime_root / "artifacts")
+    task_id = manager.run_task("Prepare docs", mode="safe-write")
+    status = manager.get_status(task_id)
+    waiting_step = next(step for step in status["steps"] if step["status"] == "waiting_approval")
+    manager.approve(task_id, waiting_step["id"])
+    artifact = manager.list_artifacts(task_id)[0]
+
+    opened: dict[str, str] = {}
+
+    def _fake_open(target: Path) -> None:
+        opened["path"] = str(target)
+
+    from ls.agent_shell import cli as cli_module
+
+    monkeypatch.setattr(cli_module, "_open_path", _fake_open)
+    result = runner.invoke(
+        app,
+        ["artifact-open", artifact["id"], "--runtime-root", str(runtime_root)],
+    )
+    assert result.exit_code == 0
+    assert opened["path"].endswith("report.md")
+    assert "Opened" in result.stdout
