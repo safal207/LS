@@ -142,6 +142,10 @@ def _write_ltp_trace_file(task: dict[str, Any], events: list[dict[str, Any]], de
     return destination
 
 
+def _task_id_of(task: dict[str, Any]) -> str:
+    return str(task.get("id") or task.get("task_id") or "unknown-task")
+
+
 def _resolve_ltp_repo_root() -> Path:
     configured = os.getenv("LS_LTP_REPO_ROOT")
     if configured:
@@ -311,6 +315,35 @@ def ltp_export(
     destination = output or (runtime_root / "ltp" / f"{task_id}.trace.jsonl")
     trace_file = _write_ltp_trace_file(task, events, destination)
     console.print(f"[green]LTP trace exported[/green] {trace_file}")
+
+
+@app.command("ltp-export-all")
+def ltp_export_all(
+    runtime_root: Path = runtime_root_option(),
+    status: str | None = typer.Option(None, "--status", help="Filter tasks by status before export."),
+    output_dir: Path | None = typer.Option(None, "--output-dir", help="Destination directory for JSONL traces."),
+) -> None:
+    task_manager = manager(runtime_root)
+    tasks = task_manager.list_tasks_filtered(status=status)
+    if not tasks:
+        console.print("[yellow]No tasks matched export filter.[/yellow]")
+        raise typer.Exit(0)
+
+    destination_root = output_dir or (runtime_root / "ltp" / "batch")
+    destination_root.mkdir(parents=True, exist_ok=True)
+    exported = 0
+    for task in tasks:
+        task_id = _task_id_of(task)
+        task_detail = task_manager.get_status(task_id)
+        events = task_manager.get_trace(task_id)
+        trace_file = _write_ltp_trace_file(
+            task_detail,
+            events,
+            destination_root / f"{task_id}.trace.jsonl",
+        )
+        console.print(f"[green]Exported[/green] {task_id} -> {trace_file}")
+        exported += 1
+    console.print(f"[cyan]Batch export complete:[/cyan] {exported} trace file(s)")
 
 
 @app.command("ltp-inspect")

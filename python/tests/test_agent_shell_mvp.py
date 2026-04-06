@@ -253,3 +253,34 @@ def test_cli_ltp_inspect_uses_external_ltp_tool(monkeypatch, tmp_path: Path) -> 
     assert "LTP inspector ok" in result.stdout
     assert captured["ltp_repo_root"] == str(fake_repo)
     assert int(captured["lines"]) >= 1
+
+
+def test_cli_ltp_export_all_filters_by_status(tmp_path: Path) -> None:
+    runtime_root = tmp_path / ".ls_agent"
+    manager = TaskManager(db_path=runtime_root / "runtime.db", artifacts_root=runtime_root / "artifacts")
+
+    waiting_task = manager.run_task("Prepare waiting task", mode="safe-write")
+    completed_task = manager.run_task("Prepare completed task", mode="safe-write")
+    completed_status = manager.get_status(completed_task)
+    completed_step = next(
+        step for step in completed_status["steps"] if step["status"] == "waiting_approval"
+    )
+    manager.approve(completed_task, completed_step["id"])
+
+    output_dir = tmp_path / "ltp-batch"
+    result = runner.invoke(
+        app,
+        [
+            "ltp-export-all",
+            "--status",
+            "waiting_approval",
+            "--runtime-root",
+            str(runtime_root),
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+    assert result.exit_code == 0
+    exported = sorted(path.name for path in output_dir.glob("*.jsonl"))
+    assert exported == [f"{waiting_task}.trace.jsonl"]
+    assert "Batch export complete" in result.stdout
