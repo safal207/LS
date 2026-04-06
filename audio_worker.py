@@ -3,9 +3,7 @@
 Audio Worker - Main thread for audio capture, STT, and LLM processing
 """
 
-import sys
 import queue
-import threading
 import time
 import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -148,7 +146,6 @@ class AudioWorker(QThread):
     def process_audio_loop(self):
         """Main processing loop"""
         accumulated_audio = []
-        question_detected = False
         
         while self.running:
             try:

@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 """
-SystemObserver — мета-когнитивный наблюдатель за адекватностью системы.
+SystemObserver - meta-cognitive adequacy observer.
 
-Следит за состоянием всего когнитивного поля (TemporalGraph + 5 сил) и
-применяет корректирующую Силу 6 при обнаружении патологий.
+Monitors the full cognitive field (TemporalGraph + five forces) and
+applies corrective Force 6 when pathologies are detected.
 
-Патологии:
-  OVERHEATING        — все узлы перегреты, нет дискриминации
-  OSSIFICATION       — ось заморожена, система не принимает новые сигналы
-  VACUUM             — нет ни одного активного узла, пустота
-  SPLIT_BRAIN        — два режима в клинче, система не может выбрать
-  RUNAWAY_CHAOS      — хаос нарастает лавинообразно, поле рушится
-  RESONANCE_COLLAPSE — ось слишком слабая, не может направлять решения
+Pathologies:
+  OVERHEATING        - all nodes are overheated; no discrimination remains
+  OSSIFICATION       - the axis is frozen; the system ignores new signals
+  VACUUM             - no active node exists; the field is empty
+  SPLIT_BRAIN        - two modes are deadlocked; the system cannot choose
+  RUNAWAY_CHAOS      - chaos compounds and the field destabilizes
+  RESONANCE_COLLAPSE - the axis is too weak to guide decisions
 """
 
 from __future__ import annotations
@@ -24,26 +24,37 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 if TYPE_CHECKING:
     from .temporal_graph import TemporalGraph
 
-# ── Патологии ────────────────────────────────────────────────────────────────
+# -- Pathologies --------------------------------------------------------
 
-OVERHEATING        = "OVERHEATING"         # среднее resonance > _OVERHEAT_MEAN
-OSSIFICATION       = "OSSIFICATION"        # ось не менялась > _OSSIFY_CYCLES
+OVERHEATING        = "OVERHEATING"         # mean resonance > _OVERHEAT_MEAN
+OSSIFICATION       = "OSSIFICATION"        # axis unchanged > _OSSIFY_CYCLES
 VACUUM             = "VACUUM"              # max resonance < _VACUUM_THRESH
-SPLIT_BRAIN        = "SPLIT_BRAIN"         # два узла вплотную на высоком резонансе
+SPLIT_BRAIN        = "SPLIT_BRAIN"         # two top nodes nearly tied at high resonance
 RUNAWAY_CHAOS      = "RUNAWAY_CHAOS"       # chaos_trend < _CHAOS_COLLAPSE
-RESONANCE_COLLAPSE = "RESONANCE_COLLAPSE"  # resonance оси < _WEAK_AXIS
+RESONANCE_COLLAPSE = "RESONANCE_COLLAPSE"  # axis resonance < _WEAK_AXIS
 
-# ── Пороги ───────────────────────────────────────────────────────────────────
+# -- Thresholds ---------------------------------------------------------
 
-_OVERHEAT_MEAN   = 0.82   # среднее резонанса — перегрев
-_VACUUM_THRESH   = 0.45   # максимальное резонанса — вакуум
-_SPLIT_GAP       = 0.05   # разрыв между топ-2 при обоих > 0.70 — split-brain
-_OSSIFY_CYCLES   = 8      # циклов без смены оси — оссификация
-_OSSIFY_BIAS     = 0.80   # stability_bias оси при оссификации
-_CHAOS_COLLAPSE  = -0.30  # chaos_trend — лавинный хаос
-_WEAK_AXIS       = 0.35   # resonance оси — коллапс
+_OVERHEAT_MEAN   = 0.82   # mean resonance => overheating
+_VACUUM_THRESH   = 0.45   # max resonance => vacuum
+_SPLIT_GAP       = 0.05   # top-2 gap when both > 0.70 => split-brain
+_OSSIFY_CYCLES   = 8      # unchanged-axis cycles => ossification
+_OSSIFY_BIAS     = 0.80   # axis stability_bias during ossification
+_CHAOS_COLLAPSE  = -0.30  # chaos trend => runaway chaos
+_WEAK_AXIS       = 0.35   # axis resonance => collapse
+_SELF_LEARN_WINDOW_S = 60 * 60
+_SELF_LEARN_REPEAT_THRESHOLD = 3
 
-# Штрафы адекватности за каждую патологию
+_SELF_LEARN_LESSON_MAP: Dict[str, str] = {
+    OSSIFICATION: "lesson:meta:ossification_tendency",
+    VACUUM: "lesson:meta:vacuum_tendency",
+    OVERHEATING: "lesson:meta:overheating_tendency",
+    SPLIT_BRAIN: "lesson:meta:split_brain_tendency",
+    RUNAWAY_CHAOS: "lesson:meta:runaway_chaos_tendency",
+    RESONANCE_COLLAPSE: "lesson:meta:resonance_collapse_tendency",
+}
+
+# Adequacy penalty applied per pathology
 _PATHOLOGY_DEDUCTIONS: Dict[str, float] = {
     OVERHEATING:        0.15,
     OSSIFICATION:       0.20,
@@ -54,56 +65,82 @@ _PATHOLOGY_DEDUCTIONS: Dict[str, float] = {
 }
 
 
-# ── Отчёт ────────────────────────────────────────────────────────────────────
+# -- Report -------------------------------------------------------------
 
 @dataclass
 class AdequacyReport:
-    """Результат одного цикла наблюдения."""
-    score: float                    # 0.0 (кризис) → 1.0 (здоровое состояние)
-    pathologies: List[str]          # коды обнаруженных патологий
-    corrections: List[str]          # описания применённых коррекций
-    axis_id: Optional[str]          # id текущей оси
+    """Result of one observation cycle."""
+    score: float                    # 0.0 (crisis) -> 1.0 (healthy state)
+    pathologies: List[str]          # detected pathology codes
+    corrections: List[str]          # descriptions of applied corrections
+    axis_id: Optional[str]          # current axis id
     timestamp: float = field(default_factory=time.time)
 
     @property
     def adequate(self) -> bool:
-        """Система работает нормально."""
+        """The system is operating normally."""
         return self.score >= 0.65
 
     @property
     def critical(self) -> bool:
-        """Система в критическом состоянии."""
+        """The system is in a critical state."""
         return self.score < 0.40
 
 
-# ── Наблюдатель ──────────────────────────────────────────────────────────────
+# -- Observer -----------------------------------------------------------
 
 class SystemObserver:
     """
-    Мета-когнитивный наблюдатель (Сила 6).
+    Meta-cognitive observer (Force 6).
 
-    Запускается после всех пяти сил в каждом цикле Coordinator.decide().
-    Обнаруживает патологические состояния и применяет корректирующие воздействия
-    непосредственно на узлы TemporalGraph.
+    Runs after all five forces in each Coordinator.decide() cycle.
+    Detects pathological states and applies corrective interventions
+    directly to TemporalGraph nodes.
 
-    Принцип: наблюдатель не вмешивается в норме — только при отклонениях.
-    Его коррекции минимальны и направлены на восстановление динамического
-    равновесия, а не на навязывание конкретного состояния.
+    Principle: the observer stays out of the way unless the field deviates.
+    Its corrections are minimal and aim to restore dynamic
+    equilibrium rather than imposing a specific state.
     """
 
     def __init__(self) -> None:
-        # История отчётов (последние 50 циклов)
+        # Report history (last 50 cycles)
         self._reports: deque[AdequacyReport] = deque(maxlen=50)
-        # Счётчик последовательных циклов с одной и той же осью
+        # Counter for consecutive cycles with the same axis
         self._axis_tenure: Dict[str, int] = {}
         self._last_axis: Optional[str] = None
-        # Feature 2: накопительный счётчик патологий за сессию
+        # Feature 2: cumulative per-session pathology counter
         self._pathology_counts: Dict[str, int] = {}
-        # После N повторений патологии → пишем lesson:meta:* узел
+        # After N repeats of one pathology, write a lesson:meta:* node
         _META_LESSON_THRESHOLD: int = 3
         self._meta_lesson_threshold = _META_LESSON_THRESHOLD
+        self._last_self_lessons: set[str] = set()
 
-    # ── Главный метод ────────────────────────────────────────────────────────
+    def _pathology_count_in_window(self, pathology: str, now_ts: float) -> int:
+        cutoff = now_ts - _SELF_LEARN_WINDOW_S
+        count = 0
+        for report in self._reports:
+            if report.timestamp < cutoff:
+                continue
+            if pathology in report.pathologies:
+                count += 1
+        return count
+
+    def _inject_self_lessons(self, graph: "TemporalGraph", pathologies: List[str], now_ts: float) -> List[str]:
+        injected: List[str] = []
+        self._last_self_lessons = set()
+        for pathology in pathologies:
+            lesson_id = _SELF_LEARN_LESSON_MAP.get(pathology)
+            if lesson_id is None:
+                continue
+            history_hits = self._pathology_count_in_window(pathology, now_ts)
+            if (history_hits + 1) < _SELF_LEARN_REPEAT_THRESHOLD:
+                continue
+            graph.add_or_update(lesson_id, resonance=0.62, harmony_bonus=0.30, resting_resonance=0.45)
+            self._last_self_lessons.add(lesson_id)
+            injected.append(lesson_id)
+        return injected
+
+    # -- Main method ----------------------------------------------------
 
     def observe_and_correct(
         self,
@@ -111,13 +148,14 @@ class SystemObserver:
         chaos_trend: float = 0.0,
     ) -> AdequacyReport:
         """
-        1. Наблюдает текущее состояние графа → обнаруживает патологии.
-        2. Применяет минимальные корректирующие силы к узлам.
-        3. Вычисляет score адекватности.
-        4. Сохраняет отчёт в историю.
+        1. Observe the current graph state and detect pathologies.
+        2. Apply minimal corrective forces to nodes.
+        3. Compute the adequacy score.
+        4. Save the report to history.
         """
         pathologies: List[str] = []
         corrections: List[str] = []
+        now_ts = time.time()
 
         nodes = list(graph.nodes.values())
         if not nodes:
@@ -133,7 +171,7 @@ class SystemObserver:
         axis_node = graph.get_meritocratic_axis()
         axis_id   = axis_node.id if axis_node else None
 
-        # Обновляем счётчик непрерывного владения осью
+        # Update the continuous axis-tenure counter
         if axis_id is not None:
             if axis_id == self._last_axis:
                 self._axis_tenure[axis_id] = self._axis_tenure.get(axis_id, 0) + 1
@@ -144,21 +182,21 @@ class SystemObserver:
             self._axis_tenure = {}
             self._last_axis = None
 
-        # ── Обнаружение патологий ─────────────────────────────────────────────
+        # -- Pathology detection ---------------------------------------------
 
         resonances  = [n.resonance for n in nodes]
         mean_r      = sum(resonances) / len(resonances)
         max_r       = max(resonances)
 
-        # 1. OVERHEATING: среднее выше порога → поле перегрето
+        # 1. OVERHEATING: mean resonance above threshold -> field overheated
         if mean_r > _OVERHEAT_MEAN:
             pathologies.append(OVERHEATING)
 
-        # 2. VACUUM: даже лучший узел ниже порога → пустота
+        # 2. VACUUM: even the best node is below threshold -> vacuum
         if max_r < _VACUUM_THRESH:
             pathologies.append(VACUUM)
 
-        # 3. OSSIFICATION: ось не менялась слишком долго + заморозилась
+        # 3. OSSIFICATION: the same axis persisted too long and froze
         if (
             axis_id is not None
             and self._axis_tenure.get(axis_id, 0) >= _OSSIFY_CYCLES
@@ -167,7 +205,7 @@ class SystemObserver:
         ):
             pathologies.append(OSSIFICATION)
 
-        # 4. SPLIT_BRAIN: два верхних узла почти равны и оба высоки
+        # 4. SPLIT_BRAIN: top two nodes are both high and nearly tied
         sorted_nodes = sorted(nodes, key=lambda n: n.resonance, reverse=True)
         if (
             len(sorted_nodes) >= 2
@@ -177,31 +215,31 @@ class SystemObserver:
         ):
             pathologies.append(SPLIT_BRAIN)
 
-        # 5. RUNAWAY_CHAOS: тренд хаоса уходит в пике
+        # 5. RUNAWAY_CHAOS: chaos trend is collapsing sharply
         if chaos_trend < _CHAOS_COLLAPSE:
             pathologies.append(RUNAWAY_CHAOS)
 
-        # 6. RESONANCE_COLLAPSE: ось слишком слабая
+        # 6. RESONANCE_COLLAPSE: axis resonance is too weak
         if axis_node is not None and axis_node.resonance < _WEAK_AXIS:
             pathologies.append(RESONANCE_COLLAPSE)
 
-        # ── Коррекции (Сила 6) ────────────────────────────────────────────────
+        # -- Corrections (Force 6) -------------------------------------------
 
         if OVERHEATING in pathologies:
-            # Нормализуем всё поле — снижаем и resting, и текущий резонанс.
-            # Нельзя использовать resting как пол: он тоже перегрет.
+            # Normalize the full field: lower both resting and current resonance.
+            # Resting resonance cannot be the floor here because it is overheated too.
             for n in nodes:
                 n.resting_resonance = max(0.30, n.resting_resonance * 0.88)
                 n.resonance = max(n.resting_resonance, n.resonance * 0.88)
-            corrections.append("normalized field ×0.88 (overheating)")
+            corrections.append("normalized field x0.88 (overheating)")
 
         if VACUUM in pathologies:
-            # Поднимаем resting и текущий резонанс всех узлов
+            # Raise both resting and current resonance of all nodes
             for n in nodes:
                 rr = n.resting_resonance if n.resting_resonance is not None else 0.5
                 n.resting_resonance = min(0.65, rr + 0.10)
                 n.resonance = max(n.resonance, n.resting_resonance)
-            # Если нет ни одного subconscious-узла — инжектируем якорь
+            # If no subconscious node exists, inject an anchor
             has_sub = any(n.id.startswith("subconscious:") for n in nodes)
             if not has_sub:
                 graph.add_or_update("subconscious:deliberative", 0.55, 0.25)
@@ -209,38 +247,39 @@ class SystemObserver:
             corrections.append("lifted resting resonances +0.10 (vacuum)")
 
         if OSSIFICATION in pathologies and axis_node is not None:
-            # Снижаем stability_bias + смещаем ось вниз (включая resting).
-            # Ось заморожена — нужно разморозить полностью, не только current.
+            # Lower stability_bias and nudge the axis down, including resting resonance.
+            # The axis is frozen; unfreeze it fully, not only at current resonance.
+            axis_key = axis_node.id
             axis_node.stability_bias = max(0.0, axis_node.stability_bias - 0.30)
             axis_node.resting_resonance = max(0.30, axis_node.resting_resonance - 0.08)
             axis_node.resonance = max(axis_node.resting_resonance, axis_node.resonance - 0.08)
-            # Сбрасываем счётчик чтобы дать шанс другим узлам
-            self._axis_tenure[axis_id] = 0
+            # Reset tenure so other nodes get a chance
+            self._axis_tenure[axis_key] = 0
             corrections.append(
-                f"de-ossified '{axis_id}': stability_bias -{0.30:.2f}, nudge -0.08"
+                f"de-ossified '{axis_key}': stability_bias -{0.30:.2f}, nudge -0.08"
             )
 
         if SPLIT_BRAIN in pathologies and len(sorted_nodes) >= 2:
             weaker = sorted_nodes[1]
-            # Используем фиксированный нижний пол (не resting — он тоже высокий при split).
+            # Use a fixed lower floor; resting is also elevated during split-brain.
             weaker.resonance = max(0.30, weaker.resonance - 0.12)
             corrections.append(
                 f"resolved split-brain: suppressed '{weaker.id}' by 0.12"
             )
 
         if RUNAWAY_CHAOS in pathologies and axis_node is not None:
-            # Усиливаем якорную ось как противовес хаосу
+            # Boost the anchor axis as a counterweight to chaos
             axis_node.resonance = min(1.0, axis_node.resonance + 0.08)
             if axis_node.resting_resonance is not None:
                 axis_node.resting_resonance = min(0.80, axis_node.resting_resonance + 0.05)
             corrections.append(f"chaos anchor: boosted '{axis_id}' +0.08 (runaway_chaos)")
 
         if RESONANCE_COLLAPSE in pathologies and axis_node is not None:
-            # Экстренный буст оси
+            # Emergency axis boost
             axis_node.resonance = min(1.0, axis_node.resonance + 0.15)
             corrections.append(f"emergency boost +0.15 for '{axis_id}' (resonance_collapse)")
 
-        # ── Score ─────────────────────────────────────────────────────────────
+        # -- Score ----------------------------------------------------------
 
         score = 1.0
         for p in pathologies:
@@ -252,42 +291,46 @@ class SystemObserver:
             pathologies=pathologies,
             corrections=corrections,
             axis_id=axis_id,
+            timestamp=now_ts,
         )
+        self_lessons = self._inject_self_lessons(graph, pathologies, now_ts=now_ts)
+        for lesson_id in self_lessons:
+            corrections.append(f"self-learned '{lesson_id}' from repeated pathology")
         self._reports.append(report)
 
-        # Feature 2: записываем meta-уроки при повторных патологиях
+        # Feature 2: write meta-lessons for repeated pathologies
         self._maybe_write_meta_lessons(graph, pathologies)
 
         return report
 
-    # ── Feature 2: Мета-уроки наблюдателя ────────────────────────────────────
+    # -- Feature 2: observer meta-lessons --------------------------------
 
     def _maybe_write_meta_lessons(
         self, graph: "TemporalGraph", pathologies: List[str]
     ) -> None:
         """
-        Если одна и та же патология встречается >= _meta_lesson_threshold раз,
-        наблюдатель записывает lesson:meta:* узел в TemporalGraph.
-        Система запоминает собственные паттерны слабостей.
+        If the same pathology occurs >= _meta_lesson_threshold times,
+        the observer writes a lesson:meta:* node into TemporalGraph.
+        This lets the system remember its own weakness patterns.
         """
         for p in pathologies:
             self._pathology_counts[p] = self._pathology_counts.get(p, 0) + 1
             count = self._pathology_counts[p]
             if count == self._meta_lesson_threshold:
                 node_id = f"lesson:meta:{p.lower()}_pattern"
-                # resonance зависит от серьёзности патологии
+                # resonance scales with pathology severity
                 severity = _PATHOLOGY_DEDUCTIONS.get(p, 0.10)
                 resonance = round(min(0.80, 0.45 + severity * 1.5), 3)
                 graph.add_or_update(node_id, resonance, harmony_bonus=0.20)
 
-    # ── Feature 6: Ночной отчёт сессии ───────────────────────────────────────
+    # -- Feature 6: session report ---------------------------------------
 
     def session_report(self, graph: "TemporalGraph") -> dict:
         """
-        Итоговый анализ сессии. Вызывается при sleep consolidation.
-        - Классифицирует качество сессии (лёгкая / умеренная / тяжёлая)
-        - Инжектирует lesson:session:* узлы для доминирующих патологий
-        - Возвращает dict для логирования/observability
+        Final session analysis. Called during sleep consolidation.
+        - Classifies session quality (easy / moderate / heavy)
+        - Injects lesson:session:* nodes for dominant pathologies
+        - Returns a dict for logging/observability
         """
         if not self._reports:
             return {"session_quality": "нет данных", "total_cycles": 0}
@@ -320,12 +363,12 @@ class SystemObserver:
             "lesson_nodes_injected":  injected,
         }
 
-    # ── Аналитика ─────────────────────────────────────────────────────────────
+    # -- Analytics --------------------------------------------------------
 
     def adequacy_trend(self) -> float:
         """
-        Тренд адекватности за последние N отчётов.
-        Положительный → улучшение, отрицательный → деградация.
+        Adequacy trend over the last N reports.
+        Positive means improvement; negative means degradation.
         """
         if len(self._reports) < 4:
             return 0.0
@@ -346,6 +389,7 @@ class SystemObserver:
                 "critical": False,
                 "pathologies": [],
                 "corrections": [],
+                "self_lessons": [],
                 "axis_tenure": 0,
                 "trend": 0.0,
                 "total_reports": 0,
@@ -357,6 +401,7 @@ class SystemObserver:
             "critical":      last.critical,
             "pathologies":   last.pathologies,
             "corrections":   last.corrections,
+            "self_lessons":  sorted(self._last_self_lessons),
             "axis_id":       last.axis_id,
             "axis_tenure":   self._axis_tenure.get(self._last_axis or "", 0),
             "trend":         self.adequacy_trend(),

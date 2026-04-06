@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LiminalQA Local Dashboard</title>
+  <style>
+    :root {
+      --bg: #f2efe8;
+      --panel: #fffaf1;
+      --ink: #161311;
+      --muted: #6d655d;
+      --accent: #a63d2f;
+      --accent-2: #1e6f5c;
+      --line: #d9cdbb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, rgba(166, 61, 47, 0.14), transparent 28rem),
+        radial-gradient(circle at bottom right, rgba(30, 111, 92, 0.12), transparent 28rem),
+        var(--bg);
+      color: var(--ink);
+    }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 4vw, 3.8rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+    .lede {
+      max-width: 680px;
+      color: var(--muted);
+      font-size: 1.05rem;
+      margin-bottom: 28px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 12px 30px rgba(22, 19, 17, 0.06);
+    }
+    .kicker {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .status {
+      font-size: 1.4rem;
+      margin-bottom: 8px;
+    }
+    .ok { color: var(--accent-2); }
+    .bad { color: var(--accent); }
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 16px;
+      background: var(--ink);
+      color: white;
+      font: inherit;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: var(--accent);
+    }
+    button.active {
+      background: var(--accent-2);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #171311;
+      color: #f8f1e3;
+      border-radius: 14px;
+      padding: 14px;
+      min-height: 220px;
+      overflow: auto;
+      font-size: 0.9rem;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 10px;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .summary-box {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(255, 250, 241, 0.65);
+    }
+    .summary-label {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .summary-value {
+      font-size: 1.1rem;
+    }
+    .lane-list {
+      margin: 14px 0 0;
+      padding-left: 18px;
+    }
+    .lane-list li {
+      margin: 6px 0;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+      <div>
+        <h1 id="title">LiminalQA<br>Локальная панель</h1>
+        <p id="lede" class="lede">Маленькая локальная панель для пути LS -&gt; LiminalQA. Проверяй здоровье сервиса, отправляй smoke batch и смотри preview query без ручного curl.</p>
+      </div>
+      <div class="panel" style="padding:12px 14px;min-width:180px;">
+        <div id="lang-label" class="kicker" style="margin-bottom:8px;">Язык</div>
+        <div class="button-row" style="margin-top:0;">
+          <button id="lang-ru" type="button" class="active">Русский</button>
+          <button id="lang-en" type="button">English</button>
+        </div>
+      </div>
+    </div>
+
+    <section class="grid">
+      <article class="panel">
+        <div id="health-kicker" class="kicker">Здоровье сервиса</div>
+        <div id="health-status" class="status">Проверка...</div>
+        <div id="health-meta" class="meta"></div>
+        <div class="button-row">
+          <button id="refresh-health">Проверить health</button>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div id="smoke-kicker" class="kicker">Smoke Publish</div>
+        <div id="smoke-meta" class="meta">Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.</div>
+        <div class="button-row">
+          <button id="publish-smoke" class="secondary">Отправить smoke batch</button>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div id="quality-kicker" class="kicker">Quality Report</div>
+        <div id="quality-meta" class="meta">Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.</div>
+        <div class="button-row">
+          <button id="generate-quality-report" class="secondary">Сгенерировать quality report</button>
+          <button id="publish-quality-report">Отправить quality report</button>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div id="query-kicker" class="kicker">Query Preview</div>
+        <div id="query-meta" class="meta">Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.</div>
+        <div class="button-row">
+          <button id="run-query">Показать query preview</button>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel" style="margin-top:16px;">
+      <div id="quality-preview-kicker" class="kicker">Quality Preview</div>
+      <div id="quality-preview-meta" class="meta">Краткая сводка по текущему локальному quality report.</div>
+      <div class="summary-grid">
+        <div class="summary-box">
+          <div id="summary-verdict-label" class="summary-label">Aggregate Verdict</div>
+          <div id="summary-verdict" class="summary-value">n/a</div>
+        </div>
+        <div class="summary-box">
+          <div id="summary-lanes-label" class="summary-label">Lanes</div>
+          <div id="summary-lanes" class="summary-value">0</div>
+        </div>
+        <div class="summary-box">
+          <div id="summary-failures-label" class="summary-label">Failures</div>
+          <div id="summary-failures" class="summary-value">0</div>
+        </div>
+        <div class="summary-box">
+          <div id="summary-coverage-label" class="summary-label">Min Coverage</div>
+          <div id="summary-coverage" class="summary-value">n/a</div>
+        </div>
+      </div>
+      <ul id="lane-list" class="lane-list"></ul>
+    </section>
+
+    <section class="panel" style="margin-top:16px;">
+      <div id="result-kicker" class="kicker">Результат</div>
+      <pre id="result">Ожидание действия...</pre>
+    </section>
+  </main>
+  <script>
+    const result = document.getElementById("result");
+    const healthStatus = document.getElementById("health-status");
+    const healthMeta = document.getElementById("health-meta");
+    const dictionary = {
+      ru: {
+        title: "LiminalQA<br>Локальная панель",
+        lede: "Маленькая локальная панель для пути LS -> LiminalQA. Проверяй здоровье сервиса, отправляй smoke batch и смотри preview query без ручного curl.",
+        langLabel: "Язык",
+        healthKicker: "Здоровье сервиса",
+        healthChecking: "Проверка...",
+        healthHealthy: "Сервис жив",
+        healthUnavailable: "Недоступен",
+        refreshHealth: "Проверить health",
+        smokeKicker: "Smoke Publish",
+        smokeMeta: "Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.",
+        publishSmoke: "Отправить smoke batch",
+        qualityKicker: "Quality Report",
+        qualityMeta: "Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.",
+        generateQualityReport: "Сгенерировать quality report",
+        publishQualityReport: "Отправить quality report",
+        qualityPreviewKicker: "Quality Preview",
+        qualityPreviewMeta: "Краткая сводка по текущему локальному quality report.",
+        summaryVerdictLabel: "Aggregate Verdict",
+        summaryLanesLabel: "Lanes",
+        summaryFailuresLabel: "Failures",
+        summaryCoverageLabel: "Min Coverage",
+        noQualityReport: "Локальный quality report еще не создан.",
+        laneLine: "{title}: {verdict}, failures={failures}, coverage={coverage}",
+        queryKicker: "Query Preview",
+        queryMeta: "Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.",
+        runQuery: "Показать query preview",
+        resultKicker: "Результат",
+        waiting: "Ожидание действия...",
+        working: "Выполняю..."
+      },
+      en: {
+        title: "LiminalQA<br>Local Dashboard",
+        lede: "Small local control surface for the LS to LiminalQA path. Check health, push a smoke batch, and preview the latest query without touching curl.",
+        langLabel: "Language",
+        healthKicker: "Service Health",
+        healthChecking: "Checking...",
+        healthHealthy: "Healthy",
+        healthUnavailable: "Unavailable",
+        refreshHealth: "Refresh Health",
+        smokeKicker: "Smoke Publish",
+        smokeMeta: "Send one synthetic run with one test and one signal through <code>/ingest/batch</code>.",
+        publishSmoke: "Publish Smoke Batch",
+        qualityKicker: "Quality Report",
+        qualityMeta: "First generate a local <code>artifacts/quality-report.json</code>, then publish it to LiminalQA as a real quality snapshot.",
+        generateQualityReport: "Generate Quality Report",
+        publishQualityReport: "Publish Quality Report",
+        qualityPreviewKicker: "Quality Preview",
+        qualityPreviewMeta: "Short summary of the current local quality report.",
+        summaryVerdictLabel: "Aggregate Verdict",
+        summaryLanesLabel: "Lanes",
+        summaryFailuresLabel: "Failures",
+        summaryCoverageLabel: "Min Coverage",
+        noQualityReport: "No local quality report has been created yet.",
+        laneLine: "{title}: {verdict}, failures={failures}, coverage={coverage}",
+        queryKicker: "Query Preview",
+        queryMeta: "Request a small <code>/query</code> payload and preview the latest facts visible to the ingest service.",
+        runQuery: "Load Query Preview",
+        resultKicker: "Result",
+        waiting: "Waiting for action...",
+        working: "Working..."
+      }
+    };
+    let lang = "ru";
+
+    function t(key) {
+      return dictionary[lang][key];
+    }
+
+    function formatCoverage(value) {
+      return value === null || value === undefined ? "n/a" : `${Number(value).toFixed(1)}%`;
+    }
+
+    function laneText(lane) {
+      return t("laneLine")
+        .replace("{title}", lane.lane_title || lane.lane_key || "unknown")
+        .replace("{verdict}", lane.verdict || "n/a")
+        .replace("{failures}", String(lane.total_failures ?? 0))
+        .replace("{coverage}", formatCoverage(lane.min_line_coverage_observed));
+    }
+
+    function renderLanguage() {
+      document.documentElement.lang = lang;
+      document.getElementById("title").innerHTML = t("title");
+      document.getElementById("lede").textContent = t("lede");
+      document.getElementById("lang-label").textContent = t("langLabel");
+      document.getElementById("health-kicker").textContent = t("healthKicker");
+      document.getElementById("smoke-kicker").textContent = t("smokeKicker");
+      document.getElementById("smoke-meta").innerHTML = t("smokeMeta");
+      document.getElementById("quality-kicker").textContent = t("qualityKicker");
+      document.getElementById("quality-meta").innerHTML = t("qualityMeta");
+      document.getElementById("quality-preview-kicker").textContent = t("qualityPreviewKicker");
+      document.getElementById("quality-preview-meta").textContent = t("qualityPreviewMeta");
+      document.getElementById("summary-verdict-label").textContent = t("summaryVerdictLabel");
+      document.getElementById("summary-lanes-label").textContent = t("summaryLanesLabel");
+      document.getElementById("summary-failures-label").textContent = t("summaryFailuresLabel");
+      document.getElementById("summary-coverage-label").textContent = t("summaryCoverageLabel");
+      document.getElementById("query-kicker").textContent = t("queryKicker");
+      document.getElementById("query-meta").innerHTML = t("queryMeta");
+      document.getElementById("result-kicker").textContent = t("resultKicker");
+      document.getElementById("refresh-health").dataset.label = t("refreshHealth");
+      document.getElementById("publish-smoke").dataset.label = t("publishSmoke");
+      document.getElementById("generate-quality-report").dataset.label = t("generateQualityReport");
+      document.getElementById("publish-quality-report").dataset.label = t("publishQualityReport");
+      document.getElementById("run-query").dataset.label = t("runQuery");
+      document.getElementById("refresh-health").textContent = t("refreshHealth");
+      document.getElementById("publish-smoke").textContent = t("publishSmoke");
+      document.getElementById("generate-quality-report").textContent = t("generateQualityReport");
+      document.getElementById("publish-quality-report").textContent = t("publishQualityReport");
+      document.getElementById("run-query").textContent = t("runQuery");
+      if (!result.textContent || result.textContent === dictionary.en.waiting || result.textContent === dictionary.ru.waiting) {
+        result.textContent = t("waiting");
+      }
+      document.getElementById("lang-ru").className = lang === "ru" ? "active" : "";
+      document.getElementById("lang-en").className = lang === "en" ? "active" : "";
+    }
+
+    async function refreshQualityPreview() {
+      const laneList = document.getElementById("lane-list");
+      const data = await callJson("/api/quality-report-preview");
+      if (!data.ok) {
+        document.getElementById("summary-verdict").textContent = "n/a";
+        document.getElementById("summary-lanes").textContent = "0";
+        document.getElementById("summary-failures").textContent = "0";
+        document.getElementById("summary-coverage").textContent = "n/a";
+        laneList.innerHTML = "";
+        const item = document.createElement("li");
+        item.textContent = t("noQualityReport");
+        laneList.appendChild(item);
+        return;
+      }
+
+      document.getElementById("summary-verdict").textContent = data.payload.aggregate_verdict || "n/a";
+      document.getElementById("summary-lanes").textContent = String(data.payload.lane_count ?? 0);
+      document.getElementById("summary-failures").textContent = String(data.payload.total_failures ?? 0);
+      document.getElementById("summary-coverage").textContent = formatCoverage(data.payload.min_line_coverage_observed);
+      laneList.innerHTML = "";
+      for (const lane of data.payload.lanes || []) {
+        const item = document.createElement("li");
+        item.textContent = laneText(lane);
+        laneList.appendChild(item);
+      }
+      if (!laneList.children.length) {
+        const item = document.createElement("li");
+        item.textContent = t("noQualityReport");
+        laneList.appendChild(item);
+      }
+    }
+
+    function setBusy(button, busy) {
+      button.disabled = busy;
+      button.dataset.label ||= button.textContent;
+      button.textContent = busy ? t("working") : button.dataset.label;
+    }
+
+    async function callJson(path, options = {}) {
+      const response = await fetch(path, options);
+      const payload = await response.json();
+      return { ok: response.ok, status: response.status, payload };
+    }
+
+    async function refreshHealth(updateResult = true) {
+      const data = await callJson("/api/health");
+      if (data.ok) {
+        healthStatus.textContent = t("healthHealthy");
+        healthStatus.className = "status ok";
+        healthMeta.textContent = `${data.payload.service} v${data.payload.version}`;
+      } else {
+        healthStatus.textContent = t("healthUnavailable");
+        healthStatus.className = "status bad";
+        healthMeta.textContent = data.payload.error || `HTTP ${data.status}`;
+      }
+      if (updateResult) {
+        result.textContent = JSON.stringify(data.payload, null, 2);
+      }
+    }
+
+    document.getElementById("lang-ru").addEventListener("click", () => {
+      lang = "ru";
+      renderLanguage();
+      refreshQualityPreview().catch(() => {});
+      if (!healthMeta.textContent) {
+        healthStatus.textContent = t("healthChecking");
+      }
+    });
+
+    document.getElementById("lang-en").addEventListener("click", () => {
+      lang = "en";
+      renderLanguage();
+      refreshQualityPreview().catch(() => {});
+      if (!healthMeta.textContent) {
+        healthStatus.textContent = t("healthChecking");
+      }
+    });
+
+    document.getElementById("refresh-health").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      try {
+        await refreshHealth();
+      } catch (error) {
+        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
+    document.getElementById("publish-smoke").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      try {
+        const data = await callJson("/api/smoke", { method: "POST" });
+        result.textContent = JSON.stringify(data.payload, null, 2);
+        await refreshHealth(false);
+      } catch (error) {
+        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
+    document.getElementById("generate-quality-report").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      try {
+        const data = await callJson("/api/generate-quality-report", { method: "POST" });
+        result.textContent = JSON.stringify(data.payload, null, 2);
+        await refreshQualityPreview();
+      } catch (error) {
+        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
+    document.getElementById("publish-quality-report").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      try {
+        const data = await callJson("/api/publish-quality-report", { method: "POST" });
+        result.textContent = JSON.stringify(data.payload, null, 2);
+        await refreshHealth(false);
+        await refreshQualityPreview();
+      } catch (error) {
+        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
+    document.getElementById("run-query").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      try {
+        const data = await callJson("/api/query", { method: "POST" });
+        result.textContent = JSON.stringify(data.payload, null, 2);
+      } catch (error) {
+        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
+    renderLanguage();
+    healthStatus.textContent = t("healthChecking");
+    refreshQualityPreview().catch(() => {});
+    refreshHealth(true).catch((error) => {
+      result.textContent = JSON.stringify({ error: String(error) }, null, 2);
+    });
+  </script>
+</body>
+</html>

@@ -12,6 +12,10 @@ if str(MODULES) not in sys.path:
     sys.path.insert(0, str(MODULES))
 
 from modules.agent.resonance_agent import ResonanceAgent
+from modules.agent.alignment_guidance import (
+    get_alignment_guidance_metrics,
+    reset_alignment_guidance_metrics,
+)
 from modules.llm.backends.base import LLMResponse
 from modules.network.models import NetworkExecutionPlan
 from graph.runtime import GraphRuntimeDecision
@@ -149,6 +153,34 @@ class FakeGraphRuntimeFullRun:
             }
         ]
         return item["_resonance_hints"]
+
+
+class FakeRelationalStore:
+    def __init__(self):
+        self.snapshots = []
+
+    def store_relational_snapshot(self, snapshot):
+        self.snapshots.append(snapshot)
+        return snapshot
+
+
+class FakeGraphRuntimeWithRelational(FakeGraphRuntimeFullRun):
+    def __init__(self):
+        super().__init__()
+        self.store = FakeRelationalStore()
+
+    def remember_relational_snapshot(self, snapshot):
+        return self.store.store_relational_snapshot(snapshot)
+
+
+class FakeGraphRuntimeFacadeOnly(FakeGraphRuntimeFullRun):
+    def __init__(self):
+        super().__init__()
+        self.snapshots = []
+
+    def remember_relational_snapshot(self, snapshot):
+        self.snapshots.append(snapshot)
+        return snapshot
 
 
 class CapturingControlCenter:
@@ -789,6 +821,269 @@ def test_resonance_agent_system_prompt_includes_resonance_hints_when_present() -
     assert "Слабые подсказки из resonance-memory" in system_prompt
     assert "intent=architecture" in system_prompt
     assert "route=full_run>local" in system_prompt
+
+
+def test_resonance_agent_system_prompt_includes_relational_soft_guidance() -> None:
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(provider="local", model="local-test", text="ok"),
+        orientation="test",
+    )
+    item = {
+        "text": "Почему вы выбрали этот стек?",
+        "_copilot_output": {},
+        "_graph_runtime": {},
+        "_path_selection": {},
+        "_resonance_score": 0.5,
+        "_relational_field": {
+            "tension_score": 0.81,
+            "alignment_score": 0.22,
+        },
+    }
+
+    system_prompt = agent._build_system_prompt(item)
+
+    assert "В поле есть напряжение" in system_prompt
+    assert "Не дави на решение сразу" in system_prompt
+
+
+def test_resonance_agent_system_prompt_skips_alignment_guidance_when_safe() -> None:
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(provider="local", model="local-test", text="ok"),
+        orientation="test",
+    )
+    item = {
+        "text": "Почему вы выбрали этот стек?",
+        "_copilot_output": {},
+        "_graph_runtime": {},
+        "_path_selection": {},
+        "_resonance_score": 0.5,
+        "_alignment_report": {
+            "alignment_score": 0.81,
+            "tension_score": 0.18,
+            "mismatch_reasons": [],
+            "pairwise_hotspots": [],
+            "requires_softening": False,
+            "requires_clarification": False,
+            "requires_grounding": False,
+        },
+    }
+
+    system_prompt = agent._build_system_prompt(item)
+    assert "Alignment guidance (soft behavioral steering)" not in system_prompt
+
+
+def test_resonance_agent_system_prompt_adds_alignment_guidance_from_hotspot() -> None:
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(provider="local", model="local-test", text="ok"),
+        orientation="test",
+    )
+    item = {
+        "text": "Почему вы выбрали этот стек?",
+        "_copilot_output": {},
+        "_graph_runtime": {},
+        "_path_selection": {},
+        "_resonance_score": 0.5,
+        "_alignment_report": {
+            "pairwise_hotspots": [{"participants": ["a", "b"], "tension": 0.81}],
+            "mismatch_reasons": [],
+            "requires_softening": True,
+        },
+    }
+
+    system_prompt = agent._build_system_prompt(item)
+    assert "Alignment guidance (soft behavioral steering)" in system_prompt
+    assert "Сначала признай напряжение" in system_prompt
+
+
+def test_resonance_agent_system_prompt_adds_soft_alignment_guidance_from_mismatch() -> None:
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(provider="local", model="local-test", text="ok"),
+        orientation="test",
+    )
+    item = {
+        "text": "Почему вы выбрали этот стек?",
+        "_copilot_output": {},
+        "_graph_runtime": {},
+        "_path_selection": {},
+        "_resonance_score": 0.5,
+        "_alignment_report": {
+            "pairwise_hotspots": [],
+            "mismatch_reasons": ["why_mismatch"],
+            "requires_clarification": True,
+        },
+    }
+
+    system_prompt = agent._build_system_prompt(item)
+    assert "Alignment guidance (soft behavioral steering)" in system_prompt
+    assert "mismatch контекста/целей" in system_prompt
+    assert "Сначала синхронизируй позиции участников" in system_prompt
+
+
+def test_resonance_agent_alignment_guidance_preserves_existing_prompt_hints() -> None:
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(provider="local", model="local-test", text="ok"),
+        orientation="test",
+    )
+    item = {
+        "text": "Почему вы выбрали этот стек?",
+        "_copilot_output": {},
+        "_graph_runtime": {},
+        "_path_selection": {"route_key": "full_run>local"},
+        "_resonance_score": 0.5,
+        "_resonance_hints": [
+            {
+                "intent": "architecture",
+                "why": "compare trade-offs",
+                "route_key": "full_run>local",
+                "causal_path": "intent_detected:architecture→intent_attached",
+                "answer_pattern": "Сначала сравни варианты, потом выбери компромисс.",
+                "resonance_score": 0.82,
+                "alignment_score": 0.79,
+            }
+        ],
+        "_network_plan": {
+            "goal_vector": {
+                "style": "structured",
+                "strategy_bias": "cooperative_reasoning",
+                "target_relevance": 0.8,
+                "target_thread_alignment": 0.8,
+                "target_hallucination_max": 0.15,
+                "target_latency_ms": 12000.0,
+            }
+        },
+        "_alignment_report": {
+            "pairwise_hotspots": [{"participants": ["a", "b"], "tension": 0.81}],
+            "mismatch_reasons": ["why_mismatch"],
+            "requires_softening": True,
+            "requires_clarification": True,
+        },
+    }
+
+    system_prompt = agent._build_system_prompt(item)
+    assert "Слабые подсказки из resonance-memory" in system_prompt
+    assert "Целевой профиль ответа" in system_prompt
+    assert "Маршрут решения выбран по истории успешных путей" in system_prompt
+    assert "Alignment guidance (soft behavioral steering)" in system_prompt
+
+
+def test_resonance_agent_alignment_guidance_is_advisory_for_graph_mode_and_route_key() -> None:
+    backend = FakeBackend(provider="local", model="local-test", text="ok")
+    runtime = FakeGraphRuntimeFullRun()
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=backend,
+        graph_runtime=runtime,
+        orientation="test",
+    )
+
+    result = agent.process_item(
+        {
+            "text": "Почему вы выбрали этот стек?",
+            "participants": [
+                {"participant_id": "candidate", "intent": "defend", "why": "explain"},
+                {"participant_id": "interviewer", "intent": "challenge", "why": "verify"},
+            ],
+        }
+    )
+
+    assert result["graph_mode"] == "full_run"
+    assert result["route_key"] == "full_run>local"
+    assert result["was_reused"] is False
+
+
+def test_resonance_agent_alignment_guidance_metrics_tracking() -> None:
+    reset_alignment_guidance_metrics()
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=FakeBackend(provider="local", model="local-test", text="ok"),
+        orientation="test",
+    )
+
+    safe_item = {
+        "_copilot_output": {},
+        "_graph_runtime": {},
+        "_path_selection": {},
+        "_resonance_score": 0.5,
+        "_alignment_report": {
+            "pairwise_hotspots": [],
+            "mismatch_reasons": [],
+            "requires_softening": False,
+            "requires_clarification": False,
+            "requires_grounding": False,
+        },
+    }
+    hotspot_item = {
+        "_copilot_output": {},
+        "_graph_runtime": {},
+        "_path_selection": {},
+        "_resonance_score": 0.5,
+        "_alignment_report": {
+            "pairwise_hotspots": [{"participants": ["a", "b"], "tension": 0.81}],
+            "mismatch_reasons": [],
+            "requires_softening": True,
+        },
+    }
+    mismatch_item = {
+        "_copilot_output": {},
+        "_graph_runtime": {},
+        "_path_selection": {},
+        "_resonance_score": 0.5,
+        "_alignment_report": {
+            "pairwise_hotspots": [],
+            "mismatch_reasons": ["why_mismatch"],
+            "requires_clarification": True,
+        },
+    }
+
+    agent._build_system_prompt(safe_item)
+    agent._build_system_prompt(hotspot_item)
+    agent._build_system_prompt(mismatch_item)
+
+    metrics = get_alignment_guidance_metrics()
+    assert metrics["calls_total"] == 3
+    assert metrics["nonempty_total"] == 2
+    assert metrics["average_lines"] > 0
+    assert metrics["hotspot_guidance_total"] == 1
+    assert metrics["mismatch_guidance_total"] == 1
+
+
+def test_resonance_agent_records_relational_snapshot_as_observation() -> None:
+    backend = CapturingBackend(provider="local", model="local-test", text="ok")
+    graph_runtime = FakeGraphRuntimeWithRelational()
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=backend,
+        graph_runtime=graph_runtime,
+        orientation="test",
+    )
+
+    agent.process_text("Ты опять никогда не слушаешь, это невозможно!")
+
+    assert graph_runtime.store.snapshots
+    snapshot = graph_runtime.store.snapshots[0]
+    assert snapshot.tension_score >= 0.3
+    assert snapshot.interaction_scope == "human-human"
+
+
+def test_resonance_agent_uses_runtime_relational_facade_without_store_attr() -> None:
+    backend = CapturingBackend(provider="local", model="local-test", text="ok")
+    graph_runtime = FakeGraphRuntimeFacadeOnly()
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_backend=backend,
+        graph_runtime=graph_runtime,
+        orientation="test",
+    )
+
+    agent.process_text("Ты опять никогда не слушаешь, это невозможно!")
+
+    assert graph_runtime.snapshots
+    assert graph_runtime.snapshots[0].field_id
 
 
 def test_resonance_agent_goal_alignment_score_rewards_matching_profile() -> None:

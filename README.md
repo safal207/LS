@@ -146,7 +146,35 @@ python apps/console/main.py
 - Rust core — high-performance pattern matching, SIMD vector search
 - Hexagon Core — beliefs, causal memory, temporal graph, orientation
 
+## Coordination Advisory Stack
+
+The coordination advisory stack aggregates structured signals from multi-party alignment,
+bridge stabilization priority, collective coordination pressure, and bridge-to-playbook fit.
+It then emits a compact top-level summary object for operators and downstream systems.
+The summary is deterministic, advisory-only, and bounded to stable fields for easier consumption.
+
+```json
+{
+  "coordination_advisory_label": "fragile",
+  "coordination_readiness": 0.58,
+  "primary_intervention_mode": "stabilization_first",
+  "playbook_support_level": "medium",
+  "top_risk_driver": "coordination_risk",
+  "summary_reason": "scene is fragile: coordination risk is elevated and playbook grounding is limited"
+}
+```
+
+- Easier downstream consumption with one compact advisory object.
+- More explainable coordination reasoning across multiple structured layers.
+
 ---
+
+
+## Positioning
+
+LS also includes a coordination advisory positioning layer for product and technical framing:
+- One-pager: [`docs/positioning/coordination-advisory-one-pager.md`](docs/positioning/coordination-advisory-one-pager.md)
+- Comparison: [`docs/positioning/ls-vs-generic-agent.md`](docs/positioning/ls-vs-generic-agent.md)
 
 ## Quick Start
 
@@ -280,6 +308,9 @@ pytest python/tests/test_memory_store_locking.py
 | [SUBCONSCIOUS_TEMPORAL_LOOP.md](SUBCONSCIOUS_TEMPORAL_LOOP.md) | Subconscious loop + feedback loop diagram |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow and system components |
 | [docs/architecture/layers.md](docs/architecture/layers.md) | Full 12-layer catalogue |
+| [docs/LIMINALQA_TEST_STRATEGY.md](docs/LIMINALQA_TEST_STRATEGY.md) | Strategy for integrating LiminalQAengineer with the current pytest and CI stack |
+| [docs/CI_QUALITY_GATES.md](docs/CI_QUALITY_GATES.md) | Active CI quality-gate thresholds, enforcement state, and calibration notes |
+| [docs/LIMINALQA_LOCAL_SETUP.md](docs/LIMINALQA_LOCAL_SETUP.md) | Local deployment model for running LiminalQAengineer next to this repository |
 | [FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md) | Golden Master overview |
 
 ---

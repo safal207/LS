@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from .derived_module_registry import DerivedModuleRegistry
+from .evolve import RouteEvolver
 from .memory_store import MemoryGraphStore
 from .models import DerivedModule, ResonanceKnowledgeUnit
 
@@ -41,6 +42,7 @@ class CareCycleRunner:
         promote_bonus: float = 0.03,
         demote_penalty: float = 0.08,
         resonance_unit_threshold: float = 0.3,
+        route_evolver: RouteEvolver | None = None,
     ) -> None:
         self.registry = registry
         self.graph_store = graph_store
@@ -50,6 +52,7 @@ class CareCycleRunner:
         self.promote_bonus = promote_bonus
         self.demote_penalty = demote_penalty
         self.resonance_unit_threshold = resonance_unit_threshold
+        self.route_evolver = route_evolver
 
     def review(
         self,
@@ -108,10 +111,20 @@ class CareCycleRunner:
                 metadata={"source": "care_cycle", "cycle_id": cycle_id},
             )
             try:
-                # TODO: evolve route graph from repeated high-quality units.
                 self.graph_store.store_resonance_unit(unit)
             except Exception as exc:
                 logger.debug("CareCycleRunner resonance unit store skipped: %s", exc)
+
+            if self.route_evolver is not None:
+                try:
+                    live_units = self.graph_store.list_live_resonance_units()
+                    existing = self.graph_store.list_route_snapshots()
+                    updated = self.route_evolver.evolve(live_units, existing)
+                    for snap in updated:
+                        snap = self.route_evolver.promote(snap)
+                        self.graph_store.store_route_snapshot(snap)
+                except Exception as exc:
+                    logger.debug("CareCycleRunner route evolution skipped: %s", exc)
         return CareCycleResult(
             module_id=saved.module_id,
             action=action,

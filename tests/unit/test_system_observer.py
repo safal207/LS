@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Тесты SystemObserver — мета-когнитивного наблюдателя (Сила 6).
+SystemObserver tests for the meta-cognitive observer (Force 6).
 
-Запуск: python3 tests/unit/test_system_observer.py
+Run: python3 tests/unit/test_system_observer.py
 """
 
 import sys
@@ -26,7 +26,7 @@ from hexagon_core.system_observer import (
 
 
 def _graph_with_nodes(specs: list) -> TemporalGraph:
-    """Создаёт граф с заданными узлами: [(id, resonance, harmony), ...]"""
+    """Create a graph with the given nodes: [(id, resonance, harmony), ...]"""
     g = TemporalGraph()
     for item in specs:
         nid, res = item[0], item[1]
@@ -36,7 +36,7 @@ def _graph_with_nodes(specs: list) -> TemporalGraph:
 
 
 class TestAdequacyReportProperties(unittest.TestCase):
-    """AdequacyReport.adequate / critical пороги."""
+    """AdequacyReport.adequate / critical thresholds."""
 
     def test_score_1_is_adequate(self):
         r = AdequacyReport(score=1.0, pathologies=[], corrections=[], axis_id=None)
@@ -61,7 +61,7 @@ class TestAdequacyReportProperties(unittest.TestCase):
 
 
 class TestDetectOverheating(unittest.TestCase):
-    """OVERHEATING: среднее resonance > 0.82."""
+    """OVERHEATING: mean resonance > 0.82."""
 
     def test_detects_overheating(self):
         g = _graph_with_nodes([
@@ -90,7 +90,7 @@ class TestDetectOverheating(unittest.TestCase):
         ])
         obs = SystemObserver()
         obs.observe_and_correct(g)
-        # После коррекции все узлы должны быть ниже исходных значений
+        # After correction every node should be below its initial value
         for n in g.nodes.values():
             self.assertLess(n.resonance, 0.92)
 
@@ -124,20 +124,20 @@ class TestDetectVacuum(unittest.TestCase):
         g = _graph_with_nodes([("lesson:x", 0.25)])
         obs = SystemObserver()
         obs.observe_and_correct(g)
-        # Должен инжектировать якорный subconscious-узел
+        # Should inject an anchor subconscious node
         self.assertIn("subconscious:deliberative", g.nodes)
 
     def test_vacuum_no_inject_if_subconscious_exists(self):
         g = _graph_with_nodes([("subconscious:reactive", 0.30)])
         obs = SystemObserver()
         obs.observe_and_correct(g)
-        # Не должен добавить ещё один
+        # Should not add another one
         sub_count = sum(1 for nid in g.nodes if nid.startswith("subconscious:"))
         self.assertEqual(sub_count, 1)
 
 
 class TestDetectOssification(unittest.TestCase):
-    """OSSIFICATION: ось не менялась >= 8 циклов и stability_bias >= 0.80."""
+    """OSSIFICATION: axis unchanged for >= 8 cycles and stability_bias >= 0.80."""
 
     def _run_n_cycles(self, g, n):
         obs = SystemObserver()
@@ -151,12 +151,12 @@ class TestDetectOssification(unittest.TestCase):
         g.nodes["subconscious:deliberative"].stability_bias = 0.85
 
         obs = SystemObserver()
-        # Первые 7 циклов — ещё не патология
+        # First 7 cycles: not yet a pathology
         for _ in range(7):
             r = obs.observe_and_correct(g)
             self.assertNotIn(OSSIFICATION, r.pathologies)
 
-        # 8-й цикл → патология
+        # 8th cycle -> pathology
         r = obs.observe_and_correct(g)
         self.assertIn(OSSIFICATION, r.pathologies)
 
@@ -178,13 +178,38 @@ class TestDetectOssification(unittest.TestCase):
 
     def test_no_ossification_low_stability_bias(self):
         g = _graph_with_nodes([("subconscious:deliberative", 0.85)])
-        g.nodes["subconscious:deliberative"].stability_bias = 0.50  # ниже порога
+        g.nodes["subconscious:deliberative"].stability_bias = 0.50  # below threshold
         obs, report = self._run_n_cycles(g, 10)
         self.assertNotIn(OSSIFICATION, report.pathologies)
 
+    def test_repeated_ossification_injects_meta_lesson(self):
+        g = _graph_with_nodes([("subconscious:deliberative", 0.86, 0.40)])
+        obs = SystemObserver()
+
+        for _ in range(24):
+            # Simulate recurring tendency to re-freeze the same axis over time.
+            g.nodes["subconscious:deliberative"].stability_bias = 0.90
+            obs.observe_and_correct(g)
+
+        self.assertIn("lesson:meta:ossification_tendency", g.nodes)
+        self.assertIn(
+            "lesson:meta:ossification_tendency",
+            obs.stats().get("self_lessons", []),
+        )
+
+    def test_before_third_repetition_meta_lesson_not_injected(self):
+        g = _graph_with_nodes([("subconscious:deliberative", 0.86, 0.40)])
+        obs = SystemObserver()
+
+        for _ in range(16):
+            g.nodes["subconscious:deliberative"].stability_bias = 0.90
+            obs.observe_and_correct(g)
+
+        self.assertNotIn("lesson:meta:ossification_tendency", g.nodes)
+
 
 class TestDetectSplitBrain(unittest.TestCase):
-    """SPLIT_BRAIN: два узла > 0.70 с разницей < 0.05."""
+    """SPLIT_BRAIN: two nodes > 0.70 with a gap < 0.05."""
 
     def test_detects_split_brain(self):
         g = _graph_with_nodes([
@@ -198,7 +223,7 @@ class TestDetectSplitBrain(unittest.TestCase):
     def test_no_split_brain_large_gap(self):
         g = _graph_with_nodes([
             ("subconscious:reactive",    0.85),
-            ("subconscious:deliberative", 0.70),  # разрыв 0.15 > 0.05
+            ("subconscious:deliberative", 0.70),  # gap 0.15 > 0.05
         ])
         obs = SystemObserver()
         report = obs.observe_and_correct(g)
@@ -211,7 +236,7 @@ class TestDetectSplitBrain(unittest.TestCase):
         ])
         obs = SystemObserver()
         obs.observe_and_correct(g)
-        # Более слабый узел должен потерять резонанс
+        # The weaker node should lose resonance
         self.assertLess(g.nodes["subconscious:deliberative"].resonance, 0.80)
 
     def test_split_brain_dominant_unchanged(self):
@@ -221,7 +246,7 @@ class TestDetectSplitBrain(unittest.TestCase):
         ])
         obs = SystemObserver()
         obs.observe_and_correct(g)
-        # Доминирующий не должен быть подавлен (только OVERHEATING мог бы его снизить)
+        # The dominant node should not be suppressed (except by OVERHEATING)
         self.assertGreaterEqual(g.nodes["subconscious:reactive"].resonance, 0.80)
 
 
@@ -251,7 +276,7 @@ class TestDetectRunawayChaos(unittest.TestCase):
 
 
 class TestDetectResonanceCollapse(unittest.TestCase):
-    """RESONANCE_COLLAPSE: resonance оси < 0.35."""
+    """RESONANCE_COLLAPSE: axis resonance < 0.35."""
 
     def test_detects_collapse(self):
         g = _graph_with_nodes([("subconscious:a", 0.28)])
@@ -267,7 +292,7 @@ class TestDetectResonanceCollapse(unittest.TestCase):
 
 
 class TestAdequacyScore(unittest.TestCase):
-    """Итоговый score снижается при патологиях, максимален при здоровом поле."""
+    """Final score drops under pathologies and is maximal in a healthy field."""
 
     def test_healthy_field_score_1(self):
         g = _graph_with_nodes([
@@ -287,17 +312,17 @@ class TestAdequacyScore(unittest.TestCase):
         self.assertLess(report.score, 1.0)
 
     def test_two_pathologies_lower_score(self):
-        # Оба перегрев И split-brain
+        # Both overheating and split-brain
         g = _graph_with_nodes([
             ("subconscious:a", 0.91),
             ("subconscious:b", 0.90),
         ])
         obs = SystemObserver()
         report = obs.observe_and_correct(g)
-        self.assertLess(report.score, 0.85)  # min два штрафа: 0.15 + 0.25
+        self.assertLess(report.score, 0.85)  # at least two penalties: 0.15 + 0.25
 
     def test_score_clamped_to_zero_not_negative(self):
-        # Куча патологий одновременно → score не уходит ниже 0
+        # Multiple simultaneous pathologies -> score stays clamped at 0
         g = _graph_with_nodes([("subconscious:a", 0.90), ("subconscious:b", 0.89)])
         obs = SystemObserver()
         report = obs.observe_and_correct(g, chaos_trend=-0.5)
@@ -305,7 +330,7 @@ class TestAdequacyScore(unittest.TestCase):
 
 
 class TestAdequacyTrend(unittest.TestCase):
-    """adequacy_trend() отражает динамику здоровья системы."""
+    """adequacy_trend() reflects system health dynamics."""
 
     def test_trend_zero_insufficient_data(self):
         obs = SystemObserver()
@@ -313,7 +338,7 @@ class TestAdequacyTrend(unittest.TestCase):
 
     def test_positive_trend_when_improving(self):
         obs = SystemObserver()
-        # Добавляем плохие отчёты, потом хорошие
+        # Add bad reports first, then good ones
         for score in [0.40, 0.45, 0.50, 0.80, 0.85, 0.90, 0.95, 1.0]:
             obs._reports.append(
                 AdequacyReport(score=score, pathologies=[], corrections=[], axis_id="x")
@@ -330,7 +355,7 @@ class TestAdequacyTrend(unittest.TestCase):
 
 
 class TestStats(unittest.TestCase):
-    """stats() возвращает корректную структуру."""
+    """stats() returns the expected structure."""
 
     def test_stats_no_history_defaults(self):
         obs = SystemObserver()

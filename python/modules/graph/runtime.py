@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Optional
 
 from .memory_store import MemoryGraphStore
-from .models import MemoryCase, ResonanceKnowledgeUnit
+from .models import MemoryCase, RelationalFieldSnapshot, ResonanceKnowledgeUnit
 from .retriever import MemoryGraphRetriever
 from .reuse import decide_reuse
 
@@ -491,3 +491,13 @@ class GraphMemoryRuntime:
             self._logger.debug("Graph inject_resonance_hints failed: %s", exc)
             item["_resonance_hints"] = []
             return []
+
+    def remember_relational_snapshot(
+        self,
+        snapshot: RelationalFieldSnapshot,
+    ) -> RelationalFieldSnapshot | None:
+        try:
+            return self.store.store_relational_snapshot(snapshot)
+        except Exception as exc:
+            self._logger.debug("Graph remember_relational_snapshot failed: %s", exc)
+            return None

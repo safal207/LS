@@ -1,0 +1,123 @@
+name: Aggregate quality reports
+description: Combine per-lane JSON snapshots into a single workflow-level quality report.
+
+inputs:
+  label:
+    description: Human-readable workflow label for summaries.
+    required: false
+    default: "quality"
+  artifacts-dir:
+    description: Directory containing quality report JSON files.
+    required: false
+    default: "artifacts"
+
+runs:
+  using: composite
+  steps:
+    - name: Aggregate quality snapshots
+      shell: bash
+      run: |
+        python - <<'PY'
+        import json
+        import os
+        import pathlib
+        from collections import Counter
+        from datetime import datetime, timezone
+
+        label = """${{ inputs.label }}"""
+        artifacts_dir = pathlib.Path("""${{ inputs.artifacts-dir }}""")
+        quality_dir = artifacts_dir / "quality"
+        report_files = sorted(quality_dir.glob("*.json"))
+        summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+
+        run_url = (
+            f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/"
+            f"{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}"
+        )
+
+        reports = []
+        for path in report_files:
+            with path.open("r", encoding="utf-8") as fh:
+                reports.append(json.load(fh))
+
+        counts = Counter(report.get("verdict", "UNKNOWN") for report in reports)
+        aggregate_verdict = "PASS"
+        if counts.get("BLOCK"):
+            aggregate_verdict = "BLOCK"
+        elif counts.get("WARN"):
+            aggregate_verdict = "WARN"
+        elif not reports:
+            aggregate_verdict = "WARN"
+
+        min_coverage_values = [
+            report["min_line_coverage_observed"]
+            for report in reports
+            if report.get("min_line_coverage_observed") is not None
+        ]
+
+        aggregate = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "repository": os.environ.get("GITHUB_REPOSITORY"),
+            "event_name": os.environ.get("GITHUB_EVENT_NAME"),
+            "ref": os.environ.get("GITHUB_REF"),
+            "sha": os.environ.get("GITHUB_SHA"),
+            "run_id": os.environ.get("GITHUB_RUN_ID"),
+            "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+            "workflow": os.environ.get("GITHUB_WORKFLOW"),
+            "workflow_job": os.environ.get("GITHUB_JOB"),
+            "run_url": run_url,
+            "label": label,
+            "aggregate_verdict": aggregate_verdict,
+            "lane_count": len(reports),
+            "verdict_counts": dict(counts),
+            "total_failures": sum(int(report.get("total_failures", 0)) for report in reports),
+            "flaky_suspect_lanes": [
+                report.get("lane_key") for report in reports if report.get("flaky_suspect")
+            ],
+            "min_line_coverage_observed": min(min_coverage_values) if min_coverage_values else None,
+            "lanes": reports,
+        }
+
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        output_path = artifacts_dir / "quality-report.json"
+        output_path.write_text(json.dumps(aggregate, indent=2) + "\n", encoding="utf-8")
+
+        lines = [
+            f"## {label} machine-readable report",
+            "",
+            f"- aggregate verdict: `{aggregate_verdict}`",
+            f"- lane snapshots: `{len(reports)}`",
+            f"- total failures: `{aggregate['total_failures']}`",
+            (
+                f"- minimum observed line coverage: `{aggregate['min_line_coverage_observed']:.1f}%`"
+                if aggregate["min_line_coverage_observed"] is not None
+                else "- minimum observed line coverage: `n/a`"
+            ),
+            f"- report file: `{output_path}`",
+        ]
+
+        if reports:
+            lines.extend(
+                [
+                    "",
+                    "| Lane | Verdict | Failures | Min coverage | Flaky suspect |",
+                    "|---|---|---:|---:|---|",
+                ]
+            )
+            for report in reports:
+                coverage = report.get("min_line_coverage_observed")
+                coverage_text = f"{coverage:.1f}%" if coverage is not None else "n/a"
+                lines.append(
+                    f"| `{report.get('lane_key')}` | `{report.get('verdict')}` | "
+                    f"{int(report.get('total_failures', 0))} | {coverage_text} | "
+                    f"`{'yes' if report.get('flaky_suspect') else 'no'}` |"
+                )
+        else:
+            lines.extend(["", "_No lane snapshots were found in `artifacts/quality/`._"])
+
+        if summary_path:
+            with open(summary_path, "a", encoding="utf-8") as fh:
+                fh.write("\n".join(lines) + "\n")
+        else:
+            print("\n".join(lines))
+        PY

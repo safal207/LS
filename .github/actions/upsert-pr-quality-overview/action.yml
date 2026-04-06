@@ -1,0 +1,471 @@
+name: Upsert PR quality overview
+description: Update a shared sticky PR comment with the latest lane verdict and clean up old lane-specific comments.
+
+inputs:
+  lane-key:
+    description: Stable lane identifier used inside the shared comment.
+    required: true
+  lane-title:
+    description: Human-readable lane title.
+    required: true
+  threshold:
+    description: Human-readable threshold summary.
+    required: true
+  verdict:
+    description: Gate verdict.
+    required: false
+    default: "unknown"
+  total-failures:
+    description: Failures plus errors count.
+    required: false
+    default: "n/a"
+  min-line-coverage:
+    description: Minimum observed line coverage.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Update shared PR quality overview
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          try {
+          const sharedMarker = '<!-- quality-gates:overview -->';
+          const managedLabels = ['quality:block', 'quality:warn', 'quality:pass'];
+          const triageLabel = 'needs-triage';
+          const incidentLabel = 'quality-incident';
+          const flakyLabel = 'quality:flaky-suspect';
+          const managedLabelSpecs = {
+            'quality:block': { color: 'B60205', description: 'CI quality gates are blocking this PR' },
+            'quality:warn': { color: 'FBCA04', description: 'CI quality gates have warnings on this PR' },
+            'quality:pass': { color: '0E8A16', description: 'CI quality gates currently pass on this PR' },
+            'needs-triage': { color: 'D93F0B', description: 'This PR needs human triage due to blocking quality signals' },
+            'quality-incident': { color: '5319E7', description: 'Tracks a PR blocked by CI quality automation' },
+            'quality:flaky-suspect': { color: 'C5DEF5', description: 'A lane shows multiple recent verdict transitions and may be flaky' },
+          };
+          const laneKey = `${{ inputs.lane-key }}`;
+          const laneTitle = `${{ inputs.lane-title }}`;
+          const threshold = `${{ inputs.threshold }}`;
+          const verdict = `${{ inputs.verdict }}` || 'unknown';
+          const totalFailures = `${{ inputs.total-failures }}` || 'n/a';
+          const rawCoverage = `${{ inputs.min-line-coverage }}`;
+          const coverage = rawCoverage ? `${Number(rawCoverage).toFixed(1)}%` : 'n/a';
+          const startMarker = `<!-- quality-gate-section:${laneKey}:start -->`;
+          const endMarker = `<!-- quality-gate-section:${laneKey}:end -->`;
+          const legacyMarker = `<!-- quality-gate:${laneKey} -->`;
+          const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+          const incidentMarker = `<!-- quality-incident:pr-${context.issue.number} -->`;
+          const incidentStartMarker = `<!-- quality-incident-section:${laneKey}:start -->`;
+          const incidentEndMarker = `<!-- quality-incident-section:${laneKey}:end -->`;
+          const timestamp = new Date().toISOString();
+          let mutationsAllowed = true;
+
+          function isPermissionError(error) {
+            return error?.status === 403 || /Resource not accessible by integration/i.test(String(error?.message || ''));
+          }
+
+          async function safeMutation(label, fn) {
+            if (!mutationsAllowed) {
+              core.warning(`${label} skipped because issue mutations are unavailable for this run.`);
+              return null;
+            }
+            try {
+              return await fn();
+            } catch (error) {
+              if (isPermissionError(error)) {
+                mutationsAllowed = false;
+                core.warning(`${label} skipped: ${error.message}`);
+                return null;
+              }
+              throw error;
+            }
+          }
+
+          const { data: artifactData } = await github.rest.actions.listWorkflowRunArtifacts({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            run_id: context.runId,
+            per_page: 100,
+          });
+          const artifactLines = (artifactData.artifacts || []).map((artifact) => {
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts/${artifact.id}`;
+            return `  - [${artifact.name}](${url})`;
+          });
+          const artifactSection = artifactLines.length
+            ? ['- artifacts:', ...artifactLines]
+            : ['- artifacts: `none published yet`'];
+          const sectionRegex = new RegExp(
+            `<!-- quality-gate-section:${laneKey}:start -->[\\s\\S]*?<!-- quality-gate-section:${laneKey}:end -->`,
+            'm'
+          );
+
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            per_page: 100,
+          });
+
+          for (const comment of comments) {
+            if (comment.body && comment.body.includes(legacyMarker)) {
+              await safeMutation('Delete legacy quality comment', () => github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: comment.id,
+              }));
+            }
+          }
+
+          const existing = comments.find((comment) => comment.body && comment.body.includes(sharedMarker));
+          const previousCommentSection = existing && existing.body
+            ? (existing.body.match(sectionRegex)?.[0] || '')
+            : '';
+          const previousCommentVerdict = previousCommentSection.match(/- verdict: `([^`]+)`/)?.[1] || null;
+          const previousCommentHistoryBlock = previousCommentSection.match(/<!-- quality-gate-history:start -->([\s\S]*?)<!-- quality-gate-history:end -->/m)?.[1] || '';
+          const previousCommentHistoryLines = previousCommentHistoryBlock
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line && line.startsWith('- '));
+          if (previousCommentVerdict && previousCommentVerdict !== verdict) {
+            previousCommentHistoryLines.unshift(
+              `- ${timestamp}: \`${previousCommentVerdict}\` -> \`${verdict}\` ([run](${runUrl}))`
+            );
+          }
+          const commentTransitionCount = previousCommentHistoryLines.length;
+          const flakySuspect = commentTransitionCount >= 3;
+          const commentHistorySection = [
+            '<!-- quality-gate-history:start -->',
+            '#### Recent Transitions',
+            '',
+            ...(previousCommentHistoryLines.slice(0, 10).length
+              ? previousCommentHistoryLines.slice(0, 10)
+              : ['- no verdict changes recorded yet']),
+            '<!-- quality-gate-history:end -->',
+          ];
+          const laneSection = [
+            startMarker,
+            `### ${laneTitle}`,
+            '',
+            `- verdict: \`${verdict}\``,
+            `- failures+errors: \`${totalFailures}\``,
+            `- min line coverage observed: \`${coverage}\``,
+            `- threshold: \`${threshold}\``,
+            `- workflow run: [open run](${runUrl})`,
+            `- flaky suspicion: \`${flakySuspect ? 'yes' : 'no'}\``,
+            ...artifactSection,
+            '',
+            ...commentHistorySection,
+            '',
+            endMarker,
+          ].join('\n');
+          const header = [
+            sharedMarker,
+            '## CI Quality Overview',
+            '',
+            'This comment is updated automatically by the active quality gates.',
+            '',
+          ].join('\n');
+
+          let finalBody;
+          if (!existing) {
+            finalBody = `${header}${laneSection}\n`;
+            await safeMutation('Create shared quality comment', () => github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: finalBody,
+            }));
+          } else {
+            finalBody = existing.body;
+            const sectionRegex = new RegExp(
+              `<!-- quality-gate-section:${laneKey}:start -->[\\s\\S]*?<!-- quality-gate-section:${laneKey}:end -->`,
+              'm'
+            );
+
+            if (sectionRegex.test(finalBody)) {
+              finalBody = finalBody.replace(sectionRegex, laneSection);
+            } else {
+              finalBody = `${finalBody.trim()}\n\n${laneSection}\n`;
+            }
+
+            if (!finalBody.includes(sharedMarker)) {
+              finalBody = `${header}${finalBody}`;
+            }
+
+            await safeMutation('Update shared quality comment', () => github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body: finalBody,
+            }));
+          }
+
+          const sectionVerdicts = [...finalBody.matchAll(/- verdict: `([^`]+)`/g)].map((match) => match[1]);
+          let desiredLabel = null;
+          if (sectionVerdicts.includes('BLOCK')) {
+            desiredLabel = 'quality:block';
+          } else if (sectionVerdicts.includes('WARN')) {
+            desiredLabel = 'quality:warn';
+          } else if (sectionVerdicts.includes('PASS')) {
+            desiredLabel = 'quality:pass';
+          }
+
+          async function ensureLabel(name) {
+            const spec = managedLabelSpecs[name];
+            if (!spec) return;
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name,
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await safeMutation(`Create label ${name}`, () => github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name,
+                color: spec.color,
+                description: spec.description,
+              }));
+            }
+          }
+
+          for (const label of [...managedLabels, triageLabel, incidentLabel, flakyLabel]) {
+            await ensureLabel(label);
+          }
+
+          const { data: issue } = await github.rest.issues.get({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          const currentLabels = issue.labels.map((label) => typeof label === 'string' ? label : label.name);
+
+          for (const label of managedLabels) {
+            if (currentLabels.includes(label) && label !== desiredLabel) {
+              try {
+                await safeMutation(`Remove label ${label}`, () => github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  name: label,
+                }));
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
+          }
+
+          if (currentLabels.includes(flakyLabel) && !flakySuspect) {
+            try {
+              await safeMutation(`Remove label ${flakyLabel}`, () => github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: flakyLabel,
+              }));
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+          }
+
+          if (currentLabels.includes(triageLabel) && desiredLabel !== 'quality:block') {
+            try {
+              await safeMutation(`Remove label ${triageLabel}`, () => github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: triageLabel,
+              }));
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+          }
+
+          if (desiredLabel && !currentLabels.includes(desiredLabel)) {
+            await safeMutation(`Add label ${desiredLabel}`, () => github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: [desiredLabel],
+            }));
+          }
+
+          if (desiredLabel === 'quality:block' && !currentLabels.includes(triageLabel)) {
+            await safeMutation(`Add label ${triageLabel}`, () => github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: [triageLabel],
+            }));
+          }
+
+          if (flakySuspect && !currentLabels.includes(flakyLabel)) {
+            await safeMutation(`Add label ${flakyLabel}`, () => github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: [flakyLabel],
+            }));
+          }
+
+          const { data: repoIssues } = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'all',
+            labels: incidentLabel,
+            per_page: 100,
+          });
+          const existingIncident = repoIssues.find((issue) => issue.body && issue.body.includes(incidentMarker));
+          const incidentTitle = `Quality gate blocked: PR #${context.issue.number}`;
+          const incidentHeader = [
+            incidentMarker,
+            `# Quality Incident For PR #${context.issue.number}`,
+            '',
+            `PR #${context.issue.number} is tracked here whenever one or more CI quality lanes are blocking.`,
+            '',
+            `- PR: ${context.payload.pull_request.html_url}`,
+            `- latest triggering workflow run: ${runUrl}`,
+            '',
+            '## Triage Checklist',
+            '',
+            '- [ ] Confirm whether the failure is deterministic',
+            '- [ ] Check the sticky PR quality overview for lane-level details',
+            '- [ ] Review JUnit and coverage artifacts from the linked workflow run',
+            '- [ ] Decide whether this is a regression, infra issue, or flaky lane',
+            '- [ ] Update or close this issue after the blocking signal clears',
+            '',
+            '## Blocking Lanes',
+            '',
+          ].join('\n');
+
+          let incidentBody = existingIncident ? existingIncident.body : incidentHeader;
+          const incidentSectionRegex = new RegExp(
+            `<!-- quality-incident-section:${laneKey}:start -->[\\s\\S]*?<!-- quality-incident-section:${laneKey}:end -->`,
+            'm'
+          );
+          const previousIncidentSection = existingIncident && existingIncident.body
+            ? (existingIncident.body.match(incidentSectionRegex)?.[0] || '')
+            : '';
+          const previousIncidentVerdict = previousIncidentSection.match(/- verdict: `([^`]+)`/)?.[1] || null;
+          const previousIncidentHistoryBlock = previousIncidentSection.match(/<!-- quality-incident-history:start -->([\s\S]*?)<!-- quality-incident-history:end -->/m)?.[1] || '';
+          const previousIncidentHistoryLines = previousIncidentHistoryBlock
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line && line.startsWith('- '));
+          if (previousIncidentVerdict && previousIncidentVerdict !== verdict) {
+            previousIncidentHistoryLines.unshift(
+              `- ${timestamp}: \`${previousIncidentVerdict}\` -> \`${verdict}\` (${runUrl})`
+            );
+          }
+          const incidentHistorySection = [
+            '<!-- quality-incident-history:start -->',
+            '#### Recent Transitions',
+            '',
+            ...(previousIncidentHistoryLines.slice(0, 10).length
+              ? previousIncidentHistoryLines.slice(0, 10)
+              : ['- no verdict changes recorded yet']),
+            '<!-- quality-incident-history:end -->',
+          ];
+          const incidentLaneSection = [
+            incidentStartMarker,
+            `### ${laneTitle}`,
+            '',
+            `- verdict: \`${verdict}\``,
+            `- failures+errors: \`${totalFailures}\``,
+            `- min line coverage observed: \`${coverage}\``,
+            `- threshold: \`${threshold}\``,
+            `- workflow run: ${runUrl}`,
+            `- flaky suspicion: \`${flakySuspect ? 'yes' : 'no'}\``,
+            ...artifactSection,
+            '',
+            ...incidentHistorySection,
+            '',
+            incidentEndMarker,
+          ].join('\n');
+
+          if (incidentSectionRegex.test(incidentBody)) {
+            incidentBody = incidentBody.replace(incidentSectionRegex, incidentLaneSection);
+          } else {
+            incidentBody = `${incidentBody.trim()}\n\n${incidentLaneSection}\n`;
+          }
+
+          const incidentSectionVerdicts = [...incidentBody.matchAll(/- verdict: `([^`]+)`/g)].map((match) => match[1]);
+          const anyBlockingLane = incidentSectionVerdicts.includes('BLOCK');
+
+          if (!existingIncident) {
+            if (desiredLabel === 'quality:block') {
+              await safeMutation('Create quality incident', () => github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: incidentTitle,
+                body: incidentBody,
+                labels: [incidentLabel, triageLabel],
+              }));
+            }
+          } else {
+            const nextState = anyBlockingLane ? 'open' : 'closed';
+            await safeMutation('Update quality incident', () => github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existingIncident.number,
+              title: incidentTitle,
+              body: incidentBody,
+              state: nextState,
+            }));
+
+            if (existingIncident.state === 'open' && nextState === 'closed') {
+              await safeMutation('Comment on closed quality incident', () => github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIncident.number,
+                body: `No blocking lanes remain for PR #${context.issue.number}. Closing incident.`,
+              }));
+            }
+          }
+
+          const artifactsDir = path.join(process.env.GITHUB_WORKSPACE || '.', 'artifacts', 'quality');
+          fs.mkdirSync(artifactsDir, { recursive: true });
+          const reportPath = path.join(artifactsDir, `${laneKey}.json`);
+          const report = {
+            generated_at: timestamp,
+            repository: `${context.repo.owner}/${context.repo.repo}`,
+            pr_number: context.issue.number,
+            lane_key: laneKey,
+            lane_title: laneTitle,
+            verdict,
+            total_failures: totalFailures,
+            min_line_coverage_observed: rawCoverage ? Number(rawCoverage) : null,
+            threshold,
+            flaky_suspect: flakySuspect,
+            run_url: runUrl,
+            artifact_urls: (artifactData.artifacts || []).map((artifact) => ({
+              name: artifact.name,
+              url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts/${artifact.id}`,
+            })),
+            labels: {
+              aggregate: desiredLabel,
+              triage: desiredLabel === 'quality:block',
+              flaky_suspect: flakySuspect,
+            },
+            recent_transitions: previousCommentHistoryLines.slice(0, 10),
+          };
+          fs.writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
+          } catch (error) {
+            const message = error && typeof error.message === 'string'
+              ? error.message
+              : String(error);
+            const permissionDenied = error?.status === 403
+              || /Resource not accessible by integration/i.test(message);
+            if (!permissionDenied) {
+              throw error;
+            }
+            core.warning(
+              `Skipping PR quality overview update due to GitHub token restrictions: ${message}`
+            );
+          }

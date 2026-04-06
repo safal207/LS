@@ -11,6 +11,7 @@ if str(MODULES) not in sys.path:
     sys.path.insert(0, str(MODULES))
 
 from graph.memory_store import MemoryGraphStore
+from graph.models import RelationalFieldSnapshot
 from graph.retriever import MemoryGraphRetriever
 from graph.runtime import GraphMemoryRuntime
 
@@ -78,3 +79,27 @@ def test_graph_runtime_returns_full_run_when_no_good_match(tmp_path):
     )
 
     assert decision.mode == "full_run"
+
+
+def test_graph_runtime_remember_relational_snapshot_delegates_to_store(tmp_path):
+    store = MemoryGraphStore(tmp_path / "cases.jsonl")
+    runtime = GraphMemoryRuntime(store=store, retriever=MemoryGraphRetriever(store))
+
+    saved = runtime.remember_relational_snapshot(
+        RelationalFieldSnapshot(
+            field_id="",
+            timestamp="",
+            participants=["alice", "bob"],
+            interaction_scope="human-human",
+            tension_score=0.74,
+            alignment_score=0.31,
+            dominant_signal="tension",
+            background_pressure=["urgency"],
+            foreground_expression=["pressure"],
+            notes="runtime facade test",
+            metadata={},
+        )
+    )
+
+    assert saved is not None
+    assert store.list_relational_snapshots()

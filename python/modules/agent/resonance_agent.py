@@ -66,7 +66,7 @@ import logging
 import threading
 import time
 import uuid
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional
 
 from config import (
     GRAPH_CARE_CYCLES_ENABLED,
@@ -483,6 +483,78 @@ except ImportError:
         _build_bridge_graph_state = None  # type: ignore[assignment]
 
 try:
+    from agent.bridge_stabilization import (
+        BridgeStabilizationMetrics as _BridgeStabilizationMetrics,
+        build_bridge_stabilization_order as _build_bridge_stabilization_order,
+    )
+    _BRIDGE_STABILIZATION_OK = True
+except ImportError:
+    try:
+        from modules.agent.bridge_stabilization import (
+            BridgeStabilizationMetrics as _BridgeStabilizationMetrics,
+            build_bridge_stabilization_order as _build_bridge_stabilization_order,
+        )
+        _BRIDGE_STABILIZATION_OK = True
+    except ImportError:
+        _BRIDGE_STABILIZATION_OK = False
+        _BridgeStabilizationMetrics = None  # type: ignore[assignment,misc]
+        _build_bridge_stabilization_order = None  # type: ignore[assignment]
+
+try:
+    from agent.collective_coordination import (
+        CollectiveCoordinationMetrics as _CollectiveCoordinationMetrics,
+        build_collective_coordination_snapshot as _build_collective_coordination_snapshot,
+    )
+    _COLLECTIVE_COORDINATION_OK = True
+except ImportError:
+    try:
+        from modules.agent.collective_coordination import (
+            CollectiveCoordinationMetrics as _CollectiveCoordinationMetrics,
+            build_collective_coordination_snapshot as _build_collective_coordination_snapshot,
+        )
+        _COLLECTIVE_COORDINATION_OK = True
+    except ImportError:
+        _COLLECTIVE_COORDINATION_OK = False
+        _CollectiveCoordinationMetrics = None  # type: ignore[assignment,misc]
+        _build_collective_coordination_snapshot = None  # type: ignore[assignment]
+
+try:
+    from agent.bridge_playbook_link import (
+        BridgePlaybookMetrics as _BridgePlaybookMetrics,
+        build_bridge_playbook_advisory as _build_bridge_playbook_advisory,
+    )
+    _BRIDGE_PLAYBOOK_LINK_OK = True
+except ImportError:
+    try:
+        from modules.agent.bridge_playbook_link import (
+            BridgePlaybookMetrics as _BridgePlaybookMetrics,
+            build_bridge_playbook_advisory as _build_bridge_playbook_advisory,
+        )
+        _BRIDGE_PLAYBOOK_LINK_OK = True
+    except ImportError:
+        _BRIDGE_PLAYBOOK_LINK_OK = False
+        _BridgePlaybookMetrics = None  # type: ignore[assignment,misc]
+        _build_bridge_playbook_advisory = None  # type: ignore[assignment]
+
+try:
+    from agent.coordination_advisory_summary import (
+        CoordinationAdvisorySummaryMetrics as _CoordinationAdvisorySummaryMetrics,
+        build_coordination_advisory_summary as _build_coordination_advisory_summary,
+    )
+    _COORDINATION_ADVISORY_SUMMARY_OK = True
+except ImportError:
+    try:
+        from modules.agent.coordination_advisory_summary import (
+            CoordinationAdvisorySummaryMetrics as _CoordinationAdvisorySummaryMetrics,
+            build_coordination_advisory_summary as _build_coordination_advisory_summary,
+        )
+        _COORDINATION_ADVISORY_SUMMARY_OK = True
+    except ImportError:
+        _COORDINATION_ADVISORY_SUMMARY_OK = False
+        _CoordinationAdvisorySummaryMetrics = None  # type: ignore[assignment,misc]
+        _build_coordination_advisory_summary = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -857,6 +929,26 @@ class ResonanceAgent:
         self._bridge_graph_metrics = (
             _BridgeGraphMetrics()
             if _BRIDGE_GRAPH_OK and _BridgeGraphMetrics
+            else None
+        )
+        self._bridge_stabilization_metrics = (
+            _BridgeStabilizationMetrics()
+            if _BRIDGE_STABILIZATION_OK and _BridgeStabilizationMetrics
+            else None
+        )
+        self._collective_coordination_metrics = (
+            _CollectiveCoordinationMetrics()
+            if _COLLECTIVE_COORDINATION_OK and _CollectiveCoordinationMetrics
+            else None
+        )
+        self._bridge_playbook_metrics = (
+            _BridgePlaybookMetrics()
+            if _BRIDGE_PLAYBOOK_LINK_OK and _BridgePlaybookMetrics
+            else None
+        )
+        self._coordination_advisory_summary_metrics = (
+            _CoordinationAdvisorySummaryMetrics()
+            if _COORDINATION_ADVISORY_SUMMARY_OK and _CoordinationAdvisorySummaryMetrics
             else None
         )
 
@@ -1540,6 +1632,272 @@ class ResonanceAgent:
         if self._bridge_graph_metrics is None:
             return {"bridge_graph_available": False}
         return self._bridge_graph_metrics.to_dict()
+
+    def get_bridge_stabilization_order(
+        self,
+        item: dict[str, Any],
+        bridge_graph_state: dict | None = None,
+        multi_party_state: dict | None = None,
+    ) -> dict[str, Any]:
+        """Build read-only advisory stabilization order from bridge graph edges.
+
+        Advisory-only — never modifies item, route_key, graph_mode, reuse mode,
+        backend selection, prompts, playbook, recommendations, or feedback logic.
+        """
+        if not (_BRIDGE_STABILIZATION_OK and _build_bridge_stabilization_order):
+            return {"bridge_stabilization_available": False}
+
+        graph_state = bridge_graph_state if isinstance(bridge_graph_state, dict) else {}
+        mp_state = multi_party_state if isinstance(multi_party_state, dict) else {}
+
+        order = _build_bridge_stabilization_order(graph_state, multi_party_state=mp_state)
+        order_dict = order.to_dict()
+
+        m = self._bridge_stabilization_metrics
+        if m is not None:
+            m.calls_total += 1
+            edges = [e for e in (graph_state.get("edges") or []) if isinstance(e, dict)]
+            if not edges:
+                m.empty_inputs_total += 1
+                return order_dict
+
+            m.orders_total += 1
+            ordered_edges = [e for e in (order_dict.get("ordered_edges") or []) if isinstance(e, dict)]
+            m.edges_processed_total += len(ordered_edges)
+            for edge in ordered_edges:
+                label = str(edge.get("stabilization_label") or "")
+                if label == "urgent_stabilize":
+                    m.urgent_stabilize_total += 1
+                elif label == "early_stabilize":
+                    m.early_stabilize_total += 1
+                elif label == "quick_win":
+                    m.quick_win_total += 1
+                elif label == "monitor":
+                    m.monitor_total += 1
+                elif label == "defer":
+                    m.defer_total += 1
+                m._stabilization_score_sum += float(edge.get("stabilization_score") or 0.0)
+
+            mode = str(order_dict.get("dominant_stabilization_mode") or "")
+            if mode == "crisis_first":
+                m.crisis_first_total += 1
+            elif mode == "high_priority_first":
+                m.high_priority_first_total += 1
+            elif mode == "quick_wins_first":
+                m.quick_wins_first_total += 1
+            else:
+                m.observe_and_stage_total += 1
+
+        return order_dict
+
+    def get_bridge_stabilization_metrics(self) -> dict[str, Any]:
+        """Return observability counters for bridge stabilization order builds."""
+        if self._bridge_stabilization_metrics is None:
+            return {"bridge_stabilization_available": False}
+        return self._bridge_stabilization_metrics.to_dict()
+
+    def get_collective_coordination_snapshot(
+        self,
+        item: dict[str, Any],
+        multi_party_state: dict[str, Any] | None = None,
+        bridge_graph_state: dict[str, Any] | None = None,
+        bridge_stabilization_order: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build read-only top-level collective coordination scene snapshot."""
+        if not (_COLLECTIVE_COORDINATION_OK and _build_collective_coordination_snapshot):
+            return {"collective_coordination_available": False}
+
+        mp_state = multi_party_state if isinstance(multi_party_state, dict) else {}
+        graph_state = bridge_graph_state if isinstance(bridge_graph_state, dict) else {}
+        order_state = (
+            bridge_stabilization_order if isinstance(bridge_stabilization_order, dict) else {}
+        )
+
+        snapshot = _build_collective_coordination_snapshot(
+            multi_party_state=mp_state,
+            bridge_graph_state=graph_state,
+            bridge_stabilization_order=order_state,
+        )
+        snapshot_dict = snapshot.to_dict()
+
+        m = self._collective_coordination_metrics
+        if m is not None:
+            m.calls_total += 1
+            if not mp_state and not graph_state and not order_state:
+                m.empty_inputs_total += 1
+            m.snapshots_total += 1
+            risk = float(snapshot_dict.get("coordination_risk") or 0.0)
+            m._coordination_risk_sum += risk
+            if risk >= 0.75:
+                m.high_risk_total += 1
+            elif risk >= 0.45:
+                m.medium_risk_total += 1
+            else:
+                m.low_risk_total += 1
+
+            label = str(snapshot_dict.get("coordination_state_label") or "")
+            if label == "coherent":
+                m.coherent_total += 1
+            elif label == "strained":
+                m.strained_total += 1
+            elif label == "fragmented":
+                m.fragmented_total += 1
+            elif label == "unstable":
+                m.unstable_total += 1
+            elif label == "escalating":
+                m.escalating_total += 1
+
+            state = str(mp_state.get("state_label") or "")
+            if state == "converging":
+                m.converging_total += 1
+            elif state == "diverging":
+                m.diverging_total += 1
+            elif state == "stable":
+                m.stable_total += 1
+
+            if snapshot_dict.get("primary_fracture_line"):
+                m.nonempty_fracture_line_total += 1
+            if [e for e in (order_state.get("urgent_edges") or []) if isinstance(e, dict)]:
+                m.urgent_stabilization_total += 1
+
+        return snapshot_dict
+
+    def get_collective_coordination_metrics(self) -> dict[str, Any]:
+        """Return observability counters for collective coordination snapshots."""
+        if self._collective_coordination_metrics is None:
+            return {"collective_coordination_available": False}
+        return self._collective_coordination_metrics.to_dict()
+
+    def get_bridge_playbook_advisory(
+        self,
+        item: dict[str, Any],
+        playbook: dict[str, Any] | None = None,
+        bridge_graph_state: dict[str, Any] | None = None,
+        bridge_stabilization_order: dict[str, Any] | None = None,
+        collective_snapshot: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build read-only bridge-to-playbook advisory from structured layers.
+
+        ``item`` is currently reserved for API consistency with other accessors.
+        The advisory itself is derived only from the explicit structured layers.
+        """
+        if not (_BRIDGE_PLAYBOOK_LINK_OK and _build_bridge_playbook_advisory):
+            return {"bridge_playbook_advisory_available": False}
+
+        pb = playbook if isinstance(playbook, dict) else {}
+        bg = bridge_graph_state if isinstance(bridge_graph_state, dict) else {}
+        bo = bridge_stabilization_order if isinstance(bridge_stabilization_order, dict) else {}
+        cs = collective_snapshot if isinstance(collective_snapshot, dict) else {}
+
+        advisory = _build_bridge_playbook_advisory(
+            playbook=pb,
+            bridge_graph_state=bg,
+            bridge_stabilization_order=bo,
+            collective_snapshot=cs,
+        )
+        advisory_dict = advisory.to_dict()
+
+        m = self._bridge_playbook_metrics
+        if m is not None:
+            m.calls_total += 1
+            m.advisories_total += 1
+            links = [e for e in (advisory_dict.get("step_links") or []) if isinstance(e, dict)]
+            m.step_links_total += len(links)
+            for link in links:
+                label = str(link.get("link_label") or "")
+                if label == "strong_fit":
+                    m.strong_fit_total += 1
+                elif label == "partial_fit":
+                    m.partial_fit_total += 1
+                elif label == "weak_fit":
+                    m.weak_fit_total += 1
+                elif label == "unsupported":
+                    m.unsupported_total += 1
+                elif label == "insufficient_context":
+                    m.insufficient_context_total += 1
+            m._alignment_score_sum += float(advisory_dict.get("playbook_alignment_score") or 0.0)
+            if advisory_dict.get("top_supported_steps"):
+                m.nonempty_supported_steps_total += 1
+            if advisory_dict.get("top_weak_steps"):
+                m.nonempty_weak_steps_total += 1
+
+            alignment_label = str(advisory_dict.get("playbook_alignment_label") or "")
+            if alignment_label == "well_aligned":
+                m.well_aligned_total += 1
+            elif alignment_label == "partially_aligned":
+                m.partially_aligned_total += 1
+            elif alignment_label == "weakly_aligned":
+                m.weakly_aligned_total += 1
+            elif alignment_label == "misaligned":
+                m.misaligned_total += 1
+
+        return advisory_dict
+
+    def get_bridge_playbook_metrics(self) -> dict[str, Any]:
+        """Return observability counters for bridge-to-playbook advisories."""
+        if self._bridge_playbook_metrics is None:
+            return {"bridge_playbook_advisory_available": False}
+        return self._bridge_playbook_metrics.to_dict()
+
+    def get_coordination_advisory_summary(
+        self,
+        item: dict[str, Any],
+        collective_coordination_snapshot: dict[str, Any] | None = None,
+        bridge_stabilization_order: dict[str, Any] | None = None,
+        bridge_playbook_advisory: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build read-only top-level coordination advisory summary."""
+        if not (_COORDINATION_ADVISORY_SUMMARY_OK and _build_coordination_advisory_summary):
+            return {"coordination_advisory_summary_available": False}
+
+        cs = collective_coordination_snapshot if isinstance(collective_coordination_snapshot, dict) else {}
+        bo = bridge_stabilization_order if isinstance(bridge_stabilization_order, dict) else {}
+        pa = bridge_playbook_advisory if isinstance(bridge_playbook_advisory, dict) else {}
+
+        summary = _build_coordination_advisory_summary(
+            collective_coordination_snapshot=cs,
+            bridge_stabilization_order=bo,
+            bridge_playbook_advisory=pa,
+        )
+        summary_dict = summary.to_dict()
+
+        m = self._coordination_advisory_summary_metrics
+        if m is not None:
+            m.calls_total += 1
+            m.summaries_total += 1
+            label = str(summary_dict.get("coordination_advisory_label") or "")
+            if label == "ready":
+                m.ready_total += 1
+            elif label == "fragile":
+                m.fragile_total += 1
+            elif label == "blocked":
+                m.blocked_total += 1
+            elif label == "insufficient_context":
+                m.insufficient_context_total += 1
+
+            mode = str(summary_dict.get("primary_intervention_mode") or "")
+            if mode == "stabilization_first":
+                m.stabilization_first_total += 1
+            elif mode == "translation_first":
+                m.translation_first_total += 1
+            elif mode == "reframe_first":
+                m.reframe_first_total += 1
+            elif mode == "pacing_first":
+                m.pacing_first_total += 1
+            elif mode == "acknowledge_first":
+                m.acknowledge_first_total += 1
+            elif mode == "mixed":
+                m.mixed_total += 1
+
+            m._readiness_sum += float(summary_dict.get("coordination_readiness") or 0.0)
+
+        return summary_dict
+
+    def get_coordination_advisory_summary_metrics(self) -> dict[str, Any]:
+        """Return observability counters for coordination advisory summaries."""
+        if self._coordination_advisory_summary_metrics is None:
+            return {"coordination_advisory_summary_available": False}
+        return self._coordination_advisory_summary_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2637,6 +2995,31 @@ class ResonanceAgent:
         )
         # Bridge graph: structural relationship layer over multi-party state
         _bridge_graph = self.get_bridge_graph_state(item, multi_party_state=_multi_party_state)
+        # Bridge stabilization: advisory ordering layer over bridge graph edges
+        _bridge_stabilization_order = self.get_bridge_stabilization_order(
+            item,
+            bridge_graph_state=_bridge_graph,
+            multi_party_state=_multi_party_state,
+        )
+        _collective_coordination_snapshot = self.get_collective_coordination_snapshot(
+            item,
+            multi_party_state=_multi_party_state,
+            bridge_graph_state=_bridge_graph,
+            bridge_stabilization_order=_bridge_stabilization_order,
+        )
+        _bridge_playbook_advisory = self.get_bridge_playbook_advisory(
+            item,
+            playbook=_strategy_playbook,
+            bridge_graph_state=_bridge_graph,
+            bridge_stabilization_order=_bridge_stabilization_order,
+            collective_snapshot=_collective_coordination_snapshot,
+        )
+        _coordination_advisory_summary = self.get_coordination_advisory_summary(
+            item,
+            collective_coordination_snapshot=_collective_coordination_snapshot,
+            bridge_stabilization_order=_bridge_stabilization_order,
+            bridge_playbook_advisory=_bridge_playbook_advisory,
+        )
 
         return {
             # Identity
@@ -2713,6 +3096,14 @@ class ResonanceAgent:
             "multi_party_alignment_metrics": self.get_multi_party_alignment_metrics(),
             "bridge_graph_state": _bridge_graph,
             "bridge_graph_metrics": self.get_bridge_graph_metrics(),
+            "bridge_stabilization_order": _bridge_stabilization_order,
+            "bridge_stabilization_metrics": self.get_bridge_stabilization_metrics(),
+            "collective_coordination_snapshot": _collective_coordination_snapshot,
+            "collective_coordination_metrics": self.get_collective_coordination_metrics(),
+            "bridge_playbook_advisory": _bridge_playbook_advisory,
+            "bridge_playbook_metrics": self.get_bridge_playbook_metrics(),
+            "coordination_advisory_summary": _coordination_advisory_summary,
+            "coordination_advisory_summary_metrics": self.get_coordination_advisory_summary_metrics(),
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),

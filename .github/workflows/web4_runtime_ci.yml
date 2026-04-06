@@ -48,6 +48,13 @@ jobs:
   web4-runtime:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    env:
+      LIMINALQA_URL: ${{ secrets.LIMINALQA_URL }}
+      LIMINALQA_TOKEN: ${{ secrets.LIMINALQA_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,7 +72,7 @@ jobs:
       - name: Install Python tooling
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest ruff mypy requests PyYAML psutil websockets
+          python -m pip install pytest pytest-cov ruff mypy requests PyYAML psutil websockets
           if [ -f requirements-dev.txt ]; then
             python -m pip install -r requirements-dev.txt
           fi
@@ -84,16 +91,54 @@ jobs:
             -p python.modules.hexagon_core
 
       - name: Run Python smoke tests
-        run: |
-          PYTHONPATH=python python -m pytest python/tests/test_web4_runtime.py python/tests/test_web4_mesh.py python/tests/test_web4_graph.py python/tests/test_web4_interoperability.py python/tests/test_web4_bio.py
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: python-runtime
+          pytest-invocation: >-
+            PYTHONPATH=python python -m pytest
+            python/tests/test_web4_runtime.py
+            python/tests/test_web4_mesh.py
+            python/tests/test_web4_graph.py
+            python/tests/test_web4_interoperability.py
+            python/tests/test_web4_bio.py
+            --junitxml=artifacts/web4-runtime-smoke-junit.xml
+            --cov=python/modules/web4_runtime
+            --cov=python/modules/web4_mesh
+            --cov=python/modules/web4_graph
+            --cov=python/modules/web4_bio
+            --cov-report=xml:artifacts/web4-runtime-smoke-coverage.xml
 
       - name: Run Web4 runtime contract and load-smoke tests
-        run: |
-          PYTHONPATH=python:python/modules python -m pytest python/tests/test_web4_transport.py python/tests/test_web4_federation_policy.py python/tests/test_global_flow.py python/tests/test_async_rtt.py python/tests/test_fuzzy_runtime.py python/tests/test_web4_runtime_loadtest.py
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: python-runtime
+          pytest-invocation: >-
+            PYTHONPATH=python:python/modules python -m pytest
+            python/tests/test_web4_transport.py
+            python/tests/test_web4_federation_policy.py
+            python/tests/test_global_flow.py
+            python/tests/test_async_rtt.py
+            python/tests/test_fuzzy_runtime.py
+            python/tests/test_web4_runtime_loadtest.py
+            --junitxml=artifacts/web4-runtime-contract-junit.xml
+            --cov=python/modules/web4_runtime
+            --cov=python/modules/web4_mesh
+            --cov=python/modules/hexagon_core
+            --cov-report=xml:artifacts/web4-runtime-contract-coverage.xml
 
       - name: Run hexagon_core unit tests
-        run: |
-          PYTHONPATH=python:python/modules python -m pytest python/tests/test_temporal_index.py python/tests/test_belief_system.py python/tests/test_circuit_breaker.py python/tests/test_mission_state.py
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: python-runtime
+          pytest-invocation: >-
+            PYTHONPATH=python:python/modules python -m pytest
+            python/tests/test_temporal_index.py
+            python/tests/test_belief_system.py
+            python/tests/test_circuit_breaker.py
+            python/tests/test_mission_state.py
+            --junitxml=artifacts/hexagon-core-junit.xml
+            --cov=python/modules/hexagon_core
+            --cov-report=xml:artifacts/hexagon-core-coverage.xml
 
       - name: Rust build
         working-directory: rust_core
@@ -105,12 +150,27 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Test Rust Python Bridge
-        run: |
-          PYTHONPATH=python:python/modules python -m pytest python/tests/test_rust_bridge.py
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: rust-bridge
+          pytest-invocation: >-
+            PYTHONPATH=python:python/modules python -m pytest
+            python/tests/test_rust_bridge.py
+            --junitxml=artifacts/rust-bridge-junit.xml
+            --cov=python/rust_bridge.py
+            --cov-report=xml:artifacts/rust-bridge-coverage.xml
 
       - name: Test API Parity (Rust vs Fallback)
-        run: |
-          PYTHONPATH=python:python/modules python -m pytest python/tests/test_api_parity.py
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: rust-bridge
+          pytest-invocation: >-
+            PYTHONPATH=python:python/modules python -m pytest
+            python/tests/test_api_parity.py
+            --junitxml=artifacts/api-parity-junit.xml
+            --cov=python/rust_bridge.py
+            --cov=python/modules/web4_runtime
+            --cov-report=xml:artifacts/api-parity-coverage.xml
 
       - name: Run Rust tests
         working-directory: rust_core
@@ -118,3 +178,61 @@ jobs:
           PYO3_PYTHON: python3
         run: |
           cargo test --all --release --no-default-features --features python-embed
+
+      - name: Summarize quality artifacts
+        if: always()
+        uses: ./.github/actions/summarize-quality-artifacts
+        with:
+          label: web4-runtime
+      - id: quality_gate
+        name: Quality gate
+        if: always()
+        uses: ./.github/actions/quality-gate
+        with:
+          label: web4-runtime
+          max-failures: "0"
+          min-line-coverage: "25"
+          require-junit: "true"
+          require-coverage: "true"
+          enforce: "true"
+      - name: Write machine-readable quality snapshot
+        if: always()
+        uses: ./.github/actions/write-quality-report
+        with:
+          lane-key: web4-runtime
+          lane-title: Web4 Runtime Quality Gate
+          threshold: 25%
+          verdict: ${{ steps.quality_gate.outputs.verdict }}
+          total-failures: ${{ steps.quality_gate.outputs.total-failures }}
+          min-line-coverage: ${{ steps.quality_gate.outputs.min-line-coverage-observed }}
+      - name: Update PR quality comment
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: ./.github/actions/upsert-pr-quality-overview
+        with:
+          lane-key: web4-runtime
+          lane-title: Web4 Runtime Quality Gate
+          threshold: 25%
+          verdict: ${{ steps.quality_gate.outputs.verdict }}
+          total-failures: ${{ steps.quality_gate.outputs.total-failures }}
+          min-line-coverage: ${{ steps.quality_gate.outputs.min-line-coverage-observed }}
+      - name: Aggregate workflow quality report
+        if: always()
+        uses: ./.github/actions/aggregate-quality-reports
+        with:
+          label: web4-runtime
+      - name: Publish workflow quality snapshot to LiminalQA
+        if: always()
+        uses: ./.github/actions/publish-quality-report-to-liminalqa
+        with:
+          label: web4-runtime
+          plan-name: web4-runtime-quality-gate
+          liminalqa-url: ${{ env.LIMINALQA_URL }}
+          liminalqa-token: ${{ env.LIMINALQA_TOKEN }}
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web4-runtime-artifacts
+          path: artifacts/
