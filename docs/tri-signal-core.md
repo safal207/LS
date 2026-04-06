@@ -39,6 +39,7 @@ Expected shape:
 
 - Marker search spans `utterance`, `task_intent`, `scene_context`, and `recent_memory`.
 - Negative markers are evaluated before positive ones on each axis.
+- Common negated forms are explicitly handled (for example: `неинтересно`, `неверно`, `неважно`, `not meaningful`, `not worth it`).
 - Confidence heuristic:
   - `0.8` direct marker
   - `0.6` supporting/indirect marker

@@ -44,7 +44,7 @@ class TriSignalCore:
     _AGREEMENT_POSITIVE = (
         _Marker("да", re.compile(r"\bда\b"), True),
         _Marker("соглас", re.compile(r"соглас"), False),
-        _Marker("верно", re.compile(r"верно"), True),
+        _Marker("верно", re.compile(r"\bверно\b"), True),
         _Marker("ok", re.compile(r"\bok\b"), True),
         _Marker("yes", re.compile(r"\byes\b"), True),
         _Marker("true", re.compile(r"\btrue\b"), True),
@@ -52,6 +52,7 @@ class TriSignalCore:
     _AGREEMENT_NEGATIVE = (
         _Marker("нет", re.compile(r"\bнет\b"), True),
         _Marker("не соглас", re.compile(r"не\s+соглас"), True),
+        _Marker("неверно", re.compile(r"\bневерно\b"), True),
         _Marker("wrong", re.compile(r"\bwrong\b"), True),
         _Marker("false", re.compile(r"\bfalse\b"), True),
         _Marker("no", re.compile(r"\bno\b"), True),
@@ -59,13 +60,14 @@ class TriSignalCore:
 
     _DESIRE_POSITIVE = (
         _Marker("хочу", re.compile(r"\bхочу\b"), True),
-        _Marker("интересно", re.compile(r"интересно"), True),
+        _Marker("интересно", re.compile(r"\bинтересно\b"), True),
         _Marker("тянет", re.compile(r"\bтянет\b"), True),
         _Marker("want", re.compile(r"\bwant\b"), True),
         _Marker("desire", re.compile(r"\bdesire\b"), True),
     )
     _DESIRE_NEGATIVE = (
         _Marker("не хочу", re.compile(r"не\s+хочу"), True),
+        _Marker("неинтересно", re.compile(r"\bнеинтересно\b"), True),
         _Marker("не тянет", re.compile(r"не\s+тянет"), True),
         _Marker("отталкивает", re.compile(r"отталкива"), False),
         _Marker("dont want", re.compile(r"\bdon[’']?t\s+want\b"), True),
@@ -74,15 +76,18 @@ class TriSignalCore:
 
     _MEANING_POSITIVE = (
         _Marker("есть смысл", re.compile(r"есть\s+смысл"), True),
-        _Marker("важно", re.compile(r"важно"), True),
+        _Marker("важно", re.compile(r"\bважно\b"), True),
         _Marker("имеет смысл", re.compile(r"имеет\s+смысл"), True),
         _Marker("meaningful", re.compile(r"\bmeaningful\b"), True),
         _Marker("worth it", re.compile(r"\bworth\s+it\b"), True),
     )
     _MEANING_NEGATIVE = (
         _Marker("нет смысла", re.compile(r"нет\s+смысла"), True),
+        _Marker("неважно", re.compile(r"\bневажно\b"), True),
         _Marker("бессмыс", re.compile(r"бессмыс"), False),
         _Marker("пусто", re.compile(r"\bпусто\b"), True),
+        _Marker("not meaningful", re.compile(r"\bnot\s+meaningful\b"), True),
+        _Marker("not worth it", re.compile(r"\bnot\s+worth\s+it\b"), True),
         _Marker("meaningless", re.compile(r"\bmeaningless\b"), True),
         _Marker("pointless", re.compile(r"\bpointless\b"), True),
     )

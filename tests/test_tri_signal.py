@@ -51,6 +51,27 @@ def test_negative_markers_override_naive_positive_substrings() -> None:
     assert "не хочу" in result.supporting_markers["desire"]
 
 
+def test_neinteresno_is_not_want() -> None:
+    result = core.detect(TriSignalInput(utterance="Мне неинтересно."))
+
+    assert result.desire_signal != "want"
+    assert result.desire_signal == "dont_want"
+
+
+def test_neverno_is_not_yes() -> None:
+    result = core.detect(TriSignalInput(utterance="Это неверно."))
+
+    assert result.agreement_signal != "yes"
+    assert result.agreement_signal == "no"
+
+
+def test_nevazhno_is_not_meaningful() -> None:
+    result = core.detect(TriSignalInput(utterance="Это неважно."))
+
+    assert result.meaning_signal != "meaningful"
+    assert result.meaning_signal == "meaningless"
+
+
 def test_tension_flags_for_mismatch_cases() -> None:
     result = core.detect(TriSignalInput(utterance="Yes, I want this, but it is pointless."))
 
