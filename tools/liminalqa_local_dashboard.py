@@ -14,12 +14,18 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import xml.etree.ElementTree as ET
 
-
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+PYTHON_DIR = ROOT / "python"
+if str(PYTHON_DIR) not in sys.path:
+    sys.path.insert(0, str(PYTHON_DIR))
+
+from modules.cel import load_council_ledgers, summarize_council_ledgers
+
 HTML_PATH = ROOT / "tools" / "liminalqa_local_dashboard.html"
 ENV_PATH = ROOT / ".env.liminalqa.local"
 DEFAULT_REPORT_PATH = ROOT / "artifacts" / "quality-report.json"
 ARTIFACTS_DIR = ROOT / "artifacts"
+COUNCIL_LEDGER_DIR = ARTIFACTS_DIR / "council-ledger"
 LANE_CONFIGS = {
     "mesh-tests": {
         "lane_key": "mesh-tests",
@@ -554,6 +560,19 @@ def preview_quality_report() -> tuple[int, object]:
     }
 
 
+def preview_council_report() -> tuple[int, object]:
+    ledgers = load_council_ledgers(COUNCIL_LEDGER_DIR)
+    if not ledgers:
+        return 404, {
+            "error": "no council ledger artifacts found",
+            "expected_path": str(COUNCIL_LEDGER_DIR),
+        }
+
+    report = summarize_council_ledgers(ledgers)
+    report["artifacts_path"] = str(COUNCIL_LEDGER_DIR)
+    return 200, report
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send_json(self, status: int, payload: object) -> None:
         body = json.dumps(payload, indent=2).encode("utf-8")
@@ -592,6 +611,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/quality-report-preview":
             status, payload = preview_quality_report()
+            self._send_json(status, payload)
+            return
+        if self.path == "/api/council-report-preview":
+            status, payload = preview_council_report()
             self._send_json(status, payload)
             return
         self._send_json(404, {"error": "not found"})

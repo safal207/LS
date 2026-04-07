@@ -61,6 +61,8 @@ The dashboard gives you:
 - health check
 - one-click smoke publish
 - simple query preview
+- quality report preview
+- council analytics with histograms and line graphs
 
 Stop the stack:
 

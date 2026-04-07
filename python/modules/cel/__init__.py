@@ -21,6 +21,7 @@ from .council_sync import (
     build_contribution_records_from_council_ledger,
     quality_score_from_council_outcome,
 )
+from .council_report import load_council_ledgers, summarize_council_ledgers
 from .merit_sync import (
     build_merit_updates_from_council_ledger,
     merit_score_from_council_ledger,
@@ -72,6 +73,8 @@ __all__ = [
     "build_contribution_records_from_council_ledger",
     "quality_score_from_council_outcome",
     "apply_council_ledger_to_cel",
+    "load_council_ledgers",
+    "summarize_council_ledgers",
     "network_effect_bonus",
     "merit_score_from_council_ledger",
     "build_merit_updates_from_council_ledger",

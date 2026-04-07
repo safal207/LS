@@ -1,532 +1,134 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LiminalQA Local Dashboard</title>
   <style>
-    :root {
-      --bg: #f2efe8;
-      --panel: #fffaf1;
-      --ink: #161311;
-      --muted: #6d655d;
-      --accent: #a63d2f;
-      --accent-2: #1e6f5c;
-      --line: #d9cdbb;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Georgia, "Times New Roman", serif;
-      background:
-        radial-gradient(circle at top left, rgba(166, 61, 47, 0.14), transparent 28rem),
-        radial-gradient(circle at bottom right, rgba(30, 111, 92, 0.12), transparent 28rem),
-        var(--bg);
-      color: var(--ink);
-    }
-    main {
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 32px 20px 48px;
-    }
-    h1 {
-      margin: 0 0 10px;
-      font-size: clamp(2rem, 4vw, 3.8rem);
-      line-height: 0.95;
-      letter-spacing: -0.04em;
-    }
-    .lede {
-      max-width: 680px;
-      color: var(--muted);
-      font-size: 1.05rem;
-      margin-bottom: 28px;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 16px;
-    }
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 18px;
-      box-shadow: 0 12px 30px rgba(22, 19, 17, 0.06);
-    }
-    .kicker {
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      font-size: 0.72rem;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
-    .status {
-      font-size: 1.4rem;
-      margin-bottom: 8px;
-    }
-    .ok { color: var(--accent-2); }
-    .bad { color: var(--accent); }
-    .button-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 10px;
-    }
-    button {
-      appearance: none;
-      border: 0;
-      border-radius: 999px;
-      padding: 12px 16px;
-      background: var(--ink);
-      color: white;
-      font: inherit;
-      cursor: pointer;
-    }
-    button.secondary {
-      background: var(--accent);
-    }
-    button.active {
-      background: var(--accent-2);
-    }
-    button:disabled {
-      opacity: 0.6;
-      cursor: wait;
-    }
-    pre {
-      margin: 0;
-      white-space: pre-wrap;
-      word-break: break-word;
-      background: #171311;
-      color: #f8f1e3;
-      border-radius: 14px;
-      padding: 14px;
-      min-height: 220px;
-      overflow: auto;
-      font-size: 0.9rem;
-    }
-    .meta {
-      color: var(--muted);
-      font-size: 0.9rem;
-      margin-top: 10px;
-    }
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 12px;
-      margin-top: 12px;
-    }
-    .summary-box {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 12px;
-      background: rgba(255, 250, 241, 0.65);
-    }
-    .summary-label {
-      color: var(--muted);
-      font-size: 0.8rem;
-      margin-bottom: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-    .summary-value {
-      font-size: 1.1rem;
-    }
-    .lane-list {
-      margin: 14px 0 0;
-      padding-left: 18px;
-    }
-    .lane-list li {
-      margin: 6px 0;
-    }
+    :root { --bg:#f3efe7; --panel:#fffaf1; --ink:#1c1713; --muted:#6c6358; --line:#dbcdb8; --accent:#a34332; --accent2:#1f6d5b; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); font-family:Georgia,"Times New Roman",serif; background:radial-gradient(circle at top left, rgba(199,92,70,.14), transparent 24rem),radial-gradient(circle at bottom right, rgba(40,115,100,.14), transparent 24rem),var(--bg); }
+    main { max-width:1180px; margin:0 auto; padding:28px 18px 44px; }
+    h1 { margin:0 0 10px; font-size:clamp(2rem,4vw,3.9rem); line-height:.95; letter-spacing:-.04em; }
+    h2 { margin:0 0 10px; font-size:1.45rem; }
+    .lede { max-width:760px; color:var(--muted); font-size:1.05rem; margin:0 0 26px; }
+    .header { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; flex-wrap:wrap; }
+    .grid, .summary-grid, .chart-grid { display:grid; gap:16px; }
+    .grid { grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
+    .summary-grid { grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); margin-top:14px; gap:12px; }
+    .chart-grid { grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); margin-top:16px; }
+    .panel, .chart-panel, .summary-box { background:var(--panel); border:1px solid var(--line); border-radius:18px; }
+    .panel { padding:18px; box-shadow:0 10px 30px rgba(28,23,19,.06); }
+    .chart-panel { padding:14px; background:rgba(255,250,241,.82); }
+    .summary-box { padding:12px; background:rgba(255,250,241,.75); border-radius:14px; }
+    .kicker, .summary-label { text-transform:uppercase; letter-spacing:.12em; font-size:.72rem; color:var(--muted); margin-bottom:10px; }
+    .summary-label { font-size:.8rem; letter-spacing:.08em; margin-bottom:6px; }
+    .summary-value { font-size:1.12rem; }
+    .status { font-size:1.4rem; margin-bottom:8px; }
+    .ok { color:var(--accent2); } .bad { color:var(--accent); }
+    .meta, .chart-subtitle, .empty-note { color:var(--muted); font-size:.92rem; }
+    .button-row { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+    button { appearance:none; border:0; border-radius:999px; padding:12px 16px; background:var(--ink); color:#fff; font:inherit; cursor:pointer; }
+    button.secondary { background:var(--accent); }
+    button.ghost { background:transparent; border:1px solid var(--line); color:var(--ink); }
+    button.active { background:var(--accent2); }
+    button:disabled { opacity:.65; cursor:wait; }
+    .lane-list, .cycle-list { margin:14px 0 0; padding-left:18px; }
+    .lane-list li, .cycle-list li { margin:6px 0; }
+    .section { margin-top:16px; }
+    pre { margin:0; white-space:pre-wrap; word-break:break-word; background:#171311; color:#f8f1e3; border-radius:14px; padding:14px; min-height:220px; overflow:auto; font-size:.9rem; }
+    svg { width:100%; height:220px; display:block; background:linear-gradient(180deg, rgba(255,255,255,.35), rgba(255,255,255,.1)); border-radius:12px; border:1px solid rgba(219,205,184,.85); }
+    code { font-family:"Cascadia Code",Consolas,monospace; font-size:.92em; }
   </style>
 </head>
 <body>
   <main>
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+    <div class="header">
       <div>
         <h1 id="title">LiminalQA<br>Локальная панель</h1>
-        <p id="lede" class="lede">Маленькая локальная панель для пути LS -&gt; LiminalQA. Проверяй здоровье сервиса, отправляй smoke batch и смотри preview query без ручного curl.</p>
+        <p id="lede" class="lede">Маленькая локальная панель для пути LS -> LiminalQA и council-ledger analytics. Проверяй здоровье, публикуй quality snapshot и смотри вклад моделей по циклам согласования.</p>
       </div>
-      <div class="panel" style="padding:12px 14px;min-width:180px;">
+      <div class="panel" style="padding:12px 14px;min-width:210px;">
         <div id="lang-label" class="kicker" style="margin-bottom:8px;">Язык</div>
         <div class="button-row" style="margin-top:0;">
           <button id="lang-ru" type="button" class="active">Русский</button>
-          <button id="lang-en" type="button">English</button>
+          <button id="lang-en" type="button" class="ghost">English</button>
         </div>
       </div>
     </div>
 
     <section class="grid">
-      <article class="panel">
-        <div id="health-kicker" class="kicker">Здоровье сервиса</div>
-        <div id="health-status" class="status">Проверка...</div>
-        <div id="health-meta" class="meta"></div>
-        <div class="button-row">
-          <button id="refresh-health">Проверить health</button>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div id="smoke-kicker" class="kicker">Smoke Publish</div>
-        <div id="smoke-meta" class="meta">Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.</div>
-        <div class="button-row">
-          <button id="publish-smoke" class="secondary">Отправить smoke batch</button>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div id="lane-kicker" class="kicker">Local Test Lane</div>
-        <div id="lane-meta" class="meta">Локально запускает реальный <code>mesh-tests</code> через <code>pytest</code>, пишет JUnit и coverage, потом пересчитывает quality report.</div>
-        <div class="button-row">
-          <button id="run-local-lane">Запустить mesh-tests</button>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div id="quality-kicker" class="kicker">Quality Report</div>
-        <div id="quality-meta" class="meta">Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.</div>
-        <div class="button-row">
-          <button id="generate-quality-report" class="secondary">Сгенерировать quality report</button>
-          <button id="publish-quality-report">Отправить quality report</button>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div id="query-kicker" class="kicker">Query Preview</div>
-        <div id="query-meta" class="meta">Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.</div>
-        <div class="button-row">
-          <button id="run-query">Показать query preview</button>
-        </div>
-      </article>
+      <article class="panel"><div id="health-kicker" class="kicker">Здоровье сервиса</div><div id="health-status" class="status">Проверка...</div><div id="health-meta" class="meta"></div><div class="button-row"><button id="refresh-health">Проверить health</button></div></article>
+      <article class="panel"><div id="smoke-kicker" class="kicker">Smoke Publish</div><div id="smoke-meta" class="meta">Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.</div><div class="button-row"><button id="publish-smoke" class="secondary">Отправить smoke batch</button></div></article>
+      <article class="panel"><div id="lane-kicker" class="kicker">Local Test Lane</div><div id="lane-meta" class="meta">Локально запускает <code>mesh-tests</code> через <code>pytest</code>, пишет JUnit и coverage, потом пересчитывает quality report.</div><div class="button-row"><button id="run-local-lane">Запустить mesh-tests</button></div></article>
+      <article class="panel"><div id="quality-kicker" class="kicker">Quality Report</div><div id="quality-meta" class="meta">Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.</div><div class="button-row"><button id="generate-quality-report" class="secondary">Сгенерировать quality report</button><button id="publish-quality-report">Отправить quality report</button></div></article>
+      <article class="panel"><div id="query-kicker" class="kicker">Query Preview</div><div id="query-meta" class="meta">Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.</div><div class="button-row"><button id="run-query">Показать query preview</button></div></article>
     </section>
 
-    <section class="panel" style="margin-top:16px;">
+    <section class="panel section">
       <div id="quality-preview-kicker" class="kicker">Quality Preview</div>
       <div id="quality-preview-meta" class="meta">Краткая сводка по текущему локальному quality report.</div>
       <div class="summary-grid">
-        <div class="summary-box">
-          <div id="summary-verdict-label" class="summary-label">Aggregate Verdict</div>
-          <div id="summary-verdict" class="summary-value">n/a</div>
-        </div>
-        <div class="summary-box">
-          <div id="summary-lanes-label" class="summary-label">Lanes</div>
-          <div id="summary-lanes" class="summary-value">0</div>
-        </div>
-        <div class="summary-box">
-          <div id="summary-failures-label" class="summary-label">Failures</div>
-          <div id="summary-failures" class="summary-value">0</div>
-        </div>
-        <div class="summary-box">
-          <div id="summary-coverage-label" class="summary-label">Min Coverage</div>
-          <div id="summary-coverage" class="summary-value">n/a</div>
-        </div>
+        <div class="summary-box"><div id="summary-verdict-label" class="summary-label">Aggregate Verdict</div><div id="summary-verdict" class="summary-value">n/a</div></div>
+        <div class="summary-box"><div id="summary-lanes-label" class="summary-label">Lanes</div><div id="summary-lanes" class="summary-value">0</div></div>
+        <div class="summary-box"><div id="summary-failures-label" class="summary-label">Failures</div><div id="summary-failures" class="summary-value">0</div></div>
+        <div class="summary-box"><div id="summary-coverage-label" class="summary-label">Min Coverage</div><div id="summary-coverage" class="summary-value">n/a</div></div>
       </div>
       <ul id="lane-list" class="lane-list"></ul>
     </section>
 
-    <section class="panel" style="margin-top:16px;">
-      <div id="result-kicker" class="kicker">Результат</div>
-      <pre id="result">Ожидание действия...</pre>
+    <section class="panel section">
+      <div id="council-kicker" class="kicker">Council Analytics</div>
+      <h2 id="council-title">Вклад моделей в совет согласования</h2>
+      <div id="council-meta" class="meta">Панель читает <code>artifacts/council-ledger/*.json</code> и показывает, кто реально тянет качество, как меняется резонанс и какие маршруты чаще выигрывают.</div>
+      <div class="summary-grid">
+        <div class="summary-box"><div id="council-ledger-count-label" class="summary-label">Ledgers</div><div id="council-ledger-count" class="summary-value">0</div></div>
+        <div class="summary-box"><div id="council-best-model-label" class="summary-label">Top Contributor</div><div id="council-best-model" class="summary-value">n/a</div></div>
+        <div class="summary-box"><div id="council-success-label" class="summary-label">Success Rate</div><div id="council-success" class="summary-value">0%</div></div>
+        <div class="summary-box"><div id="council-resonance-label" class="summary-label">Avg Resonance</div><div id="council-resonance" class="summary-value">0%</div></div>
+        <div class="summary-box"><div id="council-merit-label" class="summary-label">Avg Merit</div><div id="council-merit" class="summary-value">0%</div></div>
+      </div>
+      <div class="chart-grid">
+        <article class="chart-panel"><h3 id="chart-best-count-title" class="chart-title">Best Contributor Frequency</h3><p id="chart-best-count-subtitle" class="chart-subtitle">Сколько раз модель была лучшим contributor по council cycle.</p><svg id="chart-best-count"></svg></article>
+        <article class="chart-panel"><h3 id="chart-contribution-title" class="chart-title">Cumulative Contribution</h3><p id="chart-contribution-subtitle" class="chart-subtitle">Сумма contribution score по моделям.</p><svg id="chart-contribution"></svg></article>
+        <article class="chart-panel"><h3 id="chart-model-type-title" class="chart-title">Model Type Lift</h3><p id="chart-model-type-subtitle" class="chart-subtitle">Средний contribution score по типам моделей.</p><svg id="chart-model-type"></svg></article>
+        <article class="chart-panel"><h3 id="chart-route-title" class="chart-title">Route Wins</h3><p id="chart-route-subtitle" class="chart-subtitle">Какие route чаще побеждают в финальном решении.</p><svg id="chart-route"></svg></article>
+        <article class="chart-panel"><h3 id="chart-resonance-title" class="chart-title">Receiver Resonance Trend</h3><p id="chart-resonance-subtitle" class="chart-subtitle">Линейный тренд того, как ответ резонирует с получателем.</p><svg id="chart-resonance"></svg></article>
+        <article class="chart-panel"><h3 id="chart-merit-title" class="chart-title">Average Merit Trend</h3><p id="chart-merit-subtitle" class="chart-subtitle">Линейный тренд merit и network value по council cycles.</p><svg id="chart-merit"></svg></article>
+      </div>
+      <ul id="cycle-list" class="cycle-list"></ul>
+      <div id="council-empty" class="empty-note"></div>
     </section>
+
+    <section class="panel section"><div id="result-kicker" class="kicker">Результат</div><pre id="result">Ожидание действия...</pre></section>
   </main>
   <script>
     const result = document.getElementById("result");
     const healthStatus = document.getElementById("health-status");
     const healthMeta = document.getElementById("health-meta");
-    const dictionary = {
-      ru: {
-        title: "LiminalQA<br>Локальная панель",
-        lede: "Маленькая локальная панель для пути LS -> LiminalQA. Проверяй здоровье сервиса, отправляй smoke batch и смотри preview query без ручного curl.",
-        langLabel: "Язык",
-        healthKicker: "Здоровье сервиса",
-        healthChecking: "Проверка...",
-        healthHealthy: "Сервис жив",
-        healthUnavailable: "Недоступен",
-        refreshHealth: "Проверить health",
-        smokeKicker: "Smoke Publish",
-        smokeMeta: "Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.",
-        publishSmoke: "Отправить smoke batch",
-        laneKicker: "Local Test Lane",
-        laneMeta: "Локально запускает реальный <code>mesh-tests</code> через <code>pytest</code>, пишет JUnit и coverage, потом пересчитывает quality report.",
-        runLocalLane: "Запустить mesh-tests",
-        qualityKicker: "Quality Report",
-        qualityMeta: "Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.",
-        generateQualityReport: "Сгенерировать quality report",
-        publishQualityReport: "Отправить quality report",
-        qualityPreviewKicker: "Quality Preview",
-        qualityPreviewMeta: "Краткая сводка по текущему локальному quality report.",
-        summaryVerdictLabel: "Aggregate Verdict",
-        summaryLanesLabel: "Lanes",
-        summaryFailuresLabel: "Failures",
-        summaryCoverageLabel: "Min Coverage",
-        noQualityReport: "Локальный quality report еще не создан.",
-        laneLine: "{title}: {verdict}, failures={failures}, coverage={coverage}",
-        queryKicker: "Query Preview",
-        queryMeta: "Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.",
-        runQuery: "Показать query preview",
-        resultKicker: "Результат",
-        waiting: "Ожидание действия...",
-        working: "Выполняю..."
-      },
-      en: {
-        title: "LiminalQA<br>Local Dashboard",
-        lede: "Small local control surface for the LS to LiminalQA path. Check health, push a smoke batch, and preview the latest query without touching curl.",
-        langLabel: "Language",
-        healthKicker: "Service Health",
-        healthChecking: "Checking...",
-        healthHealthy: "Healthy",
-        healthUnavailable: "Unavailable",
-        refreshHealth: "Refresh Health",
-        smokeKicker: "Smoke Publish",
-        smokeMeta: "Send one synthetic run with one test and one signal through <code>/ingest/batch</code>.",
-        publishSmoke: "Publish Smoke Batch",
-        laneKicker: "Local Test Lane",
-        laneMeta: "Run the real local <code>mesh-tests</code> lane via <code>pytest</code>, write JUnit and coverage, then rebuild the quality report.",
-        runLocalLane: "Run mesh-tests",
-        qualityKicker: "Quality Report",
-        qualityMeta: "First generate a local <code>artifacts/quality-report.json</code>, then publish it to LiminalQA as a real quality snapshot.",
-        generateQualityReport: "Generate Quality Report",
-        publishQualityReport: "Publish Quality Report",
-        qualityPreviewKicker: "Quality Preview",
-        qualityPreviewMeta: "Short summary of the current local quality report.",
-        summaryVerdictLabel: "Aggregate Verdict",
-        summaryLanesLabel: "Lanes",
-        summaryFailuresLabel: "Failures",
-        summaryCoverageLabel: "Min Coverage",
-        noQualityReport: "No local quality report has been created yet.",
-        laneLine: "{title}: {verdict}, failures={failures}, coverage={coverage}",
-        queryKicker: "Query Preview",
-        queryMeta: "Request a small <code>/query</code> payload and preview the latest facts visible to the ingest service.",
-        runQuery: "Load Query Preview",
-        resultKicker: "Result",
-        waiting: "Waiting for action...",
-        working: "Working..."
-      }
-    };
     let lang = "ru";
-
-    function t(key) {
-      return dictionary[lang][key];
-    }
-
-    function formatCoverage(value) {
-      return value === null || value === undefined ? "n/a" : `${Number(value).toFixed(1)}%`;
-    }
-
-    function laneText(lane) {
-      return t("laneLine")
-        .replace("{title}", lane.lane_title || lane.lane_key || "unknown")
-        .replace("{verdict}", lane.verdict || "n/a")
-        .replace("{failures}", String(lane.total_failures ?? 0))
-        .replace("{coverage}", formatCoverage(lane.min_line_coverage_observed));
-    }
-
-    function renderLanguage() {
-      document.documentElement.lang = lang;
-      document.getElementById("title").innerHTML = t("title");
-      document.getElementById("lede").textContent = t("lede");
-      document.getElementById("lang-label").textContent = t("langLabel");
-      document.getElementById("health-kicker").textContent = t("healthKicker");
-      document.getElementById("smoke-kicker").textContent = t("smokeKicker");
-      document.getElementById("smoke-meta").innerHTML = t("smokeMeta");
-      document.getElementById("lane-kicker").textContent = t("laneKicker");
-      document.getElementById("lane-meta").innerHTML = t("laneMeta");
-      document.getElementById("quality-kicker").textContent = t("qualityKicker");
-      document.getElementById("quality-meta").innerHTML = t("qualityMeta");
-      document.getElementById("quality-preview-kicker").textContent = t("qualityPreviewKicker");
-      document.getElementById("quality-preview-meta").textContent = t("qualityPreviewMeta");
-      document.getElementById("summary-verdict-label").textContent = t("summaryVerdictLabel");
-      document.getElementById("summary-lanes-label").textContent = t("summaryLanesLabel");
-      document.getElementById("summary-failures-label").textContent = t("summaryFailuresLabel");
-      document.getElementById("summary-coverage-label").textContent = t("summaryCoverageLabel");
-      document.getElementById("query-kicker").textContent = t("queryKicker");
-      document.getElementById("query-meta").innerHTML = t("queryMeta");
-      document.getElementById("result-kicker").textContent = t("resultKicker");
-      document.getElementById("refresh-health").dataset.label = t("refreshHealth");
-      document.getElementById("publish-smoke").dataset.label = t("publishSmoke");
-      document.getElementById("run-local-lane").dataset.label = t("runLocalLane");
-      document.getElementById("generate-quality-report").dataset.label = t("generateQualityReport");
-      document.getElementById("publish-quality-report").dataset.label = t("publishQualityReport");
-      document.getElementById("run-query").dataset.label = t("runQuery");
-      document.getElementById("refresh-health").textContent = t("refreshHealth");
-      document.getElementById("publish-smoke").textContent = t("publishSmoke");
-      document.getElementById("run-local-lane").textContent = t("runLocalLane");
-      document.getElementById("generate-quality-report").textContent = t("generateQualityReport");
-      document.getElementById("publish-quality-report").textContent = t("publishQualityReport");
-      document.getElementById("run-query").textContent = t("runQuery");
-      if (!result.textContent || result.textContent === dictionary.en.waiting || result.textContent === dictionary.ru.waiting) {
-        result.textContent = t("waiting");
-      }
-      document.getElementById("lang-ru").className = lang === "ru" ? "active" : "";
-      document.getElementById("lang-en").className = lang === "en" ? "active" : "";
-    }
-
-    async function refreshQualityPreview() {
-      const laneList = document.getElementById("lane-list");
-      const data = await callJson("/api/quality-report-preview");
-      if (!data.ok) {
-        document.getElementById("summary-verdict").textContent = "n/a";
-        document.getElementById("summary-lanes").textContent = "0";
-        document.getElementById("summary-failures").textContent = "0";
-        document.getElementById("summary-coverage").textContent = "n/a";
-        laneList.innerHTML = "";
-        const item = document.createElement("li");
-        item.textContent = t("noQualityReport");
-        laneList.appendChild(item);
-        return;
-      }
-
-      document.getElementById("summary-verdict").textContent = data.payload.aggregate_verdict || "n/a";
-      document.getElementById("summary-lanes").textContent = String(data.payload.lane_count ?? 0);
-      document.getElementById("summary-failures").textContent = String(data.payload.total_failures ?? 0);
-      document.getElementById("summary-coverage").textContent = formatCoverage(data.payload.min_line_coverage_observed);
-      laneList.innerHTML = "";
-      for (const lane of data.payload.lanes || []) {
-        const item = document.createElement("li");
-        item.textContent = laneText(lane);
-        laneList.appendChild(item);
-      }
-      if (!laneList.children.length) {
-        const item = document.createElement("li");
-        item.textContent = t("noQualityReport");
-        laneList.appendChild(item);
-      }
-    }
-
-    function setBusy(button, busy) {
-      button.disabled = busy;
-      button.dataset.label ||= button.textContent;
-      button.textContent = busy ? t("working") : button.dataset.label;
-    }
-
-    async function callJson(path, options = {}) {
-      const response = await fetch(path, options);
-      const payload = await response.json();
-      return { ok: response.ok, status: response.status, payload };
-    }
-
-    async function refreshHealth(updateResult = true) {
-      const data = await callJson("/api/health");
-      if (data.ok) {
-        healthStatus.textContent = t("healthHealthy");
-        healthStatus.className = "status ok";
-        healthMeta.textContent = `${data.payload.service} v${data.payload.version}`;
-      } else {
-        healthStatus.textContent = t("healthUnavailable");
-        healthStatus.className = "status bad";
-        healthMeta.textContent = data.payload.error || `HTTP ${data.status}`;
-      }
-      if (updateResult) {
-        result.textContent = JSON.stringify(data.payload, null, 2);
-      }
-    }
-
-    document.getElementById("lang-ru").addEventListener("click", () => {
-      lang = "ru";
-      renderLanguage();
-      refreshQualityPreview().catch(() => {});
-      if (!healthMeta.textContent) {
-        healthStatus.textContent = t("healthChecking");
-      }
+    const dict = { ru: { title:"LiminalQA<br>Локальная панель", lede:"Маленькая локальная панель для пути LS -> LiminalQA и council-ledger analytics. Проверяй здоровье, публикуй quality snapshot и смотри вклад моделей по циклам согласования.", langLabel:"Язык", healthKicker:"Здоровье сервиса", healthChecking:"Проверка...", healthHealthy:"Сервис жив", healthUnavailable:"Недоступен", refreshHealth:"Проверить health", smokeKicker:"Smoke Publish", smokeMeta:"Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.", publishSmoke:"Отправить smoke batch", laneKicker:"Local Test Lane", laneMeta:"Локально запускает <code>mesh-tests</code> через <code>pytest</code>, пишет JUnit и coverage, потом пересчитывает quality report.", runLocalLane:"Запустить mesh-tests", qualityKicker:"Quality Report", qualityMeta:"Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.", generateQualityReport:"Сгенерировать quality report", publishQualityReport:"Отправить quality report", qualityPreviewKicker:"Quality Preview", qualityPreviewMeta:"Краткая сводка по текущему локальному quality report.", summaryVerdictLabel:"Aggregate Verdict", summaryLanesLabel:"Lanes", summaryFailuresLabel:"Failures", summaryCoverageLabel:"Min Coverage", noQualityReport:"Локальный quality report еще не создан.", laneLine:"{title}: {verdict}, failures={failures}, coverage={coverage}", queryKicker:"Query Preview", queryMeta:"Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.", runQuery:"Показать query preview", councilKicker:"Council Analytics", councilTitle:"Вклад моделей в совет согласования", councilMeta:"Панель читает <code>artifacts/council-ledger/*.json</code> и показывает, кто реально тянет качество, как меняется резонанс и какие маршруты чаще выигрывают.", councilLedgersLabel:"Ledgers", councilBestModelLabel:"Top Contributor", councilSuccessLabel:"Success Rate", councilResonanceLabel:"Avg Resonance", councilMeritLabel:"Avg Merit", councilEmpty:"Council-ledger artifacts пока не найдены. Сначала прогони реальные council cycles.", chartBestCountTitle:"Best Contributor Frequency", chartBestCountSubtitle:"Сколько раз модель была лучшим contributor по council cycle.", chartContributionTitle:"Cumulative Contribution", chartContributionSubtitle:"Сумма contribution score по моделям.", chartModelTypeTitle:"Model Type Lift", chartModelTypeSubtitle:"Средний contribution score по типам моделей.", chartRouteTitle:"Route Wins", chartRouteSubtitle:"Какие route чаще побеждают в финальном решении.", chartResonanceTitle:"Receiver Resonance Trend", chartResonanceSubtitle:"Линейный тренд того, как ответ резонирует с получателем.", chartMeritTitle:"Average Merit Trend", chartMeritSubtitle:"Линейный тренд merit и network value по council cycles.", noChartData:"Недостаточно данных", cycleLine:"{cycle}: best={best}, route={route}, resonance={resonance}, merit={merit}", resultKicker:"Результат", waiting:"Ожидание действия...", working:"Выполняю..." }, en: { title:"LiminalQA<br>Local Dashboard", lede:"Small local dashboard for the LS -> LiminalQA path and council-ledger analytics. Check health, publish quality snapshots, and inspect model contribution across coordination cycles.", langLabel:"Language", healthKicker:"Service Health", healthChecking:"Checking...", healthHealthy:"Healthy", healthUnavailable:"Unavailable", refreshHealth:"Refresh Health", smokeKicker:"Smoke Publish", smokeMeta:"Send one synthetic run with one test and one signal through <code>/ingest/batch</code>.", publishSmoke:"Publish Smoke Batch", laneKicker:"Local Test Lane", laneMeta:"Run the local <code>mesh-tests</code> lane via <code>pytest</code>, write JUnit and coverage, then rebuild the quality report.", runLocalLane:"Run mesh-tests", qualityKicker:"Quality Report", qualityMeta:"First generate a local <code>artifacts/quality-report.json</code>, then publish it to LiminalQA as a real quality snapshot.", generateQualityReport:"Generate Quality Report", publishQualityReport:"Publish Quality Report", qualityPreviewKicker:"Quality Preview", qualityPreviewMeta:"Short summary of the current local quality report.", summaryVerdictLabel:"Aggregate Verdict", summaryLanesLabel:"Lanes", summaryFailuresLabel:"Failures", summaryCoverageLabel:"Min Coverage", noQualityReport:"No local quality report has been created yet.", laneLine:"{title}: {verdict}, failures={failures}, coverage={coverage}", queryKicker:"Query Preview", queryMeta:"Send a small payload to <code>/query</code> and preview the latest facts visible to the ingest service.", runQuery:"Load Query Preview", councilKicker:"Council Analytics", councilTitle:"Model contribution across coordination cycles", councilMeta:"This panel reads <code>artifacts/council-ledger/*.json</code> and shows which models lift quality, how receiver resonance changes, and which routes win most often.", councilLedgersLabel:"Ledgers", councilBestModelLabel:"Top Contributor", councilSuccessLabel:"Success Rate", councilResonanceLabel:"Avg Resonance", councilMeritLabel:"Avg Merit", councilEmpty:"No council-ledger artifacts found yet. Run real council cycles first.", chartBestCountTitle:"Best Contributor Frequency", chartBestCountSubtitle:"How often each model is the best contributor per council cycle.", chartContributionTitle:"Cumulative Contribution", chartContributionSubtitle:"Sum of contribution score by model.", chartModelTypeTitle:"Model Type Lift", chartModelTypeSubtitle:"Average contribution score grouped by model type.", chartRouteTitle:"Route Wins", chartRouteSubtitle:"Which routes most often win the final decision.", chartResonanceTitle:"Receiver Resonance Trend", chartResonanceSubtitle:"Line trend for how strongly the answer resonates with the receiver.", chartMeritTitle:"Average Merit Trend", chartMeritSubtitle:"Line trend for merit and network value across council cycles.", noChartData:"Not enough data", cycleLine:"{cycle}: best={best}, route={route}, resonance={resonance}, merit={merit}", resultKicker:"Result", waiting:"Waiting for action...", working:"Working..." }};
+    const t = (k) => dict[lang][k];
+    const fmtPct = (v) => (v === null || v === undefined || Number.isNaN(Number(v))) ? "n/a" : `${(Number(v) * 100).toFixed(1)}%`;
+    const fmtCov = (v) => (v === null || v === undefined || Number.isNaN(Number(v))) ? "n/a" : `${Number(v).toFixed(1)}%`;
+    const safe01 = (v) => Math.max(0, Math.min(1, Number(v || 0)));
+    const callJson = async (path, options={}) => { const response = await fetch(path, options); const payload = await response.json(); return { ok: response.ok, status: response.status, payload }; };
+    const svgText = (x,y,text,anchor="start",fill="#6c6358",size=12) => `<text x="${x}" y="${y}" text-anchor="${anchor}" fill="${fill}" font-size="${size}" font-family="Georgia, serif">${text}</text>`;
+    const laneText = (lane) => t("laneLine").replace("{title}", lane.lane_title || lane.lane_key || "unknown").replace("{verdict}", lane.verdict || "n/a").replace("{failures}", String(lane.total_failures ?? 0)).replace("{coverage}", fmtCov(lane.min_line_coverage_observed));
+    const cycleText = (cycle) => t("cycleLine").replace("{cycle}", cycle.cycle_id || "unknown").replace("{best}", cycle.best_contributor_model_id || "n/a").replace("{route}", cycle.selected_route || "n/a").replace("{resonance}", fmtPct(cycle.receiver_resonance_score)).replace("{merit}", fmtPct(cycle.average_merit_score));
+    function renderLanguage() { document.documentElement.lang = lang; document.getElementById("title").innerHTML = t("title"); document.getElementById("lede").textContent = t("lede"); document.getElementById("lang-label").textContent = t("langLabel"); document.getElementById("health-kicker").textContent = t("healthKicker"); document.getElementById("smoke-kicker").textContent = t("smokeKicker"); document.getElementById("smoke-meta").innerHTML = t("smokeMeta"); document.getElementById("lane-kicker").textContent = t("laneKicker"); document.getElementById("lane-meta").innerHTML = t("laneMeta"); document.getElementById("quality-kicker").textContent = t("qualityKicker"); document.getElementById("quality-meta").innerHTML = t("qualityMeta"); document.getElementById("quality-preview-kicker").textContent = t("qualityPreviewKicker"); document.getElementById("quality-preview-meta").textContent = t("qualityPreviewMeta"); document.getElementById("summary-verdict-label").textContent = t("summaryVerdictLabel"); document.getElementById("summary-lanes-label").textContent = t("summaryLanesLabel"); document.getElementById("summary-failures-label").textContent = t("summaryFailuresLabel"); document.getElementById("summary-coverage-label").textContent = t("summaryCoverageLabel"); document.getElementById("query-kicker").textContent = t("queryKicker"); document.getElementById("query-meta").innerHTML = t("queryMeta"); document.getElementById("council-kicker").textContent = t("councilKicker"); document.getElementById("council-title").textContent = t("councilTitle"); document.getElementById("council-meta").innerHTML = t("councilMeta"); document.getElementById("council-ledger-count-label").textContent = t("councilLedgersLabel"); document.getElementById("council-best-model-label").textContent = t("councilBestModelLabel"); document.getElementById("council-success-label").textContent = t("councilSuccessLabel"); document.getElementById("council-resonance-label").textContent = t("councilResonanceLabel"); document.getElementById("council-merit-label").textContent = t("councilMeritLabel"); document.getElementById("chart-best-count-title").textContent = t("chartBestCountTitle"); document.getElementById("chart-best-count-subtitle").textContent = t("chartBestCountSubtitle"); document.getElementById("chart-contribution-title").textContent = t("chartContributionTitle"); document.getElementById("chart-contribution-subtitle").textContent = t("chartContributionSubtitle"); document.getElementById("chart-model-type-title").textContent = t("chartModelTypeTitle"); document.getElementById("chart-model-type-subtitle").textContent = t("chartModelTypeSubtitle"); document.getElementById("chart-route-title").textContent = t("chartRouteTitle"); document.getElementById("chart-route-subtitle").textContent = t("chartRouteSubtitle"); document.getElementById("chart-resonance-title").textContent = t("chartResonanceTitle"); document.getElementById("chart-resonance-subtitle").textContent = t("chartResonanceSubtitle"); document.getElementById("chart-merit-title").textContent = t("chartMeritTitle"); document.getElementById("chart-merit-subtitle").textContent = t("chartMeritSubtitle"); document.getElementById("result-kicker").textContent = t("resultKicker"); [["refresh-health","refreshHealth"],["publish-smoke","publishSmoke"],["run-local-lane","runLocalLane"],["generate-quality-report","generateQualityReport"],["publish-quality-report","publishQualityReport"],["run-query","runQuery"]].forEach(([id,key]) => { const el = document.getElementById(id); el.dataset.label = t(key); el.textContent = t(key); }); if (!result.textContent || result.textContent === dict.en.waiting || result.textContent === dict.ru.waiting) result.textContent = t("waiting"); document.getElementById("lang-ru").className = lang === "ru" ? "active" : "ghost"; document.getElementById("lang-en").className = lang === "en" ? "active" : "ghost"; }
+    function setBusy(button, busy) { button.disabled = busy; button.dataset.label ||= button.textContent; button.textContent = busy ? t("working") : button.dataset.label; }
+    function renderBarChart(svgId, data, color) { const svg = document.getElementById(svgId), width = 560, height = 220, left = 42, right = 14, top = 12, bottom = 42; if (!Array.isArray(data) || !data.length) { svg.innerHTML = svgText(width/2, height/2, t("noChartData"), "middle"); return; } const max = Math.max(...data.map(item => Number(item.value || 0)), 1), innerWidth = width-left-right, innerHeight = height-top-bottom, gap = Math.max(8, innerWidth * .03), barWidth = Math.max(18, (innerWidth - gap * (data.length - 1)) / data.length); const parts = [`<rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>`]; for (let i = 0; i < 5; i += 1) { const y = top + (innerHeight * i / 4); parts.push(`<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" stroke="#dbcdb8" stroke-width="1"></line>`); } data.forEach((item, index) => { const value = Number(item.value || 0), h = innerHeight * (value / max), x = left + index * (barWidth + gap), y = top + innerHeight - h; parts.push(`<rect x="${x}" y="${y}" width="${barWidth}" height="${h}" rx="8" fill="${color}"></rect>`); parts.push(svgText(x + barWidth/2, y - 6, value.toFixed(value % 1 === 0 ? 0 : 2), "middle", "#1c1713", 11)); parts.push(svgText(x + barWidth/2, height - 20, String(item.label || "").slice(0,14), "middle", "#6c6358", 11)); }); svg.innerHTML = parts.join(""); }
+    function renderLineChart(svgId, points, color) { const svg = document.getElementById(svgId), width = 560, height = 220, left = 42, right = 14, top = 12, bottom = 42; if (!Array.isArray(points) || points.length < 2) { svg.innerHTML = svgText(width/2, height/2, t("noChartData"), "middle"); return; } const innerWidth = width-left-right, innerHeight = height-top-bottom, parts = [`<rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>`]; for (let i = 0; i < 5; i += 1) { const y = top + (innerHeight * i / 4); parts.push(`<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" stroke="#dbcdb8" stroke-width="1"></line>`); parts.push(svgText(left-8, y+4, `${((4-i)/4*100).toFixed(0)}%`, "end", "#6c6358", 10)); } const coords = points.map((point, index) => ({ ...point, x: left + (innerWidth * index / Math.max(points.length - 1, 1)), y: top + innerHeight - (safe01(point.value) * innerHeight) })); parts.push(`<path d="${coords.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>`); coords.forEach((point, index) => { parts.push(`<circle cx="${point.x}" cy="${point.y}" r="4" fill="${color}"></circle>`); parts.push(svgText(point.x, height - 20, String(point.label || point.cycle_id || `#${index+1}`).slice(0,12), "middle", "#6c6358", 10)); }); svg.innerHTML = parts.join(""); }
+    async function refreshHealth(updateResult=true) { const data = await callJson("/api/health"); if (data.ok) { healthStatus.textContent = t("healthHealthy"); healthStatus.className = "status ok"; healthMeta.textContent = `${data.payload.service} v${data.payload.version}`; } else { healthStatus.textContent = t("healthUnavailable"); healthStatus.className = "status bad"; healthMeta.textContent = data.payload.error || `HTTP ${data.status}`; } if (updateResult) result.textContent = JSON.stringify(data.payload, null, 2); }
+    async function refreshQualityPreview() { const laneList = document.getElementById("lane-list"), data = await callJson("/api/quality-report-preview"); if (!data.ok) { document.getElementById("summary-verdict").textContent = "n/a"; document.getElementById("summary-lanes").textContent = "0"; document.getElementById("summary-failures").textContent = "0"; document.getElementById("summary-coverage").textContent = "n/a"; laneList.innerHTML = `<li>${t("noQualityReport")}</li>`; return; } document.getElementById("summary-verdict").textContent = data.payload.aggregate_verdict || "n/a"; document.getElementById("summary-lanes").textContent = String(data.payload.lane_count ?? 0); document.getElementById("summary-failures").textContent = String(data.payload.total_failures ?? 0); document.getElementById("summary-coverage").textContent = fmtCov(data.payload.min_line_coverage_observed); laneList.innerHTML = ""; (data.payload.lanes || []).forEach((lane) => { const item = document.createElement("li"); item.textContent = laneText(lane); laneList.appendChild(item); }); if (!laneList.children.length) laneList.innerHTML = `<li>${t("noQualityReport")}</li>`; }
+    async function refreshCouncilPreview() { const cycleList = document.getElementById("cycle-list"), empty = document.getElementById("council-empty"), data = await callJson("/api/council-report-preview"); if (!data.ok) { document.getElementById("council-ledger-count").textContent = "0"; document.getElementById("council-best-model").textContent = "n/a"; document.getElementById("council-success").textContent = "0%"; document.getElementById("council-resonance").textContent = "0%"; document.getElementById("council-merit").textContent = "0%"; cycleList.innerHTML = ""; empty.textContent = t("councilEmpty"); ["chart-best-count","chart-contribution","chart-model-type","chart-route"].forEach((id) => renderBarChart(id, [], "#c75c46")); ["chart-resonance","chart-merit"].forEach((id) => renderLineChart(id, [], "#287364")); return; } const report = data.payload; document.getElementById("council-ledger-count").textContent = String(report.ledger_count ?? 0); document.getElementById("council-best-model").textContent = report.summary?.top_best_contributor_model_id || "n/a"; document.getElementById("council-success").textContent = fmtPct(report.summary?.success_rate); document.getElementById("council-resonance").textContent = fmtPct(report.summary?.average_receiver_resonance); document.getElementById("council-merit").textContent = fmtPct(report.summary?.average_merit_score); renderBarChart("chart-best-count", report.histograms?.best_contributor_counts || [], "#c75c46"); renderBarChart("chart-contribution", report.histograms?.cumulative_contribution_scores || [], "#4a6fc3"); renderBarChart("chart-model-type", report.histograms?.model_type_average_contribution || [], "#287364"); renderBarChart("chart-route", report.histograms?.route_wins || [], "#8b5fa8"); renderLineChart("chart-resonance", report.trends?.receiver_resonance || [], "#287364"); renderLineChart("chart-merit", report.trends?.average_merit_score || [], "#c75c46"); cycleList.innerHTML = ""; (report.cycles || []).forEach((cycle) => { const item = document.createElement("li"); item.textContent = cycleText(cycle); cycleList.appendChild(item); }); empty.textContent = cycleList.children.length ? "" : t("councilEmpty"); }
+    document.getElementById("lang-ru").addEventListener("click", () => { lang = "ru"; renderLanguage(); refreshQualityPreview().catch(() => {}); refreshCouncilPreview().catch(() => {}); if (!healthMeta.textContent) healthStatus.textContent = t("healthChecking"); });
+    document.getElementById("lang-en").addEventListener("click", () => { lang = "en"; renderLanguage(); refreshQualityPreview().catch(() => {}); refreshCouncilPreview().catch(() => {}); if (!healthMeta.textContent) healthStatus.textContent = t("healthChecking"); });
+    [["refresh-health","/api/health","GET",true],["publish-smoke","/api/smoke","POST",false],["run-local-lane","/api/run-local-lane","POST",false],["generate-quality-report","/api/generate-quality-report","POST",false],["publish-quality-report","/api/publish-quality-report","POST",false],["run-query","/api/query","POST",false]].forEach(([id, path, method, healthOnly]) => {
+      document.getElementById(id).addEventListener("click", async (event) => { const button = event.currentTarget; setBusy(button, true); try { if (healthOnly) await refreshHealth(); else { const data = await callJson(path, { method }); result.textContent = JSON.stringify(data.payload, null, 2); } if (id === "publish-smoke" || id === "publish-quality-report") await refreshHealth(false); if (id === "run-local-lane" || id === "generate-quality-report" || id === "publish-quality-report") await refreshQualityPreview(); if (id === "run-local-lane") await refreshCouncilPreview(); } catch (error) { result.textContent = JSON.stringify({ error: String(error) }, null, 2); } finally { setBusy(button, false); } });
     });
-
-    document.getElementById("lang-en").addEventListener("click", () => {
-      lang = "en";
-      renderLanguage();
-      refreshQualityPreview().catch(() => {});
-      if (!healthMeta.textContent) {
-        healthStatus.textContent = t("healthChecking");
-      }
-    });
-
-    document.getElementById("refresh-health").addEventListener("click", async (event) => {
-      const button = event.currentTarget;
-      setBusy(button, true);
-      try {
-        await refreshHealth();
-      } catch (error) {
-        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
-      } finally {
-        setBusy(button, false);
-      }
-    });
-
-    document.getElementById("publish-smoke").addEventListener("click", async (event) => {
-      const button = event.currentTarget;
-      setBusy(button, true);
-      try {
-        const data = await callJson("/api/smoke", { method: "POST" });
-        result.textContent = JSON.stringify(data.payload, null, 2);
-        await refreshHealth(false);
-      } catch (error) {
-        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
-      } finally {
-        setBusy(button, false);
-      }
-    });
-
-    document.getElementById("run-local-lane").addEventListener("click", async (event) => {
-      const button = event.currentTarget;
-      setBusy(button, true);
-      try {
-        const data = await callJson("/api/run-local-lane", { method: "POST" });
-        result.textContent = JSON.stringify(data.payload, null, 2);
-        await refreshQualityPreview();
-      } catch (error) {
-        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
-      } finally {
-        setBusy(button, false);
-      }
-    });
-
-    document.getElementById("generate-quality-report").addEventListener("click", async (event) => {
-      const button = event.currentTarget;
-      setBusy(button, true);
-      try {
-        const data = await callJson("/api/generate-quality-report", { method: "POST" });
-        result.textContent = JSON.stringify(data.payload, null, 2);
-        await refreshQualityPreview();
-      } catch (error) {
-        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
-      } finally {
-        setBusy(button, false);
-      }
-    });
-
-    document.getElementById("publish-quality-report").addEventListener("click", async (event) => {
-      const button = event.currentTarget;
-      setBusy(button, true);
-      try {
-        const data = await callJson("/api/publish-quality-report", { method: "POST" });
-        result.textContent = JSON.stringify(data.payload, null, 2);
-        await refreshHealth(false);
-        await refreshQualityPreview();
-      } catch (error) {
-        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
-      } finally {
-        setBusy(button, false);
-      }
-    });
-
-    document.getElementById("run-query").addEventListener("click", async (event) => {
-      const button = event.currentTarget;
-      setBusy(button, true);
-      try {
-        const data = await callJson("/api/query", { method: "POST" });
-        result.textContent = JSON.stringify(data.payload, null, 2);
-      } catch (error) {
-        result.textContent = JSON.stringify({ error: String(error) }, null, 2);
-      } finally {
-        setBusy(button, false);
-      }
-    });
-
-    renderLanguage();
-    healthStatus.textContent = t("healthChecking");
-    refreshQualityPreview().catch(() => {});
-    refreshHealth(true).catch((error) => {
-      result.textContent = JSON.stringify({ error: String(error) }, null, 2);
-    });
+    renderLanguage(); healthStatus.textContent = t("healthChecking"); refreshQualityPreview().catch(() => {}); refreshCouncilPreview().catch(() => {}); refreshHealth(true).catch((error) => { result.textContent = JSON.stringify({ error: String(error) }, null, 2); });
   </script>
 </body>
 </html>

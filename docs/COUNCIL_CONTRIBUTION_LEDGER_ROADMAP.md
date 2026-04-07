@@ -352,6 +352,21 @@ Expected views:
 - JSON artifacts
 - optional local dashboard panel
 
+Current status:
+
+- MVP report layer implemented in CEL:
+  - `load_council_ledgers(...)`
+  - `summarize_council_ledgers(...)`
+- local dashboard now exposes council analytics through:
+  - `GET /api/council-report-preview`
+- current local dashboard panel renders:
+  - best contributor histogram
+  - cumulative contribution histogram
+  - model-type contribution histogram
+  - route wins histogram
+  - receiver resonance line trend
+  - average merit line trend
+
 ## Development Order
 
 The implementation order for this roadmap is:
