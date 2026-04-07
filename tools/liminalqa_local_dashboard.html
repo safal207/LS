@@ -109,6 +109,7 @@
       <div id="council-kicker" class="kicker">Council Analytics</div>
       <div id="council-meta" class="meta">Вклад моделей в совет согласования. Панель читает <code>artifacts/council-ledger/*.json</code> относительно корня проекта и показывает, кто реально тянет качество, как меняется резонанс и какие маршруты чаще выигрывают.</div>
       <div class="button-row">
+        <button id="run-real-council-cycle">Запустить real council cycle</button>
         <button id="generate-demo-council-ledger" class="secondary">Сгенерировать demo council ledger</button>
       </div>
       <div class="summary-grid">
@@ -162,7 +163,7 @@
       el("query-kicker").textContent=text[lang].query; el("query-meta").innerHTML=text[lang].queryMeta; el("run-query").dataset.label=text[lang].queryBtn; el("run-query").textContent=text[lang].queryBtn;
       el("quality-preview-kicker").textContent=text[lang].qualityPreview; el("quality-preview-meta").textContent=text[lang].qualityPreviewMeta; el("quality-empty").textContent=text[lang].qualityMissing;
       el("summary-verdict-label").textContent=text[lang].verdictLabel; el("summary-lanes-label").textContent=text[lang].lanesLabel; el("summary-failures-label").textContent=text[lang].failuresLabel; el("summary-coverage-label").textContent=text[lang].coverageLabel;
-      el("council-kicker").textContent=text[lang].council; el("council-meta").innerHTML=text[lang].councilMeta; el("generate-demo-council-ledger").dataset.label=text[lang].demoBtn; el("generate-demo-council-ledger").textContent=text[lang].demoBtn;
+      el("council-kicker").textContent=text[lang].council; el("council-meta").innerHTML=text[lang].councilMeta; el("run-real-council-cycle").dataset.label=lang==="ru"?"Запустить real council cycle":"Run Real Council Cycle"; el("run-real-council-cycle").textContent=el("run-real-council-cycle").dataset.label; el("generate-demo-council-ledger").dataset.label=text[lang].demoBtn; el("generate-demo-council-ledger").textContent=text[lang].demoBtn;
       el("c-ledgers-label").textContent=text[lang].ledgersLabel; el("c-top-label").textContent=text[lang].topLabel; el("c-success-label").textContent=text[lang].successLabel; el("c-resonance-label").textContent=text[lang].resonanceLabel; el("c-merit-label").textContent=text[lang].meritLabel;
       el("result-kicker").textContent=text[lang].result; el("copy-json").textContent=text[lang].copy; el("raw-json-toggle").textContent=text[lang].rawJson; el("relative-path-note").innerHTML=text[lang].relativePath;
       el("lang-ru").className=lang==="ru"?"active":"ghost"; el("lang-en").className=lang==="en"?"active":"ghost";
@@ -182,6 +183,7 @@
       if(Object.hasOwn(payload,"quality_report_path")) return fmt("summaryLane",{verdict:payload.verdict||"n/a",failures:payload.total_failures??0,coverage:cov(payload.min_line_coverage_observed)});
       if(Object.hasOwn(payload,"verdict_counts")) return fmt("summaryGenerate",{verdict:payload.aggregate_verdict||"n/a",lanes:payload.lane_count??0,failures:payload.total_failures??0});
       if(payload.ingest) return fmt("summaryPublish",{verdict:payload.aggregate_verdict||"n/a",lanes:payload.lane_count??0});
+      if(Object.hasOwn(payload,"artifact_path")) return `Council cycle: route=${payload.selected_route||"unknown"}, best contributor=${payload.best_contributor_model_id||"n/a"}`;
       if(Object.hasOwn(payload,"total")) return fmt("summaryQuery",{total:payload.total??0});
       if(Object.hasOwn(payload,"ledger_count")) return fmt("summaryCouncil",{count:payload.ledger_count??0});
       return payload.error?fmt("summaryError",{error:payload.error}):text[lang].waiting;
@@ -240,6 +242,7 @@
     el("generate-quality-report").addEventListener("click",()=>runAction("generate-quality-report","/api/generate-quality-report",async()=>refreshQualityPreview()));
     el("publish-quality-report").addEventListener("click",()=>{if(el("publish-quality-report").disabled){showResult({error:text[lang].publishDisabled},text[lang].publishDisabled); return;} runAction("publish-quality-report","/api/publish-quality-report",async()=>{await refreshHealth(false); await refreshQualityPreview();});});
     el("run-query").addEventListener("click",()=>runAction("run-query","/api/query"));
+    el("run-real-council-cycle").addEventListener("click",()=>runAction("run-real-council-cycle","/api/run-real-council-cycle",async()=>refreshCouncilAnalytics()));
     el("generate-demo-council-ledger").addEventListener("click",()=>runAction("generate-demo-council-ledger","/api/generate-demo-council-ledger",async()=>refreshCouncilAnalytics()));
     el("copy-json").addEventListener("click",async()=>{await navigator.clipboard.writeText(safeJson(lastResult)); el("result-toast").hidden=false; el("result-toast").innerHTML=`<strong>${text[lang].copied}</strong>`;});
 

@@ -15,6 +15,12 @@ from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+PYTHON_ROOT = ROOT / "python"
+MODULES_ROOT = PYTHON_ROOT / "modules"
+for candidate in (PYTHON_ROOT, MODULES_ROOT):
+    candidate_str = str(candidate)
+    if candidate_str not in sys.path:
+        sys.path.insert(0, candidate_str)
 HTML_PATH = ROOT / "tools" / "liminalqa_local_dashboard.html"
 ENV_PATH = ROOT / ".env.liminalqa.local"
 ARTIFACTS_DIR = ROOT / "artifacts"
@@ -43,6 +49,11 @@ LANE = {
         "--cov-report=xml:artifacts/coverage.xml",
     ],
 }
+
+try:
+    from agent.resonance_agent import ResonanceAgent
+except ImportError:
+    from modules.agent.resonance_agent import ResonanceAgent
 
 
 def load_env() -> dict[str, str]:
@@ -519,6 +530,29 @@ def generate_demo_council_ledger() -> tuple[int, object]:
     return 200, {"ok": True, "message": "Demo council-ledger artifacts generated.", "ledger_count": len(written), "artifact_dir": str(COUNCIL_LEDGER_DIR), "written_files": written}
 
 
+def run_real_council_cycle() -> tuple[int, object]:
+    prompt = "Run a local council coordination cycle for dashboard observability and contribution tracking."
+    agent = ResonanceAgent(anchor=[], llm_fn=None, orientation="dashboard-council-cycle")
+    agent._council_ledger_dir = COUNCIL_LEDGER_DIR
+    result = agent.process_text(prompt)
+    ledger = result.get("council_contribution_ledger") or {}
+    artifact_path = result.get("council_contribution_ledger_artifact")
+    if not artifact_path:
+        return 500, {
+            "error": "council ledger artifact was not created",
+            "cycle_id": result.get("cycle_id"),
+        }
+    return 200, {
+        "cycle_id": result.get("cycle_id"),
+        "artifact_path": artifact_path,
+        "selected_route": (ledger.get("final_decision") or {}).get("selected_route"),
+        "best_contributor_model_id": (ledger.get("attribution") or {}).get("best_contributor_model_id"),
+        "success": (ledger.get("outcome") or {}).get("success"),
+        "receiver_resonance_score": (ledger.get("outcome") or {}).get("receiver_resonance_score"),
+        "final_output": result.get("final_output"),
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     def send_json(self, status: int, payload: object) -> None:
         body = json.dumps(payload, indent=2).encode("utf-8")
@@ -590,6 +624,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/generate-demo-council-ledger":
             status, payload = generate_demo_council_ledger()
+            self.send_json(status, payload)
+            return
+        if self.path == "/api/run-real-council-cycle":
+            status, payload = run_real_council_cycle()
             self.send_json(status, payload)
             return
         self.send_json(404, {"error": "not found"})
