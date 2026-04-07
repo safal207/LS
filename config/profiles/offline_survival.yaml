@@ -1,0 +1,18 @@
+llm:
+  backend: local
+  fallback_backend: cloud
+  model_name: qwen2.5:7b
+
+  use_breaker: true
+  breaker:
+    failure_threshold: 4
+    cooldown_seconds: 8
+
+  use_groq: false
+  gonka:
+    enabled: false
+  mimo:
+    enabled: false
+
+  meritocracy:
+    enabled: false
