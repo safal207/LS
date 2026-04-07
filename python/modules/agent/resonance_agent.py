@@ -246,6 +246,23 @@ except Exception:
     _CouncilParticipant = None  # type: ignore[assignment]
 
 try:
+    from cel.council_sync import apply_council_ledger_to_cel as _apply_council_ledger_to_cel
+    from cel.contribution_api import ContributionLedger as _CELContributionLedger
+    from cel.reputation_engine import ReputationEngine as _CELReputationEngine
+    _COUNCIL_CEL_SYNC_OK = True
+except Exception:
+    try:
+        from modules.cel.council_sync import apply_council_ledger_to_cel as _apply_council_ledger_to_cel
+        from modules.cel.contribution_api import ContributionLedger as _CELContributionLedger
+        from modules.cel.reputation_engine import ReputationEngine as _CELReputationEngine
+        _COUNCIL_CEL_SYNC_OK = True
+    except Exception:
+        _COUNCIL_CEL_SYNC_OK = False
+        _apply_council_ledger_to_cel = None  # type: ignore[assignment]
+        _CELContributionLedger = None  # type: ignore[assignment]
+        _CELReputationEngine = None  # type: ignore[assignment]
+
+try:
     from agent.softening_detector import SofteningAnalysis as _SofteningAnalysis
     from agent.softening_detector import analyze_softening_signals as _analyze_softening_signals
     _SOFTENING_DETECTOR_OK = True
@@ -925,6 +942,12 @@ class ResonanceAgent:
             _AlignmentStrategyCalibrationMetrics()
             if _ALIGNMENT_CALIBRATION_OK and _AlignmentStrategyCalibrationMetrics
             else None
+        )
+        self._council_cel_contribution_ledger = (
+            _CELContributionLedger() if _COUNCIL_CEL_SYNC_OK and _CELContributionLedger else None
+        )
+        self._council_cel_reputation_engine = (
+            _CELReputationEngine() if _COUNCIL_CEL_SYNC_OK and _CELReputationEngine else None
         )
         self._strategy_playbook_metrics = (
             _AlignmentStrategyPlaybookMetrics()
@@ -3051,6 +3074,7 @@ class ResonanceAgent:
         council_ledger_artifact = self._write_council_contribution_ledger_artifact(
             council_ledger
         )
+        council_cel_sync = self._sync_council_ledger_to_cel(council_ledger)
 
         return {
             # Identity
@@ -3139,6 +3163,7 @@ class ResonanceAgent:
                 council_ledger.to_dict() if council_ledger is not None else None
             ),
             "council_contribution_ledger_artifact": council_ledger_artifact,
+            "council_cel_sync": council_cel_sync,
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
@@ -3393,6 +3418,25 @@ class ResonanceAgent:
             return str(path)
         except Exception as exc:
             logger.debug("ResonanceAgent: council ledger artifact write failed: %s", exc)
+            return None
+
+    def _sync_council_ledger_to_cel(self, ledger) -> dict[str, Any] | None:
+        if (
+            ledger is None
+            or not _COUNCIL_CEL_SYNC_OK
+            or _apply_council_ledger_to_cel is None
+            or self._council_cel_contribution_ledger is None
+            or self._council_cel_reputation_engine is None
+        ):
+            return None
+        try:
+            return _apply_council_ledger_to_cel(
+                ledger,
+                contribution_ledger=self._council_cel_contribution_ledger,
+                reputation_engine=self._council_cel_reputation_engine,
+            )
+        except Exception as exc:
+            logger.debug("ResonanceAgent: council CEL sync failed: %s", exc)
             return None
 
     def _build_cycle_record(

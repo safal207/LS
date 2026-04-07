@@ -16,6 +16,11 @@ from .contribution_api import (
     ContributionRecord,
     distribute_value,
 )
+from .council_sync import (
+    apply_council_ledger_to_cel,
+    build_contribution_records_from_council_ledger,
+    quality_score_from_council_outcome,
+)
 from .iare_engine import (
     CRDTReputationStore,
     ContributorImpact,
@@ -59,6 +64,9 @@ __all__ = [
     "ContributionRecord",
     "ContributionPayout",
     "distribute_value",
+    "build_contribution_records_from_council_ledger",
+    "quality_score_from_council_outcome",
+    "apply_council_ledger_to_cel",
     "OutcomeSettlementWorker",
     "SettlementError",
     "SettlementRequest",

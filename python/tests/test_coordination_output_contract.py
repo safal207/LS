@@ -238,3 +238,6 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert any(p["model_type"] == "primary_llm" for p in payload["participants"])
     assert any(p["model_type"] == "advisory_strategy" for p in payload["participants"])
     assert output["council_contribution_ledger"]["cycle_id"] == "cid-ledger"
+    assert output["council_cel_sync"] is not None
+    assert output["council_cel_sync"]["proposal_id"] == "cid-ledger"
+    assert len(output["council_cel_sync"]["reputation_updates"]) >= 1

@@ -298,6 +298,14 @@ Expected result:
 
 - reputation becomes cycle-grounded rather than event-fragmented
 
+Current status:
+
+- MVP bridge implemented in CEL:
+  - `build_contribution_records_from_council_ledger(...)`
+  - `apply_council_ledger_to_cel(...)`
+- `ResonanceAgent` now performs best-effort council-to-CEL sync per cycle
+- output now exposes `council_cel_sync`
+
 ### Phase 5. Merit and Network Benefit Sync
 
 Objective:
