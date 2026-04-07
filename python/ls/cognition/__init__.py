@@ -18,6 +18,7 @@ from ls.cognition.counterfactual_engine import CounterfactualEngine, Counterfact
 from ls.cognition.cognitive_phase_space import CognitivePhaseSpace, CognitiveVector
 from ls.cognition.cognitive_energy_model import CognitiveEnergyModel
 from ls.cognition.resonant_entry import ResonantEntryInput, ResonantEntryModule, ResonantEntryResult
+from ls.cognition.tri_signal import TriSignalCore, TriSignalInput, TriSignalResult
 
 __all__ = [
     "AgentState",
@@ -48,4 +49,7 @@ __all__ = [
     "ResonantEntryInput",
     "ResonantEntryModule",
     "ResonantEntryResult",
+    "TriSignalInput",
+    "TriSignalResult",
+    "TriSignalCore",
 ]
