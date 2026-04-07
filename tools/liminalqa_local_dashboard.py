@@ -581,6 +581,100 @@ def preview_council_report() -> tuple[int, object]:
     return 200, report
 
 
+def generate_demo_council_ledger() -> tuple[int, object]:
+    COUNCIL_LEDGER_DIR.mkdir(parents=True, exist_ok=True)
+    demo_ledgers = [
+        {
+            "cycle_id": "demo-cycle-001",
+            "task_id": "demo-task-001",
+            "timestamp": "2026-04-07T12:00:00Z",
+            "goal": {"type": "coordination_cycle", "summary": "Choose a route for a cooperative answer"},
+            "network_context": {
+                "route_candidates": ["route_a", "route_b"],
+                "active_nodes": ["intent:user", "memory:context", "route:bridge"],
+                "graph_state_version": "demo-v1",
+            },
+            "participants": [
+                {"model_id": "local-qwen", "model_type": "local", "proposal_id": "p1", "proposal_summary": "Use route_a", "route_hint": "route_a", "confidence": 0.84, "latency_ms": 700, "token_cost": 0.0, "selected": True, "weight_in_final_decision": 0.55},
+                {"model_id": "gpt-web", "model_type": "web", "proposal_id": "p2", "proposal_summary": "Use route_b", "route_hint": "route_b", "confidence": 0.89, "latency_ms": 2200, "token_cost": 0.09, "selected": False, "weight_in_final_decision": 0.25},
+            ],
+            "final_decision": {"selected_route": "route_a", "decision_summary": "Route A selected", "derived_from_proposals": ["p1"]},
+            "outcome": {"success": True, "path_quality": 0.88, "network_improvement": 0.21, "operator_intervention_required": False, "operator_feedback_score": 0.91, "drift_detected": False, "receiver_type": "human_operator", "receiver_resonance_score": 0.9, "receiver_acceptance_label": "accepted"},
+            "attribution": {
+                "best_contributor_model_id": "local-qwen",
+                "best_contributor_score": 0.86,
+                "contribution_breakdown": [
+                    {"model_id": "local-qwen", "adoption_score": 0.91, "outcome_lift": 0.84, "stability_impact": 0.88, "receiver_resonance": 0.9, "cost_efficiency": 0.94, "total_contribution_score": 0.86},
+                    {"model_id": "gpt-web", "adoption_score": 0.28, "outcome_lift": 0.62, "stability_impact": 0.71, "receiver_resonance": 0.9, "cost_efficiency": 0.41, "total_contribution_score": 0.53},
+                ],
+            },
+        },
+        {
+            "cycle_id": "demo-cycle-002",
+            "task_id": "demo-task-002",
+            "timestamp": "2026-04-07T12:05:00Z",
+            "goal": {"type": "coordination_cycle", "summary": "Balance speed and network benefit"},
+            "network_context": {
+                "route_candidates": ["route_a", "route_c"],
+                "active_nodes": ["intent:user", "cost:latency", "route:merge"],
+                "graph_state_version": "demo-v1",
+            },
+            "participants": [
+                {"model_id": "local-qwen", "model_type": "local", "proposal_id": "p3", "proposal_summary": "Use route_a", "route_hint": "route_a", "confidence": 0.78, "latency_ms": 680, "token_cost": 0.0, "selected": False, "weight_in_final_decision": 0.3},
+                {"model_id": "claude-web", "model_type": "web", "proposal_id": "p4", "proposal_summary": "Blend route_c with safety framing", "route_hint": "route_c", "confidence": 0.86, "latency_ms": 1800, "token_cost": 0.07, "selected": True, "weight_in_final_decision": 0.7},
+            ],
+            "final_decision": {"selected_route": "route_c", "decision_summary": "Route C selected", "derived_from_proposals": ["p4"]},
+            "outcome": {"success": True, "path_quality": 0.83, "network_improvement": 0.17, "operator_intervention_required": False, "operator_feedback_score": 0.86, "drift_detected": False, "receiver_type": "human_operator", "receiver_resonance_score": 0.82, "receiver_acceptance_label": "accepted"},
+            "attribution": {
+                "best_contributor_model_id": "claude-web",
+                "best_contributor_score": 0.79,
+                "contribution_breakdown": [
+                    {"model_id": "local-qwen", "adoption_score": 0.25, "outcome_lift": 0.58, "stability_impact": 0.8, "receiver_resonance": 0.82, "cost_efficiency": 0.95, "total_contribution_score": 0.55},
+                    {"model_id": "claude-web", "adoption_score": 0.88, "outcome_lift": 0.81, "stability_impact": 0.84, "receiver_resonance": 0.82, "cost_efficiency": 0.56, "total_contribution_score": 0.79},
+                ],
+            },
+        },
+        {
+            "cycle_id": "demo-cycle-003",
+            "task_id": "demo-task-003",
+            "timestamp": "2026-04-07T12:10:00Z",
+            "goal": {"type": "coordination_cycle", "summary": "Recover from a weaker cycle and improve network state"},
+            "network_context": {
+                "route_candidates": ["route_b", "route_c"],
+                "active_nodes": ["memory:repair", "receiver:resonance", "route:recovery"],
+                "graph_state_version": "demo-v1",
+            },
+            "participants": [
+                {"model_id": "gpt-web", "model_type": "web", "proposal_id": "p5", "proposal_summary": "Use route_b", "route_hint": "route_b", "confidence": 0.75, "latency_ms": 2400, "token_cost": 0.1, "selected": False, "weight_in_final_decision": 0.35},
+                {"model_id": "local-qwen", "model_type": "local", "proposal_id": "p6", "proposal_summary": "Use route_c with tighter grounding", "route_hint": "route_c", "confidence": 0.81, "latency_ms": 710, "token_cost": 0.0, "selected": True, "weight_in_final_decision": 0.65},
+            ],
+            "final_decision": {"selected_route": "route_c", "decision_summary": "Route C selected", "derived_from_proposals": ["p6"]},
+            "outcome": {"success": True, "path_quality": 0.91, "network_improvement": 0.26, "operator_intervention_required": False, "operator_feedback_score": 0.93, "drift_detected": False, "receiver_type": "human_operator", "receiver_resonance_score": 0.94, "receiver_acceptance_label": "accepted"},
+            "attribution": {
+                "best_contributor_model_id": "local-qwen",
+                "best_contributor_score": 0.89,
+                "contribution_breakdown": [
+                    {"model_id": "gpt-web", "adoption_score": 0.32, "outcome_lift": 0.61, "stability_impact": 0.79, "receiver_resonance": 0.94, "cost_efficiency": 0.36, "total_contribution_score": 0.54},
+                    {"model_id": "local-qwen", "adoption_score": 0.9, "outcome_lift": 0.89, "stability_impact": 0.91, "receiver_resonance": 0.94, "cost_efficiency": 0.93, "total_contribution_score": 0.89},
+                ],
+            },
+        },
+    ]
+
+    written_paths: list[str] = []
+    for ledger in demo_ledgers:
+        path = COUNCIL_LEDGER_DIR / f"{ledger['cycle_id']}.json"
+        path.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+        written_paths.append(str(path))
+
+    return 200, {
+        "message": "Demo council ledger artifacts generated.",
+        "artifacts_path": str(COUNCIL_LEDGER_DIR),
+        "ledger_count": len(demo_ledgers),
+        "written_files": written_paths,
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send_json(self, status: int, payload: object) -> None:
         body = json.dumps(payload, indent=2).encode("utf-8")
@@ -654,6 +748,10 @@ class Handler(BaseHTTPRequestHandler):
                     "request_payload": request_payload,
                     "hint": "This does not necessarily mean ingest failed; some facts may require richer query filters.",
                 }
+            self._send_json(status, payload)
+            return
+        if self.path == "/api/generate-demo-council-ledger":
+            status, payload = generate_demo_council_ledger()
             self._send_json(status, payload)
             return
         self._send_json(404, {"error": "not found"})
