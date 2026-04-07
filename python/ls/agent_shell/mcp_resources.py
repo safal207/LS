@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .mcp_tools import MCPValidationError, TaskManager
+from .mcp_tools import MCPValidationError
+from .runtime.protocol import TaskRuntime
 
 
 @dataclass(frozen=True)
@@ -15,7 +16,7 @@ class ResourceRef:
 class MCPResourceRegistry:
     """Expose task state as MCP resources."""
 
-    def __init__(self, task_manager: TaskManager) -> None:
+    def __init__(self, task_manager: TaskRuntime) -> None:
         self.task_manager = task_manager
 
     def list_resources(self) -> list[ResourceRef]:
