@@ -19,6 +19,17 @@ from ls.cognition.cognitive_phase_space import CognitivePhaseSpace, CognitiveVec
 from ls.cognition.cognitive_energy_model import CognitiveEnergyModel
 from ls.cognition.resonant_entry import ResonantEntryInput, ResonantEntryModule, ResonantEntryResult
 from ls.cognition.tri_signal import TriSignalCore, TriSignalInput, TriSignalResult
+from ls.cognition.council_contribution_ledger import (
+    CouncilAttribution,
+    CouncilContributionBreakdown,
+    CouncilContributionLedger,
+    CouncilDecision,
+    CouncilGoal,
+    CouncilNetworkContext,
+    CouncilOutcome,
+    CouncilParticipant,
+    build_council_attribution,
+)
 
 __all__ = [
     "AgentState",
@@ -52,4 +63,13 @@ __all__ = [
     "TriSignalInput",
     "TriSignalResult",
     "TriSignalCore",
+    "CouncilGoal",
+    "CouncilNetworkContext",
+    "CouncilParticipant",
+    "CouncilDecision",
+    "CouncilOutcome",
+    "CouncilContributionBreakdown",
+    "CouncilAttribution",
+    "CouncilContributionLedger",
+    "build_council_attribution",
 ]
