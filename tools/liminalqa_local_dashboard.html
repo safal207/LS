@@ -1,83 +1,98 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LiminalQA Local Dashboard</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <style>
-    :root { --bg:#f3efe7; --panel:#fffaf1; --ink:#1c1713; --muted:#6c6358; --line:#dbcdb8; --accent:#a34332; --accent2:#1f6d5b; }
-    * { box-sizing:border-box; }
-    body { margin:0; color:var(--ink); font-family:Georgia,"Times New Roman",serif; background:radial-gradient(circle at top left, rgba(199,92,70,.14), transparent 24rem),radial-gradient(circle at bottom right, rgba(40,115,100,.14), transparent 24rem),var(--bg); }
-    main { max-width:1180px; margin:0 auto; padding:28px 18px 44px; }
-    h1 { margin:0 0 10px; font-size:clamp(2rem,4vw,3.9rem); line-height:.95; letter-spacing:-.04em; }
-    h2 { margin:0 0 10px; font-size:1.45rem; }
-    .lede { max-width:760px; color:var(--muted); font-size:1.05rem; margin:0 0 26px; }
-    .header { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; flex-wrap:wrap; }
-    .grid, .summary-grid, .chart-grid { display:grid; gap:16px; }
-    .grid { grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
-    .summary-grid { grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); margin-top:14px; gap:12px; }
-    .chart-grid { grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); margin-top:16px; }
-    .panel, .chart-panel, .summary-box { background:var(--panel); border:1px solid var(--line); border-radius:18px; }
-    .panel { padding:18px; box-shadow:0 10px 30px rgba(28,23,19,.06); }
-    .chart-panel { padding:14px; background:rgba(255,250,241,.82); }
-    .notranslate { translate: no; }
-    .summary-box { padding:12px; background:rgba(255,250,241,.75); border-radius:14px; }
-    .kicker, .summary-label { text-transform:uppercase; letter-spacing:.12em; font-size:.72rem; color:var(--muted); margin-bottom:10px; }
-    .summary-label { font-size:.8rem; letter-spacing:.08em; margin-bottom:6px; }
-    .summary-value { font-size:1.12rem; }
-    .status { font-size:1.4rem; margin-bottom:8px; }
-    .ok { color:var(--accent2); } .bad { color:var(--accent); }
-    .meta, .chart-subtitle, .empty-note { color:var(--muted); font-size:.92rem; }
-    .button-row { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
-    button { appearance:none; border:0; border-radius:999px; padding:12px 16px; background:var(--ink); color:#fff; font:inherit; cursor:pointer; }
-    button.secondary { background:var(--accent); }
-    button.ghost { background:transparent; border:1px solid var(--line); color:var(--ink); }
-    button.active { background:var(--accent2); }
-    button:disabled { opacity:.65; cursor:wait; }
-    .lane-list, .cycle-list { margin:14px 0 0; padding-left:18px; }
-    .lane-list li, .cycle-list li { margin:6px 0; }
-    .guide-list { margin:10px 0 0; padding-left:18px; color:var(--muted); font-size:.92rem; }
-    .guide-list li { margin:6px 0; }
-    .section { margin-top:16px; }
-    .result-summary {
-      margin: 0 0 12px;
-      padding: 12px 14px;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: rgba(255,250,241,.75);
-      color: var(--ink);
-    }
-    .result-summary strong { display:block; margin-bottom:6px; }
-    pre { margin:0; white-space:pre-wrap; word-break:break-word; background:#171311; color:#f8f1e3; border-radius:14px; padding:14px; min-height:220px; overflow:auto; font-size:.9rem; }
-    svg { width:100%; height:220px; display:block; background:linear-gradient(180deg, rgba(255,255,255,.35), rgba(255,255,255,.1)); border-radius:12px; border:1px solid rgba(219,205,184,.85); }
-    code { font-family:"Cascadia Code",Consolas,monospace; font-size:.92em; }
+    :root{--bg:#f2efe8;--panel:#fffaf1;--ink:#161311;--muted:#6d655d;--line:#d9cdbb;--accent:#a63d2f;--accent2:#1e6f5c;--focus:#1f7aec}
+    *{box-sizing:border-box} body{margin:0;font-family:Georgia,"Times New Roman",serif;background:radial-gradient(circle at top left,rgba(166,61,47,.14),transparent 28rem),radial-gradient(circle at bottom right,rgba(30,111,92,.12),transparent 28rem),var(--bg);color:var(--ink)}
+    main{max-width:1180px;margin:0 auto;padding:28px 20px 56px}
+    h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.04em}
+    p{margin:0} a{color:var(--accent2)} a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:12px}
+    .top{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start}
+    .lede{max-width:760px;color:var(--muted);font-size:1.02rem;margin-top:12px}
+    .support{margin-top:12px;display:flex;gap:14px;flex-wrap:wrap;font-size:.92rem}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:20px}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 12px 30px rgba(22,19,17,.06)}
+    .kicker{text-transform:uppercase;letter-spacing:.12em;font-size:.72rem;color:var(--muted);margin-bottom:10px}
+    .status{font-size:1.35rem;margin:0 0 8px}.ok{color:var(--accent2)}.bad{color:var(--accent)}
+    .meta{color:var(--muted);font-size:.92rem;line-height:1.45}
+    .button-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+    button{appearance:none;border:0;border-radius:999px;padding:12px 16px;background:var(--ink);color:#fff;font:inherit;cursor:pointer;transition:transform .12s ease,opacity .12s ease,background .12s ease}
+    button:hover{transform:translateY(-1px)} button.secondary{background:var(--accent)} button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)} button.active{background:var(--accent2)} button:disabled{opacity:.58;cursor:wait;transform:none}
+    .steps{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.step{font-size:.82rem;border:1px solid var(--line);border-radius:999px;padding:5px 10px;color:var(--muted)}
+    .summary-grid,.chart-grid{display:grid;gap:12px}.summary-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-top:14px}.chart-grid{grid-template-columns:repeat(auto-fit,minmax(250px,1fr));margin-top:16px}
+    .summary-box,.chart-card{border:1px solid var(--line);border-radius:14px;padding:12px;background:rgba(255,250,241,.65)}
+    .summary-label{color:var(--muted);font-size:.78rem;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em}.summary-value{font-size:1.1rem}
+    .hint,.inline-note{margin-top:10px;padding:10px 12px;border-radius:12px;background:#f7f0e6;color:var(--muted);font-size:.9rem}
+    .inline-note strong{color:var(--ink)} .lane-list,.guide-list{margin:12px 0 0;padding-left:18px}.lane-list li,.guide-list li{margin:6px 0}
+    .result-summary{padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#f7f0e6;line-height:1.45}
+    details{margin-top:12px} pre{margin:0;white-space:pre-wrap;word-break:break-word;background:#171311;color:#f8f1e3;border-radius:14px;padding:14px;min-height:160px;overflow:auto;font-size:.88rem}
+    .chart-title{font-size:.95rem;margin-bottom:6px}.chart-desc{font-size:.84rem;color:var(--muted);margin-bottom:10px}.empty-chart{height:180px;display:grid;place-items:center;border:1px dashed var(--line);border-radius:12px;color:var(--muted)} .chart-svg{width:100%;height:180px;display:block}
+    .footer-note{margin-top:16px;color:var(--muted);font-size:.88rem}
+    @media (max-width:720px){main{padding:18px 14px 48px}}
   </style>
 </head>
 <body>
   <main>
-    <div class="header">
+    <section class="top">
       <div>
         <h1 id="title">LiminalQA<br>Локальная панель</h1>
-        <p id="lede" class="lede">Маленькая локальная панель для пути LS -> LiminalQA и council-ledger analytics. Проверяй здоровье, публикуй quality snapshot и смотри вклад моделей по циклам согласования.</p>
-      </div>
-      <div class="panel" style="padding:12px 14px;min-width:210px;">
-        <div id="lang-label" class="kicker" style="margin-bottom:8px;">Язык</div>
-        <div class="button-row" style="margin-top:0;">
-          <button id="lang-ru" type="button" class="active">Русский</button>
-          <button id="lang-en" type="button" class="ghost">English</button>
+        <p id="lede" class="lede">Панель для локального пути LS → LiminalQA и аналитики совета моделей. Проверяй здоровье сервиса, публикуй quality snapshot, запускай локальный test lane и смотри вклад моделей в coordination cycles.</p>
+        <div class="support">
+          <a id="docs-link" href="https://github.com/safal207/LS/blob/main/docs/LIMINALQA_LOCAL_SETUP.md" target="_blank" rel="noreferrer">Документация</a>
+          <a id="roadmap-link" href="https://github.com/safal207/LS/blob/main/docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md" target="_blank" rel="noreferrer">Council roadmap</a>
         </div>
       </div>
-    </div>
-
-    <section class="grid">
-      <article class="panel"><div id="health-kicker" class="kicker">Здоровье сервиса</div><div id="health-status" class="status">Проверка...</div><div id="health-meta" class="meta"></div><div class="button-row"><button id="refresh-health">Проверить health</button></div></article>
-      <article class="panel"><div id="smoke-kicker" class="kicker">Smoke Publish</div><div id="smoke-meta" class="meta">Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.</div><div class="button-row"><button id="publish-smoke" class="secondary">Отправить smoke batch</button></div></article>
-      <article class="panel"><div id="lane-kicker" class="kicker">Local Test Lane</div><div id="lane-meta" class="meta">Локально запускает <code>mesh-tests</code> через <code>pytest</code>, пишет JUnit и coverage, потом пересчитывает quality report.</div><div class="button-row"><button id="run-local-lane">Запустить mesh-tests</button></div></article>
-      <article class="panel"><div id="quality-kicker" class="kicker">Quality Report</div><div id="quality-meta" class="meta">Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.</div><div class="button-row"><button id="generate-quality-report" class="secondary">Сгенерировать quality report</button><button id="publish-quality-report">Отправить quality report</button></div></article>
-      <article class="panel"><div id="query-kicker" class="kicker">Query Preview</div><div id="query-meta" class="meta">Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.</div><div class="button-row"><button id="run-query">Показать query preview</button></div></article>
+      <div class="panel">
+        <div id="lang-label" class="kicker">Язык</div>
+        <div class="button-row" style="margin-top:0">
+          <button id="lang-ru" class="active" type="button">Русский</button>
+          <button id="lang-en" class="ghost" type="button">English</button>
+        </div>
+      </div>
     </section>
 
-    <section class="panel section">
+    <section class="grid">
+      <article class="panel">
+        <div id="health-kicker" class="kicker">Здоровье сервиса</div>
+        <div id="health-status" class="status">Проверка...</div>
+        <div id="health-meta" class="meta"></div>
+        <div class="button-row"><button id="refresh-health">Проверить health</button></div>
+      </article>
+
+      <article class="panel">
+        <div id="smoke-kicker" class="kicker">Smoke Publish</div>
+        <div id="smoke-meta" class="meta">Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.</div>
+        <div class="button-row"><button id="publish-smoke" class="secondary">Отправить smoke batch</button></div>
+      </article>
+
+      <article class="panel">
+        <div id="lane-kicker" class="kicker">Local Test Lane</div>
+        <div id="lane-meta" class="meta">Локально запускает <code>mesh-tests</code> через <code>pytest</code>, пишет JUnit и coverage, потом пересчитывает quality report.</div>
+        <div class="button-row"><button id="run-local-lane">Запустить mesh-tests</button></div>
+      </article>
+
+      <article class="panel">
+        <div id="quality-kicker" class="kicker">Quality Report</div>
+        <div id="quality-meta" class="meta">Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.</div>
+        <div class="steps"><span id="step-generate" class="step">1. Сгенерировать</span><span id="step-publish" class="step">2. Отправить</span></div>
+        <div class="button-row">
+          <button id="generate-quality-report" class="secondary">Сгенерировать quality report</button>
+          <button id="publish-quality-report">Отправить quality report</button>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div id="query-kicker" class="kicker">Query Preview</div>
+        <div id="query-meta" class="meta">Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.</div>
+        <div class="button-row"><button id="run-query">Показать query preview</button></div>
+      </article>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
       <div id="quality-preview-kicker" class="kicker">Quality Preview</div>
       <div id="quality-preview-meta" class="meta">Краткая сводка по текущему локальному quality report.</div>
       <div class="summary-grid">
@@ -86,177 +101,149 @@
         <div class="summary-box"><div id="summary-failures-label" class="summary-label">Failures</div><div id="summary-failures" class="summary-value">0</div></div>
         <div class="summary-box"><div id="summary-coverage-label" class="summary-label">Min Coverage</div><div id="summary-coverage" class="summary-value">n/a</div></div>
       </div>
+      <div id="quality-empty" class="hint">Локальный quality report пока не найден. Сначала нажми «Сгенерировать quality report».</div>
       <ul id="lane-list" class="lane-list"></ul>
     </section>
 
-    <section class="panel section">
+    <section class="panel" style="margin-top:16px">
       <div id="council-kicker" class="kicker">Council Analytics</div>
-      <h2 id="council-title">Вклад моделей в совет согласования</h2>
-      <div id="council-meta" class="meta">Панель читает <code>artifacts/council-ledger/*.json</code> и показывает, кто реально тянет качество, как меняется резонанс и какие маршруты чаще выигрывают.</div>
+      <div id="council-meta" class="meta">Вклад моделей в совет согласования. Панель читает <code>artifacts/council-ledger/*.json</code> относительно корня проекта и показывает, кто реально тянет качество, как меняется резонанс и какие маршруты чаще выигрывают.</div>
+      <div class="button-row">
+        <button id="generate-demo-council-ledger" class="secondary">Сгенерировать demo council ledger</button>
+      </div>
       <div class="summary-grid">
-        <div class="summary-box"><div id="council-ledger-count-label" class="summary-label">Ledgers</div><div id="council-ledger-count" class="summary-value">0</div></div>
-        <div class="summary-box"><div id="council-best-model-label" class="summary-label">Top Contributor</div><div id="council-best-model" class="summary-value">n/a</div></div>
-        <div class="summary-box"><div id="council-success-label" class="summary-label">Success Rate</div><div id="council-success" class="summary-value">0%</div></div>
-        <div class="summary-box"><div id="council-resonance-label" class="summary-label">Avg Resonance</div><div id="council-resonance" class="summary-value">0%</div></div>
-        <div class="summary-box"><div id="council-merit-label" class="summary-label">Avg Merit</div><div id="council-merit" class="summary-value">0%</div></div>
+        <div class="summary-box"><div id="c-ledgers-label" class="summary-label">Ledgers</div><div id="c-ledgers" class="summary-value">0</div></div>
+        <div class="summary-box"><div id="c-top-label" class="summary-label">Top Contributor</div><div id="c-top" class="summary-value">n/a</div></div>
+        <div class="summary-box"><div id="c-success-label" class="summary-label">Success Rate</div><div id="c-success" class="summary-value">0%</div></div>
+        <div class="summary-box"><div id="c-resonance-label" class="summary-label">Avg Resonance</div><div id="c-resonance" class="summary-value">0%</div></div>
+        <div class="summary-box"><div id="c-merit-label" class="summary-label">Avg Merit</div><div id="c-merit" class="summary-value">0%</div></div>
       </div>
-      <div class="chart-grid">
-        <article class="chart-panel notranslate"><h3 id="chart-best-count-title" class="chart-title">Best Contributor Frequency</h3><p id="chart-best-count-subtitle" class="chart-subtitle">Сколько раз модель была лучшим contributor по council cycle.</p><svg id="chart-best-count" class="notranslate" translate="no"></svg></article>
-        <article class="chart-panel notranslate"><h3 id="chart-contribution-title" class="chart-title">Cumulative Contribution</h3><p id="chart-contribution-subtitle" class="chart-subtitle">Сумма contribution score по моделям.</p><svg id="chart-contribution" class="notranslate" translate="no"></svg></article>
-        <article class="chart-panel notranslate"><h3 id="chart-model-type-title" class="chart-title">Model Type Lift</h3><p id="chart-model-type-subtitle" class="chart-subtitle">Средний contribution score по типам моделей.</p><svg id="chart-model-type" class="notranslate" translate="no"></svg></article>
-        <article class="chart-panel notranslate"><h3 id="chart-route-title" class="chart-title">Route Wins</h3><p id="chart-route-subtitle" class="chart-subtitle">Какие route чаще побеждают в финальном решении.</p><svg id="chart-route" class="notranslate" translate="no"></svg></article>
-        <article class="chart-panel notranslate"><h3 id="chart-resonance-title" class="chart-title">Receiver Resonance Trend</h3><p id="chart-resonance-subtitle" class="chart-subtitle">Линейный тренд того, как ответ резонирует с получателем.</p><svg id="chart-resonance" class="notranslate" translate="no"></svg></article>
-        <article class="chart-panel notranslate"><h3 id="chart-quality-title" class="chart-title">Quality Score Trend</h3><p id="chart-quality-subtitle" class="chart-subtitle">Линейный тренд интегрального quality score по council cycles.</p><svg id="chart-quality" class="notranslate" translate="no"></svg></article>
-        <article class="chart-panel notranslate"><h3 id="chart-network-title" class="chart-title">Network Improvement Trend</h3><p id="chart-network-subtitle" class="chart-subtitle">Линейный тренд того, насколько цикл реально усилил сеть.</p><svg id="chart-network" class="notranslate" translate="no"></svg></article>
-        <article class="chart-panel notranslate"><h3 id="chart-merit-title" class="chart-title">Average Merit Trend</h3><p id="chart-merit-subtitle" class="chart-subtitle">Линейный тренд merit и network value по council cycles.</p><svg id="chart-merit" class="notranslate" translate="no"></svg></article>
-      </div>
-      <ul id="cycle-list" class="cycle-list"></ul>
-      <div id="council-empty" class="empty-note"></div>
-      <ol id="council-guide" class="guide-list">
-        <li id="council-guide-1">Запусти реальный coordination cycle через ResonanceAgent.</li>
-        <li id="council-guide-2">Убедись, что появился файл <code>artifacts/council-ledger/&lt;cycle_id&gt;.json</code>.</li>
-        <li id="council-guide-3">Обнови страницу или повторно открой локальную панель.</li>
-      </ol>
+      <div id="council-empty" class="hint"></div>
+      <ul id="council-guide" class="guide-list"></ul>
+      <div class="chart-grid" id="chart-grid"></div>
+      <div class="footer-note"><span id="relative-path-note">Путь <code>artifacts/council-ledger</code> считается относительно корня проекта.</span></div>
     </section>
 
-    <section class="panel section"><div id="result-kicker" class="kicker">Результат</div><div id="result-summary" class="result-summary"></div><pre id="result">Ожидание действия...</pre></section>
+    <section id="result-section" class="panel" style="margin-top:16px">
+      <div id="result-kicker" class="kicker">Результат</div>
+      <div id="result-summary" class="result-summary">Ожидание действия...</div>
+      <div id="result-toast" class="inline-note" hidden><strong>Результат обновлен ниже.</strong></div>
+      <div class="button-row">
+        <button id="copy-json" class="ghost" type="button">Скопировать JSON</button>
+      </div>
+      <details>
+        <summary id="raw-json-toggle">Технический JSON</summary>
+        <pre id="result">{"status":"idle"}</pre>
+      </details>
+    </section>
   </main>
   <script>
-    const result = document.getElementById("result");
-    const resultSummary = document.getElementById("result-summary");
-    const healthStatus = document.getElementById("health-status");
-    const healthMeta = document.getElementById("health-meta");
-    let lang = "ru";
-    const dict = { ru: { title:"LiminalQA<br>Локальная панель", lede:"Маленькая локальная панель для пути LS -> LiminalQA и council-ledger analytics. Проверяй здоровье, публикуй quality snapshot и смотри вклад моделей по циклам согласования.", langLabel:"Язык", healthKicker:"Здоровье сервиса", healthChecking:"Проверка...", healthHealthy:"Сервис жив", healthUnavailable:"Недоступен", refreshHealth:"Проверить health", smokeKicker:"Smoke Publish", smokeMeta:"Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.", publishSmoke:"Отправить smoke batch", laneKicker:"Local Test Lane", laneMeta:"Локально запускает <code>mesh-tests</code> через <code>pytest</code>, пишет JUnit и coverage, потом пересчитывает quality report.", runLocalLane:"Запустить mesh-tests", qualityKicker:"Quality Report", qualityMeta:"Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.", generateQualityReport:"Сгенерировать quality report", publishQualityReport:"Отправить quality report", qualityPreviewKicker:"Quality Preview", qualityPreviewMeta:"Краткая сводка по текущему локальному quality report.", summaryVerdictLabel:"Aggregate Verdict", summaryLanesLabel:"Lanes", summaryFailuresLabel:"Failures", summaryCoverageLabel:"Min Coverage", noQualityReport:"Локальный quality report еще не создан.", laneLine:"{title}: {verdict}, failures={failures}, coverage={coverage}", queryKicker:"Query Preview", queryMeta:"Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.", runQuery:"Показать query preview", councilKicker:"Council Analytics", councilTitle:"Вклад моделей в совет согласования", councilMeta:"Панель читает <code>artifacts/council-ledger/*.json</code> и показывает, кто реально тянет качество, как меняется резонанс и какие маршруты чаще выигрывают.", councilLedgersLabel:"Ledgers", councilBestModelLabel:"Top Contributor", councilSuccessLabel:"Success Rate", councilResonanceLabel:"Avg Resonance", councilMeritLabel:"Avg Merit", councilEmpty:"Council-ledger artifacts пока не найдены. Сначала прогони реальные council cycles.", councilGuide1:"Запусти реальный coordination cycle через ResonanceAgent.", councilGuide2:"Убедись, что появился файл <code>artifacts/council-ledger/&lt;cycle_id&gt;.json</code>.", councilGuide3:"Обнови страницу или повторно открой локальную панель.", chartBestCountTitle:"Best Contributor Frequency", chartBestCountSubtitle:"Сколько раз модель была лучшим contributor по council cycle.", chartContributionTitle:"Cumulative Contribution", chartContributionSubtitle:"Сумма contribution score по моделям.", chartModelTypeTitle:"Model Type Lift", chartModelTypeSubtitle:"Средний contribution score по типам моделей.", chartRouteTitle:"Route Wins", chartRouteSubtitle:"Какие route чаще побеждают в финальном решении.", chartResonanceTitle:"Receiver Resonance Trend", chartResonanceSubtitle:"Линейный тренд того, как ответ резонирует с получателем.", chartQualityTitle:"Quality Score Trend", chartQualitySubtitle:"Линейный тренд интегрального quality score по council cycles.", chartNetworkTitle:"Network Improvement Trend", chartNetworkSubtitle:"Линейный тренд того, насколько цикл реально усилил сеть.", chartMeritTitle:"Average Merit Trend", chartMeritSubtitle:"Линейный тренд merit и network value по council cycles.", noChartData:"Недостаточно данных", cycleLine:"{cycle}: best={best}, route={route}, resonance={resonance}, merit={merit}", resultKicker:"Результат", resultSummaryTitle:"Кратко", resultSummaryFallback:"Структурированный ответ получен. Ниже raw JSON.", resultSummaryHealth:"Сервис отвечает: {service} v{version}, status={status}.", resultSummaryBatch:"Ингест принял batch. Run={run}, tests={tests}, signals={signals}.", resultSummaryLane:"{title}: verdict={verdict}, failures={failures}, coverage={coverage}, exit_code={exit}.", resultSummaryQuality:"Quality report собран: verdict={verdict}, lanes={lanes}, failures={failures}.", resultSummaryQuery:"Query preview вернул {total} фактов.{hint}", resultSummaryError:"Ошибка: {error}", waiting:"Ожидание действия...", working:"Выполняю..." }, en: { title:"LiminalQA<br>Local Dashboard", lede:"Small local dashboard for the LS -> LiminalQA path and council-ledger analytics. Check health, publish quality snapshots, and inspect model contribution across coordination cycles.", langLabel:"Language", healthKicker:"Service Health", healthChecking:"Checking...", healthHealthy:"Healthy", healthUnavailable:"Unavailable", refreshHealth:"Refresh Health", smokeKicker:"Smoke Publish", smokeMeta:"Send one synthetic run with one test and one signal through <code>/ingest/batch</code>.", publishSmoke:"Publish Smoke Batch", laneKicker:"Local Test Lane", laneMeta:"Run the local <code>mesh-tests</code> lane via <code>pytest</code>, write JUnit and coverage, then rebuild the quality report.", runLocalLane:"Run mesh-tests", qualityKicker:"Quality Report", qualityMeta:"First generate a local <code>artifacts/quality-report.json</code>, then publish it to LiminalQA as a real quality snapshot.", generateQualityReport:"Generate Quality Report", publishQualityReport:"Publish Quality Report", qualityPreviewKicker:"Quality Preview", qualityPreviewMeta:"Short summary of the current local quality report.", summaryVerdictLabel:"Aggregate Verdict", summaryLanesLabel:"Lanes", summaryFailuresLabel:"Failures", summaryCoverageLabel:"Min Coverage", noQualityReport:"No local quality report has been created yet.", laneLine:"{title}: {verdict}, failures={failures}, coverage={coverage}", queryKicker:"Query Preview", queryMeta:"Send a small payload to <code>/query</code> and preview the latest facts visible to the ingest service.", runQuery:"Load Query Preview", councilKicker:"Council Analytics", councilTitle:"Model contribution across coordination cycles", councilMeta:"This panel reads <code>artifacts/council-ledger/*.json</code> and shows which models lift quality, how receiver resonance changes, and which routes win most often.", generateDemoCouncilLedger:"Generate demo council ledger", councilLedgersLabel:"Ledgers", councilBestModelLabel:"Top Contributor", councilSuccessLabel:"Success Rate", councilResonanceLabel:"Avg Resonance", councilMeritLabel:"Avg Merit", councilEmpty:"No council-ledger artifacts found yet. Run real council cycles first.", councilGuide1:"Run a real coordination cycle through ResonanceAgent.", councilGuide2:"Confirm that <code>artifacts/council-ledger/&lt;cycle_id&gt;.json</code> was written.", councilGuide3:"Reload the page or reopen the local dashboard.", chartBestCountTitle:"Best Contributor Frequency", chartBestCountSubtitle:"How often each model is the best contributor per council cycle.", chartContributionTitle:"Cumulative Contribution", chartContributionSubtitle:"Sum of contribution score by model.", chartModelTypeTitle:"Model Type Lift", chartModelTypeSubtitle:"Average contribution score grouped by model type.", chartRouteTitle:"Route Wins", chartRouteSubtitle:"Which routes most often win the final decision.", chartResonanceTitle:"Receiver Resonance Trend", chartResonanceSubtitle:"Line trend for how strongly the answer resonates with the receiver.", chartQualityTitle:"Quality Score Trend", chartQualitySubtitle:"Line trend for the integrated quality score across council cycles.", chartNetworkTitle:"Network Improvement Trend", chartNetworkSubtitle:"Line trend for how much each cycle actually improves the network.", chartMeritTitle:"Average Merit Trend", chartMeritSubtitle:"Line trend for merit and network value across council cycles.", noChartData:"Not enough data", cycleLine:"{cycle}: best={best}, route={route}, resonance={resonance}, merit={merit}", resultKicker:"Result", resultSummaryTitle:"Summary", resultSummaryFallback:"Structured response captured. Raw JSON is shown below.", resultSummaryHealth:"Service is responding: {service} v{version}, status={status}.", resultSummaryBatch:"Batch ingest accepted. Run={run}, tests={tests}, signals={signals}.", resultSummaryLane:"{title}: verdict={verdict}, failures={failures}, coverage={coverage}, exit_code={exit}.", resultSummaryQuality:"Quality report built: verdict={verdict}, lanes={lanes}, failures={failures}.", resultSummaryQuery:"Query preview returned {total} facts.{hint}", resultSummaryError:"Error: {error}", resultSummaryCouncilDemo:"Demo council ledger generated: files={count}. Council analytics charts are ready to inspect.", waiting:"Waiting for action...", working:"Working..." }};
-    const t = (k) => dict[lang][k];
-    const fmtPct = (v) => (v === null || v === undefined || Number.isNaN(Number(v))) ? "n/a" : `${(Number(v) * 100).toFixed(1)}%`;
-    const fmtCov = (v) => (v === null || v === undefined || Number.isNaN(Number(v))) ? "n/a" : `${Number(v).toFixed(1)}%`;
-    const safe01 = (v) => Math.max(0, Math.min(1, Number(v || 0)));
-    const callJson = async (path, options={}) => { const response = await fetch(path, options); const payload = await response.json(); return { ok: response.ok, status: response.status, payload }; };
-    const svgText = (x,y,text,anchor="start",fill="#6c6358",size=12) => `<text x="${x}" y="${y}" text-anchor="${anchor}" fill="${fill}" font-size="${size}" font-family="Georgia, serif">${text}</text>`;
-    function setNode(id, value, html=false) { const node = document.getElementById(id); if (!node) return; if (html) node.innerHTML = value; else node.textContent = value; }
-    function decodeEscapesInValue(value) {
-      if (typeof value === "string") {
-        return value.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
-      }
-      if (Array.isArray(value)) return value.map(decodeEscapesInValue);
-      if (value && typeof value === "object") {
-        return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, decodeEscapesInValue(v)]));
-      }
-      return value;
+    const text = {
+      ru:{title:"LiminalQA<br>Локальная панель",lede:"Панель для локального пути LS → LiminalQA и аналитики совета моделей. Проверяй здоровье сервиса, публикуй quality snapshot, запускай локальный test lane и смотри вклад моделей в coordination cycles.",docs:"Документация",roadmap:"Council roadmap",lang:"Язык",health:"Здоровье сервиса",smoke:"Smoke Publish",checking:"Проверка...",healthy:"Сервис жив",unavailable:"Недоступен",refresh:"Проверить health",smokeMeta:"Отправляет один synthetic run с одним тестом и одним сигналом через <code>/ingest/batch</code>.",smokeBtn:"Отправить smoke batch",lane:"Local Test Lane",laneMeta:"Локально запускает <code>mesh-tests</code> через <code>pytest</code>, пишет JUnit и coverage, потом пересчитывает quality report.",laneBtn:"Запустить mesh-tests",quality:"Quality Report",qualityMeta:"Сначала сгенерируй локальный <code>artifacts/quality-report.json</code>, потом публикуй его в LiminalQA как настоящий quality snapshot.",stepGenerate:"1. Сгенерировать",stepPublish:"2. Отправить",generate:"Сгенерировать quality report",publish:"Отправить quality report",query:"Query Preview",queryMeta:"Отправляет маленький payload в <code>/query</code> и показывает последние факты, которые видит ingest service.",queryBtn:"Показать query preview",qualityPreview:"Quality Preview",qualityPreviewMeta:"Краткая сводка по текущему локальному quality report.",qualityMissing:"Локальный quality report пока не найден. Сначала нажми «Сгенерировать quality report».",council:"Council Analytics",councilMeta:"Вклад моделей в совет согласования. Панель читает <code>artifacts/council-ledger/*.json</code> относительно корня проекта и показывает, кто реально тянет качество, как меняется резонанс и какие маршруты чаще выигрывают.",demoBtn:"Сгенерировать demo council ledger",result:"Результат",waiting:"Ожидание действия...",updated:"Результат обновлен ниже.",copy:"Скопировать JSON",copied:"JSON скопирован в буфер обмена.",rawJson:"Технический JSON",relativePath:"Путь <code>artifacts/council-ledger</code> считается относительно корня проекта.",working:"Выполняю...",publishDisabled:"Сначала сгенерируй quality report.",summaryHealth:"Сервис отвечает: {service} v{version}.",summarySmoke:"Smoke batch принят. run={run}, tests={tests}, signals={signals}.",summaryLane:"Локальный lane завершен: verdict={verdict}, failures={failures}, coverage={coverage}.",summaryGenerate:"Quality report собран: verdict={verdict}, lanes={lanes}, failures={failures}.",summaryPublish:"Quality report отправлен в LiminalQA: verdict={verdict}, lanes={lanes}.",summaryQuery:"Query preview вернул {total} фактов.",summaryCouncil:"Demo council-ledger создан: {count} файлов.",summaryError:"Запрос завершился ошибкой: {error}.",noData:"Недостаточно данных",verdictLabel:"Aggregate Verdict",lanesLabel:"Lanes",failuresLabel:"Failures",coverageLabel:"Min Coverage",ledgersLabel:"Ledgers",topLabel:"Top Contributor",successLabel:"Success Rate",resonanceLabel:"Avg Resonance",meritLabel:"Avg Merit",laneLine:"{title}: {verdict}, failures={failures}, coverage={coverage}",chartTitles:["Best Contributor Frequency","Cumulative Contribution","Model Type Lift","Route Wins","Receiver Resonance Trend","Quality Score Trend","Network Improvement Trend","Average Merit Trend"],chartDescs:["Сколько раз модель была лучшим contributor.","Сумма contribution score по моделям.","Средний contribution score по типам моделей.","Какие route чаще побеждают.","Тренд резонанса с получателем.","Тренд интегрального quality score.","Тренд улучшения сети.","Тренд merit и network value."]},
+      en:{title:"LiminalQA<br>Local Dashboard",lede:"A local control surface for the LS → LiminalQA path and council analytics. Check service health, publish quality snapshots, run the local test lane, and inspect model contribution across coordination cycles.",docs:"Documentation",roadmap:"Council roadmap",lang:"Language",health:"Service Health",smoke:"Smoke Publish",checking:"Checking...",healthy:"Service healthy",unavailable:"Unavailable",refresh:"Refresh Health",smokeMeta:"Send one synthetic run with one test and one signal through <code>/ingest/batch</code>.",smokeBtn:"Publish Smoke Batch",lane:"Local Test Lane",laneMeta:"Run <code>mesh-tests</code> locally via <code>pytest</code>, write JUnit and coverage, then rebuild the quality report.",laneBtn:"Run mesh-tests",quality:"Quality Report",qualityMeta:"First generate local <code>artifacts/quality-report.json</code>, then publish it to LiminalQA as a real quality snapshot.",stepGenerate:"1. Generate",stepPublish:"2. Publish",generate:"Generate Quality Report",publish:"Publish Quality Report",query:"Query Preview",queryMeta:"Send a small payload to <code>/query</code> and preview the latest facts visible to the ingest service.",queryBtn:"Load Query Preview",qualityPreview:"Quality Preview",qualityPreviewMeta:"Short summary of the current local quality report.",qualityMissing:"No local quality report yet. Generate one first.",council:"Council Analytics",councilMeta:"Model contribution across coordination cycles. The panel reads <code>artifacts/council-ledger/*.json</code> relative to the project root and shows which models lift quality, how resonance changes, and which routes win most often.",demoBtn:"Generate Demo Council Ledger",result:"Result",waiting:"Waiting for action...",updated:"Result updated below.",copy:"Copy JSON",copied:"JSON copied to clipboard.",rawJson:"Technical JSON",relativePath:"The <code>artifacts/council-ledger</code> path is relative to the project root.",working:"Working...",publishDisabled:"Generate the quality report first.",summaryHealth:"Service responded: {service} v{version}.",summarySmoke:"Smoke batch accepted. run={run}, tests={tests}, signals={signals}.",summaryLane:"Local lane completed: verdict={verdict}, failures={failures}, coverage={coverage}.",summaryGenerate:"Quality report generated: verdict={verdict}, lanes={lanes}, failures={failures}.",summaryPublish:"Quality report published to LiminalQA: verdict={verdict}, lanes={lanes}.",summaryQuery:"Query preview returned {total} facts.",summaryCouncil:"Demo council ledger created: {count} files.",summaryError:"Request failed: {error}.",noData:"Not enough data",verdictLabel:"Aggregate Verdict",lanesLabel:"Lanes",failuresLabel:"Failures",coverageLabel:"Min Coverage",ledgersLabel:"Ledgers",topLabel:"Top Contributor",successLabel:"Success Rate",resonanceLabel:"Avg Resonance",meritLabel:"Avg Merit",laneLine:"{title}: {verdict}, failures={failures}, coverage={coverage}",chartTitles:["Best Contributor Frequency","Cumulative Contribution","Model Type Lift","Route Wins","Receiver Resonance Trend","Quality Score Trend","Network Improvement Trend","Average Merit Trend"],chartDescs:["How often each model is the best contributor.","Total contribution score by model.","Average contribution score by model type.","Which routes win most often.","Trend for receiver resonance.","Trend for integrated quality score.","Trend for real network improvement.","Trend for merit and network value."]}
+    };
+    const chartKeys=["bestContributorFrequency","cumulativeContribution","modelTypeLift","routeWins","receiverResonanceTrend","qualityScoreTrend","networkImprovementTrend","averageMeritTrend"];
+    let lang=localStorage.getItem("liminalqa_dashboard_lang")||"ru";
+    let lastResult={status:"idle"};
+
+    const el=id=>document.getElementById(id);
+    const fmt=(key,map={})=>Object.entries(map).reduce((acc,[k,v])=>acc.replace(`{${k}}`,v),text[lang][key]);
+    const cov=v=>v===null||v===undefined?"n/a":`${Number(v).toFixed(1)}%`;
+    const decodeUnicodeEscapes=s=>typeof s==="string"?s.replace(/\\\\u([0-9a-fA-F]{4})/g,(_,h)=>String.fromCharCode(parseInt(h,16))):s;
+    const safeJson=data=>JSON.stringify(data,(k,v)=>typeof v==="string"?decodeUnicodeEscapes(v):v,2);
+
+    function setLanguage(next){
+      lang=next; localStorage.setItem("liminalqa_dashboard_lang",lang); document.documentElement.lang=lang;
+      el("title").innerHTML=text[lang].title; el("lede").textContent=text[lang].lede; el("docs-link").textContent=text[lang].docs; el("roadmap-link").textContent=text[lang].roadmap; el("lang-label").textContent=text[lang].lang;
+      el("health-kicker").textContent=text[lang].health; el("smoke-kicker").textContent=text[lang].smoke; el("smoke-meta").innerHTML=text[lang].smokeMeta; el("publish-smoke").dataset.label=text[lang].smokeBtn; el("publish-smoke").textContent=text[lang].smokeBtn;
+      el("lane-kicker").textContent=text[lang].lane; el("lane-meta").innerHTML=text[lang].laneMeta; el("run-local-lane").dataset.label=text[lang].laneBtn; el("run-local-lane").textContent=text[lang].laneBtn;
+      el("quality-kicker").textContent=text[lang].quality; el("quality-meta").innerHTML=text[lang].qualityMeta; el("step-generate").textContent=text[lang].stepGenerate; el("step-publish").textContent=text[lang].stepPublish;
+      el("generate-quality-report").dataset.label=text[lang].generate; el("generate-quality-report").textContent=text[lang].generate; el("publish-quality-report").dataset.label=text[lang].publish; if(!el("publish-quality-report").disabled) el("publish-quality-report").textContent=text[lang].publish;
+      el("query-kicker").textContent=text[lang].query; el("query-meta").innerHTML=text[lang].queryMeta; el("run-query").dataset.label=text[lang].queryBtn; el("run-query").textContent=text[lang].queryBtn;
+      el("quality-preview-kicker").textContent=text[lang].qualityPreview; el("quality-preview-meta").textContent=text[lang].qualityPreviewMeta; el("quality-empty").textContent=text[lang].qualityMissing;
+      el("summary-verdict-label").textContent=text[lang].verdictLabel; el("summary-lanes-label").textContent=text[lang].lanesLabel; el("summary-failures-label").textContent=text[lang].failuresLabel; el("summary-coverage-label").textContent=text[lang].coverageLabel;
+      el("council-kicker").textContent=text[lang].council; el("council-meta").innerHTML=text[lang].councilMeta; el("generate-demo-council-ledger").dataset.label=text[lang].demoBtn; el("generate-demo-council-ledger").textContent=text[lang].demoBtn;
+      el("c-ledgers-label").textContent=text[lang].ledgersLabel; el("c-top-label").textContent=text[lang].topLabel; el("c-success-label").textContent=text[lang].successLabel; el("c-resonance-label").textContent=text[lang].resonanceLabel; el("c-merit-label").textContent=text[lang].meritLabel;
+      el("result-kicker").textContent=text[lang].result; el("copy-json").textContent=text[lang].copy; el("raw-json-toggle").textContent=text[lang].rawJson; el("relative-path-note").innerHTML=text[lang].relativePath;
+      el("lang-ru").className=lang==="ru"?"active":"ghost"; el("lang-en").className=lang==="en"?"active":"ghost";
+      refreshResultView(); renderChartShell();
     }
-    function fill(template, values) {
-      return template.replace(/\{([^}]+)\}/g, (_, key) => String(values[key] ?? ""));
+
+    async function callJson(path, options={}){
+      const response=await fetch(path,options); const payload=await response.json(); return {ok:response.ok,status:response.status,payload};
     }
-    function showResult(payload) {
-      const decoded = decodeEscapesInValue(payload);
-      resultSummary.innerHTML = buildResultSummary(decoded);
-      result.textContent = JSON.stringify(decoded, null, 2);
-      result.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    function setBusy(button,busy){button.disabled=busy; button.textContent=busy?text[lang].working:(button.dataset.label||button.textContent)}
+    function showResult(payload,summary){lastResult=payload; el("result-summary").textContent=summary; el("result").textContent=safeJson(payload); el("result-toast").hidden=false; el("result-toast").innerHTML=`<strong>${text[lang].updated}</strong>`; el("result-section").scrollIntoView({behavior:"smooth",block:"start"})}
+    function refreshResultView(){el("result").textContent=safeJson(lastResult); if(!el("result-summary").textContent) el("result-summary").textContent=text[lang].waiting; if(el("publish-quality-report").disabled) el("publish-quality-report").textContent=text[lang].publishDisabled}
+    function laneLine(lane){return fmt("laneLine",{title:lane.lane_title||lane.lane_key||"unknown",verdict:lane.verdict||"n/a",failures:String(lane.total_failures??0),coverage:cov(lane.min_line_coverage_observed)})}
+    function summaryFor(payload){
+      if(payload.service) return fmt("summaryHealth",{service:payload.service||"service",version:payload.version||"?"});
+      if(payload.counts) return fmt("summarySmoke",{run:payload.counts.run??0,tests:payload.counts.tests??0,signals:payload.counts.signals??0});
+      if(Object.hasOwn(payload,"quality_report_path")) return fmt("summaryLane",{verdict:payload.verdict||"n/a",failures:payload.total_failures??0,coverage:cov(payload.min_line_coverage_observed)});
+      if(Object.hasOwn(payload,"verdict_counts")) return fmt("summaryGenerate",{verdict:payload.aggregate_verdict||"n/a",lanes:payload.lane_count??0,failures:payload.total_failures??0});
+      if(payload.ingest) return fmt("summaryPublish",{verdict:payload.aggregate_verdict||"n/a",lanes:payload.lane_count??0});
+      if(Object.hasOwn(payload,"total")) return fmt("summaryQuery",{total:payload.total??0});
+      if(Object.hasOwn(payload,"ledger_count")) return fmt("summaryCouncil",{count:payload.ledger_count??0});
+      return payload.error?fmt("summaryError",{error:payload.error}):text[lang].waiting;
     }
-    function buildResultSummary(payload) {
-      if (!payload || typeof payload !== "object") {
-        return `<strong>${t("resultSummaryTitle")}</strong><div>${t("resultSummaryFallback")}</div>`;
-      }
-      if (payload.service && payload.version) {
-        return `<strong>${t("resultSummaryTitle")}</strong><div>${fill(t("resultSummaryHealth"), { service: payload.service, version: payload.version, status: payload.status || "unknown" })}</div>`;
-      }
-      if (payload.message && payload.counts) {
-        return `<strong>${t("resultSummaryTitle")}</strong><div>${fill(t("resultSummaryBatch"), { run: payload.counts.run ?? 0, tests: payload.counts.tests ?? 0, signals: payload.counts.signals ?? 0 })}</div>`;
-      }
-      if (payload.lane_key && payload.verdict) {
-        return `<strong>${t("resultSummaryTitle")}</strong><div>${fill(t("resultSummaryLane"), { title: payload.lane_title || payload.lane_key, verdict: payload.verdict, failures: payload.total_failures ?? 0, coverage: fmtCov(payload.min_line_coverage_observed), exit: payload.exit_code ?? "n/a" })}</div>`;
-      }
-      if (payload.aggregate_verdict && payload.verdict_counts) {
-        return `<strong>${t("resultSummaryTitle")}</strong><div>${fill(t("resultSummaryQuality"), { verdict: payload.aggregate_verdict, lanes: payload.lane_count ?? 0, failures: payload.total_failures ?? 0 })}</div>`;
-      }
-      if (payload.message && payload.ledger_count && payload.written_files) {
-        return `<strong>${t("resultSummaryTitle")}</strong><div>${fill(t("resultSummaryCouncilDemo"), { count: payload.ledger_count })}</div>`;
-      }
-      if (Object.prototype.hasOwnProperty.call(payload, "facts") && Object.prototype.hasOwnProperty.call(payload, "total")) {
-        const hint = payload.hint ? ` ${payload.hint}` : "";
-        return `<strong>${t("resultSummaryTitle")}</strong><div>${fill(t("resultSummaryQuery"), { total: payload.total ?? 0, hint })}</div>`;
-      }
-      if (payload.error) {
-        return `<strong>${t("resultSummaryTitle")}</strong><div>${fill(t("resultSummaryError"), { error: payload.error })}</div>`;
-      }
-      return `<strong>${t("resultSummaryTitle")}</strong><div>${t("resultSummaryFallback")}</div>`;
+
+    function renderChartShell(){
+      const grid=el("chart-grid"); grid.innerHTML="";
+      chartKeys.forEach((key,index)=>{const card=document.createElement("div"); card.className="chart-card"; card.setAttribute("translate","no"); card.classList.add("notranslate"); card.innerHTML=`<div class="chart-title">${text[lang].chartTitles[index]}</div><div class="chart-desc">${text[lang].chartDescs[index]}</div><div id="chart-${key}"></div>`; grid.appendChild(card);});
     }
-    const laneText = (lane) => t("laneLine").replace("{title}", lane.lane_title || lane.lane_key || "unknown").replace("{verdict}", lane.verdict || "n/a").replace("{failures}", String(lane.total_failures ?? 0)).replace("{coverage}", fmtCov(lane.min_line_coverage_observed));
-    const cycleText = (cycle) => t("cycleLine").replace("{cycle}", cycle.cycle_id || "unknown").replace("{best}", cycle.best_contributor_model_id || "n/a").replace("{route}", cycle.selected_route || "n/a").replace("{resonance}", fmtPct(cycle.receiver_resonance_score)).replace("{merit}", fmtPct(cycle.average_merit_score));
-    function renderLanguage() {
-      document.documentElement.lang = lang;
-      setNode("title", t("title"), true);
-      setNode("lede", t("lede"));
-      setNode("lang-label", t("langLabel"));
-      setNode("health-kicker", t("healthKicker"));
-      setNode("smoke-kicker", t("smokeKicker"));
-      setNode("smoke-meta", t("smokeMeta"), true);
-      setNode("lane-kicker", t("laneKicker"));
-      setNode("lane-meta", t("laneMeta"), true);
-      setNode("quality-kicker", t("qualityKicker"));
-      setNode("quality-meta", t("qualityMeta"), true);
-      setNode("quality-preview-kicker", t("qualityPreviewKicker"));
-      setNode("quality-preview-meta", t("qualityPreviewMeta"));
-      setNode("summary-verdict-label", t("summaryVerdictLabel"));
-      setNode("summary-lanes-label", t("summaryLanesLabel"));
-      setNode("summary-failures-label", t("summaryFailuresLabel"));
-      setNode("summary-coverage-label", t("summaryCoverageLabel"));
-      setNode("query-kicker", t("queryKicker"));
-      setNode("query-meta", t("queryMeta"), true);
-      setNode("council-kicker", t("councilKicker"));
-      setNode("council-title", t("councilTitle"));
-      setNode("council-meta", t("councilMeta"), true);
-      const demoButton = document.getElementById("generate-demo-council-ledger");
-      if (demoButton) { demoButton.dataset.label = t("generateDemoCouncilLedger"); demoButton.textContent = t("generateDemoCouncilLedger"); }
-      setNode("council-ledger-count-label", t("councilLedgersLabel"));
-      setNode("council-best-model-label", t("councilBestModelLabel"));
-      setNode("council-success-label", t("councilSuccessLabel"));
-      setNode("council-resonance-label", t("councilResonanceLabel"));
-      setNode("council-merit-label", t("councilMeritLabel"));
-      setNode("council-guide-1", t("councilGuide1"), true);
-      setNode("council-guide-2", t("councilGuide2"), true);
-      setNode("council-guide-3", t("councilGuide3"), true);
-      setNode("chart-best-count-title", t("chartBestCountTitle"));
-      setNode("chart-best-count-subtitle", t("chartBestCountSubtitle"));
-      setNode("chart-contribution-title", t("chartContributionTitle"));
-      setNode("chart-contribution-subtitle", t("chartContributionSubtitle"));
-      setNode("chart-model-type-title", t("chartModelTypeTitle"));
-      setNode("chart-model-type-subtitle", t("chartModelTypeSubtitle"));
-      setNode("chart-route-title", t("chartRouteTitle"));
-      setNode("chart-route-subtitle", t("chartRouteSubtitle"));
-      setNode("chart-resonance-title", t("chartResonanceTitle"));
-      setNode("chart-resonance-subtitle", t("chartResonanceSubtitle"));
-      setNode("chart-quality-title", t("chartQualityTitle"));
-      setNode("chart-quality-subtitle", t("chartQualitySubtitle"));
-      setNode("chart-network-title", t("chartNetworkTitle"));
-      setNode("chart-network-subtitle", t("chartNetworkSubtitle"));
-      setNode("chart-merit-title", t("chartMeritTitle"));
-      setNode("chart-merit-subtitle", t("chartMeritSubtitle"));
-      setNode("result-kicker", t("resultKicker"));
-      [["refresh-health","refreshHealth"],["publish-smoke","publishSmoke"],["run-local-lane","runLocalLane"],["generate-quality-report","generateQualityReport"],["publish-quality-report","publishQualityReport"],["run-query","runQuery"]].forEach(([id,key]) => { const el = document.getElementById(id); if (!el) return; el.dataset.label = t(key); el.textContent = t(key); });
-      if (!result.textContent || result.textContent === dict.en.waiting || result.textContent === dict.ru.waiting) result.textContent = t("waiting");
-      setNode("lang-ru", "Русский");
-      setNode("lang-en", "English");
-      const ru = document.getElementById("lang-ru");
-      const en = document.getElementById("lang-en");
-      if (ru) ru.className = lang === "ru" ? "active" : "ghost";
-      if (en) en.className = lang === "en" ? "active" : "ghost";
-      try { localStorage.setItem("liminalqa-dashboard-lang", lang); } catch {}
+    function barSvg(data){
+      if(!data.length) return `<div class="empty-chart">${text[lang].noData}</div>`;
+      const w=280,h=180,p=18,max=Math.max(...data.map(x=>Number(x.value)||0),1),bw=Math.max(18,Math.floor((w-p*2)/data.length)-12);
+      const bars=data.map((item,i)=>{const x=p+i*((w-p*2)/data.length)+6; const height=((Number(item.value)||0)/max)*(h-42); const y=h-24-height; return `<rect x="${x}" y="${y}" width="${bw}" height="${height}" rx="6" fill="#a63d2f"/><text x="${x+bw/2}" y="${h-8}" text-anchor="middle" font-size="10" fill="#6d655d">${item.label.slice(0,10)}</text><text x="${x+bw/2}" y="${Math.max(12,y-4)}" text-anchor="middle" font-size="10" fill="#161311">${item.value}</text>`;}).join("");
+      return `<svg class="chart-svg" viewBox="0 0 ${w} ${h}" aria-hidden="true" translate="no">${bars}</svg>`;
     }
-    function setBusy(button, busy) { button.disabled = busy; button.dataset.label ||= button.textContent; button.textContent = busy ? t("working") : button.dataset.label; }
-    function renderBarChart(svgId, data, color) { const svg = document.getElementById(svgId), width = 560, height = 220, left = 42, right = 14, top = 12, bottom = 42; if (!Array.isArray(data) || !data.length) { svg.innerHTML = svgText(width/2, height/2, t("noChartData"), "middle"); return; } const max = Math.max(...data.map(item => Number(item.value || 0)), 1), innerWidth = width-left-right, innerHeight = height-top-bottom, gap = Math.max(8, innerWidth * .03), barWidth = Math.max(18, (innerWidth - gap * (data.length - 1)) / data.length); const parts = [`<rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>`]; for (let i = 0; i < 5; i += 1) { const y = top + (innerHeight * i / 4); parts.push(`<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" stroke="#dbcdb8" stroke-width="1"></line>`); } data.forEach((item, index) => { const value = Number(item.value || 0), h = innerHeight * (value / max), x = left + index * (barWidth + gap), y = top + innerHeight - h; parts.push(`<rect x="${x}" y="${y}" width="${barWidth}" height="${h}" rx="8" fill="${color}"></rect>`); parts.push(svgText(x + barWidth/2, y - 6, value.toFixed(value % 1 === 0 ? 0 : 2), "middle", "#1c1713", 11)); parts.push(svgText(x + barWidth/2, height - 20, String(item.label || "").slice(0,14), "middle", "#6c6358", 11)); }); svg.innerHTML = parts.join(""); }
-    function renderLineChart(svgId, points, color) { const svg = document.getElementById(svgId), width = 560, height = 220, left = 42, right = 14, top = 12, bottom = 42; if (!Array.isArray(points) || points.length < 2) { svg.innerHTML = svgText(width/2, height/2, t("noChartData"), "middle"); return; } const innerWidth = width-left-right, innerHeight = height-top-bottom, parts = [`<rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>`]; for (let i = 0; i < 5; i += 1) { const y = top + (innerHeight * i / 4); parts.push(`<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" stroke="#dbcdb8" stroke-width="1"></line>`); parts.push(svgText(left-8, y+4, `${((4-i)/4*100).toFixed(0)}%`, "end", "#6c6358", 10)); } const coords = points.map((point, index) => ({ ...point, x: left + (innerWidth * index / Math.max(points.length - 1, 1)), y: top + innerHeight - (safe01(point.value) * innerHeight) })); parts.push(`<path d="${coords.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>`); coords.forEach((point, index) => { parts.push(`<circle cx="${point.x}" cy="${point.y}" r="4" fill="${color}"></circle>`); parts.push(svgText(point.x, height - 20, String(point.label || point.cycle_id || `#${index+1}`).slice(0,12), "middle", "#6c6358", 10)); }); svg.innerHTML = parts.join(""); }
-    async function refreshHealth(updateResult=true) { const data = await callJson("/api/health"); if (data.ok) { healthStatus.textContent = t("healthHealthy"); healthStatus.className = "status ok"; healthMeta.textContent = `${data.payload.service} v${data.payload.version}`; } else { healthStatus.textContent = t("healthUnavailable"); healthStatus.className = "status bad"; healthMeta.textContent = data.payload.error || `HTTP ${data.status}`; } if (updateResult) showResult(data.payload); }
-    async function refreshQualityPreview() { const laneList = document.getElementById("lane-list"), data = await callJson("/api/quality-report-preview"); if (!data.ok) { document.getElementById("summary-verdict").textContent = "n/a"; document.getElementById("summary-lanes").textContent = "0"; document.getElementById("summary-failures").textContent = "0"; document.getElementById("summary-coverage").textContent = "n/a"; laneList.innerHTML = `<li>${t("noQualityReport")}</li>`; return; } document.getElementById("summary-verdict").textContent = data.payload.aggregate_verdict || "n/a"; document.getElementById("summary-lanes").textContent = String(data.payload.lane_count ?? 0); document.getElementById("summary-failures").textContent = String(data.payload.total_failures ?? 0); document.getElementById("summary-coverage").textContent = fmtCov(data.payload.min_line_coverage_observed); laneList.innerHTML = ""; (data.payload.lanes || []).forEach((lane) => { const item = document.createElement("li"); item.textContent = laneText(lane); laneList.appendChild(item); }); if (!laneList.children.length) laneList.innerHTML = `<li>${t("noQualityReport")}</li>`; }
-    async function refreshCouncilPreview() { const cycleList = document.getElementById("cycle-list"), empty = document.getElementById("council-empty"), data = await callJson("/api/council-report-preview"); if (!data.ok) { document.getElementById("council-ledger-count").textContent = "0"; document.getElementById("council-best-model").textContent = "n/a"; document.getElementById("council-success").textContent = "0%"; document.getElementById("council-resonance").textContent = "0%"; document.getElementById("council-merit").textContent = "0%"; cycleList.innerHTML = ""; empty.textContent = t("councilEmpty"); ["chart-best-count","chart-contribution","chart-model-type","chart-route"].forEach((id) => renderBarChart(id, [], "#c75c46")); ["chart-resonance","chart-quality","chart-network","chart-merit"].forEach((id) => renderLineChart(id, [], "#287364")); return; } const report = data.payload; document.getElementById("council-ledger-count").textContent = String(report.ledger_count ?? 0); document.getElementById("council-best-model").textContent = report.summary?.top_best_contributor_model_id || "n/a"; document.getElementById("council-success").textContent = fmtPct(report.summary?.success_rate); document.getElementById("council-resonance").textContent = fmtPct(report.summary?.average_receiver_resonance); document.getElementById("council-merit").textContent = fmtPct(report.summary?.average_merit_score); renderBarChart("chart-best-count", report.histograms?.best_contributor_counts || [], "#c75c46"); renderBarChart("chart-contribution", report.histograms?.cumulative_contribution_scores || [], "#4a6fc3"); renderBarChart("chart-model-type", report.histograms?.model_type_average_contribution || [], "#287364"); renderBarChart("chart-route", report.histograms?.route_wins || [], "#8b5fa8"); renderLineChart("chart-resonance", report.trends?.receiver_resonance || [], "#287364"); renderLineChart("chart-quality", report.trends?.quality_score || [], "#4a6fc3"); renderLineChart("chart-network", report.trends?.network_improvement || [], "#8b5fa8"); renderLineChart("chart-merit", report.trends?.average_merit_score || [], "#c75c46"); cycleList.innerHTML = ""; (report.cycles || []).forEach((cycle) => { const item = document.createElement("li"); item.textContent = cycleText(cycle); cycleList.appendChild(item); }); empty.textContent = cycleList.children.length ? "" : t("councilEmpty"); }
-    document.getElementById("lang-ru").addEventListener("click", () => { lang = "ru"; renderLanguage(); refreshQualityPreview().catch(() => {}); refreshCouncilPreview().catch(() => {}); if (!healthMeta.textContent) healthStatus.textContent = t("healthChecking"); });
-    document.getElementById("lang-en").addEventListener("click", () => { lang = "en"; renderLanguage(); refreshQualityPreview().catch(() => {}); refreshCouncilPreview().catch(() => {}); if (!healthMeta.textContent) healthStatus.textContent = t("healthChecking"); });
-    [["refresh-health","/api/health","GET",true],["publish-smoke","/api/smoke","POST",false],["run-local-lane","/api/run-local-lane","POST",false],["generate-quality-report","/api/generate-quality-report","POST",false],["publish-quality-report","/api/publish-quality-report","POST",false],["run-query","/api/query","POST",false],["generate-demo-council-ledger","/api/generate-demo-council-ledger","POST",false]].forEach(([id, path, method, healthOnly]) => {
-      document.getElementById(id).addEventListener("click", async (event) => { const button = event.currentTarget; setBusy(button, true); try { if (healthOnly) await refreshHealth(); else { const data = await callJson(path, { method }); showResult(data.payload); } if (id === "publish-smoke" || id === "publish-quality-report") await refreshHealth(false); if (id === "run-local-lane" || id === "generate-quality-report" || id === "publish-quality-report") await refreshQualityPreview(); if (id === "run-local-lane" || id === "generate-demo-council-ledger") await refreshCouncilPreview(); } catch (error) { showResult({ error: String(error) }); } finally { setBusy(button, false); } });
-    });
-    try { const savedLang = localStorage.getItem("liminalqa-dashboard-lang"); if (savedLang === "ru" || savedLang === "en") lang = savedLang; } catch {}
-    renderLanguage(); healthStatus.textContent = t("healthChecking"); refreshQualityPreview().catch(() => {}); refreshCouncilPreview().catch(() => {}); refreshHealth(true).catch((error) => { showResult({ error: String(error) }); });
+    function lineSvg(data){
+      if(!data.length) return `<div class="empty-chart">${text[lang].noData}</div>`;
+      const w=280,h=180,p=22,max=Math.max(...data.map(x=>Number(x.value)||0),1); const step=data.length===1?0:(w-p*2)/(data.length-1);
+      const points=data.map((item,i)=>{const x=p+i*step; const y=h-p-((Number(item.value)||0)/max)*(h-p*2); return {x,y,label:item.label,value:item.value};});
+      const poly=points.map(p=>`${p.x},${p.y}`).join(" ");
+      const circles=points.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="4" fill="#1e6f5c"/><text x="${p.x}" y="${h-8}" text-anchor="middle" font-size="10" fill="#6d655d">${p.label.slice(5)}</text>`).join("");
+      return `<svg class="chart-svg" viewBox="0 0 ${w} ${h}" aria-hidden="true" translate="no"><polyline points="${poly}" fill="none" stroke="#1e6f5c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${circles}</svg>`;
+    }
+
+    async function refreshHealth(updateResult=true){
+      const data=await callJson("/api/health");
+      if(data.ok){el("health-status").textContent=text[lang].healthy; el("health-status").className="status ok"; el("health-meta").textContent=`${data.payload.service} v${data.payload.version}`;}
+      else{el("health-status").textContent=text[lang].unavailable; el("health-status").className="status bad"; el("health-meta").textContent=data.payload.error||`HTTP ${data.status}`;}
+      if(updateResult) showResult(data.payload,summaryFor(data.payload));
+    }
+    async function refreshQualityPreview(){
+      const data=await callJson("/api/quality-report-preview"); const laneList=el("lane-list"); laneList.innerHTML="";
+      if(!data.ok){el("summary-verdict").textContent="n/a"; el("summary-lanes").textContent="0"; el("summary-failures").textContent="0"; el("summary-coverage").textContent="n/a"; el("quality-empty").hidden=false; el("publish-quality-report").disabled=true; el("publish-quality-report").textContent=text[lang].publishDisabled; return;}
+      el("summary-verdict").textContent=data.payload.aggregate_verdict||"n/a"; el("summary-lanes").textContent=String(data.payload.lane_count??0); el("summary-failures").textContent=String(data.payload.total_failures??0); el("summary-coverage").textContent=cov(data.payload.min_line_coverage_observed); el("quality-empty").hidden=(data.payload.lanes||[]).length>0; el("publish-quality-report").disabled=false; el("publish-quality-report").textContent=text[lang].publish;
+      (data.payload.lanes||[]).forEach(lane=>{const li=document.createElement("li"); li.textContent=laneLine(lane); laneList.appendChild(li);});
+    }
+    async function refreshCouncilAnalytics(){
+      const data=await callJson("/api/council-analytics"); const payload=data.payload; el("c-ledgers").textContent=String(payload.ledgers||0); el("c-top").textContent=payload.top_contributor||"n/a"; el("c-success").textContent=`${Number(payload.success_rate||0).toFixed(1)}%`; el("c-resonance").textContent=`${Number(payload.avg_resonance||0).toFixed(1)}%`; el("c-merit").textContent=`${Number(payload.avg_merit||0).toFixed(1)}%`;
+      const guide=el("council-guide"); guide.innerHTML=""; el("council-empty").hidden=!payload.empty; el("council-empty").textContent=payload.empty?text[lang].noData:"";
+      if(payload.empty){(payload.how_to_generate||[]).forEach(line=>{const li=document.createElement("li"); li.textContent=line; guide.appendChild(li);});}
+      chartKeys.forEach((key,idx)=>{el(`chart-${key}`).innerHTML=(idx<4?barSvg:lineSvg)(payload.charts?.[key]||[]);});
+    }
+
+    async function runAction(buttonId,path,after){
+      const button=el(buttonId); setBusy(button,true);
+      try{const data=await callJson(path,{method:"POST"}); showResult(data.payload,summaryFor(data.payload)); if(after) await after(data.payload);}
+      catch(error){showResult({error:String(error)},fmt("summaryError",{error:String(error)}));}
+      finally{setBusy(button,false);}
+    }
+
+    el("lang-ru").addEventListener("click",()=>setLanguage("ru"));
+    el("lang-en").addEventListener("click",()=>setLanguage("en"));
+    el("refresh-health").addEventListener("click",()=>runAction("refresh-health","/api/health"));
+    el("publish-smoke").addEventListener("click",()=>runAction("publish-smoke","/api/smoke",async()=>refreshHealth(false)));
+    el("run-local-lane").addEventListener("click",()=>runAction("run-local-lane","/api/run-local-lane",async()=>refreshQualityPreview()));
+    el("generate-quality-report").addEventListener("click",()=>runAction("generate-quality-report","/api/generate-quality-report",async()=>refreshQualityPreview()));
+    el("publish-quality-report").addEventListener("click",()=>{if(el("publish-quality-report").disabled){showResult({error:text[lang].publishDisabled},text[lang].publishDisabled); return;} runAction("publish-quality-report","/api/publish-quality-report",async()=>{await refreshHealth(false); await refreshQualityPreview();});});
+    el("run-query").addEventListener("click",()=>runAction("run-query","/api/query"));
+    el("generate-demo-council-ledger").addEventListener("click",()=>runAction("generate-demo-council-ledger","/api/generate-demo-council-ledger",async()=>refreshCouncilAnalytics()));
+    el("copy-json").addEventListener("click",async()=>{await navigator.clipboard.writeText(safeJson(lastResult)); el("result-toast").hidden=false; el("result-toast").innerHTML=`<strong>${text[lang].copied}</strong>`;});
+
+    setLanguage(lang); renderChartShell(); el("health-status").textContent=text[lang].checking; refreshQualityPreview().catch(()=>{}); refreshCouncilAnalytics().catch(()=>{}); refreshHealth(false).catch(()=>{});
   </script>
 </body>
 </html>
