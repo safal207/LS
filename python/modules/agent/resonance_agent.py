@@ -3329,6 +3329,20 @@ class ResonanceAgent:
             or item.get("_resonance_score")
             or 0.0
         )
+        receiver_type = "model" if coop_participants else "human_operator"
+        receiver_resonance_score = float(
+            alignment_outcome.get("softening_score")
+            or alignment_outcome.get("post_goal_alignment_score")
+            or item.get("_goal_alignment_score")
+            or item.get("_resonance_score")
+            or 0.0
+        )
+        if receiver_resonance_score >= 0.70 and not operator_intervention_required:
+            receiver_acceptance_label = "accepted"
+        elif receiver_resonance_score >= 0.45:
+            receiver_acceptance_label = "needs_revision"
+        else:
+            receiver_acceptance_label = "rejected"
         success = bool(
             alignment_outcome.get("guidance_effective")
             or cooperative_meta.get("success")
@@ -3360,6 +3374,9 @@ class ResonanceAgent:
                 operator_intervention_required=operator_intervention_required,
                 operator_feedback_score=operator_feedback_score,
                 drift_detected=drift_detected,
+                receiver_type=receiver_type,
+                receiver_resonance_score=receiver_resonance_score,
+                receiver_acceptance_label=receiver_acceptance_label,
             ),
         )
 

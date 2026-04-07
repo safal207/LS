@@ -232,6 +232,9 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert payload["task_id"] == "cid-ledger"
     assert payload["final_decision"]["selected_route"] == "r1"
     assert payload["outcome"]["success"] is True
+    assert payload["outcome"]["receiver_type"] == "model"
+    assert payload["outcome"]["receiver_acceptance_label"] == "accepted"
+    assert payload["outcome"]["receiver_resonance_score"] >= 0.7
     assert any(p["model_type"] == "primary_llm" for p in payload["participants"])
     assert any(p["model_type"] == "advisory_strategy" for p in payload["participants"])
     assert output["council_contribution_ledger"]["cycle_id"] == "cid-ledger"

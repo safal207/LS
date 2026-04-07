@@ -68,6 +68,9 @@ class CouncilOutcome:
     operator_intervention_required: bool
     operator_feedback_score: float
     drift_detected: bool
+    receiver_type: str = "unknown"
+    receiver_resonance_score: float = 0.0
+    receiver_acceptance_label: str = "unknown"
 
     def success_score(self) -> float:
         return 1.0 if self.success else 0.0
@@ -78,6 +81,9 @@ class CouncilOutcome:
     def drift_score(self) -> float:
         return 0.0 if self.drift_detected else 1.0
 
+    def resonance_score(self) -> float:
+        return _clamp(self.receiver_resonance_score)
+
 
 @dataclass(frozen=True)
 class CouncilContributionBreakdown:
@@ -85,6 +91,7 @@ class CouncilContributionBreakdown:
     adoption_score: float
     outcome_lift: float
     stability_impact: float
+    receiver_resonance: float
     cost_efficiency: float
     total_contribution_score: float
 
@@ -169,10 +176,13 @@ def build_council_attribution(
         )
 
         stability_impact = _clamp(
-            (0.45 * outcome.drift_score())
-            + (0.35 * outcome.intervention_score())
+            (0.35 * outcome.drift_score())
+            + (0.25 * outcome.intervention_score())
             + (0.20 * _clamp(outcome.operator_feedback_score))
+            + (0.20 * outcome.resonance_score())
         )
+
+        receiver_resonance = outcome.resonance_score()
 
         cost_efficiency = _clamp(
             (0.45 * participant.normalized_latency_score())
@@ -181,9 +191,10 @@ def build_council_attribution(
         )
 
         total = _clamp(
-            (0.35 * adoption_score)
-            + (0.30 * outcome_lift)
+            (0.30 * adoption_score)
+            + (0.25 * outcome_lift)
             + (0.20 * stability_impact)
+            + (0.15 * receiver_resonance)
             + (0.15 * cost_efficiency)
         )
 
@@ -192,6 +203,7 @@ def build_council_attribution(
             adoption_score=round(adoption_score, 4),
             outcome_lift=round(outcome_lift, 4),
             stability_impact=round(stability_impact, 4),
+            receiver_resonance=round(receiver_resonance, 4),
             cost_efficiency=round(cost_efficiency, 4),
             total_contribution_score=round(total, 4),
         )

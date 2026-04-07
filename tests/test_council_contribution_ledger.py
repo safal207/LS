@@ -48,6 +48,9 @@ def test_build_council_attribution_prefers_selected_route_with_strong_outcome():
         operator_intervention_required=False,
         operator_feedback_score=0.93,
         drift_detected=False,
+        receiver_type="human_operator",
+        receiver_resonance_score=0.91,
+        receiver_acceptance_label="accepted",
     )
 
     attribution = build_council_attribution(
@@ -96,6 +99,9 @@ def test_ledger_build_serializes_core_sections():
             operator_intervention_required=False,
             operator_feedback_score=0.9,
             drift_detected=False,
+            receiver_type="human_operator",
+            receiver_resonance_score=0.89,
+            receiver_acceptance_label="accepted",
         ),
         timestamp="2026-04-07T10:30:00Z",
     )
@@ -107,4 +113,6 @@ def test_ledger_build_serializes_core_sections():
     assert payload["network_context"]["route_candidates"] == ["route_a", "route_b"]
     assert payload["participants"][0]["model_id"] == "local-qwen"
     assert payload["final_decision"]["selected_route"] == "route_a"
+    assert payload["outcome"]["receiver_type"] == "human_operator"
+    assert payload["outcome"]["receiver_acceptance_label"] == "accepted"
     assert payload["attribution"]["best_contributor_model_id"] == "local-qwen"

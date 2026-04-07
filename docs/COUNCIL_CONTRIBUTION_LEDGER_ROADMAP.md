@@ -267,6 +267,18 @@ Expected result:
 
 - cycle outcome reflects both correctness and resonance
 
+Current status:
+
+- MVP implemented in council outcome fields:
+  - `receiver_type`
+  - `receiver_resonance_score`
+  - `receiver_acceptance_label`
+- current `ResonanceAgent` wiring derives resonance from live cycle signals:
+  - softening score
+  - goal alignment
+  - cooperative participation
+  - intervention requirement
+
 ### Phase 4. Reputation and Contribution Sync
 
 Objective:
