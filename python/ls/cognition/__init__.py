@@ -17,6 +17,17 @@ from ls.cognition.agent_identity import AgentIdentity
 from ls.cognition.counterfactual_engine import CounterfactualEngine, CounterfactualOutcome
 from ls.cognition.cognitive_phase_space import CognitivePhaseSpace, CognitiveVector
 from ls.cognition.cognitive_energy_model import CognitiveEnergyModel
+from ls.cognition.council_contribution_ledger import (
+    CouncilAttribution,
+    CouncilContributionBreakdown,
+    CouncilContributionLedger,
+    CouncilDecision,
+    CouncilGoal,
+    CouncilNetworkContext,
+    CouncilOutcome,
+    CouncilParticipant,
+    build_council_attribution,
+)
 
 __all__ = [
     "AgentState",
@@ -44,4 +55,13 @@ __all__ = [
     "CognitivePhaseSpace",
     "CognitiveVector",
     "CognitiveEnergyModel",
+    "CouncilGoal",
+    "CouncilNetworkContext",
+    "CouncilParticipant",
+    "CouncilDecision",
+    "CouncilOutcome",
+    "CouncilContributionBreakdown",
+    "CouncilAttribution",
+    "CouncilContributionLedger",
+    "build_council_attribution",
 ]
