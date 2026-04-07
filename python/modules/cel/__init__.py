@@ -21,6 +21,11 @@ from .council_sync import (
     build_contribution_records_from_council_ledger,
     quality_score_from_council_outcome,
 )
+from .merit_sync import (
+    build_merit_updates_from_council_ledger,
+    merit_score_from_council_ledger,
+    network_effect_bonus,
+)
 from .iare_engine import (
     CRDTReputationStore,
     ContributorImpact,
@@ -67,6 +72,9 @@ __all__ = [
     "build_contribution_records_from_council_ledger",
     "quality_score_from_council_outcome",
     "apply_council_ledger_to_cel",
+    "network_effect_bonus",
+    "merit_score_from_council_ledger",
+    "build_merit_updates_from_council_ledger",
     "OutcomeSettlementWorker",
     "SettlementError",
     "SettlementRequest",

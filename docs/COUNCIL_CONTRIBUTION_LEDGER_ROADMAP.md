@@ -322,6 +322,14 @@ Expected result:
 
 - the network rewards useful collective contribution, not only isolated output
 
+Current status:
+
+- MVP merit bridge implemented:
+  - `network_effect_bonus(...)`
+  - `merit_score_from_council_ledger(...)`
+  - `build_merit_updates_from_council_ledger(...)`
+- council-to-CEL sync now also emits per-participant merit updates
+
 ### Phase 6. Dashboard and Analysis
 
 Objective:

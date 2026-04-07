@@ -4,6 +4,7 @@ from dataclasses import asdict
 from typing import Any
 
 from .contribution_api import ContributionLedger, ContributionRecord
+from .merit_sync import build_merit_updates_from_council_ledger
 from .reputation_engine import ReputationEngine
 
 
@@ -106,9 +107,16 @@ def apply_council_ledger_to_cel(
         )
         reputation_updates.append(asdict(updated))
 
+    merit_updates = build_merit_updates_from_council_ledger(
+        ledger,
+        quality_score=quality_score,
+        total_tasks_last_24h=max(len(records), 1),
+    )
+
     return {
         "proposal_id": str(getattr(ledger, "cycle_id", "") or ""),
         "quality_score": quality_score,
         "contribution_records": [asdict(record) for record in records],
         "reputation_updates": reputation_updates,
+        "merit_updates": merit_updates,
     }

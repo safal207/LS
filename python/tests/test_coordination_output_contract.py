@@ -241,3 +241,5 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert output["council_cel_sync"] is not None
     assert output["council_cel_sync"]["proposal_id"] == "cid-ledger"
     assert len(output["council_cel_sync"]["reputation_updates"]) >= 1
+    assert len(output["council_cel_sync"]["merit_updates"]) >= 1
+    assert output["council_cel_sync"]["merit_updates"][0]["network_effect_bonus"] >= 0
