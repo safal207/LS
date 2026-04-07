@@ -63,9 +63,11 @@ Usage::
 from __future__ import annotations
 
 import logging
+import json
 import threading
 import time
 import uuid
+from pathlib import Path
 from typing import Any, Callable, List, Optional
 
 from config import (
@@ -223,6 +225,25 @@ except Exception as exc:
     )
     _ALIGNMENT_GUIDANCE_OK = False
     _build_alignment_guidance = None  # type: ignore[assignment]
+
+try:
+    from ls.cognition.council_contribution_ledger import (
+        CouncilContributionLedger as _CouncilContributionLedger,
+        CouncilDecision as _CouncilDecision,
+        CouncilGoal as _CouncilGoal,
+        CouncilNetworkContext as _CouncilNetworkContext,
+        CouncilOutcome as _CouncilOutcome,
+        CouncilParticipant as _CouncilParticipant,
+    )
+    _COUNCIL_LEDGER_OK = True
+except Exception:
+    _COUNCIL_LEDGER_OK = False
+    _CouncilContributionLedger = None  # type: ignore[assignment]
+    _CouncilDecision = None  # type: ignore[assignment]
+    _CouncilGoal = None  # type: ignore[assignment]
+    _CouncilNetworkContext = None  # type: ignore[assignment]
+    _CouncilOutcome = None  # type: ignore[assignment]
+    _CouncilParticipant = None  # type: ignore[assignment]
 
 try:
     from agent.softening_detector import SofteningAnalysis as _SofteningAnalysis
@@ -863,6 +884,7 @@ class ResonanceAgent:
             self._alignment_memory_path = (
                 _Path("data/graph_memory/alignment_memory_units.jsonl")
             )
+        self._council_ledger_dir = Path("artifacts/council-ledger")
 
         # Alignment digest metrics (advisory/observability only)
         self._digest_metrics = (
@@ -3020,6 +3042,15 @@ class ResonanceAgent:
             bridge_stabilization_order=_bridge_stabilization_order,
             bridge_playbook_advisory=_bridge_playbook_advisory,
         )
+        council_ledger = self._build_council_contribution_ledger(
+            item=item,
+            cycle_id=cycle_id,
+            final_output=final_output,
+            strategy_recommendations=_strategy_recs,
+        )
+        council_ledger_artifact = self._write_council_contribution_ledger_artifact(
+            council_ledger
+        )
 
         return {
             # Identity
@@ -3104,6 +3135,10 @@ class ResonanceAgent:
             "bridge_playbook_metrics": self.get_bridge_playbook_metrics(),
             "coordination_advisory_summary": _coordination_advisory_summary,
             "coordination_advisory_summary_metrics": self.get_coordination_advisory_summary_metrics(),
+            "council_contribution_ledger": (
+                council_ledger.to_dict() if council_ledger is not None else None
+            ),
+            "council_contribution_ledger_artifact": council_ledger_artifact,
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
@@ -3131,6 +3166,217 @@ class ResonanceAgent:
             "resonance_score":  item.get("_resonance_score", 0.5),
             "resonance_detail": item.get("_resonance_detail"),
         }
+
+    def _build_council_contribution_ledger(
+        self,
+        *,
+        item: dict,
+        cycle_id: str,
+        final_output: str,
+        strategy_recommendations: list[dict],
+    ):
+        if not (_COUNCIL_LEDGER_OK and _CouncilContributionLedger):
+            return None
+
+        path_meta = item.get("_path_selection") or {}
+        trail_meta = item.get("_trail_route") or {}
+        graph_meta = item.get("_graph_runtime") or {}
+        llm_meta = item.get("_llm_backend") or {}
+        orientation_meta = item.get("_network_plan") or {}
+        alignment_report = item.get("_alignment_report") or {}
+        alignment_outcome = item.get("_alignment_outcome") or {}
+        cooperative_meta = item.get("_cooperative") or {}
+
+        selected_route = (
+            path_meta.get("route_key")
+            or trail_meta.get("route_key")
+            or orientation_meta.get("route_key")
+            or "unknown"
+        )
+        task_id = str(item.get("_task_id") or item.get("task_id") or cycle_id)
+        provider = str(llm_meta.get("provider") or "unknown")
+        model = str(llm_meta.get("model") or "unknown")
+        llm_id = f"{provider}:{model}" if provider != "unknown" or model != "unknown" else "primary-llm"
+        latency_ms = int(llm_meta.get("latency_ms") or 0)
+
+        adoption_by_strategy: dict[str, dict[str, Any]] = {}
+        for trace in self.get_recommendation_adoption_traces():
+            if not isinstance(trace, dict):
+                continue
+            strategy_id = str(trace.get("strategy_id") or "")
+            if strategy_id:
+                adoption_by_strategy[strategy_id] = trace
+
+        participants: list = []
+        for rec in strategy_recommendations:
+            if not isinstance(rec, dict):
+                continue
+            strategy_id = str(rec.get("strategy_id") or "")
+            if not strategy_id:
+                continue
+            adoption = adoption_by_strategy.get(strategy_id, {})
+            confidence = max(
+                float(rec.get("effective_rate") or 0.0),
+                float(adoption.get("adoption_score") or 0.0),
+                min(float(rec.get("support_count") or 0.0) / 10.0, 1.0),
+            )
+            participants.append(
+                _CouncilParticipant(
+                    model_id=f"strategy:{strategy_id}",
+                    model_type="advisory_strategy",
+                    proposal_id=strategy_id,
+                    proposal_summary=str(rec.get("summary") or rec.get("title") or strategy_id),
+                    route_hint=str(selected_route),
+                    confidence=confidence,
+                    latency_ms=latency_ms,
+                    token_cost=0.0,
+                    selected=str(adoption.get("adoption_label") or "") != "not_adopted",
+                    weight_in_final_decision=float(adoption.get("adoption_score") or 0.0),
+                )
+            )
+
+        coop_participants = cooperative_meta.get("participants") or []
+        coop_route_key = str(cooperative_meta.get("route_key") or selected_route)
+        coop_trust_score = float(cooperative_meta.get("trust_score") or 0.0)
+        for peer_id in coop_participants:
+            pid = str(peer_id)
+            if not pid:
+                continue
+            participants.append(
+                _CouncilParticipant(
+                    model_id=pid,
+                    model_type="cooperative_peer",
+                    proposal_id=f"coop:{pid}",
+                    proposal_summary="Cooperative council participant",
+                    route_hint=coop_route_key,
+                    confidence=coop_trust_score,
+                    latency_ms=latency_ms,
+                    token_cost=0.0,
+                    selected=bool(cooperative_meta.get("success")),
+                    weight_in_final_decision=coop_trust_score,
+                )
+            )
+
+        participants.append(
+            _CouncilParticipant(
+                model_id=llm_id,
+                model_type="primary_llm",
+                proposal_id=f"route:{selected_route}",
+                proposal_summary=(final_output or "").strip()[:160] or "Primary LLM response",
+                route_hint=str(selected_route),
+                confidence=float(item.get("_resonance_score", 0.5) or 0.5),
+                latency_ms=latency_ms,
+                token_cost=0.0,
+                selected=True,
+                weight_in_final_decision=1.0,
+            )
+        )
+
+        derived_from_proposals = [
+            participant.proposal_id
+            for participant in participants
+            if getattr(participant, "selected", False)
+        ]
+
+        goal_summary = (
+            str((orientation_meta.get("goal_vector") or {}).get("strategy_bias") or "")
+            or str((orientation_meta.get("need_profile") or {}).get("priority") or "")
+            or str(item.get("text") or "")
+        )[:160]
+
+        active_nodes: list[str] = []
+        for participant in alignment_report.get("participants") or []:
+            if isinstance(participant, dict):
+                pid = str(participant.get("participant_id") or participant.get("id") or "")
+                if pid:
+                    active_nodes.append(pid)
+            elif isinstance(participant, str):
+                active_nodes.append(participant)
+
+        route_candidates: list[str] = []
+        for value in (
+            path_meta.get("route_key"),
+            trail_meta.get("route_key"),
+            orientation_meta.get("route_key"),
+            cooperative_meta.get("route_key"),
+        ):
+            candidate = str(value or "")
+            if candidate and candidate not in route_candidates:
+                route_candidates.append(candidate)
+        if selected_route and selected_route not in route_candidates:
+            route_candidates.append(str(selected_route))
+
+        observer_status = str((item.get("_observer_report") or {}).get("status") or "").lower()
+        drift_detected = observer_status in {"drift", "unstable", "critical", "alert"}
+        path_quality = float(
+            alignment_outcome.get("post_goal_alignment_score")
+            or item.get("_goal_alignment_score")
+            or item.get("_resonance_score")
+            or 0.0
+        )
+        network_improvement = float(
+            item.get("_trail_reward")
+            or cooperative_meta.get("trust_score")
+            or (1.0 if cooperative_meta.get("success") else 0.0)
+            or 0.0
+        )
+        operator_intervention_required = bool(
+            (item.get("_care_cycle") or {}).get("action") in {"review", "retire"}
+        )
+        operator_feedback_score = float(
+            alignment_outcome.get("softening_score")
+            or alignment_outcome.get("post_goal_alignment_score")
+            or item.get("_resonance_score")
+            or 0.0
+        )
+        success = bool(
+            alignment_outcome.get("guidance_effective")
+            or cooperative_meta.get("success")
+            or path_quality >= 0.55
+        )
+
+        return _CouncilContributionLedger.build(
+            cycle_id=cycle_id,
+            task_id=task_id,
+            goal=_CouncilGoal(
+                type="coordination_cycle",
+                summary=goal_summary or "Council coordination cycle",
+            ),
+            network_context=_CouncilNetworkContext(
+                route_candidates=route_candidates,
+                active_nodes=active_nodes,
+                graph_state_version=str(graph_meta.get("mode") or "unknown"),
+            ),
+            participants=participants,
+            final_decision=_CouncilDecision(
+                selected_route=str(selected_route),
+                decision_summary=str(path_meta.get("reason") or "Council route selected"),
+                derived_from_proposals=derived_from_proposals,
+            ),
+            outcome=_CouncilOutcome(
+                success=success,
+                path_quality=path_quality,
+                network_improvement=network_improvement,
+                operator_intervention_required=operator_intervention_required,
+                operator_feedback_score=operator_feedback_score,
+                drift_detected=drift_detected,
+            ),
+        )
+
+    def _write_council_contribution_ledger_artifact(self, ledger) -> str | None:
+        if ledger is None:
+            return None
+        try:
+            self._council_ledger_dir.mkdir(parents=True, exist_ok=True)
+            path = self._council_ledger_dir / f"{ledger.cycle_id}.json"
+            path.write_text(
+                json.dumps(ledger.to_dict(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            return str(path)
+        except Exception as exc:
+            logger.debug("ResonanceAgent: council ledger artifact write failed: %s", exc)
+            return None
 
     def _build_cycle_record(
         self, item: dict, output: str, generation_time: float

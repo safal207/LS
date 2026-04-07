@@ -241,6 +241,15 @@ Expected artifact:
 
 - `artifacts/council-ledger/<cycle_id>.json`
 
+Current status:
+
+- MVP implemented through `ResonanceAgent._build_output(...)`
+- one council ledger artifact is now emitted per completed cycle when the
+  council ledger contract is available
+- output now exposes:
+  - `council_contribution_ledger`
+  - `council_contribution_ledger_artifact`
+
 ### Phase 3. Receiver Resonance Layer
 
 Objective:

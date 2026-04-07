@@ -2,6 +2,9 @@
 """Contract tests for coordination objects in ResonanceAgent._build_output."""
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 try:
     from agent.resonance_agent import ResonanceAgent
 except ImportError:
@@ -181,3 +184,54 @@ def test_coordination_output_contract_graceful_fallback_empty_shape():
     assert advisory["step_links"] == []
     assert advisory["top_supported_steps"] == []
     assert advisory["top_weak_steps"] == []
+
+
+def test_build_output_emits_council_ledger_artifact(tmp_path):
+    agent = ResonanceAgent(anchor=[], llm_fn=None)
+    agent._council_ledger_dir = tmp_path / "council-ledger"
+    agent.get_alignment_strategy_recommendations = lambda _item: [
+        {
+            "strategy_id": "bridge-1",
+            "title": "Bridge strategy",
+            "summary": "Acknowledge common ground first",
+            "support_count": 4,
+            "effective_rate": 0.8,
+            "recommended_actions": ["common ground", "we both"],
+        }
+    ]
+
+    item = _base_item()
+    item["_llm_backend"] = {"provider": "openai", "model": "gpt-test", "latency_ms": 1200}
+    item["_alignment_outcome"] = {
+        "guidance_effective": True,
+        "post_goal_alignment_score": 0.81,
+        "softening_score": 0.73,
+    }
+    item["_observer_report"] = {"status": "stable"}
+    item["_cooperative"] = {
+        "participants": ["local:qwen", "web:gpt"],
+        "route_key": "mesh:cooperative",
+        "trust_score": 0.67,
+        "success": True,
+    }
+
+    output = agent._build_output(
+        item,
+        final_output="We both want a safe path and common ground before action.",
+        generation_time=0.02,
+        cycle_id="cid-ledger",
+    )
+
+    artifact_path = output["council_contribution_ledger_artifact"]
+    assert artifact_path is not None
+    artifact = Path(artifact_path)
+    assert artifact.exists()
+
+    payload = json.loads(artifact.read_text(encoding="utf-8"))
+    assert payload["cycle_id"] == "cid-ledger"
+    assert payload["task_id"] == "cid-ledger"
+    assert payload["final_decision"]["selected_route"] == "r1"
+    assert payload["outcome"]["success"] is True
+    assert any(p["model_type"] == "primary_llm" for p in payload["participants"])
+    assert any(p["model_type"] == "advisory_strategy" for p in payload["participants"])
+    assert output["council_contribution_ledger"]["cycle_id"] == "cid-ledger"
