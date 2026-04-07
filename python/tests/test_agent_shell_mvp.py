@@ -3,6 +3,7 @@ from pathlib import Path
 from ls.agent_shell.runtime.task_manager import TaskManager
 from typer.testing import CliRunner
 
+from ls.agent_shell import cli
 from ls.agent_shell.cli import app
 
 
@@ -102,3 +103,29 @@ def test_council_cycle_cli_emits_ledger_artifact(tmp_path: Path) -> None:
     assert "Ledger artifact:" in result.stdout
     artifacts = list(artifact_dir.glob("*.json"))
     assert artifacts
+
+
+def test_council_cycle_cli_can_publish_to_liminalqa(tmp_path: Path, monkeypatch) -> None:
+    runner = CliRunner()
+    artifact_dir = tmp_path / "council-ledger"
+
+    def fake_publish(ledger: dict) -> tuple[int, object]:
+        assert ledger["cycle_id"]
+        return 200, {"ok": True, "message": "published"}
+
+    monkeypatch.setattr(cli, "publish_council_ledger_to_liminalqa", fake_publish)
+
+    result = runner.invoke(
+        app,
+        [
+            "council-cycle",
+            "Publish this council cycle",
+            "--artifact-dir",
+            str(artifact_dir),
+            "--publish-to-liminalqa",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "LiminalQA publish:" in result.stdout
+    assert "HTTP 200" in result.stdout
