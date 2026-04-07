@@ -46,7 +46,6 @@ jobs:
         run: |
           mkdir -p _site
           cp -R ghostgpt-ls-landing/dist/. _site/
-          cp CNAME _site/CNAME
           cp .nojekyll _site/.nojekyll
 
       - name: Upload Pages Artifact
