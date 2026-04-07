@@ -566,6 +566,14 @@ def preview_council_report() -> tuple[int, object]:
         return 404, {
             "error": "no council ledger artifacts found",
             "expected_path": str(COUNCIL_LEDGER_DIR),
+            "how_to_generate": [
+                "run a real ResonanceAgent coordination cycle",
+                "wait for artifacts/council-ledger/<cycle_id>.json to be written",
+                "reload the dashboard council analytics panel",
+            ],
+            "docs": {
+                "roadmap": "docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md",
+            },
         }
 
     report = summarize_council_ledgers(ledgers)
@@ -637,7 +645,15 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(status, payload)
             return
         if self.path == "/api/query":
-            status, payload = api_request("POST", "/query", {"limit": 10})
+            request_payload = {"limit": 10}
+            status, payload = api_request("POST", "/query", request_payload)
+            if isinstance(payload, dict) and int(payload.get("total", 0) or 0) == 0:
+                payload = {
+                    **payload,
+                    "note": "No facts matched the lightweight preview query yet.",
+                    "request_payload": request_payload,
+                    "hint": "This does not necessarily mean ingest failed; some facts may require richer query filters.",
+                }
             self._send_json(status, payload)
             return
         self._send_json(404, {"error": "not found"})
