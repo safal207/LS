@@ -3,6 +3,10 @@ from __future__ import annotations
 from enum import Enum
 from pathlib import Path
 import sys
+import json
+import os
+import urllib.error
+import urllib.request
 
 import typer
 from rich.console import Console
@@ -39,6 +43,102 @@ def manager() -> TaskManager:
 
 def build_council_agent(orientation: str = "") -> ResonanceAgent:
     return ResonanceAgent(anchor=[], llm_fn=None, orientation=orientation or "cli-council-cycle")
+
+
+def liminalqa_settings() -> tuple[str, str]:
+    return (
+        os.environ.get("LIMINALQA_URL", "http://127.0.0.1:8080").rstrip("/"),
+        os.environ.get("LIMINALQA_TOKEN", "devtoken"),
+    )
+
+
+def publish_council_ledger_to_liminalqa(ledger: dict) -> tuple[int, object]:
+    base_url, token = liminalqa_settings()
+    generated_at = ledger.get("timestamp") or "1970-01-01T00:00:00Z"
+    cycle_id = str(ledger.get("cycle_id", "unknown"))
+    attribution = ledger.get("attribution") or {}
+    outcome = ledger.get("outcome") or {}
+    final_decision = ledger.get("final_decision") or {}
+
+    tests = []
+    signals = []
+    for participant in ledger.get("participants", []):
+        model_id = str(participant.get("model_id", "unknown"))
+        model_type = str(participant.get("model_type", "unknown"))
+        selected = bool(participant.get("selected"))
+        contribution_score = 0.0
+        for item in attribution.get("contribution_breakdown", []):
+            if str(item.get("model_id")) == model_id:
+                contribution_score = float(item.get("total_contribution_score") or 0.0)
+                break
+        tests.append(
+            {
+                "name": model_id,
+                "suite": "ls.council.contribution",
+                "guidance": model_type,
+                "status": "pass" if selected else "skip",
+                "duration_ms": participant.get("latency_ms"),
+                "started_at": generated_at,
+                "completed_at": generated_at,
+            }
+        )
+        signals.append(
+            {
+                "test_name": model_id,
+                "kind": "system",
+                "value": contribution_score,
+                "meta": {
+                    "cycle_id": cycle_id,
+                    "model_type": model_type,
+                    "selected_route": final_decision.get("selected_route"),
+                    "selected": selected,
+                    "receiver_resonance_score": outcome.get("receiver_resonance_score"),
+                    "network_improvement": outcome.get("network_improvement"),
+                    "best_contributor_model_id": attribution.get("best_contributor_model_id"),
+                    "source": "ls-agent-shell-cli",
+                },
+                "at": generated_at,
+            }
+        )
+
+    payload = {
+        "run": {
+            "run_id": cycle_id,
+            "build_id": cycle_id,
+            "plan_name": "ls-council-cycle",
+            "env": {
+                "CI": "false",
+                "SOURCE": "ls-agent-shell-cli",
+                "COUNCIL_ROUTE": str(final_decision.get("selected_route", "unknown")),
+            },
+            "started_at": generated_at,
+            "runner_version": "ls-agent-shell-council-v1",
+        },
+        "tests": tests,
+        "signals": signals,
+        "artifacts": [],
+    }
+    request = urllib.request.Request(
+        f"{base_url}/ingest/batch",
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            body = response.read().decode("utf-8")
+            return response.status, json.loads(body) if body else {}
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8")
+        try:
+            return exc.code, json.loads(body)
+        except Exception:
+            return exc.code, {"error": body or str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return 500, {"error": str(exc)}
 
 
 @app.command("run")
@@ -141,6 +241,11 @@ def council_cycle(
         "--artifact-dir",
         help="Where to write council-ledger JSON artifacts.",
     ),
+    publish_to_liminalqa: bool = typer.Option(
+        False,
+        "--publish-to-liminalqa",
+        help="Also publish the generated council ledger into LiminalQA ingest.",
+    ),
 ) -> None:
     agent = build_council_agent(orientation=orientation)
     agent._council_ledger_dir = artifact_dir
@@ -156,6 +261,10 @@ def council_cycle(
     console.print(f"[green]Outcome:[/green] {verdict}")
     if artifact_path:
         console.print(f"[bold]Ledger artifact:[/bold] {artifact_path}")
+    if publish_to_liminalqa and ledger:
+        status, response = publish_council_ledger_to_liminalqa(ledger)
+        console.print(f"[bold]LiminalQA publish:[/bold] HTTP {status}")
+        console.print(response)
     console.print(result.get("final_output", ""))
 
 
