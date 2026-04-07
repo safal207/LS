@@ -1,6 +1,9 @@
 from pathlib import Path
 
 from ls.agent_shell.runtime.task_manager import TaskManager
+from typer.testing import CliRunner
+
+from ls.agent_shell.cli import app
 
 
 def test_plan_only_creates_steps(tmp_path: Path) -> None:
@@ -76,3 +79,26 @@ def test_read_only_never_schedules_mutating_steps(tmp_path: Path) -> None:
     assert task.id.startswith("task-")
     assert plan
     assert not any(step["type"] in mutating for step in plan)
+
+
+def test_council_cycle_cli_emits_ledger_artifact(tmp_path: Path) -> None:
+    runner = CliRunner()
+    artifact_dir = tmp_path / "council-ledger"
+
+    result = runner.invoke(
+        app,
+        [
+            "council-cycle",
+            "Help the operator align the council response",
+            "--artifact-dir",
+            str(artifact_dir),
+            "--orientation",
+            "test-coordination",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Council cycle:" in result.stdout
+    assert "Ledger artifact:" in result.stdout
+    artifacts = list(artifact_dir.glob("*.json"))
+    assert artifacts

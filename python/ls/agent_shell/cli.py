@@ -2,12 +2,25 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
+import sys
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from ls.agent_shell.runtime.task_manager import TaskManager
+
+ROOT = Path(__file__).resolve().parents[3]
+MODULES_ROOT = ROOT / "python" / "modules"
+for candidate in (ROOT / "python", MODULES_ROOT):
+    candidate_str = str(candidate)
+    if candidate_str not in sys.path:
+        sys.path.insert(0, candidate_str)
+
+try:
+    from agent.resonance_agent import ResonanceAgent
+except ImportError:
+    from modules.agent.resonance_agent import ResonanceAgent
 
 app = typer.Typer(help="LS Agent Shell MVP CLI")
 console = Console()
@@ -22,6 +35,10 @@ class AccessMode(str, Enum):
 def manager() -> TaskManager:
     base = Path(".ls_agent")
     return TaskManager(db_path=base / "runtime.db", artifacts_root=base / "artifacts")
+
+
+def build_council_agent(orientation: str = "") -> ResonanceAgent:
+    return ResonanceAgent(anchor=[], llm_fn=None, orientation=orientation or "cli-council-cycle")
 
 
 @app.command("run")
@@ -113,6 +130,33 @@ def list_tasks() -> None:
     for task in tasks:
         table.add_row(task["id"], task["title"], task["mode"], task["status"])
     console.print(table)
+
+
+@app.command("council-cycle")
+def council_cycle(
+    prompt: str,
+    orientation: str = typer.Option("", "--orientation", help="Optional council/orchestration context."),
+    artifact_dir: Path = typer.Option(
+        Path("artifacts/council-ledger"),
+        "--artifact-dir",
+        help="Where to write council-ledger JSON artifacts.",
+    ),
+) -> None:
+    agent = build_council_agent(orientation=orientation)
+    agent._council_ledger_dir = artifact_dir
+    result = agent.process_text(prompt)
+    ledger = result.get("council_contribution_ledger") or {}
+    artifact_path = result.get("council_contribution_ledger_artifact")
+    cycle_id = result.get("cycle_id", "unknown")
+    verdict = "success" if ledger.get("outcome", {}).get("success") else "needs-review"
+    route = ledger.get("final_decision", {}).get("selected_route", "unknown")
+    contributor = (ledger.get("attribution") or {}).get("best_contributor_model_id", "n/a")
+    console.print(f"[cyan]Council cycle:[/cyan] {cycle_id}")
+    console.print(f"[green]Route:[/green] {route}    [green]Best contributor:[/green] {contributor}")
+    console.print(f"[green]Outcome:[/green] {verdict}")
+    if artifact_path:
+        console.print(f"[bold]Ledger artifact:[/bold] {artifact_path}")
+    console.print(result.get("final_output", ""))
 
 
 if __name__ == "__main__":
