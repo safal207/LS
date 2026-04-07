@@ -60,7 +60,11 @@ The dashboard gives you:
 
 - health check
 - one-click smoke publish
+- local `mesh-tests` lane run
+- quality report generate/publish flow
 - simple query preview
+- council analytics from `artifacts/council-ledger/*.json`
+- a demo council-ledger generator so the charts are explorable before real coordination cycles exist
 
 Stop the stack:
 
