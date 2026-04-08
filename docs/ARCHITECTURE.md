@@ -30,7 +30,7 @@
 | Canonical profile | Aliases | Effective config merge order |
 |---|---|---|
 | `console` | `console` | `config/base.yaml` → `config/console.yaml` → `config/local.yaml` |
-| `ghostgpt` | `ghostgpt`, `ghost_gui`, `interview_copilot` | `config/base.yaml` → `config/ghostgpt.yaml` → `config/local.yaml` |
+| `ghostgpt` | `ghostgpt`, `ghost_gui`, `operator_runtime` | `config/base.yaml` → `config/ghostgpt.yaml` → `config/local.yaml` |
 
 Валидация схемы выполняется в `python/modules/shared/config_loader.py` до инициализации runtime.
 
@@ -171,9 +171,9 @@ graph TB
 
 ---
 
-## Interview STT / SmartEar / AgentLoop Flow
+## Multimodal STT / SmartEar / AgentLoop Flow
 
-See `docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md` for the canonical interview pipeline:
+See `docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md` for the canonical multimodal perception pipeline:
 
 - STT is perception only.
 - SmartEar handles semantic interpretation.
