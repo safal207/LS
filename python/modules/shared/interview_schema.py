@@ -26,6 +26,14 @@ class InterviewUtterance:
     timestamp: Optional[float] = None
     raw: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def operator_profile(self) -> Optional[dict[str, Any]]:
+        return self.interviewer_profile
+
+    @operator_profile.setter
+    def operator_profile(self, value: Optional[dict[str, Any]]) -> None:
+        self.interviewer_profile = value
+
     def to_item(self) -> dict[str, Any]:
         """Convert the contract object into the dict shape used by runtime."""
         item: dict[str, Any] = {
@@ -128,3 +136,12 @@ def ensure_interview_item(item: Any, *, default_source: str = "unknown") -> dict
     payload.setdefault("_words", payload.get("words", []))
     payload.setdefault("_asr_confidence", payload.get("confidence", 0.0))
     return payload
+
+
+class OperatorUtterance(InterviewUtterance):
+    """Neutral alias for the historical InterviewUtterance contract."""
+
+
+def ensure_operator_item(item: Any, *, default_source: str = "unknown") -> dict[str, Any]:
+    """Neutral alias for ensure_interview_item."""
+    return ensure_interview_item(item, default_source=default_source)

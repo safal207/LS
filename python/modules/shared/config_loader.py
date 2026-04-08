@@ -49,6 +49,7 @@ def _load_app_aliases() -> Dict[str, str]:
         "ghostgpt": "ghostgpt",
         "ghost_gui": "ghostgpt",
         "interview_copilot": "ghostgpt",
+        "operator_runtime": "ghostgpt",
     }
 
     registry = _load_yaml(_repo_root() / "config" / "apps.yaml")
