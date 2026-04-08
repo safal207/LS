@@ -178,6 +178,26 @@ LS also includes a coordination advisory positioning layer for product and techn
 - One-pager: [`docs/positioning/coordination-advisory-one-pager.md`](docs/positioning/coordination-advisory-one-pager.md)
 - Comparison: [`docs/positioning/ls-vs-generic-agent.md`](docs/positioning/ls-vs-generic-agent.md)
 
+## Safety / Alignment Relevance
+
+LS is best understood as an operator-facing coordination and oversight runtime for human-plus-model systems.
+
+The safety-relevant parts of this repository are:
+
+- `CouncilContributionLedger` for measurable model participation and adoption
+- receiver-resonance scoring for whether outputs were accepted cleanly
+- contribution, reputation, and merit sync in `CEL`
+- replayable traces and inspection via `LTP`
+- human approval and artifact review flows in the CLI
+- quality gates, quality reports, and `LiminalQA` integration for evaluable runs
+
+If you are reading this repository from an AI safety or alignment angle, start here:
+
+- [`docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md`](docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md)
+- [`docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md`](docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md)
+- [`docs/LIMINALQA_TEST_STRATEGY.md`](docs/LIMINALQA_TEST_STRATEGY.md)
+- [`docs/CI_QUALITY_GATES.md`](docs/CI_QUALITY_GATES.md)
+
 ## Quick Start
 
 ### Prerequisites
@@ -314,6 +334,7 @@ pytest python/tests/test_memory_store_locking.py
 | [docs/CI_QUALITY_GATES.md](docs/CI_QUALITY_GATES.md) | Active CI quality-gate thresholds, enforcement state, and calibration notes |
 | [docs/LIMINALQA_LOCAL_SETUP.md](docs/LIMINALQA_LOCAL_SETUP.md) | Local deployment model for running LiminalQAengineer next to this repository |
 | [docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md](docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md) | Execution roadmap for unifying council, contribution, reputation, and receiver-resonance tracking |
+| [docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md](docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md) | Fellowship-oriented framing for presenting LS as a safety and oversight runtime |
 | [FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md) | Golden Master overview |
 
 ---
