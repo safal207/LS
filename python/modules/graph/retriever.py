@@ -3,7 +3,7 @@ from __future__ import annotations
 from difflib import SequenceMatcher
 from typing import Optional
 
-from shared.interview_schema import InterviewUtterance, ensure_interview_item
+from shared.operator_schema import OperatorUtterance, ensure_operator_item
 
 from .memory_store import MemoryGraphStore
 from .models import MemoryCase, NetworkQuestion, RetrievedCase
@@ -46,10 +46,10 @@ class MemoryGraphRetriever:
     def normalize_question(self, payload) -> NetworkQuestion:
         if isinstance(payload, NetworkQuestion):
             return payload
-        if isinstance(payload, InterviewUtterance):
+        if isinstance(payload, OperatorUtterance):
             item = payload.to_item()
         else:
-            item = ensure_interview_item(payload, default_source="graph")
+            item = ensure_operator_item(payload, default_source="graph")
         text = str(item.get("text", ""))
         clean_text = str(item.get("clean_text") or item.get("_clean_text") or text)
         intent = item.get("intent") or item.get("_intent")
