@@ -6,10 +6,11 @@ from typing import Any, Mapping, MutableMapping, Optional
 
 @dataclass
 class InterviewUtterance:
-    """Canonical speech-to-answer payload shared across STT and SmartEar.
+    """Historical speech-to-answer payload shared across STT and SmartEar.
 
     The runtime still uses dicts in most places, but this dataclass gives us a
-    stable contract and a single place for conversion / normalization.
+    stable compatibility contract and a single place for conversion / normalization.
+    New code should prefer ``OperatorUtterance`` and ``ensure_operator_item``.
     """
 
     type: str = "question"
@@ -111,7 +112,7 @@ class InterviewUtterance:
 
 
 def ensure_interview_item(item: Any, *, default_source: str = "unknown") -> dict[str, Any]:
-    """Normalize any supported payload into the runtime dict contract."""
+    """Normalize any supported payload into the historical runtime dict contract."""
     if isinstance(item, InterviewUtterance):
         payload = item.to_item()
     elif isinstance(item, Mapping):

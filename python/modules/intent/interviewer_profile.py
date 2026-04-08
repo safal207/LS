@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""InterviewerProfile — real-time model of the interviewer built from their questions.
+"""InterviewerProfile — historical real-time model of the counterparty built from their questions.
 
 Each question is observed and the profile updates automatically.
 The profile is then used by WhyStrategy.apply_interviewer_bias() to
@@ -8,7 +8,7 @@ hard-bind the answer mode before the prompt is generated.
 Design goals:
 - Zero dependencies, < 0.5 ms per observation
 - Stateless from the outside: just call observe() each turn, read attrs anytime
-- Simple enough to understand in 30 seconds during an interview
+- Simple enough to understand in 30 seconds during a live operator workflow
 
 Usage::
 
@@ -53,7 +53,7 @@ _RE_THEORY = re.compile(
 
 @dataclass
 class InterviewerProfile:
-    """Live model of the interviewer built from observed questions.
+    """Historical live model of the counterparty built from observed questions.
 
     Attributes:
         pressure_level:    0.0–1.0. High = interviewer applies challenge/pressure.

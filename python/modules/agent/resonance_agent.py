@@ -88,7 +88,7 @@ from config import (
     MAX_TOKENS,
     TEMPERATURE,
 )
-from shared.interview_schema import ensure_interview_item
+from shared.operator_schema import ensure_operator_item
 
 logger = logging.getLogger(__name__)
 
@@ -1019,7 +1019,7 @@ class ResonanceAgent:
         Returns:
             Complete cycle dict matching the spec, including ``resonance_score``.
         """
-        item: dict = ensure_interview_item({
+        item: dict = ensure_operator_item({
             "type": "question",
             "text": text,
             "confidence": 1.0,
@@ -1041,7 +1041,7 @@ class ResonanceAgent:
         ``item["text"]`` must be set.  ``_anchor_context`` is merged with
         ``self._anchor`` if not already present.
         """
-        item = ensure_interview_item(item, default_source="smart_ear")
+        item = ensure_operator_item(item, default_source="smart_ear")
         if "_anchor_context" not in item:
             item["_anchor_context"] = list(self._anchor)
         return self._run_pipeline(item)
