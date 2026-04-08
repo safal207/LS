@@ -102,7 +102,8 @@ const copy = {
     resonanceTrend: 'Receiver resonance trend',
     meritTrend: 'Merit trend',
     scorecardTakeaways: 'What this makes visible',
-    scorecardDisclaimer: 'Scorecard disclosure'
+    scorecardDisclaimer: 'Scorecard disclosure',
+    sourceLabel: 'Snapshot source'
   },
   ru: {
     eyebrow: 'Operator delta',
@@ -144,7 +145,8 @@ const copy = {
     resonanceTrend: 'Тренд резонанса',
     meritTrend: 'Тренд merit',
     scorecardTakeaways: 'Что это делает видимым',
-    scorecardDisclaimer: 'Ограничение scorecard'
+    scorecardDisclaimer: 'Ограничение scorecard',
+    sourceLabel: 'Источник snapshot'
   }
 } as const;
 
@@ -420,6 +422,10 @@ export default function OperatorDelta() {
               <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.avgMerit}</div>
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.avg_merit.toFixed(1)}%</div>
             </div>
+          </div>
+
+          <div className="mt-3 text-xs uppercase tracking-[0.14em] text-white/45">
+            {text.sourceLabel}: {scorecard.source}
           </div>
 
           <div className="mt-6 grid gap-4 xl:grid-cols-3">

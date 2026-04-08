@@ -1,52 +1,61 @@
 {
-  "generated_at": "2026-04-08T06:30:00Z",
+  "generated_at": "2026-04-08T06:39:55Z",
+  "source": "artifact",
   "summary": {
-    "ledgers": 12,
-    "top_contributor": "local-qwen",
-    "success_rate": 83.3,
-    "avg_resonance": 78.4,
-    "avg_merit": 74.1
+    "ledgers": 2,
+    "top_contributor": "primary-llm",
+    "success_rate": 0.0,
+    "avg_resonance": 50.0,
+    "avg_merit": 40.33
   },
   "bars": {
     "best_contributor_frequency": [
-      { "label": "local-qwen", "value": 6 },
-      { "label": "gpt-web", "value": 4 },
-      { "label": "claude-web", "value": 2 }
+      {
+        "label": "primary-llm",
+        "value": 2
+      }
     ],
     "model_type_lift": [
-      { "label": "local", "value": 0.81 },
-      { "label": "web", "value": 0.64 }
+      {
+        "label": "primary_llm",
+        "value": 0.71
+      }
     ],
     "route_wins": [
-      { "label": "route_a", "value": 5 },
-      { "label": "route_b", "value": 4 },
-      { "label": "route_c", "value": 3 }
+      {
+        "label": "r1",
+        "value": 2
+      }
     ]
   },
   "lines": {
     "resonance_trend": [
-      { "label": "c1", "value": 62 },
-      { "label": "c2", "value": 66 },
-      { "label": "c3", "value": 71 },
-      { "label": "c4", "value": 74 },
-      { "label": "c5", "value": 78 },
-      { "label": "c6", "value": 82 }
+      {
+        "label": "c1",
+        "value": 50.0
+      },
+      {
+        "label": "c2",
+        "value": 50.0
+      }
     ],
     "merit_trend": [
-      { "label": "c1", "value": 58 },
-      { "label": "c2", "value": 61 },
-      { "label": "c3", "value": 67 },
-      { "label": "c4", "value": 70 },
-      { "label": "c5", "value": 73 },
-      { "label": "c6", "value": 77 }
+      {
+        "label": "c1",
+        "value": 40.33
+      },
+      {
+        "label": "c2",
+        "value": 40.33
+      }
     ]
   },
   "takeaways": {
     "with_ls": [
-      "Local and web models are no longer a black box: the council shows who actually moved the outcome.",
-      "Receiver resonance trends reveal whether answers are becoming easier for humans to accept.",
-      "Route-win data makes graph routing legible enough for product, audit, and investor review."
+      "primary-llm currently leads the council on repeated cycles, so model contribution is observable instead of anecdotal.",
+      "Receiver resonance trends show whether answers are becoming easier to accept over time.",
+      "Route win counts expose which graph paths actually close with quality, not just which ones sound plausible."
     ],
-    "disclaimer": "This scorecard is a demonstration snapshot assembled from local council-ledger style metrics. It shows the reporting model, not a universal production claim."
+    "disclaimer": "This scorecard is assembled from council-ledger artifacts found at build time. It is a snapshot of observed cycles, not a universal production guarantee."
   }
 }

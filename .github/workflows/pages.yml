@@ -38,6 +38,9 @@ jobs:
         working-directory: ghostgpt-ls-landing
         run: npm ci
 
+      - name: Export Council Scorecard Snapshot
+        run: python tools/export_council_scorecard.py --keep-existing-on-empty
+
       - name: Build Landing
         working-directory: ghostgpt-ls-landing
         run: npm run build
