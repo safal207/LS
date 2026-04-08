@@ -940,7 +940,7 @@ class AgentLoop:
         return messages + [{"role": "system", "content": f"Current screen content:\n{snippet}"}]
 
     def _inject_strategy_context(self, messages: list[dict], item: dict) -> list[dict]:
-        """Inject copilot context into the message list.
+        """Inject operator guidance context into the message list.
 
         Appends a single system message at the *end* of the list (just before
         the live user turn) so the LLM sees it as fresh guidance without
@@ -993,7 +993,7 @@ class AgentLoop:
             )
             parts.append(f"{anchor_label}\n{lines}")
 
-        interviewer = item.get("_interviewer_profile")
+        interviewer = item.get("_operator_profile") or item.get("_interviewer_profile")
         if interviewer and isinstance(interviewer, dict) and interviewer.get("questions_seen", 0) >= 2:
             p = interviewer.get("pressure_level", 0)
             flags = []
@@ -1368,7 +1368,7 @@ class AgentLoop:
             # Prepare hidden context with reflection
             messages = self._inject_reflection_into_context(list(self.memory["history"]), question=question, force_show_silent=force_show_silent)
 
-            # Inject WHY strategy hints + anchor context (interview copilot)
+            # Inject WHY strategy hints + anchor context (operator guidance)
             messages = self._inject_strategy_context(messages, item)
 
             # Inject live screen content so the agent can see what the user sees
