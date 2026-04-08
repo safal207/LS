@@ -3,6 +3,10 @@
 This demo path is designed for a reviewer, fellowship screener,
 who needs to understand the repository quickly.
 
+Companion short script:
+
+- `docs/FELLOWSHIP_REVIEWER_SCRIPT.md`
+
 ## Goal
 
 Show that LS is not a generic assistant, but a coordination and oversight
