@@ -200,6 +200,8 @@ If you are reading this repository from an AI safety or alignment angle, start h
 - [`docs/FELLOWSHIP_STATEMENT_DRAFT.md`](docs/FELLOWSHIP_STATEMENT_DRAFT.md)
 - [`docs/FELLOWSHIP_ONE_PAGER.md`](docs/FELLOWSHIP_ONE_PAGER.md)
 - [`docs/FELLOWSHIP_QUESTION_BANK.md`](docs/FELLOWSHIP_QUESTION_BANK.md)
+- [`docs/FELLOWSHIP_EVIDENCE_AUDIT.md`](docs/FELLOWSHIP_EVIDENCE_AUDIT.md)
+- [`docs/FELLOWSHIP_EVIDENCE_SPRINT.md`](docs/FELLOWSHIP_EVIDENCE_SPRINT.md)
 - [`docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md`](docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md)
 - [`docs/LIMINALQA_TEST_STRATEGY.md`](docs/LIMINALQA_TEST_STRATEGY.md)
 - [`docs/CI_QUALITY_GATES.md`](docs/CI_QUALITY_GATES.md)
@@ -347,6 +349,8 @@ pytest python/tests/test_memory_store_locking.py
 | [docs/FELLOWSHIP_STATEMENT_DRAFT.md](docs/FELLOWSHIP_STATEMENT_DRAFT.md) | Draft statement of purpose for fellowship-style applications |
 | [docs/FELLOWSHIP_ONE_PAGER.md](docs/FELLOWSHIP_ONE_PAGER.md) | One-page summary for reviewers, mentors, or intro calls |
 | [docs/FELLOWSHIP_QUESTION_BANK.md](docs/FELLOWSHIP_QUESTION_BANK.md) | Reusable short and medium answers for common fellowship application questions |
+| [docs/FELLOWSHIP_EVIDENCE_AUDIT.md](docs/FELLOWSHIP_EVIDENCE_AUDIT.md) | Honest gap audit of what evidence already exists and what is still weak |
+| [docs/FELLOWSHIP_EVIDENCE_SPRINT.md](docs/FELLOWSHIP_EVIDENCE_SPRINT.md) | 1–2 day sprint plan for strengthening benchmark, dataset, and technical-note evidence |
 | [FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md) | Golden Master overview |
 
 ---
