@@ -2085,7 +2085,7 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.debug("ResonanceAgent: WhyLayer failed: %s", exc)
 
-        # Stage 6 — WHY Strategy + Anchor + InterviewerProfile
+        # Stage 6 — WHY Strategy + Anchor + OperatorProfile
         if _STRATEGY_OK and _analyze:
             try:
                 strategy = _analyze(text)

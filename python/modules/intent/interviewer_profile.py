@@ -12,7 +12,7 @@ Design goals:
 
 Usage::
 
-    profile = InterviewerProfile()
+    profile = InterviewerProfile()  # new code should prefer OperatorProfile
 
     # Each time a new question arrives:
     profile.observe("почему не использовали Redis?", strategy)
@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from intent.why_strategy import WhyStrategy
+    from intent.operator_strategy import WhyStrategy
 
 
 # ---------------------------------------------------------------------------
@@ -55,12 +55,14 @@ _RE_THEORY = re.compile(
 class InterviewerProfile:
     """Historical live model of the counterparty built from observed questions.
 
+    New code should prefer ``OperatorProfile`` from ``intent.operator_profile``.
+
     Attributes:
-        pressure_level:    0.0–1.0. High = interviewer applies challenge/pressure.
-        prefers_reasoning: True when interviewer keeps asking WHY/reasoning.
-        prefers_examples:  True when interviewer keeps asking for real cases.
-        prefers_theory:    True when interviewer prefers definitions/concepts.
-        interrupt_count:   How many times the interviewer interrupted/redirected.
+        pressure_level:    0.0–1.0. High = counterparty applies challenge/pressure.
+        prefers_reasoning: True when the counterparty keeps asking WHY/reasoning.
+        prefers_examples:  True when the counterparty keeps asking for real cases.
+        prefers_theory:    True when the counterparty prefers definitions/concepts.
+        interrupt_count:   How many times the counterparty interrupted/redirected.
         _n:                Total questions observed (internal, for averaging).
         _pressure_sum:     Cumulative pressure score (internal).
     """
