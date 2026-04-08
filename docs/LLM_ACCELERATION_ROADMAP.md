@@ -4,7 +4,7 @@ Status: **Implemented in this iteration for stream token path + benchmark harnes
 
 ## Goal
 
-Deliver measurable speed evolution for the interview copilot pipeline and publish it in docs/README.
+Deliver measurable speed evolution for the operator runtime pipeline and publish it in docs/README.
 
 ## Phase 1 — Baseline Python (✅ done)
 

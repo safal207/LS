@@ -1,4 +1,4 @@
-# Online Interview Copilot: LLM Latency & Throughput Architectural Review
+# Operator Runtime: LLM Latency & Throughput Architectural Review
 
 ## Current strengths
 
@@ -10,11 +10,11 @@
   - cancel-event checks.
 - Runtime transport layer (`web4_runtime`) already has QoS building blocks: backpressure policy, priority queue, failover transport, and async session control.
 
-## Critical bottlenecks seen for real-time whispering/"тихий подсказчик"
+## Critical bottlenecks seen for real-time operator hinting
 
 1. **No token streaming to UX path by default**
    - Non-streaming mode waits for full completion before UI receives response.
-   - For interview/performance scenarios this hurts TTFT (time-to-first-token).
+   - For live operator scenarios this hurts TTFT (time-to-first-token).
 
 2. **Synchronous single-shot generation path**
    - Current application path commonly emits one final answer object to UI queue.
@@ -68,7 +68,7 @@ Result summary (current run):
 - full completion time remained roughly equal,
 - **Rust parser micro-benchmark gives multi-x speedup** vs Python JSON parse (see latest report),
 - **C++ parser micro-benchmark gives measurable speedup** vs Python JSON parse (see latest report),
-- this is exactly what we want for interview whisper mode: first useful hint appears much earlier with lower CPU overhead in stream parsing.
+- this is exactly what we want for fast operator hint mode: first useful hint appears much earlier with lower CPU overhead in stream parsing.
 
 ## Recommended next architecture step (high impact)
 
@@ -90,11 +90,11 @@ See also: `docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md` for the end-to-end `Mic 
 - TTFT (local Ollama): `< 350ms` for short hints on warmed model.
 - End-to-end hint (partial STT -> first visible token): `< 700ms`.
 - End-to-end hint (partial STT -> first TTS chunk): `< 900ms`.
-- p95 no-drop transport queue under interview load.
+- p95 no-drop transport queue under operator load.
 
 ## Product-level suggestions for "внеконкуренции"
 
-- Add interview-mode presets:
+- Add operator-mode presets:
   - `stealth_fast` (max speed, short hints, low verbosity)
   - `coach_balanced`
   - `deep_answer`
@@ -106,7 +106,7 @@ See also: `docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md` for the end-to-end `Mic 
 
 ## Safety and compliance note
 
-If this tool is used in real interviews/negotiations, enforce explicit legal/ethical policy by region and context. Add clear opt-in and usage boundaries inside product UI.
+If this tool is used in live negotiations or sensitive operator contexts, enforce explicit legal/ethical policy by region and context. Add clear opt-in and usage boundaries inside product UI.
 
 
 ## Follow-up runtime improvements

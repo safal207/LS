@@ -1,4 +1,4 @@
-# Fast Connect & High-Speed Mode (Interview Copilot)
+# Fast Connect & High-Speed Mode (Operator Runtime)
 
 This guide helps users launch GhostGPT with minimal startup friction and maximum response speed.
 
@@ -30,7 +30,7 @@ python apps/ghostgpt/main.py
 
 ## Low-latency knobs
 
-- `OLLAMA_NUM_PREDICT`: reduce output length for whisper mode (e.g. `48`–`96`).
+- `OLLAMA_NUM_PREDICT`: reduce output length for fast operator-hint mode (e.g. `48`–`96`).
 
 Example:
 
@@ -55,6 +55,6 @@ See details in:
 
 ## What this means for end users
 
-- Faster first hint appearance during calls/interviews.
+- Faster first hint appearance during live operator workflows.
 - Smoother on-screen incremental suggestions.
 - Better CPU efficiency on sustained streaming workloads.

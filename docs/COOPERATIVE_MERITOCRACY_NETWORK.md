@@ -1,6 +1,6 @@
 # Cooperative Meritocracy Network
 
-This document defines a practical design for a cooperative multi-model network on top of the existing interview pipeline.
+This document defines a practical design for a cooperative multi-model network on top of the existing multimodal operator pipeline.
 
 Related control-layer design:
 
@@ -69,7 +69,7 @@ Examples:
 
 - compact prompt policy
 - anti-hallucination rewriter
-- short interview answer compressor
+- short operator-response compressor
 - domain-specific explanation template
 - lightweight classifier for reuse decisions
 
