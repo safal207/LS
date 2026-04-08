@@ -16,7 +16,7 @@ It follows the current repository direction:
 
 Already in repository:
 
-- `InterviewUtterance` contract
+- `InterviewUtterance` contract (historical name for the shared multimodal utterance object)
 - pluggable LLM backends:
   - `gonka`
   - `mimo`
@@ -143,7 +143,7 @@ Scope:
 Example:
 
 - technical why-questions -> `local + gonka + mimo`
-- short live interview answers -> `reuse + local refine`
+- short live operator responses -> `reuse + local refine`
 
 Success criteria:
 

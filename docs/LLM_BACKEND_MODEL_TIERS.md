@@ -87,7 +87,7 @@ For this repository today, the practical order from strongest to weakest is:
 
 ## Recommended routing
 
-### Production / interview copilot
+### Production / operator runtime
 
 - Primary: `gonka -> qwen/qwen3-235b-a22b-instruct-2507-fp8`
 - Fallback 1: `cloud -> qwen/qwen3-32b` or `openai/gpt-oss-120b`
