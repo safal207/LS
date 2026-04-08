@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from shared import OperatorUtterance, ensure_operator_item
+from shared.operator_schema import OperatorUtterance as OperatorUtteranceFromSchema
 from shared.config_loader import _load_app_aliases
 from intent.operator_strategy import analyze_operator_strategy
 from intent.operator_empathy import EmpathyNegotiationLayer
+from intent.operator_profile import OperatorProfile
+from intent.operator_response_assembler import OperatorResponseAssembler
 
 
 def test_operator_utterance_alias_roundtrip() -> None:
@@ -48,3 +51,6 @@ def test_operator_alias_modules_are_importable() -> None:
 
     assert strategy.answer_type
     assert layer.process({"text": "Почему стоит выбрать этот путь?", "_operator_profile": {}})["_empathy_result"]["tone"]
+    assert OperatorUtteranceFromSchema is OperatorUtterance
+    assert issubclass(OperatorProfile, object)
+    assert issubclass(OperatorResponseAssembler, object)

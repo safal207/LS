@@ -803,7 +803,7 @@ class WhyStrategyStage:
 
     def __init__(self, anchor=None) -> None:
         self._anchor = anchor
-        # InterviewerProfile persists for the whole session — one observation per question
+        # OperatorProfile persists for the whole session — one observation per question
         self._operator_profile = (
             _OperatorProfile()
             if (_INTENT_AVAILABLE and _OperatorProfile is not None)
@@ -813,7 +813,7 @@ class WhyStrategyStage:
     def process(self, item: dict) -> Optional[dict]:
         text = item.get("text", "")
 
-        # WHY Strategy + InterviewerProfile bias
+        # WHY Strategy + OperatorProfile bias
         if _INTENT_AVAILABLE and _analyze_strategy is not None:
             try:
                 strategy = _analyze_strategy(text)

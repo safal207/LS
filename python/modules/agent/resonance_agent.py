@@ -808,7 +808,7 @@ class ResonanceAgent:
 
         # Stage 6 — WHY Strategy is a function, not a class (called per item)
 
-        # Stage 6b — InterviewerProfile (shared, mutated per question)
+        # Stage 6b — OperatorProfile (shared, mutated per question)
         self._profile = (
             _OperatorProfile() if _PROFILE_OK and _OperatorProfile else None
         )
