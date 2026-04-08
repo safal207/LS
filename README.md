@@ -88,13 +88,13 @@ After 3 occurrences of the same pathology → writes a `lesson:meta:*` memory no
 
 ---
 
-## Interview Pipeline — Eyes + Ears + Voice
+## Multimodal Operator Loop — Eyes + Ears + Voice
 
-GhostGPT can now act as a **silent interview co-pilot**:
+GhostGPT can now act as a **hands-free operator interface**:
 
-- **Eyes (screen reading)** — `VisionSubsystem` captures your screen every 0.5 s and runs OCR (pytesseract or easyocr). The latest text is exposed via `get_latest_screen_text()` and injected into every LLM call as a `system` message, so the agent can see the question on the interviewer's screen before you say a word.
+- **Eyes (screen reading)** — `VisionSubsystem` captures your screen every 0.5 s and runs OCR (pytesseract or easyocr). The latest text is exposed via `get_latest_screen_text()` and injected into every LLM call as a `system` message, so the agent can inspect the current operator context without manual copy-paste.
 - **Ears (voice input)** — `faster-whisper` + PyAudio capture your microphone and transcribe speech to text in real-time. The transcript is fed to the agent as the user message.
-- **Voice output (TTS)** — `Speaker` (pyttsx3, fully offline) reads the agent's answer aloud so you hear it in your earpiece without looking at the screen.
+- **Voice output (TTS)** — `Speaker` (pyttsx3, fully offline) reads the agent's answer aloud so you can stay in the workflow without staring at the screen.
 
 ```
 ┌──────────┐   OCR    ┌──────────────────┐   system msg   ┌──────────┐
@@ -283,7 +283,7 @@ python3 tests/unit/test_system_observer.py
 python3 tests/unit/test_new_features.py
 python3 tests/unit/test_orientation_force_ladder.py
 python3 tests/unit/test_world_poller.py
-python3 tests/unit/test_interview_pipeline.py
+python3 tests/unit/test_interview_pipeline.py   # multimodal perception + voice loop
 
 # Qwen Omni + memory store
 pytest python/tests/test_qwen_omni_worker.py
@@ -297,7 +297,7 @@ pytest python/tests/test_memory_store_locking.py
 | `test_new_features.py` | 30 | Causal graph, predictive axis, meta-lessons, user profiles, session report |
 | `test_orientation_force_ladder.py` | 11+ | Forces 1–2, co-activation, propagation |
 | `test_world_poller.py` | 7 | WorldPoller git/logs |
-| `test_interview_pipeline.py` | 32 | OCR module, VisionSubsystem cache, TTS Speaker, _inject_screen_context |
+| `test_interview_pipeline.py` | 32 | OCR module, VisionSubsystem cache, TTS Speaker, screen-context injection |
 | `test_qwen_omni_worker.py` | 4 | Multimodal worker fallback + store |
 
 ---
@@ -410,13 +410,13 @@ GhostGPT **живёт между ответами**:
 
 ---
 
-## Пайплайн для собеседований — Глаза + Уши + Голос
+## Мультимодальный операторский контур — Глаза + Уши + Голос
 
-GhostGPT умеет работать как **тихий помощник на собесе**:
+GhostGPT умеет работать как **hands-free интерфейс для оператора**:
 
-- **Глаза (чтение экрана)** — `VisionSubsystem` снимает скриншот каждые 0.5с и распознаёт текст через OCR (pytesseract или easyocr). Последний текст экрана добавляется в каждый LLM-запрос как системное сообщение — агент видит вопрос интервьюера ещё до того, как ты его задашь.
+- **Глаза (чтение экрана)** — `VisionSubsystem` снимает скриншот каждые 0.5с и распознаёт текст через OCR (pytesseract или easyocr). Последний текст экрана добавляется в каждый LLM-запрос как системное сообщение — агент видит текущий операторский контекст без ручного копирования.
 - **Уши (голосовой ввод)** — `faster-whisper` + PyAudio слушают микрофон и транскрибируют речь в текст в реальном времени. Транскрипт идёт в агент как сообщение пользователя.
-- **Голос (TTS)** — `Speaker` (pyttsx3, полностью оффлайн) читает ответ агента вслух в наушник.
+- **Голос (TTS)** — `Speaker` (pyttsx3, полностью оффлайн) читает ответ агента вслух, чтобы оператор мог оставаться в потоке без постоянного взгляда на экран.
 
 ```
 ┌──────────┐   OCR     ┌──────────────────┐  system msg   ┌──────────┐
@@ -487,7 +487,7 @@ export DASHSCOPE_API_KEY=your_key   # без ключа — fallback режим
 python apps/ghostgpt/main.py
 ```
 
-### Пайплайн для собеседований (опционально)
+### Мультимодальный голосовой контур (опционально)
 
 ```bash
 pip install pyttsx3 pytesseract     # или easyocr вместо pytesseract
