@@ -194,6 +194,9 @@ The safety-relevant parts of this repository are:
 If you are reading this repository from an AI safety or alignment angle, start here:
 
 - [`docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md`](docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md)
+- [`docs/FELLOWSHIP_APPLICATION_BRIEF.md`](docs/FELLOWSHIP_APPLICATION_BRIEF.md)
+- [`docs/FELLOWSHIP_DEMO_PATH.md`](docs/FELLOWSHIP_DEMO_PATH.md)
+- [`docs/FELLOWSHIP_RESEARCH_OUTPUTS.md`](docs/FELLOWSHIP_RESEARCH_OUTPUTS.md)
 - [`docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md`](docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md)
 - [`docs/LIMINALQA_TEST_STRATEGY.md`](docs/LIMINALQA_TEST_STRATEGY.md)
 - [`docs/CI_QUALITY_GATES.md`](docs/CI_QUALITY_GATES.md)
@@ -335,6 +338,9 @@ pytest python/tests/test_memory_store_locking.py
 | [docs/LIMINALQA_LOCAL_SETUP.md](docs/LIMINALQA_LOCAL_SETUP.md) | Local deployment model for running LiminalQAengineer next to this repository |
 | [docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md](docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md) | Execution roadmap for unifying council, contribution, reputation, and receiver-resonance tracking |
 | [docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md](docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md) | Fellowship-oriented framing for presenting LS as a safety and oversight runtime |
+| [docs/FELLOWSHIP_APPLICATION_BRIEF.md](docs/FELLOWSHIP_APPLICATION_BRIEF.md) | Short application-oriented framing for presenting LS to fellowship reviewers |
+| [docs/FELLOWSHIP_DEMO_PATH.md](docs/FELLOWSHIP_DEMO_PATH.md) | Suggested 5–7 minute live demo path for safety- and oversight-oriented review |
+| [docs/FELLOWSHIP_RESEARCH_OUTPUTS.md](docs/FELLOWSHIP_RESEARCH_OUTPUTS.md) | Concrete benchmark, dataset, and note outputs to produce from this repository |
 | [FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md) | Golden Master overview |
 
 ---
