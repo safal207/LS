@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import json
 import os
+import queue
 import urllib.error
 import urllib.request
 
@@ -36,13 +37,54 @@ class AccessMode(str, Enum):
     FULL_AGENT = "full-agent"
 
 
+class CouncilLLMMode(str, Enum):
+    AUTO = "auto"
+    DRY_RUN = "dry-run"
+    LOCAL = "local"
+
+
 def manager() -> TaskManager:
     base = Path(".ls_agent")
     return TaskManager(db_path=base / "runtime.db", artifacts_root=base / "artifacts")
 
 
-def build_council_agent(orientation: str = "") -> ResonanceAgent:
-    return ResonanceAgent(anchor=[], llm_fn=None, orientation=orientation or "cli-council-cycle")
+def build_local_council_llm_fn():
+    try:
+        from llm.llm_module import LanguageModel
+    except ImportError:
+        from modules.llm.llm_module import LanguageModel
+
+    model = LanguageModel(queue.Queue(), queue.Queue())
+    if not model.test_ollama_connection():
+        raise RuntimeError("Local Ollama backend is unavailable.")
+
+    def _call(user_prompt: str, system_prompt: str) -> str:
+        response = model.generate_response(
+            user_prompt,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        return response or ""
+
+    return _call
+
+
+def build_council_agent(
+    orientation: str = "",
+    *,
+    llm_mode: CouncilLLMMode = CouncilLLMMode.AUTO,
+) -> ResonanceAgent:
+    llm_fn = None
+    if llm_mode is CouncilLLMMode.LOCAL:
+        llm_fn = build_local_council_llm_fn()
+    elif llm_mode is CouncilLLMMode.AUTO:
+        try:
+            llm_fn = build_local_council_llm_fn()
+        except Exception:
+            llm_fn = None
+    return ResonanceAgent(anchor=[], llm_fn=llm_fn, orientation=orientation or "cli-council-cycle")
 
 
 def liminalqa_settings() -> tuple[str, str]:
@@ -236,6 +278,11 @@ def list_tasks() -> None:
 def council_cycle(
     prompt: str,
     orientation: str = typer.Option("", "--orientation", help="Optional council/orchestration context."),
+    llm_mode: CouncilLLMMode = typer.Option(
+        CouncilLLMMode.AUTO,
+        "--llm-mode",
+        help="Choose whether to use a real local LLM, dry-run mode, or auto fallback.",
+    ),
     artifact_dir: Path = typer.Option(
         Path("artifacts/council-ledger"),
         "--artifact-dir",
@@ -247,7 +294,11 @@ def council_cycle(
         help="Also publish the generated council ledger into LiminalQA ingest.",
     ),
 ) -> None:
-    agent = build_council_agent(orientation=orientation)
+    try:
+        agent = build_council_agent(orientation=orientation, llm_mode=llm_mode)
+    except Exception as exc:
+        console.print(f"[red]Council agent init failed:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
     agent._council_ledger_dir = artifact_dir
     result = agent.process_text(prompt)
     ledger = result.get("council_contribution_ledger") or {}
