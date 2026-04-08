@@ -39,10 +39,22 @@ def check_ollama(host: str, timeout_sec: float = 3.0) -> tuple[bool, str]:
         return False, f"error: {exc}"
 
 
+def deep_merge(base: dict, override: dict) -> dict:
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
-    local_cfg = load_yaml(repo_root / "config" / "local.yaml")
-    llm = local_cfg.get("llm", {}) if isinstance(local_cfg, dict) else {}
+    cfg = load_yaml(repo_root / "config" / "base.yaml")
+    cfg = deep_merge(cfg, load_yaml(repo_root / "config" / "local.profile.yaml"))
+    cfg = deep_merge(cfg, load_yaml(repo_root / "config" / "local.yaml"))
+    llm = cfg.get("llm", {}) if isinstance(cfg, dict) else {}
 
     backend = llm.get("backend", "<unset>")
     fallback = llm.get("fallback_backend", "<unset>")
@@ -84,7 +96,7 @@ def main() -> int:
             print(f" - {item}")
         return 2
 
-    print("\n✅ Smoke check passed")
+    print("\nSmoke check passed")
     return 0
 
 

@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROFILES_DIR="$ROOT_DIR/config/profiles"
-TARGET_FILE="$ROOT_DIR/config/local.yaml"
+TARGET_FILE="$ROOT_DIR/config/local.profile.yaml"
 
 usage() {
   cat <<USAGE
@@ -42,3 +42,4 @@ cp "$SOURCE_FILE" "$TARGET_FILE"
 echo "✅ Switched profile to: $PROFILE_NAME"
 echo "   Source: $SOURCE_FILE"
 echo "   Target: $TARGET_FILE"
+echo "   Note: local secrets in config/local.yaml remain untouched."
