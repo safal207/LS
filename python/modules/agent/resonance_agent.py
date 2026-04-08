@@ -1072,7 +1072,7 @@ class ResonanceAgent:
                 "resonance_score": score,
                 "copilot": {
                     "active_rules": (
-                        (cached.get("_copilot_output") or {}).get("active_rules") or []
+                        ((cached.get("_operator_response_output") or cached.get("_copilot_output") or {}).get("active_rules") or [])
                     ),
                 },
                 "user_feedback": feedback_text,
@@ -2093,6 +2093,7 @@ class ResonanceAgent:
                     self._profile.observe(text, strategy)
                     strategy.apply_interviewer_bias(self._profile)
                     item["_interviewer_profile"] = self._profile.to_dict()
+                    item["_operator_profile"] = self._profile.to_dict()
                 item["_why_strategy"] = strategy.to_dict()
             except Exception as exc:
                 logger.debug("ResonanceAgent: strategy stage failed: %s", exc)
@@ -2317,7 +2318,7 @@ class ResonanceAgent:
                     final_output = self._call_llm(item)
                 except Exception as exc:
                     logger.warning("ResonanceAgent: derived module fallback LLM call failed: %s", exc)
-                    final_output = item.get("_copilot_output", {}).get("pre_prompt", "")
+                    final_output = (item.get("_operator_response_output") or item.get("_copilot_output") or {}).get("pre_prompt", "")
         elif cooperative_result and cooperative_result.success and cooperative_result.final_answer:
             final_output = cooperative_result.final_answer
             participant_backends = [p.get("backend") for p in cooperative_result.participants]
@@ -2339,7 +2340,7 @@ class ResonanceAgent:
                 final_output = self._call_llm(item)
             except Exception as exc:
                 logger.warning("ResonanceAgent: LLM call failed: %s", exc)
-                final_output = item.get("_copilot_output", {}).get("pre_prompt", "")
+                final_output = (item.get("_operator_response_output") or item.get("_copilot_output") or {}).get("pre_prompt", "")
             finally:
                 if original_primary is not None and hasattr(self._llm_backend, "primary"):
                     self._llm_backend.primary = original_primary
@@ -2558,7 +2559,7 @@ class ResonanceAgent:
             }
             return text
         # Dry-run: return the pre_prompt so the caller can see the overlay
-        copilot = item.get("_copilot_output") or {}
+        copilot = item.get("_operator_response_output") or item.get("_copilot_output") or {}
         item["_llm_backend"] = {
             "provider": "dry_run",
             "model": "",
@@ -2654,7 +2655,7 @@ class ResonanceAgent:
             parts.append(f"Контекст сессии: {self._orientation}")
 
         # 1. Copilot final_prompt (pre-assembled by Stage 8)
-        copilot = item.get("_copilot_output") or {}
+        copilot = item.get("_operator_response_output") or item.get("_copilot_output") or {}
         fp = copilot.get("final_prompt", "")
         if fp:
             parts.append(fp)
@@ -2998,7 +2999,7 @@ class ResonanceAgent:
     ) -> dict:
         """Build the spec-compliant output dict."""
         strategy  = item.get("_why_strategy")  or {}
-        copilot   = item.get("_copilot_output") or {}
+        copilot   = item.get("_operator_response_output") or item.get("_copilot_output") or {}
         intent    = item.get("_intent")
         why       = item.get("_why")
         llm_meta  = item.get("_llm_backend") or {}
@@ -3099,7 +3100,8 @@ class ResonanceAgent:
             "pre_prompt":      copilot.get("pre_prompt", ""),
             "intervention_level": copilot.get("intervention_level", "low"),
             # Interviewer model
-            "interviewer_profile": item.get("_interviewer_profile"),
+            "operator_profile": item.get("_operator_profile") or item.get("_interviewer_profile"),
+            "interviewer_profile": item.get("_operator_profile") or item.get("_interviewer_profile"),
             # Output
             "final_output":    final_output,
             "generation_time": round(generation_time, 4),
@@ -3443,7 +3445,7 @@ class ResonanceAgent:
         self, item: dict, output: str, generation_time: float
     ) -> dict:
         """Build a minimal cycle record for the learner."""
-        copilot = item.get("_copilot_output") or {}
+        copilot = item.get("_operator_response_output") or item.get("_copilot_output") or {}
         return {
             "resonance_score": item.get("_resonance_score", 0.5),
             "copilot": {

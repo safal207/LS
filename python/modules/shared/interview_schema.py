@@ -56,7 +56,11 @@ class InterviewUtterance:
         if self.why_strategy is not None:
             item["_why_strategy"] = dict(self.why_strategy)
         if self.interviewer_profile is not None:
-            item["_interviewer_profile"] = dict(self.interviewer_profile)
+            profile = dict(self.interviewer_profile)
+            item["interviewer_profile"] = dict(profile)
+            item["_interviewer_profile"] = dict(profile)
+            item["operator_profile"] = dict(profile)
+            item["_operator_profile"] = dict(profile)
         if self.timestamp is not None:
             item["timestamp"] = self.timestamp
         if self.raw:
@@ -73,6 +77,12 @@ class InterviewUtterance:
         anchor_context = data.get("anchor_context") or data.get("_anchor_context") or []
         if not isinstance(anchor_context, list):
             anchor_context = []
+        profile = (
+            data.get("operator_profile")
+            or data.get("_operator_profile")
+            or data.get("interviewer_profile")
+            or data.get("_interviewer_profile")
+        )
         return cls(
             type=str(data.get("type", "question")),
             text=str(data.get("text", "")),
@@ -83,7 +93,7 @@ class InterviewUtterance:
             intent=data.get("intent") or data.get("_intent"),
             why=data.get("why") or data.get("_why"),
             why_strategy=data.get("why_strategy") or data.get("_why_strategy"),
-            interviewer_profile=data.get("interviewer_profile") or data.get("_interviewer_profile"),
+            interviewer_profile=profile,
             anchor_context=list(anchor_context),
             timestamp=data.get("timestamp"),
             raw={k: v for k, v in data.items() if k not in {
@@ -102,6 +112,8 @@ class InterviewUtterance:
                 "_why",
                 "why_strategy",
                 "_why_strategy",
+                "operator_profile",
+                "_operator_profile",
                 "interviewer_profile",
                 "_interviewer_profile",
                 "anchor_context",
@@ -136,6 +148,18 @@ def ensure_interview_item(item: Any, *, default_source: str = "unknown") -> dict
     payload.setdefault("words", payload.get("_words", []))
     payload.setdefault("_words", payload.get("words", []))
     payload.setdefault("_asr_confidence", payload.get("confidence", 0.0))
+    profile = (
+        payload.get("operator_profile")
+        or payload.get("_operator_profile")
+        or payload.get("interviewer_profile")
+        or payload.get("_interviewer_profile")
+    )
+    if isinstance(profile, Mapping):
+        profile_dict = dict(profile)
+        payload.setdefault("operator_profile", dict(profile_dict))
+        payload.setdefault("_operator_profile", dict(profile_dict))
+        payload.setdefault("interviewer_profile", dict(profile_dict))
+        payload.setdefault("_interviewer_profile", dict(profile_dict))
     return payload
 
 

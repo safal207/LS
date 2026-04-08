@@ -952,7 +952,7 @@ class AgentLoop:
         disabled or unavailable.
         """
         # ---- Fast path: Stage 8 pre-assembled the full block ----
-        copilot = item.get("_copilot_output")
+        copilot = item.get("_operator_response_output") or item.get("_copilot_output")
         if copilot and isinstance(copilot, dict):
             content = copilot.get("final_prompt", "")
             if content:
