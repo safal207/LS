@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT_DIR = ROOT / "artifacts" / "council-ledger"
+DEFAULT_DATASET_INPUT_DIR = ROOT / "artifacts" / "fellowship-dataset" / "ledgers"
 DEFAULT_OUTPUT_PATH = ROOT / "ghostgpt-ls-landing" / "src" / "data" / "councilScorecard.json"
 
 
@@ -27,6 +28,20 @@ def clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
 
 def avg(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
+
+
+def display_model_id(value: object) -> str:
+    raw = str(value or "n/a")
+    if raw in {"callable:unknown", "unknown", "n/a"}:
+        return "local-council-llm"
+    return raw
+
+
+def display_route(value: object) -> str:
+    raw = str(value or "unknown")
+    if raw == "unknown":
+        return "route-pending"
+    return raw
 
 
 def load_ledgers(input_dir: Path) -> list[dict]:
@@ -113,13 +128,16 @@ def build_scorecard(rows: list[dict]) -> dict:
         outcome = row.get("outcome", {})
         attribution = row.get("attribution", {})
         participants = row.get("participants", [])
-        participant_types = {str(item.get("model_id")): str(item.get("model_type") or "unknown") for item in participants}
-        best = str(attribution.get("best_contributor_model_id") or "n/a")
+        participant_types = {
+            display_model_id(item.get("model_id")): str(item.get("model_type") or "unknown")
+            for item in participants
+        }
+        best = display_model_id(attribution.get("best_contributor_model_id"))
         best_counts[best] += 1
-        route = str((row.get("final_decision") or {}).get("selected_route") or "unknown")
+        route = display_route((row.get("final_decision") or {}).get("selected_route"))
         route_wins[route] += 1
         for entry in attribution.get("contribution_breakdown", []):
-            model_id = str(entry.get("model_id") or "unknown")
+            model_id = display_model_id(entry.get("model_id"))
             score = float(entry.get("total_contribution_score") or 0.0)
             contribution_totals[model_id] += score
             type_totals[participant_types.get(model_id, "unknown")].append(score)
@@ -181,19 +199,55 @@ def export_scorecard(input_dir: Path, output_path: Path, *, keep_existing_on_emp
     return payload
 
 
+def export_scorecard_with_preferred_sources(
+    *,
+    preferred_input_dirs: list[Path],
+    output_path: Path,
+    keep_existing_on_empty: bool = False,
+) -> dict:
+    for input_dir in preferred_input_dirs:
+        rows = load_ledgers(input_dir)
+        if rows:
+            payload = build_scorecard(rows)
+            payload["input_dir"] = str(input_dir)
+            if "fellowship-dataset" in str(input_dir).replace("\\", "/"):
+                payload["source"] = "fellowship_dataset"
+            write_scorecard(payload, output_path)
+            return payload
+
+    if keep_existing_on_empty and output_path.exists():
+        return json.loads(output_path.read_text(encoding="utf-8"))
+
+    payload = build_scorecard([])
+    payload["input_dir"] = ""
+    write_scorecard(payload, output_path)
+    return payload
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export council-ledger artifacts into a landing scorecard JSON snapshot.")
     parser.add_argument("--input-dir", type=Path, default=DEFAULT_INPUT_DIR)
+    parser.add_argument("--dataset-input-dir", type=Path, default=DEFAULT_DATASET_INPUT_DIR)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--keep-existing-on-empty", action="store_true")
     args = parser.parse_args()
 
-    payload = export_scorecard(args.input_dir, args.output, keep_existing_on_empty=args.keep_existing_on_empty)
-    print(json.dumps({
-        "output": str(args.output),
-        "source": payload.get("source"),
-        "ledgers": payload.get("summary", {}).get("ledgers", 0),
-    }, indent=2))
+    payload = export_scorecard_with_preferred_sources(
+        preferred_input_dirs=[args.dataset_input_dir, args.input_dir],
+        output_path=args.output,
+        keep_existing_on_empty=args.keep_existing_on_empty,
+    )
+    print(
+        json.dumps(
+            {
+                "output": str(args.output),
+                "source": payload.get("source"),
+                "input_dir": payload.get("input_dir", ""),
+                "ledgers": payload.get("summary", {}).get("ledgers", 0),
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":
