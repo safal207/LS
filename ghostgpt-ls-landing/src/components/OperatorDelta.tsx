@@ -1,6 +1,7 @@
 import { FileText, Gauge, Scale, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import councilScorecard from '../data/councilScorecard.json';
 import benchmark from '../data/operatorDeltaBenchmark.json';
 
 type Scenario = {
@@ -29,7 +30,36 @@ type BenchmarkPayload = {
   };
 };
 
+type ScorePoint = {
+  label: string;
+  value: number;
+};
+
+type CouncilScorecardPayload = {
+  summary: {
+    ledgers: number;
+    top_contributor: string;
+    success_rate: number;
+    avg_resonance: number;
+    avg_merit: number;
+  };
+  bars: {
+    best_contributor_frequency: ScorePoint[];
+    model_type_lift: ScorePoint[];
+    route_wins: ScorePoint[];
+  };
+  lines: {
+    resonance_trend: ScorePoint[];
+    merit_trend: ScorePoint[];
+  };
+  takeaways: {
+    with_ls: string[];
+    disclaimer: string;
+  };
+};
+
 const payload = benchmark as BenchmarkPayload;
+const scorecard = councilScorecard as CouncilScorecardPayload;
 
 const copy = {
   en: {
@@ -56,7 +86,23 @@ const copy = {
     tasks: 'tasks',
     seconds: 'seconds',
     commands: 'commands',
-    terminalLabel: 'Review flow preview'
+    terminalLabel: 'Review flow preview',
+    councilEyebrow: 'Council scorecard',
+    councilTitle: 'Which models actually improve the network',
+    councilSubtitle:
+      'A public-facing readout for the coordination council: contribution, route wins, receiver resonance, and merit trend in one investor-safe snapshot.',
+    ledgers: 'Ledgers',
+    topContributor: 'Top contributor',
+    successRate: 'Success rate',
+    avgResonance: 'Avg resonance',
+    avgMerit: 'Avg merit',
+    contribFreq: 'Best contributor frequency',
+    modelLift: 'Model type lift',
+    routeWins: 'Route wins',
+    resonanceTrend: 'Receiver resonance trend',
+    meritTrend: 'Merit trend',
+    scorecardTakeaways: 'What this makes visible',
+    scorecardDisclaimer: 'Scorecard disclosure'
   },
   ru: {
     eyebrow: 'Operator delta',
@@ -82,7 +128,23 @@ const copy = {
     tasks: 'задач',
     seconds: 'секунд',
     commands: 'команд',
-    terminalLabel: 'Превью review-потока'
+    terminalLabel: 'Превью review-потока',
+    councilEyebrow: 'Council scorecard',
+    councilTitle: 'Какие модели реально улучшают сеть',
+    councilSubtitle:
+      'Публичное investor-safe превью совета согласования: вклад моделей, победы route, резонанс с получателем и merit-trend в одном snapshot.',
+    ledgers: 'Циклов',
+    topContributor: 'Лидер вклада',
+    successRate: 'Успешность',
+    avgResonance: 'Средний резонанс',
+    avgMerit: 'Средний merit',
+    contribFreq: 'Частота лучшего contributor',
+    modelLift: 'Подъем по типам моделей',
+    routeWins: 'Победы маршрутов',
+    resonanceTrend: 'Тренд резонанса',
+    meritTrend: 'Тренд merit',
+    scorecardTakeaways: 'Что это делает видимым',
+    scorecardDisclaimer: 'Ограничение scorecard'
   }
 } as const;
 
@@ -137,6 +199,69 @@ const scenarioLabels = {
     batch_ltp_review: 'Batch LTP review'
   }
 } as const;
+
+function MiniBars({ data, tone = 'cyan' }: { data: ScorePoint[]; tone?: 'cyan' | 'emerald' | 'amber' }) {
+  const max = Math.max(...data.map((item) => item.value), 1);
+  const palette = {
+    cyan: 'from-cyan-300 to-sky-500',
+    emerald: 'from-emerald-300 to-emerald-500',
+    amber: 'from-amber-300 to-orange-500'
+  } as const;
+
+  return (
+    <div className="space-y-3">
+      {data.map((item) => (
+        <div key={item.label} className="space-y-1">
+          <div className="flex items-center justify-between text-xs uppercase tracking-[0.14em] text-white/65">
+            <span>{item.label}</span>
+            <span>{item.value}</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-white/10">
+            <div
+              className={`h-full rounded-full bg-gradient-to-r ${palette[tone]}`}
+              style={{ width: `${Math.max((item.value / max) * 100, 8)}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MiniLine({ data, stroke }: { data: ScorePoint[]; stroke: string }) {
+  const width = 320;
+  const height = 120;
+  const padding = 12;
+  const max = Math.max(...data.map((item) => item.value), 1);
+  const step = data.length === 1 ? 0 : (width - padding * 2) / (data.length - 1);
+  const points = data.map((item, index) => {
+    const x = padding + index * step;
+    const y = height - padding - (item.value / max) * (height - padding * 2);
+    return { ...item, x, y };
+  });
+  const polyline = points.map((point) => `${point.x},${point.y}`).join(' ');
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-32 w-full overflow-visible">
+      <polyline
+        points={polyline}
+        fill="none"
+        stroke={stroke}
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {points.map((point) => (
+        <g key={point.label}>
+          <circle cx={point.x} cy={point.y} r="4" fill={stroke} />
+          <text x={point.x} y={height - 2} textAnchor="middle" fontSize="10" fill="rgba(255,255,255,0.55)">
+            {point.label}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
 
 export default function OperatorDelta() {
   const { i18n } = useTranslation();
@@ -264,6 +389,91 @@ export default function OperatorDelta() {
                 {line}
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="mt-8 rounded-2xl border border-cyan-300/15 bg-[radial-gradient(circle_at_top_right,rgba(96,165,250,0.16),transparent_22rem),rgba(2,6,23,0.86)] p-5 md:p-6">
+          <div className="max-w-3xl">
+            <div className="text-xs uppercase tracking-[0.2em] text-cyan-200">{text.councilEyebrow}</div>
+            <h3 className="mt-3 text-2xl font-semibold md:text-4xl">{text.councilTitle}</h3>
+            <p className="mt-3 text-sm text-white/70 md:text-base">{text.councilSubtitle}</p>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-5">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.ledgers}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.ledgers}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.topContributor}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.top_contributor}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.successRate}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.success_rate.toFixed(1)}%</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.avgResonance}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.avg_resonance.toFixed(1)}%</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.avgMerit}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.avg_merit.toFixed(1)}%</div>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 xl:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-sm uppercase tracking-[0.16em] text-cyan-200">{text.contribFreq}</div>
+              <div className="mt-4">
+                <MiniBars data={scorecard.bars.best_contributor_frequency} tone="cyan" />
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-sm uppercase tracking-[0.16em] text-emerald-200">{text.modelLift}</div>
+              <div className="mt-4">
+                <MiniBars data={scorecard.bars.model_type_lift} tone="emerald" />
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-sm uppercase tracking-[0.16em] text-amber-200">{text.routeWins}</div>
+              <div className="mt-4">
+                <MiniBars data={scorecard.bars.route_wins} tone="amber" />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-sm uppercase tracking-[0.16em] text-cyan-200">{text.resonanceTrend}</div>
+              <div className="mt-4">
+                <MiniLine data={scorecard.lines.resonance_trend} stroke="#67e8f9" />
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-sm uppercase tracking-[0.16em] text-emerald-200">{text.meritTrend}</div>
+              <div className="mt-4">
+                <MiniLine data={scorecard.lines.merit_trend} stroke="#6ee7b7" />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-[1.15fr,0.85fr]">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+              <div className="text-sm uppercase tracking-[0.16em] text-cyan-200">{text.scorecardTakeaways}</div>
+              <ul className="mt-4 space-y-3 text-sm text-white/80">
+                {scorecard.takeaways.with_ls.map((item) => (
+                  <li key={item} className="rounded-xl border border-white/8 bg-white/5 px-3 py-3">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="rounded-2xl border border-amber-300/20 bg-amber-400/8 p-5 text-sm text-amber-50/90">
+              <div className="text-xs uppercase tracking-[0.16em] text-amber-100/80">{text.scorecardDisclaimer}</div>
+              <p className="mt-3">{scorecard.takeaways.disclaimer}</p>
+            </div>
           </div>
         </div>
       </div>
