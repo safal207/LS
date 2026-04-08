@@ -22,13 +22,12 @@ Say:
 - LS is a human-in-the-loop coordination runtime
 - it tracks councils, contribution, resonance, and approval-safe workflows
 
-### 2. Run a real council cycle
+### 2. Run the one-command demo path
 
 Use:
 
 ```powershell
-$env:PYTHONPATH="python"
-python -m ls.agent_shell.cli council-cycle "Run a council coordination cycle for this operator request"
+python tools/run_fellowship_demo.py "Run a council coordination cycle for this operator request" --llm-mode auto
 ```
 
 Show:
@@ -37,6 +36,8 @@ Show:
 - selected route
 - best contributor
 - emitted artifact path
+- refreshed `artifacts/fellowship-demo/demo-summary.json`
+- refreshed public `councilScorecard.json`
 
 ### 3. Open the council ledger artifact
 
@@ -95,6 +96,16 @@ Point out:
 - route wins
 - resonance trend
 - merit trend
+
+## Fast fallback
+
+If the local LLM is unavailable, the same flow can still be shown in dry-run mode:
+
+```powershell
+python tools/run_fellowship_demo.py "Run a council coordination cycle for this operator request" --llm-mode dry-run
+```
+
+This is weaker evidence than a live local cycle, but it preserves the same artifact path for a reviewer.
 
 ## What the reviewer should walk away with
 
