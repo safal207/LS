@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from shared import OperatorUtterance, ensure_operator_item
 from shared.config_loader import _load_app_aliases
+from intent.operator_strategy import analyze_operator_strategy
+from intent.operator_empathy import EmpathyNegotiationLayer
 
 
 def test_operator_utterance_alias_roundtrip() -> None:
@@ -38,3 +40,11 @@ def test_operator_runtime_is_valid_app_alias() -> None:
     aliases = _load_app_aliases()
 
     assert aliases["operator_runtime"] == "ghostgpt"
+
+
+def test_operator_alias_modules_are_importable() -> None:
+    strategy = analyze_operator_strategy("Почему стоит выбрать этот путь?")
+    layer = EmpathyNegotiationLayer()
+
+    assert strategy.answer_type
+    assert layer.process({"text": "Почему стоит выбрать этот путь?", "_operator_profile": {}})["_empathy_result"]["tone"]

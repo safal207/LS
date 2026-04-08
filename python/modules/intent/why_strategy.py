@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""WHY Strategy — battle-ready answer strategy from question type.
+"""WHY Strategy — fast operator-response strategy from question type.
 
-Lightweight, zero-dependency module for real-time interview coaching.
+Lightweight, zero-dependency module for real-time operator guidance.
 No ML, no embeddings — just fast pattern matching → actionable hints.
 
 Unlike the research-oriented ``why_layer.py``, this module is optimised for
@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, List, Tuple
 
 if TYPE_CHECKING:
-    from intent.interviewer_profile import InterviewerProfile
+    from intent.operator_profile import OperatorProfile
 
 
 # Micro-trigger: one line per answer_type, read in 0.5 sec under stress.
@@ -73,17 +73,17 @@ class WhyStrategy:
             "confidence":    round(self.confidence, 4),
         }
 
-    def apply_interviewer_bias(self, profile: "InterviewerProfile") -> None:
-        """Hard-bind answer mode based on what this interviewer cares about.
+    def apply_interviewer_bias(self, profile: "OperatorProfile") -> None:
+        """Hard-bind answer mode based on what the counterparty cares about.
 
-        Called once per question, after InterviewerProfile.observe().
+        Called once per question, after OperatorProfile.observe().
         Mutates self in-place — no new object needed.
 
         Rules (in priority order):
           1. goal == "check_experience"  → force experiential + anchor
-          2. goal == "challenge" + high pressure interviewer → force defense
-          3. interviewer prefers_examples → bump to experiential if not already
-          4. interviewer prefers_reasoning → ensure reasoning hints present
+          2. goal == "challenge" + high pressure counterparty → force defense
+          3. counterparty prefers_examples → bump to experiential if not already
+          4. counterparty prefers_reasoning → ensure reasoning hints present
         """
         # Rule 1 — experience question: always force STAR + anchor directive
         if self.goal in ("check_experience", "evaluate_experience"):
@@ -92,7 +92,7 @@ class WhyStrategy:
             if "дай конкретные цифры/метрики если есть" not in self.hints:
                 self.hints.insert(0, "ОБЯЗАТЕЛЬНО приведи свой кейс с цифрами")
 
-        # Rule 2 — challenge under a high-pressure interviewer
+        # Rule 2 — challenge under a high-pressure counterparty
         elif self.goal == "challenge" and profile.pressure_level >= 0.7:
             self.answer_type = "defense"
             self.pressure = "high"
@@ -100,13 +100,13 @@ class WhyStrategy:
             if "покажи trade-offs" not in " ".join(self.hints):
                 self.hints.insert(0, "покажи trade-offs явно")
 
-        # Rule 3 — interviewer consistently wants real examples
+        # Rule 3 — counterparty consistently wants real examples
         elif profile.prefers_examples and self.answer_type == "reasoning":
             self.answer_type = "experiential"
             self.micro_trigger = "STAR: ситуация → что сделал → результат"
             self.hints.append("добавь свой кейс в конце")
 
-        # Rule 4 — interviewer likes reasoning: strengthen reasoning hints
+        # Rule 4 — counterparty likes reasoning: strengthen reasoning hints
         elif profile.prefers_reasoning and self.answer_type == "definition":
             self.answer_type = "reasoning"
             self.micro_trigger = _MICRO_TRIGGERS["reasoning"]

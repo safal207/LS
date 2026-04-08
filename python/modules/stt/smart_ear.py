@@ -71,9 +71,9 @@ try:
         _sys_intent.path.insert(0, _intent_root)
     from intent.intent_layer import IntentLayer as _IntentLayer
     from intent.why_layer import WhyLayer as _WhyLayer
-    from intent.why_strategy import analyze_why_and_strategy as _analyze_strategy
+    from intent.operator_strategy import analyze_operator_strategy as _analyze_strategy
     from intent.operator_profile import OperatorProfile as _OperatorProfile
-    from intent.empathy_negotiation import EmpathyNegotiationLayer as _EmpathyNegotiationLayer
+    from intent.operator_empathy import EmpathyNegotiationLayer as _EmpathyNegotiationLayer
     from intent.operator_response_assembler import OperatorResponseAssembler as _OperatorResponseAssembler
     from intent.resonance_scorer import ResonanceScorer as _ResonanceScorer
     _INTENT_AVAILABLE = True

@@ -98,7 +98,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 try:
-    from intent.why_strategy import analyze_why_and_strategy as _analyze
+    from intent.operator_strategy import analyze_operator_strategy as _analyze
     _STRATEGY_OK = True
 except Exception:
     _STRATEGY_OK = False
@@ -112,7 +112,7 @@ except Exception:
     _OperatorProfile = None  # type: ignore[assignment]
 
 try:
-    from intent.empathy_negotiation import EmpathyNegotiationLayer as _EmpathyLayer
+    from intent.operator_empathy import EmpathyNegotiationLayer as _EmpathyLayer
     _EMPATHY_OK = True
 except Exception:
     _EMPATHY_OK = False

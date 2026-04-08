@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from .module_loader import DynamicModuleLoader, RuntimeModule, ModuleLifecycleEvent
     from .plugin_manager import PluginManager, Plugin, PluginLifecycleEvent, PluginPermissions
     from .monitoring import MonitorService, MonitorAlert
-    from .interview_schema import OperatorUtterance, ensure_operator_item, InterviewUtterance, ensure_interview_item
+    from .operator_utterance import OperatorUtterance, ensure_operator_item, InterviewUtterance, ensure_interview_item
     from .utils import check_system_resources, format_latency, is_question
 
 
@@ -77,7 +77,7 @@ def __getattr__(name: str):
         from .monitoring import MonitorService, MonitorAlert
         return MonitorService if name == "MonitorService" else MonitorAlert
     if name in ("OperatorUtterance", "ensure_operator_item", "InterviewUtterance", "ensure_interview_item"):
-        from .interview_schema import OperatorUtterance, ensure_operator_item, InterviewUtterance, ensure_interview_item
+        from .operator_utterance import OperatorUtterance, ensure_operator_item, InterviewUtterance, ensure_interview_item
         return {
             "OperatorUtterance": OperatorUtterance,
             "ensure_operator_item": ensure_operator_item,
