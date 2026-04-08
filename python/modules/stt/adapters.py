@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Protocol
 
-from shared.interview_schema import InterviewUtterance, ensure_interview_item
+from shared.operator_schema import OperatorUtterance, ensure_operator_item
 
 
 class STTAdapter(Protocol):
@@ -29,7 +29,7 @@ class LocalWhisperAdapter:
             result = self.engine(audio_source)
         else:
             raise TypeError("LocalWhisperAdapter.engine must be callable or expose transcribe_audio()")
-        return ensure_interview_item(result, default_source="local_stt")
+        return ensure_operator_item(result, default_source="local_stt")
 
 
 @dataclass
@@ -51,7 +51,7 @@ class CloudSTTAdapter:
                 "CloudSTTAdapter is a stub. Provide transcribe_fn to enable a cloud ASR backend."
             )
         result = self.transcribe_fn(audio_source)
-        item = ensure_interview_item(result, default_source="cloud_stt")
+        item = ensure_operator_item(result, default_source="cloud_stt")
         item["source"] = "cloud_stt"
         item.setdefault("provider", self.provider)
         item.setdefault("model", self.model)
@@ -68,16 +68,35 @@ class FallbackSTTAdapter:
     name: str = "fallback_stt"
 
     def transcribe_audio(self, audio_source: Any) -> dict[str, Any]:
-        local_item = ensure_interview_item(self.local.transcribe_audio(audio_source), default_source="local_stt")
+        local_item = ensure_operator_item(self.local.transcribe_audio(audio_source), default_source="local_stt")
         confidence = float(local_item.get("_asr_confidence", local_item.get("confidence", 0.0)) or 0.0)
         if self.cloud is None or confidence >= self.confidence_floor:
             local_item.setdefault("backend_choice", "local")
             return local_item
 
-        cloud_item = ensure_interview_item(self.cloud.transcribe_audio(audio_source), default_source="cloud_stt")
+        cloud_item = ensure_operator_item(self.cloud.transcribe_audio(audio_source), default_source="cloud_stt")
         cloud_item.setdefault("backend_choice", "cloud")
         cloud_item.setdefault("fallback_reason", f"local_confidence_below_{self.confidence_floor:.2f}")
         return cloud_item
+
+
+def build_operator_utterance(
+    text: str,
+    *,
+    confidence: float = 0.0,
+    source: str = "unknown",
+    words: list[dict[str, Any]] | None = None,
+    clean_text: str | None = None,
+) -> dict[str, Any]:
+    """Convenience constructor for adapter outputs."""
+    return OperatorUtterance(
+        type="question",
+        text=text,
+        confidence=confidence,
+        source=source,
+        words=words or [],
+        clean_text=clean_text or text,
+    ).to_item()
 
 
 def build_interview_utterance(
@@ -88,12 +107,11 @@ def build_interview_utterance(
     words: list[dict[str, Any]] | None = None,
     clean_text: str | None = None,
 ) -> dict[str, Any]:
-    """Convenience constructor for adapter outputs."""
-    return InterviewUtterance(
-        type="question",
-        text=text,
+    """Backward-compatible alias for the historical helper name."""
+    return build_operator_utterance(
+        text,
         confidence=confidence,
         source=source,
-        words=words or [],
-        clean_text=clean_text or text,
-    ).to_item()
+        words=words,
+        clean_text=clean_text,
+    )
