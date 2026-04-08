@@ -946,7 +946,7 @@ class AgentLoop:
         the live user turn) so the LLM sees it as fresh guidance without
         overriding the conversation history.
 
-        If Stage 8 BodyAwareCopilot ran, its pre-assembled ``final_prompt`` is
+        If Stage 8 operator response assembly ran, its pre-assembled ``final_prompt`` is
         used directly.  Otherwise falls back to piecemeal construction from
         individual stage outputs so the method works even when Stage 8 is
         disabled or unavailable.

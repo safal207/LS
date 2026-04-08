@@ -32,7 +32,7 @@ Design
   (e.g. from SmartEar's output queue).
 * The ``llm_fn`` callable is the only dependency on the actual LLM; if None,
   the agent returns the ``pre_prompt`` as ``final_output`` (useful in tests).
-* Thread-safe: ``InterviewerProfile`` and ``ResonanceLearner`` are guarded
+* Thread-safe: ``OperatorProfile`` and ``ResonanceLearner`` are guarded
   internally; the agent itself can be called from multiple threads.
 * ``anchor`` list is static per session; pass a new agent per conversation.
 
@@ -105,11 +105,11 @@ except Exception:
     _analyze = None  # type: ignore[assignment]
 
 try:
-    from intent.interviewer_profile import InterviewerProfile as _InterviewerProfile
+    from intent.operator_profile import OperatorProfile as _OperatorProfile
     _PROFILE_OK = True
 except Exception:
     _PROFILE_OK = False
-    _InterviewerProfile = None  # type: ignore[assignment]
+    _OperatorProfile = None  # type: ignore[assignment]
 
 try:
     from intent.empathy_negotiation import EmpathyNegotiationLayer as _EmpathyLayer
@@ -119,7 +119,7 @@ except Exception:
     _EmpathyLayer = None  # type: ignore[assignment]
 
 try:
-    from intent.body_aware_copilot import BodyAwareCopilot as _Copilot
+    from intent.operator_response_assembler import OperatorResponseAssembler as _Copilot
     _COPILOT_OK = True
 except Exception:
     _COPILOT_OK = False
@@ -810,7 +810,7 @@ class ResonanceAgent:
 
         # Stage 6b — InterviewerProfile (shared, mutated per question)
         self._profile = (
-            _InterviewerProfile() if _PROFILE_OK and _InterviewerProfile else None
+            _OperatorProfile() if _PROFILE_OK and _OperatorProfile else None
         )
 
         # Stage 7 — Empathy & Negotiation

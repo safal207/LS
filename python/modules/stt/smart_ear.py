@@ -72,9 +72,9 @@ try:
     from intent.intent_layer import IntentLayer as _IntentLayer
     from intent.why_layer import WhyLayer as _WhyLayer
     from intent.why_strategy import analyze_why_and_strategy as _analyze_strategy
-    from intent.interviewer_profile import InterviewerProfile as _InterviewerProfile
+    from intent.operator_profile import OperatorProfile as _OperatorProfile
     from intent.empathy_negotiation import EmpathyNegotiationLayer as _EmpathyNegotiationLayer
-    from intent.body_aware_copilot import BodyAwareCopilot as _BodyAwareCopilot
+    from intent.operator_response_assembler import OperatorResponseAssembler as _OperatorResponseAssembler
     from intent.resonance_scorer import ResonanceScorer as _ResonanceScorer
     _INTENT_AVAILABLE = True
 except Exception:
@@ -82,9 +82,9 @@ except Exception:
     _IntentLayer = None                  # type: ignore[assignment,misc]
     _WhyLayer = None                     # type: ignore[assignment,misc]
     _analyze_strategy = None             # type: ignore[assignment,misc]
-    _InterviewerProfile = None           # type: ignore[assignment,misc]
+    _OperatorProfile = None              # type: ignore[assignment,misc]
     _EmpathyNegotiationLayer = None      # type: ignore[assignment,misc]
-    _BodyAwareCopilot = None             # type: ignore[assignment,misc]
+    _OperatorResponseAssembler = None    # type: ignore[assignment,misc]
     _ResonanceScorer = None              # type: ignore[assignment,misc]
 
 # ConversationAnchor (optional — graceful fallback)
@@ -804,9 +804,9 @@ class WhyStrategyStage:
     def __init__(self, anchor=None) -> None:
         self._anchor = anchor
         # InterviewerProfile persists for the whole session — one observation per question
-        self._interviewer = (
-            _InterviewerProfile()
-            if (_INTENT_AVAILABLE and _InterviewerProfile is not None)
+        self._operator_profile = (
+            _OperatorProfile()
+            if (_INTENT_AVAILABLE and _OperatorProfile is not None)
             else None
         )
 
@@ -818,10 +818,10 @@ class WhyStrategyStage:
             try:
                 strategy = _analyze_strategy(text)
                 # Update interviewer model and apply hard bindings
-                if self._interviewer is not None:
-                    self._interviewer.observe(text, strategy)
-                    strategy.apply_interviewer_bias(self._interviewer)
-                    profile = self._interviewer.to_dict()
+                if self._operator_profile is not None:
+                    self._operator_profile.observe(text, strategy)
+                    strategy.apply_interviewer_bias(self._operator_profile)
+                    profile = self._operator_profile.to_dict()
                     item["_interviewer_profile"] = profile
                     item["_operator_profile"] = profile
                 item["_why_strategy"] = strategy.to_dict()
@@ -1011,17 +1011,17 @@ class SmartEar:
                 logger.warning("SmartEar: EmpathyNegotiationLayer init failed: %s", exc)
 
         # Stage 8 — Body-Aware Copilot
-        self._copilot: Optional["_BodyAwareCopilot"] = None  # type: ignore[type-arg]
+        self._copilot: Optional["_OperatorResponseAssembler"] = None  # type: ignore[type-arg]
         if (
             copilot_enabled
             and _INTENT_AVAILABLE
-            and _BodyAwareCopilot is not None
+            and _OperatorResponseAssembler is not None
         ):
             try:
-                self._copilot = _BodyAwareCopilot()
-                logger.info("SmartEar: BodyAwareCopilot enabled")
+                self._copilot = _OperatorResponseAssembler()
+                logger.info("SmartEar: OperatorResponseAssembler enabled")
             except Exception as exc:
-                logger.warning("SmartEar: BodyAwareCopilot init failed: %s", exc)
+                logger.warning("SmartEar: OperatorResponseAssembler init failed: %s", exc)
 
         # Stage 9 — Resonance Scorer
         self._resonance_scorer: Optional["_ResonanceScorer"] = None  # type: ignore[type-arg]
