@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-08T08:41:51Z",
+  "generated_at": "2026-04-08T10:46:37Z",
   "source": "fellowship_dataset",
   "summary": {
     "ledgers": 8,
@@ -110,5 +110,5 @@
     ],
     "disclaimer": "This scorecard is assembled from council-ledger artifacts found at build time. It is a snapshot of observed cycles, not a universal production guarantee."
   },
-  "input_dir": "C:\\Users\\safal\\OneDrive\\Рабочий стол\\_deck_fellowship_dataset\\artifacts\\fellowship-dataset\\ledgers"
+  "input_dir": "artifacts\\fellowship-dataset\\ledgers"
 }

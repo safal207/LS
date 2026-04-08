@@ -11,14 +11,28 @@ ARTIFACT_DIR = ROOT / "artifacts" / "council-ledger"
 SUMMARY_DIR = ROOT / "artifacts" / "fellowship-demo"
 SUMMARY_PATH = SUMMARY_DIR / "demo-summary.json"
 
-for candidate in (ROOT / "python", ROOT / "python" / "modules"):
+for candidate in (ROOT / "python", ROOT / "python" / "modules", ROOT / "tools"):
     candidate_str = str(candidate)
     if candidate_str not in sys.path:
         sys.path.insert(0, candidate_str)
 
 from ls.agent_shell.cli import CouncilLLMMode, build_council_agent  # noqa: E402
-from tools.build_fellowship_dataset import OUTPUT_LEDGER_DIR, build_dataset  # noqa: E402
-from tools.export_council_scorecard import export_scorecard  # noqa: E402
+from build_fellowship_dataset import OUTPUT_LEDGER_DIR, build_dataset  # noqa: E402
+from export_council_scorecard import export_scorecard_with_preferred_sources  # noqa: E402
+
+
+def print_plain_safe(text: str) -> None:
+    output = str(text or "")
+    try:
+        print(output)
+    except UnicodeEncodeError:
+        stream = getattr(sys.stdout, "buffer", None)
+        safe_bytes = (output + "\n").encode("cp1252", errors="replace")
+        if stream is not None:
+            stream.write(safe_bytes)
+            stream.flush()
+        else:
+            sys.stdout.write(safe_bytes.decode("cp1252", errors="replace"))
 
 
 def build_demo_summary(
@@ -73,7 +87,10 @@ def run_demo(
 
     dataset_manifest = build_dataset() if refresh_dataset else None
     scorecard_payload = (
-        export_scorecard(OUTPUT_LEDGER_DIR, ROOT / "ghostgpt-ls-landing" / "src" / "data" / "councilScorecard.json")
+        export_scorecard_with_preferred_sources(
+            preferred_input_dirs=[OUTPUT_LEDGER_DIR, artifact_dir],
+            output_path=ROOT / "ghostgpt-ls-landing" / "src" / "data" / "councilScorecard.json",
+        )
         if refresh_scorecard
         else None
     )
@@ -117,7 +134,7 @@ def main() -> None:
         refresh_dataset=not args.no_dataset_refresh,
         refresh_scorecard=not args.no_scorecard_refresh,
     )
-    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    print_plain_safe(json.dumps(summary, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

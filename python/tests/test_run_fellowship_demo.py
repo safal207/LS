@@ -44,7 +44,7 @@ def test_run_demo_writes_summary(monkeypatch, tmp_path: Path) -> None:
     )
     monkeypatch.setattr(
         run_fellowship_demo,
-        "export_scorecard",
+        "export_scorecard_with_preferred_sources",
         lambda *_, **__: {"source": "artifact", "summary": {"ledgers": 3, "success_rate": 66.67}},
     )
 
