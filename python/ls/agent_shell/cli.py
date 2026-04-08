@@ -8,6 +8,7 @@ import os
 import queue
 import urllib.error
 import urllib.request
+import requests
 
 import typer
 from rich.console import Console
@@ -31,6 +32,20 @@ app = typer.Typer(help="LS Agent Shell MVP CLI")
 console = Console()
 
 
+def print_plain_safe(text: str) -> None:
+    output = str(text or "")
+    try:
+        console.print(output)
+    except UnicodeEncodeError:
+        stream = getattr(sys.stdout, "buffer", None)
+        safe_bytes = (output + "\n").encode("cp1252", errors="replace")
+        if stream is not None:
+            stream.write(safe_bytes)
+            stream.flush()
+        else:
+            sys.stdout.write(safe_bytes.decode("cp1252", errors="replace"))
+
+
 class AccessMode(str, Enum):
     READ_ONLY = "read-only"
     SAFE_WRITE = "safe-write"
@@ -50,23 +65,55 @@ def manager() -> TaskManager:
 
 def build_local_council_llm_fn():
     try:
-        from llm.llm_module import LanguageModel
+        from config import OLLAMA_HOST, LLM_MODEL_NAME
     except ImportError:
-        from modules.llm.llm_module import LanguageModel
+        from modules.config import OLLAMA_HOST, LLM_MODEL_NAME
 
-    model = LanguageModel(queue.Queue(), queue.Queue())
-    if not model.test_ollama_connection():
+    candidate_hosts = []
+    for host in ("http://127.0.0.1:11434", OLLAMA_HOST, "http://localhost:11434"):
+        if host and host not in candidate_hosts:
+            candidate_hosts.append(host.rstrip("/"))
+
+    session = requests.Session()
+    working_host = None
+    for host in candidate_hosts:
+        try:
+            response = session.post(
+                f"{host}/api/chat",
+                json={
+                    "model": LLM_MODEL_NAME,
+                    "messages": [{"role": "user", "content": "Say only: ok"}],
+                    "stream": False,
+                    "options": {"temperature": 0.0, "num_predict": 8},
+                },
+                timeout=15,
+            )
+            response.raise_for_status()
+            working_host = host
+            break
+        except Exception:
+            continue
+    if not working_host:
         raise RuntimeError("Local Ollama backend is unavailable.")
 
     def _call(user_prompt: str, system_prompt: str) -> str:
-        response = model.generate_response(
-            user_prompt,
-            messages=[
+        payload = {
+            "model": LLM_MODEL_NAME,
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
+            "stream": False,
+            "options": {"temperature": 0.2, "num_predict": 256},
+        }
+        response = session.post(
+            f"{working_host}/api/chat",
+            json=payload,
+            timeout=60,
         )
-        return response or ""
+        response.raise_for_status()
+        body = response.json()
+        return str((((body or {}).get("message") or {}).get("content")) or "")
 
     return _call
 
@@ -316,7 +363,8 @@ def council_cycle(
         status, response = publish_council_ledger_to_liminalqa(ledger)
         console.print(f"[bold]LiminalQA publish:[/bold] HTTP {status}")
         console.print(response)
-    console.print(result.get("final_output", ""))
+    final_output = str(result.get("final_output", "") or "")
+    print_plain_safe(final_output)
 
 
 if __name__ == "__main__":
