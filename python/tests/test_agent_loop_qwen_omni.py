@@ -69,3 +69,26 @@ def test_agent_loop_starts_and_stops_qwen_worker(monkeypatch):
 
     assert _DummyOmniWorker.started >= 1
     assert _DummyOmniWorker.stopped >= 1
+
+
+def test_agent_loop_strategy_context_accepts_operator_profile(monkeypatch):
+    monkeypatch.setattr(loop_module, "VisionSubsystem", _DummyVisionSubsystem)
+    agent = loop_module.AgentLoop(handler=lambda text: f"echo:{text}")
+
+    messages = [{"role": "user", "content": "help"}]
+    enriched = agent._inject_strategy_context(
+        messages,
+        {
+            "_operator_profile": {
+                "questions_seen": 3,
+                "pressure_level": 0.5,
+                "prefers_examples": True,
+                "interrupt_count": 1,
+            }
+        },
+    )
+
+    assert len(enriched) == 2
+    assert enriched[-1]["role"] == "system"
+    assert "давление 50%" in enriched[-1]["content"]
+    assert "любит конкретные кейсы" in enriched[-1]["content"]

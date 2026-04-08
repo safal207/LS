@@ -132,7 +132,7 @@ except Exception:
 
 try:
     from shared.utils import is_question
-    from shared.interview_schema import ensure_interview_item
+    from shared.operator_schema import ensure_operator_item
 except ImportError:
     def is_question(text: str) -> bool:  # type: ignore[misc]
         """Minimal fallback: ends with '?' or starts with a question word."""
@@ -142,7 +142,7 @@ except ImportError:
         _Q = {"что", "как", "почему", "зачем", "когда", "где", "кто",
               "what", "how", "why", "when", "where", "who", "which"}
         return text.lower().split()[0] in _Q if text else False
-    def ensure_interview_item(item, *, default_source: str = "unknown"):  # type: ignore[misc]
+    def ensure_operator_item(item, *, default_source: str = "unknown"):  # type: ignore[misc]
         return item
 
 logger = logging.getLogger(__name__)
@@ -821,7 +821,9 @@ class WhyStrategyStage:
                 if self._interviewer is not None:
                     self._interviewer.observe(text, strategy)
                     strategy.apply_interviewer_bias(self._interviewer)
-                    item["_interviewer_profile"] = self._interviewer.to_dict()
+                    profile = self._interviewer.to_dict()
+                    item["_interviewer_profile"] = profile
+                    item["_operator_profile"] = profile
                 item["_why_strategy"] = strategy.to_dict()
             except Exception as exc:
                 logger.debug("WhyStrategyStage: strategy failed: %s", exc)
@@ -1187,7 +1189,7 @@ class SmartEar:
         return self._process(item)
 
     def _process(self, item: dict) -> Optional[dict]:
-        item = ensure_interview_item(item, default_source="local_stt")
+        item = ensure_operator_item(item, default_source="local_stt")
         original_text = item.get("text", "")
 
         self._step_flow("perceive", {"text": original_text})
