@@ -16,7 +16,7 @@ It follows the current repository direction:
 
 Already in repository:
 
-- `InterviewUtterance` contract (historical name for the shared multimodal utterance object)
+- `OperatorUtterance` contract (the neutral shared multimodal utterance object)
 - pluggable LLM backends:
   - `gonka`
   - `mimo`

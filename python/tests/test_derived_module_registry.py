@@ -21,7 +21,7 @@ def test_derived_module_registry_creates_and_selects_module(tmp_path):
         task_type="evaluate_reasoning",
         preferred_backend="local",
         policy_type="prompt_policy",
-        policy_text="Use concise technical interview answers.",
+        policy_text="Use concise technical operator answers.",
         quality_score=0.84,
     )
 
@@ -47,7 +47,7 @@ def test_derived_module_registry_marks_usage_and_updates_scores(tmp_path):
         task_type="evaluate_reasoning",
         preferred_backend="local",
         policy_type="prompt_policy",
-        policy_text="Use concise technical interview answers.",
+        policy_text="Use concise technical operator answers.",
         quality_score=0.8,
     )
 

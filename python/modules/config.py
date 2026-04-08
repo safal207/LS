@@ -134,7 +134,7 @@ TEMPERATURE = _get(["llm", "temperature"], 0.6)
 MAX_TOKENS = _get(["llm", "max_tokens"], 4096)
 TOP_P = _get(["llm", "top_p"], 0.9)
 
-# System prompt for interview context
+# System prompt for operator runtime context
 SYSTEM_PROMPT = _get(["llm", "system_prompt"], "")
 
 # Question detection keywords

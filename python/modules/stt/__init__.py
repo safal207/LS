@@ -17,9 +17,9 @@ __all__ = [
     "CloudSTTAdapter",
     "FallbackSTTAdapter",
     "build_operator_utterance",
-    "build_interview_utterance",
     "STTFactoryConfig",
     "build_stt_adapter",
+    "build_interview_utterance",
 ]
 
 

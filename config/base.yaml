@@ -31,10 +31,10 @@ llm:
     failure_threshold: 3
     cooldown_seconds: 10
   system_prompt: |
-    You are a senior developer interviewing candidates. 
-    Provide concise, bullet-point answers suitable for technical interviews.
-    Focus on practical knowledge and real-world applications.
-    Answer in Russian since the interview is conducted in Russian.
+    You are a senior developer supporting an operator in technical decision-making.
+    Provide concise, practical, bullet-point answers suitable for engineering workflows.
+    Focus on real-world trade-offs, implementation details, and review-safe guidance.
+    Answer in Russian.
   groq:
     api_key: ""
     model: llama3-8b-8192

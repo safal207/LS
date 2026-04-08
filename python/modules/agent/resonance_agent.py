@@ -2599,7 +2599,7 @@ class ResonanceAgent:
             style_example = style_example[:400].rstrip() + "..."
         parts = [
             "Role: derived micro-module.",
-            "Answer the interview question briefly, precisely, and without fluff.",
+            "Answer the operator request briefly, precisely, and without fluff.",
             "Do not invent numbers, projects, cases, or facts.",
             "Keep the response aligned with the question, why-context, and conversation thread.",
             f"Domain: {intent_tag}.",

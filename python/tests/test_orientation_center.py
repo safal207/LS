@@ -134,7 +134,7 @@ def test_orientation_center_prefers_derived_module_when_available(tmp_path):
         task_type="evaluate_reasoning",
         preferred_backend="local",
         policy_type="prompt_policy",
-        policy_text="Use concise interview answers.",
+        policy_text="Use concise operator answers.",
         quality_score=0.84,
     )
     center = OrientationCenter(
@@ -170,7 +170,7 @@ def test_orientation_center_blocks_derived_module_when_adequacy_intervenes(tmp_p
         task_type="evaluate_reasoning",
         preferred_backend="local",
         policy_type="prompt_policy",
-        policy_text="Use concise interview answers.",
+        policy_text="Use concise operator answers.",
         quality_score=0.84,
     )
     center = OrientationCenter(

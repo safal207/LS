@@ -120,7 +120,7 @@ The current package includes:
 
 This is enough to present the repository as a credible early research-and-engineering artifact rather than only an aspirational concept.
 
-## Best framing sentence for interviews or forms
+## Best framing sentence for forms or reviewer calls
 
 LS is a local-first coordination and oversight runtime that makes multi-model reasoning reviewable, replayable, and measurable through council-cycle artifacts, contribution tracking, receiver resonance, and approval-safe operator workflows.
 

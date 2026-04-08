@@ -96,7 +96,7 @@ class TestEntrypointImports(unittest.TestCase):
         console = importlib.import_module("apps.console.main")
         ghost = importlib.import_module("apps.ghostgpt.main")
 
-        self.assertTrue(hasattr(console, "InterviewCopilot"))
+        self.assertTrue(hasattr(console, "ConsoleRuntime"))
         self.assertTrue(hasattr(ghost, "GhostGPT"))
 
 

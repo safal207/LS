@@ -1,6 +1,6 @@
 # OpenAI Safety Fellowship Positioning
 
-This repository should be presented as a safety and oversight runtime for human-plus-model systems, not as a generic chatbot or interview helper.
+This repository should be presented as a safety and oversight runtime for human-plus-model systems, not as a generic chatbot or answer helper.
 
 ## Core framing
 
@@ -98,7 +98,7 @@ When curating the repo for the fellowship, emphasize these areas first:
 
 De-emphasize or avoid leading with:
 
-- legacy interview-first wording
+- legacy assistant-first wording
 - generic assistant framing
 - features that look like convenience-only UX without safety or oversight value
 

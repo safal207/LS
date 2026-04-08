@@ -31,7 +31,7 @@ Do not move operator semantics into the STT layer. Keep STT backend-agnostic and
         +-- cloud ASR fallback
         |
         v
-InterviewUtterance
+OperatorUtterance
         |
         v
 [SmartEar]
@@ -132,12 +132,12 @@ python/modules/agent/loop.py
 15. Feedback updates corrections / profile / strategy
 ```
 
-## InterviewUtterance Contract
+## OperatorUtterance Contract
 
 Use one shared structure across STT and SmartEar:
 
 ```python
-InterviewUtterance(
+OperatorUtterance(
     type="question",
     text="Summarize the current operator request.",
     confidence=0.91,
@@ -147,7 +147,7 @@ InterviewUtterance(
     intent="task_clarification",
     why="support_decision",
     why_strategy={...},
-    interviewer_profile={...},
+    operator_profile={...},
     anchor_context=[...],
 )
 ```
@@ -214,7 +214,7 @@ The future Rust hot path for meritocracy selection is documented in `docs/RUST_M
 
 ## Recommended Next Implementation Step
 
-1. Introduce `InterviewUtterance` as a shared contract.
+1. Introduce `OperatorUtterance` as a shared contract.
 2. Add `LocalSTTAdapter` and `CloudSTTAdapter`.
 3. Add a factory that wires adapters from profile/config.
 4. Make `SmartEar` consume and enrich the shared contract.

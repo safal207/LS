@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Tests for the interview pipeline components:
+Tests for the multimodal operator pipeline components:
   - OCR module (perception/ocr.py)
   - VisionSubsystem.get_latest_screen_text()
   - TTS Speaker (tts/speaker.py)

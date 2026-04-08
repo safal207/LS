@@ -48,7 +48,6 @@ def _load_app_aliases() -> Dict[str, str]:
         "console": "console",
         "ghostgpt": "ghostgpt",
         "ghost_gui": "ghostgpt",
-        "interview_copilot": "ghostgpt",
         "operator_runtime": "ghostgpt",
     }
 

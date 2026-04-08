@@ -1,6 +1,6 @@
 # Fellowship Demo Path
 
-This demo path is designed for a reviewer, interviewer, or fellowship screener
+This demo path is designed for a reviewer, fellowship screener,
 who needs to understand the repository quickly.
 
 ## Goal
