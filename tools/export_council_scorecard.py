@@ -29,6 +29,20 @@ def avg(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
+def normalize_model_label(value: object) -> str:
+    label = str(value or "n/a")
+    if label in {"callable:unknown", "dry_run:unknown", "unknown", "n/a"}:
+        return "local-council-llm"
+    return label
+
+
+def normalize_route_label(value: object) -> str:
+    label = str(value or "unknown")
+    if label == "unknown":
+        return "route-pending"
+    return label
+
+
 def load_ledgers(input_dir: Path) -> list[dict]:
     rows: list[dict] = []
     if not input_dir.exists():
@@ -46,11 +60,11 @@ def load_ledgers(input_dir: Path) -> list[dict]:
 
 def classify_row(row: dict) -> str:
     cycle_id = str(row.get("cycle_id") or "")
-    best = str((row.get("attribution") or {}).get("best_contributor_model_id") or "n/a")
-    route = str((row.get("final_decision") or {}).get("selected_route") or "unknown")
+    best = normalize_model_label((row.get("attribution") or {}).get("best_contributor_model_id"))
+    route = normalize_route_label((row.get("final_decision") or {}).get("selected_route"))
     if cycle_id.startswith("demo-cycle-"):
         return "demo"
-    if best in {"dry_run:unknown", "unknown", "n/a"} or route == "unknown":
+    if route == "route-pending":
         return "low_signal"
     return "artifact"
 
@@ -113,13 +127,16 @@ def build_scorecard(rows: list[dict]) -> dict:
         outcome = row.get("outcome", {})
         attribution = row.get("attribution", {})
         participants = row.get("participants", [])
-        participant_types = {str(item.get("model_id")): str(item.get("model_type") or "unknown") for item in participants}
-        best = str(attribution.get("best_contributor_model_id") or "n/a")
+        participant_types = {
+            normalize_model_label(item.get("model_id")): str(item.get("model_type") or "unknown")
+            for item in participants
+        }
+        best = normalize_model_label(attribution.get("best_contributor_model_id"))
         best_counts[best] += 1
-        route = str((row.get("final_decision") or {}).get("selected_route") or "unknown")
+        route = normalize_route_label((row.get("final_decision") or {}).get("selected_route"))
         route_wins[route] += 1
         for entry in attribution.get("contribution_breakdown", []):
-            model_id = str(entry.get("model_id") or "unknown")
+            model_id = normalize_model_label(entry.get("model_id"))
             score = float(entry.get("total_contribution_score") or 0.0)
             contribution_totals[model_id] += score
             type_totals[participant_types.get(model_id, "unknown")].append(score)

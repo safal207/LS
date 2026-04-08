@@ -1,30 +1,34 @@
 {
-  "generated_at": "2026-04-08T06:39:55Z",
-  "source": "artifact",
+  "generated_at": "2026-04-08T10:43:07Z",
+  "source": "mixed",
   "summary": {
-    "ledgers": 2,
-    "top_contributor": "primary-llm",
-    "success_rate": 0.0,
-    "avg_resonance": 50.0,
-    "avg_merit": 40.33
+    "ledgers": 8,
+    "top_contributor": "local-council-llm",
+    "success_rate": 87.5,
+    "avg_resonance": 40.62,
+    "avg_merit": 41.36
   },
   "bars": {
     "best_contributor_frequency": [
       {
         "label": "primary-llm",
-        "value": 2
+        "value": 1
+      },
+      {
+        "label": "local-council-llm",
+        "value": 7
       }
     ],
     "model_type_lift": [
       {
         "label": "primary_llm",
-        "value": 0.71
+        "value": 0.8345
       }
     ],
     "route_wins": [
       {
-        "label": "r1",
-        "value": 2
+        "label": "route-pending",
+        "value": 8
       }
     ]
   },
@@ -36,23 +40,71 @@
       },
       {
         "label": "c2",
+        "value": 25.0
+      },
+      {
+        "label": "c3",
+        "value": 25.0
+      },
+      {
+        "label": "c4",
+        "value": 75.0
+      },
+      {
+        "label": "c5",
         "value": 50.0
+      },
+      {
+        "label": "c6",
+        "value": 50.0
+      },
+      {
+        "label": "c7",
+        "value": 25.0
+      },
+      {
+        "label": "c8",
+        "value": 25.0
       }
     ],
     "merit_trend": [
       {
         "label": "c1",
-        "value": 40.33
+        "value": 40.71
       },
       {
         "label": "c2",
-        "value": 40.33
+        "value": 36.54
+      },
+      {
+        "label": "c3",
+        "value": 36.47
+      },
+      {
+        "label": "c4",
+        "value": 53.79
+      },
+      {
+        "label": "c5",
+        "value": 45.21
+      },
+      {
+        "label": "c6",
+        "value": 45.12
+      },
+      {
+        "label": "c7",
+        "value": 36.54
+      },
+      {
+        "label": "c8",
+        "value": 36.47
       }
     ]
   },
   "takeaways": {
     "with_ls": [
-      "primary-llm currently leads the council on repeated cycles, so model contribution is observable instead of anecdotal.",
+      "local-council-llm currently leads the council on repeated cycles, so model contribution is observable instead of anecdotal.",
       "Receiver resonance trends show whether answers are becoming easier to accept over time.",
       "Route win counts expose which graph paths actually close with quality, not just which ones sound plausible."
     ],

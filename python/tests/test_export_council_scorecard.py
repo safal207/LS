@@ -64,3 +64,25 @@ def test_export_scorecard_keeps_existing_snapshot_when_empty(tmp_path: Path) -> 
 
     assert payload["summary"]["ledgers"] == 7
     assert json.loads(output_path.read_text(encoding="utf-8"))["summary"]["ledgers"] == 7
+
+
+def test_export_scorecard_normalizes_low_signal_labels(tmp_path: Path) -> None:
+    input_dir = tmp_path / "council-ledger"
+    output_path = tmp_path / "councilScorecard.json"
+    input_dir.mkdir()
+    _write_ledger(
+        input_dir / "a.json",
+        cycle_id="cycle-a",
+        model_id="callable:unknown",
+        model_type="local",
+        route="unknown",
+        success=True,
+        resonance=0.4,
+        network=0.0,
+        score=0.8,
+    )
+
+    payload = export_scorecard(input_dir, output_path)
+
+    assert payload["summary"]["top_contributor"] == "local-council-llm"
+    assert payload["bars"]["route_wins"][0]["label"] == "route-pending"
