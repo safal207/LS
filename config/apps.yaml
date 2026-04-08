@@ -7,4 +7,5 @@ apps:
     aliases:
       - ghostgpt
       - ghost_gui
+      - operator_runtime
       - interview_copilot
