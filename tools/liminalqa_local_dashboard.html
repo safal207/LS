@@ -234,6 +234,34 @@
       finally{setBusy(button,false);}
     }
 
+    const originalSetLanguage=setLanguage;
+    setLanguage=function(next){
+      originalSetLanguage(next);
+      el("run-real-council-cycle").dataset.label=lang==="ru"?"Запустить real council cycle":"Run Real Council Cycle";
+      if(!el("run-real-council-cycle").disabled){
+        el("run-real-council-cycle").textContent=el("run-real-council-cycle").dataset.label;
+      }
+    };
+
+    const originalSummaryFor=summaryFor;
+    summaryFor=function(payload){
+      if(Object.hasOwn(payload,"timeout_seconds")) return lang==="ru"
+        ? `Real council cycle не уложился в ${payload.timeout_seconds} сек. Попробуй demo-ledger или повтори позже.`
+        : `Real council cycle exceeded ${payload.timeout_seconds} seconds. Try the demo ledger first or rerun later.`;
+      if(Object.hasOwn(payload,"artifact_path")) return lang==="ru"
+        ? `Real council cycle завершен: route=${payload.selected_route||"unknown"}, best contributor=${payload.best_contributor_model_id||"n/a"}, resonance=${payload.receiver_resonance_score??"n/a"}.`
+        : `Real council cycle completed: route=${payload.selected_route||"unknown"}, best contributor=${payload.best_contributor_model_id||"n/a"}, resonance=${payload.receiver_resonance_score??"n/a"}.`;
+      return originalSummaryFor(payload);
+    };
+
+    const originalRunAction=runAction;
+    runAction=async function(buttonId,path,after,options={}){
+      if(options.pendingSummary){
+        showResult({status:"running",action:buttonId},options.pendingSummary);
+      }
+      return originalRunAction(buttonId,path,after);
+    };
+
     el("lang-ru").addEventListener("click",()=>setLanguage("ru"));
     el("lang-en").addEventListener("click",()=>setLanguage("en"));
     el("refresh-health").addEventListener("click",()=>runAction("refresh-health","/api/health"));
@@ -242,7 +270,7 @@
     el("generate-quality-report").addEventListener("click",()=>runAction("generate-quality-report","/api/generate-quality-report",async()=>refreshQualityPreview()));
     el("publish-quality-report").addEventListener("click",()=>{if(el("publish-quality-report").disabled){showResult({error:text[lang].publishDisabled},text[lang].publishDisabled); return;} runAction("publish-quality-report","/api/publish-quality-report",async()=>{await refreshHealth(false); await refreshQualityPreview();});});
     el("run-query").addEventListener("click",()=>runAction("run-query","/api/query"));
-    el("run-real-council-cycle").addEventListener("click",()=>runAction("run-real-council-cycle","/api/run-real-council-cycle",async()=>refreshCouncilAnalytics()));
+    el("run-real-council-cycle").addEventListener("click",()=>runAction("run-real-council-cycle","/api/run-real-council-cycle",async()=>refreshCouncilAnalytics(),{pendingSummary:lang==="ru"?"Запускаю реальный council cycle. Это может занять до 45 секунд, потом панель автоматически обновит council analytics.":"Running a real council cycle. This can take up to 45 seconds, then the dashboard will refresh council analytics automatically."}));
     el("generate-demo-council-ledger").addEventListener("click",()=>runAction("generate-demo-council-ledger","/api/generate-demo-council-ledger",async()=>refreshCouncilAnalytics()));
     el("copy-json").addEventListener("click",async()=>{await navigator.clipboard.writeText(safeJson(lastResult)); el("result-toast").hidden=false; el("result-toast").innerHTML=`<strong>${text[lang].copied}</strong>`;});
 

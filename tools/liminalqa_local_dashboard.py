@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import os
 import pathlib
@@ -28,6 +29,7 @@ QUALITY_DIR = ARTIFACTS_DIR / "quality"
 QUALITY_REPORT_PATH = ARTIFACTS_DIR / "quality-report.json"
 COUNCIL_LEDGER_DIR = ARTIFACTS_DIR / "council-ledger"
 DOCS_BASE_URL = "https://github.com/safal207/LS/blob/main/docs"
+COUNCIL_CYCLE_TIMEOUT_SECONDS = 45
 FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#161311"/><path d="M16 47V17h8v23h20v7H16zm17-8 9-22h8L40 39h-7z" fill="#fffaf1"/></svg>'
 LANE = {
     "key": "mesh-tests",
@@ -534,7 +536,17 @@ def run_real_council_cycle() -> tuple[int, object]:
     prompt = "Run a local council coordination cycle for dashboard observability and contribution tracking."
     agent = ResonanceAgent(anchor=[], llm_fn=None, orientation="dashboard-council-cycle")
     agent._council_ledger_dir = COUNCIL_LEDGER_DIR
-    result = agent.process_text(prompt)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(agent.process_text, prompt)
+        try:
+            result = future.result(timeout=COUNCIL_CYCLE_TIMEOUT_SECONDS)
+        except concurrent.futures.TimeoutError:
+            future.cancel()
+            return 504, {
+                "error": "real council cycle timed out",
+                "timeout_seconds": COUNCIL_CYCLE_TIMEOUT_SECONDS,
+                "hint": "Try the demo council ledger first, or rerun the real cycle after the environment is warm.",
+            }
     ledger = result.get("council_contribution_ledger") or {}
     artifact_path = result.get("council_contribution_ledger_artifact")
     if not artifact_path:
