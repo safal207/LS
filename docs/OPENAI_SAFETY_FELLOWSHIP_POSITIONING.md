@@ -2,6 +2,8 @@
 
 This repository should be presented as a safety and oversight runtime for human-plus-model systems, not as a generic chatbot or answer helper.
 
+Although this note is written for the OpenAI Safety Fellowship, the same framing also works for adjacent safety, alignment, oversight, and evaluation-oriented programs.
+
 ## Core framing
 
 LS is a human-in-the-loop coordination runtime that turns multi-model and multi-signal reasoning into:

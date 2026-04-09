@@ -1,6 +1,6 @@
 # Fellowship Application Ready Pack
 
-This document is the single entry point for using this repository in a fellowship application.
+This document is the single entry point for using this repository in a fellowship application or in a similar safety, oversight, or evaluation-oriented program.
 
 It is designed for fast reuse:
 
@@ -38,6 +38,7 @@ The current repository already shows five concrete capabilities:
 
 Start with:
 
+- [`docs/SAFETY_PROGRAMS_POSITIONING.md`](SAFETY_PROGRAMS_POSITIONING.md)
 - [`docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md`](OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md)
 - [`docs/FELLOWSHIP_APPLICATION_BRIEF.md`](FELLOWSHIP_APPLICATION_BRIEF.md)
 - [`docs/FELLOWSHIP_ONE_PAGER.md`](FELLOWSHIP_ONE_PAGER.md)
@@ -89,10 +90,11 @@ Use instead:
 If the application allows links or supplementary materials, the minimum useful package is:
 
 1. repository link
-2. [`docs/FELLOWSHIP_ONE_PAGER.md`](FELLOWSHIP_ONE_PAGER.md)
-3. [`docs/FELLOWSHIP_DEMO_PATH.md`](FELLOWSHIP_DEMO_PATH.md)
-4. [`docs/FELLOWSHIP_BENCHMARK_NOTE.md`](FELLOWSHIP_BENCHMARK_NOTE.md)
-5. [`artifacts/fellowship-dataset/README.md`](../artifacts/fellowship-dataset/README.md)
+2. [`docs/SAFETY_PROGRAMS_POSITIONING.md`](SAFETY_PROGRAMS_POSITIONING.md)
+3. [`docs/FELLOWSHIP_ONE_PAGER.md`](FELLOWSHIP_ONE_PAGER.md)
+4. [`docs/FELLOWSHIP_DEMO_PATH.md`](FELLOWSHIP_DEMO_PATH.md)
+5. [`docs/FELLOWSHIP_BENCHMARK_NOTE.md`](FELLOWSHIP_BENCHMARK_NOTE.md)
+6. [`artifacts/fellowship-dataset/README.md`](../artifacts/fellowship-dataset/README.md)
 
 ## Suggested live demo order
 
