@@ -8,8 +8,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER_DIR = ROOT / "artifacts" / "council-ledger"
+QUALITY_DIR = ROOT / "artifacts" / "council-quality"
 OUTPUT_DIR = ROOT / "artifacts" / "fellowship-dataset"
 OUTPUT_LEDGER_DIR = OUTPUT_DIR / "ledgers"
+OUTPUT_QUALITY_DIR = OUTPUT_DIR / "council-quality"
 OUTPUT_TRACE_DIR = OUTPUT_DIR / "traces"
 
 
@@ -95,7 +97,25 @@ def select_rows(rows: list[LedgerRow], limit: int = 8) -> list[LedgerRow]:
 
 
 def build_manifest(selected: list[LedgerRow]) -> dict:
+    quality_by_cycle: dict[str, dict] = {}
+    for path in QUALITY_DIR.glob("*.json"):
+        try:
+            payload = read_json(path)
+        except Exception:
+            continue
+        cycle_id = str(payload.get("cycle_id") or "")
+        if cycle_id:
+            quality_by_cycle[cycle_id] = payload
+
     success_count = sum(1 for row in selected if row.success)
+    quality_scores = [
+        float((quality_by_cycle.get(row.cycle_id) or {}).get("quality_score") or 0.0)
+        for row in selected
+        if (quality_by_cycle.get(row.cycle_id) or {}).get("quality_score") is not None
+    ]
+    liminalqa_published_count = sum(
+        1 for row in selected if bool(((quality_by_cycle.get(row.cycle_id) or {}).get("liminalqa") or {}).get("published"))
+    )
     return {
         "dataset_name": "ls-fellowship-council-ledger-sample",
         "source": "artifacts/council-ledger",
@@ -110,16 +130,25 @@ def build_manifest(selected: list[LedgerRow]) -> dict:
             "failure_count": len(selected) - success_count,
             "avg_resonance": round(sum(row.resonance for row in selected) / len(selected), 4) if selected else 0.0,
             "avg_contribution": round(sum(row.contribution for row in selected) / len(selected), 4) if selected else 0.0,
+            "avg_quality_score": round(sum(quality_scores) / len(quality_scores), 4) if quality_scores else 0.0,
+            "liminalqa_published_count": liminalqa_published_count,
         },
         "items": [
             {
                 "cycle_id": row.cycle_id,
                 "file": f"ledgers/{row.path.name}",
+                "quality_file": (
+                    f"council-quality/{row.cycle_id}.json"
+                    if row.cycle_id in quality_by_cycle
+                    else None
+                ),
                 "model_id": row.model_id,
                 "route": row.route,
                 "success": row.success,
                 "receiver_resonance": row.resonance,
                 "best_contributor_score": row.contribution,
+                "quality_score": (quality_by_cycle.get(row.cycle_id) or {}).get("quality_score"),
+                "liminalqa_published": bool(((quality_by_cycle.get(row.cycle_id) or {}).get("liminalqa") or {}).get("published")),
                 "goal_summary": row.goal_summary,
                 "source_type": row.source_type,
             }
@@ -149,6 +178,8 @@ Summary:
 - failure_count: {manifest["summary"]["failure_count"]}
 - avg_resonance: {manifest["summary"]["avg_resonance"]}
 - avg_contribution: {manifest["summary"]["avg_contribution"]}
+- avg_quality_score: {manifest["summary"]["avg_quality_score"]}
+- liminalqa_published_count: {manifest["summary"]["liminalqa_published_count"]}
 
 Selection policy:
 
@@ -161,6 +192,7 @@ Contents:
 
 - `manifest.json`: dataset manifest and limitations
 - `ledgers/`: selected council-ledger JSON artifacts
+- `council-quality/`: paired council-quality artifacts when available
 - `traces/`: reserved for replay traces in a follow-up package
 """
     (OUTPUT_DIR / "README.md").write_text(text, encoding="utf-8")
@@ -173,10 +205,14 @@ def build_dataset() -> dict:
     if OUTPUT_DIR.exists():
         shutil.rmtree(OUTPUT_DIR)
     OUTPUT_LEDGER_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT_QUALITY_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_TRACE_DIR.mkdir(parents=True, exist_ok=True)
 
     for row in selected:
         shutil.copy2(row.path, OUTPUT_LEDGER_DIR / row.path.name)
+        quality_path = QUALITY_DIR / f"{row.cycle_id}.json"
+        if quality_path.exists():
+            shutil.copy2(quality_path, OUTPUT_QUALITY_DIR / quality_path.name)
 
     manifest = build_manifest(selected)
     (OUTPUT_DIR / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

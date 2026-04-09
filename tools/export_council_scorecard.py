@@ -10,6 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT_DIR = ROOT / "artifacts" / "council-ledger"
 DEFAULT_DATASET_INPUT_DIR = ROOT / "artifacts" / "fellowship-dataset" / "ledgers"
+DEFAULT_DATASET_QUALITY_DIR = ROOT / "artifacts" / "fellowship-dataset" / "council-quality"
+DEFAULT_QUALITY_INPUT_DIR = ROOT / "artifacts" / "council-quality"
 DEFAULT_OUTPUT_PATH = ROOT / "ghostgpt-ls-landing" / "src" / "data" / "councilScorecard.json"
 
 
@@ -59,6 +61,21 @@ def load_ledgers(input_dir: Path) -> list[dict]:
     return rows
 
 
+def load_quality_artifacts(input_dir: Path) -> dict[str, dict]:
+    rows: dict[str, dict] = {}
+    if not input_dir.exists():
+        return rows
+    for path in sorted(input_dir.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        cycle_id = str(payload.get("cycle_id") or "")
+        if cycle_id:
+            rows[cycle_id] = payload
+    return rows
+
+
 def classify_row(row: dict) -> str:
     cycle_id = str(row.get("cycle_id") or "")
     best = normalize_model_label((row.get("attribution") or {}).get("best_contributor_model_id"))
@@ -82,9 +99,10 @@ def select_rows(rows: list[dict]) -> tuple[list[dict], str]:
     return rows, "mixed"
 
 
-def build_scorecard(rows: list[dict]) -> dict:
+def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | None = None) -> dict:
     generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     selected_rows, source = select_rows(rows)
+    quality_by_cycle = quality_by_cycle or {}
     if not selected_rows:
         return {
             "generated_at": generated_at,
@@ -95,6 +113,7 @@ def build_scorecard(rows: list[dict]) -> dict:
                 "success_rate": 0.0,
                 "avg_resonance": 0.0,
                 "avg_merit": 0.0,
+                "avg_quality": 0.0,
             },
             "bars": {
                 "best_contributor_frequency": [],
@@ -124,10 +143,14 @@ def build_scorecard(rows: list[dict]) -> dict:
     successes: list[float] = []
     resonances: list[float] = []
     merits: list[float] = []
+    qualities: list[float] = []
     for index, row in enumerate(selected_rows, start=1):
         outcome = row.get("outcome", {})
         attribution = row.get("attribution", {})
         participants = row.get("participants", [])
+        cycle_id = str(row.get("cycle_id") or "")
+        quality_payload = quality_by_cycle.get(cycle_id) or {}
+        quality_outcome = quality_payload.get("council_outcome") or {}
         participant_types = {
             normalize_model_label(item.get("model_id")): str(item.get("model_type") or "unknown")
             for item in participants
@@ -143,7 +166,14 @@ def build_scorecard(rows: list[dict]) -> dict:
             type_totals[participant_types.get(model_id, "unknown")].append(score)
         success = 1.0 if outcome.get("success") else 0.0
         resonance = float(outcome.get("receiver_resonance_score", outcome.get("operator_feedback_score", 0.0)) or 0.0)
-        network = float(outcome.get("network_improvement", 0.0) or 0.0)
+        quality_score = (
+            float(quality_payload.get("quality_score"))
+            if quality_payload.get("quality_score") is not None
+            else clamp(
+                (float(outcome.get("path_quality", 0.0) or 0.0) + resonance + success) / 3.0
+            )
+        )
+        network = float(quality_outcome.get("network_improvement", outcome.get("network_improvement", 0.0)) or 0.0)
         merit = clamp((float(attribution.get("best_contributor_score", 0.0) or 0.0) + resonance + max(network, 0.0)) / 3.0)
         label = f"c{index}"
         resonance_series.append({"label": label, "value": round(resonance * 100.0, 2)})
@@ -151,6 +181,7 @@ def build_scorecard(rows: list[dict]) -> dict:
         successes.append(success)
         resonances.append(resonance)
         merits.append(merit)
+        qualities.append(quality_score)
     type_lift = {key: round(avg(values), 4) for key, values in type_totals.items()}
     top_contributor = best_counts.most_common(1)[0][0] if best_counts else "n/a"
     takeaways = {
@@ -171,6 +202,7 @@ def build_scorecard(rows: list[dict]) -> dict:
             "success_rate": round(avg(successes) * 100.0, 2),
             "avg_resonance": round(avg(resonances) * 100.0, 2),
             "avg_merit": round(avg(merits) * 100.0, 2),
+            "avg_quality": round(avg(qualities) * 100.0, 2),
         },
         "bars": {
             "best_contributor_frequency": [{"label": key, "value": value} for key, value in best_counts.items()],
@@ -192,9 +224,11 @@ def write_scorecard(payload: dict, output_path: Path) -> None:
 
 def export_scorecard(input_dir: Path, output_path: Path, *, keep_existing_on_empty: bool = False) -> dict:
     rows = load_ledgers(input_dir)
+    quality_dir = input_dir.parent / "council-quality"
+    quality_by_cycle = load_quality_artifacts(quality_dir)
     if keep_existing_on_empty and not rows and output_path.exists():
         return json.loads(output_path.read_text(encoding="utf-8"))
-    payload = build_scorecard(rows)
+    payload = build_scorecard(rows, quality_by_cycle=quality_by_cycle)
     write_scorecard(payload, output_path)
     return payload
 
@@ -208,7 +242,8 @@ def export_scorecard_with_preferred_sources(
     for input_dir in preferred_input_dirs:
         rows = load_ledgers(input_dir)
         if rows:
-            payload = build_scorecard(rows)
+            quality_dir = input_dir.parent / "council-quality"
+            payload = build_scorecard(rows, quality_by_cycle=load_quality_artifacts(quality_dir))
             payload["input_dir"] = str(input_dir)
             if "fellowship-dataset" in str(input_dir).replace("\\", "/"):
                 payload["source"] = "fellowship_dataset"

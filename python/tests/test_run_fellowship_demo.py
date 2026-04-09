@@ -13,10 +13,15 @@ class _FakeAgent:
     def process_text(self, prompt: str) -> dict:
         artifact_path = self._council_ledger_dir / "cycle-001.json"  # type: ignore[operator]
         artifact_path.write_text("{}", encoding="utf-8")
+        quality_dir = self._council_ledger_dir.parent / "council-quality"  # type: ignore[operator]
+        quality_dir.mkdir(parents=True, exist_ok=True)
+        quality_path = quality_dir / "cycle-001.json"
+        quality_path.write_text('{"cycle_id":"cycle-001","quality_score":0.81,"liminalqa":{"published":false,"status_code":null}}', encoding="utf-8")
         return {
             "cycle_id": "cycle-001",
             "final_output": f"demo for {prompt}",
             "council_contribution_ledger_artifact": str(artifact_path),
+            "council_quality_artifact": str(quality_path),
             "council_contribution_ledger": {
                 "final_decision": {"selected_route": "route-a"},
                 "outcome": {
@@ -56,6 +61,7 @@ def test_run_demo_writes_summary(monkeypatch, tmp_path: Path) -> None:
 
     assert summary["cycle_id"] == "cycle-001"
     assert summary["selected_route"] == "route-a"
+    assert summary["quality_score"] == 0.81
     assert summary["best_contributor_model_id"] == "local-council-llm"
     assert summary["dataset_summary"]["ledger_count"] == 3
     assert summary["scorecard_summary"]["ledgers"] == 3

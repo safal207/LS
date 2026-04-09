@@ -41,10 +41,17 @@ def build_demo_summary(
     llm_mode: str,
     result: dict,
     artifact_path: Path | None,
+    quality_artifact_path: Path | None,
     dataset_manifest: dict | None,
     scorecard_payload: dict | None,
 ) -> dict:
     ledger = result.get("council_contribution_ledger") or {}
+    quality_payload = {}
+    if quality_artifact_path and quality_artifact_path.exists():
+        try:
+            quality_payload = json.loads(quality_artifact_path.read_text(encoding="utf-8"))
+        except Exception:
+            quality_payload = {}
     outcome = ledger.get("outcome") or {}
     attribution = ledger.get("attribution") or {}
     final_decision = ledger.get("final_decision") or {}
@@ -55,7 +62,9 @@ def build_demo_summary(
         "cycle_id": result.get("cycle_id", "unknown"),
         "final_output": str(result.get("final_output", "") or ""),
         "ledger_artifact": str(artifact_path) if artifact_path else None,
+        "council_quality_artifact": str(quality_artifact_path) if quality_artifact_path else None,
         "selected_route": str(final_decision.get("selected_route", "unknown")),
+        "quality_score": quality_payload.get("quality_score"),
         "best_contributor_model_id": str(attribution.get("best_contributor_model_id", "n/a")),
         "best_contributor_score": float(attribution.get("best_contributor_score", 0.0) or 0.0),
         "receiver_resonance_score": float(
@@ -63,6 +72,8 @@ def build_demo_summary(
         ),
         "network_improvement": float(outcome.get("network_improvement", 0.0) or 0.0),
         "success": bool(outcome.get("success")),
+        "liminalqa_published": bool(((quality_payload.get("liminalqa") or {}).get("published"))),
+        "liminalqa_status_code": ((quality_payload.get("liminalqa") or {}).get("status_code")),
         "dataset_summary": dataset_manifest.get("summary") if dataset_manifest else None,
         "scorecard_summary": scorecard_payload.get("summary") if scorecard_payload else None,
         "scorecard_source": scorecard_payload.get("source") if scorecard_payload else None,
@@ -85,6 +96,8 @@ def run_demo(
 
     artifact_path_value = result.get("council_contribution_ledger_artifact")
     artifact_path = Path(artifact_path_value) if artifact_path_value else None
+    quality_artifact_path_value = result.get("council_quality_artifact")
+    quality_artifact_path = Path(quality_artifact_path_value) if quality_artifact_path_value else None
 
     dataset_manifest = build_dataset() if refresh_dataset else None
     scorecard_payload = (
@@ -101,6 +114,7 @@ def run_demo(
         llm_mode=llm_mode.value,
         result=result,
         artifact_path=artifact_path,
+        quality_artifact_path=quality_artifact_path,
         dataset_manifest=dataset_manifest,
         scorecard_payload=scorecard_payload,
     )
