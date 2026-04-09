@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-# TODO: This validator is intended to sit after shared-memory candidate generation
-# and before final answer selection in the multi-agent runtime (e.g. AgentLoop).
+# Validator sits after shared-memory candidate generation and before final
+# answer selection in the multi-agent runtime.  AgentValidationBridge wires
+# concrete agent handles to this validator; see agent_validation_bridge.py.
 
 from collections import Counter
 from dataclasses import dataclass, replace
@@ -12,6 +13,7 @@ if TYPE_CHECKING:
         ValidationTraceArtifact,
         ValidationTraceBackend,
     )
+    from ls.cognition.validation_escalation import ValidationEscalationHandler
     from ls.cognition.validation_governance import (
         ValidationGovernanceEngine,
         ValidationGovernanceReport,
@@ -133,9 +135,11 @@ class CollectiveAnswerValidator:
         self,
         trace_backend: ValidationTraceBackend | None = None,
         governance_engine: ValidationGovernanceEngine | None = None,
+        escalation_handler: ValidationEscalationHandler | None = None,
     ) -> None:
         self.trace_backend = trace_backend
         self.governance_engine = governance_engine
+        self.escalation_handler = escalation_handler
 
     def validate(self, payload: ValidationInput) -> ValidationResult:
         validated = [_validate_candidate(c) for c in payload.candidates]
@@ -249,5 +253,15 @@ class CollectiveAnswerValidator:
             governance_report = self.governance_engine.build_governance_report(payload, result)
 
         if trace_artifact is None and governance_report is None:
-            return result
-        return replace(result, trace_artifact=trace_artifact, governance_report=governance_report)
+            final = result
+        else:
+            final = replace(result, trace_artifact=trace_artifact, governance_report=governance_report)
+
+        if (
+            self.escalation_handler is not None
+            and final.governance_report is not None
+            and final.governance_report.review_required
+        ):
+            self.escalation_handler.handle_escalation(final, final.governance_report)
+
+        return final
