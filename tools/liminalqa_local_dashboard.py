@@ -60,9 +60,21 @@ except ImportError:
     from modules.agent.resonance_agent import ResonanceAgent
 
 try:
-    from ls.agent_shell.cli import assign_council_reviewer, close_council_escalation, iter_council_escalation_rows
+    from ls.agent_shell.cli import (
+        assign_council_reviewer,
+        close_council_escalation,
+        iter_council_escalation_rows,
+        load_council_quality_artifact,
+        update_council_operator_review,
+    )
 except ImportError:
-    from python.ls.agent_shell.cli import assign_council_reviewer, close_council_escalation, iter_council_escalation_rows
+    from python.ls.agent_shell.cli import (
+        assign_council_reviewer,
+        close_council_escalation,
+        iter_council_escalation_rows,
+        load_council_quality_artifact,
+        update_council_operator_review,
+    )
 
 
 def load_env() -> dict[str, str]:
@@ -590,6 +602,61 @@ def close_escalation(cycle_id: str, reviewer: str, reason: str) -> tuple[int, ob
         return 500, {"error": str(exc)}
 
 
+def approve_escalation(cycle_id: str, reviewer: str, force: bool = False) -> tuple[int, object]:
+    try:
+        artifact = load_council_quality_artifact(COUNCIL_QUALITY_DIR, cycle_id)
+        guidance = artifact.get("operator_guidance") or {}
+        posture = str(guidance.get("approval_posture") or "evidence_check")
+        if posture in {"hold_and_repair", "human_escalation"} and not force:
+            return 409, {
+                "error": f"approval blocked: posture={posture}",
+                "cycle_id": cycle_id,
+                "approval_posture": posture,
+            }
+        updated_path = update_council_operator_review(
+            COUNCIL_QUALITY_DIR,
+            cycle_id,
+            decision="approved",
+            reviewer=reviewer,
+            forced=force,
+            reason=f"approval_posture={posture}",
+        )
+        return 200, {
+            "cycle_id": cycle_id,
+            "reviewer": reviewer,
+            "status": "approved",
+            "forced": force,
+            "artifact_path": str(updated_path),
+        }
+    except ValueError as exc:
+        return 404, {"error": str(exc)}
+    except Exception as exc:
+        return 500, {"error": str(exc)}
+
+
+def reject_escalation(cycle_id: str, reviewer: str, reason: str) -> tuple[int, object]:
+    try:
+        updated_path = update_council_operator_review(
+            COUNCIL_QUALITY_DIR,
+            cycle_id,
+            decision="rejected",
+            reviewer=reviewer,
+            forced=False,
+            reason=reason,
+        )
+        return 200, {
+            "cycle_id": cycle_id,
+            "reviewer": reviewer,
+            "reason": reason,
+            "status": "rejected",
+            "artifact_path": str(updated_path),
+        }
+    except ValueError as exc:
+        return 404, {"error": str(exc)}
+    except Exception as exc:
+        return 500, {"error": str(exc)}
+
+
 def avg(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
@@ -895,6 +962,26 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(400, {"error": "cycle_id, reviewer, and reason are required"})
                 return
             status, payload = close_escalation(cycle_id, reviewer, reason)
+            self.send_json(status, payload)
+            return
+        if parsed.path == "/api/approve-escalation":
+            cycle_id = (query.get("cycle_id") or [""])[0].strip()
+            reviewer = (query.get("reviewer") or [""])[0].strip()
+            force = ((query.get("force") or ["false"])[0].strip().lower() == "true")
+            if not cycle_id or not reviewer:
+                self.send_json(400, {"error": "cycle_id and reviewer are required"})
+                return
+            status, payload = approve_escalation(cycle_id, reviewer, force=force)
+            self.send_json(status, payload)
+            return
+        if parsed.path == "/api/reject-escalation":
+            cycle_id = (query.get("cycle_id") or [""])[0].strip()
+            reviewer = (query.get("reviewer") or [""])[0].strip()
+            reason = (query.get("reason") or [""])[0].strip()
+            if not cycle_id or not reviewer or not reason:
+                self.send_json(400, {"error": "cycle_id, reviewer, and reason are required"})
+                return
+            status, payload = reject_escalation(cycle_id, reviewer, reason)
             self.send_json(status, payload)
             return
         self.send_json(404, {"error": "not found"})

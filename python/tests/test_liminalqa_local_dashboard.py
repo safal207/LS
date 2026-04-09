@@ -256,6 +256,51 @@ def test_close_escalation_persists_closed_reason(monkeypatch, tmp_path: Path) ->
     assert updated["operator_review"]["closed_reason"] == "triage complete"
 
 
+def test_approve_escalation_blocks_human_escalation_without_force(monkeypatch, tmp_path: Path) -> None:
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "cycle-001.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-001",
+                "operator_guidance": {"approval_posture": "human_escalation"},
+                "operator_review": {"decision": "pending"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+
+    status, payload = dashboard.approve_escalation("cycle-001", "safal", force=False)
+
+    assert status == 409
+    assert payload["approval_posture"] == "human_escalation"
+
+
+def test_reject_escalation_persists_rejected_status(monkeypatch, tmp_path: Path) -> None:
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "cycle-001.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-001",
+                "operator_guidance": {"approval_posture": "human_escalation"},
+                "operator_review": {"decision": "pending", "assigned_reviewer": "safal"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+
+    status, payload = dashboard.reject_escalation("cycle-001", "safal", "bad route")
+
+    assert status == 200
+    assert payload["status"] == "rejected"
+    updated = json.loads((quality_dir / "cycle-001.json").read_text(encoding="utf-8"))
+    assert updated["operator_review"]["decision"] == "rejected"
+    assert updated["operator_review"]["reason"] == "bad route"
+
+
 def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -> None:
     ledger_dir = tmp_path / "council-ledger"
     quality_dir = tmp_path / "council-quality"

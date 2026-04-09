@@ -525,6 +525,43 @@
           actions.appendChild(claim);
         }
         if((item.review_status||"pending")==="pending"){
+          const approve=document.createElement("button");
+          approve.type="button";
+          approve.className="ghost";
+          approve.textContent=document.documentElement.lang==="ru"?"Одобрить":"Approve";
+          approve.addEventListener("click",async()=>{
+            const defaultReviewer=(item.assigned_reviewer && item.assigned_reviewer!=="unassigned") ? item.assigned_reviewer : "";
+            const reviewer=window.prompt(lang==="ru"?"Кто одобряет cycle?":"Who is approving this cycle?", defaultReviewer);
+            if(!reviewer) return;
+            await callQueueAction(approve, `/api/approve-escalation?cycle_id=${encodeURIComponent(item.cycle_id)}&reviewer=${encodeURIComponent(reviewer)}`);
+          });
+          actions.appendChild(approve);
+          if((item.approval_posture||"").includes("human_escalation") || (item.approval_posture||"").includes("hold_and_repair")){
+            const forceApprove=document.createElement("button");
+            forceApprove.type="button";
+            forceApprove.className="ghost";
+            forceApprove.textContent=document.documentElement.lang==="ru"?"Форс-одобрить":"Force Approve";
+            forceApprove.addEventListener("click",async()=>{
+              const defaultReviewer=(item.assigned_reviewer && item.assigned_reviewer!=="unassigned") ? item.assigned_reviewer : "";
+              const reviewer=window.prompt(lang==="ru"?"Кто форс-одобряет cycle?":"Who is force-approving this cycle?", defaultReviewer);
+              if(!reviewer) return;
+              await callQueueAction(forceApprove, `/api/approve-escalation?cycle_id=${encodeURIComponent(item.cycle_id)}&reviewer=${encodeURIComponent(reviewer)}&force=true`);
+            });
+            actions.appendChild(forceApprove);
+          }
+          const reject=document.createElement("button");
+          reject.type="button";
+          reject.className="ghost";
+          reject.textContent=document.documentElement.lang==="ru"?"Отклонить":"Reject";
+          reject.addEventListener("click",async()=>{
+            const defaultReviewer=(item.assigned_reviewer && item.assigned_reviewer!=="unassigned") ? item.assigned_reviewer : "";
+            const reviewer=window.prompt(lang==="ru"?"Кто отклоняет cycle?":"Who is rejecting this cycle?", defaultReviewer);
+            if(!reviewer) return;
+            const reason=window.prompt(lang==="ru"?"Почему cycle отклоняется?":"Why is this cycle being rejected?");
+            if(!reason) return;
+            await callQueueAction(reject, `/api/reject-escalation?cycle_id=${encodeURIComponent(item.cycle_id)}&reviewer=${encodeURIComponent(reviewer)}&reason=${encodeURIComponent(reason)}`);
+          });
+          actions.appendChild(reject);
           const close=document.createElement("button");
           close.type="button";
           close.className="ghost";
