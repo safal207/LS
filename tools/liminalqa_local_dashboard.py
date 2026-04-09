@@ -557,6 +557,7 @@ def build_council_analytics() -> dict:
     quality_series: list[dict] = []
     network_series: list[dict] = []
     merit_series: list[dict] = []
+    incident_series: list[dict] = []
     successes: list[float] = []
     resonances: list[float] = []
     merits: list[float] = []
@@ -597,6 +598,7 @@ def build_council_analytics() -> dict:
             risky_cycle_count += 1
         if (liminalqa.get("incident") or {}).get("published"):
             incident_count += 1
+        incident_series.append({"label": label, "value": incident_count})
     type_lift = {key: round(avg(values), 4) for key, values in type_totals.items()}
     return {
         "ledgers": len(rows),
@@ -616,6 +618,7 @@ def build_council_analytics() -> dict:
             "qualityScoreTrend": quality_series,
             "networkImprovementTrend": network_series,
             "averageMeritTrend": merit_series,
+            "incidentTrend": incident_series,
         },
     }
 

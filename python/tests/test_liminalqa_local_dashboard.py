@@ -159,3 +159,4 @@ def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -
     assert payload["ledgers"] == 1
     assert payload["risky_cycle_count"] == 1
     assert payload["incident_count"] == 1
+    assert payload["charts"]["incidentTrend"] == [{"label": "2026-04-09", "value": 1}]
