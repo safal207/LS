@@ -629,6 +629,63 @@ def council_review(
         raise typer.Exit(code=2)
 
 
+@app.command("council-escalations")
+def council_escalations(
+    quality_dir: Path = typer.Option(
+        Path("artifacts/council-quality"),
+        "--quality-dir",
+        help="Where to read council-quality JSON artifacts.",
+    ),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit the escalation queue as JSON for automation.",
+    ),
+) -> None:
+    rows = [
+        row
+        for row in load_council_quality_rows(quality_dir)
+        if str((row.get("operator_guidance") or {}).get("risk_state") or "") == "escalate"
+        or str((row.get("operator_guidance") or {}).get("approval_posture") or "") == "human_escalation"
+    ]
+    queue_rows: list[dict] = []
+    for row in rows:
+        guidance = row.get("operator_guidance") or {}
+        outcome = row.get("council_outcome") or {}
+        review_status = str(((row.get("operator_review") or {}).get("decision")) or "pending")
+        queue_rows.append(
+            {
+                "cycle_id": str(row.get("cycle_id") or "n/a"),
+                "review_status": review_status,
+                "approval_posture": str(guidance.get("approval_posture") or "human_escalation"),
+                "selected_route": str(outcome.get("selected_route") or "unknown"),
+                "suggested_operator_action": str(guidance.get("suggested_operator_action") or "n/a"),
+            }
+        )
+    queue_rows.sort(key=lambda item: (item["review_status"] != "pending", item["cycle_id"]))
+    if as_json:
+        print_plain_safe(json.dumps({"total": len(queue_rows), "items": queue_rows}, ensure_ascii=False, indent=2))
+        raise typer.Exit(code=0)
+    if not queue_rows:
+        console.print("[yellow]No council escalations found.[/yellow]")
+        raise typer.Exit(code=0)
+    table = Table(title="Council Escalation Queue")
+    table.add_column("cycle")
+    table.add_column("review")
+    table.add_column("posture")
+    table.add_column("route")
+    table.add_column("action")
+    for item in queue_rows:
+        table.add_row(
+            item["cycle_id"],
+            item["review_status"],
+            item["approval_posture"],
+            item["selected_route"],
+            item["suggested_operator_action"],
+        )
+    console.print(table)
+
+
 @app.command("council-cycle")
 def council_cycle(
     prompt: str,

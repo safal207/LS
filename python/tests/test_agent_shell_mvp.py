@@ -468,3 +468,45 @@ def test_council_review_json_handles_empty_queue(tmp_path: Path) -> None:
     assert payload["total"] == 0
     assert payload["highest_risk"] == "safe"
     assert payload["items"] == []
+
+
+def test_council_escalations_filters_human_review_queue(tmp_path: Path) -> None:
+    runner = CliRunner()
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "cycle-watch.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-watch",
+                "council_outcome": {"selected_route": "route-a"},
+                "operator_guidance": {
+                    "risk_state": "watch",
+                    "approval_posture": "evidence_check",
+                    "suggested_operator_action": "check",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (quality_dir / "cycle-escalate.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-escalate",
+                "council_outcome": {"selected_route": "route-b"},
+                "operator_guidance": {
+                    "risk_state": "escalate",
+                    "approval_posture": "human_escalation",
+                    "suggested_operator_action": "escalate",
+                },
+                "operator_review": {"decision": "pending"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["council-escalations", "--quality-dir", str(quality_dir), "--json"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["total"] == 1
+    assert payload["items"][0]["cycle_id"] == "cycle-escalate"

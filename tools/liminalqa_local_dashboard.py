@@ -525,6 +525,32 @@ def preview_council_risk_queue(limit: int = 5) -> tuple[int, object]:
     return 200, {"items": rows[:limit], "total": len(rows)}
 
 
+def preview_council_escalation_queue(limit: int = 5) -> tuple[int, object]:
+    if not COUNCIL_QUALITY_DIR.exists():
+        return 404, {"error": "council-quality artifact not found", "items": []}
+    rows: list[dict] = []
+    for path in COUNCIL_QUALITY_DIR.glob("*.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        guidance = payload.get("operator_guidance") or {}
+        if str(guidance.get("risk_state") or "") != "escalate" and str(guidance.get("approval_posture") or "") != "human_escalation":
+            continue
+        outcome = payload.get("council_outcome") or {}
+        rows.append(
+            {
+                "cycle_id": payload.get("cycle_id"),
+                "review_status": (payload.get("operator_review") or {}).get("decision", "pending"),
+                "approval_posture": guidance.get("approval_posture", "human_escalation"),
+                "selected_route": outcome.get("selected_route", "unknown"),
+                "suggested_operator_action": guidance.get("suggested_operator_action", "n/a"),
+            }
+        )
+    rows.sort(key=lambda item: (str(item.get("review_status") or "pending") != "pending", str(item.get("cycle_id") or "")))
+    return 200, {"items": rows[:limit], "total": len(rows)}
+
+
 def avg(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
@@ -768,6 +794,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/council-risk-queue":
             status, payload = preview_council_risk_queue()
+            self.send_json(status, payload)
+            return
+        if self.path == "/api/council-escalation-queue":
+            status, payload = preview_council_escalation_queue()
             self.send_json(status, payload)
             return
         self.send_json(404, {"error": "not found"})

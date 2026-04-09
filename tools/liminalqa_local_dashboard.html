@@ -130,6 +130,8 @@
       <div id="council-quality-action" class="hint">Suggested operator action will appear here after a real cycle.</div>
       <div id="council-risk-kicker" class="kicker" style="margin-top:14px">Top Risky Cycles</div>
       <ul id="council-risk-list" class="guide-list"></ul>
+      <div id="council-escalation-kicker" class="kicker" style="margin-top:14px">Human Review Queue</div>
+      <ul id="council-escalation-list" class="guide-list"></ul>
       <div id="council-quality-empty" class="hint">No council-quality artifact yet. Run a real council cycle first.</div>
       <div class="summary-grid">
         <div class="summary-box"><div id="c-ledgers-label" class="summary-label">Ledgers</div><div id="c-ledgers" class="summary-value">0</div></div>
@@ -392,16 +394,35 @@
       });
     }
 
+    async function refreshCouncilEscalationQueue(){
+      const data=await callJson("/api/council-escalation-queue");
+      const list=el("council-escalation-list");
+      list.innerHTML="";
+      if(!data.ok || !(data.payload.items||[]).length){
+        const li=document.createElement("li");
+        li.textContent=document.documentElement.lang==="ru"?"Очередь human review пуста.":"Human review queue is empty.";
+        list.appendChild(li);
+        return;
+      }
+      (data.payload.items||[]).forEach(item=>{
+        const li=document.createElement("li");
+        li.textContent=`${item.cycle_id}: ${item.review_status} / ${item.approval_posture} / ${item.selected_route}`;
+        list.appendChild(li);
+      });
+    }
+
     const ___originalSetLanguage=setLanguage;
     setLanguage=function(next){
       ___originalSetLanguage(next);
       el("council-risk-kicker").textContent=next==="ru"?"Top Risky Cycles":"Top Risky Cycles";
+      el("council-escalation-kicker").textContent=next==="ru"?"Human Review Queue":"Human Review Queue";
     };
 
     const ___originalRefreshCouncilQualityPreview=refreshCouncilQualityPreview;
     refreshCouncilQualityPreview=async function(){
       await ___originalRefreshCouncilQualityPreview();
       await refreshCouncilRiskQueue();
+      await refreshCouncilEscalationQueue();
     };
 
     setLanguage(document.documentElement.lang==="en"?"en":"ru");

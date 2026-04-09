@@ -144,6 +144,48 @@ def test_preview_council_risk_queue_sorts_high_risk_first(monkeypatch, tmp_path:
     assert payload["items"][0]["review_status"] == "pending"
 
 
+def test_preview_council_escalation_queue_filters_human_review(monkeypatch, tmp_path: Path) -> None:
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "watch.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-watch",
+                "council_outcome": {"selected_route": "route-a"},
+                "operator_guidance": {
+                    "risk_state": "watch",
+                    "approval_posture": "evidence_check",
+                    "suggested_operator_action": "check",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (quality_dir / "escalate.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-escalate",
+                "council_outcome": {"selected_route": "route-b"},
+                "operator_guidance": {
+                    "risk_state": "escalate",
+                    "approval_posture": "human_escalation",
+                    "suggested_operator_action": "escalate",
+                },
+                "operator_review": {"decision": "pending"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+
+    status, payload = dashboard.preview_council_escalation_queue()
+
+    assert status == 200
+    assert payload["total"] == 1
+    assert payload["items"][0]["cycle_id"] == "cycle-escalate"
+    assert payload["items"][0]["review_status"] == "pending"
+
+
 def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -> None:
     ledger_dir = tmp_path / "council-ledger"
     quality_dir = tmp_path / "council-quality"
