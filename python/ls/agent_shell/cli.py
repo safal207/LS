@@ -485,6 +485,16 @@ def council_review(
         "--only-risk",
         help="Comma-separated risk states to include, e.g. escalate,repair.",
     ),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit the review queue as JSON for automation.",
+    ),
+    fail_on_risk: bool = typer.Option(
+        False,
+        "--fail-on-risk",
+        help="Exit non-zero when any repair/escalate cycle is present in the filtered queue.",
+    ),
 ) -> None:
     rows = load_council_quality_rows(quality_dir)
     allowed_risks = {item.strip() for item in only_risk.split(",") if item.strip()}
@@ -497,13 +507,9 @@ def council_review(
     if not rows:
         console.print("[yellow]No council-quality artifacts found.[/yellow]")
         raise typer.Exit(code=0)
-    table = Table(title="Council Review Queue")
-    table.add_column("cycle")
-    table.add_column("risk")
-    table.add_column("mode")
-    table.add_column("route")
-    table.add_column("quality")
-    table.add_column("action")
+    queue_rows: list[dict] = []
+    highest_risk = "safe"
+    risk_counts: dict[str, int] = {}
     for row in rows:
         guidance = row.get("operator_guidance") or {}
         relational = row.get("relational_field") or {}
@@ -511,15 +517,55 @@ def council_review(
         quality_score = row.get("relation_adjusted_quality_score")
         if quality_score is None:
             quality_score = row.get("quality_score")
+        risk_state = str(guidance.get("risk_state") or "watch")
+        risk_counts[risk_state] = risk_counts.get(risk_state, 0) + 1
+        if _council_risk_rank(risk_state) < _council_risk_rank(highest_risk):
+            highest_risk = risk_state
+        queue_rows.append(
+            {
+                "cycle_id": str(row.get("cycle_id") or "n/a"),
+                "risk_state": risk_state,
+                "recommended_mode": str(relational.get("recommended_mode") or "n/a"),
+                "selected_route": str(outcome.get("selected_route") or "unknown"),
+                "quality_score": None if quality_score is None else round(float(quality_score), 4),
+                "suggested_operator_action": str(guidance.get("suggested_operator_action") or "n/a"),
+            }
+        )
+    if as_json:
+        print_plain_safe(
+            json.dumps(
+                {
+                    "total": len(queue_rows),
+                    "highest_risk": highest_risk,
+                    "risk_counts": risk_counts,
+                    "items": queue_rows,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        if fail_on_risk and any(item["risk_state"] in {"repair", "escalate"} for item in queue_rows):
+            raise typer.Exit(code=2)
+        raise typer.Exit(code=0)
+    table = Table(title="Council Review Queue")
+    table.add_column("cycle")
+    table.add_column("risk")
+    table.add_column("mode")
+    table.add_column("route")
+    table.add_column("quality")
+    table.add_column("action")
+    for item in queue_rows:
         table.add_row(
-            str(row.get("cycle_id") or "n/a"),
-            str(guidance.get("risk_state") or "watch"),
-            str(relational.get("recommended_mode") or "n/a"),
-            str(outcome.get("selected_route") or "unknown"),
-            "n/a" if quality_score is None else f"{float(quality_score):.4f}",
-            str(guidance.get("suggested_operator_action") or "n/a"),
+            item["cycle_id"],
+            item["risk_state"],
+            item["recommended_mode"],
+            item["selected_route"],
+            "n/a" if item["quality_score"] is None else f"{float(item['quality_score']):.4f}",
+            item["suggested_operator_action"],
         )
     console.print(table)
+    if fail_on_risk and any(item["risk_state"] in {"repair", "escalate"} for item in queue_rows):
+        raise typer.Exit(code=2)
 
 
 @app.command("council-cycle")

@@ -209,6 +209,7 @@ If you are reading this repository from an AI safety, alignment, oversight, or p
 - [`docs/FELLOWSHIP_EVIDENCE_SPRINT.md`](docs/FELLOWSHIP_EVIDENCE_SPRINT.md)
 - [`docs/FELLOWSHIP_BENCHMARK_NOTE.md`](docs/FELLOWSHIP_BENCHMARK_NOTE.md)
 - [`docs/FELLOWSHIP_ATTRIBUTION_NOTE.md`](docs/FELLOWSHIP_ATTRIBUTION_NOTE.md)
+- [`docs/SAFETY_SCORECARD.md`](docs/SAFETY_SCORECARD.md)
 - [`benchmark/`](benchmark/) — generated benchmark snapshot with interpretation
 - [`docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md`](docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md)
 - [`docs/LIMINALQA_TEST_STRATEGY.md`](docs/LIMINALQA_TEST_STRATEGY.md)
@@ -366,6 +367,7 @@ pytest python/tests/test_memory_store_locking.py
 | [docs/FELLOWSHIP_EVIDENCE_SPRINT.md](docs/FELLOWSHIP_EVIDENCE_SPRINT.md) | 1–2 day sprint plan for strengthening benchmark, dataset, and technical-note evidence |
 | [docs/FELLOWSHIP_BENCHMARK_NOTE.md](docs/FELLOWSHIP_BENCHMARK_NOTE.md) | Narrow benchmark note for queue review, replay, and operator-overhead claims |
 | [docs/FELLOWSHIP_ATTRIBUTION_NOTE.md](docs/FELLOWSHIP_ATTRIBUTION_NOTE.md) | Short method note for council attribution, receiver resonance, and merit sync |
+| [docs/SAFETY_SCORECARD.md](docs/SAFETY_SCORECARD.md) | Risk-state, incident, and operator-guidance view over council cycles |
 | [benchmark/README.md](benchmark/README.md) | Benchmark package overview and how to regenerate |
 | [benchmark/INTERPRETATION.md](benchmark/INTERPRETATION.md) | What the benchmark numbers justify and do not justify |
 | [benchmark/RESULTS.md](benchmark/RESULTS.md) | Generated benchmark snapshot (run `python3 scripts/generate_benchmark_results.py` to refresh) |

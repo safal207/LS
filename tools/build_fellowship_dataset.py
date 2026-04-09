@@ -108,6 +108,17 @@ def build_manifest(selected: list[LedgerRow]) -> dict:
             quality_by_cycle[cycle_id] = payload
 
     success_count = sum(1 for row in selected if row.success)
+    risky_cycle_count = sum(
+        1
+        for row in selected
+        if str(((quality_by_cycle.get(row.cycle_id) or {}).get("operator_guidance") or {}).get("risk_state") or "watch")
+        in {"repair", "escalate"}
+    )
+    incident_count = sum(
+        1
+        for row in selected
+        if bool((((quality_by_cycle.get(row.cycle_id) or {}).get("liminalqa") or {}).get("incident") or {}).get("published"))
+    )
     quality_scores = [
         float((quality_by_cycle.get(row.cycle_id) or {}).get("quality_score") or 0.0)
         for row in selected
@@ -132,6 +143,8 @@ def build_manifest(selected: list[LedgerRow]) -> dict:
             "avg_contribution": round(sum(row.contribution for row in selected) / len(selected), 4) if selected else 0.0,
             "avg_quality_score": round(sum(quality_scores) / len(quality_scores), 4) if quality_scores else 0.0,
             "liminalqa_published_count": liminalqa_published_count,
+            "risky_cycle_count": risky_cycle_count,
+            "incident_count": incident_count,
         },
         "items": [
             {
@@ -148,6 +161,10 @@ def build_manifest(selected: list[LedgerRow]) -> dict:
                 "receiver_resonance": row.resonance,
                 "best_contributor_score": row.contribution,
                 "quality_score": (quality_by_cycle.get(row.cycle_id) or {}).get("quality_score"),
+                "risk_state": ((quality_by_cycle.get(row.cycle_id) or {}).get("operator_guidance") or {}).get("risk_state"),
+                "incident_published": bool(
+                    ((((quality_by_cycle.get(row.cycle_id) or {}).get("liminalqa") or {}).get("incident") or {}).get("published"))
+                ),
                 "liminalqa_published": bool(((quality_by_cycle.get(row.cycle_id) or {}).get("liminalqa") or {}).get("published")),
                 "goal_summary": row.goal_summary,
                 "source_type": row.source_type,
@@ -180,6 +197,8 @@ Summary:
 - avg_contribution: {manifest["summary"]["avg_contribution"]}
 - avg_quality_score: {manifest["summary"]["avg_quality_score"]}
 - liminalqa_published_count: {manifest["summary"]["liminalqa_published_count"]}
+- risky_cycle_count: {manifest["summary"]["risky_cycle_count"]}
+- incident_count: {manifest["summary"]["incident_count"]}
 
 Selection policy:
 

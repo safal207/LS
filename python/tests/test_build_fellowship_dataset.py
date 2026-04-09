@@ -28,6 +28,12 @@ def test_build_dataset_copies_council_quality_artifacts(monkeypatch, tmp_path: P
         "cycle_id": "cycle-001",
         "quality_score": 0.83,
         "liminalqa": {"published": True, "status_code": 200},
+        "operator_guidance": {"risk_state": "repair"},
+        "liminalqa": {
+            "published": True,
+            "status_code": 200,
+            "incident": {"published": True, "status_code": 200},
+        },
     }
     (ledger_dir / "cycle-001.json").write_text(json.dumps(ledger_payload), encoding="utf-8")
     (quality_dir / "cycle-001.json").write_text(json.dumps(quality_payload), encoding="utf-8")
@@ -44,5 +50,9 @@ def test_build_dataset_copies_council_quality_artifacts(monkeypatch, tmp_path: P
     assert manifest["summary"]["ledger_count"] == 1
     assert manifest["summary"]["avg_quality_score"] == 0.83
     assert manifest["summary"]["liminalqa_published_count"] == 1
+    assert manifest["summary"]["risky_cycle_count"] == 1
+    assert manifest["summary"]["incident_count"] == 1
     assert manifest["items"][0]["quality_file"] == "council-quality/cycle-001.json"
+    assert manifest["items"][0]["risk_state"] == "repair"
+    assert manifest["items"][0]["incident_published"] is True
     assert (output_quality_dir / "cycle-001.json").exists()

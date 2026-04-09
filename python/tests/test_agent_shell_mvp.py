@@ -324,3 +324,37 @@ def test_council_review_can_filter_risk_states(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "cycle-escalate" in result.stdout
     assert "cycle-safe" not in result.stdout
+
+
+def test_council_review_can_emit_json_and_fail_on_risk(tmp_path: Path) -> None:
+    runner = CliRunner()
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    for cycle_id, risk_state in (("cycle-watch", "watch"), ("cycle-repair", "repair")):
+        (quality_dir / f"{cycle_id}.json").write_text(
+            json.dumps(
+                {
+                    "cycle_id": cycle_id,
+                    "timestamp": "2026-04-09T10:00:00Z",
+                    "quality_score": 0.5,
+                    "council_outcome": {"selected_route": "route-a"},
+                    "relational_field": {"recommended_mode": "observe_and_clarify"},
+                    "operator_guidance": {
+                        "risk_state": risk_state,
+                        "suggested_operator_action": "act",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    result = runner.invoke(
+        app,
+        ["council-review", "--quality-dir", str(quality_dir), "--json", "--fail-on-risk"],
+    )
+
+    assert result.exit_code == 2
+    payload = json.loads(result.stdout)
+    assert payload["highest_risk"] == "repair"
+    assert payload["risk_counts"]["repair"] == 1
+    assert payload["items"][0]["cycle_id"] == "cycle-repair"
