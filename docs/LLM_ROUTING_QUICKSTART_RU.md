@@ -167,6 +167,16 @@ print(snapshot["last_explain"])
 print(snapshot["stats"])
 ```
 
+### Быстрые rollout-профили
+
+```python
+lm.apply_rollout_stage("baseline")  # primary + balanced
+lm.apply_rollout_stage("shadow")    # shadow compare
+lm.apply_rollout_stage("ab_5")
+lm.apply_rollout_stage("ab_10")
+lm.apply_rollout_stage("ab_20")
+```
+
 ---
 
 ## 6) Troubleshooting
@@ -204,3 +214,5 @@ print(snapshot["stats"])
 - [ ] Пройдены shadow сравнения.
 - [ ] Пройден A/B с целевыми KPI.
 - [ ] Есть runbook и ответственный on-call.
+
+Дополнительно: отдельный on-call документ `docs/LLM_ROUTING_ONCALL_RUNBOOK_RU.md`.

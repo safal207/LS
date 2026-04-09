@@ -88,6 +88,7 @@ class LanguageModel:
         )
         self.last_response: Optional[LLMResponse] = None
         self._routing_defaults: dict[str, Any] = {}
+        self._routing_telemetry_sink = None
 
     @property
     def qwen_handler(self):
@@ -321,6 +322,7 @@ class LanguageModel:
             on_token=on_token,
         )
         self.last_response = response
+        self._emit_routing_telemetry(response)
         if response.ok:
             logger.info(
                 "Generated response via provider=%s model=%s fallback=%s",
@@ -337,6 +339,39 @@ class LanguageModel:
             response.fallback_to,
         )
         return None
+
+    def set_routing_telemetry_sink(self, sink) -> None:
+        """Register a callback to receive routing telemetry events.
+
+        The sink is called with a single dict payload.
+        """
+        self._routing_telemetry_sink = sink
+
+    def _emit_routing_telemetry(self, response: LLMResponse) -> None:
+        route = (response.raw or {}).get("route", {}) if response else {}
+        payload = {
+            "provider": response.provider if response else None,
+            "model": response.model if response else None,
+            "ok": bool(response.ok) if response else False,
+            "fallback_used": bool(response.was_fallback_used) if response else False,
+            "fallback_from": response.fallback_from if response else None,
+            "fallback_to": response.fallback_to if response else None,
+            "explain": deepcopy(route.get("explain", {})),
+            "stats": deepcopy(route.get("stats", {})),
+        }
+        logger.info(
+            "routing telemetry provider=%s ok=%s policy=%s mode=%s fallback=%s",
+            payload["provider"],
+            payload["ok"],
+            payload["explain"].get("policy"),
+            payload["explain"].get("routing_mode"),
+            payload["fallback_used"],
+        )
+        if callable(self._routing_telemetry_sink):
+            try:
+                self._routing_telemetry_sink(payload)
+            except Exception as exc:
+                logger.warning("routing telemetry sink failed: %s", exc)
 
     def _compose_routing_metadata(self, *, question: str) -> dict[str, Any]:
         payload = dict(self._routing_defaults)
@@ -438,6 +473,43 @@ class LanguageModel:
             "last_explain": explain,
             "stats": stats,
         }
+
+    def apply_rollout_stage(self, stage: str) -> dict[str, Any]:
+        """Apply a predefined rollout stage profile and return the snapshot.
+
+        Stages:
+        - baseline: primary + balanced
+        - shadow: shadow + balanced + cost_optimized shadow policy
+        - ab_5: ab with ratio 0.05
+        - ab_10: ab with ratio 0.10
+        - ab_20: ab with ratio 0.20
+        """
+        normalized = str(stage or "").strip().lower()
+        profiles: dict[str, dict[str, Any]] = {
+            "baseline": {"routing_mode": "primary", "policy": "balanced"},
+            "shadow": {"routing_mode": "shadow", "policy": "balanced", "shadow_policy": "cost_optimized"},
+            "ab_5": {
+                "routing_mode": "ab",
+                "policy": "balanced",
+                "ab_variant_ratio": 0.05,
+                "ab_variant_policy": "cost_optimized",
+            },
+            "ab_10": {
+                "routing_mode": "ab",
+                "policy": "balanced",
+                "ab_variant_ratio": 0.10,
+                "ab_variant_policy": "cost_optimized",
+            },
+            "ab_20": {
+                "routing_mode": "ab",
+                "policy": "balanced",
+                "ab_variant_ratio": 0.20,
+                "ab_variant_policy": "cost_optimized",
+            },
+        }
+        if normalized not in profiles:
+            raise ValueError("unknown rollout stage")
+        return self.update_routing_controls(profiles[normalized])
     
     def generate_response(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
         """Generate response using either local or cloud LLM"""

@@ -14,6 +14,7 @@ if "psutil" not in sys.modules:
 
 from modules.llm import llm_module
 from modules.llm.backends.base import LLMResponse
+from modules.llm.routing_operator_api import LLMRoutingOperatorAPI
 
 
 @pytest.fixture
@@ -104,3 +105,41 @@ def test_get_routing_observability_returns_last_route_snapshot(lm: llm_module.La
 
     assert snapshot["last_explain"]["policy"] == "balanced"
     assert snapshot["stats"]["requests_total"] == 1
+
+
+def test_routing_telemetry_sink_receives_payload(lm: llm_module.LanguageModel):
+    fake_router = _FakeRouter()
+    lm.backend_router = fake_router
+    captured = []
+    lm.set_routing_telemetry_sink(lambda event: captured.append(event))
+
+    lm.generate_response("hello")
+
+    assert captured
+    assert captured[-1]["ok"] is True
+    assert captured[-1]["explain"]["policy"] == "balanced"
+
+
+def test_apply_rollout_stage_sets_expected_ab_defaults(lm: llm_module.LanguageModel):
+    fake_router = _FakeRouter()
+    lm.backend_router = fake_router
+
+    snapshot = lm.apply_rollout_stage("ab_10")
+
+    assert snapshot["defaults"]["routing_mode"] == "ab"
+    assert snapshot["defaults"]["ab_variant_ratio"] == 0.10
+    assert snapshot["defaults"]["ab_variant_policy"] == "cost_optimized"
+
+
+def test_routing_operator_api_controls_and_rollout(lm: llm_module.LanguageModel):
+    fake_router = _FakeRouter()
+    lm.backend_router = fake_router
+    api = LLMRoutingOperatorAPI(lm)
+
+    response = api.post_routing_controls({"routing_mode": "shadow", "shadow_policy": "cost_optimized"})
+    rollout = api.post_rollout_stage("baseline")
+
+    assert response["status"] == "ok"
+    assert response["snapshot"]["defaults"]["routing_mode"] == "shadow"
+    assert rollout["status"] == "ok"
+    assert rollout["snapshot"]["defaults"]["routing_mode"] == "primary"

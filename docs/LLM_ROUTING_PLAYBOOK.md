@@ -1,6 +1,7 @@
 # LLM Routing Playbook (Intent + Health + Fallback)
 
 For a Russian quickstart with operational examples, see `docs/LLM_ROUTING_QUICKSTART_RU.md`.
+For on-call mitigation steps, see `docs/LLM_ROUTING_ONCALL_RUNBOOK_RU.md`.
 
 This project now supports a practical routing policy inspired by modern AI gateways:
 
