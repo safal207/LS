@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
@@ -57,6 +58,11 @@ try:
     from agent.resonance_agent import ResonanceAgent
 except ImportError:
     from modules.agent.resonance_agent import ResonanceAgent
+
+try:
+    from ls.agent_shell.cli import assign_council_reviewer, close_council_escalation, iter_council_escalation_rows
+except ImportError:
+    from python.ls.agent_shell.cli import assign_council_reviewer, close_council_escalation, iter_council_escalation_rows
 
 
 def load_env() -> dict[str, str]:
@@ -530,28 +536,58 @@ def preview_council_risk_queue(limit: int = 5) -> tuple[int, object]:
 def preview_council_escalation_queue(limit: int = 5) -> tuple[int, object]:
     if not COUNCIL_QUALITY_DIR.exists():
         return 404, {"error": "council-quality artifact not found", "items": []}
-    rows: list[dict] = []
-    for path in COUNCIL_QUALITY_DIR.glob("*.json"):
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        guidance = payload.get("operator_guidance") or {}
-        if str(guidance.get("risk_state") or "") != "escalate" and str(guidance.get("approval_posture") or "") != "human_escalation":
-            continue
-        outcome = payload.get("council_outcome") or {}
-        rows.append(
-            {
-                "cycle_id": payload.get("cycle_id"),
-                "review_status": (payload.get("operator_review") or {}).get("decision", "pending"),
-                "assigned_reviewer": (payload.get("operator_review") or {}).get("assigned_reviewer", "unassigned"),
-                "approval_posture": guidance.get("approval_posture", "human_escalation"),
-                "selected_route": outcome.get("selected_route", "unknown"),
-                "suggested_operator_action": guidance.get("suggested_operator_action", "n/a"),
-            }
-        )
-    rows.sort(key=lambda item: (str(item.get("review_status") or "pending") != "pending", str(item.get("cycle_id") or "")))
+    rows = iter_council_escalation_rows(COUNCIL_QUALITY_DIR)
     return 200, {"items": rows[:limit], "total": len(rows)}
+
+
+def claim_next_escalation(reviewer: str, assigned_by: str = "dashboard") -> tuple[int, object]:
+    try:
+        rows = iter_council_escalation_rows(COUNCIL_QUALITY_DIR)
+        target = next(
+            (
+                item
+                for item in rows
+                if item.get("review_status") == "pending" and item.get("assigned_reviewer") == "unassigned"
+            ),
+            None,
+        )
+        if target is None:
+            return 404, {"error": "no unassigned pending escalation found"}
+        updated_path = assign_council_reviewer(
+            COUNCIL_QUALITY_DIR,
+            str(target.get("cycle_id")),
+            reviewer=reviewer,
+            assigned_by=assigned_by,
+        )
+        return 200, {
+            "cycle_id": target.get("cycle_id"),
+            "assigned_reviewer": reviewer,
+            "assigned_by": assigned_by,
+            "artifact_path": str(updated_path),
+        }
+    except Exception as exc:
+        return 500, {"error": str(exc)}
+
+
+def close_escalation(cycle_id: str, reviewer: str, reason: str) -> tuple[int, object]:
+    try:
+        updated_path = close_council_escalation(
+            COUNCIL_QUALITY_DIR,
+            cycle_id,
+            reviewer=reviewer,
+            reason=reason,
+        )
+        return 200, {
+            "cycle_id": cycle_id,
+            "reviewer": reviewer,
+            "reason": reason,
+            "artifact_path": str(updated_path),
+            "status": "closed",
+        }
+    except ValueError as exc:
+        return 404, {"error": str(exc)}
+    except Exception as exc:
+        return 500, {"error": str(exc)}
 
 
 def avg(values: list[float]) -> float:
@@ -806,6 +842,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(404, {"error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
+        parsed = urllib.parse.urlparse(self.path)
+        query = urllib.parse.parse_qs(parsed.query)
         if self.path == "/api/health":
             status, payload = api_request("GET", "/health")
             self.send_json(status, payload)
@@ -832,12 +870,31 @@ class Handler(BaseHTTPRequestHandler):
                 payload = {**payload, "note": "This is a lightweight preview. A zero-result query does not necessarily mean ingest is broken.", "request_payload": {"limit": 10}, "hint": "Publish Smoke Batch or Quality Report first, then retry the preview."}
             self.send_json(status, payload)
             return
-        if self.path == "/api/generate-demo-council-ledger":
+        if parsed.path == "/api/generate-demo-council-ledger":
             status, payload = generate_demo_council_ledger()
             self.send_json(status, payload)
             return
-        if self.path == "/api/run-real-council-cycle":
+        if parsed.path == "/api/run-real-council-cycle":
             status, payload = run_real_council_cycle()
+            self.send_json(status, payload)
+            return
+        if parsed.path == "/api/claim-next-escalation":
+            reviewer = (query.get("reviewer") or [""])[0].strip()
+            assigned_by = (query.get("assigned_by") or ["dashboard"])[0].strip() or "dashboard"
+            if not reviewer:
+                self.send_json(400, {"error": "reviewer is required"})
+                return
+            status, payload = claim_next_escalation(reviewer, assigned_by=assigned_by)
+            self.send_json(status, payload)
+            return
+        if parsed.path == "/api/close-escalation":
+            cycle_id = (query.get("cycle_id") or [""])[0].strip()
+            reviewer = (query.get("reviewer") or [""])[0].strip()
+            reason = (query.get("reason") or [""])[0].strip()
+            if not cycle_id or not reviewer or not reason:
+                self.send_json(400, {"error": "cycle_id, reviewer, and reason are required"})
+                return
+            status, payload = close_escalation(cycle_id, reviewer, reason)
             self.send_json(status, payload)
             return
         self.send_json(404, {"error": "not found"})

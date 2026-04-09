@@ -131,6 +131,10 @@
       <div id="council-risk-kicker" class="kicker" style="margin-top:14px">Top Risky Cycles</div>
       <ul id="council-risk-list" class="guide-list"></ul>
       <div id="council-escalation-kicker" class="kicker" style="margin-top:14px">Human Review Queue</div>
+      <div class="button-row">
+        <button id="claim-next-escalation" class="ghost" type="button">Claim Next Escalation</button>
+        <button id="close-escalation" class="ghost" type="button">Close Escalation</button>
+      </div>
       <ul id="council-escalation-list" class="guide-list"></ul>
       <div id="council-quality-empty" class="hint">No council-quality artifact yet. Run a real council cycle first.</div>
       <div class="summary-grid">
@@ -190,6 +194,8 @@
       el("quality-preview-kicker").textContent=text[lang].qualityPreview; el("quality-preview-meta").textContent=text[lang].qualityPreviewMeta; el("quality-empty").textContent=text[lang].qualityMissing;
       el("summary-verdict-label").textContent=text[lang].verdictLabel; el("summary-lanes-label").textContent=text[lang].lanesLabel; el("summary-failures-label").textContent=text[lang].failuresLabel; el("summary-coverage-label").textContent=text[lang].coverageLabel;
       el("council-kicker").textContent=text[lang].council; el("council-meta").innerHTML=text[lang].councilMeta; el("run-real-council-cycle").dataset.label=lang==="ru"?"Запустить real council cycle":"Run Real Council Cycle"; el("run-real-council-cycle").textContent=el("run-real-council-cycle").dataset.label; el("generate-demo-council-ledger").dataset.label=text[lang].demoBtn; el("generate-demo-council-ledger").textContent=text[lang].demoBtn;
+      el("claim-next-escalation").dataset.label=lang==="ru"?"Забрать следующий escalation":"Claim Next Escalation"; el("claim-next-escalation").textContent=el("claim-next-escalation").dataset.label;
+      el("close-escalation").dataset.label=lang==="ru"?"Закрыть escalation":"Close Escalation"; el("close-escalation").textContent=el("close-escalation").dataset.label;
       el("c-ledgers-label").textContent=text[lang].ledgersLabel; el("c-top-label").textContent=text[lang].topLabel; el("c-success-label").textContent=text[lang].successLabel; el("c-resonance-label").textContent=text[lang].resonanceLabel; el("c-merit-label").textContent=text[lang].meritLabel;
       el("result-kicker").textContent=text[lang].result; el("copy-json").textContent=text[lang].copy; el("raw-json-toggle").textContent=text[lang].rawJson; el("relative-path-note").innerHTML=text[lang].relativePath;
       el("lang-ru").className=lang==="ru"?"active":"ghost"; el("lang-en").className=lang==="en"?"active":"ghost";
@@ -298,6 +304,20 @@
     el("run-query").addEventListener("click",()=>runAction("run-query","/api/query"));
     el("run-real-council-cycle").addEventListener("click",()=>runAction("run-real-council-cycle","/api/run-real-council-cycle",async()=>refreshCouncilAnalytics(),{pendingSummary:lang==="ru"?"Запускаю реальный council cycle. Это может занять до 45 секунд, потом панель автоматически обновит council analytics.":"Running a real council cycle. This can take up to 45 seconds, then the dashboard will refresh council analytics automatically."}));
     el("generate-demo-council-ledger").addEventListener("click",()=>runAction("generate-demo-council-ledger","/api/generate-demo-council-ledger",async()=>refreshCouncilAnalytics()));
+    el("claim-next-escalation").addEventListener("click",async()=>{
+      const reviewer=window.prompt(lang==="ru"?"Кто забирает escalation?":"Who is claiming the escalation?");
+      if(!reviewer) return;
+      await runAction("claim-next-escalation",`/api/claim-next-escalation?reviewer=${encodeURIComponent(reviewer)}&assigned_by=${encodeURIComponent("dashboard")}`,async()=>refreshCouncilQualityPreview());
+    });
+    el("close-escalation").addEventListener("click",async()=>{
+      const cycleId=window.prompt(lang==="ru"?"Какой cycle_id закрыть?":"Which cycle_id should be closed?");
+      if(!cycleId) return;
+      const reviewer=window.prompt(lang==="ru"?"Кто закрывает escalation?":"Who is closing the escalation?");
+      if(!reviewer) return;
+      const reason=window.prompt(lang==="ru"?"Почему escalation закрывается?":"Why is the escalation being closed?");
+      if(!reason) return;
+      await runAction("close-escalation",`/api/close-escalation?cycle_id=${encodeURIComponent(cycleId)}&reviewer=${encodeURIComponent(reviewer)}&reason=${encodeURIComponent(reason)}`,async()=>refreshCouncilQualityPreview());
+    });
     el("copy-json").addEventListener("click",async()=>{await navigator.clipboard.writeText(safeJson(lastResult)); el("result-toast").hidden=false; el("result-toast").innerHTML=`<strong>${text[lang].copied}</strong>`;});
 
     setLanguage(lang); renderChartShell(); el("health-status").textContent=text[lang].checking; refreshQualityPreview().catch(()=>{}); refreshCouncilAnalytics().catch(()=>{}); refreshHealth(false).catch(()=>{});

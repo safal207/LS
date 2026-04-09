@@ -209,6 +209,53 @@ def test_preview_council_quality_artifact_exposes_closed_reason(monkeypatch, tmp
     assert payload["operator_review_closed_reason"] == "triage complete"
 
 
+def test_claim_next_escalation_assigns_first_pending_unassigned(monkeypatch, tmp_path: Path) -> None:
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "cycle-001.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-001",
+                "operator_guidance": {"risk_state": "escalate", "approval_posture": "human_escalation"},
+                "operator_review": {"decision": "pending"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+
+    status, payload = dashboard.claim_next_escalation("safal", assigned_by="dashboard")
+
+    assert status == 200
+    assert payload["cycle_id"] == "cycle-001"
+    updated = json.loads((quality_dir / "cycle-001.json").read_text(encoding="utf-8"))
+    assert updated["operator_review"]["assigned_reviewer"] == "safal"
+
+
+def test_close_escalation_persists_closed_reason(monkeypatch, tmp_path: Path) -> None:
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "cycle-001.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-001",
+                "operator_guidance": {"risk_state": "escalate", "approval_posture": "human_escalation"},
+                "operator_review": {"decision": "pending", "assigned_reviewer": "safal"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+
+    status, payload = dashboard.close_escalation("cycle-001", "safal", "triage complete")
+
+    assert status == 200
+    assert payload["status"] == "closed"
+    updated = json.loads((quality_dir / "cycle-001.json").read_text(encoding="utf-8"))
+    assert updated["operator_review"]["decision"] == "closed"
+    assert updated["operator_review"]["closed_reason"] == "triage complete"
+
+
 def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -> None:
     ledger_dir = tmp_path / "council-ledger"
     quality_dir = tmp_path / "council-quality"
