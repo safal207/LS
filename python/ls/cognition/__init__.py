@@ -42,6 +42,19 @@ from ls.cognition.lifetra_validation_adapter import (
     ValidationTraceArtifact,
     ValidationTraceBackend,
 )
+from ls.cognition.validation_governance import (
+    AgentReputationProfile,
+    CoalitionAlert,
+    DistributedConsensusSnapshot,
+    GovernedCandidateScore,
+    InMemoryValidationHistoryStore,
+    JsonlValidationHistoryStore,
+    ParaphraseCluster,
+    ValidationGovernanceEngine,
+    ValidationGovernanceReport,
+    ValidationHistoryCandidate,
+    ValidationHistoryRecord,
+)
 
 __all__ = [
     "AgentState",
@@ -92,4 +105,15 @@ __all__ = [
     "ValidationTraceArtifact",
     "ValidationTraceBackend",
     "LifetraValidationAdapter",
+    "ValidationHistoryCandidate",
+    "ValidationHistoryRecord",
+    "InMemoryValidationHistoryStore",
+    "JsonlValidationHistoryStore",
+    "ParaphraseCluster",
+    "AgentReputationProfile",
+    "GovernedCandidateScore",
+    "CoalitionAlert",
+    "DistributedConsensusSnapshot",
+    "ValidationGovernanceReport",
+    "ValidationGovernanceEngine",
 ]

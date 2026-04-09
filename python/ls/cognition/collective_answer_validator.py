@@ -11,6 +11,10 @@ from ls.cognition.lifetra_validation_adapter import (
     ValidationTraceArtifact,
     ValidationTraceBackend,
 )
+from ls.cognition.validation_governance import (
+    ValidationGovernanceEngine,
+    ValidationGovernanceReport,
+)
 
 
 @dataclass(frozen=True)
@@ -46,6 +50,7 @@ class ValidationResult:
     consensus_status: str  # convergent | weak | conflicted | rejected
     consensus_summary: str
     global_risk_flags: list[str]
+    governance_report: ValidationGovernanceReport | None = None
     trace_artifact: ValidationTraceArtifact | None = None
 
 
@@ -123,8 +128,13 @@ class CollectiveAnswerValidator:
     _ECHO_THRESHOLD = 3
     _CONVERGENT_SCORE_DIFF = 0.15
 
-    def __init__(self, trace_backend: ValidationTraceBackend | None = None) -> None:
+    def __init__(
+        self,
+        trace_backend: ValidationTraceBackend | None = None,
+        governance_engine: ValidationGovernanceEngine | None = None,
+    ) -> None:
         self.trace_backend = trace_backend
+        self.governance_engine = governance_engine
 
     def validate(self, payload: ValidationInput) -> ValidationResult:
         validated = [_validate_candidate(c) for c in payload.candidates]
@@ -228,8 +238,14 @@ class CollectiveAnswerValidator:
         result: ValidationResult,
     ) -> ValidationResult:
         if self.trace_backend is None:
-            return result
-        trace_artifact = self.trace_backend.build_validation_trace(payload, result)
-        if trace_artifact is None:
-            return result
-        return replace(result, trace_artifact=trace_artifact)
+            trace_attached = result
+        else:
+            trace_artifact = self.trace_backend.build_validation_trace(payload, result)
+            if trace_artifact is None:
+                trace_attached = result
+            else:
+                trace_attached = replace(result, trace_artifact=trace_artifact)
+        if self.governance_engine is None:
+            return trace_attached
+        governance_report = self.governance_engine.build_governance_report(payload, trace_attached)
+        return replace(trace_attached, governance_report=governance_report)
