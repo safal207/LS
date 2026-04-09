@@ -37,6 +37,11 @@ from ls.cognition.collective_answer_validator import (
     ValidationInput,
     ValidationResult,
 )
+from ls.cognition.lifetra_validation_adapter import (
+    LifetraValidationAdapter,
+    ValidationTraceArtifact,
+    ValidationTraceBackend,
+)
 
 __all__ = [
     "AgentState",
@@ -84,4 +89,7 @@ __all__ = [
     "ValidatedCandidate",
     "ValidationResult",
     "CollectiveAnswerValidator",
+    "ValidationTraceArtifact",
+    "ValidationTraceBackend",
+    "LifetraValidationAdapter",
 ]

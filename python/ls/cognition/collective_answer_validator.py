@@ -4,8 +4,13 @@ from __future__ import annotations
 # and before final answer selection in the multi-agent runtime (e.g. AgentLoop).
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Sequence
+
+from ls.cognition.lifetra_validation_adapter import (
+    ValidationTraceArtifact,
+    ValidationTraceBackend,
+)
 
 
 @dataclass(frozen=True)
@@ -41,6 +46,7 @@ class ValidationResult:
     consensus_status: str  # convergent | weak | conflicted | rejected
     consensus_summary: str
     global_risk_flags: list[str]
+    trace_artifact: ValidationTraceArtifact | None = None
 
 
 def _score(candidate: CandidateAnswer) -> float:
@@ -117,6 +123,9 @@ class CollectiveAnswerValidator:
     _ECHO_THRESHOLD = 3
     _CONVERGENT_SCORE_DIFF = 0.15
 
+    def __init__(self, trace_backend: ValidationTraceBackend | None = None) -> None:
+        self.trace_backend = trace_backend
+
     def validate(self, payload: ValidationInput) -> ValidationResult:
         validated = [_validate_candidate(c) for c in payload.candidates]
         # Stable sort by score desc, then by agent_id asc for explicit tie-break.
@@ -144,19 +153,20 @@ class CollectiveAnswerValidator:
         # Determine consensus status and winner
         if not accepted:
             global_risk_flags.append("no_valid_candidates")
-            return ValidationResult(
+            result = ValidationResult(
                 ranked_candidates=validated,
                 winner_agent_id=None,
                 consensus_status="rejected",
                 consensus_summary="No candidates met acceptance criteria.",
                 global_risk_flags=global_risk_flags,
             )
+            return self._attach_trace_artifact(payload, result)
 
         winner = accepted[0]
 
         if len(accepted) == 1:
             global_risk_flags.append("single_point_consensus")
-            return ValidationResult(
+            result = ValidationResult(
                 ranked_candidates=validated,
                 winner_agent_id=winner.agent_id,
                 consensus_status="weak",
@@ -166,6 +176,7 @@ class CollectiveAnswerValidator:
                 ),
                 global_risk_flags=global_risk_flags,
             )
+            return self._attach_trace_artifact(payload, result)
 
         second = accepted[1]
         score_diff = winner.score - second.score
@@ -202,10 +213,23 @@ class CollectiveAnswerValidator:
                 f"(score_diff={score_diff:.3f})."
             )
 
-        return ValidationResult(
+        result = ValidationResult(
             ranked_candidates=validated,
             winner_agent_id=winner.agent_id,
             consensus_status=consensus_status,
             consensus_summary=summary,
             global_risk_flags=global_risk_flags,
         )
+        return self._attach_trace_artifact(payload, result)
+
+    def _attach_trace_artifact(
+        self,
+        payload: ValidationInput,
+        result: ValidationResult,
+    ) -> ValidationResult:
+        if self.trace_backend is None:
+            return result
+        trace_artifact = self.trace_backend.build_validation_trace(payload, result)
+        if trace_artifact is None:
+            return result
+        return replace(result, trace_artifact=trace_artifact)
