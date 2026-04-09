@@ -30,6 +30,13 @@ from ls.cognition.council_contribution_ledger import (
     CouncilParticipant,
     build_council_attribution,
 )
+from ls.cognition.collective_answer_validator import (
+    CandidateAnswer,
+    CollectiveAnswerValidator,
+    ValidatedCandidate,
+    ValidationInput,
+    ValidationResult,
+)
 
 __all__ = [
     "AgentState",
@@ -72,4 +79,9 @@ __all__ = [
     "CouncilAttribution",
     "CouncilContributionLedger",
     "build_council_attribution",
+    "CandidateAnswer",
+    "ValidationInput",
+    "ValidatedCandidate",
+    "ValidationResult",
+    "CollectiveAnswerValidator",
 ]

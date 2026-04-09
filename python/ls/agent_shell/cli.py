@@ -5,7 +5,6 @@ from pathlib import Path
 import sys
 import json
 import os
-import queue
 import urllib.error
 import urllib.request
 import requests
