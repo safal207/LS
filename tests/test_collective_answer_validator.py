@@ -217,6 +217,78 @@ def test_possible_echo_chamber_flag():
     assert "possible_echo_chamber" in result.global_risk_flags
 
 
+def test_possible_echo_chamber_when_first_candidate_is_unique():
+    # Regression: echo-chamber detection must find ANY duplicate group,
+    # not only groups that match the first candidate's text.
+    payload = ValidationInput(
+        task_prompt="How does the system work?",
+        candidates=[
+            CandidateAnswer(
+                agent_id="unique-agent",
+                answer_text="An entirely different answer with details.",
+                relevance=0.40,
+                thread_relevance=0.40,
+                hallucination_risk=0.30,
+            ),
+            CandidateAnswer(
+                agent_id="dup-1",
+                answer_text="i think it works somehow",
+                relevance=0.35,
+                thread_relevance=0.35,
+                hallucination_risk=0.30,
+            ),
+            CandidateAnswer(
+                agent_id="dup-2",
+                answer_text="i think it works somehow",
+                relevance=0.35,
+                thread_relevance=0.35,
+                hallucination_risk=0.30,
+            ),
+            CandidateAnswer(
+                agent_id="dup-3",
+                answer_text="i think it works somehow",
+                relevance=0.35,
+                thread_relevance=0.35,
+                hallucination_risk=0.30,
+            ),
+        ],
+    )
+    result = _validator().validate(payload)
+
+    assert "possible_echo_chamber" in result.global_risk_flags
+
+
+def test_distant_second_candidate_does_not_trigger_single_point_consensus():
+    # Regression: single_point_consensus must only fire when exactly one
+    # candidate is accepted.  A dominant winner with a distant runner-up
+    # is still a multi-accepted case and should not carry that flag.
+    payload = ValidationInput(
+        task_prompt="Recommend a data store.",
+        candidates=[
+            CandidateAnswer(
+                agent_id="strong",
+                answer_text="Use PostgreSQL with partitioning.",
+                relevance=0.98,
+                thread_relevance=0.95,
+                hallucination_risk=0.05,
+            ),
+            CandidateAnswer(
+                agent_id="ok",
+                answer_text="Try SQLite for now.",
+                relevance=0.70,
+                thread_relevance=0.65,
+                hallucination_risk=0.10,
+            ),
+        ],
+    )
+    result = _validator().validate(payload)
+
+    accepted = [v for v in result.ranked_candidates if v.accepted]
+    assert len(accepted) == 2
+    assert result.consensus_status == "weak"
+    assert "single_point_consensus" not in result.global_risk_flags
+
+
 def test_no_echo_chamber_on_diverse_answers():
     payload = ValidationInput(
         task_prompt="How does the system work?",

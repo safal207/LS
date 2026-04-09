@@ -3,6 +3,7 @@ from __future__ import annotations
 # TODO: This validator is intended to sit after shared-memory candidate generation
 # and before final answer selection in the multi-agent runtime (e.g. AgentLoop).
 
+from collections import Counter
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -118,25 +119,27 @@ class CollectiveAnswerValidator:
 
     def validate(self, payload: ValidationInput) -> ValidationResult:
         validated = [_validate_candidate(c) for c in payload.candidates]
-        validated.sort(key=lambda v: v.score, reverse=True)
+        # Stable sort by score desc, then by agent_id asc for explicit tie-break.
+        validated.sort(key=lambda v: (-v.score, v.agent_id))
 
         accepted = [v for v in validated if v.accepted]
         global_risk_flags: list[str] = []
 
-        # Echo chamber detection
+        # Echo chamber detection: look for ANY group of 3+ candidates with
+        # identical normalized text whose scores are all weak (< 0.55).
         norm_texts = [_normalize_text(c.answer_text) for c in payload.candidates]
-        if len(norm_texts) >= self._ECHO_THRESHOLD:
-            top_text = norm_texts[0] if norm_texts else ""
-            duplicates = sum(1 for t in norm_texts if t == top_text)
-            if duplicates >= self._ECHO_THRESHOLD:
-                # Check if the matching candidates are all weak (score < 0.55)
-                matching_scores = [
-                    _score(c)
-                    for c, t in zip(payload.candidates, norm_texts)
-                    if t == top_text
-                ]
-                if all(s < 0.55 for s in matching_scores):
-                    global_risk_flags.append("possible_echo_chamber")
+        text_counts = Counter(norm_texts)
+        for text, count in text_counts.items():
+            if count < self._ECHO_THRESHOLD:
+                continue
+            matching_scores = [
+                _score(c)
+                for c, t in zip(payload.candidates, norm_texts)
+                if t == text
+            ]
+            if all(s < 0.55 for s in matching_scores):
+                global_risk_flags.append("possible_echo_chamber")
+                break
 
         # Determine consensus status and winner
         if not accepted:
@@ -177,22 +180,23 @@ class CollectiveAnswerValidator:
             if target in accepted_ids
         )
 
-        if contradiction_count > 0 or (score_diff < 0.05 and contradiction_count > 0):
+        if contradiction_count > 0:
             global_risk_flags.append("conflict_between_top_candidates")
             consensus_status = "conflicted"
             summary = (
                 f"Top candidates conflict (contradictions={contradiction_count}, "
                 f"score_diff={score_diff:.3f})."
             )
-        elif score_diff <= self._CONVERGENT_SCORE_DIFF and contradiction_count == 0:
+        elif score_diff <= self._CONVERGENT_SCORE_DIFF:
             consensus_status = "convergent"
             summary = (
                 f"Top two candidates converge (agent={winner.agent_id} score={winner.score:.3f}, "
                 f"agent={second.agent_id} score={second.score:.3f}, diff={score_diff:.3f})."
             )
         else:
+            # Multiple accepted but second is distant from the winner.
+            # Not single_point_consensus (that flag is reserved for len(accepted) == 1).
             consensus_status = "weak"
-            global_risk_flags.append("single_point_consensus")
             summary = (
                 f"Winner clear but second candidate is distant "
                 f"(score_diff={score_diff:.3f})."
