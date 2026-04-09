@@ -65,7 +65,9 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
                 "relational_field": {"relation_safety_score": 0.29},
                 "operator_guidance": {"risk_state": "safe"},
                 "liminalqa": {"incident": {"published": False}},
-                "operator_review": {"decision": "pending"},
+                "operator_guidance": {"risk_state": "escalate"},
+                "liminalqa": {"incident": {"published": False}},
+                "operator_review": {"decision": "rejected"},
             }
         ),
         encoding="utf-8",
@@ -77,13 +79,19 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
     assert payload["summary"]["ledgers"] == 2
     assert payload["summary"]["avg_quality"] == 67.0
     assert payload["summary"]["avg_relation_safety"] == 55.0
-    assert payload["summary"]["risky_cycle_count"] == 1
+    assert payload["summary"]["risky_cycle_count"] == 2
     assert payload["summary"]["incident_count"] == 1
-    assert payload["summary"]["reviewed_cycle_count"] == 1
+    assert payload["summary"]["reviewed_cycle_count"] == 2
+    assert payload["summary"]["approval_conversion_rate"] == 50.0
+    assert payload["summary"]["escalation_rate"] == 50.0
     assert payload["summary"]["top_contributor"] in {"local-qwen", "gpt-web"}
     assert payload["lines"]["incident_trend"] == [
         {"label": "c1", "value": 1},
         {"label": "c2", "value": 1},
+    ]
+    assert payload["lines"]["review_trend"] == [
+        {"label": "c1", "value": 1},
+        {"label": "c2", "value": 2},
     ]
     assert output_path.exists()
     written = json.loads(output_path.read_text(encoding="utf-8"))

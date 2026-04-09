@@ -118,6 +118,8 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 "risky_cycle_count": 0,
                 "incident_count": 0,
                 "reviewed_cycle_count": 0,
+                "approval_conversion_rate": 0.0,
+                "escalation_rate": 0.0,
             },
             "bars": {
                 "best_contributor_frequency": [],
@@ -128,6 +130,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 "resonance_trend": [],
                 "merit_trend": [],
                 "incident_trend": [],
+                "review_trend": [],
             },
             "takeaways": {
                 "with_ls": [
@@ -154,6 +157,9 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
     risky_cycle_count = 0
     reviewed_cycle_count = 0
     incident_series: list[dict] = []
+    review_series: list[dict] = []
+    approved_count = 0
+    escalate_count = 0
     for index, row in enumerate(selected_rows, start=1):
         outcome = row.get("outcome", {})
         attribution = row.get("attribution", {})
@@ -197,13 +203,19 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         risk_state = str(guidance.get("risk_state") or "watch")
         if risk_state in {"repair", "escalate"}:
             risky_cycle_count += 1
-        if str(operator_review.get("decision") or "pending") in {"approved", "rejected"}:
+        if risk_state == "escalate":
+            escalate_count += 1
+        review_decision = str(operator_review.get("decision") or "pending")
+        if review_decision in {"approved", "rejected"}:
             reviewed_cycle_count += 1
+        if review_decision == "approved":
+            approved_count += 1
         if (liminalqa.get("incident") or {}).get("published"):
             incident_count += 1
         resonance_series.append({"label": label, "value": round(resonance * 100.0, 2)})
         merit_series.append({"label": label, "value": round(merit * 100.0, 2)})
         incident_series.append({"label": label, "value": incident_count})
+        review_series.append({"label": label, "value": reviewed_cycle_count})
         successes.append(success)
         resonances.append(resonance)
         merits.append(merit)
@@ -234,6 +246,8 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "risky_cycle_count": risky_cycle_count,
             "incident_count": incident_count,
             "reviewed_cycle_count": reviewed_cycle_count,
+            "approval_conversion_rate": round((approved_count / len(selected_rows)) * 100.0, 2),
+            "escalation_rate": round((escalate_count / len(selected_rows)) * 100.0, 2),
         },
         "bars": {
             "best_contributor_frequency": [{"label": key, "value": value} for key, value in best_counts.items()],
@@ -244,6 +258,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "resonance_trend": resonance_series,
             "merit_trend": merit_series,
             "incident_trend": incident_series,
+            "review_trend": review_series,
         },
         "takeaways": takeaways,
     }

@@ -172,7 +172,7 @@ def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -
                 "cycle_id": "cycle-001",
                 "operator_guidance": {"risk_state": "repair"},
                 "liminalqa": {"incident": {"published": True, "status_code": 202}},
-                "operator_review": {"decision": "pending"},
+                "operator_review": {"decision": "approved"},
             }
         ),
         encoding="utf-8",
@@ -185,4 +185,7 @@ def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -
     assert payload["ledgers"] == 1
     assert payload["risky_cycle_count"] == 1
     assert payload["incident_count"] == 1
+    assert payload["reviewed_cycle_count"] == 1
+    assert payload["approval_conversion_rate"] == 100.0
+    assert payload["escalation_rate"] == 0.0
     assert payload["charts"]["incidentTrend"] == [{"label": "2026-04-09", "value": 1}]

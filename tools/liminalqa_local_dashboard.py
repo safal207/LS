@@ -551,6 +551,9 @@ def build_council_analytics() -> dict:
             "avg_merit": 0.0,
             "incident_count": 0,
             "risky_cycle_count": 0,
+            "reviewed_cycle_count": 0,
+            "approval_conversion_rate": 0.0,
+            "escalation_rate": 0.0,
             "empty": True,
             "how_to_generate": [
                 "Run a real coordination cycle through ResonanceAgent.",
@@ -577,6 +580,9 @@ def build_council_analytics() -> dict:
     merits: list[float] = []
     incident_count = 0
     risky_cycle_count = 0
+    reviewed_cycle_count = 0
+    approved_count = 0
+    escalate_count = 0
     quality_by_cycle = {str(item.get("cycle_id") or ""): item for item in quality_rows}
     for row in rows:
         outcome = row.get("outcome", {})
@@ -606,10 +612,18 @@ def build_council_analytics() -> dict:
         merits.append(merit)
         quality_payload = quality_by_cycle.get(str(row.get("cycle_id") or ""))
         guidance = (quality_payload or {}).get("operator_guidance") or {}
+        review = (quality_payload or {}).get("operator_review") or {}
         liminalqa = (quality_payload or {}).get("liminalqa") or {}
         risk_state = str(guidance.get("risk_state") or "watch")
         if risk_state in {"repair", "escalate"}:
             risky_cycle_count += 1
+        if risk_state == "escalate":
+            escalate_count += 1
+        review_decision = str(review.get("decision") or "pending")
+        if review_decision in {"approved", "rejected"}:
+            reviewed_cycle_count += 1
+        if review_decision == "approved":
+            approved_count += 1
         if (liminalqa.get("incident") or {}).get("published"):
             incident_count += 1
         incident_series.append({"label": label, "value": incident_count})
@@ -622,6 +636,9 @@ def build_council_analytics() -> dict:
         "avg_merit": round(avg(merits) * 100.0, 2),
         "incident_count": incident_count,
         "risky_cycle_count": risky_cycle_count,
+        "reviewed_cycle_count": reviewed_cycle_count,
+        "approval_conversion_rate": round((approved_count / len(rows)) * 100.0, 2),
+        "escalation_rate": round((escalate_count / len(rows)) * 100.0, 2),
         "empty": False,
         "charts": {
             "bestContributorFrequency": [{"label": key, "value": value} for key, value in best_counts.items()],

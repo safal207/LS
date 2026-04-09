@@ -47,6 +47,8 @@ type CouncilScorecardPayload = {
     risky_cycle_count?: number;
     incident_count?: number;
     reviewed_cycle_count?: number;
+    approval_conversion_rate?: number;
+    escalation_rate?: number;
   };
   bars: {
     best_contributor_frequency: ScorePoint[];
@@ -107,6 +109,8 @@ const copy = {
     riskyCycles: 'Risky cycles',
     incidents: 'Incidents',
     reviewed: 'Reviewed',
+    approvalConv: 'Approval conv',
+    escalationRate: 'Escalation rate',
     contribFreq: 'Best contributor frequency',
     modelLift: 'Model type lift',
     routeWins: 'Route wins',
@@ -156,6 +160,8 @@ const copy = {
     riskyCycles: 'Рисковые циклы',
     incidents: 'Инциденты',
     reviewed: 'Reviewed',
+    approvalConv: 'Approval conv',
+    escalationRate: 'Escalation rate',
     contribFreq: 'Частота лучшего contributor',
     modelLift: 'Подъем по типам моделей',
     routeWins: 'Победы маршрутов',
@@ -483,6 +489,14 @@ export default function OperatorDelta() {
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.reviewed}</div>
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.reviewed_cycle_count ?? 0}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.approvalConv}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{(scorecard.summary.approval_conversion_rate ?? 0).toFixed(1)}%</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.escalationRate}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{(scorecard.summary.escalation_rate ?? 0).toFixed(1)}%</div>
             </div>
           </div>
 
