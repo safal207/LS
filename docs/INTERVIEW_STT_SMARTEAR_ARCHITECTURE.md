@@ -1,6 +1,6 @@
-# Interview STT / SmartEar / AgentLoop Architecture
+# Multimodal STT / SmartEar / AgentLoop Architecture
 
-This document defines how live speech recognition connects to interview-question interpretation and answer generation in this repository.
+This document defines how live speech recognition connects to multimodal operator-context interpretation and answer generation in this repository.
 
 Related design docs:
 
@@ -14,7 +14,7 @@ Related design docs:
 - `SmartEar = interpretation`
 - `AgentLoop = decision / action`
 
-Do not move interview semantics into the STT layer. Keep STT backend-agnostic and keep interview policy above it.
+Do not move operator semantics into the STT layer. Keep STT backend-agnostic and keep response policy above it.
 
 ## High-Level Flow
 
@@ -31,7 +31,7 @@ Do not move interview semantics into the STT layer. Keep STT backend-agnostic an
         +-- cloud ASR fallback
         |
         v
-InterviewUtterance
+OperatorUtterance
         |
         v
 [SmartEar]
@@ -42,7 +42,7 @@ InterviewUtterance
         +-- intent
         +-- why
         +-- strategy
-        +-- interviewer_profile
+        +-- interaction_profile
         +-- anchor_context
         |
         v
@@ -61,7 +61,7 @@ InterviewUtterance
 [Feedback loop]
         |
         +-- correction dictionary
-        +-- interviewer profile learning
+        +-- interaction profile learning
         +-- strategy tuning
 ```
 
@@ -132,22 +132,22 @@ python/modules/agent/loop.py
 15. Feedback updates corrections / profile / strategy
 ```
 
-## InterviewUtterance Contract
+## OperatorUtterance Contract
 
 Use one shared structure across STT and SmartEar:
 
 ```python
-InterviewUtterance(
+OperatorUtterance(
     type="question",
-    text="What are your strengths?",
+    text="Summarize the current operator request.",
     confidence=0.91,
     source="local_stt",
     words=[...],
     clean_text="What are your strengths?",
-    intent="self_presentation",
-    why="evaluate_fit",
+    intent="task_clarification",
+    why="support_decision",
     why_strategy={...},
-    interviewer_profile={...},
+    operator_profile={...},
     anchor_context=[...],
 )
 ```
@@ -183,7 +183,7 @@ Mic -> Local capture / light VAD -> Cloud ASR -> SmartEar -> AgentLoop -> Cloud 
 ```
 
 Good for:
-- real interview copilot
+- live operator runtime
 - strongest STT quality
 - stronger answer quality
 - product MVP
@@ -207,14 +207,14 @@ Good for:
 
 ## Current Repository Status
 
-The current working local STT profile is `manual-small` in `scripts/live_ru_stt.py`. It is useful for noisy rooms and manual phrase capture, but it is still a perception layer only. Interview logic should stay in `SmartEar`, `ResonanceAgent`, and `AgentLoop`.
+The current working local STT profile is `manual-small` in `scripts/live_ru_stt.py`. It is useful for noisy rooms and manual phrase capture, but it is still a perception layer only. Operator logic should stay in `SmartEar`, `ResonanceAgent`, and `AgentLoop`.
 
 Current LLM backend tiers and routing guidance are documented in `docs/LLM_BACKEND_MODEL_TIERS.md`.
 The future Rust hot path for meritocracy selection is documented in `docs/RUST_MERITOCRACY_CORE_PLAN.md`.
 
 ## Recommended Next Implementation Step
 
-1. Introduce `InterviewUtterance` as a shared contract.
+1. Introduce `OperatorUtterance` as a shared contract.
 2. Add `LocalSTTAdapter` and `CloudSTTAdapter`.
 3. Add a factory that wires adapters from profile/config.
 4. Make `SmartEar` consume and enrich the shared contract.

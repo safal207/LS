@@ -52,7 +52,7 @@ def test_meritocracy_selects_best_answer():
 
     result = adapter.generate(
         messages=[{"role": "user", "content": "Почему вы выбрали этот стек?"}],
-        system_prompt="You are an interview assistant.",
+        system_prompt="You are an operator-facing technical assistant.",
         metadata={"thread_context": "Мы обсуждаем выбор стека и trade-offs."},
     )
 

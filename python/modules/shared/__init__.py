@@ -20,6 +20,8 @@ __all__ = [
     "PluginPermissions",
     "MonitorService",
     "MonitorAlert",
+    "OperatorUtterance",
+    "ensure_operator_item",
     "InterviewUtterance",
     "ensure_interview_item",
     "check_system_resources",
@@ -36,7 +38,7 @@ if TYPE_CHECKING:
     from .module_loader import DynamicModuleLoader, RuntimeModule, ModuleLifecycleEvent
     from .plugin_manager import PluginManager, Plugin, PluginLifecycleEvent, PluginPermissions
     from .monitoring import MonitorService, MonitorAlert
-    from .interview_schema import InterviewUtterance, ensure_interview_item
+    from .operator_utterance import OperatorUtterance, ensure_operator_item, InterviewUtterance, ensure_interview_item
     from .utils import check_system_resources, format_latency, is_question
 
 
@@ -74,9 +76,14 @@ def __getattr__(name: str):
     if name in ("MonitorService", "MonitorAlert"):
         from .monitoring import MonitorService, MonitorAlert
         return MonitorService if name == "MonitorService" else MonitorAlert
-    if name in ("InterviewUtterance", "ensure_interview_item"):
-        from .interview_schema import InterviewUtterance, ensure_interview_item
-        return InterviewUtterance if name == "InterviewUtterance" else ensure_interview_item
+    if name in ("OperatorUtterance", "ensure_operator_item", "InterviewUtterance", "ensure_interview_item"):
+        from .operator_utterance import OperatorUtterance, ensure_operator_item, InterviewUtterance, ensure_interview_item
+        return {
+            "OperatorUtterance": OperatorUtterance,
+            "ensure_operator_item": ensure_operator_item,
+            "InterviewUtterance": InterviewUtterance,
+            "ensure_interview_item": ensure_interview_item,
+        }[name]
     if name in ("check_system_resources", "format_latency", "is_question"):
         from . import utils as _utils
         return getattr(_utils, name)

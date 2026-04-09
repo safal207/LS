@@ -32,7 +32,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class InterviewCopilot:
+class ConsoleRuntime:
     def __init__(self):
         self.transcribe_queue = queue.Queue(maxsize=10)
         # smart_ear_queue sits between STT output and AgentLoop input
@@ -157,8 +157,8 @@ class InterviewCopilot:
                 logger.error(f"UI display error: {e}")
 
 def main():
-    copilot = InterviewCopilot()
-    copilot.start()
+    runtime = ConsoleRuntime()
+    runtime.start()
 
 if __name__ == "__main__":
     main()

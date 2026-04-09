@@ -1,21 +1,21 @@
 # -*- coding: utf-8 -*-
-"""ConversationAnchor — session-level experience/fact store for interview copilot.
+"""ConversationAnchor — session-level experience/fact store for the operator runtime.
 
-The anchor holds short, high-value facts about the candidate's real experience.
+The anchor holds short, high-value facts about the operator's real experience.
 During each question, ``get_relevant_items`` returns the most relevant facts so
 the system can prompt: "you have relevant experience — use it".
 
 Why this exists
 ---------------
-Under stress, candidates forget their own experience.
+Under stress, operators forget their own experience.
 The anchor acts as a working-memory prosthetic: it surfaces the right fact at
-the right moment without the candidate having to remember it.
+the right moment without the operator having to remember it.
 
 Usage::
 
     anchor = ConversationAnchor()
 
-    # Load before the interview
+    # Load before the operator session
     anchor.add("Сделал аудит базы данных — 12 медленных запросов", type="db", priority=5)
     anchor.add("Оптимизировал индексы: с 4s до 0.2s", type="perf", priority=5)
     anchor.add("Работал с PostgreSQL 3 года", type="tech", priority=3)

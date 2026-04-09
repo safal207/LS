@@ -1,8 +1,8 @@
-# GhostGPT (LS) — 1-Page Architecture Note
+# LS — 1-Page Architecture Note
 
 ## 1) Overview
 
-**GhostGPT (LS)** is a federated cognitive platform with hybrid memory, causal-temporal reasoning, and distributed orchestration.
+**LS** is a federated cognitive platform with hybrid memory, causal-temporal reasoning, and distributed orchestration.
 
 It is designed to:
 - keep short-term and long-term memory,

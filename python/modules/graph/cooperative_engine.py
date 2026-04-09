@@ -114,7 +114,7 @@ class CooperativeGraphEngine:
         goal_block = f"\n\n{self._goal_guidance(goal_vector)}" if goal_vector else ""
         return (
             "Role: draft.\n"
-            "Give a first-pass interview answer.\n"
+            "Give a first-pass operator-facing answer.\n"
             "Requirements:\n"
             "- stay on point\n"
             "- do not invent metrics or case studies\n"
@@ -147,7 +147,7 @@ class CooperativeGraphEngine:
         goal_block = f"\n\n{self._goal_guidance(goal_vector)}" if goal_vector else ""
         prompt = (
             "Role: compressor.\n"
-            "Build the final interview answer.\n"
+            "Build the final operator-facing answer.\n"
             "Requirements:\n"
             "- keep the strongest parts of the draft\n"
             "- fix issues from the critique\n"

@@ -1,0 +1,63 @@
+{
+  "cycle_id": "cid",
+  "task_id": "cid",
+  "timestamp": "2026-04-09T10:23:54Z",
+  "goal": {
+    "type": "coordination_cycle",
+    "summary": "contract test"
+  },
+  "network_context": {
+    "route_candidates": [
+      "r1"
+    ],
+    "active_nodes": [],
+    "graph_state_version": "reuse"
+  },
+  "participants": [
+    {
+      "model_id": "primary-llm",
+      "model_type": "primary_llm",
+      "proposal_id": "route:r1",
+      "proposal_summary": "ok",
+      "route_hint": "r1",
+      "confidence": 0.5,
+      "latency_ms": 0,
+      "token_cost": 0.0,
+      "selected": true,
+      "weight_in_final_decision": 1.0
+    }
+  ],
+  "final_decision": {
+    "selected_route": "r1",
+    "decision_summary": "test",
+    "derived_from_proposals": [
+      "route:r1"
+    ]
+  },
+  "outcome": {
+    "success": false,
+    "path_quality": 0.5,
+    "network_improvement": 0.0,
+    "operator_intervention_required": false,
+    "operator_feedback_score": 0.5,
+    "drift_detected": false,
+    "receiver_type": "human_operator",
+    "receiver_resonance_score": 0.5,
+    "receiver_acceptance_label": "needs_revision"
+  },
+  "attribution": {
+    "best_contributor_model_id": "primary-llm",
+    "best_contributor_score": 0.7075,
+    "contribution_breakdown": [
+      {
+        "model_id": "primary-llm",
+        "adoption_score": 1.0,
+        "outcome_lift": 0.15,
+        "stability_impact": 0.8,
+        "receiver_resonance": 0.5,
+        "cost_efficiency": 0.9,
+        "total_contribution_score": 0.7075
+      }
+    ]
+  }
+}

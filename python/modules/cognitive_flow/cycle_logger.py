@@ -216,7 +216,8 @@ class CognitiveCycleLogger:
         why_strategy = item.get("_why_strategy")
         anchor_ctx = item.get("_anchor_context")
         empathy_result = item.get("_empathy_result")
-        copilot_output = item.get("_copilot_output")
+        copilot_output = item.get("_operator_response_output") or item.get("_copilot_output")
+        operator_profile = item.get("_operator_profile") or item.get("_interviewer_profile")
         body_cues = (
             copilot_output.get("empathy_cues") if copilot_output else None
         )
@@ -233,9 +234,15 @@ class CognitiveCycleLogger:
             "why":                 item.get("_why"),
             "why_strategy":        why_strategy,
             "anchor_used":         anchor_ctx or [],
-            "interviewer_profile": item.get("_interviewer_profile"),
+            "operator_profile":    operator_profile,
+            "interviewer_profile": operator_profile,
             "empathy":             empathy_result,
             "body_cues":           body_cues,
+            "operator_response": {
+                "pre_prompt":         copilot_output.get("pre_prompt") if copilot_output else None,
+                "intervention_level": copilot_output.get("intervention_level") if copilot_output else None,
+                "active_rules":       copilot_output.get("active_rules") if copilot_output else [],
+            } if copilot_output else None,
             "copilot": {
                 "pre_prompt":         copilot_output.get("pre_prompt") if copilot_output else None,
                 "intervention_level": copilot_output.get("intervention_level") if copilot_output else None,

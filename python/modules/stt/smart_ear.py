@@ -71,10 +71,10 @@ try:
         _sys_intent.path.insert(0, _intent_root)
     from intent.intent_layer import IntentLayer as _IntentLayer
     from intent.why_layer import WhyLayer as _WhyLayer
-    from intent.why_strategy import analyze_why_and_strategy as _analyze_strategy
-    from intent.interviewer_profile import InterviewerProfile as _InterviewerProfile
-    from intent.empathy_negotiation import EmpathyNegotiationLayer as _EmpathyNegotiationLayer
-    from intent.body_aware_copilot import BodyAwareCopilot as _BodyAwareCopilot
+    from intent.operator_strategy import analyze_operator_strategy as _analyze_strategy
+    from intent.operator_profile import OperatorProfile as _OperatorProfile
+    from intent.operator_empathy import EmpathyNegotiationLayer as _EmpathyNegotiationLayer
+    from intent.operator_response_assembler import OperatorResponseAssembler as _OperatorResponseAssembler
     from intent.resonance_scorer import ResonanceScorer as _ResonanceScorer
     _INTENT_AVAILABLE = True
 except Exception:
@@ -82,9 +82,9 @@ except Exception:
     _IntentLayer = None                  # type: ignore[assignment,misc]
     _WhyLayer = None                     # type: ignore[assignment,misc]
     _analyze_strategy = None             # type: ignore[assignment,misc]
-    _InterviewerProfile = None           # type: ignore[assignment,misc]
+    _OperatorProfile = None              # type: ignore[assignment,misc]
     _EmpathyNegotiationLayer = None      # type: ignore[assignment,misc]
-    _BodyAwareCopilot = None             # type: ignore[assignment,misc]
+    _OperatorResponseAssembler = None    # type: ignore[assignment,misc]
     _ResonanceScorer = None              # type: ignore[assignment,misc]
 
 # ConversationAnchor (optional — graceful fallback)
@@ -132,7 +132,7 @@ except Exception:
 
 try:
     from shared.utils import is_question
-    from shared.interview_schema import ensure_interview_item
+    from shared.operator_schema import ensure_operator_item
 except ImportError:
     def is_question(text: str) -> bool:  # type: ignore[misc]
         """Minimal fallback: ends with '?' or starts with a question word."""
@@ -142,7 +142,7 @@ except ImportError:
         _Q = {"что", "как", "почему", "зачем", "когда", "где", "кто",
               "what", "how", "why", "when", "where", "who", "which"}
         return text.lower().split()[0] in _Q if text else False
-    def ensure_interview_item(item, *, default_source: str = "unknown"):  # type: ignore[misc]
+    def ensure_operator_item(item, *, default_source: str = "unknown"):  # type: ignore[misc]
         return item
 
 logger = logging.getLogger(__name__)
@@ -803,25 +803,27 @@ class WhyStrategyStage:
 
     def __init__(self, anchor=None) -> None:
         self._anchor = anchor
-        # InterviewerProfile persists for the whole session — one observation per question
-        self._interviewer = (
-            _InterviewerProfile()
-            if (_INTENT_AVAILABLE and _InterviewerProfile is not None)
+        # OperatorProfile persists for the whole session — one observation per question
+        self._operator_profile = (
+            _OperatorProfile()
+            if (_INTENT_AVAILABLE and _OperatorProfile is not None)
             else None
         )
 
     def process(self, item: dict) -> Optional[dict]:
         text = item.get("text", "")
 
-        # WHY Strategy + InterviewerProfile bias
+        # WHY Strategy + OperatorProfile bias
         if _INTENT_AVAILABLE and _analyze_strategy is not None:
             try:
                 strategy = _analyze_strategy(text)
                 # Update interviewer model and apply hard bindings
-                if self._interviewer is not None:
-                    self._interviewer.observe(text, strategy)
-                    strategy.apply_interviewer_bias(self._interviewer)
-                    item["_interviewer_profile"] = self._interviewer.to_dict()
+                if self._operator_profile is not None:
+                    self._operator_profile.observe(text, strategy)
+                    strategy.apply_interviewer_bias(self._operator_profile)
+                    profile = self._operator_profile.to_dict()
+                    item["_interviewer_profile"] = profile
+                    item["_operator_profile"] = profile
                 item["_why_strategy"] = strategy.to_dict()
             except Exception as exc:
                 logger.debug("WhyStrategyStage: strategy failed: %s", exc)
@@ -1009,17 +1011,17 @@ class SmartEar:
                 logger.warning("SmartEar: EmpathyNegotiationLayer init failed: %s", exc)
 
         # Stage 8 — Body-Aware Copilot
-        self._copilot: Optional["_BodyAwareCopilot"] = None  # type: ignore[type-arg]
+        self._copilot: Optional["_OperatorResponseAssembler"] = None  # type: ignore[type-arg]
         if (
             copilot_enabled
             and _INTENT_AVAILABLE
-            and _BodyAwareCopilot is not None
+            and _OperatorResponseAssembler is not None
         ):
             try:
-                self._copilot = _BodyAwareCopilot()
-                logger.info("SmartEar: BodyAwareCopilot enabled")
+                self._copilot = _OperatorResponseAssembler()
+                logger.info("SmartEar: OperatorResponseAssembler enabled")
             except Exception as exc:
-                logger.warning("SmartEar: BodyAwareCopilot init failed: %s", exc)
+                logger.warning("SmartEar: OperatorResponseAssembler init failed: %s", exc)
 
         # Stage 9 — Resonance Scorer
         self._resonance_scorer: Optional["_ResonanceScorer"] = None  # type: ignore[type-arg]
@@ -1187,7 +1189,7 @@ class SmartEar:
         return self._process(item)
 
     def _process(self, item: dict) -> Optional[dict]:
-        item = ensure_interview_item(item, default_source="local_stt")
+        item = ensure_operator_item(item, default_source="local_stt")
         original_text = item.get("text", "")
 
         self._step_flow("perceive", {"text": original_text})

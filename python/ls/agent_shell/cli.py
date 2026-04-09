@@ -5,8 +5,10 @@ from pathlib import Path
 import sys
 import json
 import os
+import queue
 import urllib.error
 import urllib.request
+import requests
 
 import typer
 from rich.console import Console
@@ -30,10 +32,30 @@ app = typer.Typer(help="LS Agent Shell MVP CLI")
 console = Console()
 
 
+def print_plain_safe(text: str) -> None:
+    output = str(text or "")
+    try:
+        console.print(output)
+    except UnicodeEncodeError:
+        stream = getattr(sys.stdout, "buffer", None)
+        safe_bytes = (output + "\n").encode("cp1252", errors="replace")
+        if stream is not None:
+            stream.write(safe_bytes)
+            stream.flush()
+        else:
+            sys.stdout.write(safe_bytes.decode("cp1252", errors="replace"))
+
+
 class AccessMode(str, Enum):
     READ_ONLY = "read-only"
     SAFE_WRITE = "safe-write"
     FULL_AGENT = "full-agent"
+
+
+class CouncilLLMMode(str, Enum):
+    AUTO = "auto"
+    DRY_RUN = "dry-run"
+    LOCAL = "local"
 
 
 def manager() -> TaskManager:
@@ -41,8 +63,75 @@ def manager() -> TaskManager:
     return TaskManager(db_path=base / "runtime.db", artifacts_root=base / "artifacts")
 
 
-def build_council_agent(orientation: str = "") -> ResonanceAgent:
-    return ResonanceAgent(anchor=[], llm_fn=None, orientation=orientation or "cli-council-cycle")
+def build_local_council_llm_fn():
+    try:
+        from config import OLLAMA_HOST, LLM_MODEL_NAME
+    except ImportError:
+        from modules.config import OLLAMA_HOST, LLM_MODEL_NAME
+
+    candidate_hosts = []
+    for host in ("http://127.0.0.1:11434", OLLAMA_HOST, "http://localhost:11434"):
+        if host and host not in candidate_hosts:
+            candidate_hosts.append(host.rstrip("/"))
+
+    session = requests.Session()
+    working_host = None
+    for host in candidate_hosts:
+        try:
+            response = session.post(
+                f"{host}/api/chat",
+                json={
+                    "model": LLM_MODEL_NAME,
+                    "messages": [{"role": "user", "content": "Say only: ok"}],
+                    "stream": False,
+                    "options": {"temperature": 0.0, "num_predict": 8},
+                },
+                timeout=15,
+            )
+            response.raise_for_status()
+            working_host = host
+            break
+        except Exception:
+            continue
+    if not working_host:
+        raise RuntimeError("Local Ollama backend is unavailable.")
+
+    def _call(user_prompt: str, system_prompt: str) -> str:
+        payload = {
+            "model": LLM_MODEL_NAME,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "stream": False,
+            "options": {"temperature": 0.2, "num_predict": 256},
+        }
+        response = session.post(
+            f"{working_host}/api/chat",
+            json=payload,
+            timeout=60,
+        )
+        response.raise_for_status()
+        body = response.json()
+        return str((((body or {}).get("message") or {}).get("content")) or "")
+
+    return _call
+
+
+def build_council_agent(
+    orientation: str = "",
+    *,
+    llm_mode: CouncilLLMMode = CouncilLLMMode.AUTO,
+) -> ResonanceAgent:
+    llm_fn = None
+    if llm_mode is CouncilLLMMode.LOCAL:
+        llm_fn = build_local_council_llm_fn()
+    elif llm_mode is CouncilLLMMode.AUTO:
+        try:
+            llm_fn = build_local_council_llm_fn()
+        except Exception:
+            llm_fn = None
+    return ResonanceAgent(anchor=[], llm_fn=llm_fn, orientation=orientation or "cli-council-cycle")
 
 
 def liminalqa_settings() -> tuple[str, str]:
@@ -141,6 +230,30 @@ def publish_council_ledger_to_liminalqa(ledger: dict) -> tuple[int, object]:
         return 500, {"error": str(exc)}
 
 
+def update_council_quality_artifact_publish_status(
+    council_quality_artifact: str | Path | None,
+    *,
+    status_code: int,
+    response: object,
+) -> str | None:
+    if not council_quality_artifact:
+        return None
+    path = Path(council_quality_artifact)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    payload["liminalqa"] = {
+        "published": 200 <= int(status_code) < 300,
+        "status_code": int(status_code),
+        "response": response,
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return str(path)
+
+
 @app.command("run")
 def run_task(prompt: str, approval: AccessMode = typer.Option(AccessMode.SAFE_WRITE, "--approval")) -> None:
     task_id = manager().run_task(prompt=prompt, mode=approval.value)
@@ -236,6 +349,11 @@ def list_tasks() -> None:
 def council_cycle(
     prompt: str,
     orientation: str = typer.Option("", "--orientation", help="Optional council/orchestration context."),
+    llm_mode: CouncilLLMMode = typer.Option(
+        CouncilLLMMode.AUTO,
+        "--llm-mode",
+        help="Choose whether to use a real local LLM, dry-run mode, or auto fallback.",
+    ),
     artifact_dir: Path = typer.Option(
         Path("artifacts/council-ledger"),
         "--artifact-dir",
@@ -247,11 +365,17 @@ def council_cycle(
         help="Also publish the generated council ledger into LiminalQA ingest.",
     ),
 ) -> None:
-    agent = build_council_agent(orientation=orientation)
+    try:
+        agent = build_council_agent(orientation=orientation, llm_mode=llm_mode)
+    except Exception as exc:
+        console.print(f"[red]Council agent init failed:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
     agent._council_ledger_dir = artifact_dir
+    agent._council_quality_dir = artifact_dir.parent / "council-quality"
     result = agent.process_text(prompt)
     ledger = result.get("council_contribution_ledger") or {}
     artifact_path = result.get("council_contribution_ledger_artifact")
+    council_quality_artifact = result.get("council_quality_artifact")
     cycle_id = result.get("cycle_id", "unknown")
     verdict = "success" if ledger.get("outcome", {}).get("success") else "needs-review"
     route = ledger.get("final_decision", {}).get("selected_route", "unknown")
@@ -261,11 +385,21 @@ def council_cycle(
     console.print(f"[green]Outcome:[/green] {verdict}")
     if artifact_path:
         console.print(f"[bold]Ledger artifact:[/bold] {artifact_path}")
+    if council_quality_artifact:
+        console.print(f"[bold]Quality artifact:[/bold] {council_quality_artifact}")
     if publish_to_liminalqa and ledger:
         status, response = publish_council_ledger_to_liminalqa(ledger)
+        updated_quality_artifact = update_council_quality_artifact_publish_status(
+            council_quality_artifact,
+            status_code=status,
+            response=response,
+        )
         console.print(f"[bold]LiminalQA publish:[/bold] HTTP {status}")
+        if updated_quality_artifact:
+            console.print(f"[bold]Quality publish trace:[/bold] {updated_quality_artifact}")
         console.print(response)
-    console.print(result.get("final_output", ""))
+    final_output = str(result.get("final_output", "") or "")
+    print_plain_safe(final_output)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ export default function CTA() {
   const actions = [
     { label: t('cta.demo'), href: '#runtime-live' },
     { label: t('cta.community'), href: '#operator-delta' },
-    { label: t('cta.contact'), href: 'mailto:core@ghostos.ai?subject=GhostGPT%20LS' },
+    { label: t('cta.contact'), href: 'mailto:core@ghostos.ai?subject=LS' },
   ];
 
   return (

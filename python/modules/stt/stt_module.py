@@ -25,7 +25,7 @@ from typing import List, Dict, Any, Optional
 
 from faster_whisper import WhisperModel
 from config import WHISPER_MODEL_SIZE
-from shared.interview_schema import InterviewUtterance, ensure_interview_item
+from shared.operator_schema import OperatorUtterance, ensure_operator_item
 from shared.utils import is_question
 
 logger = logging.getLogger(__name__)
@@ -210,7 +210,7 @@ class SpeechToText:
             self._current_words = []
             self._current_log_probs = []
 
-            utterance = InterviewUtterance(
+            utterance = OperatorUtterance(
                 type="question",
                 text=question,
                 confidence=asr_confidence,
@@ -219,7 +219,7 @@ class SpeechToText:
                 clean_text=question,
                 timestamp=time.time(),
             )
-            return ensure_interview_item(utterance, default_source="local_stt")
+            return ensure_operator_item(utterance, default_source="local_stt")
 
         # Safety valve: prevent unbounded buffer growth
         if len(self.current_sentence) > 500:

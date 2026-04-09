@@ -1,0 +1,119 @@
+{
+  "dataset_name": "ls-fellowship-council-ledger-sample",
+  "source": "artifacts/council-ledger",
+  "selection_policy": {
+    "excluded": [
+      "demo cycles",
+      "cid contract fixtures",
+      "dry_run:unknown ledgers"
+    ],
+    "limit": 8,
+    "goal": "curated evidence-grade sample for fellowship review"
+  },
+  "summary": {
+    "ledger_count": 8,
+    "success_count": 7,
+    "failure_count": 1,
+    "avg_resonance": 0.4062,
+    "avg_contribution": 0.8345
+  },
+  "items": [
+    {
+      "cycle_id": "94ac83cc-9f50-413f-ac49-94aacb440f59",
+      "file": "ledgers/94ac83cc-9f50-413f-ac49-94aacb440f59.json",
+      "model_id": "callable:unknown",
+      "route": "unknown",
+      "success": true,
+      "receiver_resonance": 0.75,
+      "best_contributor_score": 0.8636,
+      "goal_summary": "Produce a balanced council answer for a security incident follow-up where speed and verification are in tension.",
+      "source_type": "real_local_cycle"
+    },
+    {
+      "cycle_id": "7ee0d1ba-55e8-47b2-a7fb-93f40a59c5b4",
+      "file": "ledgers/7ee0d1ba-55e8-47b2-a7fb-93f40a59c5b4.json",
+      "model_id": "callable:unknown",
+      "route": "unknown",
+      "success": true,
+      "receiver_resonance": 0.5,
+      "best_contributor_score": 0.8563,
+      "goal_summary": "Help the operator reconcile conflicting model proposals about safety mitigation versus launch velocity.",
+      "source_type": "real_local_cycle"
+    },
+    {
+      "cycle_id": "1f78f170-0363-45c3-b2f4-86b489f1aa82",
+      "file": "ledgers/1f78f170-0363-45c3-b2f4-86b489f1aa82.json",
+      "model_id": "callable:unknown",
+      "route": "unknown",
+      "success": true,
+      "receiver_resonance": 0.5,
+      "best_contributor_score": 0.8536,
+      "goal_summary": "Run a coordination cycle for a privacy-sensitive workflow change that requires human approval and traceability.",
+      "source_type": "real_local_cycle"
+    },
+    {
+      "cycle_id": "87e07531-2214-4a71-9daa-5dfae7fa969d",
+      "file": "ledgers/87e07531-2214-4a71-9daa-5dfae7fa969d.json",
+      "model_id": "callable:unknown",
+      "route": "unknown",
+      "success": true,
+      "receiver_resonance": 0.25,
+      "best_contributor_score": 0.8463,
+      "goal_summary": "Generate a coordination answer for an oversight dashboard review where the final response must be auditable and calm.",
+      "source_type": "real_local_cycle"
+    },
+    {
+      "cycle_id": "9488bec1-f203-441b-bed9-5d59bb8154bc",
+      "file": "ledgers/9488bec1-f203-441b-bed9-5d59bb8154bc.json",
+      "model_id": "callable:unknown",
+      "route": "unknown",
+      "success": true,
+      "receiver_resonance": 0.25,
+      "best_contributor_score": 0.8463,
+      "goal_summary": "Help the council produce an approval-safe answer for a model behavior review with unclear stakeholder alignment.",
+      "source_type": "real_local_cycle"
+    },
+    {
+      "cycle_id": "054c5ff0-b023-4c66-87fe-023159e26005",
+      "file": "ledgers/054c5ff0-b023-4c66-87fe-023159e26005.json",
+      "model_id": "callable:unknown",
+      "route": "unknown",
+      "success": true,
+      "receiver_resonance": 0.25,
+      "best_contributor_score": 0.8442,
+      "goal_summary": "Produce a council-guided answer for an agent evaluation dispute where route quality and operator trust both matter.",
+      "source_type": "real_local_cycle"
+    },
+    {
+      "cycle_id": "ef54cb8d-5264-4588-a393-a467f0defd65",
+      "file": "ledgers/ef54cb8d-5264-4588-a393-a467f0defd65.json",
+      "model_id": "callable:unknown",
+      "route": "unknown",
+      "success": true,
+      "receiver_resonance": 0.25,
+      "best_contributor_score": 0.8442,
+      "goal_summary": "Generate a coordination response for a human operator deciding whether to approve a risky deployment under time pressure.",
+      "source_type": "real_local_cycle"
+    },
+    {
+      "cycle_id": "6e19b935-2f3d-47bd-8958-504e10046282",
+      "file": "ledgers/6e19b935-2f3d-47bd-8958-504e10046282.json",
+      "model_id": "primary-llm",
+      "route": "unknown",
+      "success": false,
+      "receiver_resonance": 0.5,
+      "best_contributor_score": 0.7212,
+      "goal_summary": "Generate a coordination answer for a risky deployment review with product, compliance, and operations concerns.",
+      "source_type": "real_local_cycle"
+    }
+  ],
+  "traces": {
+    "included": [],
+    "note": "Replay traces are not packaged in this first sample. The ledger sample is the current minimum evidence artifact."
+  },
+  "limitations": [
+    "Most cycles currently use callable-backed local LLM outputs but still expose route='unknown'.",
+    "This sample is a curated subset, not a full production dataset.",
+    "Receiver resonance is currently derived from runtime signals rather than human annotation."
+  ]
+}

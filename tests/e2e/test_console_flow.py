@@ -21,7 +21,7 @@ console_main = importlib.import_module("apps.console.main")
 
 
 class FakeAudio:
-    def __init__(self, output_queue: queue.Queue):
+    def __init__(self, output_queue: queue.Queue, **kwargs):
         self.output_queue = output_queue
         self.running = False
 
@@ -83,17 +83,17 @@ class TestConsoleFlow(unittest.TestCase):
         console_main.SpeechToText = FakeSTT
         console_main.LanguageModel = FakeLLM
         console_main.check_system_resources = lambda: True
-        console_main.InterviewCopilot._ui_display_loop = lambda self: None
+        console_main.ConsoleRuntime._ui_display_loop = lambda self: None
 
         orig_sleep = console_main.time.sleep
         console_main.time.sleep = lambda _: orig_sleep(0.01)
 
         try:
-            copilot = console_main.InterviewCopilot()
-            worker = threading.Thread(target=copilot.start)
+            runtime = console_main.ConsoleRuntime()
+            worker = threading.Thread(target=runtime.start)
             worker.start()
             time.sleep(0.05)
-            copilot.stop()
+            runtime.stop()
             worker.join(timeout=2)
             self.assertFalse(worker.is_alive())
         finally:

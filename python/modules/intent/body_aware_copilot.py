@@ -114,6 +114,7 @@ class CopilotOutput:
             "anchor_context":      self.anchor_context,
             "empathy_cues":        self.empathy_cues.to_dict(),
             "interviewer_profile": self.interviewer_profile,
+            "operator_profile":    self.interviewer_profile,
             "final_prompt":        self.final_prompt,
             "intervention_level":  self.intervention_level,
             "active_rules":        self.active_rules,
@@ -298,7 +299,9 @@ class BodyAwareCopilot:
                 interviewer_profile={},
                 final_prompt="ответь по существу",
             )
-        item["_copilot_output"] = output.to_dict()
+        output_dict = output.to_dict()
+        item["_copilot_output"] = dict(output_dict)
+        item["_operator_response_output"] = dict(output_dict)
         return item
 
     # ------------------------------------------------------------------
@@ -306,7 +309,7 @@ class BodyAwareCopilot:
     def _build(self, item: dict) -> CopilotOutput:
         strategy    = item.get("_why_strategy")    or {}
         empathy     = item.get("_empathy_result")  or {}
-        interviewer = item.get("_interviewer_profile") or {}
+        interviewer = item.get("_operator_profile") or item.get("_interviewer_profile") or {}
         anchor_ctx  = item.get("_anchor_context")  or []
 
         pressure    = empathy.get("pressure_score", 0.0)

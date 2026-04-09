@@ -2,15 +2,15 @@
 """EmpathyNegotiationLayer — Stage 7 of the SmartEar cognitive pipeline.
 
 Adds empathic and negotiation-aware hints to the LLM prompt, based on:
-  - InterviewerProfile (pressure, style preferences built from prior questions)
+  - OperatorProfile (pressure, style preferences built from prior questions)
   - WHY Strategy (goal, answer_type, pressure level)
-  - Anchor context (candidate's real experience)
+  - Anchor context (operator's real experience)
 
 Design goals
 ------------
 * Zero hard dependencies — all imports are optional with graceful fallback.
 * < 0.5 ms per call — pure rule matching, no ML, no I/O.
-* Thread-safe — stateless output; only the shared InterviewerProfile is mutated
+* Thread-safe — stateless output; only the shared OperatorProfile is mutated
   and that happens in WhyStrategyStage before this layer runs.
 * The LLM sees ONE extra block appended to the system prompt:
 
@@ -145,7 +145,7 @@ def _compute_pressure(strategy: dict, interviewer: dict) -> float:
 class EmpathyNegotiationLayer:
     """Stage 7: adds empathy + negotiation hints to the pipeline item.
 
-    Stateless apart from an optional reference to the shared InterviewerProfile
+    Stateless apart from an optional reference to the shared OperatorProfile
     dict (read-only at this stage — mutations happen in WhyStrategyStage).
 
     Call ``process(item)`` once per question.  The method is thread-safe.
@@ -176,7 +176,7 @@ class EmpathyNegotiationLayer:
     def _build(self, item: dict) -> EmpathyResult:
         text       = item.get("text", "")
         strategy   = item.get("_why_strategy") or {}
-        interviewer = item.get("_interviewer_profile") or {}
+        interviewer = item.get("_operator_profile") or item.get("_interviewer_profile") or {}
         anchor_ctx = item.get("_anchor_context") or []
 
         goal        = strategy.get("goal", "general")
@@ -214,10 +214,10 @@ class EmpathyNegotiationLayer:
             nego_move = _SOFTENERS["bridge"]
             rules.append("repeated_why_grounded")
 
-        # ---- Rule 3: Interrupting interviewer → be brief (highest priority) ----
+        # ---- Rule 3: Interrupting counterparty → be brief (highest priority) ----
         if interrupted:
             _set_tone(_Tone.BRIEF)
-            hints.append("Отвечай коротко — интервьюер перебивает")
+            hints.append("Отвечай коротко — собеседник перебивает")
             hints.append("Одна мысль — одно предложение")
             rules.append("interviewer_interrupts_brief")
 
@@ -225,7 +225,7 @@ class EmpathyNegotiationLayer:
         if goal in ("evaluate_experience", "check_experience") and has_anchor:
             _set_tone(_Tone.GROUNDED)
             hints.append("Начни с конкретного кейса из Anchor")
-            hints.append("Цифры/метрики обязательны — интервьюер проверяет опыт")
+            hints.append("Цифры/метрики обязательны — контекст проверяет реальный опыт")
             rules.append("experience_goal_with_anchor")
 
         # ---- Rule 5: Theory/definition question → assertive, not flat ----
@@ -235,15 +235,15 @@ class EmpathyNegotiationLayer:
             hints.append("Не читай учебник — говори как практик")
             rules.append("theory_question_assertive")
 
-        # ---- Rule 6: Interviewer prefers examples, question is abstract ----
+        # ---- Rule 6: Counterparty prefers examples, question is abstract ----
         if prefers_ex and answer_type not in ("experiential",):
-            hints.append("Этот интервьюер любит кейсы — добавь свой пример")
+            hints.append("Эта сторона любит кейсы — добавь свой пример")
             rules.append("prefers_examples_nudge")
 
         # ---- Rule 7: First few questions — build rapport ----
         if 1 <= questions_n <= 3 and not rules:
             _set_tone(_Tone.WARM)
-            hints.append("Начало интервью — установи контакт: краткий и уверенный ответ")
+            hints.append("Начало диалога — установи контакт: краткий и уверенный ответ")
             nego_move = _SOFTENERS["redirect"]
             rules.append("rapport_building_start")
 

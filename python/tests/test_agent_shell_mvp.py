@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 from ls.agent_shell.runtime.task_manager import TaskManager
 from typer.testing import CliRunner
@@ -91,6 +92,8 @@ def test_council_cycle_cli_emits_ledger_artifact(tmp_path: Path) -> None:
         [
             "council-cycle",
             "Help the operator align the council response",
+            "--llm-mode",
+            "dry-run",
             "--artifact-dir",
             str(artifact_dir),
             "--orientation",
@@ -120,6 +123,8 @@ def test_council_cycle_cli_can_publish_to_liminalqa(tmp_path: Path, monkeypatch)
         [
             "council-cycle",
             "Publish this council cycle",
+            "--llm-mode",
+            "dry-run",
             "--artifact-dir",
             str(artifact_dir),
             "--publish-to-liminalqa",
@@ -129,3 +134,37 @@ def test_council_cycle_cli_can_publish_to_liminalqa(tmp_path: Path, monkeypatch)
     assert result.exit_code == 0
     assert "LiminalQA publish:" in result.stdout
     assert "HTTP 200" in result.stdout
+    quality_artifacts = list((tmp_path / "council-quality").glob("*.json"))
+    assert quality_artifacts
+    quality_payload = json.loads(quality_artifacts[0].read_text(encoding="utf-8"))
+    assert quality_payload["liminalqa"]["published"] is True
+    assert quality_payload["liminalqa"]["status_code"] == 200
+    assert quality_payload["liminalqa"]["response"]["ok"] is True
+
+
+def test_council_cycle_cli_can_use_local_llm_mode(tmp_path: Path, monkeypatch) -> None:
+    runner = CliRunner()
+    artifact_dir = tmp_path / "council-ledger"
+
+    def fake_llm(_user: str, _system: str) -> str:
+        return "Local council answer"
+
+    monkeypatch.setattr(cli, "build_local_council_llm_fn", lambda: fake_llm)
+
+    result = runner.invoke(
+        app,
+        [
+            "council-cycle",
+            "Use a real local council cycle",
+            "--llm-mode",
+            "local",
+            "--artifact-dir",
+            str(artifact_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Council cycle:" in result.stdout
+    assert "Ledger artifact:" in result.stdout
+    artifacts = list(artifact_dir.glob("*.json"))
+    assert artifacts

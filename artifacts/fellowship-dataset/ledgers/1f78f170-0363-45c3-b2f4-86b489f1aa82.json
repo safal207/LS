@@ -1,0 +1,59 @@
+{
+  "cycle_id": "1f78f170-0363-45c3-b2f4-86b489f1aa82",
+  "task_id": "1f78f170-0363-45c3-b2f4-86b489f1aa82",
+  "timestamp": "2026-04-08T08:11:22Z",
+  "goal": {
+    "type": "coordination_cycle",
+    "summary": "Run a coordination cycle for a privacy-sensitive workflow change that requires human approval and traceability."
+  },
+  "network_context": {
+    "route_candidates": [
+      "unknown"
+    ],
+    "active_nodes": [],
+    "graph_state_version": "unknown"
+  },
+  "participants": [
+    {
+      "model_id": "callable:unknown",
+      "model_type": "primary_llm",
+      "proposal_id": "route:unknown",
+      "proposal_summary": "Sure! Let's run the coordination cycle for a privacy-sensitive workflow change requiring human approval and traceability.\n\n1. **Identify Stakeholders**: First, ",
+      "route_hint": "unknown",
+      "confidence": 0.785,
+      "latency_ms": 0,
+      "token_cost": 0.0,
+      "selected": true,
+      "weight_in_final_decision": 1.0
+    }
+  ],
+  "final_decision": {
+    "selected_route": "unknown",
+    "decision_summary": "Council route selected",
+    "derived_from_proposals": [
+      "route:unknown"
+    ]
+  },
+  "outcome": {
+    "success": true,
+    "path_quality": 0.5,
+    "network_improvement": 0.0,
+    "operator_intervention_required": false,
+    "operator_feedback_score": 0.5,
+    "drift_detected": false
+  },
+  "attribution": {
+    "best_contributor_model_id": "callable:unknown",
+    "best_contributor_score": 0.8536,
+    "contribution_breakdown": [
+      {
+        "model_id": "callable:unknown",
+        "adoption_score": 1.0,
+        "outcome_lift": 0.6,
+        "stability_impact": 0.9,
+        "cost_efficiency": 0.957,
+        "total_contribution_score": 0.8536
+      }
+    ]
+  }
+}

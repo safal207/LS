@@ -122,7 +122,7 @@
 
 1. Зафиксировать продуктовую «единицу ценности»: 
    - «Локальный агентный runtime с долговременной памятью и governance».
-2. Выбрать 2 вертикали пилотов (например, HR interview intelligence + internal knowledge ops).
+2. Выбрать 2 вертикали пилотов (например, operator decision intelligence + internal knowledge ops).
 3. Сформировать pricing v0:
    - Free,
    - Team,

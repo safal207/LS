@@ -1,0 +1,59 @@
+{
+  "cycle_id": "87e07531-2214-4a71-9daa-5dfae7fa969d",
+  "task_id": "87e07531-2214-4a71-9daa-5dfae7fa969d",
+  "timestamp": "2026-04-08T08:12:05Z",
+  "goal": {
+    "type": "coordination_cycle",
+    "summary": "Generate a coordination answer for an oversight dashboard review where the final response must be auditable and calm."
+  },
+  "network_context": {
+    "route_candidates": [
+      "unknown"
+    ],
+    "active_nodes": [],
+    "graph_state_version": "unknown"
+  },
+  "participants": [
+    {
+      "model_id": "callable:unknown",
+      "model_type": "primary_llm",
+      "proposal_id": "route:unknown",
+      "proposal_summary": "Sure! Here's a concise and calm response that ensures the oversight dashboard is auditable:\n\n---\n\n\"Absolutely, I can provide an auditable summary of our oversig",
+      "route_hint": "unknown",
+      "confidence": 0.875,
+      "latency_ms": 0,
+      "token_cost": 0.0,
+      "selected": true,
+      "weight_in_final_decision": 1.0
+    }
+  ],
+  "final_decision": {
+    "selected_route": "unknown",
+    "decision_summary": "Council route selected",
+    "derived_from_proposals": [
+      "route:unknown"
+    ]
+  },
+  "outcome": {
+    "success": true,
+    "path_quality": 0.5,
+    "network_improvement": 0.0,
+    "operator_intervention_required": false,
+    "operator_feedback_score": 0.25,
+    "drift_detected": false
+  },
+  "attribution": {
+    "best_contributor_model_id": "callable:unknown",
+    "best_contributor_score": 0.8463,
+    "contribution_breakdown": [
+      {
+        "model_id": "callable:unknown",
+        "adoption_score": 1.0,
+        "outcome_lift": 0.6,
+        "stability_impact": 0.85,
+        "cost_efficiency": 0.975,
+        "total_contribution_score": 0.8463
+      }
+    ]
+  }
+}

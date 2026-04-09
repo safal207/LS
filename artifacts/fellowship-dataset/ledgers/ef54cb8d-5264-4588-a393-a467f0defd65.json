@@ -1,0 +1,59 @@
+{
+  "cycle_id": "ef54cb8d-5264-4588-a393-a467f0defd65",
+  "task_id": "ef54cb8d-5264-4588-a393-a467f0defd65",
+  "timestamp": "2026-04-08T08:10:05Z",
+  "goal": {
+    "type": "coordination_cycle",
+    "summary": "Generate a coordination response for a human operator deciding whether to approve a risky deployment under time pressure."
+  },
+  "network_context": {
+    "route_candidates": [
+      "unknown"
+    ],
+    "active_nodes": [],
+    "graph_state_version": "unknown"
+  },
+  "participants": [
+    {
+      "model_id": "callable:unknown",
+      "model_type": "primary_llm",
+      "proposal_id": "route:unknown",
+      "proposal_summary": "Understood. Let's proceed with the decision-making process.",
+      "route_hint": "unknown",
+      "confidence": 0.807,
+      "latency_ms": 0,
+      "token_cost": 0.0,
+      "selected": true,
+      "weight_in_final_decision": 1.0
+    }
+  ],
+  "final_decision": {
+    "selected_route": "unknown",
+    "decision_summary": "Council route selected",
+    "derived_from_proposals": [
+      "route:unknown"
+    ]
+  },
+  "outcome": {
+    "success": true,
+    "path_quality": 0.5,
+    "network_improvement": 0.0,
+    "operator_intervention_required": false,
+    "operator_feedback_score": 0.25,
+    "drift_detected": false
+  },
+  "attribution": {
+    "best_contributor_model_id": "callable:unknown",
+    "best_contributor_score": 0.8442,
+    "contribution_breakdown": [
+      {
+        "model_id": "callable:unknown",
+        "adoption_score": 1.0,
+        "outcome_lift": 0.6,
+        "stability_impact": 0.85,
+        "cost_efficiency": 0.9614,
+        "total_contribution_score": 0.8442
+      }
+    ]
+  }
+}

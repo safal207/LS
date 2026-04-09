@@ -18,7 +18,7 @@ export default function Hero({ onSwitchLang }: Props) {
       </div>
       <div className="glass animate-fade-up p-8 text-center md:p-14">
         <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-ghost-300/20 px-4 py-1 text-xs uppercase tracking-widest text-ghost-300">
-          <Sparkles className="h-3.5 w-3.5" /> Web4 • LS • HCP
+          <Sparkles className="h-3.5 w-3.5" /> Web4 | LS | Oversight Runtime
         </div>
         <h1 className="mx-auto max-w-4xl text-3xl font-semibold leading-tight md:text-6xl">
           {t('hero.title')}

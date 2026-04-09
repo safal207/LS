@@ -32,7 +32,7 @@ Design
   (e.g. from SmartEar's output queue).
 * The ``llm_fn`` callable is the only dependency on the actual LLM; if None,
   the agent returns the ``pre_prompt`` as ``final_output`` (useful in tests).
-* Thread-safe: ``InterviewerProfile`` and ``ResonanceLearner`` are guarded
+* Thread-safe: ``OperatorProfile`` and ``ResonanceLearner`` are guarded
   internally; the agent itself can be called from multiple threads.
 * ``anchor`` list is static per session; pass a new agent per conversation.
 
@@ -88,7 +88,7 @@ from config import (
     MAX_TOKENS,
     TEMPERATURE,
 )
-from shared.interview_schema import ensure_interview_item
+from shared.operator_schema import ensure_operator_item
 
 logger = logging.getLogger(__name__)
 
@@ -98,28 +98,28 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 try:
-    from intent.why_strategy import analyze_why_and_strategy as _analyze
+    from intent.operator_strategy import analyze_operator_strategy as _analyze
     _STRATEGY_OK = True
 except Exception:
     _STRATEGY_OK = False
     _analyze = None  # type: ignore[assignment]
 
 try:
-    from intent.interviewer_profile import InterviewerProfile as _InterviewerProfile
+    from intent.operator_profile import OperatorProfile as _OperatorProfile
     _PROFILE_OK = True
 except Exception:
     _PROFILE_OK = False
-    _InterviewerProfile = None  # type: ignore[assignment]
+    _OperatorProfile = None  # type: ignore[assignment]
 
 try:
-    from intent.empathy_negotiation import EmpathyNegotiationLayer as _EmpathyLayer
+    from intent.operator_empathy import EmpathyNegotiationLayer as _EmpathyLayer
     _EMPATHY_OK = True
 except Exception:
     _EMPATHY_OK = False
     _EmpathyLayer = None  # type: ignore[assignment]
 
 try:
-    from intent.body_aware_copilot import BodyAwareCopilot as _Copilot
+    from intent.operator_response_assembler import OperatorResponseAssembler as _Copilot
     _COPILOT_OK = True
 except Exception:
     _COPILOT_OK = False
@@ -247,18 +247,21 @@ except Exception:
 
 try:
     from cel.council_sync import apply_council_ledger_to_cel as _apply_council_ledger_to_cel
+    from cel.council_sync import quality_score_from_council_outcome as _quality_score_from_council_outcome
     from cel.contribution_api import ContributionLedger as _CELContributionLedger
     from cel.reputation_engine import ReputationEngine as _CELReputationEngine
     _COUNCIL_CEL_SYNC_OK = True
 except Exception:
     try:
         from modules.cel.council_sync import apply_council_ledger_to_cel as _apply_council_ledger_to_cel
+        from modules.cel.council_sync import quality_score_from_council_outcome as _quality_score_from_council_outcome
         from modules.cel.contribution_api import ContributionLedger as _CELContributionLedger
         from modules.cel.reputation_engine import ReputationEngine as _CELReputationEngine
         _COUNCIL_CEL_SYNC_OK = True
     except Exception:
         _COUNCIL_CEL_SYNC_OK = False
         _apply_council_ledger_to_cel = None  # type: ignore[assignment]
+        _quality_score_from_council_outcome = None  # type: ignore[assignment]
         _CELContributionLedger = None  # type: ignore[assignment]
         _CELReputationEngine = None  # type: ignore[assignment]
 
@@ -808,9 +811,9 @@ class ResonanceAgent:
 
         # Stage 6 — WHY Strategy is a function, not a class (called per item)
 
-        # Stage 6b — InterviewerProfile (shared, mutated per question)
+        # Stage 6b — OperatorProfile (shared, mutated per question)
         self._profile = (
-            _InterviewerProfile() if _PROFILE_OK and _InterviewerProfile else None
+            _OperatorProfile() if _PROFILE_OK and _OperatorProfile else None
         )
 
         # Stage 7 — Empathy & Negotiation
@@ -902,6 +905,7 @@ class ResonanceAgent:
                 _Path("data/graph_memory/alignment_memory_units.jsonl")
             )
         self._council_ledger_dir = Path("artifacts/council-ledger")
+        self._council_quality_dir = Path("artifacts/council-quality")
 
         # Alignment digest metrics (advisory/observability only)
         self._digest_metrics = (
@@ -1019,7 +1023,7 @@ class ResonanceAgent:
         Returns:
             Complete cycle dict matching the spec, including ``resonance_score``.
         """
-        item: dict = ensure_interview_item({
+        item: dict = ensure_operator_item({
             "type": "question",
             "text": text,
             "confidence": 1.0,
@@ -1041,7 +1045,7 @@ class ResonanceAgent:
         ``item["text"]`` must be set.  ``_anchor_context`` is merged with
         ``self._anchor`` if not already present.
         """
-        item = ensure_interview_item(item, default_source="smart_ear")
+        item = ensure_operator_item(item, default_source="smart_ear")
         if "_anchor_context" not in item:
             item["_anchor_context"] = list(self._anchor)
         return self._run_pipeline(item)
@@ -1072,7 +1076,7 @@ class ResonanceAgent:
                 "resonance_score": score,
                 "copilot": {
                     "active_rules": (
-                        (cached.get("_copilot_output") or {}).get("active_rules") or []
+                        ((cached.get("_operator_response_output") or cached.get("_copilot_output") or {}).get("active_rules") or [])
                     ),
                 },
                 "user_feedback": feedback_text,
@@ -2085,7 +2089,7 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.debug("ResonanceAgent: WhyLayer failed: %s", exc)
 
-        # Stage 6 — WHY Strategy + Anchor + InterviewerProfile
+        # Stage 6 — WHY Strategy + Anchor + OperatorProfile
         if _STRATEGY_OK and _analyze:
             try:
                 strategy = _analyze(text)
@@ -2093,6 +2097,7 @@ class ResonanceAgent:
                     self._profile.observe(text, strategy)
                     strategy.apply_interviewer_bias(self._profile)
                     item["_interviewer_profile"] = self._profile.to_dict()
+                    item["_operator_profile"] = self._profile.to_dict()
                 item["_why_strategy"] = strategy.to_dict()
             except Exception as exc:
                 logger.debug("ResonanceAgent: strategy stage failed: %s", exc)
@@ -2317,7 +2322,7 @@ class ResonanceAgent:
                     final_output = self._call_llm(item)
                 except Exception as exc:
                     logger.warning("ResonanceAgent: derived module fallback LLM call failed: %s", exc)
-                    final_output = item.get("_copilot_output", {}).get("pre_prompt", "")
+                    final_output = (item.get("_operator_response_output") or item.get("_copilot_output") or {}).get("pre_prompt", "")
         elif cooperative_result and cooperative_result.success and cooperative_result.final_answer:
             final_output = cooperative_result.final_answer
             participant_backends = [p.get("backend") for p in cooperative_result.participants]
@@ -2339,7 +2344,7 @@ class ResonanceAgent:
                 final_output = self._call_llm(item)
             except Exception as exc:
                 logger.warning("ResonanceAgent: LLM call failed: %s", exc)
-                final_output = item.get("_copilot_output", {}).get("pre_prompt", "")
+                final_output = (item.get("_operator_response_output") or item.get("_copilot_output") or {}).get("pre_prompt", "")
             finally:
                 if original_primary is not None and hasattr(self._llm_backend, "primary"):
                     self._llm_backend.primary = original_primary
@@ -2558,7 +2563,7 @@ class ResonanceAgent:
             }
             return text
         # Dry-run: return the pre_prompt so the caller can see the overlay
-        copilot = item.get("_copilot_output") or {}
+        copilot = item.get("_operator_response_output") or item.get("_copilot_output") or {}
         item["_llm_backend"] = {
             "provider": "dry_run",
             "model": "",
@@ -2599,7 +2604,7 @@ class ResonanceAgent:
             style_example = style_example[:400].rstrip() + "..."
         parts = [
             "Role: derived micro-module.",
-            "Answer the interview question briefly, precisely, and without fluff.",
+            "Answer the operator request briefly, precisely, and without fluff.",
             "Do not invent numbers, projects, cases, or facts.",
             "Keep the response aligned with the question, why-context, and conversation thread.",
             f"Domain: {intent_tag}.",
@@ -2654,7 +2659,7 @@ class ResonanceAgent:
             parts.append(f"Контекст сессии: {self._orientation}")
 
         # 1. Copilot final_prompt (pre-assembled by Stage 8)
-        copilot = item.get("_copilot_output") or {}
+        copilot = item.get("_operator_response_output") or item.get("_copilot_output") or {}
         fp = copilot.get("final_prompt", "")
         if fp:
             parts.append(fp)
@@ -2998,7 +3003,7 @@ class ResonanceAgent:
     ) -> dict:
         """Build the spec-compliant output dict."""
         strategy  = item.get("_why_strategy")  or {}
-        copilot   = item.get("_copilot_output") or {}
+        copilot   = item.get("_operator_response_output") or item.get("_copilot_output") or {}
         intent    = item.get("_intent")
         why       = item.get("_why")
         llm_meta  = item.get("_llm_backend") or {}
@@ -3075,6 +3080,12 @@ class ResonanceAgent:
             council_ledger
         )
         council_cel_sync = self._sync_council_ledger_to_cel(council_ledger)
+        council_quality_artifact = self._write_council_quality_artifact(
+            council_ledger,
+            council_ledger_artifact=council_ledger_artifact,
+            council_cel_sync=council_cel_sync,
+            item=item,
+        )
 
         return {
             # Identity
@@ -3099,7 +3110,8 @@ class ResonanceAgent:
             "pre_prompt":      copilot.get("pre_prompt", ""),
             "intervention_level": copilot.get("intervention_level", "low"),
             # Interviewer model
-            "interviewer_profile": item.get("_interviewer_profile"),
+            "operator_profile": item.get("_operator_profile") or item.get("_interviewer_profile"),
+            "interviewer_profile": item.get("_operator_profile") or item.get("_interviewer_profile"),
             # Output
             "final_output":    final_output,
             "generation_time": round(generation_time, 4),
@@ -3164,6 +3176,7 @@ class ResonanceAgent:
             ),
             "council_contribution_ledger_artifact": council_ledger_artifact,
             "council_cel_sync": council_cel_sync,
+            "council_quality_artifact": council_quality_artifact,
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
@@ -3439,11 +3452,175 @@ class ResonanceAgent:
             logger.debug("ResonanceAgent: council CEL sync failed: %s", exc)
             return None
 
+    def _quality_score_fallback_from_ledger(self, ledger) -> float | None:
+        if ledger is None:
+            return None
+        outcome = getattr(ledger, "outcome", None)
+        if outcome is None:
+            return None
+        if _quality_score_from_council_outcome is not None:
+            try:
+                return float(_quality_score_from_council_outcome(outcome))
+            except Exception as exc:
+                logger.debug("ResonanceAgent: council quality score fallback import failed: %s", exc)
+        path_quality = max(0.0, min(1.0, float(getattr(outcome, "path_quality", 0.0) or 0.0)))
+        operator_feedback = max(
+            0.0,
+            min(1.0, float(getattr(outcome, "operator_feedback_score", 0.0) or 0.0)),
+        )
+        receiver_resonance = max(
+            0.0,
+            min(1.0, float(getattr(outcome, "receiver_resonance_score", 0.0) or 0.0)),
+        )
+        success = 1.0 if bool(getattr(outcome, "success", False)) else 0.0
+        return round(
+            (0.35 * path_quality)
+            + (0.25 * operator_feedback)
+            + (0.25 * receiver_resonance)
+            + (0.15 * success),
+            4,
+        )
+
+    def _build_council_quality_artifact_payload(
+        self,
+        ledger,
+        *,
+        council_ledger_artifact: str | None,
+        council_cel_sync: dict[str, Any] | None,
+        item: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        if ledger is None:
+            return None
+        outcome = getattr(ledger, "outcome", None)
+        attribution = getattr(ledger, "attribution", None)
+        final_decision = getattr(ledger, "final_decision", None)
+        quality_score = None
+        if council_cel_sync is not None:
+            quality_score = council_cel_sync.get("quality_score")
+        if quality_score is None:
+            quality_score = self._quality_score_fallback_from_ledger(ledger)
+        relational = self._build_relational_quality_summary((item or {}).get("_relational_field"))
+        relation_adjusted_quality_score = quality_score
+        if quality_score is not None and relational is not None:
+            relation_adjusted_quality_score = round(
+                (0.75 * float(quality_score)) + (0.25 * float(relational["relation_safety_score"])),
+                4,
+            )
+        return {
+            "cycle_id": str(getattr(ledger, "cycle_id", "") or ""),
+            "task_id": str(getattr(ledger, "task_id", "") or ""),
+            "timestamp": str(getattr(ledger, "timestamp", "") or ""),
+            "council_ledger_path": council_ledger_artifact,
+            "quality_score": quality_score,
+            "relation_adjusted_quality_score": relation_adjusted_quality_score,
+            "council_outcome": {
+                "success": bool(getattr(outcome, "success", False)) if outcome is not None else False,
+                "selected_route": (
+                    str(getattr(final_decision, "selected_route", "unknown") or "unknown")
+                    if final_decision is not None
+                    else "unknown"
+                ),
+                "receiver_resonance_score": (
+                    float(getattr(outcome, "receiver_resonance_score", 0.0) or 0.0)
+                    if outcome is not None
+                    else 0.0
+                ),
+                "network_improvement": (
+                    float(getattr(outcome, "network_improvement", 0.0) or 0.0)
+                    if outcome is not None
+                    else 0.0
+                ),
+                "receiver_acceptance_label": (
+                    str(getattr(outcome, "receiver_acceptance_label", "unknown") or "unknown")
+                    if outcome is not None
+                    else "unknown"
+                ),
+            },
+            "attribution": {
+                "best_contributor_model_id": (
+                    str(getattr(attribution, "best_contributor_model_id", "n/a") or "n/a")
+                    if attribution is not None
+                    else "n/a"
+                ),
+                "best_contributor_score": (
+                    float(getattr(attribution, "best_contributor_score", 0.0) or 0.0)
+                    if attribution is not None
+                    else 0.0
+                ),
+            },
+            "cel": council_cel_sync or {
+                "proposal_id": str(getattr(ledger, "cycle_id", "") or ""),
+                "quality_score": quality_score,
+                "contribution_records": [],
+                "reputation_updates": [],
+                "merit_updates": [],
+            },
+            "relational_field": relational,
+            "liminalqa": {
+                "published": False,
+                "status_code": None,
+            },
+        }
+
+    def _write_council_quality_artifact(
+        self,
+        ledger,
+        *,
+        council_ledger_artifact: str | None,
+        council_cel_sync: dict[str, Any] | None,
+        item: dict[str, Any] | None = None,
+    ) -> str | None:
+        payload = self._build_council_quality_artifact_payload(
+            ledger,
+            council_ledger_artifact=council_ledger_artifact,
+            council_cel_sync=council_cel_sync,
+            item=item,
+        )
+        if payload is None:
+            return None
+        try:
+            self._council_quality_dir.mkdir(parents=True, exist_ok=True)
+            path = self._council_quality_dir / f"{payload['cycle_id']}.json"
+            path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            return str(path)
+        except Exception as exc:
+            logger.debug("ResonanceAgent: council quality artifact write failed: %s", exc)
+            return None
+
+    def _build_relational_quality_summary(self, relational: Any) -> dict[str, Any] | None:
+        if not isinstance(relational, dict) or not relational:
+            return None
+        try:
+            tension_score = max(0.0, min(1.0, float(relational.get("tension_score", 0.0) or 0.0)))
+            alignment_score = max(0.0, min(1.0, float(relational.get("alignment_score", 0.0) or 0.0)))
+        except (TypeError, ValueError):
+            return None
+        dominant_signal = str(relational.get("dominant_signal") or "neutral")
+        relation_safety_score = round(max(0.0, min(1.0, ((1.0 - tension_score) + alignment_score) / 2.0)), 4)
+        if tension_score >= 0.7 and alignment_score < 0.4:
+            recommended_mode = "decompress_and_repair"
+        elif dominant_signal.startswith("foreground:attack") or dominant_signal == "tension":
+            recommended_mode = "validate_before_solve"
+        elif alignment_score >= 0.55 and tension_score <= 0.35:
+            recommended_mode = "collaborative_progress"
+        else:
+            recommended_mode = "observe_and_clarify"
+        return {
+            "tension_score": round(tension_score, 4),
+            "alignment_score": round(alignment_score, 4),
+            "dominant_signal": dominant_signal,
+            "relation_safety_score": relation_safety_score,
+            "recommended_mode": recommended_mode,
+        }
+
     def _build_cycle_record(
         self, item: dict, output: str, generation_time: float
     ) -> dict:
         """Build a minimal cycle record for the learner."""
-        copilot = item.get("_copilot_output") or {}
+        copilot = item.get("_operator_response_output") or item.get("_copilot_output") or {}
         return {
             "resonance_score": item.get("_resonance_score", 0.5),
             "copilot": {

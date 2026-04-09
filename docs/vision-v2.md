@@ -1,6 +1,6 @@
 # Vision Subsystem v2: The Seeing Ghost
 
-The Screen Perception Subsystem v2 transforms GhostGPT into a JARVIS-level colleague by providing continuous, proactive visual awareness of the user's workspace.
+The Screen Perception Subsystem v2 turns LS into a proactive visual runtime by providing continuous awareness of the user's workspace.
 
 ## Architecture Diagram
 

@@ -88,7 +88,7 @@ def test_self_model_affective_meta_selector_integration(tmp_path):
     loop = UnifiedCognitiveLoop(selector=selector, presence_monitor=monitor)
 
     first = loop.run_task(
-        {"task": "realtime_interview"},
+        {"task": "realtime_operator_support"},
         capu_features={"avg_attention_entropy": 6.1},
     )
     assert first["strategy"] == "balanced"
@@ -101,7 +101,7 @@ def test_self_model_affective_meta_selector_integration(tmp_path):
         loop.self_model.update_from_state("fragmented")
 
     second = loop.run_task(
-        {"task": "realtime_interview"},
+        {"task": "realtime_operator_support"},
         capu_features={"avg_attention_entropy": 6.1},
     )
     assert second["strategy"] == "stability_first"

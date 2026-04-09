@@ -1,4 +1,4 @@
-# GhostGPT — Local Cognitive System (LCS)
+# LS — Local Cognitive System (LCS)
 
 [English](#english) | [Русский](#russian)
 
@@ -6,7 +6,7 @@
 
 <a name="english"></a>
 
-# GhostGPT / LCS — Local Cognitive System
+# LS — Local Cognitive System
 
 [![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
@@ -16,13 +16,13 @@
 
 Live site: [GitHub Pages](https://safal207.github.io/LS/)
 
-**GhostGPT** is not a chatbot wrapper. It is a **cognitive operating system** for LLMs — an agent that thinks between your messages, learns from you continuously, and knows when it is not thinking clearly.
+**LS** is not a chatbot wrapper. It is a **local-first coordination and oversight runtime** for human-plus-model systems that thinks between interactions, learns from feedback, and keeps decisions reviewable.
 
 ---
 
 ## What it actually does
 
-Most AI agents answer and forget. GhostGPT **lives between answers**:
+Most AI agents answer and forget. LS **lives between answers**:
 
 - While you type, a background subconscious thread analyses your conversation patterns
 - When you reply with just "ok" after a long response, the system registers that as weak feedback
@@ -88,13 +88,13 @@ After 3 occurrences of the same pathology → writes a `lesson:meta:*` memory no
 
 ---
 
-## Interview Pipeline — Eyes + Ears + Voice
+## Multimodal Operator Loop — Eyes + Ears + Voice
 
-GhostGPT can now act as a **silent interview co-pilot**:
+LS can now act as a **hands-free operator interface**:
 
-- **Eyes (screen reading)** — `VisionSubsystem` captures your screen every 0.5 s and runs OCR (pytesseract or easyocr). The latest text is exposed via `get_latest_screen_text()` and injected into every LLM call as a `system` message, so the agent can see the question on the interviewer's screen before you say a word.
+- **Eyes (screen reading)** — `VisionSubsystem` captures your screen every 0.5 s and runs OCR (pytesseract or easyocr). The latest text is exposed via `get_latest_screen_text()` and injected into every LLM call as a `system` message, so the agent can inspect the current operator context without manual copy-paste.
 - **Ears (voice input)** — `faster-whisper` + PyAudio capture your microphone and transcribe speech to text in real-time. The transcript is fed to the agent as the user message.
-- **Voice output (TTS)** — `Speaker` (pyttsx3, fully offline) reads the agent's answer aloud so you hear it in your earpiece without looking at the screen.
+- **Voice output (TTS)** — `Speaker` (pyttsx3, fully offline) reads the agent's answer aloud so you can stay in the workflow without staring at the screen.
 
 ```
 ┌──────────┐   OCR    ┌──────────────────┐   system msg   ┌──────────┐
@@ -177,6 +177,42 @@ The summary is deterministic, advisory-only, and bounded to stable fields for ea
 LS also includes a coordination advisory positioning layer for product and technical framing:
 - One-pager: [`docs/positioning/coordination-advisory-one-pager.md`](docs/positioning/coordination-advisory-one-pager.md)
 - Comparison: [`docs/positioning/ls-vs-generic-agent.md`](docs/positioning/ls-vs-generic-agent.md)
+
+## Safety / Alignment Relevance
+
+LS is best understood as an operator-facing coordination and oversight runtime for human-plus-model systems.
+
+This is the strongest framing not only for the OpenAI Safety Fellowship, but also for adjacent programs such as safety residencies, research fellowships, oversight grants, and evaluation-oriented incubators.
+
+The safety-relevant parts of this repository are:
+
+- `CouncilContributionLedger` for measurable model participation and adoption
+- receiver-resonance scoring for whether outputs were accepted cleanly
+- contribution, reputation, and merit sync in `CEL`
+- replayable traces and inspection via `LTP`
+- human approval and artifact review flows in the CLI
+- quality gates, quality reports, and `LiminalQA` integration for evaluable runs
+
+If you are reading this repository from an AI safety, alignment, oversight, or program-application angle, start here:
+
+- [`docs/SAFETY_PROGRAMS_POSITIONING.md`](docs/SAFETY_PROGRAMS_POSITIONING.md)
+- [`docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md`](docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md)
+- [`docs/FELLOWSHIP_APPLICATION_READY.md`](docs/FELLOWSHIP_APPLICATION_READY.md)
+- [`docs/FELLOWSHIP_APPLICATION_BRIEF.md`](docs/FELLOWSHIP_APPLICATION_BRIEF.md)
+- [`docs/FELLOWSHIP_DEMO_PATH.md`](docs/FELLOWSHIP_DEMO_PATH.md)
+- [`docs/FELLOWSHIP_REVIEWER_SCRIPT.md`](docs/FELLOWSHIP_REVIEWER_SCRIPT.md)
+- [`docs/FELLOWSHIP_RESEARCH_OUTPUTS.md`](docs/FELLOWSHIP_RESEARCH_OUTPUTS.md)
+- [`docs/FELLOWSHIP_STATEMENT_DRAFT.md`](docs/FELLOWSHIP_STATEMENT_DRAFT.md)
+- [`docs/FELLOWSHIP_ONE_PAGER.md`](docs/FELLOWSHIP_ONE_PAGER.md)
+- [`docs/FELLOWSHIP_QUESTION_BANK.md`](docs/FELLOWSHIP_QUESTION_BANK.md)
+- [`docs/FELLOWSHIP_EVIDENCE_AUDIT.md`](docs/FELLOWSHIP_EVIDENCE_AUDIT.md)
+- [`docs/FELLOWSHIP_EVIDENCE_SPRINT.md`](docs/FELLOWSHIP_EVIDENCE_SPRINT.md)
+- [`docs/FELLOWSHIP_BENCHMARK_NOTE.md`](docs/FELLOWSHIP_BENCHMARK_NOTE.md)
+- [`docs/FELLOWSHIP_ATTRIBUTION_NOTE.md`](docs/FELLOWSHIP_ATTRIBUTION_NOTE.md)
+- [`benchmark/`](benchmark/) — generated benchmark snapshot with interpretation
+- [`docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md`](docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md)
+- [`docs/LIMINALQA_TEST_STRATEGY.md`](docs/LIMINALQA_TEST_STRATEGY.md)
+- [`docs/CI_QUALITY_GATES.md`](docs/CI_QUALITY_GATES.md)
 
 ## Quick Start
 
@@ -283,7 +319,7 @@ python3 tests/unit/test_system_observer.py
 python3 tests/unit/test_new_features.py
 python3 tests/unit/test_orientation_force_ladder.py
 python3 tests/unit/test_world_poller.py
-python3 tests/unit/test_interview_pipeline.py
+python3 tests/unit/test_interview_pipeline.py   # multimodal operator pipeline + voice loop
 
 # Qwen Omni + memory store
 pytest python/tests/test_qwen_omni_worker.py
@@ -293,11 +329,11 @@ pytest python/tests/test_memory_store_locking.py
 | Test file | Tests | Covers |
 |-----------|-------|--------|
 | `test_stabilization_forces.py` | 17 | Forces 3–5, stability_bias, trajectory |
-| `test_system_observer.py` | 35 | All 6 pathologies, score, trend |
+| `test_system_observer.py` | 37 | All 6 pathologies, score, trend |
 | `test_new_features.py` | 30 | Causal graph, predictive axis, meta-lessons, user profiles, session report |
-| `test_orientation_force_ladder.py` | 11+ | Forces 1–2, co-activation, propagation |
-| `test_world_poller.py` | 7 | WorldPoller git/logs |
-| `test_interview_pipeline.py` | 32 | OCR module, VisionSubsystem cache, TTS Speaker, _inject_screen_context |
+| `test_orientation_force_ladder.py` | 11 | Forces 1–2, co-activation, propagation |
+| `test_world_poller.py` | 8 | WorldPoller git/logs |
+| `test_interview_pipeline.py` | 57 | OCR module, VisionSubsystem cache, TTS Speaker, screen-context injection for the operator pipeline |
 | `test_qwen_omni_worker.py` | 4 | Multimodal worker fallback + store |
 
 ---
@@ -314,13 +350,32 @@ pytest python/tests/test_memory_store_locking.py
 | [docs/CI_QUALITY_GATES.md](docs/CI_QUALITY_GATES.md) | Active CI quality-gate thresholds, enforcement state, and calibration notes |
 | [docs/LIMINALQA_LOCAL_SETUP.md](docs/LIMINALQA_LOCAL_SETUP.md) | Local deployment model for running LiminalQAengineer next to this repository |
 | [docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md](docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md) | Execution roadmap for unifying council, contribution, reputation, and receiver-resonance tracking |
+| [docs/LS_INTEGRATION_ROADMAP.md](docs/LS_INTEGRATION_ROADMAP.md) | Recommended order for integrating adjacent repo subsystems into LS |
+| [docs/LS_PHASE1_EXECUTION_PLAN.md](docs/LS_PHASE1_EXECUTION_PLAN.md) | Concrete execution checklist for Phase 1: `LiminalQA + CEL + CouncilContributionLedger` |
+| [docs/SAFETY_PROGRAMS_POSITIONING.md](docs/SAFETY_PROGRAMS_POSITIONING.md) | Program-facing framing for fellowships, residencies, grants, and safety-oriented reviews |
+| [docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md](docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md) | Fellowship-oriented framing for presenting LS as a safety and oversight runtime |
+| [docs/FELLOWSHIP_APPLICATION_BRIEF.md](docs/FELLOWSHIP_APPLICATION_BRIEF.md) | Short application-oriented framing for presenting LS to fellowship reviewers |
+| [docs/FELLOWSHIP_APPLICATION_READY.md](docs/FELLOWSHIP_APPLICATION_READY.md) | Single entrypoint doc for what to say, what to show, and what evidence to attach |
+| [docs/FELLOWSHIP_DEMO_PATH.md](docs/FELLOWSHIP_DEMO_PATH.md) | Suggested 5–7 minute live demo path for safety- and oversight-oriented review |
+| [docs/FELLOWSHIP_REVIEWER_SCRIPT.md](docs/FELLOWSHIP_REVIEWER_SCRIPT.md) | 30-second and 60–90-second spoken script for live fellowship review |
+| [docs/FELLOWSHIP_RESEARCH_OUTPUTS.md](docs/FELLOWSHIP_RESEARCH_OUTPUTS.md) | Concrete benchmark, dataset, and note outputs to produce from this repository |
+| [docs/FELLOWSHIP_STATEMENT_DRAFT.md](docs/FELLOWSHIP_STATEMENT_DRAFT.md) | Draft statement of purpose for fellowship-style applications |
+| [docs/FELLOWSHIP_ONE_PAGER.md](docs/FELLOWSHIP_ONE_PAGER.md) | One-page summary for reviewers, mentors, or intro calls |
+| [docs/FELLOWSHIP_QUESTION_BANK.md](docs/FELLOWSHIP_QUESTION_BANK.md) | Reusable short and medium answers for common fellowship application questions |
+| [docs/FELLOWSHIP_EVIDENCE_AUDIT.md](docs/FELLOWSHIP_EVIDENCE_AUDIT.md) | Honest gap audit of what evidence already exists and what is still weak |
+| [docs/FELLOWSHIP_EVIDENCE_SPRINT.md](docs/FELLOWSHIP_EVIDENCE_SPRINT.md) | 1–2 day sprint plan for strengthening benchmark, dataset, and technical-note evidence |
+| [docs/FELLOWSHIP_BENCHMARK_NOTE.md](docs/FELLOWSHIP_BENCHMARK_NOTE.md) | Narrow benchmark note for queue review, replay, and operator-overhead claims |
+| [docs/FELLOWSHIP_ATTRIBUTION_NOTE.md](docs/FELLOWSHIP_ATTRIBUTION_NOTE.md) | Short method note for council attribution, receiver resonance, and merit sync |
+| [benchmark/README.md](benchmark/README.md) | Benchmark package overview and how to regenerate |
+| [benchmark/INTERPRETATION.md](benchmark/INTERPRETATION.md) | What the benchmark numbers justify and do not justify |
+| [benchmark/RESULTS.md](benchmark/RESULTS.md) | Generated benchmark snapshot (run `python3 scripts/generate_benchmark_results.py` to refresh) |
 | [FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md) | Golden Master overview |
 
 ---
 
 ## How it differs from other agents
 
-| | Typical agent | GhostGPT |
+| | Typical agent | LS |
 |--|---------------|----------|
 | Between messages | Idle | Subconscious analysis running |
 | Learning | On request | Continuous (4 sources) |
@@ -333,19 +388,19 @@ pytest python/tests/test_memory_store_locking.py
 
 ---
 
-© 2026 GhostGPT Team. Strictly Local. Strictly Cognitive.
+© 2026 LS Team. Strictly Local. Strictly Cognitive.
 
 ---
 
 <a name="russian"></a>
 
-# GhostGPT — Локальная когнитивная система
+# LS — Локальная когнитивная система
 
 [![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
 [![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
 
-GhostGPT — это не обёртка над ChatGPT. Это **когнитивная операционная система** для LLM: агент, который думает между твоими сообщениями, учится у тебя непрерывно и знает, когда сам с собой не в порядке.
+LS — это не обёртка над ChatGPT. Это **local-first система согласования и контроля** для человека и моделей: она думает между взаимодействиями, учится на обратной связи и сохраняет решения проверяемыми.
 
 ---
 
@@ -353,7 +408,7 @@ GhostGPT — это не обёртка над ChatGPT. Это **когнити�
 
 Обычный ИИ: вопрос → подумал → ответил → забыл.
 
-GhostGPT **живёт между ответами**:
+LS **живёт между ответами**:
 - Пока ты печатаешь, фоновый поток анализирует твой стиль мышления
 - Когда ты ответил коротко после длинного ответа агента — это сигнал "не попал"
 - Когда один режим мышления повторяется раз за разом — он становится долгосрочной памятью
@@ -410,13 +465,13 @@ GhostGPT **живёт между ответами**:
 
 ---
 
-## Пайплайн для собеседований — Глаза + Уши + Голос
+## Мультимодальный операторский контур — Глаза + Уши + Голос
 
-GhostGPT умеет работать как **тихий помощник на собесе**:
+LS умеет работать как **hands-free интерфейс для оператора**:
 
-- **Глаза (чтение экрана)** — `VisionSubsystem` снимает скриншот каждые 0.5с и распознаёт текст через OCR (pytesseract или easyocr). Последний текст экрана добавляется в каждый LLM-запрос как системное сообщение — агент видит вопрос интервьюера ещё до того, как ты его задашь.
+- **Глаза (чтение экрана)** — `VisionSubsystem` снимает скриншот каждые 0.5с и распознаёт текст через OCR (pytesseract или easyocr). Последний текст экрана добавляется в каждый LLM-запрос как системное сообщение — агент видит текущий операторский контекст без ручного копирования.
 - **Уши (голосовой ввод)** — `faster-whisper` + PyAudio слушают микрофон и транскрибируют речь в текст в реальном времени. Транскрипт идёт в агент как сообщение пользователя.
-- **Голос (TTS)** — `Speaker` (pyttsx3, полностью оффлайн) читает ответ агента вслух в наушник.
+- **Голос (TTS)** — `Speaker` (pyttsx3, полностью оффлайн) читает ответ агента вслух, чтобы оператор мог оставаться в потоке без постоянного взгляда на экран.
 
 ```
 ┌──────────┐   OCR     ┌──────────────────┐  system msg   ┌──────────┐
@@ -487,7 +542,7 @@ export DASHSCOPE_API_KEY=your_key   # без ключа — fallback режим
 python apps/ghostgpt/main.py
 ```
 
-### Пайплайн для собеседований (опционально)
+### Мультимодальный голосовой контур (опционально)
 
 ```bash
 pip install pyttsx3 pytesseract     # или easyocr вместо pytesseract
@@ -510,7 +565,7 @@ python apps/console/main.py
 
 ## Сравнение с другими агентами
 
-| | Обычный агент | GhostGPT |
+| | Обычный агент | LS |
 |--|---------------|----------|
 | Между сообщениями | Простаивает | Подсознание работает |
 | Обучение | По запросу | Непрерывно (4 источника) |
@@ -523,4 +578,4 @@ python apps/console/main.py
 
 ---
 
-© 2026 GhostGPT Team. Strictly Local. Strictly Cognitive.
+© 2026 LS Team. Strictly Local. Strictly Cognitive.

@@ -3,20 +3,20 @@
     "switch": "EN"
   },
   "hero": {
-    "title": "GhostGPT: ИИ, который помнит вас. Децентрализованный интеллект для реальных операторов.",
-    "subtitle": "Local Cognitive System превращает агентные процессы в поток, который команда может видеть, проверять и утверждать без слепых зон.",
-    "cta": "Смотреть демо-путь"
+    "title": "LS — это local-first система согласования и контроля для человека и моделей.",
+    "subtitle": "Она превращает агентные workflow в проверяемые решения с replayable traces, human approvals и измеримыми сигналами вклада, резонанса и качества.",
+    "cta": "Смотреть oversight demo"
   },
   "problem": {
-    "title": "От хрупкого ИИ к устойчивому интеллекту",
+    "title": "От хрупкого ИИ к управляемой системе решений",
     "items": {
       "centralized": "Централизованный ИИ ограничивает контроль, трассируемость и доверие.",
-      "size": "Даже большие модели теряют контекст именно в момент, когда оператору нужна ясность.",
+      "size": "Даже большие модели теряют контекст именно в тот момент, когда оператору нужна ясность.",
       "hallucinations": "Галлюцинации ломают критичные review-процессы и triage-инцидентов.",
       "memory": "Большинство ассистентов не помнят вашу историю, решения и прошлые approvals."
     },
-    "solutionTitle": "Решение GhostGPT LS",
-    "solutionBody": "Архитектура важнее размера модели. Causal memory, human approvals и replayable traces делают поведение агента объяснимым и устойчивым."
+    "solutionTitle": "Решение LS",
+    "solutionBody": "Архитектура важнее размера модели. Causal memory, human approvals, replayable traces и council-ledger artifacts делают поведение агента объяснимым, управляемым и пригодным для benchmark-оценки."
   },
   "features": {
     "title": "Ключевые возможности",
@@ -72,7 +72,7 @@
     "mockupTitle": "Макет Reflection Dashboard"
   },
   "cta": {
-    "title": "Переведите explainable agent operations в рабочий контур",
+    "title": "Переведите reviewable и benchmarkable agent operations в рабочий контур",
     "demo": "Открыть runtime panel",
     "community": "Посмотреть operator benchmark",
     "contact": "Связаться с командой"
