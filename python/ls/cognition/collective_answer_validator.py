@@ -3,7 +3,7 @@ from __future__ import annotations
 # TODO: This validator is intended to sit after shared-memory candidate generation
 # and before final answer selection in the multi-agent runtime (e.g. AgentLoop).
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Sequence
 
 
