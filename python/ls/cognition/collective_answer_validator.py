@@ -5,16 +5,17 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, replace
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
-from ls.cognition.lifetra_validation_adapter import (
-    ValidationTraceArtifact,
-    ValidationTraceBackend,
-)
-from ls.cognition.validation_governance import (
-    ValidationGovernanceEngine,
-    ValidationGovernanceReport,
-)
+if TYPE_CHECKING:
+    from ls.cognition.lifetra_validation_adapter import (
+        ValidationTraceArtifact,
+        ValidationTraceBackend,
+    )
+    from ls.cognition.validation_governance import (
+        ValidationGovernanceEngine,
+        ValidationGovernanceReport,
+    )
 
 
 @dataclass(frozen=True)

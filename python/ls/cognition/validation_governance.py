@@ -7,10 +7,17 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
-from ls.cognition.lifetra_validation_adapter import _safe_preview
-
 if TYPE_CHECKING:
     from ls.cognition.collective_answer_validator import ValidationInput, ValidationResult
+
+
+def _safe_preview(text: str, limit: int = 80) -> str:
+    compact = " ".join(text.split())
+    if len(compact) <= limit:
+        return compact
+    if limit <= 3:
+        return compact[:limit]
+    return f"{compact[: limit - 3]}..."
 
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+", re.IGNORECASE)
