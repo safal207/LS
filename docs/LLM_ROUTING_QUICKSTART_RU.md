@@ -149,6 +149,24 @@ router.clear_runtime_overrides()
 - временно сдвинуть политику в cost/latency;
 - вернуть систему в штатный режим после стабилизации.
 
+### Через `LanguageModel` (прикладной API)
+
+```python
+lm.update_routing_controls({
+    "routing_mode": "ab",
+    "ab_variant_ratio": 0.10,
+    "ab_variant_policy": "cost_optimized",
+    "policy": "balanced",
+    "runtime_policy": "latency_optimized",
+    "runtime_health_thresholds": {"error_rate": 0.08},
+})
+
+snapshot = lm.get_routing_observability()
+print(snapshot["defaults"])
+print(snapshot["last_explain"])
+print(snapshot["stats"])
+```
+
 ---
 
 ## 6) Troubleshooting
@@ -186,4 +204,3 @@ router.clear_runtime_overrides()
 - [ ] Пройдены shadow сравнения.
 - [ ] Пройден A/B с целевыми KPI.
 - [ ] Есть runbook и ответственный on-call.
-
