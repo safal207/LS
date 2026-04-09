@@ -131,10 +131,6 @@
       <div id="council-risk-kicker" class="kicker" style="margin-top:14px">Top Risky Cycles</div>
       <ul id="council-risk-list" class="guide-list"></ul>
       <div id="council-escalation-kicker" class="kicker" style="margin-top:14px">Human Review Queue</div>
-      <div class="button-row">
-        <button id="claim-next-escalation" class="ghost" type="button">Claim Next Escalation</button>
-        <button id="close-escalation" class="ghost" type="button">Close Escalation</button>
-      </div>
       <ul id="council-escalation-list" class="guide-list"></ul>
       <div id="council-quality-empty" class="hint">No council-quality artifact yet. Run a real council cycle first.</div>
       <div class="summary-grid">
@@ -475,6 +471,82 @@
 
     setLanguage(document.documentElement.lang==="en"?"en":"ru");
     refreshCouncilQualityPreview().catch(()=>{});
+  </script>
+  <script>
+    const queueStyle=document.createElement("style");
+    queueStyle.textContent=".queue-item{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.queue-meta{flex:1 1 320px}.queue-actions{display:flex;gap:8px;flex-wrap:wrap}.queue-actions button{padding:8px 12px;font-size:.88rem}";
+    document.head.appendChild(queueStyle);
+
+    async function callQueueAction(button,path){
+      setBusy(button,true);
+      try{
+        const data=await callJson(path,{method:"POST"});
+        showResult(data.payload,summaryFor(data.payload));
+        await refreshCouncilQualityPreview();
+      }catch(error){
+        showResult({error:String(error)},fmt("summaryError",{error:String(error)}));
+      }finally{
+        setBusy(button,false);
+      }
+    }
+
+    const _____originalRefreshCouncilEscalationQueue=refreshCouncilEscalationQueue;
+    refreshCouncilEscalationQueue=async function(){
+      if(el("claim-next-escalation")) el("claim-next-escalation").hidden=true;
+      if(el("close-escalation")) el("close-escalation").hidden=true;
+      const data=await callJson("/api/council-escalation-queue");
+      const list=el("council-escalation-list");
+      list.innerHTML="";
+      if(!data.ok || !(data.payload.items||[]).length){
+        const li=document.createElement("li");
+        li.textContent=document.documentElement.lang==="ru"?"Очередь human review пуста.":"Human review queue is empty.";
+        list.appendChild(li);
+        return;
+      }
+      (data.payload.items||[]).forEach(item=>{
+        const li=document.createElement("li");
+        li.className="queue-item";
+        const meta=document.createElement("div");
+        meta.className="queue-meta";
+        meta.textContent=`${item.cycle_id}: ${item.review_status} / ${item.assigned_reviewer || "unassigned"} / ${item.approval_posture} / ${item.selected_route}`;
+        li.appendChild(meta);
+        const actions=document.createElement("div");
+        actions.className="queue-actions";
+        if((item.review_status||"pending")==="pending" && (item.assigned_reviewer||"unassigned")==="unassigned"){
+          const claim=document.createElement("button");
+          claim.type="button";
+          claim.className="ghost";
+          claim.textContent=document.documentElement.lang==="ru"?"Забрать":"Claim";
+          claim.addEventListener("click",async()=>{
+            const reviewer=window.prompt(lang==="ru"?"Кто забирает escalation?":"Who is claiming the escalation?");
+            if(!reviewer) return;
+            await callQueueAction(claim, `/api/claim-next-escalation?reviewer=${encodeURIComponent(reviewer)}&assigned_by=${encodeURIComponent("dashboard")}`);
+          });
+          actions.appendChild(claim);
+        }
+        if((item.review_status||"pending")==="pending"){
+          const close=document.createElement("button");
+          close.type="button";
+          close.className="ghost";
+          close.textContent=document.documentElement.lang==="ru"?"Закрыть":"Close";
+          close.addEventListener("click",async()=>{
+            const defaultReviewer=(item.assigned_reviewer && item.assigned_reviewer!=="unassigned") ? item.assigned_reviewer : "";
+            const reviewer=window.prompt(lang==="ru"?"Кто закрывает escalation?":"Who is closing the escalation?", defaultReviewer);
+            if(!reviewer) return;
+            const reason=window.prompt(lang==="ru"?"Почему escalation закрывается?":"Why is the escalation being closed?");
+            if(!reason) return;
+            await callQueueAction(close, `/api/close-escalation?cycle_id=${encodeURIComponent(item.cycle_id)}&reviewer=${encodeURIComponent(reviewer)}&reason=${encodeURIComponent(reason)}`);
+          });
+          actions.appendChild(close);
+        }
+        if(actions.children.length){
+          li.appendChild(actions);
+        }
+        list.appendChild(li);
+      });
+    };
+
+    refreshCouncilEscalationQueue().catch(()=>{});
   </script>
 </body>
 </html>
