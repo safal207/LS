@@ -259,6 +259,79 @@ def publish_council_ledger_to_liminalqa(ledger: dict) -> tuple[int, object]:
         return 500, {"error": str(exc)}
 
 
+def publish_council_incident_to_liminalqa(quality_payload: dict) -> tuple[int, object]:
+    base_url, token = liminalqa_settings()
+    generated_at = quality_payload.get("timestamp") or "1970-01-01T00:00:00Z"
+    cycle_id = str(quality_payload.get("cycle_id", "unknown"))
+    outcome = quality_payload.get("council_outcome") or {}
+    guidance = quality_payload.get("operator_guidance") or {}
+    relational = quality_payload.get("relational_field") or {}
+    payload = {
+        "run": {
+            "run_id": f"{cycle_id}-incident",
+            "build_id": f"{cycle_id}-incident",
+            "plan_name": "ls-council-incident",
+            "env": {
+                "CI": "false",
+                "SOURCE": "ls-agent-shell-cli",
+                "COUNCIL_ROUTE": str(outcome.get("selected_route", "unknown")),
+                "COUNCIL_RISK_STATE": str(guidance.get("risk_state", "watch")),
+            },
+            "started_at": generated_at,
+            "runner_version": "ls-agent-shell-council-incident-v1",
+        },
+        "tests": [
+            {
+                "name": f"incident:{cycle_id}",
+                "suite": "ls.council.incident",
+                "guidance": str(guidance.get("suggested_operator_action") or "manual review"),
+                "status": "fail",
+                "duration_ms": 0,
+                "started_at": generated_at,
+                "completed_at": generated_at,
+            }
+        ],
+        "signals": [
+            {
+                "test_name": f"incident:{cycle_id}",
+                "kind": "system",
+                "value": float(quality_payload.get("relation_adjusted_quality_score") or quality_payload.get("quality_score") or 0.0),
+                "meta": {
+                    "cycle_id": cycle_id,
+                    "risk_state": guidance.get("risk_state"),
+                    "recommended_mode": relational.get("recommended_mode"),
+                    "selected_route": outcome.get("selected_route"),
+                    "receiver_resonance_score": outcome.get("receiver_resonance_score"),
+                    "source": "ls-agent-shell-cli-incident",
+                },
+                "at": generated_at,
+            }
+        ],
+        "artifacts": [],
+    }
+    request = urllib.request.Request(
+        f"{base_url}/ingest/batch",
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            body = response.read().decode("utf-8")
+            return response.status, json.loads(body) if body else {}
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8")
+        try:
+            return exc.code, json.loads(body)
+        except Exception:
+            return exc.code, {"error": body or str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return 500, {"error": str(exc)}
+
+
 def update_council_quality_artifact_publish_status(
     council_quality_artifact: str | Path | None,
     *,
@@ -279,6 +352,32 @@ def update_council_quality_artifact_publish_status(
         "status_code": int(status_code),
         "response": response,
     }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return str(path)
+
+
+def update_council_quality_artifact_incident_status(
+    council_quality_artifact: str | Path | None,
+    *,
+    status_code: int,
+    response: object,
+) -> str | None:
+    if not council_quality_artifact:
+        return None
+    path = Path(council_quality_artifact)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    liminalqa = payload.get("liminalqa") or {}
+    liminalqa["incident"] = {
+        "published": 200 <= int(status_code) < 300,
+        "status_code": int(status_code),
+        "response": response,
+    }
+    payload["liminalqa"] = liminalqa
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return str(path)
 
@@ -490,6 +589,18 @@ def council_cycle(
         if updated_quality_artifact:
             console.print(f"[bold]Quality publish trace:[/bold] {updated_quality_artifact}")
         console.print(response)
+        risk_state = str(guidance.get("risk_state") or "watch")
+        if risk_state in {"escalate", "repair"} and quality_payload:
+            incident_status, incident_response = publish_council_incident_to_liminalqa(quality_payload)
+            updated_incident_artifact = update_council_quality_artifact_incident_status(
+                council_quality_artifact,
+                status_code=incident_status,
+                response=incident_response,
+            )
+            console.print(f"[bold]LiminalQA incident:[/bold] HTTP {incident_status}")
+            if updated_incident_artifact:
+                console.print(f"[bold]Incident trace:[/bold] {updated_incident_artifact}")
+            console.print(incident_response)
     final_output = str(result.get("final_output", "") or "")
     print_plain_safe(final_output)
 

@@ -144,6 +144,87 @@ def test_council_cycle_cli_can_publish_to_liminalqa(tmp_path: Path, monkeypatch)
     assert quality_payload["liminalqa"]["response"]["ok"] is True
 
 
+def test_council_cycle_cli_auto_publishes_incident_for_risky_cycle(tmp_path: Path, monkeypatch) -> None:
+    runner = CliRunner()
+    artifact_dir = tmp_path / "council-ledger"
+    calls: list[str] = []
+
+    class FakeAgent:
+        def __init__(self) -> None:
+            self._council_ledger_dir = artifact_dir
+            self._council_quality_dir = tmp_path / "council-quality"
+
+        def process_text(self, _prompt: str) -> dict:
+            self._council_ledger_dir.mkdir(parents=True, exist_ok=True)
+            self._council_quality_dir.mkdir(parents=True, exist_ok=True)
+            ledger_path = self._council_ledger_dir / "cycle-risky.json"
+            quality_path = self._council_quality_dir / "cycle-risky.json"
+            ledger = {
+                "cycle_id": "cycle-risky",
+                "final_decision": {"selected_route": "route-risk"},
+                "attribution": {"best_contributor_model_id": "local-council-llm"},
+                "outcome": {"success": False},
+                "participants": [],
+            }
+            quality = {
+                "cycle_id": "cycle-risky",
+                "timestamp": "2026-04-09T11:00:00Z",
+                "quality_score": 0.41,
+                "council_outcome": {"selected_route": "route-risk", "receiver_resonance_score": 0.22},
+                "relational_field": {"recommended_mode": "decompress_and_repair"},
+                "operator_guidance": {
+                    "risk_state": "repair",
+                    "suggested_operator_action": "Pause approval and repair.",
+                },
+                "liminalqa": {"published": False, "status_code": None},
+            }
+            ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+            quality_path.write_text(json.dumps(quality), encoding="utf-8")
+            return {
+                "cycle_id": "cycle-risky",
+                "council_contribution_ledger": ledger,
+                "council_contribution_ledger_artifact": str(ledger_path),
+                "council_quality_artifact": str(quality_path),
+                "final_output": "Risky council output",
+            }
+
+    def fake_publish(ledger: dict) -> tuple[int, object]:
+        calls.append("ledger")
+        return 200, {"ok": True, "message": "published"}
+
+    def fake_incident(quality_payload: dict) -> tuple[int, object]:
+        calls.append(str((quality_payload.get("operator_guidance") or {}).get("risk_state")))
+        return 200, {"ok": True, "message": "incident-published"}
+
+    monkeypatch.setattr(cli, "build_council_agent", lambda orientation="", llm_mode=cli.CouncilLLMMode.AUTO: FakeAgent())
+    monkeypatch.setattr(cli, "publish_council_ledger_to_liminalqa", fake_publish)
+    monkeypatch.setattr(cli, "publish_council_incident_to_liminalqa", fake_incident)
+
+    result = runner.invoke(
+        app,
+        [
+            "council-cycle",
+            "Publish this risky council cycle",
+            "--llm-mode",
+            "dry-run",
+            "--artifact-dir",
+            str(artifact_dir),
+            "--publish-to-liminalqa",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "LiminalQA publish:" in result.stdout
+    assert "LiminalQA incident:" in result.stdout
+    assert calls[0] == "ledger"
+    assert calls[1] in {"repair", "escalate"}
+    quality_artifacts = list((tmp_path / "council-quality").glob("*.json"))
+    assert quality_artifacts
+    quality_payload = json.loads(quality_artifacts[0].read_text(encoding="utf-8"))
+    assert quality_payload["liminalqa"]["incident"]["published"] is True
+    assert quality_payload["liminalqa"]["incident"]["status_code"] == 200
+
+
 def test_council_cycle_cli_can_use_local_llm_mode(tmp_path: Path, monkeypatch) -> None:
     runner = CliRunner()
     artifact_dir = tmp_path / "council-ledger"
