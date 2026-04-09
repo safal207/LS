@@ -36,7 +36,7 @@ class TestConfigLoader(unittest.TestCase):
 
     def test_detect_app_from_env_alias(self):
         old = os.environ.get("LS_APP")
-        os.environ["LS_APP"] = "interview_copilot"
+        os.environ["LS_APP"] = "operator_runtime"
         try:
             cfg = get_config()
             self.assertEqual(cfg["audio"]["chunk_duration"], 5)

@@ -17,6 +17,19 @@ Available profiles:
 USAGE
 }
 
+list_profiles() {
+  shopt -s nullglob
+  local found=0
+  for path in "$PROFILES_DIR"/*.yaml; do
+    found=1
+    basename "$path" .yaml
+  done
+  shopt -u nullglob
+  if [[ $found -eq 0 ]]; then
+    echo "  (none found)"
+  fi
+}
+
 if [[ $# -ne 1 ]]; then
   usage
   exit 1
@@ -26,20 +39,20 @@ PROFILE_NAME="$1"
 SOURCE_FILE="$PROFILES_DIR/${PROFILE_NAME}.yaml"
 
 if [[ ! -d "$PROFILES_DIR" ]]; then
-  echo "❌ Profiles directory not found: $PROFILES_DIR"
+  echo "Profiles directory not found: $PROFILES_DIR"
   exit 1
 fi
 
 if [[ ! -f "$SOURCE_FILE" ]]; then
-  echo "❌ Unknown profile: $PROFILE_NAME"
+  echo "Unknown profile: $PROFILE_NAME"
   echo "Available:"
-  find "$PROFILES_DIR" -maxdepth 1 -type f -name '*.yaml' -printf '  - %f\n' | sed 's/\.yaml$//'
+  list_profiles
   exit 1
 fi
 
 cp "$SOURCE_FILE" "$TARGET_FILE"
 
-echo "✅ Switched profile to: $PROFILE_NAME"
-echo "   Source: $SOURCE_FILE"
-echo "   Target: $TARGET_FILE"
-echo "   Note: local secrets in config/local.yaml remain untouched."
+echo "Switched profile to: $PROFILE_NAME"
+echo "  Source: $SOURCE_FILE"
+echo "  Target: $TARGET_FILE"
+echo "  Note: local secrets in config/local.yaml remain untouched."
