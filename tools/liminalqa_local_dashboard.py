@@ -521,6 +521,13 @@ def clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
 
 def build_council_analytics() -> dict:
     rows = council_ledgers()
+    quality_rows = []
+    if COUNCIL_QUALITY_DIR.exists():
+        for path in COUNCIL_QUALITY_DIR.glob("*.json"):
+            try:
+                quality_rows.append(json.loads(path.read_text(encoding="utf-8")))
+            except Exception:
+                continue
     if not rows:
         return {
             "ledgers": 0,
@@ -528,6 +535,8 @@ def build_council_analytics() -> dict:
             "success_rate": 0.0,
             "avg_resonance": 0.0,
             "avg_merit": 0.0,
+            "incident_count": 0,
+            "risky_cycle_count": 0,
             "empty": True,
             "how_to_generate": [
                 "Run a real coordination cycle through ResonanceAgent.",
@@ -551,6 +560,9 @@ def build_council_analytics() -> dict:
     successes: list[float] = []
     resonances: list[float] = []
     merits: list[float] = []
+    incident_count = 0
+    risky_cycle_count = 0
+    quality_by_cycle = {str(item.get("cycle_id") or ""): item for item in quality_rows}
     for row in rows:
         outcome = row.get("outcome", {})
         attribution = row.get("attribution", {})
@@ -577,6 +589,14 @@ def build_council_analytics() -> dict:
         successes.append(success)
         resonances.append(resonance)
         merits.append(merit)
+        quality_payload = quality_by_cycle.get(str(row.get("cycle_id") or ""))
+        guidance = (quality_payload or {}).get("operator_guidance") or {}
+        liminalqa = (quality_payload or {}).get("liminalqa") or {}
+        risk_state = str(guidance.get("risk_state") or "watch")
+        if risk_state in {"repair", "escalate"}:
+            risky_cycle_count += 1
+        if (liminalqa.get("incident") or {}).get("published"):
+            incident_count += 1
     type_lift = {key: round(avg(values), 4) for key, values in type_totals.items()}
     return {
         "ledgers": len(rows),
@@ -584,6 +604,8 @@ def build_council_analytics() -> dict:
         "success_rate": round(avg(successes) * 100.0, 2),
         "avg_resonance": round(avg(resonances) * 100.0, 2),
         "avg_merit": round(avg(merits) * 100.0, 2),
+        "incident_count": incident_count,
+        "risky_cycle_count": risky_cycle_count,
         "empty": False,
         "charts": {
             "bestContributorFrequency": [{"label": key, "value": value} for key, value in best_counts.items()],

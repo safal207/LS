@@ -117,3 +117,45 @@ def test_preview_council_risk_queue_sorts_high_risk_first(monkeypatch, tmp_path:
     assert payload["total"] == 2
     assert payload["items"][0]["cycle_id"] == "cycle-repair"
     assert payload["items"][1]["cycle_id"] == "cycle-safe"
+
+
+def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -> None:
+    ledger_dir = tmp_path / "council-ledger"
+    quality_dir = tmp_path / "council-quality"
+    ledger_dir.mkdir()
+    quality_dir.mkdir()
+    (ledger_dir / "cycle-001.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-001",
+                "timestamp": "2026-04-09T10:00:00Z",
+                "participants": [{"model_id": "local-qwen", "model_type": "local"}],
+                "final_decision": {"selected_route": "route-a"},
+                "outcome": {"success": True, "receiver_resonance_score": 0.6, "network_improvement": 0.1},
+                "attribution": {
+                    "best_contributor_model_id": "local-qwen",
+                    "best_contributor_score": 0.8,
+                    "contribution_breakdown": [{"model_id": "local-qwen", "total_contribution_score": 0.8}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (quality_dir / "cycle-001.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-001",
+                "operator_guidance": {"risk_state": "repair"},
+                "liminalqa": {"incident": {"published": True, "status_code": 202}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "COUNCIL_LEDGER_DIR", ledger_dir)
+    monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+
+    payload = dashboard.build_council_analytics()
+
+    assert payload["ledgers"] == 1
+    assert payload["risky_cycle_count"] == 1
+    assert payload["incident_count"] == 1

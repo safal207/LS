@@ -134,6 +134,8 @@
         <div class="summary-box"><div id="c-success-label" class="summary-label">Success Rate</div><div id="c-success" class="summary-value">0%</div></div>
         <div class="summary-box"><div id="c-resonance-label" class="summary-label">Avg Resonance</div><div id="c-resonance" class="summary-value">0%</div></div>
         <div class="summary-box"><div id="c-merit-label" class="summary-label">Avg Merit</div><div id="c-merit" class="summary-value">0%</div></div>
+        <div class="summary-box"><div id="c-risky-label" class="summary-label">Risky Cycles</div><div id="c-risky" class="summary-value">0</div></div>
+        <div class="summary-box"><div id="c-incidents-label" class="summary-label">Incidents</div><div id="c-incidents" class="summary-value">0</div></div>
       </div>
       <div id="council-empty" class="hint"></div>
       <ul id="council-guide" class="guide-list"></ul>
@@ -237,7 +239,7 @@
       (data.payload.lanes||[]).forEach(lane=>{const li=document.createElement("li"); li.textContent=laneLine(lane); laneList.appendChild(li);});
     }
     async function refreshCouncilAnalytics(){
-      const data=await callJson("/api/council-analytics"); const payload=data.payload; el("c-ledgers").textContent=String(payload.ledgers||0); el("c-top").textContent=payload.top_contributor||"n/a"; el("c-success").textContent=`${Number(payload.success_rate||0).toFixed(1)}%`; el("c-resonance").textContent=`${Number(payload.avg_resonance||0).toFixed(1)}%`; el("c-merit").textContent=`${Number(payload.avg_merit||0).toFixed(1)}%`;
+      const data=await callJson("/api/council-analytics"); const payload=data.payload; el("c-ledgers").textContent=String(payload.ledgers||0); el("c-top").textContent=payload.top_contributor||"n/a"; el("c-success").textContent=`${Number(payload.success_rate||0).toFixed(1)}%`; el("c-resonance").textContent=`${Number(payload.avg_resonance||0).toFixed(1)}%`; el("c-merit").textContent=`${Number(payload.avg_merit||0).toFixed(1)}%`; el("c-risky").textContent=String(payload.risky_cycle_count||0); el("c-incidents").textContent=String(payload.incident_count||0);
       const guide=el("council-guide"); guide.innerHTML=""; el("council-empty").hidden=!payload.empty; el("council-empty").textContent=payload.empty?text[lang].noData:"";
       if(payload.empty){(payload.how_to_generate||[]).forEach(line=>{const li=document.createElement("li"); li.textContent=line; guide.appendChild(li);});}
       chartKeys.forEach((key,idx)=>{el(`chart-${key}`).innerHTML=(idx<4?barSvg:lineSvg)(payload.charts?.[key]||[]);});
