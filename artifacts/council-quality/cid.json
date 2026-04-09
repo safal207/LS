@@ -1,0 +1,62 @@
+{
+  "cycle_id": "cid",
+  "task_id": "cid",
+  "timestamp": "2026-04-09T10:23:54Z",
+  "council_ledger_path": "artifacts/council-ledger/cid.json",
+  "quality_score": 0.425,
+  "relation_adjusted_quality_score": 0.425,
+  "council_outcome": {
+    "success": false,
+    "selected_route": "r1",
+    "receiver_resonance_score": 0.5,
+    "network_improvement": 0.0,
+    "receiver_acceptance_label": "needs_revision"
+  },
+  "attribution": {
+    "best_contributor_model_id": "primary-llm",
+    "best_contributor_score": 0.7075
+  },
+  "cel": {
+    "proposal_id": "cid",
+    "quality_score": 0.425,
+    "contribution_records": [
+      {
+        "proposal_id": "cid",
+        "agent_id": "primary-llm",
+        "contribution_type": "primary_llm",
+        "impact": 0.7075,
+        "resonance": 0.5,
+        "accuracy": 0.15
+      }
+    ],
+    "reputation_updates": [
+      {
+        "agent_id": "primary-llm",
+        "reputation_score": 0.601212,
+        "quality_ema": 0.4775,
+        "contribution_ema": 0.21225,
+        "updates_count": 1
+      }
+    ],
+    "merit_updates": [
+      {
+        "model_id": "primary-llm",
+        "quality_score": 0.425,
+        "speed_score": 1.0,
+        "reliability_score": 0.4,
+        "contribution_score": 0.7075,
+        "alignment_score": 0.5,
+        "network_effect_bonus": 0.0,
+        "trust_multiplier": 1.05,
+        "merit_score": 0.654,
+        "verified_given": 0.0,
+        "verified_received": 0.0
+      }
+    ]
+  },
+  "relational_field": null,
+  "liminalqa": {
+    "published": false,
+    "status_code": null
+  }
+}

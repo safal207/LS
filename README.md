@@ -209,6 +209,7 @@ If you are reading this repository from an AI safety, alignment, oversight, or p
 - [`docs/FELLOWSHIP_EVIDENCE_SPRINT.md`](docs/FELLOWSHIP_EVIDENCE_SPRINT.md)
 - [`docs/FELLOWSHIP_BENCHMARK_NOTE.md`](docs/FELLOWSHIP_BENCHMARK_NOTE.md)
 - [`docs/FELLOWSHIP_ATTRIBUTION_NOTE.md`](docs/FELLOWSHIP_ATTRIBUTION_NOTE.md)
+- [`benchmark/`](benchmark/) — generated benchmark snapshot with interpretation
 - [`docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md`](docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md)
 - [`docs/LIMINALQA_TEST_STRATEGY.md`](docs/LIMINALQA_TEST_STRATEGY.md)
 - [`docs/CI_QUALITY_GATES.md`](docs/CI_QUALITY_GATES.md)
@@ -328,11 +329,11 @@ pytest python/tests/test_memory_store_locking.py
 | Test file | Tests | Covers |
 |-----------|-------|--------|
 | `test_stabilization_forces.py` | 17 | Forces 3–5, stability_bias, trajectory |
-| `test_system_observer.py` | 35 | All 6 pathologies, score, trend |
+| `test_system_observer.py` | 37 | All 6 pathologies, score, trend |
 | `test_new_features.py` | 30 | Causal graph, predictive axis, meta-lessons, user profiles, session report |
-| `test_orientation_force_ladder.py` | 11+ | Forces 1–2, co-activation, propagation |
-| `test_world_poller.py` | 7 | WorldPoller git/logs |
-| `test_interview_pipeline.py` | 32 | OCR module, VisionSubsystem cache, TTS Speaker, screen-context injection for the operator pipeline |
+| `test_orientation_force_ladder.py` | 11 | Forces 1–2, co-activation, propagation |
+| `test_world_poller.py` | 8 | WorldPoller git/logs |
+| `test_interview_pipeline.py` | 57 | OCR module, VisionSubsystem cache, TTS Speaker, screen-context injection for the operator pipeline |
 | `test_qwen_omni_worker.py` | 4 | Multimodal worker fallback + store |
 
 ---
@@ -365,6 +366,9 @@ pytest python/tests/test_memory_store_locking.py
 | [docs/FELLOWSHIP_EVIDENCE_SPRINT.md](docs/FELLOWSHIP_EVIDENCE_SPRINT.md) | 1–2 day sprint plan for strengthening benchmark, dataset, and technical-note evidence |
 | [docs/FELLOWSHIP_BENCHMARK_NOTE.md](docs/FELLOWSHIP_BENCHMARK_NOTE.md) | Narrow benchmark note for queue review, replay, and operator-overhead claims |
 | [docs/FELLOWSHIP_ATTRIBUTION_NOTE.md](docs/FELLOWSHIP_ATTRIBUTION_NOTE.md) | Short method note for council attribution, receiver resonance, and merit sync |
+| [benchmark/README.md](benchmark/README.md) | Benchmark package overview and how to regenerate |
+| [benchmark/INTERPRETATION.md](benchmark/INTERPRETATION.md) | What the benchmark numbers justify and do not justify |
+| [benchmark/RESULTS.md](benchmark/RESULTS.md) | Generated benchmark snapshot (run `python3 scripts/generate_benchmark_results.py` to refresh) |
 | [FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md) | Golden Master overview |
 
 ---

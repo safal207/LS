@@ -117,7 +117,11 @@ jobs:
         run: |
           # Temporary exception: CVE-2026-4539 has no fixed PyPI release yet.
           # Keep this scoped to a single CVE and remove once upstream ships a fix.
-          pip-audit --local --desc --progress-spinner off --ignore-vuln CVE-2026-4539
+          # --skip-editable omits VCS/URL-installed packages (e.g. ltp-client) that
+          # are not indexed on PyPI and therefore cannot be audited via OSV.
+          pip-audit --local --desc --progress-spinner off \
+            --skip-editable \
+            --ignore-vuln CVE-2026-4539
 
       - name: Generate SBOM
         run: |
