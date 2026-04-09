@@ -15,7 +15,7 @@ class LSMCPServer:
         self.tools = tool_registry or MCPToolRegistry()
         self.resources = MCPResourceRegistry(
             self.tools.task_manager,
-            cognitive_state=getattr(self.tools, "_cognitive_state", None),
+            cognitive_state=self.tools.cognitive_state,
         )
 
     def handle(self, request: dict[str, Any]) -> dict[str, Any]:

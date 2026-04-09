@@ -16,6 +16,10 @@ from ls.agent_shell.testing.runtime_fixture import FixtureRuntime
 
 
 class CognitiveFixtureRuntime(FixtureRuntime):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.resonance_calls = 0
+
     def get_alignment_current(self) -> dict:
         return {
             "alignment_state": "stable",
@@ -32,6 +36,24 @@ class CognitiveFixtureRuntime(FixtureRuntime):
             "resonance_score": 0.61,
             "metadata": {"provider": "fallback"},
         }
+
+    def get_resonance_snapshot(
+        self,
+        *,
+        top_k: int = 10,
+        min_resonance_score: float = 0.3,
+    ) -> list[dict]:
+        self.resonance_calls += 1
+        rows = [
+            {
+                "unit_id": "runtime-u1",
+                "source_question": "runtime",
+                "timestamp": "2026-04-09T10:00:00+00:00",
+                "resonance_score": 0.88,
+                "alignment_score": 0.72,
+            }
+        ]
+        return [r for r in rows if r["resonance_score"] > min_resonance_score][:top_k]
 
 
 def _new_runtime(tmp_path: Path) -> CognitiveFixtureRuntime:
@@ -81,9 +103,31 @@ def test_mcp_resonance_exposure(tmp_path, monkeypatch):
     payload = resources.read_resource("resonance/snapshot", {"top_k": 2})
 
     assert payload["resource"] == "resonance/snapshot"
-    assert len(payload["items"]) == 2
-    assert payload["items"][0]["unit_id"] == "u2"
-    assert all(item["resonance_score"] > 0.3 for item in payload["items"])
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["unit_id"] == "runtime-u1"
+    assert runtime.resonance_calls == 1
+
+
+def test_mcp_resonance_file_fallback_handles_malformed_json(tmp_path, monkeypatch):
+    runtime = FixtureRuntime(
+        state_path=tmp_path / "state.json",
+        artifact_root=tmp_path / "artifacts",
+    )
+    cases_path = tmp_path / "graph_memory" / "cases.jsonl"
+    resonance_path = cases_path.with_name("resonance_units.jsonl")
+    resonance_path.parent.mkdir(parents=True, exist_ok=True)
+    resonance_path.write_text(
+        '{"unit_id":"ok-1","timestamp":"2026-04-09T10:00:00+00:00","resonance_score":0.9}\n'
+        '{malformed_json}\n'
+        '{"unit_id":"ok-2","timestamp":"2026-04-09T11:00:00+00:00","resonance_score":0.95}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GRAPH_MEMORY_STORE_PATH", str(cases_path))
+
+    resources = MCPResourceRegistry(runtime)
+    payload = resources.read_resource("resonance/snapshot", {"top_k": 5})
+
+    assert [row["unit_id"] for row in payload["items"]] == ["ok-2", "ok-1"]
 
 
 def test_mcp_alignment_exposure(tmp_path):

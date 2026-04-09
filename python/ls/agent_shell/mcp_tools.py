@@ -37,6 +37,10 @@ class MCPToolRegistry:
     def list_tools(self) -> list[dict[str, Any]]:
         return [{"name": name} for name in self._tools]
 
+    @property
+    def cognitive_state(self) -> CognitiveStateBridge:
+        return self._cognitive_state
+
     def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if name not in self._tools:
             raise MCPValidationError(f"Unknown tool: {name}")

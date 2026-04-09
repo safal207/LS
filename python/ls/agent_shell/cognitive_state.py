@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import os
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> str:
@@ -26,19 +29,53 @@ class CognitiveStateBridge:
         top_k: int = 10,
         min_resonance_score: float = 0.3,
     ) -> dict[str, Any]:
-        units = self._load_resonance_snapshot(
-            top_k=max(1, int(top_k or 1)),
-            min_resonance_score=float(min_resonance_score),
+        safe_top_k = max(1, int(top_k or 1))
+        safe_threshold = float(min_resonance_score)
+        units = self._runtime_resonance_snapshot(
+            top_k=safe_top_k,
+            min_resonance_score=safe_threshold,
         )
+        if units is None:
+            units = self._file_resonance_snapshot(
+                top_k=safe_top_k,
+                min_resonance_score=safe_threshold,
+            )
         return {
             "resource": "resonance/snapshot",
-            "top_k": max(1, int(top_k or 1)),
-            "min_resonance_score": float(min_resonance_score),
+            "top_k": safe_top_k,
+            "min_resonance_score": safe_threshold,
             "items": units,
             "last_updated": _utc_now(),
         }
 
-    def _load_resonance_snapshot(
+    def _runtime_resonance_snapshot(
+        self,
+        *,
+        top_k: int,
+        min_resonance_score: float,
+    ) -> list[dict[str, Any]] | None:
+        if not hasattr(self._task_manager, "get_resonance_snapshot"):
+            return None
+        try:
+            rows = self._task_manager.get_resonance_snapshot(
+                top_k=top_k,
+                min_resonance_score=min_resonance_score,
+            )
+        except Exception:
+            logger.debug("Runtime resonance snapshot failed", exc_info=True)
+            return None
+
+        payload: list[dict[str, Any]] = []
+        for row in rows or []:
+            if hasattr(row, "to_dict"):
+                payload.append(dict(row.to_dict()))
+            elif isinstance(row, dict):
+                payload.append(dict(row))
+            else:
+                payload.append({"value": row})
+        return payload
+
+    def _file_resonance_snapshot(
         self,
         *,
         top_k: int,
@@ -53,7 +90,11 @@ class CognitiveStateBridge:
                 row = line.strip()
                 if not row:
                     continue
-                payload = dict(json.loads(row))
+                try:
+                    payload = dict(json.loads(row))
+                except Exception:
+                    logger.debug("Skipping malformed resonance JSONL row")
+                    continue
                 if float(payload.get("resonance_score", 0.0) or 0.0) <= min_resonance_score:
                     continue
                 items.append(payload)
@@ -94,8 +135,11 @@ class CognitiveStateBridge:
 
         insight: dict[str, Any] | None = None
         if hasattr(self._task_manager, "get_omni_last_insight"):
-            raw = self._task_manager.get_omni_last_insight()
-            insight = dict(raw) if raw else None
+            try:
+                raw = self._task_manager.get_omni_last_insight()
+                insight = dict(raw) if raw else None
+            except Exception:
+                logger.debug("Runtime omni insight lookup failed", exc_info=True)
 
         return {
             "resource": "omni/last-insight",
