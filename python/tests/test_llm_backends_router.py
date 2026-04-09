@@ -259,3 +259,89 @@ def test_router_circuit_breaker_demotion_after_consecutive_failures():
     assert score_map["gonka"]["breaker_open"] is True
     assert explain["effective"][0] == "local"
     assert final.provider == "local"
+
+
+def test_router_ab_mode_selects_variant_policy_with_ratio_one():
+    cloud = _FakeBackend(
+        "cloud",
+        LLMResponse(text="cloud", model="groq", provider="cloud", latency_ms=8.0),
+    )
+    local = _FakeBackend(
+        "local",
+        LLMResponse(text="local", model="qwen-local", provider="local", latency_ms=8.0),
+    )
+    router = LLMBackendRouter(
+        primary="cloud",
+        fallback_chain=["local"],
+        backends={"cloud": cloud, "local": local},
+    )
+
+    result = router.generate(
+        messages=[{"role": "user", "content": "test"}],
+        metadata={
+            "routing_mode": "ab",
+            "request_id": "req-1",
+            "ab_variant_ratio": 1.0,
+            "ab_variant_policy": "cost_optimized",
+        },
+    )
+
+    explain = result.raw["route"]["explain"]
+    stats = result.raw["route"]["stats"]
+    assert explain["policy"] == "cost_optimized"
+    assert set(explain["effective"]) == {"cloud", "local"}
+    assert stats["ab_variant_selected_total"] == 1
+
+
+def test_router_shadow_mode_emits_shadow_explain():
+    cloud = _FakeBackend(
+        "cloud",
+        LLMResponse(text="cloud", model="groq", provider="cloud", latency_ms=8.0),
+    )
+    local = _FakeBackend(
+        "local",
+        LLMResponse(text="local", model="qwen-local", provider="local", latency_ms=8.0),
+    )
+    router = LLMBackendRouter(
+        primary="cloud",
+        fallback_chain=["local"],
+        backends={"cloud": cloud, "local": local},
+    )
+
+    result = router.generate(
+        messages=[{"role": "user", "content": "test"}],
+        metadata={
+            "routing_mode": "shadow",
+            "policy": "balanced",
+            "shadow_policy": "cost_optimized",
+        },
+    )
+
+    explain = result.raw["route"]["explain"]
+    stats = result.raw["route"]["stats"]
+    assert "shadow" in explain
+    assert explain["shadow"]["policy"] == "cost_optimized"
+    assert stats["shadow_evaluations_total"] == 1
+
+
+def test_router_runtime_override_applies_when_request_policy_missing():
+    cloud = _FakeBackend(
+        "cloud",
+        LLMResponse(text="cloud", model="groq", provider="cloud", latency_ms=8.0),
+    )
+    local = _FakeBackend(
+        "local",
+        LLMResponse(text="local", model="qwen-local", provider="local", latency_ms=8.0),
+    )
+    router = LLMBackendRouter(
+        primary="cloud",
+        fallback_chain=["local"],
+        backends={"cloud": cloud, "local": local},
+    )
+    router.set_runtime_overrides(policy="cost_optimized")
+
+    result = router.generate(messages=[{"role": "user", "content": "test"}])
+    explain = result.raw["route"]["explain"]
+
+    assert explain["policy"] == "cost_optimized"
+    assert explain["runtime_overrides"]["policy"] == "cost_optimized"

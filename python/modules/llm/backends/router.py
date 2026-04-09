@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from hashlib import sha256
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -86,6 +87,16 @@ class LLMBackendRouter:
         self.last_response: Optional[LLMResponse] = None
         self.last_explain: dict[str, Any] = {}
         self._circuit: dict[str, BackendCircuitState] = {}
+        self._runtime_policy_override: Optional[str] = None
+        self._runtime_threshold_overrides: dict[str, Any] = {}
+        self._stats: dict[str, Any] = {
+            "requests_total": 0,
+            "fallback_total": 0,
+            "ab_variant_selected_total": 0,
+            "shadow_evaluations_total": 0,
+            "backend_success_total": {},
+            "backend_failure_total": {},
+        }
 
     @property
     def route(self) -> list[str]:
@@ -113,8 +124,11 @@ class LLMBackendRouter:
         errors: list[str] = []
         attempts: list[dict[str, object]] = []
         metadata = metadata or {}
-        explain = self._build_effective_route(metadata, messages=messages)
+        effective_metadata = self._resolve_routing_metadata(metadata, messages=messages)
+        explain = self._build_effective_route(effective_metadata, messages=messages)
+        self._attach_shadow_explain(explain, metadata=metadata, messages=messages)
         chain = list(explain["effective"])
+        self._stats["requests_total"] += 1
         for index, backend_name in enumerate(chain):
             backend = self.backends[backend_name]
             response = backend.generate(
@@ -140,12 +154,19 @@ class LLMBackendRouter:
                     "fallback_to": response.fallback_to,
                 }
             )
-            self._record_circuit_outcome(backend_name, response.ok, metadata=metadata)
+            self._record_circuit_outcome(backend_name, response.ok, metadata=effective_metadata)
+            if response.ok:
+                success_totals = self._stats["backend_success_total"]
+                success_totals[backend_name] = int(success_totals.get(backend_name, 0)) + 1
+            else:
+                failure_totals = self._stats["backend_failure_total"]
+                failure_totals[backend_name] = int(failure_totals.get(backend_name, 0)) + 1
             if response.ok:
                 if index > 0:
                     response.was_fallback_used = True
                     response.fallback_from = chain[0]
                     response.fallback_to = backend_name
+                    self._stats["fallback_total"] += 1
                 response.raw = response.raw or {}
                 response.raw["route"] = {
                     "primary": self.primary,
@@ -153,6 +174,7 @@ class LLMBackendRouter:
                     "effective": list(chain),
                     "attempts": attempts,
                     "explain": explain,
+                    "stats": self._stats_snapshot(),
                 }
                 self.last_response = response
                 self.last_explain = explain
@@ -175,6 +197,7 @@ class LLMBackendRouter:
                     "effective": list(chain),
                     "attempts": attempts,
                     "explain": explain,
+                    "stats": self._stats_snapshot(),
                 }
             },
         )
@@ -182,6 +205,19 @@ class LLMBackendRouter:
         self.last_explain = explain
         logger.warning("llm router failed route=%s error=%s", "->".join(chain), final.error)
         return final
+
+    def set_runtime_overrides(
+        self,
+        *,
+        policy: Optional[str] = None,
+        health_thresholds: Optional[dict[str, Any]] = None,
+    ) -> None:
+        self._runtime_policy_override = str(policy).strip().lower() if policy else None
+        self._runtime_threshold_overrides = dict(health_thresholds or {})
+
+    def clear_runtime_overrides(self) -> None:
+        self._runtime_policy_override = None
+        self._runtime_threshold_overrides = {}
 
     def _build_effective_route(self, metadata: dict[str, Any], *, messages: Any = None) -> dict[str, Any]:
         base_chain = self.route
@@ -265,6 +301,10 @@ class LLMBackendRouter:
             "health_thresholds": {"error_rate": error_threshold, "latency_ms": latency_threshold},
             "breaker": {"failure_threshold": breaker_threshold, "cooldown_seconds": breaker_cooldown_seconds},
             "pin_primary": pin_primary,
+            "runtime_overrides": {
+                "policy": self._runtime_policy_override,
+                "health_thresholds": self._runtime_threshold_overrides,
+            },
         }
 
     @classmethod
@@ -324,6 +364,69 @@ class LLMBackendRouter:
         state.consecutive_failures += 1
         if state.consecutive_failures >= threshold:
             state.opened_until = datetime.now(timezone.utc) + timedelta(seconds=cooldown_seconds)
+
+    def _resolve_routing_metadata(self, metadata: dict[str, Any], *, messages: Any) -> dict[str, Any]:
+        merged = dict(metadata)
+        if self._runtime_policy_override and not merged.get("policy") and not merged.get("routing_policy"):
+            merged["policy"] = self._runtime_policy_override
+
+        runtime_thresholds = dict(self._runtime_threshold_overrides)
+        if runtime_thresholds:
+            user_thresholds = dict(merged.get("health_thresholds") or {})
+            user_thresholds = {**runtime_thresholds, **user_thresholds}
+            merged["health_thresholds"] = user_thresholds
+
+        mode = str(merged.get("routing_mode") or "primary").strip().lower()
+        if mode == "ab":
+            ratio = float(merged.get("ab_variant_ratio", 0.0))
+            if self._is_ab_variant_request(merged, ratio=ratio):
+                variant_policy = str(merged.get("ab_variant_policy") or "").strip().lower()
+                if variant_policy:
+                    merged["policy"] = variant_policy
+                merged["ab_variant_selected"] = True
+                self._stats["ab_variant_selected_total"] += 1
+            else:
+                merged["ab_variant_selected"] = False
+            merged["ab_variant_ratio"] = ratio
+        return merged
+
+    def _attach_shadow_explain(self, explain: dict[str, Any], *, metadata: dict[str, Any], messages: Any) -> None:
+        mode = str(metadata.get("routing_mode") or "").strip().lower()
+        if mode != "shadow":
+            return
+        shadow_policy = str(metadata.get("shadow_policy") or "").strip().lower()
+        shadow_metadata = dict(metadata)
+        if shadow_policy:
+            shadow_metadata["policy"] = shadow_policy
+        shadow_metadata.pop("routing_mode", None)
+        shadow = self._build_effective_route(shadow_metadata, messages=messages)
+        explain["shadow"] = {
+            "policy": shadow.get("policy"),
+            "effective": shadow.get("effective"),
+            "scores": shadow.get("scores"),
+        }
+        self._stats["shadow_evaluations_total"] += 1
+
+    @staticmethod
+    def _is_ab_variant_request(metadata: dict[str, Any], *, ratio: float) -> bool:
+        if ratio <= 0:
+            return False
+        if ratio >= 1:
+            return True
+        request_key = str(metadata.get("request_id") or metadata.get("trace_id") or metadata.get("user_id") or "default")
+        digest = sha256(request_key.encode("utf-8")).hexdigest()
+        bucket = int(digest[:8], 16) / 0xFFFFFFFF
+        return bucket < ratio
+
+    def _stats_snapshot(self) -> dict[str, Any]:
+        return {
+            "requests_total": int(self._stats["requests_total"]),
+            "fallback_total": int(self._stats["fallback_total"]),
+            "ab_variant_selected_total": int(self._stats["ab_variant_selected_total"]),
+            "shadow_evaluations_total": int(self._stats["shadow_evaluations_total"]),
+            "backend_success_total": dict(self._stats["backend_success_total"]),
+            "backend_failure_total": dict(self._stats["backend_failure_total"]),
+        }
 
 
 def build_llm_backend(
