@@ -170,3 +170,47 @@ def test_council_cycle_cli_can_use_local_llm_mode(tmp_path: Path, monkeypatch) -
     assert "Ledger artifact:" in result.stdout
     artifacts = list(artifact_dir.glob("*.json"))
     assert artifacts
+
+
+def test_council_review_prioritizes_risk_states(tmp_path: Path) -> None:
+    runner = CliRunner()
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "safe.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-safe",
+                "timestamp": "2026-04-09T10:00:00Z",
+                "quality_score": 0.91,
+                "council_outcome": {"selected_route": "route-a"},
+                "relational_field": {"recommended_mode": "collaborative_progress"},
+                "operator_guidance": {
+                    "risk_state": "safe",
+                    "suggested_operator_action": "Safe to continue.",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (quality_dir / "repair.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-repair",
+                "timestamp": "2026-04-09T11:00:00Z",
+                "relation_adjusted_quality_score": 0.41,
+                "council_outcome": {"selected_route": "route-b"},
+                "relational_field": {"recommended_mode": "decompress_and_repair"},
+                "operator_guidance": {
+                    "risk_state": "repair",
+                    "suggested_operator_action": "Pause approval and repair.",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["council-review", "--quality-dir", str(quality_dir)])
+
+    assert result.exit_code == 0
+    assert "Council Review Queue" in result.stdout
+    assert result.stdout.index("cycle-repair") < result.stdout.index("cycle-safe")

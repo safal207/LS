@@ -57,6 +57,36 @@ class CouncilLLMMode(str, Enum):
     LOCAL = "local"
 
 
+def _council_risk_rank(risk_state: str) -> int:
+    order = {
+        "escalate": 0,
+        "repair": 1,
+        "watch": 2,
+        "safe": 3,
+    }
+    return order.get(str(risk_state or "watch"), 2)
+
+
+def load_council_quality_rows(quality_dir: Path) -> list[dict]:
+    rows: list[dict] = []
+    if not quality_dir.exists():
+        return rows
+    for path in quality_dir.glob("*.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        payload["_path"] = str(path)
+        rows.append(payload)
+    rows.sort(
+        key=lambda item: (
+            _council_risk_rank((item.get("operator_guidance") or {}).get("risk_state", "watch")),
+            str(item.get("timestamp") or ""),
+        )
+    )
+    return rows
+
+
 def manager() -> TaskManager:
     base = Path(".ls_agent")
     return TaskManager(db_path=base / "runtime.db", artifacts_root=base / "artifacts")
@@ -341,6 +371,43 @@ def list_tasks() -> None:
     table.add_column("status")
     for task in tasks:
         table.add_row(task["id"], task["title"], task["mode"], task["status"])
+    console.print(table)
+
+
+@app.command("council-review")
+def council_review(
+    quality_dir: Path = typer.Option(
+        Path("artifacts/council-quality"),
+        "--quality-dir",
+        help="Where to read council-quality JSON artifacts.",
+    ),
+) -> None:
+    rows = load_council_quality_rows(quality_dir)
+    if not rows:
+        console.print("[yellow]No council-quality artifacts found.[/yellow]")
+        raise typer.Exit(code=0)
+    table = Table(title="Council Review Queue")
+    table.add_column("cycle")
+    table.add_column("risk")
+    table.add_column("mode")
+    table.add_column("route")
+    table.add_column("quality")
+    table.add_column("action")
+    for row in rows:
+        guidance = row.get("operator_guidance") or {}
+        relational = row.get("relational_field") or {}
+        outcome = row.get("council_outcome") or {}
+        quality_score = row.get("relation_adjusted_quality_score")
+        if quality_score is None:
+            quality_score = row.get("quality_score")
+        table.add_row(
+            str(row.get("cycle_id") or "n/a"),
+            str(guidance.get("risk_state") or "watch"),
+            str(relational.get("recommended_mode") or "n/a"),
+            str(outcome.get("selected_route") or "unknown"),
+            "n/a" if quality_score is None else f"{float(quality_score):.4f}",
+            str(guidance.get("suggested_operator_action") or "n/a"),
+        )
     console.print(table)
 
 
