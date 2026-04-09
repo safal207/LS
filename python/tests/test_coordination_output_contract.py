@@ -189,6 +189,7 @@ def test_coordination_output_contract_graceful_fallback_empty_shape():
 def test_build_output_emits_council_ledger_artifact(tmp_path):
     agent = ResonanceAgent(anchor=[], llm_fn=None)
     agent._council_ledger_dir = tmp_path / "council-ledger"
+    agent._council_quality_dir = tmp_path / "council-quality"
     agent.get_alignment_strategy_recommendations = lambda _item: [
         {
             "strategy_id": "bridge-1",
@@ -243,3 +244,19 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert len(output["council_cel_sync"]["reputation_updates"]) >= 1
     assert len(output["council_cel_sync"]["merit_updates"]) >= 1
     assert output["council_cel_sync"]["merit_updates"][0]["network_effect_bonus"] >= 0
+
+    quality_artifact_path = output["council_quality_artifact"]
+    assert quality_artifact_path is not None
+    quality_artifact = Path(quality_artifact_path)
+    assert quality_artifact.exists()
+
+    quality_payload = json.loads(quality_artifact.read_text(encoding="utf-8"))
+    assert quality_payload["cycle_id"] == "cid-ledger"
+    assert quality_payload["council_ledger_path"] == artifact_path
+    assert quality_payload["quality_score"] == output["council_cel_sync"]["quality_score"]
+    assert quality_payload["council_outcome"]["selected_route"] == "r1"
+    assert quality_payload["attribution"]["best_contributor_model_id"] != "n/a"
+    assert len(quality_payload["cel"]["contribution_records"]) >= 1
+    assert len(quality_payload["cel"]["reputation_updates"]) >= 1
+    assert len(quality_payload["cel"]["merit_updates"]) >= 1
+    assert quality_payload["liminalqa"]["published"] is False

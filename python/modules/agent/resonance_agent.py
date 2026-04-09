@@ -247,18 +247,21 @@ except Exception:
 
 try:
     from cel.council_sync import apply_council_ledger_to_cel as _apply_council_ledger_to_cel
+    from cel.council_sync import quality_score_from_council_outcome as _quality_score_from_council_outcome
     from cel.contribution_api import ContributionLedger as _CELContributionLedger
     from cel.reputation_engine import ReputationEngine as _CELReputationEngine
     _COUNCIL_CEL_SYNC_OK = True
 except Exception:
     try:
         from modules.cel.council_sync import apply_council_ledger_to_cel as _apply_council_ledger_to_cel
+        from modules.cel.council_sync import quality_score_from_council_outcome as _quality_score_from_council_outcome
         from modules.cel.contribution_api import ContributionLedger as _CELContributionLedger
         from modules.cel.reputation_engine import ReputationEngine as _CELReputationEngine
         _COUNCIL_CEL_SYNC_OK = True
     except Exception:
         _COUNCIL_CEL_SYNC_OK = False
         _apply_council_ledger_to_cel = None  # type: ignore[assignment]
+        _quality_score_from_council_outcome = None  # type: ignore[assignment]
         _CELContributionLedger = None  # type: ignore[assignment]
         _CELReputationEngine = None  # type: ignore[assignment]
 
@@ -902,6 +905,7 @@ class ResonanceAgent:
                 _Path("data/graph_memory/alignment_memory_units.jsonl")
             )
         self._council_ledger_dir = Path("artifacts/council-ledger")
+        self._council_quality_dir = Path("artifacts/council-quality")
 
         # Alignment digest metrics (advisory/observability only)
         self._digest_metrics = (
@@ -3076,6 +3080,11 @@ class ResonanceAgent:
             council_ledger
         )
         council_cel_sync = self._sync_council_ledger_to_cel(council_ledger)
+        council_quality_artifact = self._write_council_quality_artifact(
+            council_ledger,
+            council_ledger_artifact=council_ledger_artifact,
+            council_cel_sync=council_cel_sync,
+        )
 
         return {
             # Identity
@@ -3166,6 +3175,7 @@ class ResonanceAgent:
             ),
             "council_contribution_ledger_artifact": council_ledger_artifact,
             "council_cel_sync": council_cel_sync,
+            "council_quality_artifact": council_quality_artifact,
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
@@ -3439,6 +3449,132 @@ class ResonanceAgent:
             )
         except Exception as exc:
             logger.debug("ResonanceAgent: council CEL sync failed: %s", exc)
+            return None
+
+    def _quality_score_fallback_from_ledger(self, ledger) -> float | None:
+        if ledger is None:
+            return None
+        outcome = getattr(ledger, "outcome", None)
+        if outcome is None:
+            return None
+        if _quality_score_from_council_outcome is not None:
+            try:
+                return float(_quality_score_from_council_outcome(outcome))
+            except Exception as exc:
+                logger.debug("ResonanceAgent: council quality score fallback import failed: %s", exc)
+        path_quality = max(0.0, min(1.0, float(getattr(outcome, "path_quality", 0.0) or 0.0)))
+        operator_feedback = max(
+            0.0,
+            min(1.0, float(getattr(outcome, "operator_feedback_score", 0.0) or 0.0)),
+        )
+        receiver_resonance = max(
+            0.0,
+            min(1.0, float(getattr(outcome, "receiver_resonance_score", 0.0) or 0.0)),
+        )
+        success = 1.0 if bool(getattr(outcome, "success", False)) else 0.0
+        return round(
+            (0.35 * path_quality)
+            + (0.25 * operator_feedback)
+            + (0.25 * receiver_resonance)
+            + (0.15 * success),
+            4,
+        )
+
+    def _build_council_quality_artifact_payload(
+        self,
+        ledger,
+        *,
+        council_ledger_artifact: str | None,
+        council_cel_sync: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if ledger is None:
+            return None
+        outcome = getattr(ledger, "outcome", None)
+        attribution = getattr(ledger, "attribution", None)
+        final_decision = getattr(ledger, "final_decision", None)
+        quality_score = None
+        if council_cel_sync is not None:
+            quality_score = council_cel_sync.get("quality_score")
+        if quality_score is None:
+            quality_score = self._quality_score_fallback_from_ledger(ledger)
+        return {
+            "cycle_id": str(getattr(ledger, "cycle_id", "") or ""),
+            "task_id": str(getattr(ledger, "task_id", "") or ""),
+            "timestamp": str(getattr(ledger, "timestamp", "") or ""),
+            "council_ledger_path": council_ledger_artifact,
+            "quality_score": quality_score,
+            "council_outcome": {
+                "success": bool(getattr(outcome, "success", False)) if outcome is not None else False,
+                "selected_route": (
+                    str(getattr(final_decision, "selected_route", "unknown") or "unknown")
+                    if final_decision is not None
+                    else "unknown"
+                ),
+                "receiver_resonance_score": (
+                    float(getattr(outcome, "receiver_resonance_score", 0.0) or 0.0)
+                    if outcome is not None
+                    else 0.0
+                ),
+                "network_improvement": (
+                    float(getattr(outcome, "network_improvement", 0.0) or 0.0)
+                    if outcome is not None
+                    else 0.0
+                ),
+                "receiver_acceptance_label": (
+                    str(getattr(outcome, "receiver_acceptance_label", "unknown") or "unknown")
+                    if outcome is not None
+                    else "unknown"
+                ),
+            },
+            "attribution": {
+                "best_contributor_model_id": (
+                    str(getattr(attribution, "best_contributor_model_id", "n/a") or "n/a")
+                    if attribution is not None
+                    else "n/a"
+                ),
+                "best_contributor_score": (
+                    float(getattr(attribution, "best_contributor_score", 0.0) or 0.0)
+                    if attribution is not None
+                    else 0.0
+                ),
+            },
+            "cel": council_cel_sync or {
+                "proposal_id": str(getattr(ledger, "cycle_id", "") or ""),
+                "quality_score": quality_score,
+                "contribution_records": [],
+                "reputation_updates": [],
+                "merit_updates": [],
+            },
+            "liminalqa": {
+                "published": False,
+                "status_code": None,
+            },
+        }
+
+    def _write_council_quality_artifact(
+        self,
+        ledger,
+        *,
+        council_ledger_artifact: str | None,
+        council_cel_sync: dict[str, Any] | None,
+    ) -> str | None:
+        payload = self._build_council_quality_artifact_payload(
+            ledger,
+            council_ledger_artifact=council_ledger_artifact,
+            council_cel_sync=council_cel_sync,
+        )
+        if payload is None:
+            return None
+        try:
+            self._council_quality_dir.mkdir(parents=True, exist_ok=True)
+            path = self._council_quality_dir / f"{payload['cycle_id']}.json"
+            path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            return str(path)
+        except Exception as exc:
+            logger.debug("ResonanceAgent: council quality artifact write failed: %s", exc)
             return None
 
     def _build_cycle_record(
