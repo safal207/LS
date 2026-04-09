@@ -1,12 +1,14 @@
 {
-  "generated_at": "2026-04-08T10:46:37Z",
+  "generated_at": "2026-04-09T11:33:29Z",
   "source": "fellowship_dataset",
   "summary": {
     "ledgers": 8,
     "top_contributor": "local-council-llm",
     "success_rate": 87.5,
     "avg_resonance": 40.62,
-    "avg_merit": 41.36
+    "avg_merit": 41.36,
+    "avg_quality": 59.37,
+    "avg_relation_safety": 0.0
   },
   "bars": {
     "best_contributor_frequency": [
@@ -110,5 +112,5 @@
     ],
     "disclaimer": "This scorecard is assembled from council-ledger artifacts found at build time. It is a snapshot of observed cycles, not a universal production guarantee."
   },
-  "input_dir": "artifacts\\fellowship-dataset\\ledgers"
+  "input_dir": "C:\\Users\\safal\\OneDrive\\Рабочий стол\\_deck_programs_push\\artifacts\\fellowship-dataset\\ledgers"
 }

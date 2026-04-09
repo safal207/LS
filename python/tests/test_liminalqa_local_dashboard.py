@@ -25,11 +25,17 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                 "cycle_id": "cycle-001",
                 "task_id": "task-001",
                 "quality_score": 0.84,
+                "relation_adjusted_quality_score": 0.71,
                 "council_outcome": {
                     "selected_route": "route-a",
                     "success": True,
                     "receiver_resonance_score": 0.73,
                     "receiver_acceptance_label": "accepted",
+                },
+                "relational_field": {
+                    "relation_safety_score": 0.48,
+                    "recommended_mode": "validate_before_solve",
+                    "dominant_signal": "tension",
                 },
                 "attribution": {
                     "best_contributor_model_id": "local-qwen",
@@ -55,7 +61,10 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert status == 200
     assert payload["cycle_id"] == "cycle-001"
     assert payload["quality_score"] == 0.84
+    assert payload["relation_adjusted_quality_score"] == 0.71
     assert payload["selected_route"] == "route-a"
     assert payload["best_contributor_model_id"] == "local-qwen"
+    assert payload["relation_safety_score"] == 0.48
+    assert payload["recommended_mode"] == "validate_before_solve"
     assert payload["liminalqa_published"] is True
     assert payload["liminalqa_status_code"] == 200

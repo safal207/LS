@@ -114,6 +114,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 "avg_resonance": 0.0,
                 "avg_merit": 0.0,
                 "avg_quality": 0.0,
+                "avg_relation_safety": 0.0,
             },
             "bars": {
                 "best_contributor_frequency": [],
@@ -144,6 +145,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
     resonances: list[float] = []
     merits: list[float] = []
     qualities: list[float] = []
+    relation_safeties: list[float] = []
     for index, row in enumerate(selected_rows, start=1):
         outcome = row.get("outcome", {})
         attribution = row.get("attribution", {})
@@ -175,6 +177,9 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 (float(outcome.get("path_quality", 0.0) or 0.0) + resonance + success) / 3.0
             )
         )
+        relation_safety = clamp(
+            float((quality_payload.get("relational_field") or {}).get("relation_safety_score", 0.0) or 0.0)
+        )
         network = float(quality_outcome.get("network_improvement", outcome.get("network_improvement", 0.0)) or 0.0)
         merit = clamp((float(attribution.get("best_contributor_score", 0.0) or 0.0) + resonance + max(network, 0.0)) / 3.0)
         label = f"c{index}"
@@ -184,6 +189,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         resonances.append(resonance)
         merits.append(merit)
         qualities.append(quality_score)
+        relation_safeties.append(relation_safety)
     type_lift = {key: round(avg(values), 4) for key, values in type_totals.items()}
     top_contributor = best_counts.most_common(1)[0][0] if best_counts else "n/a"
     takeaways = {
@@ -205,6 +211,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "avg_resonance": round(avg(resonances) * 100.0, 2),
             "avg_merit": round(avg(merits) * 100.0, 2),
             "avg_quality": round(avg(qualities) * 100.0, 2),
+            "avg_relation_safety": round(avg(relation_safeties) * 100.0, 2),
         },
         "bars": {
             "best_contributor_frequency": [{"label": key, "value": value} for key, value in best_counts.items()],

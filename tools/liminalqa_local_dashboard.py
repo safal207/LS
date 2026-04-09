@@ -448,6 +448,7 @@ def preview_council_quality_artifact() -> tuple[int, object]:
     attribution = payload.get("attribution") or {}
     cel = payload.get("cel") or {}
     liminalqa = payload.get("liminalqa") or {}
+    relational = payload.get("relational_field") or {}
     merit_updates = cel.get("merit_updates") or []
     top_merit = max((float(item.get("merit_score") or 0.0) for item in merit_updates), default=0.0)
     return 200, {
@@ -455,12 +456,16 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "task_id": payload.get("task_id"),
         "artifact_path": payload.get("_path"),
         "quality_score": payload.get("quality_score"),
+        "relation_adjusted_quality_score": payload.get("relation_adjusted_quality_score"),
         "selected_route": council_outcome.get("selected_route"),
         "success": council_outcome.get("success"),
         "receiver_resonance_score": council_outcome.get("receiver_resonance_score"),
         "receiver_acceptance_label": council_outcome.get("receiver_acceptance_label"),
         "best_contributor_model_id": attribution.get("best_contributor_model_id"),
         "best_contributor_score": attribution.get("best_contributor_score"),
+        "relation_safety_score": relational.get("relation_safety_score"),
+        "recommended_mode": relational.get("recommended_mode"),
+        "dominant_signal": relational.get("dominant_signal"),
         "contribution_records": len(cel.get("contribution_records") or []),
         "reputation_updates": len(cel.get("reputation_updates") or []),
         "merit_updates": len(merit_updates),

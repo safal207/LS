@@ -113,9 +113,11 @@
         <button id="generate-demo-council-ledger" class="secondary">Сгенерировать demo council ledger</button>
       </div>
       <div id="council-quality-kicker" class="kicker" style="margin-top:14px">Council Quality</div>
-      <div id="council-quality-meta" class="meta">Latest <code>artifacts/council-quality/*.json</code>: quality score, best contributor, and LiminalQA publish status.</div>
+      <div id="council-quality-meta" class="meta">Latest <code>artifacts/council-quality/*.json</code>: quality score, relation safety, recommended mode, best contributor, and LiminalQA publish status.</div>
       <div class="summary-grid">
         <div class="summary-box"><div id="cq-score-label" class="summary-label">Quality Score</div><div id="cq-score" class="summary-value">n/a</div></div>
+        <div class="summary-box"><div id="cq-safety-label" class="summary-label">Relation Safety</div><div id="cq-safety" class="summary-value">n/a</div></div>
+        <div class="summary-box"><div id="cq-mode-label" class="summary-label">Mode</div><div id="cq-mode" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-route-label" class="summary-label">Route</div><div id="cq-route" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-best-label" class="summary-label">Best Contributor</div><div id="cq-best" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-publish-label" class="summary-label">LiminalQA</div><div id="cq-publish" class="summary-value">pending</div></div>
@@ -290,6 +292,8 @@
       const data=await callJson("/api/council-quality-preview");
       if(!data.ok){
         el("cq-score").textContent="n/a";
+        el("cq-safety").textContent="n/a";
+        el("cq-mode").textContent="n/a";
         el("cq-route").textContent="n/a";
         el("cq-best").textContent="n/a";
         el("cq-publish").textContent=document.documentElement.lang==="ru"?"ожидание":"pending";
@@ -297,7 +301,10 @@
         return;
       }
       const payload=data.payload;
-      el("cq-score").textContent=payload.quality_score===null||payload.quality_score===undefined?"n/a":Number(payload.quality_score).toFixed(4);
+      const effectiveQuality=payload.relation_adjusted_quality_score ?? payload.quality_score;
+      el("cq-score").textContent=effectiveQuality===null||effectiveQuality===undefined?"n/a":Number(effectiveQuality).toFixed(4);
+      el("cq-safety").textContent=payload.relation_safety_score===null||payload.relation_safety_score===undefined?"n/a":`${(Number(payload.relation_safety_score)*100).toFixed(1)}%`;
+      el("cq-mode").textContent=payload.recommended_mode||"n/a";
       el("cq-route").textContent=payload.selected_route||"n/a";
       el("cq-best").textContent=payload.best_contributor_model_id||"n/a";
       el("cq-publish").textContent=payload.liminalqa_published?`HTTP ${payload.liminalqa_status_code||200}`:(document.documentElement.lang==="ru"?"не опубликован":"not published");
@@ -310,8 +317,10 @@
       el("council-quality-kicker").textContent="Council Quality";
       el("council-quality-meta").innerHTML=next==="ru"
         ?"Последний <code>artifacts/council-quality/*.json</code>: quality score, лучший contributor и статус публикации в LiminalQA."
-        :"Latest <code>artifacts/council-quality/*.json</code>: quality score, best contributor, and LiminalQA publish status.";
+        :"Latest <code>artifacts/council-quality/*.json</code>: quality score, relation safety, recommended mode, best contributor, and LiminalQA publish status.";
       el("cq-score-label").textContent="Quality Score";
+      el("cq-safety-label").textContent="Relation Safety";
+      el("cq-mode-label").textContent="Mode";
       el("cq-route-label").textContent="Route";
       el("cq-best-label").textContent="Best Contributor";
       el("cq-publish-label").textContent="LiminalQA";

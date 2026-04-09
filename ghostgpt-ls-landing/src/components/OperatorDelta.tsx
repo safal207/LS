@@ -42,6 +42,8 @@ type CouncilScorecardPayload = {
     success_rate: number;
     avg_resonance: number;
     avg_merit: number;
+    avg_quality?: number;
+    avg_relation_safety?: number;
   };
   bars: {
     best_contributor_frequency: ScorePoint[];
@@ -96,6 +98,8 @@ const copy = {
     successRate: 'Success rate',
     avgResonance: 'Avg resonance',
     avgMerit: 'Avg merit',
+    avgQuality: 'Avg quality',
+    avgRelationSafety: 'Relation safety',
     contribFreq: 'Best contributor frequency',
     modelLift: 'Model type lift',
     routeWins: 'Route wins',
@@ -425,7 +429,7 @@ export default function OperatorDelta() {
             <p className="mt-3 text-sm text-white/70 md:text-base">{text.councilSubtitle}</p>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-5">
+          <div className="mt-6 grid gap-4 md:grid-cols-7">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.ledgers}</div>
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.ledgers}</div>
@@ -445,6 +449,14 @@ export default function OperatorDelta() {
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.avgMerit}</div>
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.avg_merit.toFixed(1)}%</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{lang === 'ru' ? 'Avg quality' : 'Avg quality'}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{(scorecard.summary.avg_quality ?? 0).toFixed(1)}%</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">Relation safety</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{(scorecard.summary.avg_relation_safety ?? 0).toFixed(1)}%</div>
             </div>
           </div>
 
