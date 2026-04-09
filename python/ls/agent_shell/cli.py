@@ -151,6 +151,63 @@ def assign_council_reviewer(
     return path
 
 
+def iter_council_escalation_rows(quality_dir: Path) -> list[dict]:
+    rows = [
+        row
+        for row in load_council_quality_rows(quality_dir)
+        if str((row.get("operator_guidance") or {}).get("risk_state") or "") == "escalate"
+        or str((row.get("operator_guidance") or {}).get("approval_posture") or "") == "human_escalation"
+    ]
+    queue_rows: list[dict] = []
+    for row in rows:
+        guidance = row.get("operator_guidance") or {}
+        outcome = row.get("council_outcome") or {}
+        review = row.get("operator_review") or {}
+        review_status = str(review.get("decision") or "pending")
+        queue_rows.append(
+            {
+                "cycle_id": str(row.get("cycle_id") or "n/a"),
+                "review_status": review_status,
+                "assigned_reviewer": str(review.get("assigned_reviewer") or "unassigned"),
+                "approval_posture": str(guidance.get("approval_posture") or "human_escalation"),
+                "selected_route": str(outcome.get("selected_route") or "unknown"),
+                "suggested_operator_action": str(guidance.get("suggested_operator_action") or "n/a"),
+            }
+        )
+    queue_rows.sort(
+        key=lambda item: (
+            item["review_status"] != "pending",
+            item["assigned_reviewer"] != "unassigned",
+            item["cycle_id"],
+        )
+    )
+    return queue_rows
+
+
+def close_council_escalation(
+    quality_dir: Path,
+    cycle_id: str,
+    *,
+    reviewer: str,
+    reason: str,
+) -> Path:
+    artifact = load_council_quality_artifact(quality_dir, cycle_id)
+    path = Path(str(artifact.get("_path") or _council_quality_path(quality_dir, cycle_id)))
+    current = artifact.get("operator_review") or {}
+    artifact["operator_review"] = {
+        "decision": "closed",
+        "reviewer": reviewer,
+        "forced": bool(current.get("forced", False)),
+        "reason": str(current.get("reason") or ""),
+        "assigned_reviewer": current.get("assigned_reviewer"),
+        "assigned_by": current.get("assigned_by"),
+        "closed_reason": reason,
+        "closed_by": reviewer,
+    }
+    save_council_quality_artifact(path, artifact)
+    return path
+
+
 def manager() -> TaskManager:
     base = Path(".ls_agent")
     return TaskManager(db_path=base / "runtime.db", artifacts_root=base / "artifacts")
@@ -666,29 +723,7 @@ def council_escalations(
         help="Emit the escalation queue as JSON for automation.",
     ),
 ) -> None:
-    rows = [
-        row
-        for row in load_council_quality_rows(quality_dir)
-        if str((row.get("operator_guidance") or {}).get("risk_state") or "") == "escalate"
-        or str((row.get("operator_guidance") or {}).get("approval_posture") or "") == "human_escalation"
-    ]
-    queue_rows: list[dict] = []
-    for row in rows:
-        guidance = row.get("operator_guidance") or {}
-        outcome = row.get("council_outcome") or {}
-        review = row.get("operator_review") or {}
-        review_status = str(((row.get("operator_review") or {}).get("decision")) or "pending")
-        queue_rows.append(
-            {
-                "cycle_id": str(row.get("cycle_id") or "n/a"),
-                "review_status": review_status,
-                "assigned_reviewer": str(review.get("assigned_reviewer") or "unassigned"),
-                "approval_posture": str(guidance.get("approval_posture") or "human_escalation"),
-                "selected_route": str(outcome.get("selected_route") or "unknown"),
-                "suggested_operator_action": str(guidance.get("suggested_operator_action") or "n/a"),
-            }
-        )
-    queue_rows.sort(key=lambda item: (item["review_status"] != "pending", item["cycle_id"]))
+    queue_rows = iter_council_escalation_rows(quality_dir)
     if as_json:
         print_plain_safe(json.dumps({"total": len(queue_rows), "items": queue_rows}, ensure_ascii=False, indent=2))
         raise typer.Exit(code=0)
@@ -732,6 +767,60 @@ def council_assign_reviewer(
         assigned_by=assigned_by,
     )
     console.print(f"[green]Assigned reviewer[/green] {reviewer} to {cycle_id}")
+    console.print(f"[bold]Review artifact:[/bold] {updated_path}")
+
+
+@app.command("council-claim-next-escalation")
+def council_claim_next_escalation(
+    reviewer: str = typer.Option(..., "--reviewer", help="Reviewer claiming the next escalation."),
+    assigned_by: str = typer.Option("operator", "--assigned-by", help="Who assigned this escalation."),
+    quality_dir: Path = typer.Option(
+        Path("artifacts/council-quality"),
+        "--quality-dir",
+        help="Where to read and update council-quality JSON artifacts.",
+    ),
+) -> None:
+    queue_rows = iter_council_escalation_rows(quality_dir)
+    target = next(
+        (
+            item
+            for item in queue_rows
+            if item["review_status"] == "pending" and item["assigned_reviewer"] == "unassigned"
+        ),
+        None,
+    )
+    if target is None:
+        console.print("[yellow]No unassigned pending escalations found.[/yellow]")
+        raise typer.Exit(code=1)
+    updated_path = assign_council_reviewer(
+        quality_dir,
+        target["cycle_id"],
+        reviewer=reviewer,
+        assigned_by=assigned_by,
+    )
+    console.print(f"[green]Claimed escalation[/green] {target['cycle_id']} for {reviewer}")
+    console.print(f"[bold]Review artifact:[/bold] {updated_path}")
+
+
+@app.command("council-close-escalation")
+def council_close_escalation(
+    cycle_id: str,
+    reviewer: str = typer.Option(..., "--reviewer", help="Reviewer closing this escalation."),
+    reason: str = typer.Option(..., "--reason", help="Why the escalation is being closed."),
+    quality_dir: Path = typer.Option(
+        Path("artifacts/council-quality"),
+        "--quality-dir",
+        help="Where to read and update council-quality JSON artifacts.",
+    ),
+) -> None:
+    updated_path = close_council_escalation(
+        quality_dir,
+        cycle_id,
+        reviewer=reviewer,
+        reason=reason,
+    )
+    console.print(f"[green]Closed escalation[/green] {cycle_id}")
+    console.print(f"[bold]Reason:[/bold] {reason}")
     console.print(f"[bold]Review artifact:[/bold] {updated_path}")
 
 

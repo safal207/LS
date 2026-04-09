@@ -483,6 +483,7 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "operator_review_reviewer": operator_review.get("reviewer"),
         "operator_review_forced": bool(operator_review.get("forced")),
         "operator_review_assigned_reviewer": operator_review.get("assigned_reviewer"),
+        "operator_review_closed_reason": operator_review.get("closed_reason"),
         "contribution_records": len(cel.get("contribution_records") or []),
         "reputation_updates": len(cel.get("reputation_updates") or []),
         "merit_updates": len(merit_updates),

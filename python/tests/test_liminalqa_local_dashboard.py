@@ -187,6 +187,28 @@ def test_preview_council_escalation_queue_filters_human_review(monkeypatch, tmp_
     assert payload["items"][0]["assigned_reviewer"] == "alice"
 
 
+def test_preview_council_quality_artifact_exposes_closed_reason(monkeypatch, tmp_path: Path) -> None:
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "cycle-001.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-001",
+                "council_outcome": {"selected_route": "route-a", "success": True},
+                "operator_review": {"decision": "closed", "closed_reason": "triage complete"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+
+    status, payload = dashboard.preview_council_quality_artifact()
+
+    assert status == 200
+    assert payload["operator_review_decision"] == "closed"
+    assert payload["operator_review_closed_reason"] == "triage complete"
+
+
 def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -> None:
     ledger_dir = tmp_path / "council-ledger"
     quality_dir = tmp_path / "council-quality"

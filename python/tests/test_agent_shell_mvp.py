@@ -550,3 +550,85 @@ def test_council_assign_reviewer_persists_assignment(tmp_path: Path) -> None:
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["operator_review"]["assigned_reviewer"] == "safal"
     assert payload["operator_review"]["assigned_by"] == "triage-bot"
+
+
+def test_council_claim_next_escalation_assigns_first_unassigned_pending(tmp_path: Path) -> None:
+    runner = CliRunner()
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "cycle-assigned.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-assigned",
+                "operator_guidance": {"risk_state": "escalate", "approval_posture": "human_escalation"},
+                "operator_review": {"decision": "pending", "assigned_reviewer": "alice"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    target_path = quality_dir / "cycle-unassigned.json"
+    target_path.write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-unassigned",
+                "operator_guidance": {"risk_state": "escalate", "approval_posture": "human_escalation"},
+                "operator_review": {"decision": "pending"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "council-claim-next-escalation",
+            "--quality-dir",
+            str(quality_dir),
+            "--reviewer",
+            "safal",
+            "--assigned-by",
+            "queue-bot",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(target_path.read_text(encoding="utf-8"))
+    assert payload["operator_review"]["assigned_reviewer"] == "safal"
+    assert payload["operator_review"]["assigned_by"] == "queue-bot"
+
+
+def test_council_close_escalation_persists_closed_status(tmp_path: Path) -> None:
+    runner = CliRunner()
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    path = quality_dir / "cycle-escalate.json"
+    path.write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-escalate",
+                "operator_guidance": {"risk_state": "escalate", "approval_posture": "human_escalation"},
+                "operator_review": {"decision": "pending", "assigned_reviewer": "safal"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "council-close-escalation",
+            "cycle-escalate",
+            "--quality-dir",
+            str(quality_dir),
+            "--reviewer",
+            "safal",
+            "--reason",
+            "triage complete",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["operator_review"]["decision"] == "closed"
+    assert payload["operator_review"]["closed_reason"] == "triage complete"
+    assert payload["operator_review"]["closed_by"] == "safal"
