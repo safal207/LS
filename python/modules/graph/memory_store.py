@@ -245,6 +245,23 @@ class MemoryGraphStore:
         decay_config = config or ResonanceDecayConfig()
         return prune_expired(self._load_resonance_units(), decay_config)
 
+    def get_resonance_snapshot(
+        self,
+        *,
+        top_k: int = 10,
+        min_resonance_score: float = 0.3,
+    ) -> list[ResonanceKnowledgeUnit]:
+        """Return latest resonance units above score threshold.
+
+        Snapshot is ordered by freshness (newest first) and bounded by ``top_k``.
+        """
+        units = self._load_resonance_units()
+        threshold = float(min_resonance_score)
+        limit = max(1, int(top_k or 1))
+        filtered = [u for u in units if float(u.resonance_score) > threshold]
+        filtered.sort(key=lambda unit: str(unit.timestamp or ""), reverse=True)
+        return filtered[:limit]
+
     def confirm_resonance_unit(self, unit_id: str) -> Optional[ResonanceKnowledgeUnit]:
         """Refresh a unit's timestamp, resetting its decay clock.
 

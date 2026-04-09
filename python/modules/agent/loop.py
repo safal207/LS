@@ -269,6 +269,11 @@ class AgentLoop:
         except Exception as _tts_exc:
             logger.debug("TTS speaker unavailable: %s", _tts_exc)
 
+    @property
+    def qwen_omni_worker(self) -> Any | None:
+        """Expose QwenOmniWorker for read-only integrations (e.g. MCP resources)."""
+        return self._qwen_omni_worker
+
 
     def _maybe_enter_sleep_mode(self):
         try:

@@ -63,6 +63,7 @@ class QwenOmniWorker:
         self._thread: threading.Thread | None = None
         self._last_frame_ts = 0.0
         self._capture_lock = threading.Lock()
+        self._last_insight: dict[str, Any] | None = None
         # If no gate is provided, build a default one from min_store_resonance_score
         # so the existing threshold behaviour is preserved.
         if admission_gate is not None:
@@ -131,6 +132,17 @@ class QwenOmniWorker:
                 audio_text=audio_text,
                 trigger=trigger,
             )
+            self._last_insight = {
+                "source_question": insight.source_question,
+                "intent": insight.intent,
+                "why": insight.why,
+                "resonance_score": insight.resonance_score,
+                "alignment_score": insight.alignment_score,
+                "goal_vector": list(insight.goal_vector),
+                "causal_path": list(insight.causal_path),
+                "metadata": dict(insight.metadata),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
+            }
             unit = self._build_unit_from_insight(insight)
             decision: AdmissionDecision = self._admission_gate.admit(unit)
             if not decision.allowed:
@@ -146,6 +158,11 @@ class QwenOmniWorker:
                 logger.debug("QwenOmniWorker store_resonance_unit failed: %s", exc)
                 return None
             return unit
+
+    def get_last_insight(self) -> dict[str, Any] | None:
+        if self._last_insight is None:
+            return None
+        return dict(self._last_insight)
 
     def _capture_screen_frame(self) -> tuple[str | None, dict[str, Any]]:
         try:
