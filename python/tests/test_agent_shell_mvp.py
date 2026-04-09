@@ -174,6 +174,8 @@ def test_council_cycle_cli_auto_publishes_incident_for_risky_cycle(tmp_path: Pat
                 "relational_field": {"recommended_mode": "decompress_and_repair"},
                 "operator_guidance": {
                     "risk_state": "repair",
+                    "approval_posture": "hold_and_repair",
+                    "route_strategy": "repair_then_reroute",
                     "suggested_operator_action": "Pause approval and repair.",
                 },
                 "liminalqa": {"published": False, "status_code": None},
@@ -248,6 +250,7 @@ def test_council_cycle_cli_can_use_local_llm_mode(tmp_path: Path, monkeypatch) -
 
     assert result.exit_code == 0
     assert "Council cycle:" in result.stdout
+    assert "Approval posture:" in result.stdout
     assert "Ledger artifact:" in result.stdout
     artifacts = list(artifact_dir.glob("*.json"))
     assert artifacts
@@ -267,6 +270,7 @@ def test_council_review_prioritizes_risk_states(tmp_path: Path) -> None:
                 "relational_field": {"recommended_mode": "collaborative_progress"},
                 "operator_guidance": {
                     "risk_state": "safe",
+                    "approval_posture": "normal_review",
                     "suggested_operator_action": "Safe to continue.",
                 },
             }
@@ -283,6 +287,7 @@ def test_council_review_prioritizes_risk_states(tmp_path: Path) -> None:
                 "relational_field": {"recommended_mode": "decompress_and_repair"},
                 "operator_guidance": {
                     "risk_state": "repair",
+                    "approval_posture": "hold_and_repair",
                     "suggested_operator_action": "Pause approval and repair.",
                 },
             }
@@ -290,11 +295,13 @@ def test_council_review_prioritizes_risk_states(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    result = runner.invoke(app, ["council-review", "--quality-dir", str(quality_dir)])
+    result = runner.invoke(app, ["council-review", "--quality-dir", str(quality_dir), "--json"])
 
     assert result.exit_code == 0
-    assert "Council Review Queue" in result.stdout
-    assert result.stdout.index("cycle-repair") < result.stdout.index("cycle-safe")
+    payload = json.loads(result.stdout)
+    assert payload["items"][0]["cycle_id"] == "cycle-repair"
+    assert payload["items"][1]["cycle_id"] == "cycle-safe"
+    assert payload["items"][0]["approval_posture"] == "hold_and_repair"
 
 
 def test_council_review_can_filter_risk_states(tmp_path: Path) -> None:
@@ -312,6 +319,7 @@ def test_council_review_can_filter_risk_states(tmp_path: Path) -> None:
                     "relational_field": {"recommended_mode": "observe_and_clarify"},
                     "operator_guidance": {
                         "risk_state": risk_state,
+                        "approval_posture": "human_escalation" if risk_state == "escalate" else "normal_review",
                         "suggested_operator_action": "act",
                     },
                 }
@@ -319,11 +327,11 @@ def test_council_review_can_filter_risk_states(tmp_path: Path) -> None:
             encoding="utf-8",
         )
 
-    result = runner.invoke(app, ["council-review", "--quality-dir", str(quality_dir), "--only-risk", "escalate"])
+    result = runner.invoke(app, ["council-review", "--quality-dir", str(quality_dir), "--only-risk", "escalate", "--json"])
 
     assert result.exit_code == 0
-    assert "cycle-escalate" in result.stdout
-    assert "cycle-safe" not in result.stdout
+    payload = json.loads(result.stdout)
+    assert [item["cycle_id"] for item in payload["items"]] == ["cycle-escalate"]
 
 
 def test_council_review_can_emit_json_and_fail_on_risk(tmp_path: Path) -> None:
@@ -341,6 +349,8 @@ def test_council_review_can_emit_json_and_fail_on_risk(tmp_path: Path) -> None:
                     "relational_field": {"recommended_mode": "observe_and_clarify"},
                     "operator_guidance": {
                         "risk_state": risk_state,
+                        "approval_posture": "hold_and_repair" if risk_state == "repair" else "evidence_check",
+                        "route_strategy": "repair_then_reroute" if risk_state == "repair" else "validate_current_route",
                         "suggested_operator_action": "act",
                     },
                 }
@@ -358,6 +368,8 @@ def test_council_review_can_emit_json_and_fail_on_risk(tmp_path: Path) -> None:
     assert payload["highest_risk"] == "repair"
     assert payload["risk_counts"]["repair"] == 1
     assert payload["items"][0]["cycle_id"] == "cycle-repair"
+    assert payload["items"][0]["approval_posture"] == "hold_and_repair"
+    assert payload["items"][0]["route_strategy"] == "repair_then_reroute"
 
 
 def test_council_review_json_handles_empty_queue(tmp_path: Path) -> None:

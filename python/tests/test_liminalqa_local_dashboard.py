@@ -43,6 +43,10 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                 },
                 "operator_guidance": {
                     "risk_state": "watch",
+                    "approval_posture": "evidence_check",
+                    "route_strategy": "validate_current_route",
+                    "requires_human_review": False,
+                    "rerun_required": False,
                     "suggested_operator_action": "Validate intent before approval.",
                 },
                 "attribution": {
@@ -83,6 +87,10 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["foreground_expression"] == "mixed signals"
     assert payload["relational_notes"] == ["Pause before approval"]
     assert payload["risk_state"] == "watch"
+    assert payload["approval_posture"] == "evidence_check"
+    assert payload["route_strategy"] == "validate_current_route"
+    assert payload["requires_human_review"] is False
+    assert payload["rerun_required"] is False
     assert payload["suggested_operator_action"] == "Validate intent before approval."
     assert payload["liminalqa_published"] is True
     assert payload["liminalqa_status_code"] == 200

@@ -540,6 +540,8 @@ def council_review(
                 "cycle_id": str(row.get("cycle_id") or "n/a"),
                 "risk_state": risk_state,
                 "recommended_mode": str(relational.get("recommended_mode") or "n/a"),
+                "approval_posture": str(guidance.get("approval_posture") or "n/a"),
+                "route_strategy": str(guidance.get("route_strategy") or "n/a"),
                 "selected_route": str(outcome.get("selected_route") or "unknown"),
                 "quality_score": None if quality_score is None else round(float(quality_score), 4),
                 "suggested_operator_action": str(guidance.get("suggested_operator_action") or "n/a"),
@@ -565,6 +567,7 @@ def council_review(
     table.add_column("cycle")
     table.add_column("risk")
     table.add_column("mode")
+    table.add_column("posture")
     table.add_column("route")
     table.add_column("quality")
     table.add_column("action")
@@ -573,6 +576,7 @@ def council_review(
             item["cycle_id"],
             item["risk_state"],
             item["recommended_mode"],
+            item["approval_posture"],
             item["selected_route"],
             "n/a" if item["quality_score"] is None else f"{float(item['quality_score']):.4f}",
             item["suggested_operator_action"],
@@ -632,6 +636,10 @@ def council_cycle(
         console.print(
             f"[yellow]Risk:[/yellow] {guidance.get('risk_state', 'watch')}    "
             f"[yellow]Mode:[/yellow] {relational.get('recommended_mode', 'n/a')}"
+        )
+        console.print(
+            f"[yellow]Approval posture:[/yellow] {guidance.get('approval_posture', 'n/a')}    "
+            f"[yellow]Route strategy:[/yellow] {guidance.get('route_strategy', 'n/a')}"
         )
         console.print(f"[yellow]Suggested action:[/yellow] {guidance.get('suggested_operator_action', 'n/a')}")
     if artifact_path:

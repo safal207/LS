@@ -3721,6 +3721,10 @@ class ResonanceAgent:
             return {
                 "risk_state": "watch",
                 "suggested_operator_action": "Request another cycle before approving.",
+                "approval_posture": "evidence_check",
+                "route_strategy": "rerun_and_clarify",
+                "requires_human_review": False,
+                "rerun_required": True,
             }
         tension_score = float(relational.get("tension_score", 0.0) or 0.0)
         alignment_score = float(relational.get("alignment_score", 0.0) or 0.0)
@@ -3729,12 +3733,24 @@ class ResonanceAgent:
         if recommended_mode == "decompress_and_repair" or relation_safety_score < 0.3:
             risk_state = "repair"
             action = "Pause approval, reduce tension, and rerun the council after repair."
+            approval_posture = "hold_and_repair"
+            route_strategy = "repair_then_reroute"
+            requires_human_review = False
+            rerun_required = True
         elif recommended_mode == "validate_before_solve" or tension_score >= 0.6:
             risk_state = "watch"
             action = "Validate intent and evidence before approving this council outcome."
+            approval_posture = "evidence_check"
+            route_strategy = "validate_current_route"
+            requires_human_review = False
+            rerun_required = False
         elif recommended_mode == "collaborative_progress" and alignment_score >= 0.55:
             risk_state = "safe"
             action = "Safe to continue with normal operator review."
+            approval_posture = "normal_review"
+            route_strategy = "continue_current_route"
+            requires_human_review = False
+            rerun_required = False
         else:
             risk_state = "escalate" if relation_safety_score < 0.15 else "watch"
             action = (
@@ -3742,9 +3758,17 @@ class ResonanceAgent:
                 if risk_state == "escalate"
                 else "Observe the next cycle and clarify ambiguous signals before approval."
             )
+            approval_posture = "human_escalation" if risk_state == "escalate" else "evidence_check"
+            route_strategy = "freeze_and_escalate" if risk_state == "escalate" else "rerun_and_clarify"
+            requires_human_review = risk_state == "escalate"
+            rerun_required = risk_state != "escalate"
         return {
             "risk_state": risk_state,
             "suggested_operator_action": action,
+            "approval_posture": approval_posture,
+            "route_strategy": route_strategy,
+            "requires_human_review": requires_human_review,
+            "rerun_required": rerun_required,
         }
 
     def _build_cycle_record(

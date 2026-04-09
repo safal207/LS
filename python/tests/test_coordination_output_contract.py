@@ -269,6 +269,9 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert relational_episode_payload["relational_summary"]["dominant_signal"] == "tension"
     assert relational_episode_payload["relational_summary"]["recommended_mode"] == "decompress_and_repair"
     assert relational_episode_payload["operator_guidance"]["risk_state"] == "repair"
+    assert relational_episode_payload["operator_guidance"]["approval_posture"] == "hold_and_repair"
+    assert relational_episode_payload["operator_guidance"]["route_strategy"] == "repair_then_reroute"
+    assert relational_episode_payload["operator_guidance"]["rerun_required"] is True
 
     quality_artifact_path = output["council_quality_artifact"]
     assert quality_artifact_path is not None
@@ -286,6 +289,9 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert quality_payload["relational_field"]["relation_safety_score"] == 0.23
     assert quality_payload["relational_field"]["recommended_mode"] == "decompress_and_repair"
     assert quality_payload["operator_guidance"]["risk_state"] == "repair"
+    assert quality_payload["operator_guidance"]["approval_posture"] == "hold_and_repair"
+    assert quality_payload["operator_guidance"]["route_strategy"] == "repair_then_reroute"
+    assert quality_payload["operator_guidance"]["requires_human_review"] is False
     assert "Pause approval" in quality_payload["operator_guidance"]["suggested_operator_action"]
     assert quality_payload["council_outcome"]["selected_route"] == "r1"
     assert quality_payload["attribution"]["best_contributor_model_id"] != "n/a"
