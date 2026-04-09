@@ -370,7 +370,7 @@ pytest python/tests/test_memory_store_locking.py
 
 ## How it differs from other agents
 
-| | Typical agent | GhostGPT |
+| | Typical agent | LS |
 |--|---------------|----------|
 | Between messages | Idle | Subconscious analysis running |
 | Learning | On request | Continuous (4 sources) |
@@ -560,7 +560,7 @@ python apps/console/main.py
 
 ## Сравнение с другими агентами
 
-| | Обычный агент | GhostGPT |
+| | Обычный агент | LS |
 |--|---------------|----------|
 | Между сообщениями | Простаивает | Подсознание работает |
 | Обучение | По запросу | Непрерывно (4 источника) |

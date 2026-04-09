@@ -1,6 +1,6 @@
 # Fast Connect & High-Speed Mode (Operator Runtime)
 
-This guide helps users launch GhostGPT with minimal startup friction and maximum response speed.
+This guide helps users launch LS with minimal startup friction and maximum response speed.
 
 ## What is already optimized
 
