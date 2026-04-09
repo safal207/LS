@@ -358,3 +358,17 @@ def test_council_review_can_emit_json_and_fail_on_risk(tmp_path: Path) -> None:
     assert payload["highest_risk"] == "repair"
     assert payload["risk_counts"]["repair"] == 1
     assert payload["items"][0]["cycle_id"] == "cycle-repair"
+
+
+def test_council_review_json_handles_empty_queue(tmp_path: Path) -> None:
+    runner = CliRunner()
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+
+    result = runner.invoke(app, ["council-review", "--quality-dir", str(quality_dir), "--json"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["total"] == 0
+    assert payload["highest_risk"] == "safe"
+    assert payload["items"] == []

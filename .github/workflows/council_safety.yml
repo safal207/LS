@@ -1,0 +1,153 @@
+name: Council Safety Gate
+
+on:
+  push:
+    branches: ["main"]
+    paths: &council_safety_paths
+      - "python/ls/agent_shell/**"
+      - "python/modules/agent/resonance_agent.py"
+      - "tools/liminalqa_local_dashboard.py"
+      - "tools/export_council_scorecard.py"
+      - "tools/build_fellowship_dataset.py"
+      - "ghostgpt-ls-landing/src/components/OperatorDelta.tsx"
+      - "artifacts/council-quality/**"
+      - "artifacts/fellowship-dataset/**"
+      - "python/tests/test_agent_shell_mvp.py"
+      - "python/tests/test_build_fellowship_dataset.py"
+      - "python/tests/test_export_council_scorecard.py"
+      - "python/tests/test_liminalqa_local_dashboard.py"
+      - "docs/SAFETY_SCORECARD.md"
+      - ".github/workflows/council_safety.yml"
+  pull_request:
+    branches: ["main"]
+    paths: *council_safety_paths
+
+concurrency:
+  group: council-safety-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  council-safety:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    env:
+      LIMINALQA_URL: ${{ secrets.LIMINALQA_URL }}
+      LIMINALQA_TOKEN: ${{ secrets.LIMINALQA_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov typer rich requests
+          if [ -f requirements-dev.txt ]; then
+            python -m pip install -r requirements-dev.txt
+          fi
+
+      - name: Run council safety tests
+        uses: ./.github/actions/run-pytest-liminalqa
+        with:
+          liminalqa-plan: council-safety
+          pytest-invocation: >-
+            PYTHONPATH=python:python/modules python -m pytest
+            python/tests/test_agent_shell_mvp.py -k council_review
+            python/tests/test_build_fellowship_dataset.py
+            python/tests/test_export_council_scorecard.py
+            python/tests/test_liminalqa_local_dashboard.py
+            --junitxml=artifacts/council-safety-junit.xml
+            --cov=python/ls/agent_shell
+            --cov=tools
+            --cov-report=xml:artifacts/council-safety-coverage.xml
+
+      - name: Audit council risk queue
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          set -euo pipefail
+          REVIEW_DIR="artifacts/council-quality"
+          if find "$REVIEW_DIR" -maxdepth 1 -name '*.json' -print -quit | grep -q .; then
+            PYTHONPATH=python:python/modules python -m ls.agent_shell.cli council-review --quality-dir "$REVIEW_DIR" --json > artifacts/council-review.json
+            set +e
+            PYTHONPATH=python:python/modules python -m ls.agent_shell.cli council-review --quality-dir "$REVIEW_DIR" --json --fail-on-risk > artifacts/council-review-gate.json
+            status=$?
+            set -e
+            if [ "$status" -ne 0 ]; then
+              echo "Risky council cycles detected by council-review."
+              cat artifacts/council-review-gate.json
+              exit "$status"
+            fi
+          else
+            printf '{\n  "total": 0,\n  "highest_risk": "safe",\n  "risk_counts": {},\n  "items": []\n}\n' > artifacts/council-review.json
+            cp artifacts/council-review.json artifacts/council-review-gate.json
+          fi
+
+      - name: Summarize quality artifacts
+        if: always()
+        uses: ./.github/actions/summarize-quality-artifacts
+        with:
+          label: council-safety
+
+      - id: quality_gate
+        name: Quality gate
+        if: always()
+        uses: ./.github/actions/quality-gate
+        with:
+          label: council-safety
+          max-failures: "0"
+          min-line-coverage: "8"
+          require-junit: "true"
+          require-coverage: "true"
+          enforce: "true"
+
+      - name: Write machine-readable quality snapshot
+        if: always()
+        uses: ./.github/actions/write-quality-report
+        with:
+          lane-key: council-safety
+          lane-title: Council Safety Gate
+          threshold: 8%
+          verdict: ${{ steps.quality_gate.outputs.verdict }}
+          total-failures: ${{ steps.quality_gate.outputs.total-failures }}
+          min-line-coverage: ${{ steps.quality_gate.outputs.min-line-coverage-observed }}
+
+      - name: Update PR quality comment
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: ./.github/actions/upsert-pr-quality-overview
+        with:
+          lane-key: council-safety
+          lane-title: Council Safety Gate
+          threshold: 8%
+          verdict: ${{ steps.quality_gate.outputs.verdict }}
+          total-failures: ${{ steps.quality_gate.outputs.total-failures }}
+          min-line-coverage: ${{ steps.quality_gate.outputs.min-line-coverage-observed }}
+
+      - name: Aggregate workflow quality report
+        if: always()
+        uses: ./.github/actions/aggregate-quality-reports
+        with:
+          label: council-safety
+
+      - name: Publish workflow quality snapshot to LiminalQA
+        if: always()
+        uses: ./.github/actions/publish-quality-report-to-liminalqa
+        with:
+          label: council-safety
+          plan-name: council-safety-gate
+          liminalqa-url: ${{ env.LIMINALQA_URL }}
+          liminalqa-token: ${{ env.LIMINALQA_TOKEN }}
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: council-safety-artifacts
+          path: artifacts/

@@ -505,6 +505,20 @@ def council_review(
             if str((row.get("operator_guidance") or {}).get("risk_state") or "watch") in allowed_risks
         ]
     if not rows:
+        if as_json:
+            print_plain_safe(
+                json.dumps(
+                    {
+                        "total": 0,
+                        "highest_risk": "safe",
+                        "risk_counts": {},
+                        "items": [],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            raise typer.Exit(code=0)
         console.print("[yellow]No council-quality artifacts found.[/yellow]")
         raise typer.Exit(code=0)
     queue_rows: list[dict] = []
