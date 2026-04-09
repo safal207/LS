@@ -53,6 +53,10 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                 "liminalqa": {
                     "published": True,
                     "status_code": 200,
+                    "incident": {
+                        "published": True,
+                        "status_code": 202,
+                    },
                 },
             }
         ),
@@ -74,6 +78,8 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["suggested_operator_action"] == "Validate intent before approval."
     assert payload["liminalqa_published"] is True
     assert payload["liminalqa_status_code"] == 200
+    assert payload["liminalqa_incident_published"] is True
+    assert payload["liminalqa_incident_status_code"] == 202
 
 
 def test_preview_council_risk_queue_sorts_high_risk_first(monkeypatch, tmp_path: Path) -> None:

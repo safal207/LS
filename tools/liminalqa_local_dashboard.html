@@ -122,6 +122,7 @@
         <div class="summary-box"><div id="cq-route-label" class="summary-label">Route</div><div id="cq-route" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-best-label" class="summary-label">Best Contributor</div><div id="cq-best" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-publish-label" class="summary-label">LiminalQA</div><div id="cq-publish" class="summary-value">pending</div></div>
+        <div class="summary-box"><div id="cq-incident-label" class="summary-label">Incident</div><div id="cq-incident" class="summary-value">pending</div></div>
       </div>
       <div id="council-quality-action" class="hint">Suggested operator action will appear here after a real cycle.</div>
       <div id="council-risk-kicker" class="kicker" style="margin-top:14px">Top Risky Cycles</div>
@@ -388,6 +389,34 @@
 
     setLanguage(document.documentElement.lang==="en"?"en":"ru");
     refreshCouncilRiskQueue().catch(()=>{});
+  </script>
+  <script>
+    const ____originalSetLanguage=setLanguage;
+    setLanguage=function(next){
+      ____originalSetLanguage(next);
+      el("cq-incident-label").textContent="Incident";
+    };
+
+    const ____originalRefreshCouncilQualityPreview=refreshCouncilQualityPreview;
+    refreshCouncilQualityPreview=async function(){
+      await ____originalRefreshCouncilQualityPreview();
+      try{
+        const data=await callJson("/api/council-quality-preview");
+        if(!data.ok){
+          el("cq-incident").textContent=document.documentElement.lang==="ru"?"Ð¾Ð¶Ð¸Ð´Ð°Ð½Ð¸Ðµ":"pending";
+          return;
+        }
+        const payload=data.payload;
+        el("cq-incident").textContent=payload.liminalqa_incident_published
+          ? `HTTP ${payload.liminalqa_incident_status_code||200}`
+          : (document.documentElement.lang==="ru"?"Ð½ÐµÑ‚ incident":"no incident");
+      }catch(_error){
+        el("cq-incident").textContent="n/a";
+      }
+    };
+
+    setLanguage(document.documentElement.lang==="en"?"en":"ru");
+    refreshCouncilQualityPreview().catch(()=>{});
   </script>
 </body>
 </html>

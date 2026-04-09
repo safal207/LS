@@ -448,6 +448,7 @@ def preview_council_quality_artifact() -> tuple[int, object]:
     attribution = payload.get("attribution") or {}
     cel = payload.get("cel") or {}
     liminalqa = payload.get("liminalqa") or {}
+    incident = liminalqa.get("incident") or {}
     relational = payload.get("relational_field") or {}
     operator_guidance = payload.get("operator_guidance") or {}
     merit_updates = cel.get("merit_updates") or []
@@ -475,6 +476,8 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "top_merit_score": round(top_merit, 4),
         "liminalqa_published": bool(liminalqa.get("published")),
         "liminalqa_status_code": liminalqa.get("status_code"),
+        "liminalqa_incident_published": bool(incident.get("published")),
+        "liminalqa_incident_status_code": incident.get("status_code"),
     }
 
 
