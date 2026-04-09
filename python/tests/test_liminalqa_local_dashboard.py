@@ -66,6 +66,11 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                         "status_code": 202,
                     },
                 },
+                "operator_review": {
+                    "decision": "approved",
+                    "reviewer": "qa-operator",
+                    "forced": False,
+                },
             }
         ),
         encoding="utf-8",
@@ -92,6 +97,9 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["requires_human_review"] is False
     assert payload["rerun_required"] is False
     assert payload["suggested_operator_action"] == "Validate intent before approval."
+    assert payload["operator_review_decision"] == "approved"
+    assert payload["operator_review_reviewer"] == "qa-operator"
+    assert payload["operator_review_forced"] is False
     assert payload["liminalqa_published"] is True
     assert payload["liminalqa_status_code"] == 200
     assert payload["liminalqa_incident_published"] is True
@@ -163,6 +171,7 @@ def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -
                 "cycle_id": "cycle-001",
                 "operator_guidance": {"risk_state": "repair"},
                 "liminalqa": {"incident": {"published": True, "status_code": 202}},
+                "operator_review": {"decision": "pending"},
             }
         ),
         encoding="utf-8",

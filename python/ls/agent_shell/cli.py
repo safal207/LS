@@ -87,6 +87,46 @@ def load_council_quality_rows(quality_dir: Path) -> list[dict]:
     return rows
 
 
+def _council_quality_path(quality_dir: Path, cycle_id: str) -> Path:
+    return quality_dir / f"{cycle_id}.json"
+
+
+def load_council_quality_artifact(quality_dir: Path, cycle_id: str) -> dict:
+    path = _council_quality_path(quality_dir, cycle_id)
+    if not path.exists():
+        raise ValueError(f"Council quality artifact not found: {cycle_id}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["_path"] = str(path)
+    return payload
+
+
+def save_council_quality_artifact(path: Path, payload: dict) -> None:
+    payload = dict(payload)
+    payload.pop("_path", None)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def update_council_operator_review(
+    quality_dir: Path,
+    cycle_id: str,
+    *,
+    decision: str,
+    reviewer: str,
+    forced: bool = False,
+    reason: str | None = None,
+) -> Path:
+    artifact = load_council_quality_artifact(quality_dir, cycle_id)
+    path = Path(str(artifact.get("_path") or _council_quality_path(quality_dir, cycle_id)))
+    artifact["operator_review"] = {
+        "decision": decision,
+        "reviewer": reviewer,
+        "forced": bool(forced),
+        "reason": str(reason or ""),
+    }
+    save_council_quality_artifact(path, artifact)
+    return path
+
+
 def manager() -> TaskManager:
     base = Path(".ls_agent")
     return TaskManager(db_path=base / "runtime.db", artifacts_root=base / "artifacts")
@@ -544,6 +584,7 @@ def council_review(
                 "route_strategy": str(guidance.get("route_strategy") or "n/a"),
                 "selected_route": str(outcome.get("selected_route") or "unknown"),
                 "quality_score": None if quality_score is None else round(float(quality_score), 4),
+                "review_status": str(((row.get("operator_review") or {}).get("decision")) or "pending"),
                 "suggested_operator_action": str(guidance.get("suggested_operator_action") or "n/a"),
             }
         )
@@ -568,6 +609,7 @@ def council_review(
     table.add_column("risk")
     table.add_column("mode")
     table.add_column("posture")
+    table.add_column("review")
     table.add_column("route")
     table.add_column("quality")
     table.add_column("action")
@@ -577,6 +619,7 @@ def council_review(
             item["risk_state"],
             item["recommended_mode"],
             item["approval_posture"],
+            item["review_status"],
             item["selected_route"],
             "n/a" if item["quality_score"] is None else f"{float(item['quality_score']):.4f}",
             item["suggested_operator_action"],
@@ -671,6 +714,65 @@ def council_cycle(
             console.print(incident_response)
     final_output = str(result.get("final_output", "") or "")
     print_plain_safe(final_output)
+
+
+@app.command("council-approve")
+def council_approve(
+    cycle_id: str,
+    quality_dir: Path = typer.Option(
+        Path("artifacts/council-quality"),
+        "--quality-dir",
+        help="Where to read and update council-quality JSON artifacts.",
+    ),
+    reviewer: str = typer.Option("operator", "--reviewer", help="Reviewer label to persist."),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Allow approval even when approval posture requires repair or human escalation.",
+    ),
+) -> None:
+    artifact = load_council_quality_artifact(quality_dir, cycle_id)
+    guidance = artifact.get("operator_guidance") or {}
+    posture = str(guidance.get("approval_posture") or "evidence_check")
+    if posture in {"hold_and_repair", "human_escalation"} and not force:
+        console.print(
+            f"[red]Approval blocked[/red] for {cycle_id}: posture={posture}. "
+            "Use --force only if you intentionally override the council policy."
+        )
+        raise typer.Exit(code=2)
+    updated_path = update_council_operator_review(
+        quality_dir,
+        cycle_id,
+        decision="approved",
+        reviewer=reviewer,
+        forced=force,
+        reason=f"approval_posture={posture}",
+    )
+    console.print(f"[green]Council approved[/green] {cycle_id}")
+    console.print(f"[bold]Review artifact:[/bold] {updated_path}")
+
+
+@app.command("council-reject")
+def council_reject(
+    cycle_id: str,
+    quality_dir: Path = typer.Option(
+        Path("artifacts/council-quality"),
+        "--quality-dir",
+        help="Where to read and update council-quality JSON artifacts.",
+    ),
+    reviewer: str = typer.Option("operator", "--reviewer", help="Reviewer label to persist."),
+    reason: str = typer.Option("Rejected by operator", "--reason", help="Why the cycle was rejected."),
+) -> None:
+    updated_path = update_council_operator_review(
+        quality_dir,
+        cycle_id,
+        decision="rejected",
+        reviewer=reviewer,
+        forced=False,
+        reason=reason,
+    )
+    console.print(f"[yellow]Council rejected[/yellow] {cycle_id}")
+    console.print(f"[bold]Review artifact:[/bold] {updated_path}")
 
 
 if __name__ == "__main__":

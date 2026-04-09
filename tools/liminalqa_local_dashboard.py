@@ -451,6 +451,7 @@ def preview_council_quality_artifact() -> tuple[int, object]:
     incident = liminalqa.get("incident") or {}
     relational = payload.get("relational_field") or {}
     operator_guidance = payload.get("operator_guidance") or {}
+    operator_review = payload.get("operator_review") or {}
     merit_updates = cel.get("merit_updates") or []
     top_merit = max((float(item.get("merit_score") or 0.0) for item in merit_updates), default=0.0)
     return 200, {
@@ -478,6 +479,9 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "requires_human_review": bool(operator_guidance.get("requires_human_review")),
         "rerun_required": bool(operator_guidance.get("rerun_required")),
         "suggested_operator_action": operator_guidance.get("suggested_operator_action"),
+        "operator_review_decision": operator_review.get("decision"),
+        "operator_review_reviewer": operator_review.get("reviewer"),
+        "operator_review_forced": bool(operator_review.get("forced")),
         "contribution_records": len(cel.get("contribution_records") or []),
         "reputation_updates": len(cel.get("reputation_updates") or []),
         "merit_updates": len(merit_updates),
@@ -511,6 +515,7 @@ def preview_council_risk_queue(limit: int = 5) -> tuple[int, object]:
                 "risk_state": guidance.get("risk_state", "watch"),
                 "recommended_mode": relational.get("recommended_mode", "n/a"),
                 "approval_posture": guidance.get("approval_posture", "n/a"),
+                "review_status": (payload.get("operator_review") or {}).get("decision", "pending"),
                 "selected_route": outcome.get("selected_route", "unknown"),
                 "quality_score": quality_score,
                 "suggested_operator_action": guidance.get("suggested_operator_action", "n/a"),

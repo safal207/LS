@@ -370,6 +370,90 @@ def test_council_review_can_emit_json_and_fail_on_risk(tmp_path: Path) -> None:
     assert payload["items"][0]["cycle_id"] == "cycle-repair"
     assert payload["items"][0]["approval_posture"] == "hold_and_repair"
     assert payload["items"][0]["route_strategy"] == "repair_then_reroute"
+    assert payload["items"][0]["review_status"] == "pending"
+
+
+def test_council_approve_blocks_risky_posture_without_force(tmp_path: Path) -> None:
+    runner = CliRunner()
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "cycle-repair.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-repair",
+                "operator_guidance": {
+                    "risk_state": "repair",
+                    "approval_posture": "hold_and_repair",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["council-approve", "cycle-repair", "--quality-dir", str(quality_dir)])
+
+    assert result.exit_code == 2
+    assert "Approval blocked" in result.stdout
+
+
+def test_council_approve_can_force_override_and_persist_review(tmp_path: Path) -> None:
+    runner = CliRunner()
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    path = quality_dir / "cycle-repair.json"
+    path.write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-repair",
+                "operator_guidance": {
+                    "risk_state": "repair",
+                    "approval_posture": "hold_and_repair",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["council-approve", "cycle-repair", "--quality-dir", str(quality_dir), "--reviewer", "alice", "--force"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["operator_review"]["decision"] == "approved"
+    assert payload["operator_review"]["reviewer"] == "alice"
+    assert payload["operator_review"]["forced"] is True
+
+
+def test_council_reject_persists_review(tmp_path: Path) -> None:
+    runner = CliRunner()
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    path = quality_dir / "cycle-watch.json"
+    path.write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-watch",
+                "operator_guidance": {
+                    "risk_state": "watch",
+                    "approval_posture": "evidence_check",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["council-reject", "cycle-watch", "--quality-dir", str(quality_dir), "--reviewer", "bob", "--reason", "missing evidence"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["operator_review"]["decision"] == "rejected"
+    assert payload["operator_review"]["reviewer"] == "bob"
+    assert payload["operator_review"]["reason"] == "missing evidence"
 
 
 def test_council_review_json_handles_empty_queue(tmp_path: Path) -> None:
