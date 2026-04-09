@@ -117,11 +117,35 @@ def update_council_operator_review(
 ) -> Path:
     artifact = load_council_quality_artifact(quality_dir, cycle_id)
     path = Path(str(artifact.get("_path") or _council_quality_path(quality_dir, cycle_id)))
+    current = artifact.get("operator_review") or {}
     artifact["operator_review"] = {
         "decision": decision,
         "reviewer": reviewer,
         "forced": bool(forced),
         "reason": str(reason or ""),
+        "assigned_reviewer": current.get("assigned_reviewer"),
+    }
+    save_council_quality_artifact(path, artifact)
+    return path
+
+
+def assign_council_reviewer(
+    quality_dir: Path,
+    cycle_id: str,
+    *,
+    reviewer: str,
+    assigned_by: str,
+) -> Path:
+    artifact = load_council_quality_artifact(quality_dir, cycle_id)
+    path = Path(str(artifact.get("_path") or _council_quality_path(quality_dir, cycle_id)))
+    current = artifact.get("operator_review") or {}
+    artifact["operator_review"] = {
+        "decision": current.get("decision", "pending"),
+        "reviewer": current.get("reviewer"),
+        "forced": bool(current.get("forced", False)),
+        "reason": str(current.get("reason") or ""),
+        "assigned_reviewer": reviewer,
+        "assigned_by": assigned_by,
     }
     save_council_quality_artifact(path, artifact)
     return path
@@ -652,11 +676,13 @@ def council_escalations(
     for row in rows:
         guidance = row.get("operator_guidance") or {}
         outcome = row.get("council_outcome") or {}
+        review = row.get("operator_review") or {}
         review_status = str(((row.get("operator_review") or {}).get("decision")) or "pending")
         queue_rows.append(
             {
                 "cycle_id": str(row.get("cycle_id") or "n/a"),
                 "review_status": review_status,
+                "assigned_reviewer": str(review.get("assigned_reviewer") or "unassigned"),
                 "approval_posture": str(guidance.get("approval_posture") or "human_escalation"),
                 "selected_route": str(outcome.get("selected_route") or "unknown"),
                 "suggested_operator_action": str(guidance.get("suggested_operator_action") or "n/a"),
@@ -672,6 +698,7 @@ def council_escalations(
     table = Table(title="Council Escalation Queue")
     table.add_column("cycle")
     table.add_column("review")
+    table.add_column("assignee")
     table.add_column("posture")
     table.add_column("route")
     table.add_column("action")
@@ -679,11 +706,33 @@ def council_escalations(
         table.add_row(
             item["cycle_id"],
             item["review_status"],
+            item["assigned_reviewer"],
             item["approval_posture"],
             item["selected_route"],
             item["suggested_operator_action"],
         )
     console.print(table)
+
+
+@app.command("council-assign-reviewer")
+def council_assign_reviewer(
+    cycle_id: str,
+    reviewer: str = typer.Option(..., "--reviewer", help="Reviewer to assign."),
+    assigned_by: str = typer.Option("operator", "--assigned-by", help="Who assigned this escalation."),
+    quality_dir: Path = typer.Option(
+        Path("artifacts/council-quality"),
+        "--quality-dir",
+        help="Where to read and update council-quality JSON artifacts.",
+    ),
+) -> None:
+    updated_path = assign_council_reviewer(
+        quality_dir,
+        cycle_id,
+        reviewer=reviewer,
+        assigned_by=assigned_by,
+    )
+    console.print(f"[green]Assigned reviewer[/green] {reviewer} to {cycle_id}")
+    console.print(f"[bold]Review artifact:[/bold] {updated_path}")
 
 
 @app.command("council-cycle")

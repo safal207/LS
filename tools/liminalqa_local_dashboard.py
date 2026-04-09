@@ -482,6 +482,7 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "operator_review_decision": operator_review.get("decision"),
         "operator_review_reviewer": operator_review.get("reviewer"),
         "operator_review_forced": bool(operator_review.get("forced")),
+        "operator_review_assigned_reviewer": operator_review.get("assigned_reviewer"),
         "contribution_records": len(cel.get("contribution_records") or []),
         "reputation_updates": len(cel.get("reputation_updates") or []),
         "merit_updates": len(merit_updates),
@@ -542,6 +543,7 @@ def preview_council_escalation_queue(limit: int = 5) -> tuple[int, object]:
             {
                 "cycle_id": payload.get("cycle_id"),
                 "review_status": (payload.get("operator_review") or {}).get("decision", "pending"),
+                "assigned_reviewer": (payload.get("operator_review") or {}).get("assigned_reviewer", "unassigned"),
                 "approval_posture": guidance.get("approval_posture", "human_escalation"),
                 "selected_route": outcome.get("selected_route", "unknown"),
                 "suggested_operator_action": guidance.get("suggested_operator_action", "n/a"),

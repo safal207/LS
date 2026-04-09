@@ -510,3 +510,43 @@ def test_council_escalations_filters_human_review_queue(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
     assert payload["total"] == 1
     assert payload["items"][0]["cycle_id"] == "cycle-escalate"
+    assert payload["items"][0]["assigned_reviewer"] == "unassigned"
+
+
+def test_council_assign_reviewer_persists_assignment(tmp_path: Path) -> None:
+    runner = CliRunner()
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    path = quality_dir / "cycle-escalate.json"
+    path.write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-escalate",
+                "operator_guidance": {
+                    "risk_state": "escalate",
+                    "approval_posture": "human_escalation",
+                },
+                "operator_review": {"decision": "pending"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "council-assign-reviewer",
+            "cycle-escalate",
+            "--quality-dir",
+            str(quality_dir),
+            "--reviewer",
+            "safal",
+            "--assigned-by",
+            "triage-bot",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["operator_review"]["assigned_reviewer"] == "safal"
+    assert payload["operator_review"]["assigned_by"] == "triage-bot"

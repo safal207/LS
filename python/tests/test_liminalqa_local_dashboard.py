@@ -171,7 +171,7 @@ def test_preview_council_escalation_queue_filters_human_review(monkeypatch, tmp_
                     "approval_posture": "human_escalation",
                     "suggested_operator_action": "escalate",
                 },
-                "operator_review": {"decision": "pending"},
+                "operator_review": {"decision": "pending", "assigned_reviewer": "alice"},
             }
         ),
         encoding="utf-8",
@@ -184,6 +184,7 @@ def test_preview_council_escalation_queue_filters_human_review(monkeypatch, tmp_
     assert payload["total"] == 1
     assert payload["items"][0]["cycle_id"] == "cycle-escalate"
     assert payload["items"][0]["review_status"] == "pending"
+    assert payload["items"][0]["assigned_reviewer"] == "alice"
 
 
 def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -> None:

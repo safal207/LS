@@ -406,7 +406,7 @@
       }
       (data.payload.items||[]).forEach(item=>{
         const li=document.createElement("li");
-        li.textContent=`${item.cycle_id}: ${item.review_status} / ${item.approval_posture} / ${item.selected_route}`;
+        li.textContent=`${item.cycle_id}: ${item.review_status} / ${item.assigned_reviewer || "unassigned"} / ${item.approval_posture} / ${item.selected_route}`;
         list.appendChild(li);
       });
     }
