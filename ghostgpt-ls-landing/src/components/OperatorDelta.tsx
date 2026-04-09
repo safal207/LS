@@ -202,6 +202,21 @@ const scenarioLabels = {
   }
 } as const;
 
+const programFit = {
+  en: {
+    eyebrow: 'Program fit',
+    title: 'Why this reads as oversight infrastructure, not another assistant shell',
+    body:
+      'The same artifact path works for safety fellowships, residencies, and evaluation-oriented programs: one real council cycle, one ledger, one scorecard, and one benchmarkable review story.'
+  },
+  ru: {
+    eyebrow: 'Program fit',
+    title: 'Почему это читается как oversight-инфраструктура, а не как еще один assistant shell',
+    body:
+      'Тот же artifact path подходит для safety fellowship, residency и evaluation-oriented programs: один реальный council cycle, один ledger, один scorecard и одна понятная benchmark-story.'
+  }
+} as const;
+
 function MiniBars({ data, tone = 'cyan' }: { data: ScorePoint[]; tone?: 'cyan' | 'emerald' | 'amber' }) {
   const max = Math.max(...data.map((item) => item.value), 1);
   const palette = {
@@ -269,6 +284,7 @@ export default function OperatorDelta() {
   const { i18n } = useTranslation();
   const lang = i18n.language === 'ru' ? 'ru' : 'en';
   const text = copy[lang];
+  const program = programFit[lang];
   const [mode, setMode] = useState<'with' | 'without'>('with');
 
   const stats = [
@@ -288,6 +304,14 @@ export default function OperatorDelta() {
         </div>
 
         <div className="mt-8 grid gap-4 md:grid-cols-2">
+          <article className="rounded-2xl border border-cyan-300/20 bg-cyan-300/8 p-5 md:col-span-2">
+            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.18em] text-cyan-200">
+              <Scale className="h-4 w-4" />
+              {program.eyebrow}
+            </div>
+            <p className="mt-4 text-lg font-medium">{program.title}</p>
+            <p className="mt-3 text-sm text-white/70">{program.body}</p>
+          </article>
           <article className="rounded-2xl border border-emerald-300/25 bg-emerald-400/8 p-5">
             <div className="flex items-center gap-2 text-sm uppercase tracking-[0.18em] text-emerald-200">
               <ShieldCheck className="h-4 w-4" />

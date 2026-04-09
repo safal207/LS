@@ -3,9 +3,9 @@
     "switch": "RU"
   },
   "hero": {
-    "title": "GhostGPT: your AI that remembers you. Decentralized intelligence for real operators.",
-    "subtitle": "Local Cognitive System turns agent workflows into something teams can inspect, approve, and trust under pressure.",
-    "cta": "See operator demo"
+    "title": "LS is a local-first coordination and oversight runtime for human-plus-model systems.",
+    "subtitle": "It turns agent workflows into reviewable decisions with replayable traces, human approvals, and measurable contribution, resonance, and quality signals.",
+    "cta": "See oversight demo"
   },
   "problem": {
     "title": "From fragile AI to persistent intelligence",
@@ -16,7 +16,7 @@
       "memory": "Most assistants forget your history, decisions, and prior approvals."
     },
     "solutionTitle": "GhostGPT LS Solution",
-    "solutionBody": "Architecture beats raw model size. Causal memory, human approvals, and replayable traces make agent behavior explainable and resilient."
+    "solutionBody": "Architecture beats raw model size. Causal memory, human approvals, replayable traces, and council-ledger artifacts make agent behavior explainable, governable, and benchmarkable."
   },
   "features": {
     "title": "Core capabilities",
@@ -72,7 +72,7 @@
     "mockupTitle": "Reflection Dashboard mockup"
   },
   "cta": {
-    "title": "Bring explainable agent operations into your stack",
+    "title": "Bring reviewable and benchmarkable agent operations into your stack",
     "demo": "Open runtime panel",
     "community": "See operator benchmark",
     "contact": "Contact the team"
