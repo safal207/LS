@@ -457,8 +457,9 @@ class ValidationGovernanceEngine:
             for cluster in record.paraphrase_clusters:
                 if len(cluster) < 2:
                     continue
-                for index, left in enumerate(sorted(cluster)):
-                    for right in sorted(cluster)[index + 1 :]:
+                sorted_cluster = sorted(cluster)
+                for index, left in enumerate(sorted_cluster):
+                    for right in sorted_cluster[index + 1 :]:
                         history_pair_counts[(left, right)] = history_pair_counts.get((left, right), 0) + 1
 
         current_pairs: list[tuple[str, str]] = []

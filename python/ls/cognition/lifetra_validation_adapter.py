@@ -115,7 +115,7 @@ class LifetraValidationAdapter:
                 payload.task_prompt,
                 result.consensus_status,
                 result.winner_agent_id or "none",
-                ",".join(candidate.agent_id for candidate in result.ranked_candidates),
+                ",".join(sorted(candidate.agent_id for candidate in result.ranked_candidates)),
             ]
         )
         backend_name = getattr(module, "_backend_name", None) or getattr(
@@ -175,7 +175,9 @@ class LifetraValidationAdapter:
 
         payload_by_agent = {candidate.agent_id: candidate for candidate in payload.candidates}
         for validated in result.ranked_candidates:
-            candidate = payload_by_agent[validated.agent_id]
+            candidate = payload_by_agent.get(validated.agent_id)
+            if candidate is None:
+                continue
             self._add_transition(
                 module,
                 trajectory,
@@ -264,7 +266,9 @@ class LifetraValidationAdapter:
         ]
 
         for candidate in payload.candidates:
-            validated = validated_by_agent[candidate.agent_id]
+            validated = validated_by_agent.get(candidate.agent_id)
+            if validated is None:
+                continue
             nodes.append(
                 {
                     "id": _candidate_node_id(candidate.agent_id),
@@ -303,7 +307,9 @@ class LifetraValidationAdapter:
 
         for candidate in payload.candidates:
             node_id = _candidate_node_id(candidate.agent_id)
-            validated = validated_by_agent[candidate.agent_id]
+            validated = validated_by_agent.get(candidate.agent_id)
+            if validated is None:
+                continue
             edges.append(
                 {
                     "source": "task:prompt",

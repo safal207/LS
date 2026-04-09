@@ -108,7 +108,8 @@ def test_lifetra_adapter_returns_non_null_artifact():
     assert artifact.backend == "lifetra_py"
     assert artifact.trace_id.startswith("lifetra:")
     assert artifact.node_count == len(payload.candidates) + 2
-    assert artifact.edge_count >= len(payload.candidates) * 2
+    assert artifact.node_count == len(artifact.metadata["nodes"])
+    assert artifact.edge_count == len(artifact.metadata["edges"])
     assert artifact.summary.startswith("TrajectoryState(")
     assert artifact.winner_agent_id == result.winner_agent_id
 

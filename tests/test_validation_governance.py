@@ -364,3 +364,21 @@ def test_governance_detects_repeated_coalition_behavior_across_rounds() -> None:
     assert alerts[0].agent_ids == ["agent-a", "agent-b"]
     assert alerts[0].severity == "high"
     assert "coalition_risk_detected" in result.governance_report.governance_flags
+
+
+def test_governance_handles_empty_candidates() -> None:
+    # build_governance_report must not crash when no candidates exist.
+    validator = _make_validator()
+    payload = ValidationInput(task_prompt="Pick the best option.", candidates=[])
+
+    result = validator.validate(payload)
+
+    assert result.consensus_status == "rejected"
+    assert result.winner_agent_id is None
+    assert result.governance_report is not None
+    report = result.governance_report
+    assert report.paraphrase_clusters == []
+    assert report.coalition_alerts == []
+    assert report.adjusted_candidates == []
+    assert report.governed_winner_agent_id is None
+    assert not report.distributed_consensus.quorum_reached

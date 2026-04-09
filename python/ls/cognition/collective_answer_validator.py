@@ -238,15 +238,16 @@ class CollectiveAnswerValidator:
         payload: ValidationInput,
         result: ValidationResult,
     ) -> ValidationResult:
-        if self.trace_backend is None:
-            trace_attached = result
-        else:
+        trace_artifact = None
+        if self.trace_backend is not None:
             trace_artifact = self.trace_backend.build_validation_trace(payload, result)
-            if trace_artifact is None:
-                trace_attached = result
-            else:
-                trace_attached = replace(result, trace_artifact=trace_artifact)
-        if self.governance_engine is None:
-            return trace_attached
-        governance_report = self.governance_engine.build_governance_report(payload, trace_attached)
-        return replace(trace_attached, governance_report=governance_report)
+
+        governance_report = None
+        if self.governance_engine is not None:
+            # Build governance before mutating result so that a failure here
+            # leaves the original result intact rather than a half-patched one.
+            governance_report = self.governance_engine.build_governance_report(payload, result)
+
+        if trace_artifact is None and governance_report is None:
+            return result
+        return replace(result, trace_artifact=trace_artifact, governance_report=governance_report)
