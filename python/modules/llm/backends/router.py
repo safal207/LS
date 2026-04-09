@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from config import (
     GONKA_API_KEY,
@@ -48,11 +48,25 @@ def _parse_route(value: Optional[str]) -> list[str]:
 
 
 class LLMBackendRouter:
+    _INTENT_CAPABILITY: dict[str, dict[str, float]] = {
+        "realtime": {"local": 1.0, "cloud": 0.75, "gonka": 0.65, "mimo": 0.55, "meritocracy": 0.7},
+        "batch": {"cloud": 1.0, "gonka": 0.85, "mimo": 0.8, "local": 0.55, "meritocracy": 0.9},
+        "streaming": {"cloud": 1.0, "gonka": 0.8, "local": 0.7, "mimo": 0.6, "meritocracy": 0.85},
+    }
+    _POLICY_WEIGHTS: dict[str, dict[str, float]] = {
+        "balanced": {"latency": 0.35, "error": 0.35, "load": 0.15, "cost": 0.15},
+        "latency_optimized": {"latency": 0.6, "error": 0.2, "load": 0.1, "cost": 0.1},
+        "cost_optimized": {"latency": 0.15, "error": 0.2, "load": 0.15, "cost": 0.5},
+    }
+    _UNHEALTHY_ERROR_RATE = 0.10
+    _UNHEALTHY_LATENCY_MS = 8000.0
+
     def __init__(self, primary: str, fallback_chain: list[str], backends: dict[str, object]) -> None:
         self.primary = primary
         self.fallback_chain = fallback_chain
         self.backends = backends
         self.last_response: Optional[LLMResponse] = None
+        self.last_explain: dict[str, Any] = {}
 
     @property
     def route(self) -> list[str]:
@@ -79,7 +93,9 @@ class LLMBackendRouter:
     ) -> LLMResponse:
         errors: list[str] = []
         attempts: list[dict[str, object]] = []
-        chain = self.route
+        metadata = metadata or {}
+        explain = self._build_effective_route(metadata)
+        chain = list(explain["effective"])
         for index, backend_name in enumerate(chain):
             backend = self.backends[backend_name]
             response = backend.generate(
@@ -116,8 +132,10 @@ class LLMBackendRouter:
                     "fallback_chain": list(self.fallback_chain),
                     "effective": list(chain),
                     "attempts": attempts,
+                    "explain": explain,
                 }
                 self.last_response = response
+                self.last_explain = explain
                 return response
             errors.append(f"{backend_name}: {response.error or 'unknown error'}")
 
@@ -136,12 +154,105 @@ class LLMBackendRouter:
                     "fallback_chain": list(self.fallback_chain),
                     "effective": list(chain),
                     "attempts": attempts,
+                    "explain": explain,
                 }
             },
         )
         self.last_response = final
+        self.last_explain = explain
         logger.warning("llm router failed route=%s error=%s", "->".join(chain), final.error)
         return final
+
+    def _build_effective_route(self, metadata: dict[str, Any]) -> dict[str, Any]:
+        base_chain = self.route
+        if not base_chain:
+            return {
+                "intent": "general",
+                "policy": "balanced",
+                "base_route": [],
+                "effective": [],
+                "scores": [],
+            }
+
+        policy = str(metadata.get("routing_policy") or metadata.get("policy") or "balanced").strip().lower()
+        weights = self._POLICY_WEIGHTS.get(policy, self._POLICY_WEIGHTS["balanced"])
+        intent = str(metadata.get("intent") or "general").strip().lower()
+        backend_health = metadata.get("backend_health") or {}
+        health_thresholds = metadata.get("health_thresholds") or {}
+        error_threshold = float(health_thresholds.get("error_rate", self._UNHEALTHY_ERROR_RATE))
+        latency_threshold = float(health_thresholds.get("latency_ms", self._UNHEALTHY_LATENCY_MS))
+
+        scored: list[dict[str, Any]] = []
+        for position, backend in enumerate(base_chain):
+            stats = backend_health.get(backend, {})
+            latency_norm = self._normalize_value(stats.get("latency_ms"), cap=5000.0)
+            error_norm = self._normalize_value(stats.get("error_rate"), cap=1.0)
+            load_norm = self._normalize_value(stats.get("load"), cap=1.0)
+            cost_norm = self._normalize_value(stats.get("cost"), cap=1.0)
+            intent_fit = self._intent_fit(intent, backend)
+            penalty = (
+                weights["latency"] * latency_norm
+                + weights["error"] * error_norm
+                + weights["load"] * load_norm
+                + weights["cost"] * cost_norm
+            )
+            score = intent_fit - penalty
+            unhealthy = bool(
+                (stats.get("error_rate") is not None and float(stats["error_rate"]) >= error_threshold)
+                or (stats.get("latency_ms") is not None and float(stats["latency_ms"]) >= latency_threshold)
+            )
+            scored.append(
+                {
+                    "backend": backend,
+                    "position": position,
+                    "intent_fit": round(intent_fit, 4),
+                    "penalty": round(penalty, 4),
+                    "score": round(score, 4),
+                    "unhealthy": unhealthy,
+                    "stats": {
+                        "latency_ms": stats.get("latency_ms"),
+                        "error_rate": stats.get("error_rate"),
+                        "load": stats.get("load"),
+                        "cost": stats.get("cost"),
+                    },
+                }
+            )
+
+        scored.sort(key=lambda row: (row["unhealthy"], -row["score"], row["position"]))
+        effective = [row["backend"] for row in scored]
+        if self.primary in effective:
+            primary_index = effective.index(self.primary)
+            effective.insert(0, effective.pop(primary_index))
+
+        return {
+            "intent": intent,
+            "policy": policy if policy in self._POLICY_WEIGHTS else "balanced",
+            "base_route": base_chain,
+            "effective": effective,
+            "scores": scored,
+            "health_thresholds": {"error_rate": error_threshold, "latency_ms": latency_threshold},
+        }
+
+    @classmethod
+    def _normalize_value(cls, value: Any, *, cap: float) -> float:
+        if value is None:
+            return 0.0
+        try:
+            raw = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        if raw < 0:
+            return 0.0
+        if cap <= 0:
+            return 0.0
+        return min(raw / cap, 1.0)
+
+    @classmethod
+    def _intent_fit(cls, intent: str, backend: str) -> float:
+        profile = cls._INTENT_CAPABILITY.get(intent)
+        if not profile:
+            return 0.7
+        return profile.get(backend, 0.5)
 
 
 def build_llm_backend(
@@ -217,4 +328,3 @@ def build_llm_backend(
             max_hallucination_risk=LLM_MERITOCRACY_MAX_HALLUCINATION_RISK,
         )
     return LLMBackendRouter(primary=primary, fallback_chain=fallbacks, backends=backends)
-
