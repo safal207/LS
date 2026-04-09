@@ -124,6 +124,8 @@
         <div class="summary-box"><div id="cq-publish-label" class="summary-label">LiminalQA</div><div id="cq-publish" class="summary-value">pending</div></div>
       </div>
       <div id="council-quality-action" class="hint">Suggested operator action will appear here after a real cycle.</div>
+      <div id="council-risk-kicker" class="kicker" style="margin-top:14px">Top Risky Cycles</div>
+      <ul id="council-risk-list" class="guide-list"></ul>
       <div id="council-quality-empty" class="hint">No council-quality artifact yet. Run a real council cycle first.</div>
       <div class="summary-grid">
         <div class="summary-box"><div id="c-ledgers-label" class="summary-label">Ledgers</div><div id="c-ledgers" class="summary-value">0</div></div>
@@ -352,6 +354,40 @@
 
     setLanguage(document.documentElement.lang==="en"?"en":"ru");
     refreshCouncilQualityPreview().catch(()=>{});
+  </script>
+  <script>
+    async function refreshCouncilRiskQueue(){
+      const data=await callJson("/api/council-risk-queue");
+      const list=el("council-risk-list");
+      list.innerHTML="";
+      if(!data.ok || !(data.payload.items||[]).length){
+        const li=document.createElement("li");
+        li.textContent=document.documentElement.lang==="ru"?"Ð Ð¸ÑÐº-Ð¾Ñ‡ÐµÑ€ÐµÐ´ÑŒ Ð¿Ð¾ÐºÐ° пуста.":"Risk queue is empty.";
+        list.appendChild(li);
+        return;
+      }
+      (data.payload.items||[]).forEach(item=>{
+        const li=document.createElement("li");
+        const quality=item.quality_score===null||item.quality_score===undefined?"n/a":Number(item.quality_score).toFixed(4);
+        li.textContent=`${item.cycle_id}: ${item.risk_state} / ${item.recommended_mode} / ${item.selected_route} / q=${quality}`;
+        list.appendChild(li);
+      });
+    }
+
+    const ___originalSetLanguage=setLanguage;
+    setLanguage=function(next){
+      ___originalSetLanguage(next);
+      el("council-risk-kicker").textContent=next==="ru"?"Top Risky Cycles":"Top Risky Cycles";
+    };
+
+    const ___originalRefreshCouncilQualityPreview=refreshCouncilQualityPreview;
+    refreshCouncilQualityPreview=async function(){
+      await ___originalRefreshCouncilQualityPreview();
+      await refreshCouncilRiskQueue();
+    };
+
+    setLanguage(document.documentElement.lang==="en"?"en":"ru");
+    refreshCouncilRiskQueue().catch(()=>{});
   </script>
 </body>
 </html>

@@ -381,8 +381,20 @@ def council_review(
         "--quality-dir",
         help="Where to read council-quality JSON artifacts.",
     ),
+    only_risk: str = typer.Option(
+        "",
+        "--only-risk",
+        help="Comma-separated risk states to include, e.g. escalate,repair.",
+    ),
 ) -> None:
     rows = load_council_quality_rows(quality_dir)
+    allowed_risks = {item.strip() for item in only_risk.split(",") if item.strip()}
+    if allowed_risks:
+        rows = [
+            row
+            for row in rows
+            if str((row.get("operator_guidance") or {}).get("risk_state") or "watch") in allowed_risks
+        ]
     if not rows:
         console.print("[yellow]No council-quality artifacts found.[/yellow]")
         raise typer.Exit(code=0)

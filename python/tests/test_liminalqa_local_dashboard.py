@@ -74,3 +74,40 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["suggested_operator_action"] == "Validate intent before approval."
     assert payload["liminalqa_published"] is True
     assert payload["liminalqa_status_code"] == 200
+
+
+def test_preview_council_risk_queue_sorts_high_risk_first(monkeypatch, tmp_path: Path) -> None:
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "safe.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-safe",
+                "quality_score": 0.9,
+                "council_outcome": {"selected_route": "route-a"},
+                "relational_field": {"recommended_mode": "collaborative_progress"},
+                "operator_guidance": {"risk_state": "safe", "suggested_operator_action": "continue"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (quality_dir / "repair.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-repair",
+                "relation_adjusted_quality_score": 0.4,
+                "council_outcome": {"selected_route": "route-b"},
+                "relational_field": {"recommended_mode": "decompress_and_repair"},
+                "operator_guidance": {"risk_state": "repair", "suggested_operator_action": "pause"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+
+    status, payload = dashboard.preview_council_risk_queue()
+
+    assert status == 200
+    assert payload["total"] == 2
+    assert payload["items"][0]["cycle_id"] == "cycle-repair"
+    assert payload["items"][1]["cycle_id"] == "cycle-safe"
