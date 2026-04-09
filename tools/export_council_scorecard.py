@@ -115,6 +115,8 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 "avg_merit": 0.0,
                 "avg_quality": 0.0,
                 "avg_relation_safety": 0.0,
+                "risky_cycle_count": 0,
+                "incident_count": 0,
             },
             "bars": {
                 "best_contributor_frequency": [],
@@ -124,6 +126,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "lines": {
                 "resonance_trend": [],
                 "merit_trend": [],
+                "incident_trend": [],
             },
             "takeaways": {
                 "with_ls": [
@@ -146,6 +149,9 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
     merits: list[float] = []
     qualities: list[float] = []
     relation_safeties: list[float] = []
+    incident_count = 0
+    risky_cycle_count = 0
+    incident_series: list[dict] = []
     for index, row in enumerate(selected_rows, start=1):
         outcome = row.get("outcome", {})
         attribution = row.get("attribution", {})
@@ -153,6 +159,8 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         cycle_id = str(row.get("cycle_id") or "")
         quality_payload = quality_by_cycle.get(cycle_id) or {}
         quality_outcome = quality_payload.get("council_outcome") or {}
+        guidance = quality_payload.get("operator_guidance") or {}
+        liminalqa = quality_payload.get("liminalqa") or {}
         participant_types = {
             normalize_model_label(item.get("model_id")): str(item.get("model_type") or "unknown")
             for item in participants
@@ -183,8 +191,14 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         network = float(quality_outcome.get("network_improvement", outcome.get("network_improvement", 0.0)) or 0.0)
         merit = clamp((float(attribution.get("best_contributor_score", 0.0) or 0.0) + resonance + max(network, 0.0)) / 3.0)
         label = f"c{index}"
+        risk_state = str(guidance.get("risk_state") or "watch")
+        if risk_state in {"repair", "escalate"}:
+            risky_cycle_count += 1
+        if (liminalqa.get("incident") or {}).get("published"):
+            incident_count += 1
         resonance_series.append({"label": label, "value": round(resonance * 100.0, 2)})
         merit_series.append({"label": label, "value": round(merit * 100.0, 2)})
+        incident_series.append({"label": label, "value": incident_count})
         successes.append(success)
         resonances.append(resonance)
         merits.append(merit)
@@ -212,6 +226,8 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "avg_merit": round(avg(merits) * 100.0, 2),
             "avg_quality": round(avg(qualities) * 100.0, 2),
             "avg_relation_safety": round(avg(relation_safeties) * 100.0, 2),
+            "risky_cycle_count": risky_cycle_count,
+            "incident_count": incident_count,
         },
         "bars": {
             "best_contributor_frequency": [{"label": key, "value": value} for key, value in best_counts.items()],
@@ -221,6 +237,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         "lines": {
             "resonance_trend": resonance_series,
             "merit_trend": merit_series,
+            "incident_trend": incident_series,
         },
         "takeaways": takeaways,
     }

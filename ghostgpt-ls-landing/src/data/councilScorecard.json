@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-09T11:33:29Z",
+  "generated_at": "2026-04-09T13:16:04Z",
   "source": "fellowship_dataset",
   "summary": {
     "ledgers": 8,
@@ -8,7 +8,9 @@
     "avg_resonance": 40.62,
     "avg_merit": 41.36,
     "avg_quality": 59.37,
-    "avg_relation_safety": 0.0
+    "avg_relation_safety": 0.0,
+    "risky_cycle_count": 0,
+    "incident_count": 0
   },
   "bars": {
     "best_contributor_frequency": [
@@ -101,6 +103,40 @@
       {
         "label": "c8",
         "value": 36.47
+      }
+    ],
+    "incident_trend": [
+      {
+        "label": "c1",
+        "value": 0
+      },
+      {
+        "label": "c2",
+        "value": 0
+      },
+      {
+        "label": "c3",
+        "value": 0
+      },
+      {
+        "label": "c4",
+        "value": 0
+      },
+      {
+        "label": "c5",
+        "value": 0
+      },
+      {
+        "label": "c6",
+        "value": 0
+      },
+      {
+        "label": "c7",
+        "value": 0
+      },
+      {
+        "label": "c8",
+        "value": 0
       }
     ]
   },

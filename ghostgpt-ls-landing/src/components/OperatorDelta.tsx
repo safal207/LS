@@ -44,6 +44,8 @@ type CouncilScorecardPayload = {
     avg_merit: number;
     avg_quality?: number;
     avg_relation_safety?: number;
+    risky_cycle_count?: number;
+    incident_count?: number;
   };
   bars: {
     best_contributor_frequency: ScorePoint[];
@@ -53,6 +55,7 @@ type CouncilScorecardPayload = {
   lines: {
     resonance_trend: ScorePoint[];
     merit_trend: ScorePoint[];
+    incident_trend?: ScorePoint[];
   };
   takeaways: {
     with_ls: string[];
@@ -100,11 +103,14 @@ const copy = {
     avgMerit: 'Avg merit',
     avgQuality: 'Avg quality',
     avgRelationSafety: 'Relation safety',
+    riskyCycles: 'Risky cycles',
+    incidents: 'Incidents',
     contribFreq: 'Best contributor frequency',
     modelLift: 'Model type lift',
     routeWins: 'Route wins',
     resonanceTrend: 'Receiver resonance trend',
     meritTrend: 'Merit trend',
+    incidentTrend: 'Incident trend',
     scorecardTakeaways: 'What this makes visible',
     scorecardDisclaimer: 'Scorecard disclosure',
     sourceLabel: 'Snapshot source'
@@ -143,11 +149,16 @@ const copy = {
     successRate: 'Успешность',
     avgResonance: 'Средний резонанс',
     avgMerit: 'Средний merit',
+    avgQuality: 'Среднее quality',
+    avgRelationSafety: 'Безопасность связи',
+    riskyCycles: 'Рисковые циклы',
+    incidents: 'Инциденты',
     contribFreq: 'Частота лучшего contributor',
     modelLift: 'Подъем по типам моделей',
     routeWins: 'Победы маршрутов',
     resonanceTrend: 'Тренд резонанса',
     meritTrend: 'Тренд merit',
+    incidentTrend: 'Тренд incident',
     scorecardTakeaways: 'Что это делает видимым',
     scorecardDisclaimer: 'Ограничение scorecard',
     sourceLabel: 'Источник snapshot'
@@ -429,7 +440,7 @@ export default function OperatorDelta() {
             <p className="mt-3 text-sm text-white/70 md:text-base">{text.councilSubtitle}</p>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-7">
+          <div className="mt-6 grid gap-4 md:grid-cols-9">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.ledgers}</div>
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.ledgers}</div>
@@ -451,12 +462,20 @@ export default function OperatorDelta() {
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.avg_merit.toFixed(1)}%</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{lang === 'ru' ? 'Avg quality' : 'Avg quality'}</div>
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.avgQuality}</div>
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{(scorecard.summary.avg_quality ?? 0).toFixed(1)}%</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-white/55">Relation safety</div>
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.avgRelationSafety}</div>
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{(scorecard.summary.avg_relation_safety ?? 0).toFixed(1)}%</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.riskyCycles}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.risky_cycle_count ?? 0}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.incidents}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.incident_count ?? 0}</div>
             </div>
           </div>
 
@@ -485,7 +504,7 @@ export default function OperatorDelta() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <div className="mt-4 grid gap-4 xl:grid-cols-3">
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
               <div className="text-sm uppercase tracking-[0.16em] text-cyan-200">{text.resonanceTrend}</div>
               <div className="mt-4">
@@ -496,6 +515,12 @@ export default function OperatorDelta() {
               <div className="text-sm uppercase tracking-[0.16em] text-emerald-200">{text.meritTrend}</div>
               <div className="mt-4">
                 <MiniLine data={scorecard.lines.merit_trend} stroke="#6ee7b7" />
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-sm uppercase tracking-[0.16em] text-rose-200">{text.incidentTrend}</div>
+              <div className="mt-4">
+                <MiniLine data={scorecard.lines.incident_trend ?? []} stroke="#fda4af" />
               </div>
             </div>
           </div>
