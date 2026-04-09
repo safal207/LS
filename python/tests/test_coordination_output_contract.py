@@ -215,6 +215,11 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
         "trust_score": 0.67,
         "success": True,
     }
+    item["_relational_field"] = {
+        "tension_score": 0.78,
+        "alignment_score": 0.24,
+        "dominant_signal": "tension",
+    }
 
     output = agent._build_output(
         item,
@@ -254,6 +259,11 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert quality_payload["cycle_id"] == "cid-ledger"
     assert quality_payload["council_ledger_path"] == artifact_path
     assert quality_payload["quality_score"] == output["council_cel_sync"]["quality_score"]
+    assert quality_payload["relation_adjusted_quality_score"] <= quality_payload["quality_score"]
+    assert quality_payload["relational_field"]["tension_score"] == 0.78
+    assert quality_payload["relational_field"]["alignment_score"] == 0.24
+    assert quality_payload["relational_field"]["relation_safety_score"] == 0.23
+    assert quality_payload["relational_field"]["recommended_mode"] == "decompress_and_repair"
     assert quality_payload["council_outcome"]["selected_route"] == "r1"
     assert quality_payload["attribution"]["best_contributor_model_id"] != "n/a"
     assert len(quality_payload["cel"]["contribution_records"]) >= 1

@@ -3084,6 +3084,7 @@ class ResonanceAgent:
             council_ledger,
             council_ledger_artifact=council_ledger_artifact,
             council_cel_sync=council_cel_sync,
+            item=item,
         )
 
         return {
@@ -3486,6 +3487,7 @@ class ResonanceAgent:
         *,
         council_ledger_artifact: str | None,
         council_cel_sync: dict[str, Any] | None,
+        item: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         if ledger is None:
             return None
@@ -3497,12 +3499,20 @@ class ResonanceAgent:
             quality_score = council_cel_sync.get("quality_score")
         if quality_score is None:
             quality_score = self._quality_score_fallback_from_ledger(ledger)
+        relational = self._build_relational_quality_summary((item or {}).get("_relational_field"))
+        relation_adjusted_quality_score = quality_score
+        if quality_score is not None and relational is not None:
+            relation_adjusted_quality_score = round(
+                (0.75 * float(quality_score)) + (0.25 * float(relational["relation_safety_score"])),
+                4,
+            )
         return {
             "cycle_id": str(getattr(ledger, "cycle_id", "") or ""),
             "task_id": str(getattr(ledger, "task_id", "") or ""),
             "timestamp": str(getattr(ledger, "timestamp", "") or ""),
             "council_ledger_path": council_ledger_artifact,
             "quality_score": quality_score,
+            "relation_adjusted_quality_score": relation_adjusted_quality_score,
             "council_outcome": {
                 "success": bool(getattr(outcome, "success", False)) if outcome is not None else False,
                 "selected_route": (
@@ -3545,6 +3555,7 @@ class ResonanceAgent:
                 "reputation_updates": [],
                 "merit_updates": [],
             },
+            "relational_field": relational,
             "liminalqa": {
                 "published": False,
                 "status_code": None,
@@ -3557,11 +3568,13 @@ class ResonanceAgent:
         *,
         council_ledger_artifact: str | None,
         council_cel_sync: dict[str, Any] | None,
+        item: dict[str, Any] | None = None,
     ) -> str | None:
         payload = self._build_council_quality_artifact_payload(
             ledger,
             council_ledger_artifact=council_ledger_artifact,
             council_cel_sync=council_cel_sync,
+            item=item,
         )
         if payload is None:
             return None
@@ -3576,6 +3589,32 @@ class ResonanceAgent:
         except Exception as exc:
             logger.debug("ResonanceAgent: council quality artifact write failed: %s", exc)
             return None
+
+    def _build_relational_quality_summary(self, relational: Any) -> dict[str, Any] | None:
+        if not isinstance(relational, dict) or not relational:
+            return None
+        try:
+            tension_score = max(0.0, min(1.0, float(relational.get("tension_score", 0.0) or 0.0)))
+            alignment_score = max(0.0, min(1.0, float(relational.get("alignment_score", 0.0) or 0.0)))
+        except (TypeError, ValueError):
+            return None
+        dominant_signal = str(relational.get("dominant_signal") or "neutral")
+        relation_safety_score = round(max(0.0, min(1.0, ((1.0 - tension_score) + alignment_score) / 2.0)), 4)
+        if tension_score >= 0.7 and alignment_score < 0.4:
+            recommended_mode = "decompress_and_repair"
+        elif dominant_signal.startswith("foreground:attack") or dominant_signal == "tension":
+            recommended_mode = "validate_before_solve"
+        elif alignment_score >= 0.55 and tension_score <= 0.35:
+            recommended_mode = "collaborative_progress"
+        else:
+            recommended_mode = "observe_and_clarify"
+        return {
+            "tension_score": round(tension_score, 4),
+            "alignment_score": round(alignment_score, 4),
+            "dominant_signal": dominant_signal,
+            "relation_safety_score": relation_safety_score,
+            "recommended_mode": recommended_mode,
+        }
 
     def _build_cycle_record(
         self, item: dict, output: str, generation_time: float

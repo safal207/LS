@@ -167,7 +167,9 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         success = 1.0 if outcome.get("success") else 0.0
         resonance = float(outcome.get("receiver_resonance_score", outcome.get("operator_feedback_score", 0.0)) or 0.0)
         quality_score = (
-            float(quality_payload.get("quality_score"))
+            float(quality_payload.get("relation_adjusted_quality_score"))
+            if quality_payload.get("relation_adjusted_quality_score") is not None
+            else float(quality_payload.get("quality_score"))
             if quality_payload.get("quality_score") is not None
             else clamp(
                 (float(outcome.get("path_quality", 0.0) or 0.0) + resonance + success) / 3.0
