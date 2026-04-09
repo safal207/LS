@@ -1,4 +1,4 @@
-# GhostGPT — Local Cognitive System (LCS)
+# LS — Local Cognitive System (LCS)
 
 [English](#english) | [Русский](#russian)
 
@@ -6,7 +6,7 @@
 
 <a name="english"></a>
 
-# GhostGPT / LCS — Local Cognitive System
+# LS — Local Cognitive System
 
 [![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
@@ -16,13 +16,13 @@
 
 Live site: [GitHub Pages](https://safal207.github.io/LS/)
 
-**GhostGPT** is not a chatbot wrapper. It is a **cognitive operating system** for LLMs — an agent that thinks between your messages, learns from you continuously, and knows when it is not thinking clearly.
+**LS** is not a chatbot wrapper. It is a **local-first coordination and oversight runtime** for human-plus-model systems that thinks between interactions, learns from feedback, and keeps decisions reviewable.
 
 ---
 
 ## What it actually does
 
-Most AI agents answer and forget. GhostGPT **lives between answers**:
+Most AI agents answer and forget. LS **lives between answers**:
 
 - While you type, a background subconscious thread analyses your conversation patterns
 - When you reply with just "ok" after a long response, the system registers that as weak feedback
@@ -90,7 +90,7 @@ After 3 occurrences of the same pathology → writes a `lesson:meta:*` memory no
 
 ## Multimodal Operator Loop — Eyes + Ears + Voice
 
-GhostGPT can now act as a **hands-free operator interface**:
+LS can now act as a **hands-free operator interface**:
 
 - **Eyes (screen reading)** — `VisionSubsystem` captures your screen every 0.5 s and runs OCR (pytesseract or easyocr). The latest text is exposed via `get_latest_screen_text()` and injected into every LLM call as a `system` message, so the agent can inspect the current operator context without manual copy-paste.
 - **Ears (voice input)** — `faster-whisper` + PyAudio capture your microphone and transcribe speech to text in real-time. The transcript is fed to the agent as the user message.
@@ -383,19 +383,19 @@ pytest python/tests/test_memory_store_locking.py
 
 ---
 
-© 2026 GhostGPT Team. Strictly Local. Strictly Cognitive.
+© 2026 LS Team. Strictly Local. Strictly Cognitive.
 
 ---
 
 <a name="russian"></a>
 
-# GhostGPT — Локальная когнитивная система
+# LS — Локальная когнитивная система
 
 [![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
 [![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
 
-GhostGPT — это не обёртка над ChatGPT. Это **когнитивная операционная система** для LLM: агент, который думает между твоими сообщениями, учится у тебя непрерывно и знает, когда сам с собой не в порядке.
+LS — это не обёртка над ChatGPT. Это **local-first система согласования и контроля** для человека и моделей: она думает между взаимодействиями, учится на обратной связи и сохраняет решения проверяемыми.
 
 ---
 
@@ -403,7 +403,7 @@ GhostGPT — это не обёртка над ChatGPT. Это **когнити�
 
 Обычный ИИ: вопрос → подумал → ответил → забыл.
 
-GhostGPT **живёт между ответами**:
+LS **живёт между ответами**:
 - Пока ты печатаешь, фоновый поток анализирует твой стиль мышления
 - Когда ты ответил коротко после длинного ответа агента — это сигнал "не попал"
 - Когда один режим мышления повторяется раз за разом — он становится долгосрочной памятью
@@ -462,7 +462,7 @@ GhostGPT **живёт между ответами**:
 
 ## Мультимодальный операторский контур — Глаза + Уши + Голос
 
-GhostGPT умеет работать как **hands-free интерфейс для оператора**:
+LS умеет работать как **hands-free интерфейс для оператора**:
 
 - **Глаза (чтение экрана)** — `VisionSubsystem` снимает скриншот каждые 0.5с и распознаёт текст через OCR (pytesseract или easyocr). Последний текст экрана добавляется в каждый LLM-запрос как системное сообщение — агент видит текущий операторский контекст без ручного копирования.
 - **Уши (голосовой ввод)** — `faster-whisper` + PyAudio слушают микрофон и транскрибируют речь в текст в реальном времени. Транскрипт идёт в агент как сообщение пользователя.
@@ -573,4 +573,4 @@ python apps/console/main.py
 
 ---
 
-© 2026 GhostGPT Team. Strictly Local. Strictly Cognitive.
+© 2026 LS Team. Strictly Local. Strictly Cognitive.
