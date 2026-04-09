@@ -28,6 +28,7 @@ ARTIFACTS_DIR = ROOT / "artifacts"
 QUALITY_DIR = ARTIFACTS_DIR / "quality"
 QUALITY_REPORT_PATH = ARTIFACTS_DIR / "quality-report.json"
 COUNCIL_LEDGER_DIR = ARTIFACTS_DIR / "council-ledger"
+COUNCIL_QUALITY_DIR = ARTIFACTS_DIR / "council-quality"
 DOCS_BASE_URL = "https://github.com/safal207/LS/blob/main/docs"
 COUNCIL_CYCLE_TIMEOUT_SECONDS = 45
 FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#161311"/><path d="M16 47V17h8v23h20v7H16zm17-8 9-22h8L40 39h-7z" fill="#fffaf1"/></svg>'
@@ -418,6 +419,57 @@ def council_ledgers() -> list[dict]:
     return rows
 
 
+def latest_council_quality_artifact() -> dict | None:
+    if not COUNCIL_QUALITY_DIR.exists():
+        return None
+    candidates = sorted(
+        COUNCIL_QUALITY_DIR.glob("*.json"),
+        key=lambda path: path.stat().st_mtime,
+    )
+    for path in reversed(candidates):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        payload["_path"] = str(path)
+        return payload
+    return None
+
+
+def preview_council_quality_artifact() -> tuple[int, object]:
+    payload = latest_council_quality_artifact()
+    if not payload:
+        return 404, {
+            "error": "council-quality artifact not found",
+            "expected_path": str(COUNCIL_QUALITY_DIR / "<cycle_id>.json"),
+            "hint": "Run a real council cycle first. Demo ledgers do not emit council-quality artifacts.",
+        }
+    council_outcome = payload.get("council_outcome") or {}
+    attribution = payload.get("attribution") or {}
+    cel = payload.get("cel") or {}
+    liminalqa = payload.get("liminalqa") or {}
+    merit_updates = cel.get("merit_updates") or []
+    top_merit = max((float(item.get("merit_score") or 0.0) for item in merit_updates), default=0.0)
+    return 200, {
+        "cycle_id": payload.get("cycle_id"),
+        "task_id": payload.get("task_id"),
+        "artifact_path": payload.get("_path"),
+        "quality_score": payload.get("quality_score"),
+        "selected_route": council_outcome.get("selected_route"),
+        "success": council_outcome.get("success"),
+        "receiver_resonance_score": council_outcome.get("receiver_resonance_score"),
+        "receiver_acceptance_label": council_outcome.get("receiver_acceptance_label"),
+        "best_contributor_model_id": attribution.get("best_contributor_model_id"),
+        "best_contributor_score": attribution.get("best_contributor_score"),
+        "contribution_records": len(cel.get("contribution_records") or []),
+        "reputation_updates": len(cel.get("reputation_updates") or []),
+        "merit_updates": len(merit_updates),
+        "top_merit_score": round(top_merit, 4),
+        "liminalqa_published": bool(liminalqa.get("published")),
+        "liminalqa_status_code": liminalqa.get("status_code"),
+    }
+
+
 def avg(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
@@ -536,6 +588,7 @@ def run_real_council_cycle() -> tuple[int, object]:
     prompt = "Run a local council coordination cycle for dashboard observability and contribution tracking."
     agent = ResonanceAgent(anchor=[], llm_fn=None, orientation="dashboard-council-cycle")
     agent._council_ledger_dir = COUNCIL_LEDGER_DIR
+    agent._council_quality_dir = COUNCIL_QUALITY_DIR
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(agent.process_text, prompt)
         try:
@@ -557,6 +610,7 @@ def run_real_council_cycle() -> tuple[int, object]:
     return 200, {
         "cycle_id": result.get("cycle_id"),
         "artifact_path": artifact_path,
+        "quality_artifact_path": result.get("council_quality_artifact"),
         "selected_route": (ledger.get("final_decision") or {}).get("selected_route"),
         "best_contributor_model_id": (ledger.get("attribution") or {}).get("best_contributor_model_id"),
         "success": (ledger.get("outcome") or {}).get("success"),
@@ -604,6 +658,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/council-analytics":
             self.send_json(200, build_council_analytics())
+            return
+        if self.path == "/api/council-quality-preview":
+            status, payload = preview_council_quality_artifact()
+            self.send_json(status, payload)
             return
         self.send_json(404, {"error": "not found"})
 
