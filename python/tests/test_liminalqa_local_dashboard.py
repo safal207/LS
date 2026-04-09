@@ -189,3 +189,5 @@ def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -
     assert payload["approval_conversion_rate"] == 100.0
     assert payload["escalation_rate"] == 0.0
     assert payload["charts"]["incidentTrend"] == [{"label": "2026-04-09", "value": 1}]
+    assert payload["charts"]["reviewTrend"] == [{"label": "2026-04-09", "value": 1}]
+    assert payload["charts"]["approvalOutcomeSplit"] == [{"label": "approved", "value": 1}]

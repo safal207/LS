@@ -125,6 +125,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 "best_contributor_frequency": [],
                 "model_type_lift": [],
                 "route_wins": [],
+                "approval_outcome_split": [],
             },
             "lines": {
                 "resonance_trend": [],
@@ -146,6 +147,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
     contribution_totals: defaultdict[str, float] = defaultdict(float)
     type_totals: defaultdict[str, list[float]] = defaultdict(list)
     route_wins: Counter[str] = Counter()
+    approval_outcomes: Counter[str] = Counter()
     resonance_series: list[dict] = []
     merit_series: list[dict] = []
     successes: list[float] = []
@@ -206,6 +208,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         if risk_state == "escalate":
             escalate_count += 1
         review_decision = str(operator_review.get("decision") or "pending")
+        approval_outcomes[review_decision] += 1
         if review_decision in {"approved", "rejected"}:
             reviewed_cycle_count += 1
         if review_decision == "approved":
@@ -253,6 +256,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "best_contributor_frequency": [{"label": key, "value": value} for key, value in best_counts.items()],
             "model_type_lift": [{"label": key, "value": value} for key, value in type_lift.items()],
             "route_wins": [{"label": key, "value": value} for key, value in route_wins.items()],
+            "approval_outcome_split": [{"label": key, "value": value} for key, value in approval_outcomes.items()],
         },
         "lines": {
             "resonance_trend": resonance_series,

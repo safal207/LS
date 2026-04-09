@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-09T16:36:28Z",
+  "generated_at": "2026-04-09T16:40:24Z",
   "source": "fellowship_dataset",
   "summary": {
     "ledgers": 8,
@@ -35,6 +35,12 @@
     "route_wins": [
       {
         "label": "route-pending",
+        "value": 8
+      }
+    ],
+    "approval_outcome_split": [
+      {
+        "label": "pending",
         "value": 8
       }
     ]

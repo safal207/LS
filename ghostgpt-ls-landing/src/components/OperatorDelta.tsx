@@ -54,11 +54,13 @@ type CouncilScorecardPayload = {
     best_contributor_frequency: ScorePoint[];
     model_type_lift: ScorePoint[];
     route_wins: ScorePoint[];
+    approval_outcome_split?: ScorePoint[];
   };
   lines: {
     resonance_trend: ScorePoint[];
     merit_trend: ScorePoint[];
     incident_trend?: ScorePoint[];
+    review_trend?: ScorePoint[];
   };
   takeaways: {
     with_ls: string[];
@@ -114,9 +116,11 @@ const copy = {
     contribFreq: 'Best contributor frequency',
     modelLift: 'Model type lift',
     routeWins: 'Route wins',
+    approvalOutcome: 'Approval outcome split',
     resonanceTrend: 'Receiver resonance trend',
     meritTrend: 'Merit trend',
     incidentTrend: 'Incident trend',
+    reviewTrend: 'Review trend',
     scorecardTakeaways: 'What this makes visible',
     scorecardDisclaimer: 'Scorecard disclosure',
     sourceLabel: 'Snapshot source'
@@ -165,9 +169,11 @@ const copy = {
     contribFreq: 'Частота лучшего contributor',
     modelLift: 'Подъем по типам моделей',
     routeWins: 'Победы маршрутов',
+    approvalOutcome: 'Исходы review',
     resonanceTrend: 'Тренд резонанса',
     meritTrend: 'Тренд merit',
     incidentTrend: 'Тренд incident',
+    reviewTrend: 'Тренд review',
     scorecardTakeaways: 'Что это делает видимым',
     scorecardDisclaimer: 'Ограничение scorecard',
     sourceLabel: 'Источник snapshot'
@@ -504,7 +510,7 @@ export default function OperatorDelta() {
             {text.sourceLabel}: {scorecard.source}
           </div>
 
-          <div className="mt-6 grid gap-4 xl:grid-cols-3">
+          <div className="mt-6 grid gap-4 xl:grid-cols-4">
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
               <div className="text-sm uppercase tracking-[0.16em] text-cyan-200">{text.contribFreq}</div>
               <div className="mt-4">
@@ -523,9 +529,15 @@ export default function OperatorDelta() {
                 <MiniBars data={scorecard.bars.route_wins} tone="amber" />
               </div>
             </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-sm uppercase tracking-[0.16em] text-rose-200">{text.approvalOutcome}</div>
+              <div className="mt-4">
+                <MiniBars data={scorecard.bars.approval_outcome_split ?? []} tone="amber" />
+              </div>
+            </div>
           </div>
 
-          <div className="mt-4 grid gap-4 xl:grid-cols-3">
+          <div className="mt-4 grid gap-4 xl:grid-cols-4">
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
               <div className="text-sm uppercase tracking-[0.16em] text-cyan-200">{text.resonanceTrend}</div>
               <div className="mt-4">
@@ -542,6 +554,12 @@ export default function OperatorDelta() {
               <div className="text-sm uppercase tracking-[0.16em] text-rose-200">{text.incidentTrend}</div>
               <div className="mt-4">
                 <MiniLine data={scorecard.lines.incident_trend ?? []} stroke="#fda4af" />
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-sm uppercase tracking-[0.16em] text-violet-200">{text.reviewTrend}</div>
+              <div className="mt-4">
+                <MiniLine data={scorecard.lines.review_trend ?? []} stroke="#c4b5fd" />
               </div>
             </div>
           </div>

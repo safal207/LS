@@ -93,6 +93,10 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
         {"label": "c1", "value": 1},
         {"label": "c2", "value": 2},
     ]
+    assert payload["bars"]["approval_outcome_split"] == [
+        {"label": "approved", "value": 1},
+        {"label": "rejected", "value": 1},
+    ]
     assert output_path.exists()
     written = json.loads(output_path.read_text(encoding="utf-8"))
     assert written["summary"]["ledgers"] == 2

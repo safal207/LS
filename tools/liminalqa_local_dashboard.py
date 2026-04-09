@@ -570,11 +570,13 @@ def build_council_analytics() -> dict:
     contribution_totals: defaultdict[str, float] = defaultdict(float)
     type_totals: defaultdict[str, list[float]] = defaultdict(list)
     route_wins: Counter[str] = Counter()
+    approval_outcomes: Counter[str] = Counter()
     resonance_series: list[dict] = []
     quality_series: list[dict] = []
     network_series: list[dict] = []
     merit_series: list[dict] = []
     incident_series: list[dict] = []
+    review_series: list[dict] = []
     successes: list[float] = []
     resonances: list[float] = []
     merits: list[float] = []
@@ -620,6 +622,7 @@ def build_council_analytics() -> dict:
         if risk_state == "escalate":
             escalate_count += 1
         review_decision = str(review.get("decision") or "pending")
+        approval_outcomes[review_decision] += 1
         if review_decision in {"approved", "rejected"}:
             reviewed_cycle_count += 1
         if review_decision == "approved":
@@ -627,6 +630,7 @@ def build_council_analytics() -> dict:
         if (liminalqa.get("incident") or {}).get("published"):
             incident_count += 1
         incident_series.append({"label": label, "value": incident_count})
+        review_series.append({"label": label, "value": reviewed_cycle_count})
     type_lift = {key: round(avg(values), 4) for key, values in type_totals.items()}
     return {
         "ledgers": len(rows),
@@ -645,11 +649,13 @@ def build_council_analytics() -> dict:
             "cumulativeContribution": [{"label": key, "value": round(value, 4)} for key, value in contribution_totals.items()],
             "modelTypeLift": [{"label": key, "value": value} for key, value in type_lift.items()],
             "routeWins": [{"label": key, "value": value} for key, value in route_wins.items()],
+            "approvalOutcomeSplit": [{"label": key, "value": value} for key, value in approval_outcomes.items()],
             "receiverResonanceTrend": resonance_series,
             "qualityScoreTrend": quality_series,
             "networkImprovementTrend": network_series,
             "averageMeritTrend": merit_series,
             "incidentTrend": incident_series,
+            "reviewTrend": review_series,
         },
     }
 
