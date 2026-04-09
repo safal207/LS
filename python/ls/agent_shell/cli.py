@@ -230,6 +230,30 @@ def publish_council_ledger_to_liminalqa(ledger: dict) -> tuple[int, object]:
         return 500, {"error": str(exc)}
 
 
+def update_council_quality_artifact_publish_status(
+    council_quality_artifact: str | Path | None,
+    *,
+    status_code: int,
+    response: object,
+) -> str | None:
+    if not council_quality_artifact:
+        return None
+    path = Path(council_quality_artifact)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    payload["liminalqa"] = {
+        "published": 200 <= int(status_code) < 300,
+        "status_code": int(status_code),
+        "response": response,
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return str(path)
+
+
 @app.command("run")
 def run_task(prompt: str, approval: AccessMode = typer.Option(AccessMode.SAFE_WRITE, "--approval")) -> None:
     task_id = manager().run_task(prompt=prompt, mode=approval.value)
@@ -347,9 +371,11 @@ def council_cycle(
         console.print(f"[red]Council agent init failed:[/red] {exc}")
         raise typer.Exit(code=1) from exc
     agent._council_ledger_dir = artifact_dir
+    agent._council_quality_dir = artifact_dir.parent / "council-quality"
     result = agent.process_text(prompt)
     ledger = result.get("council_contribution_ledger") or {}
     artifact_path = result.get("council_contribution_ledger_artifact")
+    council_quality_artifact = result.get("council_quality_artifact")
     cycle_id = result.get("cycle_id", "unknown")
     verdict = "success" if ledger.get("outcome", {}).get("success") else "needs-review"
     route = ledger.get("final_decision", {}).get("selected_route", "unknown")
@@ -359,9 +385,18 @@ def council_cycle(
     console.print(f"[green]Outcome:[/green] {verdict}")
     if artifact_path:
         console.print(f"[bold]Ledger artifact:[/bold] {artifact_path}")
+    if council_quality_artifact:
+        console.print(f"[bold]Quality artifact:[/bold] {council_quality_artifact}")
     if publish_to_liminalqa and ledger:
         status, response = publish_council_ledger_to_liminalqa(ledger)
+        updated_quality_artifact = update_council_quality_artifact_publish_status(
+            council_quality_artifact,
+            status_code=status,
+            response=response,
+        )
         console.print(f"[bold]LiminalQA publish:[/bold] HTTP {status}")
+        if updated_quality_artifact:
+            console.print(f"[bold]Quality publish trace:[/bold] {updated_quality_artifact}")
         console.print(response)
     final_output = str(result.get("final_output", "") or "")
     print_plain_safe(final_output)

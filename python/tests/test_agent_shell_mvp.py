@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 from ls.agent_shell.runtime.task_manager import TaskManager
 from typer.testing import CliRunner
@@ -133,6 +134,12 @@ def test_council_cycle_cli_can_publish_to_liminalqa(tmp_path: Path, monkeypatch)
     assert result.exit_code == 0
     assert "LiminalQA publish:" in result.stdout
     assert "HTTP 200" in result.stdout
+    quality_artifacts = list((tmp_path / "council-quality").glob("*.json"))
+    assert quality_artifacts
+    quality_payload = json.loads(quality_artifacts[0].read_text(encoding="utf-8"))
+    assert quality_payload["liminalqa"]["published"] is True
+    assert quality_payload["liminalqa"]["status_code"] == 200
+    assert quality_payload["liminalqa"]["response"]["ok"] is True
 
 
 def test_council_cycle_cli_can_use_local_llm_mode(tmp_path: Path, monkeypatch) -> None:

@@ -80,6 +80,7 @@ def run_demo(
     artifact_dir.mkdir(parents=True, exist_ok=True)
     agent = build_council_agent(orientation="fellowship-demo", llm_mode=llm_mode)
     agent._council_ledger_dir = artifact_dir
+    agent._council_quality_dir = artifact_dir.parent / "council-quality"
     result = agent.process_text(prompt)
 
     artifact_path_value = result.get("council_contribution_ledger_artifact")
