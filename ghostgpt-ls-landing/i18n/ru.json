@@ -15,7 +15,7 @@
       "hallucinations": "Галлюцинации ломают критичные review-процессы и triage-инцидентов.",
       "memory": "Большинство ассистентов не помнят вашу историю, решения и прошлые approvals."
     },
-    "solutionTitle": "Решение GhostGPT LS",
+    "solutionTitle": "Решение LS",
     "solutionBody": "Архитектура важнее размера модели. Causal memory, human approvals, replayable traces и council-ledger artifacts делают поведение агента объяснимым, управляемым и пригодным для benchmark-оценки."
   },
   "features": {

@@ -15,7 +15,7 @@
       "hallucinations": "Hallucinations break mission-critical reviews and incident response.",
       "memory": "Most assistants forget your history, decisions, and prior approvals."
     },
-    "solutionTitle": "GhostGPT LS Solution",
+    "solutionTitle": "LS Solution",
     "solutionBody": "Architecture beats raw model size. Causal memory, human approvals, replayable traces, and council-ledger artifacts make agent behavior explainable, governable, and benchmarkable."
   },
   "features": {
