@@ -190,6 +190,7 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     agent = ResonanceAgent(anchor=[], llm_fn=None)
     agent._council_ledger_dir = tmp_path / "council-ledger"
     agent._council_quality_dir = tmp_path / "council-quality"
+    agent._relational_episode_dir = tmp_path / "relational-episodes"
     agent.get_alignment_strategy_recommendations = lambda _item: [
         {
             "strategy_id": "bridge-1",
@@ -216,9 +217,14 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
         "success": True,
     }
     item["_relational_field"] = {
+        "field_id": "field-001",
+        "timestamp": "2026-04-09T10:00:00Z",
         "tension_score": 0.78,
         "alignment_score": 0.24,
         "dominant_signal": "tension",
+        "background_pressure": "deadline pressure",
+        "foreground_expression": "friction in wording",
+        "notes": ["Needs decompression before approval"],
     }
 
     output = agent._build_output(
@@ -250,6 +256,20 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert len(output["council_cel_sync"]["merit_updates"]) >= 1
     assert output["council_cel_sync"]["merit_updates"][0]["network_effect_bonus"] >= 0
 
+    relational_episode_artifact_path = output["relational_episode_artifact"]
+    assert relational_episode_artifact_path is not None
+    relational_episode_artifact = Path(relational_episode_artifact_path)
+    assert relational_episode_artifact.exists()
+
+    relational_episode_payload = json.loads(relational_episode_artifact.read_text(encoding="utf-8"))
+    assert relational_episode_payload["cycle_id"] == "cid-ledger"
+    assert relational_episode_payload["council_ledger_path"] == artifact_path
+    assert relational_episode_payload["selected_route"] == "r1"
+    assert relational_episode_payload["relational_field"]["field_id"] == "field-001"
+    assert relational_episode_payload["relational_summary"]["dominant_signal"] == "tension"
+    assert relational_episode_payload["relational_summary"]["recommended_mode"] == "decompress_and_repair"
+    assert relational_episode_payload["operator_guidance"]["risk_state"] == "repair"
+
     quality_artifact_path = output["council_quality_artifact"]
     assert quality_artifact_path is not None
     quality_artifact = Path(quality_artifact_path)
@@ -258,6 +278,7 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     quality_payload = json.loads(quality_artifact.read_text(encoding="utf-8"))
     assert quality_payload["cycle_id"] == "cid-ledger"
     assert quality_payload["council_ledger_path"] == artifact_path
+    assert quality_payload["relational_episode_path"] == relational_episode_artifact_path
     assert quality_payload["quality_score"] == output["council_cel_sync"]["quality_score"]
     assert quality_payload["relation_adjusted_quality_score"] <= quality_payload["quality_score"]
     assert quality_payload["relational_field"]["tension_score"] == 0.78

@@ -906,6 +906,7 @@ class ResonanceAgent:
             )
         self._council_ledger_dir = Path("artifacts/council-ledger")
         self._council_quality_dir = Path("artifacts/council-quality")
+        self._relational_episode_dir = Path("artifacts/relational-episodes")
 
         # Alignment digest metrics (advisory/observability only)
         self._digest_metrics = (
@@ -3080,11 +3081,18 @@ class ResonanceAgent:
             council_ledger
         )
         council_cel_sync = self._sync_council_ledger_to_cel(council_ledger)
+        relational_episode_artifact = self._write_relational_episode_artifact(
+            council_ledger,
+            item=item,
+            council_ledger_artifact=council_ledger_artifact,
+            council_cel_sync=council_cel_sync,
+        )
         council_quality_artifact = self._write_council_quality_artifact(
             council_ledger,
             council_ledger_artifact=council_ledger_artifact,
             council_cel_sync=council_cel_sync,
             item=item,
+            relational_episode_artifact=relational_episode_artifact,
         )
 
         return {
@@ -3175,6 +3183,7 @@ class ResonanceAgent:
                 council_ledger.to_dict() if council_ledger is not None else None
             ),
             "council_contribution_ledger_artifact": council_ledger_artifact,
+            "relational_episode_artifact": relational_episode_artifact,
             "council_cel_sync": council_cel_sync,
             "council_quality_artifact": council_quality_artifact,
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
@@ -3488,6 +3497,7 @@ class ResonanceAgent:
         council_ledger_artifact: str | None,
         council_cel_sync: dict[str, Any] | None,
         item: dict[str, Any] | None = None,
+        relational_episode_artifact: str | None = None,
     ) -> dict[str, Any] | None:
         if ledger is None:
             return None
@@ -3512,6 +3522,7 @@ class ResonanceAgent:
             "task_id": str(getattr(ledger, "task_id", "") or ""),
             "timestamp": str(getattr(ledger, "timestamp", "") or ""),
             "council_ledger_path": council_ledger_artifact,
+            "relational_episode_path": relational_episode_artifact,
             "quality_score": quality_score,
             "relation_adjusted_quality_score": relation_adjusted_quality_score,
             "council_outcome": {
@@ -3571,12 +3582,14 @@ class ResonanceAgent:
         council_ledger_artifact: str | None,
         council_cel_sync: dict[str, Any] | None,
         item: dict[str, Any] | None = None,
+        relational_episode_artifact: str | None = None,
     ) -> str | None:
         payload = self._build_council_quality_artifact_payload(
             ledger,
             council_ledger_artifact=council_ledger_artifact,
             council_cel_sync=council_cel_sync,
             item=item,
+            relational_episode_artifact=relational_episode_artifact,
         )
         if payload is None:
             return None
@@ -3590,6 +3603,91 @@ class ResonanceAgent:
             return str(path)
         except Exception as exc:
             logger.debug("ResonanceAgent: council quality artifact write failed: %s", exc)
+            return None
+
+    def _build_relational_episode_artifact_payload(
+        self,
+        ledger,
+        *,
+        item: dict[str, Any] | None = None,
+        council_ledger_artifact: str | None = None,
+        council_cel_sync: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        if ledger is None:
+            return None
+        outcome = getattr(ledger, "outcome", None)
+        attribution = getattr(ledger, "attribution", None)
+        final_decision = getattr(ledger, "final_decision", None)
+        relational = (item or {}).get("_relational_field")
+        if not isinstance(relational, dict) or not relational:
+            return None
+        quality_score = None
+        if council_cel_sync is not None:
+            quality_score = council_cel_sync.get("quality_score")
+        if quality_score is None:
+            quality_score = self._quality_score_fallback_from_ledger(ledger)
+        relational_summary = self._build_relational_quality_summary(relational)
+        risk_summary = self._build_relation_risk_summary(relational_summary)
+        relation_adjusted_quality_score = quality_score
+        if quality_score is not None and relational_summary is not None:
+            relation_adjusted_quality_score = round(
+                (0.75 * float(quality_score)) + (0.25 * float(relational_summary["relation_safety_score"])),
+                4,
+            )
+        return {
+            "cycle_id": str(getattr(ledger, "cycle_id", "") or ""),
+            "task_id": str(getattr(ledger, "task_id", "") or ""),
+            "timestamp": str(getattr(ledger, "timestamp", "") or ""),
+            "council_ledger_path": council_ledger_artifact,
+            "selected_route": (
+                str(getattr(final_decision, "selected_route", "unknown") or "unknown")
+                if final_decision is not None
+                else "unknown"
+            ),
+            "quality_score": quality_score,
+            "relation_adjusted_quality_score": relation_adjusted_quality_score,
+            "best_contributor_model_id": (
+                str(getattr(attribution, "best_contributor_model_id", "n/a") or "n/a")
+                if attribution is not None
+                else "n/a"
+            ),
+            "receiver_resonance_score": (
+                float(getattr(outcome, "receiver_resonance_score", 0.0) or 0.0)
+                if outcome is not None
+                else 0.0
+            ),
+            "success": bool(getattr(outcome, "success", False)) if outcome is not None else False,
+            "relational_field": relational,
+            "relational_summary": relational_summary,
+            "operator_guidance": risk_summary,
+        }
+
+    def _write_relational_episode_artifact(
+        self,
+        ledger,
+        *,
+        item: dict[str, Any] | None = None,
+        council_ledger_artifact: str | None = None,
+        council_cel_sync: dict[str, Any] | None = None,
+    ) -> str | None:
+        payload = self._build_relational_episode_artifact_payload(
+            ledger,
+            item=item,
+            council_ledger_artifact=council_ledger_artifact,
+            council_cel_sync=council_cel_sync,
+        )
+        if payload is None:
+            return None
+        try:
+            self._relational_episode_dir.mkdir(parents=True, exist_ok=True)
+            path = self._relational_episode_dir / f"{payload['cycle_id']}.json"
+            path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            return str(path)
+        except Exception as exc:
+            logger.debug("ResonanceAgent: relational episode artifact write failed: %s", exc)
             return None
 
     def _build_relational_quality_summary(self, relational: Any) -> dict[str, Any] | None:

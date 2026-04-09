@@ -24,6 +24,7 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
             {
                 "cycle_id": "cycle-001",
                 "task_id": "task-001",
+                "relational_episode_path": str(tmp_path / "relational-episodes" / "cycle-001.json"),
                 "quality_score": 0.84,
                 "relation_adjusted_quality_score": 0.71,
                 "council_outcome": {
@@ -36,6 +37,9 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                     "relation_safety_score": 0.48,
                     "recommended_mode": "validate_before_solve",
                     "dominant_signal": "tension",
+                    "background_pressure": "handoff pressure",
+                    "foreground_expression": "mixed signals",
+                    "notes": ["Pause before approval"],
                 },
                 "operator_guidance": {
                     "risk_state": "watch",
@@ -68,12 +72,16 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
 
     assert status == 200
     assert payload["cycle_id"] == "cycle-001"
+    assert payload["relational_episode_path"].endswith("cycle-001.json")
     assert payload["quality_score"] == 0.84
     assert payload["relation_adjusted_quality_score"] == 0.71
     assert payload["selected_route"] == "route-a"
     assert payload["best_contributor_model_id"] == "local-qwen"
     assert payload["relation_safety_score"] == 0.48
     assert payload["recommended_mode"] == "validate_before_solve"
+    assert payload["background_pressure"] == "handoff pressure"
+    assert payload["foreground_expression"] == "mixed signals"
+    assert payload["relational_notes"] == ["Pause before approval"]
     assert payload["risk_state"] == "watch"
     assert payload["suggested_operator_action"] == "Validate intent before approval."
     assert payload["liminalqa_published"] is True
