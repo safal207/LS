@@ -21,6 +21,28 @@ Live site: [GitHub Pages](https://safal207.github.io/LS/)
 
 ---
 
+## Consensus Integrity
+
+LS does not treat repeated text as proof of agreement. The validation and governance
+layers distinguish between:
+
+- real convergence and echo-chamber repetition,
+- broad support and direct contradiction,
+- a base validator winner and a governed winner under review,
+- trusted quorum and trusted veto.
+
+This matters because multi-model agreement is easy to fake. Several agents can
+repeat the same weak answer and create the appearance of consensus. LS records
+that structure explicitly, flags coalition risk, preserves support and
+contradiction edges, and marks rounds that require review instead of calling
+them settled consensus.
+
+See:
+- [`docs/collective-answer-validator.md`](docs/collective-answer-validator.md)
+- [`docs/lifetra-validation-adapter.md`](docs/lifetra-validation-adapter.md)
+
+---
+
 ## What it actually does
 
 Most AI agents answer and forget. LS **lives between answers**:
@@ -397,6 +419,28 @@ pytest python/tests/test_memory_store_locking.py
 ---
 
 <a name="russian"></a>
+
+## Целостность согласования
+
+LS не считает повторяющийся текст доказательством согласия. Слои validation и
+governance различают:
+
+- настоящее схождение и echo chamber,
+- широкую поддержку и прямое противоречие,
+- базового победителя валидатора и governed winner, требующего ревью,
+- trusted quorum и trusted veto.
+
+Это важно, потому что многомодельное "согласие" легко подделать. Несколько
+агентов могут повторить один и тот же слабый ответ и создать видимость
+консенсуса. LS явно фиксирует эту структуру, поднимает coalition risk,
+сохраняет support/contradiction edges и помечает раунды, которые нельзя считать
+settled consensus без дополнительного review.
+
+См.:
+- [`docs/collective-answer-validator.md`](docs/collective-answer-validator.md)
+- [`docs/lifetra-validation-adapter.md`](docs/lifetra-validation-adapter.md)
+
+---
 
 # LS — Локальная когнитивная система
 
