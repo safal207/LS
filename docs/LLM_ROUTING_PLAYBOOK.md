@@ -5,6 +5,7 @@ This project now supports a practical routing policy inspired by modern AI gatew
 - Intent-aware backend ranking (`realtime`, `batch`, `streaming`).
 - Policy presets (`balanced`, `latency_optimized`, `cost_optimized`).
 - Health-aware fallback ordering via per-backend telemetry.
+- Built-in circuit breaker demotion (consecutive failures + cooldown).
 - Explainability in response payload under `raw.route.explain`.
 
 ## 1) Request metadata contract
@@ -13,7 +14,7 @@ Pass routing metadata to the router:
 
 ```python
 metadata = {
-  "intent": "realtime",  # realtime | batch | streaming
+  "intent": "realtime",  # optional; inferred from user message if omitted
   "policy": "latency_optimized",  # balanced | latency_optimized | cost_optimized
   "backend_health": {
     "cloud": {"latency_ms": 400, "error_rate": 0.02, "load": 0.55, "cost": 0.8},
@@ -23,6 +24,9 @@ metadata = {
     "error_rate": 0.10,
     "latency_ms": 8000,
   },
+  "breaker_failure_threshold": 3,
+  "breaker_cooldown_seconds": 30,
+  "pin_primary": False,  # set True to keep configured primary always first
 }
 ```
 
@@ -40,7 +44,8 @@ penalty = w_latency*latency_norm + w_error*error_norm + w_load*load_norm + w_cos
 - `intent_fit`: backend suitability for the current intent.
 - `penalty`: health and efficiency penalty according to selected policy.
 - unhealthy backends are demoted when they exceed thresholds.
-- primary backend remains first in route order for deterministic behavior.
+- breaker-open backends are demoted until cooldown expires.
+- primary can be pinned with `pin_primary=True` when deterministic order is required.
 
 ## 3) Explainability payload
 
@@ -56,6 +61,7 @@ Shape:
 - `base_route` and `effective`
 - `scores[]` (per backend: `intent_fit`, `penalty`, `score`, `unhealthy`, stats)
 - `health_thresholds`
+- `breaker` config + per-backend circuit telemetry in each score row
 
 Use this for dashboards and incident triage.
 
@@ -72,5 +78,5 @@ Use this for dashboards and incident triage.
 - Fallback triggers when primary fails.
 - Intent can reorder fallback candidates.
 - Unhealthy backend is demoted in effective route.
+- Circuit breaker opens after N consecutive failures and demotes that backend.
 - Explain payload is present in `raw.route.explain`.
-

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from config import (
@@ -47,6 +49,20 @@ def _parse_route(value: Optional[str]) -> list[str]:
     return [segment for segment in parts if segment]
 
 
+@dataclass
+class BackendCircuitState:
+    consecutive_failures: int = 0
+    opened_until: Optional[datetime] = None
+    total_success: int = 0
+    total_failures: int = 0
+
+    @property
+    def is_open(self) -> bool:
+        if not self.opened_until:
+            return False
+        return datetime.now(timezone.utc) < self.opened_until
+
+
 class LLMBackendRouter:
     _INTENT_CAPABILITY: dict[str, dict[str, float]] = {
         "realtime": {"local": 1.0, "cloud": 0.75, "gonka": 0.65, "mimo": 0.55, "meritocracy": 0.7},
@@ -60,6 +76,8 @@ class LLMBackendRouter:
     }
     _UNHEALTHY_ERROR_RATE = 0.10
     _UNHEALTHY_LATENCY_MS = 8000.0
+    _BREAKER_FAILURE_THRESHOLD = 3
+    _BREAKER_COOLDOWN_SECONDS = 30
 
     def __init__(self, primary: str, fallback_chain: list[str], backends: dict[str, object]) -> None:
         self.primary = primary
@@ -67,6 +85,7 @@ class LLMBackendRouter:
         self.backends = backends
         self.last_response: Optional[LLMResponse] = None
         self.last_explain: dict[str, Any] = {}
+        self._circuit: dict[str, BackendCircuitState] = {}
 
     @property
     def route(self) -> list[str]:
@@ -94,7 +113,7 @@ class LLMBackendRouter:
         errors: list[str] = []
         attempts: list[dict[str, object]] = []
         metadata = metadata or {}
-        explain = self._build_effective_route(metadata)
+        explain = self._build_effective_route(metadata, messages=messages)
         chain = list(explain["effective"])
         for index, backend_name in enumerate(chain):
             backend = self.backends[backend_name]
@@ -121,6 +140,7 @@ class LLMBackendRouter:
                     "fallback_to": response.fallback_to,
                 }
             )
+            self._record_circuit_outcome(backend_name, response.ok, metadata=metadata)
             if response.ok:
                 if index > 0:
                     response.was_fallback_used = True
@@ -163,7 +183,7 @@ class LLMBackendRouter:
         logger.warning("llm router failed route=%s error=%s", "->".join(chain), final.error)
         return final
 
-    def _build_effective_route(self, metadata: dict[str, Any]) -> dict[str, Any]:
+    def _build_effective_route(self, metadata: dict[str, Any], *, messages: Any = None) -> dict[str, Any]:
         base_chain = self.route
         if not base_chain:
             return {
@@ -176,15 +196,18 @@ class LLMBackendRouter:
 
         policy = str(metadata.get("routing_policy") or metadata.get("policy") or "balanced").strip().lower()
         weights = self._POLICY_WEIGHTS.get(policy, self._POLICY_WEIGHTS["balanced"])
-        intent = str(metadata.get("intent") or "general").strip().lower()
+        intent = self._resolve_intent(messages=messages, metadata=metadata)
         backend_health = metadata.get("backend_health") or {}
         health_thresholds = metadata.get("health_thresholds") or {}
         error_threshold = float(health_thresholds.get("error_rate", self._UNHEALTHY_ERROR_RATE))
         latency_threshold = float(health_thresholds.get("latency_ms", self._UNHEALTHY_LATENCY_MS))
+        breaker_threshold = int(metadata.get("breaker_failure_threshold") or self._BREAKER_FAILURE_THRESHOLD)
+        breaker_cooldown_seconds = int(metadata.get("breaker_cooldown_seconds") or self._BREAKER_COOLDOWN_SECONDS)
 
         scored: list[dict[str, Any]] = []
         for position, backend in enumerate(base_chain):
             stats = backend_health.get(backend, {})
+            state = self._circuit.setdefault(backend, BackendCircuitState())
             latency_norm = self._normalize_value(stats.get("latency_ms"), cap=5000.0)
             error_norm = self._normalize_value(stats.get("error_rate"), cap=1.0)
             load_norm = self._normalize_value(stats.get("load"), cap=1.0)
@@ -201,6 +224,7 @@ class LLMBackendRouter:
                 (stats.get("error_rate") is not None and float(stats["error_rate"]) >= error_threshold)
                 or (stats.get("latency_ms") is not None and float(stats["latency_ms"]) >= latency_threshold)
             )
+            breaker_open = state.is_open
             scored.append(
                 {
                     "backend": backend,
@@ -209,18 +233,26 @@ class LLMBackendRouter:
                     "penalty": round(penalty, 4),
                     "score": round(score, 4),
                     "unhealthy": unhealthy,
+                    "breaker_open": breaker_open,
                     "stats": {
                         "latency_ms": stats.get("latency_ms"),
                         "error_rate": stats.get("error_rate"),
                         "load": stats.get("load"),
                         "cost": stats.get("cost"),
                     },
+                    "circuit": {
+                        "consecutive_failures": state.consecutive_failures,
+                        "opened_until": state.opened_until.isoformat() if state.opened_until else None,
+                        "total_success": state.total_success,
+                        "total_failures": state.total_failures,
+                    },
                 }
             )
 
-        scored.sort(key=lambda row: (row["unhealthy"], -row["score"], row["position"]))
+        scored.sort(key=lambda row: (row["breaker_open"], row["unhealthy"], -row["score"], row["position"]))
         effective = [row["backend"] for row in scored]
-        if self.primary in effective:
+        pin_primary = bool(metadata.get("pin_primary", False))
+        if pin_primary and self.primary in effective:
             primary_index = effective.index(self.primary)
             effective.insert(0, effective.pop(primary_index))
 
@@ -231,6 +263,8 @@ class LLMBackendRouter:
             "effective": effective,
             "scores": scored,
             "health_thresholds": {"error_rate": error_threshold, "latency_ms": latency_threshold},
+            "breaker": {"failure_threshold": breaker_threshold, "cooldown_seconds": breaker_cooldown_seconds},
+            "pin_primary": pin_primary,
         }
 
     @classmethod
@@ -253,6 +287,43 @@ class LLMBackendRouter:
         if not profile:
             return 0.7
         return profile.get(backend, 0.5)
+
+    @classmethod
+    def _resolve_intent(cls, *, messages: Any, metadata: dict[str, Any]) -> str:
+        explicit = str(metadata.get("intent") or "").strip().lower()
+        if explicit:
+            return explicit
+
+        text = ""
+        if isinstance(messages, str):
+            text = messages.lower()
+        elif isinstance(messages, list):
+            for msg in reversed(messages):
+                if isinstance(msg, dict) and str(msg.get("role", "")).lower() == "user":
+                    text = str(msg.get("content", "")).lower()
+                    break
+        if any(token in text for token in ("stream", "sse", "websocket", "realtime audio")):
+            return "streaming"
+        if any(token in text for token in ("fast", "urgent", "asap", "quick", "now")):
+            return "realtime"
+        if any(token in text for token in ("batch", "offline", "bulk", "async")):
+            return "batch"
+        return "general"
+
+    def _record_circuit_outcome(self, backend: str, ok: bool, *, metadata: dict[str, Any]) -> None:
+        state = self._circuit.setdefault(backend, BackendCircuitState())
+        threshold = int(metadata.get("breaker_failure_threshold") or self._BREAKER_FAILURE_THRESHOLD)
+        cooldown_seconds = int(metadata.get("breaker_cooldown_seconds") or self._BREAKER_COOLDOWN_SECONDS)
+        if ok:
+            state.total_success += 1
+            state.consecutive_failures = 0
+            state.opened_until = None
+            return
+
+        state.total_failures += 1
+        state.consecutive_failures += 1
+        if state.consecutive_failures >= threshold:
+            state.opened_until = datetime.now(timezone.utc) + timedelta(seconds=cooldown_seconds)
 
 
 def build_llm_backend(

@@ -165,9 +165,8 @@ def test_router_intent_reorders_fallbacks_by_health_and_policy():
     explain = result.raw["route"]["explain"]
     assert explain["policy"] == "latency_optimized"
     assert explain["intent"] == "realtime"
-    assert explain["effective"][0] == "gonka"
-    # local becomes the first fallback candidate due to better realtime score.
-    assert explain["effective"][1:] == ["local", "cloud"]
+    # local can become the first candidate when it has a better realtime score.
+    assert explain["effective"] == ["local", "gonka", "cloud"]
 
 
 def test_router_marks_unhealthy_fallback():
@@ -206,3 +205,57 @@ def test_router_marks_unhealthy_fallback():
     assert score_map["local"]["unhealthy"] is False
     assert explain["effective"][1] == "local"
     assert result.provider == "local"
+
+
+def test_router_infers_intent_from_message_when_missing_metadata():
+    primary = _FakeBackend(
+        "cloud",
+        LLMResponse(text="ok", model="groq", provider="cloud", latency_ms=10.0),
+    )
+    local = _FakeBackend(
+        "local",
+        LLMResponse(text="ok2", model="qwen-local", provider="local", latency_ms=4.0),
+    )
+    router = LLMBackendRouter(
+        primary="cloud",
+        fallback_chain=["local"],
+        backends={"cloud": primary, "local": local},
+    )
+
+    result = router.generate(messages=[{"role": "user", "content": "Need this fast please"}])
+
+    assert result.raw is not None
+    assert result.raw["route"]["explain"]["intent"] == "realtime"
+
+
+def test_router_circuit_breaker_demotion_after_consecutive_failures():
+    failing = _FakeBackend(
+        "gonka",
+        LLMResponse(text="", model="gonka-x", provider="gonka", latency_ms=10.0, error="boom"),
+    )
+    healthy = _FakeBackend(
+        "local",
+        LLMResponse(text="ok", model="qwen-local", provider="local", latency_ms=6.0),
+    )
+    router = LLMBackendRouter(
+        primary="gonka",
+        fallback_chain=["local"],
+        backends={"gonka": failing, "local": healthy},
+    )
+
+    for _ in range(3):
+        router.generate(
+            messages=[{"role": "user", "content": "test"}],
+            metadata={"breaker_failure_threshold": 3, "breaker_cooldown_seconds": 120},
+        )
+
+    final = router.generate(
+        messages=[{"role": "user", "content": "test"}],
+        metadata={"breaker_failure_threshold": 3, "breaker_cooldown_seconds": 120},
+    )
+
+    explain = final.raw["route"]["explain"]
+    score_map = {row["backend"]: row for row in explain["scores"]}
+    assert score_map["gonka"]["breaker_open"] is True
+    assert explain["effective"][0] == "local"
+    assert final.provider == "local"
