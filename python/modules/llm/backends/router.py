@@ -137,7 +137,7 @@ class LLMBackendRouter:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 timeout=timeout,
-                metadata=metadata,
+                metadata=effective_metadata,
                 stream=stream,
                 on_token=on_token,
             )
@@ -295,6 +295,9 @@ class LLMBackendRouter:
         return {
             "intent": intent,
             "policy": policy if policy in self._POLICY_WEIGHTS else "balanced",
+            "routing_mode": str(metadata.get("routing_mode") or "primary").strip().lower(),
+            "ab_variant_selected": bool(metadata.get("ab_variant_selected", False)),
+            "ab_variant_ratio": metadata.get("ab_variant_ratio"),
             "base_route": base_chain,
             "effective": effective,
             "scores": scored,

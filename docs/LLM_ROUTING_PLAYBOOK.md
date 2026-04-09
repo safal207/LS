@@ -64,6 +64,7 @@ response.raw["route"]["explain"]
 Shape:
 
 - `intent`, `policy`
+- `routing_mode`, `ab_variant_selected`, `ab_variant_ratio`
 - `base_route` and `effective`
 - `scores[]` (per backend: `intent_fit`, `penalty`, `score`, `unhealthy`, stats)
 - `health_thresholds`

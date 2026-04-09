@@ -21,8 +21,10 @@ class _FakeBackend:
         self.provider = provider
         self.model = response.model
         self._response = response
+        self.last_kwargs = {}
 
     def generate(self, *args, **kwargs):
+        self.last_kwargs = kwargs
         return self._response
 
 
@@ -345,3 +347,33 @@ def test_router_runtime_override_applies_when_request_policy_missing():
 
     assert explain["policy"] == "cost_optimized"
     assert explain["runtime_overrides"]["policy"] == "cost_optimized"
+
+
+def test_router_passes_effective_metadata_to_backend():
+    cloud = _FakeBackend(
+        "cloud",
+        LLMResponse(text="cloud", model="groq", provider="cloud", latency_ms=8.0),
+    )
+    local = _FakeBackend(
+        "local",
+        LLMResponse(text="local", model="qwen-local", provider="local", latency_ms=8.0),
+    )
+    router = LLMBackendRouter(
+        primary="cloud",
+        fallback_chain=["local"],
+        backends={"cloud": cloud, "local": local},
+    )
+
+    router.generate(
+        messages=[{"role": "user", "content": "test"}],
+        metadata={
+            "routing_mode": "ab",
+            "request_id": "req-meta",
+            "ab_variant_ratio": 1.0,
+            "ab_variant_policy": "cost_optimized",
+        },
+    )
+
+    backend_metadata = cloud.last_kwargs["metadata"]
+    assert backend_metadata["policy"] == "cost_optimized"
+    assert backend_metadata["ab_variant_selected"] is True
