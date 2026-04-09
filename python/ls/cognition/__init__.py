@@ -42,6 +42,11 @@ from ls.cognition.lifetra_validation_adapter import (
     ValidationTraceArtifact,
     ValidationTraceBackend,
 )
+from ls.cognition.ltp_trace_signer import (
+    generate_key_pair,
+    sign_trace_artifact,
+    verify_trace_artifact,
+)
 from ls.cognition.validation_governance import (
     AgentReputationProfile,
     CoalitionAlert,
@@ -116,4 +121,7 @@ __all__ = [
     "DistributedConsensusSnapshot",
     "ValidationGovernanceReport",
     "ValidationGovernanceEngine",
+    "generate_key_pair",
+    "sign_trace_artifact",
+    "verify_trace_artifact",
 ]
