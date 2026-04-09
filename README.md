@@ -9,6 +9,7 @@
 # LS — Local Cognitive System
 
 [![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
+[![Council Safety Gate](https://github.com/safal207/LS/actions/workflows/council_safety.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/council_safety.yml)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
 [![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](LICENSE)
@@ -192,6 +193,7 @@ The safety-relevant parts of this repository are:
 - replayable traces and inspection via `LTP`
 - human approval and artifact review flows in the CLI
 - quality gates, quality reports, and `LiminalQA` integration for evaluable runs
+- `Council Safety Gate` in GitHub Actions for risk-aware council review and incident-oriented CI checks
 
 If you are reading this repository from an AI safety, alignment, oversight, or program-application angle, start here:
 
