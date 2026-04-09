@@ -89,10 +89,11 @@ On top of the base validator and Lifetra trace layer, LS now includes a
 deterministic governance overlay that adds:
 
 - semantic paraphrase clustering without embeddings, using token and shingle similarity
-- history-aware advisory score correction based on past rounds
-- agent reputation memory across rounds
-- quorum-style distributed consensus snapshots
+- history-aware advisory score correction based on past rounds with recency decay
+- agent reputation memory across rounds with trust tiers
+- quorum-style distributed consensus snapshots with trusted veto detection
 - repeated coalition and corruption-risk alerts across history
+- escalation recommendations and review-required signals when the governance layer detects unsafe divergence
 
 This layer is advisory by design. It does not silently rewrite the base
 validator's `winner_agent_id`. Instead it produces a governance report with:
@@ -103,6 +104,8 @@ validator's `winner_agent_id`. Instead it produces a governance report with:
 - reputation profiles,
 - coalition alerts,
 - and distributed consensus status.
+- escalation recommendations,
+- and a `review_required` signal when the round should not be treated as settled consensus.
 
 ## Consensus Failure Modes and How LS Resists Them
 

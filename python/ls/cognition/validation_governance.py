@@ -142,12 +142,14 @@ class ParaphraseCluster:
 class AgentReputationProfile:
     agent_id: str
     rounds_seen: int
+    weighted_rounds_seen: float
     accepted_count: int
     winner_count: int
     conflict_count: int
     echo_count: int
     coalition_alert_count: int
     reputation_score: float
+    trust_tier: str
 
 
 @dataclass(frozen=True)
@@ -168,6 +170,7 @@ class CoalitionAlert:
     coalition_id: str
     agent_ids: list[str]
     alert_kind: str
+    severity: str
     confidence: float
     evidence_count: int
     reason: str
@@ -178,6 +181,9 @@ class DistributedConsensusSnapshot:
     quorum_size: int
     trusted_support_count: int
     trusted_support_agent_ids: list[str]
+    trusted_contradiction_count: int
+    trusted_contradiction_agent_ids: list[str]
+    veto_present: bool
     quorum_reached: bool
     status: str
     governed_winner_agent_id: str | None
@@ -194,6 +200,8 @@ class ValidationGovernanceReport:
     distributed_consensus: DistributedConsensusSnapshot
     governed_winner_agent_id: str | None
     governance_flags: list[str]
+    escalation_recommendations: list[str]
+    review_required: bool
 
 
 class ValidationGovernanceEngine:
@@ -205,12 +213,14 @@ class ValidationGovernanceEngine:
         coalition_repeat_threshold: int = 3,
         quorum_size: int = 2,
         trusted_reputation_threshold: float = 0.52,
+        history_decay: float = 0.82,
     ) -> None:
         self._history_store = history_store or InMemoryValidationHistoryStore()
         self._paraphrase_threshold = paraphrase_threshold
         self._coalition_repeat_threshold = coalition_repeat_threshold
         self._quorum_size = quorum_size
         self._trusted_reputation_threshold = trusted_reputation_threshold
+        self._history_decay = history_decay
 
     def build_governance_report(
         self,
@@ -249,6 +259,17 @@ class ValidationGovernanceEngine:
             profiles_by_agent=profiles_by_agent,
             governed_winner_agent_id=governed_winner_agent_id,
         )
+        escalation_recommendations = self._build_escalation_recommendations(
+            result=result,
+            coalition_alerts=coalition_alerts,
+            distributed_consensus=distributed_consensus,
+            governed_winner_agent_id=governed_winner_agent_id,
+        )
+        review_required = bool(
+            escalation_recommendations
+            or "governed_winner_differs_from_base" in governance_flags
+            or "trusted_veto_present" in governance_flags
+        )
 
         report = ValidationGovernanceReport(
             backend="deterministic_governance_v1",
@@ -263,6 +284,8 @@ class ValidationGovernanceEngine:
             distributed_consensus=distributed_consensus,
             governed_winner_agent_id=governed_winner_agent_id,
             governance_flags=governance_flags,
+            escalation_recommendations=escalation_recommendations,
+            review_required=review_required,
         )
         self._history_store.append_record(
             self._to_history_record(
@@ -278,7 +301,8 @@ class ValidationGovernanceEngine:
         history: list[ValidationHistoryRecord],
     ) -> dict[str, AgentReputationProfile]:
         stats: dict[str, dict[str, float]] = {}
-        for record in history:
+        for offset, record in enumerate(reversed(history)):
+            weight = self._history_decay**offset
             paraphrase_agents = {
                 agent_id
                 for cluster in record.paraphrase_clusters
@@ -291,6 +315,7 @@ class ValidationGovernanceEngine:
                     candidate.agent_id,
                     {
                         "rounds_seen": 0.0,
+                        "weighted_rounds_seen": 0.0,
                         "accepted_count": 0.0,
                         "winner_count": 0.0,
                         "conflict_count": 0.0,
@@ -299,39 +324,54 @@ class ValidationGovernanceEngine:
                     },
                 )
                 bucket["rounds_seen"] += 1.0
-                bucket["accepted_count"] += 1.0 if candidate.accepted else 0.0
-                bucket["winner_count"] += 1.0 if record.winner_agent_id == candidate.agent_id else 0.0
-                bucket["conflict_count"] += 1.0 if "conflict_between_top_candidates" in record.global_risk_flags else 0.0
-                bucket["echo_count"] += 1.0 if candidate.agent_id in paraphrase_agents else 0.0
-                bucket["coalition_alert_count"] += 1.0 if candidate.agent_id in coalition_agents else 0.0
+                bucket["weighted_rounds_seen"] += weight
+                bucket["accepted_count"] += weight if candidate.accepted else 0.0
+                bucket["winner_count"] += weight if record.winner_agent_id == candidate.agent_id else 0.0
+                bucket["conflict_count"] += weight if "conflict_between_top_candidates" in record.global_risk_flags else 0.0
+                bucket["echo_count"] += weight if candidate.agent_id in paraphrase_agents else 0.0
+                bucket["coalition_alert_count"] += weight if candidate.agent_id in coalition_agents else 0.0
 
         profiles: dict[str, AgentReputationProfile] = {}
         for agent_id, bucket in stats.items():
             rounds_seen = int(bucket["rounds_seen"])
-            accepted_rate = bucket["accepted_count"] / rounds_seen
-            winner_rate = bucket["winner_count"] / rounds_seen
-            conflict_rate = bucket["conflict_count"] / rounds_seen
-            echo_rate = bucket["echo_count"] / rounds_seen
-            coalition_rate = bucket["coalition_alert_count"] / rounds_seen
+            weighted_rounds_seen = max(bucket["weighted_rounds_seen"], 1e-6)
+            accepted_rate = bucket["accepted_count"] / weighted_rounds_seen
+            winner_rate = bucket["winner_count"] / weighted_rounds_seen
+            conflict_rate = bucket["conflict_count"] / weighted_rounds_seen
+            echo_rate = bucket["echo_count"] / weighted_rounds_seen
+            coalition_rate = bucket["coalition_alert_count"] / weighted_rounds_seen
             reputation_score = _clamp(
                 0.5
-                + (0.25 * accepted_rate)
-                + (0.15 * winner_rate)
-                - (0.15 * conflict_rate)
+                + (0.30 * accepted_rate)
+                + (0.18 * winner_rate)
+                - (0.18 * conflict_rate)
                 - (0.15 * echo_rate)
-                - (0.20 * coalition_rate)
+                - (0.24 * coalition_rate)
             )
+            trust_tier = self._trust_tier(reputation_score)
             profiles[agent_id] = AgentReputationProfile(
                 agent_id=agent_id,
                 rounds_seen=rounds_seen,
+                weighted_rounds_seen=round(weighted_rounds_seen, 4),
                 accepted_count=int(bucket["accepted_count"]),
                 winner_count=int(bucket["winner_count"]),
                 conflict_count=int(bucket["conflict_count"]),
                 echo_count=int(bucket["echo_count"]),
                 coalition_alert_count=int(bucket["coalition_alert_count"]),
                 reputation_score=round(reputation_score, 4),
+                trust_tier=trust_tier,
             )
         return profiles
+
+    @staticmethod
+    def _trust_tier(reputation_score: float) -> str:
+        if reputation_score >= 0.75:
+            return "trusted"
+        if reputation_score >= 0.58:
+            return "watch"
+        if reputation_score >= 0.42:
+            return "probing"
+        return "untrusted"
 
     def _detect_paraphrase_clusters(
         self,
@@ -447,11 +487,17 @@ class ValidationGovernanceEngine:
                 kind = "corruption_risk"
                 reason = f"Repeated alignment plus outsider contradiction detected for pair={pair!r}"
                 confidence = _clamp(confidence + 0.1)
+            severity = "medium"
+            if confidence >= 0.8 or kind == "corruption_risk":
+                severity = "high"
+            elif confidence < 0.6:
+                severity = "low"
             alerts.append(
                 CoalitionAlert(
                     coalition_id=f"coalition:{pair[0]}::{pair[1]}",
                     agent_ids=list(pair),
                     alert_kind=kind,
+                    severity=severity,
                     confidence=round(confidence, 4),
                     evidence_count=evidence_count,
                     reason=reason,
@@ -485,10 +531,16 @@ class ValidationGovernanceEngine:
             reputation_adjustment = 0.0
             reasons: list[str] = []
             if profile is not None:
-                reputation_adjustment = round((profile.reputation_score - 0.5) * 0.12, 4)
+                tier_bonus = {
+                    "trusted": 0.02,
+                    "watch": 0.0,
+                    "probing": -0.01,
+                    "untrusted": -0.03,
+                }[profile.trust_tier]
+                reputation_adjustment = round(((profile.reputation_score - 0.5) * 0.14) + tier_bonus, 4)
                 if not math.isclose(reputation_adjustment, 0.0):
                     reasons.append(
-                        f"reputation={profile.reputation_score:.3f} adjustment={reputation_adjustment:+.3f}"
+                        f"reputation={profile.reputation_score:.3f} tier={profile.trust_tier} adjustment={reputation_adjustment:+.3f}"
                     )
 
             paraphrase_adjustment = 0.0
@@ -502,8 +554,11 @@ class ValidationGovernanceEngine:
             coalition_adjustment = 0.0
             alert = coalition_map.get(candidate.agent_id)
             if alert is not None:
-                coalition_adjustment = round(-0.08 * alert.confidence, 4)
-                reasons.append(f"coalition_alert={alert.alert_kind} confidence={alert.confidence:.3f}")
+                severity_multiplier = {"low": 0.8, "medium": 1.0, "high": 1.25}[alert.severity]
+                coalition_adjustment = round(-0.08 * alert.confidence * severity_multiplier, 4)
+                reasons.append(
+                    f"coalition_alert={alert.alert_kind} severity={alert.severity} confidence={alert.confidence:.3f}"
+                )
 
             risk_adjustment = 0.0
             if "conflict_between_top_candidates" in result.global_risk_flags and candidate.accepted:
@@ -550,6 +605,9 @@ class ValidationGovernanceEngine:
                 quorum_size=self._quorum_size,
                 trusted_support_count=0,
                 trusted_support_agent_ids=[],
+                trusted_contradiction_count=0,
+                trusted_contradiction_agent_ids=[],
+                veto_present=False,
                 quorum_reached=False,
                 status="rejected",
                 governed_winner_agent_id=None,
@@ -557,6 +615,12 @@ class ValidationGovernanceEngine:
 
         adjusted_by_agent = {candidate.agent_id: candidate for candidate in adjusted_candidates}
         trusted_support_agent_ids: list[str] = []
+        trusted_contradiction_agent_ids: list[str] = []
+        veto_targets = {
+            target
+            for target in (governed_winner_agent_id, result.winner_agent_id)
+            if target is not None
+        }
         for candidate in payload.candidates:
             if candidate.agent_id not in adjusted_by_agent:
                 continue
@@ -564,24 +628,35 @@ class ValidationGovernanceEngine:
             reputation_score = profile.reputation_score if profile is not None else 0.5
             adjusted_score = adjusted_by_agent[candidate.agent_id].adjusted_score
             supports_winner = governed_winner_agent_id in candidate.supports
+            contradicts_winner = any(
+                veto_target in candidate.contradicts for veto_target in veto_targets
+            )
             is_winner = candidate.agent_id == governed_winner_agent_id
             if adjusted_score < 0.45 or reputation_score < self._trusted_reputation_threshold:
                 continue
             if is_winner or supports_winner:
                 trusted_support_agent_ids.append(candidate.agent_id)
+            if contradicts_winner:
+                trusted_contradiction_agent_ids.append(candidate.agent_id)
 
-        conflict_present = any(
+        veto_present = bool(trusted_contradiction_agent_ids)
+        conflict_present = veto_present or any(
             candidate.agent_id == governed_winner_agent_id and candidate.contradicts
             for candidate in payload.candidates
         )
-        quorum_reached = len(trusted_support_agent_ids) >= self._quorum_size and not conflict_present
+        quorum_reached = len(trusted_support_agent_ids) >= self._quorum_size and not veto_present
         status = "quorum" if quorum_reached else "weak_quorum"
-        if conflict_present:
+        if veto_present:
+            status = "vetoed"
+        elif conflict_present:
             status = "conflicted_quorum"
         return DistributedConsensusSnapshot(
             quorum_size=self._quorum_size,
             trusted_support_count=len(trusted_support_agent_ids),
             trusted_support_agent_ids=sorted(trusted_support_agent_ids),
+            trusted_contradiction_count=len(trusted_contradiction_agent_ids),
+            trusted_contradiction_agent_ids=sorted(trusted_contradiction_agent_ids),
+            veto_present=veto_present,
             quorum_reached=quorum_reached,
             status=status,
             governed_winner_agent_id=governed_winner_agent_id,
@@ -604,11 +679,42 @@ class ValidationGovernanceEngine:
             flags.append("coalition_risk_detected")
         if not distributed_consensus.quorum_reached:
             flags.append("distributed_quorum_missing")
+        if distributed_consensus.veto_present:
+            flags.append("trusted_veto_present")
         if governed_winner_agent_id is not None:
             profile = profiles_by_agent.get(governed_winner_agent_id)
             if profile is not None and profile.reputation_score < self._trusted_reputation_threshold:
                 flags.append("low_trust_governed_winner")
+        if governed_winner_agent_id != result.winner_agent_id:
+            flags.append("governed_winner_differs_from_base")
         return sorted(dict.fromkeys(flags))
+
+    def _build_escalation_recommendations(
+        self,
+        *,
+        result: ValidationResult,
+        coalition_alerts: list[CoalitionAlert],
+        distributed_consensus: DistributedConsensusSnapshot,
+        governed_winner_agent_id: str | None,
+    ) -> list[str]:
+        recommendations: list[str] = []
+        if governed_winner_agent_id != result.winner_agent_id:
+            recommendations.append(
+                "Base validator winner and governed winner diverged; require operator review before finalizing."
+            )
+        if any(alert.alert_kind == "corruption_risk" or alert.severity == "high" for alert in coalition_alerts):
+            recommendations.append(
+                "High-risk coalition pattern detected; quarantine coalition output for human review."
+            )
+        if distributed_consensus.veto_present:
+            recommendations.append(
+                "Trusted contradiction veto is present; do not treat this round as settled consensus."
+            )
+        if not distributed_consensus.quorum_reached:
+            recommendations.append(
+                "Trusted quorum is missing; keep the outcome advisory until more independent support arrives."
+            )
+        return recommendations
 
     def _to_history_record(
         self,

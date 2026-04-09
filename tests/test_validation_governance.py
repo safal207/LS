@@ -45,6 +45,7 @@ def test_governance_detects_semantic_paraphrase_cluster() -> None:
     assert result.winner_agent_id == "agent-a"
     assert result.governance_report is not None
     assert "semantic_paraphrase_cluster" in result.governance_report.governance_flags
+    assert result.governance_report.review_required is True
     clusters = result.governance_report.paraphrase_clusters
     assert len(clusters) == 1
     assert clusters[0].agent_ids == ["agent-a", "agent-b"]
@@ -127,6 +128,9 @@ def test_governance_applies_history_aware_score_correction_without_changing_base
     }
     assert adjusted["trusted-agent"].adjusted_score > adjusted["risky-agent"].adjusted_score
     assert result.governance_report.governed_winner_agent_id == "trusted-agent"
+    assert "governed_winner_differs_from_base" in result.governance_report.governance_flags
+    assert result.governance_report.review_required is True
+    assert result.governance_report.escalation_recommendations
 
 
 def test_governance_persists_reputation_memory_across_rounds() -> None:
@@ -180,6 +184,7 @@ def test_governance_persists_reputation_memory_across_rounds() -> None:
     profiles = {profile.agent_id: profile for profile in result.governance_report.agent_profiles}
     assert profiles["agent-a"].rounds_seen >= 1
     assert profiles["agent-a"].reputation_score > profiles["agent-b"].reputation_score
+    assert profiles["agent-a"].trust_tier in {"watch", "trusted"}
 
 
 def test_governance_emits_quorum_snapshot_for_trusted_supporters() -> None:
@@ -243,6 +248,58 @@ def test_governance_emits_quorum_snapshot_for_trusted_supporters() -> None:
     assert snapshot.quorum_reached is True
     assert snapshot.status == "quorum"
     assert snapshot.trusted_support_agent_ids == ["agent-a", "agent-b"]
+    assert snapshot.veto_present is False
+
+
+def test_governance_emits_trusted_veto_when_strong_agent_contradicts_winner() -> None:
+    store = InMemoryValidationHistoryStore()
+    validator = _make_validator(store)
+
+    validator.validate(
+        ValidationInput(
+            task_prompt="Prime trust for reviewer.",
+            candidates=[
+                CandidateAnswer(
+                    agent_id="reviewer-agent",
+                    answer_text="Use a staged rollout with rollback checkpoints.",
+                    relevance=0.93,
+                    thread_relevance=0.88,
+                    hallucination_risk=0.05,
+                ),
+            ],
+        )
+    )
+
+    result = validator.validate(
+        ValidationInput(
+            task_prompt="Check whether instant rollout is safe.",
+            candidates=[
+                CandidateAnswer(
+                    agent_id="winner-agent",
+                    answer_text="Deploy immediately to all users.",
+                    relevance=0.85,
+                    thread_relevance=0.82,
+                    hallucination_risk=0.08,
+                ),
+                CandidateAnswer(
+                    agent_id="reviewer-agent",
+                    answer_text="Do not deploy immediately; require staged rollout and rollback checkpoints.",
+                    relevance=0.82,
+                    thread_relevance=0.80,
+                    hallucination_risk=0.06,
+                    contradicts=["winner-agent"],
+                ),
+            ],
+        )
+    )
+
+    assert result.governance_report is not None
+    snapshot = result.governance_report.distributed_consensus
+    assert snapshot.veto_present is True
+    assert snapshot.status == "vetoed"
+    assert snapshot.trusted_contradiction_agent_ids == ["reviewer-agent"]
+    assert "trusted_veto_present" in result.governance_report.governance_flags
+    assert result.governance_report.review_required is True
 
 
 def test_governance_detects_repeated_coalition_behavior_across_rounds() -> None:
@@ -305,4 +362,5 @@ def test_governance_detects_repeated_coalition_behavior_across_rounds() -> None:
     alerts = result.governance_report.coalition_alerts
     assert alerts
     assert alerts[0].agent_ids == ["agent-a", "agent-b"]
+    assert alerts[0].severity == "high"
     assert "coalition_risk_detected" in result.governance_report.governance_flags
