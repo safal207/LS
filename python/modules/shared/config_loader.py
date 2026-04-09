@@ -48,6 +48,7 @@ def _load_app_aliases() -> Dict[str, str]:
         "console": "console",
         "ghostgpt": "ghostgpt",
         "ghost_gui": "ghostgpt",
+        "interview_copilot": "ghostgpt",
         "operator_runtime": "ghostgpt",
     }
 
@@ -146,6 +147,7 @@ def load_config(app: str) -> Dict[str, Any]:
     root = _repo_root()
     cfg = _load_yaml(root / "config" / "base.yaml")
     cfg = _deep_merge(cfg, _load_yaml(root / "config" / f"{normalized_app}.yaml"))
+    cfg = _deep_merge(cfg, _load_yaml(root / "config" / "local.profile.yaml"))
     cfg = _deep_merge(cfg, _load_yaml(root / "config" / "local.yaml"))
 
     groq_key = os.getenv("GROQ_API_KEY", "")

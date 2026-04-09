@@ -27,6 +27,7 @@ __pycache__/
 
 # Local config overrides
 config/local.yaml
+config/local.profile.yaml
 .env.liminalqa.local
 
 # Local live STT artifacts
