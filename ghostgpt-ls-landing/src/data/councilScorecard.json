@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-09T13:16:04Z",
+  "generated_at": "2026-04-09T16:32:10Z",
   "source": "fellowship_dataset",
   "summary": {
     "ledgers": 8,
@@ -10,7 +10,8 @@
     "avg_quality": 59.37,
     "avg_relation_safety": 0.0,
     "risky_cycle_count": 0,
-    "incident_count": 0
+    "incident_count": 0,
+    "reviewed_cycle_count": 0
   },
   "bars": {
     "best_contributor_frequency": [

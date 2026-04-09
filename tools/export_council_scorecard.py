@@ -117,6 +117,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 "avg_relation_safety": 0.0,
                 "risky_cycle_count": 0,
                 "incident_count": 0,
+                "reviewed_cycle_count": 0,
             },
             "bars": {
                 "best_contributor_frequency": [],
@@ -151,6 +152,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
     relation_safeties: list[float] = []
     incident_count = 0
     risky_cycle_count = 0
+    reviewed_cycle_count = 0
     incident_series: list[dict] = []
     for index, row in enumerate(selected_rows, start=1):
         outcome = row.get("outcome", {})
@@ -160,6 +162,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         quality_payload = quality_by_cycle.get(cycle_id) or {}
         quality_outcome = quality_payload.get("council_outcome") or {}
         guidance = quality_payload.get("operator_guidance") or {}
+        operator_review = quality_payload.get("operator_review") or {}
         liminalqa = quality_payload.get("liminalqa") or {}
         participant_types = {
             normalize_model_label(item.get("model_id")): str(item.get("model_type") or "unknown")
@@ -194,6 +197,8 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         risk_state = str(guidance.get("risk_state") or "watch")
         if risk_state in {"repair", "escalate"}:
             risky_cycle_count += 1
+        if str(operator_review.get("decision") or "pending") in {"approved", "rejected"}:
+            reviewed_cycle_count += 1
         if (liminalqa.get("incident") or {}).get("published"):
             incident_count += 1
         resonance_series.append({"label": label, "value": round(resonance * 100.0, 2)})
@@ -228,6 +233,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "avg_relation_safety": round(avg(relation_safeties) * 100.0, 2),
             "risky_cycle_count": risky_cycle_count,
             "incident_count": incident_count,
+            "reviewed_cycle_count": reviewed_cycle_count,
         },
         "bars": {
             "best_contributor_frequency": [{"label": key, "value": value} for key, value in best_counts.items()],

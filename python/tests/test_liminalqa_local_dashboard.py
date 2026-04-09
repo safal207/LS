@@ -141,6 +141,7 @@ def test_preview_council_risk_queue_sorts_high_risk_first(monkeypatch, tmp_path:
     assert payload["total"] == 2
     assert payload["items"][0]["cycle_id"] == "cycle-repair"
     assert payload["items"][1]["cycle_id"] == "cycle-safe"
+    assert payload["items"][0]["review_status"] == "pending"
 
 
 def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -> None:

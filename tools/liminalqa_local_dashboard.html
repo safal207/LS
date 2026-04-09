@@ -121,6 +121,7 @@
         <div class="summary-box"><div id="cq-risk-label" class="summary-label">Risk State</div><div id="cq-risk" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-posture-label" class="summary-label">Approval Posture</div><div id="cq-posture" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-strategy-label" class="summary-label">Route Strategy</div><div id="cq-strategy" class="summary-value">n/a</div></div>
+        <div class="summary-box"><div id="cq-review-label" class="summary-label">Review</div><div id="cq-review" class="summary-value">pending</div></div>
         <div class="summary-box"><div id="cq-route-label" class="summary-label">Route</div><div id="cq-route" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-best-label" class="summary-label">Best Contributor</div><div id="cq-best" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-publish-label" class="summary-label">LiminalQA</div><div id="cq-publish" class="summary-value">pending</div></div>
@@ -306,6 +307,7 @@
         el("cq-risk").textContent="n/a";
         el("cq-posture").textContent="n/a";
         el("cq-strategy").textContent="n/a";
+        el("cq-review").textContent=document.documentElement.lang==="ru"?"ожидание":"pending";
         el("cq-route").textContent="n/a";
         el("cq-best").textContent="n/a";
         el("cq-publish").textContent=document.documentElement.lang==="ru"?"ожидание":"pending";
@@ -323,6 +325,7 @@
       el("cq-risk").textContent=payload.risk_state||"n/a";
       el("cq-posture").textContent=payload.approval_posture||"n/a";
       el("cq-strategy").textContent=payload.route_strategy||"n/a";
+      el("cq-review").textContent=payload.operator_review_decision||"pending";
       el("cq-route").textContent=payload.selected_route||"n/a";
       el("cq-best").textContent=payload.best_contributor_model_id||"n/a";
       el("cq-publish").textContent=payload.liminalqa_published?`HTTP ${payload.liminalqa_status_code||200}`:(document.documentElement.lang==="ru"?"не опубликован":"not published");
@@ -343,6 +346,7 @@
       el("cq-risk-label").textContent="Risk State";
       el("cq-posture-label").textContent="Approval Posture";
       el("cq-strategy-label").textContent="Route Strategy";
+      el("cq-review-label").textContent="Review";
       el("cq-route-label").textContent="Route";
       el("cq-best-label").textContent="Best Contributor";
       el("cq-publish-label").textContent="LiminalQA";
@@ -380,7 +384,7 @@
       (data.payload.items||[]).forEach(item=>{
         const li=document.createElement("li");
         const quality=item.quality_score===null||item.quality_score===undefined?"n/a":Number(item.quality_score).toFixed(4);
-        li.textContent=`${item.cycle_id}: ${item.risk_state} / ${item.recommended_mode} / ${item.selected_route} / q=${quality}`;
+        li.textContent=`${item.cycle_id}: ${item.risk_state} / ${item.recommended_mode} / ${item.approval_posture} / ${item.review_status} / ${item.selected_route} / q=${quality}`;
         list.appendChild(li);
       });
     }

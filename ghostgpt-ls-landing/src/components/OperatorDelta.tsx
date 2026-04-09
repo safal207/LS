@@ -46,6 +46,7 @@ type CouncilScorecardPayload = {
     avg_relation_safety?: number;
     risky_cycle_count?: number;
     incident_count?: number;
+    reviewed_cycle_count?: number;
   };
   bars: {
     best_contributor_frequency: ScorePoint[];
@@ -105,6 +106,7 @@ const copy = {
     avgRelationSafety: 'Relation safety',
     riskyCycles: 'Risky cycles',
     incidents: 'Incidents',
+    reviewed: 'Reviewed',
     contribFreq: 'Best contributor frequency',
     modelLift: 'Model type lift',
     routeWins: 'Route wins',
@@ -153,6 +155,7 @@ const copy = {
     avgRelationSafety: 'Безопасность связи',
     riskyCycles: 'Рисковые циклы',
     incidents: 'Инциденты',
+    reviewed: 'Reviewed',
     contribFreq: 'Частота лучшего contributor',
     modelLift: 'Подъем по типам моделей',
     routeWins: 'Победы маршрутов',
@@ -476,6 +479,10 @@ export default function OperatorDelta() {
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.incidents}</div>
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.incident_count ?? 0}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.reviewed}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.reviewed_cycle_count ?? 0}</div>
             </div>
           </div>
 
