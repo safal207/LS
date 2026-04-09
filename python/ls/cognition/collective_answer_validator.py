@@ -25,7 +25,7 @@ class ValidationInput:
     candidates: Sequence[CandidateAnswer]
 
 
-@dataclass
+@dataclass(frozen=True)
 class ValidatedCandidate:
     agent_id: str
     accepted: bool
@@ -34,7 +34,7 @@ class ValidatedCandidate:
     risk_flags: list[str]
 
 
-@dataclass
+@dataclass(frozen=True)
 class ValidationResult:
     ranked_candidates: list[ValidatedCandidate]
     winner_agent_id: str | None
