@@ -103,6 +103,8 @@ def test_council_cycle_cli_emits_ledger_artifact(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "Council cycle:" in result.stdout
+    assert "Risk:" in result.stdout
+    assert "Suggested action:" in result.stdout
     assert "Ledger artifact:" in result.stdout
     artifacts = list(artifact_dir.glob("*.json"))
     assert artifacts

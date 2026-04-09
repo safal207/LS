@@ -37,6 +37,10 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                     "recommended_mode": "validate_before_solve",
                     "dominant_signal": "tension",
                 },
+                "operator_guidance": {
+                    "risk_state": "watch",
+                    "suggested_operator_action": "Validate intent before approval.",
+                },
                 "attribution": {
                     "best_contributor_model_id": "local-qwen",
                     "best_contributor_score": 0.91,
@@ -66,5 +70,7 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["best_contributor_model_id"] == "local-qwen"
     assert payload["relation_safety_score"] == 0.48
     assert payload["recommended_mode"] == "validate_before_solve"
+    assert payload["risk_state"] == "watch"
+    assert payload["suggested_operator_action"] == "Validate intent before approval."
     assert payload["liminalqa_published"] is True
     assert payload["liminalqa_status_code"] == 200

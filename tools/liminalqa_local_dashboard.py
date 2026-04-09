@@ -449,6 +449,7 @@ def preview_council_quality_artifact() -> tuple[int, object]:
     cel = payload.get("cel") or {}
     liminalqa = payload.get("liminalqa") or {}
     relational = payload.get("relational_field") or {}
+    operator_guidance = payload.get("operator_guidance") or {}
     merit_updates = cel.get("merit_updates") or []
     top_merit = max((float(item.get("merit_score") or 0.0) for item in merit_updates), default=0.0)
     return 200, {
@@ -466,6 +467,8 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "relation_safety_score": relational.get("relation_safety_score"),
         "recommended_mode": relational.get("recommended_mode"),
         "dominant_signal": relational.get("dominant_signal"),
+        "risk_state": operator_guidance.get("risk_state"),
+        "suggested_operator_action": operator_guidance.get("suggested_operator_action"),
         "contribution_records": len(cel.get("contribution_records") or []),
         "reputation_updates": len(cel.get("reputation_updates") or []),
         "merit_updates": len(merit_updates),

@@ -375,13 +375,27 @@ def council_cycle(
     ledger = result.get("council_contribution_ledger") or {}
     artifact_path = result.get("council_contribution_ledger_artifact")
     council_quality_artifact = result.get("council_quality_artifact")
+    quality_payload = {}
+    if council_quality_artifact:
+        try:
+            quality_payload = json.loads(Path(council_quality_artifact).read_text(encoding="utf-8"))
+        except Exception:
+            quality_payload = {}
     cycle_id = result.get("cycle_id", "unknown")
     verdict = "success" if ledger.get("outcome", {}).get("success") else "needs-review"
     route = ledger.get("final_decision", {}).get("selected_route", "unknown")
     contributor = (ledger.get("attribution") or {}).get("best_contributor_model_id", "n/a")
+    guidance = quality_payload.get("operator_guidance") or {}
+    relational = quality_payload.get("relational_field") or {}
     console.print(f"[cyan]Council cycle:[/cyan] {cycle_id}")
     console.print(f"[green]Route:[/green] {route}    [green]Best contributor:[/green] {contributor}")
     console.print(f"[green]Outcome:[/green] {verdict}")
+    if guidance:
+        console.print(
+            f"[yellow]Risk:[/yellow] {guidance.get('risk_state', 'watch')}    "
+            f"[yellow]Mode:[/yellow] {relational.get('recommended_mode', 'n/a')}"
+        )
+        console.print(f"[yellow]Suggested action:[/yellow] {guidance.get('suggested_operator_action', 'n/a')}")
     if artifact_path:
         console.print(f"[bold]Ledger artifact:[/bold] {artifact_path}")
     if council_quality_artifact:

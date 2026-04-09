@@ -118,10 +118,12 @@
         <div class="summary-box"><div id="cq-score-label" class="summary-label">Quality Score</div><div id="cq-score" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-safety-label" class="summary-label">Relation Safety</div><div id="cq-safety" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-mode-label" class="summary-label">Mode</div><div id="cq-mode" class="summary-value">n/a</div></div>
+        <div class="summary-box"><div id="cq-risk-label" class="summary-label">Risk State</div><div id="cq-risk" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-route-label" class="summary-label">Route</div><div id="cq-route" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-best-label" class="summary-label">Best Contributor</div><div id="cq-best" class="summary-value">n/a</div></div>
         <div class="summary-box"><div id="cq-publish-label" class="summary-label">LiminalQA</div><div id="cq-publish" class="summary-value">pending</div></div>
       </div>
+      <div id="council-quality-action" class="hint">Suggested operator action will appear here after a real cycle.</div>
       <div id="council-quality-empty" class="hint">No council-quality artifact yet. Run a real council cycle first.</div>
       <div class="summary-grid">
         <div class="summary-box"><div id="c-ledgers-label" class="summary-label">Ledgers</div><div id="c-ledgers" class="summary-value">0</div></div>
@@ -294,9 +296,13 @@
         el("cq-score").textContent="n/a";
         el("cq-safety").textContent="n/a";
         el("cq-mode").textContent="n/a";
+        el("cq-risk").textContent="n/a";
         el("cq-route").textContent="n/a";
         el("cq-best").textContent="n/a";
         el("cq-publish").textContent=document.documentElement.lang==="ru"?"ожидание":"pending";
+        el("council-quality-action").textContent=document.documentElement.lang==="ru"
+          ?"Ð ÐµÐºÐ¾Ð¼ÐµÐ½Ð´ÑƒÐµÐ¼Ð¾Ðµ Ð´ÐµÐ¹ÑÑ‚Ð²Ð¸Ðµ Ð¾Ð¿ÐµÑ€Ð°Ñ‚Ð¾Ñ€Ð° Ð¿Ð¾ÑÐ²Ð¸Ñ‚ÑÑ Ð·Ð´ÐµÑÑŒ Ð¿Ð¾ÑÐ»Ðµ real cycle."
+          :"Suggested operator action will appear here after a real cycle.";
         el("council-quality-empty").hidden=false;
         return;
       }
@@ -305,9 +311,11 @@
       el("cq-score").textContent=effectiveQuality===null||effectiveQuality===undefined?"n/a":Number(effectiveQuality).toFixed(4);
       el("cq-safety").textContent=payload.relation_safety_score===null||payload.relation_safety_score===undefined?"n/a":`${(Number(payload.relation_safety_score)*100).toFixed(1)}%`;
       el("cq-mode").textContent=payload.recommended_mode||"n/a";
+      el("cq-risk").textContent=payload.risk_state||"n/a";
       el("cq-route").textContent=payload.selected_route||"n/a";
       el("cq-best").textContent=payload.best_contributor_model_id||"n/a";
       el("cq-publish").textContent=payload.liminalqa_published?`HTTP ${payload.liminalqa_status_code||200}`:(document.documentElement.lang==="ru"?"не опубликован":"not published");
+      el("council-quality-action").textContent=payload.suggested_operator_action||"n/a";
       el("council-quality-empty").hidden=true;
     }
 
@@ -321,9 +329,13 @@
       el("cq-score-label").textContent="Quality Score";
       el("cq-safety-label").textContent="Relation Safety";
       el("cq-mode-label").textContent="Mode";
+      el("cq-risk-label").textContent="Risk State";
       el("cq-route-label").textContent="Route";
       el("cq-best-label").textContent="Best Contributor";
       el("cq-publish-label").textContent="LiminalQA";
+      el("council-quality-action").textContent=next==="ru"
+        ?"Ð ÐµÐºÐ¾Ð¼ÐµÐ½Ð´ÑƒÐµÐ¼Ð¾Ðµ Ð´ÐµÐ¹ÑÑ‚Ð²Ð¸Ðµ Ð¾Ð¿ÐµÑ€Ð°Ñ‚Ð¾Ñ€Ð° Ð¿Ð¾ÑÐ²Ð¸Ñ‚ÑÑ Ð·Ð´ÐµÑÑŒ Ð¿Ð¾ÑÐ»Ðµ real cycle."
+        :"Suggested operator action will appear here after a real cycle.";
       el("council-quality-empty").textContent=next==="ru"
         ?"Council-quality artifact пока не найден. Сначала запусти real council cycle."
         :"No council-quality artifact yet. Run a real council cycle first.";

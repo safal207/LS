@@ -3500,6 +3500,7 @@ class ResonanceAgent:
         if quality_score is None:
             quality_score = self._quality_score_fallback_from_ledger(ledger)
         relational = self._build_relational_quality_summary((item or {}).get("_relational_field"))
+        risk_summary = self._build_relation_risk_summary(relational)
         relation_adjusted_quality_score = quality_score
         if quality_score is not None and relational is not None:
             relation_adjusted_quality_score = round(
@@ -3556,6 +3557,7 @@ class ResonanceAgent:
                 "merit_updates": [],
             },
             "relational_field": relational,
+            "operator_guidance": risk_summary,
             "liminalqa": {
                 "published": False,
                 "status_code": None,
@@ -3614,6 +3616,37 @@ class ResonanceAgent:
             "dominant_signal": dominant_signal,
             "relation_safety_score": relation_safety_score,
             "recommended_mode": recommended_mode,
+        }
+
+    def _build_relation_risk_summary(self, relational: dict[str, Any] | None) -> dict[str, Any]:
+        if not relational:
+            return {
+                "risk_state": "watch",
+                "suggested_operator_action": "Request another cycle before approving.",
+            }
+        tension_score = float(relational.get("tension_score", 0.0) or 0.0)
+        alignment_score = float(relational.get("alignment_score", 0.0) or 0.0)
+        relation_safety_score = float(relational.get("relation_safety_score", 0.0) or 0.0)
+        recommended_mode = str(relational.get("recommended_mode") or "observe_and_clarify")
+        if recommended_mode == "decompress_and_repair" or relation_safety_score < 0.3:
+            risk_state = "repair"
+            action = "Pause approval, reduce tension, and rerun the council after repair."
+        elif recommended_mode == "validate_before_solve" or tension_score >= 0.6:
+            risk_state = "watch"
+            action = "Validate intent and evidence before approving this council outcome."
+        elif recommended_mode == "collaborative_progress" and alignment_score >= 0.55:
+            risk_state = "safe"
+            action = "Safe to continue with normal operator review."
+        else:
+            risk_state = "escalate" if relation_safety_score < 0.15 else "watch"
+            action = (
+                "Escalate to a human reviewer before approval."
+                if risk_state == "escalate"
+                else "Observe the next cycle and clarify ambiguous signals before approval."
+            )
+        return {
+            "risk_state": risk_state,
+            "suggested_operator_action": action,
         }
 
     def _build_cycle_record(
