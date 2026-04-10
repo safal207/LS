@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 import tempfile
+import json
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -362,6 +363,77 @@ def test_resonance_agent_uses_cooperative_route_metadata(monkeypatch):
         assert result["cooperative_used"] is True
         assert result["cooperative_route_key"] == "full_run>local>gonka>mimo"
         assert isinstance(result["cooperative_participants"], list)
+
+
+def test_resonance_agent_reroutes_from_relation_memory(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        monkeypatch.setattr("modules.agent.resonance_agent.GRAPH_TRAIL_ENABLED", False)
+
+        class FixedSelector:
+            def choose_route(self, **kwargs):
+                from graph.path_selector import PathSelectionDecision
+
+                return PathSelectionDecision(
+                    route_key="full_run>local>gonka>mimo",
+                    reason="fixed-test-route",
+                    exploration_used=False,
+                    pheromone_weight=0.0,
+                    selected_backend="cooperative",
+                )
+
+        class FakeRelationalSnapshot:
+            def to_dict(self):
+                return {
+                    "field_id": "field-001",
+                    "timestamp": "2026-04-10T10:00:00Z",
+                    "tension_score": 0.82,
+                    "alignment_score": 0.22,
+                    "dominant_signal": "tension",
+                }
+
+        class FakeRelationalAnalyzer:
+            def analyze(self, **kwargs):
+                return FakeRelationalSnapshot()
+
+        class FakeScorer:
+            def process(self, item):
+                item["_resonance_score"] = 0.2
+                return item
+
+        relation_memory_dir = Path(tmpdir) / "relation-memory"
+        relation_memory_dir.mkdir(parents=True, exist_ok=True)
+        for idx in range(2):
+            (relation_memory_dir / f"seed-{idx}.json").write_text(
+                json.dumps(
+                    {
+                        "cycle_id": f"seed-{idx}",
+                        "pattern_key": "repair:tension:low",
+                        "incident_published": True,
+                        "review_decision": "rejected",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+        agent = ResonanceAgent(
+            anchor=[],
+            llm_backend=FakeRouter(),
+            graph_runtime=FakeGraphRuntimeFullRun(),
+            orientation="test",
+        )
+        agent._path_selector = FixedSelector()
+        agent._relational_analyzer = FakeRelationalAnalyzer()
+        agent._scorer = FakeScorer()
+        agent._relation_memory_dir = relation_memory_dir
+
+        result = agent.process_text("Handle the operator request carefully.")
+
+        assert result["route_key"] == "full_run>local"
+        assert result["route_strategy"] == "freeze_and_escalate"
+        assert result["route_memory_adjusted"] is True
+        assert result["route_memory_match_count"] == 2
+        assert "relation-memory-evidence-first" in str(result["route_reason"])
+        assert result["llm_provider"] == "local"
 
 
 def test_resonance_agent_updates_coalition_registry(monkeypatch):

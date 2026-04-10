@@ -2249,10 +2249,22 @@ class ResonanceAgent:
             except Exception as exc:
                 logger.debug("ResonanceAgent: path selector failed: %s", exc)
 
+        if path_decision and graph_decision and graph_decision.mode != "reuse":
+            try:
+                path_decision = self._apply_relation_memory_route_policy(
+                    item=item,
+                    path_decision=path_decision,
+                    graph_mode=str(graph_decision.mode),
+                    available_backends=available_backends,
+                )
+            except Exception as exc:
+                logger.debug("ResonanceAgent: relation memory route policy failed: %s", exc)
+
         if path_decision and hasattr(path_decision, "to_dict"):
             item["_path_selection"] = path_decision.to_dict()
             selected_backend = path_decision.selected_backend
         elif isinstance(path_decision, dict):
+            item["_path_selection"] = path_decision
             selected_backend = path_decision.get("selected_backend")
         else:
             selected_backend = None
@@ -3197,6 +3209,9 @@ class ResonanceAgent:
             "council_quality_artifact": council_quality_artifact,
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
+            "route_strategy":  path_meta.get("route_strategy"),
+            "route_memory_adjusted": bool((path_meta.get("relation_memory_route_policy") or {}).get("policy_adjusted")),
+            "route_memory_match_count": int(((path_meta.get("relation_memory_route_policy") or {}).get("match_count")) or 0),
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
             "exploration_used": path_meta.get("exploration_used", False),
             "trail_updated":   bool(trail_meta),
@@ -3889,6 +3904,104 @@ class ResonanceAgent:
             "approve_count": approve_count,
             "policy_adjusted": False,
         }
+
+    def _build_preroute_relation_memory_context(
+        self,
+        *,
+        item: dict[str, Any],
+        relational_summary: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if not relational_summary:
+            return None
+        receiver_resonance_score = float(item.get("_resonance_score", 0.0) or 0.0)
+        base_risk_summary = self._build_relation_risk_summary(relational_summary)
+        pattern_key = self._relation_pattern_key(
+            risk_state=str(base_risk_summary.get("risk_state") or "watch"),
+            dominant_signal=str(relational_summary.get("dominant_signal") or "unknown"),
+            receiver_resonance_score=receiver_resonance_score,
+        )
+        cycle_id = str(item.get("_cycle_id") or "")
+        matched = [
+            row for row in self._load_relation_memory_rows()
+            if row.get("cycle_id") != cycle_id and row.get("pattern_key") == pattern_key
+        ]
+        if not matched:
+            return {
+                "pattern_key": pattern_key,
+                "match_count": 0,
+                "incident_count": 0,
+                "reject_count": 0,
+                "approve_count": 0,
+                "policy_adjusted": False,
+            }
+        incident_count = sum(1 for row in matched if bool(row.get("incident_published")))
+        reject_count = sum(1 for row in matched if str(row.get("review_decision") or "") in {"rejected", "closed"})
+        approve_count = sum(1 for row in matched if str(row.get("review_decision") or "") == "approved")
+        return {
+            "pattern_key": pattern_key,
+            "match_count": len(matched),
+            "incident_count": incident_count,
+            "reject_count": reject_count,
+            "approve_count": approve_count,
+            "policy_adjusted": False,
+        }
+
+    def _apply_relation_memory_route_policy(
+        self,
+        *,
+        item: dict[str, Any],
+        path_decision: Any,
+        graph_mode: str,
+        available_backends: list[str],
+    ) -> dict[str, Any]:
+        path_meta = (
+            path_decision.to_dict()
+            if hasattr(path_decision, "to_dict")
+            else dict(path_decision or {})
+        )
+        relational_summary = self._build_relational_quality_summary(item.get("_relational_field"))
+        if not relational_summary:
+            return path_meta
+        memory_context = self._build_preroute_relation_memory_context(
+            item=item,
+            relational_summary=relational_summary,
+        )
+        risk_summary = self._build_relation_risk_summary(
+            relational_summary,
+            memory_context=memory_context,
+        )
+        adjusted_memory = (risk_summary.get("memory_context") or {})
+        route_policy = {
+            "pattern_key": adjusted_memory.get("pattern_key"),
+            "match_count": int(adjusted_memory.get("match_count") or 0),
+            "incident_count": int(adjusted_memory.get("incident_count") or 0),
+            "reject_count": int(adjusted_memory.get("reject_count") or 0),
+            "approve_count": int(adjusted_memory.get("approve_count") or 0),
+            "policy_adjusted": bool(adjusted_memory.get("policy_adjusted")),
+            "risk_state": str(risk_summary.get("risk_state") or "watch"),
+            "route_strategy": str(risk_summary.get("route_strategy") or "continue_current_route"),
+        }
+        path_meta["relation_memory_route_policy"] = route_policy
+        path_meta["route_strategy"] = route_policy["route_strategy"]
+
+        should_reroute_local = (
+            route_policy["policy_adjusted"]
+            and route_policy["route_strategy"] in {"freeze_and_escalate", "repair_then_reroute", "rerun_and_clarify"}
+            and "local" in set(available_backends or [])
+            and str(path_meta.get("selected_backend") or "") != "local"
+        )
+        if should_reroute_local:
+            previous_route_key = str(path_meta.get("route_key") or "")
+            previous_backend = str(path_meta.get("selected_backend") or "")
+            path_meta["route_key"] = f"{graph_mode}>local"
+            path_meta["selected_backend"] = "local"
+            path_meta["reason"] = f"{path_meta.get('reason') or 'route-selected'}|relation-memory-evidence-first"
+            path_meta["relation_memory_route_override"] = {
+                "previous_route_key": previous_route_key,
+                "previous_backend": previous_backend,
+                "applied_backend": "local",
+            }
+        return path_meta
 
     def _build_relation_risk_summary(
         self,
