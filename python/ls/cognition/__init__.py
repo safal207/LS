@@ -61,6 +61,12 @@ from ls.cognition.agent_validation_bridge import (
     BridgeResult,
     CallableAgentHandle,
 )
+from ls.cognition.council_validation_bridge import (
+    candidates_from_ledger,
+    task_prompt_from_ledger,
+    validate_council_artifact,
+    validate_council_ledger,
+)
 from ls.cognition.validation_governance import (
     AgentReputationProfile,
     CoalitionAlert,
@@ -148,4 +154,8 @@ __all__ = [
     "AgentValidationBridge",
     "BridgeResult",
     "CallableAgentHandle",
+    "candidates_from_ledger",
+    "task_prompt_from_ledger",
+    "validate_council_ledger",
+    "validate_council_artifact",
 ]
