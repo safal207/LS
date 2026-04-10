@@ -906,7 +906,8 @@
         }
         const memoryPath=data.payload.relation_memory_path || "n/a";
         const patternKey=data.payload.relation_memory_pattern_key || "n/a";
-        meta.textContent=`${memoryPath} / pattern=${patternKey}`;
+        const policyAdjusted=data.payload.memory_policy_adjusted ? "adjusted" : "baseline";
+        meta.textContent=`${memoryPath} / pattern=${patternKey} / matches=${Number(data.payload.memory_match_count||0)} / incidents=${Number(data.payload.memory_incident_count||0)} / rejects=${Number(data.payload.memory_reject_count||0)} / policy=${policyAdjusted}`;
         const similar=data.payload.similar_relation_patterns || [];
         if(!similar.length){
           const li=document.createElement("li");

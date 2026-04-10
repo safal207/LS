@@ -494,6 +494,7 @@ def preview_council_quality_artifact() -> tuple[int, object]:
     incident = liminalqa.get("incident") or {}
     relational = payload.get("relational_field") or {}
     operator_guidance = payload.get("operator_guidance") or {}
+    memory_context = operator_guidance.get("memory_context") or {}
     operator_review = payload.get("operator_review") or {}
     review_history = payload.get("operator_review_history") or []
     relation_memory_rows = load_relation_memory_rows()
@@ -536,6 +537,11 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "relation_memory_path": current_relation_memory_path,
         "relation_memory_pattern_key": pattern_key,
         "similar_relation_patterns": similar_patterns,
+        "memory_match_count": int(memory_context.get("match_count") or 0),
+        "memory_incident_count": int(memory_context.get("incident_count") or 0),
+        "memory_reject_count": int(memory_context.get("reject_count") or 0),
+        "memory_approve_count": int(memory_context.get("approve_count") or 0),
+        "memory_policy_adjusted": bool(memory_context.get("policy_adjusted")),
         "quality_score": payload.get("quality_score"),
         "relation_adjusted_quality_score": payload.get("relation_adjusted_quality_score"),
         "selected_route": council_outcome.get("selected_route"),

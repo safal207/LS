@@ -65,6 +65,13 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                     "requires_human_review": False,
                     "rerun_required": False,
                     "suggested_operator_action": "Validate intent before approval.",
+                    "memory_context": {
+                        "match_count": 3,
+                        "incident_count": 1,
+                        "reject_count": 1,
+                        "approve_count": 1,
+                        "policy_adjusted": True,
+                    },
                 },
                 "attribution": {
                     "best_contributor_model_id": "local-qwen",
@@ -118,6 +125,11 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["relation_memory_path"].endswith("cycle-001.json")
     assert payload["relation_memory_pattern_key"] == "watch:tension:high"
     assert payload["similar_relation_patterns"][0]["cycle_id"] == "cycle-000"
+    assert payload["memory_match_count"] == 3
+    assert payload["memory_incident_count"] == 1
+    assert payload["memory_reject_count"] == 1
+    assert payload["memory_approve_count"] == 1
+    assert payload["memory_policy_adjusted"] is True
     assert payload["quality_score"] == 0.84
     assert payload["relation_adjusted_quality_score"] == 0.71
     assert payload["selected_route"] == "route-a"
