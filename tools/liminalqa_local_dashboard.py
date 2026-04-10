@@ -15,6 +15,7 @@ import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from statistics import median
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PYTHON_ROOT = ROOT / "python"
@@ -672,6 +673,32 @@ def avg(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
+def median_or_zero(values: list[float]) -> float:
+    return float(median(values)) if values else 0.0
+
+
+def parse_iso_timestamp(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def history_latency_minutes(start_at: datetime | None, history: list[dict], actions: set[str]) -> float | None:
+    if start_at is None:
+        return None
+    for item in history:
+        if str(item.get("action") or "") not in actions:
+            continue
+        event_at = parse_iso_timestamp(item.get("timestamp"))
+        if event_at is None:
+            continue
+        return max(0.0, (event_at - start_at).total_seconds() / 60.0)
+    return None
+
+
 def clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
     return max(minimum, min(maximum, value))
 
@@ -697,6 +724,9 @@ def build_council_analytics() -> dict:
             "reviewed_cycle_count": 0,
             "approval_conversion_rate": 0.0,
             "escalation_rate": 0.0,
+            "median_assignment_minutes": 0.0,
+            "median_review_minutes": 0.0,
+            "median_close_minutes": 0.0,
             "empty": True,
             "how_to_generate": [
                 "Run a real coordination cycle through ResonanceAgent.",
@@ -720,6 +750,9 @@ def build_council_analytics() -> dict:
     merit_series: list[dict] = []
     incident_series: list[dict] = []
     review_series: list[dict] = []
+    assignment_latencies: list[float] = []
+    review_latencies: list[float] = []
+    close_latencies: list[float] = []
     successes: list[float] = []
     resonances: list[float] = []
     merits: list[float] = []
@@ -759,6 +792,8 @@ def build_council_analytics() -> dict:
         guidance = (quality_payload or {}).get("operator_guidance") or {}
         review = (quality_payload or {}).get("operator_review") or {}
         liminalqa = (quality_payload or {}).get("liminalqa") or {}
+        review_history = list((quality_payload or {}).get("operator_review_history") or [])
+        cycle_started_at = parse_iso_timestamp(row.get("timestamp"))
         risk_state = str(guidance.get("risk_state") or "watch")
         if risk_state in {"repair", "escalate"}:
             risky_cycle_count += 1
@@ -772,6 +807,15 @@ def build_council_analytics() -> dict:
             approved_count += 1
         if (liminalqa.get("incident") or {}).get("published"):
             incident_count += 1
+        assignment_latency = history_latency_minutes(cycle_started_at, review_history, {"assign"})
+        if assignment_latency is not None:
+            assignment_latencies.append(assignment_latency)
+        review_latency = history_latency_minutes(cycle_started_at, review_history, {"approve", "reject"})
+        if review_latency is not None:
+            review_latencies.append(review_latency)
+        close_latency = history_latency_minutes(cycle_started_at, review_history, {"close"})
+        if close_latency is not None:
+            close_latencies.append(close_latency)
         incident_series.append({"label": label, "value": incident_count})
         review_series.append({"label": label, "value": reviewed_cycle_count})
     type_lift = {key: round(avg(values), 4) for key, values in type_totals.items()}
@@ -786,6 +830,9 @@ def build_council_analytics() -> dict:
         "reviewed_cycle_count": reviewed_cycle_count,
         "approval_conversion_rate": round((approved_count / len(rows)) * 100.0, 2),
         "escalation_rate": round((escalate_count / len(rows)) * 100.0, 2),
+        "median_assignment_minutes": round(median_or_zero(assignment_latencies), 2),
+        "median_review_minutes": round(median_or_zero(review_latencies), 2),
+        "median_close_minutes": round(median_or_zero(close_latencies), 2),
         "empty": False,
         "charts": {
             "bestContributorFrequency": [{"label": key, "value": value} for key, value in best_counts.items()],

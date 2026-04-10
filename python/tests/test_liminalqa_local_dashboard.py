@@ -333,6 +333,11 @@ def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -
                 "operator_guidance": {"risk_state": "repair"},
                 "liminalqa": {"incident": {"published": True, "status_code": 202}},
                 "operator_review": {"decision": "approved"},
+                "operator_review_history": [
+                    {"action": "assign", "timestamp": "2026-04-09T10:10:00Z", "assigned_by": "queue-bot"},
+                    {"action": "approve", "timestamp": "2026-04-09T10:20:00Z", "reviewer": "alice"},
+                    {"action": "close", "timestamp": "2026-04-09T10:30:00Z", "reviewer": "alice"},
+                ],
             }
         ),
         encoding="utf-8",
@@ -345,6 +350,9 @@ def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -
     assert payload["ledgers"] == 1
     assert payload["risky_cycle_count"] == 1
     assert payload["incident_count"] == 1
+    assert payload["median_assignment_minutes"] == 10.0
+    assert payload["median_review_minutes"] == 20.0
+    assert payload["median_close_minutes"] == 30.0
     assert payload["reviewed_cycle_count"] == 1
     assert payload["approval_conversion_rate"] == 100.0
     assert payload["escalation_rate"] == 0.0

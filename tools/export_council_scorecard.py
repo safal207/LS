@@ -5,6 +5,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+from statistics import median
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -30,6 +31,27 @@ def clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
 
 def avg(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
+
+
+def median_or_zero(values: list[float]) -> float:
+    return float(median(values)) if values else 0.0
+
+
+def history_latency_minutes(
+    start_at: datetime | None,
+    history: list[dict],
+    actions: set[str],
+) -> float | None:
+    if start_at is None:
+        return None
+    for item in history:
+        if str(item.get("action") or "") not in actions:
+            continue
+        event_at = parse_iso(item.get("timestamp"))
+        if event_at is None:
+            continue
+        return max(0.0, (event_at - start_at).total_seconds() / 60.0)
+    return None
 
 
 def normalize_model_label(value: object) -> str:
@@ -120,6 +142,9 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 "reviewed_cycle_count": 0,
                 "approval_conversion_rate": 0.0,
                 "escalation_rate": 0.0,
+                "median_assignment_minutes": 0.0,
+                "median_review_minutes": 0.0,
+                "median_close_minutes": 0.0,
             },
             "bars": {
                 "best_contributor_frequency": [],
@@ -160,6 +185,9 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
     reviewed_cycle_count = 0
     incident_series: list[dict] = []
     review_series: list[dict] = []
+    assignment_latencies: list[float] = []
+    review_latencies: list[float] = []
+    close_latencies: list[float] = []
     approved_count = 0
     escalate_count = 0
     for index, row in enumerate(selected_rows, start=1):
@@ -172,6 +200,8 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         guidance = quality_payload.get("operator_guidance") or {}
         operator_review = quality_payload.get("operator_review") or {}
         liminalqa = quality_payload.get("liminalqa") or {}
+        review_history = list(quality_payload.get("operator_review_history") or [])
+        cycle_started_at = parse_iso(row.get("timestamp"))
         participant_types = {
             normalize_model_label(item.get("model_id")): str(item.get("model_type") or "unknown")
             for item in participants
@@ -215,6 +245,15 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             approved_count += 1
         if (liminalqa.get("incident") or {}).get("published"):
             incident_count += 1
+        assignment_latency = history_latency_minutes(cycle_started_at, review_history, {"assign"})
+        if assignment_latency is not None:
+            assignment_latencies.append(assignment_latency)
+        review_latency = history_latency_minutes(cycle_started_at, review_history, {"approve", "reject"})
+        if review_latency is not None:
+            review_latencies.append(review_latency)
+        close_latency = history_latency_minutes(cycle_started_at, review_history, {"close"})
+        if close_latency is not None:
+            close_latencies.append(close_latency)
         resonance_series.append({"label": label, "value": round(resonance * 100.0, 2)})
         merit_series.append({"label": label, "value": round(merit * 100.0, 2)})
         incident_series.append({"label": label, "value": incident_count})
@@ -251,6 +290,9 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "reviewed_cycle_count": reviewed_cycle_count,
             "approval_conversion_rate": round((approved_count / len(selected_rows)) * 100.0, 2),
             "escalation_rate": round((escalate_count / len(selected_rows)) * 100.0, 2),
+            "median_assignment_minutes": round(median_or_zero(assignment_latencies), 2),
+            "median_review_minutes": round(median_or_zero(review_latencies), 2),
+            "median_close_minutes": round(median_or_zero(close_latencies), 2),
         },
         "bars": {
             "best_contributor_frequency": [{"label": key, "value": value} for key, value in best_counts.items()],
