@@ -470,6 +470,7 @@ def preview_council_quality_artifact() -> tuple[int, object]:
     relational = payload.get("relational_field") or {}
     operator_guidance = payload.get("operator_guidance") or {}
     operator_review = payload.get("operator_review") or {}
+    review_history = payload.get("operator_review_history") or []
     merit_updates = cel.get("merit_updates") or []
     top_merit = max((float(item.get("merit_score") or 0.0) for item in merit_updates), default=0.0)
     return 200, {
@@ -502,6 +503,7 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "operator_review_forced": bool(operator_review.get("forced")),
         "operator_review_assigned_reviewer": operator_review.get("assigned_reviewer"),
         "operator_review_closed_reason": operator_review.get("closed_reason"),
+        "operator_review_history": review_history,
         "contribution_records": len(cel.get("contribution_records") or []),
         "reputation_updates": len(cel.get("reputation_updates") or []),
         "merit_updates": len(merit_updates),
@@ -549,6 +551,15 @@ def preview_council_escalation_queue(limit: int = 5) -> tuple[int, object]:
     if not COUNCIL_QUALITY_DIR.exists():
         return 404, {"error": "council-quality artifact not found", "items": []}
     rows = iter_council_escalation_rows(COUNCIL_QUALITY_DIR)
+    history_by_cycle: dict[str, list[dict]] = {}
+    for path in COUNCIL_QUALITY_DIR.glob("*.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        history_by_cycle[str(payload.get("cycle_id") or "")] = list(payload.get("operator_review_history") or [])
+    for row in rows:
+        row["review_history"] = history_by_cycle.get(str(row.get("cycle_id") or ""), [])
     return 200, {"items": rows[:limit], "total": len(rows)}
 
 

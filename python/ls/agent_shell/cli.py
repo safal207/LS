@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 import sys
@@ -106,6 +107,17 @@ def save_council_quality_artifact(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def append_council_review_history(payload: dict, entry: dict) -> None:
+    history = list(payload.get("operator_review_history") or [])
+    history.append(
+        {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            **entry,
+        }
+    )
+    payload["operator_review_history"] = history
+
+
 def update_council_operator_review(
     quality_dir: Path,
     cycle_id: str,
@@ -124,7 +136,20 @@ def update_council_operator_review(
         "forced": bool(forced),
         "reason": str(reason or ""),
         "assigned_reviewer": current.get("assigned_reviewer"),
+        "assigned_by": current.get("assigned_by"),
+        "closed_reason": current.get("closed_reason"),
+        "closed_by": current.get("closed_by"),
     }
+    append_council_review_history(
+        artifact,
+        {
+            "action": "approve" if decision == "approved" else "reject",
+            "decision": decision,
+            "reviewer": reviewer,
+            "forced": bool(forced),
+            "reason": str(reason or ""),
+        },
+    )
     save_council_quality_artifact(path, artifact)
     return path
 
@@ -147,6 +172,14 @@ def assign_council_reviewer(
         "assigned_reviewer": reviewer,
         "assigned_by": assigned_by,
     }
+    append_council_review_history(
+        artifact,
+        {
+            "action": "assign",
+            "reviewer": reviewer,
+            "assigned_by": assigned_by,
+        },
+    )
     save_council_quality_artifact(path, artifact)
     return path
 
@@ -204,6 +237,14 @@ def close_council_escalation(
         "closed_reason": reason,
         "closed_by": reviewer,
     }
+    append_council_review_history(
+        artifact,
+        {
+            "action": "close",
+            "reviewer": reviewer,
+            "reason": reason,
+        },
+    )
     save_council_quality_artifact(path, artifact)
     return path
 
