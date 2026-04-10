@@ -377,6 +377,8 @@ pytest python/tests/test_memory_store_locking.py
 | [docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md](docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md) | Execution roadmap for unifying council, contribution, reputation, and receiver-resonance tracking |
 | [docs/LS_INTEGRATION_ROADMAP.md](docs/LS_INTEGRATION_ROADMAP.md) | Recommended order for integrating adjacent repo subsystems into LS |
 | [docs/LS_PHASE1_EXECUTION_PLAN.md](docs/LS_PHASE1_EXECUTION_PLAN.md) | Concrete execution checklist for Phase 1: `LiminalQA + CEL + CouncilContributionLedger` |
+| [docs/LS_PHASE2_RELATIONAL_ROADMAP.md](docs/LS_PHASE2_RELATIONAL_ROADMAP.md) | Phase 2 roadmap for moving from reactive oversight into relation-aware orchestration |
+| [docs/LS_PHASE2_1_RELATION_MEMORY_EXECUTION_PLAN.md](docs/LS_PHASE2_1_RELATION_MEMORY_EXECUTION_PLAN.md) | Concrete execution checklist for Phase 2.1: relation memory |
 | [docs/SAFETY_PROGRAMS_POSITIONING.md](docs/SAFETY_PROGRAMS_POSITIONING.md) | Program-facing framing for fellowships, residencies, grants, and safety-oriented reviews |
 | [docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md](docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md) | Fellowship-oriented framing for presenting LS as a safety and oversight runtime |
 | [docs/FELLOWSHIP_APPLICATION_BRIEF.md](docs/FELLOWSHIP_APPLICATION_BRIEF.md) | Short application-oriented framing for presenting LS to fellowship reviewers |
