@@ -550,6 +550,7 @@ def test_council_assign_reviewer_persists_assignment(tmp_path: Path) -> None:
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["operator_review"]["assigned_reviewer"] == "safal"
     assert payload["operator_review"]["assigned_by"] == "triage-bot"
+    assert payload["operator_review_history"][-1]["action"] == "assign"
 
 
 def test_council_claim_next_escalation_assigns_first_unassigned_pending(tmp_path: Path) -> None:
@@ -595,6 +596,7 @@ def test_council_claim_next_escalation_assigns_first_unassigned_pending(tmp_path
     payload = json.loads(target_path.read_text(encoding="utf-8"))
     assert payload["operator_review"]["assigned_reviewer"] == "safal"
     assert payload["operator_review"]["assigned_by"] == "queue-bot"
+    assert payload["operator_review_history"][-1]["action"] == "assign"
 
 
 def test_council_close_escalation_persists_closed_status(tmp_path: Path) -> None:
@@ -632,3 +634,4 @@ def test_council_close_escalation_persists_closed_status(tmp_path: Path) -> None
     assert payload["operator_review"]["decision"] == "closed"
     assert payload["operator_review"]["closed_reason"] == "triage complete"
     assert payload["operator_review"]["closed_by"] == "safal"
+    assert payload["operator_review_history"][-1]["action"] == "close"

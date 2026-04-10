@@ -27,7 +27,6 @@ def test_build_dataset_copies_council_quality_artifacts(monkeypatch, tmp_path: P
     quality_payload = {
         "cycle_id": "cycle-001",
         "quality_score": 0.83,
-        "liminalqa": {"published": True, "status_code": 200},
         "operator_guidance": {"risk_state": "repair"},
         "liminalqa": {
             "published": True,

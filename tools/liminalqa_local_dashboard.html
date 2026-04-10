@@ -128,6 +128,7 @@
         <div class="summary-box"><div id="cq-incident-label" class="summary-label">Incident</div><div id="cq-incident" class="summary-value">pending</div></div>
       </div>
       <div id="council-quality-action" class="hint">Suggested operator action will appear here after a real cycle.</div>
+      <ul id="council-quality-history" class="guide-list"></ul>
       <div id="council-risk-kicker" class="kicker" style="margin-top:14px">Top Risky Cycles</div>
       <ul id="council-risk-list" class="guide-list"></ul>
       <div id="council-escalation-kicker" class="kicker" style="margin-top:14px">Human Review Queue</div>
@@ -583,6 +584,50 @@
       });
     };
 
+    refreshCouncilEscalationQueue().catch(()=>{});
+  </script>
+  <script>
+    const ______originalRefreshCouncilQualityPreview=refreshCouncilQualityPreview;
+    refreshCouncilQualityPreview=async function(){
+      await ______originalRefreshCouncilQualityPreview();
+      try{
+        const data=await callJson("/api/council-quality-preview");
+        const history=el("council-quality-history");
+        if(!history) return;
+        history.innerHTML="";
+        if(!data.ok) return;
+        (data.payload.operator_review_history||[]).forEach(item=>{
+          const li=document.createElement("li");
+          const who=item.reviewer || item.assigned_by || "operator";
+          li.textContent=`${item.timestamp || "n/a"}: ${item.action || "update"} / ${who}`;
+          history.appendChild(li);
+        });
+      }catch(_error){}
+    };
+
+    const _______originalRefreshCouncilEscalationQueue=refreshCouncilEscalationQueue;
+    refreshCouncilEscalationQueue=async function(){
+      await _______originalRefreshCouncilEscalationQueue();
+      const data=await callJson("/api/council-escalation-queue");
+      const list=el("council-escalation-list");
+      if(!list || !data.ok || !(data.payload.items||[]).length) return;
+      const items=Array.from(list.children);
+      (data.payload.items||[]).forEach((item,index)=>{
+        const li=items[index];
+        if(!li || !(item.review_history||[]).length) return;
+        const history=document.createElement("ul");
+        history.className="guide-list";
+        (item.review_history||[]).forEach(entry=>{
+          const historyItem=document.createElement("li");
+          const who=entry.reviewer || entry.assigned_by || "operator";
+          historyItem.textContent=`${entry.timestamp || "n/a"}: ${entry.action || "update"} / ${who}`;
+          history.appendChild(historyItem);
+        });
+        li.appendChild(history);
+      });
+    };
+
+    refreshCouncilQualityPreview().catch(()=>{});
     refreshCouncilEscalationQueue().catch(()=>{});
   </script>
 </body>

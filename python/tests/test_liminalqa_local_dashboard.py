@@ -71,6 +71,7 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                     "reviewer": "qa-operator",
                     "forced": False,
                 },
+                "operator_review_history": [{"action": "approve", "reviewer": "qa-operator", "timestamp": "2026-04-10T10:00:00+00:00"}],
             }
         ),
         encoding="utf-8",
@@ -100,6 +101,7 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["operator_review_decision"] == "approved"
     assert payload["operator_review_reviewer"] == "qa-operator"
     assert payload["operator_review_forced"] is False
+    assert payload["operator_review_history"][0]["action"] == "approve"
     assert payload["liminalqa_published"] is True
     assert payload["liminalqa_status_code"] == 200
     assert payload["liminalqa_incident_published"] is True
@@ -185,6 +187,7 @@ def test_preview_council_escalation_queue_filters_human_review(monkeypatch, tmp_
     assert payload["items"][0]["cycle_id"] == "cycle-escalate"
     assert payload["items"][0]["review_status"] == "pending"
     assert payload["items"][0]["assigned_reviewer"] == "alice"
+    assert payload["items"][0]["review_history"] == []
 
 
 def test_preview_council_quality_artifact_exposes_closed_reason(monkeypatch, tmp_path: Path) -> None:

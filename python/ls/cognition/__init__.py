@@ -37,6 +37,49 @@ from ls.cognition.collective_answer_validator import (
     ValidationInput,
     ValidationResult,
 )
+from ls.cognition.lifetra_validation_adapter import (
+    LifetraValidationAdapter,
+    ValidationTraceArtifact,
+    ValidationTraceBackend,
+)
+from ls.cognition.ltp_trace_signer import (
+    generate_key_pair,
+    sign_trace_artifact,
+    verify_trace_artifact,
+)
+from ls.cognition.validation_escalation import (
+    EscalationRequired,
+    LoggingEscalationHandler,
+    NullEscalationHandler,
+    RaisingEscalationHandler,
+    ValidationEscalationHandler,
+)
+from ls.cognition.validation_lss_store import LSSValidationHistoryStore
+from ls.cognition.agent_validation_bridge import (
+    AgentLoopHandle,
+    AgentValidationBridge,
+    BridgeResult,
+    CallableAgentHandle,
+)
+from ls.cognition.council_validation_bridge import (
+    candidates_from_ledger,
+    task_prompt_from_ledger,
+    validate_council_artifact,
+    validate_council_ledger,
+)
+from ls.cognition.validation_governance import (
+    AgentReputationProfile,
+    CoalitionAlert,
+    DistributedConsensusSnapshot,
+    GovernedCandidateScore,
+    InMemoryValidationHistoryStore,
+    JsonlValidationHistoryStore,
+    ParaphraseCluster,
+    ValidationGovernanceEngine,
+    ValidationGovernanceReport,
+    ValidationHistoryCandidate,
+    ValidationHistoryRecord,
+)
 
 __all__ = [
     "AgentState",
@@ -84,4 +127,35 @@ __all__ = [
     "ValidatedCandidate",
     "ValidationResult",
     "CollectiveAnswerValidator",
+    "ValidationTraceArtifact",
+    "ValidationTraceBackend",
+    "LifetraValidationAdapter",
+    "ValidationHistoryCandidate",
+    "ValidationHistoryRecord",
+    "InMemoryValidationHistoryStore",
+    "JsonlValidationHistoryStore",
+    "ParaphraseCluster",
+    "AgentReputationProfile",
+    "GovernedCandidateScore",
+    "CoalitionAlert",
+    "DistributedConsensusSnapshot",
+    "ValidationGovernanceReport",
+    "ValidationGovernanceEngine",
+    "generate_key_pair",
+    "sign_trace_artifact",
+    "verify_trace_artifact",
+    "EscalationRequired",
+    "LoggingEscalationHandler",
+    "NullEscalationHandler",
+    "RaisingEscalationHandler",
+    "ValidationEscalationHandler",
+    "LSSValidationHistoryStore",
+    "AgentLoopHandle",
+    "AgentValidationBridge",
+    "BridgeResult",
+    "CallableAgentHandle",
+    "candidates_from_ledger",
+    "task_prompt_from_ledger",
+    "validate_council_ledger",
+    "validate_council_artifact",
 ]
