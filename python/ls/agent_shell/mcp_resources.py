@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .cognitive_state import CognitiveStateBridge
 from .mcp_tools import MCPValidationError
 from .runtime.protocol import TaskRuntime
 
@@ -16,8 +17,13 @@ class ResourceRef:
 class MCPResourceRegistry:
     """Expose task state as MCP resources."""
 
-    def __init__(self, task_manager: TaskRuntime) -> None:
+    def __init__(
+        self,
+        task_manager: TaskRuntime,
+        cognitive_state: CognitiveStateBridge | None = None,
+    ) -> None:
         self.task_manager = task_manager
+        self._cognitive_state = cognitive_state or CognitiveStateBridge(task_manager=task_manager)
 
     def list_resources(self) -> list[ResourceRef]:
         return [
@@ -27,9 +33,23 @@ class MCPResourceRegistry:
             ResourceRef(uri="task://{id}/summary", name="Task summary"),
             ResourceRef(uri="task://{id}/plan", name="Task plan"),
             ResourceRef(uri="task://{id}/approvals", name="Task approvals"),
+            ResourceRef(uri="resonance/snapshot", name="Resonance snapshot"),
+            ResourceRef(uri="alignment/current", name="Current alignment state"),
+            ResourceRef(uri="omni/last-insight", name="Last Qwen Omni insight"),
         ]
 
-    def read_resource(self, uri: str) -> dict[str, Any]:
+    def read_resource(self, uri: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+        args = arguments or {}
+        if uri == "resonance/snapshot":
+            return self._cognitive_state.get_resonance_snapshot(
+                top_k=int(args.get("top_k", 10)),
+                min_resonance_score=float(args.get("min_resonance_score", 0.3)),
+            )
+        if uri == "alignment/current":
+            return self._cognitive_state.get_alignment_current()
+        if uri == "omni/last-insight":
+            return self._cognitive_state.get_omni_last_insight()
+
         task_id, suffix = self._parse_task_uri(uri)
 
         if suffix == "status":

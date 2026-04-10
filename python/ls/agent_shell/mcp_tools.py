@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 import json
 
+from .cognitive_state import CognitiveStateBridge
 from .runtime.factory import RuntimeBindingError, resolve_task_runtime
 from .runtime.protocol import TaskRuntime
 
@@ -14,8 +15,13 @@ class MCPValidationError(ValueError):
 class MCPToolRegistry:
     """Thin MCP tool adapter over an externally bound TaskRuntime."""
 
-    def __init__(self, task_manager: TaskRuntime | None = None) -> None:
+    def __init__(
+        self,
+        task_manager: TaskRuntime | None = None,
+        cognitive_state: CognitiveStateBridge | None = None,
+    ) -> None:
         self.task_manager = task_manager or resolve_task_runtime()
+        self._cognitive_state = cognitive_state or CognitiveStateBridge(task_manager=self.task_manager)
         self._tools = {
             "ls_plan_task": self._plan_task,
             "ls_run_task": self._run_task,
@@ -25,10 +31,15 @@ class MCPToolRegistry:
             "ls_list_artifacts": self._list_artifacts,
             "ls_approve": self._approve,
             "ls_reject": self._reject,
+            "get_cognitive_state": self._get_cognitive_state,
         }
 
     def list_tools(self) -> list[dict[str, Any]]:
         return [{"name": name} for name in self._tools]
+
+    @property
+    def cognitive_state(self) -> CognitiveStateBridge:
+        return self._cognitive_state
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if name not in self._tools:
@@ -65,6 +76,12 @@ class MCPToolRegistry:
             task_id=str(args["task_id"]),
             step_id=str(args["step_id"]),
             reason=str(args.get("reason", "No reason provided")),
+        )
+
+    def _get_cognitive_state(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._cognitive_state.get_cognitive_state(
+            top_k=int(args.get("top_k", 10)),
+            min_resonance_score=float(args.get("min_resonance_score", 0.3)),
         )
 
 

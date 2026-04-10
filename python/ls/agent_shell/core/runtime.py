@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Any
 import json
 import uuid
+import os
+import sys
 
 
 ALLOWED_MODES = {"read-only", "safe-write", "full-agent"}
@@ -18,6 +20,7 @@ class CoreTaskRuntime:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         self.artifact_root.mkdir(parents=True, exist_ok=True)
         self._state = self._load()
+        self._agent_loop: Any | None = None
 
     def _load(self) -> dict[str, Any]:
         if self.state_path.exists():
@@ -108,6 +111,43 @@ class CoreTaskRuntime:
         task["summary"] = f"Task blocked after rejection: {reason}"
         self._save()
         return {"task_id": task_id, "step_id": step_id, "status": "rejected"}
+
+    def bind_agent_loop(self, loop: Any) -> None:
+        """Optional runtime bridge for cognitive MCP resources."""
+        self._agent_loop = loop
+
+    def get_resonance_snapshot(
+        self,
+        *,
+        top_k: int = 10,
+        min_resonance_score: float = 0.3,
+    ) -> list[dict[str, Any]]:
+        try:
+            modules_root = Path(__file__).resolve().parents[3] / "modules"
+            root_str = str(modules_root)
+            if root_str not in sys.path:
+                sys.path.insert(0, root_str)
+            from graph.memory_store import MemoryGraphStore
+
+            store = MemoryGraphStore(
+                os.environ.get("GRAPH_MEMORY_STORE_PATH", "data/graph_memory/cases.jsonl")
+            )
+            rows = store.get_resonance_snapshot(
+                top_k=top_k,
+                min_resonance_score=min_resonance_score,
+            )
+            return [row.to_dict() for row in rows]
+        except Exception:
+            return []
+
+    def get_omni_last_insight(self) -> dict[str, Any] | None:
+        worker = getattr(self._agent_loop, "qwen_omni_worker", None)
+        if worker is None:
+            return None
+        try:
+            return worker.get_last_insight()
+        except Exception:
+            return None
 
 
 def build_runtime() -> CoreTaskRuntime:

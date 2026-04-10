@@ -13,7 +13,10 @@ class LSMCPServer:
 
     def __init__(self, tool_registry: MCPToolRegistry | None = None) -> None:
         self.tools = tool_registry or MCPToolRegistry()
-        self.resources = MCPResourceRegistry(self.tools.task_manager)
+        self.resources = MCPResourceRegistry(
+            self.tools.task_manager,
+            cognitive_state=self.tools.cognitive_state,
+        )
 
     def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         action = request.get("action")
@@ -32,7 +35,10 @@ class LSMCPServer:
             }
         if action == "resources/read":
             uri = str(request["uri"])
-            return {"resource": self.resources.read_resource(uri)}
+            arguments = request.get("arguments")
+            if arguments is not None and not isinstance(arguments, dict):
+                raise MCPValidationError("resources/read arguments must be an object")
+            return {"resource": self.resources.read_resource(uri, arguments)}
         raise MCPValidationError(f"Unsupported action: {action}")
 
 

@@ -36,6 +36,24 @@ def test_default_shell_binding_resolves_core_runtime(monkeypatch):
     runtime = resolve_task_runtime()
     assert isinstance(runtime, CoreTaskRuntime)
 
+
+def test_core_runtime_resonance_binding(tmp_path, monkeypatch):
+    runtime = CoreTaskRuntime(
+        state_path=tmp_path / "state.json",
+        artifact_root=tmp_path / "artifacts",
+    )
+    cases_path = tmp_path / "graph_memory" / "cases.jsonl"
+    resonance_path = cases_path.with_name("resonance_units.jsonl")
+    resonance_path.parent.mkdir(parents=True, exist_ok=True)
+    resonance_path.write_text(
+        '{"unit_id":"core-u1","source_question":"q","timestamp":"2026-04-09T12:00:00+00:00","resonance_score":0.83}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GRAPH_MEMORY_STORE_PATH", str(cases_path))
+
+    rows = runtime.get_resonance_snapshot(top_k=2, min_resonance_score=0.3)
+    assert rows and rows[0]["unit_id"] == "core-u1"
+
 def test_plan_task_generates_blocked_plan(tmp_path):
     server = _new_server(tmp_path)
     response = server.handle(
