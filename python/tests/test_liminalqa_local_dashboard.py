@@ -422,3 +422,4 @@ def test_preview_council_breach_queue_detects_open_breaches(monkeypatch, tmp_pat
     assert payload["total"] >= 1
     assert payload["items"][0]["cycle_id"] == "cycle-breach"
     assert payload["items"][0]["breach_type"] in {"review", "close"}
+    assert payload["items"][0]["critical"] is True

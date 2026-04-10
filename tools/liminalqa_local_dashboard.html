@@ -649,6 +649,8 @@
           ".breach-row.review{border-left:6px solid #dc2626;background:#fef2f2;}",
           ".breach-row.close{border-left:6px solid #7c3aed;background:#f5f3ff;}",
           ".breach-meta{display:block;font-size:12px;color:var(--muted);margin-top:4px;}",
+          ".breach-summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+          ".breach-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#991b1b;color:#fff;}",
         ].join("");
         document.head.appendChild(style);
       }
@@ -695,10 +697,19 @@
         const posture=item.approval_posture || "n/a";
         const summary=document.createElement("strong");
         summary.textContent=`${cycle}: ${breach}`;
+        const summaryRow=document.createElement("div");
+        summaryRow.className="breach-summary";
+        summaryRow.appendChild(summary);
+        if(item.critical){
+          const badge=document.createElement("span");
+          badge.className="breach-badge";
+          badge.textContent="critical";
+          summaryRow.appendChild(badge);
+        }
         const meta=document.createElement("span");
         meta.className="breach-meta";
         meta.textContent=`${minutes}m / ${reviewer} / ${posture}`;
-        li.appendChild(summary);
+        li.appendChild(summaryRow);
         li.appendChild(meta);
         const actions=document.createElement("div");
         actions.className="button-row";

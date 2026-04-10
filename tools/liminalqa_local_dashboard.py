@@ -754,14 +754,30 @@ def build_open_breach_rows(rows: list[dict]) -> list[dict]:
         assign_latency = history_latency_minutes(cycle_started_at, history, {"assign"})
         review_latency = history_latency_minutes(cycle_started_at, history, {"approve", "reject"})
         close_latency = history_latency_minutes(cycle_started_at, history, {"close"})
+        def breach_payload(breach_type: str, threshold_minutes: float) -> dict:
+            return {
+                "cycle_id": row.get("cycle_id"),
+                "breach_type": breach_type,
+                "minutes_open": round(open_minutes, 2),
+                "review_status": review_status,
+                "assigned_reviewer": assigned_reviewer,
+                "approval_posture": approval_posture,
+                "critical": open_minutes > (threshold_minutes * 2.0),
+            }
         if assign_latency is None and review_status == "pending" and open_minutes > ASSIGNMENT_SLA_MINUTES:
-            breach_rows.append({"cycle_id": row.get("cycle_id"), "breach_type": "assignment", "minutes_open": round(open_minutes, 2), "review_status": review_status, "assigned_reviewer": assigned_reviewer, "approval_posture": approval_posture})
+            breach_rows.append(breach_payload("assignment", ASSIGNMENT_SLA_MINUTES))
         if review_latency is None and review_status == "pending" and open_minutes > REVIEW_SLA_MINUTES:
-            breach_rows.append({"cycle_id": row.get("cycle_id"), "breach_type": "review", "minutes_open": round(open_minutes, 2), "review_status": review_status, "assigned_reviewer": assigned_reviewer, "approval_posture": approval_posture})
+            breach_rows.append(breach_payload("review", REVIEW_SLA_MINUTES))
         if close_latency is None and review_status != "closed" and open_minutes > CLOSE_SLA_MINUTES:
-            breach_rows.append({"cycle_id": row.get("cycle_id"), "breach_type": "close", "minutes_open": round(open_minutes, 2), "review_status": review_status, "assigned_reviewer": assigned_reviewer, "approval_posture": approval_posture})
+            breach_rows.append(breach_payload("close", CLOSE_SLA_MINUTES))
     breach_order = {"assignment": 0, "review": 1, "close": 2}
-    breach_rows.sort(key=lambda item: (breach_order.get(str(item.get("breach_type")), 9), -float(item.get("minutes_open") or 0.0)))
+    breach_rows.sort(
+        key=lambda item: (
+            0 if bool(item.get("critical")) else 1,
+            -float(item.get("minutes_open") or 0.0),
+            breach_order.get(str(item.get("breach_type")), 9),
+        )
+    )
     return breach_rows
 
 
