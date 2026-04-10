@@ -31,6 +31,7 @@ QUALITY_DIR = ARTIFACTS_DIR / "quality"
 QUALITY_REPORT_PATH = ARTIFACTS_DIR / "quality-report.json"
 COUNCIL_LEDGER_DIR = ARTIFACTS_DIR / "council-ledger"
 COUNCIL_QUALITY_DIR = ARTIFACTS_DIR / "council-quality"
+RELATION_MEMORY_DIR = ARTIFACTS_DIR / "relation-memory"
 DOCS_BASE_URL = "https://github.com/safal207/LS/blob/main/docs"
 COUNCIL_CYCLE_TIMEOUT_SECONDS = 45
 ASSIGNMENT_SLA_MINUTES = 15.0
@@ -463,6 +464,21 @@ def latest_council_quality_artifact() -> dict | None:
     return None
 
 
+def load_relation_memory_rows() -> list[dict]:
+    rows: list[dict] = []
+    if not RELATION_MEMORY_DIR.exists():
+        return rows
+    for path in sorted(RELATION_MEMORY_DIR.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        payload["_path"] = str(path)
+        rows.append(payload)
+    rows.sort(key=lambda item: parse_iso(item.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc))
+    return rows
+
+
 def preview_council_quality_artifact() -> tuple[int, object]:
     payload = latest_council_quality_artifact()
     if not payload:
@@ -480,6 +496,36 @@ def preview_council_quality_artifact() -> tuple[int, object]:
     operator_guidance = payload.get("operator_guidance") or {}
     operator_review = payload.get("operator_review") or {}
     review_history = payload.get("operator_review_history") or []
+    relation_memory_rows = load_relation_memory_rows()
+    current_relation_memory_path = payload.get("relation_memory_path")
+    current_relation_memory = None
+    for row in relation_memory_rows:
+        if current_relation_memory_path and str(row.get("_path")) == str(current_relation_memory_path):
+            current_relation_memory = row
+            break
+        if row.get("cycle_id") == payload.get("cycle_id"):
+            current_relation_memory = row
+            break
+    pattern_key = (current_relation_memory or {}).get("pattern_key")
+    similar_patterns: list[dict] = []
+    if pattern_key:
+        for row in reversed(relation_memory_rows):
+            if row.get("cycle_id") == payload.get("cycle_id"):
+                continue
+            if row.get("pattern_key") != pattern_key:
+                continue
+            similar_patterns.append(
+                {
+                    "cycle_id": row.get("cycle_id"),
+                    "timestamp": row.get("timestamp"),
+                    "risk_state": row.get("risk_state"),
+                    "review_decision": row.get("review_decision"),
+                    "selected_route": row.get("selected_route"),
+                    "receiver_resonance_score": row.get("receiver_resonance_score"),
+                }
+            )
+            if len(similar_patterns) >= 3:
+                break
     merit_updates = cel.get("merit_updates") or []
     top_merit = max((float(item.get("merit_score") or 0.0) for item in merit_updates), default=0.0)
     return 200, {
@@ -487,6 +533,9 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "task_id": payload.get("task_id"),
         "artifact_path": payload.get("_path"),
         "relational_episode_path": payload.get("relational_episode_path"),
+        "relation_memory_path": current_relation_memory_path,
+        "relation_memory_pattern_key": pattern_key,
+        "similar_relation_patterns": similar_patterns,
         "quality_score": payload.get("quality_score"),
         "relation_adjusted_quality_score": payload.get("relation_adjusted_quality_score"),
         "selected_route": council_outcome.get("selected_route"),

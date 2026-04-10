@@ -17,7 +17,23 @@ def test_preview_council_quality_artifact_empty(monkeypatch, tmp_path: Path) -> 
 
 def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Path) -> None:
     quality_dir = tmp_path / "council-quality"
+    relation_memory_dir = tmp_path / "relation-memory"
     quality_dir.mkdir()
+    relation_memory_dir.mkdir()
+    (relation_memory_dir / "cycle-000.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-000",
+                "timestamp": "2026-04-09T08:00:00Z",
+                "pattern_key": "watch:tension:high",
+                "risk_state": "watch",
+                "review_decision": "approved",
+                "selected_route": "route-z",
+                "receiver_resonance_score": 0.8,
+            }
+        ),
+        encoding="utf-8",
+    )
     path = quality_dir / "cycle-001.json"
     path.write_text(
         json.dumps(
@@ -25,6 +41,7 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                 "cycle_id": "cycle-001",
                 "task_id": "task-001",
                 "relational_episode_path": str(tmp_path / "relational-episodes" / "cycle-001.json"),
+                "relation_memory_path": str(relation_memory_dir / "cycle-001.json"),
                 "quality_score": 0.84,
                 "relation_adjusted_quality_score": 0.71,
                 "council_outcome": {
@@ -76,13 +93,31 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
         ),
         encoding="utf-8",
     )
+    (relation_memory_dir / "cycle-001.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-001",
+                "timestamp": "2026-04-10T08:00:00Z",
+                "pattern_key": "watch:tension:high",
+                "risk_state": "watch",
+                "review_decision": "approved",
+                "selected_route": "route-a",
+                "receiver_resonance_score": 0.73,
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+    monkeypatch.setattr(dashboard, "RELATION_MEMORY_DIR", relation_memory_dir)
 
     status, payload = dashboard.preview_council_quality_artifact()
 
     assert status == 200
     assert payload["cycle_id"] == "cycle-001"
     assert payload["relational_episode_path"].endswith("cycle-001.json")
+    assert payload["relation_memory_path"].endswith("cycle-001.json")
+    assert payload["relation_memory_pattern_key"] == "watch:tension:high"
+    assert payload["similar_relation_patterns"][0]["cycle_id"] == "cycle-000"
     assert payload["quality_score"] == 0.84
     assert payload["relation_adjusted_quality_score"] == 0.71
     assert payload["selected_route"] == "route-a"

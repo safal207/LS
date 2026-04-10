@@ -869,5 +869,60 @@
     refreshCouncilQualityPreview().catch(()=>{});
     refreshCouncilBreachQueue().catch(()=>{});
   </script>
+  <script>
+    (function(){
+      const qualityHistory=el("council-quality-history");
+      if(qualityHistory && !el("relation-memory-kicker")){
+        const kicker=document.createElement("div");
+        kicker.id="relation-memory-kicker";
+        kicker.className="kicker";
+        kicker.style.marginTop="14px";
+        kicker.textContent="Relation Memory";
+        const meta=document.createElement("div");
+        meta.id="relation-memory-meta";
+        meta.className="meta";
+        meta.textContent="Recent relational pattern memory for the latest council cycle.";
+        const list=document.createElement("ul");
+        list.id="relation-memory-list";
+        list.className="guide-list";
+        qualityHistory.insertAdjacentElement("afterend", list);
+        qualityHistory.insertAdjacentElement("afterend", meta);
+        qualityHistory.insertAdjacentElement("afterend", kicker);
+      }
+    })();
+
+    const ___________originalRefreshCouncilQualityPreview=refreshCouncilQualityPreview;
+    refreshCouncilQualityPreview=async function(){
+      await ___________originalRefreshCouncilQualityPreview();
+      try{
+        const data=await callJson("/api/council-quality-preview");
+        const list=el("relation-memory-list");
+        const meta=el("relation-memory-meta");
+        if(!list || !meta) return;
+        list.innerHTML="";
+        if(!data.ok){
+          meta.textContent="No relation-memory artifact for the latest cycle.";
+          return;
+        }
+        const memoryPath=data.payload.relation_memory_path || "n/a";
+        const patternKey=data.payload.relation_memory_pattern_key || "n/a";
+        meta.textContent=`${memoryPath} / pattern=${patternKey}`;
+        const similar=data.payload.similar_relation_patterns || [];
+        if(!similar.length){
+          const li=document.createElement("li");
+          li.textContent="No similar recent patterns yet.";
+          list.appendChild(li);
+          return;
+        }
+        similar.forEach(item=>{
+          const li=document.createElement("li");
+          li.textContent=`${item.cycle_id}: ${item.review_decision || "pending"} / ${item.selected_route || "unknown"} / resonance=${Number(item.receiver_resonance_score || 0).toFixed(2)}`;
+          list.appendChild(li);
+        });
+      }catch(_error){}
+    };
+
+    refreshCouncilQualityPreview().catch(()=>{});
+  </script>
 </body>
 </html>
