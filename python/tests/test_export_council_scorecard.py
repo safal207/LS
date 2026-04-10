@@ -63,8 +63,6 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
                 "cycle_id": "cycle-b",
                 "quality_score": 0.41,
                 "relational_field": {"relation_safety_score": 0.29},
-                "operator_guidance": {"risk_state": "safe"},
-                "liminalqa": {"incident": {"published": False}},
                 "operator_guidance": {"risk_state": "escalate"},
                 "liminalqa": {"incident": {"published": False}},
                 "operator_review": {"decision": "rejected"},

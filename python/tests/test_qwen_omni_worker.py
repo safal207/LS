@@ -92,3 +92,31 @@ def test_qwen_omni_worker_store_failure_is_best_effort(tmp_path, monkeypatch):
 
     assert unit is None
     assert store.list_resonance_units() == []
+
+
+def test_qwen_omni_worker_last_insight_returns_deep_copy(tmp_path, monkeypatch):
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
+    store = MemoryGraphStore(tmp_path / "cases.jsonl")
+    worker = QwenOmniWorker(
+        graph_store=store,
+        audio_provider=lambda: "user says hello",
+        min_store_resonance_score=0.0,
+    )
+
+    worker._last_insight = {
+        "source_question": "monitor current screen",
+        "metadata": {"provider": "fallback"},
+        "goal_vector": [0.1, 0.2],
+        "causal_path": [{"kind": "screen"}],
+    }
+
+    payload = worker.get_last_insight()
+    assert payload is not None
+
+    payload["metadata"]["provider"] = "tampered"
+    payload["goal_vector"][0] = 9.9
+    payload["causal_path"][0]["kind"] = "mutated"
+
+    assert worker._last_insight["metadata"]["provider"] == "fallback"
+    assert worker._last_insight["goal_vector"][0] == 0.1
+    assert worker._last_insight["causal_path"][0]["kind"] == "screen"

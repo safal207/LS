@@ -130,6 +130,33 @@ def test_mcp_resonance_file_fallback_handles_malformed_json(tmp_path, monkeypatc
     assert [row["unit_id"] for row in payload["items"]] == ["ok-2", "ok-1"]
 
 
+def test_mcp_resonance_file_fallback_includes_threshold_matching_units(tmp_path, monkeypatch):
+    runtime = FixtureRuntime(
+        state_path=tmp_path / "state.json",
+        artifact_root=tmp_path / "artifacts",
+    )
+    cases_path = tmp_path / "graph_memory" / "cases.jsonl"
+    resonance_path = cases_path.with_name("resonance_units.jsonl")
+    resonance_path.parent.mkdir(parents=True, exist_ok=True)
+    resonance_path.write_text(
+        '{"unit_id":"eq-threshold","timestamp":"2026-04-09T10:00:00+00:00","resonance_score":0.3}\n'
+        '{"unit_id":"above-threshold","timestamp":"2026-04-09T11:00:00+00:00","resonance_score":0.31}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GRAPH_MEMORY_STORE_PATH", str(cases_path))
+
+    resources = MCPResourceRegistry(runtime)
+    payload = resources.read_resource(
+        "resonance/snapshot",
+        {"top_k": 5, "min_resonance_score": 0.3},
+    )
+
+    assert [row["unit_id"] for row in payload["items"]] == [
+        "above-threshold",
+        "eq-threshold",
+    ]
+
+
 def test_mcp_alignment_exposure(tmp_path):
     runtime = _new_runtime(tmp_path)
     resources = MCPResourceRegistry(runtime)

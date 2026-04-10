@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import logging
 import os
 import threading
@@ -162,7 +163,7 @@ class QwenOmniWorker:
     def get_last_insight(self) -> dict[str, Any] | None:
         if self._last_insight is None:
             return None
-        return dict(self._last_insight)
+        return copy.deepcopy(self._last_insight)
 
     def _capture_screen_frame(self) -> tuple[str | None, dict[str, Any]]:
         try:

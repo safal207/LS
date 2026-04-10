@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import os
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -95,7 +95,7 @@ class CognitiveStateBridge:
                 except Exception:
                     logger.debug("Skipping malformed resonance JSONL row")
                     continue
-                if float(payload.get("resonance_score", 0.0) or 0.0) <= min_resonance_score:
+                if float(payload.get("resonance_score", 0.0) or 0.0) < min_resonance_score:
                     continue
                 items.append(payload)
         items.sort(key=lambda item: str(item.get("timestamp") or ""), reverse=True)
