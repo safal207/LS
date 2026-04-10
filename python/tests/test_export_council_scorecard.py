@@ -96,6 +96,9 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
     assert payload["summary"]["median_assignment_minutes"] == 12.5
     assert payload["summary"]["median_review_minutes"] == 27.5
     assert payload["summary"]["median_close_minutes"] == 30.0
+    assert payload["summary"]["assignment_sla_breaches"] == 0
+    assert payload["summary"]["review_sla_breaches"] == 1
+    assert payload["summary"]["close_sla_breaches"] == 0
     assert payload["summary"]["top_contributor"] in {"local-qwen", "gpt-web"}
     assert payload["lines"]["incident_trend"] == [
         {"label": "c1", "value": 1},

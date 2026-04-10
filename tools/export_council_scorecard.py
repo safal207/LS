@@ -14,6 +14,9 @@ DEFAULT_DATASET_INPUT_DIR = ROOT / "artifacts" / "fellowship-dataset" / "ledgers
 DEFAULT_DATASET_QUALITY_DIR = ROOT / "artifacts" / "fellowship-dataset" / "council-quality"
 DEFAULT_QUALITY_INPUT_DIR = ROOT / "artifacts" / "council-quality"
 DEFAULT_OUTPUT_PATH = ROOT / "ghostgpt-ls-landing" / "src" / "data" / "councilScorecard.json"
+ASSIGNMENT_SLA_MINUTES = 15.0
+REVIEW_SLA_MINUTES = 30.0
+CLOSE_SLA_MINUTES = 45.0
 
 
 def parse_iso(value: object) -> datetime | None:
@@ -145,6 +148,9 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 "median_assignment_minutes": 0.0,
                 "median_review_minutes": 0.0,
                 "median_close_minutes": 0.0,
+                "assignment_sla_breaches": 0,
+                "review_sla_breaches": 0,
+                "close_sla_breaches": 0,
             },
             "bars": {
                 "best_contributor_frequency": [],
@@ -188,6 +194,9 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
     assignment_latencies: list[float] = []
     review_latencies: list[float] = []
     close_latencies: list[float] = []
+    assignment_sla_breaches = 0
+    review_sla_breaches = 0
+    close_sla_breaches = 0
     approved_count = 0
     escalate_count = 0
     for index, row in enumerate(selected_rows, start=1):
@@ -248,12 +257,18 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         assignment_latency = history_latency_minutes(cycle_started_at, review_history, {"assign"})
         if assignment_latency is not None:
             assignment_latencies.append(assignment_latency)
+            if assignment_latency > ASSIGNMENT_SLA_MINUTES:
+                assignment_sla_breaches += 1
         review_latency = history_latency_minutes(cycle_started_at, review_history, {"approve", "reject"})
         if review_latency is not None:
             review_latencies.append(review_latency)
+            if review_latency > REVIEW_SLA_MINUTES:
+                review_sla_breaches += 1
         close_latency = history_latency_minutes(cycle_started_at, review_history, {"close"})
         if close_latency is not None:
             close_latencies.append(close_latency)
+            if close_latency > CLOSE_SLA_MINUTES:
+                close_sla_breaches += 1
         resonance_series.append({"label": label, "value": round(resonance * 100.0, 2)})
         merit_series.append({"label": label, "value": round(merit * 100.0, 2)})
         incident_series.append({"label": label, "value": incident_count})
@@ -293,6 +308,9 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "median_assignment_minutes": round(median_or_zero(assignment_latencies), 2),
             "median_review_minutes": round(median_or_zero(review_latencies), 2),
             "median_close_minutes": round(median_or_zero(close_latencies), 2),
+            "assignment_sla_breaches": assignment_sla_breaches,
+            "review_sla_breaches": review_sla_breaches,
+            "close_sla_breaches": close_sla_breaches,
         },
         "bars": {
             "best_contributor_frequency": [{"label": key, "value": value} for key, value in best_counts.items()],

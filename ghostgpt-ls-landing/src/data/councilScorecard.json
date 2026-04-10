@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-10T07:05:10Z",
+  "generated_at": "2026-04-10T07:12:50Z",
   "source": "fellowship_dataset",
   "summary": {
     "ledgers": 8,
@@ -16,7 +16,10 @@
     "escalation_rate": 0.0,
     "median_assignment_minutes": 0.0,
     "median_review_minutes": 0.0,
-    "median_close_minutes": 0.0
+    "median_close_minutes": 0.0,
+    "assignment_sla_breaches": 0,
+    "review_sla_breaches": 0,
+    "close_sla_breaches": 0
   },
   "bars": {
     "best_contributor_frequency": [

@@ -33,6 +33,9 @@ COUNCIL_LEDGER_DIR = ARTIFACTS_DIR / "council-ledger"
 COUNCIL_QUALITY_DIR = ARTIFACTS_DIR / "council-quality"
 DOCS_BASE_URL = "https://github.com/safal207/LS/blob/main/docs"
 COUNCIL_CYCLE_TIMEOUT_SECONDS = 45
+ASSIGNMENT_SLA_MINUTES = 15.0
+REVIEW_SLA_MINUTES = 30.0
+CLOSE_SLA_MINUTES = 45.0
 FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#161311"/><path d="M16 47V17h8v23h20v7H16zm17-8 9-22h8L40 39h-7z" fill="#fffaf1"/></svg>'
 LANE = {
     "key": "mesh-tests",
@@ -727,6 +730,9 @@ def build_council_analytics() -> dict:
             "median_assignment_minutes": 0.0,
             "median_review_minutes": 0.0,
             "median_close_minutes": 0.0,
+            "assignment_sla_breaches": 0,
+            "review_sla_breaches": 0,
+            "close_sla_breaches": 0,
             "empty": True,
             "how_to_generate": [
                 "Run a real coordination cycle through ResonanceAgent.",
@@ -753,6 +759,9 @@ def build_council_analytics() -> dict:
     assignment_latencies: list[float] = []
     review_latencies: list[float] = []
     close_latencies: list[float] = []
+    assignment_sla_breaches = 0
+    review_sla_breaches = 0
+    close_sla_breaches = 0
     successes: list[float] = []
     resonances: list[float] = []
     merits: list[float] = []
@@ -810,12 +819,18 @@ def build_council_analytics() -> dict:
         assignment_latency = history_latency_minutes(cycle_started_at, review_history, {"assign"})
         if assignment_latency is not None:
             assignment_latencies.append(assignment_latency)
+            if assignment_latency > ASSIGNMENT_SLA_MINUTES:
+                assignment_sla_breaches += 1
         review_latency = history_latency_minutes(cycle_started_at, review_history, {"approve", "reject"})
         if review_latency is not None:
             review_latencies.append(review_latency)
+            if review_latency > REVIEW_SLA_MINUTES:
+                review_sla_breaches += 1
         close_latency = history_latency_minutes(cycle_started_at, review_history, {"close"})
         if close_latency is not None:
             close_latencies.append(close_latency)
+            if close_latency > CLOSE_SLA_MINUTES:
+                close_sla_breaches += 1
         incident_series.append({"label": label, "value": incident_count})
         review_series.append({"label": label, "value": reviewed_cycle_count})
     type_lift = {key: round(avg(values), 4) for key, values in type_totals.items()}
@@ -833,6 +848,9 @@ def build_council_analytics() -> dict:
         "median_assignment_minutes": round(median_or_zero(assignment_latencies), 2),
         "median_review_minutes": round(median_or_zero(review_latencies), 2),
         "median_close_minutes": round(median_or_zero(close_latencies), 2),
+        "assignment_sla_breaches": assignment_sla_breaches,
+        "review_sla_breaches": review_sla_breaches,
+        "close_sla_breaches": close_sla_breaches,
         "empty": False,
         "charts": {
             "bestContributorFrequency": [{"label": key, "value": value} for key, value in best_counts.items()],

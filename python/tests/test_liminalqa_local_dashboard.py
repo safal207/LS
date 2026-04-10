@@ -353,6 +353,9 @@ def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -
     assert payload["median_assignment_minutes"] == 10.0
     assert payload["median_review_minutes"] == 20.0
     assert payload["median_close_minutes"] == 30.0
+    assert payload["assignment_sla_breaches"] == 0
+    assert payload["review_sla_breaches"] == 0
+    assert payload["close_sla_breaches"] == 0
     assert payload["reviewed_cycle_count"] == 1
     assert payload["approval_conversion_rate"] == 100.0
     assert payload["escalation_rate"] == 0.0
