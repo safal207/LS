@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-10T17:20:29Z",
+  "generated_at": "2026-04-10T17:24:25Z",
   "source": "fellowship_dataset",
   "summary": {
     "ledgers": 8,
@@ -17,6 +17,7 @@
     "memory_adjusted_cycle_count": 0,
     "memory_match_total": 0,
     "route_memory_adjusted_cycle_count": 0,
+    "freeze_mode_count": 0,
     "median_assignment_minutes": 0.0,
     "median_review_minutes": 0.0,
     "median_close_minutes": 0.0,
@@ -48,6 +49,12 @@
       }
     ],
     "route_strategy_split": [
+      {
+        "label": "unknown",
+        "value": 8
+      }
+    ],
+    "safety_mode_split": [
       {
         "label": "unknown",
         "value": 8

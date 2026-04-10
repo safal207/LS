@@ -545,6 +545,7 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "quality_score": payload.get("quality_score"),
         "relation_adjusted_quality_score": payload.get("relation_adjusted_quality_score"),
         "selected_route": council_outcome.get("selected_route"),
+        "safety_mode": council_outcome.get("safety_mode") or operator_guidance.get("safety_mode"),
         "route_memory_adjusted": bool(council_outcome.get("route_memory_adjusted")),
         "route_memory_match_count": int(council_outcome.get("route_memory_match_count") or 0),
         "success": council_outcome.get("success"),

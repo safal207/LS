@@ -958,5 +958,28 @@
 
     refreshCouncilQualityPreview().catch(()=>{});
   </script>
+  <script>
+    (function(){
+      const councilQualityGrid=el("cq-incident")?.closest(".summary-grid");
+      if(councilQualityGrid && !el("cq-safety-mode")){
+        const modeBox=document.createElement("div");
+        modeBox.className="summary-box";
+        modeBox.innerHTML='<div class="summary-label">Safety Mode</div><div id="cq-safety-mode" class="summary-value">n/a</div>';
+        councilQualityGrid.appendChild(modeBox);
+      }
+    })();
+
+    const _____________originalRefreshCouncilQualityPreview=refreshCouncilQualityPreview;
+    refreshCouncilQualityPreview=async function(){
+      await _____________originalRefreshCouncilQualityPreview();
+      try{
+        const data=await callJson("/api/council-quality-preview");
+        if(!el("cq-safety-mode")) return;
+        el("cq-safety-mode").textContent=data.ok ? (data.payload.safety_mode || "n/a") : "n/a";
+      }catch(_error){}
+    };
+
+    refreshCouncilQualityPreview().catch(()=>{});
+  </script>
 </body>
 </html>

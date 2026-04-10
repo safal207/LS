@@ -3582,6 +3582,7 @@ class ResonanceAgent:
                     else "unknown"
                 ),
                 "route_strategy": str(path_meta.get("route_strategy") or risk_summary.get("route_strategy") or "continue_current_route"),
+                "safety_mode": str(path_meta.get("safety_mode") or risk_summary.get("safety_mode") or "normal"),
                 "route_memory_adjusted": bool(route_memory_policy.get("policy_adjusted")),
                 "route_memory_match_count": int(route_memory_policy.get("match_count") or 0),
             },
@@ -3985,9 +3986,11 @@ class ResonanceAgent:
             "policy_adjusted": bool(adjusted_memory.get("policy_adjusted")),
             "risk_state": str(risk_summary.get("risk_state") or "watch"),
             "route_strategy": str(risk_summary.get("route_strategy") or "continue_current_route"),
+            "safety_mode": str(risk_summary.get("safety_mode") or "normal"),
         }
         path_meta["relation_memory_route_policy"] = route_policy
         path_meta["route_strategy"] = route_policy["route_strategy"]
+        path_meta["safety_mode"] = route_policy["safety_mode"]
 
         should_reroute_local = (
             route_policy["policy_adjusted"]
@@ -4020,6 +4023,7 @@ class ResonanceAgent:
                 "suggested_operator_action": "Request another cycle before approving.",
                 "approval_posture": "evidence_check",
                 "route_strategy": "rerun_and_clarify",
+                "safety_mode": "evidence_first",
                 "requires_human_review": False,
                 "rerun_required": True,
                 "memory_context": memory_context,
@@ -4033,6 +4037,7 @@ class ResonanceAgent:
             action = "Pause approval, reduce tension, and rerun the council after repair."
             approval_posture = "hold_and_repair"
             route_strategy = "repair_then_reroute"
+            safety_mode = "repair_first"
             requires_human_review = False
             rerun_required = True
         elif recommended_mode == "validate_before_solve" or tension_score >= 0.6:
@@ -4040,6 +4045,7 @@ class ResonanceAgent:
             action = "Validate intent and evidence before approving this council outcome."
             approval_posture = "evidence_check"
             route_strategy = "validate_current_route"
+            safety_mode = "evidence_first"
             requires_human_review = False
             rerun_required = False
         elif recommended_mode == "collaborative_progress" and alignment_score >= 0.55:
@@ -4047,6 +4053,7 @@ class ResonanceAgent:
             action = "Safe to continue with normal operator review."
             approval_posture = "normal_review"
             route_strategy = "continue_current_route"
+            safety_mode = "normal"
             requires_human_review = False
             rerun_required = False
         else:
@@ -4058,6 +4065,7 @@ class ResonanceAgent:
             )
             approval_posture = "human_escalation" if risk_state == "escalate" else "evidence_check"
             route_strategy = "freeze_and_escalate" if risk_state == "escalate" else "rerun_and_clarify"
+            safety_mode = "human_first" if risk_state == "escalate" else "evidence_first"
             requires_human_review = risk_state == "escalate"
             rerun_required = risk_state != "escalate"
         policy_adjusted = False
@@ -4068,6 +4076,7 @@ class ResonanceAgent:
                 action = "Escalate to a human reviewer: similar prior relational patterns led to incidents or rejection."
                 approval_posture = "human_escalation"
                 route_strategy = "freeze_and_escalate"
+                safety_mode = "freeze"
                 requires_human_review = True
                 rerun_required = False
                 policy_adjusted = True
@@ -4078,6 +4087,7 @@ class ResonanceAgent:
             "suggested_operator_action": action,
             "approval_posture": approval_posture,
             "route_strategy": route_strategy,
+            "safety_mode": safety_mode,
             "requires_human_review": requires_human_review,
             "rerun_required": rerun_required,
             "memory_context": memory_context,

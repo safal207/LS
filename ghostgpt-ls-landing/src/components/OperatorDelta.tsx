@@ -52,6 +52,7 @@ type CouncilScorecardPayload = {
     memory_adjusted_cycle_count?: number;
     memory_match_total?: number;
     route_memory_adjusted_cycle_count?: number;
+    freeze_mode_count?: number;
     median_assignment_minutes?: number;
     median_review_minutes?: number;
     median_close_minutes?: number;
@@ -64,6 +65,7 @@ type CouncilScorecardPayload = {
     model_type_lift: ScorePoint[];
     route_wins: ScorePoint[];
     route_strategy_split?: ScorePoint[];
+    safety_mode_split?: ScorePoint[];
     approval_outcome_split?: ScorePoint[];
   };
   lines: {
@@ -126,6 +128,7 @@ const copy = {
     memoryAdjusted: 'Memory-adjusted',
     memoryMatches: 'Memory matches',
     routeMemoryAdjusted: 'Route memory-adjusted',
+    freezeMode: 'Freeze mode',
     medianAssign: 'Median assign',
     medianReview: 'Median review',
     medianClose: 'Median close',
@@ -136,6 +139,7 @@ const copy = {
     modelLift: 'Model type lift',
     routeWins: 'Route wins',
     routeStrategy: 'Route strategy split',
+    safetyMode: 'Safety mode split',
     approvalOutcome: 'Approval outcome split',
     resonanceTrend: 'Receiver resonance trend',
     meritTrend: 'Merit trend',
@@ -189,6 +193,7 @@ const copy = {
     memoryAdjusted: 'Memory-adjusted',
     memoryMatches: 'Memory matches',
     routeMemoryAdjusted: 'Route memory-adjusted',
+    freezeMode: 'Freeze mode',
     medianAssign: 'Медиана до assign',
     medianReview: 'Медиана до review',
     medianClose: 'Медиана до close',
@@ -199,6 +204,7 @@ const copy = {
     modelLift: 'Подъем по типам моделей',
     routeWins: 'Победы маршрутов',
     routeStrategy: 'Route strategy split',
+    safetyMode: 'Safety mode split',
     approvalOutcome: 'Исходы review',
     resonanceTrend: 'Тренд резонанса',
     meritTrend: 'Тренд merit',
@@ -547,6 +553,10 @@ export default function OperatorDelta() {
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.route_memory_adjusted_cycle_count ?? 0}</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.freezeMode}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.freeze_mode_count ?? 0}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.medianAssign}</div>
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{(scorecard.summary.median_assignment_minutes ?? 0).toFixed(1)}m</div>
             </div>
@@ -605,6 +615,12 @@ export default function OperatorDelta() {
               <div className="text-sm uppercase tracking-[0.16em] text-violet-200">{text.routeStrategy}</div>
               <div className="mt-4">
                 <MiniBars data={scorecard.bars.route_strategy_split ?? []} tone="cyan" />
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-sm uppercase tracking-[0.16em] text-fuchsia-200">{text.safetyMode}</div>
+              <div className="mt-4">
+                <MiniBars data={scorecard.bars.safety_mode_split ?? []} tone="violet" />
               </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">

@@ -46,6 +46,7 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                 "relation_adjusted_quality_score": 0.71,
                 "council_outcome": {
                     "selected_route": "route-a",
+                    "safety_mode": "evidence_first",
                     "route_memory_adjusted": True,
                     "route_memory_match_count": 3,
                     "success": True,
@@ -64,6 +65,7 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                     "risk_state": "watch",
                     "approval_posture": "evidence_check",
                     "route_strategy": "validate_current_route",
+                    "safety_mode": "evidence_first",
                     "requires_human_review": False,
                     "rerun_required": False,
                     "suggested_operator_action": "Validate intent before approval.",
@@ -135,6 +137,7 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["quality_score"] == 0.84
     assert payload["relation_adjusted_quality_score"] == 0.71
     assert payload["selected_route"] == "route-a"
+    assert payload["safety_mode"] == "evidence_first"
     assert payload["route_memory_adjusted"] is True
     assert payload["route_memory_match_count"] == 3
     assert payload["best_contributor_model_id"] == "local-qwen"
