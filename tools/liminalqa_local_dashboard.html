@@ -681,6 +681,75 @@
         const reviewer=item.assigned_reviewer || "unassigned";
         const posture=item.approval_posture || "n/a";
         li.textContent=`${cycle}: ${breach} / ${minutes}m / ${reviewer} / ${posture}`;
+        const actions=document.createElement("div");
+        actions.className="button-row";
+        if((item.assigned_reviewer||"unassigned")==="unassigned"){
+          const claim=document.createElement("button");
+          claim.type="button";
+          claim.className="ghost";
+          claim.textContent=document.documentElement.lang==="ru"?"Claim":"Claim";
+          claim.addEventListener("click",async()=>{
+            const nextReviewer=window.prompt(lang==="ru"?"Кому назначить cycle?":"Who should review this cycle?");
+            if(!nextReviewer) return;
+            await callQueueAction(claim, `/api/assign-escalation?cycle_id=${encodeURIComponent(item.cycle_id)}&reviewer=${encodeURIComponent(nextReviewer)}&assigned_by=${encodeURIComponent("dashboard")}`);
+          });
+          actions.appendChild(claim);
+        }
+        if((item.review_status||"pending")==="pending"){
+          const approve=document.createElement("button");
+          approve.type="button";
+          approve.className="ghost";
+          approve.textContent=document.documentElement.lang==="ru"?"Approve":"Approve";
+          approve.addEventListener("click",async()=>{
+            const defaultReviewer=(item.assigned_reviewer && item.assigned_reviewer!=="unassigned") ? item.assigned_reviewer : "";
+            const nextReviewer=window.prompt(lang==="ru"?"Кто одобряет cycle?":"Who is approving this cycle?", defaultReviewer);
+            if(!nextReviewer) return;
+            await callQueueAction(approve, `/api/approve-escalation?cycle_id=${encodeURIComponent(item.cycle_id)}&reviewer=${encodeURIComponent(nextReviewer)}`);
+          });
+          actions.appendChild(approve);
+          if((item.approval_posture||"").toLowerCase()==="human_escalation" || (item.approval_posture||"").toLowerCase()==="hold_and_repair"){
+            const forceApprove=document.createElement("button");
+            forceApprove.type="button";
+            forceApprove.className="ghost";
+            forceApprove.textContent=document.documentElement.lang==="ru"?"Force Approve":"Force Approve";
+            forceApprove.addEventListener("click",async()=>{
+              const defaultReviewer=(item.assigned_reviewer && item.assigned_reviewer!=="unassigned") ? item.assigned_reviewer : "";
+              const nextReviewer=window.prompt(lang==="ru"?"Кто форс-одобряет cycle?":"Who is force-approving this cycle?", defaultReviewer);
+              if(!nextReviewer) return;
+              await callQueueAction(forceApprove, `/api/approve-escalation?cycle_id=${encodeURIComponent(item.cycle_id)}&reviewer=${encodeURIComponent(nextReviewer)}&force=true`);
+            });
+            actions.appendChild(forceApprove);
+          }
+          const reject=document.createElement("button");
+          reject.type="button";
+          reject.className="ghost";
+          reject.textContent=document.documentElement.lang==="ru"?"Reject":"Reject";
+          reject.addEventListener("click",async()=>{
+            const defaultReviewer=(item.assigned_reviewer && item.assigned_reviewer!=="unassigned") ? item.assigned_reviewer : "";
+            const nextReviewer=window.prompt(lang==="ru"?"Кто отклоняет cycle?":"Who is rejecting this cycle?", defaultReviewer);
+            if(!nextReviewer) return;
+            const reason=window.prompt(lang==="ru"?"Почему cycle отклоняется?":"Why is this cycle being rejected?");
+            if(!reason) return;
+            await callQueueAction(reject, `/api/reject-escalation?cycle_id=${encodeURIComponent(item.cycle_id)}&reviewer=${encodeURIComponent(nextReviewer)}&reason=${encodeURIComponent(reason)}`);
+          });
+          actions.appendChild(reject);
+          const close=document.createElement("button");
+          close.type="button";
+          close.className="ghost";
+          close.textContent=document.documentElement.lang==="ru"?"Close":"Close";
+          close.addEventListener("click",async()=>{
+            const defaultReviewer=(item.assigned_reviewer && item.assigned_reviewer!=="unassigned") ? item.assigned_reviewer : "";
+            const nextReviewer=window.prompt(lang==="ru"?"Кто закрывает escalation?":"Who is closing the escalation?", defaultReviewer);
+            if(!nextReviewer) return;
+            const reason=window.prompt(lang==="ru"?"Почему escalation закрывается?":"Why is the escalation being closed?");
+            if(!reason) return;
+            await callQueueAction(close, `/api/close-escalation?cycle_id=${encodeURIComponent(item.cycle_id)}&reviewer=${encodeURIComponent(nextReviewer)}&reason=${encodeURIComponent(reason)}`);
+          });
+          actions.appendChild(close);
+        }
+        if(actions.children.length){
+          li.appendChild(actions);
+        }
         list.appendChild(li);
       });
     }

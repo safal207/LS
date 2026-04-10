@@ -280,6 +280,29 @@ def test_approve_escalation_blocks_human_escalation_without_force(monkeypatch, t
     assert payload["approval_posture"] == "human_escalation"
 
 
+def test_assign_escalation_persists_assigned_reviewer(monkeypatch, tmp_path: Path) -> None:
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "cycle-001.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-001",
+                "operator_guidance": {"approval_posture": "human_escalation"},
+                "operator_review": {"decision": "pending", "assigned_reviewer": "unassigned"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+
+    status, payload = dashboard.assign_escalation("cycle-001", "alice", assigned_by="dashboard")
+
+    assert status == 200
+    assert payload["assigned_reviewer"] == "alice"
+    updated = json.loads((quality_dir / "cycle-001.json").read_text(encoding="utf-8"))
+    assert updated["operator_review"]["assigned_reviewer"] == "alice"
+
+
 def test_reject_escalation_persists_rejected_status(monkeypatch, tmp_path: Path) -> None:
     quality_dir = tmp_path / "council-quality"
     quality_dir.mkdir()

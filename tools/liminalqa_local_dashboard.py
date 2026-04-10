@@ -609,6 +609,26 @@ def claim_next_escalation(reviewer: str, assigned_by: str = "dashboard") -> tupl
         return 500, {"error": str(exc)}
 
 
+def assign_escalation(cycle_id: str, reviewer: str, assigned_by: str = "dashboard") -> tuple[int, object]:
+    try:
+        updated_path = assign_council_reviewer(
+            COUNCIL_QUALITY_DIR,
+            cycle_id,
+            reviewer=reviewer,
+            assigned_by=assigned_by,
+        )
+        return 200, {
+            "cycle_id": cycle_id,
+            "assigned_reviewer": reviewer,
+            "assigned_by": assigned_by,
+            "artifact_path": str(updated_path),
+        }
+    except ValueError as exc:
+        return 404, {"error": str(exc)}
+    except Exception as exc:
+        return 500, {"error": str(exc)}
+
+
 def close_escalation(cycle_id: str, reviewer: str, reason: str) -> tuple[int, object]:
     try:
         updated_path = close_council_escalation(
@@ -1075,6 +1095,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(400, {"error": "reviewer is required"})
                 return
             status, payload = claim_next_escalation(reviewer, assigned_by=assigned_by)
+            self.send_json(status, payload)
+            return
+        if parsed.path == "/api/assign-escalation":
+            cycle_id = (query.get("cycle_id") or [""])[0].strip()
+            reviewer = (query.get("reviewer") or [""])[0].strip()
+            assigned_by = (query.get("assigned_by") or ["dashboard"])[0].strip() or "dashboard"
+            if not cycle_id or not reviewer:
+                self.send_json(400, {"error": "cycle_id and reviewer are required"})
+                return
+            status, payload = assign_escalation(cycle_id, reviewer, assigned_by=assigned_by)
             self.send_json(status, payload)
             return
         if parsed.path == "/api/close-escalation":
