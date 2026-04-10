@@ -49,6 +49,12 @@ type CouncilScorecardPayload = {
     reviewed_cycle_count?: number;
     approval_conversion_rate?: number;
     escalation_rate?: number;
+    median_assignment_minutes?: number;
+    median_review_minutes?: number;
+    median_close_minutes?: number;
+    assignment_sla_breaches?: number;
+    review_sla_breaches?: number;
+    close_sla_breaches?: number;
   };
   bars: {
     best_contributor_frequency: ScorePoint[];
@@ -113,6 +119,12 @@ const copy = {
     reviewed: 'Reviewed',
     approvalConv: 'Approval conv',
     escalationRate: 'Escalation rate',
+    medianAssign: 'Median assign',
+    medianReview: 'Median review',
+    medianClose: 'Median close',
+    assignSla: 'Assign SLA',
+    reviewSla: 'Review SLA',
+    closeSla: 'Close SLA',
     contribFreq: 'Best contributor frequency',
     modelLift: 'Model type lift',
     routeWins: 'Route wins',
@@ -166,6 +178,12 @@ const copy = {
     reviewed: 'Reviewed',
     approvalConv: 'Approval conv',
     escalationRate: 'Escalation rate',
+    medianAssign: 'Медиана до assign',
+    medianReview: 'Медиана до review',
+    medianClose: 'Медиана до close',
+    assignSla: 'Нарушения assign SLA',
+    reviewSla: 'Нарушения review SLA',
+    closeSla: 'Нарушения close SLA',
     contribFreq: 'Частота лучшего contributor',
     modelLift: 'Подъем по типам моделей',
     routeWins: 'Победы маршрутов',
@@ -503,6 +521,30 @@ export default function OperatorDelta() {
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.escalationRate}</div>
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{(scorecard.summary.escalation_rate ?? 0).toFixed(1)}%</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.medianAssign}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{(scorecard.summary.median_assignment_minutes ?? 0).toFixed(1)}m</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.medianReview}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{(scorecard.summary.median_review_minutes ?? 0).toFixed(1)}m</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.medianClose}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{(scorecard.summary.median_close_minutes ?? 0).toFixed(1)}m</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.assignSla}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.assignment_sla_breaches ?? 0}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.reviewSla}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.review_sla_breaches ?? 0}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.closeSla}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.close_sla_breaches ?? 0}</div>
             </div>
           </div>
 

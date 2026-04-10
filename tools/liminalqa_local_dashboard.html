@@ -145,6 +145,12 @@
         <div class="summary-box"><div id="c-reviewed-label" class="summary-label">Reviewed</div><div id="c-reviewed" class="summary-value">0</div></div>
         <div class="summary-box"><div id="c-approval-conv-label" class="summary-label">Approval Conv</div><div id="c-approval-conv" class="summary-value">0%</div></div>
         <div class="summary-box"><div id="c-escalation-label" class="summary-label">Escalation Rate</div><div id="c-escalation" class="summary-value">0%</div></div>
+        <div class="summary-box"><div id="c-assign-latency-label" class="summary-label">Median Assign</div><div id="c-assign-latency" class="summary-value">0m</div></div>
+        <div class="summary-box"><div id="c-review-latency-label" class="summary-label">Median Review</div><div id="c-review-latency" class="summary-value">0m</div></div>
+        <div class="summary-box"><div id="c-close-latency-label" class="summary-label">Median Close</div><div id="c-close-latency" class="summary-value">0m</div></div>
+        <div class="summary-box"><div id="c-assign-breach-label" class="summary-label">Assign SLA</div><div id="c-assign-breach" class="summary-value">0</div></div>
+        <div class="summary-box"><div id="c-review-breach-label" class="summary-label">Review SLA</div><div id="c-review-breach" class="summary-value">0</div></div>
+        <div class="summary-box"><div id="c-close-breach-label" class="summary-label">Close SLA</div><div id="c-close-breach" class="summary-value">0</div></div>
       </div>
       <div id="council-empty" class="hint"></div>
       <ul id="council-guide" class="guide-list"></ul>
@@ -250,7 +256,7 @@
       (data.payload.lanes||[]).forEach(lane=>{const li=document.createElement("li"); li.textContent=laneLine(lane); laneList.appendChild(li);});
     }
     async function refreshCouncilAnalytics(){
-      const data=await callJson("/api/council-analytics"); const payload=data.payload; el("c-ledgers").textContent=String(payload.ledgers||0); el("c-top").textContent=payload.top_contributor||"n/a"; el("c-success").textContent=`${Number(payload.success_rate||0).toFixed(1)}%`; el("c-resonance").textContent=`${Number(payload.avg_resonance||0).toFixed(1)}%`; el("c-merit").textContent=`${Number(payload.avg_merit||0).toFixed(1)}%`; el("c-risky").textContent=String(payload.risky_cycle_count||0); el("c-incidents").textContent=String(payload.incident_count||0); el("c-reviewed").textContent=String(payload.reviewed_cycle_count||0); el("c-approval-conv").textContent=`${Number(payload.approval_conversion_rate||0).toFixed(1)}%`; el("c-escalation").textContent=`${Number(payload.escalation_rate||0).toFixed(1)}%`;
+      const data=await callJson("/api/council-analytics"); const payload=data.payload; el("c-ledgers").textContent=String(payload.ledgers||0); el("c-top").textContent=payload.top_contributor||"n/a"; el("c-success").textContent=`${Number(payload.success_rate||0).toFixed(1)}%`; el("c-resonance").textContent=`${Number(payload.avg_resonance||0).toFixed(1)}%`; el("c-merit").textContent=`${Number(payload.avg_merit||0).toFixed(1)}%`; el("c-risky").textContent=String(payload.risky_cycle_count||0); el("c-incidents").textContent=String(payload.incident_count||0); el("c-reviewed").textContent=String(payload.reviewed_cycle_count||0); el("c-approval-conv").textContent=`${Number(payload.approval_conversion_rate||0).toFixed(1)}%`; el("c-escalation").textContent=`${Number(payload.escalation_rate||0).toFixed(1)}%`; el("c-assign-latency").textContent=`${Number(payload.median_assignment_minutes||0).toFixed(1)}m`; el("c-review-latency").textContent=`${Number(payload.median_review_minutes||0).toFixed(1)}m`; el("c-close-latency").textContent=`${Number(payload.median_close_minutes||0).toFixed(1)}m`; el("c-assign-breach").textContent=String(payload.assignment_sla_breaches||0); el("c-review-breach").textContent=String(payload.review_sla_breaches||0); el("c-close-breach").textContent=String(payload.close_sla_breaches||0);
       const guide=el("council-guide"); guide.innerHTML=""; el("council-empty").hidden=!payload.empty; el("council-empty").textContent=payload.empty?text[lang].noData:"";
       if(payload.empty){(payload.how_to_generate||[]).forEach(line=>{const li=document.createElement("li"); li.textContent=line; guide.appendChild(li);});}
       chartKeys.forEach((key,idx)=>{el(`chart-${key}`).innerHTML=(idx<5?barSvg:lineSvg)(payload.charts?.[key]||[]);});
@@ -629,6 +635,63 @@
 
     refreshCouncilQualityPreview().catch(()=>{});
     refreshCouncilEscalationQueue().catch(()=>{});
+  </script>
+  <script>
+    (function(){
+      const escalationKicker=el("council-escalation-kicker");
+      const escalationList=el("council-escalation-list");
+      if(escalationKicker && escalationList && !el("council-breach-kicker")){
+        const breachKicker=document.createElement("div");
+        breachKicker.id="council-breach-kicker";
+        breachKicker.className="kicker";
+        breachKicker.style.marginTop="14px";
+        const breachList=document.createElement("ul");
+        breachList.id="council-breach-list";
+        breachList.className="guide-list";
+        escalationList.insertAdjacentElement("afterend", breachList);
+        escalationList.insertAdjacentElement("afterend", breachKicker);
+      }
+    })();
+
+    async function refreshCouncilBreachQueue(){
+      const kicker=el("council-breach-kicker");
+      const list=el("council-breach-list");
+      if(!kicker || !list) return;
+      kicker.textContent=lang==="ru"?"Open SLA Breaches":"Open SLA Breaches";
+      const data=await callJson("/api/council-breach-queue");
+      list.innerHTML="";
+      if(!data.ok){
+        const li=document.createElement("li");
+        li.textContent=lang==="ru"?"Просроченных циклов пока нет.":"No open SLA breaches.";
+        list.appendChild(li);
+        return;
+      }
+      const items=data.payload.items||[];
+      if(!items.length){
+        const li=document.createElement("li");
+        li.textContent=lang==="ru"?"Просроченных циклов пока нет.":"No open SLA breaches.";
+        list.appendChild(li);
+        return;
+      }
+      items.forEach(item=>{
+        const li=document.createElement("li");
+        const cycle=item.cycle_id || "unknown";
+        const breach=item.breach_type || "breach";
+        const minutes=Number(item.minutes_open || 0).toFixed(1);
+        const reviewer=item.assigned_reviewer || "unassigned";
+        const posture=item.approval_posture || "n/a";
+        li.textContent=`${cycle}: ${breach} / ${minutes}m / ${reviewer} / ${posture}`;
+        list.appendChild(li);
+      });
+    }
+
+    const ________originalRefreshCouncilQualityPreview=refreshCouncilQualityPreview;
+    refreshCouncilQualityPreview=async function(){
+      await ________originalRefreshCouncilQualityPreview();
+      await refreshCouncilBreachQueue();
+    };
+
+    refreshCouncilBreachQueue().catch(()=>{});
   </script>
 </body>
 </html>

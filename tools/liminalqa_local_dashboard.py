@@ -15,6 +15,7 @@ import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from statistics import median
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PYTHON_ROOT = ROOT / "python"
@@ -32,6 +33,9 @@ COUNCIL_LEDGER_DIR = ARTIFACTS_DIR / "council-ledger"
 COUNCIL_QUALITY_DIR = ARTIFACTS_DIR / "council-quality"
 DOCS_BASE_URL = "https://github.com/safal207/LS/blob/main/docs"
 COUNCIL_CYCLE_TIMEOUT_SECONDS = 45
+ASSIGNMENT_SLA_MINUTES = 15.0
+REVIEW_SLA_MINUTES = 30.0
+CLOSE_SLA_MINUTES = 45.0
 FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#161311"/><path d="M16 47V17h8v23h20v7H16zm17-8 9-22h8L40 39h-7z" fill="#fffaf1"/></svg>'
 LANE = {
     "key": "mesh-tests",
@@ -563,6 +567,19 @@ def preview_council_escalation_queue(limit: int = 5) -> tuple[int, object]:
     return 200, {"items": rows[:limit], "total": len(rows)}
 
 
+def preview_council_breach_queue(limit: int = 10) -> tuple[int, object]:
+    if not COUNCIL_QUALITY_DIR.exists():
+        return 404, {"error": "council-quality artifact not found", "items": []}
+    rows: list[dict] = []
+    for path in COUNCIL_QUALITY_DIR.glob("*.json"):
+        try:
+            rows.append(json.loads(path.read_text(encoding="utf-8")))
+        except Exception:
+            continue
+    breach_rows = build_open_breach_rows(rows)
+    return 200, {"items": breach_rows[:limit], "total": len(breach_rows)}
+
+
 def claim_next_escalation(reviewer: str, assigned_by: str = "dashboard") -> tuple[int, object]:
     try:
         rows = iter_council_escalation_rows(COUNCIL_QUALITY_DIR)
@@ -672,6 +689,62 @@ def avg(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
+def median_or_zero(values: list[float]) -> float:
+    return float(median(values)) if values else 0.0
+
+
+def parse_iso_timestamp(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def history_latency_minutes(start_at: datetime | None, history: list[dict], actions: set[str]) -> float | None:
+    if start_at is None:
+        return None
+    for item in history:
+        if str(item.get("action") or "") not in actions:
+            continue
+        event_at = parse_iso_timestamp(item.get("timestamp"))
+        if event_at is None:
+            continue
+        return max(0.0, (event_at - start_at).total_seconds() / 60.0)
+    return None
+
+
+def build_open_breach_rows(rows: list[dict]) -> list[dict]:
+    now = datetime.now(timezone.utc)
+    breach_rows: list[dict] = []
+    for row in rows:
+        guidance = row.get("operator_guidance") or {}
+        if str(guidance.get("risk_state") or "watch") not in {"repair", "escalate"}:
+            continue
+        cycle_started_at = parse_iso_timestamp(row.get("timestamp"))
+        if cycle_started_at is None:
+            continue
+        history = list(row.get("operator_review_history") or [])
+        review = row.get("operator_review") or {}
+        review_status = str(review.get("decision") or "pending")
+        assigned_reviewer = str(review.get("assigned_reviewer") or "unassigned")
+        approval_posture = str(guidance.get("approval_posture") or "n/a")
+        open_minutes = max(0.0, (now - cycle_started_at).total_seconds() / 60.0)
+        assign_latency = history_latency_minutes(cycle_started_at, history, {"assign"})
+        review_latency = history_latency_minutes(cycle_started_at, history, {"approve", "reject"})
+        close_latency = history_latency_minutes(cycle_started_at, history, {"close"})
+        if assign_latency is None and review_status == "pending" and open_minutes > ASSIGNMENT_SLA_MINUTES:
+            breach_rows.append({"cycle_id": row.get("cycle_id"), "breach_type": "assignment", "minutes_open": round(open_minutes, 2), "review_status": review_status, "assigned_reviewer": assigned_reviewer, "approval_posture": approval_posture})
+        if review_latency is None and review_status == "pending" and open_minutes > REVIEW_SLA_MINUTES:
+            breach_rows.append({"cycle_id": row.get("cycle_id"), "breach_type": "review", "minutes_open": round(open_minutes, 2), "review_status": review_status, "assigned_reviewer": assigned_reviewer, "approval_posture": approval_posture})
+        if close_latency is None and review_status != "closed" and open_minutes > CLOSE_SLA_MINUTES:
+            breach_rows.append({"cycle_id": row.get("cycle_id"), "breach_type": "close", "minutes_open": round(open_minutes, 2), "review_status": review_status, "assigned_reviewer": assigned_reviewer, "approval_posture": approval_posture})
+    breach_order = {"assignment": 0, "review": 1, "close": 2}
+    breach_rows.sort(key=lambda item: (breach_order.get(str(item.get("breach_type")), 9), -float(item.get("minutes_open") or 0.0)))
+    return breach_rows
+
+
 def clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
     return max(minimum, min(maximum, value))
 
@@ -697,6 +770,12 @@ def build_council_analytics() -> dict:
             "reviewed_cycle_count": 0,
             "approval_conversion_rate": 0.0,
             "escalation_rate": 0.0,
+            "median_assignment_minutes": 0.0,
+            "median_review_minutes": 0.0,
+            "median_close_minutes": 0.0,
+            "assignment_sla_breaches": 0,
+            "review_sla_breaches": 0,
+            "close_sla_breaches": 0,
             "empty": True,
             "how_to_generate": [
                 "Run a real coordination cycle through ResonanceAgent.",
@@ -720,6 +799,12 @@ def build_council_analytics() -> dict:
     merit_series: list[dict] = []
     incident_series: list[dict] = []
     review_series: list[dict] = []
+    assignment_latencies: list[float] = []
+    review_latencies: list[float] = []
+    close_latencies: list[float] = []
+    assignment_sla_breaches = 0
+    review_sla_breaches = 0
+    close_sla_breaches = 0
     successes: list[float] = []
     resonances: list[float] = []
     merits: list[float] = []
@@ -759,6 +844,8 @@ def build_council_analytics() -> dict:
         guidance = (quality_payload or {}).get("operator_guidance") or {}
         review = (quality_payload or {}).get("operator_review") or {}
         liminalqa = (quality_payload or {}).get("liminalqa") or {}
+        review_history = list((quality_payload or {}).get("operator_review_history") or [])
+        cycle_started_at = parse_iso_timestamp(row.get("timestamp"))
         risk_state = str(guidance.get("risk_state") or "watch")
         if risk_state in {"repair", "escalate"}:
             risky_cycle_count += 1
@@ -772,6 +859,21 @@ def build_council_analytics() -> dict:
             approved_count += 1
         if (liminalqa.get("incident") or {}).get("published"):
             incident_count += 1
+        assignment_latency = history_latency_minutes(cycle_started_at, review_history, {"assign"})
+        if assignment_latency is not None:
+            assignment_latencies.append(assignment_latency)
+            if assignment_latency > ASSIGNMENT_SLA_MINUTES:
+                assignment_sla_breaches += 1
+        review_latency = history_latency_minutes(cycle_started_at, review_history, {"approve", "reject"})
+        if review_latency is not None:
+            review_latencies.append(review_latency)
+            if review_latency > REVIEW_SLA_MINUTES:
+                review_sla_breaches += 1
+        close_latency = history_latency_minutes(cycle_started_at, review_history, {"close"})
+        if close_latency is not None:
+            close_latencies.append(close_latency)
+            if close_latency > CLOSE_SLA_MINUTES:
+                close_sla_breaches += 1
         incident_series.append({"label": label, "value": incident_count})
         review_series.append({"label": label, "value": reviewed_cycle_count})
     type_lift = {key: round(avg(values), 4) for key, values in type_totals.items()}
@@ -786,6 +888,12 @@ def build_council_analytics() -> dict:
         "reviewed_cycle_count": reviewed_cycle_count,
         "approval_conversion_rate": round((approved_count / len(rows)) * 100.0, 2),
         "escalation_rate": round((escalate_count / len(rows)) * 100.0, 2),
+        "median_assignment_minutes": round(median_or_zero(assignment_latencies), 2),
+        "median_review_minutes": round(median_or_zero(review_latencies), 2),
+        "median_close_minutes": round(median_or_zero(close_latencies), 2),
+        "assignment_sla_breaches": assignment_sla_breaches,
+        "review_sla_breaches": review_sla_breaches,
+        "close_sla_breaches": close_sla_breaches,
         "empty": False,
         "charts": {
             "bestContributorFrequency": [{"label": key, "value": value} for key, value in best_counts.items()],
@@ -915,6 +1023,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/council-escalation-queue":
             status, payload = preview_council_escalation_queue()
+            self.send_json(status, payload)
+            return
+        if self.path == "/api/council-breach-queue":
+            status, payload = preview_council_breach_queue()
             self.send_json(status, payload)
             return
         self.send_json(404, {"error": "not found"})

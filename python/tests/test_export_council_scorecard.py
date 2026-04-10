@@ -53,6 +53,11 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
                 "operator_guidance": {"risk_state": "repair"},
                 "liminalqa": {"incident": {"published": True}},
                 "operator_review": {"decision": "approved"},
+                "operator_review_history": [
+                    {"action": "assign", "timestamp": "2026-04-08T06:40:00Z", "assigned_by": "queue-bot"},
+                    {"action": "approve", "timestamp": "2026-04-08T06:50:00Z", "reviewer": "alice"},
+                    {"action": "close", "timestamp": "2026-04-08T07:00:00Z", "reviewer": "alice"},
+                ],
             }
         ),
         encoding="utf-8",
@@ -66,6 +71,10 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
                 "operator_guidance": {"risk_state": "escalate"},
                 "liminalqa": {"incident": {"published": False}},
                 "operator_review": {"decision": "rejected"},
+                "operator_review_history": [
+                    {"action": "assign", "timestamp": "2026-04-08T06:45:00Z", "assigned_by": "queue-bot"},
+                    {"action": "reject", "timestamp": "2026-04-08T07:05:00Z", "reviewer": "bob"},
+                ],
             }
         ),
         encoding="utf-8",
@@ -82,6 +91,12 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
     assert payload["summary"]["reviewed_cycle_count"] == 2
     assert payload["summary"]["approval_conversion_rate"] == 50.0
     assert payload["summary"]["escalation_rate"] == 50.0
+    assert payload["summary"]["median_assignment_minutes"] == 12.5
+    assert payload["summary"]["median_review_minutes"] == 27.5
+    assert payload["summary"]["median_close_minutes"] == 30.0
+    assert payload["summary"]["assignment_sla_breaches"] == 0
+    assert payload["summary"]["review_sla_breaches"] == 1
+    assert payload["summary"]["close_sla_breaches"] == 0
     assert payload["summary"]["top_contributor"] in {"local-qwen", "gpt-web"}
     assert payload["lines"]["incident_trend"] == [
         {"label": "c1", "value": 1},
