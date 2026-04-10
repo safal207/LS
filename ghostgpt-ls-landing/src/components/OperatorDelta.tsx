@@ -566,6 +566,12 @@ export default function OperatorDelta() {
             {text.sourceLabel}: {scorecard.source}
           </div>
 
+          <p className="mt-3 max-w-3xl text-sm text-white/72">
+            {language === 'ru'
+              ? 'Memory-adjusted показывает, сколько циклов были ужесточены памятью о похожих плохих паттернах. Memory matches показывает, сколько похожих relation-memory совпадений система нашла перед выдачей operator guidance.'
+              : 'Memory-adjusted shows how many cycles were hardened by memory of similar bad patterns. Memory matches shows how many similar relation-memory matches the system found before issuing operator guidance.'}
+          </p>
+
           <div className="mt-6 grid gap-4 xl:grid-cols-4">
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
               <div className="text-sm uppercase tracking-[0.16em] text-cyan-200">{text.contribFreq}</div>

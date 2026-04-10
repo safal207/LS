@@ -10,6 +10,23 @@
 - `risk_state`: normalized operator-facing posture.
 - `suggested_operator_action`: the human action recommended by the cycle.
 - `incident_count`: how many risky cycles were published into the incident stream.
+- `memory_adjusted_cycle_count`: how many cycles had their operator guidance hardened by similar prior bad patterns.
+- `memory_match_total`: how many relation-memory matches were found across the current scorecard snapshot.
+
+## What memory-adjusted means
+
+`LS` does not only score the current cycle in isolation. It also checks whether similar relational patterns have already produced rejects, incidents, or other bad outcomes.
+
+When a current cycle matches repeated bad patterns:
+
+- guidance can move from `watch` or `repair` to `escalate`
+- approval posture becomes stricter
+- the cycle becomes easier to surface in review and incident workflows
+
+This is what the public `Memory-adjusted` and `Memory matches` metrics summarize:
+
+- `Memory-adjusted`: how many visible cycles were made stricter because of prior bad memory
+- `Memory matches`: how much similar-case memory was actually available to inform current guidance
 
 ## Risk states
 
