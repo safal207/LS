@@ -3520,7 +3520,13 @@ class ResonanceAgent:
         if quality_score is None:
             quality_score = self._quality_score_fallback_from_ledger(ledger)
         relational = self._build_relational_quality_summary((item or {}).get("_relational_field"))
-        risk_summary = self._build_relation_risk_summary(relational)
+        base_risk_summary = self._build_relation_risk_summary(relational)
+        memory_context = self._build_relation_memory_context(
+            ledger=ledger,
+            relational_summary=relational,
+            base_risk_summary=base_risk_summary,
+        )
+        risk_summary = self._build_relation_risk_summary(relational, memory_context=memory_context)
         relation_adjusted_quality_score = quality_score
         if quality_score is not None and relational is not None:
             relation_adjusted_quality_score = round(
@@ -3640,7 +3646,13 @@ class ResonanceAgent:
         if quality_score is None:
             quality_score = self._quality_score_fallback_from_ledger(ledger)
         relational_summary = self._build_relational_quality_summary(relational)
-        risk_summary = self._build_relation_risk_summary(relational_summary)
+        base_risk_summary = self._build_relation_risk_summary(relational_summary)
+        memory_context = self._build_relation_memory_context(
+            ledger=ledger,
+            relational_summary=relational_summary,
+            base_risk_summary=base_risk_summary,
+        )
+        risk_summary = self._build_relation_risk_summary(relational_summary, memory_context=memory_context)
         relation_adjusted_quality_score = quality_score
         if quality_score is not None and relational_summary is not None:
             relation_adjusted_quality_score = round(
@@ -3719,7 +3731,13 @@ class ResonanceAgent:
         relational_summary = self._build_relational_quality_summary(relational)
         if relational_summary is None:
             return None
-        risk_summary = self._build_relation_risk_summary(relational_summary)
+        base_risk_summary = self._build_relation_risk_summary(relational_summary)
+        memory_context = self._build_relation_memory_context(
+            ledger=ledger,
+            relational_summary=relational_summary,
+            base_risk_summary=base_risk_summary,
+        )
+        risk_summary = self._build_relation_risk_summary(relational_summary, memory_context=memory_context)
         review = (item or {}).get("_council_operator_review") or {}
         review_decision = str(review.get("decision") or "pending")
         receiver_resonance = (
@@ -3753,6 +3771,7 @@ class ResonanceAgent:
             "receiver_resonance_score": receiver_resonance,
             "review_decision": review_decision,
             "incident_published": bool(((council_cel_sync or {}).get("incident") or {}).get("published", False)),
+            "memory_context": memory_context,
             "tags": [risk_state, dominant_signal, resonance_bucket, review_decision],
         }
 
@@ -3810,7 +3829,73 @@ class ResonanceAgent:
             "recommended_mode": recommended_mode,
         }
 
-    def _build_relation_risk_summary(self, relational: dict[str, Any] | None) -> dict[str, Any]:
+    def _load_relation_memory_rows(self) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        if not self._relation_memory_dir.exists():
+            return rows
+        for path in sorted(self._relation_memory_dir.glob("*.json")):
+            try:
+                rows.append(json.loads(path.read_text(encoding="utf-8")))
+            except Exception:
+                continue
+        return rows
+
+    def _relation_pattern_key(self, *, risk_state: str, dominant_signal: str, receiver_resonance_score: float) -> str:
+        resonance_bucket = "low" if receiver_resonance_score < 0.35 else "mid" if receiver_resonance_score < 0.7 else "high"
+        return f"{risk_state}:{dominant_signal}:{resonance_bucket}"
+
+    def _build_relation_memory_context(
+        self,
+        *,
+        ledger,
+        relational_summary: dict[str, Any] | None,
+        base_risk_summary: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        if ledger is None or not relational_summary:
+            return None
+        outcome = getattr(ledger, "outcome", None)
+        receiver_resonance_score = (
+            float(getattr(outcome, "receiver_resonance_score", 0.0) or 0.0)
+            if outcome is not None
+            else 0.0
+        )
+        pattern_key = self._relation_pattern_key(
+            risk_state=str(base_risk_summary.get("risk_state") or "watch"),
+            dominant_signal=str(relational_summary.get("dominant_signal") or "unknown"),
+            receiver_resonance_score=receiver_resonance_score,
+        )
+        cycle_id = str(getattr(ledger, "cycle_id", "") or "")
+        matched = [
+            row for row in self._load_relation_memory_rows()
+            if row.get("cycle_id") != cycle_id and row.get("pattern_key") == pattern_key
+        ]
+        if not matched:
+            return {
+                "pattern_key": pattern_key,
+                "match_count": 0,
+                "incident_count": 0,
+                "reject_count": 0,
+                "approve_count": 0,
+                "policy_adjusted": False,
+            }
+        incident_count = sum(1 for row in matched if bool(row.get("incident_published")))
+        reject_count = sum(1 for row in matched if str(row.get("review_decision") or "") in {"rejected", "closed"})
+        approve_count = sum(1 for row in matched if str(row.get("review_decision") or "") == "approved")
+        return {
+            "pattern_key": pattern_key,
+            "match_count": len(matched),
+            "incident_count": incident_count,
+            "reject_count": reject_count,
+            "approve_count": approve_count,
+            "policy_adjusted": False,
+        }
+
+    def _build_relation_risk_summary(
+        self,
+        relational: dict[str, Any] | None,
+        *,
+        memory_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         if not relational:
             return {
                 "risk_state": "watch",
@@ -3819,6 +3904,7 @@ class ResonanceAgent:
                 "route_strategy": "rerun_and_clarify",
                 "requires_human_review": False,
                 "rerun_required": True,
+                "memory_context": memory_context,
             }
         tension_score = float(relational.get("tension_score", 0.0) or 0.0)
         alignment_score = float(relational.get("alignment_score", 0.0) or 0.0)
@@ -3856,6 +3942,19 @@ class ResonanceAgent:
             route_strategy = "freeze_and_escalate" if risk_state == "escalate" else "rerun_and_clarify"
             requires_human_review = risk_state == "escalate"
             rerun_required = risk_state != "escalate"
+        policy_adjusted = False
+        if memory_context and int(memory_context.get("match_count") or 0) >= 2:
+            repeated_failures = int(memory_context.get("incident_count") or 0) + int(memory_context.get("reject_count") or 0)
+            if repeated_failures >= 2 and risk_state in {"watch", "repair"}:
+                risk_state = "escalate"
+                action = "Escalate to a human reviewer: similar prior relational patterns led to incidents or rejection."
+                approval_posture = "human_escalation"
+                route_strategy = "freeze_and_escalate"
+                requires_human_review = True
+                rerun_required = False
+                policy_adjusted = True
+        if memory_context is not None:
+            memory_context = {**memory_context, "policy_adjusted": policy_adjusted}
         return {
             "risk_state": risk_state,
             "suggested_operator_action": action,
@@ -3863,6 +3962,7 @@ class ResonanceAgent:
             "route_strategy": route_strategy,
             "requires_human_review": requires_human_review,
             "rerun_required": rerun_required,
+            "memory_context": memory_context,
         }
 
     def _build_cycle_record(

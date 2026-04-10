@@ -312,3 +312,54 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert len(quality_payload["cel"]["reputation_updates"]) >= 1
     assert len(quality_payload["cel"]["merit_updates"]) >= 1
     assert quality_payload["liminalqa"]["published"] is False
+
+
+def test_relation_memory_can_escalate_repeated_bad_pattern(tmp_path):
+    agent = ResonanceAgent(anchor=[], llm_fn=None)
+    agent._council_ledger_dir = tmp_path / "council-ledger"
+    agent._council_quality_dir = tmp_path / "council-quality"
+    agent._relational_episode_dir = tmp_path / "relational-episodes"
+    agent._relation_memory_dir = tmp_path / "relation-memory"
+    agent._relation_memory_dir.mkdir(parents=True, exist_ok=True)
+    prior_patterns = [
+        ("old-1", "repair:tension:low", "rejected"),
+        ("old-2", "repair:tension:low", "closed"),
+        ("old-3", "repair:tension:mid", "rejected"),
+        ("old-4", "repair:tension:mid", "closed"),
+        ("old-5", "repair:tension:high", "rejected"),
+        ("old-6", "repair:tension:high", "closed"),
+    ]
+    for cycle_id, pattern_key, review_decision in prior_patterns:
+        (agent._relation_memory_dir / f"{cycle_id}.json").write_text(
+            json.dumps(
+                {
+                    "cycle_id": cycle_id,
+                    "pattern_key": pattern_key,
+                    "incident_published": True,
+                    "review_decision": review_decision,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    item = _base_item()
+    item["_llm_backend"] = {"provider": "openai", "model": "gpt-test", "latency_ms": 1200}
+    item["_relational_field"] = {
+        "field_id": "field-001",
+        "timestamp": "2026-04-09T10:00:00Z",
+        "tension_score": 0.78,
+        "alignment_score": 0.24,
+        "dominant_signal": "tension",
+    }
+
+    output = agent._build_output(
+        item,
+        final_output="Escalate this path.",
+        generation_time=0.02,
+        cycle_id="cid-memory-escalate",
+    )
+
+    quality_payload = json.loads(Path(output["council_quality_artifact"]).read_text(encoding="utf-8"))
+    assert quality_payload["operator_guidance"]["risk_state"] == "escalate"
+    assert quality_payload["operator_guidance"]["approval_posture"] == "human_escalation"
+    assert quality_payload["operator_guidance"]["memory_context"]["policy_adjusted"] is True
