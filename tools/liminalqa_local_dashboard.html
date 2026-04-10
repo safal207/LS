@@ -817,5 +817,57 @@
 
     refreshCouncilBreachQueue().catch(()=>{});
   </script>
+  <script>
+    (function(){
+      const councilQualityGrid=el("cq-incident")?.closest(".summary-grid");
+      if(councilQualityGrid && !el("cq-reminders")){
+        const reminderCountBox=document.createElement("div");
+        reminderCountBox.className="summary-box";
+        reminderCountBox.innerHTML='<div id="cq-reminders-label" class="summary-label">Reminders</div><div id="cq-reminders" class="summary-value">0</div>';
+        const reminderAtBox=document.createElement("div");
+        reminderAtBox.className="summary-box";
+        reminderAtBox.innerHTML='<div id="cq-reminder-at-label" class="summary-label">Last Reminder</div><div id="cq-reminder-at" class="summary-value">n/a</div>';
+        councilQualityGrid.appendChild(reminderCountBox);
+        councilQualityGrid.appendChild(reminderAtBox);
+      }
+    })();
+
+    const _________originalRefreshCouncilQualityPreview=refreshCouncilQualityPreview;
+    refreshCouncilQualityPreview=async function(){
+      await _________originalRefreshCouncilQualityPreview();
+      try{
+        const data=await callJson("/api/council-quality-preview");
+        if(!el("cq-reminders") || !el("cq-reminder-at")) return;
+        if(!data.ok){
+          el("cq-reminders").textContent="0";
+          el("cq-reminder-at").textContent="n/a";
+          return;
+        }
+        el("cq-reminders").textContent=String(data.payload.operator_review_reminder_count||0);
+        el("cq-reminder-at").textContent=data.payload.operator_review_last_reminder_at||"n/a";
+      }catch(_error){}
+    };
+
+    const __________originalRefreshCouncilBreachQueue=refreshCouncilBreachQueue;
+    refreshCouncilBreachQueue=async function(){
+      await __________originalRefreshCouncilBreachQueue();
+      const list=el("council-breach-list");
+      const data=await callJson("/api/council-breach-queue");
+      if(!list || !data.ok || !(data.payload.items||[]).length) return;
+      const items=Array.from(list.children);
+      (data.payload.items||[]).forEach((item,index)=>{
+        const li=items[index];
+        if(!li) return;
+        const reminderMeta=document.createElement("span");
+        reminderMeta.className="breach-meta";
+        const lastReminder=item.last_reminder_at || "n/a";
+        reminderMeta.textContent=`reminders=${Number(item.reminder_count||0)} / last=${lastReminder}`;
+        li.appendChild(reminderMeta);
+      });
+    };
+
+    refreshCouncilQualityPreview().catch(()=>{});
+    refreshCouncilBreachQueue().catch(()=>{});
+  </script>
 </body>
 </html>
