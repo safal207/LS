@@ -11,7 +11,8 @@ import logging
 import queue
 import os
 import threading
-from typing import Optional
+from copy import deepcopy
+from typing import Any, Optional
 from .breaker import CircuitBreaker, CircuitOpenError
 from .cot_adapter import COTAdapter
 from .backends import LLMResponse, build_llm_backend
@@ -86,6 +87,8 @@ class LanguageModel:
             local_fallback_model=self.fallback_model,
         )
         self.last_response: Optional[LLMResponse] = None
+        self._routing_defaults: dict[str, Any] = {}
+        self._routing_telemetry_sink = None
 
     @property
     def qwen_handler(self):
@@ -310,14 +313,16 @@ class LanguageModel:
             routed_messages = [{"role": "user", "content": question}]
             system_prompt = SYSTEM_PROMPT
 
+        routing_metadata = self._compose_routing_metadata(question=question)
         response = self.backend_router.generate(
             messages=routed_messages,
             system_prompt=system_prompt,
-            metadata={"question": question},
+            metadata=routing_metadata,
             stream=stream,
             on_token=on_token,
         )
         self.last_response = response
+        self._emit_routing_telemetry(response)
         if response.ok:
             logger.info(
                 "Generated response via provider=%s model=%s fallback=%s",
@@ -334,6 +339,177 @@ class LanguageModel:
             response.fallback_to,
         )
         return None
+
+    def set_routing_telemetry_sink(self, sink) -> None:
+        """Register a callback to receive routing telemetry events.
+
+        The sink is called with a single dict payload.
+        """
+        self._routing_telemetry_sink = sink
+
+    def _emit_routing_telemetry(self, response: LLMResponse) -> None:
+        route = (response.raw or {}).get("route", {}) if response else {}
+        payload = {
+            "provider": response.provider if response else None,
+            "model": response.model if response else None,
+            "ok": bool(response.ok) if response else False,
+            "fallback_used": bool(response.was_fallback_used) if response else False,
+            "fallback_from": response.fallback_from if response else None,
+            "fallback_to": response.fallback_to if response else None,
+            "explain": deepcopy(route.get("explain", {})),
+            "stats": deepcopy(route.get("stats", {})),
+        }
+        logger.info(
+            "routing telemetry provider=%s ok=%s policy=%s mode=%s fallback=%s",
+            payload["provider"],
+            payload["ok"],
+            payload["explain"].get("policy"),
+            payload["explain"].get("routing_mode"),
+            payload["fallback_used"],
+        )
+        if callable(self._routing_telemetry_sink):
+            try:
+                self._routing_telemetry_sink(payload)
+            except Exception as exc:
+                logger.warning("routing telemetry sink failed: %s", exc)
+
+    def _compose_routing_metadata(self, *, question: str) -> dict[str, Any]:
+        payload = dict(self._routing_defaults)
+        payload.setdefault("question", question)
+        return payload
+
+    def set_routing_defaults(self, defaults: Optional[dict[str, Any]]) -> None:
+        if defaults is None:
+            self._routing_defaults = {}
+            return
+        if not isinstance(defaults, dict):
+            raise ValueError("routing defaults must be an object")
+        self._routing_defaults = dict(defaults)
+
+    def update_routing_controls(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(payload, dict):
+            raise ValueError("routing payload must be an object")
+
+        allowed = {
+            "policy",
+            "routing_mode",
+            "ab_variant_ratio",
+            "ab_variant_policy",
+            "shadow_policy",
+            "pin_primary",
+            "health_thresholds",
+            "breaker_failure_threshold",
+            "breaker_cooldown_seconds",
+            "request_id",
+            "trace_id",
+            "user_id",
+            "runtime_policy",
+            "runtime_health_thresholds",
+        }
+        unknown = [key for key in payload.keys() if key not in allowed]
+        if unknown:
+            raise ValueError(f"unknown routing fields: {unknown}")
+
+        routing_mode = payload.get("routing_mode")
+        if routing_mode is not None and routing_mode not in {"primary", "ab", "shadow"}:
+            raise ValueError("routing_mode must be one of: primary, ab, shadow")
+
+        policy = payload.get("policy")
+        if policy is not None and policy not in {"balanced", "latency_optimized", "cost_optimized"}:
+            raise ValueError("policy must be one of: balanced, latency_optimized, cost_optimized")
+
+        ab_ratio = payload.get("ab_variant_ratio")
+        if ab_ratio is not None:
+            if not isinstance(ab_ratio, (int, float)):
+                raise ValueError("ab_variant_ratio must be a number")
+            if not 0 <= float(ab_ratio) <= 1:
+                raise ValueError("ab_variant_ratio must be between 0 and 1")
+
+        for field in ("health_thresholds", "runtime_health_thresholds"):
+            thresholds = payload.get(field)
+            if thresholds is not None and not isinstance(thresholds, dict):
+                raise ValueError(f"{field} must be an object")
+
+        runtime_policy = payload.get("runtime_policy")
+        if runtime_policy is not None and runtime_policy not in {"balanced", "latency_optimized", "cost_optimized"}:
+            raise ValueError("runtime_policy must be one of: balanced, latency_optimized, cost_optimized")
+
+        metadata_updates = {
+            key: value
+            for key, value in payload.items()
+            if key
+            in {
+                "policy",
+                "routing_mode",
+                "ab_variant_ratio",
+                "ab_variant_policy",
+                "shadow_policy",
+                "pin_primary",
+                "health_thresholds",
+                "breaker_failure_threshold",
+                "breaker_cooldown_seconds",
+                "request_id",
+                "trace_id",
+                "user_id",
+            }
+            and value is not None
+        }
+        self._routing_defaults.update(metadata_updates)
+
+        if hasattr(self.backend_router, "set_runtime_overrides"):
+            self.backend_router.set_runtime_overrides(
+                policy=runtime_policy,
+                health_thresholds=payload.get("runtime_health_thresholds"),
+            )
+
+        return self.get_routing_observability()
+
+    def get_routing_observability(self) -> dict[str, Any]:
+        route = (getattr(self.last_response, "raw", {}) or {}).get("route", {}) if self.last_response else {}
+        explain = deepcopy(route.get("explain", {}))
+        stats = deepcopy(route.get("stats", {}))
+        return {
+            "defaults": deepcopy(self._routing_defaults),
+            "last_explain": explain,
+            "stats": stats,
+        }
+
+    def apply_rollout_stage(self, stage: str) -> dict[str, Any]:
+        """Apply a predefined rollout stage profile and return the snapshot.
+
+        Stages:
+        - baseline: primary + balanced
+        - shadow: shadow + balanced + cost_optimized shadow policy
+        - ab_5: ab with ratio 0.05
+        - ab_10: ab with ratio 0.10
+        - ab_20: ab with ratio 0.20
+        """
+        normalized = str(stage or "").strip().lower()
+        profiles: dict[str, dict[str, Any]] = {
+            "baseline": {"routing_mode": "primary", "policy": "balanced"},
+            "shadow": {"routing_mode": "shadow", "policy": "balanced", "shadow_policy": "cost_optimized"},
+            "ab_5": {
+                "routing_mode": "ab",
+                "policy": "balanced",
+                "ab_variant_ratio": 0.05,
+                "ab_variant_policy": "cost_optimized",
+            },
+            "ab_10": {
+                "routing_mode": "ab",
+                "policy": "balanced",
+                "ab_variant_ratio": 0.10,
+                "ab_variant_policy": "cost_optimized",
+            },
+            "ab_20": {
+                "routing_mode": "ab",
+                "policy": "balanced",
+                "ab_variant_ratio": 0.20,
+                "ab_variant_policy": "cost_optimized",
+            },
+        }
+        if normalized not in profiles:
+            raise ValueError("unknown rollout stage")
+        return self.update_routing_controls(profiles[normalized])
     
     def generate_response(self, question: str, cancel_event=None, messages: Optional[list[dict]] = None, *, stream: bool = False, on_token=None) -> Optional[str]:
         """Generate response using either local or cloud LLM"""

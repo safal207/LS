@@ -26,6 +26,7 @@ from .temporal import TemporalContext
 if TYPE_CHECKING:
     from .llm_module import LanguageModel
     from .qwen_handler import QwenHandler
+    from .routing_operator_api import LLMRoutingOperatorAPI
 
 
 def __getattr__(name: str):
@@ -37,6 +38,10 @@ def __getattr__(name: str):
         from .qwen_handler import QwenHandler
 
         return QwenHandler
+    if name == "LLMRoutingOperatorAPI":
+        from .routing_operator_api import LLMRoutingOperatorAPI
+
+        return LLMRoutingOperatorAPI
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
@@ -50,6 +55,7 @@ __all__ = [
     "LLMProviderError",
     "LanguageModel",
     "QwenHandler",
+    "LLMRoutingOperatorAPI",
     "TemporalContext",
     "LLMBackend",
     "LLMResponse",
