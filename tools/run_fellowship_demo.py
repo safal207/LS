@@ -43,6 +43,7 @@ def build_demo_summary(
     artifact_path: Path | None,
     quality_artifact_path: Path | None,
     relational_episode_artifact_path: Path | None,
+    relation_memory_artifact_path: Path | None,
     dataset_manifest: dict | None,
     scorecard_payload: dict | None,
 ) -> dict:
@@ -66,6 +67,9 @@ def build_demo_summary(
         "council_quality_artifact": str(quality_artifact_path) if quality_artifact_path else None,
         "relational_episode_artifact": (
             str(relational_episode_artifact_path) if relational_episode_artifact_path else None
+        ),
+        "relation_memory_artifact": (
+            str(relation_memory_artifact_path) if relation_memory_artifact_path else None
         ),
         "selected_route": str(final_decision.get("selected_route", "unknown")),
         "quality_score": quality_payload.get("quality_score"),
@@ -106,6 +110,10 @@ def run_demo(
     relational_episode_artifact_path = (
         Path(relational_episode_artifact_path_value) if relational_episode_artifact_path_value else None
     )
+    relation_memory_artifact_path_value = result.get("relation_memory_artifact")
+    relation_memory_artifact_path = (
+        Path(relation_memory_artifact_path_value) if relation_memory_artifact_path_value else None
+    )
 
     dataset_manifest = build_dataset() if refresh_dataset else None
     scorecard_payload = (
@@ -124,6 +132,7 @@ def run_demo(
         artifact_path=artifact_path,
         quality_artifact_path=quality_artifact_path,
         relational_episode_artifact_path=relational_episode_artifact_path,
+        relation_memory_artifact_path=relation_memory_artifact_path,
         dataset_manifest=dataset_manifest,
         scorecard_payload=scorecard_payload,
     )

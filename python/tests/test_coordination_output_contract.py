@@ -191,6 +191,7 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     agent._council_ledger_dir = tmp_path / "council-ledger"
     agent._council_quality_dir = tmp_path / "council-quality"
     agent._relational_episode_dir = tmp_path / "relational-episodes"
+    agent._relation_memory_dir = tmp_path / "relation-memory"
     agent.get_alignment_strategy_recommendations = lambda _item: [
         {
             "strategy_id": "bridge-1",
@@ -273,6 +274,17 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert relational_episode_payload["operator_guidance"]["route_strategy"] == "repair_then_reroute"
     assert relational_episode_payload["operator_guidance"]["rerun_required"] is True
 
+    relation_memory_artifact_path = output["relation_memory_artifact"]
+    assert relation_memory_artifact_path is not None
+    relation_memory_artifact = Path(relation_memory_artifact_path)
+    assert relation_memory_artifact.exists()
+
+    relation_memory_payload = json.loads(relation_memory_artifact.read_text(encoding="utf-8"))
+    assert relation_memory_payload["cycle_id"] == "cid-ledger"
+    assert relation_memory_payload["risk_state"] == "repair"
+    assert relation_memory_payload["dominant_signal"] == "tension"
+    assert relation_memory_payload["pattern_key"].startswith("repair:tension:")
+
     quality_artifact_path = output["council_quality_artifact"]
     assert quality_artifact_path is not None
     quality_artifact = Path(quality_artifact_path)
@@ -282,6 +294,7 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert quality_payload["cycle_id"] == "cid-ledger"
     assert quality_payload["council_ledger_path"] == artifact_path
     assert quality_payload["relational_episode_path"] == relational_episode_artifact_path
+    assert quality_payload["relation_memory_path"] == relation_memory_artifact_path
     assert quality_payload["quality_score"] == output["council_cel_sync"]["quality_score"]
     assert quality_payload["relation_adjusted_quality_score"] <= quality_payload["quality_score"]
     assert quality_payload["relational_field"]["tension_score"] == 0.78
