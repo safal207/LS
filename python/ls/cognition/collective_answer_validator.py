@@ -1,11 +1,23 @@
 from __future__ import annotations
 
-# TODO: This validator is intended to sit after shared-memory candidate generation
-# and before final answer selection in the multi-agent runtime (e.g. AgentLoop).
+# Validator sits after shared-memory candidate generation and before final
+# answer selection in the multi-agent runtime.  AgentValidationBridge wires
+# concrete agent handles to this validator; see agent_validation_bridge.py.
 
 from collections import Counter
-from dataclasses import dataclass
-from typing import Sequence
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING, Sequence
+
+if TYPE_CHECKING:
+    from ls.cognition.lifetra_validation_adapter import (
+        ValidationTraceArtifact,
+        ValidationTraceBackend,
+    )
+    from ls.cognition.validation_escalation import ValidationEscalationHandler
+    from ls.cognition.validation_governance import (
+        ValidationGovernanceEngine,
+        ValidationGovernanceReport,
+    )
 
 
 @dataclass(frozen=True)
@@ -41,6 +53,8 @@ class ValidationResult:
     consensus_status: str  # convergent | weak | conflicted | rejected
     consensus_summary: str
     global_risk_flags: list[str]
+    governance_report: ValidationGovernanceReport | None = None
+    trace_artifact: ValidationTraceArtifact | None = None
 
 
 def _score(candidate: CandidateAnswer) -> float:
@@ -117,6 +131,16 @@ class CollectiveAnswerValidator:
     _ECHO_THRESHOLD = 3
     _CONVERGENT_SCORE_DIFF = 0.15
 
+    def __init__(
+        self,
+        trace_backend: ValidationTraceBackend | None = None,
+        governance_engine: ValidationGovernanceEngine | None = None,
+        escalation_handler: ValidationEscalationHandler | None = None,
+    ) -> None:
+        self.trace_backend = trace_backend
+        self.governance_engine = governance_engine
+        self.escalation_handler = escalation_handler
+
     def validate(self, payload: ValidationInput) -> ValidationResult:
         validated = [_validate_candidate(c) for c in payload.candidates]
         # Stable sort by score desc, then by agent_id asc for explicit tie-break.
@@ -144,19 +168,20 @@ class CollectiveAnswerValidator:
         # Determine consensus status and winner
         if not accepted:
             global_risk_flags.append("no_valid_candidates")
-            return ValidationResult(
+            result = ValidationResult(
                 ranked_candidates=validated,
                 winner_agent_id=None,
                 consensus_status="rejected",
                 consensus_summary="No candidates met acceptance criteria.",
                 global_risk_flags=global_risk_flags,
             )
+            return self._attach_trace_artifact(payload, result)
 
         winner = accepted[0]
 
         if len(accepted) == 1:
             global_risk_flags.append("single_point_consensus")
-            return ValidationResult(
+            result = ValidationResult(
                 ranked_candidates=validated,
                 winner_agent_id=winner.agent_id,
                 consensus_status="weak",
@@ -166,6 +191,7 @@ class CollectiveAnswerValidator:
                 ),
                 global_risk_flags=global_risk_flags,
             )
+            return self._attach_trace_artifact(payload, result)
 
         second = accepted[1]
         score_diff = winner.score - second.score
@@ -202,10 +228,40 @@ class CollectiveAnswerValidator:
                 f"(score_diff={score_diff:.3f})."
             )
 
-        return ValidationResult(
+        result = ValidationResult(
             ranked_candidates=validated,
             winner_agent_id=winner.agent_id,
             consensus_status=consensus_status,
             consensus_summary=summary,
             global_risk_flags=global_risk_flags,
         )
+        return self._attach_trace_artifact(payload, result)
+
+    def _attach_trace_artifact(
+        self,
+        payload: ValidationInput,
+        result: ValidationResult,
+    ) -> ValidationResult:
+        trace_artifact = None
+        if self.trace_backend is not None:
+            trace_artifact = self.trace_backend.build_validation_trace(payload, result)
+
+        governance_report = None
+        if self.governance_engine is not None:
+            # Build governance before mutating result so that a failure here
+            # leaves the original result intact rather than a half-patched one.
+            governance_report = self.governance_engine.build_governance_report(payload, result)
+
+        if trace_artifact is None and governance_report is None:
+            final = result
+        else:
+            final = replace(result, trace_artifact=trace_artifact, governance_report=governance_report)
+
+        if (
+            self.escalation_handler is not None
+            and final.governance_report is not None
+            and final.governance_report.review_required
+        ):
+            self.escalation_handler.handle_escalation(final, final.governance_report)
+
+        return final
