@@ -970,5 +970,128 @@ def council_reject(
     console.print(f"[bold]Review artifact:[/bold] {updated_path}")
 
 
+@app.command("council-validate")
+def council_validate(
+    cycle_id: str = typer.Argument(
+        ...,
+        help="Cycle ID to validate, or path to a council-quality JSON artifact.",
+    ),
+    quality_dir: Path = typer.Option(
+        Path("artifacts/council-quality"),
+        "--quality-dir",
+        help="Where to read council-quality JSON artifacts.",
+    ),
+    governance: bool = typer.Option(
+        False,
+        "--governance",
+        help="Enable governance engine (reputation, clustering, coalitions).",
+    ),
+    trace: bool = typer.Option(
+        False,
+        "--trace",
+        help="Attach a Lifetra trajectory trace.",
+    ),
+    sign: bool = typer.Option(
+        False,
+        "--sign",
+        help="Sign the trace artifact with a generated Ed25519 key pair.",
+    ),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit the validation result as JSON.",
+    ),
+) -> None:
+    """Validate a past council cycle through the collective answer validation pipeline.
+
+    Reads the council quality artifact, converts council participants into
+    validation candidates, and runs the full scoring / governance / trace pipeline.
+    """
+    from ls.cognition.council_validation_bridge import validate_council_artifact  # noqa: PLC0415
+
+    # Resolve artifact path: either a direct path or cycle_id in quality_dir
+    artifact_path = Path(cycle_id)
+    if not artifact_path.exists():
+        artifact_path = quality_dir / f"{cycle_id}.json"
+    if not artifact_path.exists():
+        console.print(f"[red]Artifact not found:[/red] {artifact_path}")
+        raise typer.Exit(code=1)
+
+    try:
+        result = validate_council_artifact(
+            artifact_path,
+            governance=governance,
+            trace=trace,
+            sign=sign,
+        )
+    except Exception as exc:
+        console.print(f"[red]Validation failed:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    if as_json:
+        output: dict = {
+            "cycle_id": cycle_id,
+            "winner_agent_id": result.winner_agent_id,
+            "consensus_status": result.consensus_status,
+            "consensus_summary": result.consensus_summary,
+            "global_risk_flags": result.global_risk_flags,
+            "ranked_candidates": [
+                {
+                    "agent_id": vc.agent_id,
+                    "accepted": vc.accepted,
+                    "score": round(vc.score, 4),
+                    "reasons": vc.reasons,
+                    "risk_flags": vc.risk_flags,
+                }
+                for vc in result.ranked_candidates
+            ],
+        }
+        if result.governance_report is not None:
+            output["governance"] = {
+                "governed_winner": result.governance_report.governed_winner_agent_id,
+                "review_required": result.governance_report.review_required,
+                "governance_flags": result.governance_report.governance_flags,
+            }
+        if result.trace_artifact is not None:
+            output["trace"] = {
+                "trace_id": result.trace_artifact.trace_id,
+                "node_count": result.trace_artifact.node_count,
+                "edge_count": result.trace_artifact.edge_count,
+            }
+        print_plain_safe(json.dumps(output, ensure_ascii=False, indent=2))
+        raise typer.Exit(code=0)
+
+    # Rich table output
+    console.print(f"\n[cyan]Council Validation:[/cyan] {cycle_id}")
+    console.print(f"[green]Winner:[/green] {result.winner_agent_id or 'none'}")
+    console.print(f"[green]Consensus:[/green] {result.consensus_status}")
+    console.print(f"[green]Summary:[/green] {result.consensus_summary}")
+    if result.global_risk_flags:
+        console.print(f"[yellow]Risk flags:[/yellow] {', '.join(result.global_risk_flags)}")
+    console.print()
+    table = Table(title="Candidate Scores")
+    table.add_column("agent")
+    table.add_column("accepted")
+    table.add_column("score")
+    table.add_column("risk flags")
+    for vc in result.ranked_candidates:
+        table.add_row(
+            vc.agent_id,
+            "[green]yes[/green]" if vc.accepted else "[red]no[/red]",
+            f"{vc.score:.4f}",
+            ", ".join(vc.risk_flags) or "none",
+        )
+    console.print(table)
+    if result.governance_report is not None:
+        gr = result.governance_report
+        console.print(f"\n[cyan]Governance:[/cyan] review_required={gr.review_required}")
+        console.print(f"[cyan]Governed winner:[/cyan] {gr.governed_winner_agent_id}")
+        if gr.governance_flags:
+            console.print(f"[yellow]Flags:[/yellow] {', '.join(gr.governance_flags)}")
+    if result.trace_artifact is not None:
+        ta = result.trace_artifact
+        console.print(f"\n[cyan]Trace:[/cyan] {ta.trace_id} ({ta.node_count} nodes, {ta.edge_count} edges)")
+
+
 if __name__ == "__main__":
     app()
