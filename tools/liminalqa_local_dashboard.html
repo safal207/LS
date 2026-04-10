@@ -636,5 +636,62 @@
     refreshCouncilQualityPreview().catch(()=>{});
     refreshCouncilEscalationQueue().catch(()=>{});
   </script>
+  <script>
+    (function(){
+      const escalationKicker=el("council-escalation-kicker");
+      const escalationList=el("council-escalation-list");
+      if(escalationKicker && escalationList && !el("council-breach-kicker")){
+        const breachKicker=document.createElement("div");
+        breachKicker.id="council-breach-kicker";
+        breachKicker.className="kicker";
+        breachKicker.style.marginTop="14px";
+        const breachList=document.createElement("ul");
+        breachList.id="council-breach-list";
+        breachList.className="guide-list";
+        escalationList.insertAdjacentElement("afterend", breachList);
+        escalationList.insertAdjacentElement("afterend", breachKicker);
+      }
+    })();
+
+    async function refreshCouncilBreachQueue(){
+      const kicker=el("council-breach-kicker");
+      const list=el("council-breach-list");
+      if(!kicker || !list) return;
+      kicker.textContent=lang==="ru"?"Open SLA Breaches":"Open SLA Breaches";
+      const data=await callJson("/api/council-breach-queue");
+      list.innerHTML="";
+      if(!data.ok){
+        const li=document.createElement("li");
+        li.textContent=lang==="ru"?"Просроченных циклов пока нет.":"No open SLA breaches.";
+        list.appendChild(li);
+        return;
+      }
+      const items=data.payload.items||[];
+      if(!items.length){
+        const li=document.createElement("li");
+        li.textContent=lang==="ru"?"Просроченных циклов пока нет.":"No open SLA breaches.";
+        list.appendChild(li);
+        return;
+      }
+      items.forEach(item=>{
+        const li=document.createElement("li");
+        const cycle=item.cycle_id || "unknown";
+        const breach=item.breach_type || "breach";
+        const minutes=Number(item.minutes_open || 0).toFixed(1);
+        const reviewer=item.assigned_reviewer || "unassigned";
+        const posture=item.approval_posture || "n/a";
+        li.textContent=`${cycle}: ${breach} / ${minutes}m / ${reviewer} / ${posture}`;
+        list.appendChild(li);
+      });
+    }
+
+    const ________originalRefreshCouncilQualityPreview=refreshCouncilQualityPreview;
+    refreshCouncilQualityPreview=async function(){
+      await ________originalRefreshCouncilQualityPreview();
+      await refreshCouncilBreachQueue();
+    };
+
+    refreshCouncilBreachQueue().catch(()=>{});
+  </script>
 </body>
 </html>

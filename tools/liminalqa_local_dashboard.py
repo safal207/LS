@@ -567,6 +567,19 @@ def preview_council_escalation_queue(limit: int = 5) -> tuple[int, object]:
     return 200, {"items": rows[:limit], "total": len(rows)}
 
 
+def preview_council_breach_queue(limit: int = 10) -> tuple[int, object]:
+    if not COUNCIL_QUALITY_DIR.exists():
+        return 404, {"error": "council-quality artifact not found", "items": []}
+    rows: list[dict] = []
+    for path in COUNCIL_QUALITY_DIR.glob("*.json"):
+        try:
+            rows.append(json.loads(path.read_text(encoding="utf-8")))
+        except Exception:
+            continue
+    breach_rows = build_open_breach_rows(rows)
+    return 200, {"items": breach_rows[:limit], "total": len(breach_rows)}
+
+
 def claim_next_escalation(reviewer: str, assigned_by: str = "dashboard") -> tuple[int, object]:
     try:
         rows = iter_council_escalation_rows(COUNCIL_QUALITY_DIR)
@@ -700,6 +713,36 @@ def history_latency_minutes(start_at: datetime | None, history: list[dict], acti
             continue
         return max(0.0, (event_at - start_at).total_seconds() / 60.0)
     return None
+
+
+def build_open_breach_rows(rows: list[dict]) -> list[dict]:
+    now = datetime.now(timezone.utc)
+    breach_rows: list[dict] = []
+    for row in rows:
+        guidance = row.get("operator_guidance") or {}
+        if str(guidance.get("risk_state") or "watch") not in {"repair", "escalate"}:
+            continue
+        cycle_started_at = parse_iso_timestamp(row.get("timestamp"))
+        if cycle_started_at is None:
+            continue
+        history = list(row.get("operator_review_history") or [])
+        review = row.get("operator_review") or {}
+        review_status = str(review.get("decision") or "pending")
+        assigned_reviewer = str(review.get("assigned_reviewer") or "unassigned")
+        approval_posture = str(guidance.get("approval_posture") or "n/a")
+        open_minutes = max(0.0, (now - cycle_started_at).total_seconds() / 60.0)
+        assign_latency = history_latency_minutes(cycle_started_at, history, {"assign"})
+        review_latency = history_latency_minutes(cycle_started_at, history, {"approve", "reject"})
+        close_latency = history_latency_minutes(cycle_started_at, history, {"close"})
+        if assign_latency is None and review_status == "pending" and open_minutes > ASSIGNMENT_SLA_MINUTES:
+            breach_rows.append({"cycle_id": row.get("cycle_id"), "breach_type": "assignment", "minutes_open": round(open_minutes, 2), "review_status": review_status, "assigned_reviewer": assigned_reviewer, "approval_posture": approval_posture})
+        if review_latency is None and review_status == "pending" and open_minutes > REVIEW_SLA_MINUTES:
+            breach_rows.append({"cycle_id": row.get("cycle_id"), "breach_type": "review", "minutes_open": round(open_minutes, 2), "review_status": review_status, "assigned_reviewer": assigned_reviewer, "approval_posture": approval_posture})
+        if close_latency is None and review_status != "closed" and open_minutes > CLOSE_SLA_MINUTES:
+            breach_rows.append({"cycle_id": row.get("cycle_id"), "breach_type": "close", "minutes_open": round(open_minutes, 2), "review_status": review_status, "assigned_reviewer": assigned_reviewer, "approval_posture": approval_posture})
+    breach_order = {"assignment": 0, "review": 1, "close": 2}
+    breach_rows.sort(key=lambda item: (breach_order.get(str(item.get("breach_type")), 9), -float(item.get("minutes_open") or 0.0)))
+    return breach_rows
 
 
 def clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
@@ -980,6 +1023,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/council-escalation-queue":
             status, payload = preview_council_escalation_queue()
+            self.send_json(status, payload)
+            return
+        if self.path == "/api/council-breach-queue":
+            status, payload = preview_council_breach_queue()
             self.send_json(status, payload)
             return
         self.send_json(404, {"error": "not found"})

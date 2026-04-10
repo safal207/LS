@@ -362,3 +362,40 @@ def test_build_council_analytics_counts_incidents(monkeypatch, tmp_path: Path) -
     assert payload["charts"]["incidentTrend"] == [{"label": "2026-04-09", "value": 1}]
     assert payload["charts"]["reviewTrend"] == [{"label": "2026-04-09", "value": 1}]
     assert payload["charts"]["approvalOutcomeSplit"] == [{"label": "approved", "value": 1}]
+
+
+def test_preview_council_breach_queue_detects_open_breaches(monkeypatch, tmp_path: Path) -> None:
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "cycle-breach.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-breach",
+                "timestamp": "2026-04-08T08:00:00Z",
+                "operator_guidance": {
+                    "risk_state": "escalate",
+                    "approval_posture": "human_escalation",
+                },
+                "operator_review": {
+                    "decision": "pending",
+                    "assigned_reviewer": "alice",
+                },
+                "operator_review_history": [
+                    {
+                        "action": "assign",
+                        "timestamp": "2026-04-08T08:05:00Z",
+                        "assigned_by": "queue-bot",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+
+    status, payload = dashboard.preview_council_breach_queue()
+
+    assert status == 200
+    assert payload["total"] >= 1
+    assert payload["items"][0]["cycle_id"] == "cycle-breach"
+    assert payload["items"][0]["breach_type"] in {"review", "close"}
