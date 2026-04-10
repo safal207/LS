@@ -925,5 +925,38 @@
 
     refreshCouncilQualityPreview().catch(()=>{});
   </script>
+  <script>
+    (function(){
+      const councilQualityGrid=el("cq-incident")?.closest(".summary-grid");
+      if(councilQualityGrid && !el("cq-route-memory-adjusted")){
+        const adjustedBox=document.createElement("div");
+        adjustedBox.className="summary-box";
+        adjustedBox.innerHTML='<div class="summary-label">Route Memory</div><div id="cq-route-memory-adjusted" class="summary-value">no</div>';
+        const matchesBox=document.createElement("div");
+        matchesBox.className="summary-box";
+        matchesBox.innerHTML='<div class="summary-label">Route Matches</div><div id="cq-route-memory-matches" class="summary-value">0</div>';
+        councilQualityGrid.appendChild(adjustedBox);
+        councilQualityGrid.appendChild(matchesBox);
+      }
+    })();
+
+    const ____________originalRefreshCouncilQualityPreview=refreshCouncilQualityPreview;
+    refreshCouncilQualityPreview=async function(){
+      await ____________originalRefreshCouncilQualityPreview();
+      try{
+        const data=await callJson("/api/council-quality-preview");
+        if(!el("cq-route-memory-adjusted") || !el("cq-route-memory-matches")) return;
+        if(!data.ok){
+          el("cq-route-memory-adjusted").textContent="no";
+          el("cq-route-memory-matches").textContent="0";
+          return;
+        }
+        el("cq-route-memory-adjusted").textContent=data.payload.route_memory_adjusted ? "yes" : "no";
+        el("cq-route-memory-matches").textContent=String(data.payload.route_memory_match_count || 0);
+      }catch(_error){}
+    };
+
+    refreshCouncilQualityPreview().catch(()=>{});
+  </script>
 </body>
 </html>

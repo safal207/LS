@@ -307,6 +307,9 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert quality_payload["operator_guidance"]["requires_human_review"] is False
     assert "Pause approval" in quality_payload["operator_guidance"]["suggested_operator_action"]
     assert quality_payload["council_outcome"]["selected_route"] == "r1"
+    assert quality_payload["council_outcome"]["route_strategy"] == "repair_then_reroute"
+    assert quality_payload["council_outcome"]["route_memory_adjusted"] is False
+    assert quality_payload["council_outcome"]["route_memory_match_count"] == 0
     assert quality_payload["attribution"]["best_contributor_model_id"] != "n/a"
     assert len(quality_payload["cel"]["contribution_records"]) >= 1
     assert len(quality_payload["cel"]["reputation_updates"]) >= 1

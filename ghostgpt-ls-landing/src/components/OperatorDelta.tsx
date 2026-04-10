@@ -51,6 +51,7 @@ type CouncilScorecardPayload = {
     escalation_rate?: number;
     memory_adjusted_cycle_count?: number;
     memory_match_total?: number;
+    route_memory_adjusted_cycle_count?: number;
     median_assignment_minutes?: number;
     median_review_minutes?: number;
     median_close_minutes?: number;
@@ -62,6 +63,7 @@ type CouncilScorecardPayload = {
     best_contributor_frequency: ScorePoint[];
     model_type_lift: ScorePoint[];
     route_wins: ScorePoint[];
+    route_strategy_split?: ScorePoint[];
     approval_outcome_split?: ScorePoint[];
   };
   lines: {
@@ -123,6 +125,7 @@ const copy = {
     escalationRate: 'Escalation rate',
     memoryAdjusted: 'Memory-adjusted',
     memoryMatches: 'Memory matches',
+    routeMemoryAdjusted: 'Route memory-adjusted',
     medianAssign: 'Median assign',
     medianReview: 'Median review',
     medianClose: 'Median close',
@@ -132,6 +135,7 @@ const copy = {
     contribFreq: 'Best contributor frequency',
     modelLift: 'Model type lift',
     routeWins: 'Route wins',
+    routeStrategy: 'Route strategy split',
     approvalOutcome: 'Approval outcome split',
     resonanceTrend: 'Receiver resonance trend',
     meritTrend: 'Merit trend',
@@ -184,6 +188,7 @@ const copy = {
     escalationRate: 'Escalation rate',
     memoryAdjusted: 'Memory-adjusted',
     memoryMatches: 'Memory matches',
+    routeMemoryAdjusted: 'Route memory-adjusted',
     medianAssign: 'Медиана до assign',
     medianReview: 'Медиана до review',
     medianClose: 'Медиана до close',
@@ -193,6 +198,7 @@ const copy = {
     contribFreq: 'Частота лучшего contributor',
     modelLift: 'Подъем по типам моделей',
     routeWins: 'Победы маршрутов',
+    routeStrategy: 'Route strategy split',
     approvalOutcome: 'Исходы review',
     resonanceTrend: 'Тренд резонанса',
     meritTrend: 'Тренд merit',
@@ -537,6 +543,10 @@ export default function OperatorDelta() {
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.memory_match_total ?? 0}</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.routeMemoryAdjusted}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.route_memory_adjusted_cycle_count ?? 0}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.medianAssign}</div>
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{(scorecard.summary.median_assignment_minutes ?? 0).toFixed(1)}m</div>
             </div>
@@ -589,6 +599,12 @@ export default function OperatorDelta() {
               <div className="text-sm uppercase tracking-[0.16em] text-amber-200">{text.routeWins}</div>
               <div className="mt-4">
                 <MiniBars data={scorecard.bars.route_wins} tone="amber" />
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-sm uppercase tracking-[0.16em] text-violet-200">{text.routeStrategy}</div>
+              <div className="mt-4">
+                <MiniBars data={scorecard.bars.route_strategy_split ?? []} tone="cyan" />
               </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">

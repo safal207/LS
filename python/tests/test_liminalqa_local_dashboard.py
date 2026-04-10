@@ -46,6 +46,8 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                 "relation_adjusted_quality_score": 0.71,
                 "council_outcome": {
                     "selected_route": "route-a",
+                    "route_memory_adjusted": True,
+                    "route_memory_match_count": 3,
                     "success": True,
                     "receiver_resonance_score": 0.73,
                     "receiver_acceptance_label": "accepted",
@@ -133,6 +135,8 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["quality_score"] == 0.84
     assert payload["relation_adjusted_quality_score"] == 0.71
     assert payload["selected_route"] == "route-a"
+    assert payload["route_memory_adjusted"] is True
+    assert payload["route_memory_match_count"] == 3
     assert payload["best_contributor_model_id"] == "local-qwen"
     assert payload["relation_safety_score"] == 0.48
     assert payload["recommended_mode"] == "validate_before_solve"

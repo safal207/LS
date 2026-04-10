@@ -147,6 +147,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 "escalation_rate": 0.0,
                 "memory_adjusted_cycle_count": 0,
                 "memory_match_total": 0,
+                "route_memory_adjusted_cycle_count": 0,
                 "median_assignment_minutes": 0.0,
                 "median_review_minutes": 0.0,
                 "median_close_minutes": 0.0,
@@ -203,6 +204,8 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
     escalate_count = 0
     memory_adjusted_cycle_count = 0
     memory_match_total = 0
+    route_memory_adjusted_cycle_count = 0
+    route_strategy_counts: Counter[str] = Counter()
     for index, row in enumerate(selected_rows, start=1):
         outcome = row.get("outcome", {})
         attribution = row.get("attribution", {})
@@ -252,7 +255,9 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         if risk_state == "escalate":
             escalate_count += 1
         review_decision = str(operator_review.get("decision") or "pending")
+        route_strategy = str((quality_outcome.get("route_strategy") or guidance.get("route_strategy") or "unknown"))
         approval_outcomes[review_decision] += 1
+        route_strategy_counts[route_strategy] += 1
         if review_decision in {"approved", "rejected"}:
             reviewed_cycle_count += 1
         if review_decision == "approved":
@@ -260,6 +265,8 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         if bool(memory_context.get("policy_adjusted")):
             memory_adjusted_cycle_count += 1
         memory_match_total += int(memory_context.get("match_count") or 0)
+        if bool(quality_outcome.get("route_memory_adjusted")):
+            route_memory_adjusted_cycle_count += 1
         if (liminalqa.get("incident") or {}).get("published"):
             incident_count += 1
         assignment_latency = history_latency_minutes(cycle_started_at, review_history, {"assign"})
@@ -315,6 +322,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "escalation_rate": round((escalate_count / len(selected_rows)) * 100.0, 2),
             "memory_adjusted_cycle_count": memory_adjusted_cycle_count,
             "memory_match_total": memory_match_total,
+            "route_memory_adjusted_cycle_count": route_memory_adjusted_cycle_count,
             "median_assignment_minutes": round(median_or_zero(assignment_latencies), 2),
             "median_review_minutes": round(median_or_zero(review_latencies), 2),
             "median_close_minutes": round(median_or_zero(close_latencies), 2),
@@ -326,6 +334,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "best_contributor_frequency": [{"label": key, "value": value} for key, value in best_counts.items()],
             "model_type_lift": [{"label": key, "value": value} for key, value in type_lift.items()],
             "route_wins": [{"label": key, "value": value} for key, value in route_wins.items()],
+            "route_strategy_split": [{"label": key, "value": value} for key, value in route_strategy_counts.items()],
             "approval_outcome_split": [{"label": key, "value": value} for key, value in approval_outcomes.items()],
         },
         "lines": {

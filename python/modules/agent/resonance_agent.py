@@ -3548,6 +3548,8 @@ class ResonanceAgent:
                 (0.75 * float(quality_score)) + (0.25 * float(relational["relation_safety_score"])),
                 4,
             )
+        path_meta = ((item or {}).get("_path_selection") or {}) if item is not None else {}
+        route_memory_policy = path_meta.get("relation_memory_route_policy") or {}
         return {
             "cycle_id": str(getattr(ledger, "cycle_id", "") or ""),
             "task_id": str(getattr(ledger, "task_id", "") or ""),
@@ -3579,6 +3581,9 @@ class ResonanceAgent:
                     if outcome is not None
                     else "unknown"
                 ),
+                "route_strategy": str(path_meta.get("route_strategy") or risk_summary.get("route_strategy") or "continue_current_route"),
+                "route_memory_adjusted": bool(route_memory_policy.get("policy_adjusted")),
+                "route_memory_match_count": int(route_memory_policy.get("match_count") or 0),
             },
             "attribution": {
                 "best_contributor_model_id": (

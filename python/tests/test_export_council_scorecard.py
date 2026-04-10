@@ -50,6 +50,7 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
                 "cycle_id": "cycle-a",
                 "quality_score": 0.93,
                 "relational_field": {"relation_safety_score": 0.81},
+                "council_outcome": {"route_strategy": "freeze_and_escalate", "route_memory_adjusted": True},
                 "operator_guidance": {"risk_state": "repair", "memory_context": {"match_count": 3, "policy_adjusted": True}},
                 "liminalqa": {"incident": {"published": True}},
                 "operator_review": {"decision": "approved"},
@@ -68,6 +69,7 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
                 "cycle_id": "cycle-b",
                 "quality_score": 0.41,
                 "relational_field": {"relation_safety_score": 0.29},
+                "council_outcome": {"route_strategy": "validate_current_route", "route_memory_adjusted": False},
                 "operator_guidance": {"risk_state": "escalate", "memory_context": {"match_count": 2, "policy_adjusted": False}},
                 "liminalqa": {"incident": {"published": False}},
                 "operator_review": {"decision": "rejected"},
@@ -93,6 +95,7 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
     assert payload["summary"]["escalation_rate"] == 50.0
     assert payload["summary"]["memory_adjusted_cycle_count"] == 1
     assert payload["summary"]["memory_match_total"] == 5
+    assert payload["summary"]["route_memory_adjusted_cycle_count"] == 1
     assert payload["summary"]["median_assignment_minutes"] == 12.5
     assert payload["summary"]["median_review_minutes"] == 27.5
     assert payload["summary"]["median_close_minutes"] == 30.0
@@ -111,6 +114,10 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
     assert payload["bars"]["approval_outcome_split"] == [
         {"label": "approved", "value": 1},
         {"label": "rejected", "value": 1},
+    ]
+    assert payload["bars"]["route_strategy_split"] == [
+        {"label": "freeze_and_escalate", "value": 1},
+        {"label": "validate_current_route", "value": 1},
     ]
     assert output_path.exists()
     written = json.loads(output_path.read_text(encoding="utf-8"))
