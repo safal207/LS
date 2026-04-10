@@ -36,6 +36,7 @@ COUNCIL_CYCLE_TIMEOUT_SECONDS = 45
 ASSIGNMENT_SLA_MINUTES = 15.0
 REVIEW_SLA_MINUTES = 30.0
 CLOSE_SLA_MINUTES = 45.0
+REMINDER_COOLDOWN_MINUTES = 30.0
 FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#161311"/><path d="M16 47V17h8v23h20v7H16zm17-8 9-22h8L40 39h-7z" fill="#fffaf1"/></svg>'
 LANE = {
     "key": "mesh-tests",
@@ -65,18 +66,22 @@ except ImportError:
 
 try:
     from ls.agent_shell.cli import (
+        append_council_review_history,
         assign_council_reviewer,
         close_council_escalation,
         iter_council_escalation_rows,
         load_council_quality_artifact,
+        save_council_quality_artifact,
         update_council_operator_review,
     )
 except ImportError:
     from python.ls.agent_shell.cli import (
+        append_council_review_history,
         assign_council_reviewer,
         close_council_escalation,
         iter_council_escalation_rows,
         load_council_quality_artifact,
+        save_council_quality_artifact,
         update_council_operator_review,
     )
 
@@ -507,6 +512,9 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "operator_review_forced": bool(operator_review.get("forced")),
         "operator_review_assigned_reviewer": operator_review.get("assigned_reviewer"),
         "operator_review_closed_reason": operator_review.get("closed_reason"),
+        "operator_review_reminder_count": int(operator_review.get("reminder_count") or 0),
+        "operator_review_last_reminder_at": operator_review.get("last_reminder_at"),
+        "operator_review_last_reminder_by": operator_review.get("last_reminder_by"),
         "operator_review_history": review_history,
         "contribution_records": len(cel.get("contribution_records") or []),
         "reputation_updates": len(cel.get("reputation_updates") or []),
@@ -627,6 +635,71 @@ def assign_escalation(cycle_id: str, reviewer: str, assigned_by: str = "dashboar
         return 404, {"error": str(exc)}
     except Exception as exc:
         return 500, {"error": str(exc)}
+
+
+def remind_escalation(cycle_id: str, *, reminded_by: str = "dashboard-bot", reason: str = "critical breach reminder") -> tuple[int, object]:
+    try:
+        artifact = load_council_quality_artifact(COUNCIL_QUALITY_DIR, cycle_id)
+        path = pathlib.Path(str(artifact.get("_path") or (COUNCIL_QUALITY_DIR / f"{cycle_id}.json")))
+        review = artifact.get("operator_review") or {}
+        reminders_sent = int(review.get("reminder_count") or 0) + 1
+        artifact["operator_review"] = {
+            **review,
+            "reminder_count": reminders_sent,
+            "last_reminder_at": iso_now(),
+            "last_reminder_by": reminded_by,
+        }
+        append_council_review_history(
+            artifact,
+            {
+                "action": "remind",
+                "reviewer": str(review.get("assigned_reviewer") or "unassigned"),
+                "reminded_by": reminded_by,
+                "reason": reason,
+            },
+        )
+        save_council_quality_artifact(path, artifact)
+        return 200, {
+            "cycle_id": cycle_id,
+            "reminder_count": reminders_sent,
+            "reminded_by": reminded_by,
+            "artifact_path": str(path),
+        }
+    except ValueError as exc:
+        return 404, {"error": str(exc)}
+    except Exception as exc:
+        return 500, {"error": str(exc)}
+
+
+def remind_critical_breaches(reminded_by: str = "dashboard-bot") -> tuple[int, object]:
+    if not COUNCIL_QUALITY_DIR.exists():
+        return 404, {"error": "council-quality artifact not found", "items": []}
+    rows = []
+    for path in COUNCIL_QUALITY_DIR.glob("*.json"):
+        try:
+            rows.append(json.loads(path.read_text(encoding="utf-8")))
+        except Exception:
+            continue
+    reminded: list[dict] = []
+    for item in build_open_breach_rows(rows):
+        if not bool(item.get("critical")):
+            continue
+        if str(item.get("review_status") or "pending") != "pending":
+            continue
+        cycle_id = str(item.get("cycle_id") or "")
+        if not cycle_id:
+            continue
+        artifact = load_council_quality_artifact(COUNCIL_QUALITY_DIR, cycle_id)
+        review = artifact.get("operator_review") or {}
+        last_reminder_at = parse_iso_timestamp(review.get("last_reminder_at"))
+        if last_reminder_at is not None:
+            since_last = max(0.0, (datetime.now(timezone.utc) - last_reminder_at).total_seconds() / 60.0)
+            if since_last < REMINDER_COOLDOWN_MINUTES:
+                continue
+        status, payload = remind_escalation(cycle_id, reminded_by=reminded_by)
+        if status == 200:
+            reminded.append(payload)
+    return 200, {"count": len(reminded), "items": reminded, "cooldown_minutes": REMINDER_COOLDOWN_MINUTES}
 
 
 def close_escalation(cycle_id: str, reviewer: str, reason: str) -> tuple[int, object]:
@@ -754,6 +827,8 @@ def build_open_breach_rows(rows: list[dict]) -> list[dict]:
         assign_latency = history_latency_minutes(cycle_started_at, history, {"assign"})
         review_latency = history_latency_minutes(cycle_started_at, history, {"approve", "reject"})
         close_latency = history_latency_minutes(cycle_started_at, history, {"close"})
+        last_reminder_at = review.get("last_reminder_at")
+        reminder_count = int(review.get("reminder_count") or 0)
         def breach_payload(breach_type: str, threshold_minutes: float) -> dict:
             return {
                 "cycle_id": row.get("cycle_id"),
@@ -763,6 +838,8 @@ def build_open_breach_rows(rows: list[dict]) -> list[dict]:
                 "assigned_reviewer": assigned_reviewer,
                 "approval_posture": approval_posture,
                 "critical": open_minutes > (threshold_minutes * 2.0),
+                "reminder_count": reminder_count,
+                "last_reminder_at": last_reminder_at,
             }
         if assign_latency is None and review_status == "pending" and open_minutes > ASSIGNMENT_SLA_MINUTES:
             breach_rows.append(breach_payload("assignment", ASSIGNMENT_SLA_MINUTES))
@@ -1121,6 +1198,20 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(400, {"error": "cycle_id and reviewer are required"})
                 return
             status, payload = assign_escalation(cycle_id, reviewer, assigned_by=assigned_by)
+            self.send_json(status, payload)
+            return
+        if parsed.path == "/api/remind-escalation":
+            cycle_id = (query.get("cycle_id") or [""])[0].strip()
+            reminded_by = (query.get("reminded_by") or ["dashboard-bot"])[0].strip() or "dashboard-bot"
+            if not cycle_id:
+                self.send_json(400, {"error": "cycle_id is required"})
+                return
+            status, payload = remind_escalation(cycle_id, reminded_by=reminded_by)
+            self.send_json(status, payload)
+            return
+        if parsed.path == "/api/remind-critical-breaches":
+            reminded_by = (query.get("reminded_by") or ["dashboard-bot"])[0].strip() or "dashboard-bot"
+            status, payload = remind_critical_breaches(reminded_by=reminded_by)
             self.send_json(status, payload)
             return
         if parsed.path == "/api/close-escalation":

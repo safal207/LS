@@ -659,13 +659,28 @@
         breachKicker.id="council-breach-kicker";
         breachKicker.className="kicker";
         breachKicker.style.marginTop="14px";
+        const breachActions=document.createElement("div");
+        breachActions.className="button-row";
+        const remindAll=document.createElement("button");
+        remindAll.id="remind-critical-breaches";
+        remindAll.type="button";
+        remindAll.className="ghost";
+        remindAll.textContent="Send Critical Reminders";
+        breachActions.appendChild(remindAll);
         const breachList=document.createElement("ul");
         breachList.id="council-breach-list";
         breachList.className="guide-list";
+        escalationList.insertAdjacentElement("afterend", breachActions);
         escalationList.insertAdjacentElement("afterend", breachList);
         escalationList.insertAdjacentElement("afterend", breachKicker);
       }
     })();
+
+    if(el("remind-critical-breaches")){
+      el("remind-critical-breaches").addEventListener("click", async()=>{
+        await runAction("remind-critical-breaches", `/api/remind-critical-breaches?reminded_by=${encodeURIComponent("dashboard-bot")}`, async()=>refreshCouncilQualityPreview());
+      });
+    }
 
     async function refreshCouncilBreachQueue(){
       const kicker=el("council-breach-kicker");
@@ -713,6 +728,16 @@
         li.appendChild(meta);
         const actions=document.createElement("div");
         actions.className="button-row";
+        if(item.critical){
+          const remind=document.createElement("button");
+          remind.type="button";
+          remind.className="ghost";
+          remind.textContent=document.documentElement.lang==="ru"?"Remind":"Remind";
+          remind.addEventListener("click",async()=>{
+            await callQueueAction(remind, `/api/remind-escalation?cycle_id=${encodeURIComponent(item.cycle_id)}&reminded_by=${encodeURIComponent("dashboard-bot")}`);
+          });
+          actions.appendChild(remind);
+        }
         if((item.assigned_reviewer||"unassigned")==="unassigned"){
           const claim=document.createElement("button");
           claim.type="button";

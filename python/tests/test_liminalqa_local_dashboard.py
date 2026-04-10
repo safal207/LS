@@ -303,6 +303,31 @@ def test_assign_escalation_persists_assigned_reviewer(monkeypatch, tmp_path: Pat
     assert updated["operator_review"]["assigned_reviewer"] == "alice"
 
 
+def test_remind_escalation_persists_reminder_metadata(monkeypatch, tmp_path: Path) -> None:
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "cycle-001.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-001",
+                "operator_guidance": {"approval_posture": "human_escalation"},
+                "operator_review": {"decision": "pending", "assigned_reviewer": "alice"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+
+    status, payload = dashboard.remind_escalation("cycle-001", reminded_by="dashboard-bot")
+
+    assert status == 200
+    assert payload["reminder_count"] == 1
+    updated = json.loads((quality_dir / "cycle-001.json").read_text(encoding="utf-8"))
+    assert updated["operator_review"]["reminder_count"] == 1
+    assert updated["operator_review"]["last_reminder_by"] == "dashboard-bot"
+    assert updated["operator_review_history"][-1]["action"] == "remind"
+
+
 def test_reject_escalation_persists_rejected_status(monkeypatch, tmp_path: Path) -> None:
     quality_dir = tmp_path / "council-quality"
     quality_dir.mkdir()
