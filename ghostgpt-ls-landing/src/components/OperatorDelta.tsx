@@ -49,6 +49,8 @@ type CouncilScorecardPayload = {
     reviewed_cycle_count?: number;
     approval_conversion_rate?: number;
     escalation_rate?: number;
+    memory_adjusted_cycle_count?: number;
+    memory_match_total?: number;
     median_assignment_minutes?: number;
     median_review_minutes?: number;
     median_close_minutes?: number;
@@ -119,6 +121,8 @@ const copy = {
     reviewed: 'Reviewed',
     approvalConv: 'Approval conv',
     escalationRate: 'Escalation rate',
+    memoryAdjusted: 'Memory-adjusted',
+    memoryMatches: 'Memory matches',
     medianAssign: 'Median assign',
     medianReview: 'Median review',
     medianClose: 'Median close',
@@ -178,6 +182,8 @@ const copy = {
     reviewed: 'Reviewed',
     approvalConv: 'Approval conv',
     escalationRate: 'Escalation rate',
+    memoryAdjusted: 'Memory-adjusted',
+    memoryMatches: 'Memory matches',
     medianAssign: 'Медиана до assign',
     medianReview: 'Медиана до review',
     medianClose: 'Медиана до close',
@@ -521,6 +527,14 @@ export default function OperatorDelta() {
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.escalationRate}</div>
               <div className="mt-3 text-2xl font-semibold text-cyan-100">{(scorecard.summary.escalation_rate ?? 0).toFixed(1)}%</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.memoryAdjusted}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.memory_adjusted_cycle_count ?? 0}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.memoryMatches}</div>
+              <div className="mt-3 text-2xl font-semibold text-cyan-100">{scorecard.summary.memory_match_total ?? 0}</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-white/55">{text.medianAssign}</div>

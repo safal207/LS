@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-10T07:12:50Z",
+  "generated_at": "2026-04-10T17:05:53Z",
   "source": "fellowship_dataset",
   "summary": {
     "ledgers": 8,
@@ -14,6 +14,8 @@
     "reviewed_cycle_count": 0,
     "approval_conversion_rate": 0.0,
     "escalation_rate": 0.0,
+    "memory_adjusted_cycle_count": 0,
+    "memory_match_total": 0,
     "median_assignment_minutes": 0.0,
     "median_review_minutes": 0.0,
     "median_close_minutes": 0.0,

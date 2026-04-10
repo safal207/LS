@@ -50,7 +50,7 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
                 "cycle_id": "cycle-a",
                 "quality_score": 0.93,
                 "relational_field": {"relation_safety_score": 0.81},
-                "operator_guidance": {"risk_state": "repair"},
+                "operator_guidance": {"risk_state": "repair", "memory_context": {"match_count": 3, "policy_adjusted": True}},
                 "liminalqa": {"incident": {"published": True}},
                 "operator_review": {"decision": "approved"},
                 "operator_review_history": [
@@ -68,7 +68,7 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
                 "cycle_id": "cycle-b",
                 "quality_score": 0.41,
                 "relational_field": {"relation_safety_score": 0.29},
-                "operator_guidance": {"risk_state": "escalate"},
+                "operator_guidance": {"risk_state": "escalate", "memory_context": {"match_count": 2, "policy_adjusted": False}},
                 "liminalqa": {"incident": {"published": False}},
                 "operator_review": {"decision": "rejected"},
                 "operator_review_history": [
@@ -91,6 +91,8 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
     assert payload["summary"]["reviewed_cycle_count"] == 2
     assert payload["summary"]["approval_conversion_rate"] == 50.0
     assert payload["summary"]["escalation_rate"] == 50.0
+    assert payload["summary"]["memory_adjusted_cycle_count"] == 1
+    assert payload["summary"]["memory_match_total"] == 5
     assert payload["summary"]["median_assignment_minutes"] == 12.5
     assert payload["summary"]["median_review_minutes"] == 27.5
     assert payload["summary"]["median_close_minutes"] == 30.0

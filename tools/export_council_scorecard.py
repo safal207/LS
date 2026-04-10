@@ -145,6 +145,8 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 "reviewed_cycle_count": 0,
                 "approval_conversion_rate": 0.0,
                 "escalation_rate": 0.0,
+                "memory_adjusted_cycle_count": 0,
+                "memory_match_total": 0,
                 "median_assignment_minutes": 0.0,
                 "median_review_minutes": 0.0,
                 "median_close_minutes": 0.0,
@@ -199,6 +201,8 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
     close_sla_breaches = 0
     approved_count = 0
     escalate_count = 0
+    memory_adjusted_cycle_count = 0
+    memory_match_total = 0
     for index, row in enumerate(selected_rows, start=1):
         outcome = row.get("outcome", {})
         attribution = row.get("attribution", {})
@@ -207,6 +211,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
         quality_payload = quality_by_cycle.get(cycle_id) or {}
         quality_outcome = quality_payload.get("council_outcome") or {}
         guidance = quality_payload.get("operator_guidance") or {}
+        memory_context = guidance.get("memory_context") or {}
         operator_review = quality_payload.get("operator_review") or {}
         liminalqa = quality_payload.get("liminalqa") or {}
         review_history = list(quality_payload.get("operator_review_history") or [])
@@ -252,6 +257,9 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             reviewed_cycle_count += 1
         if review_decision == "approved":
             approved_count += 1
+        if bool(memory_context.get("policy_adjusted")):
+            memory_adjusted_cycle_count += 1
+        memory_match_total += int(memory_context.get("match_count") or 0)
         if (liminalqa.get("incident") or {}).get("published"):
             incident_count += 1
         assignment_latency = history_latency_minutes(cycle_started_at, review_history, {"assign"})
@@ -305,6 +313,8 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "reviewed_cycle_count": reviewed_cycle_count,
             "approval_conversion_rate": round((approved_count / len(selected_rows)) * 100.0, 2),
             "escalation_rate": round((escalate_count / len(selected_rows)) * 100.0, 2),
+            "memory_adjusted_cycle_count": memory_adjusted_cycle_count,
+            "memory_match_total": memory_match_total,
             "median_assignment_minutes": round(median_or_zero(assignment_latencies), 2),
             "median_review_minutes": round(median_or_zero(review_latencies), 2),
             "median_close_minutes": round(median_or_zero(close_latencies), 2),
