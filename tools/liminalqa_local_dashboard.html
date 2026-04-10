@@ -640,6 +640,18 @@
     (function(){
       const escalationKicker=el("council-escalation-kicker");
       const escalationList=el("council-escalation-list");
+      if(!document.getElementById("council-breach-style")){
+        const style=document.createElement("style");
+        style.id="council-breach-style";
+        style.textContent=[
+          ".breach-row{list-style:none;padding:10px 12px;border-radius:12px;border:1px solid var(--line);margin:8px 0;background:#fffaf5;}",
+          ".breach-row.assignment{border-left:6px solid #d97706;background:#fff7ed;}",
+          ".breach-row.review{border-left:6px solid #dc2626;background:#fef2f2;}",
+          ".breach-row.close{border-left:6px solid #7c3aed;background:#f5f3ff;}",
+          ".breach-meta{display:block;font-size:12px;color:var(--muted);margin-top:4px;}",
+        ].join("");
+        document.head.appendChild(style);
+      }
       if(escalationKicker && escalationList && !el("council-breach-kicker")){
         const breachKicker=document.createElement("div");
         breachKicker.id="council-breach-kicker";
@@ -675,12 +687,19 @@
       }
       items.forEach(item=>{
         const li=document.createElement("li");
+        li.className=`breach-row ${item.breach_type || "breach"}`;
         const cycle=item.cycle_id || "unknown";
         const breach=item.breach_type || "breach";
         const minutes=Number(item.minutes_open || 0).toFixed(1);
         const reviewer=item.assigned_reviewer || "unassigned";
         const posture=item.approval_posture || "n/a";
-        li.textContent=`${cycle}: ${breach} / ${minutes}m / ${reviewer} / ${posture}`;
+        const summary=document.createElement("strong");
+        summary.textContent=`${cycle}: ${breach}`;
+        const meta=document.createElement("span");
+        meta.className="breach-meta";
+        meta.textContent=`${minutes}m / ${reviewer} / ${posture}`;
+        li.appendChild(summary);
+        li.appendChild(meta);
         const actions=document.createElement("div");
         actions.className="button-row";
         if((item.assigned_reviewer||"unassigned")==="unassigned"){
