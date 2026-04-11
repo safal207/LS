@@ -13,6 +13,7 @@ DEFAULT_INPUT_DIR = ROOT / "artifacts" / "council-ledger"
 DEFAULT_DATASET_INPUT_DIR = ROOT / "artifacts" / "fellowship-dataset" / "ledgers"
 DEFAULT_DATASET_QUALITY_DIR = ROOT / "artifacts" / "fellowship-dataset" / "council-quality"
 DEFAULT_QUALITY_INPUT_DIR = ROOT / "artifacts" / "council-quality"
+DEFAULT_RELATIONAL_LEARNING_DIR = ROOT / "artifacts" / "relational-learning"
 DEFAULT_OUTPUT_PATH = ROOT / "ghostgpt-ls-landing" / "src" / "data" / "councilScorecard.json"
 ASSIGNMENT_SLA_MINUTES = 15.0
 REVIEW_SLA_MINUTES = 30.0
@@ -101,6 +102,23 @@ def load_quality_artifacts(input_dir: Path) -> dict[str, dict]:
     return rows
 
 
+def load_latest_relational_learning(input_dir: Path) -> dict | None:
+    if not input_dir.exists():
+        return None
+    latest_payload: dict | None = None
+    latest_at: datetime | None = None
+    for path in sorted(input_dir.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        timestamp = parse_iso(payload.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc)
+        if latest_at is None or timestamp >= latest_at:
+            latest_at = timestamp
+            latest_payload = payload
+    return latest_payload
+
+
 def classify_row(row: dict) -> str:
     cycle_id = str(row.get("cycle_id") or "")
     best = normalize_model_label((row.get("attribution") or {}).get("best_contributor_model_id"))
@@ -150,6 +168,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 "route_memory_adjusted_cycle_count": 0,
                 "freeze_mode_count": 0,
                 "policy_adjusted_cycle_count": 0,
+                "learned_rule_count": 0,
                 "median_assignment_minutes": 0.0,
                 "median_review_minutes": 0.0,
                 "median_close_minutes": 0.0,
@@ -161,6 +180,10 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 "best_contributor_frequency": [],
                 "model_type_lift": [],
                 "route_wins": [],
+                "route_strategy_split": [],
+                "safety_mode_split": [],
+                "policy_rule_hits": [],
+                "top_effective_rules": [],
                 "approval_outcome_split": [],
             },
             "lines": {
@@ -369,13 +392,23 @@ def write_scorecard(payload: dict, output_path: Path) -> None:
     output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def export_scorecard(input_dir: Path, output_path: Path, *, keep_existing_on_empty: bool = False) -> dict:
+def export_scorecard(input_dir: Path, output_path: Path, *, keep_existing_on_empty: bool = False, relational_learning_dir: Path | None = None) -> dict:
     rows = load_ledgers(input_dir)
     quality_dir = input_dir.parent / "council-quality"
     quality_by_cycle = load_quality_artifacts(quality_dir)
     if keep_existing_on_empty and not rows and output_path.exists():
         return json.loads(output_path.read_text(encoding="utf-8"))
     payload = build_scorecard(rows, quality_by_cycle=quality_by_cycle)
+    learning_payload = load_latest_relational_learning(relational_learning_dir or DEFAULT_RELATIONAL_LEARNING_DIR)
+    if learning_payload is not None:
+        payload["summary"]["learned_rule_count"] = int(learning_payload.get("heuristic_count") or 0)
+        payload["bars"]["top_effective_rules"] = [
+            {
+                "label": str(item.get("rule") or "unknown"),
+                "value": float(item.get("effectiveness") or 0.0),
+            }
+            for item in list(learning_payload.get("top_effective_rules") or [])[:5]
+        ]
     write_scorecard(payload, output_path)
     return payload
 
@@ -391,6 +424,16 @@ def export_scorecard_with_preferred_sources(
         if rows:
             quality_dir = input_dir.parent / "council-quality"
             payload = build_scorecard(rows, quality_by_cycle=load_quality_artifacts(quality_dir))
+            learning_payload = load_latest_relational_learning(DEFAULT_RELATIONAL_LEARNING_DIR)
+            if learning_payload is not None:
+                payload["summary"]["learned_rule_count"] = int(learning_payload.get("heuristic_count") or 0)
+                payload["bars"]["top_effective_rules"] = [
+                    {
+                        "label": str(item.get("rule") or "unknown"),
+                        "value": float(item.get("effectiveness") or 0.0),
+                    }
+                    for item in list(learning_payload.get("top_effective_rules") or [])[:5]
+                ]
             payload["input_dir"] = str(input_dir)
             if "fellowship-dataset" in str(input_dir).replace("\\", "/"):
                 payload["source"] = "fellowship_dataset"

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-11T07:05:40Z",
+  "generated_at": "2026-04-11T07:12:31Z",
   "source": "fellowship_dataset",
   "summary": {
     "ledgers": 8,
@@ -24,7 +24,8 @@
     "median_close_minutes": 0.0,
     "assignment_sla_breaches": 0,
     "review_sla_breaches": 0,
-    "close_sla_breaches": 0
+    "close_sla_breaches": 0,
+    "learned_rule_count": 0
   },
   "bars": {
     "best_contributor_frequency": [
@@ -67,7 +68,8 @@
         "label": "pending",
         "value": 8
       }
-    ]
+    ],
+    "top_effective_rules": []
   },
   "lines": {
     "resonance_trend": [

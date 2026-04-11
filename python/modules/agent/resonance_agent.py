@@ -67,6 +67,7 @@ import json
 import threading
 import time
 import uuid
+from collections import Counter
 from pathlib import Path
 from typing import Any, Callable, List, Optional
 
@@ -926,6 +927,7 @@ class ResonanceAgent:
         self._council_quality_dir = Path("artifacts/council-quality")
         self._relational_episode_dir = Path("artifacts/relational-episodes")
         self._relation_memory_dir = Path("artifacts/relation-memory")
+        self._relational_learning_dir = Path("artifacts/relational-learning")
 
         # Alignment digest metrics (advisory/observability only)
         self._digest_metrics = (
@@ -3132,6 +3134,11 @@ class ResonanceAgent:
             relational_episode_artifact=relational_episode_artifact,
             relation_memory_artifact=relation_memory_artifact,
         )
+        relational_learning_artifact = self._write_relational_learning_artifact(
+            council_ledger,
+            item=item,
+            council_quality_artifact=council_quality_artifact,
+        )
 
         return {
             # Identity
@@ -3223,6 +3230,7 @@ class ResonanceAgent:
             "council_contribution_ledger_artifact": council_ledger_artifact,
             "relational_episode_artifact": relational_episode_artifact,
             "relation_memory_artifact": relation_memory_artifact,
+            "relational_learning_artifact": relational_learning_artifact,
             "council_cel_sync": council_cel_sync,
             "council_quality_artifact": council_quality_artifact,
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
@@ -3840,6 +3848,110 @@ class ResonanceAgent:
             return str(path)
         except Exception as exc:
             logger.debug("ResonanceAgent: relation memory artifact write failed: %s", exc)
+            return None
+
+    def _load_council_quality_rows(self) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        if not self._council_quality_dir.exists():
+            return rows
+        for path in sorted(self._council_quality_dir.glob("*.json")):
+            try:
+                rows.append(json.loads(path.read_text(encoding="utf-8")))
+            except Exception:
+                continue
+        return rows
+
+    def _build_relational_learning_artifact_payload(
+        self,
+        ledger,
+        *,
+        item: dict[str, Any] | None = None,
+        council_quality_artifact: str | None = None,
+    ) -> dict[str, Any] | None:
+        if ledger is None:
+            return None
+        cycle_id = str(getattr(ledger, "cycle_id", "") or "")
+        current_guidance: dict[str, Any] = {}
+        if council_quality_artifact:
+            try:
+                current_payload = json.loads(Path(council_quality_artifact).read_text(encoding="utf-8"))
+                current_guidance = (current_payload or {}).get("operator_guidance") or {}
+            except Exception:
+                current_guidance = {}
+        rows = [
+            row for row in self._load_council_quality_rows()
+            if str(row.get("cycle_id") or "") != cycle_id
+        ]
+        rule_counts: Counter[str] = Counter()
+        approve_counts: Counter[str] = Counter()
+        reject_counts: Counter[str] = Counter()
+        incident_counts: Counter[str] = Counter()
+        for row in rows:
+            guidance = row.get("operator_guidance") or {}
+            rules = [str(rule) for rule in list(guidance.get("rule_hits") or [])]
+            if not rules:
+                continue
+            decision = str((row.get("operator_review") or {}).get("decision") or "pending")
+            incident_published = bool(((row.get("liminalqa") or {}).get("incident") or {}).get("published"))
+            for rule in rules:
+                rule_counts[rule] += 1
+                if decision == "approved":
+                    approve_counts[rule] += 1
+                elif decision in {"rejected", "closed"}:
+                    reject_counts[rule] += 1
+                if incident_published:
+                    incident_counts[rule] += 1
+        top_effective_rules: list[dict[str, Any]] = []
+        for rule, total in rule_counts.most_common(5):
+            approved = approve_counts[rule]
+            rejected = reject_counts[rule]
+            incidents = incident_counts[rule]
+            effectiveness = round((approved - rejected - incidents) / max(total, 1), 4)
+            top_effective_rules.append(
+                {
+                    "rule": rule,
+                    "seen": total,
+                    "approved": approved,
+                    "rejected": rejected,
+                    "incidents": incidents,
+                    "effectiveness": effectiveness,
+                }
+            )
+        return {
+            "cycle_id": cycle_id,
+            "task_id": str(getattr(ledger, "task_id", "") or ""),
+            "timestamp": str(getattr(ledger, "timestamp", "") or ""),
+            "council_quality_path": council_quality_artifact,
+            "current_rule_hits": [str(rule) for rule in list(current_guidance.get("rule_hits") or [])],
+            "current_safety_mode": str(current_guidance.get("safety_mode") or "unknown"),
+            "top_effective_rules": top_effective_rules,
+            "heuristic_count": len(top_effective_rules),
+        }
+
+    def _write_relational_learning_artifact(
+        self,
+        ledger,
+        *,
+        item: dict[str, Any] | None = None,
+        council_quality_artifact: str | None = None,
+    ) -> str | None:
+        payload = self._build_relational_learning_artifact_payload(
+            ledger,
+            item=item,
+            council_quality_artifact=council_quality_artifact,
+        )
+        if payload is None:
+            return None
+        try:
+            self._relational_learning_dir.mkdir(parents=True, exist_ok=True)
+            path = self._relational_learning_dir / f"{payload['cycle_id']}.json"
+            path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            return str(path)
+        except Exception as exc:
+            logger.debug("ResonanceAgent: relational learning artifact write failed: %s", exc)
             return None
 
     def _build_relational_quality_summary(self, relational: Any) -> dict[str, Any] | None:

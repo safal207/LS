@@ -32,6 +32,7 @@ QUALITY_REPORT_PATH = ARTIFACTS_DIR / "quality-report.json"
 COUNCIL_LEDGER_DIR = ARTIFACTS_DIR / "council-ledger"
 COUNCIL_QUALITY_DIR = ARTIFACTS_DIR / "council-quality"
 RELATION_MEMORY_DIR = ARTIFACTS_DIR / "relation-memory"
+RELATIONAL_LEARNING_DIR = ARTIFACTS_DIR / "relational-learning"
 DOCS_BASE_URL = "https://github.com/safal207/LS/blob/main/docs"
 COUNCIL_CYCLE_TIMEOUT_SECONDS = 45
 ASSIGNMENT_SLA_MINUTES = 15.0
@@ -479,6 +480,23 @@ def load_relation_memory_rows() -> list[dict]:
     return rows
 
 
+def latest_relational_learning_artifact() -> dict | None:
+    if not RELATIONAL_LEARNING_DIR.exists():
+        return None
+    candidates = sorted(
+        RELATIONAL_LEARNING_DIR.glob("*.json"),
+        key=lambda path: path.stat().st_mtime,
+    )
+    for path in reversed(candidates):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        payload["_path"] = str(path)
+        return payload
+    return None
+
+
 def preview_council_quality_artifact() -> tuple[int, object]:
     payload = latest_council_quality_artifact()
     if not payload:
@@ -529,6 +547,7 @@ def preview_council_quality_artifact() -> tuple[int, object]:
                 break
     merit_updates = cel.get("merit_updates") or []
     top_merit = max((float(item.get("merit_score") or 0.0) for item in merit_updates), default=0.0)
+    learning_payload = latest_relational_learning_artifact() or {}
     return 200, {
         "cycle_id": payload.get("cycle_id"),
         "task_id": payload.get("task_id"),
@@ -564,6 +583,9 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "route_strategy": operator_guidance.get("route_strategy"),
         "policy_engine_version": operator_guidance.get("policy_engine_version"),
         "policy_rule_hits": operator_guidance.get("rule_hits") or [],
+        "relational_learning_path": learning_payload.get("_path"),
+        "learning_heuristic_count": int(learning_payload.get("heuristic_count") or 0),
+        "learning_top_effective_rules": learning_payload.get("top_effective_rules") or [],
         "requires_human_review": bool(operator_guidance.get("requires_human_review")),
         "rerun_required": bool(operator_guidance.get("rerun_required")),
         "suggested_operator_action": operator_guidance.get("suggested_operator_action"),

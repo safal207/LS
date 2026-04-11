@@ -1034,5 +1034,58 @@
 
     refreshCouncilQualityPreview().catch(()=>{});
   </script>
+  <script>
+    (function(){
+      const policyRules=el("policy-engine-rules");
+      if(policyRules && !el("relational-learning-meta")){
+        const kicker=document.createElement("div");
+        kicker.id="relational-learning-kicker";
+        kicker.className="kicker";
+        kicker.style.marginTop="14px";
+        kicker.textContent="Relational Learning";
+        const meta=document.createElement("div");
+        meta.id="relational-learning-meta";
+        meta.className="meta";
+        meta.textContent="No heuristics yet.";
+        const list=document.createElement("ul");
+        list.id="relational-learning-list";
+        list.className="guide-list";
+        policyRules.insertAdjacentElement("afterend", list);
+        policyRules.insertAdjacentElement("afterend", meta);
+        policyRules.insertAdjacentElement("afterend", kicker);
+      }
+    })();
+
+    const _______________originalRefreshCouncilQualityPreview=refreshCouncilQualityPreview;
+    refreshCouncilQualityPreview=async function(){
+      await _______________originalRefreshCouncilQualityPreview();
+      try{
+        const data=await callJson("/api/council-quality-preview");
+        const meta=el("relational-learning-meta");
+        const list=el("relational-learning-list");
+        if(!meta || !list) return;
+        list.innerHTML="";
+        if(!data.ok){
+          meta.textContent="No heuristics yet.";
+          return;
+        }
+        meta.textContent=`${data.payload.relational_learning_path || "n/a"} / heuristics=${Number(data.payload.learning_heuristic_count || 0)}`;
+        const rules=data.payload.learning_top_effective_rules || [];
+        if(!rules.length){
+          const li=document.createElement("li");
+          li.textContent="No learned rules yet.";
+          list.appendChild(li);
+          return;
+        }
+        rules.forEach(item=>{
+          const li=document.createElement("li");
+          li.textContent=`${item.rule}: effectiveness=${Number(item.effectiveness || 0).toFixed(2)}`;
+          list.appendChild(li);
+        });
+      }catch(_error){}
+    };
+
+    refreshCouncilQualityPreview().catch(()=>{});
+  </script>
 </body>
 </html>

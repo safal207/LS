@@ -192,6 +192,36 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     agent._council_quality_dir = tmp_path / "council-quality"
     agent._relational_episode_dir = tmp_path / "relational-episodes"
     agent._relation_memory_dir = tmp_path / "relation-memory"
+    agent._relational_learning_dir = tmp_path / "relational-learning"
+    agent._council_quality_dir.mkdir(parents=True, exist_ok=True)
+    (agent._council_quality_dir / "old-rule.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "old-rule",
+                "operator_guidance": {
+                    "rule_hits": ["repair_from_tension_or_low_safety"],
+                    "safety_mode": "repair_first",
+                },
+                "operator_review": {"decision": "approved"},
+                "liminalqa": {"incident": {"published": False}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (agent._council_quality_dir / "old-rule-2.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "old-rule-2",
+                "operator_guidance": {
+                    "rule_hits": ["repair_from_tension_or_low_safety"],
+                    "safety_mode": "repair_first",
+                },
+                "operator_review": {"decision": "rejected"},
+                "liminalqa": {"incident": {"published": True}},
+            }
+        ),
+        encoding="utf-8",
+    )
     agent.get_alignment_strategy_recommendations = lambda _item: [
         {
             "strategy_id": "bridge-1",
@@ -319,6 +349,16 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert len(quality_payload["cel"]["reputation_updates"]) >= 1
     assert len(quality_payload["cel"]["merit_updates"]) >= 1
     assert quality_payload["liminalqa"]["published"] is False
+
+    learning_artifact_path = output["relational_learning_artifact"]
+    assert learning_artifact_path is not None
+    learning_payload = json.loads(Path(learning_artifact_path).read_text(encoding="utf-8"))
+    assert learning_payload["cycle_id"] == "cid-ledger"
+    assert learning_payload["current_safety_mode"] == "repair_first"
+    assert learning_payload["current_rule_hits"] == ["repair_from_tension_or_low_safety"]
+    assert learning_payload["heuristic_count"] >= 1
+    assert learning_payload["top_effective_rules"][0]["rule"] == "repair_from_tension_or_low_safety"
+    assert learning_payload["top_effective_rules"][0]["seen"] == 2
 
 
 def test_relation_memory_can_escalate_repeated_bad_pattern(tmp_path):

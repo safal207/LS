@@ -18,8 +18,10 @@ def test_preview_council_quality_artifact_empty(monkeypatch, tmp_path: Path) -> 
 def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Path) -> None:
     quality_dir = tmp_path / "council-quality"
     relation_memory_dir = tmp_path / "relation-memory"
+    learning_dir = tmp_path / "relational-learning"
     quality_dir.mkdir()
     relation_memory_dir.mkdir()
+    learning_dir.mkdir()
     (relation_memory_dir / "cycle-000.json").write_text(
         json.dumps(
             {
@@ -120,8 +122,23 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
         ),
         encoding="utf-8",
     )
+    (learning_dir / "cycle-001.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-001",
+                "timestamp": "2026-04-10T09:00:00Z",
+                "heuristic_count": 2,
+                "top_effective_rules": [
+                    {"rule": "watch_from_validation_bias", "effectiveness": 0.4},
+                    {"rule": "memory_freeze_override", "effectiveness": -0.5},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
     monkeypatch.setattr(dashboard, "RELATION_MEMORY_DIR", relation_memory_dir)
+    monkeypatch.setattr(dashboard, "RELATIONAL_LEARNING_DIR", learning_dir)
 
     status, payload = dashboard.preview_council_quality_artifact()
 
@@ -153,6 +170,9 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["route_strategy"] == "validate_current_route"
     assert payload["policy_engine_version"] == "relational-policy-v1"
     assert payload["policy_rule_hits"] == ["watch_from_validation_bias"]
+    assert payload["relational_learning_path"].endswith("cycle-001.json")
+    assert payload["learning_heuristic_count"] == 2
+    assert payload["learning_top_effective_rules"][0]["rule"] == "watch_from_validation_bias"
     assert payload["requires_human_review"] is False
     assert payload["rerun_required"] is False
     assert payload["suggested_operator_action"] == "Validate intent before approval."
