@@ -112,6 +112,7 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                 "relational_edge_learning": {
                     "updated_edges": 2,
                     "scanned_units": 3,
+                    "loop_artifact_path": str(tmp_path / "relational-learning-loop" / "cycle-001.json"),
                     "maintenance": {
                         "proposal_count": 2,
                         "scanned_units": 3,
@@ -195,6 +196,7 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["learning_top_effective_rules"][0]["rule"] == "watch_from_validation_bias"
     assert payload["relational_edge_updates"] == 2
     assert payload["relational_edge_learning_scanned_units"] == 3
+    assert payload["relational_learning_loop_path"].endswith("cycle-001.json")
     assert payload["relational_maintenance_proposal_count"] == 2
     assert payload["relational_maintenance_scanned_units"] == 3
     assert payload["relational_maintenance_top_proposals"][0]["proposal_type"] == "prune"

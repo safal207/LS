@@ -928,6 +928,7 @@ class ResonanceAgent:
         self._relational_episode_dir = Path("artifacts/relational-episodes")
         self._relation_memory_dir = Path("artifacts/relation-memory")
         self._relational_learning_dir = Path("artifacts/relational-learning")
+        self._relational_learning_loop_dir = Path("artifacts/relational-learning-loop")
 
         # Alignment digest metrics (advisory/observability only)
         self._digest_metrics = (
@@ -3997,9 +3998,43 @@ class ResonanceAgent:
                 maintenance = self._graph_runtime.propose_relational_maintenance(max_units=20)
                 if isinstance(maintenance, dict):
                     payload["maintenance"] = maintenance
+            cycle_id = str(getattr(ledger, "cycle_id", "") or "")
+            loop_artifact_path = self._write_relational_learning_loop_artifact(
+                cycle_id=cycle_id,
+                payload=payload,
+            )
+            if loop_artifact_path:
+                payload["loop_artifact_path"] = loop_artifact_path
             return payload
         except Exception as exc:
             logger.debug("ResonanceAgent: relational edge learning failed: %s", exc)
+            return None
+
+    def _write_relational_learning_loop_artifact(
+        self,
+        *,
+        cycle_id: str,
+        payload: dict[str, Any],
+    ) -> str | None:
+        if not cycle_id:
+            return None
+        try:
+            self._relational_learning_loop_dir.mkdir(parents=True, exist_ok=True)
+            path = self._relational_learning_loop_dir / f"{cycle_id}.json"
+            artifact = {
+                "cycle_id": cycle_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "updated_edges": int((payload or {}).get("updated_edges") or 0),
+                "scanned_units": int((payload or {}).get("scanned_units") or 0),
+                "maintenance": dict((payload or {}).get("maintenance") or {}),
+            }
+            path.write_text(
+                json.dumps(artifact, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            return str(path)
+        except Exception as exc:
+            logger.debug("ResonanceAgent: relational learning loop artifact write failed: %s", exc)
             return None
 
     def _build_relational_quality_summary(self, relational: Any) -> dict[str, Any] | None:

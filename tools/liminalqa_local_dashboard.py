@@ -594,6 +594,7 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "learning_top_effective_rules": learning_payload.get("top_effective_rules") or [],
         "relational_edge_updates": int(relational_edge_learning.get("updated_edges") or 0),
         "relational_edge_learning_scanned_units": int(relational_edge_learning.get("scanned_units") or 0),
+        "relational_learning_loop_path": relational_edge_learning.get("loop_artifact_path"),
         "relational_maintenance_proposal_count": int(maintenance.get("proposal_count") or 0),
         "relational_maintenance_scanned_units": int(maintenance.get("scanned_units") or 0),
         "relational_maintenance_top_proposals": (maintenance.get("proposals") or [])[:5],
