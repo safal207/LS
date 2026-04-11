@@ -190,3 +190,70 @@ Phase 2.2 is complete when:
 - coherence and breach states affect council/policy behavior,
 - multimodal context can produce safe relation candidates,
 - MCP has a clear path from observability toward interactivity.
+
+
+## Ideas Next (Immediate Backlog)
+
+To make the plan executable in the next few days, use this PR-sized queue.
+
+### PR-A: Edge Strength Auto-Update (MVP)
+
+- add `update_relational_edge_strength(...)` with bounded deltas,
+- wire updates from `review_decision`, `incident_published`, and `receiver_resonance_score`,
+- persist edge-strength delta log in cycle artifacts.
+
+Definition of done:
+
+- unit tests for positive/negative/no-feedback cases,
+- one end-to-end fixture confirms deterministic repeatability.
+
+### PR-B: Relational Coherence v0
+
+- compute `relational_coherence` from tension/alignment agreement signals,
+- include metric in council-quality and relation-memory payloads,
+- add policy fallback: low coherence => `validate_current_route` or escalation gate.
+
+Definition of done:
+
+- coherence appears in dashboard preview,
+- policy engine rule hit includes `low_relational_coherence` reason.
+
+### PR-C: Council Relational Breach Detection v0
+
+- detect high-priority route contradictions,
+- emit `relational_breach` event payload,
+- add council output field with required resolution mode.
+
+Definition of done:
+
+- fixture with conflicting routes triggers breach event,
+- unresolved severe breach defaults to safe escalation.
+
+### PR-D: Learning Loop Preview Job
+
+- add periodic learner task with dry-run mode,
+- generate proposals (`strengthen`, `weaken`, `prune`, `new_edge`) with confidence,
+- publish summary artifact in `artifacts/relational-learning-loop/`.
+
+Definition of done:
+
+- learner can run on historical artifacts without mutating production graph,
+- dashboard shows last run status and proposal counts.
+
+### PR-E: Qwen3.5-Omni Hooks (Guarded)
+
+- map screen/audio anchors to relation candidates with provenance,
+- auto-commit only above confidence threshold,
+- route uncertain links to review queue.
+
+Definition of done:
+
+- artifacts include provenance tags (`omni_screen`, `omni_audio`),
+- low-confidence candidates are visible but not auto-applied.
+
+### Sequencing recommendation
+
+1. PR-A + PR-B (core learning signal)
+2. PR-C (safety/conflict gate)
+3. PR-D (continuous improvement loop)
+4. PR-E (multimodal expansion)

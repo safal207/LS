@@ -54,6 +54,7 @@ Expected effect:
 
 Execution detail:
 - see `docs/LS_PHASE2_2_LEARNING_FROM_RELATIONS_EXECUTION_PLAN.md` for the implementation sequence
+- immediate PR-sized queue is captured in the `Ideas Next (Immediate Backlog)` section of that document
 
 ## Phase 2.3: Relation-Aware Routing
 
