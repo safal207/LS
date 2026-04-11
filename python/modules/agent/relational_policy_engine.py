@@ -8,6 +8,27 @@ from modules.graph.models import RelationalEdge, ResonanceKnowledgeUnit
 
 POLICY_ENGINE_VERSION = "relational-policy-v1"
 
+
+def compute_relational_coherence(
+    *,
+    tension_score: float,
+    alignment_score: float,
+) -> float:
+    """Return a bounded coherence score in ``0.0..1.0``.
+
+    Coherence is higher when:
+    - alignment is high,
+    - tension is low,
+    - and both signals agree with each other.
+    """
+    tension = max(0.0, min(1.0, float(tension_score or 0.0)))
+    alignment = max(0.0, min(1.0, float(alignment_score or 0.0)))
+    anti_tension = 1.0 - tension
+    agreement = 1.0 - abs(alignment - anti_tension)
+    confidence = (alignment + anti_tension) / 2.0
+    return round(max(0.0, min(1.0, (0.6 * agreement) + (0.4 * confidence))), 4)
+
+
 # Minimum resonance score for two units to warrant an automatic edge suggestion.
 _EDGE_RESONANCE_THRESHOLD = 0.6
 
@@ -103,6 +124,14 @@ def evaluate_relational_policy(
     alignment_score = float(relational.get("alignment_score", 0.0) or 0.0)
     relation_safety_score = float(relational.get("relation_safety_score", 0.0) or 0.0)
     recommended_mode = str(relational.get("recommended_mode") or "observe_and_clarify")
+    provided_coherence = relational.get("relational_coherence")
+    if provided_coherence is None:
+        relational_coherence = compute_relational_coherence(
+            tension_score=tension_score,
+            alignment_score=alignment_score,
+        )
+    else:
+        relational_coherence = max(0.0, min(1.0, float(provided_coherence or 0.0)))
     rule_hits: list[str] = []
 
     if recommended_mode == "decompress_and_repair" or relation_safety_score < 0.3:
@@ -146,6 +175,26 @@ def evaluate_relational_policy(
         rerun_required = risk_state != "escalate"
         rule_hits.append("fallback_relational_policy")
 
+
+    if relational_coherence < 0.2 and risk_state != "escalate":
+        risk_state = "escalate"
+        action = "Escalate to a human reviewer: relational coherence is critically low."
+        approval_posture = "human_escalation"
+        route_strategy = "freeze_and_escalate"
+        safety_mode = "human_first"
+        requires_human_review = True
+        rerun_required = False
+        rule_hits.append("critical_relational_coherence")
+    elif relational_coherence < 0.35 and risk_state == "safe":
+        risk_state = "watch"
+        action = "Validate the current route: relational coherence is low for autonomous progression."
+        approval_posture = "evidence_check"
+        route_strategy = "validate_current_route"
+        safety_mode = "evidence_first"
+        requires_human_review = False
+        rerun_required = False
+        rule_hits.append("low_relational_coherence")
+
     policy_adjusted = False
     if memory_context and int(memory_context.get("match_count") or 0) >= 2:
         repeated_failures = int(memory_context.get("incident_count") or 0) + int(memory_context.get("reject_count") or 0)
@@ -162,7 +211,7 @@ def evaluate_relational_policy(
     if memory_context is not None:
         memory_context = {**memory_context, "policy_adjusted": policy_adjusted}
 
-    return RelationalPolicyDecision(
+    payload = RelationalPolicyDecision(
         risk_state=risk_state,
         suggested_operator_action=action,
         approval_posture=approval_posture,
@@ -173,3 +222,5 @@ def evaluate_relational_policy(
         memory_context=memory_context,
         rule_hits=rule_hits,
     ).to_dict()
+    payload["relational_coherence"] = round(relational_coherence, 4)
+    return payload

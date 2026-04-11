@@ -3964,6 +3964,10 @@ class ResonanceAgent:
             return None
         dominant_signal = str(relational.get("dominant_signal") or "neutral")
         relation_safety_score = round(max(0.0, min(1.0, ((1.0 - tension_score) + alignment_score) / 2.0)), 4)
+        anti_tension = 1.0 - tension_score
+        agreement = 1.0 - abs(alignment_score - anti_tension)
+        confidence = (alignment_score + anti_tension) / 2.0
+        relational_coherence = round(max(0.0, min(1.0, (0.6 * agreement) + (0.4 * confidence))), 4)
         if tension_score >= 0.7 and alignment_score < 0.4:
             recommended_mode = "decompress_and_repair"
         elif dominant_signal.startswith("foreground:attack") or dominant_signal == "tension":
@@ -3977,6 +3981,7 @@ class ResonanceAgent:
             "alignment_score": round(alignment_score, 4),
             "dominant_signal": dominant_signal,
             "relation_safety_score": relation_safety_score,
+            "relational_coherence": relational_coherence,
             "recommended_mode": recommended_mode,
         }
 
