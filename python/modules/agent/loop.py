@@ -1893,6 +1893,11 @@ class AgentLoop:
         self._subconscious_stop.set()
         self._world_stop.set()
         self.vision.stop()  # Stop Screen Perception v2
+        if self._qwen_omni_worker is not None:
+            try:
+                self._qwen_omni_worker.stop()
+            except Exception:
+                pass
         if self._speaker is not None:
             try:
                 self._speaker.stop()
