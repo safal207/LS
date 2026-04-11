@@ -12,6 +12,7 @@ if str(MODULES) not in sys.path:
     sys.path.insert(0, str(MODULES))
 
 from graph.runtime import GraphMemoryRuntime
+from graph.models import RelationalEdge, ResonanceKnowledgeUnit
 
 
 class _ExplodingResonanceStore:
@@ -207,3 +208,49 @@ def test_inject_resonance_hints_exception_path_updates_error_counter(tmp_path):
     metrics = runtime.get_resonance_metrics()
     assert metrics["hint_injection_calls"] == 1
     assert metrics["hint_injection_errors"] == 1
+
+
+def test_adapt_relational_edges_from_outcome_updates_recent_edges(tmp_path):
+    runtime = GraphMemoryRuntime(store_path=tmp_path / "cases.jsonl")
+    src = runtime.store.store_resonance_unit(
+        ResonanceKnowledgeUnit(
+            source_question="src",
+            intent="learning",
+            resonance_score=0.9,
+            alignment_score=0.8,
+        )
+    )
+    dst = runtime.store.store_resonance_unit(
+        ResonanceKnowledgeUnit(
+            source_question="dst",
+            intent="learning",
+            resonance_score=0.85,
+            alignment_score=0.75,
+        )
+    )
+    edge = RelationalEdge(
+        target_unit_id=dst.unit_id,
+        relation_type="reinforces",
+        strength=0.4,
+    )
+    runtime.store.store_relational_edge(src.unit_id, edge)
+
+    summary = runtime.adapt_relational_edges_from_outcome(
+        feedback_polarity=0.7,
+        resonance_score=0.8,
+        review_decision="approved",
+        incident_published=False,
+        top_k=2,
+    )
+
+    assert summary["updated_edges"] >= 1
+    updated_src = next(u for u in runtime.store.list_resonance_units() if u.unit_id == src.unit_id)
+    updated_edge = next(r for r in updated_src.relations if r.get("edge_id") == edge.edge_id)
+    assert float(updated_edge["strength"]) > 0.4
+
+
+def test_adapt_relational_edges_from_outcome_handles_empty_graph(tmp_path):
+    runtime = GraphMemoryRuntime(store_path=tmp_path / "cases.jsonl")
+    summary = runtime.adapt_relational_edges_from_outcome(review_decision="approved")
+    assert summary["updated_edges"] == 0
+    assert summary["scanned_units"] == 0

@@ -3139,6 +3139,11 @@ class ResonanceAgent:
             item=item,
             council_quality_artifact=council_quality_artifact,
         )
+        relational_edge_learning = self._apply_relational_edge_learning(
+            council_ledger,
+            item=item,
+            council_cel_sync=council_cel_sync,
+        )
 
         return {
             # Identity
@@ -3231,6 +3236,7 @@ class ResonanceAgent:
             "relational_episode_artifact": relational_episode_artifact,
             "relation_memory_artifact": relation_memory_artifact,
             "relational_learning_artifact": relational_learning_artifact,
+            "relational_edge_learning": relational_edge_learning,
             "council_cel_sync": council_cel_sync,
             "council_quality_artifact": council_quality_artifact,
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
@@ -3952,6 +3958,44 @@ class ResonanceAgent:
             return str(path)
         except Exception as exc:
             logger.debug("ResonanceAgent: relational learning artifact write failed: %s", exc)
+            return None
+
+    def _apply_relational_edge_learning(
+        self,
+        ledger,
+        *,
+        item: dict[str, Any] | None = None,
+        council_cel_sync: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        if not (self._graph_runtime and hasattr(self._graph_runtime, "adapt_relational_edges_from_outcome")):
+            return None
+        outcome = getattr(ledger, "outcome", None) if ledger is not None else None
+        resonance_score = (
+            float(getattr(outcome, "receiver_resonance_score", 0.0) or 0.0)
+            if outcome is not None
+            else float((item or {}).get("_resonance_score", 0.0) or 0.0)
+        )
+        review = (council_cel_sync or {}).get("operator_review") or {}
+        review_decision = str(review.get("decision") or "pending").strip().lower()
+        incident_published = bool(((council_cel_sync or {}).get("incident") or {}).get("published"))
+        feedback_polarity = 0.0
+        if review_decision == "approved":
+            feedback_polarity = 0.8
+        elif review_decision in {"rejected", "closed"}:
+            feedback_polarity = -0.8
+        try:
+            payload = self._graph_runtime.adapt_relational_edges_from_outcome(
+                feedback_polarity=feedback_polarity,
+                resonance_score=resonance_score,
+                review_decision=review_decision,
+                incident_published=incident_published,
+                top_k=3,
+            )
+            if isinstance(payload, dict):
+                return payload
+            return None
+        except Exception as exc:
+            logger.debug("ResonanceAgent: relational edge learning failed: %s", exc)
             return None
 
     def _build_relational_quality_summary(self, relational: Any) -> dict[str, Any] | None:

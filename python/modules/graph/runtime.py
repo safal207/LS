@@ -501,3 +501,55 @@ class GraphMemoryRuntime:
         except Exception as exc:
             self._logger.debug("Graph remember_relational_snapshot failed: %s", exc)
             return None
+
+    def adapt_relational_edges_from_outcome(
+        self,
+        *,
+        feedback_polarity: float | None = None,
+        resonance_score: float | None = None,
+        review_decision: str | None = None,
+        incident_published: bool = False,
+        top_k: int = 3,
+    ) -> dict[str, Any]:
+        """Apply outcome-driven learning to recent relational edges.
+
+        Returns summary payload:
+        - ``updated_edges``: number of updated edges
+        - ``scanned_units``: number of units inspected
+        """
+        updated_edges = 0
+        scanned_units = 0
+        try:
+            units = self.store.get_resonance_snapshot(
+                top_k=max(1, int(top_k or 1)),
+                min_resonance_score=0.3,
+            )
+            for unit in units:
+                scanned_units += 1
+                for relation in list(unit.relations or []):
+                    if not isinstance(relation, dict):
+                        continue
+                    edge_id = str(relation.get("edge_id") or "")
+                    if not edge_id:
+                        continue
+                    updated = self.store.update_relational_edge_strength(
+                        unit_id=unit.unit_id,
+                        edge_id=edge_id,
+                        feedback_polarity=feedback_polarity,
+                        resonance_score=resonance_score,
+                        review_decision=review_decision,
+                        incident_published=incident_published,
+                    )
+                    if updated is not None:
+                        updated_edges += 1
+            return {
+                "updated_edges": updated_edges,
+                "scanned_units": scanned_units,
+            }
+        except Exception as exc:
+            self._logger.debug("Graph adapt_relational_edges_from_outcome failed: %s", exc)
+            return {
+                "updated_edges": 0,
+                "scanned_units": scanned_units,
+                "error": exc.__class__.__name__,
+            }
