@@ -374,19 +374,24 @@ class MemoryGraphStore:
                 "depth": current_depth,
             })
 
-            for rel in unit.relations:
-                if not isinstance(rel, dict):
-                    continue
-                target_id = rel.get("target_unit_id")
-                if target_id and target_id not in visited:
-                    edges.append({
-                        "source": current_id,
-                        "target": target_id,
-                        "relation_type": rel.get("relation_type"),
-                        "strength": rel.get("strength"),
-                        "edge_id": rel.get("edge_id"),
-                    })
-                    queue.append((target_id, current_depth + 1))
+            # Only traverse edges when we have depth budget left.
+            # If current_depth == depth we include this node in the result but
+            # must NOT enqueue its neighbours — that would produce edges that
+            # point to nodes outside the requested depth, leaving dangling refs.
+            if current_depth < depth:
+                for rel in unit.relations:
+                    if not isinstance(rel, dict):
+                        continue
+                    target_id = rel.get("target_unit_id")
+                    if target_id and target_id not in visited:
+                        edges.append({
+                            "source": current_id,
+                            "target": target_id,
+                            "relation_type": rel.get("relation_type"),
+                            "strength": rel.get("strength"),
+                            "edge_id": rel.get("edge_id"),
+                        })
+                        queue.append((target_id, current_depth + 1))
 
         return {
             "root_unit_id": unit_id,

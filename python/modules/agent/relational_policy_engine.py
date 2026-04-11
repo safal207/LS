@@ -16,18 +16,22 @@ def suggest_edge_from_resonance(
     unit_a: ResonanceKnowledgeUnit,
     unit_b: ResonanceKnowledgeUnit,
 ) -> Optional[RelationalEdge]:
-    """Suggest a RelationalEdge between two units based on their resonance signals.
+    """Suggest a RelationalEdge pointing from *unit_a* to *unit_b*.
 
-    Returns a ``RelationalEdge`` pointing from *unit_a* to *unit_b* when both
-    units have sufficient resonance scores, or ``None`` when the signal is too
-    weak.  The caller is responsible for persisting the edge via
-    ``MemoryGraphStore.store_relational_edge()``.
+    Returns ``None`` when either unit's resonance score is below the threshold
+    (``_EDGE_RESONANCE_THRESHOLD``).  The caller is responsible for persisting
+    the returned edge via ``MemoryGraphStore.store_relational_edge()``.
 
-    Relation type heuristic:
+    Relation type heuristic (evaluated in priority order):
     - Both intents match → ``reinforces``
     - High alignment on both, different intents → ``specializes``
-    - One unit has a much higher score → ``generalizes`` (stronger → weaker)
+    - ``score_a`` exceeds ``score_b`` by ≥ 0.2 → ``generalizes``
+      (unit_a *generalizes* unit_b — stronger source, weaker target)
     - Default fallback → ``reinforces``
+
+    Note: ``generalizes`` is only emitted when *unit_a* is the stronger unit.
+    If *unit_b* has the higher score, the pair falls back to ``reinforces``
+    because the edge direction (a → b) would contradict "stronger → weaker".
     """
     score_a = float(unit_a.resonance_score or 0.0)
     score_b = float(unit_b.resonance_score or 0.0)
@@ -44,7 +48,8 @@ def suggest_edge_from_resonance(
         relation_type = "reinforces"
     elif align_a >= 0.55 and align_b >= 0.55 and intent_a != intent_b:
         relation_type = "specializes"
-    elif abs(score_a - score_b) >= 0.2:
+    elif score_a - score_b >= 0.2:
+        # unit_a is meaningfully stronger → unit_a generalizes unit_b
         relation_type = "generalizes"
     else:
         relation_type = "reinforces"
