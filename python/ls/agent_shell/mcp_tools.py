@@ -33,6 +33,7 @@ class MCPToolRegistry:
             "ls_reject": self._reject,
             "get_cognitive_state": self._get_cognitive_state,
             "get_relational_insight": self._get_relational_insight,
+            "ask_self": self._ask_self,
         }
 
     def list_tools(self) -> list[dict[str, Any]]:
@@ -99,6 +100,9 @@ class MCPToolRegistry:
         unit_id = str(args.get("unit_id", ""))
         depth = int(args.get("depth", 2))
         return self._cognitive_state.get_relational_graph(unit_id=unit_id, depth=depth)
+
+    def _ask_self(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._cognitive_state.ask_self(str(args.get("question", "")))
 
 
 def tool_call_from_json(registry: MCPToolRegistry, raw: str) -> str:

@@ -12,7 +12,13 @@ from uuid import uuid4
 
 from .decay import ResonanceDecayConfig, effective_score, prune_expired
 from .evolve import RouteSnapshot
-from .models import MemoryCase, RelationalEdge, RelationalFieldSnapshot, ResonanceKnowledgeUnit
+from .models import (
+    MemoryCase,
+    RelationalEdge,
+    RelationalFieldSnapshot,
+    RelationalSelf,
+    ResonanceKnowledgeUnit,
+)
 
 _STORE_LOCKS: dict[str, threading.RLock] = {}
 _STORE_LOCKS_GUARD = threading.Lock()
@@ -567,6 +573,163 @@ class MemoryGraphStore:
 
     def _route_snapshots_path(self) -> Path:
         return self.path.with_name("route_snapshots.jsonl")
+
+    # ──────────────────────────────────────────────────────────────
+    # RelationalSelf — holistic self-state snapshot
+    # ──────────────────────────────────────────────────────────────
+
+    def _relational_self_path(self) -> Path:
+        return self.path.with_name("relational_self.json")
+
+    def _coherence_history_path(self) -> Path:
+        return self.path.with_name("relational_self_coherence_history.jsonl")
+
+    def get_relational_self(self) -> RelationalSelf:
+        with self._lock:
+            path = self._relational_self_path()
+            if not path.exists():
+                return RelationalSelf()
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            return RelationalSelf.from_dict(dict(payload))
+
+    def get_coherence_history(self, *, limit: int = 50) -> list[dict[str, Any]]:
+        with self._lock:
+            path = self._coherence_history_path()
+            if not path.exists():
+                return []
+            rows: list[dict[str, Any]] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    rows.append(dict(json.loads(line)))
+            return rows[-max(1, int(limit or 1)) :]
+
+    def update_self_from_cycle(
+        self,
+        *,
+        cycle_id: str | None = None,
+        source: str = "care_cycle",
+        recent_window: int = 25,
+        omni_insight: dict[str, Any] | None = None,
+    ) -> RelationalSelf:
+        with self._lock:
+            units = self.list_resonance_units()
+            units.sort(key=lambda unit: str(unit.timestamp or ""), reverse=True)
+            selected = units[: max(3, int(recent_window or 3))]
+
+            core_nodes = [
+                {
+                    "unit_id": u.unit_id,
+                    "intent": u.intent,
+                    "resonance_score": float(u.resonance_score),
+                    "alignment_score": float(u.alignment_score),
+                    "timestamp": u.timestamp,
+                }
+                for u in selected
+            ]
+            unit_map = {u.unit_id: u for u in selected}
+            core_edges: list[dict[str, Any]] = []
+            for unit in selected:
+                for relation in list(unit.relations or []):
+                    if not isinstance(relation, dict):
+                        continue
+                    target = str(relation.get("target_unit_id") or "")
+                    if target in unit_map:
+                        core_edges.append(
+                            {
+                                "source_unit_id": unit.unit_id,
+                                "target_unit_id": target,
+                                "relation_type": str(relation.get("relation_type") or "reinforces"),
+                                "strength": float(relation.get("strength", 0.0) or 0.0),
+                            }
+                        )
+
+            if omni_insight and str(omni_insight.get("signal") or "").lower() in {"fatigue", "tired"}:
+                top_unit_id = selected[0].unit_id if selected else ""
+                if top_unit_id:
+                    core_edges.append(
+                        {
+                            "source_unit_id": top_unit_id,
+                            "target_unit_id": top_unit_id,
+                            "relation_type": "emotional_link",
+                            "strength": 0.55,
+                        }
+                    )
+
+            avg_resonance = (
+                sum(float(u.resonance_score) for u in selected) / len(selected)
+                if selected
+                else 0.0
+            )
+            avg_alignment = (
+                sum(float(u.alignment_score) for u in selected) / len(selected)
+                if selected
+                else 0.0
+            )
+            contradiction_penalty = sum(
+                0.2
+                for edge in core_edges
+                if str(edge.get("relation_type") or "") == "contradicts"
+                and float(edge.get("strength", 0.0) or 0.0) >= 0.7
+            )
+            coherence = max(
+                0.0,
+                min(1.0, (0.45 * avg_resonance) + (0.45 * avg_alignment) - contradiction_penalty),
+            )
+            identity_vector = [
+                round(avg_resonance, 4),
+                round(avg_alignment, 4),
+                round(min(1.0, len(core_nodes) / 10.0), 4),
+                round(min(1.0, len(core_edges) / 15.0), 4),
+            ]
+
+            current = self.get_relational_self()
+            previous_score = float(current.self_coherence_score or 0.0)
+            updated_at = _utc_now()
+            history_item = {
+                "timestamp": updated_at,
+                "cycle_id": cycle_id,
+                "source": source,
+                "coherence_before": round(previous_score, 4),
+                "coherence_after": round(coherence, 4),
+                "delta": round(coherence - previous_score, 4),
+                "node_count": len(core_nodes),
+                "edge_count": len(core_edges),
+            }
+            change_history = (list(current.change_history or []) + [history_item])[-25:]
+            snapshot = RelationalSelf(
+                snapshot_id=current.snapshot_id or str(uuid4()),
+                created_at=current.created_at or updated_at,
+                updated_at=updated_at,
+                core_nodes=core_nodes,
+                core_edges=core_edges,
+                self_coherence_score=round(coherence, 4),
+                self_identity_vector=identity_vector,
+                change_history=change_history,
+                metadata={
+                    "updated_by": source,
+                    "cycle_id": cycle_id,
+                    "omni_insight": dict(omni_insight or {}),
+                },
+            )
+
+            self._relational_self_path().write_text(
+                json.dumps(snapshot.to_dict(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            history_rows = self.get_coherence_history(limit=500)
+            history_rows.append(
+                {
+                    "timestamp": updated_at,
+                    "coherence_score": round(coherence, 4),
+                    "source": source,
+                    "cycle_id": cycle_id,
+                }
+            )
+            self._atomic_write_jsonl(self._coherence_history_path(), history_rows[-500:])
+            return snapshot
 
     def store_route_snapshot(self, snapshot: RouteSnapshot) -> RouteSnapshot:
         """Upsert a RouteSnapshot keyed by snapshot_id (latest version wins)."""

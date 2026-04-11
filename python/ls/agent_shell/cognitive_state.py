@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -145,6 +146,63 @@ class CognitiveStateBridge:
             "resource": "omni/last-insight",
             "enabled": True,
             "insight": insight,
+            "last_updated": _utc_now(),
+        }
+
+    def get_relational_self_summary(self) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        snapshot = store.get_relational_self().to_dict()
+        return {
+            "resource": "self/relational-self",
+            "snapshot": snapshot,
+            "last_updated": _utc_now(),
+        }
+
+    def get_coherence_history(self, *, limit: int = 30) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        rows = store.get_coherence_history(limit=int(limit))
+        return {
+            "resource": "self/coherence-history",
+            "items": rows,
+            "limit": int(limit),
+            "last_updated": _utc_now(),
+        }
+
+    def ask_self(self, question: str) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        prompt = str(question or "").strip()
+        store = MemoryGraphStore(self._store_path)
+        snapshot = store.get_relational_self()
+        days = 3
+        match = re.search(r"(\\d+)", prompt)
+        if match:
+            days = max(1, int(match.group(1)))
+        history = store.get_coherence_history(limit=days + 2)
+        delta = 0.0
+        if len(history) >= 2:
+            delta = float(history[-1].get("coherence_score", 0.0) or 0.0) - float(
+                history[0].get("coherence_score", 0.0) or 0.0
+            )
+        direction = "stabilized"
+        if delta > 0.02:
+            direction = "grew more coherent"
+        elif delta < -0.02:
+            direction = "lost coherence"
+
+        return {
+            "resource": "self/ask-self",
+            "question": prompt,
+            "answer": (
+                f"Over the last {days} cycle windows I {direction}. "
+                f"Current coherence is {float(snapshot.self_coherence_score or 0.0):.2f}."
+            ),
+            "coherence_delta": round(delta, 4),
+            "coherence_now": float(snapshot.self_coherence_score or 0.0),
             "last_updated": _utc_now(),
         }
 
