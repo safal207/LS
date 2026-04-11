@@ -512,6 +512,7 @@ def preview_council_quality_artifact() -> tuple[int, object]:
     incident = liminalqa.get("incident") or {}
     relational = payload.get("relational_field") or {}
     operator_guidance = payload.get("operator_guidance") or {}
+    relational_breach = operator_guidance.get("relational_breach") or {}
     memory_context = operator_guidance.get("memory_context") or {}
     operator_review = payload.get("operator_review") or {}
     review_history = payload.get("operator_review_history") or []
@@ -548,6 +549,8 @@ def preview_council_quality_artifact() -> tuple[int, object]:
     merit_updates = cel.get("merit_updates") or []
     top_merit = max((float(item.get("merit_score") or 0.0) for item in merit_updates), default=0.0)
     learning_payload = latest_relational_learning_artifact() or {}
+    relational_edge_learning = payload.get("relational_edge_learning") or {}
+    maintenance = relational_edge_learning.get("maintenance") or {}
     return 200, {
         "cycle_id": payload.get("cycle_id"),
         "task_id": payload.get("task_id"),
@@ -583,9 +586,17 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "route_strategy": operator_guidance.get("route_strategy"),
         "policy_engine_version": operator_guidance.get("policy_engine_version"),
         "policy_rule_hits": operator_guidance.get("rule_hits") or [],
+        "relational_breach_detected": bool(relational_breach.get("detected")),
+        "relational_breach_severity": relational_breach.get("severity"),
+        "relational_breach_reasons": relational_breach.get("reasons") or [],
         "relational_learning_path": learning_payload.get("_path"),
         "learning_heuristic_count": int(learning_payload.get("heuristic_count") or 0),
         "learning_top_effective_rules": learning_payload.get("top_effective_rules") or [],
+        "relational_edge_updates": int(relational_edge_learning.get("updated_edges") or 0),
+        "relational_edge_learning_scanned_units": int(relational_edge_learning.get("scanned_units") or 0),
+        "relational_maintenance_proposal_count": int(maintenance.get("proposal_count") or 0),
+        "relational_maintenance_scanned_units": int(maintenance.get("scanned_units") or 0),
+        "relational_maintenance_top_proposals": (maintenance.get("proposals") or [])[:5],
         "requires_human_review": bool(operator_guidance.get("requires_human_review")),
         "rerun_required": bool(operator_guidance.get("rerun_required")),
         "suggested_operator_action": operator_guidance.get("suggested_operator_action"),

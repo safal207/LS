@@ -70,6 +70,11 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                     "safety_mode": "evidence_first",
                     "policy_engine_version": "relational-policy-v1",
                     "rule_hits": ["watch_from_validation_bias"],
+                    "relational_breach": {
+                        "detected": True,
+                        "severity": "high",
+                        "reasons": ["high_tension_low_alignment"],
+                    },
                     "requires_human_review": False,
                     "rerun_required": False,
                     "suggested_operator_action": "Validate intent before approval.",
@@ -104,6 +109,18 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                     "forced": False,
                 },
                 "operator_review_history": [{"action": "approve", "reviewer": "qa-operator", "timestamp": "2026-04-10T10:00:00+00:00"}],
+                "relational_edge_learning": {
+                    "updated_edges": 2,
+                    "scanned_units": 3,
+                    "maintenance": {
+                        "proposal_count": 2,
+                        "scanned_units": 3,
+                        "proposals": [
+                            {"proposal_type": "prune", "edge_id": "edge-1"},
+                            {"proposal_type": "review_conflict", "edge_id": "edge-2"},
+                        ],
+                    },
+                },
             }
         ),
         encoding="utf-8",
@@ -170,9 +187,17 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["route_strategy"] == "validate_current_route"
     assert payload["policy_engine_version"] == "relational-policy-v1"
     assert payload["policy_rule_hits"] == ["watch_from_validation_bias"]
+    assert payload["relational_breach_detected"] is True
+    assert payload["relational_breach_severity"] == "high"
+    assert payload["relational_breach_reasons"] == ["high_tension_low_alignment"]
     assert payload["relational_learning_path"].endswith("cycle-001.json")
     assert payload["learning_heuristic_count"] == 2
     assert payload["learning_top_effective_rules"][0]["rule"] == "watch_from_validation_bias"
+    assert payload["relational_edge_updates"] == 2
+    assert payload["relational_edge_learning_scanned_units"] == 3
+    assert payload["relational_maintenance_proposal_count"] == 2
+    assert payload["relational_maintenance_scanned_units"] == 3
+    assert payload["relational_maintenance_top_proposals"][0]["proposal_type"] == "prune"
     assert payload["requires_human_review"] is False
     assert payload["rerun_required"] is False
     assert payload["suggested_operator_action"] == "Validate intent before approval."
