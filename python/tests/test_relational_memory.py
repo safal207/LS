@@ -350,6 +350,82 @@ def test_suggest_edge_strength_is_min_of_scores() -> None:
 
 
 # ─────────────────────────────────────────────────────────────
+# update_relational_edge_strength
+# ─────────────────────────────────────────────────────────────
+
+def test_update_relational_edge_strength_increases_on_positive_outcome(
+    tmp_store: MemoryGraphStore,
+) -> None:
+    src = _unit("source", resonance_score=0.9)
+    dst = _unit("target", resonance_score=0.8)
+    tmp_store.store_resonance_unit(src)
+    tmp_store.store_resonance_unit(dst)
+
+    edge = RelationalEdge(
+        target_unit_id=dst.unit_id,
+        relation_type="reinforces",
+        strength=0.5,
+    )
+    tmp_store.store_relational_edge(src.unit_id, edge)
+
+    updated = tmp_store.update_relational_edge_strength(
+        unit_id=src.unit_id,
+        edge_id=edge.edge_id,
+        feedback_polarity=0.8,
+        resonance_score=0.9,
+        review_decision="approved",
+        incident_published=False,
+    )
+    assert updated is not None
+    assert float(updated["strength"]) > 0.5
+    updates = (((updated.get("metadata") or {}).get("strength_updates")) or [])
+    assert len(updates) == 1
+    assert updates[0]["review_decision"] == "approved"
+
+
+def test_update_relational_edge_strength_decreases_on_negative_outcome(
+    tmp_store: MemoryGraphStore,
+) -> None:
+    src = _unit("source", resonance_score=0.9)
+    dst = _unit("target", resonance_score=0.8)
+    tmp_store.store_resonance_unit(src)
+    tmp_store.store_resonance_unit(dst)
+
+    edge = RelationalEdge(
+        target_unit_id=dst.unit_id,
+        relation_type="reinforces",
+        strength=0.7,
+    )
+    tmp_store.store_relational_edge(src.unit_id, edge)
+
+    updated = tmp_store.update_relational_edge_strength(
+        unit_id=src.unit_id,
+        edge_id=edge.edge_id,
+        feedback_polarity=-0.8,
+        resonance_score=0.1,
+        review_decision="rejected",
+        incident_published=True,
+    )
+    assert updated is not None
+    assert float(updated["strength"]) < 0.7
+    updates = (((updated.get("metadata") or {}).get("strength_updates")) or [])
+    assert len(updates) == 1
+    assert updates[0]["incident_published"] is True
+
+
+def test_update_relational_edge_strength_returns_none_for_unknown_edge(
+    tmp_store: MemoryGraphStore,
+) -> None:
+    src = _unit("source", resonance_score=0.9)
+    tmp_store.store_resonance_unit(src)
+    updated = tmp_store.update_relational_edge_strength(
+        unit_id=src.unit_id,
+        edge_id="missing-edge-id",
+    )
+    assert updated is None
+
+
+# ─────────────────────────────────────────────────────────────
 # MCP surface — CognitiveStateBridge + MCPResourceRegistry
 # ─────────────────────────────────────────────────────────────
 

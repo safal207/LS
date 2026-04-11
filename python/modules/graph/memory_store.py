@@ -334,6 +334,95 @@ class MemoryGraphStore:
                     return unit
         return None
 
+    def update_relational_edge_strength(
+        self,
+        *,
+        unit_id: str,
+        edge_id: str,
+        feedback_polarity: float | None = None,
+        resonance_score: float | None = None,
+        review_decision: str | None = None,
+        incident_published: bool = False,
+        learning_rate: float = 0.2,
+        max_step: float = 0.2,
+    ) -> dict[str, Any] | None:
+        """Adapt a relation edge strength from cycle outcomes.
+
+        The update is bounded and deterministic:
+        - combined signal in ``[-1, 1]`` from feedback/resonance/outcome,
+        - delta limited by ``max_step``,
+        - resulting strength clamped to ``[0, 1]``.
+        """
+
+        def _clamp(value: float, lo: float, hi: float) -> float:
+            return max(lo, min(hi, value))
+
+        with self._lock:
+            units = self._load_resonance_units()
+            for unit in units:
+                if unit.unit_id != unit_id:
+                    continue
+                for relation in unit.relations:
+                    if not isinstance(relation, dict) or str(relation.get("edge_id") or "") != edge_id:
+                        continue
+
+                    current_strength = _clamp(float(relation.get("strength", 0.5) or 0.5), 0.0, 1.0)
+
+                    feedback_signal = _clamp(float(feedback_polarity or 0.0), -1.0, 1.0)
+                    resonance_signal = 0.0
+                    if resonance_score is not None:
+                        # map 0..1 resonance to -1..1 learning direction
+                        resonance_signal = _clamp((float(resonance_score) - 0.5) * 2.0, -1.0, 1.0)
+
+                    decision = str(review_decision or "").strip().lower()
+                    outcome_signal = 0.0
+                    if decision == "approved":
+                        outcome_signal += 0.5
+                    elif decision in {"rejected", "closed"}:
+                        outcome_signal -= 0.5
+                    if bool(incident_published):
+                        outcome_signal -= 0.8
+
+                    combined_signal = _clamp(
+                        (0.45 * feedback_signal) + (0.25 * resonance_signal) + (0.30 * outcome_signal),
+                        -1.0,
+                        1.0,
+                    )
+                    bounded_step = _clamp(float(learning_rate or 0.0), 0.0, 1.0) * combined_signal
+                    delta = _clamp(bounded_step, -abs(float(max_step or 0.0)), abs(float(max_step or 0.0)))
+
+                    new_strength = _clamp(current_strength + delta, 0.0, 1.0)
+                    relation["strength"] = round(new_strength, 4)
+
+                    metadata = relation.get("metadata")
+                    if not isinstance(metadata, dict):
+                        metadata = {}
+                    updates = metadata.get("strength_updates")
+                    if not isinstance(updates, list):
+                        updates = []
+                    updates.append(
+                        {
+                            "timestamp": _utc_now(),
+                            "strength_before": round(current_strength, 4),
+                            "strength_after": round(new_strength, 4),
+                            "delta": round(delta, 4),
+                            "learning_rate": round(float(learning_rate or 0.0), 4),
+                            "combined_signal": round(combined_signal, 4),
+                            "feedback_signal": round(feedback_signal, 4),
+                            "resonance_signal": round(resonance_signal, 4),
+                            "outcome_signal": round(outcome_signal, 4),
+                            "review_decision": decision,
+                            "incident_published": bool(incident_published),
+                        }
+                    )
+                    metadata["strength_updates"] = updates
+                    relation["metadata"] = metadata
+
+                    self._write_resonance_units(units)
+                    return relation
+                return None
+        return None
+
     def get_relational_graph(
         self,
         unit_id: str,
