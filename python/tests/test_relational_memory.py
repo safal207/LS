@@ -3,7 +3,6 @@
 get_relational_graph, get_resonance_with_relations, and suggest_edge_from_resonance."""
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import pytest
