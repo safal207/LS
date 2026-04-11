@@ -32,6 +32,7 @@ class MCPToolRegistry:
             "ls_approve": self._approve,
             "ls_reject": self._reject,
             "get_cognitive_state": self._get_cognitive_state,
+            "get_relational_insight": self._get_relational_insight,
         }
 
     def list_tools(self) -> list[dict[str, Any]]:
@@ -83,6 +84,21 @@ class MCPToolRegistry:
             top_k=int(args.get("top_k", 10)),
             min_resonance_score=float(args.get("min_resonance_score", 0.3)),
         )
+
+    def _get_relational_insight(self, args: dict[str, Any]) -> dict[str, Any]:
+        """Return relational subgraph for a given unit_id.
+
+        The graph reveals *why* two cognitive routes are connected — useful for
+        external tools (Cursor, Claude Desktop) to inspect how the agent's
+        thinking evolves through relational links.
+
+        Args:
+            unit_id: ID of the ResonanceKnowledgeUnit to start from.
+            depth:   BFS hop depth (default 2).
+        """
+        unit_id = str(args.get("unit_id", ""))
+        depth = int(args.get("depth", 2))
+        return self._cognitive_state.get_relational_graph(unit_id=unit_id, depth=depth)
 
 
 def tool_call_from_json(registry: MCPToolRegistry, raw: str) -> str:
