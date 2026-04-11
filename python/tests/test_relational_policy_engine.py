@@ -103,3 +103,23 @@ def test_policy_engine_escalates_when_coherence_is_critical() -> None:
     assert payload["route_strategy"] == "freeze_and_escalate"
     assert "critical_relational_coherence" in payload["rule_hits"]
     assert payload["relational_coherence"] == 0.15
+
+
+def test_policy_engine_flags_relational_breach_and_freezes_on_severe_case() -> None:
+    payload = evaluate_relational_policy(
+        {
+            "tension_score": 0.82,
+            "alignment_score": 0.18,
+            "relation_safety_score": 0.33,
+            "relational_coherence": 0.4,
+            "dominant_signal": "conflict",
+            "recommended_mode": "observe_and_clarify",
+        }
+    )
+
+    assert payload["relational_breach"]["detected"] is True
+    assert payload["relational_breach"]["severity"] == "severe"
+    assert "high_tension_low_alignment" in payload["relational_breach"]["reasons"]
+    assert payload["risk_state"] == "escalate"
+    assert payload["route_strategy"] == "freeze_and_escalate"
+    assert "relational_breach_detected" in payload["rule_hits"]

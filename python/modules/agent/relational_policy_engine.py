@@ -93,6 +93,7 @@ class RelationalPolicyDecision:
     requires_human_review: bool
     rerun_required: bool
     memory_context: dict[str, Any] | None = None
+    relational_breach: dict[str, Any] | None = None
     policy_engine_version: str = POLICY_ENGINE_VERSION
     rule_hits: list[str] | None = None
 
@@ -124,6 +125,7 @@ def evaluate_relational_policy(
     alignment_score = float(relational.get("alignment_score", 0.0) or 0.0)
     relation_safety_score = float(relational.get("relation_safety_score", 0.0) or 0.0)
     recommended_mode = str(relational.get("recommended_mode") or "observe_and_clarify")
+    dominant_signal = str(relational.get("dominant_signal") or "unknown")
     provided_coherence = relational.get("relational_coherence")
     if provided_coherence is None:
         relational_coherence = compute_relational_coherence(
@@ -195,6 +197,31 @@ def evaluate_relational_policy(
         rerun_required = False
         rule_hits.append("low_relational_coherence")
 
+    breach_reasons: list[str] = []
+    breach_severity = "none"
+    if tension_score >= 0.75 and alignment_score <= 0.25:
+        breach_severity = "high"
+        breach_reasons.append("high_tension_low_alignment")
+    if ("conflict" in dominant_signal or "contradict" in dominant_signal) and relation_safety_score < 0.4:
+        breach_severity = "severe" if breach_severity == "high" else "high"
+        breach_reasons.append("conflict_signal_low_safety")
+    relational_breach = {
+        "detected": bool(breach_reasons),
+        "severity": breach_severity,
+        "reasons": breach_reasons,
+    }
+    if relational_breach["detected"]:
+        rule_hits.append("relational_breach_detected")
+    if breach_severity == "severe" and risk_state != "escalate":
+        risk_state = "escalate"
+        action = "Escalate to a human reviewer: severe relational breach detected."
+        approval_posture = "human_escalation"
+        route_strategy = "freeze_and_escalate"
+        safety_mode = "freeze"
+        requires_human_review = True
+        rerun_required = False
+        rule_hits.append("relational_breach_freeze_override")
+
     policy_adjusted = False
     if memory_context and int(memory_context.get("match_count") or 0) >= 2:
         repeated_failures = int(memory_context.get("incident_count") or 0) + int(memory_context.get("reject_count") or 0)
@@ -220,6 +247,7 @@ def evaluate_relational_policy(
         requires_human_review=requires_human_review,
         rerun_required=rerun_required,
         memory_context=memory_context,
+        relational_breach=relational_breach,
         rule_hits=rule_hits,
     ).to_dict()
     payload["relational_coherence"] = round(relational_coherence, 4)
