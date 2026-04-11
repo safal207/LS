@@ -227,6 +227,24 @@ except Exception as exc:
     _build_alignment_guidance = None  # type: ignore[assignment]
 
 try:
+    from modules.agent.relational_policy_engine import (
+        evaluate_relational_policy as _evaluate_relational_policy,
+    )
+    _RELATIONAL_POLICY_OK = True
+except ImportError:
+    try:
+        from agent.relational_policy_engine import (
+            evaluate_relational_policy as _evaluate_relational_policy,
+        )
+        _RELATIONAL_POLICY_OK = True
+    except Exception:
+        _RELATIONAL_POLICY_OK = False
+        _evaluate_relational_policy = None  # type: ignore[assignment]
+except Exception:
+    _RELATIONAL_POLICY_OK = False
+    _evaluate_relational_policy = None  # type: ignore[assignment]
+
+try:
     from ls.cognition.council_contribution_ledger import (
         CouncilContributionLedger as _CouncilContributionLedger,
         CouncilDecision as _CouncilDecision,
@@ -4017,6 +4035,16 @@ class ResonanceAgent:
         *,
         memory_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        if _RELATIONAL_POLICY_OK and _evaluate_relational_policy is not None:
+            try:
+                return dict(
+                    _evaluate_relational_policy(
+                        relational,
+                        memory_context=memory_context,
+                    )
+                )
+            except Exception as exc:
+                logger.debug("ResonanceAgent: relational policy engine failed: %s", exc)
         if not relational:
             return {
                 "risk_state": "watch",
@@ -4027,6 +4055,8 @@ class ResonanceAgent:
                 "requires_human_review": False,
                 "rerun_required": True,
                 "memory_context": memory_context,
+                "policy_engine_version": "resonance-agent-fallback",
+                "rule_hits": ["missing_relational_context"],
             }
         tension_score = float(relational.get("tension_score", 0.0) or 0.0)
         alignment_score = float(relational.get("alignment_score", 0.0) or 0.0)
@@ -4091,6 +4121,8 @@ class ResonanceAgent:
             "requires_human_review": requires_human_review,
             "rerun_required": rerun_required,
             "memory_context": memory_context,
+            "policy_engine_version": "resonance-agent-fallback",
+            "rule_hits": ["fallback_inline_policy"],
         }
 
     def _build_cycle_record(

@@ -305,6 +305,8 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert quality_payload["operator_guidance"]["approval_posture"] == "hold_and_repair"
     assert quality_payload["operator_guidance"]["route_strategy"] == "repair_then_reroute"
     assert quality_payload["operator_guidance"]["safety_mode"] == "repair_first"
+    assert quality_payload["operator_guidance"]["policy_engine_version"] == "relational-policy-v1"
+    assert "repair_from_tension_or_low_safety" in quality_payload["operator_guidance"]["rule_hits"]
     assert quality_payload["operator_guidance"]["requires_human_review"] is False
     assert "Pause approval" in quality_payload["operator_guidance"]["suggested_operator_action"]
     assert quality_payload["council_outcome"]["selected_route"] == "r1"
@@ -368,4 +370,6 @@ def test_relation_memory_can_escalate_repeated_bad_pattern(tmp_path):
     assert quality_payload["operator_guidance"]["risk_state"] == "escalate"
     assert quality_payload["operator_guidance"]["approval_posture"] == "human_escalation"
     assert quality_payload["operator_guidance"]["safety_mode"] == "freeze"
+    assert quality_payload["operator_guidance"]["policy_engine_version"] == "relational-policy-v1"
+    assert "memory_freeze_override" in quality_payload["operator_guidance"]["rule_hits"]
     assert quality_payload["operator_guidance"]["memory_context"]["policy_adjusted"] is True
