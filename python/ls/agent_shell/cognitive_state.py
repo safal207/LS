@@ -229,15 +229,30 @@ class CognitiveStateBridge:
         elif delta < -0.02:
             direction = "lost coherence"
 
+        top_drivers = sorted(
+            list(snapshot.change_history or []),
+            key=lambda row: abs(float(row.get("delta", 0.0) or 0.0)),
+            reverse=True,
+        )[:3]
+        driver_summary = [
+            {
+                "cycle_id": row.get("cycle_id"),
+                "delta": float(row.get("delta", 0.0) or 0.0),
+                "source": row.get("source"),
+            }
+            for row in top_drivers
+        ]
+
         return {
             "resource": "self/ask-self",
             "question": prompt,
             "answer": (
-                f"Over the last {days} cycle windows I {direction}. "
+                f"Over the last {days} day(s) I {direction}. "
                 f"Current coherence is {float(snapshot.self_coherence_score or 0.0):.2f}."
             ),
             "coherence_delta": round(delta, 4),
             "coherence_now": float(snapshot.self_coherence_score or 0.0),
+            "top_change_drivers": driver_summary,
             "last_updated": _utc_now(),
         }
 

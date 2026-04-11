@@ -701,6 +701,7 @@ class MemoryGraphStore:
             change_history = (list(current.change_history or []) + [history_item])[-25:]
             snapshot = RelationalSelf(
                 snapshot_id=current.snapshot_id or str(uuid4()),
+                schema_version=current.schema_version or "1.0",
                 created_at=current.created_at or updated_at,
                 updated_at=updated_at,
                 core_nodes=core_nodes,
@@ -709,6 +710,7 @@ class MemoryGraphStore:
                 self_identity_vector=identity_vector,
                 change_history=change_history,
                 metadata={
+                    "schema_version": "1.0",
                     "updated_by": source,
                     "cycle_id": cycle_id,
                     "omni_insight": dict(omni_insight or {}),

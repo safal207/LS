@@ -307,6 +307,7 @@ class RelationalSelf:
     """Holistic self-state synthesized from resonance + relational memory."""
 
     snapshot_id: str = field(default_factory=lambda: str(uuid4()))
+    schema_version: str = "1.0"
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     core_nodes: list[dict[str, Any]] = field(default_factory=list)
@@ -323,6 +324,7 @@ class RelationalSelf:
     def from_dict(cls, data: dict[str, Any]) -> "RelationalSelf":
         return cls(
             snapshot_id=str(data.get("snapshot_id") or str(uuid4())),
+            schema_version=str(data.get("schema_version") or "1.0"),
             created_at=str(data.get("created_at") or datetime.now(timezone.utc).isoformat()),
             updated_at=str(data.get("updated_at") or datetime.now(timezone.utc).isoformat()),
             core_nodes=list(data.get("core_nodes") or []),

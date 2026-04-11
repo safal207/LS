@@ -34,6 +34,7 @@ def test_update_relational_self_from_cycle_creates_snapshot(tmp_path):
     snapshot = store.update_self_from_cycle(cycle_id="care-1")
 
     assert snapshot.self_coherence_score > 0.0
+    assert snapshot.schema_version == "1.0"
     assert len(snapshot.core_nodes) >= 2
     assert len(snapshot.self_identity_vector) == 4
 

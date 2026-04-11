@@ -47,6 +47,8 @@ def test_ask_self_parses_numeric_days_and_reports_delta(tmp_path, monkeypatch):
     assert result["question"].startswith("как ты")
     assert result["coherence_delta"] > 0
     assert "3" in result["answer"]
+    assert "day(s)" in result["answer"]
+    assert "top_change_drivers" in result
 
 
 def test_get_cognitive_state_backward_compatible_shape(tmp_path, monkeypatch):

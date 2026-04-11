@@ -60,20 +60,34 @@ class RelationalCouncilEngine:
 
     def _evolution_proposal(self, relational_self: RelationalSelf) -> dict[str, Any]:
         proposals: list[dict[str, Any]] = []
+        actions: list[dict[str, Any]] = []
         if float(relational_self.self_coherence_score or 0.0) < 0.7:
             proposals.append({
                 "type": "strengthen_reinforcing_edges",
                 "impact": "raise_coherence",
             })
+            actions.append(
+                {
+                    "action": "increase_reinforcing_edge_strength",
+                    "params": {"max_delta": 0.05, "target_relation_type": "reinforces"},
+                }
+            )
         if len(relational_self.core_nodes) < 3:
             proposals.append({
                 "type": "expand_core_memory",
                 "impact": "increase_identity_stability",
             })
+            actions.append(
+                {
+                    "action": "expand_core_nodes_window",
+                    "params": {"recent_window_increment": 5},
+                }
+            )
         return {
             "mode": "self-evolution-proposal",
             "proposal_count": len(proposals),
             "proposals": proposals,
+            "actions": actions,
         }
 
     def _self_preservation(self, relational_self: RelationalSelf) -> dict[str, Any]:

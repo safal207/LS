@@ -55,3 +55,4 @@ def test_council_engine_evolution_mode_returns_proposals(tmp_path):
 
     assert result["council_outcome"]["mode"] == "self-evolution-proposal"
     assert result["council_outcome"]["proposal_count"] >= 1
+    assert result["council_outcome"]["actions"]
