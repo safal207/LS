@@ -254,3 +254,36 @@ def test_adapt_relational_edges_from_outcome_handles_empty_graph(tmp_path):
     summary = runtime.adapt_relational_edges_from_outcome(review_decision="approved")
     assert summary["updated_edges"] == 0
     assert summary["scanned_units"] == 0
+
+
+def test_propose_relational_maintenance_returns_prune_and_conflict(tmp_path):
+    runtime = GraphMemoryRuntime(store_path=tmp_path / "cases.jsonl")
+    src = runtime.store.store_resonance_unit(
+        ResonanceKnowledgeUnit(
+            source_question="src",
+            intent="learning",
+            resonance_score=0.9,
+            alignment_score=0.8,
+        )
+    )
+    dst_a = runtime.store.store_resonance_unit(
+        ResonanceKnowledgeUnit(source_question="dst-a", intent="learning", resonance_score=0.7)
+    )
+    dst_b = runtime.store.store_resonance_unit(
+        ResonanceKnowledgeUnit(source_question="dst-b", intent="learning", resonance_score=0.7)
+    )
+    runtime.store.store_relational_edge(
+        src.unit_id,
+        RelationalEdge(target_unit_id=dst_a.unit_id, relation_type="reinforces", strength=0.1),
+    )
+    runtime.store.store_relational_edge(
+        src.unit_id,
+        RelationalEdge(target_unit_id=dst_b.unit_id, relation_type="contradicts", strength=0.8),
+    )
+
+    summary = runtime.propose_relational_maintenance(max_units=10)
+
+    types = [p["proposal_type"] for p in summary["proposals"]]
+    assert "prune" in types
+    assert "review_conflict" in types
+    assert summary["proposal_count"] >= 2

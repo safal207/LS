@@ -3991,9 +3991,13 @@ class ResonanceAgent:
                 incident_published=incident_published,
                 top_k=3,
             )
-            if isinstance(payload, dict):
-                return payload
-            return None
+            if not isinstance(payload, dict):
+                return None
+            if hasattr(self._graph_runtime, "propose_relational_maintenance"):
+                maintenance = self._graph_runtime.propose_relational_maintenance(max_units=20)
+                if isinstance(maintenance, dict):
+                    payload["maintenance"] = maintenance
+            return payload
         except Exception as exc:
             logger.debug("ResonanceAgent: relational edge learning failed: %s", exc)
             return None

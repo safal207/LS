@@ -553,3 +553,76 @@ class GraphMemoryRuntime:
                 "scanned_units": scanned_units,
                 "error": exc.__class__.__name__,
             }
+
+    def propose_relational_maintenance(
+        self,
+        *,
+        max_units: int = 20,
+    ) -> dict[str, Any]:
+        """Heuristic maintenance proposals for the relational graph.
+
+        Proposal types:
+        - ``prune`` for very weak links
+        - ``reinforce`` for very strong repeatedly useful links
+        - ``review_conflict`` for strong contradictory links
+        """
+        proposals: list[dict[str, Any]] = []
+        scanned_units = 0
+        try:
+            for unit in self.store.list_resonance_units()[: max(1, int(max_units or 1))]:
+                scanned_units += 1
+                for relation in list(unit.relations or []):
+                    if not isinstance(relation, dict):
+                        continue
+                    strength = float(relation.get("strength", 0.0) or 0.0)
+                    relation_type = str(relation.get("relation_type") or "unknown")
+                    target_unit_id = str(relation.get("target_unit_id") or "")
+                    edge_id = str(relation.get("edge_id") or "")
+                    if not edge_id:
+                        continue
+                    if strength < 0.2:
+                        proposals.append(
+                            {
+                                "proposal_type": "prune",
+                                "unit_id": unit.unit_id,
+                                "target_unit_id": target_unit_id,
+                                "edge_id": edge_id,
+                                "confidence": round(1.0 - min(1.0, strength + 0.2), 4),
+                                "reason": "edge_strength_below_threshold",
+                            }
+                        )
+                    elif strength >= 0.85:
+                        proposals.append(
+                            {
+                                "proposal_type": "reinforce",
+                                "unit_id": unit.unit_id,
+                                "target_unit_id": target_unit_id,
+                                "edge_id": edge_id,
+                                "confidence": round(min(1.0, strength), 4),
+                                "reason": "edge_strength_stable_high",
+                            }
+                        )
+                    if relation_type == "contradicts" and strength >= 0.65:
+                        proposals.append(
+                            {
+                                "proposal_type": "review_conflict",
+                                "unit_id": unit.unit_id,
+                                "target_unit_id": target_unit_id,
+                                "edge_id": edge_id,
+                                "confidence": round(min(1.0, 0.5 + strength / 2.0), 4),
+                                "reason": "strong_contradiction_link",
+                            }
+                        )
+            return {
+                "scanned_units": scanned_units,
+                "proposal_count": len(proposals),
+                "proposals": proposals,
+            }
+        except Exception as exc:
+            self._logger.debug("Graph propose_relational_maintenance failed: %s", exc)
+            return {
+                "scanned_units": scanned_units,
+                "proposal_count": 0,
+                "proposals": [],
+                "error": exc.__class__.__name__,
+            }
