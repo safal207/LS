@@ -378,12 +378,14 @@ class MemoryGraphStore:
             # If current_depth == depth we include this node in the result but
             # must NOT enqueue its neighbours — that would produce edges that
             # point to nodes outside the requested depth, leaving dangling refs.
+            # We also skip edges whose target does not exist in the store so
+            # the returned graph never contains refs to ghost units.
             if current_depth < depth:
                 for rel in unit.relations:
                     if not isinstance(rel, dict):
                         continue
                     target_id = rel.get("target_unit_id")
-                    if target_id and target_id not in visited:
+                    if target_id and target_id not in visited and target_id in all_units:
                         edges.append({
                             "source": current_id,
                             "target": target_id,

@@ -207,6 +207,28 @@ def test_get_relational_graph_respects_depth(tmp_store: MemoryGraphStore) -> Non
     assert unit_c.unit_id in node_ids_d2
 
 
+def test_get_relational_graph_skips_edges_to_unknown_units(tmp_store: MemoryGraphStore) -> None:
+    """Edges referencing units that do not exist in the store are silently dropped.
+
+    If a relation's target_unit_id points to a ghost (deleted / never stored),
+    the edge must not appear in the result — there would be no matching node.
+    """
+    unit = _unit("A")
+    tmp_store.store_resonance_unit(unit)
+
+    # Add an edge to a unit that was never stored
+    ghost_edge = RelationalEdge(target_unit_id="ghost-unit-id", relation_type="reinforces")
+    tmp_store.store_relational_edge(unit.unit_id, ghost_edge)
+
+    graph = tmp_store.get_relational_graph(unit.unit_id, depth=2)
+
+    edge_targets = {e["target"] for e in graph["edges"]}
+    node_ids = {n["unit_id"] for n in graph["nodes"]}
+
+    assert "ghost-unit-id" not in edge_targets
+    assert "ghost-unit-id" not in node_ids
+
+
 def test_get_relational_graph_no_dangling_edges_at_depth_boundary(
     tmp_store: MemoryGraphStore,
 ) -> None:
