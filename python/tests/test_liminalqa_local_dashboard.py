@@ -66,6 +66,8 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                     "approval_posture": "evidence_check",
                     "route_strategy": "validate_current_route",
                     "safety_mode": "evidence_first",
+                    "policy_engine_version": "relational-policy-v1",
+                    "rule_hits": ["watch_from_validation_bias"],
                     "requires_human_review": False,
                     "rerun_required": False,
                     "suggested_operator_action": "Validate intent before approval.",
@@ -149,6 +151,8 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["risk_state"] == "watch"
     assert payload["approval_posture"] == "evidence_check"
     assert payload["route_strategy"] == "validate_current_route"
+    assert payload["policy_engine_version"] == "relational-policy-v1"
+    assert payload["policy_rule_hits"] == ["watch_from_validation_bias"]
     assert payload["requires_human_review"] is False
     assert payload["rerun_required"] is False
     assert payload["suggested_operator_action"] == "Validate intent before approval."

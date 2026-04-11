@@ -149,6 +149,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
                 "memory_match_total": 0,
                 "route_memory_adjusted_cycle_count": 0,
                 "freeze_mode_count": 0,
+                "policy_adjusted_cycle_count": 0,
                 "median_assignment_minutes": 0.0,
                 "median_review_minutes": 0.0,
                 "median_close_minutes": 0.0,
@@ -207,8 +208,10 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
     memory_match_total = 0
     route_memory_adjusted_cycle_count = 0
     freeze_mode_count = 0
+    policy_adjusted_cycle_count = 0
     route_strategy_counts: Counter[str] = Counter()
     safety_mode_counts: Counter[str] = Counter()
+    policy_rule_counts: Counter[str] = Counter()
     for index, row in enumerate(selected_rows, start=1):
         outcome = row.get("outcome", {})
         attribution = row.get("attribution", {})
@@ -269,11 +272,14 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             approved_count += 1
         if bool(memory_context.get("policy_adjusted")):
             memory_adjusted_cycle_count += 1
+            policy_adjusted_cycle_count += 1
         memory_match_total += int(memory_context.get("match_count") or 0)
         if bool(quality_outcome.get("route_memory_adjusted")):
             route_memory_adjusted_cycle_count += 1
         if safety_mode == "freeze":
             freeze_mode_count += 1
+        for rule in list(guidance.get("rule_hits") or []):
+            policy_rule_counts[str(rule)] += 1
         if (liminalqa.get("incident") or {}).get("published"):
             incident_count += 1
         assignment_latency = history_latency_minutes(cycle_started_at, review_history, {"assign"})
@@ -331,6 +337,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "memory_match_total": memory_match_total,
             "route_memory_adjusted_cycle_count": route_memory_adjusted_cycle_count,
             "freeze_mode_count": freeze_mode_count,
+            "policy_adjusted_cycle_count": policy_adjusted_cycle_count,
             "median_assignment_minutes": round(median_or_zero(assignment_latencies), 2),
             "median_review_minutes": round(median_or_zero(review_latencies), 2),
             "median_close_minutes": round(median_or_zero(close_latencies), 2),
@@ -344,6 +351,7 @@ def build_scorecard(rows: list[dict], *, quality_by_cycle: dict[str, dict] | Non
             "route_wins": [{"label": key, "value": value} for key, value in route_wins.items()],
             "route_strategy_split": [{"label": key, "value": value} for key, value in route_strategy_counts.items()],
             "safety_mode_split": [{"label": key, "value": value} for key, value in safety_mode_counts.items()],
+            "policy_rule_hits": [{"label": key, "value": value} for key, value in policy_rule_counts.items()],
             "approval_outcome_split": [{"label": key, "value": value} for key, value in approval_outcomes.items()],
         },
         "lines": {

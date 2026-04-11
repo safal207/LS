@@ -981,5 +981,58 @@
 
     refreshCouncilQualityPreview().catch(()=>{});
   </script>
+  <script>
+    (function(){
+      const qualityHistory=el("council-quality-history");
+      if(qualityHistory && !el("policy-engine-meta")){
+        const kicker=document.createElement("div");
+        kicker.id="policy-engine-kicker";
+        kicker.className="kicker";
+        kicker.style.marginTop="14px";
+        kicker.textContent="Policy Engine";
+        const meta=document.createElement("div");
+        meta.id="policy-engine-meta";
+        meta.className="meta";
+        meta.textContent="relational-policy-v1";
+        const list=document.createElement("ul");
+        list.id="policy-engine-rules";
+        list.className="guide-list";
+        qualityHistory.insertAdjacentElement("afterend", list);
+        qualityHistory.insertAdjacentElement("afterend", meta);
+        qualityHistory.insertAdjacentElement("afterend", kicker);
+      }
+    })();
+
+    const ______________originalRefreshCouncilQualityPreview=refreshCouncilQualityPreview;
+    refreshCouncilQualityPreview=async function(){
+      await ______________originalRefreshCouncilQualityPreview();
+      try{
+        const data=await callJson("/api/council-quality-preview");
+        const meta=el("policy-engine-meta");
+        const list=el("policy-engine-rules");
+        if(!meta || !list) return;
+        list.innerHTML="";
+        if(!data.ok){
+          meta.textContent="n/a";
+          return;
+        }
+        meta.textContent=data.payload.policy_engine_version || "n/a";
+        const hits=data.payload.policy_rule_hits || [];
+        if(!hits.length){
+          const li=document.createElement("li");
+          li.textContent="No rule hits.";
+          list.appendChild(li);
+          return;
+        }
+        hits.forEach(hit=>{
+          const li=document.createElement("li");
+          li.textContent=String(hit);
+          list.appendChild(li);
+        });
+      }catch(_error){}
+    };
+
+    refreshCouncilQualityPreview().catch(()=>{});
+  </script>
 </body>
 </html>

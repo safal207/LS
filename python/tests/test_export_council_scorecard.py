@@ -51,7 +51,7 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
                 "quality_score": 0.93,
                 "relational_field": {"relation_safety_score": 0.81},
                 "council_outcome": {"route_strategy": "freeze_and_escalate", "route_memory_adjusted": True, "safety_mode": "freeze"},
-                "operator_guidance": {"risk_state": "repair", "safety_mode": "freeze", "memory_context": {"match_count": 3, "policy_adjusted": True}},
+                "operator_guidance": {"risk_state": "repair", "safety_mode": "freeze", "rule_hits": ["memory_freeze_override"], "memory_context": {"match_count": 3, "policy_adjusted": True}},
                 "liminalqa": {"incident": {"published": True}},
                 "operator_review": {"decision": "approved"},
                 "operator_review_history": [
@@ -70,7 +70,7 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
                 "quality_score": 0.41,
                 "relational_field": {"relation_safety_score": 0.29},
                 "council_outcome": {"route_strategy": "validate_current_route", "route_memory_adjusted": False, "safety_mode": "evidence_first"},
-                "operator_guidance": {"risk_state": "escalate", "safety_mode": "evidence_first", "memory_context": {"match_count": 2, "policy_adjusted": False}},
+                "operator_guidance": {"risk_state": "escalate", "safety_mode": "evidence_first", "rule_hits": ["watch_from_validation_bias"], "memory_context": {"match_count": 2, "policy_adjusted": False}},
                 "liminalqa": {"incident": {"published": False}},
                 "operator_review": {"decision": "rejected"},
                 "operator_review_history": [
@@ -97,6 +97,7 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
     assert payload["summary"]["memory_match_total"] == 5
     assert payload["summary"]["route_memory_adjusted_cycle_count"] == 1
     assert payload["summary"]["freeze_mode_count"] == 1
+    assert payload["summary"]["policy_adjusted_cycle_count"] == 1
     assert payload["summary"]["median_assignment_minutes"] == 12.5
     assert payload["summary"]["median_review_minutes"] == 27.5
     assert payload["summary"]["median_close_minutes"] == 30.0
@@ -123,6 +124,10 @@ def test_export_scorecard_from_real_ledgers(tmp_path: Path) -> None:
     assert payload["bars"]["safety_mode_split"] == [
         {"label": "freeze", "value": 1},
         {"label": "evidence_first", "value": 1},
+    ]
+    assert payload["bars"]["policy_rule_hits"] == [
+        {"label": "memory_freeze_override", "value": 1},
+        {"label": "watch_from_validation_bias", "value": 1},
     ]
     assert output_path.exists()
     written = json.loads(output_path.read_text(encoding="utf-8"))

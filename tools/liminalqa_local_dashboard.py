@@ -562,6 +562,8 @@ def preview_council_quality_artifact() -> tuple[int, object]:
         "risk_state": operator_guidance.get("risk_state"),
         "approval_posture": operator_guidance.get("approval_posture"),
         "route_strategy": operator_guidance.get("route_strategy"),
+        "policy_engine_version": operator_guidance.get("policy_engine_version"),
+        "policy_rule_hits": operator_guidance.get("rule_hits") or [],
         "requires_human_review": bool(operator_guidance.get("requires_human_review")),
         "rerun_required": bool(operator_guidance.get("rerun_required")),
         "suggested_operator_action": operator_guidance.get("suggested_operator_action"),
