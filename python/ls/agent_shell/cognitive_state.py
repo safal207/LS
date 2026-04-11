@@ -188,6 +188,149 @@ class CognitiveStateBridge:
             "last_updated": _utc_now(),
         }
 
+    def ask_relational_question(
+        self,
+        *,
+        source_unit_id: str,
+        target_unit_id: str,
+    ) -> dict[str, Any]:
+        """Explain why two units are connected, if an edge exists."""
+        from modules.graph.memory_store import MemoryGraphStore
+
+        source_id = str(source_unit_id or "")
+        target_id = str(target_unit_id or "")
+        store = MemoryGraphStore(self._store_path)
+        graph = store.get_relational_graph(source_id, depth=1)
+        direct_edge = next(
+            (
+                edge
+                for edge in list(graph.get("edges") or [])
+                if str(edge.get("source") or "") == source_id
+                and str(edge.get("target") or "") == target_id
+            ),
+            None,
+        )
+        if direct_edge is None:
+            reverse_graph = store.get_relational_graph(target_id, depth=1)
+            reverse_edge = next(
+                (
+                    edge
+                    for edge in list(reverse_graph.get("edges") or [])
+                    if str(edge.get("source") or "") == target_id
+                    and str(edge.get("target") or "") == source_id
+                ),
+                None,
+            )
+            if reverse_edge is not None:
+                return {
+                    "resource": "cognitive/relational-why",
+                    "linked": True,
+                    "direction": "reverse",
+                    "source_unit_id": source_id,
+                    "target_unit_id": target_id,
+                    "relation_type": str(reverse_edge.get("relation_type") or "unknown"),
+                    "strength": float(reverse_edge.get("strength", 0.0) or 0.0),
+                    "explanation": "Units are connected, but the stored edge points in the reverse direction.",
+                    "last_updated": _utc_now(),
+                }
+            return {
+                "resource": "cognitive/relational-why",
+                "linked": False,
+                "source_unit_id": source_id,
+                "target_unit_id": target_id,
+                "explanation": "No direct relation edge is currently stored between these units.",
+                "last_updated": _utc_now(),
+            }
+
+        relation_type = str(direct_edge.get("relation_type") or "unknown")
+        strength = float(direct_edge.get("strength", 0.0) or 0.0)
+        return {
+            "resource": "cognitive/relational-why",
+            "linked": True,
+            "direction": "forward",
+            "source_unit_id": source_id,
+            "target_unit_id": target_id,
+            "relation_type": relation_type,
+            "strength": strength,
+            "explanation": (
+                f"Stored edge indicates '{relation_type}' with strength {strength:.2f} "
+                "from source to target."
+            ),
+            "last_updated": _utc_now(),
+        }
+
+    def suggest_new_relation(
+        self,
+        *,
+        source_unit_id: str,
+        target_unit_id: str,
+        relation_type: str = "reinforces",
+        strength: float = 0.5,
+        rationale: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a human-suggested relation edge (idempotent by target+type)."""
+        from modules.graph.memory_store import MemoryGraphStore
+        from modules.graph.models import RelationalEdge
+
+        source_id = str(source_unit_id or "")
+        target_id = str(target_unit_id or "")
+        store = MemoryGraphStore(self._store_path)
+        source_unit = next(
+            (unit for unit in store.list_resonance_units() if unit.unit_id == source_id),
+            None,
+        )
+        if source_unit is None:
+            return {
+                "resource": "cognitive/relational-suggestion",
+                "accepted": False,
+                "reason": "source_not_found",
+                "source_unit_id": source_id,
+                "target_unit_id": target_id,
+                "last_updated": _utc_now(),
+            }
+        existing = next(
+            (
+                rel
+                for rel in list(source_unit.relations or [])
+                if isinstance(rel, dict)
+                and str(rel.get("target_unit_id") or "") == target_id
+                and str(rel.get("relation_type") or "") == str(relation_type or "reinforces")
+            ),
+            None,
+        )
+        if existing is not None:
+            return {
+                "resource": "cognitive/relational-suggestion",
+                "accepted": True,
+                "created": False,
+                "reason": "duplicate_existing_relation",
+                "edge": existing,
+                "source_unit_id": source_id,
+                "target_unit_id": target_id,
+                "last_updated": _utc_now(),
+            }
+
+        edge = RelationalEdge(
+            target_unit_id=target_id,
+            relation_type=str(relation_type or "reinforces"),
+            strength=max(0.0, min(1.0, float(strength or 0.5))),
+            metadata={
+                "suggested_via": "mcp",
+                "rationale": str(rationale or ""),
+                "suggested_at": _utc_now(),
+            },
+        )
+        updated = store.store_relational_edge(source_id, edge)
+        return {
+            "resource": "cognitive/relational-suggestion",
+            "accepted": updated is not None,
+            "created": updated is not None,
+            "source_unit_id": source_id,
+            "target_unit_id": target_id,
+            "edge": edge.to_dict(),
+            "last_updated": _utc_now(),
+        }
+
     def get_cognitive_state(
         self,
         *,

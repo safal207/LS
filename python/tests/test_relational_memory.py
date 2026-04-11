@@ -523,6 +523,60 @@ def test_mcp_resource_relational_state(tmp_path: Path) -> None:
     assert len(result["items"]) == 1
 
 
+def test_mcp_resource_relational_why(tmp_path: Path) -> None:
+    from ls.agent_shell.mcp_resources import MCPResourceRegistry
+
+    bridge, store = _make_bridge(tmp_path)
+    src = _unit("source", resonance_score=0.9)
+    dst = _unit("target", resonance_score=0.8)
+    store.store_resonance_unit(src)
+    store.store_resonance_unit(dst)
+    store.store_relational_edge(
+        src.unit_id,
+        RelationalEdge(target_unit_id=dst.unit_id, relation_type="reinforces", strength=0.77),
+    )
+    mock_tm = MagicMock()
+    registry = MCPResourceRegistry(task_manager=mock_tm, cognitive_state=bridge)
+
+    result = registry.read_resource(
+        "cognitive/relational-why",
+        {"source_unit_id": src.unit_id, "target_unit_id": dst.unit_id},
+    )
+    assert result["resource"] == "cognitive/relational-why"
+    assert result["linked"] is True
+    assert result["relation_type"] == "reinforces"
+    assert float(result["strength"]) == pytest.approx(0.77, abs=1e-4)
+
+
+def test_mcp_resource_relational_suggestion_creates_edge(tmp_path: Path) -> None:
+    from ls.agent_shell.mcp_resources import MCPResourceRegistry
+
+    bridge, store = _make_bridge(tmp_path)
+    src = _unit("source", resonance_score=0.9)
+    dst = _unit("target", resonance_score=0.8)
+    store.store_resonance_unit(src)
+    store.store_resonance_unit(dst)
+    mock_tm = MagicMock()
+    registry = MCPResourceRegistry(task_manager=mock_tm, cognitive_state=bridge)
+
+    result = registry.read_resource(
+        "cognitive/relational-suggestion",
+        {
+            "source_unit_id": src.unit_id,
+            "target_unit_id": dst.unit_id,
+            "relation_type": "specializes",
+            "strength": 0.66,
+            "rationale": "Human observed recurring specialization pattern.",
+        },
+    )
+    assert result["resource"] == "cognitive/relational-suggestion"
+    assert result["accepted"] is True
+    assert result["created"] is True
+
+    graph = store.get_relational_graph(src.unit_id, depth=1)
+    assert any(edge["target"] == dst.unit_id and edge["relation_type"] == "specializes" for edge in graph["edges"])
+
+
 def test_mcp_tool_get_relational_insight(tmp_path: Path) -> None:
     from ls.agent_shell.mcp_tools import MCPToolRegistry
 
