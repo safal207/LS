@@ -179,6 +179,47 @@ class ContributionRecord:
         )
 
 
+_VALID_RELATION_TYPES = frozenset(
+    {"reinforces", "contradicts", "specializes", "generalizes", "emotional_link"}
+)
+
+
+@dataclass
+class RelationalEdge:
+    """Typed link from one ResonanceKnowledgeUnit to another.
+
+    Encodes *how* two cognitive routes are related so the system can reason
+    about its own thought-structure over time.
+    """
+
+    target_unit_id: str
+    relation_type: str  # reinforces | contradicts | specializes | generalizes | emotional_link
+    strength: float = 0.5
+    edge_id: str = field(default_factory=lambda: str(uuid4()))
+    learned_at: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RelationalEdge":
+        raw_type = str(data.get("relation_type") or "reinforces")
+        relation_type = raw_type if raw_type in _VALID_RELATION_TYPES else "reinforces"
+        return cls(
+            target_unit_id=str(data.get("target_unit_id") or ""),
+            relation_type=relation_type,
+            strength=float(data.get("strength", 0.5) or 0.5),
+            edge_id=str(data.get("edge_id") or str(uuid4())),
+            learned_at=str(
+                data.get("learned_at") or datetime.now(timezone.utc).isoformat()
+            ),
+            metadata=dict(data.get("metadata") or {}),
+        )
+
+
 @dataclass
 class ResonanceKnowledgeUnit:
     """Единица проверенного когнитивного маршрута (структура мышления, а не просто ответ)."""
@@ -197,6 +238,7 @@ class ResonanceKnowledgeUnit:
     resonance_score: float = 0.0
     alignment_score: float = 0.0
     edges: list[dict[str, Any]] = field(default_factory=list)
+    relations: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -219,6 +261,7 @@ class ResonanceKnowledgeUnit:
             resonance_score=float(data.get("resonance_score", 0.0) or 0.0),
             alignment_score=float(data.get("alignment_score", 0.0) or 0.0),
             edges=list(data.get("edges") or []),
+            relations=list(data.get("relations") or []),
             metadata=dict(data.get("metadata") or {}),
         )
 

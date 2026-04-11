@@ -148,6 +148,46 @@ class CognitiveStateBridge:
             "last_updated": _utc_now(),
         }
 
+    def get_relational_graph(
+        self,
+        unit_id: str,
+        depth: int = 2,
+    ) -> dict[str, Any]:
+        """Return a BFS relational subgraph centred on *unit_id*.
+
+        Reads directly from the JSONL store so the result is always current
+        even when the runtime hasn't exposed a live accessor.
+        """
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        graph = store.get_relational_graph(unit_id=str(unit_id), depth=int(depth))
+        graph["resource"] = "resonance/relational-graph"
+        graph["last_updated"] = _utc_now()
+        return graph
+
+    def get_relational_state(
+        self,
+        *,
+        top_k: int = 10,
+        min_resonance_score: float = 0.3,
+    ) -> dict[str, Any]:
+        """Combined snapshot: top resonance units plus their relational edges."""
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        items = store.get_resonance_with_relations(
+            top_k=int(top_k),
+            min_resonance_score=float(min_resonance_score),
+        )
+        return {
+            "resource": "cognitive/relational-state",
+            "top_k": int(top_k),
+            "min_resonance_score": float(min_resonance_score),
+            "items": items,
+            "last_updated": _utc_now(),
+        }
+
     def get_cognitive_state(
         self,
         *,

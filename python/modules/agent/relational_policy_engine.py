@@ -1,10 +1,60 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, Optional
+
+from modules.graph.models import RelationalEdge, ResonanceKnowledgeUnit
 
 
 POLICY_ENGINE_VERSION = "relational-policy-v1"
+
+# Minimum resonance score for two units to warrant an automatic edge suggestion.
+_EDGE_RESONANCE_THRESHOLD = 0.6
+
+
+def suggest_edge_from_resonance(
+    unit_a: ResonanceKnowledgeUnit,
+    unit_b: ResonanceKnowledgeUnit,
+) -> Optional[RelationalEdge]:
+    """Suggest a RelationalEdge between two units based on their resonance signals.
+
+    Returns a ``RelationalEdge`` pointing from *unit_a* to *unit_b* when both
+    units have sufficient resonance scores, or ``None`` when the signal is too
+    weak.  The caller is responsible for persisting the edge via
+    ``MemoryGraphStore.store_relational_edge()``.
+
+    Relation type heuristic:
+    - Both intents match → ``reinforces``
+    - High alignment on both, different intents → ``specializes``
+    - One unit has a much higher score → ``generalizes`` (stronger → weaker)
+    - Default fallback → ``reinforces``
+    """
+    score_a = float(unit_a.resonance_score or 0.0)
+    score_b = float(unit_b.resonance_score or 0.0)
+
+    if score_a < _EDGE_RESONANCE_THRESHOLD or score_b < _EDGE_RESONANCE_THRESHOLD:
+        return None
+
+    intent_a = str(unit_a.intent or "").lower().strip()
+    intent_b = str(unit_b.intent or "").lower().strip()
+    align_a = float(unit_a.alignment_score or 0.0)
+    align_b = float(unit_b.alignment_score or 0.0)
+
+    if intent_a and intent_b and intent_a == intent_b:
+        relation_type = "reinforces"
+    elif align_a >= 0.55 and align_b >= 0.55 and intent_a != intent_b:
+        relation_type = "specializes"
+    elif abs(score_a - score_b) >= 0.2:
+        relation_type = "generalizes"
+    else:
+        relation_type = "reinforces"
+
+    strength = round(min(score_a, score_b), 4)
+    return RelationalEdge(
+        target_unit_id=unit_b.unit_id,
+        relation_type=relation_type,
+        strength=strength,
+    )
 
 
 @dataclass

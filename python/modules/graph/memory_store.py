@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from .decay import ResonanceDecayConfig, effective_score, prune_expired
 from .evolve import RouteSnapshot
-from .models import MemoryCase, RelationalFieldSnapshot, ResonanceKnowledgeUnit
+from .models import MemoryCase, RelationalEdge, RelationalFieldSnapshot, ResonanceKnowledgeUnit
 
 _STORE_LOCKS: dict[str, threading.RLock] = {}
 _STORE_LOCKS_GUARD = threading.Lock()
@@ -303,6 +303,118 @@ class MemoryGraphStore:
             path,
             [unit.to_dict() for unit in units],
         )
+
+    # ──────────────────────────────────────────────────────────────
+    # RelationalEdge — typed links between ResonanceKnowledgeUnits
+    # ──────────────────────────────────────────────────────────────
+
+    def store_relational_edge(
+        self,
+        unit_id: str,
+        edge: RelationalEdge,
+    ) -> Optional[ResonanceKnowledgeUnit]:
+        """Append a relational edge to a unit's relations list.
+
+        Duplicate edges (same edge_id) are silently ignored.  Returns the
+        updated unit, or None when unit_id is not found.
+        """
+        with self._lock:
+            units = self._load_resonance_units()
+            for unit in units:
+                if unit.unit_id == unit_id:
+                    existing_ids = {
+                        r.get("edge_id")
+                        for r in unit.relations
+                        if isinstance(r, dict)
+                    }
+                    edge_dict = edge.to_dict()
+                    if edge_dict.get("edge_id") not in existing_ids:
+                        unit.relations.append(edge_dict)
+                        self._write_resonance_units(units)
+                    return unit
+        return None
+
+    def get_relational_graph(
+        self,
+        unit_id: str,
+        depth: int = 2,
+    ) -> dict[str, Any]:
+        """BFS subgraph of relational edges starting from *unit_id*.
+
+        Returns a dict with:
+        - ``root_unit_id`` — starting node
+        - ``nodes`` — list of unit summaries visited during BFS
+        - ``edges`` — list of edge dicts traversed
+        - ``depth`` — max hop depth requested
+        """
+        all_units = {u.unit_id: u for u in self._load_resonance_units()}
+        if unit_id not in all_units:
+            return {"root_unit_id": unit_id, "nodes": [], "edges": [], "depth": depth}
+
+        visited: set[str] = set()
+        queue: list[tuple[str, int]] = [(unit_id, 0)]
+        nodes: list[dict[str, Any]] = []
+        edges: list[dict[str, Any]] = []
+
+        while queue:
+            current_id, current_depth = queue.pop(0)
+            if current_id in visited or current_depth > depth:
+                continue
+            visited.add(current_id)
+
+            unit = all_units.get(current_id)
+            if unit is None:
+                continue
+
+            nodes.append({
+                "unit_id": unit.unit_id,
+                "source_question": unit.source_question,
+                "intent": unit.intent,
+                "resonance_score": unit.resonance_score,
+                "depth": current_depth,
+            })
+
+            for rel in unit.relations:
+                if not isinstance(rel, dict):
+                    continue
+                target_id = rel.get("target_unit_id")
+                if target_id and target_id not in visited:
+                    edges.append({
+                        "source": current_id,
+                        "target": target_id,
+                        "relation_type": rel.get("relation_type"),
+                        "strength": rel.get("strength"),
+                        "edge_id": rel.get("edge_id"),
+                    })
+                    queue.append((target_id, current_depth + 1))
+
+        return {
+            "root_unit_id": unit_id,
+            "nodes": nodes,
+            "edges": edges,
+            "depth": depth,
+        }
+
+    def get_resonance_with_relations(
+        self,
+        *,
+        top_k: int = 10,
+        min_resonance_score: float = 0.3,
+    ) -> list[dict[str, Any]]:
+        """Snapshot of top resonance units together with their relation lists.
+
+        Each item in the returned list is a dict with two keys:
+        - ``unit`` — full ``ResonanceKnowledgeUnit.to_dict()`` payload
+        - ``relations`` — list of ``RelationalEdge`` dicts attached to the unit
+        """
+        units = self.get_resonance_snapshot(
+            top_k=top_k,
+            min_resonance_score=min_resonance_score,
+        )
+        return [
+            {"unit": u.to_dict(), "relations": list(u.relations)}
+            for u in units
+        ]
 
     # ──────────────────────────────────────────────────────────────
     # RelationalFieldSnapshot — observational interaction field layer
