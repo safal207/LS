@@ -9,9 +9,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER_DIR = ROOT / "artifacts" / "council-ledger"
 QUALITY_DIR = ROOT / "artifacts" / "council-quality"
+RELATIONAL_LEARNING_DIR = ROOT / "artifacts" / "relational-learning"
 OUTPUT_DIR = ROOT / "artifacts" / "fellowship-dataset"
 OUTPUT_LEDGER_DIR = OUTPUT_DIR / "ledgers"
 OUTPUT_QUALITY_DIR = OUTPUT_DIR / "council-quality"
+OUTPUT_RELATIONAL_LEARNING_DIR = OUTPUT_DIR / "relational-learning"
 OUTPUT_TRACE_DIR = OUTPUT_DIR / "traces"
 
 
@@ -73,6 +75,50 @@ def load_rows() -> list[LedgerRow]:
     return rows
 
 
+def build_relational_learning_snapshot(selected: list[LedgerRow], quality_by_cycle: dict[str, dict]) -> dict:
+    rule_counts: dict[str, int] = {}
+    approve_counts: dict[str, int] = {}
+    reject_counts: dict[str, int] = {}
+    incident_counts: dict[str, int] = {}
+    for row in selected:
+        guidance = (quality_by_cycle.get(row.cycle_id) or {}).get("operator_guidance") or {}
+        rules = [str(rule) for rule in list(guidance.get("rule_hits") or [])]
+        if not rules:
+            continue
+        decision = str(((quality_by_cycle.get(row.cycle_id) or {}).get("operator_review") or {}).get("decision") or "pending")
+        incident_published = bool(((((quality_by_cycle.get(row.cycle_id) or {}).get("liminalqa") or {}).get("incident") or {}).get("published")))
+        for rule in rules:
+            rule_counts[rule] = rule_counts.get(rule, 0) + 1
+            if decision == "approved":
+                approve_counts[rule] = approve_counts.get(rule, 0) + 1
+            elif decision in {"rejected", "closed"}:
+                reject_counts[rule] = reject_counts.get(rule, 0) + 1
+            if incident_published:
+                incident_counts[rule] = incident_counts.get(rule, 0) + 1
+    top_effective_rules: list[dict] = []
+    for rule, total in sorted(rule_counts.items(), key=lambda item: item[1], reverse=True)[:5]:
+        approved = approve_counts.get(rule, 0)
+        rejected = reject_counts.get(rule, 0)
+        incidents = incident_counts.get(rule, 0)
+        effectiveness = round((approved - rejected - incidents) / max(total, 1), 4)
+        top_effective_rules.append(
+            {
+                "rule": rule,
+                "seen": total,
+                "approved": approved,
+                "rejected": rejected,
+                "incidents": incidents,
+                "effectiveness": effectiveness,
+            }
+        )
+    return {
+        "dataset_name": "ls-fellowship-relational-learning-snapshot",
+        "source": "artifacts/council-quality",
+        "heuristic_count": len(top_effective_rules),
+        "top_effective_rules": top_effective_rules,
+    }
+
+
 def select_rows(rows: list[LedgerRow], limit: int = 8) -> list[LedgerRow]:
     ordered = sorted(rows, key=lambda row: (row.score, row.resonance, row.contribution), reverse=True)
     selected: list[LedgerRow] = []
@@ -106,6 +152,7 @@ def build_manifest(selected: list[LedgerRow]) -> dict:
         cycle_id = str(payload.get("cycle_id") or "")
         if cycle_id:
             quality_by_cycle[cycle_id] = payload
+    learning_snapshot = build_relational_learning_snapshot(selected, quality_by_cycle)
 
     success_count = sum(1 for row in selected if row.success)
     risky_cycle_count = sum(
@@ -145,6 +192,7 @@ def build_manifest(selected: list[LedgerRow]) -> dict:
             "liminalqa_published_count": liminalqa_published_count,
             "risky_cycle_count": risky_cycle_count,
             "incident_count": incident_count,
+            "learned_rule_count": int(learning_snapshot.get("heuristic_count") or 0),
         },
         "items": [
             {
@@ -175,6 +223,11 @@ def build_manifest(selected: list[LedgerRow]) -> dict:
             "included": [],
             "note": "Replay traces are not packaged in this first sample. The ledger sample is the current minimum evidence artifact.",
         },
+        "relational_learning": {
+            "file": "relational-learning/dataset-learning.json",
+            "heuristic_count": int(learning_snapshot.get("heuristic_count") or 0),
+            "top_effective_rules": learning_snapshot.get("top_effective_rules") or [],
+        },
         "limitations": [
             "Most cycles currently use callable-backed local LLM outputs but still expose route='unknown'.",
             "This sample is a curated subset, not a full production dataset.",
@@ -199,6 +252,7 @@ Summary:
 - liminalqa_published_count: {manifest["summary"]["liminalqa_published_count"]}
 - risky_cycle_count: {manifest["summary"]["risky_cycle_count"]}
 - incident_count: {manifest["summary"]["incident_count"]}
+- learned_rule_count: {manifest["summary"]["learned_rule_count"]}
 
 Selection policy:
 
@@ -212,6 +266,7 @@ Contents:
 - `manifest.json`: dataset manifest and limitations
 - `ledgers/`: selected council-ledger JSON artifacts
 - `council-quality/`: paired council-quality artifacts when available
+- `relational-learning/`: curated learning snapshot derived from selected quality artifacts
 - `traces/`: reserved for replay traces in a follow-up package
 """
     (OUTPUT_DIR / "README.md").write_text(text, encoding="utf-8")
@@ -225,6 +280,7 @@ def build_dataset() -> dict:
         shutil.rmtree(OUTPUT_DIR)
     OUTPUT_LEDGER_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_QUALITY_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT_RELATIONAL_LEARNING_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_TRACE_DIR.mkdir(parents=True, exist_ok=True)
 
     for row in selected:
@@ -232,8 +288,21 @@ def build_dataset() -> dict:
         quality_path = QUALITY_DIR / f"{row.cycle_id}.json"
         if quality_path.exists():
             shutil.copy2(quality_path, OUTPUT_QUALITY_DIR / quality_path.name)
+        learning_path = RELATIONAL_LEARNING_DIR / f"{row.cycle_id}.json"
+        if learning_path.exists():
+            shutil.copy2(learning_path, OUTPUT_RELATIONAL_LEARNING_DIR / learning_path.name)
 
     manifest = build_manifest(selected)
+    quality_by_cycle = {
+        str(payload.get("cycle_id") or ""): payload
+        for payload in [read_json(path) for path in OUTPUT_QUALITY_DIR.glob("*.json")]
+        if str(payload.get("cycle_id") or "")
+    }
+    learning_snapshot = build_relational_learning_snapshot(selected, quality_by_cycle)
+    (OUTPUT_RELATIONAL_LEARNING_DIR / "dataset-learning.json").write_text(
+        json.dumps(learning_snapshot, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     (OUTPUT_DIR / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     write_readme(manifest)
     return manifest

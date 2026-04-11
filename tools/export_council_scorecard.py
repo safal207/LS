@@ -399,7 +399,7 @@ def export_scorecard(input_dir: Path, output_path: Path, *, keep_existing_on_emp
     if keep_existing_on_empty and not rows and output_path.exists():
         return json.loads(output_path.read_text(encoding="utf-8"))
     payload = build_scorecard(rows, quality_by_cycle=quality_by_cycle)
-    learning_payload = load_latest_relational_learning(relational_learning_dir or DEFAULT_RELATIONAL_LEARNING_DIR)
+    learning_payload = load_latest_relational_learning(relational_learning_dir or (input_dir.parent / "relational-learning"))
     if learning_payload is not None:
         payload["summary"]["learned_rule_count"] = int(learning_payload.get("heuristic_count") or 0)
         payload["bars"]["top_effective_rules"] = [
@@ -424,7 +424,9 @@ def export_scorecard_with_preferred_sources(
         if rows:
             quality_dir = input_dir.parent / "council-quality"
             payload = build_scorecard(rows, quality_by_cycle=load_quality_artifacts(quality_dir))
-            learning_payload = load_latest_relational_learning(DEFAULT_RELATIONAL_LEARNING_DIR)
+            learning_payload = load_latest_relational_learning(input_dir.parent / "relational-learning")
+            if learning_payload is None:
+                learning_payload = load_latest_relational_learning(DEFAULT_RELATIONAL_LEARNING_DIR)
             if learning_payload is not None:
                 payload["summary"]["learned_rule_count"] = int(learning_payload.get("heuristic_count") or 0)
                 payload["bars"]["top_effective_rules"] = [
