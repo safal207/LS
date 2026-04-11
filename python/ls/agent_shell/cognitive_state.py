@@ -49,6 +49,28 @@ class CognitiveStateBridge:
             "last_updated": _utc_now(),
         }
 
+    def get_cognitive_state(
+        self,
+        *,
+        top_k: int = 10,
+        min_resonance_score: float = 0.3,
+    ) -> dict[str, Any]:
+        """Backward-compatible aggregate cognitive state payload for MCP tools."""
+        return {
+            "resource": "cognitive/state",
+            "resonance_snapshot": self.get_resonance_snapshot(
+                top_k=top_k,
+                min_resonance_score=min_resonance_score,
+            ),
+            "relational_state": self.get_relational_state(
+                top_k=top_k,
+                min_resonance_score=min_resonance_score,
+            ),
+            "alignment": self.get_alignment_current(),
+            "omni": self.get_omni_last_insight(),
+            "last_updated": _utc_now(),
+        }
+
     def _runtime_resonance_snapshot(
         self,
         *,
@@ -179,10 +201,23 @@ class CognitiveStateBridge:
         store = MemoryGraphStore(self._store_path)
         snapshot = store.get_relational_self()
         days = 3
-        match = re.search(r"(\\d+)", prompt)
+        match = re.search(r"(\d+)", prompt)
         if match:
             days = max(1, int(match.group(1)))
-        history = store.get_coherence_history(limit=days + 2)
+        history = store.get_coherence_history(limit=max(10, days * 12))
+        if history:
+            now = datetime.now(timezone.utc)
+            filtered: list[dict[str, Any]] = []
+            for row in history:
+                timestamp = str(row.get("timestamp") or "")
+                try:
+                    row_dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                if (now - row_dt).total_seconds() <= days * 86400:
+                    filtered.append(row)
+            if filtered:
+                history = filtered
         delta = 0.0
         if len(history) >= 2:
             delta = float(history[-1].get("coherence_score", 0.0) or 0.0) - float(
@@ -389,18 +424,4 @@ class CognitiveStateBridge:
             "last_updated": _utc_now(),
         }
 
-    def get_cognitive_state(
-        self,
-        *,
-        top_k: int = 10,
-        min_resonance_score: float = 0.3,
-    ) -> dict[str, Any]:
-        return {
-            "resonance": self.get_resonance_snapshot(
-                top_k=top_k,
-                min_resonance_score=min_resonance_score,
-            ),
-            "alignment": self.get_alignment_current(),
-            "omni": self.get_omni_last_insight(),
-            "last_updated": _utc_now(),
-        }
+    # NOTE: get_cognitive_state is intentionally defined near the top of this class.
