@@ -4,6 +4,7 @@ import sys
 import threading
 import time
 import types
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -92,3 +93,37 @@ def test_agent_loop_strategy_context_accepts_operator_profile(monkeypatch):
     assert enriched[-1]["role"] == "system"
     assert "давление 50%" in enriched[-1]["content"]
     assert "любит конкретные кейсы" in enriched[-1]["content"]
+
+
+def test_relational_learning_loop_cleanup_keeps_recent_files(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(loop_module, "VisionSubsystem", _DummyVisionSubsystem)
+    agent = loop_module.AgentLoop(handler=lambda text: text)
+    artifact_dir = tmp_path / "rel-learning-loop"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    agent._relational_learning_artifact_dir = artifact_dir
+    agent._relational_learning_max_artifacts = 2
+
+    for idx in range(4):
+        path = artifact_dir / f"scheduler-20260101-00000{idx}.json"
+        path.write_text(json.dumps({"idx": idx}), encoding="utf-8")
+        time.sleep(0.01)
+
+    agent._cleanup_relational_learning_loop_artifacts()
+
+    files = sorted(artifact_dir.glob("scheduler-*.json"))
+    assert len(files) == 2
+    assert files[-1].name.endswith("3.json")
+
+
+def test_relational_learning_loop_snapshot_writer_creates_artifact(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(loop_module, "VisionSubsystem", _DummyVisionSubsystem)
+    agent = loop_module.AgentLoop(handler=lambda text: text)
+    artifact_dir = tmp_path / "rel-learning-loop"
+    agent._relational_learning_artifact_dir = artifact_dir
+
+    agent._write_relational_learning_loop_snapshot({"proposal_count": 1, "proposals": []})
+
+    files = list(artifact_dir.glob("scheduler-*.json"))
+    assert len(files) == 1
+    payload = json.loads(files[0].read_text(encoding="utf-8"))
+    assert payload["source"] == "agent_loop_scheduler"

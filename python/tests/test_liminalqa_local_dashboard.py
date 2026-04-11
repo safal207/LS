@@ -364,6 +364,46 @@ def test_close_escalation_persists_closed_reason(monkeypatch, tmp_path: Path) ->
     assert updated["operator_review"]["closed_reason"] == "triage complete"
 
 
+def test_severe_breach_escalation_resolution_e2e(monkeypatch, tmp_path: Path) -> None:
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "cycle-breach.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-breach",
+                "operator_guidance": {
+                    "risk_state": "escalate",
+                    "approval_posture": "human_escalation",
+                    "relational_breach": {
+                        "detected": True,
+                        "severity": "severe",
+                        "reasons": ["conflict_signal_low_safety"],
+                    },
+                },
+                "operator_review": {"decision": "pending"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+
+    status_queue, payload_queue = dashboard.preview_council_escalation_queue()
+    assert status_queue == 200
+    assert payload_queue["total"] == 1
+    assert payload_queue["items"][0]["cycle_id"] == "cycle-breach"
+
+    status_assign, _payload_assign = dashboard.assign_escalation("cycle-breach", "alice", assigned_by="dashboard")
+    assert status_assign == 200
+
+    status_close, payload_close = dashboard.close_escalation("cycle-breach", "alice", "resolved severe breach")
+    assert status_close == 200
+    assert payload_close["status"] == "closed"
+
+    updated = json.loads((quality_dir / "cycle-breach.json").read_text(encoding="utf-8"))
+    assert updated["operator_review"]["decision"] == "closed"
+    assert updated["operator_review"]["closed_reason"] == "resolved severe breach"
+
+
 def test_approve_escalation_blocks_human_escalation_without_force(monkeypatch, tmp_path: Path) -> None:
     quality_dir = tmp_path / "council-quality"
     quality_dir.mkdir()

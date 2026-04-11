@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import json
 import logging
 import os
 import queue
 import re
 import threading
 import time
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 from llm.temporal import TemporalContext
@@ -23,6 +25,7 @@ from .sinks import EventSink, NullSink
 from shared.event_bus import EventBus
 from perception.coordinator import VisionSubsystem
 from graph.memory_store import MemoryGraphStore
+from graph.runtime import GraphMemoryRuntime
 import lthread
 
 # CognitiveCycleLogger (optional — graceful fallback)
@@ -158,6 +161,17 @@ class AgentLoop:
         self._world_thread: threading.Thread | None = None
         self._world_stop = threading.Event()
         self._world_poller: Any | None = None
+        self._relational_learning_thread: threading.Thread | None = None
+        self._relational_learning_stop = threading.Event()
+        self._relational_learning_interval_s = max(
+            15.0,
+            float(os.environ.get("LS_RELATIONAL_LEARNING_LOOP_INTERVAL_S", "60") or 60.0),
+        )
+        self._relational_learning_max_artifacts = max(
+            10,
+            int(os.environ.get("LS_RELATIONAL_LEARNING_LOOP_MAX_ARTIFACTS", "300") or 300),
+        )
+        self._relational_learning_artifact_dir = Path("artifacts/relational-learning-loop")
         self._cancel_grace_until = 0.0
 
         self.cancel_on_new_input = cancel_on_new_input
@@ -219,6 +233,7 @@ class AgentLoop:
             "data/graph_memory/cases.jsonl",
         )
         self._graph_store = MemoryGraphStore(graph_store_path)
+        self._graph_runtime = GraphMemoryRuntime(store=self._graph_store)
 
         self._qwen_omni_worker: Any | None = None
         if str(os.environ.get("QWEN_OMNI_ENABLED", "0")).lower() in {"1", "true", "yes", "on"}:
@@ -1790,6 +1805,7 @@ class AgentLoop:
         self.running = True
         self._bloodstream_stop.clear()
         self._subconscious_stop.clear()
+        self._relational_learning_stop.clear()
         with self._bloodstream_lock:
             if self._bloodstream_thread is None or not self._bloodstream_thread.is_alive():
                 self._bloodstream_thread = threading.Thread(
@@ -1816,6 +1832,13 @@ class AgentLoop:
                     name="world-poller",
                 )
                 self._world_thread.start()
+            if self._relational_learning_thread is None or not self._relational_learning_thread.is_alive():
+                self._relational_learning_thread = threading.Thread(
+                    target=self._relational_learning_loop,
+                    daemon=True,
+                    name="relational-learning-loop",
+                )
+                self._relational_learning_thread.start()
         self.vision.start() # Start Screen Perception v2
         if self._qwen_omni_worker is not None:
             self._qwen_omni_worker.start()
@@ -1892,6 +1915,7 @@ class AgentLoop:
         self._bloodstream_stop.set()  # BUG-17 fix: wake up bloodstream wait immediately
         self._subconscious_stop.set()
         self._world_stop.set()
+        self._relational_learning_stop.set()
         self.vision.stop()  # Stop Screen Perception v2
         if self._qwen_omni_worker is not None:
             try:
@@ -1907,17 +1931,60 @@ class AgentLoop:
             bloodstream_thread = self._bloodstream_thread
             subconscious_thread = self._subconscious_thread
             world_thread = self._world_thread
+            relational_learning_thread = self._relational_learning_thread
         if bloodstream_thread is not None and bloodstream_thread.is_alive():
             bloodstream_thread.join(timeout=3.0)
         if subconscious_thread is not None and subconscious_thread.is_alive():
             subconscious_thread.join(timeout=3.0)
         if world_thread is not None and world_thread.is_alive():
             world_thread.join(timeout=3.0)
+        if relational_learning_thread is not None and relational_learning_thread.is_alive():
+            relational_learning_thread.join(timeout=3.0)
         with self._task_lock:
             active_cancel = self._active_cancel
         if active_cancel:
             active_cancel.set()
         self._transition("idle")
+
+    def _relational_learning_loop(self) -> None:
+        while not self._relational_learning_stop.is_set():
+            try:
+                summary = self._graph_runtime.propose_relational_maintenance(max_units=50)
+                self._write_relational_learning_loop_snapshot(summary)
+                self._cleanup_relational_learning_loop_artifacts()
+            except Exception as exc:
+                logger.debug("AgentLoop relational learning loop failed: %s", exc)
+            self._relational_learning_stop.wait(self._relational_learning_interval_s)
+
+    def _write_relational_learning_loop_snapshot(self, summary: dict[str, Any]) -> None:
+        self._relational_learning_artifact_dir.mkdir(parents=True, exist_ok=True)
+        ts = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+        path = self._relational_learning_artifact_dir / f"scheduler-{ts}.json"
+        payload = {
+            "timestamp": time.time(),
+            "source": "agent_loop_scheduler",
+            "summary": dict(summary or {}),
+        }
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def _cleanup_relational_learning_loop_artifacts(self) -> None:
+        if not self._relational_learning_artifact_dir.exists():
+            return
+        files = sorted(
+            self._relational_learning_artifact_dir.glob("scheduler-*.json"),
+            key=lambda path: path.stat().st_mtime,
+        )
+        excess = len(files) - self._relational_learning_max_artifacts
+        if excess <= 0:
+            return
+        for path in files[:excess]:
+            try:
+                path.unlink()
+            except OSError:
+                continue
 
     # ── TTS public API ────────────────────────────────────────────────────────
 
