@@ -33,7 +33,29 @@ What to build:
 Expected effect:
 - `LS` can treat the current cycle as part of a pattern, not as an isolated event
 
-## Phase 2.2: Relation-Aware Routing
+## Phase 2.2: Learning from Relations
+
+Goal:
+- convert relation memory into a continuously learning layer that updates itself from feedback and outcomes
+
+What to build:
+- adaptive `strength` updates for relation edges based on:
+  - user feedback polarity
+  - resonance and receiver outcomes
+  - review/incident outcomes
+- a background relational learning loop that:
+  - reinforces stable successful patterns
+  - weakens contradictory or low-value links
+  - proposes candidate new links
+- `relational_coherence` to measure consistency across active thought routes
+
+Expected effect:
+- the system no longer just stores relations; it learns from them and changes future behavior
+
+Execution detail:
+- see `docs/LS_PHASE2_2_LEARNING_FROM_RELATIONS_EXECUTION_PLAN.md` for the implementation sequence
+
+## Phase 2.3: Relation-Aware Routing
 
 Goal:
 - let relational context influence route selection before the outcome is produced
@@ -53,7 +75,7 @@ What to build:
 Expected effect:
 - the system chooses safer or more evidence-heavy routes earlier
 
-## Phase 2.3: Preemptive Safety Modes
+## Phase 2.4: Preemptive Safety Modes
 
 Goal:
 - switch system posture before a failure or escalation happens
@@ -71,7 +93,7 @@ Modes:
 Expected effect:
 - safety becomes proactive rather than purely reactive
 
-## Phase 2.4: Relational Policy Engine
+## Phase 2.5: Relational Policy Engine
 
 Goal:
 - centralize relational safety decisions in an explicit policy layer
@@ -85,34 +107,15 @@ Example rules:
 Expected effect:
 - route and approval decisions become easier to explain, test, and audit
 
-## Phase 2.5: Relational Learning
-
-Goal:
-- learn from completed council cycles and review outcomes
-
-What to build:
-- pattern summaries of:
-  - approved cycles
-  - rejected cycles
-  - incident-producing cycles
-  - repeated escalation paths
-- heuristics that can refine:
-  - route recommendations
-  - posture recommendations
-  - review thresholds
-
-Expected effect:
-- `LS` improves future council behavior from prior oversight outcomes
-
 ## Summary
 
 `Phase 2` turns the relational layer from passive analytics into active control:
 
 - memory
+- learning
 - routing
 - posture
 - policy
-- learning
 
 The main transition is:
 
