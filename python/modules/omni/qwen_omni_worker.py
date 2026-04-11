@@ -158,6 +158,13 @@ class QwenOmniWorker:
             except Exception as exc:
                 logger.debug("QwenOmniWorker store_resonance_unit failed: %s", exc)
                 return None
+            relation_stats = self._derive_relational_edges_from_omni_context(
+                unit=unit,
+                frame_meta=frame_meta,
+                audio_text=audio_text,
+            )
+            if isinstance(self._last_insight, dict):
+                self._last_insight["relational_edges"] = relation_stats
             return unit
 
     def get_last_insight(self) -> dict[str, Any] | None:
@@ -359,3 +366,80 @@ class QwenOmniWorker:
             alignment_score=insight.alignment_score,
             metadata=insight.metadata,
         )
+
+    def _derive_relational_edges_from_omni_context(
+        self,
+        *,
+        unit: ResonanceKnowledgeUnit,
+        frame_meta: dict[str, Any],
+        audio_text: str | None,
+    ) -> dict[str, Any]:
+        """Create or suggest relation edges from omni context (screen/audio)."""
+        try:
+            from agent.relational_policy_engine import suggest_edge_from_resonance
+        except Exception:
+            try:
+                from modules.agent.relational_policy_engine import suggest_edge_from_resonance
+            except Exception:
+                return {"auto_created": 0, "suggested_review": 0, "candidates": []}
+
+        source_tags: list[str] = []
+        if str((frame_meta or {}).get("capture") or "") == "ok":
+            source_tags.append("omni_screen")
+        if audio_text:
+            source_tags.append("omni_audio")
+        if not source_tags:
+            source_tags.append("omni_unknown")
+
+        candidates = self.graph_store.find_relevant_units(
+            intent=unit.intent,
+            why=unit.why,
+            query_text=unit.source_question,
+            top_k=3,
+        )
+        auto_created = 0
+        suggested_review = 0
+        review_candidates: list[dict[str, Any]] = []
+        for candidate in candidates:
+            if candidate.unit_id == unit.unit_id:
+                continue
+            edge = suggest_edge_from_resonance(unit, candidate)
+            if edge is None:
+                continue
+            confidence = float(
+                (
+                    float(edge.strength or 0.0)
+                    + min(float(unit.alignment_score or 0.0), float(candidate.alignment_score or 0.0))
+                )
+                / 2.0
+            )
+            edge.metadata = {
+                **dict(edge.metadata or {}),
+                "source_tags": source_tags,
+                "confidence": round(confidence, 4),
+                "mode": "auto_commit" if confidence >= 0.55 else "review_candidate",
+            }
+            if confidence >= 0.55:
+                self.graph_store.store_relational_edge(unit.unit_id, edge)
+                auto_created += 1
+            else:
+                suggested_review += 1
+                review_candidates.append(
+                    {
+                        "target_unit_id": candidate.unit_id,
+                        "relation_type": edge.relation_type,
+                        "strength": round(confidence, 4),
+                        "source_tags": source_tags,
+                    }
+                )
+
+        if review_candidates:
+            unit.metadata = dict(unit.metadata or {})
+            unit.metadata["relation_candidates"] = review_candidates
+            self.graph_store.store_resonance_unit(unit)
+        return {
+            "auto_created": auto_created,
+            "suggested_review": suggested_review,
+            "candidates": review_candidates,
+            "source_tags": source_tags,
+        }

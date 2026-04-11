@@ -36,6 +36,8 @@ class MCPResourceRegistry:
             ResourceRef(uri="resonance/snapshot", name="Resonance snapshot"),
             ResourceRef(uri="resonance/relational-graph", name="Resonance relational graph"),
             ResourceRef(uri="cognitive/relational-state", name="Cognitive relational state"),
+            ResourceRef(uri="cognitive/relational-why", name="Why two units are linked"),
+            ResourceRef(uri="cognitive/relational-suggestion", name="Suggest a relation edge"),
             ResourceRef(uri="alignment/current", name="Current alignment state"),
             ResourceRef(uri="omni/last-insight", name="Last Qwen Omni insight"),
         ]
@@ -56,6 +58,19 @@ class MCPResourceRegistry:
             return self._cognitive_state.get_relational_state(
                 top_k=int(args.get("top_k", 10)),
                 min_resonance_score=float(args.get("min_resonance_score", 0.3)),
+            )
+        if uri == "cognitive/relational-why":
+            return self._cognitive_state.ask_relational_question(
+                source_unit_id=str(args.get("source_unit_id", "")),
+                target_unit_id=str(args.get("target_unit_id", "")),
+            )
+        if uri == "cognitive/relational-suggestion":
+            return self._cognitive_state.suggest_new_relation(
+                source_unit_id=str(args.get("source_unit_id", "")),
+                target_unit_id=str(args.get("target_unit_id", "")),
+                relation_type=str(args.get("relation_type", "reinforces")),
+                strength=float(args.get("strength", 0.5)),
+                rationale=str(args.get("rationale", "")),
             )
         if uri == "alignment/current":
             return self._cognitive_state.get_alignment_current()

@@ -350,6 +350,82 @@ def test_suggest_edge_strength_is_min_of_scores() -> None:
 
 
 # ─────────────────────────────────────────────────────────────
+# update_relational_edge_strength
+# ─────────────────────────────────────────────────────────────
+
+def test_update_relational_edge_strength_increases_on_positive_outcome(
+    tmp_store: MemoryGraphStore,
+) -> None:
+    src = _unit("source", resonance_score=0.9)
+    dst = _unit("target", resonance_score=0.8)
+    tmp_store.store_resonance_unit(src)
+    tmp_store.store_resonance_unit(dst)
+
+    edge = RelationalEdge(
+        target_unit_id=dst.unit_id,
+        relation_type="reinforces",
+        strength=0.5,
+    )
+    tmp_store.store_relational_edge(src.unit_id, edge)
+
+    updated = tmp_store.update_relational_edge_strength(
+        unit_id=src.unit_id,
+        edge_id=edge.edge_id,
+        feedback_polarity=0.8,
+        resonance_score=0.9,
+        review_decision="approved",
+        incident_published=False,
+    )
+    assert updated is not None
+    assert float(updated["strength"]) > 0.5
+    updates = (((updated.get("metadata") or {}).get("strength_updates")) or [])
+    assert len(updates) == 1
+    assert updates[0]["review_decision"] == "approved"
+
+
+def test_update_relational_edge_strength_decreases_on_negative_outcome(
+    tmp_store: MemoryGraphStore,
+) -> None:
+    src = _unit("source", resonance_score=0.9)
+    dst = _unit("target", resonance_score=0.8)
+    tmp_store.store_resonance_unit(src)
+    tmp_store.store_resonance_unit(dst)
+
+    edge = RelationalEdge(
+        target_unit_id=dst.unit_id,
+        relation_type="reinforces",
+        strength=0.7,
+    )
+    tmp_store.store_relational_edge(src.unit_id, edge)
+
+    updated = tmp_store.update_relational_edge_strength(
+        unit_id=src.unit_id,
+        edge_id=edge.edge_id,
+        feedback_polarity=-0.8,
+        resonance_score=0.1,
+        review_decision="rejected",
+        incident_published=True,
+    )
+    assert updated is not None
+    assert float(updated["strength"]) < 0.7
+    updates = (((updated.get("metadata") or {}).get("strength_updates")) or [])
+    assert len(updates) == 1
+    assert updates[0]["incident_published"] is True
+
+
+def test_update_relational_edge_strength_returns_none_for_unknown_edge(
+    tmp_store: MemoryGraphStore,
+) -> None:
+    src = _unit("source", resonance_score=0.9)
+    tmp_store.store_resonance_unit(src)
+    updated = tmp_store.update_relational_edge_strength(
+        unit_id=src.unit_id,
+        edge_id="missing-edge-id",
+    )
+    assert updated is None
+
+
+# ─────────────────────────────────────────────────────────────
 # MCP surface — CognitiveStateBridge + MCPResourceRegistry
 # ─────────────────────────────────────────────────────────────
 
@@ -445,6 +521,60 @@ def test_mcp_resource_relational_state(tmp_path: Path) -> None:
     )
     assert result["resource"] == "cognitive/relational-state"
     assert len(result["items"]) == 1
+
+
+def test_mcp_resource_relational_why(tmp_path: Path) -> None:
+    from ls.agent_shell.mcp_resources import MCPResourceRegistry
+
+    bridge, store = _make_bridge(tmp_path)
+    src = _unit("source", resonance_score=0.9)
+    dst = _unit("target", resonance_score=0.8)
+    store.store_resonance_unit(src)
+    store.store_resonance_unit(dst)
+    store.store_relational_edge(
+        src.unit_id,
+        RelationalEdge(target_unit_id=dst.unit_id, relation_type="reinforces", strength=0.77),
+    )
+    mock_tm = MagicMock()
+    registry = MCPResourceRegistry(task_manager=mock_tm, cognitive_state=bridge)
+
+    result = registry.read_resource(
+        "cognitive/relational-why",
+        {"source_unit_id": src.unit_id, "target_unit_id": dst.unit_id},
+    )
+    assert result["resource"] == "cognitive/relational-why"
+    assert result["linked"] is True
+    assert result["relation_type"] == "reinforces"
+    assert float(result["strength"]) == pytest.approx(0.77, abs=1e-4)
+
+
+def test_mcp_resource_relational_suggestion_creates_edge(tmp_path: Path) -> None:
+    from ls.agent_shell.mcp_resources import MCPResourceRegistry
+
+    bridge, store = _make_bridge(tmp_path)
+    src = _unit("source", resonance_score=0.9)
+    dst = _unit("target", resonance_score=0.8)
+    store.store_resonance_unit(src)
+    store.store_resonance_unit(dst)
+    mock_tm = MagicMock()
+    registry = MCPResourceRegistry(task_manager=mock_tm, cognitive_state=bridge)
+
+    result = registry.read_resource(
+        "cognitive/relational-suggestion",
+        {
+            "source_unit_id": src.unit_id,
+            "target_unit_id": dst.unit_id,
+            "relation_type": "specializes",
+            "strength": 0.66,
+            "rationale": "Human observed recurring specialization pattern.",
+        },
+    )
+    assert result["resource"] == "cognitive/relational-suggestion"
+    assert result["accepted"] is True
+    assert result["created"] is True
+
+    graph = store.get_relational_graph(src.unit_id, depth=1)
+    assert any(edge["target"] == dst.unit_id and edge["relation_type"] == "specializes" for edge in graph["edges"])
 
 
 def test_mcp_tool_get_relational_insight(tmp_path: Path) -> None:

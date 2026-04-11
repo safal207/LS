@@ -70,6 +70,11 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                     "safety_mode": "evidence_first",
                     "policy_engine_version": "relational-policy-v1",
                     "rule_hits": ["watch_from_validation_bias"],
+                    "relational_breach": {
+                        "detected": True,
+                        "severity": "high",
+                        "reasons": ["high_tension_low_alignment"],
+                    },
                     "requires_human_review": False,
                     "rerun_required": False,
                     "suggested_operator_action": "Validate intent before approval.",
@@ -104,6 +109,19 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
                     "forced": False,
                 },
                 "operator_review_history": [{"action": "approve", "reviewer": "qa-operator", "timestamp": "2026-04-10T10:00:00+00:00"}],
+                "relational_edge_learning": {
+                    "updated_edges": 2,
+                    "scanned_units": 3,
+                    "loop_artifact_path": str(tmp_path / "relational-learning-loop" / "cycle-001.json"),
+                    "maintenance": {
+                        "proposal_count": 2,
+                        "scanned_units": 3,
+                        "proposals": [
+                            {"proposal_type": "prune", "edge_id": "edge-1"},
+                            {"proposal_type": "review_conflict", "edge_id": "edge-2"},
+                        ],
+                    },
+                },
             }
         ),
         encoding="utf-8",
@@ -170,9 +188,18 @@ def test_preview_council_quality_artifact_reads_latest(monkeypatch, tmp_path: Pa
     assert payload["route_strategy"] == "validate_current_route"
     assert payload["policy_engine_version"] == "relational-policy-v1"
     assert payload["policy_rule_hits"] == ["watch_from_validation_bias"]
+    assert payload["relational_breach_detected"] is True
+    assert payload["relational_breach_severity"] == "high"
+    assert payload["relational_breach_reasons"] == ["high_tension_low_alignment"]
     assert payload["relational_learning_path"].endswith("cycle-001.json")
     assert payload["learning_heuristic_count"] == 2
     assert payload["learning_top_effective_rules"][0]["rule"] == "watch_from_validation_bias"
+    assert payload["relational_edge_updates"] == 2
+    assert payload["relational_edge_learning_scanned_units"] == 3
+    assert payload["relational_learning_loop_path"].endswith("cycle-001.json")
+    assert payload["relational_maintenance_proposal_count"] == 2
+    assert payload["relational_maintenance_scanned_units"] == 3
+    assert payload["relational_maintenance_top_proposals"][0]["proposal_type"] == "prune"
     assert payload["requires_human_review"] is False
     assert payload["rerun_required"] is False
     assert payload["suggested_operator_action"] == "Validate intent before approval."
@@ -335,6 +362,46 @@ def test_close_escalation_persists_closed_reason(monkeypatch, tmp_path: Path) ->
     updated = json.loads((quality_dir / "cycle-001.json").read_text(encoding="utf-8"))
     assert updated["operator_review"]["decision"] == "closed"
     assert updated["operator_review"]["closed_reason"] == "triage complete"
+
+
+def test_severe_breach_escalation_resolution_e2e(monkeypatch, tmp_path: Path) -> None:
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+    (quality_dir / "cycle-breach.json").write_text(
+        json.dumps(
+            {
+                "cycle_id": "cycle-breach",
+                "operator_guidance": {
+                    "risk_state": "escalate",
+                    "approval_posture": "human_escalation",
+                    "relational_breach": {
+                        "detected": True,
+                        "severity": "severe",
+                        "reasons": ["conflict_signal_low_safety"],
+                    },
+                },
+                "operator_review": {"decision": "pending"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard, "COUNCIL_QUALITY_DIR", quality_dir)
+
+    status_queue, payload_queue = dashboard.preview_council_escalation_queue()
+    assert status_queue == 200
+    assert payload_queue["total"] == 1
+    assert payload_queue["items"][0]["cycle_id"] == "cycle-breach"
+
+    status_assign, _payload_assign = dashboard.assign_escalation("cycle-breach", "alice", assigned_by="dashboard")
+    assert status_assign == 200
+
+    status_close, payload_close = dashboard.close_escalation("cycle-breach", "alice", "resolved severe breach")
+    assert status_close == 200
+    assert payload_close["status"] == "closed"
+
+    updated = json.loads((quality_dir / "cycle-breach.json").read_text(encoding="utf-8"))
+    assert updated["operator_review"]["decision"] == "closed"
+    assert updated["operator_review"]["closed_reason"] == "resolved severe breach"
 
 
 def test_approve_escalation_blocks_human_escalation_without_force(monkeypatch, tmp_path: Path) -> None:

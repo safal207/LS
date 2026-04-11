@@ -1054,6 +1054,23 @@
         policyRules.insertAdjacentElement("afterend", meta);
         policyRules.insertAdjacentElement("afterend", kicker);
       }
+      if(policyRules && !el("relational-maintenance-meta")){
+        const kicker=document.createElement("div");
+        kicker.id="relational-maintenance-kicker";
+        kicker.className="kicker";
+        kicker.style.marginTop="14px";
+        kicker.textContent="Relational Breach + Maintenance";
+        const meta=document.createElement("div");
+        meta.id="relational-maintenance-meta";
+        meta.className="meta";
+        meta.textContent="No breach/maintenance signal yet.";
+        const list=document.createElement("ul");
+        list.id="relational-maintenance-list";
+        list.className="guide-list";
+        policyRules.insertAdjacentElement("afterend", list);
+        policyRules.insertAdjacentElement("afterend", meta);
+        policyRules.insertAdjacentElement("afterend", kicker);
+      }
     })();
 
     const _______________originalRefreshCouncilQualityPreview=refreshCouncilQualityPreview;
@@ -1082,6 +1099,34 @@
           li.textContent=`${item.rule}: effectiveness=${Number(item.effectiveness || 0).toFixed(2)}`;
           list.appendChild(li);
         });
+
+        const maintenanceMeta=el("relational-maintenance-meta");
+        const maintenanceList=el("relational-maintenance-list");
+        if(!maintenanceMeta || !maintenanceList) return;
+        maintenanceList.innerHTML="";
+        const breachDetected=Boolean(data.payload.relational_breach_detected);
+        const breachSeverity=data.payload.relational_breach_severity || "none";
+        const edgeUpdates=Number(data.payload.relational_edge_updates || 0);
+        const proposalCount=Number(data.payload.relational_maintenance_proposal_count || 0);
+        maintenanceMeta.textContent=`breach=${breachDetected ? "yes" : "no"} (${breachSeverity}), updates=${edgeUpdates}, proposals=${proposalCount}`;
+        const reasons=(data.payload.relational_breach_reasons || []);
+        if(reasons.length){
+          const li=document.createElement("li");
+          li.textContent=`Breach reasons: ${reasons.join(", ")}`;
+          maintenanceList.appendChild(li);
+        }
+        const proposals=(data.payload.relational_maintenance_top_proposals || []);
+        if(!proposals.length){
+          const li=document.createElement("li");
+          li.textContent="No maintenance proposals.";
+          maintenanceList.appendChild(li);
+        } else {
+          proposals.forEach(item=>{
+            const li=document.createElement("li");
+            li.textContent=`${item.proposal_type || "proposal"} / edge=${item.edge_id || "n/a"}`;
+            maintenanceList.appendChild(li);
+          });
+        }
       }catch(_error){}
     };
 

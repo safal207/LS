@@ -68,6 +68,7 @@ import threading
 import time
 import uuid
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, List, Optional
 
@@ -928,6 +929,7 @@ class ResonanceAgent:
         self._relational_episode_dir = Path("artifacts/relational-episodes")
         self._relation_memory_dir = Path("artifacts/relation-memory")
         self._relational_learning_dir = Path("artifacts/relational-learning")
+        self._relational_learning_loop_dir = Path("artifacts/relational-learning-loop")
 
         # Alignment digest metrics (advisory/observability only)
         self._digest_metrics = (
@@ -3139,6 +3141,11 @@ class ResonanceAgent:
             item=item,
             council_quality_artifact=council_quality_artifact,
         )
+        relational_edge_learning = self._apply_relational_edge_learning(
+            council_ledger,
+            item=item,
+            council_cel_sync=council_cel_sync,
+        )
 
         return {
             # Identity
@@ -3231,6 +3238,7 @@ class ResonanceAgent:
             "relational_episode_artifact": relational_episode_artifact,
             "relation_memory_artifact": relation_memory_artifact,
             "relational_learning_artifact": relational_learning_artifact,
+            "relational_edge_learning": relational_edge_learning,
             "council_cel_sync": council_cel_sync,
             "council_quality_artifact": council_quality_artifact,
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
@@ -3954,6 +3962,82 @@ class ResonanceAgent:
             logger.debug("ResonanceAgent: relational learning artifact write failed: %s", exc)
             return None
 
+    def _apply_relational_edge_learning(
+        self,
+        ledger,
+        *,
+        item: dict[str, Any] | None = None,
+        council_cel_sync: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        if not (self._graph_runtime and hasattr(self._graph_runtime, "adapt_relational_edges_from_outcome")):
+            return None
+        outcome = getattr(ledger, "outcome", None) if ledger is not None else None
+        resonance_score = (
+            float(getattr(outcome, "receiver_resonance_score", 0.0) or 0.0)
+            if outcome is not None
+            else float((item or {}).get("_resonance_score", 0.0) or 0.0)
+        )
+        review = (council_cel_sync or {}).get("operator_review") or {}
+        review_decision = str(review.get("decision") or "pending").strip().lower()
+        incident_published = bool(((council_cel_sync or {}).get("incident") or {}).get("published"))
+        feedback_polarity = 0.0
+        if review_decision == "approved":
+            feedback_polarity = 0.8
+        elif review_decision in {"rejected", "closed"}:
+            feedback_polarity = -0.8
+        try:
+            payload = self._graph_runtime.adapt_relational_edges_from_outcome(
+                feedback_polarity=feedback_polarity,
+                resonance_score=resonance_score,
+                review_decision=review_decision,
+                incident_published=incident_published,
+                top_k=3,
+            )
+            if not isinstance(payload, dict):
+                return None
+            if hasattr(self._graph_runtime, "propose_relational_maintenance"):
+                maintenance = self._graph_runtime.propose_relational_maintenance(max_units=20)
+                if isinstance(maintenance, dict):
+                    payload["maintenance"] = maintenance
+            cycle_id = str(getattr(ledger, "cycle_id", "") or "")
+            loop_artifact_path = self._write_relational_learning_loop_artifact(
+                cycle_id=cycle_id,
+                payload=payload,
+            )
+            if loop_artifact_path:
+                payload["loop_artifact_path"] = loop_artifact_path
+            return payload
+        except Exception as exc:
+            logger.debug("ResonanceAgent: relational edge learning failed: %s", exc)
+            return None
+
+    def _write_relational_learning_loop_artifact(
+        self,
+        *,
+        cycle_id: str,
+        payload: dict[str, Any],
+    ) -> str | None:
+        if not cycle_id:
+            return None
+        try:
+            self._relational_learning_loop_dir.mkdir(parents=True, exist_ok=True)
+            path = self._relational_learning_loop_dir / f"{cycle_id}.json"
+            artifact = {
+                "cycle_id": cycle_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "updated_edges": int((payload or {}).get("updated_edges") or 0),
+                "scanned_units": int((payload or {}).get("scanned_units") or 0),
+                "maintenance": dict((payload or {}).get("maintenance") or {}),
+            }
+            path.write_text(
+                json.dumps(artifact, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            return str(path)
+        except Exception as exc:
+            logger.debug("ResonanceAgent: relational learning loop artifact write failed: %s", exc)
+            return None
+
     def _build_relational_quality_summary(self, relational: Any) -> dict[str, Any] | None:
         if not isinstance(relational, dict) or not relational:
             return None
@@ -3964,6 +4048,10 @@ class ResonanceAgent:
             return None
         dominant_signal = str(relational.get("dominant_signal") or "neutral")
         relation_safety_score = round(max(0.0, min(1.0, ((1.0 - tension_score) + alignment_score) / 2.0)), 4)
+        anti_tension = 1.0 - tension_score
+        agreement = 1.0 - abs(alignment_score - anti_tension)
+        confidence = (alignment_score + anti_tension) / 2.0
+        relational_coherence = round(max(0.0, min(1.0, (0.6 * agreement) + (0.4 * confidence))), 4)
         if tension_score >= 0.7 and alignment_score < 0.4:
             recommended_mode = "decompress_and_repair"
         elif dominant_signal.startswith("foreground:attack") or dominant_signal == "tension":
@@ -3977,6 +4065,7 @@ class ResonanceAgent:
             "alignment_score": round(alignment_score, 4),
             "dominant_signal": dominant_signal,
             "relation_safety_score": relation_safety_score,
+            "relational_coherence": relational_coherence,
             "recommended_mode": recommended_mode,
         }
 
