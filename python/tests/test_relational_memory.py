@@ -333,7 +333,6 @@ def test_suggest_edge_strength_is_min_of_scores() -> None:
 
 def _make_bridge(tmp_path: Path) -> Any:
     """Build a CognitiveStateBridge pointed at a temp store."""
-    import os
     from ls.agent_shell.cognitive_state import CognitiveStateBridge
 
     store_path = tmp_path / "cases.jsonl"
