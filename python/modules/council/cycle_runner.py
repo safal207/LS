@@ -29,6 +29,7 @@ class CouncilCycleRunner:
         outcome = self.engine.run_mode(mode=mode, relational_self=relational_self)
         applied_actions: list[dict[str, Any]] = []
         constitution_row: dict[str, Any] | None = None
+        policy_decision: dict[str, Any] = self._policy_decision(mode=mode, outcome=outcome)
         if isinstance(outcome.get("constitution"), dict):
             constitution_row = self.self_builder.store.store_constitution_evaluation(
                 {
@@ -38,9 +39,14 @@ class CouncilCycleRunner:
                     "coherence_score": float(relational_self.self_coherence_score or 0.0),
                     "constitution": dict(outcome.get("constitution") or {}),
                     "blocked": bool(outcome.get("blocked", False)),
+                    "policy_decision": policy_decision,
                 }
             )
-        if execute_actions and str(mode) == "self-evolution-proposal":
+        if (
+            execute_actions
+            and str(mode) == "self-evolution-proposal"
+            and bool(policy_decision.get("allow_auto_apply", False))
+        ):
             for action in list(outcome.get("actions") or []):
                 applied_actions.append(self._apply_action(action, relational_self=relational_self))
             relational_self = self.self_builder.update(
@@ -56,6 +62,42 @@ class CouncilCycleRunner:
             "relational_breach": self.engine.detect_breach(relational_self).__dict__,
             "applied_actions": applied_actions,
             "constitution_record": constitution_row,
+            "policy_decision": policy_decision,
+        }
+
+    @staticmethod
+    def _policy_decision(*, mode: str, outcome: dict[str, Any]) -> dict[str, Any]:
+        if str(mode) != "self-evolution-proposal":
+            return {
+                "allow_auto_apply": False,
+                "requires_review": False,
+                "reason": "mode_not_evolution",
+            }
+        if bool(outcome.get("blocked", False)):
+            return {
+                "allow_auto_apply": False,
+                "requires_review": True,
+                "reason": "blocked_by_preservation",
+            }
+        constitution = outcome.get("constitution")
+        if isinstance(constitution, dict):
+            findings = list(constitution.get("findings") or [])
+            escalate_failed = any(
+                isinstance(item, dict)
+                and str(item.get("severity") or "") == "escalate"
+                and not bool(item.get("passed", True))
+                for item in findings
+            )
+            if escalate_failed:
+                return {
+                    "allow_auto_apply": False,
+                    "requires_review": True,
+                    "reason": "constitution_escalate_violation",
+                }
+        return {
+            "allow_auto_apply": True,
+            "requires_review": False,
+            "reason": "safe_for_auto_apply",
         }
 
     def _apply_action(self, action: dict[str, Any], *, relational_self: RelationalSelf) -> dict[str, Any]:

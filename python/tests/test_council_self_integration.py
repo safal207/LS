@@ -96,9 +96,28 @@ def test_council_runner_can_apply_evolution_actions(tmp_path):
         execute_actions=True,
     )
     assert result["applied_actions"]
+    assert result["policy_decision"]["allow_auto_apply"] is True
     updated_a = next(u for u in store.list_resonance_units() if u.unit_id == a.unit_id)
     reinforces = [
         rel for rel in updated_a.relations if rel.get("relation_type") == "reinforces"
     ]
     assert reinforces
     assert float(reinforces[0]["strength"]) > 0.3
+
+
+def test_policy_decision_requires_review_for_escalate_violation():
+    decision = CouncilCycleRunner._policy_decision(  # noqa: SLF001
+        mode="self-evolution-proposal",
+        outcome={
+            "blocked": False,
+            "constitution": {
+                "passed": False,
+                "findings": [
+                    {"severity": "escalate", "passed": False},
+                ],
+            },
+        },
+    )
+    assert decision["allow_auto_apply"] is False
+    assert decision["requires_review"] is True
+    assert decision["reason"] == "constitution_escalate_violation"
