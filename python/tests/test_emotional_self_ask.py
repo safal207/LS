@@ -306,35 +306,151 @@ class TestGetEmotionalInsight:
 
 
 # ──────────────────────────────────────────────────────────────
-# Bilingual emotional intent detection
+# Emotional intent detection: topic routing vs. sentiment polarity
 # ──────────────────────────────────────────────────────────────
 
 
-class TestBilingualEmotionalIntent:
+class TestEmotionalIntentDetection:
+    """Unit-level tests for _is_emotional_question().
+
+    Topic routing must be negation-agnostic and hesitation-robust.
+    Negation only belongs in _feedback_matches() (sentiment polarity).
+    """
+
+    def setup_method(self):
+        from ls.agent_shell.cognitive_state import _is_emotional_question
+        self._detect = _is_emotional_question
+
+    # ── Direct keywords (EN) ────────────────────────────────
+    def test_en_direct_bond(self):
+        assert self._detect("How is our bond?")
+
+    def test_en_direct_feel(self):
+        assert self._detect("Do you feel connected to me?")
+
+    def test_en_direct_trust(self):
+        assert self._detect("Do you trust our relationship?")
+
+    # ── Negation does NOT suppress topic routing ─────────────
+    def test_en_negated_connection_still_relational(self):
+        assert self._detect("Why is there no connection between us?")
+
+    def test_ru_negated_closeness_still_relational(self):
+        assert self._detect("Почему между нами нет близости?")
+
+    def test_ru_negated_feel_still_relational(self):
+        assert self._detect("Ты не чувствуешь связь?")
+
+    def test_ru_negated_trust_still_relational(self):
+        assert self._detect("Почему нет доверия?")
+
+    # ── Hesitation markers / interjections ───────────────────
+    def test_ru_hm_stripped(self):
+        assert self._detect("Хм, наша связь стала теплее?")
+
+    def test_ru_em_stripped(self):
+        assert self._detect("Эм... ты чувствуешь, что мы стали ближе?")
+
+    def test_ru_nu_softener(self):
+        assert self._detect("Ну, между нами как будто больше доверия?")
+
+    def test_ru_kazbudo_softener(self):
+        assert self._detect("Ну, как будто связь стала теплее?")
+
+    def test_ru_mne_kazhetsya(self):
+        assert self._detect("Хм, мне кажется, мы стали ближе?")
+
+    # ── Relational speech patterns ────────────────────────────
+    def test_ru_mezhdu_nami_pattern(self):
+        assert self._detect("Что-то между нами изменилось?")
+
+    def test_ru_nasha_svyaz_pattern(self):
+        assert self._detect("Наша связь стала холоднее?")
+
+    def test_en_between_us_pattern(self):
+        assert self._detect("Something has changed between us.")
+
+    def test_en_our_bond_pattern(self):
+        assert self._detect("Has our bond grown stronger?")
+
+    # ── Specific spec examples ────────────────────────────────
+    def test_spec_example_1(self):
+        assert self._detect("Какие наши моменты были самыми важными?")
+
+    def test_spec_example_2(self):
+        assert self._detect("Как ты себя чувствуешь ко мне?")
+
+    def test_spec_example_3(self):
+        assert self._detect("Наша связь стала теплее?")
+
+    # ── Distance / coldness also relational ──────────────────
+    def test_ru_distance_is_relational(self):
+        assert self._detect("Ты чувствуешь дистанцию между нами?")
+
+    def test_ru_coldness_is_relational(self):
+        assert self._detect("Почему стало холоднее между нами?")
+
+    # ── Non-relational questions must NOT trigger ─────────────
+    def test_pure_cognitive_question_en(self):
+        assert not self._detect("How coherent am I?")
+
+    def test_pure_cognitive_question_ru(self):
+        assert not self._detect("Насколько я когерентен?")
+
+    def test_technical_question(self):
+        assert not self._detect("What is the current resonance score?")
+
+    def test_task_question(self):
+        assert not self._detect("Run the self-consistency check.")
+
+
+# ──────────────────────────────────────────────────────────────
+# Bilingual emotional path: ask_self end-to-end with colloquial speech
+# ──────────────────────────────────────────────────────────────
+
+
+class TestBilingualEmotionalPath:
     def test_russian_warmth_query_triggers_emotional_path(self, tmp_path):
         bridge, store = _make_bridge(tmp_path)
         _seed_emotional_data(store, n=3)
         result = bridge.ask_self("Наша связь стала теплее?")
-        # Should enter emotional path → answer references tone/bond/inferred
         answer = result["answer"].lower()
         assert any(kw in answer for kw in ("tone", "bond", "inferred", "signal", "warm"))
 
-    def test_russian_relationship_query_triggers_emotional_path(self, tmp_path):
+    def test_russian_hesitation_query_triggers_emotional_path(self, tmp_path):
         bridge, store = _make_bridge(tmp_path)
         _seed_emotional_data(store, n=3)
-        result = bridge.ask_self("Как ты относишься к нашим отношениям?")
+        result = bridge.ask_self("Хм, мне кажется, мы стали ближе?")
+        assert "emotional_layer" in result
+
+    def test_russian_negated_topic_triggers_emotional_path(self, tmp_path):
+        bridge, store = _make_bridge(tmp_path)
+        _seed_emotional_data(store, n=3)
+        # "Ты не чувствуешь связь?" — negation in topic, still relational
+        result = bridge.ask_self("Ты не чувствуешь связь?")
+        assert "emotional_layer" in result
+
+    def test_russian_netu_blizosti_triggers_emotional_path(self, tmp_path):
+        bridge, store = _make_bridge(tmp_path)
+        _seed_emotional_data(store, n=3)
+        result = bridge.ask_self("Почему между нами нет близости?")
         assert "emotional_layer" in result
 
     def test_russian_moments_query_triggers_emotional_path(self, tmp_path):
         bridge, store = _make_bridge(tmp_path)
         _seed_emotional_data(store, n=3)
-        result = bridge.ask_self("Какие моменты были важными?")
+        result = bridge.ask_self("Какие моменты между нами были важными?")
         assert "emotional_layer" in result
 
-    def test_pure_cognitive_question_does_not_add_emotional_answer_text(self, tmp_path):
+    def test_colloquial_nu_kazbudo_triggers(self, tmp_path):
+        bridge, store = _make_bridge(tmp_path)
+        _seed_emotional_data(store, n=3)
+        result = bridge.ask_self("Ну, между нами как будто больше доверия?")
+        assert "emotional_layer" in result
+
+    def test_pure_cognitive_question_does_not_pollute_answer(self, tmp_path):
         bridge, store = _make_bridge(tmp_path)
         result = bridge.ask_self("How coherent am I over the last 3 days?")
-        # Without emotional data, the answer should be the base coherence text
         assert "coherence" in result["answer"].lower()
 
     def test_bond_shift_node_has_confidence(self, tmp_path):

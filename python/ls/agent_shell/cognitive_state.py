@@ -10,56 +10,147 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# ──────────────────────────────────────────────────────────────
 # Phase 2.4 — bilingual emotional intent detection
+#
+# Two separate concerns are handled here:
+#
+#   _is_emotional_question()  — TOPIC routing
+#       "Is this question about relationship, bond, closeness, trust?"
+#       Negation and hesitation do NOT suppress intent.
+#       "Ты не чувствуешь связь?" and "Почему нет близости?" are
+#       still relational questions — the negation is part of the framing,
+#       not evidence that the topic is something else.
+#
+#   _feedback_matches()  — SENTIMENT / polarity matching (in emotional_memory.py)
+#       "Is this feedback positive / distressed / frustrated?"
+#       Negation guard IS appropriate here: "not good" ≠ positive signal.
+# ──────────────────────────────────────────────────────────────
+
+# Relational topic keywords — EN
 _EMOTIONAL_KEYWORDS_EN = frozenset({
-    "feel", "feeling", "feelings", "emotion", "emotional",
+    "feel", "feeling", "feelings", "felt", "emotion", "emotional",
     "bond", "bonding", "connection", "connected", "connect",
     "warm", "warmth", "close", "closer", "closeness",
     "relationship", "relate", "trust", "together", "togetherness",
-    "moments", "important", "care", "caring",
+    "moments", "important", "care", "caring", "distance", "apart",
 })
+
+# Relational topic keywords — RU
 _EMOTIONAL_KEYWORDS_RU = frozenset({
-    # feel / emotion
-    "чувствую", "чувствуешь", "чувствуем", "чувствовать", "ощущаю", "ощущаешь",
+    # feel / sense
+    "чувствую", "чувствуешь", "чувствуем", "чувствовать", "чувствуется",
+    "ощущаю", "ощущаешь", "ощущение",
     "эмоции", "эмоций", "эмоциональный",
     # bond / connection / relationship
     "связь", "связи", "связью", "связан", "связаны",
     "отношения", "отношений", "отношениях", "отношению",
-    "близость", "близки", "близко", "близкий",
-    # warmth
-    "тепло", "теплее", "тёплый", "теплый", "тепла",
+    "близость", "близки", "близко", "близкий", "близости",
+    "дистанцию", "дистанция", "расстояние",
+    # warmth / temperature of relation
+    "тепло", "теплее", "тёплый", "теплый", "тепла", "теплее",
+    "холодно", "холоднее", "отдалились",
     # trust / together
-    "доверие", "доверия", "доверяешь", "доверяю",
-    "вместе", "общение",
+    "доверие", "доверия", "доверяешь", "доверяю", "доверяем",
+    "вместе", "общение", "понимание", "понимаешь",
     # moments / important
-    "моменты", "момент", "моментов",
-    "важные", "важный", "важным", "важно",
+    "моменты", "момент", "моментов", "моментами",
+    "важные", "важный", "важным", "важно", "значимый",
     # care
     "забота", "заботу", "заботишься",
 })
-_NEGATION_WORDS = frozenset({
-    "not", "no", "never", "don't", "doesn't", "didn't", "can't", "cannot",
-    "не", "нет", "никогда", "ни",
+
+# Conversational discourse markers and interjections (EN + RU)
+# Their presence is a mild signal of intimate/reflective framing but never
+# blocks the emotional path — they're stripped before keyword matching.
+_DISCOURSE_MARKERS = frozenset({
+    # EN hesitation / softening
+    "hmm", "hm", "um", "uh", "well", "like", "sort", "kind", "guess",
+    "maybe", "perhaps", "seems", "feel", "kinda", "sorta",
+    # RU interjections / fillers / softeners
+    "хм", "мм", "эм", "э", "ну", "ну-ну", "слушай",
+    "как", "будто", "как будто", "вроде", "вроде бы", "что ли",
+    "мне кажется", "кажется", "наверное", "может", "может быть",
+    "типа", "так сказать",
 })
+
+# Relational speech patterns — question templates that signal emotional intent
+# regardless of whether they contain a direct keyword.
+# Each is a substring fragment (after lowercasing + stripping).
+_RELATIONAL_PATTERNS_RU = (
+    "между нами",      # "что-то между нами изменилось"
+    "между нас",
+    "ты и я",
+    "мы с тобой",
+    "наши отношения",
+    "наша связь",
+    "наше общение",
+    "стали ближе",
+    "стали дальше",
+    "стало теплее",
+    "стало холоднее",
+    "нет близости",
+    "нет доверия",
+    "нет связи",
+    "нет понимания",
+)
+
+_RELATIONAL_PATTERNS_EN = (
+    "between us",
+    "you and i",
+    "our bond",
+    "our connection",
+    "our relationship",
+    "grown closer",
+    "grown apart",
+    "feel connected",
+    "no trust",
+    "no connection",
+    "no closeness",
+)
+
+
+def _normalise_for_topic(text: str) -> str:
+    """Lowercase, strip punctuation, collapse whitespace.
+
+    Discourse markers (хм, эм, ну, well, um…) are removed from the token
+    stream so they don't block keyword matching, but their presence is
+    irrelevant to whether the topic is relational.
+    """
+    import re
+    lowered = text.lower()
+    # Remove common punctuation
+    cleaned = re.sub(r"[.,!?:;\"'«»()\-–—]+", " ", lowered)
+    # Collapse whitespace
+    return re.sub(r"\s+", " ", cleaned).strip()
 
 
 def _is_emotional_question(text: str) -> bool:
-    """Return True when the text is emotionally framed (EN or RU).
+    """Return True when the text is about a relational/emotional topic (EN or RU).
 
-    Applies a simple negation guard: if a negation word immediately precedes
-    a matched keyword (within 2 tokens), the match is suppressed.
+    Routing decision only — does not evaluate sentiment polarity.
+    Negation (не, нет, not, no) does NOT suppress this check:
+
+        "Ты не чувствуешь связь?"      → True  (topic: bond)
+        "Почему между нами нет близости?" → True  (pattern: между нами + нет близости)
+        "Хм, наша связь стала теплее?"  → True  (interjection stripped; keyword: связь)
+        "How coherent am I?"            → False (no relational topic)
     """
-    words = text.lower().split()
-    for i, word in enumerate(words):
-        # Strip punctuation
-        clean = word.strip(".,!?:;\"'«»()-")
-        if clean not in _EMOTIONAL_KEYWORDS_EN and clean not in _EMOTIONAL_KEYWORDS_RU:
-            continue
-        # Negation guard: check up to 2 preceding tokens
-        preceding = {words[j].strip(".,!?:;\"'«»()-") for j in range(max(0, i - 2), i)}
-        if preceding & _NEGATION_WORDS:
-            continue
-        return True
+    normalised = _normalise_for_topic(text)
+
+    # 1. Direct keyword match (negation-agnostic for topic routing)
+    for token in normalised.split():
+        if token in _EMOTIONAL_KEYWORDS_EN or token in _EMOTIONAL_KEYWORDS_RU:
+            return True
+
+    # 2. Relational speech pattern match
+    for pattern in _RELATIONAL_PATTERNS_RU:
+        if pattern in normalised:
+            return True
+    for pattern in _RELATIONAL_PATTERNS_EN:
+        if pattern in normalised:
+            return True
+
     return False
 
 
