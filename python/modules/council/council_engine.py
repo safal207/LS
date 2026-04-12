@@ -96,6 +96,21 @@ class RelationalCouncilEngine:
         breach = self.detect_breach(relational_self)
         constitution = self.constitution.evaluate(relational_self)
         blocked = breach.breach or (not constitution.passed)
+
+        # Phase 2.4: include emotional snapshot as informational context only.
+        # Constitution / policy gate outcome is NOT altered by emotional state.
+        emotional_snapshot: dict[str, Any] = {}
+        emotional_summary = dict(relational_self.emotional_summary or {})
+        if emotional_summary:
+            emotional_snapshot = {
+                "dominant_tone": emotional_summary.get("dominant_tone", "neutral"),
+                "bond_strength": emotional_summary.get("bond_strength", 0.0),
+                "bond_trend": emotional_summary.get("bond_trend", "stable"),
+                "confidence": emotional_summary.get("confidence", 0.0),
+                # Explicit reminder: emotional state does not override constitution
+                "constitution_override": False,
+            }
+
         return {
             "mode": "self-preservation",
             "blocked": blocked,
@@ -103,4 +118,6 @@ class RelationalCouncilEngine:
             "coherence_score": breach.coherence_score,
             "threshold": breach.threshold,
             "constitution": constitution.to_dict(),
+            # Informational only — no gate authority
+            "emotional_context": emotional_snapshot,
         }

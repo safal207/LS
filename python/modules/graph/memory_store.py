@@ -931,6 +931,9 @@ class MemoryGraphStore:
                     "cycle_id": cycle_id,
                     "omni_insight": dict(omni_insight or {}),
                 },
+                # Phase 2.4: carry over emotional_summary so cognitive updates
+                # don't wipe the emotional layer (additive field preservation)
+                emotional_summary=dict(current.emotional_summary or {}),
             )
 
             self._atomic_write_json(self._relational_self_path(), snapshot.to_dict())
@@ -992,3 +995,168 @@ class MemoryGraphStore:
                     if line:
                         snapshots.append(RouteSnapshot.from_dict(json.loads(line)))
             return snapshots
+
+    # ──────────────────────────────────────────────────────────────
+    # Phase 2.4 — Emotional Memory & Emotional Arc persistence
+    # ──────────────────────────────────────────────────────────────
+
+    _EMOTIONAL_MEMORY_CAP = 1000
+    _EMOTIONAL_ARC_CAP = 1000
+
+    def _emotional_memory_path(self) -> Path:
+        return self.path.with_name("relational_self_emotional_memory.jsonl")
+
+    def _emotional_arc_path(self) -> Path:
+        return self.path.with_name("relational_self_emotional_arc.jsonl")
+
+    def store_emotional_memory_entry(self, entry: dict[str, Any]) -> dict[str, Any]:
+        """Append a new EmotionalMemoryEntry dict with retention cap.
+
+        Malformed existing rows are skipped; cap is enforced on write.
+        """
+        with self._lock:
+            rows = self.get_emotional_memory(limit=self._EMOTIONAL_MEMORY_CAP)
+            payload = dict(entry)
+            payload.setdefault("timestamp", _utc_now())
+            rows.append(payload)
+            self._atomic_write_jsonl(self._emotional_memory_path(), rows[-self._EMOTIONAL_MEMORY_CAP:])
+            return payload
+
+    def get_emotional_memory(self, *, limit: int = 50) -> list[dict[str, Any]]:
+        """Return the most recent emotional memory entries.
+
+        Malformed rows are skipped (robustness requirement).
+        Temporal decay is recalculated on read for freshness accuracy.
+        """
+        with self._lock:
+            from modules.cognition.emotional_memory import EmotionalBondingEngine
+            engine = EmotionalBondingEngine()
+            path = self._emotional_memory_path()
+            if not path.exists():
+                return []
+            rows: list[dict[str, Any]] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        row = dict(json.loads(line))
+                        # Refresh temporal_decay on read
+                        ts = str(row.get("timestamp") or "")
+                        if ts:
+                            row["temporal_decay"] = engine.compute_temporal_decay(ts)
+                        rows.append(row)
+                    except Exception:
+                        # Robustness: skip malformed rows
+                        continue
+            return rows[-max(1, int(limit or 1)):]
+
+    def get_emotional_arc(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        """Return the emotional bond arc trajectory (most recent *limit* points).
+
+        Malformed rows are skipped.
+        """
+        with self._lock:
+            path = self._emotional_arc_path()
+            if not path.exists():
+                return []
+            rows: list[dict[str, Any]] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rows.append(dict(json.loads(line)))
+                    except Exception:
+                        continue
+            return rows[-max(1, int(limit or 1)):]
+
+    def _append_emotional_arc_point(self, point: dict[str, Any]) -> None:
+        """Append one arc point; enforces retention cap atomically."""
+        arc = self.get_emotional_arc(limit=self._EMOTIONAL_ARC_CAP)
+        arc.append(point)
+        self._atomic_write_jsonl(self._emotional_arc_path(), arc[-self._EMOTIONAL_ARC_CAP:])
+
+    def update_emotional_memory_from_cycle(
+        self,
+        *,
+        cycle_id: str | None = None,
+        source: str = "care_cycle",
+        resonance_score: float = 0.0,
+        alignment_score: float = 0.0,
+        coherence_score: float | None = None,
+        omni_signal: str | None = None,
+        user_feedback: str | None = None,
+        rollback_present: bool = False,
+        contradiction_spike: bool = False,
+        policy_blocked: bool = False,
+        reflective_context: bool = False,
+        relational_context: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Build, store, and aggregate a new emotional memory entry from cycle signals.
+
+        Also appends a new arc point and updates the emotional_summary on the
+        stored RelationalSelf snapshot (additive — never clobbers other fields).
+
+        Returns the newly created EmotionalMemoryEntry dict.
+        """
+        from modules.cognition.emotional_memory import EmotionalBondingEngine
+
+        with self._lock:
+            engine = EmotionalBondingEngine()
+
+            # Determine coherence from current self if not provided
+            if coherence_score is None:
+                coherence_score = float(self.get_relational_self().self_coherence_score or 0.0)
+
+            # Retrieve current bond strength from most recent entry
+            recent_entries = self.get_emotional_memory(limit=self._EMOTIONAL_MEMORY_CAP)
+            current_bond = float((recent_entries[-1].get("bond_strength") or 0.0) if recent_entries else 0.0)
+
+            entry_dict = engine.build_entry(
+                resonance_score=resonance_score,
+                alignment_score=alignment_score,
+                coherence_score=coherence_score,
+                omni_signal=omni_signal,
+                user_feedback=user_feedback,
+                rollback_present=rollback_present,
+                contradiction_spike=contradiction_spike,
+                policy_blocked=policy_blocked,
+                reflective_context=reflective_context,
+                current_bond=current_bond,
+                trigger_source=source,
+                relational_context=relational_context,
+                cycle_id=cycle_id,
+            )
+            self.store_emotional_memory_entry(entry_dict)
+
+            # Append arc point
+            arc_point = {
+                "timestamp": entry_dict["timestamp"],
+                "bond_strength": entry_dict["bond_strength"],
+                "dominant_tone": entry_dict["emotional_tone"],
+                "valence": entry_dict["valence"],
+                "source": source,
+                "cycle_id": cycle_id,
+            }
+            self._append_emotional_arc_point(arc_point)
+
+            # Recompute and persist emotional_summary on the RelationalSelf snapshot
+            all_entries = self.get_emotional_memory(limit=self._EMOTIONAL_MEMORY_CAP)
+            arc_points = self.get_emotional_arc(limit=self._EMOTIONAL_ARC_CAP)
+            new_bond = float(entry_dict.get("bond_strength") or 0.0)
+            summary = engine.aggregate_emotional_summary(all_entries, new_bond, arc_points)
+            self._update_emotional_summary_in_self(summary)
+
+            return entry_dict
+
+    def _update_emotional_summary_in_self(self, summary: dict[str, Any]) -> None:
+        """Overwrite only the emotional_summary field in the stored RelationalSelf.
+
+        All other RelationalSelf fields are preserved unchanged.
+        """
+        current = self.get_relational_self()
+        current.emotional_summary = dict(summary)
+        self._atomic_write_json(self._relational_self_path(), current.to_dict())

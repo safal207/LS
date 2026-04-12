@@ -316,6 +316,8 @@ class RelationalSelf:
     self_identity_vector: list[float] = field(default_factory=list)
     change_history: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Phase 2.4: additive emotional summary — never breaks existing consumers
+    emotional_summary: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -332,5 +334,77 @@ class RelationalSelf:
             self_coherence_score=float(data.get("self_coherence_score", 0.0) or 0.0),
             self_identity_vector=[float(v) for v in list(data.get("self_identity_vector") or [])],
             change_history=list(data.get("change_history") or []),
+            metadata=dict(data.get("metadata") or {}),
+            emotional_summary=dict(data.get("emotional_summary") or {}),
+        )
+
+
+# ──────────────────────────────────────────────────────────────
+# EmotionalMemoryEntry — Phase 2.4 inferred emotional state
+# ──────────────────────────────────────────────────────────────
+
+_VALID_EMOTIONAL_TONES = frozenset({
+    "warm", "calm", "reflective", "joyful", "anxious",
+    "frustrated", "tense", "supportive", "uncertain", "neutral",
+})
+_VALID_VALENCES = frozenset({"negative", "neutral", "positive", "mixed"})
+_VALID_TRIGGER_SOURCES = frozenset({
+    "user_feedback", "omni_insight", "care_cycle",
+    "council", "ask_self", "system_inference",
+})
+
+
+@dataclass
+class EmotionalMemoryEntry:
+    """A single inferred emotional state record for a specific interaction context.
+
+    All fields represent *inferred* signals derived from observable system
+    behaviour — not claims of real subjective experience.
+    """
+
+    entry_id: str = field(default_factory=lambda: str(uuid4()))
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    schema_version: str = "1.0"
+    emotional_tone: str = "neutral"
+    emotional_intensity: float = 0.0
+    valence: str = "neutral"
+    confidence: float = 0.5
+    bond_strength: float = 0.0
+    temporal_decay: float = 1.0
+    trigger_source: str = "system_inference"
+    relational_context: list[str] = field(default_factory=list)
+    summary: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.emotional_intensity = max(0.0, min(1.0, float(self.emotional_intensity)))
+        self.confidence = max(0.0, min(1.0, float(self.confidence)))
+        self.bond_strength = max(0.0, min(1.0, float(self.bond_strength)))
+        self.temporal_decay = max(0.0, min(1.0, float(self.temporal_decay)))
+        if self.emotional_tone not in _VALID_EMOTIONAL_TONES:
+            self.emotional_tone = "neutral"
+        if self.valence not in _VALID_VALENCES:
+            self.valence = "neutral"
+        if self.trigger_source not in _VALID_TRIGGER_SOURCES:
+            self.trigger_source = "system_inference"
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "EmotionalMemoryEntry":
+        return cls(
+            entry_id=str(data.get("entry_id") or str(uuid4())),
+            timestamp=str(data.get("timestamp") or datetime.now(timezone.utc).isoformat()),
+            schema_version=str(data.get("schema_version") or "1.0"),
+            emotional_tone=str(data.get("emotional_tone") or "neutral"),
+            emotional_intensity=float(data.get("emotional_intensity", 0.0) or 0.0),
+            valence=str(data.get("valence") or "neutral"),
+            confidence=float(data.get("confidence", 0.5) or 0.5),
+            bond_strength=float(data.get("bond_strength", 0.0) or 0.0),
+            temporal_decay=float(data.get("temporal_decay", 1.0) if data.get("temporal_decay") is not None else 1.0),
+            trigger_source=str(data.get("trigger_source") or "system_inference"),
+            relational_context=list(data.get("relational_context") or []),
+            summary=str(data.get("summary") or ""),
             metadata=dict(data.get("metadata") or {}),
         )

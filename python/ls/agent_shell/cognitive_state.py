@@ -382,16 +382,98 @@ class CognitiveStateBridge:
                 }
             )
 
+        # ── Phase 2.4: emotional layer ───────────────────────────────
+        emotional_summary = dict(snapshot.emotional_summary or {})
+        dominant_tone = str(emotional_summary.get("dominant_tone") or "neutral")
+        bond_strength = float(emotional_summary.get("bond_strength") or 0.0)
+        bond_trend = str(emotional_summary.get("bond_trend") or "stable")
+        em_confidence = float(emotional_summary.get("confidence") or 0.0)
+        notable_moments = list(emotional_summary.get("notable_moments") or [])
+
+        # Detect emotionally-framed questions
+        emotional_keywords = {
+            "feel", "emotion", "bond", "connection", "warm", "close",
+            "relationship", "trust", "together", "moments", "important",
+        }
+        is_emotional_question = any(kw in prompt.lower() for kw in emotional_keywords)
+
+        # Append emotional nodes to causal_trace
+        if causal_trace:
+            prev_node_id = causal_trace[-1].get("node_id")
+        else:
+            prev_node_id = None
+
+        emotional_entries = store.get_emotional_memory(limit=5)
+        for entry in emotional_entries[-2:]:
+            em_node_id = f"emotional_event:{entry.get('entry_id') or entry.get('timestamp')}"
+            causal_trace.append({
+                "node_id": em_node_id,
+                "type": "emotional_event",
+                "timestamp": entry.get("timestamp"),
+                "emotional_tone": entry.get("emotional_tone"),
+                "valence": entry.get("valence"),
+                "confidence": entry.get("confidence"),
+                "trigger_source": entry.get("trigger_source"),
+                "linked_from": prev_node_id,
+            })
+            prev_node_id = em_node_id
+
+        arc_points = store.get_emotional_arc(limit=10)
+        if len(arc_points) >= 2:
+            node_id = "bond_shift:recent"
+            causal_trace.append({
+                "node_id": node_id,
+                "type": "bond_shift",
+                "bond_strength": bond_strength,
+                "bond_trend": bond_trend,
+                "arc_length": len(arc_points),
+                "linked_from": prev_node_id,
+            })
+            prev_node_id = node_id
+
+        em_summary_node = "emotional_summary_state:current"
+        causal_trace.append({
+            "node_id": em_summary_node,
+            "type": "emotional_summary_state",
+            "dominant_tone": dominant_tone,
+            "bond_strength": bond_strength,
+            "bond_trend": bond_trend,
+            "confidence": em_confidence,
+            "linked_from": prev_node_id,
+        })
+
+        # Build answer — for emotional questions, incorporate the emotional layer
+        base_answer = (
+            f"Over the last {days} day(s) I {direction}. "
+            f"Current coherence is {float(snapshot.self_coherence_score or 0.0):.2f}."
+        )
+        if is_emotional_question and emotional_summary:
+            trend_phrase = {
+                "warming": "growing warmer",
+                "cooling": "cooling",
+                "volatile": "fluctuating",
+                "stable": "stable",
+            }.get(bond_trend, bond_trend)
+            emotional_answer = (
+                f" The inferred relational bond signal is {trend_phrase} "
+                f"(bond strength {bond_strength:.2f}, dominant tone: {dominant_tone})."
+            )
+            if notable_moments:
+                emotional_answer += (
+                    f" A notable moment: \"{notable_moments[0].get('summary', '')}\"."
+                )
+            answer_text = base_answer + emotional_answer
+        else:
+            answer_text = base_answer
+
         return {
             "resource": "self/ask-self",
             "question": prompt,
-            "answer": (
-                f"Over the last {days} day(s) I {direction}. "
-                f"Current coherence is {float(snapshot.self_coherence_score or 0.0):.2f}."
-            ),
+            "answer": answer_text,
             "coherence_delta": round(delta, 4),
             "coherence_now": float(snapshot.self_coherence_score or 0.0),
             "top_change_drivers": driver_summary,
+            "emotional_layer": emotional_summary,
             "causal_trace": causal_trace,
             "last_updated": _utc_now(),
         }
@@ -584,6 +666,149 @@ class CognitiveStateBridge:
             "source_unit_id": source_id,
             "target_unit_id": target_id,
             "edge": edge.to_dict(),
+            "last_updated": _utc_now(),
+        }
+
+    # ──────────────────────────────────────────────────────────────
+    # Phase 2.4 — Emotional Memory MCP exposure
+    # ──────────────────────────────────────────────────────────────
+
+    def get_emotional_memory(self, *, limit: int = 50) -> dict[str, Any]:
+        """Return recent emotional memory entries + current emotional summary."""
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        entries = store.get_emotional_memory(limit=int(limit))
+        snapshot = store.get_relational_self()
+        return {
+            "resource": "self/emotional-memory",
+            "entries": entries,
+            "emotional_summary": dict(snapshot.emotional_summary or {}),
+            "limit": int(limit),
+            "last_updated": _utc_now(),
+        }
+
+    def get_emotional_arc(self, *, limit: int = 100) -> dict[str, Any]:
+        """Return the emotional bond arc trajectory."""
+        from modules.graph.memory_store import MemoryGraphStore
+        from modules.cognition.emotional_memory import EmotionalBondingEngine
+
+        store = MemoryGraphStore(self._store_path)
+        arc_points = store.get_emotional_arc(limit=int(limit))
+        snapshot = store.get_relational_self()
+        emotional_summary = dict(snapshot.emotional_summary or {})
+        bond_trend = emotional_summary.get("bond_trend", "stable")
+        return {
+            "resource": "self/emotional-arc",
+            "arc": arc_points,
+            "bond_trend": bond_trend,
+            "limit": int(limit),
+            "last_updated": _utc_now(),
+        }
+
+    def get_emotional_insight(self, question: str, *, limit: int = 10) -> dict[str, Any]:
+        """Answer an emotionally-framed question about the relational bond.
+
+        Always cites inferred signals — never claims real subjective experience.
+        """
+        from modules.graph.memory_store import MemoryGraphStore
+
+        prompt = str(question or "").strip()
+        store = MemoryGraphStore(self._store_path)
+        entries = store.get_emotional_memory(limit=max(int(limit), 20))
+        arc_points = store.get_emotional_arc(limit=50)
+        snapshot = store.get_relational_self()
+        emotional_summary = dict(snapshot.emotional_summary or {})
+
+        dominant_tone = str(emotional_summary.get("dominant_tone") or "neutral")
+        bond_strength = float(emotional_summary.get("bond_strength") or 0.0)
+        bond_trend = str(emotional_summary.get("bond_trend") or "stable")
+        confidence = float(emotional_summary.get("confidence") or 0.0)
+        notable = list(emotional_summary.get("notable_moments") or [])
+
+        # Build a simple deterministic answer based on observed signals
+        trend_phrase = {
+            "warming": "has been growing warmer and more stable",
+            "cooling": "has shifted toward greater distance",
+            "volatile": "has shown fluctuating signals",
+            "stable": "has remained consistent",
+        }.get(bond_trend, "has remained consistent")
+
+        tone_phrase = {
+            "warm": "The dominant inferred tone is warm, suggesting sustained positive alignment.",
+            "calm": "The dominant inferred tone is calm, reflecting steady and low-tension engagement.",
+            "reflective": "The dominant inferred tone is reflective, indicating depth of inquiry.",
+            "joyful": "The dominant inferred tone is joyful, based on positive feedback signals.",
+            "supportive": "The dominant inferred tone is supportive, inferred from care-oriented exchanges.",
+            "tense": "The dominant inferred tone is tense, reflecting detected contradictions or friction.",
+            "frustrated": "The dominant inferred tone is frustrated, based on observed negative signals.",
+            "anxious": "The dominant inferred tone is anxious, based on uncertainty markers.",
+            "uncertain": "The dominant inferred tone is uncertain, from unresolved policy or coherence gaps.",
+            "neutral": "The dominant inferred tone is neutral — no strong directional signal is evident.",
+        }.get(dominant_tone, f"The dominant inferred tone is {dominant_tone}.")
+
+        answer = (
+            f"Based on inferred signals, the relational bond {trend_phrase}. "
+            f"{tone_phrase} "
+            f"Bond strength is currently {bond_strength:.2f} (confidence {confidence:.2f}). "
+            f"This is derived from {len(entries)} recent interaction records."
+        )
+
+        # Build causal_trace with emotional nodes
+        causal_trace: list[dict[str, Any]] = []
+        prev_node_id: str | None = None
+        for entry in entries[-3:]:
+            node_id = f"emotional_event:{entry.get('entry_id') or entry.get('timestamp')}"
+            causal_trace.append({
+                "node_id": node_id,
+                "type": "emotional_event",
+                "timestamp": entry.get("timestamp"),
+                "emotional_tone": entry.get("emotional_tone"),
+                "valence": entry.get("valence"),
+                "confidence": entry.get("confidence"),
+                "trigger_source": entry.get("trigger_source"),
+                "linked_from": prev_node_id,
+            })
+            prev_node_id = node_id
+
+        if arc_points and len(arc_points) >= 2:
+            first_bond = float((arc_points[0].get("bond_strength") or 0.0))
+            last_bond = float((arc_points[-1].get("bond_strength") or 0.0))
+            node_id = "bond_shift:arc_summary"
+            causal_trace.append({
+                "node_id": node_id,
+                "type": "bond_shift",
+                "bond_start": round(first_bond, 4),
+                "bond_end": round(last_bond, 4),
+                "bond_delta": round(last_bond - first_bond, 4),
+                "bond_trend": bond_trend,
+                "arc_length": len(arc_points),
+                "linked_from": prev_node_id,
+            })
+            prev_node_id = node_id
+
+        node_id = "emotional_summary_state:current"
+        causal_trace.append({
+            "node_id": node_id,
+            "type": "emotional_summary_state",
+            "dominant_tone": dominant_tone,
+            "bond_strength": bond_strength,
+            "bond_trend": bond_trend,
+            "confidence": confidence,
+            "linked_from": prev_node_id,
+        })
+
+        supporting_entries = entries[-int(limit):]
+
+        return {
+            "resource": "self/emotional-insight",
+            "question": prompt,
+            "answer": answer,
+            "dominant_tone": dominant_tone,
+            "bond_strength": bond_strength,
+            "bond_trend": bond_trend,
+            "supporting_entries": supporting_entries,
+            "causal_trace": causal_trace,
             "last_updated": _utc_now(),
         }
 
