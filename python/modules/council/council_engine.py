@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from modules.graph.models import RelationalSelf
+from modules.council.self_constitution import RelationalSelfConstitution
 
 
 @dataclass
@@ -19,6 +20,7 @@ class RelationalCouncilEngine:
 
     def __init__(self, *, coherence_guard_threshold: float = 0.4) -> None:
         self.coherence_guard_threshold = float(coherence_guard_threshold)
+        self.constitution = RelationalSelfConstitution()
 
     def run_mode(self, *, mode: str, relational_self: RelationalSelf) -> dict[str, Any]:
         normalized_mode = str(mode or "self-consistency-check").strip().lower()
@@ -92,10 +94,13 @@ class RelationalCouncilEngine:
 
     def _self_preservation(self, relational_self: RelationalSelf) -> dict[str, Any]:
         breach = self.detect_breach(relational_self)
+        constitution = self.constitution.evaluate(relational_self)
+        blocked = breach.breach or (not constitution.passed)
         return {
             "mode": "self-preservation",
-            "blocked": breach.breach,
-            "reason": breach.reason,
+            "blocked": blocked,
+            "reason": breach.reason if breach.breach else ("constitution_violation" if not constitution.passed else "stable"),
             "coherence_score": breach.coherence_score,
             "threshold": breach.threshold,
+            "constitution": constitution.to_dict(),
         }
