@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from uuid import uuid4
 
 from modules.cognition.relational_self import RelationalSelfBuilder
 from modules.council.council_engine import RelationalCouncilEngine
@@ -104,6 +105,7 @@ class CouncilCycleRunner:
         action_name = str(action.get("action") or "")
         params = dict(action.get("params") or {})
         store = self.self_builder.store
+        action_id = str(uuid4())
         if action_name == "increase_reinforcing_edge_strength":
             max_delta = max(0.0, float(params.get("max_delta", 0.05) or 0.05))
             core_pairs = {
@@ -115,6 +117,7 @@ class CouncilCycleRunner:
                 if str(edge.get("relation_type") or "") == "reinforces"
             }
             updates = 0
+            rollback_updates: list[dict[str, Any]] = []
             for unit in store.list_resonance_units():
                 changed = False
                 for rel in list(unit.relations or []):
@@ -127,11 +130,29 @@ class CouncilCycleRunner:
                         continue
                     old_strength = float(rel.get("strength", 0.5) or 0.5)
                     rel["strength"] = round(min(1.0, old_strength + max_delta), 4)
+                    rollback_updates.append(
+                        {
+                            "update_type": "relation_strength",
+                            "unit_id": unit.unit_id,
+                            "target_unit_id": str(rel.get("target_unit_id") or ""),
+                            "before": round(old_strength, 4),
+                            "after": float(rel["strength"]),
+                        }
+                    )
                     changed = True
                     updates += 1
                 if changed:
                     store.store_resonance_unit(unit)
-            return {"action": action_name, "applied": True, "updated_edges": updates}
+            record = store.store_council_action_record(
+                {
+                    "action_id": action_id,
+                    "action": action_name,
+                    "params": params,
+                    "updates": rollback_updates,
+                    "rolled_back": False,
+                }
+            )
+            return {"action": action_name, "applied": True, "updated_edges": updates, "action_id": action_id, "record": record}
 
         if action_name == "expand_core_nodes_window":
             recent_window_increment = max(1, int(params.get("recent_window_increment", 5) or 5))
@@ -140,6 +161,24 @@ class CouncilCycleRunner:
                 source="council_action_expand_window",
                 recent_window=base_window + recent_window_increment,
             )
-            return {"action": action_name, "applied": True, "window_increment": recent_window_increment}
+            record = store.store_council_action_record(
+                {
+                    "action_id": action_id,
+                    "action": action_name,
+                    "params": params,
+                    "updates": [
+                        {
+                            "update_type": "window_expand",
+                            "before": base_window,
+                            "after": base_window + recent_window_increment,
+                        }
+                    ],
+                    "rolled_back": False,
+                }
+            )
+            return {"action": action_name, "applied": True, "window_increment": recent_window_increment, "action_id": action_id, "record": record}
 
         return {"action": action_name, "applied": False, "reason": "unknown_action"}
+
+    def rollback_action(self, *, action_id: str) -> dict[str, Any]:
+        return self.self_builder.store.rollback_council_action(action_id=action_id)

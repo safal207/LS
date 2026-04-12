@@ -121,3 +121,50 @@ def test_policy_decision_requires_review_for_escalate_violation():
     assert decision["allow_auto_apply"] is False
     assert decision["requires_review"] is True
     assert decision["reason"] == "constitution_escalate_violation"
+
+
+def test_council_action_rollback_restores_edge_strength(tmp_path):
+    store = MemoryGraphStore(tmp_path / "cases.jsonl")
+    a = store.store_resonance_unit(
+        ResonanceKnowledgeUnit(
+            source_question="rollback consistency",
+            resonance_score=0.6,
+            alignment_score=0.6,
+        )
+    )
+    b = store.store_resonance_unit(
+        ResonanceKnowledgeUnit(
+            source_question="rollback node",
+            resonance_score=0.61,
+            alignment_score=0.61,
+        )
+    )
+    store.store_relational_edge(
+        a.unit_id,
+        RelationalEdge(
+            target_unit_id=b.unit_id,
+            relation_type="reinforces",
+            strength=0.35,
+        ),
+    )
+    runner = CouncilCycleRunner(
+        self_builder=RelationalSelfBuilder(store),
+        engine=RelationalCouncilEngine(),
+    )
+    result = runner.run(
+        cycle_id="cx-rb",
+        mode="self-evolution-proposal",
+        execute_actions=True,
+    )
+    action = next(item for item in result["applied_actions"] if item.get("action") == "increase_reinforcing_edge_strength")
+    action_id = str(action["action_id"])
+    updated = next(u for u in store.list_resonance_units() if u.unit_id == a.unit_id)
+    updated_strength = next(rel["strength"] for rel in updated.relations if rel.get("relation_type") == "reinforces")
+    assert float(updated_strength) > 0.35
+
+    rollback = runner.rollback_action(action_id=action_id)
+    assert rollback["rolled_back"] is True
+
+    rolled_back = next(u for u in store.list_resonance_units() if u.unit_id == a.unit_id)
+    rolled_strength = next(rel["strength"] for rel in rolled_back.relations if rel.get("relation_type") == "reinforces")
+    assert float(rolled_strength) == 0.35

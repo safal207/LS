@@ -587,6 +587,9 @@ class MemoryGraphStore:
     def _constitution_history_path(self) -> Path:
         return self.path.with_name("relational_self_constitution_history.jsonl")
 
+    def _council_action_history_path(self) -> Path:
+        return self.path.with_name("relational_self_council_actions.jsonl")
+
     def get_relational_self(self) -> RelationalSelf:
         with self._lock:
             path = self._relational_self_path()
@@ -631,6 +634,71 @@ class MemoryGraphStore:
                         continue
                     rows.append(dict(json.loads(line)))
             return rows[-max(1, int(limit or 1)) :]
+
+    def store_council_action_record(self, row: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            history = self.get_council_action_history(limit=1000)
+            payload = dict(row)
+            payload.setdefault("timestamp", _utc_now())
+            history.append(payload)
+            self._atomic_write_jsonl(self._council_action_history_path(), history[-1000:])
+            return payload
+
+    def get_council_action_history(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        with self._lock:
+            path = self._council_action_history_path()
+            if not path.exists():
+                return []
+            rows: list[dict[str, Any]] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    rows.append(dict(json.loads(line)))
+            return rows[-max(1, int(limit or 1)) :]
+
+    def rollback_council_action(self, *, action_id: str) -> dict[str, Any]:
+        with self._lock:
+            action = next(
+                (row for row in reversed(self.get_council_action_history(limit=1000)) if str(row.get("action_id")) == str(action_id)),
+                None,
+            )
+            if not action:
+                return {"rolled_back": False, "reason": "action_not_found", "action_id": action_id}
+            if bool(action.get("rolled_back", False)):
+                return {"rolled_back": False, "reason": "already_rolled_back", "action_id": action_id}
+
+            updates = list(action.get("updates") or [])
+            restored = 0
+            units = self._load_resonance_units()
+            for update in updates:
+                if str(update.get("update_type") or "") != "relation_strength":
+                    continue
+                unit_id = str(update.get("unit_id") or "")
+                target_id = str(update.get("target_unit_id") or "")
+                before = float(update.get("before", 0.5) or 0.5)
+                for unit in units:
+                    if unit.unit_id != unit_id:
+                        continue
+                    for rel in list(unit.relations or []):
+                        if (
+                            isinstance(rel, dict)
+                            and str(rel.get("target_unit_id") or "") == target_id
+                            and str(rel.get("relation_type") or "") == "reinforces"
+                        ):
+                            rel["strength"] = round(before, 4)
+                            restored += 1
+            self._write_resonance_units(units)
+
+            history = self.get_council_action_history(limit=1000)
+            for row in history:
+                if str(row.get("action_id")) == str(action_id):
+                    row["rolled_back"] = True
+                    row["rolled_back_at"] = _utc_now()
+                    break
+            self._atomic_write_jsonl(self._council_action_history_path(), history[-1000:])
+            return {"rolled_back": True, "action_id": action_id, "restored_updates": restored}
 
     def update_self_from_cycle(
         self,
