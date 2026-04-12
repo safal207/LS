@@ -460,3 +460,106 @@ class TestBilingualEmotionalPath:
         bond_shifts = [n for n in result.get("causal_trace", []) if n.get("type") == "bond_shift"]
         for node in bond_shifts:
             assert "confidence" in node, f"bond_shift node missing confidence: {node}"
+
+    # ── Bilingual answer language tests ───────────────────────
+    def test_russian_prompt_gives_russian_answer(self, tmp_path):
+        bridge, store = _make_bridge(tmp_path)
+        _seed_emotional_data(store, n=3)
+        result = bridge.ask_self("Наша связь стала теплее?")
+        # Russian answer must contain Cyrillic characters
+        import re
+        assert re.search(r"[а-яёА-ЯЁ]", result["answer"]), (
+            f"Russian prompt should yield Russian answer, got: {result['answer']}"
+        )
+
+    def test_english_prompt_gives_english_answer(self, tmp_path):
+        bridge, store = _make_bridge(tmp_path)
+        _seed_emotional_data(store, n=3)
+        result = bridge.ask_self("How is our bond doing?")
+        # English answer must NOT be entirely Cyrillic
+        import re
+        assert re.search(r"[a-zA-Z]", result["answer"]), (
+            f"English prompt should yield English answer, got: {result['answer']}"
+        )
+
+    def test_get_emotional_insight_russian_answer(self, tmp_path):
+        bridge, store = _make_bridge(tmp_path)
+        _seed_emotional_data(store, n=3)
+        result = bridge.get_emotional_insight("Как ты ощущаешь нашу связь?")
+        import re
+        assert re.search(r"[а-яёА-ЯЁ]", result["answer"]), (
+            f"Russian insight question should yield Russian answer, got: {result['answer']}"
+        )
+
+    def test_get_emotional_insight_english_answer(self, tmp_path):
+        bridge, store = _make_bridge(tmp_path)
+        _seed_emotional_data(store, n=3)
+        result = bridge.get_emotional_insight("How warm is our bond?")
+        import re
+        assert re.search(r"[a-zA-Z]", result["answer"]), (
+            f"English insight question should yield English answer, got: {result['answer']}"
+        )
+
+
+# ──────────────────────────────────────────────────────────────
+# Language detection unit tests
+# ──────────────────────────────────────────────────────────────
+
+
+class TestDetectLanguage:
+    def setup_method(self):
+        from ls.agent_shell.cognitive_state import _detect_language
+        self._detect = _detect_language
+
+    def test_cyrillic_gives_ru(self):
+        assert self._detect("Наша связь стала теплее?") == "ru"
+
+    def test_latin_gives_en(self):
+        assert self._detect("How is our bond?") == "en"
+
+    def test_empty_gives_en(self):
+        assert self._detect("") == "en"
+
+    def test_mixed_cyrillic_latin_gives_ru(self):
+        # Any Cyrillic → ru
+        assert self._detect("спасибо, very helpful") == "ru"
+
+    def test_digits_only_gives_en(self):
+        assert self._detect("12345") == "en"
+
+
+# ──────────────────────────────────────────────────────────────
+# Discourse marker normalisation unit tests
+# ──────────────────────────────────────────────────────────────
+
+
+class TestNormaliseForTopic:
+    def setup_method(self):
+        from ls.agent_shell.cognitive_state import _normalise_for_topic
+        self._norm = _normalise_for_topic
+
+    def test_single_word_marker_stripped(self):
+        result = self._norm("Хм, наша связь стала теплее?")
+        assert "хм" not in result.split()
+
+    def test_multi_word_marker_stripped(self):
+        result = self._norm("Ну, как будто связь стала теплее?")
+        assert "будто" not in result
+        assert "как будто" not in result
+
+    def test_mne_kazhetsya_stripped(self):
+        result = self._norm("Мне кажется, мы стали ближе?")
+        assert "мне" not in result.split() or "кажется" not in result.split()
+
+    def test_keywords_survive_stripping(self):
+        # After stripping 'хм' and 'ну', 'связь' must remain
+        result = self._norm("Хм, ну, наша связь стала теплее?")
+        assert "связь" in result
+
+    def test_en_um_stripped(self):
+        result = self._norm("Um, how is our bond today?")
+        assert "um" not in result.split()
+
+    def test_punctuation_removed(self):
+        result = self._norm("Ты не чувствуешь связь?")
+        assert "?" not in result

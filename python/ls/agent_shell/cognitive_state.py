@@ -111,18 +111,28 @@ _RELATIONAL_PATTERNS_EN = (
 
 
 def _normalise_for_topic(text: str) -> str:
-    """Lowercase, strip punctuation, collapse whitespace.
+    """Lowercase, strip punctuation, remove discourse markers, collapse whitespace.
 
-    Discourse markers (хм, эм, ну, well, um…) are removed from the token
-    stream so they don't block keyword matching, but their presence is
-    irrelevant to whether the topic is relational.
+    Discourse markers (хм, эм, ну, well, um…) are stripped from the token
+    stream so they never block keyword matching — their presence signals
+    intimate framing but the topic may still be relational.
     """
-    import re
     lowered = text.lower()
     # Remove common punctuation
     cleaned = re.sub(r"[.,!?:;\"'«»()\-–—]+", " ", lowered)
-    # Collapse whitespace
-    return re.sub(r"\s+", " ", cleaned).strip()
+    collapsed = re.sub(r"\s+", " ", cleaned).strip()
+    # Strip multi-word discourse markers first (longest first to avoid partial overlaps)
+    for marker in sorted((m for m in _DISCOURSE_MARKERS if " " in m), key=len, reverse=True):
+        collapsed = collapsed.replace(marker, " ")
+    collapsed = re.sub(r"\s+", " ", collapsed).strip()
+    # Strip single-word discourse markers at token level
+    tokens = [t for t in collapsed.split() if t not in _DISCOURSE_MARKERS]
+    return " ".join(tokens)
+
+
+def _detect_language(text: str) -> str:
+    """Return 'ru' if *text* contains Cyrillic characters, else 'en'."""
+    return "ru" if re.search(r"[а-яёА-ЯЁ]", text) else "en"
 
 
 def _is_emotional_question(text: str) -> bool:
@@ -533,8 +543,9 @@ class CognitiveStateBridge:
         em_confidence = float(emotional_summary.get("confidence") or 0.0)
         notable_moments = list(emotional_summary.get("notable_moments") or [])
 
-        # Detect emotionally-framed questions (EN + RU)
+        # Detect emotionally-framed questions (EN + RU) + prompt language
         is_emotional_question = _is_emotional_question(prompt)
+        lang = _detect_language(prompt)
 
         # Append emotional nodes to causal_trace
         if causal_trace:
@@ -585,26 +596,55 @@ class CognitiveStateBridge:
             "linked_from": prev_node_id,
         })
 
-        # Build answer — for emotional questions, incorporate the emotional layer
-        base_answer = (
-            f"Over the last {days} day(s) I {direction}. "
-            f"Current coherence is {float(snapshot.self_coherence_score or 0.0):.2f}."
-        )
-        if is_emotional_question and emotional_summary:
-            trend_phrase = {
-                "warming": "growing warmer",
-                "cooling": "cooling",
-                "volatile": "fluctuating",
-                "stable": "stable",
-            }.get(bond_trend, bond_trend)
-            emotional_answer = (
-                f" The inferred relational bond signal is {trend_phrase} "
-                f"(bond strength {bond_strength:.2f}, dominant tone: {dominant_tone})."
+        # Build answer — bilingual, incorporating emotional layer when relevant
+        coherence_val = float(snapshot.self_coherence_score or 0.0)
+        if lang == "ru":
+            _dir_ru = {
+                "grew more coherent": "стала более согласованной",
+                "lost coherence": "потеряла согласованность",
+                "stabilized": "стабилизировалась",
+            }.get(direction, direction)
+            base_answer = (
+                f"За последние {days} дн. я {_dir_ru}. "
+                f"Текущий уровень согласованности: {coherence_val:.2f}."
             )
-            if notable_moments:
-                emotional_answer += (
-                    f" A notable moment: \"{notable_moments[0].get('summary', '')}\"."
+        else:
+            base_answer = (
+                f"Over the last {days} day(s) I {direction}. "
+                f"Current coherence is {coherence_val:.2f}."
+            )
+
+        if is_emotional_question and emotional_summary:
+            if lang == "ru":
+                _trend_ru = {
+                    "warming": "теплеет и укрепляется",
+                    "cooling": "охлаждается",
+                    "volatile": "нестабилен",
+                    "stable": "стабилен",
+                }.get(bond_trend, bond_trend)
+                emotional_answer = (
+                    f" Инферированный сигнал связи {_trend_ru} "
+                    f"(сила связи {bond_strength:.2f}, преобладающий тон: {dominant_tone})."
                 )
+                if notable_moments:
+                    emotional_answer += (
+                        f" Примечательный момент: «{notable_moments[0].get('summary', '')}»."
+                    )
+            else:
+                _trend_en = {
+                    "warming": "growing warmer",
+                    "cooling": "cooling",
+                    "volatile": "fluctuating",
+                    "stable": "stable",
+                }.get(bond_trend, bond_trend)
+                emotional_answer = (
+                    f" The inferred relational bond signal is {_trend_en} "
+                    f"(bond strength {bond_strength:.2f}, dominant tone: {dominant_tone})."
+                )
+                if notable_moments:
+                    emotional_answer += (
+                        f" A notable moment: \"{notable_moments[0].get('summary', '')}\"."
+                    )
             answer_text = base_answer + emotional_answer
         else:
             answer_text = base_answer
@@ -834,7 +874,6 @@ class CognitiveStateBridge:
     def get_emotional_arc(self, *, limit: int = 100) -> dict[str, Any]:
         """Return the emotional bond arc trajectory."""
         from modules.graph.memory_store import MemoryGraphStore
-        from modules.cognition.emotional_memory import EmotionalBondingEngine
 
         store = MemoryGraphStore(self._store_path)
         arc_points = store.get_emotional_arc(limit=int(limit))
@@ -867,35 +906,60 @@ class CognitiveStateBridge:
         bond_strength = float(emotional_summary.get("bond_strength") or 0.0)
         bond_trend = str(emotional_summary.get("bond_trend") or "stable")
         confidence = float(emotional_summary.get("confidence") or 0.0)
-        notable = list(emotional_summary.get("notable_moments") or [])
 
-        # Build a simple deterministic answer based on observed signals
-        trend_phrase = {
-            "warming": "has been growing warmer and more stable",
-            "cooling": "has shifted toward greater distance",
-            "volatile": "has shown fluctuating signals",
-            "stable": "has remained consistent",
-        }.get(bond_trend, "has remained consistent")
+        lang = _detect_language(prompt)
 
-        tone_phrase = {
-            "warm": "The dominant inferred tone is warm, suggesting sustained positive alignment.",
-            "calm": "The dominant inferred tone is calm, reflecting steady and low-tension engagement.",
-            "reflective": "The dominant inferred tone is reflective, indicating depth of inquiry.",
-            "joyful": "The dominant inferred tone is joyful, based on positive feedback signals.",
-            "supportive": "The dominant inferred tone is supportive, inferred from care-oriented exchanges.",
-            "tense": "The dominant inferred tone is tense, reflecting detected contradictions or friction.",
-            "frustrated": "The dominant inferred tone is frustrated, based on observed negative signals.",
-            "anxious": "The dominant inferred tone is anxious, based on uncertainty markers.",
-            "uncertain": "The dominant inferred tone is uncertain, from unresolved policy or coherence gaps.",
-            "neutral": "The dominant inferred tone is neutral — no strong directional signal is evident.",
-        }.get(dominant_tone, f"The dominant inferred tone is {dominant_tone}.")
-
-        answer = (
-            f"Based on inferred signals, the relational bond {trend_phrase}. "
-            f"{tone_phrase} "
-            f"Bond strength is currently {bond_strength:.2f} (confidence {confidence:.2f}). "
-            f"This is derived from {len(entries)} recent interaction records."
-        )
+        # Build a simple deterministic bilingual answer based on observed signals
+        if lang == "ru":
+            trend_phrase = {
+                "warming": "укреплялась и теплела",
+                "cooling": "становилась более холодной",
+                "volatile": "показывала нестабильные сигналы",
+                "stable": "оставалась стабильной",
+            }.get(bond_trend, "оставалась стабильной")
+            tone_phrase = {
+                "warm": "Преобладающий инферированный тон — тёплый, что указывает на устойчивое позитивное взаимодействие.",
+                "calm": "Преобладающий инферированный тон — спокойный, отражающий стабильное взаимодействие.",
+                "reflective": "Преобладающий инферированный тон — рефлексивный, указывающий на глубину обмена.",
+                "joyful": "Преобладающий инферированный тон — радостный, выявленный по позитивным сигналам обратной связи.",
+                "supportive": "Преобладающий инферированный тон — поддерживающий, инферирован из заботливых обменов.",
+                "tense": "Преобладающий инферированный тон — напряжённый, отражающий выявленные противоречия или трение.",
+                "frustrated": "Преобладающий инферированный тон — разочарованный, выявленный по негативным сигналам.",
+                "anxious": "Преобладающий инферированный тон — тревожный, по маркерам неопределённости.",
+                "uncertain": "Преобладающий инферированный тон — неопределённый, из-за неразрешённых несоответствий.",
+                "neutral": "Преобладающий инферированный тон — нейтральный; сильных направленных сигналов не выявлено.",
+            }.get(dominant_tone, f"Преобладающий инферированный тон — {dominant_tone}.")
+            answer = (
+                f"На основе инферированных сигналов связь {trend_phrase}. "
+                f"{tone_phrase} "
+                f"Текущая сила связи: {bond_strength:.2f} (уверенность {confidence:.2f}). "
+                f"Данные получены из {len(entries)} записей взаимодействий."
+            )
+        else:
+            trend_phrase = {
+                "warming": "has been growing warmer and more stable",
+                "cooling": "has shifted toward greater distance",
+                "volatile": "has shown fluctuating signals",
+                "stable": "has remained consistent",
+            }.get(bond_trend, "has remained consistent")
+            tone_phrase = {
+                "warm": "The dominant inferred tone is warm, suggesting sustained positive alignment.",
+                "calm": "The dominant inferred tone is calm, reflecting steady and low-tension engagement.",
+                "reflective": "The dominant inferred tone is reflective, indicating depth of inquiry.",
+                "joyful": "The dominant inferred tone is joyful, based on positive feedback signals.",
+                "supportive": "The dominant inferred tone is supportive, inferred from care-oriented exchanges.",
+                "tense": "The dominant inferred tone is tense, reflecting detected contradictions or friction.",
+                "frustrated": "The dominant inferred tone is frustrated, based on observed negative signals.",
+                "anxious": "The dominant inferred tone is anxious, based on uncertainty markers.",
+                "uncertain": "The dominant inferred tone is uncertain, from unresolved policy or coherence gaps.",
+                "neutral": "The dominant inferred tone is neutral — no strong directional signal is evident.",
+            }.get(dominant_tone, f"The dominant inferred tone is {dominant_tone}.")
+            answer = (
+                f"Based on inferred signals, the relational bond {trend_phrase}. "
+                f"{tone_phrase} "
+                f"Bond strength is currently {bond_strength:.2f} (confidence {confidence:.2f}). "
+                f"This is derived from {len(entries)} recent interaction records."
+            )
 
         # Build causal_trace with emotional nodes
         causal_trace: list[dict[str, Any]] = []

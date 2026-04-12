@@ -26,27 +26,59 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# Explicit user feedback keywords → positive
+# Explicit user feedback keywords → positive (EN)
 _POSITIVE_FEEDBACK = frozenset({
     "positive", "good", "great", "excellent", "helpful",
     "thanks", "thank you", "perfect", "amazing", "wonderful",
 })
-# Explicit user feedback keywords → concern/distress
+# Explicit user feedback keywords → concern/distress (EN)
 _DISTRESS_FEEDBACK = frozenset({
     "concern", "distress", "worried", "anxious", "struggling",
     "help", "confused", "lost", "overwhelmed",
 })
-# Explicit user feedback keywords → frustration
+# Explicit user feedback keywords → frustration (EN)
 _FRUSTRATION_FEEDBACK = frozenset({
     "frustrated", "angry", "disappointed", "annoyed",
     "wrong", "incorrect", "bad", "terrible",
 })
+
+# ── Russian feedback lexicons (Phase 2.4 bilingual support) ──────────────────
+# Explicit user feedback keywords → positive (RU)
+_POSITIVE_FEEDBACK_RU = frozenset({
+    "хорошо", "отлично", "здорово", "замечательно", "прекрасно",
+    "великолепно", "классно", "супер",
+    "спасибо", "благодарю", "благодарен", "благодарна",
+    "помогло", "помог", "помогла", "помогает",
+    "тепло", "приятно", "понравилось", "нравится",
+})
+# Explicit user feedback keywords → concern/distress (RU)
+_DISTRESS_FEEDBACK_RU = frozenset({
+    "тревожно", "тревога", "беспокоюсь", "беспокоит",
+    "запутался", "запуталась", "теряюсь", "потерялся",
+    "помогите", "сложно", "трудно", "тяжело",
+})
+# Explicit user feedback keywords → frustration (RU)
+_FRUSTRATION_FEEDBACK_RU = frozenset({
+    "бесит", "раздражает", "злюсь", "злит",
+    "разочарован", "разочарована",
+    "плохо", "ужасно", "ужас",
+    "неправильно", "неверно",
+})
+
+# Combined EN+RU sets — used in infer_tone() and intensity calculation
+_POSITIVE_FEEDBACK_ALL = _POSITIVE_FEEDBACK | _POSITIVE_FEEDBACK_RU
+_DISTRESS_FEEDBACK_ALL = _DISTRESS_FEEDBACK | _DISTRESS_FEEDBACK_RU
+_FRUSTRATION_FEEDBACK_ALL = _FRUSTRATION_FEEDBACK | _FRUSTRATION_FEEDBACK_RU
+
 # Omni signal keywords → fatigue
 _FATIGUE_SIGNALS = frozenset({"fatigue", "tired", "exhausted", "worn out", "depleted"})
 
 _NEGATION_WORDS = frozenset({
+    # EN
     "not", "no", "never", "don't", "doesn't", "didn't", "can't", "cannot",
     "isn't", "wasn't", "weren't", "won't", "wouldn't",
+    # RU
+    "не", "нет", "никогда", "ни",
 })
 
 
@@ -120,17 +152,17 @@ class EmotionalBondingEngine:
         fb = str(user_feedback or "").lower().strip()
         omni = str(omni_signal or "").lower().strip()
 
-        # ── Priority 1: explicit user feedback ──────────────────
-        if _feedback_matches(fb, _POSITIVE_FEEDBACK):
+        # ── Priority 1: explicit user feedback (EN + RU) ────────
+        if _feedback_matches(fb, _POSITIVE_FEEDBACK_ALL):
             if r >= 0.7 and a >= 0.7:
                 tone, valence, confidence = "warm", "positive", 0.87
             else:
                 tone, valence, confidence = "joyful", "positive", 0.82
 
-        elif _feedback_matches(fb, _DISTRESS_FEEDBACK):
+        elif _feedback_matches(fb, _DISTRESS_FEEDBACK_ALL):
             tone, valence, confidence = "supportive", "mixed", 0.80
 
-        elif _feedback_matches(fb, _FRUSTRATION_FEEDBACK):
+        elif _feedback_matches(fb, _FRUSTRATION_FEEDBACK_ALL):
             tone, valence, confidence = "frustrated", "negative", 0.80
 
         # ── Priority 2: omni signal ──────────────────────────────
@@ -173,7 +205,9 @@ class EmotionalBondingEngine:
         base_signal = (r + a + c) / 3.0
         deviation = abs(base_signal - 0.5) * 2.0
         fb_matched = bool(fb) and any(
-            _feedback_matches(fb, s) for s in (_POSITIVE_FEEDBACK, _DISTRESS_FEEDBACK, _FRUSTRATION_FEEDBACK)
+            _feedback_matches(fb, s) for s in (
+                _POSITIVE_FEEDBACK_ALL, _DISTRESS_FEEDBACK_ALL, _FRUSTRATION_FEEDBACK_ALL,
+            )
         )
         feedback_boost = 0.20 if fb_matched else 0.0
         contradiction_boost = 0.15 if contradiction_spike else 0.0

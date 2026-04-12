@@ -244,6 +244,57 @@ class TestEmotionalBondingEngineToneInference:
             assert 0.0 <= intensity <= 1.0
 
 
+class TestBilingualFeedbackLexicons:
+    """T-8  Russian feedback lexicons in infer_tone()."""
+
+    def setup_method(self):
+        self.engine = EmotionalBondingEngine()
+
+    def test_ru_positive_feedback_gives_joyful(self):
+        tone, _, valence, _ = self.engine.infer_tone(user_feedback="спасибо")
+        assert tone in ("joyful", "warm")
+        assert valence == "positive"
+
+    def test_ru_positive_high_scores_gives_warm(self):
+        tone, _, valence, _ = self.engine.infer_tone(
+            user_feedback="отлично",
+            resonance_score=0.8,
+            alignment_score=0.8,
+        )
+        assert tone == "warm"
+        assert valence == "positive"
+
+    def test_ru_distress_feedback_gives_supportive(self):
+        tone, _, valence, _ = self.engine.infer_tone(user_feedback="запутался")
+        assert tone == "supportive"
+        assert valence == "mixed"
+
+    def test_ru_frustration_feedback_gives_frustrated(self):
+        tone, _, valence, _ = self.engine.infer_tone(user_feedback="бесит")
+        assert tone == "frustrated"
+        assert valence == "negative"
+
+    def test_ru_negation_suppresses_positive(self):
+        """«не помогло» should NOT fire positive tone."""
+        tone, _, _, _ = self.engine.infer_tone(user_feedback="не помогло")
+        assert tone not in ("warm", "joyful"), f"negated RU positive should not match, got {tone}"
+
+    def test_ru_negation_suppresses_frustration(self):
+        """«не бесит» should NOT fire frustrated tone."""
+        tone, _, _, _ = self.engine.infer_tone(user_feedback="не бесит")
+        assert tone != "frustrated", f"negated RU frustration should not match, got {tone}"
+
+    def test_ru_feedback_помогло_positive(self):
+        tone, _, valence, _ = self.engine.infer_tone(user_feedback="помогло")
+        assert tone in ("joyful", "warm")
+        assert valence == "positive"
+
+    def test_mixed_ru_en_feedback_still_works(self):
+        """Feedback string mixing languages should still be classified."""
+        tone, _, valence, _ = self.engine.infer_tone(user_feedback="спасибо, very helpful")
+        assert valence == "positive"
+
+
 class TestEmotionalBondingEngineBondUpdate:
     def setup_method(self):
         self.engine = EmotionalBondingEngine()

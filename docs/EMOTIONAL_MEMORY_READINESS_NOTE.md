@@ -46,8 +46,8 @@ smoke-tested.
 | `python/modules/graph/models.py` | Added `EmotionalMemoryEntry`; extended `RelationalSelf` with `emotional_summary` |
 | `python/modules/graph/memory_store.py` | Added emotional memory persistence methods + preserved `emotional_summary` across cognitive updates; rollback path writes emotional memory |
 | `python/modules/cognition/relational_self.py` | Builder refreshes `emotional_summary` after cycle updates |
-| `python/modules/cognition/emotional_memory.py` | Negation-aware `_feedback_matches()`; `compute_temporal_decay(now=)` parameter for deterministic testing |
-| `python/ls/agent_shell/cognitive_state.py` | Added `get_emotional_memory`, `get_emotional_arc`, `get_emotional_insight`; extended `ask_self` with bilingual (EN+RU) emotional intent detection + negation guard; `bond_shift` nodes carry `confidence` |
+| `python/modules/cognition/emotional_memory.py` | Negation-aware `_feedback_matches()` with EN+RU feedback lexicons and negation words; `compute_temporal_decay(now=)` parameter for deterministic testing |
+| `python/ls/agent_shell/cognitive_state.py` | Added `get_emotional_memory`, `get_emotional_arc`, `get_emotional_insight`; extended `ask_self` with bilingual (EN+RU) emotional intent detection (negation-agnostic topic routing) and bilingual answers; `bond_shift` nodes carry `confidence`; `_detect_language()` drives response language |
 | `python/ls/agent_shell/mcp_resources.py` | Added `self/emotional-memory`, `self/emotional-arc` resources |
 | `python/ls/agent_shell/mcp_tools.py` | Added `get_emotional_insight` tool |
 | `python/modules/council/council_engine.py` | `_self_preservation` includes `emotional_context` snapshot (informational only) |
