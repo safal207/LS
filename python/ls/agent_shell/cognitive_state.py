@@ -194,6 +194,20 @@ class CognitiveStateBridge:
             "last_updated": _utc_now(),
         }
 
+    def get_constitution_status(self, *, limit: int = 20) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        rows = store.get_constitution_history(limit=int(limit))
+        latest = rows[-1] if rows else None
+        return {
+            "resource": "self/constitution-status",
+            "latest": latest,
+            "items": rows,
+            "limit": int(limit),
+            "last_updated": _utc_now(),
+        }
+
     def ask_self(self, question: str) -> dict[str, Any]:
         from modules.graph.memory_store import MemoryGraphStore
 

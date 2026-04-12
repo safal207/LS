@@ -35,6 +35,10 @@ def test_council_cycle_uses_relational_self_and_detects_breach(tmp_path):
     assert result["relational_self"]["self_coherence_score"] < 0.5
     assert result["relational_breach"]["breach"] is True
     assert result["council_outcome"]["blocked"] is True
+    assert result["constitution_record"] is not None
+    history = store.get_constitution_history(limit=5)
+    assert history
+    assert history[-1]["cycle_id"] == "cx-1"
 
 
 def test_council_engine_evolution_mode_returns_proposals(tmp_path):

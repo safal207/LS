@@ -584,6 +584,9 @@ class MemoryGraphStore:
     def _coherence_history_path(self) -> Path:
         return self.path.with_name("relational_self_coherence_history.jsonl")
 
+    def _constitution_history_path(self) -> Path:
+        return self.path.with_name("relational_self_constitution_history.jsonl")
+
     def get_relational_self(self) -> RelationalSelf:
         with self._lock:
             path = self._relational_self_path()
@@ -595,6 +598,29 @@ class MemoryGraphStore:
     def get_coherence_history(self, *, limit: int = 50) -> list[dict[str, Any]]:
         with self._lock:
             path = self._coherence_history_path()
+            if not path.exists():
+                return []
+            rows: list[dict[str, Any]] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    rows.append(dict(json.loads(line)))
+            return rows[-max(1, int(limit or 1)) :]
+
+    def store_constitution_evaluation(self, row: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            history = self.get_constitution_history(limit=500)
+            payload = dict(row)
+            payload.setdefault("timestamp", _utc_now())
+            history.append(payload)
+            self._atomic_write_jsonl(self._constitution_history_path(), history[-500:])
+            return payload
+
+    def get_constitution_history(self, *, limit: int = 50) -> list[dict[str, Any]]:
+        with self._lock:
+            path = self._constitution_history_path()
             if not path.exists():
                 return []
             rows: list[dict[str, Any]] = []

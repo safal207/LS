@@ -17,6 +17,9 @@ def test_constitution_evaluate_passes_for_healthy_self():
     evaluation = RelationalSelfConstitution().evaluate(rs)
     assert evaluation.passed is True
     assert len(evaluation.findings) == 3
+    payload = evaluation.to_dict()
+    assert payload["findings"][0]["rule_id"].startswith("rs.constitution.")
+    assert payload["findings"][0]["reason_code"].endswith("_ok")
 
 
 def test_self_preservation_blocks_on_constitution_violation():

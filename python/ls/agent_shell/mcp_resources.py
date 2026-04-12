@@ -42,6 +42,7 @@ class MCPResourceRegistry:
             ResourceRef(uri="omni/last-insight", name="Last Qwen Omni insight"),
             ResourceRef(uri="self/relational-self", name="Relational Self summary"),
             ResourceRef(uri="self/coherence-history", name="Relational Self coherence history"),
+            ResourceRef(uri="self/constitution-status", name="Relational Self constitution status"),
         ]
 
     def read_resource(self, uri: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -83,6 +84,10 @@ class MCPResourceRegistry:
         if uri == "self/coherence-history":
             return self._cognitive_state.get_coherence_history(
                 limit=int(args.get("limit", 30)),
+            )
+        if uri == "self/constitution-status":
+            return self._cognitive_state.get_constitution_status(
+                limit=int(args.get("limit", 20)),
             )
 
         task_id, suffix = self._parse_task_uri(uri)

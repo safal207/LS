@@ -11,13 +11,16 @@ class ConstitutionRule:
     name: str
     threshold: float
     severity: str = "block"  # warn | block | escalate
+    rule_id: str | None = None
 
 
 @dataclass(frozen=True)
 class ConstitutionFinding:
+    rule_id: str
     rule: str
     severity: str
     passed: bool
+    reason_code: str
     observed: float
     threshold: float
     message: str
@@ -33,9 +36,11 @@ class ConstitutionEvaluation:
             "passed": self.passed,
             "findings": [
                 {
+                    "rule_id": finding.rule_id,
                     "rule": finding.rule,
                     "severity": finding.severity,
                     "passed": finding.passed,
+                    "reason_code": finding.reason_code,
                     "observed": round(finding.observed, 4),
                     "threshold": round(finding.threshold, 4),
                     "message": finding.message,
@@ -59,16 +64,19 @@ class RelationalSelfConstitution:
             name="min_coherence",
             threshold=0.42,
             severity="block",
+            rule_id="rs.constitution.min_coherence",
         )
         self.max_contradiction_density = max_contradiction_density or ConstitutionRule(
             name="max_contradiction_density",
             threshold=0.45,
             severity="warn",
+            rule_id="rs.constitution.max_contradiction_density",
         )
         self.alignment_floor = alignment_floor or ConstitutionRule(
             name="alignment_floor",
             threshold=0.4,
             severity="block",
+            rule_id="rs.constitution.alignment_floor",
         )
 
     def evaluate(self, relational_self: RelationalSelf) -> ConstitutionEvaluation:
@@ -128,9 +136,11 @@ class RelationalSelfConstitution:
         comparator: str,
     ) -> ConstitutionFinding:
         return ConstitutionFinding(
+            rule_id=str(rule.rule_id or rule.name),
             rule=rule.name,
             severity=rule.severity,
             passed=passed,
+            reason_code=f"{rule.name}_{'ok' if passed else 'violation'}",
             observed=float(observed),
             threshold=float(rule.threshold),
             message=f"{rule.name}: observed {observed:.3f} {comparator} {rule.threshold:.3f}",

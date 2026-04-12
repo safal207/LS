@@ -63,3 +63,21 @@ def test_get_cognitive_state_backward_compatible_shape(tmp_path, monkeypatch):
     assert "relational_state" in payload
     assert "alignment" in payload
     assert "omni" in payload
+
+
+def test_get_constitution_status_returns_latest(tmp_path, monkeypatch):
+    store_path = tmp_path / "cases.jsonl"
+    monkeypatch.setenv("GRAPH_MEMORY_STORE_PATH", str(store_path))
+    store = MemoryGraphStore(store_path)
+    store.store_constitution_evaluation(
+        {
+            "cycle_id": "cx-10",
+            "mode": "self-preservation",
+            "constitution": {"passed": False, "findings": []},
+            "blocked": True,
+        }
+    )
+    bridge = CognitiveStateBridge(task_manager=_FakeRuntime())
+    status = bridge.get_constitution_status(limit=5)
+    assert status["resource"] == "self/constitution-status"
+    assert status["latest"]["cycle_id"] == "cx-10"

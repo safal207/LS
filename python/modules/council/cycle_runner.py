@@ -28,6 +28,18 @@ class CouncilCycleRunner:
         )
         outcome = self.engine.run_mode(mode=mode, relational_self=relational_self)
         applied_actions: list[dict[str, Any]] = []
+        constitution_row: dict[str, Any] | None = None
+        if isinstance(outcome.get("constitution"), dict):
+            constitution_row = self.self_builder.store.store_constitution_evaluation(
+                {
+                    "cycle_id": cycle_id,
+                    "mode": mode,
+                    "snapshot_id": relational_self.snapshot_id,
+                    "coherence_score": float(relational_self.self_coherence_score or 0.0),
+                    "constitution": dict(outcome.get("constitution") or {}),
+                    "blocked": bool(outcome.get("blocked", False)),
+                }
+            )
         if execute_actions and str(mode) == "self-evolution-proposal":
             for action in list(outcome.get("actions") or []):
                 applied_actions.append(self._apply_action(action, relational_self=relational_self))
@@ -43,6 +55,7 @@ class CouncilCycleRunner:
             "council_outcome": outcome,
             "relational_breach": self.engine.detect_breach(relational_self).__dict__,
             "applied_actions": applied_actions,
+            "constitution_record": constitution_row,
         }
 
     def _apply_action(self, action: dict[str, Any], *, relational_self: RelationalSelf) -> dict[str, Any]:
