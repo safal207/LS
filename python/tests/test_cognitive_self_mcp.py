@@ -85,6 +85,37 @@ def test_ask_self_causal_trace_includes_policy_and_action_effect(tmp_path, monke
     assert action_node["action_effect"] == "applied"
 
 
+def test_ask_self_causal_trace_marks_partial_rollback_effect(tmp_path, monkeypatch):
+    store_path = tmp_path / "cases.jsonl"
+    monkeypatch.setenv("GRAPH_MEMORY_STORE_PATH", str(store_path))
+    store = MemoryGraphStore(store_path)
+    store.store_constitution_evaluation(
+        {
+            "cycle_id": "cx-trace-partial",
+            "mode": "self-preservation",
+            "constitution": {"passed": True, "findings": []},
+            "blocked": False,
+            "policy_decision": {"allow_auto_apply": False, "reason": "constitution_violation"},
+        }
+    )
+    store.store_council_action_record(
+        {
+            "action_id": "a-trace-partial",
+            "action": "expand_core_nodes_window",
+            "updates": [],
+            "rolled_back": False,
+            "partially_rolled_back": True,
+            "rollback_scope": "partial",
+            "rollback_reason": "partial_rollback_unsupported_updates",
+        }
+    )
+    bridge = CognitiveStateBridge(task_manager=_FakeRuntime())
+    result = bridge.ask_self("как ты изменился?")
+    action_node = next(node for node in result["causal_trace"] if node.get("type") == "applied_action")
+    assert action_node["action_effect"] == "partially_reverted"
+    assert action_node["rollback_scope"] == "partial"
+
+
 def test_get_cognitive_state_backward_compatible_shape(tmp_path, monkeypatch):
     store_path = tmp_path / "cases.jsonl"
     monkeypatch.setenv("GRAPH_MEMORY_STORE_PATH", str(store_path))
@@ -154,6 +185,35 @@ def test_get_constitution_status_reports_stable_with_applied_action(tmp_path, mo
     assert status["identity_state"] == "stable"
     assert status["breach_risk"] == "low"
     assert status["last_action_effect"] == "applied"
+
+
+def test_get_constitution_status_reports_partial_reverted_action(tmp_path, monkeypatch):
+    store_path = tmp_path / "cases.jsonl"
+    monkeypatch.setenv("GRAPH_MEMORY_STORE_PATH", str(store_path))
+    store = MemoryGraphStore(store_path)
+    store.update_self_from_cycle(cycle_id="seed-partial")
+    store.store_constitution_evaluation(
+        {
+            "cycle_id": "cx-partial",
+            "mode": "self-preservation",
+            "constitution": {"passed": True, "findings": []},
+            "blocked": False,
+        }
+    )
+    store.store_council_action_record(
+        {
+            "action_id": "a-partial-status",
+            "action": "expand_core_nodes_window",
+            "updates": [],
+            "rolled_back": False,
+            "partially_rolled_back": True,
+            "rollback_scope": "partial",
+            "rollback_reason": "partial_rollback_unsupported_updates",
+        }
+    )
+    bridge = CognitiveStateBridge(task_manager=_FakeRuntime())
+    status = bridge.get_constitution_status(limit=5)
+    assert status["last_action_effect"] == "partially_reverted"
 
 
 def test_get_self_metrics_returns_snapshot(tmp_path, monkeypatch):

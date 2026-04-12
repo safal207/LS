@@ -224,10 +224,8 @@ class CognitiveStateBridge:
             breach_risk = "low"
         if last_action is None:
             last_action_effect = "none"
-        elif bool(last_action.get("rolled_back", False)):
-            last_action_effect = "reverted"
         else:
-            last_action_effect = "applied"
+            last_action_effect = self._action_effect(last_action)
         return {
             "resource": "self/constitution-status",
             "latest": latest,
@@ -367,6 +365,7 @@ class CognitiveStateBridge:
             prev_node_id = node_id
         if action_rows:
             latest_action = action_rows[-1]
+            action_effect = self._action_effect(latest_action)
             node_id = f"action:{latest_action.get('action_id') or 'latest'}"
             causal_trace.append(
                 {
@@ -375,7 +374,9 @@ class CognitiveStateBridge:
                     "action_id": latest_action.get("action_id"),
                     "action": latest_action.get("action"),
                     "rolled_back": bool(latest_action.get("rolled_back", False)),
-                    "action_effect": "reverted" if bool(latest_action.get("rolled_back", False)) else "applied",
+                    "partially_rolled_back": bool(latest_action.get("partially_rolled_back", False)),
+                    "rollback_scope": latest_action.get("rollback_scope"),
+                    "action_effect": action_effect,
                     "confidence": 0.88,
                     "linked_from": prev_node_id,
                 }
@@ -394,6 +395,14 @@ class CognitiveStateBridge:
             "causal_trace": causal_trace,
             "last_updated": _utc_now(),
         }
+
+    @staticmethod
+    def _action_effect(action_row: dict[str, Any]) -> str:
+        if bool(action_row.get("partially_rolled_back", False)) or str(action_row.get("rollback_scope") or "") == "partial":
+            return "partially_reverted"
+        if bool(action_row.get("rolled_back", False)):
+            return "reverted"
+        return "applied"
 
     def get_relational_graph(
         self,
