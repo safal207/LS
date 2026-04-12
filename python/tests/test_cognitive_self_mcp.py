@@ -92,6 +92,14 @@ def test_get_self_metrics_returns_snapshot(tmp_path, monkeypatch):
         {
             "cycle_id": "cx-m1",
             "mode": "self-preservation",
+            "constitution": {"passed": False, "findings": []},
+            "policy_decision": {"allow_auto_apply": False, "reason": "blocked_by_preservation"},
+        }
+    )
+    store.store_constitution_evaluation(
+        {
+            "cycle_id": "cx-m2",
+            "mode": "self-preservation",
             "constitution": {"passed": True, "findings": []},
             "policy_decision": {"allow_auto_apply": True, "reason": "safe_for_auto_apply"},
         }
@@ -109,6 +117,8 @@ def test_get_self_metrics_returns_snapshot(tmp_path, monkeypatch):
     assert metrics["resource"] == "self/metrics"
     assert "metrics" in metrics
     assert "auto_action_apply_rate" in metrics["metrics"]
+    assert "mean_recovery_cycles" in metrics["metrics"]
+    assert metrics["metrics"]["mean_recovery_cycles"] >= 1.0
 
 
 def test_action_history_and_rollback_bridge(tmp_path, monkeypatch):

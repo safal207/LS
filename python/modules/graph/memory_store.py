@@ -733,6 +733,19 @@ class MemoryGraphStore:
                 and bool(row["policy_decision"].get("allow_auto_apply", False))
             )
             rollback_count = sum(1 for row in action_rows if bool(row.get("rolled_back", False)))
+            recovery_windows: list[int] = []
+            last_violation_index: int | None = None
+            for idx, row in enumerate(constitution_rows):
+                constitution = row.get("constitution")
+                if not isinstance(constitution, dict):
+                    continue
+                passed = bool(constitution.get("passed", True))
+                if not passed:
+                    if last_violation_index is None:
+                        last_violation_index = idx
+                elif passed and last_violation_index is not None:
+                    recovery_windows.append(idx - last_violation_index)
+                    last_violation_index = None
 
             return {
                 "window": max(1, int(window or 1)),
@@ -740,6 +753,7 @@ class MemoryGraphStore:
                 "constitution_violation_count": violation_count,
                 "auto_action_apply_rate": round((auto_apply_allowed / auto_apply_total), 4) if auto_apply_total else 0.0,
                 "rollback_rate": round((rollback_count / len(action_rows)), 4) if action_rows else 0.0,
+                "mean_recovery_cycles": round(sum(recovery_windows) / len(recovery_windows), 4) if recovery_windows else 0.0,
                 "action_count": len(action_rows),
                 "constitution_eval_count": len(constitution_rows),
             }
