@@ -632,7 +632,11 @@ class MemoryGraphStore:
                     line = line.strip()
                     if not line:
                         continue
-                    rows.append(dict(json.loads(line)))
+                    try:
+                        rows.append(dict(json.loads(line)))
+                    except Exception:
+                        # Robustness: skip malformed rows instead of failing reads.
+                        continue
             return rows[-max(1, int(limit or 1)) :]
 
     def store_council_action_record(self, row: dict[str, Any]) -> dict[str, Any]:
@@ -655,7 +659,11 @@ class MemoryGraphStore:
                     line = line.strip()
                     if not line:
                         continue
-                    rows.append(dict(json.loads(line)))
+                    try:
+                        rows.append(dict(json.loads(line)))
+                    except Exception:
+                        # Robustness: skip malformed rows instead of failing reads.
+                        continue
             return rows[-max(1, int(limit or 1)) :]
 
     def rollback_council_action(self, *, action_id: str) -> dict[str, Any]:
