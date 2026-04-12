@@ -44,6 +44,37 @@ _FRUSTRATION_FEEDBACK = frozenset({
 # Omni signal keywords → fatigue
 _FATIGUE_SIGNALS = frozenset({"fatigue", "tired", "exhausted", "worn out", "depleted"})
 
+_NEGATION_WORDS = frozenset({
+    "not", "no", "never", "don't", "doesn't", "didn't", "can't", "cannot",
+    "isn't", "wasn't", "weren't", "won't", "wouldn't",
+})
+
+
+def _feedback_matches(fb: str, keyword_set: frozenset[str]) -> bool:
+    """Check if any keyword in the set appears in fb, with negation guard.
+
+    A keyword match is suppressed if a negation word appears within the
+    2 tokens immediately preceding the keyword (e.g. "not good" stays
+    out of _POSITIVE_FEEDBACK).
+    """
+    words = fb.split()
+    for i, word in enumerate(words):
+        clean = word.strip(".,!?:;\"'")
+        if clean not in keyword_set:
+            continue
+        preceding = {words[j].strip(".,!?:;\"'") for j in range(max(0, i - 2), i)}
+        if preceding & _NEGATION_WORDS:
+            continue
+        return True
+    # Also match multi-word phrases as a whole (e.g. "thank you")
+    for phrase in keyword_set:
+        if " " in phrase and phrase in fb and not any(
+            neg in fb[max(0, fb.index(phrase) - 15):fb.index(phrase)]
+            for neg in _NEGATION_WORDS
+        ):
+            return True
+    return False
+
 
 class EmotionalBondingEngine:
     """Deterministic engine for inferring and accumulating emotional signals.
@@ -90,16 +121,16 @@ class EmotionalBondingEngine:
         omni = str(omni_signal or "").lower().strip()
 
         # ── Priority 1: explicit user feedback ──────────────────
-        if any(kw in fb for kw in _POSITIVE_FEEDBACK):
+        if _feedback_matches(fb, _POSITIVE_FEEDBACK):
             if r >= 0.7 and a >= 0.7:
                 tone, valence, confidence = "warm", "positive", 0.87
             else:
                 tone, valence, confidence = "joyful", "positive", 0.82
 
-        elif any(kw in fb for kw in _DISTRESS_FEEDBACK):
+        elif _feedback_matches(fb, _DISTRESS_FEEDBACK):
             tone, valence, confidence = "supportive", "mixed", 0.80
 
-        elif any(kw in fb for kw in _FRUSTRATION_FEEDBACK):
+        elif _feedback_matches(fb, _FRUSTRATION_FEEDBACK):
             tone, valence, confidence = "frustrated", "negative", 0.80
 
         # ── Priority 2: omni signal ──────────────────────────────
@@ -141,7 +172,10 @@ class EmotionalBondingEngine:
         # ── Intensity ────────────────────────────────────────────
         base_signal = (r + a + c) / 3.0
         deviation = abs(base_signal - 0.5) * 2.0
-        feedback_boost = 0.20 if fb else 0.0
+        fb_matched = bool(fb) and any(
+            _feedback_matches(fb, s) for s in (_POSITIVE_FEEDBACK, _DISTRESS_FEEDBACK, _FRUSTRATION_FEEDBACK)
+        )
+        feedback_boost = 0.20 if fb_matched else 0.0
         contradiction_boost = 0.15 if contradiction_spike else 0.0
         rollback_boost = 0.10 if rollback_present else 0.0
         policy_boost = 0.10 if policy_blocked else 0.0
@@ -198,15 +232,29 @@ class EmotionalBondingEngine:
     # Temporal decay  (FR-5)
     # ─────────────────────────────────────────────────────────────
 
-    def compute_temporal_decay(self, timestamp: str, half_life_hours: float = 72.0) -> float:
+    def compute_temporal_decay(
+        self,
+        timestamp: str,
+        half_life_hours: float = 72.0,
+        *,
+        now: datetime | None = None,
+    ) -> float:
         """Exponential decay weight for an entry (1.0 = fresh, floor = 0.05).
 
         weight = 0.5 ^ (age_hours / half_life_hours)
         Entries never fully disappear; they approach but never reach 0.
+
+        Args:
+            timestamp:       ISO-8601 timestamp of the entry.
+            half_life_hours: Hours after which weight halves (default 72).
+            now:             Reference datetime for age calculation.
+                             Defaults to ``datetime.now(timezone.utc)``.
+                             Pass an explicit value for deterministic tests.
         """
         try:
             entry_dt = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
-            age_hours = (datetime.now(timezone.utc) - entry_dt).total_seconds() / 3600.0
+            reference = now if now is not None else datetime.now(timezone.utc)
+            age_hours = (reference - entry_dt).total_seconds() / 3600.0
             decay = 0.5 ** (age_hours / max(0.001, float(half_life_hours)))
             return round(_clamp(decay, 0.05, 1.0), 4)
         except (ValueError, TypeError, OverflowError):

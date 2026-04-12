@@ -754,6 +754,18 @@ class MemoryGraphStore:
                 cycle_id=str(action_id),
                 source="council_action_rollback",
             )
+            # Phase 2.4: record emotional memory for the rollback event
+            # Rollback = repair attempt; write under same lock to stay consistent
+            try:
+                self.update_emotional_memory_from_cycle(
+                    cycle_id=str(action_id),
+                    source="council",
+                    coherence_score=float(refreshed.self_coherence_score or 0.0),
+                    rollback_present=True,
+                    relational_context=[str(action_id)],
+                )
+            except Exception:
+                pass  # emotional memory must never block rollback
             return {
                 "rolled_back": rolled_back_flag,
                 "partially_rolled_back": is_partial,
@@ -1074,10 +1086,15 @@ class MemoryGraphStore:
             return rows[-max(1, int(limit or 1)):]
 
     def _append_emotional_arc_point(self, point: dict[str, Any]) -> None:
-        """Append one arc point; enforces retention cap atomically."""
-        arc = self.get_emotional_arc(limit=self._EMOTIONAL_ARC_CAP)
-        arc.append(point)
-        self._atomic_write_jsonl(self._emotional_arc_path(), arc[-self._EMOTIONAL_ARC_CAP:])
+        """Append one arc point; enforces retention cap atomically.
+
+        Holds the store lock for the full read-modify-write cycle so concurrent
+        writers cannot interleave and drop arc points.
+        """
+        with self._lock:
+            arc = self.get_emotional_arc(limit=self._EMOTIONAL_ARC_CAP)
+            arc.append(point)
+            self._atomic_write_jsonl(self._emotional_arc_path(), arc[-self._EMOTIONAL_ARC_CAP:])
 
     def update_emotional_memory_from_cycle(
         self,

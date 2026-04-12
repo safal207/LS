@@ -252,12 +252,18 @@ After a successful `keep`/`promote` cycle with resonance > threshold:
 
 1. Stores `ResonanceKnowledgeUnit`
 2. Calls `update_self_from_cycle()` (existing)
-3. **New:** calls `update_emotional_memory_from_cycle()` with resonance +
+3. Calls `update_emotional_memory_from_cycle()` with resonance +
    alignment scores from the cycle
 
-### Council (`RelationalCouncilEngine`)
+### Council (`CouncilCycleRunner`)
 
-`_self_preservation` now includes an `emotional_context` field in its output:
+At the end of every `run()` call, regardless of mode:
+
+- Calls `update_emotional_memory_from_cycle()` with coherence, `policy_blocked`,
+  and `contradiction_spike` signals derived from the council outcome.
+
+`RelationalCouncilEngine._self_preservation` also surfaces an informational
+`emotional_context` field in its output:
 
 ```json
 {
@@ -273,6 +279,13 @@ After a successful `keep`/`promote` cycle with resonance > threshold:
 
 `constitution_override` is always `false`. Emotional state never gates or
 bypasses the constitution check.
+
+### Rollback (`rollback_council_action`)
+
+After a council action is rolled back, `update_emotional_memory_from_cycle()`
+is called with `rollback_present=True` and the post-rollback coherence score.
+This records the repair event in emotional history so the bond arc reflects
+rupture + repair dynamics.
 
 ### `RelationalSelfBuilder`
 

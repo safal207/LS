@@ -171,6 +171,14 @@ class TestEmotionalBondingEngineToneInference:
         assert valence == "positive"
         assert conf >= 0.85
 
+    def test_negation_suppresses_positive_match(self):
+        tone, _, _, _ = self.engine.infer_tone(user_feedback="not good")
+        assert tone not in ("warm", "joyful"), f"'not good' should not be positive, got {tone}"
+
+    def test_negation_suppresses_frustration_match(self):
+        tone, _, _, _ = self.engine.infer_tone(user_feedback="not frustrated at all")
+        assert tone != "frustrated", f"negated frustration should not match"
+
     def test_positive_feedback_lower_scores_gives_joyful(self):
         tone, _, valence, _ = self.engine.infer_tone(
             user_feedback="good",
@@ -305,6 +313,22 @@ class TestEmotionalBondingEngineDecay:
     def test_determinism(self):
         ts = "2026-01-01T00:00:00+00:00"
         assert self.engine.compute_temporal_decay(ts) == self.engine.compute_temporal_decay(ts)
+
+    def test_now_parameter_gives_exact_half_life(self):
+        """With explicit now, 72h-old entry should give decay = 0.5 exactly."""
+        from datetime import datetime, timezone, timedelta
+        ref = datetime(2026, 4, 12, 12, 0, 0, tzinfo=timezone.utc)
+        ts = (ref - timedelta(hours=72)).isoformat()
+        decay = self.engine.compute_temporal_decay(ts, half_life_hours=72.0, now=ref)
+        assert abs(decay - 0.5) < 0.001
+
+    def test_now_parameter_determinism(self):
+        from datetime import datetime, timezone
+        ref = datetime(2026, 4, 12, 0, 0, 0, tzinfo=timezone.utc)
+        ts = "2026-04-10T00:00:00+00:00"
+        d1 = self.engine.compute_temporal_decay(ts, now=ref)
+        d2 = self.engine.compute_temporal_decay(ts, now=ref)
+        assert d1 == d2
 
 
 class TestEmotionalBondingEngineAggregate:

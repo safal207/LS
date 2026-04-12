@@ -10,6 +10,58 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Phase 2.4 — bilingual emotional intent detection
+_EMOTIONAL_KEYWORDS_EN = frozenset({
+    "feel", "feeling", "feelings", "emotion", "emotional",
+    "bond", "bonding", "connection", "connected", "connect",
+    "warm", "warmth", "close", "closer", "closeness",
+    "relationship", "relate", "trust", "together", "togetherness",
+    "moments", "important", "care", "caring",
+})
+_EMOTIONAL_KEYWORDS_RU = frozenset({
+    # feel / emotion
+    "чувствую", "чувствуешь", "чувствуем", "чувствовать", "ощущаю", "ощущаешь",
+    "эмоции", "эмоций", "эмоциональный",
+    # bond / connection / relationship
+    "связь", "связи", "связью", "связан", "связаны",
+    "отношения", "отношений", "отношениях", "отношению",
+    "близость", "близки", "близко", "близкий",
+    # warmth
+    "тепло", "теплее", "тёплый", "теплый", "тепла",
+    # trust / together
+    "доверие", "доверия", "доверяешь", "доверяю",
+    "вместе", "общение",
+    # moments / important
+    "моменты", "момент", "моментов",
+    "важные", "важный", "важным", "важно",
+    # care
+    "забота", "заботу", "заботишься",
+})
+_NEGATION_WORDS = frozenset({
+    "not", "no", "never", "don't", "doesn't", "didn't", "can't", "cannot",
+    "не", "нет", "никогда", "ни",
+})
+
+
+def _is_emotional_question(text: str) -> bool:
+    """Return True when the text is emotionally framed (EN or RU).
+
+    Applies a simple negation guard: if a negation word immediately precedes
+    a matched keyword (within 2 tokens), the match is suppressed.
+    """
+    words = text.lower().split()
+    for i, word in enumerate(words):
+        # Strip punctuation
+        clean = word.strip(".,!?:;\"'«»()-")
+        if clean not in _EMOTIONAL_KEYWORDS_EN and clean not in _EMOTIONAL_KEYWORDS_RU:
+            continue
+        # Negation guard: check up to 2 preceding tokens
+        preceding = {words[j].strip(".,!?:;\"'«»()-") for j in range(max(0, i - 2), i)}
+        if preceding & _NEGATION_WORDS:
+            continue
+        return True
+    return False
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -390,12 +442,8 @@ class CognitiveStateBridge:
         em_confidence = float(emotional_summary.get("confidence") or 0.0)
         notable_moments = list(emotional_summary.get("notable_moments") or [])
 
-        # Detect emotionally-framed questions
-        emotional_keywords = {
-            "feel", "emotion", "bond", "connection", "warm", "close",
-            "relationship", "trust", "together", "moments", "important",
-        }
-        is_emotional_question = any(kw in prompt.lower() for kw in emotional_keywords)
+        # Detect emotionally-framed questions (EN + RU)
+        is_emotional_question = _is_emotional_question(prompt)
 
         # Append emotional nodes to causal_trace
         if causal_trace:
@@ -421,12 +469,16 @@ class CognitiveStateBridge:
         arc_points = store.get_emotional_arc(limit=10)
         if len(arc_points) >= 2:
             node_id = "bond_shift:recent"
+            first_bond = float((arc_points[0].get("bond_strength") or 0.0))
+            last_bond = float((arc_points[-1].get("bond_strength") or 0.0))
             causal_trace.append({
                 "node_id": node_id,
                 "type": "bond_shift",
                 "bond_strength": bond_strength,
                 "bond_trend": bond_trend,
+                "bond_delta": round(last_bond - first_bond, 4),
                 "arc_length": len(arc_points),
+                "confidence": round(em_confidence, 4),
                 "linked_from": prev_node_id,
             })
             prev_node_id = node_id
@@ -783,6 +835,7 @@ class CognitiveStateBridge:
                 "bond_delta": round(last_bond - first_bond, 4),
                 "bond_trend": bond_trend,
                 "arc_length": len(arc_points),
+                "confidence": round(confidence, 4),
                 "linked_from": prev_node_id,
             })
             prev_node_id = node_id

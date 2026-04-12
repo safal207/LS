@@ -303,3 +303,44 @@ class TestGetEmotionalInsight:
         result = bridge.get_emotional_insight("How are things?")
         assert result["bond_strength"] >= 0.0
         assert result["dominant_tone"] != ""
+
+
+# ──────────────────────────────────────────────────────────────
+# Bilingual emotional intent detection
+# ──────────────────────────────────────────────────────────────
+
+
+class TestBilingualEmotionalIntent:
+    def test_russian_warmth_query_triggers_emotional_path(self, tmp_path):
+        bridge, store = _make_bridge(tmp_path)
+        _seed_emotional_data(store, n=3)
+        result = bridge.ask_self("Наша связь стала теплее?")
+        # Should enter emotional path → answer references tone/bond/inferred
+        answer = result["answer"].lower()
+        assert any(kw in answer for kw in ("tone", "bond", "inferred", "signal", "warm"))
+
+    def test_russian_relationship_query_triggers_emotional_path(self, tmp_path):
+        bridge, store = _make_bridge(tmp_path)
+        _seed_emotional_data(store, n=3)
+        result = bridge.ask_self("Как ты относишься к нашим отношениям?")
+        assert "emotional_layer" in result
+
+    def test_russian_moments_query_triggers_emotional_path(self, tmp_path):
+        bridge, store = _make_bridge(tmp_path)
+        _seed_emotional_data(store, n=3)
+        result = bridge.ask_self("Какие моменты были важными?")
+        assert "emotional_layer" in result
+
+    def test_pure_cognitive_question_does_not_add_emotional_answer_text(self, tmp_path):
+        bridge, store = _make_bridge(tmp_path)
+        result = bridge.ask_self("How coherent am I over the last 3 days?")
+        # Without emotional data, the answer should be the base coherence text
+        assert "coherence" in result["answer"].lower()
+
+    def test_bond_shift_node_has_confidence(self, tmp_path):
+        bridge, store = _make_bridge(tmp_path)
+        _seed_emotional_data(store, n=4)
+        result = bridge.ask_self("Как наша связь?")
+        bond_shifts = [n for n in result.get("causal_trace", []) if n.get("type") == "bond_shift"]
+        for node in bond_shifts:
+            assert "confidence" in node, f"bond_shift node missing confidence: {node}"
