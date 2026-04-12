@@ -700,6 +700,42 @@ class MemoryGraphStore:
             self._atomic_write_jsonl(self._council_action_history_path(), history[-1000:])
             return {"rolled_back": True, "action_id": action_id, "restored_updates": restored}
 
+    def get_self_metrics_snapshot(self, *, window: int = 100) -> dict[str, Any]:
+        with self._lock:
+            latest_self = self.get_relational_self()
+            constitution_rows = self.get_constitution_history(limit=max(1, int(window or 1)))
+            action_rows = self.get_council_action_history(limit=max(1, int(window or 1)))
+
+            violation_count = sum(
+                1
+                for row in constitution_rows
+                if isinstance(row.get("constitution"), dict)
+                and not bool(row["constitution"].get("passed", True))
+            )
+            auto_apply_total = sum(
+                1
+                for row in constitution_rows
+                if isinstance(row.get("policy_decision"), dict)
+                and row["policy_decision"].get("reason") in {"safe_for_auto_apply", "constitution_escalate_violation", "blocked_by_preservation"}
+            )
+            auto_apply_allowed = sum(
+                1
+                for row in constitution_rows
+                if isinstance(row.get("policy_decision"), dict)
+                and bool(row["policy_decision"].get("allow_auto_apply", False))
+            )
+            rollback_count = sum(1 for row in action_rows if bool(row.get("rolled_back", False)))
+
+            return {
+                "window": max(1, int(window or 1)),
+                "self_coherence_score": float(latest_self.self_coherence_score or 0.0),
+                "constitution_violation_count": violation_count,
+                "auto_action_apply_rate": round((auto_apply_allowed / auto_apply_total), 4) if auto_apply_total else 0.0,
+                "rollback_rate": round((rollback_count / len(action_rows)), 4) if action_rows else 0.0,
+                "action_count": len(action_rows),
+                "constitution_eval_count": len(constitution_rows),
+            }
+
     def update_self_from_cycle(
         self,
         *,

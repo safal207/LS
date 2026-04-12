@@ -49,6 +49,7 @@ def test_ask_self_parses_numeric_days_and_reports_delta(tmp_path, monkeypatch):
     assert "3" in result["answer"]
     assert "day(s)" in result["answer"]
     assert "top_change_drivers" in result
+    assert "causal_trace" in result
 
 
 def test_get_cognitive_state_backward_compatible_shape(tmp_path, monkeypatch):
@@ -81,3 +82,30 @@ def test_get_constitution_status_returns_latest(tmp_path, monkeypatch):
     status = bridge.get_constitution_status(limit=5)
     assert status["resource"] == "self/constitution-status"
     assert status["latest"]["cycle_id"] == "cx-10"
+
+
+def test_get_self_metrics_returns_snapshot(tmp_path, monkeypatch):
+    store_path = tmp_path / "cases.jsonl"
+    monkeypatch.setenv("GRAPH_MEMORY_STORE_PATH", str(store_path))
+    store = MemoryGraphStore(store_path)
+    store.store_constitution_evaluation(
+        {
+            "cycle_id": "cx-m1",
+            "mode": "self-preservation",
+            "constitution": {"passed": True, "findings": []},
+            "policy_decision": {"allow_auto_apply": True, "reason": "safe_for_auto_apply"},
+        }
+    )
+    store.store_council_action_record(
+        {
+            "action_id": "a-1",
+            "action": "increase_reinforcing_edge_strength",
+            "updates": [],
+            "rolled_back": False,
+        }
+    )
+    bridge = CognitiveStateBridge(task_manager=_FakeRuntime())
+    metrics = bridge.get_self_metrics(window=20)
+    assert metrics["resource"] == "self/metrics"
+    assert "metrics" in metrics
+    assert "auto_action_apply_rate" in metrics["metrics"]

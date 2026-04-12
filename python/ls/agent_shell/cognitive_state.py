@@ -208,6 +208,17 @@ class CognitiveStateBridge:
             "last_updated": _utc_now(),
         }
 
+    def get_self_metrics(self, *, window: int = 100) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        metrics = store.get_self_metrics_snapshot(window=int(window))
+        return {
+            "resource": "self/metrics",
+            "metrics": metrics,
+            "last_updated": _utc_now(),
+        }
+
     def ask_self(self, question: str) -> dict[str, Any]:
         from modules.graph.memory_store import MemoryGraphStore
 
@@ -256,6 +267,38 @@ class CognitiveStateBridge:
             }
             for row in top_drivers
         ]
+        constitution_rows = store.get_constitution_history(limit=10)
+        action_rows = store.get_council_action_history(limit=10)
+        causal_trace: list[dict[str, Any]] = []
+        for row in history[-3:]:
+            causal_trace.append(
+                {
+                    "type": "coherence_event",
+                    "timestamp": row.get("timestamp"),
+                    "coherence_score": row.get("coherence_score"),
+                    "cycle_id": row.get("cycle_id"),
+                }
+            )
+        if constitution_rows:
+            latest_const = constitution_rows[-1]
+            causal_trace.append(
+                {
+                    "type": "constitution_state",
+                    "cycle_id": latest_const.get("cycle_id"),
+                    "passed": bool((latest_const.get("constitution") or {}).get("passed", True)),
+                    "blocked": bool(latest_const.get("blocked", False)),
+                }
+            )
+        if action_rows:
+            latest_action = action_rows[-1]
+            causal_trace.append(
+                {
+                    "type": "applied_action",
+                    "action_id": latest_action.get("action_id"),
+                    "action": latest_action.get("action"),
+                    "rolled_back": bool(latest_action.get("rolled_back", False)),
+                }
+            )
 
         return {
             "resource": "self/ask-self",
@@ -267,6 +310,7 @@ class CognitiveStateBridge:
             "coherence_delta": round(delta, 4),
             "coherence_now": float(snapshot.self_coherence_score or 0.0),
             "top_change_drivers": driver_summary,
+            "causal_trace": causal_trace,
             "last_updated": _utc_now(),
         }
 
