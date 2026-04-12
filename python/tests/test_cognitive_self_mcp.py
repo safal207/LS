@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 
 from ls.agent_shell.cognitive_state import CognitiveStateBridge
@@ -114,6 +115,43 @@ def test_get_constitution_status_returns_latest(tmp_path, monkeypatch):
     status = bridge.get_constitution_status(limit=5)
     assert status["resource"] == "self/constitution-status"
     assert status["latest"]["cycle_id"] == "cx-10"
+    assert status["identity_state"] == "at-risk"
+    assert status["breach_risk"] == "high"
+    assert status["last_action_effect"] == "none"
+
+
+def test_get_constitution_status_reports_stable_with_applied_action(tmp_path, monkeypatch):
+    store_path = tmp_path / "cases.jsonl"
+    monkeypatch.setenv("GRAPH_MEMORY_STORE_PATH", str(store_path))
+    store = MemoryGraphStore(store_path)
+    store.update_self_from_cycle(cycle_id="seed")  # initialize self file
+    snapshot = store.get_relational_self()
+    snapshot.self_coherence_score = 0.9
+    store._relational_self_path().write_text(  # noqa: SLF001
+        json.dumps(snapshot.to_dict()),
+        encoding="utf-8",
+    )
+    store.store_constitution_evaluation(
+        {
+            "cycle_id": "cx-stable",
+            "mode": "self-preservation",
+            "constitution": {"passed": True, "findings": []},
+            "blocked": False,
+        }
+    )
+    store.store_council_action_record(
+        {
+            "action_id": "a-stable",
+            "action": "expand_core_nodes_window",
+            "updates": [],
+            "rolled_back": False,
+        }
+    )
+    bridge = CognitiveStateBridge(task_manager=_FakeRuntime())
+    status = bridge.get_constitution_status(limit=5)
+    assert status["identity_state"] == "stable"
+    assert status["breach_risk"] == "low"
+    assert status["last_action_effect"] == "applied"
 
 
 def test_get_self_metrics_returns_snapshot(tmp_path, monkeypatch):

@@ -200,11 +200,35 @@ class CognitiveStateBridge:
         store = MemoryGraphStore(self._store_path)
         rows = store.get_constitution_history(limit=int(limit))
         latest = rows[-1] if rows else None
+        latest_self = store.get_relational_self()
+        latest_action_rows = store.get_council_action_history(limit=1)
+        last_action = latest_action_rows[-1] if latest_action_rows else None
+        passed = bool((latest or {}).get("constitution", {}).get("passed", True)) if latest else True
+        blocked = bool((latest or {}).get("blocked", False)) if latest else False
+        coherence = float(latest_self.self_coherence_score or 0.0)
+        if (not passed) or blocked:
+            identity_state = "at-risk"
+            breach_risk = "high"
+        elif coherence < 0.65:
+            identity_state = "drifting"
+            breach_risk = "medium"
+        else:
+            identity_state = "stable"
+            breach_risk = "low"
+        if last_action is None:
+            last_action_effect = "none"
+        elif bool(last_action.get("rolled_back", False)):
+            last_action_effect = "reverted"
+        else:
+            last_action_effect = "applied"
         return {
             "resource": "self/constitution-status",
             "latest": latest,
             "items": rows,
             "limit": int(limit),
+            "identity_state": identity_state,
+            "breach_risk": breach_risk,
+            "last_action_effect": last_action_effect,
             "last_updated": _utc_now(),
         }
 
