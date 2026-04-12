@@ -44,6 +44,7 @@ class MCPResourceRegistry:
             ResourceRef(uri="self/coherence-history", name="Relational Self coherence history"),
             ResourceRef(uri="self/constitution-status", name="Relational Self constitution status"),
             ResourceRef(uri="self/metrics", name="Relational Self metrics snapshot"),
+            ResourceRef(uri="self/action-history", name="Relational Self action history"),
         ]
 
     def read_resource(self, uri: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -93,6 +94,10 @@ class MCPResourceRegistry:
         if uri == "self/metrics":
             return self._cognitive_state.get_self_metrics(
                 window=int(args.get("window", 100)),
+            )
+        if uri == "self/action-history":
+            return self._cognitive_state.get_action_history(
+                limit=int(args.get("limit", 30)),
             )
 
         task_id, suffix = self._parse_task_uri(uri)

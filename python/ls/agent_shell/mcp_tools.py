@@ -34,6 +34,7 @@ class MCPToolRegistry:
             "get_cognitive_state": self._get_cognitive_state,
             "get_relational_insight": self._get_relational_insight,
             "ask_self": self._ask_self,
+            "rollback_self_action": self._rollback_self_action,
         }
 
     def list_tools(self) -> list[dict[str, Any]]:
@@ -103,6 +104,11 @@ class MCPToolRegistry:
 
     def _ask_self(self, args: dict[str, Any]) -> dict[str, Any]:
         return self._cognitive_state.ask_self(str(args.get("question", "")))
+
+    def _rollback_self_action(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._cognitive_state.rollback_self_action(
+            action_id=str(args.get("action_id", "")),
+        )
 
 
 def tool_call_from_json(registry: MCPToolRegistry, raw: str) -> str:

@@ -219,6 +219,27 @@ class CognitiveStateBridge:
             "last_updated": _utc_now(),
         }
 
+    def get_action_history(self, *, limit: int = 30) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        items = store.get_council_action_history(limit=int(limit))
+        return {
+            "resource": "self/action-history",
+            "items": items,
+            "limit": int(limit),
+            "last_updated": _utc_now(),
+        }
+
+    def rollback_self_action(self, *, action_id: str) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        result = store.rollback_council_action(action_id=str(action_id))
+        result["resource"] = "self/rollback-action"
+        result["last_updated"] = _utc_now()
+        return result
+
     def ask_self(self, question: str) -> dict[str, Any]:
         from modules.graph.memory_store import MemoryGraphStore
 

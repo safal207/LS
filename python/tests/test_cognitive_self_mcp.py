@@ -109,3 +109,25 @@ def test_get_self_metrics_returns_snapshot(tmp_path, monkeypatch):
     assert metrics["resource"] == "self/metrics"
     assert "metrics" in metrics
     assert "auto_action_apply_rate" in metrics["metrics"]
+
+
+def test_action_history_and_rollback_bridge(tmp_path, monkeypatch):
+    store_path = tmp_path / "cases.jsonl"
+    monkeypatch.setenv("GRAPH_MEMORY_STORE_PATH", str(store_path))
+    store = MemoryGraphStore(store_path)
+    store.store_council_action_record(
+        {
+            "action_id": "a-rollback",
+            "action": "increase_reinforcing_edge_strength",
+            "updates": [],
+            "rolled_back": False,
+        }
+    )
+    bridge = CognitiveStateBridge(task_manager=_FakeRuntime())
+    history = bridge.get_action_history(limit=5)
+    assert history["resource"] == "self/action-history"
+    assert history["items"][-1]["action_id"] == "a-rollback"
+
+    rolled = bridge.rollback_self_action(action_id="a-rollback")
+    assert rolled["resource"] == "self/rollback-action"
+    assert rolled["rolled_back"] is True
