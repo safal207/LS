@@ -60,16 +60,19 @@ _EMOTIONAL_KEYWORDS_RU = frozenset({
     "забота", "заботу", "заботишься",
 })
 
-# Conversational discourse markers and interjections (EN + RU)
-# Their presence is a mild signal of intimate/reflective framing but never
-# blocks the emotional path — they're stripped before keyword matching.
+# Conversational discourse markers — safe hesitation fillers / interjections only.
+# These are stripped before keyword matching so they never block topic routing.
+#
+# IMPORTANT: only include words that are purely pragmatic (hesitation, hedging)
+# and carry NO topic-bearing meaning on their own. Words like "feel", "like",
+# "kind", "sort", "как" must NOT be here — they are too often part of the
+# sentence's actual meaning (e.g. "How do you feel?", "Как ты ощущаешь связь?").
 _DISCOURSE_MARKERS = frozenset({
-    # EN hesitation / softening
-    "hmm", "hm", "um", "uh", "well", "like", "sort", "kind", "guess",
-    "maybe", "perhaps", "seems", "feel", "kinda", "sorta",
-    # RU interjections / fillers / softeners
+    # EN — pure hesitation / hedge markers
+    "hmm", "hm", "um", "uh", "well", "maybe", "perhaps",
+    # RU — interjections, fillers, softeners
     "хм", "мм", "эм", "э", "ну", "ну-ну", "слушай",
-    "как", "будто", "как будто", "вроде", "вроде бы", "что ли",
+    "будто", "как будто", "вроде", "вроде бы", "что ли",
     "мне кажется", "кажется", "наверное", "может", "может быть",
     "типа", "так сказать",
 })
@@ -133,6 +136,21 @@ def _normalise_for_topic(text: str) -> str:
 def _detect_language(text: str) -> str:
     """Return 'ru' if *text* contains Cyrillic characters, else 'en'."""
     return "ru" if re.search(r"[а-яёА-ЯЁ]", text) else "en"
+
+
+# Localized tone names for Russian-language responses.
+_TONE_NAMES_RU: dict[str, str] = {
+    "warm": "тёплый",
+    "calm": "спокойный",
+    "reflective": "рефлексивный",
+    "joyful": "радостный",
+    "supportive": "поддерживающий",
+    "tense": "напряжённый",
+    "frustrated": "разочарованный",
+    "anxious": "тревожный",
+    "uncertain": "неопределённый",
+    "neutral": "нейтральный",
+}
 
 
 def _is_emotional_question(text: str) -> bool:
@@ -622,9 +640,10 @@ class CognitiveStateBridge:
                     "volatile": "нестабилен",
                     "stable": "стабилен",
                 }.get(bond_trend, bond_trend)
+                _tone_ru = _TONE_NAMES_RU.get(dominant_tone, dominant_tone)
                 emotional_answer = (
                     f" Инферированный сигнал связи {_trend_ru} "
-                    f"(сила связи {bond_strength:.2f}, преобладающий тон: {dominant_tone})."
+                    f"(сила связи {bond_strength:.2f}, преобладающий тон: {_tone_ru})."
                 )
                 if notable_moments:
                     emotional_answer += (

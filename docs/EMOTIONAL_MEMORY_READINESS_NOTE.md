@@ -46,8 +46,8 @@ smoke-tested.
 | `python/modules/graph/models.py` | Added `EmotionalMemoryEntry`; extended `RelationalSelf` with `emotional_summary` |
 | `python/modules/graph/memory_store.py` | Added emotional memory persistence methods + preserved `emotional_summary` across cognitive updates; rollback path writes emotional memory |
 | `python/modules/cognition/relational_self.py` | Builder refreshes `emotional_summary` after cycle updates |
-| `python/modules/cognition/emotional_memory.py` | Negation-aware `_feedback_matches()` with EN+RU feedback lexicons and negation words; `compute_temporal_decay(now=)` parameter for deterministic testing |
-| `python/ls/agent_shell/cognitive_state.py` | Added `get_emotional_memory`, `get_emotional_arc`, `get_emotional_insight`; extended `ask_self` with bilingual (EN+RU) emotional intent detection (negation-agnostic topic routing) and bilingual answers; `bond_shift` nodes carry `confidence`; `_detect_language()` drives response language |
+| `python/modules/cognition/emotional_memory.py` | Negation-aware `_feedback_matches()` with EN+RU feedback lexicons (`_*_FEEDBACK_ALL`) and RU negation words (не/нет/никогда/ни); `compute_temporal_decay(now=)` parameter for deterministic testing |
+| `python/ls/agent_shell/cognitive_state.py` | Added `get_emotional_memory`, `get_emotional_arc`, `get_emotional_insight`; extended `ask_self` with bilingual (EN+RU) emotional intent detection (negation-agnostic topic routing), discourse-marker stripping in `_normalise_for_topic()`, `_detect_language()` for response language selection, `_TONE_NAMES_RU` for localized tone labels; bilingual answers in `ask_self()` and `get_emotional_insight()`; `bond_shift` nodes carry `confidence` |
 | `python/ls/agent_shell/mcp_resources.py` | Added `self/emotional-memory`, `self/emotional-arc` resources |
 | `python/ls/agent_shell/mcp_tools.py` | Added `get_emotional_insight` tool |
 | `python/modules/council/council_engine.py` | `_self_preservation` includes `emotional_context` snapshot (informational only) |
@@ -99,21 +99,22 @@ summaries. No output asserts subjective experience.
 
 ```
 test_emotional_memory.py
-  TestEmotionalMemoryEntryDefaults       — 6 tests
-  TestEmotionalMemoryEntryClamping       — 5 tests
-  TestEmotionalMemoryEntryValidation     — 4 tests
-  TestEmotionalMemoryEntrySerialisation  — 3 tests
-  TestRelationalSelfEmotionalSummaryField — 4 tests
-  TestEmotionalBondingEngineToneInference — 11 tests
-  TestEmotionalBondingEngineBondUpdate    — 5 tests
-  TestEmotionalBondingEngineDecay         — 5 tests
-  TestEmotionalBondingEngineAggregate     — 6 tests
-  TestStoreEmotionalMemory               — 5 tests
-  TestStoreEmotionalArc                  — 4 tests
-  TestStoreEmotionalSummaryInSelf        — 2 tests
+  TestEmotionalMemoryEntryDefaults          — 6 tests
+  TestEmotionalMemoryEntryClamping          — 5 tests
+  TestEmotionalMemoryEntryValidation        — 4 tests
+  TestEmotionalMemoryEntrySerialisation     — 3 tests
+  TestRelationalSelfEmotionalSummaryField   — 4 tests
+  TestEmotionalBondingEngineToneInference   — 11 tests
+  TestBilingualFeedbackLexicons             — 8 tests  ← NEW (fix-4)
+  TestEmotionalBondingEngineBondUpdate      — 5 tests
+  TestEmotionalBondingEngineDecay           — 5 tests
+  TestEmotionalBondingEngineAggregate       — 6 tests
+  TestStoreEmotionalMemory                  — 5 tests
+  TestStoreEmotionalArc                     — 4 tests
+  TestStoreEmotionalSummaryInSelf           — 2 tests
   TestRelationalSelfBuilderEmotionalSummary — 2 tests
-  TestDeterminism                        — 3 tests
-  TestSafetyBoundaries                   — 5 tests
+  TestDeterminism                           — 3 tests
+  TestSafetyBoundaries                      — 5 tests
 
 test_emotional_self_ask.py
   TestAskSelfEmotionalLayer              — 8 tests
@@ -121,4 +122,8 @@ test_emotional_self_ask.py
   TestMCPResourceRegistryEmotional       — 7 tests
   TestMCPToolGetEmotionalInsight         — 6 tests
   TestGetEmotionalInsight                — 5 tests
+  TestEmotionalIntentDetection           — 22 tests
+  TestBilingualEmotionalPath             — 13 tests  ← extended fix-4/fix-5
+  TestDetectLanguage                     — 5 tests   ← NEW (fix-4)
+  TestNormaliseForTopic                  — 6 tests   ← NEW (fix-4)
 ```

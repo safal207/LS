@@ -409,8 +409,13 @@ class TestBilingualEmotionalPath:
         bridge, store = _make_bridge(tmp_path)
         _seed_emotional_data(store, n=3)
         result = bridge.ask_self("Наша связь стала теплее?")
-        answer = result["answer"].lower()
-        assert any(kw in answer for kw in ("tone", "bond", "inferred", "signal", "warm"))
+        # Emotional path was triggered: emotional_layer must be present and populated
+        assert "emotional_layer" in result
+        # Answer must be in Russian (contains Cyrillic) — bilingual parity
+        import re
+        assert re.search(r"[а-яёА-ЯЁ]", result["answer"]), (
+            f"Russian prompt must yield Russian answer, got: {result['answer']}"
+        )
 
     def test_russian_hesitation_query_triggers_emotional_path(self, tmp_path):
         bridge, store = _make_bridge(tmp_path)
