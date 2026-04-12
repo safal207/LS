@@ -97,3 +97,8 @@ def test_rollback_reports_partial_scope_when_unsupported_updates_present(tmp_pat
     assert result["partially_rolled_back"] is True
     assert result["rollback_scope"] == "partial"
     assert result["reason"] == "partial_rollback_unsupported_updates"
+    row = store.get_council_action_history(limit=1)[0]
+    assert row["rolled_back"] is False
+    assert row["partially_rolled_back"] is True
+    assert row["rollback_scope"] == "partial"
+    assert row["rollback_reason"] == "partial_rollback_unsupported_updates"

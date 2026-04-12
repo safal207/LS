@@ -724,9 +724,21 @@ class MemoryGraphStore:
             self._write_resonance_units(units)
 
             history = self.get_council_action_history(limit=1000)
+            is_partial = unsupported_updates > 0
+            has_effect = restored > 0
+            rolled_back_flag = not is_partial
+            rollback_scope = "partial" if is_partial else "full"
+            rollback_reason = (
+                "partial_rollback_unsupported_updates"
+                if is_partial
+                else ("rollback_applied" if has_effect else "no_supported_updates")
+            )
             for row in history:
                 if str(row.get("action_id")) == str(action_id):
-                    row["rolled_back"] = True
+                    row["rolled_back"] = rolled_back_flag
+                    row["partially_rolled_back"] = is_partial
+                    row["rollback_scope"] = rollback_scope
+                    row["rollback_reason"] = rollback_reason
                     row["rolled_back_at"] = _utc_now()
                     break
             self._atomic_write_jsonl(self._council_action_history_path(), history[-1000:])
@@ -734,22 +746,16 @@ class MemoryGraphStore:
                 cycle_id=str(action_id),
                 source="council_action_rollback",
             )
-            is_partial = unsupported_updates > 0
-            has_effect = restored > 0
             return {
-                "rolled_back": not is_partial,
+                "rolled_back": rolled_back_flag,
                 "partially_rolled_back": is_partial,
-                "rollback_scope": "partial" if is_partial else "full",
+                "rollback_scope": rollback_scope,
                 "action_id": action_id,
                 "restored_updates": restored,
                 "unsupported_updates": unsupported_updates,
                 "relational_self_snapshot_id": refreshed.snapshot_id,
                 "relational_self_coherence_score": float(refreshed.self_coherence_score or 0.0),
-                "reason": (
-                    "partial_rollback_unsupported_updates"
-                    if is_partial
-                    else ("rollback_applied" if has_effect else "no_supported_updates")
-                ),
+                "reason": rollback_reason,
             }
 
     def get_self_metrics_snapshot(self, *, window: int = 100) -> dict[str, Any]:

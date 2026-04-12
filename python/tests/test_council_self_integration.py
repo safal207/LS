@@ -193,7 +193,15 @@ def test_council_action_rollback_restores_edge_strength(tmp_path):
     rollback = runner.rollback_action(action_id=action_id)
     assert rollback["rolled_back"] is True
     assert "relational_self_snapshot_id" in rollback
+    assert rollback["rollback_scope"] == "full"
 
     rolled_back = next(u for u in store.list_resonance_units() if u.unit_id == a.unit_id)
     rolled_strength = next(rel["strength"] for rel in rolled_back.relations if rel.get("relation_type") == "reinforces")
     assert float(rolled_strength) == 0.35
+    history_row = next(
+        row
+        for row in store.get_council_action_history(limit=10)
+        if row.get("action_id") == action_id
+    )
+    assert history_row["rolled_back"] is True
+    assert history_row["rollback_scope"] == "full"
