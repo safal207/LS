@@ -11,8 +11,6 @@ Covers:
 from __future__ import annotations
 
 import json
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -177,7 +175,7 @@ class TestEmotionalBondingEngineToneInference:
 
     def test_negation_suppresses_frustration_match(self):
         tone, _, _, _ = self.engine.infer_tone(user_feedback="not frustrated at all")
-        assert tone != "frustrated", f"negated frustration should not match"
+        assert tone != "frustrated", "negated frustration should not match"
 
     def test_positive_feedback_lower_scores_gives_joyful(self):
         tone, _, valence, _ = self.engine.infer_tone(

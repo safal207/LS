@@ -439,7 +439,7 @@ class EmotionalBondingEngine:
         if omni_signal:
             summary_parts.append(f"omni={omni_signal}")
         if user_feedback:
-            summary_parts.append(f"feedback signal detected")
+            summary_parts.append("feedback signal detected")
         if rollback_present:
             summary_parts.append("post-rollback context")
         if contradiction_spike:
