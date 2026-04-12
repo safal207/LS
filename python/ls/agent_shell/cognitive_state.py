@@ -291,33 +291,62 @@ class CognitiveStateBridge:
         constitution_rows = store.get_constitution_history(limit=10)
         action_rows = store.get_council_action_history(limit=10)
         causal_trace: list[dict[str, Any]] = []
+        prev_node_id: str | None = None
         for row in history[-3:]:
+            node_id = f"coherence:{row.get('cycle_id') or row.get('timestamp')}"
             causal_trace.append(
                 {
+                    "node_id": node_id,
                     "type": "coherence_event",
                     "timestamp": row.get("timestamp"),
                     "coherence_score": row.get("coherence_score"),
                     "cycle_id": row.get("cycle_id"),
+                    "confidence": 0.85,
+                    "linked_from": prev_node_id,
                 }
             )
-        if constitution_rows:
-            latest_const = constitution_rows[-1]
+            prev_node_id = node_id
+        if driver_summary:
+            node_id = "relation_shift:top_drivers"
             causal_trace.append(
                 {
+                    "node_id": node_id,
+                    "type": "relation_shift",
+                    "drivers": driver_summary,
+                    "confidence": 0.78,
+                    "linked_from": prev_node_id,
+                }
+            )
+            prev_node_id = node_id
+        if constitution_rows:
+            latest_const = constitution_rows[-1]
+            node_id = f"policy:{latest_const.get('cycle_id') or 'latest'}"
+            causal_trace.append(
+                {
+                    "node_id": node_id,
                     "type": "constitution_state",
                     "cycle_id": latest_const.get("cycle_id"),
                     "passed": bool((latest_const.get("constitution") or {}).get("passed", True)),
                     "blocked": bool(latest_const.get("blocked", False)),
+                    "policy_decision": dict(latest_const.get("policy_decision") or {}),
+                    "confidence": 0.9,
+                    "linked_from": prev_node_id,
                 }
             )
+            prev_node_id = node_id
         if action_rows:
             latest_action = action_rows[-1]
+            node_id = f"action:{latest_action.get('action_id') or 'latest'}"
             causal_trace.append(
                 {
+                    "node_id": node_id,
                     "type": "applied_action",
                     "action_id": latest_action.get("action_id"),
                     "action": latest_action.get("action"),
                     "rolled_back": bool(latest_action.get("rolled_back", False)),
+                    "action_effect": "reverted" if bool(latest_action.get("rolled_back", False)) else "applied",
+                    "confidence": 0.88,
+                    "linked_from": prev_node_id,
                 }
             )
 

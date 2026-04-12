@@ -50,6 +50,38 @@ def test_ask_self_parses_numeric_days_and_reports_delta(tmp_path, monkeypatch):
     assert "day(s)" in result["answer"]
     assert "top_change_drivers" in result
     assert "causal_trace" in result
+    assert result["causal_trace"]
+    assert all("confidence" in node for node in result["causal_trace"])
+
+
+def test_ask_self_causal_trace_includes_policy_and_action_effect(tmp_path, monkeypatch):
+    store_path = tmp_path / "cases.jsonl"
+    monkeypatch.setenv("GRAPH_MEMORY_STORE_PATH", str(store_path))
+    store = MemoryGraphStore(store_path)
+    store.store_constitution_evaluation(
+        {
+            "cycle_id": "cx-trace",
+            "mode": "self-preservation",
+            "constitution": {"passed": True, "findings": []},
+            "blocked": False,
+            "policy_decision": {"allow_auto_apply": True, "reason": "safe_for_auto_apply"},
+        }
+    )
+    store.store_council_action_record(
+        {
+            "action_id": "a-trace",
+            "action": "increase_reinforcing_edge_strength",
+            "updates": [],
+            "rolled_back": False,
+        }
+    )
+    bridge = CognitiveStateBridge(task_manager=_FakeRuntime())
+    result = bridge.ask_self("как ты изменился?")
+    node_types = {node.get("type") for node in result["causal_trace"]}
+    assert "constitution_state" in node_types
+    assert "applied_action" in node_types
+    action_node = next(node for node in result["causal_trace"] if node.get("type") == "applied_action")
+    assert action_node["action_effect"] == "applied"
 
 
 def test_get_cognitive_state_backward_compatible_shape(tmp_path, monkeypatch):
