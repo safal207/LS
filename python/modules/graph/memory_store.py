@@ -697,6 +697,14 @@ class MemoryGraphStore:
                 return {"rolled_back": False, "reason": "action_not_found", "action_id": action_id}
             if bool(action.get("rolled_back", False)):
                 return {"rolled_back": False, "reason": "already_rolled_back", "action_id": action_id}
+            if bool(action.get("partially_rolled_back", False)) or str(action.get("rollback_scope") or "") == "partial":
+                return {
+                    "rolled_back": False,
+                    "reason": "already_partially_rolled_back",
+                    "action_id": action_id,
+                    "partially_rolled_back": True,
+                    "rollback_scope": "partial",
+                }
 
             updates = list(action.get("updates") or [])
             restored = 0

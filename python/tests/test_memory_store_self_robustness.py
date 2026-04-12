@@ -102,3 +102,12 @@ def test_rollback_reports_partial_scope_when_unsupported_updates_present(tmp_pat
     assert row["partially_rolled_back"] is True
     assert row["rollback_scope"] == "partial"
     assert row["rollback_reason"] == "partial_rollback_unsupported_updates"
+
+    coherence_count_after_first = len(store.get_coherence_history(limit=100))
+    second = store.rollback_council_action(action_id="a-partial")
+    assert second["rolled_back"] is False
+    assert second["reason"] == "already_partially_rolled_back"
+    assert second["partially_rolled_back"] is True
+    assert second["rollback_scope"] == "partial"
+    coherence_count_after_second = len(store.get_coherence_history(limit=100))
+    assert coherence_count_after_second == coherence_count_after_first
