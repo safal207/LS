@@ -13,7 +13,7 @@ This report verifies implementation status against the acceptance criteria from
 - Constitution history ledger persisted for council cycles.
 - Explainability chain available via `ask_self(...).causal_trace`.
 - Policy-gated auto-apply (`allow_auto_apply` / `requires_review`).
-- Council action ledger and rollback by `action_id` with derived self refresh.
+- Council action ledger and rollback by `action_id` with derived self refresh and explicit rollback scope (`full`/`partial`).
 
 ### 2) MCP surfaces expose current status, history, and causal trace
 **Status:** ✅ Implemented

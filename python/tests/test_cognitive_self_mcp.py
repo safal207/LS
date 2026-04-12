@@ -93,10 +93,12 @@ def test_get_cognitive_state_backward_compatible_shape(tmp_path, monkeypatch):
     payload = bridge.get_cognitive_state(top_k=5, min_resonance_score=0.2)
 
     assert payload["resource"] == "cognitive/state"
+    assert "resonance" in payload
     assert "resonance_snapshot" in payload
     assert "relational_state" in payload
     assert "alignment" in payload
     assert "omni" in payload
+    assert payload["resonance"] == payload["resonance_snapshot"]
 
 
 def test_get_constitution_status_returns_latest(tmp_path, monkeypatch):
@@ -174,6 +176,14 @@ def test_get_self_metrics_returns_snapshot(tmp_path, monkeypatch):
             "policy_decision": {"allow_auto_apply": True, "reason": "safe_for_auto_apply"},
         }
     )
+    store.store_constitution_evaluation(
+        {
+            "cycle_id": "cx-m3",
+            "mode": "self-evolution-proposal",
+            "constitution": {"passed": False, "findings": []},
+            "policy_decision": {"allow_auto_apply": False, "reason": "constitution_violation"},
+        }
+    )
     store.store_council_action_record(
         {
             "action_id": "a-1",
@@ -189,6 +199,7 @@ def test_get_self_metrics_returns_snapshot(tmp_path, monkeypatch):
     assert "auto_action_apply_rate" in metrics["metrics"]
     assert "mean_recovery_cycles" in metrics["metrics"]
     assert metrics["metrics"]["mean_recovery_cycles"] >= 1.0
+    assert metrics["metrics"]["auto_action_apply_rate"] == 0.3333
 
 
 def test_action_history_and_rollback_bridge(tmp_path, monkeypatch):

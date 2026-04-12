@@ -74,3 +74,26 @@ def test_rollback_returns_not_found_for_unknown_action(tmp_path):
     result = store.rollback_council_action(action_id="missing")
     assert result["rolled_back"] is False
     assert result["reason"] == "action_not_found"
+
+
+def test_rollback_reports_partial_scope_when_unsupported_updates_present(tmp_path):
+    store = MemoryGraphStore(tmp_path / "cases.jsonl")
+    store.store_council_action_record(
+        {
+            "action_id": "a-partial",
+            "action": "expand_core_nodes_window",
+            "updates": [
+                {
+                    "update_type": "window_expand",
+                    "before": 25,
+                    "after": 30,
+                }
+            ],
+            "rolled_back": False,
+        }
+    )
+    result = store.rollback_council_action(action_id="a-partial")
+    assert result["rolled_back"] is False
+    assert result["partially_rolled_back"] is True
+    assert result["rollback_scope"] == "partial"
+    assert result["reason"] == "partial_rollback_unsupported_updates"

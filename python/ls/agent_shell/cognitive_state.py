@@ -56,18 +56,25 @@ class CognitiveStateBridge:
         min_resonance_score: float = 0.3,
     ) -> dict[str, Any]:
         """Backward-compatible aggregate cognitive state payload for MCP tools."""
+        resonance_snapshot = self.get_resonance_snapshot(
+            top_k=top_k,
+            min_resonance_score=min_resonance_score,
+        )
+        relational_state = self.get_relational_state(
+            top_k=top_k,
+            min_resonance_score=min_resonance_score,
+        )
+        alignment = self.get_alignment_current()
+        omni = self.get_omni_last_insight()
         return {
             "resource": "cognitive/state",
-            "resonance_snapshot": self.get_resonance_snapshot(
-                top_k=top_k,
-                min_resonance_score=min_resonance_score,
-            ),
-            "relational_state": self.get_relational_state(
-                top_k=top_k,
-                min_resonance_score=min_resonance_score,
-            ),
-            "alignment": self.get_alignment_current(),
-            "omni": self.get_omni_last_insight(),
+            # Backward-compatible keys (legacy aggregate contract)
+            "resonance": resonance_snapshot,
+            "alignment": alignment,
+            "omni": omni,
+            # Additive keys (new contract)
+            "resonance_snapshot": resonance_snapshot,
+            "relational_state": relational_state,
             "last_updated": _utc_now(),
         }
 

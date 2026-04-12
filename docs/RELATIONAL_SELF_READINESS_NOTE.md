@@ -7,7 +7,7 @@ The implementation is **foundation-complete** for the scope defined in `RELATION
 - [x] Relational Self snapshot + coherence history are persisted.
 - [x] Constitution evaluation is deterministic and ledgered.
 - [x] Council actions are policy-gated and auditable.
-- [x] Rollback is available through runner/bridge tooling.
+- [x] Rollback is available through runner/bridge tooling (with explicit full/partial scope).
 - [x] MCP surfaces expose status, metrics, history, and `ask_self` explainability.
 - [x] Robustness coverage includes malformed ledger rows + retention behavior.
 

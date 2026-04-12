@@ -143,6 +143,27 @@ class MemoryGraphStore:
                 except OSError:
                     pass
 
+    def _atomic_write_json(self, path: Path, payload: dict[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(path.parent),
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, ensure_ascii=False, indent=2)
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_name, path)
+        finally:
+            if os.path.exists(tmp_name):
+                try:
+                    os.remove(tmp_name)
+                except OSError:
+                    pass
+
     def _write_cases(self, cases: list[MemoryCase]) -> None:
         self._atomic_write_jsonl(
             self.path,
@@ -713,13 +734,22 @@ class MemoryGraphStore:
                 cycle_id=str(action_id),
                 source="council_action_rollback",
             )
+            is_partial = unsupported_updates > 0
+            has_effect = restored > 0
             return {
-                "rolled_back": True,
+                "rolled_back": not is_partial,
+                "partially_rolled_back": is_partial,
+                "rollback_scope": "partial" if is_partial else "full",
                 "action_id": action_id,
                 "restored_updates": restored,
                 "unsupported_updates": unsupported_updates,
                 "relational_self_snapshot_id": refreshed.snapshot_id,
                 "relational_self_coherence_score": float(refreshed.self_coherence_score or 0.0),
+                "reason": (
+                    "partial_rollback_unsupported_updates"
+                    if is_partial
+                    else ("rollback_applied" if has_effect else "no_supported_updates")
+                ),
             }
 
     def get_self_metrics_snapshot(self, *, window: int = 100) -> dict[str, Any]:
@@ -738,7 +768,13 @@ class MemoryGraphStore:
                 1
                 for row in constitution_rows
                 if isinstance(row.get("policy_decision"), dict)
-                and row["policy_decision"].get("reason") in {"safe_for_auto_apply", "constitution_escalate_violation", "blocked_by_preservation"}
+                and row["policy_decision"].get("reason")
+                in {
+                    "safe_for_auto_apply",
+                    "constitution_escalate_violation",
+                    "constitution_violation",
+                    "blocked_by_preservation",
+                }
             )
             auto_apply_allowed = sum(
                 1
@@ -883,10 +919,7 @@ class MemoryGraphStore:
                 },
             )
 
-            self._relational_self_path().write_text(
-                json.dumps(snapshot.to_dict(), ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
+            self._atomic_write_json(self._relational_self_path(), snapshot.to_dict())
             history_rows = self.get_coherence_history(limit=500)
             history_rows.append(
                 {
