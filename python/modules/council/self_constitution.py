@@ -29,11 +29,13 @@ class ConstitutionFinding:
 @dataclass(frozen=True)
 class ConstitutionEvaluation:
     passed: bool
+    schema_version: str = "1.0"
     findings: list[ConstitutionFinding] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "passed": self.passed,
+            "schema_version": self.schema_version,
             "findings": [
                 {
                     "rule_id": finding.rule_id,

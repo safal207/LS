@@ -60,6 +60,34 @@ def test_council_engine_evolution_mode_returns_proposals(tmp_path):
     assert result["council_outcome"]["mode"] == "self-evolution-proposal"
     assert result["council_outcome"]["proposal_count"] >= 1
     assert result["council_outcome"]["actions"]
+    assert result["constitution_record"] is not None
+    assert result["council_outcome"]["constitution"]["schema_version"] == "1.0"
+
+
+def test_evolution_auto_apply_blocked_by_constitution_violation(tmp_path):
+    store = MemoryGraphStore(tmp_path / "cases.jsonl")
+    store.store_resonance_unit(
+        ResonanceKnowledgeUnit(
+            source_question="bad alignment",
+            resonance_score=0.9,
+            alignment_score=0.05,
+        )
+    )
+    runner = CouncilCycleRunner(
+        self_builder=RelationalSelfBuilder(store),
+        engine=RelationalCouncilEngine(),
+    )
+
+    result = runner.run(
+        cycle_id="cx-2b",
+        mode="self-evolution-proposal",
+        execute_actions=True,
+    )
+
+    assert result["policy_decision"]["allow_auto_apply"] is False
+    assert result["policy_decision"]["requires_review"] is True
+    assert result["policy_decision"]["reason"] == "constitution_violation"
+    assert result["applied_actions"] == []
 
 
 def test_council_runner_can_apply_evolution_actions(tmp_path):
@@ -67,15 +95,15 @@ def test_council_runner_can_apply_evolution_actions(tmp_path):
     a = store.store_resonance_unit(
         ResonanceKnowledgeUnit(
             source_question="improve consistency",
-            resonance_score=0.42,
-            alignment_score=0.41,
+            resonance_score=0.65,
+            alignment_score=0.65,
         )
     )
     b = store.store_resonance_unit(
         ResonanceKnowledgeUnit(
             source_question="second node",
-            resonance_score=0.45,
-            alignment_score=0.4,
+            resonance_score=0.6,
+            alignment_score=0.6,
         )
     )
     store.store_relational_edge(
@@ -164,6 +192,7 @@ def test_council_action_rollback_restores_edge_strength(tmp_path):
 
     rollback = runner.rollback_action(action_id=action_id)
     assert rollback["rolled_back"] is True
+    assert "relational_self_snapshot_id" in rollback
 
     rolled_back = next(u for u in store.list_resonance_units() if u.unit_id == a.unit_id)
     rolled_strength = next(rel["strength"] for rel in rolled_back.relations if rel.get("relation_type") == "reinforces")

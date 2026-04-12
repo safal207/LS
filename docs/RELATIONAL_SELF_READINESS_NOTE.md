@@ -1,7 +1,7 @@
 # Relational Self: readiness note
 
 ## Short answer
-The implementation is **functionally complete** for the scope defined in `RELATIONAL_SELF_IMPLEMENTATION_PLAN_100.md` and verified in `RELATIONAL_SELF_COMPLETION_REPORT.md`.
+The implementation is **foundation-complete** for the scope defined in `RELATIONAL_SELF_IMPLEMENTATION_PLAN_100.md` and verified in `RELATIONAL_SELF_COMPLETION_REPORT.md`.
 
 ## Objective exit checklist (phase scope)
 - [x] Relational Self snapshot + coherence history are persisted.
@@ -23,4 +23,4 @@ These are not blockers for shipping the current phase, but they improve producti
 3. Add a short operator runbook for incident handling around policy escalation.
 
 ## Release call
-If the team goal is to close Phase 2.3/2.3.1 scope, this is a reasonable point to say: **"yes, we can ship this phase and go eat"**.
+If the team goal is to close Phase 2.3/2.3.1 scope, this is a reasonable point to say: **"yes, we can ship this phase as a foundation checkpoint and continue hardening in follow-up PRs."**

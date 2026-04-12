@@ -28,21 +28,22 @@ class CouncilCycleRunner:
             omni_insight=omni_insight,
         )
         outcome = self.engine.run_mode(mode=mode, relational_self=relational_self)
+        if not isinstance(outcome.get("constitution"), dict):
+            outcome["constitution"] = self.engine.constitution.evaluate(relational_self).to_dict()
         applied_actions: list[dict[str, Any]] = []
         constitution_row: dict[str, Any] | None = None
         policy_decision: dict[str, Any] = self._policy_decision(mode=mode, outcome=outcome)
-        if isinstance(outcome.get("constitution"), dict):
-            constitution_row = self.self_builder.store.store_constitution_evaluation(
-                {
-                    "cycle_id": cycle_id,
-                    "mode": mode,
-                    "snapshot_id": relational_self.snapshot_id,
-                    "coherence_score": float(relational_self.self_coherence_score or 0.0),
-                    "constitution": dict(outcome.get("constitution") or {}),
-                    "blocked": bool(outcome.get("blocked", False)),
-                    "policy_decision": policy_decision,
-                }
-            )
+        constitution_row = self.self_builder.store.store_constitution_evaluation(
+            {
+                "cycle_id": cycle_id,
+                "mode": mode,
+                "snapshot_id": relational_self.snapshot_id,
+                "coherence_score": float(relational_self.self_coherence_score or 0.0),
+                "constitution": dict(outcome.get("constitution") or {}),
+                "blocked": bool(outcome.get("blocked", False)),
+                "policy_decision": policy_decision,
+            }
+        )
         if (
             execute_actions
             and str(mode) == "self-evolution-proposal"
@@ -94,6 +95,12 @@ class CouncilCycleRunner:
                     "allow_auto_apply": False,
                     "requires_review": True,
                     "reason": "constitution_escalate_violation",
+                }
+            if not bool(constitution.get("passed", True)):
+                return {
+                    "allow_auto_apply": False,
+                    "requires_review": True,
+                    "reason": "constitution_violation",
                 }
         return {
             "allow_auto_apply": True,

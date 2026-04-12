@@ -18,6 +18,7 @@ def test_constitution_evaluate_passes_for_healthy_self():
     assert evaluation.passed is True
     assert len(evaluation.findings) == 3
     payload = evaluation.to_dict()
+    assert payload["schema_version"] == "1.0"
     assert payload["findings"][0]["rule_id"].startswith("rs.constitution.")
     assert payload["findings"][0]["reason_code"].endswith("_ok")
 

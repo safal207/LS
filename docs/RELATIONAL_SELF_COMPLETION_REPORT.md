@@ -1,4 +1,4 @@
-# Relational Self — Completion Report (Checkpoint)
+# Relational Self — Foundation Completion Report (Checkpoint)
 
 ## Scope
 This report verifies implementation status against the acceptance criteria from
@@ -7,13 +7,13 @@ This report verifies implementation status against the acceptance criteria from
 ## Acceptance criteria status
 
 ### 1) Constitution + ledger + explainability + policy-gated actioning + rollback
-**Status:** ✅ Implemented
+**Status:** ✅ Implemented (foundation scope)
 
 - Constitution evaluator with deterministic findings and stable fields (`rule_id`, `reason_code`).
-- Constitution history ledger persisted per cycle.
+- Constitution history ledger persisted for council cycles.
 - Explainability chain available via `ask_self(...).causal_trace`.
 - Policy-gated auto-apply (`allow_auto_apply` / `requires_review`).
-- Council action ledger and rollback by `action_id`.
+- Council action ledger and rollback by `action_id` with derived self refresh.
 
 ### 2) MCP surfaces expose current status, history, and causal trace
 **Status:** ✅ Implemented
@@ -48,6 +48,6 @@ Coverage includes:
 - Add stress tests for concurrent write/read in high-frequency council loops.
 
 ## Final checkpoint verdict
-**Relational Self foundation is production-ready as a governed subsystem checkpoint.**
+**Relational Self foundation is release-candidate ready for the current scope, with known non-blocking hardening follow-ups.**
 
 This checkpoint can be used as the baseline for the next phase (emotional memory / long-term bonding).

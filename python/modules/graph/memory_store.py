@@ -679,9 +679,12 @@ class MemoryGraphStore:
 
             updates = list(action.get("updates") or [])
             restored = 0
+            unsupported_updates = 0
             units = self._load_resonance_units()
             for update in updates:
-                if str(update.get("update_type") or "") != "relation_strength":
+                update_type = str(update.get("update_type") or "")
+                if update_type != "relation_strength":
+                    unsupported_updates += 1
                     continue
                 unit_id = str(update.get("unit_id") or "")
                 target_id = str(update.get("target_unit_id") or "")
@@ -706,7 +709,18 @@ class MemoryGraphStore:
                     row["rolled_back_at"] = _utc_now()
                     break
             self._atomic_write_jsonl(self._council_action_history_path(), history[-1000:])
-            return {"rolled_back": True, "action_id": action_id, "restored_updates": restored}
+            refreshed = self.update_self_from_cycle(
+                cycle_id=str(action_id),
+                source="council_action_rollback",
+            )
+            return {
+                "rolled_back": True,
+                "action_id": action_id,
+                "restored_updates": restored,
+                "unsupported_updates": unsupported_updates,
+                "relational_self_snapshot_id": refreshed.snapshot_id,
+                "relational_self_coherence_score": float(refreshed.self_coherence_score or 0.0),
+            }
 
     def get_self_metrics_snapshot(self, *, window: int = 100) -> dict[str, Any]:
         with self._lock:
