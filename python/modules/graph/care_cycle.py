@@ -112,6 +112,10 @@ class CareCycleRunner:
             )
             try:
                 self.graph_store.store_resonance_unit(unit)
+                self.graph_store.update_self_from_cycle(
+                    cycle_id=cycle_id,
+                    source="care_cycle",
+                )
             except Exception as exc:
                 logger.debug("CareCycleRunner resonance unit store skipped: %s", exc)
 

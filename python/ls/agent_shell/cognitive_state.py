@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,35 @@ class CognitiveStateBridge:
             "top_k": safe_top_k,
             "min_resonance_score": safe_threshold,
             "items": units,
+            "last_updated": _utc_now(),
+        }
+
+    def get_cognitive_state(
+        self,
+        *,
+        top_k: int = 10,
+        min_resonance_score: float = 0.3,
+    ) -> dict[str, Any]:
+        """Backward-compatible aggregate cognitive state payload for MCP tools."""
+        resonance_snapshot = self.get_resonance_snapshot(
+            top_k=top_k,
+            min_resonance_score=min_resonance_score,
+        )
+        relational_state = self.get_relational_state(
+            top_k=top_k,
+            min_resonance_score=min_resonance_score,
+        )
+        alignment = self.get_alignment_current()
+        omni = self.get_omni_last_insight()
+        return {
+            "resource": "cognitive/state",
+            # Backward-compatible keys (legacy aggregate contract)
+            "resonance": resonance_snapshot,
+            "alignment": alignment,
+            "omni": omni,
+            # Additive keys (new contract)
+            "resonance_snapshot": resonance_snapshot,
+            "relational_state": relational_state,
             "last_updated": _utc_now(),
         }
 
@@ -147,6 +177,232 @@ class CognitiveStateBridge:
             "insight": insight,
             "last_updated": _utc_now(),
         }
+
+    def get_relational_self_summary(self) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        snapshot = store.get_relational_self().to_dict()
+        return {
+            "resource": "self/relational-self",
+            "snapshot": snapshot,
+            "last_updated": _utc_now(),
+        }
+
+    def get_coherence_history(self, *, limit: int = 30) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        rows = store.get_coherence_history(limit=int(limit))
+        return {
+            "resource": "self/coherence-history",
+            "items": rows,
+            "limit": int(limit),
+            "last_updated": _utc_now(),
+        }
+
+    def get_constitution_status(self, *, limit: int = 20) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        rows = store.get_constitution_history(limit=int(limit))
+        latest = rows[-1] if rows else None
+        latest_self = store.get_relational_self()
+        latest_action_rows = store.get_council_action_history(limit=1)
+        last_action = latest_action_rows[-1] if latest_action_rows else None
+        passed = bool((latest or {}).get("constitution", {}).get("passed", True)) if latest else True
+        blocked = bool((latest or {}).get("blocked", False)) if latest else False
+        coherence = float(latest_self.self_coherence_score or 0.0)
+        if (not passed) or blocked:
+            identity_state = "at-risk"
+            breach_risk = "high"
+        elif coherence < 0.65:
+            identity_state = "drifting"
+            breach_risk = "medium"
+        else:
+            identity_state = "stable"
+            breach_risk = "low"
+        if last_action is None:
+            last_action_effect = "none"
+        else:
+            last_action_effect = self._action_effect(last_action)
+        return {
+            "resource": "self/constitution-status",
+            "latest": latest,
+            "items": rows,
+            "limit": int(limit),
+            "identity_state": identity_state,
+            "breach_risk": breach_risk,
+            "last_action_effect": last_action_effect,
+            "last_updated": _utc_now(),
+        }
+
+    def get_self_metrics(self, *, window: int = 100) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        metrics = store.get_self_metrics_snapshot(window=int(window))
+        return {
+            "resource": "self/metrics",
+            "metrics": metrics,
+            "last_updated": _utc_now(),
+        }
+
+    def get_action_history(self, *, limit: int = 30) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        items = store.get_council_action_history(limit=int(limit))
+        return {
+            "resource": "self/action-history",
+            "items": items,
+            "limit": int(limit),
+            "last_updated": _utc_now(),
+        }
+
+    def rollback_self_action(self, *, action_id: str) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        result = store.rollback_council_action(action_id=str(action_id))
+        result["resource"] = "self/rollback-action"
+        result["last_updated"] = _utc_now()
+        return result
+
+    def ask_self(self, question: str) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        prompt = str(question or "").strip()
+        store = MemoryGraphStore(self._store_path)
+        snapshot = store.get_relational_self()
+        days = 3
+        match = re.search(r"(\d+)", prompt)
+        if match:
+            days = max(1, int(match.group(1)))
+        history = store.get_coherence_history(limit=max(10, days * 12))
+        if history:
+            now = datetime.now(timezone.utc)
+            filtered: list[dict[str, Any]] = []
+            for row in history:
+                timestamp = str(row.get("timestamp") or "")
+                try:
+                    row_dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                if (now - row_dt).total_seconds() <= days * 86400:
+                    filtered.append(row)
+            if filtered:
+                history = filtered
+        delta = 0.0
+        if len(history) >= 2:
+            delta = float(history[-1].get("coherence_score", 0.0) or 0.0) - float(
+                history[0].get("coherence_score", 0.0) or 0.0
+            )
+        direction = "stabilized"
+        if delta > 0.02:
+            direction = "grew more coherent"
+        elif delta < -0.02:
+            direction = "lost coherence"
+
+        top_drivers = sorted(
+            list(snapshot.change_history or []),
+            key=lambda row: abs(float(row.get("delta", 0.0) or 0.0)),
+            reverse=True,
+        )[:3]
+        driver_summary = [
+            {
+                "cycle_id": row.get("cycle_id"),
+                "delta": float(row.get("delta", 0.0) or 0.0),
+                "source": row.get("source"),
+            }
+            for row in top_drivers
+        ]
+        constitution_rows = store.get_constitution_history(limit=10)
+        action_rows = store.get_council_action_history(limit=10)
+        causal_trace: list[dict[str, Any]] = []
+        prev_node_id: str | None = None
+        for row in history[-3:]:
+            node_id = f"coherence:{row.get('cycle_id') or row.get('timestamp')}"
+            causal_trace.append(
+                {
+                    "node_id": node_id,
+                    "type": "coherence_event",
+                    "timestamp": row.get("timestamp"),
+                    "coherence_score": row.get("coherence_score"),
+                    "cycle_id": row.get("cycle_id"),
+                    "confidence": 0.85,
+                    "linked_from": prev_node_id,
+                }
+            )
+            prev_node_id = node_id
+        if driver_summary:
+            node_id = "relation_shift:top_drivers"
+            causal_trace.append(
+                {
+                    "node_id": node_id,
+                    "type": "relation_shift",
+                    "drivers": driver_summary,
+                    "confidence": 0.78,
+                    "linked_from": prev_node_id,
+                }
+            )
+            prev_node_id = node_id
+        if constitution_rows:
+            latest_const = constitution_rows[-1]
+            node_id = f"policy:{latest_const.get('cycle_id') or 'latest'}"
+            causal_trace.append(
+                {
+                    "node_id": node_id,
+                    "type": "constitution_state",
+                    "cycle_id": latest_const.get("cycle_id"),
+                    "passed": bool((latest_const.get("constitution") or {}).get("passed", True)),
+                    "blocked": bool(latest_const.get("blocked", False)),
+                    "policy_decision": dict(latest_const.get("policy_decision") or {}),
+                    "confidence": 0.9,
+                    "linked_from": prev_node_id,
+                }
+            )
+            prev_node_id = node_id
+        if action_rows:
+            latest_action = action_rows[-1]
+            action_effect = self._action_effect(latest_action)
+            node_id = f"action:{latest_action.get('action_id') or 'latest'}"
+            causal_trace.append(
+                {
+                    "node_id": node_id,
+                    "type": "applied_action",
+                    "action_id": latest_action.get("action_id"),
+                    "action": latest_action.get("action"),
+                    "rolled_back": bool(latest_action.get("rolled_back", False)),
+                    "partially_rolled_back": bool(latest_action.get("partially_rolled_back", False)),
+                    "rollback_scope": latest_action.get("rollback_scope"),
+                    "action_effect": action_effect,
+                    "confidence": 0.88,
+                    "linked_from": prev_node_id,
+                }
+            )
+
+        return {
+            "resource": "self/ask-self",
+            "question": prompt,
+            "answer": (
+                f"Over the last {days} day(s) I {direction}. "
+                f"Current coherence is {float(snapshot.self_coherence_score or 0.0):.2f}."
+            ),
+            "coherence_delta": round(delta, 4),
+            "coherence_now": float(snapshot.self_coherence_score or 0.0),
+            "top_change_drivers": driver_summary,
+            "causal_trace": causal_trace,
+            "last_updated": _utc_now(),
+        }
+
+    @staticmethod
+    def _action_effect(action_row: dict[str, Any]) -> str:
+        if bool(action_row.get("partially_rolled_back", False)) or str(action_row.get("rollback_scope") or "") == "partial":
+            return "partially_reverted"
+        if bool(action_row.get("rolled_back", False)):
+            return "reverted"
+        return "applied"
 
     def get_relational_graph(
         self,
@@ -331,18 +587,4 @@ class CognitiveStateBridge:
             "last_updated": _utc_now(),
         }
 
-    def get_cognitive_state(
-        self,
-        *,
-        top_k: int = 10,
-        min_resonance_score: float = 0.3,
-    ) -> dict[str, Any]:
-        return {
-            "resonance": self.get_resonance_snapshot(
-                top_k=top_k,
-                min_resonance_score=min_resonance_score,
-            ),
-            "alignment": self.get_alignment_current(),
-            "omni": self.get_omni_last_insight(),
-            "last_updated": _utc_now(),
-        }
+    # NOTE: get_cognitive_state is intentionally defined near the top of this class.

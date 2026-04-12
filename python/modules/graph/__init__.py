@@ -16,6 +16,7 @@ from .models import (
     MemoryCase,
     NetworkQuestion,
     RelationalFieldSnapshot,
+    RelationalSelf,
     RetrievedCase,
     ReuseDecision,
 )
@@ -71,6 +72,7 @@ __all__ = [
     "TensionAnalyzer",
     "TensionObservation",
     "RelationalFieldSnapshot",
+    "RelationalSelf",
     "RuntimeStatusSnapshot",
     "collect_runtime_status",
     "RetrievedCase",

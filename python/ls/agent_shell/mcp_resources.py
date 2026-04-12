@@ -40,6 +40,11 @@ class MCPResourceRegistry:
             ResourceRef(uri="cognitive/relational-suggestion", name="Suggest a relation edge"),
             ResourceRef(uri="alignment/current", name="Current alignment state"),
             ResourceRef(uri="omni/last-insight", name="Last Qwen Omni insight"),
+            ResourceRef(uri="self/relational-self", name="Relational Self summary"),
+            ResourceRef(uri="self/coherence-history", name="Relational Self coherence history"),
+            ResourceRef(uri="self/constitution-status", name="Relational Self constitution status"),
+            ResourceRef(uri="self/metrics", name="Relational Self metrics snapshot"),
+            ResourceRef(uri="self/action-history", name="Relational Self action history"),
         ]
 
     def read_resource(self, uri: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -76,6 +81,24 @@ class MCPResourceRegistry:
             return self._cognitive_state.get_alignment_current()
         if uri == "omni/last-insight":
             return self._cognitive_state.get_omni_last_insight()
+        if uri == "self/relational-self":
+            return self._cognitive_state.get_relational_self_summary()
+        if uri == "self/coherence-history":
+            return self._cognitive_state.get_coherence_history(
+                limit=int(args.get("limit", 30)),
+            )
+        if uri == "self/constitution-status":
+            return self._cognitive_state.get_constitution_status(
+                limit=int(args.get("limit", 20)),
+            )
+        if uri == "self/metrics":
+            return self._cognitive_state.get_self_metrics(
+                window=int(args.get("window", 100)),
+            )
+        if uri == "self/action-history":
+            return self._cognitive_state.get_action_history(
+                limit=int(args.get("limit", 30)),
+            )
 
         task_id, suffix = self._parse_task_uri(uri)
 

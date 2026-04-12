@@ -300,3 +300,37 @@ class RelationalFieldSnapshot:
             notes=str(data.get("notes") or ""),
             metadata=dict(data.get("metadata") or {}),
         )
+
+
+@dataclass
+class RelationalSelf:
+    """Holistic self-state synthesized from resonance + relational memory."""
+
+    snapshot_id: str = field(default_factory=lambda: str(uuid4()))
+    schema_version: str = "1.0"
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    core_nodes: list[dict[str, Any]] = field(default_factory=list)
+    core_edges: list[dict[str, Any]] = field(default_factory=list)
+    self_coherence_score: float = 0.0
+    self_identity_vector: list[float] = field(default_factory=list)
+    change_history: list[dict[str, Any]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RelationalSelf":
+        return cls(
+            snapshot_id=str(data.get("snapshot_id") or str(uuid4())),
+            schema_version=str(data.get("schema_version") or "1.0"),
+            created_at=str(data.get("created_at") or datetime.now(timezone.utc).isoformat()),
+            updated_at=str(data.get("updated_at") or datetime.now(timezone.utc).isoformat()),
+            core_nodes=list(data.get("core_nodes") or []),
+            core_edges=list(data.get("core_edges") or []),
+            self_coherence_score=float(data.get("self_coherence_score", 0.0) or 0.0),
+            self_identity_vector=[float(v) for v in list(data.get("self_identity_vector") or [])],
+            change_history=list(data.get("change_history") or []),
+            metadata=dict(data.get("metadata") or {}),
+        )

@@ -12,7 +12,13 @@ from uuid import uuid4
 
 from .decay import ResonanceDecayConfig, effective_score, prune_expired
 from .evolve import RouteSnapshot
-from .models import MemoryCase, RelationalEdge, RelationalFieldSnapshot, ResonanceKnowledgeUnit
+from .models import (
+    MemoryCase,
+    RelationalEdge,
+    RelationalFieldSnapshot,
+    RelationalSelf,
+    ResonanceKnowledgeUnit,
+)
 
 _STORE_LOCKS: dict[str, threading.RLock] = {}
 _STORE_LOCKS_GUARD = threading.Lock()
@@ -127,6 +133,27 @@ class MemoryGraphStore:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 for row in rows:
                     handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_name, path)
+        finally:
+            if os.path.exists(tmp_name):
+                try:
+                    os.remove(tmp_name)
+                except OSError:
+                    pass
+
+    def _atomic_write_json(self, path: Path, payload: dict[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(path.parent),
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, ensure_ascii=False, indent=2)
+                handle.write("\n")
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(tmp_name, path)
@@ -567,6 +594,357 @@ class MemoryGraphStore:
 
     def _route_snapshots_path(self) -> Path:
         return self.path.with_name("route_snapshots.jsonl")
+
+    # ──────────────────────────────────────────────────────────────
+    # RelationalSelf — holistic self-state snapshot
+    # ──────────────────────────────────────────────────────────────
+
+    def _relational_self_path(self) -> Path:
+        return self.path.with_name("relational_self.json")
+
+    def _coherence_history_path(self) -> Path:
+        return self.path.with_name("relational_self_coherence_history.jsonl")
+
+    def _constitution_history_path(self) -> Path:
+        return self.path.with_name("relational_self_constitution_history.jsonl")
+
+    def _council_action_history_path(self) -> Path:
+        return self.path.with_name("relational_self_council_actions.jsonl")
+
+    def get_relational_self(self) -> RelationalSelf:
+        with self._lock:
+            path = self._relational_self_path()
+            if not path.exists():
+                return RelationalSelf()
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            return RelationalSelf.from_dict(dict(payload))
+
+    def get_coherence_history(self, *, limit: int = 50) -> list[dict[str, Any]]:
+        with self._lock:
+            path = self._coherence_history_path()
+            if not path.exists():
+                return []
+            rows: list[dict[str, Any]] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    rows.append(dict(json.loads(line)))
+            return rows[-max(1, int(limit or 1)) :]
+
+    def store_constitution_evaluation(self, row: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            history = self.get_constitution_history(limit=500)
+            payload = dict(row)
+            payload.setdefault("timestamp", _utc_now())
+            history.append(payload)
+            self._atomic_write_jsonl(self._constitution_history_path(), history[-500:])
+            return payload
+
+    def get_constitution_history(self, *, limit: int = 50) -> list[dict[str, Any]]:
+        with self._lock:
+            path = self._constitution_history_path()
+            if not path.exists():
+                return []
+            rows: list[dict[str, Any]] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rows.append(dict(json.loads(line)))
+                    except Exception:
+                        # Robustness: skip malformed rows instead of failing reads.
+                        continue
+            return rows[-max(1, int(limit or 1)) :]
+
+    def store_council_action_record(self, row: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            history = self.get_council_action_history(limit=1000)
+            payload = dict(row)
+            payload.setdefault("timestamp", _utc_now())
+            history.append(payload)
+            self._atomic_write_jsonl(self._council_action_history_path(), history[-1000:])
+            return payload
+
+    def get_council_action_history(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        with self._lock:
+            path = self._council_action_history_path()
+            if not path.exists():
+                return []
+            rows: list[dict[str, Any]] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rows.append(dict(json.loads(line)))
+                    except Exception:
+                        # Robustness: skip malformed rows instead of failing reads.
+                        continue
+            return rows[-max(1, int(limit or 1)) :]
+
+    def rollback_council_action(self, *, action_id: str) -> dict[str, Any]:
+        with self._lock:
+            action = next(
+                (row for row in reversed(self.get_council_action_history(limit=1000)) if str(row.get("action_id")) == str(action_id)),
+                None,
+            )
+            if not action:
+                return {"rolled_back": False, "reason": "action_not_found", "action_id": action_id}
+            if bool(action.get("rolled_back", False)):
+                return {"rolled_back": False, "reason": "already_rolled_back", "action_id": action_id}
+            if bool(action.get("partially_rolled_back", False)) or str(action.get("rollback_scope") or "") == "partial":
+                return {
+                    "rolled_back": False,
+                    "reason": "already_partially_rolled_back",
+                    "action_id": action_id,
+                    "partially_rolled_back": True,
+                    "rollback_scope": "partial",
+                }
+
+            updates = list(action.get("updates") or [])
+            restored = 0
+            unsupported_updates = 0
+            units = self._load_resonance_units()
+            for update in updates:
+                update_type = str(update.get("update_type") or "")
+                if update_type != "relation_strength":
+                    unsupported_updates += 1
+                    continue
+                unit_id = str(update.get("unit_id") or "")
+                target_id = str(update.get("target_unit_id") or "")
+                before = float(update.get("before", 0.5) or 0.5)
+                for unit in units:
+                    if unit.unit_id != unit_id:
+                        continue
+                    for rel in list(unit.relations or []):
+                        if (
+                            isinstance(rel, dict)
+                            and str(rel.get("target_unit_id") or "") == target_id
+                            and str(rel.get("relation_type") or "") == "reinforces"
+                        ):
+                            rel["strength"] = round(before, 4)
+                            restored += 1
+            self._write_resonance_units(units)
+
+            history = self.get_council_action_history(limit=1000)
+            is_partial = unsupported_updates > 0
+            has_effect = restored > 0
+            rolled_back_flag = not is_partial
+            rollback_scope = "partial" if is_partial else "full"
+            rollback_reason = (
+                "partial_rollback_unsupported_updates"
+                if is_partial
+                else ("rollback_applied" if has_effect else "no_supported_updates")
+            )
+            for row in history:
+                if str(row.get("action_id")) == str(action_id):
+                    row["rolled_back"] = rolled_back_flag
+                    row["partially_rolled_back"] = is_partial
+                    row["rollback_scope"] = rollback_scope
+                    row["rollback_reason"] = rollback_reason
+                    row["rolled_back_at"] = _utc_now()
+                    break
+            self._atomic_write_jsonl(self._council_action_history_path(), history[-1000:])
+            refreshed = self.update_self_from_cycle(
+                cycle_id=str(action_id),
+                source="council_action_rollback",
+            )
+            return {
+                "rolled_back": rolled_back_flag,
+                "partially_rolled_back": is_partial,
+                "rollback_scope": rollback_scope,
+                "action_id": action_id,
+                "restored_updates": restored,
+                "unsupported_updates": unsupported_updates,
+                "relational_self_snapshot_id": refreshed.snapshot_id,
+                "relational_self_coherence_score": float(refreshed.self_coherence_score or 0.0),
+                "reason": rollback_reason,
+            }
+
+    def get_self_metrics_snapshot(self, *, window: int = 100) -> dict[str, Any]:
+        with self._lock:
+            latest_self = self.get_relational_self()
+            constitution_rows = self.get_constitution_history(limit=max(1, int(window or 1)))
+            action_rows = self.get_council_action_history(limit=max(1, int(window or 1)))
+
+            violation_count = sum(
+                1
+                for row in constitution_rows
+                if isinstance(row.get("constitution"), dict)
+                and not bool(row["constitution"].get("passed", True))
+            )
+            auto_apply_total = sum(
+                1
+                for row in constitution_rows
+                if isinstance(row.get("policy_decision"), dict)
+                and row["policy_decision"].get("reason")
+                in {
+                    "safe_for_auto_apply",
+                    "constitution_escalate_violation",
+                    "constitution_violation",
+                    "blocked_by_preservation",
+                }
+            )
+            auto_apply_allowed = sum(
+                1
+                for row in constitution_rows
+                if isinstance(row.get("policy_decision"), dict)
+                and bool(row["policy_decision"].get("allow_auto_apply", False))
+            )
+            rollback_count = sum(1 for row in action_rows if bool(row.get("rolled_back", False)))
+            recovery_windows: list[int] = []
+            last_violation_index: int | None = None
+            for idx, row in enumerate(constitution_rows):
+                constitution = row.get("constitution")
+                if not isinstance(constitution, dict):
+                    continue
+                passed = bool(constitution.get("passed", True))
+                if not passed:
+                    if last_violation_index is None:
+                        last_violation_index = idx
+                elif passed and last_violation_index is not None:
+                    recovery_windows.append(idx - last_violation_index)
+                    last_violation_index = None
+
+            return {
+                "window": max(1, int(window or 1)),
+                "self_coherence_score": float(latest_self.self_coherence_score or 0.0),
+                "constitution_violation_count": violation_count,
+                "auto_action_apply_rate": round((auto_apply_allowed / auto_apply_total), 4) if auto_apply_total else 0.0,
+                "rollback_rate": round((rollback_count / len(action_rows)), 4) if action_rows else 0.0,
+                "mean_recovery_cycles": round(sum(recovery_windows) / len(recovery_windows), 4) if recovery_windows else 0.0,
+                "action_count": len(action_rows),
+                "constitution_eval_count": len(constitution_rows),
+            }
+
+    def update_self_from_cycle(
+        self,
+        *,
+        cycle_id: str | None = None,
+        source: str = "care_cycle",
+        recent_window: int = 25,
+        omni_insight: dict[str, Any] | None = None,
+    ) -> RelationalSelf:
+        with self._lock:
+            units = self.list_resonance_units()
+            units.sort(key=lambda unit: str(unit.timestamp or ""), reverse=True)
+            selected = units[: max(3, int(recent_window or 3))]
+
+            core_nodes = [
+                {
+                    "unit_id": u.unit_id,
+                    "intent": u.intent,
+                    "resonance_score": float(u.resonance_score),
+                    "alignment_score": float(u.alignment_score),
+                    "timestamp": u.timestamp,
+                }
+                for u in selected
+            ]
+            unit_map = {u.unit_id: u for u in selected}
+            core_edges: list[dict[str, Any]] = []
+            for unit in selected:
+                for relation in list(unit.relations or []):
+                    if not isinstance(relation, dict):
+                        continue
+                    target = str(relation.get("target_unit_id") or "")
+                    if target in unit_map:
+                        core_edges.append(
+                            {
+                                "source_unit_id": unit.unit_id,
+                                "target_unit_id": target,
+                                "relation_type": str(relation.get("relation_type") or "reinforces"),
+                                "strength": float(relation.get("strength", 0.0) or 0.0),
+                            }
+                        )
+
+            if omni_insight and str(omni_insight.get("signal") or "").lower() in {"fatigue", "tired"}:
+                top_unit_id = selected[0].unit_id if selected else ""
+                if top_unit_id:
+                    core_edges.append(
+                        {
+                            "source_unit_id": top_unit_id,
+                            "target_unit_id": top_unit_id,
+                            "relation_type": "emotional_link",
+                            "strength": 0.55,
+                        }
+                    )
+
+            avg_resonance = (
+                sum(float(u.resonance_score) for u in selected) / len(selected)
+                if selected
+                else 0.0
+            )
+            avg_alignment = (
+                sum(float(u.alignment_score) for u in selected) / len(selected)
+                if selected
+                else 0.0
+            )
+            contradiction_penalty = sum(
+                0.2
+                for edge in core_edges
+                if str(edge.get("relation_type") or "") == "contradicts"
+                and float(edge.get("strength", 0.0) or 0.0) >= 0.7
+            )
+            coherence = max(
+                0.0,
+                min(1.0, (0.45 * avg_resonance) + (0.45 * avg_alignment) - contradiction_penalty),
+            )
+            identity_vector = [
+                round(avg_resonance, 4),
+                round(avg_alignment, 4),
+                round(min(1.0, len(core_nodes) / 10.0), 4),
+                round(min(1.0, len(core_edges) / 15.0), 4),
+            ]
+
+            current = self.get_relational_self()
+            previous_score = float(current.self_coherence_score or 0.0)
+            updated_at = _utc_now()
+            history_item = {
+                "timestamp": updated_at,
+                "cycle_id": cycle_id,
+                "source": source,
+                "coherence_before": round(previous_score, 4),
+                "coherence_after": round(coherence, 4),
+                "delta": round(coherence - previous_score, 4),
+                "node_count": len(core_nodes),
+                "edge_count": len(core_edges),
+            }
+            change_history = (list(current.change_history or []) + [history_item])[-25:]
+            snapshot = RelationalSelf(
+                snapshot_id=current.snapshot_id or str(uuid4()),
+                schema_version=current.schema_version or "1.0",
+                created_at=current.created_at or updated_at,
+                updated_at=updated_at,
+                core_nodes=core_nodes,
+                core_edges=core_edges,
+                self_coherence_score=round(coherence, 4),
+                self_identity_vector=identity_vector,
+                change_history=change_history,
+                metadata={
+                    "schema_version": "1.0",
+                    "updated_by": source,
+                    "cycle_id": cycle_id,
+                    "omni_insight": dict(omni_insight or {}),
+                },
+            )
+
+            self._atomic_write_json(self._relational_self_path(), snapshot.to_dict())
+            history_rows = self.get_coherence_history(limit=500)
+            history_rows.append(
+                {
+                    "timestamp": updated_at,
+                    "coherence_score": round(coherence, 4),
+                    "source": source,
+                    "cycle_id": cycle_id,
+                }
+            )
+            self._atomic_write_jsonl(self._coherence_history_path(), history_rows[-500:])
+            return snapshot
 
     def store_route_snapshot(self, snapshot: RouteSnapshot) -> RouteSnapshot:
         """Upsert a RouteSnapshot keyed by snapshot_id (latest version wins)."""
