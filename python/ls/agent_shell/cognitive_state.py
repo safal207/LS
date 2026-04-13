@@ -633,11 +633,13 @@ class CognitiveStateBridge:
         # Build answer — bilingual, incorporating emotional layer when relevant
         coherence_val = float(snapshot.self_coherence_score or 0.0)
         if lang == "ru":
-            _dir_ru = {
-                "grew more coherent": "стала более согласованной",
-                "lost coherence": "потеряла согласованность",
-                "stabilized": "стабилизировалась",
-            }.get(direction, direction)
+            # Derive RU text directly from delta — no dependency on EN direction string.
+            if delta > 0.02:
+                _dir_ru = "стала более согласованной"
+            elif delta < -0.02:
+                _dir_ru = "потеряла согласованность"
+            else:
+                _dir_ru = "стабилизировалась"
             base_answer = (
                 f"За последние {days} дн. я {_dir_ru}. "
                 f"Текущий уровень согласованности: {coherence_val:.2f}."
