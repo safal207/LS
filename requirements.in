@@ -12,7 +12,7 @@ soundfile==0.13.1
 sentence-transformers>=2.2.2
 torch>=2.1.0
 cryptography>=46.0.7
-Pillow>=10.0.0
+Pillow>=12.2.0
 
 # Vision Subsystem
 mss==10.1.0
@@ -26,7 +26,7 @@ ltp-client @ git+https://github.com/safal207/L-THREAD-Liminal-Thread-Secure-Prot
 
 # Dev and Test
 pip-tools
-pytest
+pytest>=9.0.3
 pytest-cov
 mock
 mypy
