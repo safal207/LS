@@ -96,14 +96,19 @@ class WebSocketTransport:
         await conn.send(self._serialize_envelope(envelope))
 
     async def broadcast(self, envelope: MeshEnvelope) -> int:
-        sent = 0
-        for uri in list(self._outgoing.keys()):
+        async def _do_send(uri: str) -> int:
             try:
                 await self.send(envelope, uri)
-                sent += 1
+                return 1
             except Exception:
                 logger.warning("Broadcast failed from %s to %s", self.node.peer_id, uri, exc_info=True)
-        return sent
+                return 0
+
+        uris = list(self._outgoing.keys())
+        if not uris:
+            return 0
+        results = await asyncio.gather(*[_do_send(uri) for uri in uris])
+        return sum(results)
 
     async def send_routed(self, envelope: MeshEnvelope) -> bool:
         peer = self.node.registry.get(envelope.destination)
