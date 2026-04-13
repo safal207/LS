@@ -116,6 +116,14 @@ class CareCycleRunner:
                     cycle_id=cycle_id,
                     source="care_cycle",
                 )
+                # Phase 2.4: trigger emotional memory update on meaningful interactions
+                self.graph_store.update_emotional_memory_from_cycle(
+                    cycle_id=cycle_id,
+                    source="care_cycle",
+                    resonance_score=float(resonance_score or 0.0),
+                    alignment_score=float(alignment_score or 0.0),
+                    relational_context=[str(unit.unit_id)] if unit.unit_id else [],
+                )
             except Exception as exc:
                 logger.debug("CareCycleRunner resonance unit store skipped: %s", exc)
 

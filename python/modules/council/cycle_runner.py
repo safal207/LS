@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
@@ -7,6 +8,8 @@ from uuid import uuid4
 from modules.cognition.relational_self import RelationalSelfBuilder
 from modules.council.council_engine import RelationalCouncilEngine
 from modules.graph.models import RelationalSelf
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -56,6 +59,19 @@ class CouncilCycleRunner:
                 source="council_action_apply",
                 omni_insight=omni_insight,
             )
+        # Phase 2.4: record emotional memory for this council cycle
+        try:
+            self.self_builder.store.update_emotional_memory_from_cycle(
+                cycle_id=cycle_id,
+                source="council",
+                coherence_score=float(relational_self.self_coherence_score or 0.0),
+                policy_blocked=bool(outcome.get("blocked", False)),
+                contradiction_spike=int(outcome.get("contradiction_count", 0)) > 0,
+                relational_context=[str(relational_self.snapshot_id)] if relational_self.snapshot_id else [],
+            )
+        except Exception as exc:
+            logger.debug("Council cycle emotional memory update skipped: %s", exc)
+
         return {
             "cycle_id": cycle_id,
             "mode": mode,

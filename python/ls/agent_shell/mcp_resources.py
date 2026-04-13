@@ -45,6 +45,9 @@ class MCPResourceRegistry:
             ResourceRef(uri="self/constitution-status", name="Relational Self constitution status"),
             ResourceRef(uri="self/metrics", name="Relational Self metrics snapshot"),
             ResourceRef(uri="self/action-history", name="Relational Self action history"),
+            # Phase 2.4 — Emotional Memory resources
+            ResourceRef(uri="self/emotional-memory", name="Emotional memory entries and summary"),
+            ResourceRef(uri="self/emotional-arc", name="Emotional bond arc trajectory"),
         ]
 
     def read_resource(self, uri: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -98,6 +101,15 @@ class MCPResourceRegistry:
         if uri == "self/action-history":
             return self._cognitive_state.get_action_history(
                 limit=int(args.get("limit", 30)),
+            )
+        # Phase 2.4 — Emotional Memory resources
+        if uri == "self/emotional-memory":
+            return self._cognitive_state.get_emotional_memory(
+                limit=int(args.get("limit", 50)),
+            )
+        if uri == "self/emotional-arc":
+            return self._cognitive_state.get_emotional_arc(
+                limit=int(args.get("limit", 100)),
             )
 
         task_id, suffix = self._parse_task_uri(uri)

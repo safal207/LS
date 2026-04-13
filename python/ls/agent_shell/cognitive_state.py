@@ -10,6 +10,180 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# ──────────────────────────────────────────────────────────────
+# Phase 2.4 — bilingual emotional intent detection
+#
+# Two separate concerns are handled here:
+#
+#   _is_emotional_question()  — TOPIC routing
+#       "Is this question about relationship, bond, closeness, trust?"
+#       Negation and hesitation do NOT suppress intent.
+#       "Ты не чувствуешь связь?" and "Почему нет близости?" are
+#       still relational questions — the negation is part of the framing,
+#       not evidence that the topic is something else.
+#
+#   _feedback_matches()  — SENTIMENT / polarity matching (in emotional_memory.py)
+#       "Is this feedback positive / distressed / frustrated?"
+#       Negation guard IS appropriate here: "not good" ≠ positive signal.
+# ──────────────────────────────────────────────────────────────
+
+# Relational topic keywords — EN
+# Intentionally excludes high-false-positive generics: "care", "together",
+# "moments", "important" — these appear in non-relational technical queries.
+# "togetherness" and "caring" (more specific forms) are kept.
+_EMOTIONAL_KEYWORDS_EN = frozenset({
+    "feel", "feeling", "feelings", "felt", "emotion", "emotional",
+    "bond", "bonding", "connection", "connected", "connect",
+    "warm", "warmth", "close", "closer", "closeness",
+    "relationship", "relate", "trust", "togetherness",
+    "caring", "distance", "apart",
+})
+
+# Relational topic keywords — RU
+_EMOTIONAL_KEYWORDS_RU = frozenset({
+    # feel / sense
+    "чувствую", "чувствуешь", "чувствуем", "чувствовать", "чувствуется",
+    "ощущаю", "ощущаешь", "ощущение",
+    "эмоции", "эмоций", "эмоциональный",
+    # bond / connection / relationship
+    "связь", "связи", "связью", "связан", "связаны",
+    "отношения", "отношений", "отношениях", "отношению",
+    "близость", "близки", "близко", "близкий", "близости",
+    "дистанцию", "дистанция", "расстояние",
+    # warmth / temperature of relation
+    "тепло", "теплее", "тёплый", "теплый", "тепла",
+    "холодно", "холоднее", "отдалились",
+    # trust / together
+    "доверие", "доверия", "доверяешь", "доверяю", "доверяем",
+    "вместе", "общение", "понимание", "понимаешь",
+    # moments / important
+    "моменты", "момент", "моментов", "моментами",
+    "важные", "важный", "важным", "важно", "значимый",
+    # care
+    "забота", "заботу", "заботишься",
+})
+
+# Conversational discourse markers — safe hesitation fillers / interjections only.
+# These are stripped before keyword matching so they never block topic routing.
+#
+# IMPORTANT: only include words that are purely pragmatic (hesitation, hedging)
+# and carry NO topic-bearing meaning on their own. Words like "feel", "like",
+# "kind", "sort", "как" must NOT be here — they are too often part of the
+# sentence's actual meaning (e.g. "How do you feel?", "Как ты ощущаешь связь?").
+_DISCOURSE_MARKERS = frozenset({
+    # EN — pure hesitation / hedge markers
+    "hmm", "hm", "um", "uh", "well", "maybe", "perhaps",
+    # RU — interjections, fillers, softeners
+    "хм", "мм", "эм", "э", "ну", "ну-ну", "слушай",
+    "будто", "как будто", "вроде", "вроде бы", "что ли",
+    "мне кажется", "кажется", "наверное", "может", "может быть",
+    "типа", "так сказать",
+})
+
+# Relational speech patterns — question templates that signal emotional intent
+# regardless of whether they contain a direct keyword.
+# Each is a substring fragment (after lowercasing + stripping).
+_RELATIONAL_PATTERNS_RU = (
+    "между нами",      # "что-то между нами изменилось"
+    "между нас",
+    "ты и я",
+    "мы с тобой",
+    "наши отношения",
+    "наша связь",
+    "наше общение",
+    "стали ближе",
+    "стали дальше",
+    "стало теплее",
+    "стало холоднее",
+    "нет близости",
+    "нет доверия",
+    "нет связи",
+    "нет понимания",
+)
+
+_RELATIONAL_PATTERNS_EN = (
+    "between us",
+    "you and i",
+    "our bond",
+    "our connection",
+    "our relationship",
+    "grown closer",
+    "grown apart",
+    "feel connected",
+    "no trust",
+    "no connection",
+    "no closeness",
+)
+
+
+def _normalise_for_topic(text: str) -> str:
+    """Lowercase, strip punctuation, remove discourse markers, collapse whitespace.
+
+    Discourse markers (хм, эм, ну, well, um…) are stripped from the token
+    stream so they never block keyword matching — their presence signals
+    intimate framing but the topic may still be relational.
+    """
+    lowered = text.lower()
+    # Remove common punctuation
+    cleaned = re.sub(r"[.,!?:;\"'«»()\-–—]+", " ", lowered)
+    collapsed = re.sub(r"\s+", " ", cleaned).strip()
+    # Strip multi-word discourse markers first (longest first to avoid partial overlaps)
+    for marker in sorted((m for m in _DISCOURSE_MARKERS if " " in m), key=len, reverse=True):
+        collapsed = collapsed.replace(marker, " ")
+    collapsed = re.sub(r"\s+", " ", collapsed).strip()
+    # Strip single-word discourse markers at token level
+    tokens = [t for t in collapsed.split() if t not in _DISCOURSE_MARKERS]
+    return " ".join(tokens)
+
+
+def _detect_language(text: str) -> str:
+    """Return 'ru' if *text* contains Cyrillic characters, else 'en'."""
+    return "ru" if re.search(r"[а-яёА-ЯЁ]", text) else "en"
+
+
+# Localized tone names for Russian-language responses.
+_TONE_NAMES_RU: dict[str, str] = {
+    "warm": "тёплый",
+    "calm": "спокойный",
+    "reflective": "рефлексивный",
+    "joyful": "радостный",
+    "supportive": "поддерживающий",
+    "tense": "напряжённый",
+    "frustrated": "разочарованный",
+    "anxious": "тревожный",
+    "uncertain": "неопределённый",
+    "neutral": "нейтральный",
+}
+
+
+def _is_emotional_question(text: str) -> bool:
+    """Return True when the text is about a relational/emotional topic (EN or RU).
+
+    Routing decision only — does not evaluate sentiment polarity.
+    Negation (не, нет, not, no) does NOT suppress this check:
+
+        "Ты не чувствуешь связь?"      → True  (topic: bond)
+        "Почему между нами нет близости?" → True  (pattern: между нами + нет близости)
+        "Хм, наша связь стала теплее?"  → True  (interjection stripped; keyword: связь)
+        "How coherent am I?"            → False (no relational topic)
+    """
+    normalised = _normalise_for_topic(text)
+
+    # 1. Direct keyword match (negation-agnostic for topic routing)
+    for token in normalised.split():
+        if token in _EMOTIONAL_KEYWORDS_EN or token in _EMOTIONAL_KEYWORDS_RU:
+            return True
+
+    # 2. Relational speech pattern match
+    for pattern in _RELATIONAL_PATTERNS_RU:
+        if pattern in normalised:
+            return True
+    for pattern in _RELATIONAL_PATTERNS_EN:
+        if pattern in normalised:
+            return True
+
+    return False
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -23,6 +197,19 @@ class CognitiveStateBridge:
             os.environ.get("GRAPH_MEMORY_STORE_PATH", "data/graph_memory/cases.jsonl")
         )
         self._task_manager = task_manager
+        self._cached_store: Any = None  # lazily initialised by _get_store()
+
+    def _get_store(self) -> Any:
+        """Return a cached ``MemoryGraphStore`` for this bridge's path.
+
+        Emotional-memory methods share one store instance rather than
+        constructing a new one per call.  The process-wide ``RLock``
+        (keyed by resolved path) still protects concurrent access.
+        """
+        from modules.graph.memory_store import MemoryGraphStore
+        if self._cached_store is None:
+            self._cached_store = MemoryGraphStore(self._store_path)
+        return self._cached_store
 
     def get_resonance_snapshot(
         self,
@@ -382,16 +569,131 @@ class CognitiveStateBridge:
                 }
             )
 
+        # ── Phase 2.4: emotional layer ───────────────────────────────
+        emotional_summary = dict(snapshot.emotional_summary or {})
+        dominant_tone = str(emotional_summary.get("dominant_tone") or "neutral")
+        bond_strength = float(emotional_summary.get("bond_strength") or 0.0)
+        bond_trend = str(emotional_summary.get("bond_trend") or "stable")
+        em_confidence = float(emotional_summary.get("confidence") or 0.0)
+        notable_moments = list(emotional_summary.get("notable_moments") or [])
+
+        # Detect emotionally-framed questions (EN + RU) + prompt language
+        is_emotional_question = _is_emotional_question(prompt)
+        lang = _detect_language(prompt)
+
+        # Append emotional nodes to causal_trace
+        if causal_trace:
+            prev_node_id = causal_trace[-1].get("node_id")
+        else:
+            prev_node_id = None
+
+        emotional_entries = store.get_emotional_memory(limit=5)
+        for entry in emotional_entries[-2:]:
+            em_node_id = f"emotional_event:{entry.get('entry_id') or entry.get('timestamp')}"
+            causal_trace.append({
+                "node_id": em_node_id,
+                "type": "emotional_event",
+                "timestamp": entry.get("timestamp"),
+                "emotional_tone": entry.get("emotional_tone"),
+                "valence": entry.get("valence"),
+                "confidence": entry.get("confidence"),
+                "trigger_source": entry.get("trigger_source"),
+                "linked_from": prev_node_id,
+            })
+            prev_node_id = em_node_id
+
+        arc_points = store.get_emotional_arc(limit=10)
+        if len(arc_points) >= 2:
+            node_id = "bond_shift:recent"
+            first_bond = float((arc_points[0].get("bond_strength") or 0.0))
+            last_bond = float((arc_points[-1].get("bond_strength") or 0.0))
+            causal_trace.append({
+                "node_id": node_id,
+                "type": "bond_shift",
+                "bond_strength": bond_strength,
+                "bond_trend": bond_trend,
+                "bond_delta": round(last_bond - first_bond, 4),
+                "arc_length": len(arc_points),
+                "confidence": round(em_confidence, 4),
+                "linked_from": prev_node_id,
+            })
+            prev_node_id = node_id
+
+        em_summary_node = "emotional_summary_state:current"
+        causal_trace.append({
+            "node_id": em_summary_node,
+            "type": "emotional_summary_state",
+            "dominant_tone": dominant_tone,
+            "bond_strength": bond_strength,
+            "bond_trend": bond_trend,
+            "confidence": em_confidence,
+            "linked_from": prev_node_id,
+        })
+
+        # Build answer — bilingual, incorporating emotional layer when relevant
+        coherence_val = float(snapshot.self_coherence_score or 0.0)
+        if lang == "ru":
+            # Derive RU text directly from delta — no dependency on EN direction string.
+            if delta > 0.02:
+                _dir_ru = "стала более согласованной"
+            elif delta < -0.02:
+                _dir_ru = "потеряла согласованность"
+            else:
+                _dir_ru = "стабилизировалась"
+            base_answer = (
+                f"За последние {days} дн. я {_dir_ru}. "
+                f"Текущий уровень согласованности: {coherence_val:.2f}."
+            )
+        else:
+            base_answer = (
+                f"Over the last {days} day(s) I {direction}. "
+                f"Current coherence is {coherence_val:.2f}."
+            )
+
+        if is_emotional_question and emotional_summary:
+            if lang == "ru":
+                _trend_ru = {
+                    "warming": "теплеет и укрепляется",
+                    "cooling": "охлаждается",
+                    "volatile": "нестабилен",
+                    "stable": "стабилен",
+                }.get(bond_trend, bond_trend)
+                _tone_ru = _TONE_NAMES_RU.get(dominant_tone, dominant_tone)
+                emotional_answer = (
+                    f" Выявленный сигнал связи {_trend_ru} "
+                    f"(сила связи {bond_strength:.2f}, преобладающий тон: {_tone_ru})."
+                )
+                if notable_moments:
+                    emotional_answer += (
+                        f" Примечательный момент: «{notable_moments[0].get('summary', '')}»."
+                    )
+            else:
+                _trend_en = {
+                    "warming": "growing warmer",
+                    "cooling": "cooling",
+                    "volatile": "fluctuating",
+                    "stable": "stable",
+                }.get(bond_trend, bond_trend)
+                emotional_answer = (
+                    f" The inferred relational bond signal is {_trend_en} "
+                    f"(bond strength {bond_strength:.2f}, dominant tone: {dominant_tone})."
+                )
+                if notable_moments:
+                    emotional_answer += (
+                        f" A notable moment: \"{notable_moments[0].get('summary', '')}\"."
+                    )
+            answer_text = base_answer + emotional_answer
+        else:
+            answer_text = base_answer
+
         return {
             "resource": "self/ask-self",
             "question": prompt,
-            "answer": (
-                f"Over the last {days} day(s) I {direction}. "
-                f"Current coherence is {float(snapshot.self_coherence_score or 0.0):.2f}."
-            ),
+            "answer": answer_text,
             "coherence_delta": round(delta, 4),
             "coherence_now": float(snapshot.self_coherence_score or 0.0),
             "top_change_drivers": driver_summary,
+            "emotional_layer": emotional_summary,
             "causal_trace": causal_trace,
             "last_updated": _utc_now(),
         }
@@ -584,6 +886,187 @@ class CognitiveStateBridge:
             "source_unit_id": source_id,
             "target_unit_id": target_id,
             "edge": edge.to_dict(),
+            "last_updated": _utc_now(),
+        }
+
+    # ──────────────────────────────────────────────────────────────
+    # Phase 2.4 — Emotional Memory MCP exposure
+    # ──────────────────────────────────────────────────────────────
+
+    def get_emotional_memory(self, *, limit: int = 50) -> dict[str, Any]:
+        """Return recent emotional memory entries + current emotional summary."""
+        store = self._get_store()
+        entries = store.get_emotional_memory(limit=int(limit))
+        snapshot = store.get_relational_self()
+        return {
+            "resource": "self/emotional-memory",
+            "entries": entries,
+            "emotional_summary": dict(snapshot.emotional_summary or {}),
+            "limit": int(limit),
+            "last_updated": _utc_now(),
+        }
+
+    def get_emotional_arc(self, *, limit: int = 100) -> dict[str, Any]:
+        """Return the emotional bond arc trajectory."""
+        store = self._get_store()
+        arc_points = store.get_emotional_arc(limit=int(limit))
+        snapshot = store.get_relational_self()
+        emotional_summary = dict(snapshot.emotional_summary or {})
+        bond_trend = emotional_summary.get("bond_trend", "stable")
+        return {
+            "resource": "self/emotional-arc",
+            "arc": arc_points,
+            "bond_trend": bond_trend,
+            "limit": int(limit),
+            "last_updated": _utc_now(),
+        }
+
+    def get_emotional_insight(self, question: str, *, limit: int = 10) -> dict[str, Any]:
+        """Answer an emotionally-framed question about the relational bond.
+
+        Always cites inferred signals — never claims real subjective experience.
+        """
+        prompt = str(question or "").strip()
+        store = self._get_store()
+        entries = store.get_emotional_memory(limit=max(limit, 20))
+        arc_points = store.get_emotional_arc(limit=50)
+        snapshot = store.get_relational_self()
+        emotional_summary = dict(snapshot.emotional_summary or {})
+
+        dominant_tone = str(emotional_summary.get("dominant_tone") or "neutral")
+        bond_strength = float(emotional_summary.get("bond_strength") or 0.0)
+        bond_trend = str(emotional_summary.get("bond_trend") or "stable")
+        confidence = float(emotional_summary.get("confidence") or 0.0)
+
+        lang = _detect_language(prompt)
+
+        # Guard: no data yet
+        if not entries and not emotional_summary:
+            no_data = (
+                "Недостаточно данных для анализа эмоционального состояния связи."
+                if lang == "ru"
+                else "Insufficient data to analyze the relational bond state."
+            )
+            return {
+                "resource": "self/emotional-insight",
+                "question": prompt,
+                "answer": no_data,
+                "dominant_tone": "neutral",
+                "bond_strength": 0.0,
+                "bond_trend": "stable",
+                "supporting_entries": [],
+                "causal_trace": [],
+                "last_updated": _utc_now(),
+            }
+
+        # Build a simple deterministic bilingual answer based on observed signals
+        if lang == "ru":
+            trend_phrase = {
+                "warming": "укреплялась и теплела",
+                "cooling": "становилась более холодной",
+                "volatile": "показывала нестабильные сигналы",
+                "stable": "оставалась стабильной",
+            }.get(bond_trend, "оставалась стабильной")
+            tone_phrase = {
+                "warm": "Выявленный тон — тёплый, что указывает на устойчивое позитивное взаимодействие.",
+                "calm": "Выявленный тон — спокойный, отражающий стабильное взаимодействие.",
+                "reflective": "Выявленный тон — рефлексивный, указывающий на глубину обмена.",
+                "joyful": "Выявленный тон — радостный, определённый по позитивным сигналам обратной связи.",
+                "supportive": "Выявленный тон — поддерживающий, определённый по заботливым обменам.",
+                "tense": "Выявленный тон — напряжённый, отражающий определённые противоречия или трение.",
+                "frustrated": "Выявленный тон — разочарованный, определённый по негативным сигналам.",
+                "anxious": "Выявленный тон — тревожный, по маркерам неопределённости.",
+                "uncertain": "Выявленный тон — неопределённый, из-за неразрешённых несоответствий.",
+                "neutral": "Выявленный тон — нейтральный; сильных направленных сигналов не обнаружено.",
+            }.get(dominant_tone, f"Выявленный тон — {_TONE_NAMES_RU.get(dominant_tone, dominant_tone)}.")
+            answer = (
+                f"На основе выявленных сигналов связь {trend_phrase}. "
+                f"{tone_phrase} "
+                f"Текущая сила связи: {bond_strength:.2f} (уверенность {confidence:.2f}). "
+                f"Данные получены из {len(entries)} записей взаимодействий."
+            )
+        else:
+            trend_phrase = {
+                "warming": "has been growing warmer and more stable",
+                "cooling": "has shifted toward greater distance",
+                "volatile": "has shown fluctuating signals",
+                "stable": "has remained consistent",
+            }.get(bond_trend, "has remained consistent")
+            tone_phrase = {
+                "warm": "The dominant inferred tone is warm, suggesting sustained positive alignment.",
+                "calm": "The dominant inferred tone is calm, reflecting steady and low-tension engagement.",
+                "reflective": "The dominant inferred tone is reflective, indicating depth of inquiry.",
+                "joyful": "The dominant inferred tone is joyful, based on positive feedback signals.",
+                "supportive": "The dominant inferred tone is supportive, inferred from care-oriented exchanges.",
+                "tense": "The dominant inferred tone is tense, reflecting detected contradictions or friction.",
+                "frustrated": "The dominant inferred tone is frustrated, based on observed negative signals.",
+                "anxious": "The dominant inferred tone is anxious, based on uncertainty markers.",
+                "uncertain": "The dominant inferred tone is uncertain, from unresolved policy or coherence gaps.",
+                "neutral": "The dominant inferred tone is neutral — no strong directional signal is evident.",
+            }.get(dominant_tone, f"The dominant inferred tone is {dominant_tone}.")
+            answer = (
+                f"Based on inferred signals, the relational bond {trend_phrase}. "
+                f"{tone_phrase} "
+                f"Bond strength is currently {bond_strength:.2f} (confidence {confidence:.2f}). "
+                f"This is derived from {len(entries)} recent interaction records."
+            )
+
+        # Build causal_trace with emotional nodes
+        causal_trace: list[dict[str, Any]] = []
+        prev_node_id: str | None = None
+        for entry in entries[-3:]:
+            node_id = f"emotional_event:{entry.get('entry_id') or entry.get('timestamp')}"
+            causal_trace.append({
+                "node_id": node_id,
+                "type": "emotional_event",
+                "timestamp": entry.get("timestamp"),
+                "emotional_tone": entry.get("emotional_tone"),
+                "valence": entry.get("valence"),
+                "confidence": entry.get("confidence"),
+                "trigger_source": entry.get("trigger_source"),
+                "linked_from": prev_node_id,
+            })
+            prev_node_id = node_id
+
+        if arc_points and len(arc_points) >= 2:
+            first_bond = float((arc_points[0].get("bond_strength") or 0.0))
+            last_bond = float((arc_points[-1].get("bond_strength") or 0.0))
+            node_id = "bond_shift:arc_summary"
+            causal_trace.append({
+                "node_id": node_id,
+                "type": "bond_shift",
+                "bond_start": round(first_bond, 4),
+                "bond_end": round(last_bond, 4),
+                "bond_delta": round(last_bond - first_bond, 4),
+                "bond_trend": bond_trend,
+                "arc_length": len(arc_points),
+                "confidence": round(confidence, 4),
+                "linked_from": prev_node_id,
+            })
+            prev_node_id = node_id
+
+        node_id = "emotional_summary_state:current"
+        causal_trace.append({
+            "node_id": node_id,
+            "type": "emotional_summary_state",
+            "dominant_tone": dominant_tone,
+            "bond_strength": bond_strength,
+            "bond_trend": bond_trend,
+            "confidence": confidence,
+            "linked_from": prev_node_id,
+        })
+
+        supporting_entries = entries[-limit:]
+
+        return {
+            "resource": "self/emotional-insight",
+            "question": prompt,
+            "answer": answer,
+            "dominant_tone": dominant_tone,
+            "bond_strength": bond_strength,
+            "bond_trend": bond_trend,
+            "supporting_entries": supporting_entries,
+            "causal_trace": causal_trace,
             "last_updated": _utc_now(),
         }
 

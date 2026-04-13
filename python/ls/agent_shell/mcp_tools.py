@@ -35,6 +35,8 @@ class MCPToolRegistry:
             "get_relational_insight": self._get_relational_insight,
             "ask_self": self._ask_self,
             "rollback_self_action": self._rollback_self_action,
+            # Phase 2.4
+            "get_emotional_insight": self._get_emotional_insight,
         }
 
     def list_tools(self) -> list[dict[str, Any]]:
@@ -109,6 +111,17 @@ class MCPToolRegistry:
         return self._cognitive_state.rollback_self_action(
             action_id=str(args.get("action_id", "")),
         )
+
+    def _get_emotional_insight(self, args: dict[str, Any]) -> dict[str, Any]:
+        """Answer an emotionally-framed question about the relational bond.
+
+        Args:
+            question: Natural-language question about the emotional relationship.
+            limit:    Number of supporting entries to include (default 10).
+        """
+        question = str(args.get("question", ""))
+        limit = int(args.get("limit", 10))
+        return self._cognitive_state.get_emotional_insight(question, limit=limit)
 
 
 def tool_call_from_json(registry: MCPToolRegistry, raw: str) -> str:
