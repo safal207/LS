@@ -195,18 +195,21 @@ class MultiAgentSystem:
                 "norm_conflicts": list(conflicts),
             }
         norm_acc: dict[str, list[float]] = {}
+        tradition_acc: dict[str, list[float]] = {}
+        ca: list[float] = []
+        cc: list[float] = []
+
         for item in culture_map.values():
             for k, v in item.get("norms", {}).items():
                 norm_acc.setdefault(str(k), []).append(float(v))
-        self.collectivenorms = {k: sum(v)/max(1, len(v)) for k, v in norm_acc.items()}
-        tradition_acc: dict[str, list[float]] = {}
-        for item in culture_map.values():
-            for k, v in dict(item.get("traditions", {})).items():
+            for k, v in item.get("traditions", {}).items():
                 if isinstance(v, (int, float)):
                     tradition_acc.setdefault(str(k), []).append(float(v))
+            ca.append(float(item.get("culturalalignmentscore", 1.0)))
+            cc.append(min(1.0, len(item.get("norm_conflicts", [])) / MAX_NORM_CONFLICTS))
+
+        self.collectivenorms = {k: sum(v) / max(1, len(v)) for k, v in norm_acc.items()}
         self.collectivetraditionpatterns = {k: sum(v) / max(1, len(v)) for k, v in tradition_acc.items()}
-        ca = [float(v.get("culturalalignmentscore", 1.0)) for v in culture_map.values()]
-        cc = [min(1.0, len(v.get("norm_conflicts", []))/MAX_NORM_CONFLICTS) for v in culture_map.values()]
         self.collectiveculturealignment = sum(ca) / max(1, len(ca))
         self.collectiveculturalconflict = sum(cc) / max(1, len(cc))
 
