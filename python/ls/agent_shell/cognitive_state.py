@@ -28,12 +28,15 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────
 
 # Relational topic keywords — EN
+# Intentionally excludes high-false-positive generics: "care", "together",
+# "moments", "important" — these appear in non-relational technical queries.
+# "togetherness" and "caring" (more specific forms) are kept.
 _EMOTIONAL_KEYWORDS_EN = frozenset({
     "feel", "feeling", "feelings", "felt", "emotion", "emotional",
     "bond", "bonding", "connection", "connected", "connect",
     "warm", "warmth", "close", "closer", "closeness",
-    "relationship", "relate", "trust", "together", "togetherness",
-    "moments", "important", "care", "caring", "distance", "apart",
+    "relationship", "relate", "trust", "togetherness",
+    "caring", "distance", "apart",
 })
 
 # Relational topic keywords — RU
@@ -48,7 +51,7 @@ _EMOTIONAL_KEYWORDS_RU = frozenset({
     "близость", "близки", "близко", "близкий", "близости",
     "дистанцию", "дистанция", "расстояние",
     # warmth / temperature of relation
-    "тепло", "теплее", "тёплый", "теплый", "тепла", "теплее",
+    "тепло", "теплее", "тёплый", "теплый", "тепла",
     "холодно", "холоднее", "отдалились",
     # trust / together
     "доверие", "доверия", "доверяешь", "доверяю", "доверяем",
@@ -193,6 +196,19 @@ class CognitiveStateBridge:
         self._store_path = Path(
             os.environ.get("GRAPH_MEMORY_STORE_PATH", "data/graph_memory/cases.jsonl")
         )
+        self._cached_store: Any = None  # lazily initialised by _get_store()
+
+    def _get_store(self) -> Any:
+        """Return a cached ``MemoryGraphStore`` for this bridge's path.
+
+        Emotional-memory methods share one store instance rather than
+        constructing a new one per call.  The process-wide ``RLock``
+        (keyed by resolved path) still protects concurrent access.
+        """
+        from modules.graph.memory_store import MemoryGraphStore
+        if self._cached_store is None:
+            self._cached_store = MemoryGraphStore(self._store_path)
+        return self._cached_store
         self._task_manager = task_manager
 
     def get_resonance_snapshot(
@@ -642,7 +658,7 @@ class CognitiveStateBridge:
                 }.get(bond_trend, bond_trend)
                 _tone_ru = _TONE_NAMES_RU.get(dominant_tone, dominant_tone)
                 emotional_answer = (
-                    f" Инферированный сигнал связи {_trend_ru} "
+                    f" Выявленный сигнал связи {_trend_ru} "
                     f"(сила связи {bond_strength:.2f}, преобладающий тон: {_tone_ru})."
                 )
                 if notable_moments:
@@ -877,9 +893,7 @@ class CognitiveStateBridge:
 
     def get_emotional_memory(self, *, limit: int = 50) -> dict[str, Any]:
         """Return recent emotional memory entries + current emotional summary."""
-        from modules.graph.memory_store import MemoryGraphStore
-
-        store = MemoryGraphStore(self._store_path)
+        store = self._get_store()
         entries = store.get_emotional_memory(limit=int(limit))
         snapshot = store.get_relational_self()
         return {
@@ -892,9 +906,7 @@ class CognitiveStateBridge:
 
     def get_emotional_arc(self, *, limit: int = 100) -> dict[str, Any]:
         """Return the emotional bond arc trajectory."""
-        from modules.graph.memory_store import MemoryGraphStore
-
-        store = MemoryGraphStore(self._store_path)
+        store = self._get_store()
         arc_points = store.get_emotional_arc(limit=int(limit))
         snapshot = store.get_relational_self()
         emotional_summary = dict(snapshot.emotional_summary or {})
@@ -912,11 +924,9 @@ class CognitiveStateBridge:
 
         Always cites inferred signals — never claims real subjective experience.
         """
-        from modules.graph.memory_store import MemoryGraphStore
-
         prompt = str(question or "").strip()
-        store = MemoryGraphStore(self._store_path)
-        entries = store.get_emotional_memory(limit=max(int(limit), 20))
+        store = self._get_store()
+        entries = store.get_emotional_memory(limit=max(limit, 20))
         arc_points = store.get_emotional_arc(limit=50)
         snapshot = store.get_relational_self()
         emotional_summary = dict(snapshot.emotional_summary or {})
@@ -928,6 +938,25 @@ class CognitiveStateBridge:
 
         lang = _detect_language(prompt)
 
+        # Guard: no data yet
+        if not entries and not emotional_summary:
+            no_data = (
+                "Недостаточно данных для анализа эмоционального состояния связи."
+                if lang == "ru"
+                else "Insufficient data to analyze the relational bond state."
+            )
+            return {
+                "resource": "self/emotional-insight",
+                "question": prompt,
+                "answer": no_data,
+                "dominant_tone": "neutral",
+                "bond_strength": 0.0,
+                "bond_trend": "stable",
+                "supporting_entries": [],
+                "causal_trace": [],
+                "last_updated": _utc_now(),
+            }
+
         # Build a simple deterministic bilingual answer based on observed signals
         if lang == "ru":
             trend_phrase = {
@@ -937,19 +966,19 @@ class CognitiveStateBridge:
                 "stable": "оставалась стабильной",
             }.get(bond_trend, "оставалась стабильной")
             tone_phrase = {
-                "warm": "Преобладающий инферированный тон — тёплый, что указывает на устойчивое позитивное взаимодействие.",
-                "calm": "Преобладающий инферированный тон — спокойный, отражающий стабильное взаимодействие.",
-                "reflective": "Преобладающий инферированный тон — рефлексивный, указывающий на глубину обмена.",
-                "joyful": "Преобладающий инферированный тон — радостный, выявленный по позитивным сигналам обратной связи.",
-                "supportive": "Преобладающий инферированный тон — поддерживающий, инферирован из заботливых обменов.",
-                "tense": "Преобладающий инферированный тон — напряжённый, отражающий выявленные противоречия или трение.",
-                "frustrated": "Преобладающий инферированный тон — разочарованный, выявленный по негативным сигналам.",
-                "anxious": "Преобладающий инферированный тон — тревожный, по маркерам неопределённости.",
-                "uncertain": "Преобладающий инферированный тон — неопределённый, из-за неразрешённых несоответствий.",
-                "neutral": "Преобладающий инферированный тон — нейтральный; сильных направленных сигналов не выявлено.",
-            }.get(dominant_tone, f"Преобладающий инферированный тон — {dominant_tone}.")
+                "warm": "Выявленный тон — тёплый, что указывает на устойчивое позитивное взаимодействие.",
+                "calm": "Выявленный тон — спокойный, отражающий стабильное взаимодействие.",
+                "reflective": "Выявленный тон — рефлексивный, указывающий на глубину обмена.",
+                "joyful": "Выявленный тон — радостный, определённый по позитивным сигналам обратной связи.",
+                "supportive": "Выявленный тон — поддерживающий, определённый по заботливым обменам.",
+                "tense": "Выявленный тон — напряжённый, отражающий определённые противоречия или трение.",
+                "frustrated": "Выявленный тон — разочарованный, определённый по негативным сигналам.",
+                "anxious": "Выявленный тон — тревожный, по маркерам неопределённости.",
+                "uncertain": "Выявленный тон — неопределённый, из-за неразрешённых несоответствий.",
+                "neutral": "Выявленный тон — нейтральный; сильных направленных сигналов не обнаружено.",
+            }.get(dominant_tone, f"Выявленный тон — {_TONE_NAMES_RU.get(dominant_tone, dominant_tone)}.")
             answer = (
-                f"На основе инферированных сигналов связь {trend_phrase}. "
+                f"На основе выявленных сигналов связь {trend_phrase}. "
                 f"{tone_phrase} "
                 f"Текущая сила связи: {bond_strength:.2f} (уверенность {confidence:.2f}). "
                 f"Данные получены из {len(entries)} записей взаимодействий."
@@ -1025,7 +1054,7 @@ class CognitiveStateBridge:
             "linked_from": prev_node_id,
         })
 
-        supporting_entries = entries[-int(limit):]
+        supporting_entries = entries[-limit:]
 
         return {
             "resource": "self/emotional-insight",

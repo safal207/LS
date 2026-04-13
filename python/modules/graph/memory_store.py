@@ -764,8 +764,8 @@ class MemoryGraphStore:
                     rollback_present=True,
                     relational_context=[str(action_id)],
                 )
-            except Exception:
-                pass  # emotional memory must never block rollback
+            except Exception as exc:  # emotional memory must never block rollback
+                logger.debug("Rollback emotional memory update skipped: %s", exc)
             return {
                 "rolled_back": rolled_back_flag,
                 "partially_rolled_back": is_partial,
@@ -1021,13 +1021,61 @@ class MemoryGraphStore:
     def _emotional_arc_path(self) -> Path:
         return self.path.with_name("relational_self_emotional_arc.jsonl")
 
+    def _read_emotional_memory_rows_unlocked(self) -> list[dict[str, Any]]:
+        """Read, parse, and decay-refresh all emotional memory rows.
+
+        Does NOT acquire the lock — caller must hold ``self._lock`` or be the
+        sole writer.  Malformed rows are silently skipped.
+        """
+        from modules.cognition.emotional_memory import EmotionalBondingEngine
+        engine = EmotionalBondingEngine()
+        path = self._emotional_memory_path()
+        if not path.exists():
+            return []
+        rows: list[dict[str, Any]] = []
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = dict(json.loads(line))
+                    ts = str(row.get("timestamp") or "")
+                    if ts:
+                        row["temporal_decay"] = engine.compute_temporal_decay(ts)
+                    rows.append(row)
+                except Exception:
+                    continue
+        return rows
+
+    def _read_emotional_arc_rows_unlocked(self) -> list[dict[str, Any]]:
+        """Read and parse all emotional arc rows.
+
+        Does NOT acquire the lock — caller must hold ``self._lock`` or be the
+        sole writer.  Malformed rows are silently skipped.
+        """
+        path = self._emotional_arc_path()
+        if not path.exists():
+            return []
+        rows: list[dict[str, Any]] = []
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(dict(json.loads(line)))
+                except Exception:
+                    continue
+        return rows
+
     def store_emotional_memory_entry(self, entry: dict[str, Any]) -> dict[str, Any]:
         """Append a new EmotionalMemoryEntry dict with retention cap.
 
         Malformed existing rows are skipped; cap is enforced on write.
         """
         with self._lock:
-            rows = self.get_emotional_memory(limit=self._EMOTIONAL_MEMORY_CAP)
+            rows = self._read_emotional_memory_rows_unlocked()
             payload = dict(entry)
             payload.setdefault("timestamp", _utc_now())
             rows.append(payload)
@@ -1041,27 +1089,7 @@ class MemoryGraphStore:
         Temporal decay is recalculated on read for freshness accuracy.
         """
         with self._lock:
-            from modules.cognition.emotional_memory import EmotionalBondingEngine
-            engine = EmotionalBondingEngine()
-            path = self._emotional_memory_path()
-            if not path.exists():
-                return []
-            rows: list[dict[str, Any]] = []
-            with path.open("r", encoding="utf-8") as handle:
-                for line in handle:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        row = dict(json.loads(line))
-                        # Refresh temporal_decay on read
-                        ts = str(row.get("timestamp") or "")
-                        if ts:
-                            row["temporal_decay"] = engine.compute_temporal_decay(ts)
-                        rows.append(row)
-                    except Exception:
-                        # Robustness: skip malformed rows
-                        continue
+            rows = self._read_emotional_memory_rows_unlocked()
             return rows[-max(1, int(limit or 1)):]
 
     def get_emotional_arc(self, *, limit: int = 100) -> list[dict[str, Any]]:
@@ -1070,19 +1098,7 @@ class MemoryGraphStore:
         Malformed rows are skipped.
         """
         with self._lock:
-            path = self._emotional_arc_path()
-            if not path.exists():
-                return []
-            rows: list[dict[str, Any]] = []
-            with path.open("r", encoding="utf-8") as handle:
-                for line in handle:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        rows.append(dict(json.loads(line)))
-                    except Exception:
-                        continue
+            rows = self._read_emotional_arc_rows_unlocked()
             return rows[-max(1, int(limit or 1)):]
 
     def _append_emotional_arc_point(self, point: dict[str, Any]) -> None:
@@ -1092,7 +1108,7 @@ class MemoryGraphStore:
         writers cannot interleave and drop arc points.
         """
         with self._lock:
-            arc = self.get_emotional_arc(limit=self._EMOTIONAL_ARC_CAP)
+            arc = self._read_emotional_arc_rows_unlocked()
             arc.append(point)
             self._atomic_write_jsonl(self._emotional_arc_path(), arc[-self._EMOTIONAL_ARC_CAP:])
 
@@ -1128,9 +1144,11 @@ class MemoryGraphStore:
             if coherence_score is None:
                 coherence_score = float(self.get_relational_self().self_coherence_score or 0.0)
 
-            # Retrieve current bond strength from most recent entry
-            recent_entries = self.get_emotional_memory(limit=self._EMOTIONAL_MEMORY_CAP)
-            current_bond = float((recent_entries[-1].get("bond_strength") or 0.0) if recent_entries else 0.0)
+            # ── Single read pass — avoids redundant file I/O ─────────────────
+            rows = self._read_emotional_memory_rows_unlocked()
+            arc = self._read_emotional_arc_rows_unlocked()
+
+            current_bond = float((rows[-1].get("bond_strength") or 0.0) if rows else 0.0)
 
             entry_dict = engine.build_entry(
                 resonance_score=resonance_score,
@@ -1147,9 +1165,15 @@ class MemoryGraphStore:
                 relational_context=relational_context,
                 cycle_id=cycle_id,
             )
-            self.store_emotional_memory_entry(entry_dict)
+            entry_dict.setdefault("timestamp", _utc_now())
 
-            # Append arc point
+            # ── Single write pass — memory + arc atomically ───────────────────
+            rows.append(entry_dict)
+            self._atomic_write_jsonl(
+                self._emotional_memory_path(),
+                rows[-self._EMOTIONAL_MEMORY_CAP:],
+            )
+
             arc_point = {
                 "timestamp": entry_dict["timestamp"],
                 "bond_strength": entry_dict["bond_strength"],
@@ -1158,13 +1182,17 @@ class MemoryGraphStore:
                 "source": source,
                 "cycle_id": cycle_id,
             }
-            self._append_emotional_arc_point(arc_point)
+            arc.append(arc_point)
+            self._atomic_write_jsonl(
+                self._emotional_arc_path(),
+                arc[-self._EMOTIONAL_ARC_CAP:],
+            )
 
-            # Recompute and persist emotional_summary on the RelationalSelf snapshot
-            all_entries = self.get_emotional_memory(limit=self._EMOTIONAL_MEMORY_CAP)
-            arc_points = self.get_emotional_arc(limit=self._EMOTIONAL_ARC_CAP)
+            # ── Aggregate from in-memory data — no extra reads ────────────────
+            all_entries = rows[-self._EMOTIONAL_MEMORY_CAP:]
+            all_arc = arc[-self._EMOTIONAL_ARC_CAP:]
             new_bond = float(entry_dict.get("bond_strength") or 0.0)
-            summary = engine.aggregate_emotional_summary(all_entries, new_bond, arc_points)
+            summary = engine.aggregate_emotional_summary(all_entries, new_bond, all_arc)
             self._update_emotional_summary_in_self(summary)
 
             return entry_dict

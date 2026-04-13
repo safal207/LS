@@ -342,13 +342,17 @@ class TestEmotionalBondingEngineDecay:
         self.engine = EmotionalBondingEngine()
 
     def test_fresh_timestamp_decay_near_one(self):
-        from datetime import datetime, timezone
-        ts = datetime.now(timezone.utc).isoformat()
-        decay = self.engine.compute_temporal_decay(ts)
+        from datetime import datetime, timezone, timedelta
+        ref = datetime(2026, 4, 12, 12, 0, 0, tzinfo=timezone.utc)
+        ts = (ref - timedelta(minutes=5)).isoformat()
+        decay = self.engine.compute_temporal_decay(ts, now=ref)
         assert decay >= 0.95
 
     def test_old_timestamp_decay_less_than_one(self):
-        decay = self.engine.compute_temporal_decay("2020-01-01T00:00:00+00:00")
+        from datetime import datetime, timezone, timedelta
+        ref = datetime(2026, 4, 12, 12, 0, 0, tzinfo=timezone.utc)
+        ts = (ref - timedelta(days=365)).isoformat()
+        decay = self.engine.compute_temporal_decay(ts, now=ref)
         assert decay < 0.5
 
     def test_decay_floor_is_respected(self):

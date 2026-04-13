@@ -14,8 +14,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 _MAX_BOND_STEP = 0.08  # FR-4: max ±0.08 per update
-_EMOTIONAL_MEMORY_CAP = 1000  # NFR-5 retention cap
-_EMOTIONAL_ARC_CAP = 1000  # NFR-5 retention cap
+# Retention caps live in MemoryGraphStore._EMOTIONAL_MEMORY_CAP / _EMOTIONAL_ARC_CAP
 
 
 def _clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -98,13 +97,21 @@ def _feedback_matches(fb: str, keyword_set: frozenset[str]) -> bool:
         if preceding & _NEGATION_WORDS:
             continue
         return True
-    # Also match multi-word phrases as a whole (e.g. "thank you")
+    # Also match multi-word phrases (word-level negation guard, all occurrences)
     for phrase in keyword_set:
-        if " " in phrase and phrase in fb and not any(
-            neg in fb[max(0, fb.index(phrase) - 15):fb.index(phrase)]
-            for neg in _NEGATION_WORDS
-        ):
-            return True
+        if " " not in phrase:
+            continue
+        start = 0
+        while True:
+            pos = fb.find(phrase, start)
+            if pos == -1:
+                break
+            # Check up to two words immediately before the phrase onset
+            before_words = fb[:pos].split()
+            preceding = {w.strip(".,!?:;\"'") for w in before_words[-2:]}
+            if not (preceding & _NEGATION_WORDS):
+                return True
+            start = pos + len(phrase)
     return False
 
 
