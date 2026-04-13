@@ -254,6 +254,32 @@ class TestUserProfileStore(unittest.TestCase):
         self.assertEqual(store.get_starting_hint("alice"), "deliberative")
         self.assertEqual(store.get_starting_hint("bob"), "reactive")
 
+    def test_persist_and_load(self):
+        import tempfile
+        store = UserProfileStore()
+        for _ in range(10):
+            store.record_turn("u1", "deliberative")
+        for _ in range(5):
+            store.record_turn("u2", "creative")
+
+        summary_1_before = store.profile_summary("u1")
+        summary_2_before = store.profile_summary("u2")
+
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            store.persist(tmp_path)
+            new_store = UserProfileStore()
+            new_store.load(tmp_path)
+
+            self.assertEqual(new_store.profile_summary("u1"), summary_1_before)
+            self.assertEqual(new_store.profile_summary("u2"), summary_2_before)
+            self.assertEqual(len(new_store._profiles["u2"].recent_modes), 5)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # Feature 6: Session report
