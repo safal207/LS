@@ -7,7 +7,6 @@ Transparent overlay window that integrates with Phase 1 backend
 import sys
 import threading
 import queue
-from typing import Optional
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout, 
                             QWidget, QHBoxLayout, QPushButton, QFrame)
