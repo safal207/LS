@@ -11,8 +11,6 @@ from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
 
-logger = logging.getLogger(__name__)
-
 from .decay import ResonanceDecayConfig, effective_score, prune_expired
 from .evolve import RouteSnapshot
 from .models import (
@@ -22,6 +20,8 @@ from .models import (
     RelationalSelf,
     ResonanceKnowledgeUnit,
 )
+
+logger = logging.getLogger(__name__)
 
 _STORE_LOCKS: dict[str, threading.RLock] = {}
 _STORE_LOCKS_GUARD = threading.Lock()
