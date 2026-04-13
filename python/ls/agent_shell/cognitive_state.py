@@ -196,6 +196,7 @@ class CognitiveStateBridge:
         self._store_path = Path(
             os.environ.get("GRAPH_MEMORY_STORE_PATH", "data/graph_memory/cases.jsonl")
         )
+        self._task_manager = task_manager
         self._cached_store: Any = None  # lazily initialised by _get_store()
 
     def _get_store(self) -> Any:
@@ -209,7 +210,6 @@ class CognitiveStateBridge:
         if self._cached_store is None:
             self._cached_store = MemoryGraphStore(self._store_path)
         return self._cached_store
-        self._task_manager = task_manager
 
     def get_resonance_snapshot(
         self,
