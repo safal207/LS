@@ -18,6 +18,11 @@ Live site: [GitHub Pages](https://safal207.github.io/LS/)
 
 **GhostGPT** is not a chatbot wrapper. It is a **cognitive operating system** for LLMs — an agent that thinks between your messages, learns from you continuously, and knows when it is not thinking clearly.
 
+For grant/foundation review, see evidence-oriented materials:
+- [`benchmark/RESULTS.md`](benchmark/RESULTS.md)
+- [`benchmark/INTERPRETATION.md`](benchmark/INTERPRETATION.md)
+- [`docs/grants/README.md`](docs/grants/README.md)
+
 ---
 
 ## What it actually does

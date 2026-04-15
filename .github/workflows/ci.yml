@@ -114,11 +114,12 @@ jobs:
           liminalqa-token: ${{ env.LIMINALQA_TOKEN }}
 
       - name: Vulnerability audit
-        continue-on-error: true
         run: |
           # Temporary exception: CVE-2026-4539 has no fixed PyPI release yet.
           # Keep this scoped to a single CVE and remove once upstream ships a fix.
-          pip-audit --local --desc --progress-spinner off --ignore-vuln CVE-2026-4539
+          # --skip-editable omits VCS/URL-installed packages (e.g. ltp-client)
+          # that are not indexed on PyPI and cannot be audited via OSV.
+          pip-audit --local --desc --progress-spinner off --skip-editable --ignore-vuln CVE-2026-4539
 
       - name: Generate SBOM
         run: |
@@ -140,7 +141,6 @@ jobs:
       - name: CodeQL Analysis
         uses: github/codeql-action/analyze@v3
 
-      - name: Dependency Review (skipped if Graph not enabled)
-        run: |
-          echo "Dependency Review skipped. Enable Dependency Graph in repo settings to activate."
-          exit 0
+      - name: Dependency Review
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4

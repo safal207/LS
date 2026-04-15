@@ -15,6 +15,11 @@ Please report vulnerabilities privately and include:
 
 Do not open public issues for undisclosed vulnerabilities.
 
+### Preferred Reporting Channel
+
+- Open a private GitHub Security Advisory draft for this repository.
+- If advisory tooling is unavailable, contact maintainers through a private channel and include the same minimum report details listed above.
+
 ## Response Targets
 
 - **Acknowledgement**: within 3 business days
