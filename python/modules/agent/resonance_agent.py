@@ -63,10 +63,12 @@ Usage::
 from __future__ import annotations
 
 import logging
+import json
 import threading
 import time
 import uuid
-from typing import Any, Callable, List, Optional
+from pathlib import Path
+from typing import Callable, List, Optional
 
 from config import (
     GRAPH_CARE_CYCLES_ENABLED,
@@ -225,6 +227,25 @@ except Exception as exc:
     _build_alignment_guidance = None  # type: ignore[assignment]
 
 try:
+    from ls.cognition.council_contribution_ledger import (
+        CouncilContributionLedger as _CouncilContributionLedger,
+        CouncilDecision as _CouncilDecision,
+        CouncilGoal as _CouncilGoal,
+        CouncilNetworkContext as _CouncilNetworkContext,
+        CouncilOutcome as _CouncilOutcome,
+        CouncilParticipant as _CouncilParticipant,
+    )
+    _COUNCIL_LEDGER_OK = True
+except Exception:
+    _COUNCIL_LEDGER_OK = False
+    _CouncilContributionLedger = None  # type: ignore[assignment]
+    _CouncilDecision = None  # type: ignore[assignment]
+    _CouncilGoal = None  # type: ignore[assignment]
+    _CouncilNetworkContext = None  # type: ignore[assignment]
+    _CouncilOutcome = None  # type: ignore[assignment]
+    _CouncilParticipant = None  # type: ignore[assignment]
+
+try:
     from agent.softening_detector import SofteningAnalysis as _SofteningAnalysis
     from agent.softening_detector import analyze_softening_signals as _analyze_softening_signals
     _SOFTENING_DETECTOR_OK = True
@@ -364,195 +385,6 @@ except ImportError:
         _ALIGNMENT_CALIBRATION_OK = False
         _AlignmentStrategyCalibrationMetrics = None  # type: ignore[assignment,misc]
         _build_strategy_calibration_summary = None  # type: ignore[assignment]
-
-try:
-    from agent.alignment_strategy_aggregation import (
-        AlignmentStrategyAggregationMetrics as _AlignmentStrategyAggregationMetrics,
-        build_strategy_feedback_aggregation_summary as _build_aggregation_summary,
-        build_pattern_feedback_stats as _build_pattern_feedback_stats,
-        build_strategy_feedback_stats as _build_strategy_feedback_stats,
-    )
-    _ALIGNMENT_AGGREGATION_OK = True
-except ImportError:
-    try:
-        from modules.agent.alignment_strategy_aggregation import (
-            AlignmentStrategyAggregationMetrics as _AlignmentStrategyAggregationMetrics,
-            build_strategy_feedback_aggregation_summary as _build_aggregation_summary,
-            build_pattern_feedback_stats as _build_pattern_feedback_stats,
-            build_strategy_feedback_stats as _build_strategy_feedback_stats,
-        )
-        _ALIGNMENT_AGGREGATION_OK = True
-    except ImportError:
-        _ALIGNMENT_AGGREGATION_OK = False
-        _AlignmentStrategyAggregationMetrics = None  # type: ignore[assignment,misc]
-        _build_aggregation_summary = None  # type: ignore[assignment]
-        _build_pattern_feedback_stats = None  # type: ignore[assignment]
-        _build_strategy_feedback_stats = None  # type: ignore[assignment]
-
-try:
-    from agent.alignment_strategy_reputation import (
-        AlignmentStrategyReputationMetrics as _AlignmentStrategyReputationMetrics,
-        build_strategy_reputation_overlay as _build_strategy_reputation_overlay,
-    )
-    _ALIGNMENT_REPUTATION_OK = True
-except ImportError:
-    try:
-        from modules.agent.alignment_strategy_reputation import (
-            AlignmentStrategyReputationMetrics as _AlignmentStrategyReputationMetrics,
-            build_strategy_reputation_overlay as _build_strategy_reputation_overlay,
-        )
-        _ALIGNMENT_REPUTATION_OK = True
-    except ImportError:
-        _ALIGNMENT_REPUTATION_OK = False
-        _AlignmentStrategyReputationMetrics = None  # type: ignore[assignment,misc]
-        _build_strategy_reputation_overlay = None  # type: ignore[assignment]
-
-try:
-    from agent.alignment_recommendation_adoption import (
-        AlignmentRecommendationAdoptionMetrics as _AlignmentRecommendationAdoptionMetrics,
-        build_recommendation_adoption_summary as _build_adoption_summary,
-        build_recommendation_adoption_trace as _build_adoption_trace,
-    )
-    _ALIGNMENT_ADOPTION_OK = True
-except ImportError:
-    try:
-        from modules.agent.alignment_recommendation_adoption import (
-            AlignmentRecommendationAdoptionMetrics as _AlignmentRecommendationAdoptionMetrics,
-            build_recommendation_adoption_summary as _build_adoption_summary,
-            build_recommendation_adoption_trace as _build_adoption_trace,
-        )
-        _ALIGNMENT_ADOPTION_OK = True
-    except ImportError:
-        _ALIGNMENT_ADOPTION_OK = False
-        _AlignmentRecommendationAdoptionMetrics = None  # type: ignore[assignment,misc]
-        _build_adoption_summary = None  # type: ignore[assignment]
-        _build_adoption_trace = None  # type: ignore[assignment]
-
-try:
-    from agent.alignment_strategy_playbook import (
-        AlignmentStrategyPlaybookMetrics as _AlignmentStrategyPlaybookMetrics,
-        build_alignment_strategy_playbook as _build_alignment_strategy_playbook,
-    )
-    _ALIGNMENT_PLAYBOOK_OK = True
-except ImportError:
-    try:
-        from modules.agent.alignment_strategy_playbook import (
-            AlignmentStrategyPlaybookMetrics as _AlignmentStrategyPlaybookMetrics,
-            build_alignment_strategy_playbook as _build_alignment_strategy_playbook,
-        )
-        _ALIGNMENT_PLAYBOOK_OK = True
-    except ImportError:
-        _ALIGNMENT_PLAYBOOK_OK = False
-        _AlignmentStrategyPlaybookMetrics = None  # type: ignore[assignment,misc]
-        _build_alignment_strategy_playbook = None  # type: ignore[assignment]
-
-try:
-    from agent.multi_party_alignment import (
-        MultiPartyAlignmentMetrics as _MultiPartyAlignmentMetrics,
-        build_multi_party_alignment_state as _build_multi_party_alignment_state,
-    )
-    _MULTI_PARTY_ALIGNMENT_OK = True
-except ImportError:
-    try:
-        from modules.agent.multi_party_alignment import (
-            MultiPartyAlignmentMetrics as _MultiPartyAlignmentMetrics,
-            build_multi_party_alignment_state as _build_multi_party_alignment_state,
-        )
-        _MULTI_PARTY_ALIGNMENT_OK = True
-    except ImportError:
-        _MULTI_PARTY_ALIGNMENT_OK = False
-        _MultiPartyAlignmentMetrics = None  # type: ignore[assignment,misc]
-        _build_multi_party_alignment_state = None  # type: ignore[assignment]
-
-try:
-    from agent.bridge_graph import (
-        BridgeGraphMetrics as _BridgeGraphMetrics,
-        build_bridge_graph_state as _build_bridge_graph_state,
-    )
-    _BRIDGE_GRAPH_OK = True
-except ImportError:
-    try:
-        from modules.agent.bridge_graph import (
-            BridgeGraphMetrics as _BridgeGraphMetrics,
-            build_bridge_graph_state as _build_bridge_graph_state,
-        )
-        _BRIDGE_GRAPH_OK = True
-    except ImportError:
-        _BRIDGE_GRAPH_OK = False
-        _BridgeGraphMetrics = None  # type: ignore[assignment,misc]
-        _build_bridge_graph_state = None  # type: ignore[assignment]
-
-try:
-    from agent.bridge_stabilization import (
-        BridgeStabilizationMetrics as _BridgeStabilizationMetrics,
-        build_bridge_stabilization_order as _build_bridge_stabilization_order,
-    )
-    _BRIDGE_STABILIZATION_OK = True
-except ImportError:
-    try:
-        from modules.agent.bridge_stabilization import (
-            BridgeStabilizationMetrics as _BridgeStabilizationMetrics,
-            build_bridge_stabilization_order as _build_bridge_stabilization_order,
-        )
-        _BRIDGE_STABILIZATION_OK = True
-    except ImportError:
-        _BRIDGE_STABILIZATION_OK = False
-        _BridgeStabilizationMetrics = None  # type: ignore[assignment,misc]
-        _build_bridge_stabilization_order = None  # type: ignore[assignment]
-
-try:
-    from agent.collective_coordination import (
-        CollectiveCoordinationMetrics as _CollectiveCoordinationMetrics,
-        build_collective_coordination_snapshot as _build_collective_coordination_snapshot,
-    )
-    _COLLECTIVE_COORDINATION_OK = True
-except ImportError:
-    try:
-        from modules.agent.collective_coordination import (
-            CollectiveCoordinationMetrics as _CollectiveCoordinationMetrics,
-            build_collective_coordination_snapshot as _build_collective_coordination_snapshot,
-        )
-        _COLLECTIVE_COORDINATION_OK = True
-    except ImportError:
-        _COLLECTIVE_COORDINATION_OK = False
-        _CollectiveCoordinationMetrics = None  # type: ignore[assignment,misc]
-        _build_collective_coordination_snapshot = None  # type: ignore[assignment]
-
-try:
-    from agent.bridge_playbook_link import (
-        BridgePlaybookMetrics as _BridgePlaybookMetrics,
-        build_bridge_playbook_advisory as _build_bridge_playbook_advisory,
-    )
-    _BRIDGE_PLAYBOOK_LINK_OK = True
-except ImportError:
-    try:
-        from modules.agent.bridge_playbook_link import (
-            BridgePlaybookMetrics as _BridgePlaybookMetrics,
-            build_bridge_playbook_advisory as _build_bridge_playbook_advisory,
-        )
-        _BRIDGE_PLAYBOOK_LINK_OK = True
-    except ImportError:
-        _BRIDGE_PLAYBOOK_LINK_OK = False
-        _BridgePlaybookMetrics = None  # type: ignore[assignment,misc]
-        _build_bridge_playbook_advisory = None  # type: ignore[assignment]
-
-try:
-    from agent.coordination_advisory_summary import (
-        CoordinationAdvisorySummaryMetrics as _CoordinationAdvisorySummaryMetrics,
-        build_coordination_advisory_summary as _build_coordination_advisory_summary,
-    )
-    _COORDINATION_ADVISORY_SUMMARY_OK = True
-except ImportError:
-    try:
-        from modules.agent.coordination_advisory_summary import (
-            CoordinationAdvisorySummaryMetrics as _CoordinationAdvisorySummaryMetrics,
-            build_coordination_advisory_summary as _build_coordination_advisory_summary,
-        )
-        _COORDINATION_ADVISORY_SUMMARY_OK = True
-    except ImportError:
-        _COORDINATION_ADVISORY_SUMMARY_OK = False
-        _CoordinationAdvisorySummaryMetrics = None  # type: ignore[assignment,misc]
-        _build_coordination_advisory_summary = None  # type: ignore[assignment]
 
 try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
@@ -863,6 +695,7 @@ class ResonanceAgent:
             self._alignment_memory_path = (
                 _Path("data/graph_memory/alignment_memory_units.jsonl")
             )
+        self._council_ledger_dir = Path("artifacts/council-ledger")
 
         # Alignment digest metrics (advisory/observability only)
         self._digest_metrics = (
@@ -902,53 +735,6 @@ class ResonanceAgent:
         self._strategy_calibration_metrics = (
             _AlignmentStrategyCalibrationMetrics()
             if _ALIGNMENT_CALIBRATION_OK and _AlignmentStrategyCalibrationMetrics
-            else None
-        )
-        self._strategy_playbook_metrics = (
-            _AlignmentStrategyPlaybookMetrics()
-            if _ALIGNMENT_PLAYBOOK_OK and _AlignmentStrategyPlaybookMetrics
-            else None
-        )
-
-        # Aggregation, reputation, adoption metrics (advisory/read-only)
-        self._aggregation_metrics = (
-            _AlignmentStrategyAggregationMetrics()
-            if _ALIGNMENT_AGGREGATION_OK and _AlignmentStrategyAggregationMetrics
-            else None
-        )
-        self._reputation_metrics = (
-            _AlignmentStrategyReputationMetrics()
-            if _ALIGNMENT_REPUTATION_OK and _AlignmentStrategyReputationMetrics
-            else None
-        )
-        self._multi_party_alignment_metrics = (
-            _MultiPartyAlignmentMetrics()
-            if _MULTI_PARTY_ALIGNMENT_OK and _MultiPartyAlignmentMetrics
-            else None
-        )
-        self._bridge_graph_metrics = (
-            _BridgeGraphMetrics()
-            if _BRIDGE_GRAPH_OK and _BridgeGraphMetrics
-            else None
-        )
-        self._bridge_stabilization_metrics = (
-            _BridgeStabilizationMetrics()
-            if _BRIDGE_STABILIZATION_OK and _BridgeStabilizationMetrics
-            else None
-        )
-        self._collective_coordination_metrics = (
-            _CollectiveCoordinationMetrics()
-            if _COLLECTIVE_COORDINATION_OK and _CollectiveCoordinationMetrics
-            else None
-        )
-        self._bridge_playbook_metrics = (
-            _BridgePlaybookMetrics()
-            if _BRIDGE_PLAYBOOK_LINK_OK and _BridgePlaybookMetrics
-            else None
-        )
-        self._coordination_advisory_summary_metrics = (
-            _CoordinationAdvisorySummaryMetrics()
-            if _COORDINATION_ADVISORY_SUMMARY_OK and _CoordinationAdvisorySummaryMetrics
             else None
         )
 
@@ -1256,142 +1042,6 @@ class ResonanceAgent:
             return {"alignment_strategy_feedback_available": False}
         return self._strategy_feedback_metrics.to_dict()
 
-    def get_alignment_strategy_aggregation(self) -> dict:
-        """Return per-pattern and per-strategy aggregation over session feedback events.
-
-        Read-only: never modifies feedback events, recommender state, or pipeline.
-        """
-        if not (_ALIGNMENT_AGGREGATION_OK and _build_aggregation_summary
-                and _build_pattern_feedback_stats and _build_strategy_feedback_stats):
-            return {"alignment_strategy_aggregation_available": False}
-        with self._alignment_memory_lock:
-            events = list(self._strategy_feedback_events)
-        pat_stats = _build_pattern_feedback_stats(events)
-        strat_stats = _build_strategy_feedback_stats(events)
-        summary = _build_aggregation_summary(events)
-        m = self._aggregation_metrics
-        if m is not None:
-            m.calls_total += 1
-            m.events_processed_total += len(events)
-            m.unique_patterns_total += len(pat_stats)
-            m.unique_strategies_total += len(strat_stats)
-            if pat_stats or strat_stats:
-                m.nonempty_total += 1
-            else:
-                m.empty_total += 1
-        return {
-            "pattern_stats": pat_stats,
-            "strategy_stats": strat_stats,
-            "summary": summary,
-        }
-
-    def get_alignment_strategy_aggregation_metrics(self) -> dict:
-        """Return observability counters for the aggregation layer."""
-        if self._aggregation_metrics is None:
-            return {"alignment_strategy_aggregation_available": False}
-        return self._aggregation_metrics.to_dict()
-
-    def get_alignment_strategy_reputation_overlay(self, item: dict) -> list:
-        """Return advisory reputation overlay for current cycle's recommendations.
-
-        Read-only, no side effects, no routing or ranking changes.
-        """
-        if not (_ALIGNMENT_REPUTATION_OK and _build_strategy_reputation_overlay):
-            return []
-        recommendations = self.get_alignment_strategy_recommendations(item)
-        aggregation = self.get_alignment_strategy_aggregation()
-        try:
-            overlays = _build_strategy_reputation_overlay(recommendations, aggregation)
-        except Exception:
-            return []
-        m = self._reputation_metrics
-        if m is not None:
-            m.calls_total += 1
-            m.recommendations_processed_total += len(overlays)
-            for ov in overlays:
-                lbl = ov.get("reputation_label", "insufficient_data")
-                if lbl == "validated_pattern":
-                    m.validated_total += 1
-                elif lbl == "emerging_pattern":
-                    m.emerging_total += 1
-                elif lbl == "weak_pattern":
-                    m.weak_total += 1
-                else:
-                    m.insufficient_total += 1
-                m.confidence_sum += float(ov.get("advisory_confidence") or 0.0)
-                if ov.get("has_pattern_evidence"):
-                    m.pattern_evidence_total += 1
-                else:
-                    m.strategy_only_evidence_total += 1
-        return overlays
-
-    def get_alignment_strategy_reputation_metrics(self) -> dict:
-        """Return observability counters for the reputation overlay layer."""
-        if self._reputation_metrics is None:
-            return {"alignment_strategy_reputation_available": False}
-        return self._reputation_metrics.to_dict()
-
-    def _record_recommendation_adoption_trace(
-        self,
-        recommendations: list,
-        response_text: str,
-        alignment_outcome: dict,
-    ) -> None:
-        """Build and store per-recommendation adoption traces post-response.
-
-        Uses the lexical-cue matching in alignment_recommendation_adoption when
-        available; falls back silently.  Advisory-only.
-        """
-        if not (_ALIGNMENT_ADOPTION_OK and _build_adoption_trace):
-            return
-        try:
-            traces = _build_adoption_trace(
-                recommendations, response_text, alignment_outcome
-            )
-        except Exception:
-            return
-        if not traces:
-            return
-        with self._alignment_memory_lock:
-            for tr in traces:
-                if len(self._strategy_adoption_traces) >= self._strategy_adoption_max:
-                    self._strategy_adoption_traces.pop(0)
-                self._strategy_adoption_traces.append(tr)
-
-    def get_recommendation_adoption_traces(self) -> list:
-        """Return a snapshot of session adoption traces (read-only copy)."""
-        with self._alignment_memory_lock:
-            return list(self._strategy_adoption_traces)
-
-    def get_recommendation_adoption_summary(self) -> dict:
-        """Return aggregated adoption summary for this session."""
-        if not (_ALIGNMENT_ADOPTION_OK and _build_adoption_summary):
-            return {"alignment_recommendation_adoption_available": False}
-        with self._alignment_memory_lock:
-            traces = list(self._strategy_adoption_traces)
-        return _build_adoption_summary(traces)
-
-    def get_recommendation_adoption_metrics(self) -> dict:
-        """Return observability counters for the adoption trace layer."""
-        with self._alignment_memory_lock:
-            traces = list(self._strategy_adoption_traces)
-        adopted = sum(1 for t in traces if t.get("adoption_label") == "adopted")
-        partial = sum(1 for t in traces if t.get("adoption_label") == "partially_adopted")
-        not_ad = len(traces) - adopted - partial
-        score_sum = sum(float(t.get("adoption_score") or 0.0) for t in traces)
-        n = len(traces)
-        return {
-            "calls_total": n,
-            "recommendations_processed_total": n,
-            "traces_total": n,
-            "adopted_total": adopted,
-            "partially_adopted_total": partial,
-            "not_adopted_total": not_ad,
-            "avg_adoption_score": round(score_sum / n, 4) if n else 0.0,
-            "action_matches_total": adopted + partial,
-            "unknown_actions_total": 0,
-        }
-
     def _record_strategy_recommendations(self, recommendations: list[dict]) -> None:
         """Append recommendations to bounded session-local history."""
         if not recommendations:
@@ -1491,413 +1141,6 @@ class ResonanceAgent:
         if self._strategy_calibration_metrics is None:
             return {"alignment_strategy_calibration_available": False}
         return self._strategy_calibration_metrics.to_dict()
-
-    def build_alignment_strategy_playbook(
-        self,
-        item: dict,
-        recommendations: list[dict],
-        calibration_summary: dict | None = None,
-    ) -> dict:
-        """Build compact strategy playbook from recommendations + current context.
-
-        Advisory-only: never modifies routing, graph_mode, or upstream state.
-        """
-        if not (_ALIGNMENT_PLAYBOOK_OK and _build_alignment_strategy_playbook):
-            return {"alignment_strategy_playbook_available": False}
-        cal = calibration_summary if isinstance(calibration_summary, dict) else {}
-        playbook = _build_alignment_strategy_playbook(
-            recommendations,
-            alignment_report=item.get("_alignment_report") or {},
-            calibration_summary=cal,
-        )
-        m = self._strategy_playbook_metrics
-        if m is not None:
-            m.calls_total += 1
-            selected = len(playbook.get("selected_strategy_ids") or [])
-            m.strategies_selected_total += selected
-            if selected:
-                m.nonempty_total += 1
-            else:
-                m.empty_total += 1
-        return playbook
-
-    def get_alignment_strategy_playbook_metrics(self) -> dict:
-        """Return observability counters for strategy playbook builds."""
-        if self._strategy_playbook_metrics is None:
-            return {"alignment_strategy_playbook_available": False}
-        return self._strategy_playbook_metrics.to_dict()
-
-    def get_multi_party_alignment_state(
-        self,
-        item: dict,
-        adoption_traces: list | None = None,
-    ) -> dict:
-        """Build per-party alignment state snapshot for the current cycle.
-
-        Advisory-only — never modifies item, route_key, graph_mode, or any
-        upstream state.  Returns a stable schema dict with party-level
-        descriptors and a session-level state label.
-        """
-        if not (_MULTI_PARTY_ALIGNMENT_OK and _build_multi_party_alignment_state):
-            return {"multi_party_alignment_available": False}
-
-        report = item.get("_alignment_report") or {} if isinstance(item, dict) else {}
-        traces = adoption_traces if isinstance(adoption_traces, list) else []
-
-        state = _build_multi_party_alignment_state(
-            report,
-            adoption_traces=traces,
-        )
-
-        m = self._multi_party_alignment_metrics
-        if m is not None:
-            m.calls_total += 1
-            party_count = state.get("party_count") or 0
-            if not report:
-                m.empty_report_total += 1
-            else:
-                m.parties_seen_total += party_count
-                m.hotspots_processed_total += len(
-                    (report.get("pairwise_hotspots") or [])
-                )
-            label = state.get("state_label") or "stable"
-            if label == "escalating":
-                m.escalating_total += 1
-            elif label == "diverging":
-                m.diverging_total += 1
-            elif label == "converging":
-                m.converging_total += 1
-            else:
-                m.stable_total += 1
-
-        return state
-
-    def get_multi_party_alignment_metrics(self) -> dict:
-        """Return observability counters for multi-party alignment state builds."""
-        if self._multi_party_alignment_metrics is None:
-            return {"multi_party_alignment_available": False}
-        return self._multi_party_alignment_metrics.to_dict()
-
-    def get_bridge_graph_state(
-        self,
-        item: dict,
-        multi_party_state: dict | None = None,
-    ) -> dict:
-        """Build a pairwise bridge graph over the current multi-party alignment state.
-
-        Advisory/structural layer only — never modifies item, route_key,
-        graph_mode, reuse/refine/full_run, playbook, recommendations, or any
-        upstream pipeline state.
-        """
-        if not (_BRIDGE_GRAPH_OK and _build_bridge_graph_state):
-            return {"bridge_graph_available": False}
-
-        mp_state = multi_party_state if isinstance(multi_party_state, dict) else {}
-        report = item.get("_alignment_report") or {} if isinstance(item, dict) else {}
-
-        graph = _build_bridge_graph_state(mp_state, report)
-        graph_dict = graph.to_dict()
-
-        m = self._bridge_graph_metrics
-        if m is not None:
-            m.calls_total += 1
-            party_count = len(mp_state.get("parties") or [])
-            if party_count < 2:
-                m.small_input_total += 1
-            else:
-                m.graph_states_total += 1
-            edges = graph.edges
-            m.edges_total += len(edges)
-            for edge in edges:
-                bt = edge.get("bridge_type") or ""
-                if bt == "acknowledgment_bridge":
-                    m.acknowledgment_bridge_total += 1
-                elif bt == "pacing_bridge":
-                    m.pacing_bridge_total += 1
-                elif bt == "reframing_bridge":
-                    m.reframing_bridge_total += 1
-                elif bt == "translation_bridge":
-                    m.translation_bridge_total += 1
-                elif bt == "stabilization_bridge":
-                    m.stabilization_bridge_total += 1
-                m._strength_sum += float(edge.get("bridge_strength") or 0.0)
-                m._priority_sum += float(edge.get("bridge_priority") or 0.0)
-            if graph.fragmentation_level == "high":
-                m.high_fragmentation_total += 1
-
-        return graph_dict
-
-    def get_bridge_graph_metrics(self) -> dict:
-        """Return observability counters for bridge graph builds."""
-        if self._bridge_graph_metrics is None:
-            return {"bridge_graph_available": False}
-        return self._bridge_graph_metrics.to_dict()
-
-    def get_bridge_stabilization_order(
-        self,
-        item: dict[str, Any],
-        bridge_graph_state: dict | None = None,
-        multi_party_state: dict | None = None,
-    ) -> dict[str, Any]:
-        """Build read-only advisory stabilization order from bridge graph edges.
-
-        Advisory-only — never modifies item, route_key, graph_mode, reuse mode,
-        backend selection, prompts, playbook, recommendations, or feedback logic.
-        """
-        if not (_BRIDGE_STABILIZATION_OK and _build_bridge_stabilization_order):
-            return {"bridge_stabilization_available": False}
-
-        graph_state = bridge_graph_state if isinstance(bridge_graph_state, dict) else {}
-        mp_state = multi_party_state if isinstance(multi_party_state, dict) else {}
-
-        order = _build_bridge_stabilization_order(graph_state, multi_party_state=mp_state)
-        order_dict = order.to_dict()
-
-        m = self._bridge_stabilization_metrics
-        if m is not None:
-            m.calls_total += 1
-            edges = [e for e in (graph_state.get("edges") or []) if isinstance(e, dict)]
-            if not edges:
-                m.empty_inputs_total += 1
-                return order_dict
-
-            m.orders_total += 1
-            ordered_edges = [e for e in (order_dict.get("ordered_edges") or []) if isinstance(e, dict)]
-            m.edges_processed_total += len(ordered_edges)
-            for edge in ordered_edges:
-                label = str(edge.get("stabilization_label") or "")
-                if label == "urgent_stabilize":
-                    m.urgent_stabilize_total += 1
-                elif label == "early_stabilize":
-                    m.early_stabilize_total += 1
-                elif label == "quick_win":
-                    m.quick_win_total += 1
-                elif label == "monitor":
-                    m.monitor_total += 1
-                elif label == "defer":
-                    m.defer_total += 1
-                m._stabilization_score_sum += float(edge.get("stabilization_score") or 0.0)
-
-            mode = str(order_dict.get("dominant_stabilization_mode") or "")
-            if mode == "crisis_first":
-                m.crisis_first_total += 1
-            elif mode == "high_priority_first":
-                m.high_priority_first_total += 1
-            elif mode == "quick_wins_first":
-                m.quick_wins_first_total += 1
-            else:
-                m.observe_and_stage_total += 1
-
-        return order_dict
-
-    def get_bridge_stabilization_metrics(self) -> dict[str, Any]:
-        """Return observability counters for bridge stabilization order builds."""
-        if self._bridge_stabilization_metrics is None:
-            return {"bridge_stabilization_available": False}
-        return self._bridge_stabilization_metrics.to_dict()
-
-    def get_collective_coordination_snapshot(
-        self,
-        item: dict[str, Any],
-        multi_party_state: dict[str, Any] | None = None,
-        bridge_graph_state: dict[str, Any] | None = None,
-        bridge_stabilization_order: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Build read-only top-level collective coordination scene snapshot."""
-        if not (_COLLECTIVE_COORDINATION_OK and _build_collective_coordination_snapshot):
-            return {"collective_coordination_available": False}
-
-        mp_state = multi_party_state if isinstance(multi_party_state, dict) else {}
-        graph_state = bridge_graph_state if isinstance(bridge_graph_state, dict) else {}
-        order_state = (
-            bridge_stabilization_order if isinstance(bridge_stabilization_order, dict) else {}
-        )
-
-        snapshot = _build_collective_coordination_snapshot(
-            multi_party_state=mp_state,
-            bridge_graph_state=graph_state,
-            bridge_stabilization_order=order_state,
-        )
-        snapshot_dict = snapshot.to_dict()
-
-        m = self._collective_coordination_metrics
-        if m is not None:
-            m.calls_total += 1
-            if not mp_state and not graph_state and not order_state:
-                m.empty_inputs_total += 1
-            m.snapshots_total += 1
-            risk = float(snapshot_dict.get("coordination_risk") or 0.0)
-            m._coordination_risk_sum += risk
-            if risk >= 0.75:
-                m.high_risk_total += 1
-            elif risk >= 0.45:
-                m.medium_risk_total += 1
-            else:
-                m.low_risk_total += 1
-
-            label = str(snapshot_dict.get("coordination_state_label") or "")
-            if label == "coherent":
-                m.coherent_total += 1
-            elif label == "strained":
-                m.strained_total += 1
-            elif label == "fragmented":
-                m.fragmented_total += 1
-            elif label == "unstable":
-                m.unstable_total += 1
-            elif label == "escalating":
-                m.escalating_total += 1
-
-            state = str(mp_state.get("state_label") or "")
-            if state == "converging":
-                m.converging_total += 1
-            elif state == "diverging":
-                m.diverging_total += 1
-            elif state == "stable":
-                m.stable_total += 1
-
-            if snapshot_dict.get("primary_fracture_line"):
-                m.nonempty_fracture_line_total += 1
-            if [e for e in (order_state.get("urgent_edges") or []) if isinstance(e, dict)]:
-                m.urgent_stabilization_total += 1
-
-        return snapshot_dict
-
-    def get_collective_coordination_metrics(self) -> dict[str, Any]:
-        """Return observability counters for collective coordination snapshots."""
-        if self._collective_coordination_metrics is None:
-            return {"collective_coordination_available": False}
-        return self._collective_coordination_metrics.to_dict()
-
-    def get_bridge_playbook_advisory(
-        self,
-        item: dict[str, Any],
-        playbook: dict[str, Any] | None = None,
-        bridge_graph_state: dict[str, Any] | None = None,
-        bridge_stabilization_order: dict[str, Any] | None = None,
-        collective_snapshot: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Build read-only bridge-to-playbook advisory from structured layers.
-
-        ``item`` is currently reserved for API consistency with other accessors.
-        The advisory itself is derived only from the explicit structured layers.
-        """
-        if not (_BRIDGE_PLAYBOOK_LINK_OK and _build_bridge_playbook_advisory):
-            return {"bridge_playbook_advisory_available": False}
-
-        pb = playbook if isinstance(playbook, dict) else {}
-        bg = bridge_graph_state if isinstance(bridge_graph_state, dict) else {}
-        bo = bridge_stabilization_order if isinstance(bridge_stabilization_order, dict) else {}
-        cs = collective_snapshot if isinstance(collective_snapshot, dict) else {}
-
-        advisory = _build_bridge_playbook_advisory(
-            playbook=pb,
-            bridge_graph_state=bg,
-            bridge_stabilization_order=bo,
-            collective_snapshot=cs,
-        )
-        advisory_dict = advisory.to_dict()
-
-        m = self._bridge_playbook_metrics
-        if m is not None:
-            m.calls_total += 1
-            m.advisories_total += 1
-            links = [e for e in (advisory_dict.get("step_links") or []) if isinstance(e, dict)]
-            m.step_links_total += len(links)
-            for link in links:
-                label = str(link.get("link_label") or "")
-                if label == "strong_fit":
-                    m.strong_fit_total += 1
-                elif label == "partial_fit":
-                    m.partial_fit_total += 1
-                elif label == "weak_fit":
-                    m.weak_fit_total += 1
-                elif label == "unsupported":
-                    m.unsupported_total += 1
-                elif label == "insufficient_context":
-                    m.insufficient_context_total += 1
-            m._alignment_score_sum += float(advisory_dict.get("playbook_alignment_score") or 0.0)
-            if advisory_dict.get("top_supported_steps"):
-                m.nonempty_supported_steps_total += 1
-            if advisory_dict.get("top_weak_steps"):
-                m.nonempty_weak_steps_total += 1
-
-            alignment_label = str(advisory_dict.get("playbook_alignment_label") or "")
-            if alignment_label == "well_aligned":
-                m.well_aligned_total += 1
-            elif alignment_label == "partially_aligned":
-                m.partially_aligned_total += 1
-            elif alignment_label == "weakly_aligned":
-                m.weakly_aligned_total += 1
-            elif alignment_label == "misaligned":
-                m.misaligned_total += 1
-
-        return advisory_dict
-
-    def get_bridge_playbook_metrics(self) -> dict[str, Any]:
-        """Return observability counters for bridge-to-playbook advisories."""
-        if self._bridge_playbook_metrics is None:
-            return {"bridge_playbook_advisory_available": False}
-        return self._bridge_playbook_metrics.to_dict()
-
-    def get_coordination_advisory_summary(
-        self,
-        item: dict[str, Any],
-        collective_coordination_snapshot: dict[str, Any] | None = None,
-        bridge_stabilization_order: dict[str, Any] | None = None,
-        bridge_playbook_advisory: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Build read-only top-level coordination advisory summary."""
-        if not (_COORDINATION_ADVISORY_SUMMARY_OK and _build_coordination_advisory_summary):
-            return {"coordination_advisory_summary_available": False}
-
-        cs = collective_coordination_snapshot if isinstance(collective_coordination_snapshot, dict) else {}
-        bo = bridge_stabilization_order if isinstance(bridge_stabilization_order, dict) else {}
-        pa = bridge_playbook_advisory if isinstance(bridge_playbook_advisory, dict) else {}
-
-        summary = _build_coordination_advisory_summary(
-            collective_coordination_snapshot=cs,
-            bridge_stabilization_order=bo,
-            bridge_playbook_advisory=pa,
-        )
-        summary_dict = summary.to_dict()
-
-        m = self._coordination_advisory_summary_metrics
-        if m is not None:
-            m.calls_total += 1
-            m.summaries_total += 1
-            label = str(summary_dict.get("coordination_advisory_label") or "")
-            if label == "ready":
-                m.ready_total += 1
-            elif label == "fragile":
-                m.fragile_total += 1
-            elif label == "blocked":
-                m.blocked_total += 1
-            elif label == "insufficient_context":
-                m.insufficient_context_total += 1
-
-            mode = str(summary_dict.get("primary_intervention_mode") or "")
-            if mode == "stabilization_first":
-                m.stabilization_first_total += 1
-            elif mode == "translation_first":
-                m.translation_first_total += 1
-            elif mode == "reframe_first":
-                m.reframe_first_total += 1
-            elif mode == "pacing_first":
-                m.pacing_first_total += 1
-            elif mode == "acknowledge_first":
-                m.acknowledge_first_total += 1
-            elif mode == "mixed":
-                m.mixed_total += 1
-
-            m._readiness_sum += float(summary_dict.get("coordination_readiness") or 0.0)
-
-        return summary_dict
-
-    def get_coordination_advisory_summary_metrics(self) -> dict[str, Any]:
-        """Return observability counters for coordination advisory summaries."""
-        if self._coordination_advisory_summary_metrics is None:
-            return {"coordination_advisory_summary_available": False}
-        return self._coordination_advisory_summary_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -2974,51 +2217,20 @@ class ResonanceAgent:
             else f"{graph_meta.get('mode', 'full_run')}>{llm_meta.get('provider', 'unknown')}"
         )
 
-        # Strategy recommendations — computed once so feedback and adoption can share it
+        # Strategy recommendations — computed once so feedback can use the same list
         _strategy_recs = self.get_alignment_strategy_recommendations(item)
         self._record_strategy_recommendations(_strategy_recs)
         self._record_strategy_adoption_traces(_strategy_recs, final_output)
         # Post-cycle feedback: advisory-only, appends to bounded session list
         self._record_strategy_outcome_feedback(_strategy_recs, alignment_outcome)
-        _strategy_calibration_summary = self.get_strategy_calibration_summary()
-        _strategy_playbook = self.build_alignment_strategy_playbook(
-            item, _strategy_recs, calibration_summary=_strategy_calibration_summary
+        council_ledger = self._build_council_contribution_ledger(
+            item=item,
+            cycle_id=cycle_id,
+            final_output=final_output,
+            strategy_recommendations=_strategy_recs,
         )
-        # Post-response adoption trace: checks recommended actions in final text
-        self._record_recommendation_adoption_trace(
-            _strategy_recs, final_output, alignment_outcome
-        )
-        # Multi-party alignment state snapshot (advisory, read-only)
-        _adoption_traces_snapshot = self.get_recommendation_adoption_traces()
-        _multi_party_state = self.get_multi_party_alignment_state(
-            item, adoption_traces=_adoption_traces_snapshot
-        )
-        # Bridge graph: structural relationship layer over multi-party state
-        _bridge_graph = self.get_bridge_graph_state(item, multi_party_state=_multi_party_state)
-        # Bridge stabilization: advisory ordering layer over bridge graph edges
-        _bridge_stabilization_order = self.get_bridge_stabilization_order(
-            item,
-            bridge_graph_state=_bridge_graph,
-            multi_party_state=_multi_party_state,
-        )
-        _collective_coordination_snapshot = self.get_collective_coordination_snapshot(
-            item,
-            multi_party_state=_multi_party_state,
-            bridge_graph_state=_bridge_graph,
-            bridge_stabilization_order=_bridge_stabilization_order,
-        )
-        _bridge_playbook_advisory = self.get_bridge_playbook_advisory(
-            item,
-            playbook=_strategy_playbook,
-            bridge_graph_state=_bridge_graph,
-            bridge_stabilization_order=_bridge_stabilization_order,
-            collective_snapshot=_collective_coordination_snapshot,
-        )
-        _coordination_advisory_summary = self.get_coordination_advisory_summary(
-            item,
-            collective_coordination_snapshot=_collective_coordination_snapshot,
-            bridge_stabilization_order=_bridge_stabilization_order,
-            bridge_playbook_advisory=_bridge_playbook_advisory,
+        council_ledger_artifact = self._write_council_contribution_ledger_artifact(
+            council_ledger
         )
 
         return {
@@ -3086,24 +2298,14 @@ class ResonanceAgent:
             "alignment_digest": self.get_alignment_digest(),
             "alignment_success_patterns": self.get_alignment_success_patterns(),
             "alignment_strategy_recommendations": _strategy_recs,
-            "alignment_strategy_playbook": _strategy_playbook,
-            "alignment_strategy_playbook_metrics": self.get_alignment_strategy_playbook_metrics(),
             "alignment_strategy_feedback": self.get_strategy_outcome_feedback_events(),
             "alignment_strategy_feedback_summary": self.get_strategy_feedback_summary(),
             "alignment_strategy_calibration_summary": self.get_strategy_calibration_summary(),
             "alignment_strategy_calibration_metrics": self.get_strategy_calibration_metrics(),
-            "multi_party_alignment_state": _multi_party_state,
-            "multi_party_alignment_metrics": self.get_multi_party_alignment_metrics(),
-            "bridge_graph_state": _bridge_graph,
-            "bridge_graph_metrics": self.get_bridge_graph_metrics(),
-            "bridge_stabilization_order": _bridge_stabilization_order,
-            "bridge_stabilization_metrics": self.get_bridge_stabilization_metrics(),
-            "collective_coordination_snapshot": _collective_coordination_snapshot,
-            "collective_coordination_metrics": self.get_collective_coordination_metrics(),
-            "bridge_playbook_advisory": _bridge_playbook_advisory,
-            "bridge_playbook_metrics": self.get_bridge_playbook_metrics(),
-            "coordination_advisory_summary": _coordination_advisory_summary,
-            "coordination_advisory_summary_metrics": self.get_coordination_advisory_summary_metrics(),
+            "council_contribution_ledger": (
+                council_ledger.to_dict() if council_ledger is not None else None
+            ),
+            "council_contribution_ledger_artifact": council_ledger_artifact,
             "route_key":       path_meta.get("route_key") or trail_meta.get("route_key") or fallback_route_key,
             "route_reason":    path_meta.get("reason") or "trail-fallback",
             "route_pheromone_weight": path_meta.get("pheromone_weight", trail_meta.get("pheromone_weight")),
@@ -3131,6 +2333,220 @@ class ResonanceAgent:
             "resonance_score":  item.get("_resonance_score", 0.5),
             "resonance_detail": item.get("_resonance_detail"),
         }
+
+    def _build_council_contribution_ledger(
+        self,
+        *,
+        item: dict,
+        cycle_id: str,
+        final_output: str,
+        strategy_recommendations: list[dict],
+    ):
+        if not (_COUNCIL_LEDGER_OK and _CouncilContributionLedger):
+            return None
+
+        path_meta = item.get("_path_selection") or {}
+        trail_meta = item.get("_trail_route") or {}
+        graph_meta = item.get("_graph_runtime") or {}
+        llm_meta = item.get("_llm_backend") or {}
+        orientation_meta = item.get("_network_plan") or {}
+        alignment_report = item.get("_alignment_report") or {}
+        alignment_outcome = item.get("_alignment_outcome") or {}
+        cooperative_meta = item.get("_cooperative") or {}
+
+        selected_route = (
+            path_meta.get("route_key")
+            or trail_meta.get("route_key")
+            or orientation_meta.get("route_key")
+            or "unknown"
+        )
+        task_id = str(item.get("_task_id") or item.get("task_id") or cycle_id)
+        provider = str(llm_meta.get("provider") or "unknown")
+        model = str(llm_meta.get("model") or "unknown")
+        llm_id = f"{provider}:{model}" if provider != "unknown" or model != "unknown" else "primary-llm"
+        latency_ms = int(llm_meta.get("latency_ms") or 0)
+
+        adoption_by_strategy: dict[str, dict] = {}
+        for trace in self.get_strategy_recommendation_adoption_traces():
+            if not isinstance(trace, dict):
+                continue
+            strategy_id = str(trace.get("strategy_id") or "")
+            if strategy_id:
+                adoption_by_strategy[strategy_id] = trace
+
+        participants: list = []
+        for rec in strategy_recommendations:
+            if not isinstance(rec, dict):
+                continue
+            strategy_id = str(rec.get("strategy_id") or "")
+            if not strategy_id:
+                continue
+            adoption = adoption_by_strategy.get(strategy_id, {})
+            confidence = max(
+                float(rec.get("effective_rate") or 0.0),
+                float(adoption.get("adoption_score") or 0.0),
+                min(float(rec.get("support_count") or 0.0) / 10.0, 1.0),
+            )
+            participants.append(
+                _CouncilParticipant(
+                    model_id=f"strategy:{strategy_id}",
+                    model_type="advisory_strategy",
+                    proposal_id=strategy_id,
+                    proposal_summary=str(rec.get("summary") or rec.get("title") or strategy_id),
+                    route_hint=str(selected_route),
+                    confidence=confidence,
+                    latency_ms=latency_ms,
+                    token_cost=0.0,
+                    selected=str(adoption.get("adoption_label") or "") != "not_adopted",
+                    weight_in_final_decision=float(adoption.get("adoption_score") or 0.0),
+                )
+            )
+
+        coop_participants = cooperative_meta.get("participants") or []
+        coop_route_key = str(cooperative_meta.get("route_key") or selected_route)
+        coop_trust_score = float(cooperative_meta.get("trust_score") or 0.0)
+        for peer_id in coop_participants:
+            pid = str(peer_id)
+            if not pid:
+                continue
+            participants.append(
+                _CouncilParticipant(
+                    model_id=pid,
+                    model_type="cooperative_peer",
+                    proposal_id=f"coop:{pid}",
+                    proposal_summary="Cooperative council participant",
+                    route_hint=coop_route_key,
+                    confidence=coop_trust_score,
+                    latency_ms=latency_ms,
+                    token_cost=0.0,
+                    selected=bool(cooperative_meta.get("success")),
+                    weight_in_final_decision=coop_trust_score,
+                )
+            )
+
+        participants.append(
+            _CouncilParticipant(
+                model_id=llm_id,
+                model_type="primary_llm",
+                proposal_id=f"route:{selected_route}",
+                proposal_summary=(final_output or "").strip()[:160] or "Primary LLM response",
+                route_hint=str(selected_route),
+                confidence=float(item.get("_resonance_score", 0.5) or 0.5),
+                latency_ms=latency_ms,
+                token_cost=0.0,
+                selected=True,
+                weight_in_final_decision=1.0,
+            )
+        )
+
+        if not participants:
+            return None
+
+        derived_from_proposals = [
+            p.proposal_id for p in participants
+            if getattr(p, "selected", False)
+        ]
+
+        goal_summary = (
+            str((orientation_meta.get("goal_vector") or {}).get("strategy_bias") or "")
+            or str((orientation_meta.get("need_profile") or {}).get("priority") or "")
+            or str(item.get("text") or "")
+        )[:160]
+
+        active_nodes: list[str] = []
+        for participant in alignment_report.get("participants") or []:
+            if isinstance(participant, dict):
+                pid = str(participant.get("participant_id") or participant.get("id") or "")
+                if pid:
+                    active_nodes.append(pid)
+            elif isinstance(participant, str):
+                active_nodes.append(participant)
+
+        route_candidates = []
+        for value in (
+            path_meta.get("route_key"),
+            trail_meta.get("route_key"),
+            orientation_meta.get("route_key"),
+            cooperative_meta.get("route_key"),
+        ):
+            candidate = str(value or "")
+            if candidate and candidate not in route_candidates:
+                route_candidates.append(candidate)
+        if selected_route and selected_route not in route_candidates:
+            route_candidates.append(str(selected_route))
+
+        observer_status = str((item.get("_observer_report") or {}).get("status") or "").lower()
+        drift_detected = observer_status in {"drift", "unstable", "critical", "alert"}
+        path_quality = float(
+            alignment_outcome.get("post_goal_alignment_score")
+            or item.get("_goal_alignment_score")
+            or item.get("_resonance_score")
+            or 0.0
+        )
+        network_improvement = float(
+            item.get("_trail_reward")
+            or cooperative_meta.get("trust_score")
+            or (1.0 if cooperative_meta.get("success") else 0.0)
+            or 0.0
+        )
+        operator_intervention_required = bool(
+            (item.get("_care_cycle") or {}).get("action")
+            in {"review", "retire"}
+        )
+        operator_feedback_score = float(
+            alignment_outcome.get("softening_score")
+            or alignment_outcome.get("post_goal_alignment_score")
+            or item.get("_resonance_score")
+            or 0.0
+        )
+        success = bool(
+            alignment_outcome.get("guidance_effective")
+            or cooperative_meta.get("success")
+            or path_quality >= 0.55
+        )
+
+        return _CouncilContributionLedger.build(
+            cycle_id=cycle_id,
+            task_id=task_id,
+            goal=_CouncilGoal(
+                type="coordination_cycle",
+                summary=goal_summary or "Council coordination cycle",
+            ),
+            network_context=_CouncilNetworkContext(
+                route_candidates=route_candidates,
+                active_nodes=active_nodes,
+                graph_state_version=str(graph_meta.get("mode") or "unknown"),
+            ),
+            participants=participants,
+            final_decision=_CouncilDecision(
+                selected_route=str(selected_route),
+                decision_summary=str(path_meta.get("reason") or "Council route selected"),
+                derived_from_proposals=derived_from_proposals,
+            ),
+            outcome=_CouncilOutcome(
+                success=success,
+                path_quality=path_quality,
+                network_improvement=network_improvement,
+                operator_intervention_required=operator_intervention_required,
+                operator_feedback_score=operator_feedback_score,
+                drift_detected=drift_detected,
+            ),
+        )
+
+    def _write_council_contribution_ledger_artifact(self, ledger) -> str | None:
+        if ledger is None:
+            return None
+        try:
+            self._council_ledger_dir.mkdir(parents=True, exist_ok=True)
+            path = self._council_ledger_dir / f"{ledger.cycle_id}.json"
+            path.write_text(
+                json.dumps(ledger.to_dict(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            return str(path)
+        except Exception as exc:
+            logger.debug("ResonanceAgent: council ledger artifact write failed: %s", exc)
+            return None
 
     def _build_cycle_record(
         self, item: dict, output: str, generation_time: float

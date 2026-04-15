@@ -108,18 +108,6 @@ class TestCalibrationBuilder(unittest.TestCase):
 
         json.dumps(out)
 
-
-    def test_aggregation_strategy_stats_list_shape_supported(self) -> None:
-        agg = {"strategy_stats": [{"strategy_id": "s1", "reputation_label": "stable"}]}
-        row = build_strategy_calibration_summary([{"strategy_id": "s1"}], [], [], agg)["per_strategy"][0]
-        self.assertEqual(row["reputation_label"], "stable")
-
-    def test_ineffective_feedback_counts_as_evidence(self) -> None:
-        recs = [{"strategy_id": "s1"}]
-        fb = [{"strategy_id": "s1", "feedback_label": "ineffective", "response_score": 0.2, "goal_alignment_score": 0.2}]
-        row = build_strategy_calibration_summary(recs, fb, [], {})["per_strategy"][0]
-        self.assertNotEqual(row["calibration_label"], "insufficient_data")
-
     def test_no_mutation_of_inputs(self) -> None:
         recs = [{"strategy_id": "s1"}]
         fb = [{"strategy_id": "s1", "feedback_label": "neutral"}]

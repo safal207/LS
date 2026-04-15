@@ -88,12 +88,7 @@ def _build_calibration_reason(stats: dict[str, Any]) -> str:
 def _label_strategy_calibration(stats: dict[str, Any]) -> str:
     recs = int(stats.get("times_recommended") or 0)
     adopted = int(stats.get("times_adopted") or 0)
-    evidence = (
-        recs
-        + int(stats.get("effective_total") or 0)
-        + int(stats.get("neutral_total") or 0)
-        + int(stats.get("ineffective_total") or 0)
-    )
+    evidence = recs + int(stats.get("effective_total") or 0) + int(stats.get("neutral_total") or 0)
     adoption_rate = _safe_float(stats.get("adoption_rate"))
     effective_rate = _safe_float(stats.get("effective_rate"))
 
@@ -113,30 +108,6 @@ def _label_strategy_calibration(stats: dict[str, Any]) -> str:
         return "insufficient_data"
     return "weakly_calibrated"
 
-
-
-
-def _iter_aggregation_strategy_rows(aggregation: dict[str, Any] | None) -> list[tuple[str, dict[str, Any]]]:
-    """Normalize aggregation["strategy_stats"] into (strategy_id, row) tuples."""
-    if not isinstance(aggregation, dict):
-        return []
-    stats = aggregation.get("strategy_stats") or {}
-    if isinstance(stats, dict):
-        out: list[tuple[str, dict[str, Any]]] = []
-        for sid, row in stats.items():
-            if sid and isinstance(row, dict):
-                out.append((str(sid), row))
-        return out
-    if isinstance(stats, list):
-        out = []
-        for row in stats:
-            if not isinstance(row, dict):
-                continue
-            sid = str(row.get("strategy_id") or row.get("id") or "").strip()
-            if sid:
-                out.append((sid, row))
-        return out
-    return []
 
 def build_per_strategy_calibration_stats(
     recommendations: list[dict[str, Any]],
@@ -230,8 +201,11 @@ def build_per_strategy_calibration_stats(
             counts = row["_pattern_counts"]
             counts[pid] = counts.get(pid, 0) + 1
 
-    for sid, agg in _iter_aggregation_strategy_rows(aggregation):
-        row = ensure(sid)
+    by_sid = ((aggregation or {}).get("strategy_stats") or {}) if isinstance(aggregation, dict) else {}
+    for sid, agg in by_sid.items():
+        if not sid or not isinstance(agg, dict):
+            continue
+        row = ensure(str(sid))
         if agg.get("reputation_label"):
             row["reputation_label"] = str(agg.get("reputation_label"))
 

@@ -1,0 +1,29 @@
+llm:
+  backend: meritocracy
+  fallback_backend: cloud,local
+  model_name: qwen2.5:7b
+
+  use_breaker: true
+  breaker:
+    failure_threshold: 3
+    cooldown_seconds: 10
+
+  gonka:
+    enabled: true
+    model: qwen/qwen3-235b-a22b-instruct-2507-fp8
+
+  use_groq: true
+  groq:
+    model: llama3-8b-8192
+
+  mimo:
+    enabled: true
+    model: mimo-v2-flash
+
+  meritocracy:
+    enabled: true
+    backends: cloud,gonka,mimo,local
+    min_overall: 0.35
+    min_relevance: 0.25
+    min_thread_relevance: 0.25
+    max_hallucination_risk: 0.65
