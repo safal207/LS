@@ -1,0 +1,47 @@
+name: Benchmark Evidence Integrity
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "benchmark/**"
+      - "scripts/generate_benchmark_results.py"
+      - "ghostgpt-ls-landing/src/data/operatorDeltaBenchmark.json"
+      - "artifacts/fellowship-dataset/manifest.json"
+  push:
+    branches: ["main"]
+    paths:
+      - "benchmark/**"
+      - "scripts/generate_benchmark_results.py"
+      - "ghostgpt-ls-landing/src/data/operatorDeltaBenchmark.json"
+      - "artifacts/fellowship-dataset/manifest.json"
+
+jobs:
+  benchmark-evidence:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Regenerate benchmark results
+        run: |
+          python scripts/generate_benchmark_results.py
+
+      - name: Verify benchmark snapshot is up to date
+        run: |
+          git diff --exit-code -- benchmark/RESULTS.md
+
+      - name: Upload benchmark evidence artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-evidence
+          path: |
+            benchmark/RESULTS.md
+            benchmark/INTERPRETATION.md
+            docs/FELLOWSHIP_BENCHMARK_NOTE.md
