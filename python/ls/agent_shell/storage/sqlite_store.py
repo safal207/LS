@@ -7,10 +7,58 @@ from typing import Any
 
 
 class SQLiteStore:
+    _ALLOWED_SCHEMA = {
+        "tasks": {"id", "title", "prompt", "mode", "status", "created_at", "updated_at", "summary"},
+        "steps": {
+            "id",
+            "task_id",
+            "title",
+            "description",
+            "type",
+            "reason",
+            "status",
+            "needs_approval",
+            "inputs_json",
+            "outputs_json",
+            "started_at",
+            "ended_at",
+        },
+        "tool_calls": {
+            "id",
+            "task_id",
+            "step_id",
+            "tool_name",
+            "args_json",
+            "result_summary",
+            "success",
+            "created_at",
+        },
+        "artifacts": {"id", "task_id", "type", "title", "path_or_url", "metadata_json", "created_at"},
+        "approvals": {
+            "id",
+            "task_id",
+            "step_id",
+            "action_type",
+            "reason",
+            "payload_preview",
+            "status",
+            "created_at",
+        },
+        "task_logs": {"id", "task_id", "step_id", "level", "message", "created_at"},
+    }
+
     def __init__(self, db_path: Path):
         self.db_path = db_path
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
+
+    def _validate_schema(self, table: str, columns: list[str]) -> None:
+        if table not in self._ALLOWED_SCHEMA:
+            raise ValueError(f"Invalid table: {table}")
+        allowed_cols = self._ALLOWED_SCHEMA[table]
+        for col in columns:
+            if col not in allowed_cols:
+                raise ValueError(f"Invalid column for table {table}: {col}")
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -86,6 +134,7 @@ class SQLiteStore:
             )
 
     def insert(self, table: str, payload: dict[str, Any]) -> None:
+        self._validate_schema(table, list(payload.keys()))
         keys = ", ".join(payload)
         placeholders = ", ".join([":" + k for k in payload])
         with self._connect() as conn:
@@ -95,6 +144,7 @@ class SQLiteStore:
             )
 
     def update(self, table: str, where_key: str, where_value: str, **fields: Any) -> None:
+        self._validate_schema(table, list(fields.keys()) + [where_key])
         assignments = ", ".join([f"{key} = :{key}" for key in fields])
         fields["where_value"] = where_value
         with self._connect() as conn:
