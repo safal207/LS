@@ -242,7 +242,7 @@ packaging==26.0
     #   wheel
 pathspec==1.0.4
     # via mypy
-pillow==12.1.1
+pillow==12.2.0
     # via
     #   -r requirements.in
     #   imagehash
@@ -299,7 +299,7 @@ pyqt6-qt6==6.10.2
     # via pyqt6
 pyqt6-sip==13.11.0
     # via pyqt6
-pytest==9.0.2
+pytest==9.0.3
     # via
     #   -r requirements.in
     #   pytest-cov
