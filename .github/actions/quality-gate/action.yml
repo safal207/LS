@@ -49,11 +49,12 @@ runs:
       name: Evaluate quality gate
       shell: bash
       run: |
+        pip install defusedxml==0.7.1
         python - <<'PY'
         import os
         import pathlib
         import sys
-        import xml.etree.ElementTree as ET
+        import defusedxml.ElementTree as ET
 
         label = """${{ inputs.label }}"""
         artifacts_dir = pathlib.Path("""${{ inputs.artifacts-dir }}""")
