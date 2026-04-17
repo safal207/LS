@@ -459,6 +459,37 @@ class CognitiveStateBridge:
             "last_updated": _utc_now(),
         }
 
+    def get_fellowship_current(self) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        return {
+            "resource": "fellowship/current",
+            "registry": store.get_fellowship_registry(),
+            "last_updated": _utc_now(),
+        }
+
+    def get_fellowship_collective_self(self) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        return {
+            "resource": "fellowship/collective-self",
+            "collective_self": store.get_collective_relational_self().to_dict(),
+            "last_updated": _utc_now(),
+        }
+
+    def get_fellowship_reputation(self) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        profiles = store.get_fellowship_profiles()
+        return {
+            "resource": "fellowship/reputation",
+            "profiles": [profile.to_dict() for profile in profiles.values()],
+            "last_updated": _utc_now(),
+        }
+
     def get_emotional_continuity(self) -> dict[str, Any]:
         from modules.graph.memory_store import MemoryGraphStore
 

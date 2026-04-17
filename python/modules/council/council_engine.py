@@ -140,6 +140,49 @@ class RelationalCouncilEngine:
             "updated_at": session.get("updated_at"),
         }
 
+    def weighted_vote(
+        self,
+        *,
+        proposal_id: str,
+        votes: list[dict[str, Any]],
+        reputation_weights: dict[str, float] | None = None,
+    ) -> dict[str, Any]:
+        """Compute weighted vote outcome for multi-user council proposals."""
+        weighted_yes = 0.0
+        weighted_no = 0.0
+        weight_map = {str(k): float(v) for k, v in dict(reputation_weights or {}).items()}
+        normalized_votes: list[dict[str, Any]] = []
+        for row in list(votes or []):
+            participant_id = str(row.get("participant_id") or "").strip()
+            if not participant_id:
+                continue
+            choice = str(row.get("vote") or "abstain").strip().lower()
+            if choice not in {"yes", "no", "abstain"}:
+                choice = "abstain"
+            weight = max(0.05, min(2.0, float(weight_map.get(participant_id, 1.0))))
+            if choice == "yes":
+                weighted_yes += weight
+            elif choice == "no":
+                weighted_no += weight
+            normalized_votes.append(
+                {
+                    "participant_id": participant_id,
+                    "vote": choice,
+                    "weight": weight,
+                }
+            )
+        accepted = weighted_yes > weighted_no
+        return {
+            "proposal_id": str(proposal_id or ""),
+            "accepted": accepted,
+            "weighted_yes": round(weighted_yes, 4),
+            "weighted_no": round(weighted_no, 4),
+            "quorum": len(normalized_votes),
+            "votes": normalized_votes,
+            "decision_mode": "weighted_reputation_voting",
+            "timestamp": _utc_now(),
+        }
+
     def detect_breach(self, relational_self: RelationalSelf) -> RelationalBreach:
         coherence = float(relational_self.self_coherence_score or 0.0)
         is_breach = coherence < self.coherence_guard_threshold
