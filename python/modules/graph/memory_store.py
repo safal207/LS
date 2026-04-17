@@ -16,6 +16,8 @@ from .decay import ResonanceDecayConfig, effective_score, prune_expired
 from .evolve import RouteSnapshot
 from .models import (
     AttachmentBond,
+    CollectiveRelationalSelf,
+    FellowshipProfile,
     MemoryCase,
     RelationalEdge,
     RelationalFieldSnapshot,
@@ -648,6 +650,12 @@ class MemoryGraphStore:
     def _fellowship_registry_path(self) -> Path:
         return self.path.with_name("fellowship_registry.json")
 
+    def _fellowship_profiles_path(self) -> Path:
+        return self.path.with_name("fellowship_profiles.json")
+
+    def _collective_self_path(self) -> Path:
+        return self.path.with_name("collective_relational_self.json")
+
     def _shared_insights_path(self) -> Path:
         return self.path.with_name("shared_relational_insights.jsonl")
 
@@ -727,25 +735,195 @@ class MemoryGraphStore:
         with self._lock:
             path = self._fellowship_registry_path()
             if not path.exists():
-                return {"trusted": [], "updated_at": None}
+                return {"trusted": [], "groups": [], "updated_at": None}
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
                 trusted = sorted({str(item) for item in list(payload.get("trusted") or []) if str(item).strip()})
-                return {"trusted": trusted, "updated_at": payload.get("updated_at")}
+                groups = [dict(row) for row in list(payload.get("groups") or []) if isinstance(row, dict)]
+                return {"trusted": trusted, "groups": groups, "updated_at": payload.get("updated_at")}
             except Exception:
-                return {"trusted": [], "updated_at": None}
+                return {"trusted": [], "groups": [], "updated_at": None}
+
+    def create_fellowship_group(self, *, name: str, visibility: str = "private") -> dict[str, Any]:
+        with self._lock:
+            from modules.fellowship.registry import FellowshipRegistry
+
+            current = self.get_fellowship_registry()
+            registry = FellowshipRegistry(current)
+            group = registry.create_group(name=name, visibility=visibility)
+            payload = registry.to_dict()
+            payload["trusted"] = list(current.get("trusted") or [])
+            self._atomic_write_json(self._fellowship_registry_path(), payload)
+            self._append_sharing_audit_unlocked(
+                {
+                    "event": "fellowship_group_created",
+                    "fellowship_id": group.fellowship_id,
+                    "visibility": group.visibility,
+                }
+            )
+            return group.to_dict()
+
+    def join_fellowship_group(self, *, fellowship_id: str, participant_id: str) -> dict[str, Any]:
+        with self._lock:
+            from modules.fellowship.registry import FellowshipRegistry
+
+            current = self.get_fellowship_registry()
+            registry = FellowshipRegistry(current)
+            group = registry.join_group(
+                fellowship_id=str(fellowship_id or ""),
+                participant_id=str(participant_id or ""),
+            )
+            if group is None:
+                return {"joined": False, "reason": "fellowship_not_found", "fellowship_id": fellowship_id}
+            payload = registry.to_dict()
+            trusted = set(current.get("trusted") or [])
+            trusted.add(str(participant_id or "").strip())
+            payload["trusted"] = sorted(pid for pid in trusted if pid)
+            self._atomic_write_json(self._fellowship_registry_path(), payload)
+            self._append_sharing_audit_unlocked(
+                {
+                    "event": "fellowship_joined",
+                    "fellowship_id": group.fellowship_id,
+                    "participant_id": str(participant_id or ""),
+                }
+            )
+            return {"joined": True, "group": group.to_dict()}
 
     def upsert_fellowship_members(self, recipients: list[str]) -> dict[str, Any]:
         with self._lock:
             current = self.get_fellowship_registry()
             trusted = set(current.get("trusted") or [])
             trusted.update(str(item) for item in list(recipients or []) if str(item).strip())
-            payload = {"trusted": sorted(trusted), "updated_at": _utc_now()}
-            self._fellowship_registry_path().write_text(
-                json.dumps(payload, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
+            payload = {
+                "trusted": sorted(trusted),
+                "groups": list(current.get("groups") or []),
+                "updated_at": _utc_now(),
+            }
+            self._atomic_write_json(self._fellowship_registry_path(), payload)
             return payload
+
+    def get_fellowship_profiles(self) -> dict[str, FellowshipProfile]:
+        with self._lock:
+            path = self._fellowship_profiles_path()
+            if not path.exists():
+                return {}
+            try:
+                payload = dict(json.loads(path.read_text(encoding="utf-8")))
+            except Exception:
+                return {}
+            profiles: dict[str, FellowshipProfile] = {}
+            for row in list(payload.get("profiles") or []):
+                if not isinstance(row, dict):
+                    continue
+                profile = FellowshipProfile.from_dict(row)
+                if profile.participant_id:
+                    profiles[profile.participant_id] = profile
+            return profiles
+
+    def upsert_fellowship_profile(self, profile: FellowshipProfile) -> FellowshipProfile:
+        with self._lock:
+            profiles = self.get_fellowship_profiles()
+            profiles[profile.participant_id] = profile
+            payload = {
+                "profiles": [item.to_dict() for item in profiles.values()],
+                "updated_at": _utc_now(),
+            }
+            self._atomic_write_json(self._fellowship_profiles_path(), payload)
+            return profile
+
+    def update_fellowship_reputation(
+        self,
+        *,
+        participant_id: str,
+        council_contribution_quality: float = 0.0,
+        shared_insight_quality: float = 0.0,
+        emotional_stability: float = 0.5,
+        repair_actions: int = 0,
+    ) -> FellowshipProfile:
+        with self._lock:
+            pid = str(participant_id or "").strip()
+            existing = self.get_fellowship_profiles().get(pid) or FellowshipProfile(participant_id=pid)
+            contribution = max(0.0, min(1.0, float(council_contribution_quality or 0.0)))
+            insight = max(0.0, min(1.0, float(shared_insight_quality or 0.0)))
+            stability = max(0.0, min(1.0, float(emotional_stability or 0.0)))
+            repairs = max(0, int(repair_actions or 0))
+            reputation = min(1.0, 0.45 * contribution + 0.35 * insight + 0.20 * stability + min(0.05, repairs * 0.01))
+            trust_score = min(1.0, reputation * 0.85 + stability * 0.15)
+
+            if trust_score < 0.25:
+                trust_level = "observer"
+            elif trust_score < 0.5:
+                trust_level = "contributor"
+            elif trust_score < 0.8:
+                trust_level = "co-creator"
+            else:
+                trust_level = "steward"
+
+            existing.trust_level = trust_level
+            existing.trust_score = trust_score
+            existing.reputation_score = reputation
+            existing.contribution_quality = contribution
+            existing.emotional_stability = stability
+            existing.repair_actions = repairs
+            existing.shared_history.append(
+                {
+                    "timestamp": _utc_now(),
+                    "event": "reputation_updated",
+                    "reputation_score": reputation,
+                    "trust_level": trust_level,
+                }
+            )
+            existing.shared_history = existing.shared_history[-300:]
+            saved = self.upsert_fellowship_profile(existing)
+            self._append_sharing_audit_unlocked(
+                {
+                    "event": "fellowship_reputation_updated",
+                    "participant_id": pid,
+                    "reputation_score": reputation,
+                    "trust_level": trust_level,
+                }
+            )
+            return saved
+
+    def get_collective_relational_self(self) -> CollectiveRelationalSelf:
+        with self._lock:
+            path = self._collective_self_path()
+            if not path.exists():
+                return CollectiveRelationalSelf()
+            try:
+                payload = dict(json.loads(path.read_text(encoding="utf-8")))
+            except Exception:
+                return CollectiveRelationalSelf()
+            return CollectiveRelationalSelf.from_dict(payload)
+
+    def merge_collective_relational_self(
+        self,
+        *,
+        fellowship_id: str,
+        member_snapshots: dict[str, dict[str, Any]],
+    ) -> CollectiveRelationalSelf:
+        from modules.fellowship.collective_self import CollectiveRelationalSelfEngine
+
+        with self._lock:
+            members = {
+                str(member_id): RelationalSelf.from_dict(dict(payload))
+                for member_id, payload in dict(member_snapshots or {}).items()
+                if isinstance(payload, dict)
+            }
+            merged = CollectiveRelationalSelfEngine().merge(
+                fellowship_id=str(fellowship_id or ""),
+                members=members,
+            )
+            self._atomic_write_json(self._collective_self_path(), merged.to_dict())
+            self._append_sharing_audit_unlocked(
+                {
+                    "event": "collective_self_merged",
+                    "fellowship_id": str(fellowship_id or ""),
+                    "member_count": len(members),
+                    "collective_coherence_score": float(merged.collective_coherence_score or 0.0),
+                }
+            )
+            return merged
 
     def get_shared_relational_self(self) -> SharedRelationalSelf:
         with self._lock:

@@ -53,6 +53,9 @@ class MCPResourceRegistry:
             ResourceRef(uri="self/emotional-bonding-arc", name="Attachment evolution history"),
             ResourceRef(uri="council/live", name="Current multi-user live council state"),
             ResourceRef(uri="shared-self/current", name="Shared Relational Self snapshot"),
+            ResourceRef(uri="fellowship/current", name="Current fellowship groups and members"),
+            ResourceRef(uri="fellowship/collective-self", name="Collective relational self snapshot"),
+            ResourceRef(uri="fellowship/reputation", name="Fellowship reputation and trust profiles"),
         ]
 
     def read_resource(self, uri: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -130,6 +133,12 @@ class MCPResourceRegistry:
             )
         if uri == "shared-self/current":
             return self._cognitive_state.get_shared_self_current()
+        if uri == "fellowship/current":
+            return self._cognitive_state.get_fellowship_current()
+        if uri == "fellowship/collective-self":
+            return self._cognitive_state.get_fellowship_collective_self()
+        if uri == "fellowship/reputation":
+            return self._cognitive_state.get_fellowship_reputation()
 
         task_id, suffix = self._parse_task_uri(uri)
 

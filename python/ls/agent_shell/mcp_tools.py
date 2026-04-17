@@ -42,6 +42,9 @@ class MCPToolRegistry:
             "propose_shared_insight": self._propose_shared_insight,
             "accept_shared_self": self._accept_shared_self,
             "join_live_council": self._join_live_council,
+            "join_fellowship": self._join_fellowship,
+            "propose_collective_insight": self._propose_collective_insight,
+            "vote_on_proposal": self._vote_on_proposal,
         }
 
     def list_tools(self) -> list[dict[str, Any]]:
@@ -190,6 +193,65 @@ class MCPToolRegistry:
             "joined": consent,
             "session": saved,
         }
+
+    def _join_fellowship(self, args: dict[str, Any]) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._cognitive_state._store_path)  # noqa: SLF001
+        fellowship_id = str(args.get("fellowship_id", "")).strip()
+        participant_id = str(args.get("participant_id", "local")).strip() or "local"
+        if not fellowship_id:
+            raise MCPValidationError("fellowship_id is required")
+        result = store.join_fellowship_group(fellowship_id=fellowship_id, participant_id=participant_id)
+        result["resource"] = "fellowship/current"
+        return result
+
+    def _propose_collective_insight(self, args: dict[str, Any]) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._cognitive_state._store_path)  # noqa: SLF001
+        proposal = store.propose_shared_insight(
+            recipient=str(args.get("fellowship_id", "")).strip(),
+            source_node_id=str(args.get("source_node_id", "")),
+            target_node_id=str(args.get("target_node_id", "")),
+            relation_type=str(args.get("relation_type", "reinforces")),
+            strength=float(args.get("strength", 0.5)),
+            rationale=str(args.get("rationale", "")),
+        )
+        proposal["resource"] = "fellowship/proposal"
+        proposal["scope"] = "collective"
+        return proposal
+
+    def _vote_on_proposal(self, args: dict[str, Any]) -> dict[str, Any]:
+        from modules.council.council_engine import RelationalCouncilEngine
+        from modules.graph.memory_store import MemoryGraphStore
+
+        proposal_id = str(args.get("proposal_id", "")).strip()
+        if not proposal_id:
+            raise MCPValidationError("proposal_id is required")
+        votes = list(args.get("votes") or [])
+        store = MemoryGraphStore(self._cognitive_state._store_path)  # noqa: SLF001
+        profiles = store.get_fellowship_profiles()
+        weights = {
+            pid: max(0.1, 0.5 + float(profile.reputation_score or 0.0))
+            for pid, profile in profiles.items()
+        }
+        outcome = RelationalCouncilEngine().weighted_vote(
+            proposal_id=proposal_id,
+            votes=votes,
+            reputation_weights=weights,
+        )
+        store.append_live_council_audit(
+            {
+                "event": "proposal_vote",
+                "proposal_id": proposal_id,
+                "accepted": outcome["accepted"],
+                "weighted_yes": outcome["weighted_yes"],
+                "weighted_no": outcome["weighted_no"],
+            }
+        )
+        outcome["resource"] = "fellowship/vote"
+        return outcome
 
 
 def tool_call_from_json(registry: MCPToolRegistry, raw: str) -> str:

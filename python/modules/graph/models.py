@@ -438,6 +438,99 @@ class SharedRelationalSelf:
         )
 
 
+_VALID_TRUST_LEVELS = (
+    "observer",
+    "contributor",
+    "co-creator",
+    "steward",
+)
+
+
+@dataclass
+class FellowshipProfile:
+    """Participant profile inside a fellowship ecosystem."""
+
+    participant_id: str
+    display_name: str = ""
+    trust_level: str = "observer"
+    trust_score: float = 0.0
+    reputation_score: float = 0.0
+    shared_history: list[dict[str, Any]] = field(default_factory=list)
+    contribution_quality: float = 0.0
+    emotional_stability: float = 0.5
+    repair_actions: int = 0
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        level = str(self.trust_level or "observer").lower()
+        if level not in _VALID_TRUST_LEVELS:
+            level = "observer"
+        self.trust_level = level
+        self.trust_score = max(0.0, min(1.0, float(self.trust_score or 0.0)))
+        self.reputation_score = max(0.0, min(1.0, float(self.reputation_score or 0.0)))
+        self.contribution_quality = max(0.0, min(1.0, float(self.contribution_quality or 0.0)))
+        self.emotional_stability = max(0.0, min(1.0, float(self.emotional_stability or 0.0)))
+        self.repair_actions = max(0, int(self.repair_actions or 0))
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FellowshipProfile":
+        return cls(
+            participant_id=str(data.get("participant_id") or ""),
+            display_name=str(data.get("display_name") or ""),
+            trust_level=str(data.get("trust_level") or "observer"),
+            trust_score=float(data.get("trust_score", 0.0) or 0.0),
+            reputation_score=float(data.get("reputation_score", 0.0) or 0.0),
+            shared_history=list(data.get("shared_history") or []),
+            contribution_quality=float(data.get("contribution_quality", 0.0) or 0.0),
+            emotional_stability=float(data.get("emotional_stability", 0.5) or 0.5),
+            repair_actions=int(data.get("repair_actions", 0) or 0),
+            metadata=dict(data.get("metadata") or {}),
+        )
+
+
+@dataclass
+class CollectiveRelationalSelf:
+    """Merged collective "we" snapshot for a fellowship group."""
+
+    collective_id: str = field(default_factory=lambda: str(uuid4()))
+    fellowship_id: str = ""
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    member_ids: list[str] = field(default_factory=list)
+    merged_core_nodes: list[dict[str, Any]] = field(default_factory=list)
+    merged_emotional_summary: dict[str, Any] = field(default_factory=dict)
+    collective_emotional_arc: list[dict[str, Any]] = field(default_factory=list)
+    collective_coherence_score: float = 0.0
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.collective_coherence_score = max(
+            0.0,
+            min(1.0, float(self.collective_coherence_score or 0.0)),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "CollectiveRelationalSelf":
+        return cls(
+            collective_id=str(data.get("collective_id") or str(uuid4())),
+            fellowship_id=str(data.get("fellowship_id") or ""),
+            created_at=str(data.get("created_at") or datetime.now(timezone.utc).isoformat()),
+            updated_at=str(data.get("updated_at") or datetime.now(timezone.utc).isoformat()),
+            member_ids=[str(item) for item in list(data.get("member_ids") or []) if str(item).strip()],
+            merged_core_nodes=list(data.get("merged_core_nodes") or []),
+            merged_emotional_summary=dict(data.get("merged_emotional_summary") or {}),
+            collective_emotional_arc=list(data.get("collective_emotional_arc") or []),
+            collective_coherence_score=float(data.get("collective_coherence_score", 0.0) or 0.0),
+            metadata=dict(data.get("metadata") or {}),
+        )
+
+
 # ──────────────────────────────────────────────────────────────
 # EmotionalMemoryEntry — Phase 2.4 inferred emotional state
 # ──────────────────────────────────────────────────────────────
