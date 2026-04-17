@@ -468,6 +468,57 @@ class CognitiveStateBridge:
         payload["last_updated"] = _utc_now()
         return payload
 
+    def get_attachment_bond(self) -> dict[str, Any]:
+        store = self._get_store()
+        bond = store.get_attachment_bond().to_dict()
+        return {
+            "resource": "self/attachment-bond",
+            "bond": bond,
+            "last_updated": _utc_now(),
+        }
+
+    def get_emotional_bonding_arc(self, *, limit: int = 120) -> dict[str, Any]:
+        store = self._get_store()
+        return {
+            "resource": "self/emotional-bonding-arc",
+            "arc": store.get_attachment_arc(limit=int(limit)),
+            "limit": int(limit),
+            "last_updated": _utc_now(),
+        }
+
+    def get_attachment_insight(self, question: str, *, window: int = 60) -> dict[str, Any]:
+        from modules.cognition.emotional_bonding_engine import EmotionalBondingEvolutionEngine
+
+        prompt = str(question or "").strip()
+        store = self._get_store()
+        engine = EmotionalBondingEvolutionEngine()
+        bond = store.get_attachment_bond()
+        arc = store.get_attachment_arc(limit=max(2, int(window)))
+        insight = engine.build_insight(bond=bond, arc=arc, window=window)
+        milestone = insight.get("top_milestone") or {}
+        lang = _detect_language(prompt)
+        if lang == "ru":
+            answer = (
+                f"Наша attachment_strength сейчас {insight['attachment_strength']:.2f} "
+                f"({insight['attachment_style']}). За окно наблюдения изменение составило "
+                f"{insight['strength_delta']:+.2f}. "
+                f"Последний milestone: {milestone.get('summary', 'пока не зафиксирован')}."
+            )
+        else:
+            answer = (
+                f"Our attachment_strength is {insight['attachment_strength']:.2f} "
+                f"({insight['attachment_style']}). Over the window it changed by "
+                f"{insight['strength_delta']:+.2f}. "
+                f"Latest milestone: {milestone.get('summary', 'not recorded yet')}."
+            )
+        return {
+            "resource": "self/attachment-insight",
+            "question": prompt,
+            "answer": answer,
+            "insight": insight,
+            "last_updated": _utc_now(),
+        }
+
     def get_live_council_state(self, *, session_id: str) -> dict[str, Any]:
         from modules.graph.memory_store import MemoryGraphStore
 
