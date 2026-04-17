@@ -40,6 +40,7 @@ class MCPToolRegistry:
             # Phase 3.0 starter
             "propose_shared_insight": self._propose_shared_insight,
             "accept_shared_self": self._accept_shared_self,
+            "join_live_council": self._join_live_council,
         }
 
     def list_tools(self) -> list[dict[str, Any]]:
@@ -144,6 +145,45 @@ class MCPToolRegistry:
             payload,
             selective_merge=bool(args.get("selective_merge", True)),
         )
+
+    def _join_live_council(self, args: dict[str, Any]) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        session_id = str(args.get("session_id", "")).strip()
+        participant_id = str(args.get("participant_id", "local")).strip() or "local"
+        consent = bool(args.get("consent", True))
+        if not session_id:
+            raise MCPValidationError("session_id is required")
+
+        store = MemoryGraphStore(self._cognitive_state._store_path)  # noqa: SLF001
+        current = store.get_live_council_state()
+        participants = list(current.get("participants") or [])
+        if consent and participant_id not in participants:
+            participants.append(participant_id)
+        if not consent and participant_id in participants:
+            participants.remove(participant_id)
+
+        payload = {
+            "session_id": session_id,
+            "mode": "multi-user-live",
+            "status": "active" if participants else "idle",
+            "participants": participants,
+            "shared_emotional_summary": self._cognitive_state.get_emotional_continuity(),
+        }
+        saved = store.save_live_council_state(payload)
+        store.append_live_council_audit(
+            {
+                "event": "join_live_council",
+                "session_id": session_id,
+                "participant_id": participant_id,
+                "consent": consent,
+            }
+        )
+        return {
+            "resource": "council/live",
+            "joined": consent,
+            "session": saved,
+        }
 
 
 def tool_call_from_json(registry: MCPToolRegistry, raw: str) -> str:

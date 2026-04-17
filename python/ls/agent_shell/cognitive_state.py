@@ -459,6 +459,26 @@ class CognitiveStateBridge:
             "last_updated": _utc_now(),
         }
 
+    def get_emotional_continuity(self) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        payload = store.get_emotional_continuity_state()
+        payload["resource"] = "self/emotional-continuity"
+        payload["last_updated"] = _utc_now()
+        return payload
+
+    def get_live_council_state(self, *, session_id: str) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        payload = store.get_live_council_state()
+        if session_id:
+            payload["session_id"] = session_id
+        payload["resource"] = "council/live"
+        payload["last_updated"] = _utc_now()
+        return payload
+
     def propose_shared_insight(
         self,
         *,

@@ -17,10 +17,18 @@ class EventBus:
         self.subscribers: DefaultDict[str, List[Callable[[Any], None]]] = defaultdict(list)
         self._lock = threading.Lock()
         self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="event-bus")
+        self._history: DefaultDict[str, List[Any]] = defaultdict(list)
+        self._history_cap = 500
 
-    def subscribe(self, event_type: str, handler: Callable[[Any], None]) -> None:
+    def subscribe(self, event_type: str, handler: Callable[[Any], None], *, replay_last: int = 0) -> None:
         with self._lock:
             self.subscribers[event_type].append(handler)
+            replay_events = list(self._history.get(event_type, []))[-max(0, int(replay_last or 0)) :]
+        for item in replay_events:
+            try:
+                handler(item)
+            except Exception as exc:
+                logger.exception("Event replay failed for event_type=%s: %s", event_type, exc)
 
     def unsubscribe(self, event_type: str, handler: Callable[[Any], None]) -> None:
         with self._lock:
@@ -50,6 +58,8 @@ class EventBus:
             return
         with self._lock:
             handlers = list(self.subscribers.get(event_type, []))
+            self._history[event_type].append(event)
+            self._history[event_type] = self._history[event_type][-self._history_cap :]
         for handler in handlers:
             try:
                 handler(event)
@@ -63,6 +73,8 @@ class EventBus:
 
         with self._lock:
             handlers = list(self.subscribers.get(event_type, []))
+            self._history[event_type].append(event)
+            self._history[event_type] = self._history[event_type][-self._history_cap :]
 
         futures: list[Future] = []
         for handler in handlers:

@@ -55,6 +55,7 @@ class MemoryGraphStore:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = _get_store_lock(self.path)
+        self._restore_emotional_continuity_on_startup()
 
     def list_cases(self) -> list[MemoryCase]:
         with self._lock:
@@ -1304,6 +1305,34 @@ class MemoryGraphStore:
     def _emotional_arc_path(self) -> Path:
         return self.path.with_name("relational_self_emotional_arc.jsonl")
 
+    def _emotional_continuity_path(self) -> Path:
+        return self.path.with_name("relational_self_emotional_continuity.json")
+
+    def _live_council_path(self) -> Path:
+        return self.path.with_name("council_live_state.json")
+
+    def _live_council_audit_path(self) -> Path:
+        return self.path.with_name("council_live_audit.jsonl")
+
+    def _restore_emotional_continuity_on_startup(self) -> None:
+        """Restore last emotional continuity state into RelationalSelf on startup."""
+        from modules.cognition.emotional_continuity import EmotionalContinuityEngine, EmotionalContinuityState
+
+        with self._lock:
+            current = self.get_relational_self()
+            continuity_payload = self.get_emotional_continuity_state()
+            continuity = EmotionalContinuityState.from_dict(continuity_payload)
+
+            if continuity_payload.get("last_updated_at") is None:
+                rows = self._read_emotional_memory_rows_unlocked()
+                continuity = EmotionalContinuityEngine().refresh(entries=rows)
+                self._atomic_write_json(self._emotional_continuity_path(), continuity.to_dict())
+
+            current.last_emotional_state = continuity.last_emotional_state
+            current.bond_strength = float(continuity.bond_strength)
+            current.emotional_decay = float(continuity.emotional_decay)
+            self._atomic_write_json(self._relational_self_path(), current.to_dict())
+
     def _read_emotional_memory_rows_unlocked(self) -> list[dict[str, Any]]:
         """Read, parse, and decay-refresh all emotional memory rows.
 
@@ -1325,7 +1354,11 @@ class MemoryGraphStore:
                     row = dict(json.loads(line))
                     ts = str(row.get("timestamp") or "")
                     if ts:
-                        row["temporal_decay"] = engine.compute_temporal_decay(ts)
+                        half_life_hours = float(row.get("emotional_half_life_hours", 72.0) or 72.0)
+                        row["temporal_decay"] = engine.compute_temporal_decay(
+                            ts,
+                            half_life_hours=half_life_hours,
+                        )
                     rows.append(row)
                 except Exception:
                     continue
@@ -1361,8 +1394,10 @@ class MemoryGraphStore:
             rows = self._read_emotional_memory_rows_unlocked()
             payload = dict(entry)
             payload.setdefault("timestamp", _utc_now())
+            payload.setdefault("emotional_half_life_hours", 72.0)
             rows.append(payload)
             self._atomic_write_jsonl(self._emotional_memory_path(), rows[-self._EMOTIONAL_MEMORY_CAP:])
+            self._write_emotional_continuity_from_rows(rows)
             return payload
 
     def get_emotional_memory(self, *, limit: int = 50) -> list[dict[str, Any]]:
@@ -1449,6 +1484,7 @@ class MemoryGraphStore:
                 cycle_id=cycle_id,
             )
             entry_dict.setdefault("timestamp", _utc_now())
+            entry_dict.setdefault("emotional_half_life_hours", 72.0)
 
             # ── Single write pass — memory + arc atomically ───────────────────
             rows.append(entry_dict)
@@ -1477,6 +1513,7 @@ class MemoryGraphStore:
             new_bond = float(entry_dict.get("bond_strength") or 0.0)
             summary = engine.aggregate_emotional_summary(all_entries, new_bond, all_arc)
             self._update_emotional_summary_in_self(summary)
+            self._write_emotional_continuity_from_rows(all_entries)
 
             return entry_dict
 
@@ -1488,3 +1525,84 @@ class MemoryGraphStore:
         current = self.get_relational_self()
         current.emotional_summary = dict(summary)
         self._atomic_write_json(self._relational_self_path(), current.to_dict())
+
+    def _write_emotional_continuity_from_rows(self, rows: list[dict[str, Any]]) -> dict[str, Any]:
+        from modules.cognition.emotional_continuity import EmotionalContinuityEngine
+
+        continuity = EmotionalContinuityEngine().refresh(entries=rows)
+        payload = continuity.to_dict()
+        self._atomic_write_json(self._emotional_continuity_path(), payload)
+        current = self.get_relational_self()
+        current.last_emotional_state = payload["last_emotional_state"]
+        current.bond_strength = float(payload["bond_strength"])
+        current.emotional_decay = float(payload["emotional_decay"])
+        self._atomic_write_json(self._relational_self_path(), current.to_dict())
+        return payload
+
+    def get_emotional_continuity_state(self) -> dict[str, Any]:
+        with self._lock:
+            path = self._emotional_continuity_path()
+            if not path.exists():
+                return {
+                    "resource": "self/emotional-continuity",
+                    "last_emotional_state": "neutral",
+                    "bond_strength": 0.0,
+                    "emotional_decay": 1.0,
+                    "emotional_half_life_hours": 72.0,
+                    "last_updated_at": None,
+                }
+            try:
+                payload = dict(json.loads(path.read_text(encoding="utf-8")))
+            except Exception:
+                payload = {}
+            payload.setdefault("resource", "self/emotional-continuity")
+            payload.setdefault("last_emotional_state", "neutral")
+            payload.setdefault("bond_strength", 0.0)
+            payload.setdefault("emotional_decay", 1.0)
+            payload.setdefault("emotional_half_life_hours", 72.0)
+            payload.setdefault("last_updated_at", None)
+            return payload
+
+    def get_live_council_state(self) -> dict[str, Any]:
+        with self._lock:
+            path = self._live_council_path()
+            if not path.exists():
+                return {
+                    "resource": "council/live",
+                    "mode": "multi-user-live",
+                    "status": "idle",
+                    "session_id": None,
+                    "participants": [],
+                    "shared_emotional_summary": {},
+                }
+            try:
+                payload = dict(json.loads(path.read_text(encoding="utf-8")))
+            except Exception:
+                payload = {}
+            payload.setdefault("resource", "council/live")
+            payload.setdefault("mode", "multi-user-live")
+            payload.setdefault("status", "idle")
+            payload.setdefault("participants", [])
+            payload.setdefault("shared_emotional_summary", {})
+            return payload
+
+    def save_live_council_state(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            state = dict(payload or {})
+            state.setdefault("resource", "council/live")
+            state.setdefault("mode", "multi-user-live")
+            state.setdefault("status", "active")
+            state.setdefault("participants", [])
+            state.setdefault("shared_emotional_summary", {})
+            state["updated_at"] = _utc_now()
+            self._atomic_write_json(self._live_council_path(), state)
+            return state
+
+    def append_live_council_audit(self, event: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            row = dict(event or {})
+            row.setdefault("timestamp", _utc_now())
+            rows = self._read_jsonl(self._live_council_audit_path())
+            rows.append(row)
+            self._atomic_write_jsonl(self._live_council_audit_path(), rows[-2000:])
+            return row

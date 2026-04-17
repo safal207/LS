@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from modules.graph.models import RelationalSelf
 from modules.council.self_constitution import RelationalSelfConstitution
+from modules.shared.event_bus import EventBus
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 @dataclass
@@ -18,9 +24,16 @@ class RelationalBreach:
 class RelationalCouncilEngine:
     """Council over holistic RelationalSelf instead of isolated units."""
 
-    def __init__(self, *, coherence_guard_threshold: float = 0.4) -> None:
+    def __init__(
+        self,
+        *,
+        coherence_guard_threshold: float = 0.4,
+        event_bus: EventBus | None = None,
+    ) -> None:
         self.coherence_guard_threshold = float(coherence_guard_threshold)
         self.constitution = RelationalSelfConstitution()
+        self.event_bus = event_bus
+        self._live_sessions: dict[str, dict[str, Any]] = {}
 
     def run_mode(self, *, mode: str, relational_self: RelationalSelf) -> dict[str, Any]:
         normalized_mode = str(mode or "self-consistency-check").strip().lower()
@@ -30,10 +43,101 @@ class RelationalCouncilEngine:
             return self._evolution_proposal(relational_self)
         if normalized_mode == "self-preservation":
             return self._self_preservation(relational_self)
+        if normalized_mode == "multi-user-live":
+            return self._multi_user_live(relational_self)
         return {
             "mode": normalized_mode,
             "accepted": False,
             "reason": "unsupported_mode",
+        }
+
+    def join_live_council(self, *, session_id: str, participant_id: str, consent: bool) -> dict[str, Any]:
+        sid = str(session_id or "").strip()
+        pid = str(participant_id or "").strip()
+        if not sid or not pid:
+            return {"joined": False, "reason": "invalid_session_or_participant", "session_id": sid}
+        session = self._live_sessions.setdefault(
+            sid,
+            {
+                "session_id": sid,
+                "mode": "multi-user-live",
+                "status": "active",
+                "participants": {},
+                "started_at": _utc_now(),
+                "updated_at": _utc_now(),
+                "audit_log": [],
+            },
+        )
+        if not consent:
+            event = {
+                "type": "council.live.join_denied",
+                "session_id": sid,
+                "participant_id": pid,
+                "consent": False,
+                "timestamp": _utc_now(),
+            }
+            session["audit_log"].append(event)
+            self._broadcast(event)
+            return {"joined": False, "reason": "consent_required", "session_id": sid}
+        session["participants"][pid] = {"participant_id": pid, "consent": True, "joined_at": _utc_now()}
+        session["updated_at"] = _utc_now()
+        event = {
+            "type": "council.live.participant_joined",
+            "session_id": sid,
+            "participant_id": pid,
+            "consent": True,
+            "timestamp": _utc_now(),
+        }
+        session["audit_log"].append(event)
+        self._broadcast(event)
+        return {
+            "joined": True,
+            "session_id": sid,
+            "participant_id": pid,
+            "participant_count": len(session["participants"]),
+        }
+
+    def leave_live_council(self, *, session_id: str, participant_id: str) -> dict[str, Any]:
+        sid = str(session_id or "").strip()
+        pid = str(participant_id or "").strip()
+        session = self._live_sessions.get(sid)
+        if not session:
+            return {"left": False, "reason": "session_not_found", "session_id": sid}
+        session["participants"].pop(pid, None)
+        session["updated_at"] = _utc_now()
+        event = {
+            "type": "council.live.participant_left",
+            "session_id": sid,
+            "participant_id": pid,
+            "timestamp": _utc_now(),
+        }
+        session["audit_log"].append(event)
+        if not session["participants"]:
+            session["status"] = "completed"
+        self._broadcast(event)
+        return {"left": True, "session_id": sid, "participant_count": len(session["participants"])}
+
+    def get_live_council_state(self, *, session_id: str) -> dict[str, Any]:
+        session = self._live_sessions.get(str(session_id or "").strip())
+        if not session:
+            return {
+                "resource": "council/live",
+                "mode": "multi-user-live",
+                "status": "idle",
+                "session_id": session_id,
+                "participants": [],
+                "shared_emotional_summary": {},
+                "audit_log": [],
+            }
+        return {
+            "resource": "council/live",
+            "mode": "multi-user-live",
+            "status": session.get("status", "active"),
+            "session_id": session.get("session_id"),
+            "participants": list(session.get("participants", {}).values()),
+            "shared_emotional_summary": dict(session.get("shared_emotional_summary", {})),
+            "audit_log": list(session.get("audit_log", [])),
+            "updated_at": session.get("updated_at"),
         }
 
     def detect_breach(self, relational_self: RelationalSelf) -> RelationalBreach:
@@ -121,3 +225,28 @@ class RelationalCouncilEngine:
             # Informational only — no gate authority
             "emotional_context": emotional_snapshot,
         }
+
+    def _multi_user_live(self, relational_self: RelationalSelf) -> dict[str, Any]:
+        shared_summary = {
+            "dominant_tone": relational_self.last_emotional_state or "neutral",
+            "bond_strength": float(relational_self.bond_strength or 0.0),
+            "emotional_decay": float(relational_self.emotional_decay or 1.0),
+            "message": "Shared emotional state synchronized in real time.",
+        }
+        event = {
+            "type": "council.live.shared_state_updated",
+            "summary": shared_summary,
+            "timestamp": _utc_now(),
+        }
+        self._broadcast(event)
+        return {
+            "mode": "multi-user-live",
+            "accepted": True,
+            "shared_emotional_summary": shared_summary,
+            "real_time_sync": True,
+        }
+
+    def _broadcast(self, event_payload: dict[str, Any]) -> None:
+        if self.event_bus is None:
+            return
+        self.event_bus.publish(type("Event", (), event_payload)())
