@@ -322,6 +322,10 @@ class RelationalSelf:
     last_emotional_state: str = "neutral"
     bond_strength: float = 0.0
     emotional_decay: float = 1.0
+    # Phase 3.2: long-term attachment fields
+    attachment_strength: float = 0.0
+    attachment_style: str = "secure"
+    attachment_stability: float = 0.5
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -343,6 +347,45 @@ class RelationalSelf:
             last_emotional_state=str(data.get("last_emotional_state") or "neutral"),
             bond_strength=float(data.get("bond_strength", 0.0) or 0.0),
             emotional_decay=float(data.get("emotional_decay", 1.0) if data.get("emotional_decay") is not None else 1.0),
+            attachment_strength=float(data.get("attachment_strength", 0.0) or 0.0),
+            attachment_style=str(data.get("attachment_style") or "secure"),
+            attachment_stability=float(data.get("attachment_stability", 0.5) or 0.5),
+        )
+
+
+@dataclass
+class AttachmentBond:
+    """Long-term relational attachment state."""
+
+    bond_id: str = field(default_factory=lambda: str(uuid4()))
+    schema_version: str = "1.0"
+    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    attachment_strength: float = 0.0
+    attachment_style: str = "secure"
+    emotional_history_vector: list[float] = field(default_factory=list)
+    attachment_stability: float = 0.5
+    bonding_milestones: list[dict[str, Any]] = field(default_factory=list)
+    repair_actions: list[dict[str, Any]] = field(default_factory=list)
+    audit_log: list[dict[str, Any]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "AttachmentBond":
+        return cls(
+            bond_id=str(data.get("bond_id") or str(uuid4())),
+            schema_version=str(data.get("schema_version") or "1.0"),
+            updated_at=str(data.get("updated_at") or datetime.now(timezone.utc).isoformat()),
+            attachment_strength=float(data.get("attachment_strength", 0.0) or 0.0),
+            attachment_style=str(data.get("attachment_style") or "secure"),
+            emotional_history_vector=[float(v) for v in list(data.get("emotional_history_vector") or [])],
+            attachment_stability=float(data.get("attachment_stability", 0.5) or 0.5),
+            bonding_milestones=list(data.get("bonding_milestones") or []),
+            repair_actions=list(data.get("repair_actions") or []),
+            audit_log=list(data.get("audit_log") or []),
+            metadata=dict(data.get("metadata") or {}),
         )
 
 

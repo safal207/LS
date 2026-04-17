@@ -27,6 +27,14 @@ class RelationalSelfBuilder:
             omni_insight=omni_insight,
             recent_window=recent_window,
         )
+        self.store.evolve_attachment_bond(
+            conversation_frequency=min(1.0, max(0.0, recent_window / 25.0)),
+            conversation_quality=float(snapshot.self_coherence_score or 0.0),
+            user_feedback_signal=float(snapshot.bond_strength or 0.0),
+            omni_signal=dict(omni_insight or {}),
+            shared_relational_delta=abs(float(snapshot.self_coherence_score or 0.0) - 0.5),
+            source=source,
+        )
         # Phase 2.4: pull the latest aggregated emotional_summary into the
         # returned snapshot so callers always see a consistent picture.
         # The stored JSON is already updated by update_self_from_cycle (which

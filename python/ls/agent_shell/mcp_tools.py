@@ -37,6 +37,7 @@ class MCPToolRegistry:
             "rollback_self_action": self._rollback_self_action,
             # Phase 2.4
             "get_emotional_insight": self._get_emotional_insight,
+            "get_attachment_insight": self._get_attachment_insight,
             # Phase 3.0 starter
             "propose_shared_insight": self._propose_shared_insight,
             "accept_shared_self": self._accept_shared_self,
@@ -126,6 +127,11 @@ class MCPToolRegistry:
         question = str(args.get("question", ""))
         limit = int(args.get("limit", 10))
         return self._cognitive_state.get_emotional_insight(question, limit=limit)
+
+    def _get_attachment_insight(self, args: dict[str, Any]) -> dict[str, Any]:
+        question = str(args.get("question", ""))
+        window = int(args.get("window", 60))
+        return self._cognitive_state.get_attachment_insight(question, window=window)
 
     def _propose_shared_insight(self, args: dict[str, Any]) -> dict[str, Any]:
         return self._cognitive_state.propose_shared_insight(

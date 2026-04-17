@@ -49,6 +49,8 @@ class MCPResourceRegistry:
             ResourceRef(uri="self/emotional-memory", name="Emotional memory entries and summary"),
             ResourceRef(uri="self/emotional-arc", name="Emotional bond arc trajectory"),
             ResourceRef(uri="self/emotional-continuity", name="Persistent emotional continuity state"),
+            ResourceRef(uri="self/attachment-bond", name="Long-term attachment bond snapshot"),
+            ResourceRef(uri="self/emotional-bonding-arc", name="Attachment evolution history"),
             ResourceRef(uri="council/live", name="Current multi-user live council state"),
             ResourceRef(uri="shared-self/current", name="Shared Relational Self snapshot"),
         ]
@@ -116,6 +118,12 @@ class MCPResourceRegistry:
             )
         if uri == "self/emotional-continuity":
             return self._cognitive_state.get_emotional_continuity()
+        if uri == "self/attachment-bond":
+            return self._cognitive_state.get_attachment_bond()
+        if uri == "self/emotional-bonding-arc":
+            return self._cognitive_state.get_emotional_bonding_arc(
+                limit=int(args.get("limit", 120)),
+            )
         if uri == "council/live":
             return self._cognitive_state.get_live_council_state(
                 session_id=str(args.get("session_id", "")),

@@ -224,13 +224,19 @@ class RelationalCouncilEngine:
             "constitution": constitution.to_dict(),
             # Informational only — no gate authority
             "emotional_context": emotional_snapshot,
+            "attachment_behavior": self._attachment_behavior(relational_self),
         }
 
     def _multi_user_live(self, relational_self: RelationalSelf) -> dict[str, Any]:
+        attachment_behavior = self._attachment_behavior(relational_self)
         shared_summary = {
             "dominant_tone": relational_self.last_emotional_state or "neutral",
             "bond_strength": float(relational_self.bond_strength or 0.0),
             "emotional_decay": float(relational_self.emotional_decay or 1.0),
+            "attachment_strength": float(relational_self.attachment_strength or 0.0),
+            "attachment_style": str(relational_self.attachment_style or "secure"),
+            "attachment_stability": float(relational_self.attachment_stability or 0.5),
+            "attachment_behavior": attachment_behavior,
             "message": "Shared emotional state synchronized in real time.",
         }
         event = {
@@ -244,6 +250,29 @@ class RelationalCouncilEngine:
             "accepted": True,
             "shared_emotional_summary": shared_summary,
             "real_time_sync": True,
+        }
+
+    def _attachment_behavior(self, relational_self: RelationalSelf) -> dict[str, Any]:
+        strength = float(relational_self.attachment_strength or 0.0)
+        style = str(relational_self.attachment_style or "secure")
+        if strength >= 0.75:
+            tone = "warm_proactive"
+            initiative = "high"
+            repair_actions: list[str] = []
+        elif strength >= 0.45:
+            tone = "balanced_supportive"
+            initiative = "medium"
+            repair_actions = ["check_alignment", "invite_reflection"]
+        else:
+            tone = "careful_reconnect"
+            initiative = "low"
+            repair_actions = ["ask_repair_question", "offer_small_next_step"]
+        return {
+            "attachment_strength": round(strength, 4),
+            "attachment_style": style,
+            "tone_policy": tone,
+            "initiative_level": initiative,
+            "repair_actions": repair_actions,
         }
 
     def _broadcast(self, event_payload: dict[str, Any]) -> None:

@@ -15,6 +15,7 @@ from uuid import uuid4
 from .decay import ResonanceDecayConfig, effective_score, prune_expired
 from .evolve import RouteSnapshot
 from .models import (
+    AttachmentBond,
     MemoryCase,
     RelationalEdge,
     RelationalFieldSnapshot,
@@ -635,6 +636,15 @@ class MemoryGraphStore:
     def _shared_relational_self_path(self) -> Path:
         return self.path.with_name("shared_relational_self.json")
 
+    def _attachment_bond_path(self) -> Path:
+        return self.path.with_name("attachment_bond.json")
+
+    def _attachment_arc_path(self) -> Path:
+        return self.path.with_name("attachment_bond_arc.jsonl")
+
+    def _attachment_audit_path(self) -> Path:
+        return self.path.with_name("attachment_bond_audit.jsonl")
+
     def _fellowship_registry_path(self) -> Path:
         return self.path.with_name("fellowship_registry.json")
 
@@ -747,6 +757,116 @@ class MemoryGraphStore:
                 return SharedRelationalSelf.from_dict(dict(payload))
             except Exception:
                 return self._build_shared_projection()
+
+    def get_attachment_bond(self) -> AttachmentBond:
+        with self._lock:
+            path = self._attachment_bond_path()
+            if not path.exists():
+                return AttachmentBond()
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                return AttachmentBond.from_dict(dict(payload))
+            except Exception:
+                return AttachmentBond()
+
+    def save_attachment_bond(self, bond: AttachmentBond) -> AttachmentBond:
+        with self._lock:
+            bond.updated_at = _utc_now()
+            self._atomic_write_json(self._attachment_bond_path(), bond.to_dict())
+            arc = self._read_jsonl(self._attachment_arc_path())
+            arc.append(
+                {
+                    "timestamp": bond.updated_at,
+                    "attachment_strength": float(bond.attachment_strength or 0.0),
+                    "attachment_style": str(bond.attachment_style or "secure"),
+                    "attachment_stability": float(bond.attachment_stability or 0.0),
+                }
+            )
+            self._atomic_write_jsonl(self._attachment_arc_path(), arc[-1000:])
+            return bond
+
+    def get_attachment_arc(self, *, limit: int = 120) -> list[dict[str, Any]]:
+        with self._lock:
+            arc = self._read_jsonl(self._attachment_arc_path())
+            return arc[-max(1, int(limit or 1)) :]
+
+    def evolve_attachment_bond(
+        self,
+        *,
+        conversation_frequency: float = 0.0,
+        conversation_quality: float = 0.0,
+        user_feedback_signal: float = 0.0,
+        omni_signal: dict[str, Any] | None = None,
+        shared_relational_delta: float = 0.0,
+        source: str = "care_cycle",
+    ) -> AttachmentBond:
+        from modules.cognition.emotional_bonding_engine import EmotionalBondingEvolutionEngine
+
+        with self._lock:
+            engine = EmotionalBondingEvolutionEngine()
+            bond = self.get_attachment_bond()
+            evolved = engine.evolve(
+                bond,
+                conversation_frequency=float(conversation_frequency or 0.0),
+                conversation_quality=float(conversation_quality or 0.0),
+                user_feedback_signal=float(user_feedback_signal or 0.0),
+                omni_signal=dict(omni_signal or {}),
+                shared_relational_delta=float(shared_relational_delta or 0.0),
+                source=str(source or "care_cycle"),
+            )
+            self.save_attachment_bond(evolved)
+            self.append_attachment_audit(
+                {
+                    "event": "attachment_evolved",
+                    "source": source,
+                    "attachment_strength": evolved.attachment_strength,
+                    "attachment_style": evolved.attachment_style,
+                    "attachment_stability": evolved.attachment_stability,
+                }
+            )
+            current = self.get_relational_self()
+            current.attachment_strength = float(evolved.attachment_strength or 0.0)
+            current.attachment_style = str(evolved.attachment_style or "secure")
+            current.attachment_stability = float(evolved.attachment_stability or 0.5)
+            current.updated_at = _utc_now()
+            self._atomic_write_json(self._relational_self_path(), current.to_dict())
+            return evolved
+
+    def reset_attachment_bond(self, *, reason: str = "soft_reset") -> AttachmentBond:
+        from modules.cognition.emotional_bonding_engine import EmotionalBondingEvolutionEngine
+
+        with self._lock:
+            engine = EmotionalBondingEvolutionEngine()
+            bond = engine.reset_attachment(self.get_attachment_bond(), reason=str(reason or "soft_reset"))
+            self.save_attachment_bond(bond)
+            self.append_attachment_audit(
+                {
+                    "event": "attachment_soft_reset",
+                    "reason": str(reason or "soft_reset"),
+                    "attachment_strength": bond.attachment_strength,
+                }
+            )
+            current = self.get_relational_self()
+            current.attachment_strength = float(bond.attachment_strength or 0.0)
+            current.attachment_style = str(bond.attachment_style or "secure")
+            current.attachment_stability = float(bond.attachment_stability or 0.5)
+            current.updated_at = _utc_now()
+            self._atomic_write_json(self._relational_self_path(), current.to_dict())
+            return bond
+
+    def append_attachment_audit(self, row: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            rows = self._read_jsonl(self._attachment_audit_path())
+            payload = dict(row)
+            payload.setdefault("timestamp", _utc_now())
+            rows.append(payload)
+            self._atomic_write_jsonl(self._attachment_audit_path(), rows[-2000:])
+            return payload
+
+    def get_attachment_audit(self, *, limit: int = 120) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._read_jsonl(self._attachment_audit_path())
+            return rows[-max(1, int(limit or 1)) :]
 
     def share_self(
         self,
@@ -1230,6 +1350,10 @@ class MemoryGraphStore:
                 # Phase 2.4: carry over emotional_summary so cognitive updates
                 # don't wipe the emotional layer (additive field preservation)
                 emotional_summary=dict(current.emotional_summary or {}),
+                # Phase 3.2: carry over long-term attachment facets
+                attachment_strength=float(current.attachment_strength or 0.0),
+                attachment_style=str(current.attachment_style or "secure"),
+                attachment_stability=float(current.attachment_stability or 0.5),
             )
 
             self._atomic_write_json(self._relational_self_path(), snapshot.to_dict())
