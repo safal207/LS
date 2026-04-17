@@ -48,6 +48,7 @@ class MCPResourceRegistry:
             # Phase 2.4 — Emotional Memory resources
             ResourceRef(uri="self/emotional-memory", name="Emotional memory entries and summary"),
             ResourceRef(uri="self/emotional-arc", name="Emotional bond arc trajectory"),
+            ResourceRef(uri="shared-self/current", name="Shared Relational Self snapshot"),
         ]
 
     def read_resource(self, uri: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -111,6 +112,8 @@ class MCPResourceRegistry:
             return self._cognitive_state.get_emotional_arc(
                 limit=int(args.get("limit", 100)),
             )
+        if uri == "shared-self/current":
+            return self._cognitive_state.get_shared_self_current()
 
         task_id, suffix = self._parse_task_uri(uri)
 
