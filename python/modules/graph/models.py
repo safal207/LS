@@ -318,6 +318,10 @@ class RelationalSelf:
     metadata: dict[str, Any] = field(default_factory=dict)
     # Phase 2.4: additive emotional summary — never breaks existing consumers
     emotional_summary: dict[str, Any] = field(default_factory=dict)
+    # Phase 3.1: persisted emotional continuity fields
+    last_emotional_state: str = "neutral"
+    bond_strength: float = 0.0
+    emotional_decay: float = 1.0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -336,6 +340,9 @@ class RelationalSelf:
             change_history=list(data.get("change_history") or []),
             metadata=dict(data.get("metadata") or {}),
             emotional_summary=dict(data.get("emotional_summary") or {}),
+            last_emotional_state=str(data.get("last_emotional_state") or "neutral"),
+            bond_strength=float(data.get("bond_strength", 0.0) or 0.0),
+            emotional_decay=float(data.get("emotional_decay", 1.0) if data.get("emotional_decay") is not None else 1.0),
         )
 
 
@@ -420,6 +427,7 @@ class EmotionalMemoryEntry:
     confidence: float = 0.5
     bond_strength: float = 0.0
     temporal_decay: float = 1.0
+    emotional_half_life_hours: float = 72.0
     trigger_source: str = "system_inference"
     relational_context: list[str] = field(default_factory=list)
     summary: str = ""
@@ -430,6 +438,7 @@ class EmotionalMemoryEntry:
         self.confidence = max(0.0, min(1.0, float(self.confidence)))
         self.bond_strength = max(0.0, min(1.0, float(self.bond_strength)))
         self.temporal_decay = max(0.0, min(1.0, float(self.temporal_decay)))
+        self.emotional_half_life_hours = max(0.001, float(self.emotional_half_life_hours or 72.0))
         if self.emotional_tone not in _VALID_EMOTIONAL_TONES:
             self.emotional_tone = "neutral"
         if self.valence not in _VALID_VALENCES:
@@ -452,6 +461,7 @@ class EmotionalMemoryEntry:
             confidence=float(data.get("confidence", 0.5) or 0.5),
             bond_strength=float(data.get("bond_strength", 0.0) or 0.0),
             temporal_decay=float(data.get("temporal_decay", 1.0) if data.get("temporal_decay") is not None else 1.0),
+            emotional_half_life_hours=float(data.get("emotional_half_life_hours", 72.0) or 72.0),
             trigger_source=str(data.get("trigger_source") or "system_inference"),
             relational_context=list(data.get("relational_context") or []),
             summary=str(data.get("summary") or ""),
