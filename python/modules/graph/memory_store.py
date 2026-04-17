@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import hashlib
 import tempfile
 import threading
 from datetime import datetime, timezone
@@ -18,6 +19,7 @@ from .models import (
     RelationalEdge,
     RelationalFieldSnapshot,
     RelationalSelf,
+    SharedRelationalSelf,
     ResonanceKnowledgeUnit,
 )
 
@@ -166,6 +168,21 @@ class MemoryGraphStore:
                     os.remove(tmp_name)
                 except OSError:
                     pass
+
+    def _read_jsonl(self, path: Path) -> list[dict[str, Any]]:
+        if not path.exists():
+            return []
+        rows: list[dict[str, Any]] = []
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(dict(json.loads(line)))
+                except Exception:
+                    continue
+        return rows
 
     def _write_cases(self, cases: list[MemoryCase]) -> None:
         self._atomic_write_jsonl(
@@ -614,6 +631,18 @@ class MemoryGraphStore:
     def _council_action_history_path(self) -> Path:
         return self.path.with_name("relational_self_council_actions.jsonl")
 
+    def _shared_relational_self_path(self) -> Path:
+        return self.path.with_name("shared_relational_self.json")
+
+    def _fellowship_registry_path(self) -> Path:
+        return self.path.with_name("fellowship_registry.json")
+
+    def _shared_insights_path(self) -> Path:
+        return self.path.with_name("shared_relational_insights.jsonl")
+
+    def _sharing_audit_path(self) -> Path:
+        return self.path.with_name("shared_relational_audit.jsonl")
+
     def get_relational_self(self) -> RelationalSelf:
         with self._lock:
             path = self._relational_self_path()
@@ -621,6 +650,257 @@ class MemoryGraphStore:
                 return RelationalSelf()
             payload = json.loads(path.read_text(encoding="utf-8"))
             return RelationalSelf.from_dict(dict(payload))
+
+    def _hash_node_id(self, value: str) -> str:
+        digest = hashlib.sha256(str(value).encode("utf-8")).hexdigest()
+        return f"anon:{digest[:16]}"
+
+    def _sanitize_emotional_summary(self, summary: dict[str, Any]) -> dict[str, Any]:
+        safe = dict(summary or {})
+        redacted_keys = {
+            "private_notes",
+            "notes",
+            "source_question",
+            "source_questions",
+            "raw_traces",
+            "supporting_entries",
+        }
+        for key in redacted_keys:
+            safe.pop(key, None)
+        return safe
+
+    def _build_shared_projection(self, *, owner_id: str = "local", partial: bool = True) -> SharedRelationalSelf:
+        source = self.get_relational_self()
+        emotional = self._sanitize_emotional_summary(source.emotional_summary)
+        bond_strength = float(emotional.get("bond_strength", 0.0) or 0.0)
+        core_nodes: list[dict[str, Any]] = []
+        for node in list(source.core_nodes or []):
+            if not isinstance(node, dict):
+                continue
+            unit_id = str(node.get("unit_id") or node.get("id") or "")
+            safe_node = {
+                "node_id": self._hash_node_id(unit_id) if unit_id else self._hash_node_id(str(node)),
+                "intent": str(node.get("intent") or "unknown"),
+                "resonance_score": round(float(node.get("resonance_score", 0.0) or 0.0), 4),
+                "alignment_score": round(float(node.get("alignment_score", 0.0) or 0.0), 4),
+            }
+            if not partial:
+                safe_node["timestamp"] = str(node.get("timestamp") or "")
+            core_nodes.append(safe_node)
+        return SharedRelationalSelf(
+            owner_id=str(owner_id or "local"),
+            core_nodes=core_nodes[:25],
+            emotional_summary=emotional,
+            bond_strength=bond_strength,
+            metadata={
+                "partial": bool(partial),
+                "anonymized": True,
+                "source_snapshot_id": source.snapshot_id,
+            },
+        )
+
+    def _append_sharing_audit_unlocked(self, row: dict[str, Any]) -> dict[str, Any]:
+        rows = self._read_jsonl(self._sharing_audit_path())
+        payload = dict(row)
+        payload.setdefault("timestamp", _utc_now())
+        rows.append(payload)
+        self._atomic_write_jsonl(self._sharing_audit_path(), rows[-2000:])
+        return payload
+
+    def get_sharing_audit(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._read_jsonl(self._sharing_audit_path())
+            return rows[-max(1, int(limit or 1)) :]
+
+    def get_fellowship_registry(self) -> dict[str, Any]:
+        with self._lock:
+            path = self._fellowship_registry_path()
+            if not path.exists():
+                return {"trusted": [], "updated_at": None}
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                trusted = sorted({str(item) for item in list(payload.get("trusted") or []) if str(item).strip()})
+                return {"trusted": trusted, "updated_at": payload.get("updated_at")}
+            except Exception:
+                return {"trusted": [], "updated_at": None}
+
+    def upsert_fellowship_members(self, recipients: list[str]) -> dict[str, Any]:
+        with self._lock:
+            current = self.get_fellowship_registry()
+            trusted = set(current.get("trusted") or [])
+            trusted.update(str(item) for item in list(recipients or []) if str(item).strip())
+            payload = {"trusted": sorted(trusted), "updated_at": _utc_now()}
+            self._fellowship_registry_path().write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            return payload
+
+    def get_shared_relational_self(self) -> SharedRelationalSelf:
+        with self._lock:
+            path = self._shared_relational_self_path()
+            if not path.exists():
+                return self._build_shared_projection()
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                return SharedRelationalSelf.from_dict(dict(payload))
+            except Exception:
+                return self._build_shared_projection()
+
+    def share_self(
+        self,
+        *,
+        partial: bool = True,
+        recipients: list[str] | None = None,
+        consent_mode: str = "temporary",
+        ttl_seconds: int = 3600,
+        owner_id: str = "local",
+    ) -> dict[str, Any]:
+        with self._lock:
+            recipients = [str(item) for item in list(recipients or []) if str(item).strip()]
+            consent = str(consent_mode or "deny").lower()
+            if consent not in {"allow", "deny", "temporary"}:
+                consent = "deny"
+            if consent == "deny":
+                audit = self._append_sharing_audit_unlocked(
+                    {
+                        "event": "share_self_denied",
+                        "status": "denied",
+                        "recipients": recipients,
+                        "consent_mode": consent,
+                    }
+                )
+                return {"shared": False, "status": "denied", "audit": audit}
+
+            shared = self._build_shared_projection(owner_id=owner_id, partial=bool(partial))
+            shared.recipients = recipients
+            shared.consent_mode = consent
+            now = _utc_now()
+            shared.last_shared_at = now
+            shared.updated_at = now
+            if consent == "temporary":
+                expires = datetime.now(timezone.utc).timestamp() + max(60, int(ttl_seconds or 60))
+                shared.consent_expires_at = datetime.fromtimestamp(expires, tz=timezone.utc).isoformat()
+            self._shared_relational_self_path().write_text(
+                json.dumps(shared.to_dict(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            if recipients:
+                self.upsert_fellowship_members(recipients)
+            audit = self._append_sharing_audit_unlocked(
+                {
+                    "event": "share_self",
+                    "status": "shared",
+                    "recipients": recipients,
+                    "consent_mode": consent,
+                    "shared_id": shared.shared_id,
+                    "partial": bool(partial),
+                }
+            )
+            return {"shared": True, "status": "shared", "snapshot": shared.to_dict(), "audit": audit}
+
+    def revoke_self_sharing(self, *, reason: str = "manual_revoke") -> dict[str, Any]:
+        with self._lock:
+            current = self.get_shared_relational_self()
+            current.consent_mode = "deny"
+            current.revoked_at = _utc_now()
+            current.updated_at = current.revoked_at
+            self._shared_relational_self_path().write_text(
+                json.dumps(current.to_dict(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            audit = self._append_sharing_audit_unlocked(
+                {
+                    "event": "revoke_sharing",
+                    "status": "revoked",
+                    "shared_id": current.shared_id,
+                    "reason": str(reason or "manual_revoke"),
+                }
+            )
+            return {"revoked": True, "snapshot": current.to_dict(), "audit": audit}
+
+    def propose_shared_insight(
+        self,
+        *,
+        recipient: str,
+        source_node_id: str,
+        target_node_id: str,
+        relation_type: str = "reinforces",
+        strength: float = 0.5,
+        rationale: str = "",
+    ) -> dict[str, Any]:
+        with self._lock:
+            proposal = {
+                "proposal_id": str(uuid4()),
+                "timestamp": _utc_now(),
+                "recipient": str(recipient or "").strip(),
+                "source_node_id": str(source_node_id or "").strip(),
+                "target_node_id": str(target_node_id or "").strip(),
+                "relation_type": str(relation_type or "reinforces"),
+                "strength": round(max(0.0, min(1.0, float(strength))), 4),
+                "rationale": str(rationale or ""),
+                "status": "proposed",
+            }
+            rows = self._read_jsonl(self._shared_insights_path())
+            rows.append(proposal)
+            self._atomic_write_jsonl(self._shared_insights_path(), rows[-2000:])
+            self._append_sharing_audit_unlocked(
+                {
+                    "event": "propose_shared_insight",
+                    "status": "proposed",
+                    "proposal_id": proposal["proposal_id"],
+                    "recipient": proposal["recipient"],
+                }
+            )
+            return proposal
+
+    def accept_shared_self(
+        self,
+        *,
+        shared_payload: dict[str, Any],
+        selective_merge: bool = True,
+    ) -> dict[str, Any]:
+        with self._lock:
+            incoming = SharedRelationalSelf.from_dict(dict(shared_payload or {}))
+            current = self.get_relational_self()
+            merged_summary = dict(current.emotional_summary or {})
+            incoming_summary = self._sanitize_emotional_summary(incoming.emotional_summary)
+            for key, value in incoming_summary.items():
+                if selective_merge and key in {"private_notes", "supporting_entries"}:
+                    continue
+                merged_summary[f"shared:{key}" if key not in merged_summary else key] = value
+            current.emotional_summary = merged_summary
+            history = list(current.change_history or [])
+            history.append(
+                {
+                    "timestamp": _utc_now(),
+                    "source": "shared_self_accept",
+                    "delta": 0.0,
+                    "shared_id": incoming.shared_id,
+                    "selective_merge": bool(selective_merge),
+                }
+            )
+            current.change_history = history[-100:]
+            current.updated_at = _utc_now()
+            self._relational_self_path().write_text(
+                json.dumps(current.to_dict(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            audit = self._append_sharing_audit_unlocked(
+                {
+                    "event": "accept_shared_self",
+                    "status": "accepted",
+                    "shared_id": incoming.shared_id,
+                    "selective_merge": bool(selective_merge),
+                }
+            )
+            return {
+                "accepted": True,
+                "shared_id": incoming.shared_id,
+                "selective_merge": bool(selective_merge),
+                "relational_self_snapshot_id": current.snapshot_id,
+                "audit": audit,
+            }
 
     def get_coherence_history(self, *, limit: int = 50) -> list[dict[str, Any]]:
         with self._lock:

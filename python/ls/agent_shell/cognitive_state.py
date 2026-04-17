@@ -447,6 +447,62 @@ class CognitiveStateBridge:
             "last_updated": _utc_now(),
         }
 
+    def get_shared_self_current(self) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        shared = store.get_shared_relational_self().to_dict()
+        return {
+            "resource": "shared-self/current",
+            "snapshot": shared,
+            "fellowship_registry": store.get_fellowship_registry(),
+            "last_updated": _utc_now(),
+        }
+
+    def propose_shared_insight(
+        self,
+        *,
+        recipient: str,
+        source_node_id: str,
+        target_node_id: str,
+        relation_type: str = "reinforces",
+        strength: float = 0.5,
+        rationale: str = "",
+    ) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        proposal = store.propose_shared_insight(
+            recipient=str(recipient or ""),
+            source_node_id=str(source_node_id or ""),
+            target_node_id=str(target_node_id or ""),
+            relation_type=str(relation_type or "reinforces"),
+            strength=float(strength),
+            rationale=str(rationale or ""),
+        )
+        return {
+            "resource": "shared-self/proposal",
+            "proposal": proposal,
+            "last_updated": _utc_now(),
+        }
+
+    def accept_shared_self(
+        self,
+        shared_payload: dict[str, Any],
+        *,
+        selective_merge: bool = True,
+    ) -> dict[str, Any]:
+        from modules.graph.memory_store import MemoryGraphStore
+
+        store = MemoryGraphStore(self._store_path)
+        accepted = store.accept_shared_self(
+            shared_payload=dict(shared_payload or {}),
+            selective_merge=bool(selective_merge),
+        )
+        accepted["resource"] = "shared-self/accept"
+        accepted["last_updated"] = _utc_now()
+        return accepted
+
     def rollback_self_action(self, *, action_id: str) -> dict[str, Any]:
         from modules.graph.memory_store import MemoryGraphStore
 

@@ -339,6 +339,55 @@ class RelationalSelf:
         )
 
 
+@dataclass
+class SharedRelationalSelf:
+    """Sanitized, consent-aware projection of RelationalSelf for fellowship sharing."""
+
+    shared_id: str = field(default_factory=lambda: str(uuid4()))
+    schema_version: str = "1.0"
+    owner_id: str = "local"
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    core_nodes: list[dict[str, Any]] = field(default_factory=list)
+    emotional_summary: dict[str, Any] = field(default_factory=dict)
+    bond_strength: float = 0.0
+    recipients: list[str] = field(default_factory=list)
+    consent_mode: str = "deny"  # allow | deny | temporary
+    consent_expires_at: str | None = None
+    last_shared_at: str | None = None
+    revoked_at: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.bond_strength = max(0.0, min(1.0, float(self.bond_strength)))
+        mode = str(self.consent_mode or "deny").lower()
+        if mode not in {"allow", "deny", "temporary"}:
+            mode = "deny"
+        self.consent_mode = mode
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SharedRelationalSelf":
+        return cls(
+            shared_id=str(data.get("shared_id") or str(uuid4())),
+            schema_version=str(data.get("schema_version") or "1.0"),
+            owner_id=str(data.get("owner_id") or "local"),
+            created_at=str(data.get("created_at") or datetime.now(timezone.utc).isoformat()),
+            updated_at=str(data.get("updated_at") or datetime.now(timezone.utc).isoformat()),
+            core_nodes=list(data.get("core_nodes") or []),
+            emotional_summary=dict(data.get("emotional_summary") or {}),
+            bond_strength=float(data.get("bond_strength", 0.0) or 0.0),
+            recipients=[str(item) for item in list(data.get("recipients") or []) if str(item).strip()],
+            consent_mode=str(data.get("consent_mode") or "deny"),
+            consent_expires_at=data.get("consent_expires_at"),
+            last_shared_at=data.get("last_shared_at"),
+            revoked_at=data.get("revoked_at"),
+            metadata=dict(data.get("metadata") or {}),
+        )
+
+
 # ──────────────────────────────────────────────────────────────
 # EmotionalMemoryEntry — Phase 2.4 inferred emotional state
 # ──────────────────────────────────────────────────────────────

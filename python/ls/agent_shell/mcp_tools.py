@@ -37,6 +37,9 @@ class MCPToolRegistry:
             "rollback_self_action": self._rollback_self_action,
             # Phase 2.4
             "get_emotional_insight": self._get_emotional_insight,
+            # Phase 3.0 starter
+            "propose_shared_insight": self._propose_shared_insight,
+            "accept_shared_self": self._accept_shared_self,
         }
 
     def list_tools(self) -> list[dict[str, Any]]:
@@ -122,6 +125,25 @@ class MCPToolRegistry:
         question = str(args.get("question", ""))
         limit = int(args.get("limit", 10))
         return self._cognitive_state.get_emotional_insight(question, limit=limit)
+
+    def _propose_shared_insight(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._cognitive_state.propose_shared_insight(
+            recipient=str(args.get("recipient", "")),
+            source_node_id=str(args.get("source_node_id", "")),
+            target_node_id=str(args.get("target_node_id", "")),
+            relation_type=str(args.get("relation_type", "reinforces")),
+            strength=float(args.get("strength", 0.5)),
+            rationale=str(args.get("rationale", "")),
+        )
+
+    def _accept_shared_self(self, args: dict[str, Any]) -> dict[str, Any]:
+        payload = args.get("shared_payload")
+        if not isinstance(payload, dict):
+            raise MCPValidationError("shared_payload must be an object")
+        return self._cognitive_state.accept_shared_self(
+            payload,
+            selective_merge=bool(args.get("selective_merge", True)),
+        )
 
 
 def tool_call_from_json(registry: MCPToolRegistry, raw: str) -> str:
