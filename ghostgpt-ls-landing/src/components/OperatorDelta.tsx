@@ -42,11 +42,14 @@ type CouncilScorecardPayload = {
     success_rate: number;
     avg_resonance: number;
     avg_merit: number;
+    latest_policy_state: string;
+    policy_escalations: number;
   };
   bars: {
     best_contributor_frequency: ScorePoint[];
     model_type_lift: ScorePoint[];
     route_wins: ScorePoint[];
+    policy_state_split: ScorePoint[];
   };
   lines: {
     resonance_trend: ScorePoint[];
@@ -96,9 +99,12 @@ const copy = {
     successRate: 'Success rate',
     avgResonance: 'Avg resonance',
     avgMerit: 'Avg merit',
+    latestPolicy: 'Latest policy',
+    policyEscalations: 'Policy escalations',
     contribFreq: 'Best contributor frequency',
     modelLift: 'Model type lift',
     routeWins: 'Route wins',
+    policyStateSplit: 'Policy state split',
     resonanceTrend: 'Receiver resonance trend',
     meritTrend: 'Merit trend',
     scorecardTakeaways: 'What this makes visible',

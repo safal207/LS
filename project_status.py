@@ -1,123 +1,178 @@
 #!/usr/bin/env python3
-"""
-Final Integration Test - Show current project status
-"""
+"""Quick project health-check for the current LS repository."""
 
-import os
+from __future__ import annotations
+
+import importlib
+import json
 import sys
+from pathlib import Path
 
-def check_project_status():
-    """Comprehensive project status check"""
-    print("=== Interview Copilot - Project Status ===\n")
-    
-    # 1. Check file structure
-    print("📁 File Structure:")
-    required_files = [
-        "apps/console/main.py", "python/modules/config.py",
-        "python/modules/shared/utils.py",
-        "python/modules/audio/audio_module.py",
-        "python/modules/stt/stt_module.py",
-        "python/modules/llm/llm_module.py",
-        "ghost_gui.py", "python/modules/llm/qwen_handler.py",
-        "requirements.txt"
+
+ROOT = Path(__file__).resolve().parent
+PYTHON_ROOT = ROOT / "python"
+MODULES_ROOT = PYTHON_ROOT / "modules"
+
+
+def bootstrap_paths() -> None:
+    for path in (ROOT, PYTHON_ROOT, MODULES_ROOT):
+        path_str = str(path)
+        if path_str not in sys.path:
+            sys.path.insert(0, path_str)
+
+
+def safe_text(value: object) -> str:
+    text = str(value)
+    return text.encode("ascii", errors="replace").decode("ascii")
+
+
+def check_files() -> list[tuple[str, bool, str]]:
+    expected = [
+        "README.md",
+        "pyproject.toml",
+        "requirements.txt",
+        "apps/console/main.py",
+        "python/modules/agent/resonance_agent.py",
+        "python/modules/agent/loop.py",
+        "python/modules/graph/memory_store.py",
+        "python/tests/test_coordination_output_contract.py",
     ]
-    
-    for file in required_files:
-        status = "✅" if os.path.exists(file) else "❌"
-        print(f"  {status} {file}")
-    
-    # 2. Check dependencies
-    print("\n📦 Dependencies:")
-    dependencies = [
-        "requests", "PyQt6", "faster_whisper", 
-        "pyaudio", "numpy", "soundfile", "psutil"
+    results: list[tuple[str, bool, str]] = []
+    for rel_path in expected:
+        path = ROOT / rel_path
+        results.append((rel_path, path.exists(), "present" if path.exists() else "missing"))
+    return results
+
+
+def check_imports() -> list[tuple[str, bool, str]]:
+    targets = [
+        ("modules.config", "core config"),
+        ("modules.agent.resonance_agent", "resonance agent"),
+        ("modules.agent.loop", "agent loop"),
+        ("modules.graph.memory_store", "memory store"),
+        ("modules.agent.coordination_advisory_summary", "coordination summary"),
     ]
-    
-    for dep in dependencies:
+    results: list[tuple[str, bool, str]] = []
+    for module_name, label in targets:
         try:
-            __import__(dep)
-            print(f"  ✅ {dep}")
-        except ImportError:
-            print(f"  ❌ {dep}")
-    
-    # 3. Check Ollama connection
-    print("\n🦙 Ollama Status:")
+            importlib.import_module(module_name)
+            results.append((label, True, module_name))
+        except Exception as exc:  # pragma: no cover - diagnostic script
+            results.append((label, False, f"{module_name}: {exc.__class__.__name__}: {exc}"))
+    return results
+
+
+def check_config() -> list[tuple[str, bool, str]]:
     try:
-        import requests
-        response = requests.get("http://localhost:11434/api/tags", timeout=5)
-        if response.status_code == 200:
-            models = response.json().get('models', [])
-            print(f"  ✅ Connected - {len(models)} models")
-            for model in models:
-                size_gb = model['size'] // (1024**3)
-                print(f"    • {model['name']} ({size_gb}GB)")
-        else:
-            print(f"  ❌ HTTP {response.status_code}")
-    except Exception as e:
-        print(f"  ❌ Connection error: {e}")
-    
-    # 4. Check configuration
-    print("\n⚙️ Configuration:")
+        from modules import config
+    except Exception as exc:  # pragma: no cover - diagnostic script
+        return [("config", False, f"import failed: {exc.__class__.__name__}: {exc}")]
+
+    values = [
+        ("AGENT_ENABLED", getattr(config, "AGENT_ENABLED", None)),
+        ("TEMPORAL_ENABLED", getattr(config, "TEMPORAL_ENABLED", None)),
+        ("GRAPH_TRAIL_ENABLED", getattr(config, "GRAPH_TRAIL_ENABLED", None)),
+        ("GRAPH_COALITION_ENABLED", getattr(config, "GRAPH_COALITION_ENABLED", None)),
+        ("GRAPH_CARE_CYCLES_ENABLED", getattr(config, "GRAPH_CARE_CYCLES_ENABLED", None)),
+    ]
+    return [(name, True, json.dumps(value)) for name, value in values]
+
+
+def check_runtime_probe() -> list[tuple[str, bool, str]]:
     try:
-        from config import (
-            LLM_MODEL_NAME, USE_CLOUD_LLM, 
-            WHISPER_MODEL_SIZE, MAX_RAM_USAGE_MB
+        from modules.agent.resonance_agent import ResonanceAgent
+
+        agent = ResonanceAgent(anchor=[], llm_fn=None)
+        result = agent._build_output(
+            {
+                "text": "status probe",
+                "_why_strategy": {},
+                "_copilot_output": {},
+                "_intent": {},
+                "_why": {},
+                "_llm_backend": {},
+                "_path_selection": {"route_key": "r1", "reason": "status-probe"},
+                "_graph_runtime": {"mode": "reuse"},
+                "_trail_route": {},
+                "_coalition": {},
+                "_derived_module": {},
+                "_care_cycle": {},
+                "_network_plan": {},
+                "_adequacy_report": {},
+                "_observer_report": {},
+                "_alignment_report": {},
+                "_alignment_outcome": {},
+                "_resonance_score": 0.5,
+            },
+            final_output="ok",
+            generation_time=0.01,
+            cycle_id="status-probe",
         )
-        print(f"  LLM Model: {LLM_MODEL_NAME}")
-        print(f"  Cloud LLM: {USE_CLOUD_LLM}")
-        print(f"  Whisper Size: {WHISPER_MODEL_SIZE}")
-        print(f"  RAM Limit: {MAX_RAM_USAGE_MB}MB")
-        print("  ✅ Config loaded")
-    except Exception as e:
-        print(f"  ❌ Config error: {e}")
-    
-    # 5. Check modules
-    print("\n🧩 Module Status:")
-    modules = [
-        ("Audio Module", "audio.audio_module"),
-        ("STT Module", "stt.stt_module"),
-        ("LLM Module", "llm.llm_module"),
-        ("Qwen Handler", "llm.qwen_handler"),
-        ("GUI Module", "ghost_gui")
-    ]
-    
-    for name, module_name in modules:
-        try:
-            __import__(module_name)
-            print(f"  ✅ {name}")
-        except Exception as e:
-            print(f"  ❌ {name} - {str(e)[:50]}...")
+        required = [
+            "collective_coordination_snapshot",
+            "bridge_stabilization_order",
+            "bridge_playbook_advisory",
+            "coordination_advisory_summary",
+            "relational_edge_update_preview",
+        ]
+        missing = [key for key in required if key not in result]
+        if missing:
+            return [("build_output", False, f"missing keys: {', '.join(missing)}")]
+        return [("build_output", True, "core output contract present")]
+    except Exception as exc:  # pragma: no cover - diagnostic script
+        return [("build_output", False, f"probe failed: {exc.__class__.__name__}: {exc}")]
 
-def show_next_steps():
-    """Show what to do next"""
-    print("\n" + "=" * 50)
-    print("📋 Next Steps:")
-    print("=" * 50)
-    
-    print("\nImmediate:")
-    print("1. ✅ Wait for qwen2.5:7b installation to complete")
-    print("2. ✅ Update config.py LLM_MODEL_NAME to 'qwen2.5:7b'")
-    print("3. ✅ Run: python test_qwen_integration.py")
-    print("4. ✅ Test GUI: python ghost_gui.py")
-    
-    print("\nTesting:")
-    print("• python quick_gui_test.py - Test overlay functionality")
-    print("• python demo.py - Test with simulated interview")
-    print("• python test_qwen_with_llama.py - Test with current model")
-    
-    print("\nProduction:")
-    print("• run_ghost.bat - Full application with setup checks")
-    print("• Configure VB-Cable for audio capture")
-    print("• Set system audio output to 'CABLE Input'")
 
-def main():
-    check_project_status()
-    show_next_steps()
-    
-    print("\n" + "=" * 50)
-    print("🎉 Project Status: READY FOR TESTING")
-    print("All core components implemented and tested!")
-    print("=" * 50)
+def check_ollama() -> list[tuple[str, bool, str]]:
+    try:
+        requests = importlib.import_module("requests")
+    except Exception:
+        return [("ollama", False, "requests not installed")]
+
+    try:
+        response = requests.get("http://localhost:11434/api/tags", timeout=2)
+        if response.status_code != 200:
+            return [("ollama", False, f"http {response.status_code}")]
+        payload = response.json()
+        models = payload.get("models") or []
+        return [("ollama", True, f"reachable, models={len(models)}")]
+    except Exception as exc:  # pragma: no cover - diagnostic script
+        return [("ollama", False, f"unreachable: {exc.__class__.__name__}: {exc}")]
+
+
+def render_section(title: str, rows: list[tuple[str, bool, str]]) -> int:
+    print(safe_text(title))
+    failures = 0
+    for name, ok, detail in rows:
+        status = "OK" if ok else "FAIL"
+        print(f"  [{status}] {safe_text(name)}: {safe_text(detail)}")
+        if not ok:
+            failures += 1
+    print()
+    return failures
+
+
+def main() -> int:
+    bootstrap_paths()
+    print("LS Project Status")
+    print("=" * 48)
+    print(f"Root: {safe_text(ROOT)}")
+    print()
+
+    failures = 0
+    failures += render_section("Files", check_files())
+    failures += render_section("Imports", check_imports())
+    failures += render_section("Config", check_config())
+    failures += render_section("Runtime Probe", check_runtime_probe())
+    failures += render_section("Optional Services", check_ollama())
+
+    if failures == 0:
+        print("Summary: healthy")
+        return 0
+
+    print(f"Summary: issues detected ({failures})")
+    return 1
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

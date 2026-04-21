@@ -33,6 +33,81 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _clamp_unit_interval(value: float) -> float:
+    return max(0.0, min(1.0, float(value)))
+
+
+def build_relational_edge_update_preview(
+    *,
+    strength_before: float,
+    review_decision: str | None = None,
+    incident_published: bool = False,
+    receiver_resonance_score: float | None = None,
+    relational_coherence: float | None = None,
+) -> dict[str, Any]:
+    """Return a deterministic, bounded preview for relation-edge learning.
+
+    Day 1 skeleton only: this computes the shape and update rule we expect to
+    persist later, without mutating any long-lived relation graph yet.
+    """
+
+    strength_before = round(_clamp_unit_interval(strength_before), 4)
+    strength_after = strength_before
+    reason_codes: list[str] = []
+
+    normalized_decision = str(review_decision or "").strip().lower()
+    if normalized_decision in {"approved", "approve"}:
+        strength_after += 0.08
+        reason_codes.append("approved_review")
+    elif normalized_decision in {"rejected", "reject"}:
+        strength_after -= 0.12
+        reason_codes.append("rejected_review")
+    elif normalized_decision == "closed":
+        strength_after -= 0.06
+        reason_codes.append("closed_without_approval")
+
+    if incident_published:
+        strength_after -= 0.15
+        reason_codes.append("incident_published")
+
+    if receiver_resonance_score is not None:
+        resonance = _clamp_unit_interval(receiver_resonance_score)
+        if resonance >= 0.7:
+            strength_after += 0.05
+            reason_codes.append("high_receiver_resonance")
+        elif resonance <= 0.35:
+            strength_after -= 0.05
+            reason_codes.append("low_receiver_resonance")
+
+    coherence = None
+    review_attention_required = False
+    route_guidance = "continue_current_route"
+    if relational_coherence is not None:
+        coherence = round(_clamp_unit_interval(relational_coherence), 4)
+        if coherence <= 0.35:
+            strength_after -= 0.08
+            review_attention_required = True
+            route_guidance = "validate_current_route"
+            reason_codes.append("low_relational_coherence")
+        elif coherence >= 0.7:
+            route_guidance = "continue_current_route"
+
+    strength_after = round(_clamp_unit_interval(strength_after), 4)
+    applied_delta = round(strength_after - strength_before, 4)
+    if not reason_codes:
+        reason_codes.append("no_signal")
+
+    return {
+        "strength_before": strength_before,
+        "strength_after": strength_after,
+        "applied_delta": applied_delta,
+        "reason_codes": reason_codes,
+        "relational_coherence": coherence,
+        "review_attention_required": review_attention_required,
+        "route_guidance": route_guidance,
+    }
+
+
 class MemoryGraphStore:
     """Simple JSONL-backed storage for cooperative network memory.
 
@@ -311,6 +386,79 @@ class MemoryGraphStore:
     def list_relational_snapshots(self) -> list[RelationalFieldSnapshot]:
         return self._load_relational_snapshots()
 
+    def _relational_edge_updates_path(self) -> Path:
+        return self.path.with_name("relational_edge_updates.jsonl")
+
+    def preview_relational_edge_update(
+        self,
+        *,
+        strength_before: float,
+        review_decision: str | None = None,
+        incident_published: bool = False,
+        receiver_resonance_score: float | None = None,
+        relational_coherence: float | None = None,
+    ) -> dict[str, Any]:
+        return build_relational_edge_update_preview(
+            strength_before=strength_before,
+            review_decision=review_decision,
+            incident_published=incident_published,
+            receiver_resonance_score=receiver_resonance_score,
+            relational_coherence=relational_coherence,
+        )
+
+    def store_relational_edge_update(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        with self._lock:
+            updates = self._load_relational_edge_updates()
+            record = dict(payload)
+            record["timestamp"] = str(record.get("timestamp") or _utc_now())
+            updates.append(record)
+            self._write_relational_edge_updates(updates)
+            return record
+
+    def list_relational_edge_updates(self) -> list[dict[str, Any]]:
+        return self._load_relational_edge_updates()
+
+    def get_latest_relational_edge_update(
+        self,
+        *,
+        pattern_key: str,
+        selected_route: str,
+    ) -> dict[str, Any] | None:
+        normalized_pattern = str(pattern_key or "").strip()
+        normalized_route = str(selected_route or "").strip()
+        if not normalized_pattern or not normalized_route:
+            return None
+
+        latest: dict[str, Any] | None = None
+        for update in self._load_relational_edge_updates():
+            if (
+                str(update.get("pattern_key") or "").strip() == normalized_pattern
+                and str(update.get("selected_route") or "").strip() == normalized_route
+            ):
+                latest = update
+        return latest
+
+    def get_latest_relational_edge_strength(
+        self,
+        *,
+        pattern_key: str,
+        selected_route: str,
+    ) -> float | None:
+        latest = self.get_latest_relational_edge_update(
+            pattern_key=pattern_key,
+            selected_route=selected_route,
+        )
+        if not latest:
+            return None
+        strength = latest.get("strength_after")
+        try:
+            return round(_clamp_unit_interval(float(strength)), 4)
+        except (TypeError, ValueError):
+            return None
+
     def _load_relational_snapshots(self) -> list[RelationalFieldSnapshot]:
         with self._lock:
             path = self._relational_snapshots_path()
@@ -334,6 +482,29 @@ class MemoryGraphStore:
         self._atomic_write_jsonl(
             self._relational_snapshots_path(),
             [snapshot.to_dict() for snapshot in snapshots],
+        )
+
+    def _load_relational_edge_updates(self) -> list[dict[str, Any]]:
+        with self._lock:
+            path = self._relational_edge_updates_path()
+            if not path.exists():
+                return []
+
+            updates: list[dict[str, Any]] = []
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if line:
+                        updates.append(dict(json.loads(line)))
+            return updates
+
+    def _write_relational_edge_updates(
+        self,
+        updates: list[dict[str, Any]],
+    ) -> None:
+        self._atomic_write_jsonl(
+            self._relational_edge_updates_path(),
+            updates,
         )
 
     # ──────────────────────────────────────────────────────────────

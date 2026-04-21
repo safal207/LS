@@ -184,8 +184,6 @@ def test_coordination_output_contract_graceful_fallback_empty_shape():
     assert advisory["step_links"] == []
     assert advisory["top_supported_steps"] == []
     assert advisory["top_weak_steps"] == []
-
-
 def test_build_output_emits_council_ledger_artifact(tmp_path):
     agent = ResonanceAgent(anchor=[], llm_fn=None)
     agent._council_ledger_dir = tmp_path / "council-ledger"
@@ -235,3 +233,201 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert any(p["model_type"] == "primary_llm" for p in payload["participants"])
     assert any(p["model_type"] == "advisory_strategy" for p in payload["participants"])
     assert output["council_contribution_ledger"]["cycle_id"] == "cid-ledger"
+
+
+def test_build_output_emits_relational_edge_update_preview(tmp_path) -> None:
+    try:
+        from graph.runtime import GraphMemoryRuntime
+    except ImportError:
+        from modules.graph.runtime import GraphMemoryRuntime
+
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_fn=None,
+        graph_runtime=GraphMemoryRuntime(store_path=tmp_path / "cases.jsonl"),
+    )
+    item = _base_item()
+    item["_operator_review"] = {"decision": "approved"}
+    item["_incident_published"] = False
+    item["_relation_edge_strength_before"] = 0.42
+    item["_receiver_resonance_score"] = 0.81
+    item["_relational_field"] = {
+        "alignment_score": 0.24,
+        "metadata": {"relational_coherence": 0.66},
+    }
+
+    output = agent._build_output(
+        item,
+        final_output="ok",
+        generation_time=0.01,
+        cycle_id="cid-edge-preview",
+    )
+
+    preview = output["relational_edge_update_preview"]
+    policy = output["relational_policy_decision"]
+    assert isinstance(preview, dict)
+    assert isinstance(policy, dict)
+    assert preview["strength_before"] == 0.42
+    assert 0.0 <= preview["strength_after"] <= 1.0
+    assert preview["strength_after"] > preview["strength_before"]
+    assert preview["applied_delta"] > 0.0
+    assert preview["review_attention_required"] is False
+    assert preview["route_guidance"] == "continue_current_route"
+    assert preview["reason_codes"] == [
+        "approved_review",
+        "high_receiver_resonance",
+    ]
+    assert output["relational_coherence"] == 0.66
+    assert policy["policy_state"] == "continue"
+    assert policy["review_attention_required"] is False
+    assert policy["escalation_required"] is False
+
+
+def test_build_output_emits_relational_edge_update_artifact(tmp_path) -> None:
+    try:
+        from graph.runtime import GraphMemoryRuntime
+    except ImportError:
+        from modules.graph.runtime import GraphMemoryRuntime
+
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_fn=None,
+        graph_runtime=GraphMemoryRuntime(store_path=tmp_path / "cases.jsonl"),
+    )
+    agent._relational_edge_update_dir = tmp_path / "relational-edge-updates"
+    item = _base_item()
+    item["_operator_review"] = {"decision": "rejected"}
+    item["_incident_published"] = True
+    item["_relation_edge_strength_before"] = 0.64
+    item["_receiver_resonance_score"] = 0.21
+    item["_relational_field"] = {
+        "dominant_signal": "tension",
+        "alignment_score": 0.18,
+        "metadata": {"relational_coherence": 0.21},
+    }
+
+    output = agent._build_output(
+        item,
+        final_output="ok",
+        generation_time=0.01,
+        cycle_id="cid-edge-artifact",
+    )
+
+    artifact_path = output["relational_edge_update_artifact"]
+    assert artifact_path is not None
+    artifact = Path(artifact_path)
+    assert artifact.exists()
+
+    payload = json.loads(artifact.read_text(encoding="utf-8"))
+    policy = output["relational_policy_decision"]
+    assert payload["cycle_id"] == "cid-edge-artifact"
+    assert payload["pattern_key"] == "tension"
+    assert payload["selected_route"] == "r1"
+    assert payload["review_decision"] == "rejected"
+    assert payload["incident_published"] is True
+    assert payload["relational_coherence"] == 0.21
+    assert payload["review_attention_required"] is True
+    assert payload["route_guidance"] == "validate_current_route"
+    assert payload["strength_before"] == 0.64
+    assert payload["strength_after"] < payload["strength_before"]
+    assert payload["reason_codes"] == [
+        "rejected_review",
+        "incident_published",
+        "low_receiver_resonance",
+        "low_relational_coherence",
+    ]
+    assert policy["policy_state"] == "escalate"
+    assert policy["review_attention_required"] is True
+    assert policy["escalation_required"] is True
+
+
+def test_build_output_uses_persisted_relation_edge_strength_from_store(tmp_path) -> None:
+    try:
+        from graph.runtime import GraphMemoryRuntime
+    except ImportError:
+        from modules.graph.runtime import GraphMemoryRuntime
+
+    graph_runtime = GraphMemoryRuntime(store_path=tmp_path / "cases.jsonl")
+    graph_runtime.store.store_relational_edge_update(
+        {
+            "cycle_id": "cid-prev",
+            "pattern_key": "tension",
+            "selected_route": "r1",
+            "strength_after": 0.74,
+        }
+    )
+    agent = ResonanceAgent(anchor=[], llm_fn=None, graph_runtime=graph_runtime)
+    item = _base_item()
+    item["_operator_review"] = {"decision": "approved"}
+    item["_receiver_resonance_score"] = 0.9
+    item["_relational_field"] = {
+        "dominant_signal": "tension",
+        "alignment_score": 0.18,
+        "metadata": {"relational_coherence": 0.29},
+    }
+
+    output = agent._build_output(
+        item,
+        final_output="ok",
+        generation_time=0.01,
+        cycle_id="cid-uses-store",
+    )
+
+    preview = output["relational_edge_update_preview"]
+    policy = output["relational_policy_decision"]
+    assert preview["strength_before"] == 0.74
+    assert preview["strength_after"] > 0.74
+    assert policy["history_match_count"] >= 1
+
+
+def test_build_output_escalates_when_history_has_multiple_adverse_matches(tmp_path) -> None:
+    try:
+        from graph.runtime import GraphMemoryRuntime
+    except ImportError:
+        from modules.graph.runtime import GraphMemoryRuntime
+
+    graph_runtime = GraphMemoryRuntime(store_path=tmp_path / "cases.jsonl")
+    graph_runtime.store.store_relational_edge_update(
+        {
+            "cycle_id": "cid-prev-1",
+            "pattern_key": "tension",
+            "selected_route": "r1",
+            "review_decision": "rejected",
+            "incident_published": False,
+            "reason_codes": ["low_relational_coherence"],
+            "strength_after": 0.31,
+        }
+    )
+    graph_runtime.store.store_relational_edge_update(
+        {
+            "cycle_id": "cid-prev-2",
+            "pattern_key": "tension",
+            "selected_route": "r1",
+            "review_decision": "closed",
+            "incident_published": False,
+            "reason_codes": ["low_relational_coherence"],
+            "strength_after": 0.24,
+        }
+    )
+
+    agent = ResonanceAgent(anchor=[], llm_fn=None, graph_runtime=graph_runtime)
+    item = _base_item()
+    item["_receiver_resonance_score"] = 0.42
+    item["_relational_field"] = {
+        "dominant_signal": "tension",
+        "alignment_score": 0.22,
+        "metadata": {"relational_coherence": 0.28},
+    }
+
+    output = agent._build_output(
+        item,
+        final_output="ok",
+        generation_time=0.01,
+        cycle_id="cid-history-escalate",
+    )
+
+    policy = output["relational_policy_decision"]
+    assert policy["policy_state"] == "escalate"
+    assert policy["review_attention_required"] is True
+    assert policy["escalation_required"] is True
+    assert policy["adverse_match_count"] >= 2

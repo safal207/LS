@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT_DIR = ROOT / "artifacts" / "council-ledger"
 DEFAULT_OUTPUT_PATH = ROOT / "ghostgpt-ls-landing" / "src" / "data" / "councilScorecard.json"
+RELATIONAL_EDGE_UPDATE_DIR = ROOT / "artifacts" / "relational-edge-updates"
 
 
 def parse_iso(value: object) -> datetime | None:
@@ -58,6 +59,21 @@ def load_ledgers(input_dir: Path) -> list[dict]:
     return rows
 
 
+def load_relational_edge_updates(input_dir: Path = RELATIONAL_EDGE_UPDATE_DIR) -> dict[str, dict]:
+    rows: dict[str, dict] = {}
+    if not input_dir.exists():
+        return rows
+    for path in sorted(input_dir.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        cycle_id = str(payload.get("cycle_id") or "")
+        if cycle_id:
+            rows[cycle_id] = payload
+    return rows
+
+
 def classify_row(row: dict) -> str:
     cycle_id = str(row.get("cycle_id") or "")
     best = normalize_model_label((row.get("attribution") or {}).get("best_contributor_model_id"))
@@ -82,6 +98,7 @@ def select_rows(rows: list[dict]) -> tuple[list[dict], str]:
 
 
 def build_scorecard(rows: list[dict]) -> dict:
+    edge_updates = load_relational_edge_updates()
     generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     selected_rows, source = select_rows(rows)
     if not selected_rows:
@@ -120,12 +137,17 @@ def build_scorecard(rows: list[dict]) -> dict:
     route_wins: Counter[str] = Counter()
     resonance_series: list[dict] = []
     merit_series: list[dict] = []
+    policy_state_split: Counter[str] = Counter()
     successes: list[float] = []
     resonances: list[float] = []
     merits: list[float] = []
+    latest_policy_state = "n/a"
+    policy_escalations = 0
     for index, row in enumerate(selected_rows, start=1):
         outcome = row.get("outcome", {})
         attribution = row.get("attribution", {})
+        edge = edge_updates.get(str(row.get("cycle_id") or ""))
+        policy = (edge or {}).get("relational_policy_decision") or {}
         participants = row.get("participants", [])
         participant_types = {
             normalize_model_label(item.get("model_id")): str(item.get("model_type") or "unknown")
@@ -150,6 +172,11 @@ def build_scorecard(rows: list[dict]) -> dict:
         successes.append(success)
         resonances.append(resonance)
         merits.append(merit)
+        state = str(policy.get("policy_state") or "continue")
+        policy_state_split[state] += 1
+        latest_policy_state = state
+        if state == "escalate":
+            policy_escalations += 1
     type_lift = {key: round(avg(values), 4) for key, values in type_totals.items()}
     top_contributor = best_counts.most_common(1)[0][0] if best_counts else "n/a"
     takeaways = {
@@ -170,11 +197,14 @@ def build_scorecard(rows: list[dict]) -> dict:
             "success_rate": round(avg(successes) * 100.0, 2),
             "avg_resonance": round(avg(resonances) * 100.0, 2),
             "avg_merit": round(avg(merits) * 100.0, 2),
+            "latest_policy_state": latest_policy_state,
+            "policy_escalations": policy_escalations,
         },
         "bars": {
             "best_contributor_frequency": [{"label": key, "value": value} for key, value in best_counts.items()],
             "model_type_lift": [{"label": key, "value": value} for key, value in type_lift.items()],
             "route_wins": [{"label": key, "value": value} for key, value in route_wins.items()],
+            "policy_state_split": [{"label": key, "value": value} for key, value in policy_state_split.items()],
         },
         "lines": {
             "resonance_trend": resonance_series,

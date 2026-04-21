@@ -28,6 +28,7 @@ ARTIFACTS_DIR = ROOT / "artifacts"
 QUALITY_DIR = ARTIFACTS_DIR / "quality"
 QUALITY_REPORT_PATH = ARTIFACTS_DIR / "quality-report.json"
 COUNCIL_LEDGER_DIR = ARTIFACTS_DIR / "council-ledger"
+RELATIONAL_EDGE_UPDATE_DIR = ARTIFACTS_DIR / "relational-edge-updates"
 DOCS_BASE_URL = "https://github.com/safal207/LS/blob/main/docs"
 COUNCIL_CYCLE_TIMEOUT_SECONDS = 45
 FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#161311"/><path d="M16 47V17h8v23h20v7H16zm17-8 9-22h8L40 39h-7z" fill="#fffaf1"/></svg>'
@@ -418,6 +419,21 @@ def council_ledgers() -> list[dict]:
     return rows
 
 
+def relational_edge_updates() -> dict[str, dict]:
+    rows: dict[str, dict] = {}
+    if not RELATIONAL_EDGE_UPDATE_DIR.exists():
+        return rows
+    for path in sorted(RELATIONAL_EDGE_UPDATE_DIR.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        cycle_id = str(payload.get("cycle_id") or "")
+        if cycle_id:
+            rows[cycle_id] = payload
+    return rows
+
+
 def avg(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
@@ -428,6 +444,7 @@ def clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
 
 def build_council_analytics() -> dict:
     rows = council_ledgers()
+    edge_updates = relational_edge_updates()
     if not rows:
         return {
             "ledgers": 0,
@@ -435,6 +452,8 @@ def build_council_analytics() -> dict:
             "success_rate": 0.0,
             "avg_resonance": 0.0,
             "avg_merit": 0.0,
+            "latest_policy_state": "n/a",
+            "policy_escalations": 0,
             "empty": True,
             "how_to_generate": [
                 "Run a real coordination cycle through ResonanceAgent.",
@@ -455,12 +474,16 @@ def build_council_analytics() -> dict:
     quality_series: list[dict] = []
     network_series: list[dict] = []
     merit_series: list[dict] = []
+    policy_state_counts: Counter[str] = Counter()
     successes: list[float] = []
     resonances: list[float] = []
     merits: list[float] = []
+    latest_policy_state = "n/a"
     for row in rows:
         outcome = row.get("outcome", {})
         attribution = row.get("attribution", {})
+        edge = edge_updates.get(str(row.get("cycle_id") or ""))
+        policy = (edge or {}).get("relational_policy_decision") or {}
         participants = row.get("participants", [])
         participant_types = {str(item.get("model_id")): str(item.get("model_type") or "unknown") for item in participants}
         best = str(attribution.get("best_contributor_model_id") or "n/a")
@@ -484,6 +507,9 @@ def build_council_analytics() -> dict:
         successes.append(success)
         resonances.append(resonance)
         merits.append(merit)
+        state = str(policy.get("policy_state") or "continue")
+        policy_state_counts[state] += 1
+        latest_policy_state = state
     type_lift = {key: round(avg(values), 4) for key, values in type_totals.items()}
     return {
         "ledgers": len(rows),
@@ -491,12 +517,15 @@ def build_council_analytics() -> dict:
         "success_rate": round(avg(successes) * 100.0, 2),
         "avg_resonance": round(avg(resonances) * 100.0, 2),
         "avg_merit": round(avg(merits) * 100.0, 2),
+        "latest_policy_state": latest_policy_state,
+        "policy_escalations": policy_state_counts.get("escalate", 0),
         "empty": False,
         "charts": {
             "bestContributorFrequency": [{"label": key, "value": value} for key, value in best_counts.items()],
             "cumulativeContribution": [{"label": key, "value": round(value, 4)} for key, value in contribution_totals.items()],
             "modelTypeLift": [{"label": key, "value": value} for key, value in type_lift.items()],
             "routeWins": [{"label": key, "value": value} for key, value in route_wins.items()],
+            "policyStateSplit": [{"label": key, "value": value} for key, value in policy_state_counts.items()],
             "receiverResonanceTrend": resonance_series,
             "qualityScoreTrend": quality_series,
             "networkImprovementTrend": network_series,

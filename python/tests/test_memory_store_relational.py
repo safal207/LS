@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from graph.memory_store import MemoryGraphStore
+from graph.memory_store import MemoryGraphStore, build_relational_edge_update_preview
 from graph.models import RelationalFieldSnapshot, ResonanceKnowledgeUnit
 
 
@@ -65,3 +65,127 @@ def test_memory_store_relational_does_not_mix_with_resonance_units(tmp_path) -> 
 
     assert len(store.list_relational_snapshots()) == 1
     assert len(store.list_resonance_units()) == 1
+
+
+def test_build_relational_edge_update_preview_is_deterministic_and_bounded() -> None:
+    first = build_relational_edge_update_preview(
+        strength_before=0.61,
+        review_decision="rejected",
+        incident_published=True,
+        receiver_resonance_score=0.22,
+        relational_coherence=0.18,
+    )
+    second = build_relational_edge_update_preview(
+        strength_before=0.61,
+        review_decision="rejected",
+        incident_published=True,
+        receiver_resonance_score=0.22,
+        relational_coherence=0.18,
+    )
+
+    assert first == second
+    assert first["strength_before"] == 0.61
+    assert 0.0 <= first["strength_after"] <= 1.0
+    assert first["strength_after"] < first["strength_before"]
+    assert first["reason_codes"] == [
+        "rejected_review",
+        "incident_published",
+        "low_receiver_resonance",
+        "low_relational_coherence",
+    ]
+    assert first["review_attention_required"] is True
+    assert first["route_guidance"] == "validate_current_route"
+
+
+def test_memory_store_preview_relational_edge_update_uses_shared_rule(tmp_path) -> None:
+    store = MemoryGraphStore(tmp_path / "cases.jsonl")
+
+    preview = store.preview_relational_edge_update(
+        strength_before=0.33,
+        review_decision="approved",
+        incident_published=False,
+        receiver_resonance_score=0.9,
+        relational_coherence=0.82,
+    )
+
+    assert preview["strength_before"] == 0.33
+    assert preview["strength_after"] > preview["strength_before"]
+    assert preview["reason_codes"] == [
+        "approved_review",
+        "high_receiver_resonance",
+    ]
+    assert preview["review_attention_required"] is False
+    assert preview["route_guidance"] == "continue_current_route"
+
+
+def test_memory_store_relational_edge_updates_persist_and_lookup_latest(tmp_path) -> None:
+    store = MemoryGraphStore(tmp_path / "cases.jsonl")
+
+    store.store_relational_edge_update(
+        {
+            "cycle_id": "cid-1",
+            "pattern_key": "tension",
+            "selected_route": "r1",
+            "strength_before": 0.4,
+            "strength_after": 0.33,
+            "reason_codes": ["rejected_review"],
+        }
+    )
+    latest = store.store_relational_edge_update(
+        {
+            "cycle_id": "cid-2",
+            "pattern_key": "tension",
+            "selected_route": "r1",
+            "strength_before": 0.33,
+            "strength_after": 0.41,
+            "reason_codes": ["approved_review"],
+        }
+    )
+
+    updates = store.list_relational_edge_updates()
+    assert len(updates) == 2
+    assert latest["timestamp"]
+    assert (
+        store.get_latest_relational_edge_strength(
+            pattern_key="tension",
+            selected_route="r1",
+        )
+        == 0.41
+    )
+
+
+def test_memory_store_relational_edge_strength_lookup_is_scoped_by_pattern_and_route(
+    tmp_path,
+) -> None:
+    store = MemoryGraphStore(tmp_path / "cases.jsonl")
+    store.store_relational_edge_update(
+        {
+            "cycle_id": "cid-a",
+            "pattern_key": "tension",
+            "selected_route": "r1",
+            "strength_after": 0.22,
+        }
+    )
+    store.store_relational_edge_update(
+        {
+            "cycle_id": "cid-b",
+            "pattern_key": "alignment",
+            "selected_route": "r1",
+            "strength_after": 0.77,
+        }
+    )
+
+    assert (
+        store.get_latest_relational_edge_strength(
+            pattern_key="tension",
+            selected_route="r1",
+        )
+        == 0.22
+    )
+    assert (
+        store.get_latest_relational_edge_strength(
+            pattern_key="alignment",
+            selected_route="r1",
+        )
+        == 0.77
+    )

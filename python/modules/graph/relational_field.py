@@ -7,6 +7,32 @@ from uuid import uuid4
 from .models import RelationalFieldSnapshot
 
 
+def compute_relational_coherence(
+    *,
+    tension_score: float,
+    alignment_score: float,
+    foreground: list[str] | None = None,
+    background: list[str] | None = None,
+) -> float:
+    """Estimate how internally coherent the interaction field currently is.
+
+    Higher coherence means the field is less conflicted, more aligned, and less
+    noisy across foreground/background signals.
+    """
+
+    tension = max(0.0, min(1.0, float(tension_score or 0.0)))
+    alignment = max(0.0, min(1.0, float(alignment_score or 0.0)))
+    foreground_count = len(foreground or [])
+    background_count = len(background or [])
+
+    balance_penalty = abs(tension - alignment) * 0.25
+    signal_penalty = min(0.2, (foreground_count * 0.04) + (background_count * 0.03))
+    coherence = (alignment * 0.6) + ((1.0 - tension) * 0.4)
+    coherence -= balance_penalty
+    coherence -= signal_penalty
+    return round(max(0.0, min(1.0, coherence)), 3)
+
+
 class RelationalFieldAnalyzer:
     """Heuristic-only analyzer for interaction field signals.
 
@@ -110,6 +136,12 @@ class RelationalFieldAnalyzer:
             foreground=foreground,
             background=background,
         )
+        relational_coherence = compute_relational_coherence(
+            tension_score=tension_score,
+            alignment_score=alignment_score,
+            foreground=foreground,
+            background=background,
+        )
         notes = self._build_notes(
             tension_score=tension_score,
             alignment_score=alignment_score,
@@ -132,6 +164,7 @@ class RelationalFieldAnalyzer:
             metadata={
                 "heuristic_version": "mvp-v1",
                 "text_length": len(raw),
+                "relational_coherence": relational_coherence,
                 "context": dict(context or {}),
             },
         )
@@ -200,4 +233,8 @@ class RelationalFieldAnalyzer:
         )
 
 
-__all__ = ["RelationalFieldSnapshot", "RelationalFieldAnalyzer"]
+__all__ = [
+    "RelationalFieldSnapshot",
+    "RelationalFieldAnalyzer",
+    "compute_relational_coherence",
+]
