@@ -40,7 +40,16 @@ Short version:
 
 See:
 - [`docs/positioning/personal-ai-operating-layer.md`](docs/positioning/personal-ai-operating-layer.md)
+- [`docs/personal-agent-gateway-runtime.md`](docs/personal-agent-gateway-runtime.md)
 - [`docs/harmonic-state-model-mvp.md`](docs/harmonic-state-model-mvp.md)
+
+Current runtime contract now exposes:
+
+- `raw_agent_output`
+- `final_output`
+- `personal_agent_gateway`
+- `gateway_mode`
+- `gateway_reason`
 
 ---
 

@@ -50,7 +50,7 @@ Instead of letting each new model redefine the workflow, LS turns many agents in
 
 ## Agent gateway pattern
 
-The long-term product pattern is:
+The product pattern is now live in the runtime:
 
 1. An external agent receives a task.
 2. The raw result is routed through LS.
@@ -61,6 +61,24 @@ The long-term product pattern is:
    - `repair_before_send`
    - `hold_or_escalate`
 5. The operator receives the improved result together with traces and review context.
+
+## Current runtime status
+
+This is no longer only positioning. The runtime now emits and preserves:
+
+- `raw_agent_output` before shaping,
+- `final_output` after the personal layer,
+- `personal_agent_gateway` with the selected mode and bounded reason,
+- gateway metrics for observability,
+- gateway traces inside quality, relational episode, and relation memory artifacts.
+
+The gateway now runs on full context before delivery:
+
+- alignment/playbook support,
+- coordination advisory,
+- harmonic state,
+- relational policy,
+- relation-memory evidence for repeated bad patterns.
 
 ## Why Harmonic State Model matters
 
@@ -79,11 +97,11 @@ That makes the personal layer better at both response shaping and architectural 
 
 The next product steps are:
 
-1. expose the personal-layer story directly in the landing page and README;
-2. route external agents through a single gateway;
-3. compare raw agent output with post-LS output;
-4. surface harmonic state in dashboards and runtime views;
-5. use real operator runs to decide where shaping should become policy.
+1. compare raw agent output with post-LS output in more dashboards and review surfaces;
+2. route external agents through one explicit gateway entrypoint instead of only internal runtime paths;
+3. surface gateway mode and harmonic state directly in dashboards and runtime views;
+4. collect real operator examples to tune where shaping should stay advisory and where it should become policy;
+5. expand hold/repair behavior into a cleaner external-agent integration contract.
 
 ## Short positioning
 

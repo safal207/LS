@@ -634,6 +634,24 @@ except ImportError:
         _build_harmonic_state_summary = None  # type: ignore[assignment]
 
 try:
+    from agent.personal_agent_gateway import (
+        PersonalAgentGatewayMetrics as _PersonalAgentGatewayMetrics,
+        build_personal_agent_gateway_decision as _build_personal_agent_gateway_decision,
+    )
+    _PERSONAL_AGENT_GATEWAY_OK = True
+except ImportError:
+    try:
+        from modules.agent.personal_agent_gateway import (
+            PersonalAgentGatewayMetrics as _PersonalAgentGatewayMetrics,
+            build_personal_agent_gateway_decision as _build_personal_agent_gateway_decision,
+        )
+        _PERSONAL_AGENT_GATEWAY_OK = True
+    except ImportError:
+        _PERSONAL_AGENT_GATEWAY_OK = False
+        _PersonalAgentGatewayMetrics = None  # type: ignore[assignment,misc]
+        _build_personal_agent_gateway_decision = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -1045,6 +1063,11 @@ class ResonanceAgent:
         self._harmonic_state_metrics = (
             _HarmonicStateMetrics()
             if _HARMONIC_STATE_MODEL_OK and _HarmonicStateMetrics
+            else None
+        )
+        self._personal_agent_gateway_metrics = (
+            _PersonalAgentGatewayMetrics()
+            if _PERSONAL_AGENT_GATEWAY_OK and _PersonalAgentGatewayMetrics
             else None
         )
 
@@ -2086,6 +2109,280 @@ class ResonanceAgent:
             return {"harmonic_state_model_available": False}
         return self._harmonic_state_metrics.to_dict()
 
+    def _public_personal_agent_gateway(self, gateway: dict[str, Any] | None) -> dict[str, Any]:
+        payload = dict(gateway or {})
+        payload.pop("delivered_output", None)
+        return payload
+
+    def _has_personal_agent_signal(self, item: dict[str, Any]) -> bool:
+        relational_field = item.get("_relational_field")
+        relational_field_source = str(item.get("_relational_field_source") or "external")
+        if (
+            isinstance(relational_field, dict)
+            and bool(relational_field)
+            and relational_field_source != "derived"
+        ):
+            return True
+
+        alignment_report = item.get("_alignment_report")
+        if not isinstance(alignment_report, dict):
+            return False
+
+        return any(
+            bool(alignment_report.get(key))
+            for key in (
+                "pairwise_hotspots",
+                "mismatch_reasons",
+                "participants",
+                "requires_softening",
+                "requires_grounding",
+            )
+        )
+
+    def get_personal_agent_gateway_decision(
+        self,
+        item: dict[str, Any],
+        *,
+        raw_output: str,
+        coordination_advisory_summary: dict[str, Any] | None = None,
+        harmonic_state_summary: dict[str, Any] | None = None,
+        relational_policy_decision: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build deterministic personal-layer output gating over raw agent output."""
+        if not (_PERSONAL_AGENT_GATEWAY_OK and _build_personal_agent_gateway_decision):
+            return {
+                "gateway_mode": "pass_through",
+                "quality_posture": "insufficient_context",
+                "transformation_label": "none",
+                "delivered_output": str(raw_output or ""),
+                "delivered_output_changed": False,
+                "shaping_applied": False,
+                "repair_required": False,
+                "escalation_required": False,
+                "hold_required": False,
+                "coordination_advisory_label": "insufficient_context",
+                "harmonic_center": "insufficient_context",
+                "harmonic_interval_label": "unknown",
+                "resolution_direction": "unknown",
+                "raw_output_excerpt": str(raw_output or "")[:160],
+                "delivered_output_excerpt": str(raw_output or "")[:160],
+                "gateway_reason": "personal gateway unavailable; raw output passed through",
+            }
+
+        copilot = item.get("_operator_response_output") or item.get("_copilot_output") or {}
+        summary = coordination_advisory_summary if isinstance(coordination_advisory_summary, dict) else {}
+        harmonic = harmonic_state_summary if isinstance(harmonic_state_summary, dict) else {}
+        relational = relational_policy_decision if isinstance(relational_policy_decision, dict) else {}
+        has_personal_signal = bool(item.get("_personal_agent_signal_present"))
+        if "_personal_agent_signal_present" not in item:
+            has_personal_signal = self._has_personal_agent_signal(item)
+            item["_personal_agent_signal_present"] = has_personal_signal
+        if not has_personal_signal:
+            memory_context = (relational.get("memory_context") or {}) if relational else {}
+            relational_override = (
+                bool(relational.get("requires_human_review"))
+                or str(relational.get("risk_state") or "") == "escalate"
+                or bool(memory_context.get("policy_adjusted"))
+            )
+            if not relational_override:
+                return {
+                    "gateway_mode": "pass_through",
+                    "quality_posture": "insufficient_context",
+                    "transformation_label": "none",
+                    "delivered_output": str(raw_output or ""),
+                    "delivered_output_changed": False,
+                    "shaping_applied": False,
+                    "repair_required": False,
+                    "escalation_required": False,
+                    "hold_required": False,
+                    "coordination_advisory_label": str(summary.get("coordination_advisory_label") or "insufficient_context"),
+                    "harmonic_center": str(harmonic.get("harmonic_center") or "insufficient_context"),
+                    "harmonic_interval_label": str(harmonic.get("harmonic_interval_label") or "unknown"),
+                    "resolution_direction": str(harmonic.get("resolution_direction") or "unknown"),
+                    "raw_output_excerpt": str(raw_output or "")[:160],
+                    "delivered_output_excerpt": str(raw_output or "")[:160],
+                    "gateway_reason": (
+                        "gateway passed the output through because the personal layer has no explicit relational or "
+                        "alignment signals yet"
+                    )[:140],
+                }
+        if not relational:
+            relational_summary = self._build_relational_quality_summary((item or {}).get("_relational_field"))
+            if relational_summary is not None:
+                relational = self._build_relation_risk_summary(
+                    relational_summary,
+                    memory_context=self._build_preroute_relation_memory_context(
+                        item=item,
+                        relational_summary=relational_summary,
+                    ),
+                )
+                item["_relational_policy_decision"] = relational
+
+        decision = _build_personal_agent_gateway_decision(
+            raw_output=str(raw_output or ""),
+            copilot_pre_prompt=str(copilot.get("pre_prompt") or ""),
+            coordination_advisory_summary=summary,
+            harmonic_state_summary=harmonic,
+            relational_policy_decision=relational,
+        )
+        payload = decision.to_dict()
+
+        m = self._personal_agent_gateway_metrics
+        if m is not None:
+            m.calls_total += 1
+            m.decisions_total += 1
+            mode = str(payload.get("gateway_mode") or "")
+            if mode == "pass_through":
+                m.pass_through_total += 1
+            elif mode == "shape_response":
+                m.shape_response_total += 1
+            elif mode == "repair_before_send":
+                m.repair_before_send_total += 1
+            elif mode == "hold_or_escalate":
+                m.hold_or_escalate_total += 1
+
+            if bool(payload.get("delivered_output_changed")):
+                m.delivered_changed_total += 1
+            if bool(payload.get("escalation_required")):
+                m.escalation_required_total += 1
+            if bool(payload.get("repair_required")):
+                m.repair_required_total += 1
+
+            m._raw_excerpt_len_sum += len(str(payload.get("raw_output_excerpt") or ""))
+            m._delivered_excerpt_len_sum += len(str(payload.get("delivered_output_excerpt") or ""))
+
+        return payload
+
+    def get_personal_agent_gateway_metrics(self) -> dict[str, Any]:
+        """Return observability counters for personal gateway decisions."""
+        if self._personal_agent_gateway_metrics is None:
+            return {"personal_agent_gateway_available": False}
+        return self._personal_agent_gateway_metrics.to_dict()
+
+    def _prime_personal_agent_gateway_context(self, item: dict[str, Any]) -> dict[str, Any]:
+        """Precompute the personal-layer context once so delivery uses full signals."""
+        item["_personal_agent_signal_present"] = self._has_personal_agent_signal(item)
+        strategy_recs = item.get("_alignment_strategy_recommendations")
+        if not isinstance(strategy_recs, list):
+            strategy_recs = self.get_alignment_strategy_recommendations(item)
+            item["_alignment_strategy_recommendations"] = strategy_recs
+
+        strategy_calibration_summary = item.get("_strategy_calibration_summary")
+        if not isinstance(strategy_calibration_summary, dict):
+            strategy_calibration_summary = self.get_strategy_calibration_summary()
+            item["_strategy_calibration_summary"] = strategy_calibration_summary
+
+        strategy_playbook = item.get("_alignment_strategy_playbook")
+        if not isinstance(strategy_playbook, dict):
+            strategy_playbook = self.build_alignment_strategy_playbook(
+                item,
+                strategy_recs,
+                calibration_summary=strategy_calibration_summary,
+            )
+            item["_alignment_strategy_playbook"] = strategy_playbook
+
+        adoption_traces_snapshot = item.get("_recommendation_adoption_traces_snapshot")
+        if not isinstance(adoption_traces_snapshot, list):
+            adoption_traces_snapshot = self.get_recommendation_adoption_traces()
+            item["_recommendation_adoption_traces_snapshot"] = adoption_traces_snapshot
+
+        multi_party_state = item.get("_multi_party_alignment_state")
+        if not isinstance(multi_party_state, dict):
+            multi_party_state = self.get_multi_party_alignment_state(
+                item,
+                adoption_traces=adoption_traces_snapshot,
+            )
+            item["_multi_party_alignment_state"] = multi_party_state
+
+        bridge_graph = item.get("_bridge_graph_state")
+        if not isinstance(bridge_graph, dict):
+            bridge_graph = self.get_bridge_graph_state(
+                item,
+                multi_party_state=multi_party_state,
+            )
+            item["_bridge_graph_state"] = bridge_graph
+
+        bridge_stabilization_order = item.get("_bridge_stabilization_order")
+        if not isinstance(bridge_stabilization_order, dict):
+            bridge_stabilization_order = self.get_bridge_stabilization_order(
+                item,
+                bridge_graph_state=bridge_graph,
+                multi_party_state=multi_party_state,
+            )
+            item["_bridge_stabilization_order"] = bridge_stabilization_order
+
+        collective_coordination_snapshot = item.get("_collective_coordination_snapshot")
+        if not isinstance(collective_coordination_snapshot, dict):
+            collective_coordination_snapshot = self.get_collective_coordination_snapshot(
+                item,
+                multi_party_state=multi_party_state,
+                bridge_graph_state=bridge_graph,
+                bridge_stabilization_order=bridge_stabilization_order,
+            )
+            item["_collective_coordination_snapshot"] = collective_coordination_snapshot
+
+        bridge_playbook_advisory = item.get("_bridge_playbook_advisory")
+        if not isinstance(bridge_playbook_advisory, dict):
+            bridge_playbook_advisory = self.get_bridge_playbook_advisory(
+                item,
+                playbook=strategy_playbook,
+                bridge_graph_state=bridge_graph,
+                bridge_stabilization_order=bridge_stabilization_order,
+                collective_snapshot=collective_coordination_snapshot,
+            )
+            item["_bridge_playbook_advisory"] = bridge_playbook_advisory
+
+        coordination_advisory_summary = item.get("_coordination_advisory_summary")
+        if not isinstance(coordination_advisory_summary, dict):
+            coordination_advisory_summary = self.get_coordination_advisory_summary(
+                item,
+                collective_coordination_snapshot=collective_coordination_snapshot,
+                bridge_stabilization_order=bridge_stabilization_order,
+                bridge_playbook_advisory=bridge_playbook_advisory,
+            )
+            item["_coordination_advisory_summary"] = coordination_advisory_summary
+
+        harmonic_state_summary = item.get("_harmonic_state_summary")
+        if not isinstance(harmonic_state_summary, dict):
+            harmonic_state_summary = self.get_harmonic_state_summary(
+                item,
+                collective_coordination_snapshot=collective_coordination_snapshot,
+                bridge_stabilization_order=bridge_stabilization_order,
+                bridge_playbook_advisory=bridge_playbook_advisory,
+                coordination_advisory_summary=coordination_advisory_summary,
+            )
+            item["_harmonic_state_summary"] = harmonic_state_summary
+
+        relational_policy_decision = item.get("_relational_policy_decision")
+        if not isinstance(relational_policy_decision, dict):
+            relational_summary = self._build_relational_quality_summary(item.get("_relational_field"))
+            relational_policy_decision = (
+                self._build_relation_risk_summary(
+                    relational_summary,
+                    memory_context=self._build_preroute_relation_memory_context(
+                        item=item,
+                        relational_summary=relational_summary,
+                    ),
+                )
+                if relational_summary is not None
+                else {}
+            )
+            item["_relational_policy_decision"] = relational_policy_decision
+
+        return {
+            "strategy_recommendations": strategy_recs,
+            "strategy_calibration_summary": strategy_calibration_summary,
+            "strategy_playbook": strategy_playbook,
+            "multi_party_alignment_state": multi_party_state,
+            "bridge_graph_state": bridge_graph,
+            "bridge_stabilization_order": bridge_stabilization_order,
+            "collective_coordination_snapshot": collective_coordination_snapshot,
+            "bridge_playbook_advisory": bridge_playbook_advisory,
+            "coordination_advisory_summary": coordination_advisory_summary,
+            "harmonic_state_summary": harmonic_state_summary,
+            "relational_policy_decision": relational_policy_decision,
+        }
+
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
 
@@ -2279,6 +2576,7 @@ class ResonanceAgent:
                     },
                 )
                 item["_relational_field"] = snapshot.to_dict()
+                item["_relational_field_source"] = "derived"
                 if self._graph_runtime and hasattr(
                     self._graph_runtime, "remember_relational_snapshot"
                 ):
@@ -2500,6 +2798,19 @@ class ResonanceAgent:
                     self._llm_backend.primary = original_primary
                     self._llm_backend.fallback_chain = original_fallback or []
         generation_time = time.perf_counter() - t0
+
+        raw_agent_output = final_output
+        gateway_context = self._prime_personal_agent_gateway_context(item)
+        gateway_decision = self.get_personal_agent_gateway_decision(
+            item,
+            raw_output=raw_agent_output,
+            coordination_advisory_summary=gateway_context.get("coordination_advisory_summary"),
+            harmonic_state_summary=gateway_context.get("harmonic_state_summary"),
+            relational_policy_decision=gateway_context.get("relational_policy_decision"),
+        )
+        item["_raw_agent_output"] = raw_agent_output
+        item["_personal_agent_gateway"] = gateway_decision
+        final_output = str(gateway_decision.get("delivered_output") or raw_agent_output)
 
         # After LLM: update resonance_score with response quality signal
         base_score = item.get("_resonance_score", 0.5)
@@ -3173,59 +3484,125 @@ class ResonanceAgent:
             if graph_meta.get("mode") == "reuse"
             else f"{graph_meta.get('mode', 'full_run')}>{llm_meta.get('provider', 'unknown')}"
         )
+        raw_agent_output = str(item.get("_raw_agent_output") or final_output or "")
 
         # Strategy recommendations — computed once so feedback and adoption can share it
-        _strategy_recs = self.get_alignment_strategy_recommendations(item)
+        _strategy_recs = item.get("_alignment_strategy_recommendations")
+        if not isinstance(_strategy_recs, list):
+            _strategy_recs = self.get_alignment_strategy_recommendations(item)
+            item["_alignment_strategy_recommendations"] = _strategy_recs
         self._record_strategy_recommendations(_strategy_recs)
+        _strategy_calibration_summary = item.get("_strategy_calibration_summary")
+        if not isinstance(_strategy_calibration_summary, dict):
+            _strategy_calibration_summary = self.get_strategy_calibration_summary()
+            item["_strategy_calibration_summary"] = _strategy_calibration_summary
+        _strategy_playbook = item.get("_alignment_strategy_playbook")
+        if not isinstance(_strategy_playbook, dict):
+            _strategy_playbook = self.build_alignment_strategy_playbook(
+                item, _strategy_recs, calibration_summary=_strategy_calibration_summary
+            )
+            item["_alignment_strategy_playbook"] = _strategy_playbook
+        # Multi-party alignment state snapshot (advisory, read-only)
+        _adoption_traces_snapshot = item.get("_recommendation_adoption_traces_snapshot")
+        if not isinstance(_adoption_traces_snapshot, list):
+            _adoption_traces_snapshot = self.get_recommendation_adoption_traces()
+            item["_recommendation_adoption_traces_snapshot"] = _adoption_traces_snapshot
+        _multi_party_state = item.get("_multi_party_alignment_state")
+        if not isinstance(_multi_party_state, dict):
+            _multi_party_state = self.get_multi_party_alignment_state(
+                item, adoption_traces=_adoption_traces_snapshot
+            )
+            item["_multi_party_alignment_state"] = _multi_party_state
+        # Bridge graph: structural relationship layer over multi-party state
+        _bridge_graph = item.get("_bridge_graph_state")
+        if not isinstance(_bridge_graph, dict):
+            _bridge_graph = self.get_bridge_graph_state(item, multi_party_state=_multi_party_state)
+            item["_bridge_graph_state"] = _bridge_graph
+        # Bridge stabilization: advisory ordering layer over bridge graph edges
+        _bridge_stabilization_order = item.get("_bridge_stabilization_order")
+        if not isinstance(_bridge_stabilization_order, dict):
+            _bridge_stabilization_order = self.get_bridge_stabilization_order(
+                item,
+                bridge_graph_state=_bridge_graph,
+                multi_party_state=_multi_party_state,
+            )
+            item["_bridge_stabilization_order"] = _bridge_stabilization_order
+        _collective_coordination_snapshot = item.get("_collective_coordination_snapshot")
+        if not isinstance(_collective_coordination_snapshot, dict):
+            _collective_coordination_snapshot = self.get_collective_coordination_snapshot(
+                item,
+                multi_party_state=_multi_party_state,
+                bridge_graph_state=_bridge_graph,
+                bridge_stabilization_order=_bridge_stabilization_order,
+            )
+            item["_collective_coordination_snapshot"] = _collective_coordination_snapshot
+        _bridge_playbook_advisory = item.get("_bridge_playbook_advisory")
+        if not isinstance(_bridge_playbook_advisory, dict):
+            _bridge_playbook_advisory = self.get_bridge_playbook_advisory(
+                item,
+                playbook=_strategy_playbook,
+                bridge_graph_state=_bridge_graph,
+                bridge_stabilization_order=_bridge_stabilization_order,
+                collective_snapshot=_collective_coordination_snapshot,
+            )
+            item["_bridge_playbook_advisory"] = _bridge_playbook_advisory
+        _coordination_advisory_summary = item.get("_coordination_advisory_summary")
+        if not isinstance(_coordination_advisory_summary, dict):
+            _coordination_advisory_summary = self.get_coordination_advisory_summary(
+                item,
+                collective_coordination_snapshot=_collective_coordination_snapshot,
+                bridge_stabilization_order=_bridge_stabilization_order,
+                bridge_playbook_advisory=_bridge_playbook_advisory,
+            )
+            item["_coordination_advisory_summary"] = _coordination_advisory_summary
+        _harmonic_state_summary = item.get("_harmonic_state_summary")
+        if not isinstance(_harmonic_state_summary, dict):
+            _harmonic_state_summary = self.get_harmonic_state_summary(
+                item,
+                collective_coordination_snapshot=_collective_coordination_snapshot,
+                bridge_stabilization_order=_bridge_stabilization_order,
+                bridge_playbook_advisory=_bridge_playbook_advisory,
+                coordination_advisory_summary=_coordination_advisory_summary,
+            )
+            item["_harmonic_state_summary"] = _harmonic_state_summary
+        _cached_personal_agent_gateway = item.get("_personal_agent_gateway")
+        if (
+            isinstance(_cached_personal_agent_gateway, dict)
+            and str(_cached_personal_agent_gateway.get("delivered_output") or "") == str(final_output or "")
+        ):
+            _personal_agent_gateway = dict(_cached_personal_agent_gateway)
+            _personal_agent_gateway["coordination_advisory_label"] = str(
+                _coordination_advisory_summary.get("coordination_advisory_label") or "insufficient_context"
+            )
+            _personal_agent_gateway["harmonic_center"] = str(
+                _harmonic_state_summary.get("harmonic_center") or "insufficient_context"
+            )
+            _personal_agent_gateway["harmonic_interval_label"] = str(
+                _harmonic_state_summary.get("harmonic_interval_label") or "unknown"
+            )
+            _personal_agent_gateway["resolution_direction"] = str(
+                _harmonic_state_summary.get("resolution_direction") or "unknown"
+            )
+        else:
+            _personal_agent_gateway = self.get_personal_agent_gateway_decision(
+                item,
+                raw_output=raw_agent_output,
+                coordination_advisory_summary=_coordination_advisory_summary,
+                harmonic_state_summary=_harmonic_state_summary,
+                relational_policy_decision=(
+                    item.get("_relational_policy_decision")
+                    if isinstance(item.get("_relational_policy_decision"), dict)
+                    else None
+                ),
+            )
+            item["_personal_agent_gateway"] = _personal_agent_gateway
+            final_output = str(_personal_agent_gateway.get("delivered_output") or final_output)
         self._record_strategy_adoption_traces(_strategy_recs, final_output)
         # Post-cycle feedback: advisory-only, appends to bounded session list
         self._record_strategy_outcome_feedback(_strategy_recs, alignment_outcome)
-        _strategy_calibration_summary = self.get_strategy_calibration_summary()
-        _strategy_playbook = self.build_alignment_strategy_playbook(
-            item, _strategy_recs, calibration_summary=_strategy_calibration_summary
-        )
         # Post-response adoption trace: checks recommended actions in final text
         self._record_recommendation_adoption_trace(
             _strategy_recs, final_output, alignment_outcome
-        )
-        # Multi-party alignment state snapshot (advisory, read-only)
-        _adoption_traces_snapshot = self.get_recommendation_adoption_traces()
-        _multi_party_state = self.get_multi_party_alignment_state(
-            item, adoption_traces=_adoption_traces_snapshot
-        )
-        # Bridge graph: structural relationship layer over multi-party state
-        _bridge_graph = self.get_bridge_graph_state(item, multi_party_state=_multi_party_state)
-        # Bridge stabilization: advisory ordering layer over bridge graph edges
-        _bridge_stabilization_order = self.get_bridge_stabilization_order(
-            item,
-            bridge_graph_state=_bridge_graph,
-            multi_party_state=_multi_party_state,
-        )
-        _collective_coordination_snapshot = self.get_collective_coordination_snapshot(
-            item,
-            multi_party_state=_multi_party_state,
-            bridge_graph_state=_bridge_graph,
-            bridge_stabilization_order=_bridge_stabilization_order,
-        )
-        _bridge_playbook_advisory = self.get_bridge_playbook_advisory(
-            item,
-            playbook=_strategy_playbook,
-            bridge_graph_state=_bridge_graph,
-            bridge_stabilization_order=_bridge_stabilization_order,
-            collective_snapshot=_collective_coordination_snapshot,
-        )
-        _coordination_advisory_summary = self.get_coordination_advisory_summary(
-            item,
-            collective_coordination_snapshot=_collective_coordination_snapshot,
-            bridge_stabilization_order=_bridge_stabilization_order,
-            bridge_playbook_advisory=_bridge_playbook_advisory,
-        )
-        _harmonic_state_summary = self.get_harmonic_state_summary(
-            item,
-            collective_coordination_snapshot=_collective_coordination_snapshot,
-            bridge_stabilization_order=_bridge_stabilization_order,
-            bridge_playbook_advisory=_bridge_playbook_advisory,
-            coordination_advisory_summary=_coordination_advisory_summary,
         )
         council_ledger = self._build_council_contribution_ledger(
             item=item,
@@ -3294,6 +3671,7 @@ class ResonanceAgent:
             "operator_profile": item.get("_operator_profile") or item.get("_interviewer_profile"),
             "interviewer_profile": item.get("_operator_profile") or item.get("_interviewer_profile"),
             # Output
+            "raw_agent_output": raw_agent_output,
             "final_output":    final_output,
             "generation_time": round(generation_time, 4),
             "llm_provider":    llm_meta.get("provider"),
@@ -3354,6 +3732,11 @@ class ResonanceAgent:
             "coordination_advisory_summary_metrics": self.get_coordination_advisory_summary_metrics(),
             "harmonic_state_summary": _harmonic_state_summary,
             "harmonic_state_metrics": self.get_harmonic_state_metrics(),
+            "personal_agent_gateway": self._public_personal_agent_gateway(_personal_agent_gateway),
+            "personal_agent_gateway_metrics": self.get_personal_agent_gateway_metrics(),
+            "gateway_mode": _personal_agent_gateway.get("gateway_mode"),
+            "gateway_reason": _personal_agent_gateway.get("gateway_reason"),
+            "gateway_delivered_output_changed": bool(_personal_agent_gateway.get("delivered_output_changed")),
             "council_contribution_ledger": (
                 council_ledger.to_dict() if council_ledger is not None else None
             ),
@@ -3707,6 +4090,9 @@ class ResonanceAgent:
             )
         path_meta = ((item or {}).get("_path_selection") or {}) if item is not None else {}
         route_memory_policy = path_meta.get("relation_memory_route_policy") or {}
+        personal_gateway = self._public_personal_agent_gateway(
+            ((item or {}).get("_personal_agent_gateway") or {}) if item is not None else {}
+        )
         return {
             "cycle_id": str(getattr(ledger, "cycle_id", "") or ""),
             "task_id": str(getattr(ledger, "task_id", "") or ""),
@@ -3764,6 +4150,7 @@ class ResonanceAgent:
             },
             "relational_field": relational,
             "operator_guidance": risk_summary,
+            "personal_agent_gateway": personal_gateway,
             "liminalqa": {
                 "published": False,
                 "status_code": None,
@@ -3837,6 +4224,7 @@ class ResonanceAgent:
                 (0.75 * float(quality_score)) + (0.25 * float(relational_summary["relation_safety_score"])),
                 4,
             )
+        personal_gateway = self._public_personal_agent_gateway((item or {}).get("_personal_agent_gateway") or {})
         return {
             "cycle_id": str(getattr(ledger, "cycle_id", "") or ""),
             "task_id": str(getattr(ledger, "task_id", "") or ""),
@@ -3863,6 +4251,7 @@ class ResonanceAgent:
             "relational_field": relational,
             "relational_summary": relational_summary,
             "operator_guidance": risk_summary,
+            "personal_agent_gateway": personal_gateway,
         }
 
     def _write_relational_episode_artifact(
@@ -3928,6 +4317,7 @@ class ResonanceAgent:
         resonance_bucket = (
             "low" if receiver_resonance < 0.35 else "mid" if receiver_resonance < 0.7 else "high"
         )
+        personal_gateway = self._public_personal_agent_gateway((item or {}).get("_personal_agent_gateway") or {})
         return {
             "cycle_id": str(getattr(ledger, "cycle_id", "") or ""),
             "task_id": str(getattr(ledger, "task_id", "") or ""),
@@ -3950,6 +4340,7 @@ class ResonanceAgent:
             "review_decision": review_decision,
             "incident_published": bool(((council_cel_sync or {}).get("incident") or {}).get("published", False)),
             "memory_context": memory_context,
+            "personal_agent_gateway": personal_gateway,
             "tags": [risk_state, dominant_signal, resonance_bucket, review_decision],
         }
 

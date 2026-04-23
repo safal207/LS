@@ -84,6 +84,25 @@ _ALLOWED_HARMONIC_MODULATION = {
     "repair",
     "unknown",
 }
+_ALLOWED_GATEWAY_MODES = {
+    "pass_through",
+    "shape_response",
+    "repair_before_send",
+    "hold_or_escalate",
+}
+_ALLOWED_GATEWAY_POSTURES = {
+    "aligned",
+    "fragile",
+    "repair",
+    "escalate",
+    "insufficient_context",
+}
+_ALLOWED_GATEWAY_TRANSFORMATIONS = {
+    "none",
+    "tonal_wrap",
+    "repair_wrap",
+    "hold_notice",
+}
 
 
 def _base_item() -> dict:
@@ -122,16 +141,34 @@ def test_coordination_output_contract_shape_enums_and_boundedness():
         "bridge_playbook_metrics",
         "harmonic_state_summary",
         "harmonic_state_metrics",
+        "raw_agent_output",
+        "personal_agent_gateway",
+        "personal_agent_gateway_metrics",
+        "gateway_mode",
+        "gateway_reason",
+        "gateway_delivered_output_changed",
     }
     assert required_top_level.issubset(output.keys())
 
-    for key in required_top_level:
+    for key in {
+        "collective_coordination_snapshot",
+        "collective_coordination_metrics",
+        "bridge_stabilization_order",
+        "bridge_stabilization_metrics",
+        "bridge_playbook_advisory",
+        "bridge_playbook_metrics",
+        "harmonic_state_summary",
+        "harmonic_state_metrics",
+        "personal_agent_gateway",
+        "personal_agent_gateway_metrics",
+    }:
         assert isinstance(output[key], dict)
 
     snapshot = output["collective_coordination_snapshot"]
     order = output["bridge_stabilization_order"]
     advisory = output["bridge_playbook_advisory"]
     harmonic = output["harmonic_state_summary"]
+    gateway = output["personal_agent_gateway"]
 
     assert {
         "coordination_state_label",
@@ -178,6 +215,24 @@ def test_coordination_output_contract_shape_enums_and_boundedness():
         "modulation_candidate",
         "harmonic_summary_reason",
     }.issubset(harmonic.keys())
+    assert {
+        "gateway_mode",
+        "quality_posture",
+        "transformation_label",
+        "delivered_output_changed",
+        "shaping_applied",
+        "repair_required",
+        "escalation_required",
+        "hold_required",
+        "coordination_advisory_label",
+        "harmonic_center",
+        "harmonic_interval_label",
+        "resolution_direction",
+        "raw_output_excerpt",
+        "delivered_output_excerpt",
+        "gateway_reason",
+    }.issubset(gateway.keys())
+    assert "delivered_output" not in gateway
 
     # Metrics: verify objects and critical stable keys.
     assert {"calls_total", "snapshots_total", "avg_coordination_risk"}.issubset(
@@ -192,6 +247,9 @@ def test_coordination_output_contract_shape_enums_and_boundedness():
     assert {"calls_total", "summaries_total", "avg_harmonic_tension"}.issubset(
         output["harmonic_state_metrics"].keys()
     )
+    assert {"calls_total", "decisions_total", "shape_response_total"}.issubset(
+        output["personal_agent_gateway_metrics"].keys()
+    )
 
     # Enum stability.
     assert snapshot["coordination_state_label"] in _ALLOWED_COORDINATION_STATE_LABELS
@@ -203,6 +261,21 @@ def test_coordination_output_contract_shape_enums_and_boundedness():
     assert harmonic["harmonic_interval_label"] in _ALLOWED_HARMONIC_INTERVALS
     assert harmonic["resolution_direction"] in _ALLOWED_HARMONIC_RESOLUTION
     assert harmonic["modulation_candidate"] in _ALLOWED_HARMONIC_MODULATION
+    assert output["gateway_mode"] in _ALLOWED_GATEWAY_MODES
+    assert gateway["gateway_mode"] in _ALLOWED_GATEWAY_MODES
+    assert gateway["quality_posture"] in _ALLOWED_GATEWAY_POSTURES
+    assert gateway["transformation_label"] in _ALLOWED_GATEWAY_TRANSFORMATIONS
+    assert gateway["coordination_advisory_label"] in {
+        "clear",
+        "watch",
+        "fragile",
+        "blocked",
+        "escalate",
+        "insufficient_context",
+    }
+    assert gateway["harmonic_center"] in _ALLOWED_HARMONIC_CENTERS
+    assert gateway["harmonic_interval_label"] in _ALLOWED_HARMONIC_INTERVALS
+    assert gateway["resolution_direction"] in _ALLOWED_HARMONIC_RESOLUTION
 
     # Boundedness and compact reasons.
     assert len(snapshot["top_bridge_candidates"]) <= 3
@@ -216,6 +289,10 @@ def test_coordination_output_contract_shape_enums_and_boundedness():
     assert isinstance(order["summary_reason"], str) and 0 < len(order["summary_reason"]) <= 140
     assert isinstance(advisory["summary_reason"], str) and 0 < len(advisory["summary_reason"]) <= 140
     assert isinstance(harmonic["harmonic_summary_reason"], str) and 0 < len(harmonic["harmonic_summary_reason"]) <= 140
+    assert isinstance(output["gateway_reason"], str) and 0 < len(output["gateway_reason"]) <= 140
+    assert isinstance(gateway["gateway_reason"], str) and 0 < len(gateway["gateway_reason"]) <= 140
+    assert isinstance(output["raw_agent_output"], str)
+    assert isinstance(output["gateway_delivered_output_changed"], bool)
 
 
 def test_coordination_output_contract_graceful_fallback_empty_shape():
@@ -229,11 +306,14 @@ def test_coordination_output_contract_graceful_fallback_empty_shape():
     assert isinstance(output["collective_coordination_snapshot"], dict)
     assert isinstance(output["bridge_stabilization_order"], dict)
     assert isinstance(output["bridge_playbook_advisory"], dict)
+    assert isinstance(output["personal_agent_gateway"], dict)
+    assert isinstance(output["personal_agent_gateway_metrics"], dict)
 
     snapshot = output["collective_coordination_snapshot"]
     order = output["bridge_stabilization_order"]
     advisory = output["bridge_playbook_advisory"]
     harmonic = output["harmonic_state_summary"]
+    gateway = output["personal_agent_gateway"]
 
     # Fallback enums remain valid, with bounded empty arrays.
     assert snapshot["coordination_state_label"] in _ALLOWED_COORDINATION_STATE_LABELS
@@ -245,6 +325,9 @@ def test_coordination_output_contract_graceful_fallback_empty_shape():
     assert harmonic["harmonic_interval_label"] in _ALLOWED_HARMONIC_INTERVALS
     assert harmonic["resolution_direction"] in _ALLOWED_HARMONIC_RESOLUTION
     assert harmonic["modulation_candidate"] in _ALLOWED_HARMONIC_MODULATION
+    assert output["gateway_mode"] in _ALLOWED_GATEWAY_MODES
+    assert gateway["gateway_mode"] in _ALLOWED_GATEWAY_MODES
+    assert gateway["quality_posture"] in _ALLOWED_GATEWAY_POSTURES
 
     assert snapshot["top_bridge_candidates"] == []
     assert snapshot["top_stabilization_edges"] == []
@@ -252,6 +335,9 @@ def test_coordination_output_contract_graceful_fallback_empty_shape():
     assert advisory["step_links"] == []
     assert advisory["top_supported_steps"] == []
     assert advisory["top_weak_steps"] == []
+    assert output["raw_agent_output"] == ""
+    assert gateway["raw_output_excerpt"] == ""
+    assert gateway["delivered_output_excerpt"] == ""
 
 
 def test_build_output_emits_council_ledger_artifact(tmp_path):
@@ -333,6 +419,14 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
         cycle_id="cid-ledger",
     )
 
+    assert output["raw_agent_output"] == "We both want a safe path and common ground before action."
+    assert output["gateway_mode"] == "repair_before_send"
+    assert output["gateway_delivered_output_changed"] is True
+    assert output["personal_agent_gateway"]["gateway_mode"] == "repair_before_send"
+    assert output["personal_agent_gateway"]["repair_required"] is True
+    assert output["personal_agent_gateway"]["transformation_label"] == "repair_wrap"
+    assert "delivered_output" not in output["personal_agent_gateway"]
+
     artifact_path = output["council_contribution_ledger_artifact"]
     assert artifact_path is not None
     artifact = Path(artifact_path)
@@ -371,6 +465,8 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert relational_episode_payload["operator_guidance"]["approval_posture"] == "hold_and_repair"
     assert relational_episode_payload["operator_guidance"]["route_strategy"] == "repair_then_reroute"
     assert relational_episode_payload["operator_guidance"]["rerun_required"] is True
+    assert relational_episode_payload["personal_agent_gateway"]["gateway_mode"] == "repair_before_send"
+    assert relational_episode_payload["personal_agent_gateway"]["repair_required"] is True
 
     relation_memory_artifact_path = output["relation_memory_artifact"]
     assert relation_memory_artifact_path is not None
@@ -382,6 +478,7 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert relation_memory_payload["risk_state"] == "repair"
     assert relation_memory_payload["dominant_signal"] == "tension"
     assert relation_memory_payload["pattern_key"].startswith("repair:tension:")
+    assert relation_memory_payload["personal_agent_gateway"]["gateway_mode"] == "repair_before_send"
 
     quality_artifact_path = output["council_quality_artifact"]
     assert quality_artifact_path is not None
@@ -412,6 +509,8 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     assert quality_payload["council_outcome"]["safety_mode"] == "repair_first"
     assert quality_payload["council_outcome"]["route_memory_adjusted"] is False
     assert quality_payload["council_outcome"]["route_memory_match_count"] == 0
+    assert quality_payload["personal_agent_gateway"]["gateway_mode"] == "repair_before_send"
+    assert quality_payload["personal_agent_gateway"]["repair_required"] is True
     assert quality_payload["attribution"]["best_contributor_model_id"] != "n/a"
     assert len(quality_payload["cel"]["contribution_records"]) >= 1
     assert len(quality_payload["cel"]["reputation_updates"]) >= 1
@@ -481,3 +580,5 @@ def test_relation_memory_can_escalate_repeated_bad_pattern(tmp_path):
     assert quality_payload["operator_guidance"]["policy_engine_version"] == "relational-policy-v1"
     assert "memory_freeze_override" in quality_payload["operator_guidance"]["rule_hits"]
     assert quality_payload["operator_guidance"]["memory_context"]["policy_adjusted"] is True
+    assert quality_payload["personal_agent_gateway"]["gateway_mode"] == "hold_or_escalate"
+    assert quality_payload["personal_agent_gateway"]["hold_required"] is True
