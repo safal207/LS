@@ -19,6 +19,27 @@ Live site: [GitHub Pages](https://safal207.github.io/LS/)
 
 **LS** is not a chatbot wrapper. It is a **local-first coordination and oversight runtime** for human-plus-model systems that thinks between interactions, learns from feedback, and keeps decisions reviewable.
 
+It is also a **personal AI operating layer**: a system that lets any model or agent pass through your memory, quality, coordination, and review logic before it reaches you.
+
+---
+
+## Personal AI Operating Layer
+
+LS can be used as a layer *above* agents, not just as another agent:
+
+- connect different agents while keeping one center of memory, tone, and quality;
+- shape, repair, hold, or escalate raw outputs before they become action;
+- preserve personal context across models, tools, and sessions;
+- use coordination, relational, and harmonic diagnostics to catch weak or misaligned output early.
+
+Short version:
+
+> do not use agents as-is; run them through your own system so they work in your logic, your rhythm, and your quality.
+
+See:
+- [`docs/positioning/personal-ai-operating-layer.md`](docs/positioning/personal-ai-operating-layer.md)
+- [`docs/harmonic-state-model-mvp.md`](docs/harmonic-state-model-mvp.md)
+
 ---
 
 ## Consensus Integrity
@@ -200,6 +221,7 @@ The summary is deterministic, advisory-only, and bounded to stable fields for ea
 LS also includes a coordination advisory positioning layer for product and technical framing:
 - One-pager: [`docs/positioning/coordination-advisory-one-pager.md`](docs/positioning/coordination-advisory-one-pager.md)
 - Comparison: [`docs/positioning/ls-vs-generic-agent.md`](docs/positioning/ls-vs-generic-agent.md)
+- Personal layer: [`docs/positioning/personal-ai-operating-layer.md`](docs/positioning/personal-ai-operating-layer.md)
 
 ## Safety / Alignment Relevance
 
