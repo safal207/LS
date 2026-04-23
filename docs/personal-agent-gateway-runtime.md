@@ -12,7 +12,48 @@ It makes the product positioning concrete:
 - be wrapped in a repair-first frame,
 - or be held for escalation.
 
-## Runtime flow
+## Current internal runtime flow
+
+This is the current path inside LS today: built-in protocols and graph paths stay in place, then the personal layer decides how the answer is delivered.
+
+```mermaid
+flowchart TD
+    A["User or internal agent input"] --> B["LS intake"]
+    B --> C["Built-in protocols: intent / why / alignment / strategy"]
+    C --> D["Graph paths and routing"]
+    D --> E["Graph runtime: reuse / refine / full_run"]
+    E --> F["Execution: LLM / cooperative / derived module"]
+    F --> G["raw_agent_output"]
+
+    C --> H["Relational layer"]
+    D --> I["Coordination stack"]
+    I --> J["Harmonic state model"]
+    C --> K["Strategy playbook"]
+    H --> L["Relational policy + relation memory"]
+
+    K --> M["Context for personal gateway"]
+    I --> M
+    J --> M
+    L --> M
+
+    G --> N["Personal agent gateway"]
+    M --> N
+
+    N --> O["final_output"]
+    N --> P["gateway_mode / gateway_reason / metrics"]
+    O --> Q["Artifacts: council / quality / relation / memory / CEL"]
+```
+
+Short reading:
+
+1. Built-in LS protocols, graph paths, routing, and runtime still do the core work.
+2. That stack produces `raw_agent_output`.
+3. The personal layer reads coordination, harmonic, relational, and memory-aware signals.
+4. Only then does LS decide how the output should reach the operator.
+
+## Compact gateway decision flow
+
+This is the smaller view focused only on the gateway decision itself.
 
 ```mermaid
 flowchart LR
@@ -42,6 +83,50 @@ Short flow:
    - relational policy with relation-memory evidence.
 3. The gateway selects one of four modes.
 4. LS exposes both the raw output and the delivered output path in the output contract and artifacts.
+
+## Future external agent gateway flow
+
+This is the next-step target architecture: any outside agent should enter LS through one explicit gateway instead of reaching the operator directly.
+
+```mermaid
+flowchart TD
+    A["External agent A"] --> G["External agent gateway"]
+    B["External agent B"] --> G
+    C["Codex / OpenAI / local model"] --> G
+    D["Custom script / tool runner"] --> G
+
+    G --> I["Input normalization"]
+    I --> J["Shared LS contract"]
+    J --> K["Operator memory and profile"]
+    J --> L["Graph paths and routing"]
+    J --> M["Relational layer"]
+    J --> N["Coordination stack"]
+    J --> O["Harmonic state model"]
+
+    L --> P["raw_agent_output"]
+    M --> Q["Relational policy"]
+    N --> R["Coordination advisory"]
+    O --> S["Harmonic advisory"]
+
+    P --> T["Personal agent gateway"]
+    K --> T
+    Q --> T
+    R --> T
+    S --> T
+
+    T --> U["final_output"]
+    T --> V["mode: pass / shape / repair / hold"]
+    T --> W["Artifacts + trace + review"]
+
+    U --> X["Operator"]
+```
+
+Short reading:
+
+1. Many agents can connect from the outside.
+2. LS normalizes them into one contract.
+3. The same memory, graph, relational, coordination, and harmonic layers evaluate them.
+4. The personal gateway becomes the one final delivery checkpoint before the operator sees anything.
 
 ## Gateway modes
 
@@ -117,6 +202,11 @@ This is the point where LS stops being only a positioning idea and becomes a rea
 - the personal layer now runs on full coordination, harmonic, and relational signals,
 - repeated bad patterns can force `hold_or_escalate`,
 - raw output and shaped output can be compared directly.
+
+It also clarifies the next architectural step:
+
+- today the personal layer governs LS internal output delivery,
+- next it should become the universal ingress path for external agents too.
 
 ## Demo
 

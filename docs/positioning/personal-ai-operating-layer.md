@@ -62,6 +62,10 @@ The product pattern is now live in the runtime:
    - `hold_or_escalate`
 5. The operator receives the improved result together with traces and review context.
 
+Architecture diagrams for the current internal path and the future external gateway path live in:
+
+- `docs/personal-agent-gateway-runtime.md`
+
 ## Current runtime status
 
 This is no longer only positioning. The runtime now emits and preserves:
