@@ -1,4 +1,4 @@
-# LS — Local Cognitive System (LCS)
+# LS — Local-First Coordination and Oversight Runtime
 
 [English](#english) | [Русский](#russian)
 
@@ -6,57 +6,133 @@
 
 <a name="english"></a>
 
-# LS — Local Cognitive System
+# LS — Local-First Coordination and Oversight Runtime
 
 [![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
 [![Council Safety Gate](https://github.com/safal207/LS/actions/workflows/council_safety.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/council_safety.yml)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
 [![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](LICENSE)
-[![Rust Powered](https://img.shields.io/badge/Rust-Inside-orange.svg)](#architecture)
+[![Rust Powered](https://img.shields.io/badge/Rust-Inside-orange.svg)](#core-architecture-summary)
 
 Live site: [GitHub Pages](https://safal207.github.io/LS/)
 
-**LS** is not a chatbot wrapper. It is a **local-first coordination and oversight runtime** for human-plus-model systems that thinks between interactions, learns from feedback, and keeps decisions reviewable.
+**LS is a local-first coordination and oversight runtime for human-plus-model systems.**
+It records council cycles, tracks contribution and receiver resonance, exposes approval-safe operator workflows, and produces replayable artifacts for evaluation and governance.
+Instead of treating model output as a black box, LS turns decision cycles into measurable, reviewable, and improvable runtime artifacts.
 
 ---
 
-## Consensus Integrity
+## Why LS exists
 
-LS does not treat repeated text as proof of agreement. The validation and governance
-layers distinguish between:
+Most AI systems produce answers but do not preserve reviewable structure around:
 
-- real convergence and echo-chamber repetition,
-- broad support and direct contradiction,
-- a base validator winner and a governed winner under review,
-- trusted quorum and trusted veto.
+- who participated,
+- which route was chosen,
+- what was adopted,
+- whether the receiver accepted the outcome cleanly,
+- and where human approval was applied.
 
-This matters because multi-model agreement is easy to fake. Several agents can
-repeat the same weak answer and create the appearance of consensus. LS records
-that structure explicitly, flags coalition risk, preserves support and
-contradiction edges, and marks rounds that require review instead of calling
-them settled consensus.
+LS exists to make model-assisted coordination inspectable and measurable by default, not only after incidents.
 
-See:
-- [`docs/collective-answer-validator.md`](docs/collective-answer-validator.md)
-- [`docs/lifetra-validation-adapter.md`](docs/lifetra-validation-adapter.md)
+## What LS is in practical terms
 
----
+LS is an **operator-facing runtime shell** around model-assisted decision cycles:
 
-## What it actually does
+- runs council-style cycles instead of a single opaque completion,
+- records cycle-level artifacts for replay and post-hoc review,
+- measures contribution, merit, and receiver-resonance signals,
+- supports human approval and governance-safe operator intervention,
+- emits quality-gated outputs suitable for evaluation, benchmarks, and evidence packages.
 
-Most AI agents answer and forget. LS **lives between answers**:
+## Evidence surface (proof of behavior)
 
-- While you type, a background subconscious thread analyses your conversation patterns
-- When you reply with just "ok" after a long response, the system registers that as weak feedback
-- When the same thinking mode appears three sessions in a row, it becomes a persistent memory node
-- When the system detects it is stuck in one mode for too long, it corrects itself automatically
+The repository already exposes a concrete evidence layer:
 
-The result: an agent that develops a **cognitive character** over time and adapts it without being asked.
+- **Replayable traces** for task and council inspection
+- **Council result artifacts** with structured cycle outputs
+- **Contribution / merit / resonance signals** (`CouncilContributionLedger`, `CEL`)
+- **Quality gates and machine-readable reports** (`LiminalQA`, CI thresholds)
+- **Benchmark snapshots** and interpretation notes under [`benchmark/`](benchmark/)
+- **Council Safety Gate in CI** for risk-aware review enforcement
 
----
+If you are evaluating this repo, start by checking these artifacts before reading internal mechanism details.
 
-## Core Features
+## Safety and oversight relevance
+
+LS is positioned as oversight infrastructure, not convenience prompting UX.
+
+Safety-relevant surfaces include:
+
+- measurable model participation and adoption,
+- replayable cycle traces and post-hoc inspection,
+- approval-safe operator workflows,
+- quality-gated outputs and CI enforcement,
+- packaging for benchmark/dataset/demo artifacts.
+
+Primary positioning doc:
+
+- [`docs/SAFETY_PROGRAMS_POSITIONING.md`](docs/SAFETY_PROGRAMS_POSITIONING.md)
+
+## What reviewers should understand first
+
+A reviewer should understand, quickly:
+
+1. this project is about **oversight**, not generic assistant polish;
+2. this repo contains **real engineering artifacts**, not only conceptual framing;
+3. LS already emits **measurable traces, scorecards, and evaluation outputs**;
+4. the outputs can plausibly become a **benchmark, dataset, or reproducible demo artifact**.
+
+## Best reviewer path
+
+For program, grant, fellowship, or technical-review contexts:
+
+1. [README.md](README.md)
+2. [`docs/SAFETY_PROGRAMS_POSITIONING.md`](docs/SAFETY_PROGRAMS_POSITIONING.md)
+3. [`docs/FELLOWSHIP_APPLICATION_READY.md`](docs/FELLOWSHIP_APPLICATION_READY.md)
+4. [`docs/FELLOWSHIP_DEMO_PATH.md`](docs/FELLOWSHIP_DEMO_PATH.md)
+5. [`benchmark/README.md`](benchmark/README.md)
+6. [`benchmark/RESULTS.md`](benchmark/RESULTS.md)
+
+## How LS differs from typical agents
+
+| | Typical agent | LS |
+|--|---------------|----|
+| Primary output | answer text | council-cycle artifact + answer |
+| Reviewability | limited chat history | replayable traces + structured fields |
+| Participation accounting | usually absent | contribution / merit / resonance tracking |
+| Approval workflow | ad hoc | explicit operator approval-safe path |
+| Governance posture | optional | built into runtime + CI safety gate |
+| Evaluation surface | one-off prompt tests | quality gates + benchmark snapshots |
+
+## Core architecture summary
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                          AgentLoop                             │
+│                                                                │
+│  Subconscious (20s)  ────►                                     │
+│  WorldPoller (git)   ────►  TemporalGraph                      │
+│  Quality FB          ────►  (resonance nodes + causal edges)   │
+│  Auto Proxy          ────►                                     │
+│                                │                               │
+│                     Coordinator.decide()                       │
+│                     7 Forces per cycle                         │
+│                                │                               │
+│                     OrientationCenter ◄──► signal back         │
+│                                                                │
+│  Council artifacts / traces / score updates / review outputs   │
+└────────────────────────────────────────────────────────────────┘
+```
+
+**Stack:**
+- Python layer — orchestration, councils, CLI/GUI, quality/evaluation hooks
+- Rust core — high-performance pattern matching and vector operations
+- Hexagon core — temporal graph, resonance memory, observer logic
+
+## Cognitive field internals (supporting mechanism)
+
+The cognitive architecture remains important, but it is a supporting mechanism for the oversight runtime.
 
 ### Cognitive Field — 7 Forces
 
@@ -67,177 +143,43 @@ Every decision cycle runs 7 forces on the live knowledge graph (`TemporalGraph`)
 | F1+F2 | Orientation: chaos/harmony signals reshape node resonance + associative propagation |
 | F3 | Stabilization: nodes drift back to their natural resting level |
 | F4 | Forgetting: nodes decay by type — lessons last 24h, urgent signals 5 min |
-| F5 | Interference: competing cognitive modes cancel each other (no split-brain) |
+| F5 | Interference: competing cognitive modes cancel each other |
 | F6 | Observer: detects pathological states and self-corrects |
-| F7 | Association: active nodes boost their linked neighbours |
+| F7 | Association: active nodes boost linked neighbours |
 
-### 6 Learning Mechanisms
+### Learning and self-monitoring
 
-The system learns from **four sources simultaneously**:
+- subconscious loop (20s), explicit/implicit feedback, reflections, world events,
+- pathology detection and auto-correction via `SystemObserver`,
+- persistent user profile adaptation and predictive axis hints.
 
-1. **Subconscious loop** (every 20s) — detects your thinking pattern (creative / deliberative / reactive) without asking
-2. **Quality feedback** — explicit "да/нет" updates node resonance ±
-3. **Feedback proxy** — long response + short reply = weak auto-negative signal
-4. **Reflections** — after-action lessons ingested as 24h memory nodes
-5. **World events** — git commits and error logs become temporal nodes
-6. **Association graph** — co-activated nodes auto-strengthen their links
+Detailed internals:
+- [COGNITIVE_FIELD_COMPLETE.md](COGNITIVE_FIELD_COMPLETE.md)
+- [SUBCONSCIOUS_TEMPORAL_LOOP.md](SUBCONSCIOUS_TEMPORAL_LOOP.md)
 
-### Self-Monitoring (SystemObserver)
+## Multimodal operator runtime (secondary extension)
 
-The observer runs every cycle and detects 6 pathological states:
+LS can extend into multimodal operator context:
 
-| Pathology | Condition | Auto-correction |
-|-----------|-----------|----------------|
-| OVERHEATING | All nodes inflated | Normalize field ×0.88 |
-| VACUUM | No active nodes | Lift floor + inject anchor |
-| OSSIFICATION | Same axis for 8+ cycles | Reduce stability, nudge down |
-| SPLIT_BRAIN | Two modes tied at high resonance | Suppress weaker by 0.12 |
-| RUNAWAY_CHAOS | Chaos trend collapsing | Boost anchor axis |
-| RESONANCE_COLLAPSE | Axis too weak to guide | Emergency boost |
+- screen OCR context injection,
+- real-time voice input,
+- offline TTS output,
+- optional `QwenOmniWorker` background context capture.
 
-After 3 occurrences of the same pathology → writes a `lesson:meta:*` memory node. The system remembers its own weaknesses.
+This multimodal loop is an extension of the oversight runtime, not its primary identity.
 
-### User Profiles
+## Consensus integrity and council governance
 
-`UserProfileStore` tracks each user's cognitive style across sessions. After 5+ turns it provides a **starting hint** — the agent opens the next conversation already tuned to your style, using a 20-turn sliding window to catch recent drift.
+LS does not treat repeated text as proof of agreement. Validation and governance layers distinguish between:
 
-### Predictive Axis
+- real convergence vs echo-chamber repetition,
+- broad support vs direct contradiction,
+- base validator winner vs governed winner under review,
+- trusted quorum vs trusted veto.
 
-`predictive_axis(horizon_s=60)` — answers: *which node will be dominant in 60 seconds?* Based on current velocity, the system pre-warms for the incoming mode before it arrives.
-
-### Multimodal Worker (optional)
-
-`QwenOmniWorker` captures screen + audio context via DashScope Realtime API (or a safe fallback), stores insights as `ResonanceKnowledgeUnit`. Enabled via `QWEN_OMNI_ENABLED=1`.
-
----
-
-## Multimodal Operator Loop — Eyes + Ears + Voice
-
-LS can now act as a **hands-free operator interface**:
-
-- **Eyes (screen reading)** — `VisionSubsystem` captures your screen every 0.5 s and runs OCR (pytesseract or easyocr). The latest text is exposed via `get_latest_screen_text()` and injected into every LLM call as a `system` message, so the agent can inspect the current operator context without manual copy-paste.
-- **Ears (voice input)** — `faster-whisper` + PyAudio capture your microphone and transcribe speech to text in real-time. The transcript is fed to the agent as the user message.
-- **Voice output (TTS)** — `Speaker` (pyttsx3, fully offline) reads the agent's answer aloud so you can stay in the workflow without staring at the screen.
-
-```
-┌──────────┐   OCR    ┌──────────────────┐   system msg   ┌──────────┐
-│  Screen  │ ──────►  │  VisionSubsystem  │ ──────────────►│          │
-└──────────┘          └──────────────────┘                 │  Agent   │
-                                                           │  Loop    │ ──► TTS ──► earpiece
-┌──────────┐  Whisper  ┌───────────────┐  user message    │          │
-│   Mic    │ ────────► │  AudioInput   │ ────────────────► │          │
-└──────────┘           └───────────────┘                   └──────────┘
-```
-
-### Activate
-
-```bash
-pip install pyttsx3                     # TTS (offline)
-pip install pytesseract                 # OCR backend (or: pip install easyocr)
-# For pytesseract: also install tesseract binary for your OS
-
-export LS_TTS_ENABLED=1                 # turn on voice output
-python apps/console/main.py
-```
-
----
-
-## Architecture
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│                          AgentLoop                             │
-│                                                                │
-│  Screen OCR    ──────────►                                     │
-│  Mic / Whisper ──────────►  TemporalGraph                      │
-│  Subconscious (20s)  ────►  (resonance nodes + causal edges)   │
-│  WorldPoller (git)   ────►                                     │
-│  Quality FB          ────►                                     │
-│  Auto Proxy          ────►                                     │
-│                                │                               │
-│                     Coordinator.decide()                       │
-│                     7 Forces per cycle                         │
-│                                │                               │
-│                     OrientationCenter ◄──► signal back         │
-│                                                                │
-│  Sleep consolidation → session_report → lesson:session:*       │
-│                                                                │
-│  TTS Speaker ◄── response                                      │
-└────────────────────────────────────────────────────────────────┘
-```
-
-**Stack:**
-- Python layer — agent orchestration, cognitive field, GUI (Qt6)
-- Rust core — high-performance pattern matching, SIMD vector search
-- Hexagon Core — beliefs, causal memory, temporal graph, orientation
-
-## Coordination Advisory Stack
-
-The coordination advisory stack aggregates structured signals from multi-party alignment,
-bridge stabilization priority, collective coordination pressure, and bridge-to-playbook fit.
-It then emits a compact top-level summary object for operators and downstream systems.
-The summary is deterministic, advisory-only, and bounded to stable fields for easier consumption.
-
-```json
-{
-  "coordination_advisory_label": "fragile",
-  "coordination_readiness": 0.58,
-  "primary_intervention_mode": "stabilization_first",
-  "playbook_support_level": "medium",
-  "top_risk_driver": "coordination_risk",
-  "summary_reason": "scene is fragile: coordination risk is elevated and playbook grounding is limited"
-}
-```
-
-- Easier downstream consumption with one compact advisory object.
-- More explainable coordination reasoning across multiple structured layers.
-
----
-
-
-## Positioning
-
-LS also includes a coordination advisory positioning layer for product and technical framing:
-- One-pager: [`docs/positioning/coordination-advisory-one-pager.md`](docs/positioning/coordination-advisory-one-pager.md)
-- Comparison: [`docs/positioning/ls-vs-generic-agent.md`](docs/positioning/ls-vs-generic-agent.md)
-
-## Safety / Alignment Relevance
-
-LS is best understood as an operator-facing coordination and oversight runtime for human-plus-model systems.
-
-This is the strongest framing not only for the OpenAI Safety Fellowship, but also for adjacent programs such as safety residencies, research fellowships, oversight grants, and evaluation-oriented incubators.
-
-The safety-relevant parts of this repository are:
-
-- `CouncilContributionLedger` for measurable model participation and adoption
-- receiver-resonance scoring for whether outputs were accepted cleanly
-- contribution, reputation, and merit sync in `CEL`
-- replayable traces and inspection via `LTP`
-- human approval and artifact review flows in the CLI
-- quality gates, quality reports, and `LiminalQA` integration for evaluable runs
-- `Council Safety Gate` in GitHub Actions for risk-aware council review and incident-oriented CI checks
-
-If you are reading this repository from an AI safety, alignment, oversight, or program-application angle, start here:
-
-- [`docs/SAFETY_PROGRAMS_POSITIONING.md`](docs/SAFETY_PROGRAMS_POSITIONING.md)
-- [`docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md`](docs/OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md)
-- [`docs/FELLOWSHIP_APPLICATION_READY.md`](docs/FELLOWSHIP_APPLICATION_READY.md)
-- [`docs/FELLOWSHIP_APPLICATION_BRIEF.md`](docs/FELLOWSHIP_APPLICATION_BRIEF.md)
-- [`docs/FELLOWSHIP_DEMO_PATH.md`](docs/FELLOWSHIP_DEMO_PATH.md)
-- [`docs/FELLOWSHIP_REVIEWER_SCRIPT.md`](docs/FELLOWSHIP_REVIEWER_SCRIPT.md)
-- [`docs/FELLOWSHIP_RESEARCH_OUTPUTS.md`](docs/FELLOWSHIP_RESEARCH_OUTPUTS.md)
-- [`docs/FELLOWSHIP_STATEMENT_DRAFT.md`](docs/FELLOWSHIP_STATEMENT_DRAFT.md)
-- [`docs/FELLOWSHIP_ONE_PAGER.md`](docs/FELLOWSHIP_ONE_PAGER.md)
-- [`docs/FELLOWSHIP_QUESTION_BANK.md`](docs/FELLOWSHIP_QUESTION_BANK.md)
-- [`docs/FELLOWSHIP_EVIDENCE_AUDIT.md`](docs/FELLOWSHIP_EVIDENCE_AUDIT.md)
-- [`docs/FELLOWSHIP_EVIDENCE_SPRINT.md`](docs/FELLOWSHIP_EVIDENCE_SPRINT.md)
-- [`docs/FELLOWSHIP_BENCHMARK_NOTE.md`](docs/FELLOWSHIP_BENCHMARK_NOTE.md)
-- [`docs/FELLOWSHIP_ATTRIBUTION_NOTE.md`](docs/FELLOWSHIP_ATTRIBUTION_NOTE.md)
-- [`docs/SAFETY_SCORECARD.md`](docs/SAFETY_SCORECARD.md)
-- [`benchmark/`](benchmark/) — generated benchmark snapshot with interpretation
-- [`docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md`](docs/COUNCIL_CONTRIBUTION_LEDGER_ROADMAP.md)
-- [`docs/LIMINALQA_TEST_STRATEGY.md`](docs/LIMINALQA_TEST_STRATEGY.md)
-- [`docs/CI_QUALITY_GATES.md`](docs/CI_QUALITY_GATES.md)
+See:
+- [`docs/collective-answer-validator.md`](docs/collective-answer-validator.md)
+- [`docs/lifetra-validation-adapter.md`](docs/lifetra-validation-adapter.md)
 
 ## Quick Start
 
@@ -401,22 +343,7 @@ pytest python/tests/test_memory_store_locking.py
 
 ---
 
-## How it differs from other agents
-
-| | Typical agent | LS |
-|--|---------------|----------|
-| Between messages | Idle | Subconscious analysis running |
-| Learning | On request | Continuous (4 sources) |
-| Memory | Flat history | Weighted resonance graph with decay |
-| Self-awareness | None | Observer detects + corrects pathologies |
-| User model | None | Per-user profile, mode prediction |
-| Failure mode | Silent drift | Detected and self-corrected |
-| Input | Text only | Text + voice (Whisper) + screen (OCR) |
-| Output | Text only | Text + voice (TTS, offline) |
-
----
-
-© 2026 LS Team. Strictly Local. Strictly Cognitive.
+© 2026 LS Team. Local-first coordination and oversight runtime.
 
 ---
 
