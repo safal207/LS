@@ -35,3 +35,4 @@ bandit
 pre-commit
 pip-audit
 cyclonedx-bom
+lxml>=6.1.0

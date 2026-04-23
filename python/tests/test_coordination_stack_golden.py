@@ -38,6 +38,16 @@ _ALLOWED_STABILIZATION_MODES = {
     "observe_and_stage",
     "unknown",
 }
+_ALLOWED_HARMONIC_INTERVALS = {
+    "unison",
+    "third",
+    "fifth",
+    "fourth",
+    "seventh",
+    "tritone",
+    "octave",
+    "unknown",
+}
 
 
 def _alignment_report_with_nontrivial_tension() -> dict:
@@ -142,6 +152,25 @@ def test_coordination_stack_golden_end_to_end_scenario():
         bridge_stabilization_order=stabilization_order,
         collective_snapshot=snapshot,
     )
+    coordination_summary = agent.get_coordination_advisory_summary(
+        item,
+        collective_coordination_snapshot=snapshot,
+        bridge_stabilization_order=stabilization_order,
+        bridge_playbook_advisory=advisory,
+    )
+    harmonic = agent.get_harmonic_state_summary(
+        item,
+        collective_coordination_snapshot=snapshot,
+        bridge_stabilization_order=stabilization_order,
+        bridge_playbook_advisory=advisory,
+        coordination_advisory_summary=coordination_summary,
+        relational_policy_decision={
+            "risk_state": "watch",
+            "safety_mode": "evidence_first",
+            "requires_human_review": False,
+        },
+        relational_coherence=0.29,
+    )
 
     # Golden scenario outcomes: coherent chain and stable contract values.
     assert multi_party["state_label"] == "escalating"
@@ -158,13 +187,24 @@ def test_coordination_stack_golden_end_to_end_scenario():
     assert advisory["dominant_bridge_playbook_fit"] in _ALLOWED_BRIDGE_PLAYBOOK_FIT
 
     assert isinstance(advisory, dict)
+    assert isinstance(coordination_summary, dict)
+    assert isinstance(harmonic, dict)
     assert isinstance(agent.get_bridge_playbook_metrics(), dict)
+    assert isinstance(agent.get_harmonic_state_metrics(), dict)
 
     # Meaningful stabilization + playbook richness + boundedness.
     assert len(bridge_graph["highest_priority_edges"]) >= 1
     assert len(stabilization_order["ordered_edges"]) >= 2
     assert len(playbook.get("steps") or []) >= 2
     assert len(advisory["step_links"]) >= 2
+
+    assert coordination_summary["coordination_advisory_label"] in {"fragile", "blocked"}
+    assert harmonic["harmonic_center"] == "stabilization"
+    assert harmonic["harmonic_interval_label"] in _ALLOWED_HARMONIC_INTERVALS
+    assert harmonic["harmonic_interval_label"] == "tritone"
+    assert harmonic["modulation_candidate"] in {"translation", "reframing"}
+    assert harmonic["resolution_direction"] in {"deescalate_then_translate", "stabilize_then_reframe"}
+    assert harmonic["harmonic_tension"] > harmonic["harmonic_stability"]
 
     assert len(snapshot["top_bridge_candidates"]) <= 3
     assert len(snapshot["top_stabilization_edges"]) <= 3
@@ -176,3 +216,4 @@ def test_coordination_stack_golden_end_to_end_scenario():
     assert isinstance(snapshot["summary_reason"], str) and 0 < len(snapshot["summary_reason"]) <= 140
     assert isinstance(stabilization_order["summary_reason"], str) and 0 < len(stabilization_order["summary_reason"]) <= 140
     assert isinstance(advisory["summary_reason"], str) and 0 < len(advisory["summary_reason"]) <= 140
+    assert isinstance(harmonic["harmonic_summary_reason"], str) and 0 < len(harmonic["harmonic_summary_reason"]) <= 140

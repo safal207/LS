@@ -3,43 +3,44 @@
     "switch": "RU"
   },
   "hero": {
-    "title": "LS is a local-first coordination and oversight runtime for human-plus-model systems.",
-    "subtitle": "It turns agent workflows into reviewable decisions with replayable traces, human approvals, and measurable contribution, resonance, and quality signals.",
-    "cta": "See oversight demo"
+    "eyebrow": "Web4 | LS | Personal AI Layer",
+    "title": "LS is a personal AI operating layer for agents that should work in your logic, your rhythm, and your quality.",
+    "subtitle": "Connect any model or agent, then run its output through LS for memory, shaping, repair, coordination, and harmonic diagnostics before it reaches you.",
+    "cta": "See the personal layer"
   },
   "problem": {
-    "title": "From fragile AI to persistent intelligence",
+    "title": "From raw agents to a personal intelligence layer",
     "items": {
-      "centralized": "Centralized AI limits ownership, traceability, and trust.",
-      "size": "Larger models still lose context at the exact moment operators need clarity.",
-      "hallucinations": "Hallucinations break mission-critical reviews and incident response.",
-      "memory": "Most assistants forget your history, decisions, and prior approvals."
+      "centralized": "Raw agents pull you into their defaults instead of adapting to your standards.",
+      "size": "A bigger model is still the wrong layer when what you need is continuity, shaping, and control.",
+      "hallucinations": "Fast output without review can inject weak reasoning straight into your workflow.",
+      "memory": "Most assistants forget your context the moment you switch models, tools, or sessions."
     },
-    "solutionTitle": "LS Solution",
-    "solutionBody": "Architecture beats raw model size. Causal memory, human approvals, replayable traces, and council-ledger artifacts make agent behavior explainable, governable, and benchmarkable."
+    "solutionTitle": "What LS adds",
+    "solutionBody": "LS sits between you and every agent: it keeps continuity, shapes weak output, catches tension and drift, and turns disconnected models into one reviewable system around you."
   },
   "features": {
-    "title": "Core capabilities",
+    "title": "What LS adds between you and AI",
     "list": {
       "local": {
-        "title": "Local-first",
-        "desc": "Operational data stays under your control instead of disappearing into a hosted black box."
+        "title": "Local Control",
+        "desc": "Operational context stays under your control instead of disappearing into a hosted black box."
       },
       "causal": {
-        "title": "Causal Memory",
-        "desc": "Remembers what happened, why it happened, and what changed after review."
+        "title": "Continuity Memory",
+        "desc": "Keeps continuity across agents, sessions, and decisions instead of resetting every time you switch tools."
       },
       "human": {
-        "title": "Human-Centric Design",
-        "desc": "Approval loops keep human intent attached to every important task transition."
+        "title": "Your Standards First",
+        "desc": "LS lets agents adapt to your intent instead of forcing you to adapt to theirs."
       },
       "anti": {
-        "title": "Anti-Hallucination",
-        "desc": "Traceable reasoning makes suspicious behavior visible before approval."
+        "title": "Response Shaping",
+        "desc": "Weak or risky output can be surfaced, reshaped, repaired, or held before it reaches you."
       },
       "identity": {
-        "title": "Evolving Identity",
-        "desc": "The system adapts to operator feedback instead of resetting every session."
+        "title": "Personal Cognitive Layer",
+        "desc": "The system learns your rhythm, preferred tone, and what counts as a good answer for you."
       }
     }
   },
@@ -72,21 +73,21 @@
     "mockupTitle": "Reflection Dashboard mockup"
   },
   "cta": {
-    "title": "Bring reviewable and benchmarkable agent operations into your stack",
-    "demo": "Open runtime panel",
+    "title": "Run agents through your own system before they reach you",
+    "demo": "Open personal layer",
     "community": "See operator benchmark",
-    "contact": "Contact the team"
+    "contact": "Write to the builder"
   },
   "runtime": {
     "eyebrow": "LS: Reflective AI Runtime",
-    "title": "An operating system for AI behavior control",
+    "title": "An operating system for personal AI control",
     "problem": {
       "title": "Problem",
-      "body": "AI decisions are opaque. Teams struggle to explain, verify, and correct agent behavior once a workflow is already moving."
+      "body": "AI outputs often arrive raw. Once an agent is already moving, it becomes hard to explain, verify, and correct what is happening."
     },
     "solution": {
       "title": "Solution",
-      "body": "Reflection Runtime adds a control loop: reflection -> review -> approve or reject -> behavior update."
+      "body": "LS adds a control loop between you and every agent: reflect -> review -> shape, approve, reject, repair, or hold."
     },
     "architecture": {
       "title": "Architecture",

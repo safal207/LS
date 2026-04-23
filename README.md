@@ -21,6 +21,27 @@ Live site: [GitHub Pages](https://safal207.github.io/LS/)
 It records council cycles (structured multi-model decision rounds), tracks contribution and receiver resonance (a signal of how cleanly outcomes were accepted), exposes approval-safe operator workflows, and produces replayable artifacts for evaluation and governance.
 Instead of treating model output as a black box, LS turns decision cycles into measurable, reviewable, and improvable runtime artifacts.
 
+It is also a **personal AI operating layer**: a system that lets any model or agent pass through your memory, quality, coordination, and review logic before it reaches you.
+
+---
+
+## Personal AI Operating Layer
+
+LS can be used as a layer *above* agents, not just as another agent:
+
+- connect different agents while keeping one center of memory, tone, and quality;
+- shape, repair, hold, or escalate raw outputs before they become action;
+- preserve personal context across models, tools, and sessions;
+- use coordination, relational, and harmonic diagnostics to catch weak or misaligned output early.
+
+Short version:
+
+> do not use agents as-is; run them through your own system so they work in your logic, your rhythm, and your quality.
+
+See:
+- [`docs/positioning/personal-ai-operating-layer.md`](docs/positioning/personal-ai-operating-layer.md)
+- [`docs/harmonic-state-model-mvp.md`](docs/harmonic-state-model-mvp.md)
+
 ---
 
 ## Why LS exists
