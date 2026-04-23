@@ -616,6 +616,24 @@ except ImportError:
         _build_coordination_advisory_summary = None  # type: ignore[assignment]
 
 try:
+    from agent.harmonic_state_model import (
+        HarmonicStateMetrics as _HarmonicStateMetrics,
+        build_harmonic_state_summary as _build_harmonic_state_summary,
+    )
+    _HARMONIC_STATE_MODEL_OK = True
+except ImportError:
+    try:
+        from modules.agent.harmonic_state_model import (
+            HarmonicStateMetrics as _HarmonicStateMetrics,
+            build_harmonic_state_summary as _build_harmonic_state_summary,
+        )
+        _HARMONIC_STATE_MODEL_OK = True
+    except ImportError:
+        _HARMONIC_STATE_MODEL_OK = False
+        _HarmonicStateMetrics = None  # type: ignore[assignment,misc]
+        _build_harmonic_state_summary = None  # type: ignore[assignment]
+
+try:
     from network.cognitive_adequacy import CognitiveAdequacyCore as _CognitiveAdequacyCore
     from network.control_center import NetworkControlCenter as _NetworkControlCenter
     from network.observer import NetworkObserver as _NetworkObserver
@@ -1022,6 +1040,11 @@ class ResonanceAgent:
         self._coordination_advisory_summary_metrics = (
             _CoordinationAdvisorySummaryMetrics()
             if _COORDINATION_ADVISORY_SUMMARY_OK and _CoordinationAdvisorySummaryMetrics
+            else None
+        )
+        self._harmonic_state_metrics = (
+            _HarmonicStateMetrics()
+            if _HARMONIC_STATE_MODEL_OK and _HarmonicStateMetrics
             else None
         )
 
@@ -1971,6 +1994,97 @@ class ResonanceAgent:
         if self._coordination_advisory_summary_metrics is None:
             return {"coordination_advisory_summary_available": False}
         return self._coordination_advisory_summary_metrics.to_dict()
+
+    def get_harmonic_state_summary(
+        self,
+        item: dict[str, Any],
+        collective_coordination_snapshot: dict[str, Any] | None = None,
+        bridge_stabilization_order: dict[str, Any] | None = None,
+        bridge_playbook_advisory: dict[str, Any] | None = None,
+        coordination_advisory_summary: dict[str, Any] | None = None,
+        relational_policy_decision: dict[str, Any] | None = None,
+        relational_coherence: float | None = None,
+    ) -> dict[str, Any]:
+        """Build read-only harmonic state summary over coordination and relational signals."""
+        if not (_HARMONIC_STATE_MODEL_OK and _build_harmonic_state_summary):
+            return {"harmonic_state_model_available": False}
+
+        cs = collective_coordination_snapshot if isinstance(collective_coordination_snapshot, dict) else {}
+        bo = bridge_stabilization_order if isinstance(bridge_stabilization_order, dict) else {}
+        pa = bridge_playbook_advisory if isinstance(bridge_playbook_advisory, dict) else {}
+        summary = coordination_advisory_summary if isinstance(coordination_advisory_summary, dict) else {}
+        relational = relational_policy_decision if isinstance(relational_policy_decision, dict) else {}
+        coherence = relational_coherence
+
+        relational_summary = None
+        if coherence is None or not relational:
+            relational_summary = self._build_relational_quality_summary((item or {}).get("_relational_field"))
+        if coherence is None and isinstance(relational_summary, dict):
+            coherence = float(relational_summary.get("relational_coherence") or 0.0)
+        if not relational and isinstance(relational_summary, dict):
+            relational = self._build_relation_risk_summary(relational_summary)
+
+        harmonic = _build_harmonic_state_summary(
+            collective_coordination_snapshot=cs,
+            bridge_stabilization_order=bo,
+            bridge_playbook_advisory=pa,
+            coordination_advisory_summary=summary,
+            relational_policy_decision=relational,
+            relational_coherence=coherence,
+        )
+        harmonic_dict = harmonic.to_dict()
+
+        m = self._harmonic_state_metrics
+        if m is not None:
+            m.calls_total += 1
+            m.summaries_total += 1
+            center = str(harmonic_dict.get("harmonic_center") or "")
+            if center == "coherence":
+                m.coherence_center_total += 1
+            elif center == "stabilization":
+                m.stabilization_center_total += 1
+            elif center == "translation":
+                m.translation_center_total += 1
+            elif center == "reframing":
+                m.reframing_center_total += 1
+            elif center == "exploration":
+                m.exploration_center_total += 1
+            elif center == "defense":
+                m.defense_center_total += 1
+            elif center == "repair":
+                m.repair_center_total += 1
+            elif center == "insufficient_context":
+                m.insufficient_context_total += 1
+
+            interval = str(harmonic_dict.get("harmonic_interval_label") or "")
+            if interval == "unison":
+                m.unison_total += 1
+            elif interval == "third":
+                m.third_total += 1
+            elif interval == "fifth":
+                m.fifth_total += 1
+            elif interval == "fourth":
+                m.fourth_total += 1
+            elif interval == "seventh":
+                m.seventh_total += 1
+            elif interval == "tritone":
+                m.tritone_total += 1
+            elif interval == "octave":
+                m.octave_total += 1
+
+            if str(harmonic_dict.get("modulation_candidate") or "") not in {"none", "unknown", ""}:
+                m.modulation_total += 1
+
+            m._tension_sum += float(harmonic_dict.get("harmonic_tension") or 0.0)
+            m._stability_sum += float(harmonic_dict.get("harmonic_stability") or 0.0)
+
+        return harmonic_dict
+
+    def get_harmonic_state_metrics(self) -> dict[str, Any]:
+        """Return observability counters for harmonic state summaries."""
+        if self._harmonic_state_metrics is None:
+            return {"harmonic_state_model_available": False}
+        return self._harmonic_state_metrics.to_dict()
 
     def _build_alignment_memory_hint_for_item(self, item: dict) -> str | None:
         """Return a soft advisory hint from past alignment units relevant to item.
@@ -3106,6 +3220,13 @@ class ResonanceAgent:
             bridge_stabilization_order=_bridge_stabilization_order,
             bridge_playbook_advisory=_bridge_playbook_advisory,
         )
+        _harmonic_state_summary = self.get_harmonic_state_summary(
+            item,
+            collective_coordination_snapshot=_collective_coordination_snapshot,
+            bridge_stabilization_order=_bridge_stabilization_order,
+            bridge_playbook_advisory=_bridge_playbook_advisory,
+            coordination_advisory_summary=_coordination_advisory_summary,
+        )
         council_ledger = self._build_council_contribution_ledger(
             item=item,
             cycle_id=cycle_id,
@@ -3231,6 +3352,8 @@ class ResonanceAgent:
             "bridge_playbook_metrics": self.get_bridge_playbook_metrics(),
             "coordination_advisory_summary": _coordination_advisory_summary,
             "coordination_advisory_summary_metrics": self.get_coordination_advisory_summary_metrics(),
+            "harmonic_state_summary": _harmonic_state_summary,
+            "harmonic_state_metrics": self.get_harmonic_state_metrics(),
             "council_contribution_ledger": (
                 council_ledger.to_dict() if council_ledger is not None else None
             ),

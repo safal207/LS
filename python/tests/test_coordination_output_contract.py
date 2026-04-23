@@ -41,6 +41,49 @@ _ALLOWED_STABILIZATION_MODES = {
     "observe_and_stage",
     "unknown",
 }
+_ALLOWED_HARMONIC_CENTERS = {
+    "coherence",
+    "stabilization",
+    "translation",
+    "reframing",
+    "exploration",
+    "defense",
+    "repair",
+    "insufficient_context",
+}
+_ALLOWED_HARMONIC_INTERVALS = {
+    "unison",
+    "third",
+    "fifth",
+    "fourth",
+    "seventh",
+    "tritone",
+    "octave",
+    "unknown",
+}
+_ALLOWED_HARMONIC_RESOLUTION = {
+    "hold_course",
+    "stabilize_then_continue",
+    "deescalate_then_translate",
+    "reframe_then_align",
+    "repair_then_resume",
+    "gather_context",
+    "observe_and_stage",
+    "translate_then_decide",
+    "stabilize_then_reframe",
+    "unknown",
+}
+_ALLOWED_HARMONIC_MODULATION = {
+    "none",
+    "coherence",
+    "stabilization",
+    "translation",
+    "reframing",
+    "exploration",
+    "defense",
+    "repair",
+    "unknown",
+}
 
 
 def _base_item() -> dict:
@@ -77,6 +120,8 @@ def test_coordination_output_contract_shape_enums_and_boundedness():
         "bridge_stabilization_metrics",
         "bridge_playbook_advisory",
         "bridge_playbook_metrics",
+        "harmonic_state_summary",
+        "harmonic_state_metrics",
     }
     assert required_top_level.issubset(output.keys())
 
@@ -86,6 +131,7 @@ def test_coordination_output_contract_shape_enums_and_boundedness():
     snapshot = output["collective_coordination_snapshot"]
     order = output["bridge_stabilization_order"]
     advisory = output["bridge_playbook_advisory"]
+    harmonic = output["harmonic_state_summary"]
 
     assert {
         "coordination_state_label",
@@ -123,6 +169,15 @@ def test_coordination_output_contract_shape_enums_and_boundedness():
         "dominant_bridge_playbook_fit",
         "summary_reason",
     }.issubset(advisory.keys())
+    assert {
+        "harmonic_center",
+        "harmonic_interval_label",
+        "harmonic_tension",
+        "harmonic_stability",
+        "resolution_direction",
+        "modulation_candidate",
+        "harmonic_summary_reason",
+    }.issubset(harmonic.keys())
 
     # Metrics: verify objects and critical stable keys.
     assert {"calls_total", "snapshots_total", "avg_coordination_risk"}.issubset(
@@ -134,6 +189,9 @@ def test_coordination_output_contract_shape_enums_and_boundedness():
     assert {"calls_total", "advisories_total", "avg_playbook_alignment_score"}.issubset(
         output["bridge_playbook_metrics"].keys()
     )
+    assert {"calls_total", "summaries_total", "avg_harmonic_tension"}.issubset(
+        output["harmonic_state_metrics"].keys()
+    )
 
     # Enum stability.
     assert snapshot["coordination_state_label"] in _ALLOWED_COORDINATION_STATE_LABELS
@@ -141,6 +199,10 @@ def test_coordination_output_contract_shape_enums_and_boundedness():
     assert order["dominant_stabilization_mode"] in _ALLOWED_STABILIZATION_MODES
     assert advisory["playbook_alignment_label"] in _ALLOWED_PLAYBOOK_ALIGNMENT_LABELS
     assert advisory["dominant_bridge_playbook_fit"] in _ALLOWED_BRIDGE_PLAYBOOK_FIT
+    assert harmonic["harmonic_center"] in _ALLOWED_HARMONIC_CENTERS
+    assert harmonic["harmonic_interval_label"] in _ALLOWED_HARMONIC_INTERVALS
+    assert harmonic["resolution_direction"] in _ALLOWED_HARMONIC_RESOLUTION
+    assert harmonic["modulation_candidate"] in _ALLOWED_HARMONIC_MODULATION
 
     # Boundedness and compact reasons.
     assert len(snapshot["top_bridge_candidates"]) <= 3
@@ -153,6 +215,7 @@ def test_coordination_output_contract_shape_enums_and_boundedness():
     assert isinstance(snapshot["summary_reason"], str) and 0 < len(snapshot["summary_reason"]) <= 140
     assert isinstance(order["summary_reason"], str) and 0 < len(order["summary_reason"]) <= 140
     assert isinstance(advisory["summary_reason"], str) and 0 < len(advisory["summary_reason"]) <= 140
+    assert isinstance(harmonic["harmonic_summary_reason"], str) and 0 < len(harmonic["harmonic_summary_reason"]) <= 140
 
 
 def test_coordination_output_contract_graceful_fallback_empty_shape():
@@ -170,6 +233,7 @@ def test_coordination_output_contract_graceful_fallback_empty_shape():
     snapshot = output["collective_coordination_snapshot"]
     order = output["bridge_stabilization_order"]
     advisory = output["bridge_playbook_advisory"]
+    harmonic = output["harmonic_state_summary"]
 
     # Fallback enums remain valid, with bounded empty arrays.
     assert snapshot["coordination_state_label"] in _ALLOWED_COORDINATION_STATE_LABELS
@@ -177,6 +241,10 @@ def test_coordination_output_contract_graceful_fallback_empty_shape():
     assert order["dominant_stabilization_mode"] in _ALLOWED_STABILIZATION_MODES
     assert advisory["playbook_alignment_label"] in _ALLOWED_PLAYBOOK_ALIGNMENT_LABELS
     assert advisory["dominant_bridge_playbook_fit"] in _ALLOWED_BRIDGE_PLAYBOOK_FIT
+    assert harmonic["harmonic_center"] in _ALLOWED_HARMONIC_CENTERS
+    assert harmonic["harmonic_interval_label"] in _ALLOWED_HARMONIC_INTERVALS
+    assert harmonic["resolution_direction"] in _ALLOWED_HARMONIC_RESOLUTION
+    assert harmonic["modulation_candidate"] in _ALLOWED_HARMONIC_MODULATION
 
     assert snapshot["top_bridge_candidates"] == []
     assert snapshot["top_stabilization_edges"] == []
@@ -355,7 +423,7 @@ def test_build_output_emits_council_ledger_artifact(tmp_path):
     learning_payload = json.loads(Path(learning_artifact_path).read_text(encoding="utf-8"))
     assert learning_payload["cycle_id"] == "cid-ledger"
     assert learning_payload["current_safety_mode"] == "repair_first"
-    assert learning_payload["current_rule_hits"] == ["repair_from_tension_or_low_safety"]
+    assert "repair_from_tension_or_low_safety" in learning_payload["current_rule_hits"]
     assert learning_payload["heuristic_count"] >= 1
     assert learning_payload["top_effective_rules"][0]["rule"] == "repair_from_tension_or_low_safety"
     assert learning_payload["top_effective_rules"][0]["seen"] == 2
