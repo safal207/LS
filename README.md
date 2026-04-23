@@ -18,7 +18,7 @@
 Live site: [GitHub Pages](https://safal207.github.io/LS/)
 
 **LS is a local-first coordination and oversight runtime for human-plus-model systems.**
-It records council cycles, tracks contribution and receiver resonance, exposes approval-safe operator workflows, and produces replayable artifacts for evaluation and governance.
+It records council cycles (structured multi-model decision rounds), tracks contribution and receiver resonance (a signal of how cleanly outcomes were accepted), exposes approval-safe operator workflows, and produces replayable artifacts for evaluation and governance.
 Instead of treating model output as a black box, LS turns decision cycles into measurable, reviewable, and improvable runtime artifacts.
 
 ---
@@ -349,152 +349,113 @@ pytest python/tests/test_memory_store_locking.py
 
 <a name="russian"></a>
 
-## Целостность согласования
-
-LS не считает повторяющийся текст доказательством согласия. Слои validation и
-governance различают:
-
-- настоящее схождение и echo chamber,
-- широкую поддержку и прямое противоречие,
-- базового победителя валидатора и governed winner, требующего ревью,
-- trusted quorum и trusted veto.
-
-Это важно, потому что многомодельное "согласие" легко подделать. Несколько
-агентов могут повторить один и тот же слабый ответ и создать видимость
-консенсуса. LS явно фиксирует эту структуру, поднимает coalition risk,
-сохраняет support/contradiction edges и помечает раунды, которые нельзя считать
-settled consensus без дополнительного review.
-
-См.:
-- [`docs/collective-answer-validator.md`](docs/collective-answer-validator.md)
-- [`docs/lifetra-validation-adapter.md`](docs/lifetra-validation-adapter.md)
-
----
-
-# LS — Локальная когнитивная система
+# LS — Local-first координационный и oversight runtime
 
 [![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
+[![Council Safety Gate](https://github.com/safal207/LS/actions/workflows/council_safety.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/council_safety.yml)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#быстрый-старт)
 [![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
 
-LS — это не обёртка над ChatGPT. Это **local-first система согласования и контроля** для человека и моделей: она думает между взаимодействиями, учится на обратной связи и сохраняет решения проверяемыми.
+**LS — это local-first runtime для координации и oversight в системах человек + модели.**
+Он фиксирует council cycles (структурированные раунды многомодельных решений), отслеживает вклад и receiver resonance (насколько результат был принят получателем без трения), поддерживает approval-safe операторские потоки и выпускает replayable-артефакты для оценки и governance.
 
 ---
 
-## Что это такое простыми словами
+## Зачем существует LS
 
-Обычный ИИ: вопрос → подумал → ответил → забыл.
+Большинство AI-систем дают ответ, но не сохраняют структуру, пригодную для проверки:
 
-LS **живёт между ответами**:
-- Пока ты печатаешь, фоновый поток анализирует твой стиль мышления
-- Когда ты ответил коротко после длинного ответа агента — это сигнал "не попал"
-- Когда один режим мышления повторяется раз за разом — он становится долгосрочной памятью
-- Когда система слишком долго стоит на одном месте — она сама себя исправляет
+- кто реально участвовал,
+- по какому маршруту пришли к решению,
+- что именно было принято,
+- где был операторский контроль и approval,
+- как оценить качество и повторяемость цикла.
 
-Итог: агент с **когнитивным характером**, который развивается без явных инструкций.
+LS нужен, чтобы превращать model-assisted координацию в измеряемые и проверяемые runtime-артефакты.
 
----
+## Что это на практике
 
-## Ключевые компоненты
+LS — это операторский runtime-слой вокруг decision cycle:
 
-### Когнитивное поле — 7 сил
+- запускает council-раунды вместо одной «чёрной коробки»;
+- сохраняет структурированные артефакты для replay и post-hoc review;
+- учитывает contribution / merit / resonance сигналы;
+- поддерживает approval-safe вмешательство оператора;
+- выводит quality-gated результаты, пригодные для benchmark и evidence-пакета.
 
-В каждом цикле `Coordinator.decide()` на граф знаний действуют 7 сил:
+## Поверхность доказательств (Evidence surface)
 
-| Сила | Что делает |
-|------|-----------|
-| F1+F2 | Ориентация: chaos/harmony изменяют резонанс + ассоциативная проводимость |
-| F3 | Стабилизация: узлы возвращаются к своему "положению покоя" |
-| F4 | Забывание: уроки живут 24ч, критические сигналы — 5 минут |
-| F5 | Интерференция: конкурирующие режимы подавляют друг друга |
-| F6 | Наблюдатель: обнаруживает патологии и корректирует поле |
-| F7 | Ассоциация: активные узлы усиливают связанных соседей |
+В репозитории уже есть проверяемый слой поведения:
 
-### 6 механизмов обучения
+- replayable traces для инспекции задач и council-циклов;
+- council result artifacts с полями для анализа;
+- contribution / merit / resonance сигналы (`CouncilContributionLedger`, `CEL`);
+- quality gates и машиночитаемые отчёты (`LiminalQA`, CI-пороги);
+- benchmark-снимки в [`benchmark/`](benchmark/);
+- `Council Safety Gate` в CI.
 
-Система учится **одновременно из 4 источников**:
+## Safety / oversight релевантность
 
-1. **Подсознание** (каждые 20с) — определяет твой режим мышления без вопросов
-2. **Явная обратная связь** — "да/нет" обновляет резонанс узла ±
-3. **Авто-прокси** — длинный ответ + короткая реакция = авто-негативный сигнал
-4. **Рефлексии** — уроки после действий, хранятся 24ч
-5. **Внешние события** — git-коммиты и ошибки в логах становятся узлами памяти
-6. **Ассоциативный граф** — совместно активированные узлы укрепляют связи
+LS позиционируется как инфраструктура oversight, а не как «удобный чат-ассистент».
 
-### Наблюдатель адекватности
+Ключевые safety-поверхности:
 
-`SystemObserver` работает каждый цикл и детектирует 6 патологий:
+- измеримый вклад участников и принятие результата,
+- replay и инспекция council-циклов,
+- approval-safe операторские workflows,
+- quality-gated артефакты для оценки и governance.
 
-| Патология | Условие | Коррекция |
-|-----------|---------|----------|
-| OVERHEATING | Все узлы перегреты | Нормализация поля ×0.88 |
-| VACUUM | Нет активных узлов | Поднять пол + инжект якоря |
-| OSSIFICATION | Одна ось 8+ циклов | Снизить инерцию, сдвинуть вниз |
-| SPLIT_BRAIN | Два режима в клинче | Подавить слабый на 0.12 |
-| RUNAWAY_CHAOS | Коллапс хаоса | Буст якорной оси |
-| RESONANCE_COLLAPSE | Ось слишком слабая | Экстренный буст |
+Основной позиционирующий документ:
+- [`docs/SAFETY_PROGRAMS_POSITIONING.md`](docs/SAFETY_PROGRAMS_POSITIONING.md)
 
-После 3 повторений патологии → пишет `lesson:meta:*`. **Система запоминает свои слабости.**
+## Что ревьюеру важно понять сначала
 
-### Профили пользователей
+1. Это проект про oversight, а не про удобный prompting.
+2. Здесь есть инженерные артефакты, а не только идеи.
+3. LS уже выдаёт измеримые traces, scorecards и evaluation outputs.
+4. Из текущего пакета реалистично собрать benchmark/dataset/demo артефакт.
 
-`UserProfileStore` отслеживает когнитивный стиль каждого пользователя. После 5+ ходов даёт **стартовый хинт** — агент начинает следующий разговор уже настроенным на твой стиль. Скользящее окно 20 ходов ловит изменения стиля.
+## Лучший путь для ревьюера
 
----
+1. [README.md](README.md)
+2. [`docs/SAFETY_PROGRAMS_POSITIONING.md`](docs/SAFETY_PROGRAMS_POSITIONING.md)
+3. [`docs/FELLOWSHIP_APPLICATION_READY.md`](docs/FELLOWSHIP_APPLICATION_READY.md)
+4. [`docs/FELLOWSHIP_DEMO_PATH.md`](docs/FELLOWSHIP_DEMO_PATH.md)
+5. [`benchmark/README.md`](benchmark/README.md)
+6. [`benchmark/RESULTS.md`](benchmark/RESULTS.md)
 
-## Мультимодальный операторский контур — Глаза + Уши + Голос
-
-LS умеет работать как **hands-free интерфейс для оператора**:
-
-- **Глаза (чтение экрана)** — `VisionSubsystem` снимает скриншот каждые 0.5с и распознаёт текст через OCR (pytesseract или easyocr). Последний текст экрана добавляется в каждый LLM-запрос как системное сообщение — агент видит текущий операторский контекст без ручного копирования.
-- **Уши (голосовой ввод)** — `faster-whisper` + PyAudio слушают микрофон и транскрибируют речь в текст в реальном времени. Транскрипт идёт в агент как сообщение пользователя.
-- **Голос (TTS)** — `Speaker` (pyttsx3, полностью оффлайн) читает ответ агента вслух, чтобы оператор мог оставаться в потоке без постоянного взгляда на экран.
-
-```
-┌──────────┐   OCR     ┌──────────────────┐  system msg   ┌──────────┐
-│  Экран   │ ────────► │  VisionSubsystem  │ ────────────► │          │
-└──────────┘           └──────────────────┘               │  Agent   │ ──► TTS ──► наушник
-                                                           │  Loop    │
-┌──────────┐  Whisper  ┌───────────────┐  user msg        │          │
-│   Мик    │ ────────► │  AudioInput   │ ───────────────► │          │
-└──────────┘           └───────────────┘                  └──────────┘
-```
-
-### Активация
-
-```bash
-pip install pyttsx3               # TTS (оффлайн)
-pip install pytesseract           # OCR (или: pip install easyocr)
-# для pytesseract: установи бинарник tesseract для своей ОС
-
-export LS_TTS_ENABLED=1           # включить голосовой вывод
-python apps/console/main.py
-```
-
----
-
-## Архитектура
+## Базовая архитектура (кратко)
 
 ```
 AgentLoop
-  ├── Screen OCR (VisionSubsystem) ─►
-  ├── Mic / Whisper                ─►  TemporalGraph
-  ├── Subconscious loop (20s)      ─►  (узлы + рёбра)
-  ├── WorldPoller (git/logs)       ─►
-  ├── Quality feedback             ─►
-  └── Auto feedback proxy          ─►
-                                        │
-                              Coordinator.decide()
-                              7 сил за цикл
-                                        │
-                              OrientationCenter ◄──► сигнал обратно
-                                        │
-                        sleep → session_report → lesson:session:*
-                                        │
-                              TTS Speaker ◄── ответ
+  ├── Subconscious / WorldPoller / Feedback
+  ├── TemporalGraph + Coordinator
+  ├── Council artifacts / traces / score updates
+  └── Operator review and approval path
 ```
 
----
+## Когнитивные механизмы (внутренний слой)
+
+Когнитивная архитектура в LS сохранена, но является поддерживающим механизмом runtime oversight:
+
+- 7 forces (`Coordinator.decide()`),
+- само-мониторинг (`SystemObserver`),
+- подсознательный цикл + память + профили пользователя.
+
+См. подробнее:
+- [COGNITIVE_FIELD_COMPLETE.md](COGNITIVE_FIELD_COMPLETE.md)
+- [SUBCONSCIOUS_TEMPORAL_LOOP.md](SUBCONSCIOUS_TEMPORAL_LOOP.md)
+
+## Мультимодальный операторский контур (вторичный слой)
+
+LS поддерживает расширение до multimodal operator loop:
+
+- OCR-контекст экрана,
+- голосовой ввод,
+- офлайн TTS,
+- `QwenOmniWorker` как опциональный фоновый воркер.
+
+Это полезное расширение, но не основной публичный identity LS.
 
 ## Быстрый старт
 
@@ -519,7 +480,7 @@ export DASHSCOPE_API_KEY=your_key   # без ключа — fallback режим
 python apps/ghostgpt/main.py
 ```
 
-### Мультимодальный голосовой контур (опционально)
+### Голосовой контур (опционально)
 
 ```bash
 pip install pyttsx3 pytesseract     # или easyocr вместо pytesseract
@@ -529,30 +490,4 @@ python apps/console/main.py
 
 ---
 
-## Документация
-
-| Файл | Содержимое |
-|------|-----------|
-| [COGNITIVE_FIELD_COMPLETE.md](COGNITIVE_FIELD_COMPLETE.md) | Полная архитектура 7 сил и 6 механизмов обучения |
-| [SUBCONSCIOUS_TEMPORAL_LOOP.md](SUBCONSCIOUS_TEMPORAL_LOOP.md) | Подсознание + петля обратной связи |
-| [docs/architecture/layers.md](docs/architecture/layers.md) | Каталог 12 архитектурных слоёв |
-| [FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md) | Итоговый отчёт Golden Master |
-
----
-
-## Сравнение с другими агентами
-
-| | Обычный агент | LS |
-|--|---------------|----------|
-| Между сообщениями | Простаивает | Подсознание работает |
-| Обучение | По запросу | Непрерывно (4 источника) |
-| Память | Плоская история | Граф с резонансом и распадом |
-| Самоконтроль | Нет | Наблюдатель корректирует патологии |
-| Модель пользователя | Нет | Профиль + предсказание режима |
-| Отказ | Тихий дрейф | Обнаруживается и исправляется |
-| Вход | Только текст | Текст + голос + экран (OCR) |
-| Выход | Только текст | Текст + голос (TTS) |
-
----
-
-© 2026 LS Team. Strictly Local. Strictly Cognitive.
+© 2026 LS Team. Local-first coordination and oversight runtime.
