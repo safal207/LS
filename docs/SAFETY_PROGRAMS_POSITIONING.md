@@ -67,12 +67,18 @@ Avoid leading with:
 
 ## Best repo entrypoints
 
-If someone is reading the repository for a program application, send them here first:
+If someone is reading the repository for a program application, use this reviewer path first:
 
-- [README.md](../README.md)
+1. [README.md](../README.md)
+2. [SAFETY_PROGRAMS_POSITIONING.md](SAFETY_PROGRAMS_POSITIONING.md)
+3. [FELLOWSHIP_APPLICATION_READY.md](FELLOWSHIP_APPLICATION_READY.md)
+4. [FELLOWSHIP_DEMO_PATH.md](FELLOWSHIP_DEMO_PATH.md)
+5. [benchmark/README.md](../benchmark/README.md)
+6. [benchmark/RESULTS.md](../benchmark/RESULTS.md)
+
+Then expand into:
+
 - [OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md](OPENAI_SAFETY_FELLOWSHIP_POSITIONING.md)
-- [FELLOWSHIP_APPLICATION_READY.md](FELLOWSHIP_APPLICATION_READY.md)
-- [FELLOWSHIP_DEMO_PATH.md](FELLOWSHIP_DEMO_PATH.md)
 - [FELLOWSHIP_REVIEWER_SCRIPT.md](FELLOWSHIP_REVIEWER_SCRIPT.md)
 - [FELLOWSHIP_EVIDENCE_AUDIT.md](FELLOWSHIP_EVIDENCE_AUDIT.md)
 - [FELLOWSHIP_RESEARCH_OUTPUTS.md](FELLOWSHIP_RESEARCH_OUTPUTS.md)
