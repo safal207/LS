@@ -84,9 +84,9 @@ Short flow:
 3. The gateway selects one of four modes.
 4. LS exposes both the raw output and the delivered output path in the output contract and artifacts.
 
-## Future external agent gateway flow
+## External agent gateway flow
 
-This is the next-step target architecture: any outside agent should enter LS through one explicit gateway instead of reaching the operator directly.
+This is the outside-agent architecture: any external agent can enter LS through one explicit gateway instead of reaching the operator directly.
 
 ```mermaid
 flowchart TD
@@ -127,6 +127,40 @@ Short reading:
 2. LS normalizes them into one contract.
 3. The same memory, graph, relational, coordination, and harmonic layers evaluate them.
 4. The personal gateway becomes the one final delivery checkpoint before the operator sees anything.
+
+## V1 external gateway usage
+
+The first usable external-agent entrypoint is available as both a Python module and a CLI command.
+
+Python API:
+
+- `agent.external_agent_gateway.ExternalAgentGateway`
+- `agent.external_agent_gateway.ExternalAgentGatewayRequest`
+
+CLI:
+
+```bash
+python -m ls.agent_shell.cli agent-gateway \
+  "Need a safer release recommendation." \
+  --raw-output "Ship it now." \
+  --agent-id speed-agent \
+  --agent-type codex \
+  --json
+```
+
+The CLI also accepts optional JSON context:
+
+- `--participants-json` for human/agent participants and their intent/why/needs,
+- `--relational-json` for a precomputed relational field,
+- `--alignment-json` for a precomputed alignment report,
+- `--metadata-json` for external agent metadata.
+
+This gives outside agents a stable contract:
+
+1. send the original task and raw answer into LS;
+2. LS derives or reads relational, alignment, coordination, harmonic, and memory signals;
+3. LS returns both `raw_agent_output` and `final_output`;
+4. downstream tools can inspect `gateway_mode`, `gateway_reason`, and artifacts.
 
 ## Gateway modes
 
@@ -205,14 +239,15 @@ This is the point where LS stops being only a positioning idea and becomes a rea
 
 It also clarifies the next architectural step:
 
-- today the personal layer governs LS internal output delivery,
-- next it should become the universal ingress path for external agents too.
+- today the personal layer governs LS internal output delivery and the V1 CLI/module external gateway,
+- next it should gain ready-made adapters for Codex, local tools, browser agents, and custom scripts.
 
 ## Demo
 
 Run:
 
 - `python scripts/personal_agent_gateway_demo.py`
+- `python scripts/external_agent_gateway_demo.py`
 
 This prints a compact example showing:
 

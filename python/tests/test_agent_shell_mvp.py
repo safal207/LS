@@ -110,6 +110,53 @@ def test_council_cycle_cli_emits_ledger_artifact(tmp_path: Path) -> None:
     assert artifacts
 
 
+def test_agent_gateway_cli_routes_external_output_as_json(tmp_path: Path) -> None:
+    runner = CliRunner()
+    artifact_dir = tmp_path / "council-ledger"
+    participants = [
+        {
+            "participant_id": "operator",
+            "intent": "safe_release",
+            "why": "protect users",
+            "needs": ["care", "stability"],
+        },
+        {
+            "participant_id": "speed-agent",
+            "intent": "ship_now",
+            "why": "deadline pressure",
+            "needs": ["speed", "urgency"],
+        },
+    ]
+
+    result = runner.invoke(
+        app,
+        [
+            "agent-gateway",
+            "Need a safer release recommendation.",
+            "--raw-output",
+            "Ship it now.",
+            "--agent-id",
+            "speed-agent",
+            "--agent-type",
+            "codex",
+            "--participants-json",
+            json.dumps(participants),
+            "--artifact-dir",
+            str(artifact_dir),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["raw_agent_output"] == "Ship it now."
+    assert payload["final_output"]
+    assert payload["gateway_mode"] in {"shape_response", "repair_before_send", "hold_or_escalate"}
+    assert payload["external_agent_gateway"]["agent_id"] == "speed-agent"
+    assert payload["external_agent_request"]["participants_count"] == 2
+    assert list(artifact_dir.glob("*.json"))
+
+
 def test_council_cycle_cli_can_publish_to_liminalqa(tmp_path: Path, monkeypatch) -> None:
     runner = CliRunner()
     artifact_dir = tmp_path / "council-ledger"

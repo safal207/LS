@@ -62,7 +62,7 @@ The product pattern is now live in the runtime:
    - `hold_or_escalate`
 5. The operator receives the improved result together with traces and review context.
 
-Architecture diagrams for the current internal path and the future external gateway path live in:
+Architecture diagrams for the current internal path and the external gateway path live in:
 
 - `docs/personal-agent-gateway-runtime.md`
 
@@ -75,6 +75,7 @@ This is no longer only positioning. The runtime now emits and preserves:
 - `personal_agent_gateway` with the selected mode and bounded reason,
 - gateway metrics for observability,
 - gateway traces inside quality, relational episode, and relation memory artifacts.
+- a V1 external-agent gateway through the `agent-gateway` CLI and `ExternalAgentGateway` Python API.
 
 The gateway now runs on full context before delivery:
 
@@ -102,7 +103,7 @@ That makes the personal layer better at both response shaping and architectural 
 The next product steps are:
 
 1. compare raw agent output with post-LS output in more dashboards and review surfaces;
-2. route external agents through one explicit gateway entrypoint instead of only internal runtime paths;
+2. add ready-made adapters for Codex, local tool runners, browser agents, and custom scripts;
 3. surface gateway mode and harmonic state directly in dashboards and runtime views;
 4. collect real operator examples to tune where shaping should stay advisory and where it should become policy;
 5. expand hold/repair behavior into a cleaner external-agent integration contract.

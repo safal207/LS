@@ -3,6 +3,7 @@ from pkgutil import extend_path
 __path__ = extend_path(__path__, __name__)
 
 from .counterfactual_engine import CounterfactualEngine
+from .external_agent_gateway import ExternalAgentGateway, ExternalAgentGatewayRequest
 from .events import AgentEvent, EventType
 from .relational_policy_engine import evaluate_relational_policy
 from .sinks import EventSink, NullSink, PrintSink, build_event_sink
@@ -14,6 +15,8 @@ except Exception:  # pragma: no cover - import guard for lightweight environment
 
 __all__ = [
     "CounterfactualEngine",
+    "ExternalAgentGateway",
+    "ExternalAgentGatewayRequest",
     "AgentEvent",
     "EventType",
     "AgentLoop",

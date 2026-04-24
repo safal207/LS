@@ -28,6 +28,11 @@ try:
 except ImportError:
     from modules.agent.resonance_agent import ResonanceAgent
 
+try:
+    from agent.external_agent_gateway import ExternalAgentGateway, ExternalAgentGatewayRequest
+except ImportError:
+    from modules.agent.external_agent_gateway import ExternalAgentGateway, ExternalAgentGatewayRequest
+
 app = typer.Typer(help="LS Agent Shell MVP CLI")
 console = Console()
 
@@ -44,6 +49,21 @@ def print_plain_safe(text: str) -> None:
             stream.flush()
         else:
             sys.stdout.write(safe_bytes.decode("cp1252", errors="replace"))
+
+
+def print_json_safe(payload: object) -> None:
+    output = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    try:
+        sys.stdout.write(output)
+        sys.stdout.flush()
+    except UnicodeEncodeError:
+        stream = getattr(sys.stdout, "buffer", None)
+        safe_bytes = output.encode("utf-8", errors="replace")
+        if stream is not None:
+            stream.write(safe_bytes)
+            stream.flush()
+        else:
+            sys.stdout.write(output.encode("ascii", errors="backslashreplace").decode("ascii"))
 
 
 class AccessMode(str, Enum):
@@ -323,6 +343,19 @@ def build_council_agent(
         except Exception:
             llm_fn = None
     return ResonanceAgent(anchor=[], llm_fn=llm_fn, orientation=orientation or "cli-council-cycle")
+
+
+def parse_json_option(value: str, *, option_name: str, expected_type: type) -> object:
+    text = str(value or "").strip()
+    if not text:
+        return expected_type()
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter(f"{option_name} must be valid JSON: {exc.msg}") from exc
+    if not isinstance(payload, expected_type):
+        raise typer.BadParameter(f"{option_name} must be a JSON {expected_type.__name__}.")
+    return payload
 
 
 def liminalqa_settings() -> tuple[str, str]:
@@ -863,6 +896,122 @@ def council_close_escalation(
     console.print(f"[green]Closed escalation[/green] {cycle_id}")
     console.print(f"[bold]Reason:[/bold] {reason}")
     console.print(f"[bold]Review artifact:[/bold] {updated_path}")
+
+
+@app.command("agent-gateway")
+def agent_gateway(
+    prompt: str,
+    raw_output: str = typer.Option(..., "--raw-output", help="Raw answer produced by the external agent."),
+    agent_id: str = typer.Option("external-agent", "--agent-id", help="External agent identifier."),
+    agent_type: str = typer.Option("external", "--agent-type", help="External agent provider/type."),
+    orientation: str = typer.Option("", "--orientation", help="Optional gateway orientation/context."),
+    participants_json: str = typer.Option(
+        "",
+        "--participants-json",
+        help="Optional JSON list of participant/context objects.",
+    ),
+    relational_json: str = typer.Option(
+        "",
+        "--relational-json",
+        help="Optional JSON object with precomputed relational field signals.",
+    ),
+    alignment_json: str = typer.Option(
+        "",
+        "--alignment-json",
+        help="Optional JSON object with precomputed alignment signals.",
+    ),
+    metadata_json: str = typer.Option(
+        "",
+        "--metadata-json",
+        help="Optional JSON object with external agent metadata.",
+    ),
+    llm_mode: CouncilLLMMode = typer.Option(
+        CouncilLLMMode.DRY_RUN,
+        "--llm-mode",
+        help="Choose whether gateway context may use a real local LLM or dry-run mode.",
+    ),
+    artifact_dir: Path = typer.Option(
+        Path("artifacts/council-ledger"),
+        "--artifact-dir",
+        help="Where to write gateway/council ledger JSON artifacts.",
+    ),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit the gateway result as JSON for automation.",
+    ),
+) -> None:
+    try:
+        participants = parse_json_option(
+            participants_json,
+            option_name="--participants-json",
+            expected_type=list,
+        )
+        relational_field = parse_json_option(
+            relational_json,
+            option_name="--relational-json",
+            expected_type=dict,
+        )
+        alignment_report = parse_json_option(
+            alignment_json,
+            option_name="--alignment-json",
+            expected_type=dict,
+        )
+        metadata = parse_json_option(
+            metadata_json,
+            option_name="--metadata-json",
+            expected_type=dict,
+        )
+    except typer.BadParameter as exc:
+        console.print(f"[red]Invalid gateway input:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    gateway_orientation = orientation or "cli-external-agent-gateway"
+    try:
+        agent = build_council_agent(orientation=gateway_orientation, llm_mode=llm_mode)
+    except Exception as exc:
+        console.print(f"[red]Gateway agent init failed:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    agent._council_ledger_dir = artifact_dir
+    agent._council_quality_dir = artifact_dir.parent / "council-quality"
+    agent._relational_episode_dir = artifact_dir.parent / "relational-episodes"
+    agent._relation_memory_dir = artifact_dir.parent / "relation-memory"
+    agent._relational_learning_dir = artifact_dir.parent / "relational-learning"
+
+    gateway = ExternalAgentGateway(agent, default_orientation=gateway_orientation)
+    request = ExternalAgentGatewayRequest(
+        prompt=prompt,
+        raw_output=raw_output,
+        agent_id=agent_id,
+        agent_type=agent_type,
+        orientation=gateway_orientation,
+        participants=list(participants),
+        relational_field=dict(relational_field) or None,
+        alignment_report=dict(alignment_report) or None,
+        metadata=dict(metadata),
+    )
+    result = gateway.route_external_output(request)
+
+    if as_json:
+        print_json_safe(result)
+        raise typer.Exit(code=0)
+
+    gateway_summary = result.get("personal_agent_gateway") or {}
+    console.print(f"[cyan]External agent gateway:[/cyan] {result.get('cycle_id', 'unknown')}")
+    console.print(
+        f"[green]Agent:[/green] {agent_id}    "
+        f"[green]Mode:[/green] {result.get('gateway_mode', 'pass_through')}"
+    )
+    console.print(f"[yellow]Reason:[/yellow] {result.get('gateway_reason', 'n/a')}")
+    if result.get("council_contribution_ledger_artifact"):
+        console.print(f"[bold]Ledger artifact:[/bold] {result.get('council_contribution_ledger_artifact')}")
+    if result.get("council_quality_artifact"):
+        console.print(f"[bold]Quality artifact:[/bold] {result.get('council_quality_artifact')}")
+    raw_excerpt = str(gateway_summary.get("raw_excerpt") or raw_output or "")
+    console.print(f"[bold]Raw output:[/bold] {raw_excerpt}")
+    console.print("[bold]Final output:[/bold]")
+    print_plain_safe(str(result.get("final_output") or ""))
 
 
 @app.command("council-cycle")
