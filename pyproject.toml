@@ -33,7 +33,7 @@ classifiers = [
 dependencies = [
     "numpy>=1.26.0",
     "Pillow>=10.0.0",
-    "mss>=9.0.1",
+    "mss>=10.2.0",
     "psutil>=7.2.2",
 ]
 
