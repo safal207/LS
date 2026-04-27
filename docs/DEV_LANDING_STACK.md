@@ -26,7 +26,22 @@
 .\scripts\dev_landing_stack.ps1
 ```
 
-Скрипт откроет **два** окна PowerShell с API и при отсутствии файла создаст `ghostgpt-ls-landing/.env` из `.env.example`. Затем в **отдельном** терминале:
+Вариант **одно окно, один процесс Python** (Reflection + HCP вместе):
+
+```powershell
+.\scripts\dev_landing_stack.ps1 -SingleProcess
+```
+
+Либо напрямую:
+
+```powershell
+$env:PYTHONPATH = "$pwd;$pwd\python"
+python scripts/run_dev_stack_api.py
+# с PluginManager для HCP:
+python scripts/run_dev_stack_api.py --bootstrap apps/console/main.py
+```
+
+Скрипт `dev_landing_stack.ps1` при отсутствии файла создаст `ghostgpt-ls-landing/.env` из `.env.example`. Два окна по умолчанию; с `-SingleProcess` — одно. Затем в **отдельном** терминале:
 
 ```powershell
 cd ghostgpt-ls-landing
@@ -38,14 +53,11 @@ npm run dev
 
 ### HCP с PluginManager (кнопка «Load» на панели)
 
-Пересобрать HCP с bootstrap (отдельно от `dev_landing_stack.ps1` при необходимости):
-
 ```powershell
-$env:PYTHONPATH = "$pwd;$pwd\python"
-python scripts\run_hcp_marketplace_api.py --port 8781 --bootstrap apps\console\main.py
+.\scripts\dev_landing_stack.ps1 -HcpWithBootstrap
+# или одно окно:
+.\scripts\dev_landing_stack.ps1 -SingleProcess -HcpWithBootstrap
 ```
-
-Или: `.\scripts\dev_landing_stack.ps1 -HcpWithBootstrap` (если скрипт поддерживает флаг).
 
 ## Вручную (любая ОС)
 

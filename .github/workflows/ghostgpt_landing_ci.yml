@@ -1,0 +1,33 @@
+name: ghostgpt-ls-landing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ghostgpt-ls-landing/**"
+      - ".github/workflows/ghostgpt_landing_ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "ghostgpt-ls-landing/**"
+      - ".github/workflows/ghostgpt_landing_ci.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ghostgpt-ls-landing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ghostgpt-ls-landing/package-lock.json
+      - name: Install and build
+        run: |
+          npm ci
+          npx tsc --noEmit
+          npm run build
