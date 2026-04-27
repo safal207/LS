@@ -7,6 +7,8 @@ __pycache__/
 *.dll
 *.spec
 dist/
+!ghostgpt-ls-landing/dist/
+!ghostgpt-ls-landing/dist/**
 build/
 rust_core/target/
 data/patterns.db
