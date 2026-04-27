@@ -20,8 +20,21 @@ def main() -> None:
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8781)
     p.add_argument("--state", default="hcp_marketplace.json")
+    p.add_argument(
+        "--bootstrap",
+        default=None,
+        metavar="MAIN_PY",
+        help="Path to app entry (e.g. apps/console/main.py); enables POST /api/hcp/load into PluginManager",
+    )
+    p.add_argument("--app", default="console", help="App name for bootstrap config (default: console)")
     args = p.parse_args()
-    run_hcp_marketplace_api(host=args.host, port=args.port, state_path=args.state)
+    run_hcp_marketplace_api(
+        host=args.host,
+        port=args.port,
+        state_path=args.state,
+        bootstrap_entry=args.bootstrap,
+        bootstrap_app_name=args.app,
+    )
 
 
 if __name__ == "__main__":

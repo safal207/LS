@@ -5,11 +5,14 @@ import logging
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 from urllib.parse import parse_qs, urlparse
 
 from .service import HcpMarketplaceService
 from .store import load_store_with_seed
+
+if TYPE_CHECKING:
+    from modules.shared.plugin_manager import PluginManager
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +38,10 @@ def _read_json_body(handler: BaseHTTPRequestHandler, max_body: int = 1_048_576) 
     return data
 
 
-def create_handler(service_factory: Callable[[], HcpMarketplaceService]) -> type[BaseHTTPRequestHandler]:
+def create_handler(
+    service_factory: Callable[[], HcpMarketplaceService],
+    plugin_manager: "PluginManager | None" = None,
+) -> type[BaseHTTPRequestHandler]:
     class HcpHandler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
             logger.info("hcp_api %s", format % args)
@@ -65,6 +71,14 @@ def create_handler(service_factory: Callable[[], HcpMarketplaceService]) -> type
             elif parsed.path == "/api/hcp/credits":
                 inst = (qs.get("instance") or [""])[0] or (qs.get("instance_id") or [""])[0] or "default"
                 self._json(200, svc.get_credits(inst))
+            elif parsed.path == "/api/hcp/runtime":
+                self._json(
+                    200,
+                    {
+                        "runtime": "attached" if plugin_manager is not None else "detached",
+                        "load_endpoint": "/api/hcp/load" if plugin_manager is not None else None,
+                    },
+                )
             else:
                 self._json(404, {"error": "not_found"})
 
@@ -90,6 +104,22 @@ def create_handler(service_factory: Callable[[], HcpMarketplaceService]) -> type
                     self._json(400, {"error": "item_id required"})
                     return
                 self._json(200, svc.install(item_id, inst))
+            elif parsed.path == "/api/hcp/load":
+                if plugin_manager is None:
+                    self._json(
+                        501,
+                        {
+                            "error": "runtime_not_configured",
+                            "hint": "Start the API with --bootstrap path/to/apps/console/main.py to enable load.",
+                        },
+                    )
+                    return
+                item_id = str(body.get("item_id", ""))
+                inst = str(body.get("instance_id", "default"))
+                if not item_id:
+                    self._json(400, {"error": "item_id required"})
+                    return
+                self._json(200, svc.load_plugin_into_manager(item_id, inst, plugin_manager))
             else:
                 self._json(404, {"error": "not_found"})
 
@@ -109,10 +139,21 @@ def run_hcp_marketplace_api(
     host: str = "127.0.0.1",
     port: int = 8781,
     state_path: str = "hcp_marketplace.json",
+    *,
+    bootstrap_entry: str | None = None,
+    bootstrap_app_name: str = "console",
 ) -> None:
     store = load_store_with_seed(Path(state_path))
     service = HcpMarketplaceService(store)
-    handler = create_handler(lambda: service)
+    plugin_manager = None
+    if bootstrap_entry:
+        from modules.shared.bootstrap import bootstrap_app
+        from modules.shared.plugin_manager import PluginManager
+
+        ctx = bootstrap_app(bootstrap_entry, bootstrap_app_name)
+        plugin_manager = PluginManager(ctx)
+    handler = create_handler(lambda: service, plugin_manager=plugin_manager)
     server = HTTPServer((host, port), handler)
-    print(f"HCP Marketplace API http://{host}:{port} (state: {state_path})")
+    mode = "with PluginManager" if plugin_manager else "catalog-only"
+    print(f"HCP Marketplace API http://{host}:{port} (state: {state_path}, {mode})")
     server.serve_forever()

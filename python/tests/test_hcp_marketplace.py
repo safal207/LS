@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+import urllib.error
 import urllib.request
 from http.server import HTTPServer
 from pathlib import Path
@@ -71,6 +72,24 @@ def test_http_catalog_and_purchase(tmp_path: Path, monkeypatch: pytest.MonkeyPat
             with urllib.request.urlopen(req, timeout=5.0) as resp:
                 return json.loads(resp.read().decode("utf-8"))
 
+        def post_json_any_status(url: str, body: dict) -> tuple[int, dict]:
+            raw = json.dumps(body).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=raw,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=5.0) as resp:
+                    return resp.status, json.loads(resp.read().decode("utf-8"))
+            except urllib.error.HTTPError as e:
+                payload = e.read().decode("utf-8", errors="replace")
+                try:
+                    return e.code, json.loads(payload) if payload else {}
+                except json.JSONDecodeError:
+                    return e.code, {"raw": payload}
+
         items = get(f"{base}/api/hcp/items")["items"]
         assert len(items) >= 8
         item_id = items[0]["item_id"]
@@ -80,6 +99,13 @@ def test_http_catalog_and_purchase(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         assert out["credits"] < cred0
         ins = post(f"{base}/api/hcp/install", {"item_id": item_id, "instance_id": "t1"})
         assert ins["status"] == "ok"
+        rt = get(f"{base}/api/hcp/runtime")
+        assert rt["runtime"] == "detached"
+        _code, load_body = post_json_any_status(
+            f"{base}/api/hcp/load", {"item_id": item_id, "instance_id": "t1"}
+        )
+        assert _code == 501
+        assert load_body.get("error") == "runtime_not_configured"
     finally:
         server.shutdown()
         server.server_close()
