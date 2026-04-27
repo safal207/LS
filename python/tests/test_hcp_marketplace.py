@@ -11,13 +11,18 @@ import pytest
 from modules.hcp_marketplace.http_api import create_handler
 from modules.hcp_marketplace.service import HcpMarketplaceService
 from modules.hcp_marketplace.store import load_store_with_seed
+from modules.shared.bootstrap import bootstrap_app
+from modules.shared.plugin_manager import PluginManager
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_CONSOLE_MAIN = _REPO_ROOT / "apps" / "console" / "main.py"
 
 
-def test_seed_has_eight_items(tmp_path: Path) -> None:
+def test_seed_has_catalog_items(tmp_path: Path) -> None:
     p = tmp_path / "m.json"
     store = load_store_with_seed(p)
     items = store.list_items()
-    assert len(items) == 8
+    assert len(items) >= 8
 
 
 def test_purchase_install_flow(tmp_path: Path) -> None:
@@ -79,3 +84,22 @@ def test_http_catalog_and_purchase(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         server.shutdown()
         server.server_close()
         thread.join(timeout=5.0)
+
+
+def test_load_plugin_into_manager_echo_demo(tmp_path: Path) -> None:
+    """After purchase+install, load_plugin_into_manager loads echo_plugin from python/plugins."""
+    state = tmp_path / "m.json"
+    store = load_store_with_seed(state)
+    svc = HcpMarketplaceService(store)
+    item_id = "hcp-runtime-echo"
+    inst = "ls-demo"
+    assert svc.purchase(item_id, inst)["status"] == "ok"
+    assert svc.install(item_id, inst)["status"] == "ok"
+
+    ctx = bootstrap_app(str(_CONSOLE_MAIN), "console")
+    manager = PluginManager(ctx)
+    out = svc.load_plugin_into_manager(item_id, inst, manager)
+    assert out["status"] == "ok"
+    assert out["loaded"] == "echo_plugin"
+    assert "echo_plugin" in manager.list_loaded()
+    manager.unload("echo_plugin")

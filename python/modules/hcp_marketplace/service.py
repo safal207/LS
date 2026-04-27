@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .store import HcpMarketplaceStore
+
+if TYPE_CHECKING:
+    from modules.shared.plugin_manager import PluginManager
 
 
 class HcpMarketplaceService:
@@ -66,3 +69,28 @@ class HcpMarketplaceService:
             "version": item.version,
             "load_hint": f"importlib metadata entry: {item.plugin_id}",
         }
+
+    def load_plugin_into_manager(
+        self,
+        item_id: str,
+        instance_id: str,
+        plugin_manager: "PluginManager",
+    ) -> dict[str, Any]:
+        """Load ``python/plugins/<plugin_module>`` after purchase+install when item metadata lists it."""
+        if not self._store.has_purchased(instance_id, item_id):
+            return {"status": "error", "reason": "not_purchased"}
+        if not self._store.is_installed(instance_id, item_id):
+            return {"status": "error", "reason": "not_installed"}
+        item = self._store.get_item(item_id)
+        if item is None:
+            return {"status": "error", "reason": "unknown_item"}
+        mod = item.metadata.get("plugin_module")
+        if not mod or not isinstance(mod, str):
+            return {"status": "skipped", "reason": "no_plugin_module"}
+        path = plugin_manager.plugin_dir / mod
+        if not path.is_file():
+            return {"status": "error", "reason": "plugin_file_missing", "path": str(path)}
+        name = plugin_manager.load_from_path(path)
+        if name is None:
+            return {"status": "error", "reason": "load_failed"}
+        return {"status": "ok", "loaded": name, "plugin_dir": str(plugin_manager.plugin_dir)}

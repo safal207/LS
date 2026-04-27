@@ -22,6 +22,14 @@ def _demo_catalog() -> list[HcpItem]:
         HcpItem("hcp-reflection-ui", "Reflection UI pack", "Operator theming for reflection panel.", 25.0, "plugin.reflection.ui"),
         HcpItem("hcp-ledger-sim", "Ledger simulator", "Dry-run economic ledger for tasks.", 35.0, "plugin.ledger.sim"),
         HcpItem("hcp-privacy-stub", "Privacy review stub", "Checklist extension for PII review.", 15.0, "plugin.privacy.stub"),
+        HcpItem(
+            "hcp-runtime-echo",
+            "Runtime echo (demo)",
+            "After purchase+install, can load echo_plugin.py via PluginManager.",
+            5.0,
+            "plugin.hcp.echo",
+            metadata={"plugin_module": "echo_plugin.py"},
+        ),
     ]
 
 

@@ -27,6 +27,12 @@ PYTHONPATH=python python scripts/run_hcp_marketplace_api.py --port 8781
 
 State file: `hcp_marketplace.json` in cwd (override with `--state`).
 
+## Runtime load (PluginManager)
+
+Items may set metadata `plugin_module` (e.g. `echo_plugin.py` under `python/plugins/`). After **purchase** and **install**, call:
+
+`HcpMarketplaceService.load_plugin_into_manager(item_id, instance_id, plugin_manager)` to run `PluginManager.load_from_path` for that file. Demo item: `hcp-runtime-echo` (maps to the existing `echo_plugin.py` example).
+
 ## Tests
 
-`python/tests/test_hcp_marketplace.py` — seed count, service purchase/install, HTTP smoke.
+`python/tests/test_hcp_marketplace.py` — seed count, service purchase/install, HTTP smoke, PluginManager load for `hcp-runtime-echo`.
