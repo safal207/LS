@@ -57,6 +57,8 @@ class QwenOmniWorker:
             "Analyze screen and audio context, return concise actionable insight.",
         )
         self.api_key = os.getenv("DASHSCOPE_API_KEY", "").strip()
+        self._dashscope_retries = max(1, int(os.getenv("DASHSCOPE_REALTIME_RETRIES", "3")))
+        self._dashscope_retry_base_s = max(0.0, float(os.getenv("DASHSCOPE_REALTIME_BASE_DELAY_S", "0.5")))
         self.max_fps = min(5.0, max(1.0, float(fps)))
         self.min_store_resonance_score = max(0.0, float(min_store_resonance_score))
         self.cycle_interval_s = max(5.0, float(cycle_interval_s))
@@ -225,6 +227,51 @@ class QwenOmniWorker:
 
         return self._analyze_with_fallback(frame_meta=frame_meta, audio_text=audio_text)
 
+    def _coalesce_dashscope_response(self, response: Any) -> Any:
+        """Unify one-shot, object, or iterable chunk streams into a value ``_normalize_model_response`` accepts."""
+        if response is None:
+            return None
+        if isinstance(response, dict):
+            return response
+        if hasattr(response, "output_text") or hasattr(response, "text"):
+            return response
+        if isinstance(response, (str, bytes, bytearray)):
+            if isinstance(response, bytes):
+                return {"text": response.decode("utf-8", errors="replace"), "metadata": {"raw": "bytes"}}
+            return {"text": str(response)}
+
+        if hasattr(response, "__iter__") and not isinstance(response, (dict, list)):
+            parts: list[str] = []
+            n = 0
+            for chunk in response:  # type: ignore[assignment]
+                n += 1
+                if chunk is None:
+                    continue
+                if isinstance(chunk, dict):
+                    t = (
+                        chunk.get("text")
+                        or chunk.get("output_text")
+                        or chunk.get("output")
+                    )
+                    if t:
+                        parts.append(str(t))
+                elif hasattr(chunk, "output_text") and getattr(chunk, "output_text", None):
+                    parts.append(str(getattr(chunk, "output_text")))
+                elif hasattr(chunk, "text") and getattr(chunk, "text", None):
+                    parts.append(str(getattr(chunk, "text")))
+            merged = "".join(parts).strip()
+            if merged or n:
+                return {
+                    "text": merged,
+                    "metadata": {
+                        "provider": "dashscope",
+                        "stream_chunks": n,
+                    },
+                }
+        if isinstance(response, list) and response and isinstance(response[0], dict):
+            return response[0]
+        return response
+
     def _analyze_with_dashscope_realtime(
         self,
         *,
@@ -254,14 +301,35 @@ class QwenOmniWorker:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
             }
-            # TODO: wire stream chunks + WS reconnection policy when SDK surface is stable.
-            if hasattr(conversation, "create"):
-                response = conversation.create(payload)
-            elif hasattr(conversation, "call"):
-                response = conversation.call(payload)
-            else:
-                return None
-            return self._normalize_model_response(response)
+            last_exc: Exception | None = None
+            for attempt in range(self._dashscope_retries):
+                try:
+                    if hasattr(conversation, "create"):
+                        raw = conversation.create(payload)
+                    elif hasattr(conversation, "call"):
+                        raw = conversation.call(payload)
+                    else:
+                        return None
+                    coalesced = self._coalesce_dashscope_response(raw)
+                    if coalesced is not None:
+                        return self._normalize_model_response(coalesced)
+                    return None
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt + 1 >= self._dashscope_retries:
+                        break
+                    delay = self._dashscope_retry_base_s * (2**attempt)
+                    logger.debug(
+                        "DashScope realtime attempt %s/%s failed: %s; retry in %.2fs",
+                        attempt + 1,
+                        self._dashscope_retries,
+                        exc,
+                        delay,
+                    )
+                    time.sleep(delay)
+            if last_exc is not None:
+                logger.debug("DashScope realtime analyze failed: %s", last_exc)
+            return None
         except Exception as exc:
             logger.debug("DashScope realtime analyze failed: %s", exc)
             return None

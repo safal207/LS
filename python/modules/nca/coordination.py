@@ -78,14 +78,21 @@ class GlobalTickCoordinator:
             self.agents.append(agent)
 
     def compute_execution_order(self, collective_state: dict[str, Any]) -> list[NCAAgent]:
-        scored: list[tuple[float, str, NCAAgent]] = []
+        """Order agents for the tick. Agents with ``militocracy.override_signal`` run first
+        (Phase 15 preemption), then by arbitration score, then by ``agent_id``."""
+        scored: list[tuple[int, float, str, NCAAgent]] = []
         for idx, agent in enumerate(self.agents):
             agent_id = str(getattr(agent, "agent_id", f"agent-{idx}"))
+            militocracy = getattr(agent, "militocracy", None)
+            override = bool(
+                getattr(militocracy, "override_signal", False) if militocracy is not None else False
+            )
             score = self.arbitration.score(agent, collective_state)
-            scored.append((score, agent_id, agent))
+            # Tuple sort: 0 = preempting agents first, then higher score (negated), then stable id
+            scored.append((0 if override else 1, -score, agent_id, agent))
 
-        scored.sort(key=lambda item: (-item[0], item[1]))
-        return [item[2] for item in scored]
+        scored.sort()
+        return [item[3] for item in scored]
 
 
     def computeexecutionorder(self, collective_state: dict[str, Any]) -> list[NCAAgent]:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import hashlib
 import tempfile
@@ -27,6 +28,27 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _cosine_sim_dense(a: list[float], b: list[float]) -> float:
+    """Cosine similarity on the shared prefix; empty or degenerate → 0.0."""
+    if not a or not b:
+        return 0.0
+    n = min(len(a), len(b))
+    if n < 1:
+        return 0.0
+    dot = 0.0
+    na = 0.0
+    nb = 0.0
+    for i in range(n):
+        x, y = a[i], b[i]
+        dot += x * y
+        na += x * x
+        nb += y * y
+    if na <= 0.0 or nb <= 0.0:
+        return 0.0
+    return max(-1.0, min(1.0, dot / (math.sqrt(na) * math.sqrt(nb))))
+
 
 _STORE_LOCKS: dict[str, threading.RLock] = {}
 _STORE_LOCKS_GUARD = threading.Lock()
@@ -253,7 +275,7 @@ class MemoryGraphStore:
         scored: list[tuple[ResonanceKnowledgeUnit, float]] = []
 
         top_k = max(1, int(top_k or 1))
-        _ = goal_vector  # TODO: add cosine similarity in follow-up
+        gv = goal_vector if goal_vector else []
         query_text_lower = query_text.lower() if query_text else None
 
         for u in units:
@@ -263,6 +285,11 @@ class MemoryGraphStore:
                 match_score += 0.4
             if why and u.why and why.lower() in u.why.lower():
                 match_score += 0.4
+
+            if gv and u.goal_vector:
+                cos = _cosine_sim_dense(gv, u.goal_vector)
+                # Map [-1, 1] → [0, 1] and blend (up to 0.35) with keyword heuristics
+                match_score += 0.35 * (0.5 * (cos + 1.0))
 
             query_match = (
                 query_text_lower
