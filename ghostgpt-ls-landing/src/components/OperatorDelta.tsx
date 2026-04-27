@@ -36,6 +36,7 @@ type ScorePoint = {
 };
 
 type CouncilScorecardPayload = {
+  source?: string;
   summary: {
     ledgers: number;
     top_contributor: string;
@@ -295,12 +296,13 @@ const programFit = {
   }
 } as const;
 
-function MiniBars({ data, tone = 'cyan' }: { data: ScorePoint[]; tone?: 'cyan' | 'emerald' | 'amber' }) {
+function MiniBars({ data, tone = 'cyan' }: { data: ScorePoint[]; tone?: 'cyan' | 'emerald' | 'amber' | 'violet' }) {
   const max = Math.max(...data.map((item) => item.value), 1);
   const palette = {
     cyan: 'from-cyan-300 to-sky-500',
     emerald: 'from-emerald-300 to-emerald-500',
-    amber: 'from-amber-300 to-orange-500'
+    amber: 'from-amber-300 to-orange-500',
+    violet: 'from-violet-300 to-fuchsia-500'
   } as const;
 
   return (
@@ -603,11 +605,11 @@ export default function OperatorDelta() {
           </div>
 
           <div className="mt-3 text-xs uppercase tracking-[0.14em] text-white/45">
-            {text.sourceLabel}: {scorecard.source}
+            {text.sourceLabel}: {scorecard.source ?? '—'}
           </div>
 
           <p className="mt-3 max-w-3xl text-sm text-white/72">
-            {language === 'ru'
+            {lang === 'ru'
               ? 'Memory-adjusted показывает, сколько циклов были ужесточены памятью о похожих плохих паттернах. Memory matches показывает, сколько похожих relation-memory совпадений система нашла перед выдачей operator guidance.'
               : 'Memory-adjusted shows how many cycles were hardened by memory of similar bad patterns. Memory matches shows how many similar relation-memory matches the system found before issuing operator guidance.'}
           </p>

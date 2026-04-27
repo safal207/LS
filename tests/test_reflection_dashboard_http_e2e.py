@@ -118,3 +118,43 @@ def test_reflection_options_preflight_includes_cors_headers(monkeypatch: pytest.
         server.server_close()
         thread.join(timeout=5.0)
         monkeypatch.delenv("REFLECTION_CORS_ORIGIN", raising=False)
+
+
+def test_reflection_http_edit_registers_timeline(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """POST action=edit with proposed_value should appear in snapshot action_timeline."""
+    monkeypatch.chdir(tmp_path)
+    service = _build_service()
+    handler = create_handler(lambda: service)
+    server = HTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_port
+        base = f"http://127.0.0.1:{port}"
+        proposal = {
+            "proposal_id": "e2e-edit-1",
+            "change_type": "control_update",
+            "target": "fallback_action",
+            "proposed_value": "retrieve_context",
+        }
+        status, _ = _http_json(
+            "POST",
+            f"{base}/api/reflection/action",
+            {
+                "action": "edit",
+                "proposal": proposal,
+                "proposed_value": "structured_reasoning",
+                "note": "e2e",
+            },
+        )
+        assert status == 200
+
+        _status, snap = _http_json("GET", f"{base}/api/reflection/snapshot?recent_limit=2&timeline_limit=10")
+        assert _status == 200
+        timeline = snap.get("action_timeline", [])
+        types = {item.get("type") for item in timeline if isinstance(item, dict)}
+        assert "edit" in types
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5.0)
