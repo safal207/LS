@@ -6,8 +6,11 @@ Bilingual (RU/EN) marketing landing page for GhostGPT LS using React + Tailwind 
 
 ```bash
 npm install
+cp .env.example .env   # optional: sets VITE_REFLECTION_API_BASE and VITE_HCP_API_BASE
 npm run dev
 ```
+
+Runtime Live and HCP Marketplace panels need the Python APIs. From the **repository root**, see `docs/DEV_LANDING_STACK.md` or run `.\scripts\dev_landing_stack.ps1` (Windows) to start both backends, then `npm run dev` here.
 
 ## Build for GitHub Pages/FastAPI static hosting
 

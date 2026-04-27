@@ -1,0 +1,3 @@
+# Local Vite env (see .env.example)
+.env
+.env.*.local

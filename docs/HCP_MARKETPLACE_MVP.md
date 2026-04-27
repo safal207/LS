@@ -45,7 +45,7 @@ Items may set metadata `plugin_module` (e.g. `echo_plugin.py` under `python/plug
 
 ## Landing UI
 
-`ghostgpt-ls-landing` includes `HcpMarketplacePanel` (uses `VITE_HCP_API_BASE`, default `http://127.0.0.1:8781`). Build with a matching API origin if the panel is served from another host/port.
+`ghostgpt-ls-landing` includes `HcpMarketplacePanel` (uses `VITE_HCP_API_BASE`, default `http://127.0.0.1:8781`). Copy `ghostgpt-ls-landing/.env.example` to `.env` and run the full stack: **`docs/DEV_LANDING_STACK.md`** (script `scripts/dev_landing_stack.ps1`).
 
 ## Tests
 
