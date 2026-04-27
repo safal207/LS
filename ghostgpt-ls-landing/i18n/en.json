@@ -112,6 +112,11 @@
     "proposals": "Top proposals",
     "approve": "Approve",
     "reject": "Reject",
+    "edit": "Edit",
+    "saveEdit": "Save edit",
+    "cancelEdit": "Cancel",
+    "editPlaceholder": "JSON value, e.g. 0.42 or \"retrieve_context\"",
+    "editValueLabel": "New proposed value",
     "noProposals": "No proposals to display"
   }
 }

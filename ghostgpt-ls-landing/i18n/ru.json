@@ -112,6 +112,11 @@
     "proposals": "Главные предложения",
     "approve": "Approve",
     "reject": "Reject",
+    "edit": "Edit",
+    "saveEdit": "Сохранить",
+    "cancelEdit": "Отмена",
+    "editPlaceholder": "JSON-значение, напр. 0.42 или \"retrieve_context\"",
+    "editValueLabel": "Новое proposed value",
     "noProposals": "Нет предложений для отображения"
   }
 }

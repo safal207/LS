@@ -4,15 +4,21 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Callable, Dict
 from urllib.parse import parse_qs, urlparse
 
-logger = logging.getLogger(__name__)
-
 from .decision_pipeline import DecisionPipeline
 from .reflection import ReflectionPipeline
 from .reflection_dashboard_service import ReflectionDashboardService
+
+logger = logging.getLogger(__name__)
+
+
+def _cors_allow_origin() -> str:
+    """Use ``REFLECTION_CORS_ORIGIN`` in production; default ``*`` for local dev."""
+    return os.getenv("REFLECTION_CORS_ORIGIN", "*").strip() or "*"
 
 
 def build_snapshot_response(service: ReflectionDashboardService, query: Dict[str, list[str]]) -> Dict[str, Any]:
@@ -61,6 +67,18 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
         if self.service_factory is None:
             raise RuntimeError("service_factory is not configured; use create_handler(...) to bind a service")
         super().__init__(*args, **kwargs)
+
+    def do_OPTIONS(self) -> None:
+        parsed = urlparse(self.path)
+        if parsed.path not in ("/api/reflection/snapshot", "/api/reflection/action"):
+            self.send_response(404)
+            self.end_headers()
+            return
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", _cors_allow_origin())
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -127,8 +145,7 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        # dev-only: restrict in production
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", _cors_allow_origin())
         self.end_headers()
         self.wfile.write(body)
 

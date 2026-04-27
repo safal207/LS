@@ -48,12 +48,26 @@ function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
   return fetch(url, { ...init, signal: controller.signal }).finally(() => window.clearTimeout(id));
 }
 
+function parseEditValue(raw: string): unknown {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return trimmed;
+  }
+}
+
 export default function RuntimeLivePanel() {
   const { t } = useTranslation();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [mode, setMode] = useState<PanelMode>('loading');
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
 
   const topProposals = useMemo(() => (snapshot?.proposals || []).slice(0, 3), [snapshot]);
 
@@ -83,7 +97,12 @@ export default function RuntimeLivePanel() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const applyAction = async (action: 'approve' | 'reject', proposal: Proposal, idx: number) => {
+  const applyAction = async (
+    action: 'approve' | 'reject' | 'edit',
+    proposal: Proposal,
+    idx: number,
+    edit?: { proposedValue: unknown; note?: string }
+  ) => {
     const busyKey = proposal.proposal_id ?? `__idx_${idx}`;
     if (mode === 'demo') {
       setSnapshot((current) => {
@@ -92,7 +111,8 @@ export default function RuntimeLivePanel() {
         const actionTimeline = [
           {
             timestamp: new Date().toISOString(),
-            type: action === 'approve' ? 'demo_approve' : 'demo_reject'
+            type:
+              action === 'approve' ? 'demo_approve' : action === 'reject' ? 'demo_reject' : 'demo_edit'
           },
           ...(current.action_timeline || [])
         ].slice(0, 4);
@@ -102,20 +122,32 @@ export default function RuntimeLivePanel() {
           action_timeline: actionTimeline
         };
       });
+      setEditingKey(null);
       return;
     }
 
     setBusyId(busyKey);
     try {
+      const body: Record<string, unknown> = { action, proposal };
+      if (action === 'edit') {
+        if (edit?.proposedValue === undefined) {
+          throw new Error('edit requires proposed_value');
+        }
+        body.proposed_value = edit.proposedValue;
+        if (edit.note !== undefined) {
+          body.note = edit.note;
+        }
+      }
       const response = await fetchWithTimeout(`${API_BASE}/api/reflection/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, proposal })
+        body: JSON.stringify(body)
       });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
       await loadSnapshot();
+      setEditingKey(null);
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError') {
         setError(err.message);
@@ -181,32 +213,82 @@ export default function RuntimeLivePanel() {
           <div className="space-y-2">
             {topProposals.map((proposal, idx) => {
               const busyKey = proposal.proposal_id ?? `__idx_${idx}`;
+              const isEditing = editingKey === busyKey;
               return (
                 <div
                   key={proposal.proposal_id || `proposal-${idx}`}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 px-3 py-2"
+                  className="flex flex-col gap-2 rounded-lg border border-white/10 px-3 py-2"
                 >
-                  <div className="text-sm">
-                    <span className="font-semibold">{proposal.proposal_id}</span>
-                    <span className="text-white/70"> • {proposal.change_type} • {proposal.target}</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm">
+                      <span className="font-semibold">{proposal.proposal_id}</span>
+                      <span className="text-white/70"> • {proposal.change_type} • {proposal.target}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-white/70">conf {(proposal.confidence ?? 0).toFixed(2)}</span>
+                      <button
+                        type="button"
+                        onClick={() => applyAction('approve', proposal, idx)}
+                        disabled={busyId === busyKey}
+                        className="rounded border border-emerald-300/40 bg-emerald-400/10 px-2 py-1 text-xs text-emerald-300 disabled:opacity-50"
+                      >
+                        {t('runtimeLive.approve')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyAction('reject', proposal, idx)}
+                        disabled={busyId === busyKey}
+                        className="rounded border border-rose-300/40 bg-rose-400/10 px-2 py-1 text-xs text-rose-300 disabled:opacity-50"
+                      >
+                        {t('runtimeLive.reject')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingKey(isEditing ? null : busyKey);
+                          setEditDraft(
+                            proposal.proposed_value !== undefined && proposal.proposed_value !== null
+                              ? JSON.stringify(proposal.proposed_value)
+                              : ''
+                          );
+                        }}
+                        disabled={busyId === busyKey}
+                        className="rounded border border-cyan-300/40 bg-cyan-400/10 px-2 py-1 text-xs text-cyan-200 disabled:opacity-50"
+                      >
+                        {t('runtimeLive.edit')}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-white/70">conf {(proposal.confidence ?? 0).toFixed(2)}</span>
-                    <button
-                      onClick={() => applyAction('approve', proposal, idx)}
-                      disabled={busyId === busyKey}
-                      className="rounded border border-emerald-300/40 bg-emerald-400/10 px-2 py-1 text-xs text-emerald-300 disabled:opacity-50"
-                    >
-                      {t('runtimeLive.approve')}
-                    </button>
-                    <button
-                      onClick={() => applyAction('reject', proposal, idx)}
-                      disabled={busyId === busyKey}
-                      className="rounded border border-rose-300/40 bg-rose-400/10 px-2 py-1 text-xs text-rose-300 disabled:opacity-50"
-                    >
-                      {t('runtimeLive.reject')}
-                    </button>
-                  </div>
+                  {isEditing && (
+                    <div className="flex flex-col gap-2 border-t border-white/10 pt-2 sm:flex-row sm:items-center">
+                      <input
+                        type="text"
+                        value={editDraft}
+                        onChange={(e) => setEditDraft(e.target.value)}
+                        className="min-w-0 flex-1 rounded border border-white/20 bg-black/30 px-2 py-1 font-mono text-xs text-white"
+                        placeholder={t('runtimeLive.editPlaceholder')}
+                        aria-label={t('runtimeLive.editValueLabel')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const parsed = parseEditValue(editDraft);
+                          void applyAction('edit', proposal, idx, { proposedValue: parsed ?? null });
+                        }}
+                        disabled={busyId === busyKey}
+                        className="rounded border border-cyan-300/50 bg-cyan-500/20 px-3 py-1 text-xs text-cyan-100 disabled:opacity-50"
+                      >
+                        {t('runtimeLive.saveEdit')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingKey(null)}
+                        className="rounded border border-white/20 px-3 py-1 text-xs text-white/80"
+                      >
+                        {t('runtimeLive.cancelEdit')}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
