@@ -43,6 +43,10 @@ Items may set metadata `plugin_module` (e.g. `echo_plugin.py` under `python/plug
 
 `HcpMarketplaceService.load_plugin_into_manager(item_id, instance_id, plugin_manager)` to run `PluginManager.load_from_path` for that file. Demo item: `hcp-runtime-echo` (maps to the existing `echo_plugin.py` example).
 
+## Landing UI
+
+`ghostgpt-ls-landing` includes `HcpMarketplacePanel` (uses `VITE_HCP_API_BASE`, default `http://127.0.0.1:8781`). Build with a matching API origin if the panel is served from another host/port.
+
 ## Tests
 
 `python/tests/test_hcp_marketplace.py` — seed count, service purchase/install, HTTP smoke, PluginManager load for `hcp-runtime-echo`.

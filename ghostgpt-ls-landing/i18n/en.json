@@ -118,5 +118,24 @@
     "editPlaceholder": "JSON value, e.g. 0.42 or \"retrieve_context\"",
     "editValueLabel": "New proposed value",
     "noProposals": "No proposals to display"
+  },
+  "hcpMarketplace": {
+    "title": "HCP Marketplace (internal credits)",
+    "loading": "loading",
+    "live": "live",
+    "demo": "demo mode",
+    "offlineNote": "The HCP API is offline — showing sample rows. Start scripts/run_hcp_marketplace_api.py to use a real catalog.",
+    "error": "Request error",
+    "instanceId": "Instance id",
+    "refresh": "Refresh",
+    "credits": "Credits",
+    "runtime": "Runtime",
+    "runtimeAttached": "attached (load enabled)",
+    "runtimeDetached": "detached",
+    "price": "cr",
+    "buy": "Buy",
+    "install": "Install",
+    "loadRuntime": "Load",
+    "demoActions": "Connect API to buy/install"
   }
 }

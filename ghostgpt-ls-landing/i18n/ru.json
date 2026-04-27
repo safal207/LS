@@ -118,5 +118,24 @@
     "editPlaceholder": "JSON-значение, напр. 0.42 или \"retrieve_context\"",
     "editValueLabel": "Новое proposed value",
     "noProposals": "Нет предложений для отображения"
+  },
+  "hcpMarketplace": {
+    "title": "HCP Marketplace (внутренние кредиты)",
+    "loading": "загрузка",
+    "live": "live",
+    "demo": "демо-режим",
+    "offlineNote": "HCP API офлайн — показаны примеры строк. Запустите scripts/run_hcp_marketplace_api.py для живого каталога.",
+    "error": "Ошибка запроса",
+    "instanceId": "Instance id",
+    "refresh": "Обновить",
+    "credits": "Кредиты",
+    "runtime": "Рантайм",
+    "runtimeAttached": "подключён (load доступен)",
+    "runtimeDetached": "отключён",
+    "price": "кр",
+    "buy": "Купить",
+    "install": "Установить",
+    "loadRuntime": "Загрузить",
+    "demoActions": "Подключите API для покупки/установки"
   }
 }
