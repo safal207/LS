@@ -136,6 +136,9 @@ Python API:
 
 - `agent.external_agent_gateway.ExternalAgentGateway`
 - `agent.external_agent_gateway.ExternalAgentGatewayRequest`
+- `agent.agent_adapter_kit.AgentAdapterKit`
+- `agent.agent_adapter_kit.AgentAdapterRequest`
+- `agent.agent_adapter_kit.CodexSelfUseAdapter`
 
 CLI:
 
@@ -161,6 +164,55 @@ This gives outside agents a stable contract:
 2. LS derives or reads relational, alignment, coordination, harmonic, and memory signals;
 3. LS returns both `raw_agent_output` and `final_output`;
 4. downstream tools can inspect `gateway_mode`, `gateway_reason`, and artifacts.
+
+## Agent Adapter Kit v1
+
+`ExternalAgentGateway` is the low-level gateway. `AgentAdapterKit` is the easier integration surface for agents.
+
+The adapter kit supports two simple paths:
+
+- `route_raw_output(request, raw_output)` when an agent already produced a raw answer;
+- `run(request, raw_output_producer)` when LS should call a producer function, capture the raw draft, and route it through the gateway.
+
+Minimal Python shape:
+
+```python
+kit = AgentAdapterKit.from_agent(resonance_agent)
+response = kit.run(
+    AgentAdapterRequest(
+        prompt="Need a safer release recommendation.",
+        agent_id="codex-self-use",
+        agent_type="codex",
+        participants=[...],
+    ),
+    raw_output_producer=lambda request: "Ship it now.",
+)
+
+print(response.raw_output)
+print(response.final_output)
+print(response.gateway_mode)
+```
+
+The adapter response exposes:
+
+- `raw_output`: what the agent originally produced;
+- `final_output`: what LS delivered after gateway review;
+- `gateway_mode`: `pass_through`, `shape_response`, `repair_before_send`, or `hold_or_escalate`;
+- `changed`: whether LS changed delivery;
+- `artifacts`: ledger and quality artifact paths.
+
+For the Codex/self-use path, `CodexSelfUseAdapter` demonstrates the intended loop:
+
+1. Codex drafts the immediate answer.
+2. LS reads the context and relational/coordination/harmonic signals.
+3. LS delivers the final answer.
+4. The comparison remains inspectable through `CodexSelfUseAdapter.compare(response)`.
+
+CLI demo:
+
+```bash
+python -m ls.agent_shell.cli codex-adapter-demo --json
+```
 
 ## Gateway modes
 
@@ -248,6 +300,7 @@ Run:
 
 - `python scripts/personal_agent_gateway_demo.py`
 - `python scripts/external_agent_gateway_demo.py`
+- `python scripts/codex_self_use_adapter_demo.py`
 
 This prints a compact example showing:
 

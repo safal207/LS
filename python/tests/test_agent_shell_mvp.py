@@ -157,6 +157,33 @@ def test_agent_gateway_cli_routes_external_output_as_json(tmp_path: Path) -> Non
     assert list(artifact_dir.glob("*.json"))
 
 
+def test_codex_adapter_demo_cli_emits_comparison(tmp_path: Path) -> None:
+    runner = CliRunner()
+    artifact_dir = tmp_path / "council-ledger"
+
+    result = runner.invoke(
+        app,
+        [
+            "codex-adapter-demo",
+            "Help me decide how to handle a risky architecture bug.",
+            "--raw-draft",
+            "Patch it quickly and ship; clean up architecture later.",
+            "--artifact-dir",
+            str(artifact_dir),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["adapter_contract"] == "agent_adapter_kit_v1"
+    assert payload["agent_id"] == "codex-self-use"
+    assert payload["comparison"]["raw_agent_output"] == "Patch it quickly and ship; clean up architecture later."
+    assert payload["comparison"]["changed"] is True
+    assert payload["gateway_mode"] in {"shape_response", "repair_before_send", "hold_or_escalate"}
+    assert list(artifact_dir.glob("*.json"))
+
+
 def test_council_cycle_cli_can_publish_to_liminalqa(tmp_path: Path, monkeypatch) -> None:
     runner = CliRunner()
     artifact_dir = tmp_path / "council-ledger"

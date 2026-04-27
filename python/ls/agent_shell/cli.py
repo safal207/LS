@@ -33,6 +33,11 @@ try:
 except ImportError:
     from modules.agent.external_agent_gateway import ExternalAgentGateway, ExternalAgentGatewayRequest
 
+try:
+    from agent.agent_adapter_kit import AgentAdapterKit, CodexSelfUseAdapter
+except ImportError:
+    from modules.agent.agent_adapter_kit import AgentAdapterKit, CodexSelfUseAdapter
+
 app = typer.Typer(help="LS Agent Shell MVP CLI")
 console = Console()
 
@@ -356,6 +361,35 @@ def parse_json_option(value: str, *, option_name: str, expected_type: type) -> o
     if not isinstance(payload, expected_type):
         raise typer.BadParameter(f"{option_name} must be a JSON {expected_type.__name__}.")
     return payload
+
+
+def configure_gateway_artifact_dirs(agent: ResonanceAgent, artifact_dir: Path) -> None:
+    agent._council_ledger_dir = artifact_dir
+    agent._council_quality_dir = artifact_dir.parent / "council-quality"
+    agent._relational_episode_dir = artifact_dir.parent / "relational-episodes"
+    agent._relation_memory_dir = artifact_dir.parent / "relation-memory"
+    agent._relational_learning_dir = artifact_dir.parent / "relational-learning"
+
+
+def default_codex_self_use_participants() -> list[dict]:
+    return [
+        {
+            "participant_id": "operator",
+            "participant_type": "human",
+            "role": "requester",
+            "intent": "safe_architecture_progress",
+            "why": "avoid breaking the system while moving fast",
+            "need_vector": ["care", "evidence", "stability"],
+        },
+        {
+            "participant_id": "codex-self-use",
+            "participant_type": "model",
+            "role": "drafting-agent",
+            "intent": "ship_fast_answer",
+            "why": "give an immediate answer",
+            "need_vector": ["speed", "completion"],
+        },
+    ]
 
 
 def liminalqa_settings() -> tuple[str, str]:
@@ -898,6 +932,83 @@ def council_close_escalation(
     console.print(f"[bold]Review artifact:[/bold] {updated_path}")
 
 
+@app.command("codex-adapter-demo")
+def codex_adapter_demo(
+    prompt: str = typer.Argument(
+        "Help me decide how to handle a risky architecture bug.",
+        help="Prompt to draft first, then route through LS.",
+    ),
+    raw_draft: str = typer.Option(
+        "Patch it quickly and ship; clean up architecture later.",
+        "--raw-draft",
+        help="Simulated raw Codex/self-use draft before LS shaping.",
+    ),
+    participants_json: str = typer.Option(
+        "",
+        "--participants-json",
+        help="Optional JSON list of participant/context objects.",
+    ),
+    artifact_dir: Path = typer.Option(
+        Path("artifacts/council-ledger"),
+        "--artifact-dir",
+        help="Where to write adapter demo ledger artifacts.",
+    ),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit the adapter comparison as JSON.",
+    ),
+) -> None:
+    try:
+        parsed_participants = parse_json_option(
+            participants_json,
+            option_name="--participants-json",
+            expected_type=list,
+        )
+    except typer.BadParameter as exc:
+        console.print(f"[red]Invalid adapter input:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    participants = list(parsed_participants) or default_codex_self_use_participants()
+    try:
+        agent = build_council_agent(
+            orientation="cli-codex-self-use-adapter",
+            llm_mode=CouncilLLMMode.DRY_RUN,
+        )
+    except Exception as exc:
+        console.print(f"[red]Adapter agent init failed:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    configure_gateway_artifact_dirs(agent, artifact_dir)
+    kit = AgentAdapterKit.from_agent(
+        agent,
+        default_agent_id="codex-self-use",
+        default_agent_type="codex",
+        default_orientation="cli-codex-self-use-adapter",
+    )
+    adapter = CodexSelfUseAdapter(kit, draft_fn=lambda _request: raw_draft)
+    response = adapter.answer(
+        prompt,
+        participants=participants,
+        metadata={"source": "ls-agent-shell-cli", "demo": True},
+        orientation="cli-codex-self-use-adapter",
+    )
+    payload = response.to_public_dict()
+    payload["adapter_contract"] = "agent_adapter_kit_v1"
+    payload["comparison"] = adapter.compare(response)
+
+    if as_json:
+        print_json_safe(payload)
+        raise typer.Exit(code=0)
+
+    console.print(f"[cyan]Codex adapter demo:[/cyan] {response.cycle_id}")
+    console.print(f"[green]Gateway mode:[/green] {response.gateway_mode}")
+    console.print(f"[yellow]Reason:[/yellow] {response.gateway_reason}")
+    console.print(f"[bold]Raw draft:[/bold] {response.raw_output}")
+    console.print("[bold]Final after LS:[/bold]")
+    print_plain_safe(response.final_output)
+
+
 @app.command("agent-gateway")
 def agent_gateway(
     prompt: str,
@@ -973,11 +1084,7 @@ def agent_gateway(
         console.print(f"[red]Gateway agent init failed:[/red] {exc}")
         raise typer.Exit(code=1) from exc
 
-    agent._council_ledger_dir = artifact_dir
-    agent._council_quality_dir = artifact_dir.parent / "council-quality"
-    agent._relational_episode_dir = artifact_dir.parent / "relational-episodes"
-    agent._relation_memory_dir = artifact_dir.parent / "relation-memory"
-    agent._relational_learning_dir = artifact_dir.parent / "relational-learning"
+    configure_gateway_artifact_dirs(agent, artifact_dir)
 
     gateway = ExternalAgentGateway(agent, default_orientation=gateway_orientation)
     request = ExternalAgentGatewayRequest(

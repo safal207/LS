@@ -2,6 +2,7 @@ from pkgutil import extend_path
 
 __path__ = extend_path(__path__, __name__)
 
+from .agent_adapter_kit import AgentAdapterKit, AgentAdapterRequest, AgentAdapterResponse, CodexSelfUseAdapter
 from .counterfactual_engine import CounterfactualEngine
 from .external_agent_gateway import ExternalAgentGateway, ExternalAgentGatewayRequest
 from .events import AgentEvent, EventType
@@ -14,6 +15,10 @@ except Exception:  # pragma: no cover - import guard for lightweight environment
     AgentLoop = None  # type: ignore[assignment]
 
 __all__ = [
+    "AgentAdapterKit",
+    "AgentAdapterRequest",
+    "AgentAdapterResponse",
+    "CodexSelfUseAdapter",
     "CounterfactualEngine",
     "ExternalAgentGateway",
     "ExternalAgentGatewayRequest",

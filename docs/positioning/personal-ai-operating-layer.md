@@ -76,6 +76,7 @@ This is no longer only positioning. The runtime now emits and preserves:
 - gateway metrics for observability,
 - gateway traces inside quality, relational episode, and relation memory artifacts.
 - a V1 external-agent gateway through the `agent-gateway` CLI and `ExternalAgentGateway` Python API.
+- `AgentAdapterKit` and `CodexSelfUseAdapter` so agents can connect through a simpler request/response contract.
 
 The gateway now runs on full context before delivery:
 
@@ -103,7 +104,7 @@ That makes the personal layer better at both response shaping and architectural 
 The next product steps are:
 
 1. compare raw agent output with post-LS output in more dashboards and review surfaces;
-2. add ready-made adapters for Codex, local tool runners, browser agents, and custom scripts;
+2. package the adapter kit as a plugin/MCP surface for Codex, local tool runners, browser agents, and custom scripts;
 3. surface gateway mode and harmonic state directly in dashboards and runtime views;
 4. collect real operator examples to tune where shaping should stay advisory and where it should become policy;
 5. expand hold/repair behavior into a cleaner external-agent integration contract.
