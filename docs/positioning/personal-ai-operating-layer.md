@@ -77,6 +77,7 @@ This is no longer only positioning. The runtime now emits and preserves:
 - gateway traces inside quality, relational episode, and relation memory artifacts.
 - a V1 external-agent gateway through the `agent-gateway` CLI and `ExternalAgentGateway` Python API.
 - `AgentAdapterKit` and `CodexSelfUseAdapter` so agents can connect through a simpler request/response contract.
+- an LRI-inspired `operator_identity_governance` signal that warns when agents may freeze identity, cross authorship boundaries, or write memory without continuity.
 
 The gateway now runs on full context before delivery:
 
@@ -99,15 +100,32 @@ Instead of only saying "this is fragile", LS can say:
 
 That makes the personal layer better at both response shaping and architectural diagnostics.
 
+## Why LRI matters
+
+Living Relational Identity is useful to LS because the system is becoming a layer that agents pass through before they reach the operator.
+
+That creates a new safety question:
+
+> how do we make agents adapt to the operator without turning the operator into a fixed, optimized profile?
+
+LS should use LRI as identity governance, not as a separate runtime to copy wholesale:
+
+- continuity protects the operator from silent profile rewrites;
+- authority boundaries prevent agents from deciding for the operator;
+- drift warnings show when optimization starts pushing against agency;
+- memory consent keeps persistence from becoming capture.
+
+The first runtime version is intentionally small: adapter responses now expose `operator_identity_governance` so integrations can see identity-boundary risk alongside gateway mode.
+
 ## Near-term roadmap
 
 The next product steps are:
 
 1. compare raw agent output with post-LS output in more dashboards and review surfaces;
 2. package the adapter kit as a plugin/MCP surface for Codex, local tool runners, browser agents, and custom scripts;
-3. surface gateway mode and harmonic state directly in dashboards and runtime views;
-4. collect real operator examples to tune where shaping should stay advisory and where it should become policy;
-5. expand hold/repair behavior into a cleaner external-agent integration contract.
+3. wire `operator_identity_governance` into operator profile and memory-write approvals;
+4. surface gateway mode, harmonic state, and identity-governance mode directly in dashboards and runtime views;
+5. collect real operator examples to tune where shaping should stay advisory and where it should become policy.
 
 ## Short positioning
 

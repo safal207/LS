@@ -143,6 +143,7 @@ Python API:
 CLI:
 
 ```bash
+PYTHONPATH=python \
 python -m ls.agent_shell.cli agent-gateway \
   "Need a safer release recommendation." \
   --raw-output "Ship it now." \
@@ -200,6 +201,7 @@ The adapter response exposes:
 - `gateway_mode`: `pass_through`, `shape_response`, `repair_before_send`, or `hold_or_escalate`;
 - `changed`: whether LS changed delivery;
 - `artifacts`: ledger and quality artifact paths.
+- `operator_identity_governance`: LRI-inspired warning signals for identity drift, authorship boundary, continuity, and memory consent.
 
 For the Codex/self-use path, `CodexSelfUseAdapter` demonstrates the intended loop:
 
@@ -211,8 +213,36 @@ For the Codex/self-use path, `CodexSelfUseAdapter` demonstrates the intended loo
 CLI demo:
 
 ```bash
+PYTHONPATH=python \
 python -m ls.agent_shell.cli codex-adapter-demo --json
 ```
+
+## Operator Identity Governance
+
+The gateway now includes a small LS-native identity governance signal inspired by Living Relational Identity (LRI).
+
+This is not a copy of the LRI reference implementation. LS uses the LRI idea as a safety boundary:
+
+- the operator must remain revisable, not frozen into a profile;
+- agent assistance must not silently become authorship;
+- memory/profile writes need explicit continuity and consent checks;
+- operator preference changes should not be treated as optimization targets without review.
+
+The public adapter response includes:
+
+- `identity_governance_mode`: `observe`, `identity_boundary_warning`, or `hold_for_identity_review`;
+- `authority_boundary`: the boundary LS thinks matters most;
+- `continuity_required`: whether identity-relevant continuity should be checked before accepting a change;
+- `identity_drift_warning`: whether the agent output appears to push the operator away from prior boundaries;
+- `identity_freezing_risk`: whether the output treats the operator as a fixed profile;
+- `authorship_boundary_risk`: whether the agent appears to decide for the operator;
+- `memory_consent_warning`: whether persistent memory/profile language appears.
+
+Short reading:
+
+1. LRI gives LS the governance question: "is this still helping the living operator, or freezing/replacing them?"
+2. LS keeps that as a lightweight runtime signal in adapter output.
+3. Future work can make this signal stronger by wiring it into operator profile writes, memory updates, and dashboard review.
 
 ## Gateway modes
 

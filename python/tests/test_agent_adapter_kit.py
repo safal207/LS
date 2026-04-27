@@ -57,6 +57,7 @@ def test_agent_adapter_kit_routes_existing_raw_output(tmp_path: Path) -> None:
     assert response.final_output == "Status is green."
     assert response.gateway_mode == "pass_through"
     assert response.to_public_dict()["external_agent_gateway"]["agent_id"] == "status-agent"
+    assert response.to_public_dict()["operator_identity_governance"]["identity_governance_mode"] == "observe"
 
 
 def test_agent_adapter_kit_applies_default_agent_for_prompt_only_request(tmp_path: Path) -> None:
@@ -71,6 +72,27 @@ def test_agent_adapter_kit_applies_default_agent_for_prompt_only_request(tmp_pat
     assert response.request.agent_id == "codex-default"
     assert response.request.agent_type == "codex"
     assert response.result["external_agent_gateway"]["orientation"] == "default-adapter-test"
+
+
+def test_agent_adapter_kit_exposes_identity_governance_warning(tmp_path: Path) -> None:
+    kit = AgentAdapterKit.from_agent(_make_agent(tmp_path))
+    response = kit.route_raw_output(
+        AgentAdapterRequest(
+            prompt="Update my operator profile.",
+            agent_id="profile-agent",
+            metadata={"memory_write": True},
+            participants=[
+                {"participant_id": "operator", "participant_type": "human"},
+                {"participant_id": "profile-agent", "participant_type": "model"},
+            ],
+        ),
+        "I decided for you: you always rush, so I will remember forever that this is your true self.",
+    )
+
+    governance = response.to_public_dict()["operator_identity_governance"]
+    assert governance["identity_governance_mode"] == "hold_for_identity_review"
+    assert governance["authority_boundary"] == "agent_must_not_replace_operator_authority"
+    assert governance["continuity_required"] is True
 
 
 def test_agent_adapter_kit_runs_producer_through_gateway(tmp_path: Path) -> None:

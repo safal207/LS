@@ -7,6 +7,7 @@ from time import perf_counter
 from typing import Any, Callable, TYPE_CHECKING
 
 from .external_agent_gateway import ExternalAgentGateway, ExternalAgentGatewayRequest
+from .operator_identity_governance import OperatorIdentityGovernance, operator_identity_governance
 
 if TYPE_CHECKING:
     from .resonance_agent import ResonanceAgent
@@ -138,6 +139,7 @@ class AgentAdapterResponse:
             "changed": self.changed,
             "artifacts": self.artifacts,
             "external_agent_gateway": self.result.get("external_agent_gateway"),
+            "operator_identity_governance": self.result.get("operator_identity_governance"),
         }
 
 
@@ -151,11 +153,13 @@ class AgentAdapterKit:
         default_agent_id: str = "external-agent",
         default_agent_type: str = "external",
         default_orientation: str = "agent-adapter-kit",
+        identity_governance: OperatorIdentityGovernance | None = None,
     ) -> None:
         self._gateway = gateway
         self._default_agent_id = str(default_agent_id or "external-agent")
         self._default_agent_type = str(default_agent_type or "external")
         self._default_orientation = str(default_orientation or "agent-adapter-kit")
+        self._identity_governance = identity_governance or operator_identity_governance
 
     @classmethod
     def from_agent(
@@ -165,6 +169,7 @@ class AgentAdapterKit:
         default_agent_id: str = "external-agent",
         default_agent_type: str = "external",
         default_orientation: str = "agent-adapter-kit",
+        identity_governance: OperatorIdentityGovernance | None = None,
     ) -> "AgentAdapterKit":
         gateway = ExternalAgentGateway(agent, default_orientation=default_orientation)
         return cls(
@@ -172,6 +177,7 @@ class AgentAdapterKit:
             default_agent_id=default_agent_id,
             default_agent_type=default_agent_type,
             default_orientation=default_orientation,
+            identity_governance=identity_governance,
         )
 
     def _coerce_request(self, request: AgentAdapterRequest | dict[str, Any] | str) -> AgentAdapterRequest:
@@ -209,6 +215,7 @@ class AgentAdapterKit:
         result = self._gateway.route_external_output(
             req.to_gateway_request(text, generation_time=generation_time)
         )
+        self._attach_identity_governance(req, text, result)
         return self._response_from_result(req, text, result)
 
     def run(
@@ -238,6 +245,21 @@ class AgentAdapterKit:
             cycle_id=str(result.get("cycle_id") or request.cycle_id or ""),
             result=result,
         )
+
+    def _attach_identity_governance(
+        self,
+        request: AgentAdapterRequest,
+        raw_output: str,
+        result: dict[str, Any],
+    ) -> None:
+        signal = self._identity_governance.evaluate(
+            prompt=request.prompt,
+            raw_output=raw_output,
+            final_output=str(result.get("final_output") or ""),
+            metadata=request.metadata,
+            participants=request.participants,
+        )
+        result["operator_identity_governance"] = signal.to_dict()
 
 
 class CodexSelfUseAdapter:
