@@ -1,0 +1,43 @@
+# Fast gate: real HTTP (GET snapshot, POST action) for Reflection Dashboard API.
+name: Reflection Dashboard HTTP E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: reflection-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  http-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install pytest
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Run reflection HTTP e2e
+        run: |
+          mkdir -p artifacts
+          PYTHONPATH=. python -m pytest tests/test_reflection_dashboard_http_e2e.py -v --tb=short \
+            --junitxml=artifacts/reflection-e2e-junit.xml
+
+      - name: Upload JUnit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reflection-e2e-junit
+          path: artifacts/reflection-e2e-junit.xml
+          if-no-files-found: ignore
