@@ -338,6 +338,7 @@ def build_council_agent(
     orientation: str = "",
     *,
     llm_mode: CouncilLLMMode = CouncilLLMMode.AUTO,
+    disable_graph_runtime: bool = False,
 ) -> ResonanceAgent:
     llm_fn = None
     if llm_mode is CouncilLLMMode.LOCAL:
@@ -347,7 +348,12 @@ def build_council_agent(
             llm_fn = build_local_council_llm_fn()
         except Exception:
             llm_fn = None
-    return ResonanceAgent(anchor=[], llm_fn=llm_fn, orientation=orientation or "cli-council-cycle")
+    return ResonanceAgent(
+        anchor=[],
+        llm_fn=llm_fn,
+        graph_runtime=False if disable_graph_runtime else None,
+        orientation=orientation or "cli-council-cycle",
+    )
 
 
 def parse_json_option(value: str, *, option_name: str, expected_type: type) -> object:
@@ -974,6 +980,7 @@ def codex_adapter_demo(
         agent = build_council_agent(
             orientation="cli-codex-self-use-adapter",
             llm_mode=CouncilLLMMode.DRY_RUN,
+            disable_graph_runtime=True,
         )
     except Exception as exc:
         console.print(f"[red]Adapter agent init failed:[/red] {exc}")
@@ -1079,7 +1086,11 @@ def agent_gateway(
 
     gateway_orientation = orientation or "cli-external-agent-gateway"
     try:
-        agent = build_council_agent(orientation=gateway_orientation, llm_mode=llm_mode)
+        agent = build_council_agent(
+            orientation=gateway_orientation,
+            llm_mode=llm_mode,
+            disable_graph_runtime=True,
+        )
     except Exception as exc:
         console.print(f"[red]Gateway agent init failed:[/red] {exc}")
         raise typer.Exit(code=1) from exc

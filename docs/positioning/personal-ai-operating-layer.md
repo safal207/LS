@@ -78,6 +78,7 @@ This is no longer only positioning. The runtime now emits and preserves:
 - a V1 external-agent gateway through the `agent-gateway` CLI and `ExternalAgentGateway` Python API.
 - `AgentAdapterKit` and `CodexSelfUseAdapter` so agents can connect through a simpler request/response contract.
 - an LRI-inspired `operator_identity_governance` signal that warns when agents may freeze identity, cross authorship boundaries, or write memory without continuity.
+- an `operator_profile_write_decision` policy that tells integrations whether profile/memory writes are allowed, require confirmation, need continuity review, or must be rejected.
 
 The gateway now runs on full context before delivery:
 
@@ -115,7 +116,7 @@ LS should use LRI as identity governance, not as a separate runtime to copy whol
 - drift warnings show when optimization starts pushing against agency;
 - memory consent keeps persistence from becoming capture.
 
-The first runtime version is intentionally small: adapter responses now expose `operator_identity_governance` so integrations can see identity-boundary risk alongside gateway mode.
+The first runtime version is intentionally small: adapter responses now expose `operator_identity_governance` and `operator_profile_write_decision` so integrations can see identity-boundary risk and avoid unsafe memory writes.
 
 ## Near-term roadmap
 
@@ -123,7 +124,7 @@ The next product steps are:
 
 1. compare raw agent output with post-LS output in more dashboards and review surfaces;
 2. package the adapter kit as a plugin/MCP surface for Codex, local tool runners, browser agents, and custom scripts;
-3. wire `operator_identity_governance` into operator profile and memory-write approvals;
+3. persist confirmed operator profile updates through a real profile store with review history;
 4. surface gateway mode, harmonic state, and identity-governance mode directly in dashboards and runtime views;
 5. collect real operator examples to tune where shaping should stay advisory and where it should become policy.
 

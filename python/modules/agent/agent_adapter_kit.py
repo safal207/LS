@@ -140,6 +140,7 @@ class AgentAdapterResponse:
             "artifacts": self.artifacts,
             "external_agent_gateway": self.result.get("external_agent_gateway"),
             "operator_identity_governance": self.result.get("operator_identity_governance"),
+            "operator_profile_write_decision": self.result.get("operator_profile_write_decision"),
         }
 
 
@@ -259,7 +260,12 @@ class AgentAdapterKit:
             metadata=request.metadata,
             participants=request.participants,
         )
+        write_decision = self._identity_governance.decide_profile_write(
+            signal,
+            metadata=request.metadata,
+        )
         result["operator_identity_governance"] = signal.to_dict()
+        result["operator_profile_write_decision"] = write_decision.to_dict()
 
 
 class CodexSelfUseAdapter:

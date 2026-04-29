@@ -202,6 +202,7 @@ The adapter response exposes:
 - `changed`: whether LS changed delivery;
 - `artifacts`: ledger and quality artifact paths.
 - `operator_identity_governance`: LRI-inspired warning signals for identity drift, authorship boundary, continuity, and memory consent.
+- `operator_profile_write_decision`: the policy decision for any requested memory/profile write.
 
 For the Codex/self-use path, `CodexSelfUseAdapter` demonstrates the intended loop:
 
@@ -238,11 +239,22 @@ The public adapter response includes:
 - `authorship_boundary_risk`: whether the agent appears to decide for the operator;
 - `memory_consent_warning`: whether persistent memory/profile language appears.
 
+The adapter also emits `operator_profile_write_decision`, which turns the governance signal into a practical write policy:
+
+- `not_requested`: no memory/profile write is being attempted;
+- `requires_operator_confirmation`: a low-risk write exists, but the operator must confirm it;
+- `requires_continuity_review`: the write may change a boundary or preference and needs continuity review;
+- `reject_identity_claim`: the agent tried to define or decide for the operator, so LS blocks the write;
+- `hold_for_identity_review`: risk is too high for automatic acceptance;
+- `allow_profile_update`: the operator confirmed a low-risk write.
+
+This means an external agent can propose profile memory, but LS decides whether that proposal is acceptable as memory.
+
 Short reading:
 
 1. LRI gives LS the governance question: "is this still helping the living operator, or freezing/replacing them?"
 2. LS keeps that as a lightweight runtime signal in adapter output.
-3. Future work can make this signal stronger by wiring it into operator profile writes, memory updates, and dashboard review.
+3. Adapter output now includes a first write policy so profile/memory updates can be confirmed, reviewed, or rejected before persistence.
 
 ## Gateway modes
 

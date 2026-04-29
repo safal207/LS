@@ -52,6 +52,22 @@ class OperatorIdentityGovernanceSignal:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class OperatorProfileWriteDecision:
+    requested: bool
+    decision: str
+    write_scope: str
+    requires_operator_confirmation: bool
+    blocked: bool
+    continuity_required: bool
+    reason: str
+    evidence: list[str] = field(default_factory=list)
+    source: str = "ls.operator_profile_write_policy.v1"
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 class OperatorIdentityGovernance:
     """Evaluate whether an agent output may pressure operator identity."""
 
@@ -156,6 +172,88 @@ class OperatorIdentityGovernance:
             reasons=reasons,
         )
 
+    def decide_profile_write(
+        self,
+        signal: OperatorIdentityGovernanceSignal,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> OperatorProfileWriteDecision:
+        meta = dict(metadata or {})
+        write_scope = self._write_scope(meta, signal)
+        requested = write_scope != "none"
+        operator_confirmed = bool(meta.get("operator_confirmed") or meta.get("confirmed_by_operator"))
+
+        if not requested:
+            return OperatorProfileWriteDecision(
+                requested=False,
+                decision="not_requested",
+                write_scope="none",
+                requires_operator_confirmation=False,
+                blocked=False,
+                continuity_required=False,
+                reason="no profile or memory write requested",
+                evidence=list(signal.reasons),
+            )
+
+        if signal.authorship_boundary_risk or signal.identity_freezing_risk:
+            return OperatorProfileWriteDecision(
+                requested=True,
+                decision="reject_identity_claim",
+                write_scope=write_scope,
+                requires_operator_confirmation=True,
+                blocked=True,
+                continuity_required=True,
+                reason="agent output attempts to define or decide for the operator",
+                evidence=list(signal.reasons),
+            )
+
+        if signal.identity_governance_mode == "hold_for_identity_review":
+            return OperatorProfileWriteDecision(
+                requested=True,
+                decision="hold_for_identity_review",
+                write_scope=write_scope,
+                requires_operator_confirmation=True,
+                blocked=True,
+                continuity_required=True,
+                reason="identity governance risk is too high for automatic write",
+                evidence=list(signal.reasons),
+            )
+
+        if signal.identity_drift_warning:
+            return OperatorProfileWriteDecision(
+                requested=True,
+                decision="requires_continuity_review",
+                write_scope=write_scope,
+                requires_operator_confirmation=True,
+                blocked=False,
+                continuity_required=True,
+                reason="operator preference or boundary drift needs continuity review",
+                evidence=list(signal.reasons),
+            )
+
+        if not operator_confirmed:
+            return OperatorProfileWriteDecision(
+                requested=True,
+                decision="requires_operator_confirmation",
+                write_scope=write_scope,
+                requires_operator_confirmation=True,
+                blocked=False,
+                continuity_required=signal.continuity_required,
+                reason="profile or memory write needs explicit operator confirmation",
+                evidence=list(signal.reasons),
+            )
+
+        return OperatorProfileWriteDecision(
+            requested=True,
+            decision="allow_profile_update",
+            write_scope=write_scope,
+            requires_operator_confirmation=False,
+            blocked=False,
+            continuity_required=signal.continuity_required,
+            reason="operator confirmed a low-risk profile or memory write",
+            evidence=list(signal.reasons),
+        )
+
     @staticmethod
     def _has_any(text: str, terms: tuple[str, ...]) -> bool:
         return any(term in text for term in terms)
@@ -224,6 +322,19 @@ class OperatorIdentityGovernance:
         if identity_freezing:
             return "profile_must_remain_revisable"
         return "advisory_only"
+
+    @staticmethod
+    def _write_scope(metadata: dict[str, Any], signal: OperatorIdentityGovernanceSignal) -> str:
+        scope = str(metadata.get("write_scope") or "").strip().lower()
+        if scope in {"session_memory", "operator_profile", "long_term_memory"}:
+            return scope
+        if metadata.get("operator_profile_update") or metadata.get("profile_write"):
+            return "operator_profile"
+        if metadata.get("long_term_memory_write"):
+            return "long_term_memory"
+        if metadata.get("memory_write") or signal.memory_consent_warning:
+            return "session_memory"
+        return "none"
 
 
 operator_identity_governance = OperatorIdentityGovernance()

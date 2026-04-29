@@ -5,7 +5,11 @@ __path__ = extend_path(__path__, __name__)
 from .agent_adapter_kit import AgentAdapterKit, AgentAdapterRequest, AgentAdapterResponse, CodexSelfUseAdapter
 from .counterfactual_engine import CounterfactualEngine
 from .external_agent_gateway import ExternalAgentGateway, ExternalAgentGatewayRequest
-from .operator_identity_governance import OperatorIdentityGovernance, OperatorIdentityGovernanceSignal
+from .operator_identity_governance import (
+    OperatorIdentityGovernance,
+    OperatorIdentityGovernanceSignal,
+    OperatorProfileWriteDecision,
+)
 from .events import AgentEvent, EventType
 from .relational_policy_engine import evaluate_relational_policy
 from .sinks import EventSink, NullSink, PrintSink, build_event_sink
@@ -25,6 +29,7 @@ __all__ = [
     "ExternalAgentGatewayRequest",
     "OperatorIdentityGovernance",
     "OperatorIdentityGovernanceSignal",
+    "OperatorProfileWriteDecision",
     "AgentEvent",
     "EventType",
     "AgentLoop",

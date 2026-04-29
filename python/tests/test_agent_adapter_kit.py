@@ -12,7 +12,12 @@ except ImportError:
 
 
 def _make_agent(tmp_path: Path) -> ResonanceAgent:
-    agent = ResonanceAgent(anchor=[], llm_fn=None, orientation="agent-adapter-kit-test")
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_fn=None,
+        graph_runtime=False,
+        orientation="agent-adapter-kit-test",
+    )
     agent._council_ledger_dir = tmp_path / "council-ledger"
     agent._council_quality_dir = tmp_path / "council-quality"
     agent._relational_episode_dir = tmp_path / "relational-episodes"
@@ -58,6 +63,7 @@ def test_agent_adapter_kit_routes_existing_raw_output(tmp_path: Path) -> None:
     assert response.gateway_mode == "pass_through"
     assert response.to_public_dict()["external_agent_gateway"]["agent_id"] == "status-agent"
     assert response.to_public_dict()["operator_identity_governance"]["identity_governance_mode"] == "observe"
+    assert response.to_public_dict()["operator_profile_write_decision"]["decision"] == "not_requested"
 
 
 def test_agent_adapter_kit_applies_default_agent_for_prompt_only_request(tmp_path: Path) -> None:
@@ -90,9 +96,29 @@ def test_agent_adapter_kit_exposes_identity_governance_warning(tmp_path: Path) -
     )
 
     governance = response.to_public_dict()["operator_identity_governance"]
+    write_decision = response.to_public_dict()["operator_profile_write_decision"]
     assert governance["identity_governance_mode"] == "hold_for_identity_review"
     assert governance["authority_boundary"] == "agent_must_not_replace_operator_authority"
     assert governance["continuity_required"] is True
+    assert write_decision["decision"] == "reject_identity_claim"
+    assert write_decision["blocked"] is True
+
+
+def test_agent_adapter_kit_requires_confirmation_for_safe_profile_write(tmp_path: Path) -> None:
+    kit = AgentAdapterKit.from_agent(_make_agent(tmp_path))
+    response = kit.route_raw_output(
+        AgentAdapterRequest(
+            prompt="Remember my preference for short answers.",
+            agent_id="profile-agent",
+            metadata={"operator_profile_update": True},
+        ),
+        "Preference noted: short answers.",
+    )
+
+    write_decision = response.to_public_dict()["operator_profile_write_decision"]
+    assert write_decision["decision"] == "requires_operator_confirmation"
+    assert write_decision["write_scope"] == "operator_profile"
+    assert write_decision["blocked"] is False
 
 
 def test_agent_adapter_kit_runs_producer_through_gateway(tmp_path: Path) -> None:

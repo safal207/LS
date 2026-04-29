@@ -779,8 +779,10 @@ class ResonanceAgent:
         self._anchor      = list(anchor or [])
         self._llm_fn      = llm_fn
         self._llm_backend = llm_backend
-        self._graph_runtime = graph_runtime or (
-            _GraphMemoryRuntime() if _GRAPH_OK and _GraphMemoryRuntime else None
+        self._graph_runtime = (
+            None
+            if graph_runtime is False
+            else graph_runtime or (_GraphMemoryRuntime() if _GRAPH_OK and _GraphMemoryRuntime else None)
         )
         self._cooperative_engine = (
             _CooperativeGraphEngine(getattr(llm_backend, "backends", {}))

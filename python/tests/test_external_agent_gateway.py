@@ -13,7 +13,12 @@ except ImportError:
 
 
 def _make_agent(tmp_path: Path) -> ResonanceAgent:
-    agent = ResonanceAgent(anchor=[], llm_fn=None, orientation="external-agent-gateway-test")
+    agent = ResonanceAgent(
+        anchor=[],
+        llm_fn=None,
+        graph_runtime=False,
+        orientation="external-agent-gateway-test",
+    )
     agent._council_ledger_dir = tmp_path / "council-ledger"
     agent._council_quality_dir = tmp_path / "council-quality"
     agent._relational_episode_dir = tmp_path / "relational-episodes"
