@@ -79,6 +79,7 @@ This is no longer only positioning. The runtime now emits and preserves:
 - `AgentAdapterKit` and `CodexSelfUseAdapter` so agents can connect through a simpler request/response contract.
 - an LRI-inspired `operator_identity_governance` signal that warns when agents may freeze identity, cross authorship boundaries, or write memory without continuity.
 - an `operator_profile_write_decision` policy that tells integrations whether profile/memory writes are allowed, require confirmation, need continuity review, or must be rejected.
+- an `action_evidence_gate` that turns proposed actions and memory/profile writes into deterministic `allow` / `hold` / `reject` decisions with trace and tamper-checkable digest.
 
 The gateway now runs on full context before delivery:
 
@@ -118,15 +119,29 @@ LS should use LRI as identity governance, not as a separate runtime to copy whol
 
 The first runtime version is intentionally small: adapter responses now expose `operator_identity_governance` and `operator_profile_write_decision` so integrations can see identity-boundary risk and avoid unsafe memory writes.
 
+## Why Action Evidence Gate matters
+
+The personal layer should not only make answers nicer. It should also make agent actions accountable.
+
+`ActionEvidenceGate` adds a proof checkpoint before agent output becomes memory, profile state, or external action:
+
+- the system records what action was proposed;
+- it checks whether confirmation, source evidence, scope authorization, and temporal permission are present;
+- it returns a stable stop reason when evidence is missing;
+- it creates a digest so the decision artifact can be verified later.
+
+This makes LS closer to an operating layer for agents: agents can propose, but the operator's system decides whether the proposal has enough evidence to become state or action.
+
 ## Near-term roadmap
 
 The next product steps are:
 
 1. compare raw agent output with post-LS output in more dashboards and review surfaces;
 2. package the adapter kit as a plugin/MCP surface for Codex, local tool runners, browser agents, and custom scripts;
-3. persist confirmed operator profile updates through a real profile store with review history;
-4. surface gateway mode, harmonic state, and identity-governance mode directly in dashboards and runtime views;
-5. collect real operator examples to tune where shaping should stay advisory and where it should become policy.
+3. make profile stores, memory stores, and tool runners enforce `action_evidence_gate.decision == "allow"` before committing state;
+4. persist confirmed operator profile updates through a real profile store with review history;
+5. surface gateway mode, harmonic state, identity-governance mode, and action-evidence decisions directly in dashboards and runtime views;
+6. collect real operator examples to tune where shaping should stay advisory and where it should become policy.
 
 ## Short positioning
 

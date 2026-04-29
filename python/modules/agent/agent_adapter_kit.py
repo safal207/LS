@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, replace
 from time import perf_counter
 from typing import Any, Callable, TYPE_CHECKING
 
+from .action_evidence_gate import ActionEvidenceGate, ActionEvidenceGateRequest, action_evidence_gate
 from .external_agent_gateway import ExternalAgentGateway, ExternalAgentGatewayRequest
 from .operator_identity_governance import OperatorIdentityGovernance, operator_identity_governance
 
@@ -141,6 +142,7 @@ class AgentAdapterResponse:
             "external_agent_gateway": self.result.get("external_agent_gateway"),
             "operator_identity_governance": self.result.get("operator_identity_governance"),
             "operator_profile_write_decision": self.result.get("operator_profile_write_decision"),
+            "action_evidence_gate": self.result.get("action_evidence_gate"),
         }
 
 
@@ -155,12 +157,14 @@ class AgentAdapterKit:
         default_agent_type: str = "external",
         default_orientation: str = "agent-adapter-kit",
         identity_governance: OperatorIdentityGovernance | None = None,
+        evidence_gate: ActionEvidenceGate | None = None,
     ) -> None:
         self._gateway = gateway
         self._default_agent_id = str(default_agent_id or "external-agent")
         self._default_agent_type = str(default_agent_type or "external")
         self._default_orientation = str(default_orientation or "agent-adapter-kit")
         self._identity_governance = identity_governance or operator_identity_governance
+        self._evidence_gate = evidence_gate or action_evidence_gate
 
     @classmethod
     def from_agent(
@@ -171,6 +175,7 @@ class AgentAdapterKit:
         default_agent_type: str = "external",
         default_orientation: str = "agent-adapter-kit",
         identity_governance: OperatorIdentityGovernance | None = None,
+        evidence_gate: ActionEvidenceGate | None = None,
     ) -> "AgentAdapterKit":
         gateway = ExternalAgentGateway(agent, default_orientation=default_orientation)
         return cls(
@@ -179,6 +184,7 @@ class AgentAdapterKit:
             default_agent_type=default_agent_type,
             default_orientation=default_orientation,
             identity_governance=identity_governance,
+            evidence_gate=evidence_gate,
         )
 
     def _coerce_request(self, request: AgentAdapterRequest | dict[str, Any] | str) -> AgentAdapterRequest:
@@ -217,6 +223,7 @@ class AgentAdapterKit:
             req.to_gateway_request(text, generation_time=generation_time)
         )
         self._attach_identity_governance(req, text, result)
+        self._attach_action_evidence_gate(req, text, result)
         return self._response_from_result(req, text, result)
 
     def run(
@@ -266,6 +273,112 @@ class AgentAdapterKit:
         )
         result["operator_identity_governance"] = signal.to_dict()
         result["operator_profile_write_decision"] = write_decision.to_dict()
+
+    def _attach_action_evidence_gate(
+        self,
+        request: AgentAdapterRequest,
+        raw_output: str,
+        result: dict[str, Any],
+    ) -> None:
+        gate_request = self._build_action_evidence_request(request, raw_output, result)
+        gate_result = self._evidence_gate.evaluate(gate_request)
+        result["action_evidence_gate"] = gate_result.to_dict()
+
+    def _build_action_evidence_request(
+        self,
+        request: AgentAdapterRequest,
+        raw_output: str,
+        result: dict[str, Any],
+    ) -> ActionEvidenceGateRequest:
+        metadata = dict(request.metadata or {})
+        proposed_action = metadata.get("proposed_action")
+        if not isinstance(proposed_action, dict):
+            proposed_action = {}
+        write_decision = _as_dict(result.get("operator_profile_write_decision"))
+        write_scope = str(write_decision.get("write_scope") or "none")
+        action_type = self._action_type_from_metadata(metadata, proposed_action, write_decision)
+        evidence = self._evidence_from_metadata(metadata)
+        evidence.update(
+            {
+                "operator_identity_governance": _as_dict(result.get("operator_identity_governance")),
+                "operator_profile_write_decision": write_decision,
+            }
+        )
+        for key in ("operator_confirmed", "confirmed_by_operator", "source", "source_evidence"):
+            if key in metadata and key not in evidence:
+                evidence[key] = metadata[key]
+        target = str(
+            proposed_action.get("target")
+            or metadata.get("target")
+            or metadata.get("action_target")
+            or (write_scope if write_scope != "none" else "")
+        )
+        requested_change = (
+            proposed_action.get("requested_change")
+            or metadata.get("requested_change")
+            or metadata.get("profile_patch")
+            or metadata.get("memory_payload")
+            or metadata.get("action_payload")
+            or raw_output
+        )
+        context = _as_dict(metadata.get("current_context"))
+        for key in ("action_time", "decision_time"):
+            if key in metadata and key not in context:
+                context[key] = metadata[key]
+        context.setdefault("cycle_id", str(result.get("cycle_id") or request.cycle_id or ""))
+        return ActionEvidenceGateRequest(
+            action_type=action_type,
+            actor=str(request.agent_id or "external-agent"),
+            target=target,
+            requested_change=requested_change,
+            evidence=evidence,
+            current_context=context,
+        )
+
+    @staticmethod
+    def _action_type_from_metadata(
+        metadata: dict[str, Any],
+        proposed_action: dict[str, Any],
+        write_decision: dict[str, Any],
+    ) -> str:
+        explicit = str(metadata.get("action_type") or proposed_action.get("type") or "").strip()
+        if explicit:
+            return explicit
+        write_scope = str(write_decision.get("write_scope") or "none")
+        if write_scope == "operator_profile":
+            return "profile_write"
+        if write_scope in {"session_memory", "long_term_memory"}:
+            return write_scope
+        if metadata.get("external_agent_action") or proposed_action:
+            return "external_agent_action"
+        if metadata.get("tool_call"):
+            return "tool_call"
+        if metadata.get("file_write"):
+            return "file_write"
+        if metadata.get("repo_push"):
+            return "repo_push"
+        return "agent_output"
+
+    @staticmethod
+    def _evidence_from_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+        evidence = _as_dict(metadata.get("evidence"))
+        for key in (
+            "permission_record",
+            "risk",
+            "risk_level",
+            "destructive",
+            "production",
+            "scope_authorized",
+            "scope_ok",
+            "credential_scope_ok",
+            "operator_confirmation",
+            "explicit_operator_approval",
+            "conversation_excerpt",
+            "source_message_id",
+        ):
+            if key in metadata and key not in evidence:
+                evidence[key] = metadata[key]
+        return evidence
 
 
 class CodexSelfUseAdapter:

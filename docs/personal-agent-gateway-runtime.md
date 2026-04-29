@@ -203,6 +203,7 @@ The adapter response exposes:
 - `artifacts`: ledger and quality artifact paths.
 - `operator_identity_governance`: LRI-inspired warning signals for identity drift, authorship boundary, continuity, and memory consent.
 - `operator_profile_write_decision`: the policy decision for any requested memory/profile write.
+- `action_evidence_gate`: deterministic evidence-gate output for agent actions, memory/profile writes, trace, and digest.
 
 For the Codex/self-use path, `CodexSelfUseAdapter` demonstrates the intended loop:
 
@@ -255,6 +256,42 @@ Short reading:
 1. LRI gives LS the governance question: "is this still helping the living operator, or freezing/replacing them?"
 2. LS keeps that as a lightweight runtime signal in adapter output.
 3. Adapter output now includes a first write policy so profile/memory updates can be confirmed, reviewed, or rejected before persistence.
+
+## Action Evidence Gate
+
+The adapter now also emits `action_evidence_gate`, a PythiaLabs-inspired LS-native evidence gate.
+
+It answers a simple runtime question:
+
+> before this agent output becomes memory, profile state, or action, do we have enough evidence to trust it?
+
+The gate is deterministic and advisory in this MVP. It does not execute or block tools by itself yet. It produces a stable decision object that downstream integrations can enforce:
+
+- `decision`: `allow`, `hold`, or `reject`;
+- `stop_reason`: stable machine-readable reason such as `missing_operator_confirmation`, `missing_source_evidence`, `external_agent_scope_violation`, or `tampered_evidence`;
+- `trace`: replayable checks that explain how LS reached the decision;
+- `required_evidence`: what is missing before the action can proceed;
+- `evidence_digest`: SHA-256 digest for tamper detection;
+- `evidence_artifact`: canonical artifact that can be verified later.
+
+Example profile write flow:
+
+```text
+Agent proposes profile write
+Operator identity governance evaluates boundary risk
+Operator profile write policy decides whether confirmation/review is needed
+Action Evidence Gate turns that into allow/hold/reject with trace + digest
+```
+
+Simple cases:
+
+- safe profile write without confirmation -> `hold`, `missing_operator_confirmation`;
+- confirmed low-risk profile write -> `allow`, `constraints_satisfied`;
+- memory write without source evidence -> `hold`, `missing_source_evidence`;
+- high-risk external action outside authorized scope -> `reject`, `external_agent_scope_violation`;
+- changed evidence artifact -> `reject`, `tampered_evidence`.
+
+This gives integrations a trustable checkpoint before persistence or action. The next enforcement step is to make profile stores, memory stores, and tool runners require an `allow` result before committing state.
 
 ## Gateway modes
 

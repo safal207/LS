@@ -64,6 +64,8 @@ def test_agent_adapter_kit_routes_existing_raw_output(tmp_path: Path) -> None:
     assert response.to_public_dict()["external_agent_gateway"]["agent_id"] == "status-agent"
     assert response.to_public_dict()["operator_identity_governance"]["identity_governance_mode"] == "observe"
     assert response.to_public_dict()["operator_profile_write_decision"]["decision"] == "not_requested"
+    assert response.to_public_dict()["action_evidence_gate"]["decision"] == "allow"
+    assert response.to_public_dict()["action_evidence_gate"]["stop_reason"] == "constraints_satisfied"
 
 
 def test_agent_adapter_kit_applies_default_agent_for_prompt_only_request(tmp_path: Path) -> None:
@@ -116,9 +118,34 @@ def test_agent_adapter_kit_requires_confirmation_for_safe_profile_write(tmp_path
     )
 
     write_decision = response.to_public_dict()["operator_profile_write_decision"]
+    gate = response.to_public_dict()["action_evidence_gate"]
     assert write_decision["decision"] == "requires_operator_confirmation"
     assert write_decision["write_scope"] == "operator_profile"
     assert write_decision["blocked"] is False
+    assert gate["action_type"] == "profile_write"
+    assert gate["decision"] == "hold"
+    assert gate["stop_reason"] == "missing_operator_confirmation"
+
+
+def test_agent_adapter_kit_allows_confirmed_profile_write_evidence(tmp_path: Path) -> None:
+    kit = AgentAdapterKit.from_agent(_make_agent(tmp_path))
+    response = kit.route_raw_output(
+        AgentAdapterRequest(
+            prompt="Remember my preference for short answers.",
+            agent_id="profile-agent",
+            metadata={
+                "operator_profile_update": True,
+                "operator_confirmed": True,
+            },
+        ),
+        "Preference noted: short answers.",
+    )
+
+    write_decision = response.to_public_dict()["operator_profile_write_decision"]
+    gate = response.to_public_dict()["action_evidence_gate"]
+    assert write_decision["decision"] == "allow_profile_update"
+    assert gate["decision"] == "allow"
+    assert gate["stop_reason"] == "constraints_satisfied"
 
 
 def test_agent_adapter_kit_runs_producer_through_gateway(tmp_path: Path) -> None:

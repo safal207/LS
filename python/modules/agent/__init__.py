@@ -2,6 +2,12 @@ from pkgutil import extend_path
 
 __path__ = extend_path(__path__, __name__)
 
+from .action_evidence_gate import (
+    ActionEvidenceGate,
+    ActionEvidenceGateRequest,
+    ActionEvidenceGateResult,
+    action_evidence_gate,
+)
 from .agent_adapter_kit import AgentAdapterKit, AgentAdapterRequest, AgentAdapterResponse, CodexSelfUseAdapter
 from .counterfactual_engine import CounterfactualEngine
 from .external_agent_gateway import ExternalAgentGateway, ExternalAgentGatewayRequest
@@ -23,6 +29,9 @@ __all__ = [
     "AgentAdapterKit",
     "AgentAdapterRequest",
     "AgentAdapterResponse",
+    "ActionEvidenceGate",
+    "ActionEvidenceGateRequest",
+    "ActionEvidenceGateResult",
     "CodexSelfUseAdapter",
     "CounterfactualEngine",
     "ExternalAgentGateway",
@@ -36,6 +45,7 @@ __all__ = [
     "EventSink",
     "NullSink",
     "PrintSink",
+    "action_evidence_gate",
     "build_event_sink",
     "evaluate_relational_policy",
 ]
