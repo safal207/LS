@@ -50,6 +50,57 @@ Current runtime contract now exposes:
 - `personal_agent_gateway`
 - `gateway_mode`
 - `gateway_reason`
+- `operator_identity_governance`
+- `operator_profile_write_decision`
+- `action_evidence_gate`
+
+### Before vs now, in simple terms
+
+Before, LS mostly acted like a smart helper at the door:
+
+```text
+Agent: here is my answer.
+LS: is the answer clear, safe, warm, and aligned enough to show?
+```
+
+The main question was:
+
+```text
+How should this answer reach the human?
+```
+
+Now LS also acts like a trusted checkpoint with a decision log:
+
+```text
+Agent: I want to write memory, change profile state, or take an action.
+LS: did the operator confirm it, is there source evidence, is the scope allowed,
+and can we prove later why this was allowed, held, or rejected?
+```
+
+The new question is:
+
+```text
+Can this agent output become memory, profile state, or action at all?
+```
+
+Example:
+
+```text
+Agent: write "the user always wants short answers" into the profile.
+
+LS checks:
+1. Did the user explicitly confirm this profile write?
+2. Is there source evidence?
+3. Is the agent deciding for the user?
+4. Can the decision be replayed and verified later?
+
+Decision:
+hold
+stop_reason:
+missing_operator_confirmation
+```
+
+In plain language: LS used to help agents say things better. Now it also checks whether an agent is allowed to turn words into memory, profile, or action.
 
 ---
 
