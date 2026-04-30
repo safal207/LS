@@ -10,7 +10,7 @@ import queue
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout, 
                             QWidget, QHBoxLayout, QPushButton, QFrame)
-from PyQt6.QtCore import Qt, QPoint, QTimer, pyqtSignal, QObject
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject
 from PyQt6.QtGui import QFont, QMouseEvent, QPalette, QColor
 
 # Import our backend modules
