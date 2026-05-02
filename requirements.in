@@ -15,7 +15,7 @@ cryptography>=46.0.7
 Pillow>=12.2.0
 
 # Vision Subsystem
-mss==10.1.0
+mss==10.2.0
 opencv-python==4.13.0.92
 imagehash==4.3.2
 scikit-image==0.26.0
