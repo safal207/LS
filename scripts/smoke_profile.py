@@ -127,9 +127,9 @@ def main() -> int:
     print(f"backend={backend}")
     print(f"fallback_backend={fallback}")
     print(f"model_name={model_name}")
-    print(f"gonka_enabled={gonka_enabled} gonka_ready={gonka_ready}")
-    print(f"use_groq={use_groq} groq_ready={groq_ready}")
-    print(f"mimo_enabled={mimo_enabled} mimo_ready={mimo_ready}")
+    print(f"gonka_enabled={gonka_enabled}")
+    print(f"use_groq={use_groq}")
+    print(f"mimo_enabled={mimo_enabled}")
     print(
         f"ollama_required={ollama_required} "
         f"ollama_host={ollama_host} "
