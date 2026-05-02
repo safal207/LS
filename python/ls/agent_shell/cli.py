@@ -114,7 +114,16 @@ def load_council_quality_rows(quality_dir: Path) -> list[dict]:
 
 
 def _council_quality_path(quality_dir: Path, cycle_id: str) -> Path:
-    return quality_dir / f"{cycle_id}.json"
+    cycle_id = str(cycle_id or "").strip()
+    if not cycle_id:
+        raise ValueError("cycle_id is required")
+    base = quality_dir.resolve()
+    candidate = (base / f"{cycle_id}.json").resolve()
+    try:
+        candidate.relative_to(base)
+    except ValueError as exc:
+        raise ValueError(f"Invalid cycle_id path: {cycle_id}") from exc
+    return candidate
 
 
 def load_council_quality_artifact(quality_dir: Path, cycle_id: str) -> dict:
