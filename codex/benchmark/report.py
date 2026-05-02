@@ -109,3 +109,43 @@ class BenchmarkReport:
             metrics = ["processinglatencyms", "loadtimems"]
         comparisons = {metric: self.compare(metric, all_results) for metric in metrics}
         return {"result": result.to_dict(), "comparisons": comparisons}
+
+
+def model_report(metrics: Dict[str, Any]) -> str:
+    """Generates a Markdown report from metrics."""
+    lines = ["# Benchmark Report", ""]
+
+    result = metrics.get("result", {})
+    model = result.get("model", "Unknown")
+    model_type = result.get("type", "unknown")
+    timestamp = result.get("timestamp", "unknown")
+
+    lines.append(f"## Model: {model}")
+    lines.append(f"- **Type**: {model_type}")
+    lines.append(f"- **Timestamp**: {timestamp}")
+    lines.append("")
+
+    lines.append("### Metrics")
+    model_metrics = result.get("metrics", {})
+    if model_metrics:
+        for name, value in sorted(model_metrics.items()):
+            lines.append(f"- **{name}**: {value}")
+    else:
+        lines.append("No metrics available.")
+    lines.append("")
+
+    comparisons = metrics.get("comparisons", {})
+    if comparisons:
+        lines.append("### Comparisons")
+        for metric, rows in sorted(comparisons.items()):
+            lines.append(f"#### {metric}")
+            lines.append("| Rank | Model | Value |")
+            lines.append("|------|-------|-------|")
+            for i, row in enumerate(rows, 1):
+                m_name = row.get("model", "unknown")
+                m_val = row.get("value", 0.0)
+                bold = "**" if m_name == model else ""
+                lines.append(f"| {i} | {bold}{m_name}{bold} | {m_val} |")
+            lines.append("")
+
+    return "\n".join(lines)
