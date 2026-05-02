@@ -58,7 +58,9 @@ class WebSocketTransport:
             except ConnectionClosed:
                 logger.debug("Inbound connection closed for %s", self.node.peer_id)
 
-        self._server = await websockets.serve(handler, self.host, self.port)
+        self._server = await websockets.serve(
+            handler, self.host, self.port, max_size=self._MAX_MESSAGE_BYTES
+        )
         logger.info("WebSocket transport started for %s at %s", self.node.peer_id, self.listen_uri)
 
     async def stop(self) -> None:
@@ -83,7 +85,7 @@ class WebSocketTransport:
         if existing is not None and existing.state == State.OPEN:
             return
         try:
-            conn = await websockets.connect(uri)
+            conn = await websockets.connect(uri, max_size=self._MAX_MESSAGE_BYTES)
         except OSError as exc:
             logger.warning("connect_to_peer failed %s: %s", uri, exc)
             raise
