@@ -4,7 +4,7 @@ import hashlib
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from . import escrow, reputation
 from .executor import execute_task as execute_task_content
@@ -162,16 +162,23 @@ def _resolve_bids(db: Session, *, task: Task, selected_agent_id: int) -> None:
         bid.status = BidStatus.accepted if bid.agent_id == selected_agent_id else BidStatus.rejected
 
 
-def _bid_score(db: Session, bid: Bid) -> float:
-    price_weight = get_param(db, "auction_weight_price")
-    rep_weight = get_param(db, "auction_weight_rep")
-    speed_weight = get_param(db, "auction_weight_speed")
+def _bid_score(
+    db: Session,
+    bid: Bid,
+    price_weight: float | None = None,
+    rep_weight: float | None = None,
+    speed_weight: float | None = None,
+) -> float:
+    pw = price_weight if price_weight is not None else get_param(db, "auction_weight_price")
+    rw = rep_weight if rep_weight is not None else get_param(db, "auction_weight_rep")
+    sw = speed_weight if speed_weight is not None else get_param(db, "auction_weight_speed")
 
-    agent = db.get(Agent, bid.agent_id)
+    # Use joined agent if available, otherwise fetch from DB
+    agent = bid.agent if bid.agent else db.get(Agent, bid.agent_id)
     rep = agent.reputation if agent else 1.0
     price_score = 1.0 / (1.0 + bid.price)
     speed_score = 1.0 / (1.0 + bid.eta_hours)
-    return price_weight * price_score + rep_weight * rep + speed_weight * speed_score
+    return pw * price_score + rw * rep + sw * speed_score
 
 
 def assign_task(db: Session, *, task_id: int, agent_id: int) -> Task:
@@ -200,11 +207,25 @@ def assign_best_bid(db: Session, *, task_id: int) -> Task:
     if task.status != TaskStatus.open:
         raise ValueError("Task is not open")
 
-    bids = list(db.scalars(select(Bid).where(Bid.task_id == task_id, Bid.status == BidStatus.submitted)).all())
+    # Fetch weights once to avoid N+1 queries in the loop
+    weights = {
+        "price_weight": get_param(db, "auction_weight_price"),
+        "rep_weight": get_param(db, "auction_weight_rep"),
+        "speed_weight": get_param(db, "auction_weight_speed"),
+    }
+
+    # Fetch bids with agents joined to avoid N+1 queries for agent reputation
+    stmt = (
+        select(Bid)
+        .options(joinedload(Bid.agent))
+        .where(Bid.task_id == task_id, Bid.status == BidStatus.submitted)
+    )
+    bids = list(db.scalars(stmt).all())
+
     if not bids:
         raise ValueError("No submitted bids for task")
 
-    best_bid = max(bids, key=lambda bid: _bid_score(db, bid))
+    best_bid = max(bids, key=lambda bid: _bid_score(db, bid, **weights))
     return assign_task(db, task_id=task_id, agent_id=best_bid.agent_id)
 
 
