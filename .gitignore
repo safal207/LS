@@ -48,3 +48,7 @@ artifacts/relation-memory/
 artifacts/relational-episodes/
 artifacts/relational-learning/
 artifacts/relational-learning-loop/
+
+# LS oversight integration (Level 1: replay traces)
+.ls/
+.claude/settings.local.json
