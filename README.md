@@ -292,6 +292,12 @@ python apps/ghostgpt/main.py
 # Console
 python apps/console/main.py
 
+# Text chat through the LS personal agent gateway
+PYTHONPATH=python python -m ls.agent_shell.cli chat
+
+# One-shot chat message
+PYTHONPATH=python python -m ls.agent_shell.cli chat "Explain what LS can do for agents."
+
 # Multi-agent demo (3 coordinated agents)
 python -m apps.multi_agent_demo
 ```

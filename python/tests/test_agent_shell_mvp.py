@@ -184,6 +184,34 @@ def test_codex_adapter_demo_cli_emits_comparison(tmp_path: Path) -> None:
     assert list(artifact_dir.glob("*.json"))
 
 
+def test_chat_cli_routes_one_shot_message_as_json(tmp_path: Path) -> None:
+    runner = CliRunner()
+    artifact_dir = tmp_path / "chat" / "council-ledger"
+
+    result = runner.invoke(
+        app,
+        [
+            "chat",
+            "Explain what LS does.",
+            "--raw-draft",
+            "LS checks an agent answer before showing it.",
+            "--artifact-dir",
+            str(artifact_dir),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["agent_id"] == "ls-chat"
+    assert payload["prompt"] == "Explain what LS does."
+    assert payload["raw_agent_output"] == "LS checks an agent answer before showing it."
+    assert payload["final_output"]
+    assert payload["action_evidence_gate"]["decision"] == "allow"
+    assert payload["external_agent_gateway"]["orientation"] == "cli-ls-chat"
+    assert list(artifact_dir.glob("*.json"))
+
+
 def test_council_cycle_cli_can_publish_to_liminalqa(tmp_path: Path, monkeypatch) -> None:
     runner = CliRunner()
     artifact_dir = tmp_path / "council-ledger"

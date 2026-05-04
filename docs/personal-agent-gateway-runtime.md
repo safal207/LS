@@ -219,6 +219,33 @@ PYTHONPATH=python \
 python -m ls.agent_shell.cli codex-adapter-demo --json
 ```
 
+## Text Chat CLI
+
+For local conversation, LS now exposes a text chat command that routes every turn through `AgentAdapterKit`, the personal agent gateway, identity governance, profile-write policy, and `ActionEvidenceGate`.
+
+Interactive mode:
+
+```bash
+PYTHONPATH=python \
+python -m ls.agent_shell.cli chat
+```
+
+One-shot mode:
+
+```bash
+PYTHONPATH=python \
+python -m ls.agent_shell.cli chat "Explain what LS can do for agents."
+```
+
+By default the command uses `--llm-mode dry-run`, so it works even without Ollama. To let a local Ollama model draft the raw answer before LS reviews it:
+
+```bash
+PYTHONPATH=python \
+python -m ls.agent_shell.cli chat --llm-mode auto
+```
+
+Each turn prints the delivered LS answer plus gateway/evidence status. With `--json`, the command exposes the full adapter contract, including `raw_agent_output`, `final_output`, `gateway_mode`, `operator_identity_governance`, `operator_profile_write_decision`, and `action_evidence_gate`.
+
 ## Operator Identity Governance
 
 The gateway now includes a small LS-native identity governance signal inspired by Living Relational Identity (LRI).

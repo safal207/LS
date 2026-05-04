@@ -34,9 +34,9 @@ except ImportError:
     from modules.agent.external_agent_gateway import ExternalAgentGateway, ExternalAgentGatewayRequest
 
 try:
-    from agent.agent_adapter_kit import AgentAdapterKit, CodexSelfUseAdapter
+    from agent.agent_adapter_kit import AgentAdapterKit, AgentAdapterRequest, CodexSelfUseAdapter
 except ImportError:
-    from modules.agent.agent_adapter_kit import AgentAdapterKit, CodexSelfUseAdapter
+    from modules.agent.agent_adapter_kit import AgentAdapterKit, AgentAdapterRequest, CodexSelfUseAdapter
 
 app = typer.Typer(help="LS Agent Shell MVP CLI")
 console = Console()
@@ -405,6 +405,60 @@ def default_codex_self_use_participants() -> list[dict]:
             "need_vector": ["speed", "completion"],
         },
     ]
+
+
+def default_ls_chat_participants(agent_id: str = "ls-chat") -> list[dict]:
+    return [
+        {
+            "participant_id": "operator",
+            "participant_type": "human",
+            "role": "conversation_partner",
+            "intent": "understand_and_use_ls",
+            "why": "talk through the personal AI operating layer",
+            "need_vector": ["clarity", "warmth", "control"],
+        },
+        {
+            "participant_id": agent_id,
+            "participant_type": "model",
+            "role": "ls_personal_layer",
+            "intent": "answer_through_ls_gateway",
+            "why": "show how agent output is shaped before delivery",
+            "need_vector": ["helpfulness", "evidence", "continuity"],
+        },
+    ]
+
+
+def build_chat_draft_fn(llm_mode: CouncilLLMMode):
+    local_llm_fn = None
+    if llm_mode is CouncilLLMMode.LOCAL:
+        local_llm_fn = build_local_council_llm_fn()
+    elif llm_mode is CouncilLLMMode.AUTO:
+        try:
+            local_llm_fn = build_local_council_llm_fn()
+        except Exception:
+            local_llm_fn = None
+
+    def _draft(prompt: str, history: list[dict[str, str]]) -> str:
+        if local_llm_fn:
+            recent_history = "\n".join(
+                f"{item['role']}: {item['content']}" for item in history[-8:]
+            )
+            system = (
+                "You are LS Chat, a warm local assistant whose answer will be routed "
+                "through the LS personal agent gateway. Be concise, useful, honest, "
+                "and do not claim to persist memory unless the operator explicitly asks."
+            )
+            user = prompt
+            if recent_history:
+                user = f"Recent conversation:\n{recent_history}\n\nCurrent user message:\n{prompt}"
+            return local_llm_fn(user, system)
+        return (
+            "I hear you. In this dry-run chat mode, LS can route and review the answer, "
+            "but no local LLM backend is currently generating a deep response. "
+            f"Your message was: {prompt}"
+        )
+
+    return _draft
 
 
 def liminalqa_settings() -> tuple[str, str]:
@@ -945,6 +999,122 @@ def council_close_escalation(
     console.print(f"[green]Closed escalation[/green] {cycle_id}")
     console.print(f"[bold]Reason:[/bold] {reason}")
     console.print(f"[bold]Review artifact:[/bold] {updated_path}")
+
+
+@app.command("chat")
+def chat(
+    prompt: str = typer.Argument(
+        "",
+        help="Optional one-shot message. Omit it to start an interactive chat.",
+    ),
+    agent_id: str = typer.Option("ls-chat", "--agent-id", help="Chat agent identifier."),
+    agent_type: str = typer.Option("ls", "--agent-type", help="Chat agent provider/type."),
+    llm_mode: CouncilLLMMode = typer.Option(
+        CouncilLLMMode.DRY_RUN,
+        "--llm-mode",
+        help="Use dry-run, auto local Ollama fallback, or require local Ollama.",
+    ),
+    raw_draft: str = typer.Option(
+        "",
+        "--raw-draft",
+        help="Optional raw draft for a one-shot message, useful for testing the gateway.",
+    ),
+    artifact_dir: Path = typer.Option(
+        Path("artifacts/chat/council-ledger"),
+        "--artifact-dir",
+        help="Where to write chat ledger artifacts.",
+    ),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit one-shot responses as JSON. In interactive mode, prints JSON per turn.",
+    ),
+) -> None:
+    orientation = "cli-ls-chat"
+    try:
+        agent = build_council_agent(
+            orientation=orientation,
+            llm_mode=CouncilLLMMode.DRY_RUN,
+            disable_graph_runtime=True,
+        )
+        draft_fn = build_chat_draft_fn(llm_mode)
+    except Exception as exc:
+        console.print(f"[red]Chat init failed:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    configure_gateway_artifact_dirs(agent, artifact_dir)
+    kit = AgentAdapterKit.from_agent(
+        agent,
+        default_agent_id=agent_id,
+        default_agent_type=agent_type,
+        default_orientation=orientation,
+    )
+    participants = default_ls_chat_participants(agent_id)
+    history: list[dict[str, str]] = []
+
+    def route_message(message: str, *, forced_raw_draft: str = "") -> dict:
+        raw_output = forced_raw_draft or draft_fn(message, history)
+        response = kit.route_raw_output(
+            AgentAdapterRequest(
+                prompt=message,
+                agent_id=agent_id,
+                agent_type=agent_type,
+                orientation=orientation,
+                participants=participants,
+                metadata={
+                    "source": "ls-agent-shell-chat",
+                    "chat": True,
+                    "turn_index": len(history) // 2 + 1,
+                },
+            ),
+            raw_output,
+        )
+        history.append({"role": "user", "content": message})
+        history.append({"role": "assistant", "content": response.final_output})
+        return response.to_public_dict()
+
+    if prompt.strip():
+        payload = route_message(prompt.strip(), forced_raw_draft=raw_draft)
+        if as_json:
+            print_json_safe(payload)
+            raise typer.Exit(code=0)
+        console.print(f"[cyan]LS chat:[/cyan] {payload.get('cycle_id', 'unknown')}")
+        console.print(f"[green]Gateway mode:[/green] {payload.get('gateway_mode', 'pass_through')}")
+        gate = payload.get("action_evidence_gate") or {}
+        console.print(
+            f"[yellow]Evidence:[/yellow] {gate.get('decision', 'n/a')} / "
+            f"{gate.get('stop_reason', 'n/a')}"
+        )
+        console.print("[bold]LS:[/bold]")
+        print_plain_safe(str(payload.get("final_output") or ""))
+        raise typer.Exit(code=0)
+
+    console.print("[cyan]LS chat started.[/cyan] Type 'exit', 'quit', or 'выход' to stop.")
+    if llm_mode is CouncilLLMMode.DRY_RUN:
+        console.print("[yellow]Dry-run mode:[/yellow] use --llm-mode auto or --llm-mode local for a real local LLM.")
+
+    while True:
+        try:
+            message = console.input("[bold cyan]you> [/bold cyan]").strip()
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n[yellow]Chat stopped.[/yellow]")
+            break
+        if not message:
+            continue
+        if message.lower() in {"exit", "quit", "q", "выход"}:
+            console.print("[yellow]Chat stopped.[/yellow]")
+            break
+        payload = route_message(message)
+        if as_json:
+            print_json_safe(payload)
+            continue
+        console.print("[bold green]ls>[/bold green]")
+        print_plain_safe(str(payload.get("final_output") or ""))
+        gate = payload.get("action_evidence_gate") or {}
+        console.print(
+            f"[dim]mode={payload.get('gateway_mode', 'pass_through')} "
+            f"evidence={gate.get('decision', 'n/a')}/{gate.get('stop_reason', 'n/a')}[/dim]"
+        )
 
 
 @app.command("codex-adapter-demo")
