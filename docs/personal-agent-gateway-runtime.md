@@ -246,6 +246,75 @@ python -m ls.agent_shell.cli chat --llm-mode auto
 
 Each turn prints the delivered LS answer plus gateway/evidence status. With `--json`, the command exposes the full adapter contract, including `raw_agent_output`, `final_output`, `gateway_mode`, `operator_identity_governance`, `operator_profile_write_decision`, and `action_evidence_gate`.
 
+## Web And Mobile Gateway
+
+LS also exposes a small web/API gateway so a phone browser or an external agent such as Claude, Kimi, Codex, a browser agent, or a custom script can route output through the same personal layer.
+
+Start locally:
+
+```bash
+PYTHONPATH=python \
+python -m ls.agent_shell.cli web-gateway --host 127.0.0.1 --port 8787
+```
+
+Start for phone/LAN access:
+
+```bash
+PYTHONPATH=python \
+python -m ls.agent_shell.cli web-gateway --host 0.0.0.0 --port 8787
+```
+
+Then open this from the same computer:
+
+```text
+http://127.0.0.1:8787
+```
+
+Or from a phone on the same Wi-Fi:
+
+```text
+http://<computer-lan-ip>:8787
+```
+
+External-agent API:
+
+```bash
+curl -X POST http://127.0.0.1:8787/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Check this answer before the user sees it.",
+    "raw_output": "Force push local main to origin/main.",
+    "agent_id": "claude",
+    "agent_type": "claude",
+    "metadata": {
+      "action_type": "repo_push",
+      "target": "main",
+      "risk_level": "high"
+    }
+  }'
+```
+
+The response includes:
+
+- `raw_agent_output`: what the external agent produced;
+- `final_output`: what LS delivers after gateway review;
+- `gateway_mode` and `gateway_reason`;
+- `operator_identity_governance`;
+- `operator_profile_write_decision`;
+- `action_evidence_gate` with `allow` / `hold` / `reject`, `stop_reason`, trace, and digest.
+
+Optional local token protection:
+
+```bash
+export LS_WEB_TOKEN="your-local-token"
+```
+
+Then clients must send:
+
+```text
+X-LS-Token: your-local-token
+```
+
 ## Operator Identity Governance
 
 The gateway now includes a small LS-native identity governance signal inspired by Living Relational Identity (LRI).

@@ -1117,6 +1117,35 @@ def chat(
         )
 
 
+@app.command("web-gateway")
+def web_gateway(
+    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind. Use 0.0.0.0 for phone/LAN access."),
+    port: int = typer.Option(8787, "--port", help="Port for the LS web gateway."),
+    artifact_dir: Path = typer.Option(
+        Path("artifacts/web-gateway/council-ledger"),
+        "--artifact-dir",
+        help="Where to write web gateway ledger artifacts.",
+    ),
+    reload: bool = typer.Option(False, "--reload", help="Enable uvicorn reload for development."),
+) -> None:
+    try:
+        import uvicorn
+    except ImportError as exc:
+        console.print("[red]uvicorn is required:[/red] pip install uvicorn fastapi")
+        raise typer.Exit(code=1) from exc
+
+    os.environ["LS_WEB_ARTIFACT_DIR"] = str(artifact_dir)
+    console.print(f"[cyan]Starting LS web gateway[/cyan] http://{host}:{port}")
+    if host == "0.0.0.0":
+        console.print("[yellow]LAN mode:[/yellow] open http://<this-computer-ip>:8787 from your phone.")
+    uvicorn.run(
+        "ls.agent_shell.web_gateway:app",
+        host=host,
+        port=port,
+        reload=reload,
+    )
+
+
 @app.command("codex-adapter-demo")
 def codex_adapter_demo(
     prompt: str = typer.Argument(

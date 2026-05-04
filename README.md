@@ -295,6 +295,9 @@ python apps/console/main.py
 # Text chat through the LS personal agent gateway
 PYTHONPATH=python python -m ls.agent_shell.cli chat
 
+# Web/mobile gateway for phones and external agents
+PYTHONPATH=python python -m ls.agent_shell.cli web-gateway --host 0.0.0.0 --port 8787
+
 # One-shot chat message
 PYTHONPATH=python python -m ls.agent_shell.cli chat "Explain what LS can do for agents."
 
