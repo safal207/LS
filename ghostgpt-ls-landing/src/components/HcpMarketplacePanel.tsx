@@ -12,19 +12,19 @@ type HcpItemRow = {
 type PanelMode = 'loading' | 'live' | 'demo';
 
 const API_BASE = import.meta.env.VITE_HCP_API_BASE || 'http://127.0.0.1:8781';
-const FETCH_TIMEOUT_MS = 8_000;
+const FETCH_TIMEOUT_MS = 2_500;
 const INSTANCE_STORAGE_KEY = 'hcp-instance-id';
 
 const FALLBACK_ITEMS: HcpItemRow[] = [
   {
     item_id: 'hcp-runtime-echo',
-    title: 'Runtime echo (demo)',
-    description: 'Maps to echo_plugin after purchase.',
+    title: 'Проверочный модуль ответа',
+    description: 'Демо-модуль для проверки установки.',
     price_credits: 5
   },
   {
     item_id: 'hcp-safety-pack',
-    title: 'Safety fellowship pack',
+    title: 'Набор для проверки безопасности',
     price_credits: 50
   }
 ];
@@ -203,6 +203,7 @@ export default function HcpMarketplacePanel() {
                         type="button"
                         disabled={b}
                         onClick={() => void post('purchase', { item_id: it.item_id, instance_id: instanceId })}
+                        aria-label={`${t('hcpMarketplace.buy')} ${it.title}`}
                         className="rounded border border-cyan-300/40 bg-cyan-500/15 px-2 py-1 text-xs text-cyan-100 disabled:opacity-50"
                       >
                         {t('hcpMarketplace.buy')}
@@ -211,6 +212,7 @@ export default function HcpMarketplacePanel() {
                         type="button"
                         disabled={b}
                         onClick={() => void post('install', { item_id: it.item_id, instance_id: instanceId })}
+                        aria-label={`${t('hcpMarketplace.install')} ${it.title}`}
                         className="rounded border border-violet-300/40 bg-violet-500/15 px-2 py-1 text-xs text-violet-100 disabled:opacity-50"
                       >
                         {t('hcpMarketplace.install')}
@@ -220,6 +222,7 @@ export default function HcpMarketplacePanel() {
                           type="button"
                           disabled={b}
                           onClick={() => void post('load', { item_id: it.item_id, instance_id: instanceId })}
+                          aria-label={`${t('hcpMarketplace.loadRuntime')} ${it.title}`}
                           className="rounded border border-emerald-300/40 bg-emerald-500/15 px-2 py-1 text-xs text-emerald-100 disabled:opacity-50"
                         >
                           {t('hcpMarketplace.loadRuntime')}

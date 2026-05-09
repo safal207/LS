@@ -1,17 +1,27 @@
-# Contributing to GhostGPT
+# Contributing to LS
 
-First off, thank you for considering contributing to GhostGPT! It's people like you that make GhostGPT such a great tool for the global community.
+Thank you for considering a contribution. LS needs both engineering work and clear public explanation: the project will grow faster if visitors can understand the landing page, run the demo, and find small tasks quickly.
 
-## 🌟 What We're Looking For
+Start here:
 
-We are building the future of local cognitive systems (**GhostOS**). We are specifically looking for experts and enthusiasts in:
+- Public site: https://safal207.github.io/LS/
+- Roadmap: [ROADMAP.md](ROADMAP.md)
+- Community tasks: [docs/COMMUNITY_TASKS.md](docs/COMMUNITY_TASKS.md)
+- GitHub Pages setup: [docs/GITHUB_PAGES_SETUP.md](docs/GITHUB_PAGES_SETUP.md)
 
-- **Rust Systems Programming**: Performance optimizations, SIMD, and cross-platform hardware acceleration.
-- **Cognitive Architecture**: Implementing memory consolidation, emotional models (Amygdala), and agentic loops.
-- **AR/VR & Vision**: Real-time scene understanding, zero-copy frame processing, and spatial awareness.
-- **Privacy & Security**: Zero-knowledge proofs, PII redaction, and local-first safety protocols.
+## What We Are Looking For
 
-## 🏗 Architecture Guidelines
+We are building a local-first coordination and oversight layer for multi-agent AI work. We are especially looking for:
+
+- Landing page clarity: copy, diagrams, mobile layout, and before/after examples.
+- Documentation: simple setup paths and practical examples.
+- Runtime reliability: tests, fallback behavior, and review workflows.
+- Safety and oversight: replayable traces, quality gates, and evidence packages.
+- Rust/Python performance work where it supports the runtime.
+
+Good first task list: [docs/COMMUNITY_TASKS.md](docs/COMMUNITY_TASKS.md)
+
+## Architecture Guidelines
 
 GhostGPT uses a **Hexagon Core** (12-layer) architecture. When contributing, please keep the following in mind:
 
@@ -20,7 +30,7 @@ GhostGPT uses a **Hexagon Core** (12-layer) architecture. When contributing, ple
 3.  **Local-First**: We avoid external API dependencies unless absolutely necessary and always provide a local fallback.
 4.  **Event-Driven**: Use the internal event bus for communication between subsystems.
 
-## 🚀 Getting Started
+## Getting Started
 
 1.  **Fork the repo** and create your branch from `main`.
 2.  **Setup the environment**:
@@ -34,7 +44,24 @@ GhostGPT uses a **Hexagon Core** (12-layer) architecture. When contributing, ple
     maturin develop --features vision
     ```
 
-## 🧪 Testing & Benchmarks
+## Landing Page Only
+
+If you only want to work on the public site:
+
+```bash
+cd ghostgpt-ls-landing
+npm ci
+npm run dev
+npm run build
+```
+
+Local URL:
+
+```text
+http://127.0.0.1:5173/
+```
+
+## Testing & Benchmarks
 
 We maintain high standards for code quality. **All PRs must include tests.**
 
@@ -48,7 +75,7 @@ We maintain high standards for code quality. **All PRs must include tests.**
   ```
 - **Benchmarks**: Use `pytest-benchmark` for Python and `criterion` for Rust.
 
-## ✅ Pull Request Checklist
+## Pull Request Checklist
 
 Before submitting a PR, please ensure:
 
@@ -59,9 +86,9 @@ Before submitting a PR, please ensure:
 - [ ] Documentation is updated (including bilingual README if applicable).
 - [ ] All CI checks are passing.
 
-## 💬 Communication
+## Communication
 
 - **Issues**: Use GitHub Issues for bug reports and feature requests.
 - **Discussions**: Use GitHub Discussions for architecture brainstorming.
 
-Together, we're building GhostOS. 🚀
+Small, focused PRs are best. For landing page changes, include a screenshot or a short before/after note.

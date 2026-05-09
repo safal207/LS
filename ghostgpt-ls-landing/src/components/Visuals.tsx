@@ -1,109 +1,199 @@
-import { Check, Sparkles, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
+type VisualCard = {
+  title: string;
+  badge: string;
+  purpose: string;
+  readout: string;
+  stats: string[];
+};
+
+function Diagram({ index, lang }: { index: number; lang: 'en' | 'ru' }) {
+  if (index === 0) {
+    const nodes =
+      lang === 'ru'
+        ? [
+            { label: 'человек', note: 'ставит цель', color: 'bg-cyan-300' },
+            { label: 'LS', note: 'держит память', color: 'bg-blue-300' },
+            { label: 'агенты', note: 'работают синхронно', color: 'bg-emerald-300' }
+          ]
+        : [
+            { label: 'operator', note: 'sets task', color: 'bg-cyan-300' },
+            { label: 'memory', note: 'keeps context', color: 'bg-blue-300' },
+            { label: 'agents', note: 'share one version', color: 'bg-emerald-300' }
+          ];
+
+    return (
+      <div className="flex h-full items-center gap-2">
+        {nodes.map((node, nodeIdx) => (
+          <div key={node.label} className="flex flex-1 items-center gap-2">
+            <div className="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-3 text-center">
+              <div className={`mx-auto h-3.5 w-3.5 rounded-full ${node.color} shadow-[0_0_18px_rgba(116,247,255,.7)]`} />
+              <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/75">
+                {node.label}
+              </div>
+              <div className="mt-1 text-[10px] leading-tight text-cyan-100/75">
+                {node.note}
+              </div>
+            </div>
+            {nodeIdx < nodes.length - 1 && (
+              <div className="flex w-8 shrink-0 items-center text-cyan-200/70">
+                <div className="h-px flex-1 bg-cyan-200/50" />
+                <div className="h-2 w-2 rotate-45 border-r border-t border-cyan-200/60" />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (index === 1) {
+    return (
+      <div className="flex h-full items-center gap-3">
+        {(lang === 'ru'
+          ? ['черновик', 'проверка', 'правка', 'одобрение']
+          : ['agent drafts', 'LS reviews', 'LS improves', 'you approve']
+        ).map((step, stepIdx) => (
+          <div key={step} className="flex flex-1 flex-col items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(116,247,255,.8)]" />
+            <div className="h-px w-full bg-cyan-200/35" />
+            <span className="text-[10px] uppercase tracking-[0.12em] text-white/65">
+              {stepIdx + 1}. {step}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const growth =
+    lang === 'ru'
+      ? [
+          { label: 'контекст сохранен', value: '1', height: 54 },
+          { label: 'риск найден', value: '2', height: 66 },
+          { label: 'ответ улучшен', value: '3', height: 80 },
+          { label: 'можно отправлять', value: '4', height: 92 }
+        ]
+      : [
+          { label: 'start', value: '42%', height: 42 },
+          { label: 'after edits', value: '58%', height: 58 },
+          { label: 'fewer errors', value: '73%', height: 73 },
+          { label: 'stable', value: '86%', height: 86 }
+        ];
+
+  return (
+    <div className="flex h-full items-end gap-3">
+      {growth.map((item) => (
+        <div key={item.label} className="flex flex-1 flex-col items-center gap-2">
+          <span className="text-[10px] font-semibold text-cyan-100">{item.value}</span>
+          <div
+            className="w-full rounded-t-lg bg-gradient-to-t from-blue-500/55 to-cyan-300"
+            style={{ height: `${item.height}%` }}
+          />
+          <span className="text-center text-[9px] uppercase leading-tight tracking-[0.08em] text-white/65">
+            {item.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function Visuals() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === 'ru' ? 'ru' : 'en';
 
-  const signalLabels = {
-    en: ['Signal flow 1', 'Signal flow 2', 'Signal flow 3'],
-    ru: ['Поток сигнала 1', 'Поток сигнала 2', 'Поток сигнала 3']
-  } as const;
-
-  const signalNotes = {
+  const cards: Record<'en' | 'ru', VisualCard[]> = {
     en: [
-      'Mesh topology for distributed operator memory.',
-      'Temporal structures keep sequence and causality visible.',
-      'Growth layers show how the system becomes more stable over time.'
+      {
+        title: t('visuals.web4'),
+        badge: 'Memory mesh',
+        purpose: 'Shows where operator context lives across agents, tools, and sessions.',
+        readout: 'Use it to see whether a task is grounded in shared memory or drifting into an isolated thread.',
+        stats: ['agents', 'memory', 'handoff']
+      },
+      {
+        title: t('visuals.temporal'),
+        badge: 'Causal timeline',
+        purpose: 'Shows the order of decisions, approvals, edits, and model outputs.',
+        readout: 'Use it to replay why the system reached a recommendation before approving it.',
+        stats: ['cause', 'review', 'repair']
+      },
+      {
+        title: t('visuals.growth'),
+        badge: 'Stability trend',
+        purpose: 'Shows whether repeated feedback is making the runtime more reliable.',
+        readout: 'Use it to track fewer contradictions, better routing, and stronger answer quality over time.',
+        stats: ['quality', 'trust', 'drift']
+      }
     ],
     ru: [
-      'Mesh-топология для распределенной операторской памяти.',
-      'Временные структуры сохраняют последовательность и причинность.',
-      'Слои роста показывают, как система становится устойчивее со временем.'
+      {
+        title: t('visuals.web4'),
+        badge: 'Основа доверия',
+        purpose: 'Все агенты работают из одной памяти: задача, стиль, ограничения и прошлые решения не распадаются по разным чатам.',
+        readout: 'Для рынка это важно: чем больше агентов у пользователя, тем ценнее слой, который держит общий контекст.',
+        stats: ['одна память', 'единая цель', 'меньше повторов']
+      },
+      {
+        title: t('visuals.temporal'),
+        badge: 'Контроль риска',
+        purpose: 'Ответ проходит понятный путь: агент пишет черновик, LS проверяет слабые места, человек видит правку и решает.',
+        readout: 'Для клиента это снимает страх: ИИ не публикует сырой результат без проверки и человеческого контроля.',
+        stats: ['черновик', 'проверка', 'решение']
+      },
+      {
+        title: t('visuals.growth'),
+        badge: 'Накопление ценности',
+        purpose: 'Каждая правка становится частью стандарта: следующие ответы ближе к нужному уровню и требуют меньше ручной доработки.',
+        readout: 'Для продукта это главное: LS становится ценнее с каждым использованием, потому что учится на реальных решениях.',
+        stats: ['учится', 'улучшает', 'масштабирует']
+      }
     ]
-  } as const;
+  };
 
   return (
     <section className="section">
       <h2 className="mb-8 text-2xl font-semibold md:text-4xl">{t('visuals.title')}</h2>
 
       <div className="grid gap-5 md:grid-cols-3">
-        {[t('visuals.web4'), t('visuals.temporal'), t('visuals.growth')].map((title, idx) => (
+        {cards[lang].map((card, idx) => (
           <article
-            key={title}
-            className="glass group flex min-h-[18rem] flex-col p-5 transition duration-300 hover:-translate-y-1 hover:bg-white/15"
+            key={card.title}
+            className="glass group flex min-h-[22rem] flex-col p-5 transition duration-300 hover:-translate-y-1 hover:bg-white/15"
           >
             <div className="flex items-center justify-between gap-3">
-              <p className="text-base font-semibold text-ghost-200">{title}</p>
+              <p className="text-base font-semibold text-ghost-200">{card.title}</p>
               <div className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-cyan-200">
-                {signalLabels[lang][idx]}
+                {card.badge}
               </div>
             </div>
 
-            <div className="mt-5 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-ghost-700 via-slate-900 to-ghost-500/60 p-4">
-              <div className="grid h-full place-items-center rounded-[1.1rem] border border-white/10 bg-[radial-gradient(circle_at_30%_40%,rgba(116,247,255,.35),transparent_28%),radial-gradient(circle_at_70%_60%,rgba(54,124,255,.24),transparent_34%),linear-gradient(145deg,rgba(255,255,255,.04),rgba(255,255,255,.01))]">
-                <div className="h-28 w-full animate-pulse bg-[radial-gradient(circle_at_20%_40%,rgba(116,247,255,.45),transparent_18%),radial-gradient(circle_at_60%_55%,rgba(255,255,255,.22),transparent_14%),radial-gradient(circle_at_80%_30%,rgba(54,124,255,.38),transparent_16%)]" />
+            <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/65 p-4">
+              <div className="relative h-32 rounded-[1.1rem] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,.95),rgba(30,64,175,.28))] p-4">
+                <Diagram index={idx} lang={lang} />
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {card.stats.map((stat) => (
+                  <span
+                    key={stat}
+                    className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-center text-[10px] uppercase tracking-[0.12em] text-white/60"
+                  >
+                    {stat}
+                  </span>
+                ))}
               </div>
             </div>
 
-            <p className="mt-4 text-sm leading-6 text-white/70">
-              {signalNotes[lang][idx]}
+            <p className="mt-4 text-sm leading-6 text-white/70">{card.purpose}</p>
+            <p className="mt-3 border-t border-white/10 pt-3 text-xs leading-5 text-cyan-100/80">
+              {card.readout}
             </p>
           </article>
         ))}
       </div>
 
-      <div className="mt-8 grid gap-5 md:grid-cols-2">
-        {[1, 2].map((id) => (
-          <div key={id} className="glass p-4 transition hover:bg-white/15">
-            <p className="mb-2 text-sm text-ghost-300">
-              {t('visuals.mockupTitle')} #{id}
-            </p>
-
-            <div className="overflow-hidden rounded-lg border border-white/20 bg-slate-950/70">
-              <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-                <div className="text-xs text-white/70">Reflection Dashboard</div>
-                <Sparkles className="h-4 w-4 text-ghost-300" />
-              </div>
-
-              <div className="space-y-3 p-3">
-                <div className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-white/50">
-                  Preview only
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center justify-center gap-1 rounded-md border border-emerald-300/30 bg-emerald-400/10 px-2 py-1 text-xs text-emerald-300">
-                    <Check className="h-3.5 w-3.5" /> approve
-                  </div>
-                  <div className="flex items-center justify-center gap-1 rounded-md border border-rose-300/30 bg-rose-400/10 px-2 py-1 text-xs text-rose-300">
-                    <X className="h-3.5 w-3.5" /> reject
-                  </div>
-                </div>
-
-                <div>
-                  <p className="mb-1 text-[10px] uppercase tracking-widest text-white/50">heatmap</p>
-                  <div className="grid grid-cols-8 gap-1">
-                    {Array.from({ length: 24 }).map((_, i) => (
-                      <span
-                        key={i}
-                        className="h-2 rounded-sm"
-                        style={{
-                          background: `rgba(116,247,255,${0.2 + ((i * 7) % 10) / 12})`
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="mb-1 text-[10px] uppercase tracking-widest text-white/50">trends</p>
-                  <div className="h-12 w-full rounded bg-[linear-gradient(120deg,rgba(54,124,255,.2),rgba(116,247,255,.35),rgba(54,124,255,.2))] [background-size:200%_200%] animate-[pulse_2.4s_ease-in-out_infinite]" />
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
     </section>
   );
 }

@@ -6,7 +6,6 @@ import OperatorDelta from '../components/OperatorDelta';
 import ProblemSolution from '../components/ProblemSolution';
 import ReflectiveRuntime from '../components/ReflectiveRuntime';
 import Roadmap from '../components/Roadmap';
-import HcpMarketplacePanel from '../components/HcpMarketplacePanel';
 import RuntimeLivePanel from '../components/RuntimeLivePanel';
 import Visuals from '../components/Visuals';
 
@@ -24,7 +23,6 @@ export default function IndexPage() {
       <Features />
       <ReflectiveRuntime />
       <RuntimeLivePanel />
-      <HcpMarketplacePanel />
       <OperatorDelta />
       <Roadmap />
       <Visuals />

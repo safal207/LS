@@ -90,7 +90,7 @@ const scorecard = councilScorecard as CouncilScorecardPayload;
 
 const copy = {
   en: {
-    eyebrow: 'Operator delta',
+    eyebrow: 'Сравнение для оператора',
     title: 'With LS + LTP versus without it',
     subtitle:
       'A queue-wide inspection path beats ad-hoc per-task review when approvals stack up. The point is fewer blind spots before an operator clicks approve.',
@@ -162,70 +162,70 @@ const copy = {
     eyebrow: 'Operator delta',
     title: 'С нами и без нас: что меняется у оператора',
     subtitle:
-      'Когда очередь approvals растет, queue-wide inspection полезнее, чем ручной разбор по одной задаче. Смысл в меньшем числе слепых зон перед approve.',
+      'Когда очередь решений растет, проверка всей очереди полезнее, чем ручной разбор по одной задаче. Смысл в меньшем числе слепых зон перед одобрением.',
     withUs: 'С нами',
     withoutUs: 'Без нас',
     withUsBody:
-      'Одна очередь, один replay path, одно место, где approvals, artifacts и LTP inspection собраны вместе.',
+      'Одна очередь, один путь воспроизведения, одно место, где решения, материалы и проверка LTP собраны вместе.',
     withoutUsBody:
-      'Оператор прыгает между task id, сырыми traces и ручными решениями, которые потом трудно воспроизвести.',
-    benchmark: 'Локальный benchmark snapshot',
-    legal: 'Польза для legal и audit',
+      'Оператор прыгает между номерами задач, сырыми следами выполнения и ручными решениями, которые потом трудно воспроизвести.',
+    benchmark: 'Локальный снимок сравнения',
+    legal: 'Польза для юристов и аудита',
     disclaimerLabel: 'Ограничение',
     demoWith: 'С LS + LTP',
     demoWithout: 'Без LS + LTP',
     walkthrough: 'Путь оператора',
     statSaved: 'Секунд экономии',
-    statSpeed: 'Ускорение batch',
+    statSpeed: 'Ускорение пакетной проверки',
     statCommands: 'Снижение числа команд',
     statQueue: 'Задач в проверке',
     tasks: 'задач',
     seconds: 'секунд',
     commands: 'команд',
-    terminalLabel: 'Превью review-потока',
-    councilEyebrow: 'Council scorecard',
+    terminalLabel: 'Превью потока проверки',
+    councilEyebrow: 'Сводка совета',
     councilTitle: 'Какие модели реально улучшают сеть',
     councilSubtitle:
-      'Публичное investor-safe превью совета согласования: вклад моделей, победы route, резонанс с получателем и merit-trend в одном snapshot.',
+      'Публичное превью совета согласования: вклад моделей, успешные маршруты, резонанс с получателем и тренд полезности в одном снимке.',
     ledgers: 'Циклов',
     topContributor: 'Лидер вклада',
     successRate: 'Успешность',
     avgResonance: 'Средний резонанс',
-    avgMerit: 'Средний merit',
-    avgQuality: 'Среднее quality',
+    avgMerit: 'Средняя полезность',
+    avgQuality: 'Среднее качество',
     avgRelationSafety: 'Безопасность связи',
     riskyCycles: 'Рисковые циклы',
     incidents: 'Инциденты',
-    reviewed: 'Reviewed',
-    approvalConv: 'Approval conv',
-    escalationRate: 'Escalation rate',
-    memoryAdjusted: 'Memory-adjusted',
-    memoryMatches: 'Memory matches',
-    routeMemoryAdjusted: 'Route memory-adjusted',
-    freezeMode: 'Freeze mode',
-    policyAdjusted: 'Policy-adjusted',
-    learnedRules: 'Learned rules',
-    medianAssign: 'Медиана до assign',
-    medianReview: 'Медиана до review',
-    medianClose: 'Медиана до close',
-    assignSla: 'Нарушения assign SLA',
-    reviewSla: 'Нарушения review SLA',
-    closeSla: 'Нарушения close SLA',
-    contribFreq: 'Частота лучшего contributor',
+    reviewed: 'Проверено',
+    approvalConv: 'Доля одобрений',
+    escalationRate: 'Доля эскалаций',
+    memoryAdjusted: 'С учетом памяти',
+    memoryMatches: 'Совпадения в памяти',
+    routeMemoryAdjusted: 'Маршрут с учетом памяти',
+    freezeMode: 'Режим остановки',
+    policyAdjusted: 'С учетом правил',
+    learnedRules: 'Выученные правила',
+    medianAssign: 'Медиана до назначения',
+    medianReview: 'Медиана до проверки',
+    medianClose: 'Медиана до закрытия',
+    assignSla: 'Нарушения срока назначения',
+    reviewSla: 'Нарушения срока проверки',
+    closeSla: 'Нарушения срока закрытия',
+    contribFreq: 'Частота лучшего участника',
     modelLift: 'Подъем по типам моделей',
     routeWins: 'Победы маршрутов',
-    routeStrategy: 'Route strategy split',
-    safetyMode: 'Safety mode split',
-    policyRules: 'Policy rule hits',
-    effectiveRules: 'Top effective rules',
-    approvalOutcome: 'Исходы review',
+    routeStrategy: 'Разделение стратегий маршрута',
+    safetyMode: 'Разделение режимов безопасности',
+    policyRules: 'Срабатывания правил',
+    effectiveRules: 'Самые полезные правила',
+    approvalOutcome: 'Исходы проверки',
     resonanceTrend: 'Тренд резонанса',
-    meritTrend: 'Тренд merit',
-    incidentTrend: 'Тренд incident',
-    reviewTrend: 'Тренд review',
+    meritTrend: 'Тренд полезности',
+    incidentTrend: 'Тренд инцидентов',
+    reviewTrend: 'Тренд проверок',
     scorecardTakeaways: 'Что это делает видимым',
-    scorecardDisclaimer: 'Ограничение scorecard',
-    sourceLabel: 'Источник snapshot'
+    scorecardDisclaimer: 'Ограничение сводки',
+    sourceLabel: 'Источник снимка'
   }
 } as const;
 
@@ -251,7 +251,7 @@ const walkthrough = {
   ru: {
     with: [
       '$ ls-agent list --status waiting_approval',
-      '5 задач готовы к review',
+      '5 задач готовы к проверке',
       '$ ls-agent ltp-inspect-all --status waiting_approval',
       'Batch inspect complete: 5 task(s), decision: PROCEED',
       '$ ls-agent approvals',
@@ -259,7 +259,7 @@ const walkthrough = {
     ],
     without: [
       '$ ls-agent list --status waiting_approval',
-      '5 задач ждут review',
+      '5 задач ждут проверки',
       '$ ls-agent inspect task-001',
       '$ ls-agent ltp-inspect task-001',
       '$ ls-agent inspect task-002',
@@ -275,9 +275,9 @@ const scenarioLabels = {
     batch_ltp_review: 'Batch LTP review'
   },
   ru: {
-    manual_cli_review: 'Ручной CLI review',
-    manual_ltp_review: 'Поштучный LTP review',
-    batch_ltp_review: 'Batch LTP review'
+    manual_cli_review: 'Ручная проверка через командную строку',
+    manual_ltp_review: 'Поштучная проверка LTP',
+    batch_ltp_review: 'Пакетная проверка LTP'
   }
 } as const;
 
@@ -289,10 +289,10 @@ const programFit = {
       'The same artifact path works for safety fellowships, residencies, and evaluation-oriented programs: one real council cycle, one ledger, one scorecard, and one benchmarkable review story.'
   },
   ru: {
-    eyebrow: 'Program fit',
-    title: 'Почему это читается как oversight-инфраструктура, а не как еще один assistant shell',
+    eyebrow: 'Подходит для программ',
+    title: 'Почему это выглядит как инфраструктура контроля, а не как еще одна оболочка ассистента',
     body:
-      'Тот же artifact path подходит для safety fellowship, residency и evaluation-oriented programs: один реальный council cycle, один ledger, один scorecard и одна понятная benchmark-story.'
+      'Тот же путь материалов подходит для программ по безопасности, исследовательских резиденций и программ оценки: один реальный цикл совета, один журнал, одна сводка и одна понятная история сравнения.'
   }
 } as const;
 
@@ -373,6 +373,42 @@ export default function OperatorDelta() {
     { label: text.statCommands, value: `${payload.summary.command_reduction_pct.toFixed(2)}%` },
     { label: text.statQueue, value: `${payload.summary.tasks_reviewed} ${text.tasks}` }
   ];
+  const investorCopy =
+    lang === 'ru'
+      ? {
+          withLs: 'Один воспроизводимый путь проверки для всей очереди ожидающих решений.',
+          withoutLs: 'Оператор ходит по задачам вручную и собирает контекст из разрозненных мест.',
+          legal: [
+            'Следы задач можно повторно просмотреть вне исходной агентной сессии.',
+            'Записи об одобрениях остаются привязаны к каждой задаче и шагу.',
+            'Пакетная проверка очереди быстрее дает юристам и аудиту доказательную картину перед одобрением.'
+          ],
+          disclaimer:
+            'Это локальный снимок сравнения на одной машине разработки, а не универсальное обещание скорости или юридическое заключение.',
+          takeaways: [
+            'Вклад моделей становится наблюдаемым: видно, кто реально помогает системе на повторяющихся циклах.',
+            'Тренд резонанса показывает, становятся ли ответы легче для принятия получателем.',
+            'Победы маршрутов показывают, какие пути в графе закрываются качественно, а не просто звучат убедительно.'
+          ],
+          scorecardDisclaimer:
+            'Эта сводка собрана из локальных журналов совета. Это снимок наблюдаемых циклов, а не универсальная гарантия для производства.'
+        }
+      : {
+          withLs: payload.investor_takeaway.with_ls,
+          withoutLs: payload.investor_takeaway.without_ls,
+          legal: payload.investor_takeaway.legal_and_audit,
+          disclaimer: payload.investor_takeaway.disclaimer,
+          takeaways: scorecard.takeaways.with_ls,
+          scorecardDisclaimer: scorecard.takeaways.disclaimer
+        };
+  const scenarioNotes =
+    lang === 'ru'
+      ? {
+          manual_cli_review: 'Проверка очереди через список задач, просмотр и отдельные одобрения по каждой задаче.',
+          manual_ltp_review: 'Один повторный просмотр LTP для каждой ожидающей задачи.',
+          batch_ltp_review: 'Один пакетный просмотр LTP для всей очереди ожидающих решений.'
+        }
+      : {};
 
   return (
     <section className="section" id="operator-delta">
@@ -397,7 +433,7 @@ export default function OperatorDelta() {
               <ShieldCheck className="h-4 w-4" />
               {text.withUs}
             </div>
-            <p className="mt-4 text-lg font-medium">{payload.investor_takeaway.with_ls}</p>
+            <p className="mt-4 text-lg font-medium">{investorCopy.withLs}</p>
             <p className="mt-3 text-sm text-white/70">{text.withUsBody}</p>
           </article>
           <article className="rounded-2xl border border-rose-300/20 bg-rose-400/8 p-5">
@@ -405,7 +441,7 @@ export default function OperatorDelta() {
               <FileText className="h-4 w-4" />
               {text.withoutUs}
             </div>
-            <p className="mt-4 text-lg font-medium">{payload.investor_takeaway.without_ls}</p>
+            <p className="mt-4 text-lg font-medium">{investorCopy.withoutLs}</p>
             <p className="mt-3 text-sm text-white/70">{text.withoutUsBody}</p>
           </article>
         </div>
@@ -433,7 +469,9 @@ export default function OperatorDelta() {
                       <p className="font-medium">
                         {scenarioLabels[lang][scenario.name as keyof (typeof scenarioLabels)[typeof lang]] || scenario.name}
                       </p>
-                      <p className="mt-1 text-sm text-white/65">{scenario.notes}</p>
+                      <p className="mt-1 text-sm text-white/65">
+                        {scenarioNotes[scenario.name as keyof typeof scenarioNotes] || scenario.notes}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-semibold text-cyan-100">{scenario.seconds.toFixed(2)}s</p>
@@ -452,7 +490,7 @@ export default function OperatorDelta() {
                 {text.legal}
               </div>
               <ul className="mt-4 space-y-3 text-sm text-white/80">
-                {payload.investor_takeaway.legal_and_audit.map((item) => (
+                {investorCopy.legal.map((item) => (
                   <li key={item} className="rounded-xl border border-white/8 bg-white/5 px-3 py-3">
                     {item}
                   </li>
@@ -462,7 +500,7 @@ export default function OperatorDelta() {
 
             <div className="rounded-2xl border border-amber-300/20 bg-amber-400/8 p-5 text-sm text-amber-50/90">
               <div className="text-xs uppercase tracking-[0.16em] text-amber-100/80">{text.disclaimerLabel}</div>
-              <p className="mt-3">{payload.investor_takeaway.disclaimer}</p>
+              <p className="mt-3">{investorCopy.disclaimer}</p>
             </div>
           </div>
         </div>
@@ -498,7 +536,7 @@ export default function OperatorDelta() {
           </div>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-cyan-300/15 bg-[radial-gradient(circle_at_top_right,rgba(96,165,250,0.16),transparent_22rem),rgba(2,6,23,0.86)] p-5 md:p-6">
+        <div className="mt-8 rounded-2xl border border-cyan-300/15 bg-[radial-gradient(circle_at_top_right,rgba(96,165,250,0.16),transparent_22rem),rgba(2,6,23,0.86)] p-5 md:p-6 hidden">
           <div className="max-w-3xl">
             <div className="text-xs uppercase tracking-[0.2em] text-cyan-200">{text.councilEyebrow}</div>
             <h3 className="mt-3 text-2xl font-semibold md:text-4xl">{text.councilTitle}</h3>
@@ -610,7 +648,7 @@ export default function OperatorDelta() {
 
           <p className="mt-3 max-w-3xl text-sm text-white/72">
             {lang === 'ru'
-              ? 'Memory-adjusted показывает, сколько циклов были ужесточены памятью о похожих плохих паттернах. Memory matches показывает, сколько похожих relation-memory совпадений система нашла перед выдачей operator guidance.'
+              ? '«С учетом памяти» показывает, сколько циклов были ужесточены памятью о похожих плохих паттернах. «Совпадения в памяти» показывает, сколько похожих связей система нашла перед выдачей подсказки оператору.'
               : 'Memory-adjusted shows how many cycles were hardened by memory of similar bad patterns. Memory matches shows how many similar relation-memory matches the system found before issuing operator guidance.'}
           </p>
 
@@ -696,7 +734,7 @@ export default function OperatorDelta() {
             <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
               <div className="text-sm uppercase tracking-[0.16em] text-cyan-200">{text.scorecardTakeaways}</div>
               <ul className="mt-4 space-y-3 text-sm text-white/80">
-                {scorecard.takeaways.with_ls.map((item) => (
+                {investorCopy.takeaways.map((item) => (
                   <li key={item} className="rounded-xl border border-white/8 bg-white/5 px-3 py-3">
                     {item}
                   </li>
@@ -706,7 +744,7 @@ export default function OperatorDelta() {
 
             <div className="rounded-2xl border border-amber-300/20 bg-amber-400/8 p-5 text-sm text-amber-50/90">
               <div className="text-xs uppercase tracking-[0.16em] text-amber-100/80">{text.scorecardDisclaimer}</div>
-              <p className="mt-3">{scorecard.takeaways.disclaimer}</p>
+              <p className="mt-3">{investorCopy.scorecardDisclaimer}</p>
             </div>
           </div>
         </div>

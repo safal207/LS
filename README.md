@@ -10,12 +10,14 @@
 
 [![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
 [![Council Safety Gate](https://github.com/safal207/LS/actions/workflows/council_safety.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/council_safety.yml)
+[![Landing Pages](https://github.com/safal207/LS/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/pages.yml)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
 [![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](LICENSE)
 [![Rust Powered](https://img.shields.io/badge/Rust-Inside-orange.svg)](#core-architecture-summary)
 
 Live site: [GitHub Pages](https://safal207.github.io/LS/)
+Community: [Roadmap](ROADMAP.md) · [Task board](docs/COMMUNITY_TASKS.md) · [Contributing](CONTRIBUTING.md)
 
 **LS is a local-first coordination and oversight runtime for human-plus-model systems.**
 It records council cycles (structured multi-model decision rounds), tracks contribution and receiver resonance (a signal of how cleanly outcomes were accepted), exposes approval-safe operator workflows, and produces replayable artifacts for evaluation and governance.
@@ -39,6 +41,9 @@ Short version:
 > do not use agents as-is; run them through your own system so they work in your logic, your rhythm, and your quality.
 
 See:
+- [`ROADMAP.md`](ROADMAP.md)
+- [`docs/COMMUNITY_TASKS.md`](docs/COMMUNITY_TASKS.md)
+- [`docs/GITHUB_PAGES_SETUP.md`](docs/GITHUB_PAGES_SETUP.md)
 - [`docs/positioning/personal-ai-operating-layer.md`](docs/positioning/personal-ai-operating-layer.md)
 - [`docs/personal-agent-gateway-runtime.md`](docs/personal-agent-gateway-runtime.md)
 - [`docs/harmonic-state-model-mvp.md`](docs/harmonic-state-model-mvp.md)
@@ -298,6 +303,9 @@ PYTHONPATH=python python -m ls.agent_shell.cli chat
 # Web/mobile gateway for phones and external agents
 PYTHONPATH=python python -m ls.agent_shell.cli web-gateway --host 0.0.0.0 --port 8787
 
+# Custom GPT Action schema
+# https://your-public-ls-url/gpt/actions/openapi.json
+
 # One-shot chat message
 PYTHONPATH=python python -m ls.agent_shell.cli chat "Explain what LS can do for agents."
 
@@ -443,8 +451,12 @@ pytest python/tests/test_memory_store_locking.py
 
 [![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
 [![Council Safety Gate](https://github.com/safal207/LS/actions/workflows/council_safety.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/council_safety.yml)
+[![Landing Pages](https://github.com/safal207/LS/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/pages.yml)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#быстрый-старт)
 [![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
+
+Сайт: [GitHub Pages](https://safal207.github.io/LS/)
+Сообщество: [дорожная карта](ROADMAP.md) · [задачи](docs/COMMUNITY_TASKS.md) · [как помочь](CONTRIBUTING.md)
 
 **LS — это local-first runtime для координации и oversight в системах человек + модели.**
 Он фиксирует council cycles (структурированные раунды многомодельных решений), отслеживает вклад и receiver resonance (насколько результат был принят получателем без трения), поддерживает approval-safe операторские потоки и выпускает replayable-артефакты для оценки и governance.

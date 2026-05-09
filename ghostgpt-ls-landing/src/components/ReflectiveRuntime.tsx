@@ -26,7 +26,7 @@ export default function ReflectiveRuntime() {
             <h3 className="text-lg font-semibold text-cyan-100">{t('runtime.architecture.title')}</h3>
             <ul className="mt-3 space-y-2 text-sm text-slate-200">
               {architectureItems.map((item) => (
-                <li key={item}>• {item}</li>
+                <li key={item}>- {item}</li>
               ))}
             </ul>
           </article>

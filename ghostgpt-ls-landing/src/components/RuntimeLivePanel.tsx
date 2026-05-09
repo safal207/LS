@@ -19,7 +19,7 @@ type Snapshot = {
 type PanelMode = 'loading' | 'live' | 'demo';
 
 const API_BASE = import.meta.env.VITE_REFLECTION_API_BASE || 'http://127.0.0.1:8780';
-const FETCH_TIMEOUT_MS = 8_000;
+const FETCH_TIMEOUT_MS = 2_500;
 const FALLBACK_SNAPSHOT: Snapshot = {
   metrics: {
     confidence_score: 0.91,
@@ -61,7 +61,8 @@ function parseEditValue(raw: string): unknown {
 }
 
 export default function RuntimeLivePanel() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language === 'ru' ? 'ru' : 'en';
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [mode, setMode] = useState<PanelMode>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +71,48 @@ export default function RuntimeLivePanel() {
   const [editDraft, setEditDraft] = useState('');
 
   const topProposals = useMemo(() => (snapshot?.proposals || []).slice(0, 3), [snapshot]);
+  const proposalTitle = (proposal: Proposal, index: number) => {
+    if (lang !== 'ru') return proposal.proposal_id || `proposal-${index + 1}`;
+    const labels: Record<string, string> = {
+      policy_tune: 'Сделать ответ ближе к стандарту',
+      triage_hint: 'Показать место, где нужен человек',
+      drift_flag: 'Вернуть ответ к исходной задаче'
+    };
+    return labels[proposal.change_type || ''] || `Улучшение ${index + 1}`;
+  };
+  const proposalBenefit = (proposal: Proposal) => {
+    if (lang !== 'ru') return `${proposal.change_type || 'change'} · ${proposal.target || 'target'}`;
+    const labels: Record<string, string> = {
+      policy_tune: 'меньше ручной доработки после агента',
+      triage_hint: 'риск виден до отправки наружу',
+      drift_flag: 'агент не уводит работу в сторону'
+    };
+    return labels[proposal.change_type || ''] || 'делает ответ надежнее';
+  };
+  const formatType = (value?: string) => {
+    if (lang !== 'ru') return value || 'unknown';
+    const labels: Record<string, string> = {
+      policy_tune: 'настройка правил',
+      triage_hint: 'подсказка для разбора',
+      drift_flag: 'сигнал отклонения',
+      batch_ltp_review: 'пакетная проверка LTP',
+      queue_snapshot: 'снимок очереди',
+      approval_wait: 'ожидание решения',
+      demo_approve: 'демо: одобрено',
+      demo_reject: 'демо: отклонено',
+      demo_edit: 'демо: исправлено'
+    };
+    return labels[value || ''] || value || 'неизвестно';
+  };
+  const formatTarget = (value?: string) => {
+    if (lang !== 'ru') return value || 'unknown';
+    const labels: Record<string, string> = {
+      approval_queue: 'очередь решений',
+      risk_lane: 'зона риска',
+      ltp_review: 'проверка LTP'
+    };
+    return labels[value || ''] || value || 'неизвестно';
+  };
 
   const loadSnapshot = async () => {
     try {
@@ -83,8 +126,7 @@ export default function RuntimeLivePanel() {
       setSnapshot(data);
       setMode('live');
       setError(null);
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
+    } catch {
       setSnapshot((current) => current ?? FALLBACK_SNAPSHOT);
       setMode((current) => (current === 'live' ? 'live' : 'demo'));
       setError(null);
@@ -177,9 +219,15 @@ export default function RuntimeLivePanel() {
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-xl border border-white/15 bg-black/20 p-4">
             <div className="text-xs uppercase tracking-wider text-white/60">{t('runtimeLive.metrics')}</div>
-            <p className="mt-3 text-sm">confidence: {(snapshot?.metrics?.confidence_score ?? 0).toFixed(2)}</p>
-            <p className="mt-1 text-sm">canonical: {snapshot?.metrics?.canonical_count ?? 0}</p>
-            <p className="mt-1 text-sm">contradictions: {snapshot?.metrics?.contradiction_count ?? 0}</p>
+            <p className="mt-3 text-sm">
+              {lang === 'ru' ? 'готовность' : 'confidence'}: {(snapshot?.metrics?.confidence_score ?? 0).toFixed(2)}
+            </p>
+            <p className="mt-1 text-sm">
+              {lang === 'ru' ? 'учтено правил' : 'canonical'}: {snapshot?.metrics?.canonical_count ?? 0}
+            </p>
+            <p className="mt-1 text-sm">
+              {lang === 'ru' ? 'что проверить' : 'contradictions'}: {snapshot?.metrics?.contradiction_count ?? 0}
+            </p>
           </div>
 
           <div className="rounded-xl border border-white/15 bg-black/20 p-4">
@@ -201,7 +249,7 @@ export default function RuntimeLivePanel() {
             <ul className="mt-3 space-y-1 text-xs text-white/80">
               {(snapshot?.action_timeline || []).slice(0, 4).map((item, idx) => (
                 <li key={`${item.timestamp || 't'}-${idx}`}>
-                  {item.type || 'unknown'} • {item.timestamp || '-'}
+                  {formatType(item.type)} · {item.timestamp || '-'}
                 </li>
               ))}
             </ul>
@@ -221,15 +269,18 @@ export default function RuntimeLivePanel() {
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-sm">
-                      <span className="font-semibold">{proposal.proposal_id}</span>
-                      <span className="text-white/70"> • {proposal.change_type} • {proposal.target}</span>
+                      <span className="font-semibold">{proposalTitle(proposal, idx)}</span>
+                      <span className="text-white/70"> · {proposalBenefit(proposal)}</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-white/70">conf {(proposal.confidence ?? 0).toFixed(2)}</span>
+                      <span className="text-xs text-white/70">
+                        {lang === 'ru' ? 'доверие' : 'conf'} {(proposal.confidence ?? 0).toFixed(2)}
+                      </span>
                       <button
                         type="button"
                         onClick={() => applyAction('approve', proposal, idx)}
                         disabled={busyId === busyKey}
+                        aria-label={`${t('runtimeLive.approve')} ${proposalTitle(proposal, idx)}`}
                         className="rounded border border-emerald-300/40 bg-emerald-400/10 px-2 py-1 text-xs text-emerald-300 disabled:opacity-50"
                       >
                         {t('runtimeLive.approve')}
@@ -238,6 +289,7 @@ export default function RuntimeLivePanel() {
                         type="button"
                         onClick={() => applyAction('reject', proposal, idx)}
                         disabled={busyId === busyKey}
+                        aria-label={`${t('runtimeLive.reject')} ${proposalTitle(proposal, idx)}`}
                         className="rounded border border-rose-300/40 bg-rose-400/10 px-2 py-1 text-xs text-rose-300 disabled:opacity-50"
                       >
                         {t('runtimeLive.reject')}
@@ -253,6 +305,7 @@ export default function RuntimeLivePanel() {
                           );
                         }}
                         disabled={busyId === busyKey}
+                        aria-label={`${t('runtimeLive.edit')} ${proposalTitle(proposal, idx)}`}
                         className="rounded border border-cyan-300/40 bg-cyan-400/10 px-2 py-1 text-xs text-cyan-200 disabled:opacity-50"
                       >
                         {t('runtimeLive.edit')}

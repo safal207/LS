@@ -6,7 +6,12 @@
     "eyebrow": "Web4 | LS | Personal AI Layer",
     "title": "LS is a personal AI operating layer for agents that should work in your logic, your rhythm, and your quality.",
     "subtitle": "Connect any model or agent, then run its output through LS for memory, shaping, repair, coordination, and harmonic diagnostics before it reaches you.",
-    "cta": "See the personal layer"
+    "cta": "See the personal layer",
+    "proof": [
+      "one memory for all agents",
+      "review before delivery",
+      "clear decision trail"
+    ]
   },
   "problem": {
     "title": "From raw agents to a personal intelligence layer",
