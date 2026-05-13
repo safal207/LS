@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import CTA from '../components/CTA';
 import Features from '../components/Features';
+import GrantReviewer from '../components/GrantReviewer';
 import Hero from '../components/Hero';
 import OperatorDelta from '../components/OperatorDelta';
 import ProblemSolution from '../components/ProblemSolution';
@@ -19,6 +20,7 @@ export default function IndexPage() {
   return (
     <main>
       <Hero onSwitchLang={onSwitchLang} />
+      <GrantReviewer />
       <ProblemSolution />
       <Features />
       <ReflectiveRuntime />
