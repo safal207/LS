@@ -19,6 +19,14 @@ Input: 50-100 AI sessions
 Output: skill-delta report + aggregate learning map + safety-boundary report
 ```
 
+Market-facing translation:
+
+```text
+AI adoption proof without employee surveillance.
+```
+
+Full offer: [Concrete Pilot Offer](PILOT_OFFER.md)
+
 ## Who the pilot is for
 
 The first pilot is best for AI-heavy teams:
@@ -124,5 +132,7 @@ Companies are adopting AI agents, but they cannot tell whether people are becomi
 ## Final line
 
 > AI makes teams faster. LS shows whether it makes people better.
+
+[See the concrete pilot offer →](PILOT_OFFER.md)
 
 [Back ← Page 4](04-proof-and-demo.md) · [Start over](README.md) · [Podcast script](podcast-script.md)
