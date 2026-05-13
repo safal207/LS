@@ -46,6 +46,13 @@ Personal growth direction:
 
 > Every AI session should compound into human development.
 
+Run the local Personal Cognitive Garden demo:
+
+```bash
+python3 scripts/run_personal_cognitive_garden_demo.py
+python3 scripts/run_personal_cognitive_garden_demo.py --json
+```
+
 See:
 - [`ROADMAP.md`](ROADMAP.md)
 - [`docs/COMMUNITY_TASKS.md`](docs/COMMUNITY_TASKS.md)
@@ -319,6 +326,9 @@ PYTHONPATH=python python -m ls.agent_shell.cli chat "Explain what LS can do for 
 
 # Multi-agent demo (3 coordinated agents)
 python -m apps.multi_agent_demo
+
+# Personal Cognitive Garden demo
+python3 scripts/run_personal_cognitive_garden_demo.py
 ```
 
 ### Optional: Multimodal worker
@@ -421,6 +431,7 @@ pytest python/tests/test_memory_store_locking.py
 | [docs/architecture/layers.md](docs/architecture/layers.md) | Full 12-layer catalogue |
 | [docs/PERSONAL_GROWTH_ENTRY.md](docs/PERSONAL_GROWTH_ENTRY.md) | Short entry point for the Personal Cognitive Garden and human-development positioning |
 | [docs/LS_PERSONAL_COGNITIVE_GARDEN.md](docs/LS_PERSONAL_COGNITIVE_GARDEN.md) | Thesis for LS as a human-owned, goal-directed cognitive garden cultivated by agents |
+| [docs/PERSONAL_COGNITIVE_GARDEN_RUNNER.md](docs/PERSONAL_COGNITIVE_GARDEN_RUNNER.md) | Local runner instructions for replaying the Personal Cognitive Garden demo flow |
 | [docs/LIMINALQA_TEST_STRATEGY.md](docs/LIMINALQA_TEST_STRATEGY.md) | Strategy for integrating LiminalQAengineer with the current pytest and CI stack |
 | [docs/CI_QUALITY_GATES.md](docs/CI_QUALITY_GATES.md) | Active CI quality-gate thresholds, enforcement state, and calibration notes |
 | [docs/LIMINALQA_LOCAL_SETUP.md](docs/LIMINALQA_LOCAL_SETUP.md) | Local deployment model for running LiminalQAengineer next to this repository |
@@ -472,6 +483,12 @@ pytest python/tests/test_memory_store_locking.py
 Он фиксирует council cycles (структурированные раунды многомодельных решений), отслеживает вклад и receiver resonance (насколько результат был принят получателем без трения), поддерживает approval-safe операторские потоки и выпускает replayable-артефакты для оценки и governance.
 
 LS также поддерживает направление **Personal Cognitive Garden**: AI-сессии должны накапливаться в принадлежащий человеку целевой граф развития — цели, навыки, решения, ограничения, доказательства, рефлексии и следующие шаги. Агенты помогают ухаживать за этим графом, но человек владеет им, а governance решает, что становится долговременным состоянием.
+
+Быстрое демо Personal Cognitive Garden:
+
+```bash
+python3 scripts/run_personal_cognitive_garden_demo.py
+```
 
 ---
 
