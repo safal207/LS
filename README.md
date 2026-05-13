@@ -53,12 +53,21 @@ python3 scripts/run_personal_cognitive_garden_demo.py
 python3 scripts/run_personal_cognitive_garden_demo.py --json
 ```
 
+Safety boundary:
+
+> LS must grow human-owned skill capital without becoming a corporate surveillance layer.
+
+See the red-team scenario:
+
+- [`docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md`](docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md)
+
 See:
 - [`ROADMAP.md`](ROADMAP.md)
 - [`docs/COMMUNITY_TASKS.md`](docs/COMMUNITY_TASKS.md)
 - [`docs/GITHUB_PAGES_SETUP.md`](docs/GITHUB_PAGES_SETUP.md)
 - [`docs/PERSONAL_GROWTH_ENTRY.md`](docs/PERSONAL_GROWTH_ENTRY.md)
 - [`docs/LS_PERSONAL_COGNITIVE_GARDEN.md`](docs/LS_PERSONAL_COGNITIVE_GARDEN.md)
+- [`docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md`](docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md)
 - [`docs/positioning/personal-ai-operating-layer.md`](docs/positioning/personal-ai-operating-layer.md)
 - [`docs/personal-agent-gateway-runtime.md`](docs/personal-agent-gateway-runtime.md)
 - [`docs/harmonic-state-model-mvp.md`](docs/harmonic-state-model-mvp.md)
@@ -432,6 +441,7 @@ pytest python/tests/test_memory_store_locking.py
 | [docs/PERSONAL_GROWTH_ENTRY.md](docs/PERSONAL_GROWTH_ENTRY.md) | Short entry point for the Personal Cognitive Garden and human-development positioning |
 | [docs/LS_PERSONAL_COGNITIVE_GARDEN.md](docs/LS_PERSONAL_COGNITIVE_GARDEN.md) | Thesis for LS as a human-owned, goal-directed cognitive garden cultivated by agents |
 | [docs/PERSONAL_COGNITIVE_GARDEN_RUNNER.md](docs/PERSONAL_COGNITIVE_GARDEN_RUNNER.md) | Local runner instructions for replaying the Personal Cognitive Garden demo flow |
+| [docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md](docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md) | Red-team scenario for blocking employer surveillance misuse of a private cognitive garden |
 | [docs/LIMINALQA_TEST_STRATEGY.md](docs/LIMINALQA_TEST_STRATEGY.md) | Strategy for integrating LiminalQAengineer with the current pytest and CI stack |
 | [docs/CI_QUALITY_GATES.md](docs/CI_QUALITY_GATES.md) | Active CI quality-gate thresholds, enforcement state, and calibration notes |
 | [docs/LIMINALQA_LOCAL_SETUP.md](docs/LIMINALQA_LOCAL_SETUP.md) | Local deployment model for running LiminalQAengineer next to this repository |
@@ -489,6 +499,10 @@ LS также поддерживает направление **Personal Cogniti
 ```bash
 python3 scripts/run_personal_cognitive_garden_demo.py
 ```
+
+Safety boundary: LS должен развивать принадлежащий человеку skill capital, не превращаясь в corporate surveillance layer.
+
+См. red-team сценарий: [`docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md`](docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md)
 
 ---
 
