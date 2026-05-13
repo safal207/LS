@@ -1,0 +1,15 @@
+{
+  "session_id": "session_2026_05_13_ls_strategy",
+  "session_type": "strategy_conversation",
+  "summary": "The user clarified that LS should develop personal goal-directed cognitive gardens rather than a general cognitive network. The user emphasized that each person should own and grow their own cognitive graph, cultivated by connected agents and sessions.",
+  "source_signals": [
+    "The user described a personal graph that every connected agent can help cultivate.",
+    "The user explicitly connected the idea to human development, corporate development, and commercial value.",
+    "The user rejected framing LS as a generic shared cognitive network."
+  ],
+  "candidate_node_families": [
+    "goal",
+    "decision",
+    "growth_path"
+  ]
+}

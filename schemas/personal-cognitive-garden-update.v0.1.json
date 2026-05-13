@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ls.dev/schemas/personal-cognitive-garden-update.v0.1.json",
+  "title": "Personal Cognitive Garden Update v0.1",
+  "description": "A proposed or reviewed update to a human-owned, goal-directed cognitive garden. Agents may propose updates; human or governance review decides what becomes durable state. Not every session is developmental; this schema records whether and how the interaction compounds human skill capital.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "garden_update_id",
+    "source_session_id",
+    "proposed_by",
+    "session_development_class",
+    "node_family",
+    "claim",
+    "evidence",
+    "development_effect",
+    "status",
+    "requires_human_review",
+    "governance"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "personal-cognitive-garden-update.v0.1"
+    },
+    "garden_update_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this proposed garden update."
+    },
+    "transition_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional LS transition identifier that produced or reviewed this update."
+    },
+    "source_session_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Session or interaction from which the update was derived."
+    },
+    "source_artifacts": {
+      "type": "array",
+      "description": "Optional artifacts that support the update, such as traces, summaries, PRs, reports, or messages.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "ref"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["trace", "summary", "pull_request", "commit", "message", "report", "file", "external_ref"]
+          },
+          "ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "default": []
+    },
+    "proposed_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Agent, model, tool, council, or human that proposed the update."
+    },
+    "model_contribution_signal_id": {
+      "type": "string",
+      "description": "Optional link to the model contribution signal that helped generate this update."
+    },
+    "session_development_class": {
+      "type": "string",
+      "description": "Classification of whether the source session primarily compounded human capability or served another purpose.",
+      "enum": [
+        "neutral",
+        "administrative",
+        "emotional_support",
+        "decision_clarification",
+        "skill_building",
+        "capital_compounding",
+        "execution",
+        "noise"
+      ]
+    },
+    "node_family": {
+      "type": "string",
+      "enum": [
+        "goal",
+        "skill",
+        "decision",
+        "constraint",
+        "evidence",
+        "reflection",
+        "growth_path"
+      ]
+    },
+    "claim": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The proposed graph claim or update in human-readable form."
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Evidence snippets or references supporting why this update was proposed.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Optional proposer confidence. This is advisory and must not replace review."
+    },
+    "development_effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "is_developmental",
+        "human_skill_delta",
+        "capital_effect",
+        "practice_needed",
+        "compounding_score"
+      ],
+      "description": "Human capital compounding assessment. Records whether the interaction increased the person's capacity to act, not merely whether it produced useful text.",
+      "properties": {
+        "is_developmental": {
+          "type": "boolean",
+          "description": "True if the update plausibly increases a human skill, judgment, execution capacity, or reusable development asset."
+        },
+        "human_skill_delta": {
+          "type": "array",
+          "description": "Skills, capabilities, or judgment areas this session may improve.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "capital_effect": {
+          "type": "string",
+          "description": "How this update may increase the person's durable capability, portfolio, reputation, judgment, or execution leverage."
+        },
+        "practice_needed": {
+          "type": "string",
+          "description": "Concrete follow-up practice or action needed to turn the insight into durable skill capital."
+        },
+        "compounding_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Advisory estimate of compounding potential. This is not a psychological truth claim."
+        },
+        "assessment_notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["proposed", "accepted", "rejected", "superseded"]
+    },
+    "requires_human_review": {
+      "type": "boolean",
+      "description": "True when the update affects personal goals, identity, memory, obligations, reputation, access, skill capital, or durable graph state."
+    },
+    "review": {
+      "type": "object",
+      "description": "Human or governance review result. Required before durable graph state is changed.",
+      "additionalProperties": false,
+      "properties": {
+        "reviewed_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["accept", "reject", "revise", "defer"]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "replacement_update_id": {
+          "type": "string"
+        }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner_scope",
+        "durable_state_allowed",
+        "external_action_allowed",
+        "sharing_scope"
+      ],
+      "properties": {
+        "owner_scope": {
+          "type": "string",
+          "enum": ["personal", "work_context", "team_aggregate", "public"]
+        },
+        "durable_state_allowed": {
+          "type": "boolean",
+          "description": "Whether this update is allowed to become durable graph state after review."
+        },
+        "external_action_allowed": {
+          "type": "boolean",
+          "description": "Whether this update may trigger external action. Safe default is false."
+        },
+        "sharing_scope": {
+          "type": "string",
+          "enum": ["private", "explicitly_shared", "team_aggregate", "public"]
+        },
+        "policy_notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": { "const": "accepted" }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["review"],
+        "properties": {
+          "requires_human_review": { "const": true },
+          "governance": {
+            "properties": {
+              "durable_state_allowed": { "const": true }
+            },
+            "required": ["durable_state_allowed"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "development_effect": {
+            "properties": {
+              "is_developmental": { "const": false }
+            },
+            "required": ["is_developmental"]
+          }
+        },
+        "required": ["development_effect"]
+      },
+      "then": {
+        "properties": {
+          "development_effect": {
+            "properties": {
+              "compounding_score": { "const": 0 }
+            },
+            "required": ["compounding_score"]
+          }
+        }
+      }
+    }
+  ]
+}

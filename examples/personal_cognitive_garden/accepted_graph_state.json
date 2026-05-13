@@ -1,0 +1,94 @@
+{
+  "garden_id": "personal_cognitive_garden_default",
+  "owner_scope": "personal",
+  "updated_from": "pcg_update_2026_05_13_001",
+  "accepted_updates": [
+    {
+      "schema_version": "personal-cognitive-garden-update.v0.1",
+      "garden_update_id": "pcg_update_2026_05_13_001",
+      "transition_id": "transition_2026_05_13_ls_strategy_001",
+      "source_session_id": "session_2026_05_13_ls_strategy",
+      "source_artifacts": [
+        {
+          "kind": "summary",
+          "ref": "examples/personal_cognitive_garden/session_summary.json",
+          "description": "Session summary describing the strategic shift toward a personal cognitive garden."
+        }
+      ],
+      "proposed_by": "agent:strategy_council",
+      "model_contribution_signal_id": "mclg_signal_2026_05_13_001",
+      "session_development_class": "capital_compounding",
+      "node_family": "goal",
+      "claim": "The user wants LS to focus on personal, goal-directed cognitive gardens rather than a generic shared cognitive network.",
+      "evidence": [
+        "The user described each person developing their own cognitive graph.",
+        "The user said connected agents and sessions should help cultivate that graph like a garden.",
+        "The user connected the idea to human development and commercial value."
+      ],
+      "confidence": 0.91,
+      "development_effect": {
+        "is_developmental": true,
+        "human_skill_delta": [
+          "strategic_product_framing",
+          "architecture_boundary_setting",
+          "human_capital_positioning"
+        ],
+        "capital_effect": "Increases the person's ability to turn vague product intuition into a structured, governable, and commercially legible development system.",
+        "practice_needed": "Convert the insight into a schema, examples, and one small MVP flow so the direction becomes an inspectable artifact rather than only a conversation.",
+        "compounding_score": 0.82,
+        "assessment_notes": [
+          "The session is developmental because it clarifies product direction and creates a reusable skill-capital framing.",
+          "The update should not be treated as durable identity or company-visible performance data without review."
+        ]
+      },
+      "status": "accepted",
+      "requires_human_review": true,
+      "review": {
+        "reviewed_by": "human:owner",
+        "reviewed_at": "2026-05-13T11:35:00Z",
+        "decision": "accept",
+        "reason": "The owner explicitly confirmed this as the next LS direction and accepted it as a skill-capital/product-direction update."
+      },
+      "governance": {
+        "owner_scope": "personal",
+        "durable_state_allowed": true,
+        "external_action_allowed": false,
+        "sharing_scope": "private",
+        "policy_notes": [
+          "Accepted as a private durable garden goal and human-capital compounding signal.",
+          "External actions still require separate authorization."
+        ]
+      },
+      "created_at": "2026-05-13T11:30:00Z",
+      "updated_at": "2026-05-13T11:35:00Z"
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "goal_personal_cognitive_garden_direction",
+      "family": "goal",
+      "label": "LS should develop personal goal-directed cognitive gardens",
+      "source_update_id": "pcg_update_2026_05_13_001",
+      "status": "active"
+    },
+    {
+      "node_id": "skill_strategic_product_framing",
+      "family": "skill",
+      "label": "Strategic product framing",
+      "source_update_id": "pcg_update_2026_05_13_001",
+      "status": "active"
+    }
+  ],
+  "edges": [
+    {
+      "from": "goal_personal_cognitive_garden_direction",
+      "to": "mclg_signal_2026_05_13_001",
+      "kind": "supported_by_contribution_signal"
+    },
+    {
+      "from": "skill_strategic_product_framing",
+      "to": "goal_personal_cognitive_garden_direction",
+      "kind": "supports_goal"
+    }
+  ]
+}
