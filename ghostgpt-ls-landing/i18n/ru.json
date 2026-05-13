@@ -3,144 +3,175 @@
     "switch": "EN"
   },
   "hero": {
-    "eyebrow": "Новый слой для работы с несколькими ИИ-агентами",
-    "title": "Когда у тебя несколько ИИ-агентов, нужен один слой памяти, проверки и контроля.",
-    "subtitle": "LS стоит между человеком и агентами: хранит рабочий контекст, проверяет слабые ответы, предлагает правки и не выпускает результат наружу без твоего одобрения.",
-    "cta": "Показать контрольный слой",
+    "eyebrow": "Grant-ready research prototype | Personal Cognitive Garden",
+    "title": "LS превращает AI-сессии в управляемый, принадлежащий человеку капитал навыков.",
+    "subtitle": "Local-first исследовательский прототип для проверки: развивают ли AI-сессии человеческие способности — с evidence, review и anti-surveillance boundaries.",
+    "cta": "Открыть путь для grant reviewer",
     "proof": [
-      "одна память для всех агентов",
-      "проверка ответа до отправки",
-      "понятный след каждого решения"
+      "запускаемое демо",
+      "машиночитаемая схема",
+      "red-team safety boundary"
     ]
   },
+  "grant": {
+    "eyebrow": "Для грантового ревьюера",
+    "title": "Понятный путь от research question к reproducible artifact",
+    "subtitle": "Personal Cognitive Garden исследует, как AI-системы могут измерять развитие человека без превращения личных данных роста в surveillance, opaque scoring или unauthorized profiling.",
+    "cards": [
+      {
+        "title": "Research question",
+        "body": "Какие AI-сессии реально развивают способность человека, и какие evidence нужны, чтобы заявлять skill growth?"
+      },
+      {
+        "title": "Artifact path",
+        "body": "Schema, examples, accepted graph state и local demo runner показывают механизм как воспроизводимый repo artifact."
+      },
+      {
+        "title": "Safety boundary",
+        "body": "Private cognitive graph остаётся у человека. Доступ работодателя к целям, слабым навыкам, reflections и growth history блокируется by design."
+      }
+    ],
+    "pathTitle": "Reviewer path",
+    "path": [
+      "1. Прочитать grant-ready brief",
+      "2. Запустить Personal Cognitive Garden demo",
+      "3. Проверить schema и examples",
+      "4. Посмотреть employer-surveillance red-team scenario"
+    ],
+    "links": {
+      "brief": "Read grant brief",
+      "demo": "Run demo path",
+      "redteam": "Review safety boundary"
+    }
+  },
   "problem": {
-    "title": "Без личного слоя агенты быстро становятся хаосом",
+    "title": "AI adoption измеряют по активности, а не по развитию человека",
     "items": {
-      "centralized": "Один агент пишет быстро, но пять агентов начинают спорить контекстами и стилями.",
-      "size": "Даже сильная модель не знает, что для тебя считается готовым, безопасным и полезным ответом.",
-      "hallucinations": "Слабый ответ может уйти клиенту или команде раньше, чем ты заметишь ошибку.",
-      "memory": "При смене модели, инструмента или сессии теряется история решений, ради которой уже была сделана работа."
+      "centralized": "Команды видят usage, tokens, tasks и output, но не понимают, становятся ли люди реально сильнее.",
+      "size": "Более сильная модель не гарантирует более сильный человеческий навык; она может скрывать слабое рассуждение или создавать зависимость.",
+      "hallucinations": "Agent inferences о skills, goals или weaknesses могут стать opaque memory, если нет evidence и human review.",
+      "memory": "Полезные сессии исчезают в chat history вместо того, чтобы накапливаться в human-owned development graph."
     },
-    "solutionTitle": "Что продает LS",
-    "solutionBody": "LS делает агентов управляемыми: один контекст, одна проверка качества, один финальный контроль. Пользователь получает не поток сырых ответов, а рабочую систему, которой можно доверять."
+    "solutionTitle": "Что добавляет LS",
+    "solutionBody": "LS классифицирует AI-сессии по developmental effect, извлекает evidence-backed skill deltas, требует human review и коммитит только accepted updates в private cognitive graph."
   },
   "features": {
-    "title": "Почему это может стать отдельной категорией",
+    "title": "Что демонстрирует grant prototype",
     "list": {
       "local": {
-        "title": "Рынок движется к множеству агентов",
-        "desc": "Когда у человека несколько моделей, помощников и инструментов, нужен слой, который соединяет их в одну управляемую рабочую среду."
+        "title": "Human-owned graph",
+        "desc": "Goals, skills, decisions, evidence и growth paths по умолчанию остаются под контролем человека."
       },
       "causal": {
-        "title": "Память становится инфраструктурой",
-        "desc": "Контекст, решения и правки должны жить дольше одной сессии, иначе каждый новый агент снова начинает с нуля."
+        "title": "Evidence-backed claims",
+        "desc": "Skill-growth claims требуют supporting artifacts и могут быть accepted, rejected или revised человеком."
       },
       "human": {
-        "title": "Качество нельзя оставлять модели",
-        "desc": "LS фиксирует личные стандарты результата: тон, глубину, риск, формат и момент, когда ответ можно выпускать."
+        "title": "Development classification",
+        "desc": "Сессии разделяются на administrative, emotional support, execution, skill-building, capital-compounding и noise classes."
       },
       "anti": {
-        "title": "Проверка до ошибки",
-        "desc": "Слабый или рискованный ответ останавливается до отправки, а не превращается в проблему после публикации."
+        "title": "Anti-surveillance boundary",
+        "desc": "Private graph export requests блокируются; наружу могут уходить только consented, non-sensitive, aggregate-safe signals."
       },
       "identity": {
-        "title": "Персональный стандарт ИИ",
-        "desc": "Чем больше человек работает с агентами, тем ценнее становится слой, который помнит его стиль, цели и критерии качества."
+        "title": "Reproducible demo",
+        "desc": "Repo содержит schema, examples, accepted graph state и local runner для проверки ревьюером."
       }
     }
   },
   "roadmap": {
-    "title": "Как LS превращается из демо в рабочий продукт",
+    "title": "Grant milestones",
     "phases": [
       {
-        "q": "Q2 2026",
-        "name": "Контроль ответа перед отправкой"
+        "q": "0-3 месяца",
+        "name": "Schema hardening и red-team runner"
       },
       {
-        "q": "Q3 2026",
-        "name": "История решений без потери контекста"
+        "q": "3-6 месяцев",
+        "name": "Evaluation harness и consent-safe export layer"
       },
       {
-        "q": "Q4 2026",
-        "name": "Один контекст на всех устройствах"
+        "q": "6 месяцев",
+        "name": "Small user study с 5-10 AI-heavy users"
       },
       {
-        "q": "Q1 2027",
-        "name": "Готовые модули для рабочих задач"
+        "q": "Output",
+        "name": "Open technical note, examples и reproducible reports"
       }
     ]
   },
   "visuals": {
-    "title": "Три причины, почему LS нужен между человеком и агентами",
-    "web4": "Один контекст",
-    "temporal": "Ответ не уходит сырым",
-    "growth": "Система учится на правках",
-    "mockupTitle": "Макет Reflection Dashboard"
+    "title": "От AI-сессии к reviewed skill capital",
+    "web4": "Session classification",
+    "temporal": "Evidence-backed update",
+    "growth": "Human review",
+    "mockupTitle": "Personal Cognitive Garden review flow"
   },
   "cta": {
-    "title": "Следующая ценность ИИ не в еще одном агенте, а в слое, который делает агентов управляемыми",
-    "demo": "Посмотреть слой контроля",
-    "community": "Посмотреть сравнение работы оператора",
-    "contact": "Написать автору"
+    "title": "Проверь grant package для безопасного AI-assisted human development",
+    "demo": "Read grant brief",
+    "community": "Run demo path",
+    "contact": "Contact builder"
   },
   "runtime": {
-    "eyebrow": "LS: контрольный слой между человеком и агентами",
-    "title": "От одиночных чат-ботов к личной системе управления ИИ",
+    "eyebrow": "LS: governed human-development layer",
+    "title": "От raw AI sessions к reviewed capability growth",
     "problem": {
-      "title": "Что ломается",
-      "body": "Агенты дают быстрые ответы, но не отвечают за общий контекст, качество и последствия. Чем больше агентов, тем сложнее понять, кому доверять."
+      "title": "Problem",
+      "body": "AI-сессии всё чаще формируют learning, coding, research и decisions, но большинство систем не отличают useful activity от durable human development."
     },
     "solution": {
-      "title": "Что добавляет LS",
-      "body": "LS ставит перед отправкой обязательный контур: понять задачу, проверить ответ, улучшить слабые места и передать финальное решение человеку."
+      "title": "Solution",
+      "body": "LS превращает сессии в proposed development updates: classify session, identify skill deltas, require evidence, and let the person accept or reject the graph change."
     },
     "architecture": {
-      "title": "Почему это защищает ценность",
+      "title": "Architecture",
       "items": [
-        "единая память вместо разрозненных сессий",
-        "видимый путь от задачи к решению",
-        "контроль качества до отправки",
-        "обучение на человеческих правках"
+        "Session summary",
+        "Development classification",
+        "Evidence-backed skill delta",
+        "Human-reviewed graph commit"
       ]
     }
   },
   "runtimeLive": {
-    "title": "Живой пример: LS останавливает слабый ответ до отправки",
+    "title": "Runtime Live Panel",
     "loading": "загрузка",
     "live": "подключено",
     "demo": "демо-режим",
     "error": "Ошибка API",
-    "offlineNote": "Демо показывает главный сценарий: агент предлагает ответ, LS находит риск, предлагает правку, человек принимает финальное решение.",
-    "metrics": "Можно ли отправлять",
-    "heatmap": "Где ответ слабее",
-    "timeline": "Почему принято решение",
-    "proposals": "Правки, которые повышают доверие",
-    "approve": "Принять",
-    "reject": "Убрать",
-    "edit": "Изменить",
-    "saveEdit": "Сохранить",
-    "cancelEdit": "Отмена",
-    "editPlaceholder": "Новое значение, например 0.42 или \"найти_контекст\"",
-    "editValueLabel": "Новое предлагаемое значение",
-    "noProposals": "Нет предложений для отображения"
+    "offlineNote": "Local demo data is shown because the reflection backend is offline. The panel remains interactive so the operator flow stays visible on a static landing.",
+    "metrics": "Metrics",
+    "heatmap": "Heatmap",
+    "timeline": "Action timeline",
+    "proposals": "Top proposals",
+    "approve": "Approve",
+    "reject": "Reject",
+    "edit": "Edit",
+    "saveEdit": "Save edit",
+    "cancelEdit": "Cancel",
+    "editPlaceholder": "JSON value, e.g. 0.42 or \"retrieve_context\"",
+    "editValueLabel": "New proposed value",
+    "noProposals": "No proposals to display"
   },
   "hcpMarketplace": {
-    "title": "Каталог HCP (внутренние кредиты)",
+    "title": "HCP Marketplace (internal credits)",
     "loading": "загрузка",
     "live": "подключено",
     "demo": "демо-режим",
-    "offlineNote": "Сервер HCP недоступен — показаны примеры строк. Запустите scripts/run_hcp_marketplace_api.py для живого каталога.",
-    "error": "Ошибка запроса",
+    "offlineNote": "The HCP API is offline — showing sample rows. Start scripts/run_hcp_marketplace_api.py to use a real catalog.",
+    "error": "Request error",
     "instanceId": "Instance id",
-    "refresh": "Обновить",
-    "credits": "Кредиты",
-    "runtime": "Среда выполнения",
-    "runtimeAttached": "подключена (загрузка доступна)",
-    "runtimeDetached": "отключён",
-    "price": "кр",
-    "buy": "Купить",
-    "install": "Установить",
-    "loadRuntime": "Загрузить",
-    "demoActions": "Подключите API для покупки/установки"
+    "refresh": "Refresh",
+    "credits": "Credits",
+    "runtime": "Runtime",
+    "runtimeAttached": "attached (load enabled)",
+    "runtimeDetached": "detached",
+    "price": "cr",
+    "buy": "Buy",
+    "install": "Install",
+    "loadRuntime": "Load",
+    "demoActions": "Connect API to buy/install"
   }
 }
