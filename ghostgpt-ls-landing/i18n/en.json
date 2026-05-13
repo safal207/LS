@@ -3,104 +3,135 @@
     "switch": "RU"
   },
   "hero": {
-    "eyebrow": "Web4 | LS | Personal AI Layer",
-    "title": "LS is a personal AI operating layer for agents that should work in your logic, your rhythm, and your quality.",
-    "subtitle": "Connect any model or agent, then run its output through LS for memory, shaping, repair, coordination, and harmonic diagnostics before it reaches you.",
-    "cta": "See the personal layer",
+    "eyebrow": "Grant-ready research prototype | Personal Cognitive Garden",
+    "title": "LS turns AI sessions into governed, human-owned skill capital.",
+    "subtitle": "A local-first research prototype for measuring whether AI-assisted sessions develop human capability — with evidence, review, and anti-surveillance boundaries.",
+    "cta": "Open the grant reviewer path",
     "proof": [
-      "one memory for all agents",
-      "review before delivery",
-      "clear decision trail"
+      "runnable demo",
+      "machine-readable schema",
+      "red-team safety boundary"
     ]
   },
+  "grant": {
+    "eyebrow": "For grant reviewers",
+    "title": "A clear path from research question to reproducible artifact",
+    "subtitle": "The Personal Cognitive Garden asks how AI systems can help measure human development without turning private growth data into surveillance, opaque scoring, or unauthorized profiling.",
+    "cards": [
+      {
+        "title": "Research question",
+        "body": "Which AI sessions actually develop human capability, and what evidence is required before a system can claim skill growth?"
+      },
+      {
+        "title": "Artifact path",
+        "body": "Schema, examples, accepted graph state, and a local demo runner show the mechanism as a reproducible repository artifact."
+      },
+      {
+        "title": "Safety boundary",
+        "body": "Private cognitive graphs remain human-owned. Employer access to goals, weak skills, reflections, and growth history is blocked by design."
+      }
+    ],
+    "pathTitle": "Reviewer path",
+    "path": [
+      "1. Read the grant-ready brief",
+      "2. Run the Personal Cognitive Garden demo",
+      "3. Inspect the schema and examples",
+      "4. Review the employer-surveillance red-team scenario"
+    ],
+    "links": {
+      "brief": "Read grant brief",
+      "demo": "Run demo path",
+      "redteam": "Review safety boundary"
+    }
+  },
   "problem": {
-    "title": "From raw agents to a personal intelligence layer",
+    "title": "AI adoption is measured by activity, not human development",
     "items": {
-      "centralized": "Raw agents pull you into their defaults instead of adapting to your standards.",
-      "size": "A bigger model is still the wrong layer when what you need is continuity, shaping, and control.",
-      "hallucinations": "Fast output without review can inject weak reasoning straight into your workflow.",
-      "memory": "Most assistants forget your context the moment you switch models, tools, or sessions."
+      "centralized": "Teams can count usage, tokens, tasks, and output, but cannot easily tell whether people are becoming more capable.",
+      "size": "A stronger model does not automatically create stronger human skill; it can also hide weak reasoning or create dependency.",
+      "hallucinations": "Agent inferences about skills, goals, or weaknesses can become opaque memory unless they are evidence-backed and reviewed.",
+      "memory": "Useful sessions disappear into chat history instead of compounding into a durable, human-owned development graph."
     },
     "solutionTitle": "What LS adds",
-    "solutionBody": "LS sits between you and every agent: it keeps continuity, shapes weak output, catches tension and drift, and turns disconnected models into one reviewable system around you."
+    "solutionBody": "LS classifies AI sessions by developmental effect, extracts evidence-backed skill deltas, requires human review, and commits only accepted updates into a private cognitive graph."
   },
   "features": {
-    "title": "What LS adds between you and AI",
+    "title": "What the grant prototype demonstrates",
     "list": {
       "local": {
-        "title": "Local Control",
-        "desc": "Operational context stays under your control instead of disappearing into a hosted black box."
+        "title": "Human-owned graph",
+        "desc": "Goals, skills, decisions, evidence, and growth paths remain under the person's control by default."
       },
       "causal": {
-        "title": "Continuity Memory",
-        "desc": "Keeps continuity across agents, sessions, and decisions instead of resetting every time you switch tools."
+        "title": "Evidence-backed claims",
+        "desc": "Skill-growth claims require supporting artifacts and can be accepted, rejected, or revised by the person."
       },
       "human": {
-        "title": "Your Standards First",
-        "desc": "LS lets agents adapt to your intent instead of forcing you to adapt to theirs."
+        "title": "Development classification",
+        "desc": "Sessions are separated into administrative, emotional support, execution, skill-building, capital-compounding, and noise classes."
       },
       "anti": {
-        "title": "Response Shaping",
-        "desc": "Weak or risky output can be surfaced, reshaped, repaired, or held before it reaches you."
+        "title": "Anti-surveillance boundary",
+        "desc": "Private graph export requests are blocked; only consented, non-sensitive, aggregate-safe signals may be shared externally."
       },
       "identity": {
-        "title": "Personal Cognitive Layer",
-        "desc": "The system learns your rhythm, preferred tone, and what counts as a good answer for you."
+        "title": "Reproducible demo",
+        "desc": "The repository includes schema, examples, accepted graph state, and a local runner for reviewer inspection."
       }
     }
   },
   "roadmap": {
-    "title": "Roadmap",
+    "title": "Grant milestones",
     "phases": [
       {
-        "q": "Q2 2026",
-        "name": "Adaptive Reflection Dashboard"
+        "q": "0-3 months",
+        "name": "Schema hardening and red-team runner"
       },
       {
-        "q": "Q3 2026",
-        "name": "Temporal Graph Intelligence Layer"
+        "q": "3-6 months",
+        "name": "Evaluation harness and consent-safe export layer"
       },
       {
-        "q": "Q4 2026",
-        "name": "Cross-device Web4 Mesh"
+        "q": "6 months",
+        "name": "Small user study with 5-10 AI-heavy users"
       },
       {
-        "q": "Q1 2027",
-        "name": "HCP Intelligence Marketplace"
+        "q": "Output",
+        "name": "Open technical note, examples, and reproducible reports"
       }
     ]
   },
   "visuals": {
-    "title": "Digital consciousness in motion",
-    "web4": "Web4 topology",
-    "temporal": "Temporal graph",
-    "growth": "Cognitive growth",
-    "mockupTitle": "Reflection Dashboard mockup"
+    "title": "From AI session to reviewed skill capital",
+    "web4": "Session classification",
+    "temporal": "Evidence-backed update",
+    "growth": "Human review",
+    "mockupTitle": "Personal Cognitive Garden review flow"
   },
   "cta": {
-    "title": "Run agents through your own system before they reach you",
-    "demo": "Open personal layer",
-    "community": "See operator benchmark",
-    "contact": "Write to the builder"
+    "title": "Review the grant package for safe AI-assisted human development",
+    "demo": "Read grant brief",
+    "community": "Run demo path",
+    "contact": "Contact builder"
   },
   "runtime": {
-    "eyebrow": "LS: Reflective AI Runtime",
-    "title": "An operating system for personal AI control",
+    "eyebrow": "LS: governed human-development layer",
+    "title": "From raw AI sessions to reviewed capability growth",
     "problem": {
       "title": "Problem",
-      "body": "AI outputs often arrive raw. Once an agent is already moving, it becomes hard to explain, verify, and correct what is happening."
+      "body": "AI sessions increasingly shape learning, coding, research, and decisions, but most systems do not distinguish useful activity from durable human development."
     },
     "solution": {
       "title": "Solution",
-      "body": "LS adds a control loop between you and every agent: reflect -> review -> shape, approve, reject, repair, or hold."
+      "body": "LS turns sessions into proposed development updates: classify the session, identify skill deltas, require evidence, and let the person accept or reject the graph change."
     },
     "architecture": {
       "title": "Architecture",
       "items": [
-        "Memory graph",
-        "Decision pipeline",
-        "Reflection dashboard",
-        "Human feedback loop"
+        "Session summary",
+        "Development classification",
+        "Evidence-backed skill delta",
+        "Human-reviewed graph commit"
       ]
     }
   },
