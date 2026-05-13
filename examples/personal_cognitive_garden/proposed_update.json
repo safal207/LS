@@ -1,0 +1,37 @@
+{
+  "schema_version": "personal-cognitive-garden-update.v0.1",
+  "garden_update_id": "pcg_update_2026_05_13_001",
+  "transition_id": "transition_2026_05_13_ls_strategy_001",
+  "source_session_id": "session_2026_05_13_ls_strategy",
+  "source_artifacts": [
+    {
+      "kind": "summary",
+      "ref": "examples/personal_cognitive_garden/session_summary.json",
+      "description": "Session summary describing the strategic shift toward a personal cognitive garden."
+    }
+  ],
+  "proposed_by": "agent:strategy_council",
+  "model_contribution_signal_id": "mclg_signal_2026_05_13_001",
+  "node_family": "goal",
+  "claim": "The user wants LS to focus on personal, goal-directed cognitive gardens rather than a generic shared cognitive network.",
+  "evidence": [
+    "The user described each person developing their own cognitive graph.",
+    "The user said connected agents and sessions should help cultivate that graph like a garden.",
+    "The user connected the idea to human development and commercial value."
+  ],
+  "confidence": 0.91,
+  "status": "proposed",
+  "requires_human_review": true,
+  "governance": {
+    "owner_scope": "personal",
+    "durable_state_allowed": false,
+    "external_action_allowed": false,
+    "sharing_scope": "private",
+    "policy_notes": [
+      "This update affects long-term project/product direction and should remain proposed until the human accepts it.",
+      "No external action or employer-visible reporting is allowed from this proposal alone."
+    ]
+  },
+  "created_at": "2026-05-13T11:30:00Z",
+  "updated_at": "2026-05-13T11:30:00Z"
+}
