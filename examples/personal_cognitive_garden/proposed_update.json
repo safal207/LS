@@ -12,6 +12,7 @@
   ],
   "proposed_by": "agent:strategy_council",
   "model_contribution_signal_id": "mclg_signal_2026_05_13_001",
+  "session_development_class": "capital_compounding",
   "node_family": "goal",
   "claim": "The user wants LS to focus on personal, goal-directed cognitive gardens rather than a generic shared cognitive network.",
   "evidence": [
@@ -20,6 +21,21 @@
     "The user connected the idea to human development and commercial value."
   ],
   "confidence": 0.91,
+  "development_effect": {
+    "is_developmental": true,
+    "human_skill_delta": [
+      "strategic_product_framing",
+      "architecture_boundary_setting",
+      "human_capital_positioning"
+    ],
+    "capital_effect": "Increases the person's ability to turn vague product intuition into a structured, governable, and commercially legible development system.",
+    "practice_needed": "Convert the insight into a schema, examples, and one small MVP flow so the direction becomes an inspectable artifact rather than only a conversation.",
+    "compounding_score": 0.82,
+    "assessment_notes": [
+      "The session is developmental because it clarifies product direction and creates a reusable skill-capital framing.",
+      "The update should not be treated as durable identity or company-visible performance data without review."
+    ]
+  },
   "status": "proposed",
   "requires_human_review": true,
   "governance": {
