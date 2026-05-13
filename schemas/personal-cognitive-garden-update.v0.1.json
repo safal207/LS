@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ls.dev/schemas/personal-cognitive-garden-update.v0.1.json",
   "title": "Personal Cognitive Garden Update v0.1",
-  "description": "A proposed or reviewed update to a human-owned, goal-directed cognitive garden. Agents may propose updates; human or governance review decides what becomes durable state.",
+  "description": "A proposed or reviewed update to a human-owned, goal-directed cognitive garden. Agents may propose updates; human or governance review decides what becomes durable state. Not every session is developmental; this schema records whether and how the interaction compounds human skill capital.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,9 +10,11 @@
     "garden_update_id",
     "source_session_id",
     "proposed_by",
+    "session_development_class",
     "node_family",
     "claim",
     "evidence",
+    "development_effect",
     "status",
     "requires_human_review",
     "governance"
@@ -69,6 +71,20 @@
       "type": "string",
       "description": "Optional link to the model contribution signal that helped generate this update."
     },
+    "session_development_class": {
+      "type": "string",
+      "description": "Classification of whether the source session primarily compounded human capability or served another purpose.",
+      "enum": [
+        "neutral",
+        "administrative",
+        "emotional_support",
+        "decision_clarification",
+        "skill_building",
+        "capital_compounding",
+        "execution",
+        "noise"
+      ]
+    },
     "node_family": {
       "type": "string",
       "enum": [
@@ -101,13 +117,60 @@
       "maximum": 1,
       "description": "Optional proposer confidence. This is advisory and must not replace review."
     },
+    "development_effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "is_developmental",
+        "human_skill_delta",
+        "capital_effect",
+        "practice_needed",
+        "compounding_score"
+      ],
+      "description": "Human capital compounding assessment. Records whether the interaction increased the person's capacity to act, not merely whether it produced useful text.",
+      "properties": {
+        "is_developmental": {
+          "type": "boolean",
+          "description": "True if the update plausibly increases a human skill, judgment, execution capacity, or reusable development asset."
+        },
+        "human_skill_delta": {
+          "type": "array",
+          "description": "Skills, capabilities, or judgment areas this session may improve.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "capital_effect": {
+          "type": "string",
+          "description": "How this update may increase the person's durable capability, portfolio, reputation, judgment, or execution leverage."
+        },
+        "practice_needed": {
+          "type": "string",
+          "description": "Concrete follow-up practice or action needed to turn the insight into durable skill capital."
+        },
+        "compounding_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Advisory estimate of compounding potential. This is not a psychological truth claim."
+        },
+        "assessment_notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    },
     "status": {
       "type": "string",
       "enum": ["proposed", "accepted", "rejected", "superseded"]
     },
     "requires_human_review": {
       "type": "boolean",
-      "description": "True when the update affects personal goals, identity, memory, obligations, reputation, access, or durable graph state."
+      "description": "True when the update affects personal goals, identity, memory, obligations, reputation, access, skill capital, or durable graph state."
     },
     "review": {
       "type": "object",
@@ -195,6 +258,29 @@
               "durable_state_allowed": { "const": true }
             },
             "required": ["durable_state_allowed"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "development_effect": {
+            "properties": {
+              "is_developmental": { "const": false }
+            },
+            "required": ["is_developmental"]
+          }
+        },
+        "required": ["development_effect"]
+      },
+      "then": {
+        "properties": {
+          "development_effect": {
+            "properties": {
+              "compounding_score": { "const": 0 }
+            },
+            "required": ["compounding_score"]
           }
         }
       }
