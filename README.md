@@ -25,6 +25,8 @@ Instead of treating model output as a black box, LS turns decision cycles into m
 
 It is also a **personal AI operating layer**: a system that lets any model or agent pass through your memory, quality, coordination, and review logic before it reaches you.
 
+LS also supports a **Personal Cognitive Garden** direction: AI sessions should compound into a human-owned, goal-directed graph of goals, skills, decisions, constraints, evidence, reflections, and growth paths. Agents may help cultivate that graph, but the person owns it and governance decides what becomes durable state.
+
 ---
 
 ## Personal AI Operating Layer
@@ -40,10 +42,16 @@ Short version:
 
 > do not use agents as-is; run them through your own system so they work in your logic, your rhythm, and your quality.
 
+Personal growth direction:
+
+> Every AI session should compound into human development.
+
 See:
 - [`ROADMAP.md`](ROADMAP.md)
 - [`docs/COMMUNITY_TASKS.md`](docs/COMMUNITY_TASKS.md)
 - [`docs/GITHUB_PAGES_SETUP.md`](docs/GITHUB_PAGES_SETUP.md)
+- [`docs/PERSONAL_GROWTH_ENTRY.md`](docs/PERSONAL_GROWTH_ENTRY.md)
+- [`docs/LS_PERSONAL_COGNITIVE_GARDEN.md`](docs/LS_PERSONAL_COGNITIVE_GARDEN.md)
 - [`docs/positioning/personal-ai-operating-layer.md`](docs/positioning/personal-ai-operating-layer.md)
 - [`docs/personal-agent-gateway-runtime.md`](docs/personal-agent-gateway-runtime.md)
 - [`docs/harmonic-state-model-mvp.md`](docs/harmonic-state-model-mvp.md)
@@ -411,6 +419,8 @@ pytest python/tests/test_memory_store_locking.py
 | [SUBCONSCIOUS_TEMPORAL_LOOP.md](SUBCONSCIOUS_TEMPORAL_LOOP.md) | Subconscious loop + feedback loop diagram |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow and system components |
 | [docs/architecture/layers.md](docs/architecture/layers.md) | Full 12-layer catalogue |
+| [docs/PERSONAL_GROWTH_ENTRY.md](docs/PERSONAL_GROWTH_ENTRY.md) | Short entry point for the Personal Cognitive Garden and human-development positioning |
+| [docs/LS_PERSONAL_COGNITIVE_GARDEN.md](docs/LS_PERSONAL_COGNITIVE_GARDEN.md) | Thesis for LS as a human-owned, goal-directed cognitive garden cultivated by agents |
 | [docs/LIMINALQA_TEST_STRATEGY.md](docs/LIMINALQA_TEST_STRATEGY.md) | Strategy for integrating LiminalQAengineer with the current pytest and CI stack |
 | [docs/CI_QUALITY_GATES.md](docs/CI_QUALITY_GATES.md) | Active CI quality-gate thresholds, enforcement state, and calibration notes |
 | [docs/LIMINALQA_LOCAL_SETUP.md](docs/LIMINALQA_LOCAL_SETUP.md) | Local deployment model for running LiminalQAengineer next to this repository |
@@ -460,6 +470,8 @@ pytest python/tests/test_memory_store_locking.py
 
 **LS — это local-first runtime для координации и oversight в системах человек + модели.**
 Он фиксирует council cycles (структурированные раунды многомодельных решений), отслеживает вклад и receiver resonance (насколько результат был принят получателем без трения), поддерживает approval-safe операторские потоки и выпускает replayable-артефакты для оценки и governance.
+
+LS также поддерживает направление **Personal Cognitive Garden**: AI-сессии должны накапливаться в принадлежащий человеку целевой граф развития — цели, навыки, решения, ограничения, доказательства, рефлексии и следующие шаги. Агенты помогают ухаживать за этим графом, но человек владеет им, а governance решает, что становится долговременным состоянием.
 
 ---
 
