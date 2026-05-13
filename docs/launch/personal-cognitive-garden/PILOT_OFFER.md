@@ -167,6 +167,12 @@ We are running a 2-week Personal Cognitive Garden pilot for AI-heavy teams.
 The goal is to classify 50-100 real AI sessions, identify evidence-backed skill deltas, return private reviewed graphs to participants, and provide the team with an aggregate-safe learning map.
 ```
 
+## Money path
+
+For pricing, first-customer path, outreach scripts, and revenue milestones, see:
+
+- [Money Path](MONEY_PATH.md)
+
 ## Final line
 
 > Measure whether AI helps people improve — without exposing private growth data.

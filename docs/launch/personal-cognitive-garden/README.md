@@ -21,6 +21,7 @@ The sequence can be used for:
 4. [Page 4 — The Proof: Demo, Schema, and Red-Team Scenario](04-proof-and-demo.md)
 5. [Page 5 — The Invitation: Pilot, Grant, or Investor Conversation](05-pilot-invitation.md)
 6. [Concrete Pilot Offer](PILOT_OFFER.md)
+7. [Money Path](MONEY_PATH.md)
 
 ## Audio version
 
@@ -61,6 +62,16 @@ Measure whether AI helps people improve — without exposing private growth data
 
 > Run a small pilot: 5-10 users, 50-100 AI sessions, private reviewed graphs for participants, one aggregate learning map, and one anti-surveillance boundary report.
 
+## Money path
+
+The first commercial offer is not a full platform. It is a paid audit:
+
+```text
+2-week AI Skill-Growth Audit
+```
+
 [Start the sequence →](01-hidden-cost.md)
 
 [See the concrete pilot offer →](PILOT_OFFER.md)
+
+[See the money path →](MONEY_PATH.md)
