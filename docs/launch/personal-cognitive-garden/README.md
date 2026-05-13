@@ -20,6 +20,7 @@ The sequence can be used for:
 3. [Page 3 — The Safety Boundary: Growth Without Surveillance](03-anti-surveillance-boundary.md)
 4. [Page 4 — The Proof: Demo, Schema, and Red-Team Scenario](04-proof-and-demo.md)
 5. [Page 5 — The Invitation: Pilot, Grant, or Investor Conversation](05-pilot-invitation.md)
+6. [Concrete Pilot Offer](PILOT_OFFER.md)
 
 ## Audio version
 
@@ -44,8 +45,22 @@ Are people actually getting better?
 
 LS turns AI sessions into reviewed, evidence-backed, human-owned skill-capital updates — without turning personal growth into surveillance.
 
+## Market-facing translation
+
+```text
+AI adoption proof without employee surveillance.
+```
+
+In plain terms:
+
+```text
+Measure whether AI helps people improve — without exposing private growth data.
+```
+
 ## Primary CTA
 
-> Run a small pilot: 5-10 users, 50-100 AI sessions, one aggregate learning map, and one anti-surveillance boundary report.
+> Run a small pilot: 5-10 users, 50-100 AI sessions, private reviewed graphs for participants, one aggregate learning map, and one anti-surveillance boundary report.
 
 [Start the sequence →](01-hidden-cost.md)
+
+[See the concrete pilot offer →](PILOT_OFFER.md)
