@@ -5,7 +5,7 @@ import ru from '../i18n/ru.json';
 
 i18n.use(initReactI18next).init({
   resources: { en: { translation: en }, ru: { translation: ru } },
-  lng: 'ru',
+  lng: 'en',
   fallbackLng: 'en',
   interpolation: { escapeValue: false }
 });
