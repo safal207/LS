@@ -68,11 +68,22 @@ python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
   --review-note "Accepted as a reusable Codex session practice."
 ```
 
+To reject an emitted proposal after human review:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
+  --prompt "Review this strategy AI session for skill growth." \
+  --raw-output "The session improves product framing and creates a practice loop for the Personal Cognitive Garden." \
+  --reject \
+  --review-note "Too vague to preserve as a durable garden node."
+```
+
 List the local PCG Inbox:
 
 ```bash
 python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox
 python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox --status proposed
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox --status rejected
 ```
 
 ## Session Continuity Use Case

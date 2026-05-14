@@ -143,7 +143,30 @@ accepted_node.governance.durable_state_allowed: true
 accepted_node.governance.external_action_allowed: false
 ```
 
-## 6. Review The PCG Inbox
+## 6. Reject A Weak Proposal
+
+When the operator decides a proposal is too vague or wrong, run:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
+  --prompt "Review this strategy AI session for skill growth and human development." \
+  --raw-output "The session improves product framing and creates a practice loop for the Personal Cognitive Garden." \
+  --reject \
+  --reviewer "operator" \
+  --review-note "Too vague to preserve as a durable garden node."
+```
+
+Expected rejection fields:
+
+```text
+personal_cognitive_garden_rejection.rejected: true
+rejected_node.status: rejected
+rejected_node.requires_human_review: false
+rejected_node.governance.durable_state_allowed: false
+rejected_node.governance.external_action_allowed: false
+```
+
+## 7. Review The PCG Inbox
 
 List every local garden proposal, collapsed by `garden_update_id`:
 
@@ -156,18 +179,19 @@ Filter by status:
 ```bash
 python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox --status proposed
 python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox --status accepted
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox --status rejected
 ```
 
 Expected summary:
 
 ```text
-PCG Inbox: 2 total, 1 proposed, 1 accepted
+PCG Inbox: 3 total, 1 proposed, 1 accepted, 1 rejected
 - pcg_update_<id> [accepted]
   class: skill_building / growth_path
   claim: This AI session may contain a reusable development signal...
 ```
 
-## 7. Why This Matters
+## 8. Why This Matters
 
 Most AI sessions disappear into chat history. LS turns useful sessions into reviewable development signals while preserving consent and anti-surveillance boundaries.
 

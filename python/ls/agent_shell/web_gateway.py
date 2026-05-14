@@ -69,6 +69,19 @@ class PersonalCognitiveGardenAcceptResponse(BaseModel):
     artifact: str
 
 
+class PersonalCognitiveGardenRejectRequest(BaseModel):
+    proposal: dict[str, Any]
+    reviewer: str = "operator"
+    review_note: str
+
+
+class PersonalCognitiveGardenRejectResponse(BaseModel):
+    rejected: bool
+    garden_update_id: str
+    rejected_node: dict[str, Any]
+    artifact: str
+
+
 class PersonalCognitiveGardenInboxResponse(BaseModel):
     items: list[dict[str, Any]]
     counts: dict[str, int]
@@ -415,6 +428,56 @@ def _accept_personal_cognitive_garden_update(
     }
 
 
+def _reject_personal_cognitive_garden_update(
+    proposal: dict[str, Any],
+    *,
+    reviewer: str,
+    review_note: str,
+    artifact_root: Path,
+) -> dict[str, Any]:
+    if not proposal:
+        raise HTTPException(status_code=400, detail="Missing Personal Cognitive Garden proposal")
+    if proposal.get("status") != "proposed":
+        raise HTTPException(status_code=400, detail="Only proposed garden updates can be rejected")
+    if proposal.get("requires_human_review") is not True:
+        raise HTTPException(status_code=400, detail="Proposal must require human review before rejection")
+    if not review_note.strip():
+        raise HTTPException(status_code=400, detail="A review note is required when rejecting a proposal")
+
+    rejected_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    governance = dict(proposal.get("governance") or {})
+    governance.update(
+        {
+            "durable_state_allowed": False,
+            "external_action_allowed": False,
+            "sharing_scope": governance.get("sharing_scope") or "private",
+            "rejected_by": reviewer,
+            "rejected_at": rejected_at,
+        }
+    )
+    rejected_node = {
+        **proposal,
+        "status": "rejected",
+        "requires_human_review": False,
+        "rejected_by": reviewer,
+        "rejected_at": rejected_at,
+        "review_note": review_note,
+        "governance": governance,
+        "updated_at": rejected_at,
+    }
+    artifact_path = _write_personal_cognitive_garden_artifact(
+        rejected_node,
+        status="rejected",
+        artifact_root=artifact_root,
+    )
+    return {
+        "rejected": True,
+        "garden_update_id": str(rejected_node.get("garden_update_id")),
+        "rejected_node": rejected_node,
+        "artifact": str(artifact_path),
+    }
+
+
 def _personal_cognitive_garden_dir(artifact_root: Path) -> Path:
     return artifact_root.parent / "personal-cognitive-garden"
 
@@ -602,6 +665,22 @@ def create_app(
         _: None = Depends(_verify_token),
     ) -> dict[str, Any]:
         return _accept_personal_cognitive_garden_update(
+            payload.proposal,
+            reviewer=payload.reviewer,
+            review_note=payload.review_note,
+            artifact_root=ledger_dir,
+        )
+
+    @app.post(
+        "/v1/pcg/reject",
+        response_model=PersonalCognitiveGardenRejectResponse,
+        operation_id="rejectPersonalCognitiveGardenProposal",
+    )
+    def reject_pcg_proposal(
+        payload: PersonalCognitiveGardenRejectRequest,
+        _: None = Depends(_verify_token),
+    ) -> dict[str, Any]:
+        return _reject_personal_cognitive_garden_update(
             payload.proposal,
             reviewer=payload.reviewer,
             review_note=payload.review_note,

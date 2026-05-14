@@ -67,11 +67,23 @@ python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
   --review-note "Accepted after review."
 ```
 
+After explicit user rejection, the CLI may be run with `--reject` to call `/v1/pcg/reject` and save a rejected private garden artifact. Rejection requires a non-empty review note:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
+  --prompt "Review this strategy session for human development." \
+  --raw-output "The session improves product framing and creates a practice loop for the Personal Cognitive Garden." \
+  --reject \
+  --reviewer "operator" \
+  --review-note "Too vague to preserve as a durable garden node."
+```
+
 List the local PCG Inbox:
 
 ```bash
 python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox
 python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox --status accepted
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox --status rejected
 ```
 
 Inbox rows are collapsed by `garden_update_id`, so an accepted artifact supersedes the earlier proposed artifact in the summary.
@@ -91,7 +103,7 @@ Durable state written: no
 For inbox summaries, prefer:
 
 ```text
-PCG Inbox: <total> total, <proposed> proposed, <accepted> accepted
+PCG Inbox: <total> total, <proposed> proposed, <accepted> accepted, <rejected> rejected
 - <garden_update_id> [<status>]
   claim: <claim>
   artifact: <artifact path>

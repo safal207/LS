@@ -154,6 +154,62 @@ def test_web_gateway_rejects_non_proposed_garden_acceptance(tmp_path):
     assert response.status_code == 400
 
 
+def test_web_gateway_rejects_personal_cognitive_garden_update(tmp_path):
+    app = create_app(artifact_dir=tmp_path / "council-ledger", enable_cors=False)
+    client = TestClient(app)
+
+    route_response = client.post(
+        "/v1/chat",
+        json={
+            "prompt": "Review this strategy session for human development and skill growth.",
+            "raw_output": "This may be a weak growth signal and should be reviewed.",
+            "agent_id": "pcg-test-agent",
+            "agent_type": "external",
+        },
+    )
+    proposal = route_response.json()["personal_cognitive_garden_update"]
+
+    reject_response = client.post(
+        "/v1/pcg/reject",
+        json={
+            "proposal": proposal,
+            "reviewer": "operator",
+            "review_note": "Too vague to preserve as a durable garden node.",
+        },
+    )
+
+    assert reject_response.status_code == 200
+    rejected = reject_response.json()
+    assert rejected["rejected"] is True
+    assert rejected["garden_update_id"] == proposal["garden_update_id"]
+    assert rejected["rejected_node"]["status"] == "rejected"
+    assert rejected["rejected_node"]["requires_human_review"] is False
+    assert rejected["rejected_node"]["governance"]["durable_state_allowed"] is False
+    assert rejected["rejected_node"]["governance"]["external_action_allowed"] is False
+    assert rejected["rejected_node"]["governance"]["sharing_scope"] == "private"
+    assert list((tmp_path / "personal-cognitive-garden").glob("*.rejected.json"))
+
+
+def test_web_gateway_reject_requires_review_note(tmp_path):
+    app = create_app(artifact_dir=tmp_path / "council-ledger", enable_cors=False)
+    client = TestClient(app)
+
+    response = client.post(
+        "/v1/pcg/reject",
+        json={
+            "proposal": {
+                "garden_update_id": "pcg_update_note_required",
+                "status": "proposed",
+                "requires_human_review": True,
+            },
+            "reviewer": "operator",
+            "review_note": "",
+        },
+    )
+
+    assert response.status_code == 400
+
+
 def test_web_gateway_lists_personal_cognitive_garden_inbox(tmp_path):
     app = create_app(artifact_dir=tmp_path / "council-ledger", enable_cors=False)
     client = TestClient(app)
@@ -187,17 +243,26 @@ def test_web_gateway_lists_personal_cognitive_garden_inbox(tmp_path):
             "review_note": "Accepted into the garden.",
         },
     )
+    client.post(
+        "/v1/pcg/reject",
+        json={
+            "proposal": second_proposal,
+            "reviewer": "operator",
+            "review_note": "Not specific enough yet.",
+        },
+    )
 
     inbox_response = client.get("/v1/pcg/inbox")
-    proposed_response = client.get("/v1/pcg/inbox?status=proposed")
+    rejected_response = client.get("/v1/pcg/inbox?status=rejected")
 
     assert inbox_response.status_code == 200
     inbox = inbox_response.json()
     assert inbox["counts"]["total"] == 2
     assert inbox["counts"]["accepted"] == 1
-    assert inbox["counts"]["proposed"] == 1
+    assert inbox["counts"]["proposed"] == 0
+    assert inbox["counts"]["rejected"] == 1
     statuses_by_id = {item["garden_update_id"]: item["status"] for item in inbox["items"]}
     assert statuses_by_id[first_proposal["garden_update_id"]] == "accepted"
-    assert statuses_by_id[second_proposal["garden_update_id"]] == "proposed"
-    assert proposed_response.json()["counts"]["total"] == 1
-    assert proposed_response.json()["items"][0]["garden_update_id"] == second_proposal["garden_update_id"]
+    assert statuses_by_id[second_proposal["garden_update_id"]] == "rejected"
+    assert rejected_response.json()["counts"]["total"] == 1
+    assert rejected_response.json()["items"][0]["garden_update_id"] == second_proposal["garden_update_id"]

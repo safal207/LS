@@ -63,6 +63,7 @@ def _print_summary(payload: dict[str, Any]) -> None:
     gate = payload.get("action_evidence_gate") or {}
     pcg = payload.get("personal_cognitive_garden_update")
     acceptance = payload.get("personal_cognitive_garden_acceptance")
+    rejection = payload.get("personal_cognitive_garden_rejection")
     print(f"LS decision: {gate.get('decision', 'unknown')}")
     print(f"Reason: {gate.get('stop_reason', 'unknown')}")
     print(f"Gateway mode: {payload.get('gateway_mode', 'unknown')}")
@@ -80,6 +81,9 @@ def _print_summary(payload: dict[str, Any]) -> None:
     if acceptance:
         print(f"PCG accepted: {acceptance.get('accepted')}")
         print(f"Accepted artifact: {acceptance.get('artifact')}")
+    if rejection:
+        print(f"PCG rejected: {rejection.get('rejected')}")
+        print(f"Rejected artifact: {rejection.get('artifact')}")
 
 
 def _print_inbox(payload: dict[str, Any]) -> None:
@@ -88,7 +92,8 @@ def _print_inbox(payload: dict[str, Any]) -> None:
         "PCG Inbox: "
         f"{counts.get('total', 0)} total, "
         f"{counts.get('proposed', 0)} proposed, "
-        f"{counts.get('accepted', 0)} accepted"
+        f"{counts.get('accepted', 0)} accepted, "
+        f"{counts.get('rejected', 0)} rejected"
     )
     for item in payload.get("items") or []:
         print("")
@@ -119,8 +124,9 @@ def main() -> int:
     parser.add_argument("--agent-id", default="codex-plugin")
     parser.add_argument("--agent-type", default="codex")
     parser.add_argument("--accept", action="store_true", help="Accept an emitted PCG proposal after routing.")
+    parser.add_argument("--reject", action="store_true", help="Reject an emitted PCG proposal after routing.")
     parser.add_argument("--reviewer", default="operator", help="Reviewer name for --accept.")
-    parser.add_argument("--review-note", default="", help="Optional note recorded with --accept.")
+    parser.add_argument("--review-note", default="", help="Optional note recorded with --accept or required with --reject.")
     parser.add_argument("--continuity", action="store_true", help="Run the local session-continuity check before routing.")
     parser.add_argument(
         "--emit-continuity-event",
@@ -167,6 +173,8 @@ def main() -> int:
                 _print_inbox(inbox)
             return 0
 
+        if args.accept and args.reject:
+            raise RuntimeError("Use either --accept or --reject, not both.")
         if not args.skip_remote_gateway:
             payload = {
                 "prompt": args.prompt,
@@ -179,10 +187,11 @@ def main() -> int:
             if continuity_event and (args.emit_continuity_event or args.continuity):
                 response["session_continuity"] = continuity_event
 
-            if args.accept:
+            if args.accept or args.reject:
                 proposal = response.get("personal_cognitive_garden_update")
                 if not proposal:
-                    raise RuntimeError("No Personal Cognitive Garden proposal was emitted, so nothing can be accepted.")
+                    raise RuntimeError("No Personal Cognitive Garden proposal was emitted, so nothing can be reviewed.")
+            if args.accept:
                 response["personal_cognitive_garden_acceptance"] = _request_json(
                     f"{base_url}/v1/pcg/accept",
                     {
@@ -191,8 +200,19 @@ def main() -> int:
                         "review_note": args.review_note,
                     },
                 )
-        elif args.accept:
-            raise RuntimeError("--accept requires the remote gateway; remove --skip-remote-gateway.")
+            if args.reject:
+                if not args.review_note.strip():
+                    raise RuntimeError("--review-note is required when using --reject.")
+                response["personal_cognitive_garden_rejection"] = _request_json(
+                    f"{base_url}/v1/pcg/reject",
+                    {
+                        "proposal": proposal,
+                        "reviewer": args.reviewer,
+                        "review_note": args.review_note,
+                    },
+                )
+        elif args.accept or args.reject:
+            raise RuntimeError("--accept and --reject require the remote gateway; remove --skip-remote-gateway.")
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 1
