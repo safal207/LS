@@ -36,6 +36,7 @@ def test_web_gateway_routes_agent_output(tmp_path):
     assert payload["raw_agent_output"] == "LS checks agent output before showing it."
     assert payload["final_output"]
     assert payload["action_evidence_gate"]["decision"] == "allow"
+    assert payload["personal_cognitive_garden_update"] is None
     assert list((tmp_path / "council-ledger").glob("*.json"))
 
 
@@ -64,3 +65,35 @@ def test_web_gateway_holds_high_risk_agent_action(tmp_path):
     gate = response.json()["action_evidence_gate"]
     assert gate["decision"] == "hold"
     assert gate["stop_reason"] == "missing_operator_confirmation"
+    assert response.json()["personal_cognitive_garden_update"] is None
+
+
+def test_web_gateway_proposes_personal_cognitive_garden_update(tmp_path):
+    app = create_app(artifact_dir=tmp_path / "council-ledger", enable_cors=False)
+    client = TestClient(app)
+
+    response = client.post(
+        "/v1/chat",
+        json={
+            "prompt": "Review this strategy session for human development and skill growth.",
+            "raw_output": (
+                "The session improves product framing and creates a practice loop for "
+                "turning AI conversations into a Personal Cognitive Garden update."
+            ),
+            "agent_id": "pcg-test-agent",
+            "agent_type": "external",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["action_evidence_gate"]["decision"] == "allow"
+    update = payload["personal_cognitive_garden_update"]
+    assert update["schema_version"] == "personal-cognitive-garden-update.v0.1"
+    assert update["status"] == "proposed"
+    assert update["requires_human_review"] is True
+    assert update["governance"]["durable_state_allowed"] is False
+    assert update["governance"]["external_action_allowed"] is False
+    assert update["governance"]["sharing_scope"] == "private"
+    assert update["development_effect"]["is_developmental"] is True
+    assert "development_signal_extraction" in update["development_effect"]["human_skill_delta"]

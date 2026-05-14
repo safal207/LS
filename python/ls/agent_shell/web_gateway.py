@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 import os
@@ -50,6 +51,7 @@ class WebChatResponse(BaseModel):
     operator_identity_governance: dict[str, Any] | None = None
     operator_profile_write_decision: dict[str, Any] | None = None
     action_evidence_gate: dict[str, Any] | None = None
+    personal_cognitive_garden_update: dict[str, Any] | None = None
     artifacts: dict[str, str | None] = Field(default_factory=dict)
 
 
@@ -143,6 +145,11 @@ def _gpt_action_schema(base_url: str) -> dict[str, Any]:
                         "operator_identity_governance": {"type": "object", "additionalProperties": True},
                         "operator_profile_write_decision": {"type": "object", "additionalProperties": True},
                         "action_evidence_gate": {"type": "object", "additionalProperties": True},
+                        "personal_cognitive_garden_update": {
+                            "type": "object",
+                            "additionalProperties": True,
+                            "description": "Optional proposed Personal Cognitive Garden update. It is advisory until human review.",
+                        },
                         "artifacts": {"type": "object", "additionalProperties": True},
                     },
                 },
@@ -220,6 +227,116 @@ def _infer_action_metadata(prompt: str, raw_output: str, metadata: dict[str, Any
     return inferred
 
 
+def _looks_developmental(prompt: str, raw_output: str, metadata: dict[str, Any]) -> bool:
+    if metadata.get("pcg_propose") is True:
+        return True
+    if metadata.get("pcg_propose") is False:
+        return False
+
+    text = f"{prompt}\n{raw_output}".lower()
+    developmental_markers = [
+        "cognitive garden",
+        "personal cognitive garden",
+        "human development",
+        "skill",
+        "learn",
+        "learning",
+        "growth",
+        "practice",
+        "roadmap",
+        "strategy",
+        "product framing",
+        "decision quality",
+        "architecture boundary",
+        "capital compounding",
+        "goal-directed",
+    ]
+    return any(marker in text for marker in developmental_markers)
+
+
+def _propose_personal_cognitive_garden_update(
+    *,
+    payload: WebChatRequest,
+    raw_output: str,
+    response_payload: dict[str, Any],
+    metadata: dict[str, Any],
+) -> dict[str, Any] | None:
+    gate = response_payload.get("action_evidence_gate") or {}
+    if gate.get("decision") == "hold":
+        return None
+    if not _looks_developmental(payload.prompt, raw_output, metadata):
+        return None
+
+    cycle_id = str(response_payload.get("cycle_id") or "unknown-cycle")
+    created_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    evidence = [
+        "The source session contains developmental language about skills, growth, strategy, learning, or product direction.",
+        "The update is emitted as a proposal only; durable graph state still requires human review.",
+    ]
+    if payload.prompt.strip():
+        evidence.insert(0, f"Prompt: {payload.prompt.strip()[:220]}")
+    if raw_output.strip():
+        evidence.insert(1, f"Agent output: {raw_output.strip()[:220]}")
+
+    return {
+        "schema_version": "personal-cognitive-garden-update.v0.1",
+        "garden_update_id": f"pcg_update_{cycle_id}",
+        "transition_id": cycle_id,
+        "source_session_id": f"web_gateway_session_{cycle_id}",
+        "source_artifacts": [
+            {
+                "kind": "trace",
+                "ref": cycle_id,
+                "description": "LS Web Agent Gateway cycle that produced this proposed garden update.",
+            }
+        ],
+        "proposed_by": f"agent:{payload.agent_id}",
+        "session_development_class": "skill_building",
+        "node_family": "growth_path",
+        "claim": (
+            "This AI session may contain a reusable development signal and should be reviewed "
+            "before becoming part of the person's Personal Cognitive Garden."
+        ),
+        "evidence": evidence,
+        "confidence": 0.62,
+        "development_effect": {
+            "is_developmental": True,
+            "human_skill_delta": [
+                "ai_session_review",
+                "development_signal_extraction",
+                "governed_memory_practice",
+            ],
+            "capital_effect": (
+                "Turns a useful AI interaction into a reviewable proposal for durable human-owned "
+                "skill capital instead of letting it disappear into chat history."
+            ),
+            "practice_needed": (
+                "Review the proposed update, accept only evidence-backed claims, and keep the "
+                "private-by-default sharing boundary intact."
+            ),
+            "compounding_score": 0.62,
+            "assessment_notes": [
+                "This proposal is advisory and may be wrong or incomplete.",
+                "The gateway must not write durable personal graph state without human review.",
+            ],
+        },
+        "status": "proposed",
+        "requires_human_review": True,
+        "governance": {
+            "owner_scope": "personal",
+            "durable_state_allowed": False,
+            "external_action_allowed": False,
+            "sharing_scope": "private",
+            "policy_notes": [
+                "Proposal first, authorization second, commit third.",
+                "No employer-visible or external export is allowed from this proposal alone.",
+            ],
+        },
+        "created_at": created_at,
+        "updated_at": created_at,
+    }
+
+
 def _verify_token(x_ls_token: str | None = Header(default=None)) -> None:
     expected = os.environ.get("LS_WEB_TOKEN", "").strip()
     if expected and x_ls_token != expected:
@@ -291,7 +408,14 @@ def create_app(
             ),
             raw_output,
         )
-        return response.to_public_dict()
+        response_payload = response.to_public_dict()
+        response_payload["personal_cognitive_garden_update"] = _propose_personal_cognitive_garden_update(
+            payload=payload,
+            raw_output=raw_output,
+            response_payload=response_payload,
+            metadata=metadata,
+        )
+        return response_payload
 
     @app.post("/v1/agent-gateway", response_model=WebChatResponse, operation_id="routeAgentGatewayThroughLS")
     def agent_gateway(payload: WebChatRequest, _: None = Depends(_verify_token)) -> dict[str, Any]:
@@ -403,7 +527,7 @@ _INDEX_HTML = """<!doctype html>
     }
     .scenario-row {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
       margin: 16px 0 4px;
     }
@@ -472,6 +596,28 @@ _INDEX_HTML = """<!doctype html>
       color: var(--accent-2);
       font: 700 .78rem ui-monospace, SFMono-Regular, Consolas, monospace;
     }
+    .garden {
+      display: none;
+      margin-top: 14px;
+      border: 1px solid rgba(31, 136, 61, .24);
+      border-radius: 14px;
+      background: rgba(31, 136, 61, .08);
+      padding: 14px;
+    }
+    .garden.visible { display: block; }
+    .garden h2 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+    }
+    .garden ul {
+      margin: 8px 0 0;
+      padding-left: 20px;
+    }
+    .garden .guardrail {
+      color: var(--ok);
+      font-weight: 800;
+      margin: 8px 0 0;
+    }
     .hold {
       border-color: rgba(164, 59, 50, .3);
       background: rgba(164, 59, 50, .08);
@@ -530,6 +676,7 @@ _INDEX_HTML = """<!doctype html>
           <button class="scenario" data-scenario="safe" type="button" data-i18n="scenarioSafe">Обычный ответ</button>
           <button class="scenario" data-scenario="risky" type="button" data-i18n="scenarioRisky">Опасное действие</button>
           <button class="scenario" data-scenario="memory" type="button" data-i18n="scenarioMemory">Запись в память</button>
+          <button class="scenario" data-scenario="growth" type="button" data-i18n="scenarioGrowth">Рост</button>
         </div>
         <label for="prompt" data-i18n="promptLabel">Что проверить</label>
         <textarea id="prompt">Проверь ответ агента на русском перед отправкой пользователю.</textarea>
@@ -547,6 +694,7 @@ _INDEX_HTML = """<!doctype html>
         </div>
         <p class="status" id="status" data-i18n="statusIdle">Ожидаю ответ агента.</p>
         <div id="chips"></div>
+        <div class="garden" id="garden"></div>
         <details>
           <summary data-i18n="details">Показать полный контракт</summary>
           <pre id="contract"></pre>
@@ -566,6 +714,7 @@ _INDEX_HTML = """<!doctype html>
         scenarioSafe: "Обычный ответ",
         scenarioRisky: "Опасное действие",
         scenarioMemory: "Запись в память",
+        scenarioGrowth: "Рост",
         scenarioGroup: "Готовые сценарии",
         promptLabel: "Что проверить",
         rawLabel: "Сырой ответ агента",
@@ -587,6 +736,10 @@ _INDEX_HTML = """<!doctype html>
         allowBody: "Это выглядит как обычный ответ без явного запроса на изменение состояния или опасное действие.",
         unknownTitle: "LS вернул решение",
         unknownBody: "Проверь детали решения ниже.",
+        pcgTitle: "Personal Cognitive Garden proposal",
+        pcgStatus: "Status",
+        pcgSkills: "Skills",
+        pcgGuardrail: "Human review is required. Durable memory is not written automatically.",
         error: "Ошибка"
       },
       en: {
@@ -597,6 +750,7 @@ _INDEX_HTML = """<!doctype html>
         scenarioSafe: "Safe answer",
         scenarioRisky: "Risky action",
         scenarioMemory: "Memory write",
+        scenarioGrowth: "Growth update",
         scenarioGroup: "Ready scenarios",
         promptLabel: "What to review",
         rawLabel: "Raw agent output",
@@ -618,6 +772,10 @@ _INDEX_HTML = """<!doctype html>
         allowBody: "This looks like ordinary text without an explicit state change or risky action request.",
         unknownTitle: "LS returned decision",
         unknownBody: "Check the decision details below.",
+        pcgTitle: "Personal Cognitive Garden proposal",
+        pcgStatus: "Status",
+        pcgSkills: "Skills",
+        pcgGuardrail: "Human review is required. Durable memory is not written automatically.",
         error: "Error"
       }
     };
@@ -637,6 +795,11 @@ _INDEX_HTML = """<!doctype html>
         prompt: "Проверь, можно ли записать это в память пользователя.",
         raw: "Запомни навсегда: пользователь всегда хочет короткие ответы и не любит подробности.",
         agent: "memory-demo-agent"
+        },
+        growth: {
+        prompt: "Проверь эту стратегическую AI-сессию на развитие навыков и рост человека.",
+        raw: "Сессия улучшает product framing, decision quality и создает practice loop для Personal Cognitive Garden.",
+        agent: "growth-demo-agent"
         }
       },
       en: {
@@ -654,6 +817,11 @@ _INDEX_HTML = """<!doctype html>
           prompt: "Review whether this should be written into user memory.",
           raw: "Remember forever: the user always wants short answers and dislikes details.",
           agent: "memory-demo-agent"
+        },
+        growth: {
+          prompt: "Review this strategy AI session for skill growth and human development.",
+          raw: "The session improves product framing, decision quality, and creates a practice loop for the Personal Cognitive Garden.",
+          agent: "growth-demo-agent"
         }
       }
     };
@@ -692,6 +860,8 @@ _INDEX_HTML = """<!doctype html>
       $("status").className = "status";
       $("contract").textContent = "";
       $("chips").innerHTML = "";
+      $("garden").className = "garden";
+      $("garden").innerHTML = "";
       $("summary").className = "summary";
       $("summary").innerHTML = `<strong>${copy[lang].checkingTitle}</strong><span>${copy[lang].checkingBody}</span>`;
       try {
@@ -750,6 +920,8 @@ _INDEX_HTML = """<!doctype html>
       $("summary").innerHTML = `<strong>${copy[lang].readyTitle}</strong><span>${text}</span>`;
       $("status").textContent = copy[lang].statusWaiting;
       $("chips").innerHTML = "";
+      $("garden").className = "garden";
+      $("garden").innerHTML = "";
       $("contract").textContent = "";
     }
     function renderResult(data, decision, reason) {
@@ -776,7 +948,34 @@ _INDEX_HTML = """<!doctype html>
         ["reason", reason],
         ["quality", artifact.quality ? "saved" : "none"]
       ].map(([label, value]) => `<span class="pill">${label}: ${value}</span>`).join("");
+      renderGardenProposal(data.personal_cognitive_garden_update);
       $("contract").textContent = JSON.stringify(data, null, 2);
+    }
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\\\"", "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+    function renderGardenProposal(update) {
+      if (!update) {
+        $("garden").className = "garden";
+        $("garden").innerHTML = "";
+        return;
+      }
+      const effect = update.development_effect || {};
+      const skills = Array.isArray(effect.human_skill_delta) ? effect.human_skill_delta : [];
+      $("garden").className = "garden visible";
+      $("garden").innerHTML = `
+        <h2>${copy[lang].pcgTitle}</h2>
+        <p><strong>${copy[lang].pcgStatus}:</strong> ${escapeHtml(update.status)} · ${escapeHtml(update.session_development_class)}</p>
+        <p>${escapeHtml(update.claim)}</p>
+        <p><strong>${copy[lang].pcgSkills}:</strong></p>
+        <ul>${skills.map((skill) => `<li>${escapeHtml(skill)}</li>`).join("")}</ul>
+        <p class="guardrail">${copy[lang].pcgGuardrail}</p>
+      `;
     }
     applyLanguage();
   </script>
