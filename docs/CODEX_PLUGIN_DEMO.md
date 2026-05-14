@@ -12,6 +12,15 @@ Codex or another agent drafts an answer
 -> durable memory is still blocked until human review
 ```
 
+The next extension is session continuity repair:
+
+```text
+Codex or Claude tries to continue
+-> LS checks whether the last shared point is known
+-> missing context or session mismatch becomes a continuity event
+-> LS repairs or holds before the agent invents continuity
+```
+
 ## 1. Start The Local Gateway
 
 From the repository root:
@@ -85,7 +94,33 @@ external_action_allowed: false
 sharing_scope: private
 ```
 
-## 4. Accept The Proposal After Review
+## 4. Session Continuity Repair Use Case
+
+The same gateway should also support continuity repair for Codex / Claude co-work.
+
+Example failure:
+
+```text
+User: continue from that PR
+Agent: starts implementing without the PR or diff
+```
+
+LS should record a continuity event instead of allowing invented continuity:
+
+```text
+rupture_type: missing_pr_context
+hallucination_risk: high
+governance_decision: hold_until_context
+repair_prompt: Please attach the PR, provide the PR number, or restate the exact change set before I continue.
+```
+
+Example files:
+
+- [`schemas/session-continuity-event.v0.1.json`](../schemas/session-continuity-event.v0.1.json)
+- [`examples/session_continuity/missing_pr_context.json`](../examples/session_continuity/missing_pr_context.json)
+- [`examples/session_continuity/repair_before_continue.json`](../examples/session_continuity/repair_before_continue.json)
+
+## 5. Accept The Proposal After Review
 
 When the operator explicitly approves the proposal, run:
 
@@ -108,7 +143,7 @@ accepted_node.governance.durable_state_allowed: true
 accepted_node.governance.external_action_allowed: false
 ```
 
-## 5. Review The PCG Inbox
+## 6. Review The PCG Inbox
 
 List every local garden proposal, collapsed by `garden_update_id`:
 
@@ -132,13 +167,20 @@ PCG Inbox: 2 total, 1 proposed, 1 accepted
   claim: This AI session may contain a reusable development signal...
 ```
 
-## 6. Why This Matters
+## 7. Why This Matters
 
 Most AI sessions disappear into chat history. LS turns useful sessions into reviewable development signals while preserving consent and anti-surveillance boundaries.
 
+Session continuity repair adds a second safety layer:
+
+```text
+useful sessions can compound
+broken sessions must repair before they continue
+```
+
 Short version:
 
-> Agents propose. LS reviews. Humans approve. The garden grows only after consent.
+> Agents propose. LS reviews. Humans approve. Broken sessions repair before they become invented continuity.
 
 ## Related Files
 
@@ -146,4 +188,5 @@ Short version:
 - [`plugins/ls-personal-cognitive-garden/skills/ls-pcg-gateway/SKILL.md`](../plugins/ls-personal-cognitive-garden/skills/ls-pcg-gateway/SKILL.md)
 - [`plugins/ls-personal-cognitive-garden/scripts/route_gateway.py`](../plugins/ls-personal-cognitive-garden/scripts/route_gateway.py)
 - [`docs/LS_PERSONAL_COGNITIVE_GARDEN.md`](LS_PERSONAL_COGNITIVE_GARDEN.md)
+- [`docs/SESSION_CONTINUITY_REPAIR_LAYER.md`](SESSION_CONTINUITY_REPAIR_LAYER.md)
 - [`docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md`](PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md)
