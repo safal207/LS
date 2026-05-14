@@ -29,6 +29,7 @@ def _request_json(url: str, payload: dict[str, Any] | None = None) -> dict[str, 
 def _print_summary(payload: dict[str, Any]) -> None:
     gate = payload.get("action_evidence_gate") or {}
     pcg = payload.get("personal_cognitive_garden_update")
+    acceptance = payload.get("personal_cognitive_garden_acceptance")
     print(f"LS decision: {gate.get('decision', 'unknown')}")
     print(f"Reason: {gate.get('stop_reason', 'unknown')}")
     print(f"Gateway mode: {payload.get('gateway_mode', 'unknown')}")
@@ -43,6 +44,9 @@ def _print_summary(payload: dict[str, Any]) -> None:
         print("Skill delta:")
         for skill in effect.get("human_skill_delta") or []:
             print(f"  - {skill}")
+    if acceptance:
+        print(f"PCG accepted: {acceptance.get('accepted')}")
+        print(f"Accepted artifact: {acceptance.get('artifact')}")
 
 
 def main() -> int:
@@ -58,6 +62,9 @@ def main() -> int:
     parser.add_argument("--raw-output", default="")
     parser.add_argument("--agent-id", default="codex-plugin")
     parser.add_argument("--agent-type", default="codex")
+    parser.add_argument("--accept", action="store_true", help="Accept an emitted PCG proposal after routing.")
+    parser.add_argument("--reviewer", default="operator", help="Reviewer name for --accept.")
+    parser.add_argument("--review-note", default="", help="Optional note recorded with --accept.")
     parser.add_argument("--json", action="store_true", help="Print full JSON response.")
     args = parser.parse_args()
 
@@ -74,6 +81,18 @@ def main() -> int:
             "agent_type": args.agent_type,
         }
         response = _request_json(f"{base_url}/v1/chat", payload)
+        if args.accept:
+            proposal = response.get("personal_cognitive_garden_update")
+            if not proposal:
+                raise RuntimeError("No Personal Cognitive Garden proposal was emitted, so nothing can be accepted.")
+            response["personal_cognitive_garden_acceptance"] = _request_json(
+                f"{base_url}/v1/pcg/accept",
+                {
+                    "proposal": proposal,
+                    "reviewer": args.reviewer,
+                    "review_note": args.review_note,
+                },
+            )
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 1

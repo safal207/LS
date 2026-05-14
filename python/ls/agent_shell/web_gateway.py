@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+import json
 import os
 import sys
 
@@ -53,6 +54,19 @@ class WebChatResponse(BaseModel):
     action_evidence_gate: dict[str, Any] | None = None
     personal_cognitive_garden_update: dict[str, Any] | None = None
     artifacts: dict[str, str | None] = Field(default_factory=dict)
+
+
+class PersonalCognitiveGardenAcceptRequest(BaseModel):
+    proposal: dict[str, Any]
+    reviewer: str = "operator"
+    review_note: str = ""
+
+
+class PersonalCognitiveGardenAcceptResponse(BaseModel):
+    accepted: bool
+    garden_update_id: str
+    accepted_node: dict[str, Any]
+    artifact: str
 
 
 def _public_base_url(request: Request) -> str:
@@ -345,6 +359,58 @@ def _propose_personal_cognitive_garden_update(
     }
 
 
+def _accept_personal_cognitive_garden_update(
+    proposal: dict[str, Any],
+    *,
+    reviewer: str,
+    review_note: str,
+    artifact_root: Path,
+) -> dict[str, Any]:
+    if not proposal:
+        raise HTTPException(status_code=400, detail="Missing Personal Cognitive Garden proposal")
+    if proposal.get("status") != "proposed":
+        raise HTTPException(status_code=400, detail="Only proposed garden updates can be accepted")
+    if proposal.get("requires_human_review") is not True:
+        raise HTTPException(status_code=400, detail="Proposal must require human review before acceptance")
+
+    accepted_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    garden_update_id = str(proposal.get("garden_update_id") or f"pcg_update_{accepted_at}")
+    governance = dict(proposal.get("governance") or {})
+    governance.update(
+        {
+            "durable_state_allowed": True,
+            "external_action_allowed": False,
+            "sharing_scope": governance.get("sharing_scope") or "private",
+            "accepted_by": reviewer,
+            "accepted_at": accepted_at,
+        }
+    )
+    accepted_node = {
+        **proposal,
+        "status": "accepted",
+        "requires_human_review": False,
+        "accepted_by": reviewer,
+        "accepted_at": accepted_at,
+        "review_note": review_note,
+        "governance": governance,
+        "updated_at": accepted_at,
+    }
+
+    accepted_dir = artifact_root.parent / "personal-cognitive-garden"
+    accepted_dir.mkdir(parents=True, exist_ok=True)
+    artifact_path = accepted_dir / f"{garden_update_id}.accepted.json"
+    artifact_path.write_text(
+        json.dumps(accepted_node, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "accepted": True,
+        "garden_update_id": garden_update_id,
+        "accepted_node": accepted_node,
+        "artifact": str(artifact_path),
+    }
+
+
 def _verify_token(x_ls_token: str | None = Header(default=None)) -> None:
     expected = os.environ.get("LS_WEB_TOKEN", "").strip()
     if expected and x_ls_token != expected:
@@ -432,6 +498,22 @@ def create_app(
     @app.post("/v1/gpt-action", response_model=WebChatResponse, operation_id="routeThroughLS")
     def gpt_action(payload: WebChatRequest, _: None = Depends(_verify_token)) -> dict[str, Any]:
         return chat(payload)
+
+    @app.post(
+        "/v1/pcg/accept",
+        response_model=PersonalCognitiveGardenAcceptResponse,
+        operation_id="acceptPersonalCognitiveGardenProposal",
+    )
+    def accept_pcg_proposal(
+        payload: PersonalCognitiveGardenAcceptRequest,
+        _: None = Depends(_verify_token),
+    ) -> dict[str, Any]:
+        return _accept_personal_cognitive_garden_update(
+            payload.proposal,
+            reviewer=payload.reviewer,
+            review_note=payload.review_note,
+            artifact_root=ledger_dir,
+        )
 
     return app
 

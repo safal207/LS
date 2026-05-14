@@ -85,7 +85,30 @@ external_action_allowed: false
 sharing_scope: private
 ```
 
-## 4. Why This Matters
+## 4. Accept The Proposal After Review
+
+When the operator explicitly approves the proposal, run:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
+  --prompt "Review this strategy AI session for skill growth and human development." \
+  --raw-output "The session improves product framing and creates a practice loop for the Personal Cognitive Garden." \
+  --accept \
+  --reviewer "operator" \
+  --review-note "Accepted as a reusable Codex session practice."
+```
+
+Expected acceptance fields:
+
+```text
+personal_cognitive_garden_acceptance.accepted: true
+accepted_node.status: accepted
+accepted_node.requires_human_review: false
+accepted_node.governance.durable_state_allowed: true
+accepted_node.governance.external_action_allowed: false
+```
+
+## 5. Why This Matters
 
 Most AI sessions disappear into chat history. LS turns useful sessions into reviewable development signals while preserving consent and anti-surveillance boundaries.
 

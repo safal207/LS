@@ -97,3 +97,57 @@ def test_web_gateway_proposes_personal_cognitive_garden_update(tmp_path):
     assert update["governance"]["sharing_scope"] == "private"
     assert update["development_effect"]["is_developmental"] is True
     assert "development_signal_extraction" in update["development_effect"]["human_skill_delta"]
+
+
+def test_web_gateway_accepts_personal_cognitive_garden_update(tmp_path):
+    app = create_app(artifact_dir=tmp_path / "council-ledger", enable_cors=False)
+    client = TestClient(app)
+
+    route_response = client.post(
+        "/v1/chat",
+        json={
+            "prompt": "Проверь эту сессию на развитие навыков и направление роста.",
+            "raw_output": "Каждая сессия Codex должна превращаться в навык, артефакт или направление роста.",
+            "agent_id": "pcg-test-agent",
+            "agent_type": "external",
+        },
+    )
+    proposal = route_response.json()["personal_cognitive_garden_update"]
+
+    accept_response = client.post(
+        "/v1/pcg/accept",
+        json={
+            "proposal": proposal,
+            "reviewer": "operator",
+            "review_note": "Accepted as a working principle for Codex sessions.",
+        },
+    )
+
+    assert accept_response.status_code == 200
+    accepted = accept_response.json()
+    assert accepted["accepted"] is True
+    assert accepted["garden_update_id"] == proposal["garden_update_id"]
+    assert accepted["accepted_node"]["status"] == "accepted"
+    assert accepted["accepted_node"]["requires_human_review"] is False
+    assert accepted["accepted_node"]["governance"]["durable_state_allowed"] is True
+    assert accepted["accepted_node"]["governance"]["external_action_allowed"] is False
+    assert accepted["accepted_node"]["governance"]["sharing_scope"] == "private"
+    assert list((tmp_path / "personal-cognitive-garden").glob("*.accepted.json"))
+
+
+def test_web_gateway_rejects_non_proposed_garden_acceptance(tmp_path):
+    app = create_app(artifact_dir=tmp_path / "council-ledger", enable_cors=False)
+    client = TestClient(app)
+
+    response = client.post(
+        "/v1/pcg/accept",
+        json={
+            "proposal": {
+                "garden_update_id": "pcg_update_bad",
+                "status": "accepted",
+                "requires_human_review": False,
+            }
+        },
+    )
+
+    assert response.status_code == 400

@@ -41,6 +41,16 @@ python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
   --raw-output "The session improves product framing and creates a practice loop for the Personal Cognitive Garden."
 ```
 
+To accept an emitted proposal after human review:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
+  --prompt "Review this strategy AI session for skill growth." \
+  --raw-output "The session improves product framing and creates a practice loop for the Personal Cognitive Garden." \
+  --accept \
+  --review-note "Accepted as a reusable Codex session practice."
+```
+
 ## Safety Boundary
 
 The plugin should never treat a Personal Cognitive Garden proposal as durable state. The expected safe default is:

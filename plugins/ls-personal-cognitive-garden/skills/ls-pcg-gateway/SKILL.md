@@ -56,6 +56,17 @@ python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
 - `personal_cognitive_garden_update == null` means no garden proposal was emitted.
 - `personal_cognitive_garden_update.status == "proposed"` means the session may contain a development signal, but human review is still required.
 
+After explicit user approval, the CLI may be run with `--accept` to call `/v1/pcg/accept` and save an accepted private garden artifact. Acceptance must remain user-confirmed:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
+  --prompt "Review this strategy session for human development." \
+  --raw-output "The session improves product framing and creates a practice loop for the Personal Cognitive Garden." \
+  --accept \
+  --reviewer "operator" \
+  --review-note "Accepted after review."
+```
+
 ## User-Facing Summary
 
 When summarizing a route result, prefer this shape:
