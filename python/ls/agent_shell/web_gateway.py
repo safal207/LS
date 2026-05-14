@@ -250,6 +250,14 @@ def _looks_developmental(prompt: str, raw_output: str, metadata: dict[str, Any])
         "architecture boundary",
         "capital compounding",
         "goal-directed",
+        "навык",
+        "навыки",
+        "рост",
+        "развитие",
+        "артефакт",
+        "артефакты",
+        "направление роста",
+        "сессия превращалась",
     ]
     return any(marker in text for marker in developmental_markers)
 

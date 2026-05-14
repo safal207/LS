@@ -46,6 +46,11 @@ def _print_summary(payload: dict[str, Any]) -> None:
 
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+
     parser = argparse.ArgumentParser(description="Route an agent draft through the local LS gateway.")
     parser.add_argument("--base-url", default="http://127.0.0.1:8787", help="LS Web Agent Gateway base URL.")
     parser.add_argument("--health", action="store_true", help="Only check gateway health.")
