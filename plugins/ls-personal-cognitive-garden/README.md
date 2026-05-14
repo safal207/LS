@@ -19,6 +19,12 @@ agent output
 - Shows when a draft creates a proposed Personal Cognitive Garden update.
 - Keeps the safe default: proposed updates do not write durable memory automatically.
 
+## Demo Path
+
+For the short end-to-end demo, see:
+
+- [`docs/CODEX_PLUGIN_DEMO.md`](../../docs/CODEX_PLUGIN_DEMO.md)
+
 ## Local Gateway Requirement
 
 Start the LS gateway first:

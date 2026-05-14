@@ -53,6 +53,10 @@ python3 scripts/run_personal_cognitive_garden_demo.py
 python3 scripts/run_personal_cognitive_garden_demo.py --json
 ```
 
+Run the Codex plugin demo:
+
+- [`docs/CODEX_PLUGIN_DEMO.md`](docs/CODEX_PLUGIN_DEMO.md)
+
 Safety boundary:
 
 > LS must grow human-owned skill capital without becoming a corporate surveillance layer.
