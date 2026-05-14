@@ -7,7 +7,7 @@ import json
 import os
 import sys
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -67,6 +67,12 @@ class PersonalCognitiveGardenAcceptResponse(BaseModel):
     garden_update_id: str
     accepted_node: dict[str, Any]
     artifact: str
+
+
+class PersonalCognitiveGardenInboxResponse(BaseModel):
+    items: list[dict[str, Any]]
+    counts: dict[str, int]
+    artifact_dir: str
 
 
 def _public_base_url(request: Request) -> str:
@@ -396,18 +402,97 @@ def _accept_personal_cognitive_garden_update(
         "updated_at": accepted_at,
     }
 
-    accepted_dir = artifact_root.parent / "personal-cognitive-garden"
-    accepted_dir.mkdir(parents=True, exist_ok=True)
-    artifact_path = accepted_dir / f"{garden_update_id}.accepted.json"
-    artifact_path.write_text(
-        json.dumps(accepted_node, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
+    artifact_path = _write_personal_cognitive_garden_artifact(
+        accepted_node,
+        status="accepted",
+        artifact_root=artifact_root,
     )
     return {
         "accepted": True,
         "garden_update_id": garden_update_id,
         "accepted_node": accepted_node,
         "artifact": str(artifact_path),
+    }
+
+
+def _personal_cognitive_garden_dir(artifact_root: Path) -> Path:
+    return artifact_root.parent / "personal-cognitive-garden"
+
+
+def _write_personal_cognitive_garden_artifact(
+    update: dict[str, Any],
+    *,
+    status: str,
+    artifact_root: Path,
+) -> Path:
+    garden_update_id = str(update.get("garden_update_id") or f"pcg_update_{status}")
+    artifact_dir = _personal_cognitive_garden_dir(artifact_root)
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    artifact_path = artifact_dir / f"{garden_update_id}.{status}.json"
+    artifact_path.write_text(
+        json.dumps(update, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return artifact_path
+
+
+def _summarize_personal_cognitive_garden_item(update: dict[str, Any], artifact: Path) -> dict[str, Any]:
+    effect = update.get("development_effect") or {}
+    governance = update.get("governance") or {}
+    return {
+        "garden_update_id": update.get("garden_update_id"),
+        "status": update.get("status"),
+        "session_development_class": update.get("session_development_class"),
+        "node_family": update.get("node_family"),
+        "claim": update.get("claim"),
+        "confidence": update.get("confidence"),
+        "human_skill_delta": effect.get("human_skill_delta") or [],
+        "requires_human_review": update.get("requires_human_review"),
+        "durable_state_allowed": governance.get("durable_state_allowed"),
+        "external_action_allowed": governance.get("external_action_allowed"),
+        "sharing_scope": governance.get("sharing_scope"),
+        "created_at": update.get("created_at"),
+        "updated_at": update.get("updated_at"),
+        "artifact": str(artifact),
+        "source_session_id": update.get("source_session_id"),
+        "evidence": update.get("evidence") or [],
+    }
+
+
+def _list_personal_cognitive_garden_inbox(
+    *,
+    artifact_root: Path,
+    status: str | None = None,
+) -> dict[str, Any]:
+    artifact_dir = _personal_cognitive_garden_dir(artifact_root)
+    collapsed: dict[str, dict[str, Any]] = {}
+    status_rank = {"proposed": 1, "accepted": 2, "rejected": 3}
+    if artifact_dir.exists():
+        for path in artifact_dir.glob("pcg_update_*.json"):
+            try:
+                update = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            garden_update_id = str(update.get("garden_update_id") or path.stem)
+            item = _summarize_personal_cognitive_garden_item(update, path)
+            previous = collapsed.get(garden_update_id)
+            if previous is None or status_rank.get(str(item.get("status")), 0) >= status_rank.get(
+                str(previous.get("status")), 0
+            ):
+                collapsed[garden_update_id] = item
+
+    items = list(collapsed.values())
+    if status:
+        items = [item for item in items if item.get("status") == status]
+    items.sort(key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""), reverse=True)
+    counts: dict[str, int] = {"total": len(items), "proposed": 0, "accepted": 0, "rejected": 0}
+    for item in items:
+        item_status = str(item.get("status") or "unknown")
+        counts[item_status] = counts.get(item_status, 0) + 1
+    return {
+        "items": items,
+        "counts": counts,
+        "artifact_dir": str(artifact_dir),
     }
 
 
@@ -483,12 +568,20 @@ def create_app(
             raw_output,
         )
         response_payload = response.to_public_dict()
-        response_payload["personal_cognitive_garden_update"] = _propose_personal_cognitive_garden_update(
+        proposal = _propose_personal_cognitive_garden_update(
             payload=payload,
             raw_output=raw_output,
             response_payload=response_payload,
             metadata=metadata,
         )
+        response_payload["personal_cognitive_garden_update"] = proposal
+        if proposal:
+            artifact_path = _write_personal_cognitive_garden_artifact(
+                proposal,
+                status="proposed",
+                artifact_root=ledger_dir,
+            )
+            response_payload.setdefault("artifacts", {})["pcg_proposal"] = str(artifact_path)
         return response_payload
 
     @app.post("/v1/agent-gateway", response_model=WebChatResponse, operation_id="routeAgentGatewayThroughLS")
@@ -513,6 +606,20 @@ def create_app(
             reviewer=payload.reviewer,
             review_note=payload.review_note,
             artifact_root=ledger_dir,
+        )
+
+    @app.get(
+        "/v1/pcg/inbox",
+        response_model=PersonalCognitiveGardenInboxResponse,
+        operation_id="listPersonalCognitiveGardenInbox",
+    )
+    def pcg_inbox(
+        status: str | None = Query(default=None, pattern="^(proposed|accepted|rejected)$"),
+        _: None = Depends(_verify_token),
+    ) -> dict[str, Any]:
+        return _list_personal_cognitive_garden_inbox(
+            artifact_root=ledger_dir,
+            status=status,
         )
 
     return app

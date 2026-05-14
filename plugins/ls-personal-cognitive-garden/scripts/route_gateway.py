@@ -49,6 +49,23 @@ def _print_summary(payload: dict[str, Any]) -> None:
         print(f"Accepted artifact: {acceptance.get('artifact')}")
 
 
+def _print_inbox(payload: dict[str, Any]) -> None:
+    counts = payload.get("counts") or {}
+    print(
+        "PCG Inbox: "
+        f"{counts.get('total', 0)} total, "
+        f"{counts.get('proposed', 0)} proposed, "
+        f"{counts.get('accepted', 0)} accepted"
+    )
+    for item in payload.get("items") or []:
+        print("")
+        print(f"- {item.get('garden_update_id')} [{item.get('status')}]")
+        print(f"  class: {item.get('session_development_class')} / {item.get('node_family')}")
+        print(f"  claim: {item.get('claim')}")
+        print(f"  review required: {item.get('requires_human_review')}")
+        print(f"  artifact: {item.get('artifact')}")
+
+
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -58,6 +75,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Route an agent draft through the local LS gateway.")
     parser.add_argument("--base-url", default="http://127.0.0.1:8787", help="LS Web Agent Gateway base URL.")
     parser.add_argument("--health", action="store_true", help="Only check gateway health.")
+    parser.add_argument("--inbox", action="store_true", help="List the local Personal Cognitive Garden inbox.")
+    parser.add_argument(
+        "--status",
+        choices=("proposed", "accepted", "rejected"),
+        help="Optional PCG inbox status filter.",
+    )
     parser.add_argument("--prompt", default="Review this agent draft before showing it to the user.")
     parser.add_argument("--raw-output", default="")
     parser.add_argument("--agent-id", default="codex-plugin")
@@ -72,6 +95,14 @@ def main() -> int:
     try:
         if args.health:
             print(json.dumps(_request_json(f"{base_url}/health"), indent=2))
+            return 0
+        if args.inbox:
+            suffix = f"?status={args.status}" if args.status else ""
+            inbox = _request_json(f"{base_url}/v1/pcg/inbox{suffix}")
+            if args.json:
+                print(json.dumps(inbox, indent=2, ensure_ascii=False))
+            else:
+                _print_inbox(inbox)
             return 0
 
         payload = {

@@ -51,6 +51,13 @@ python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
   --review-note "Accepted as a reusable Codex session practice."
 ```
 
+List the local PCG Inbox:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox --status proposed
+```
+
 ## Safety Boundary
 
 The plugin should never treat a Personal Cognitive Garden proposal as durable state. The expected safe default is:

@@ -97,6 +97,7 @@ def test_web_gateway_proposes_personal_cognitive_garden_update(tmp_path):
     assert update["governance"]["sharing_scope"] == "private"
     assert update["development_effect"]["is_developmental"] is True
     assert "development_signal_extraction" in update["development_effect"]["human_skill_delta"]
+    assert list((tmp_path / "personal-cognitive-garden").glob("*.proposed.json"))
 
 
 def test_web_gateway_accepts_personal_cognitive_garden_update(tmp_path):
@@ -151,3 +152,52 @@ def test_web_gateway_rejects_non_proposed_garden_acceptance(tmp_path):
     )
 
     assert response.status_code == 400
+
+
+def test_web_gateway_lists_personal_cognitive_garden_inbox(tmp_path):
+    app = create_app(artifact_dir=tmp_path / "council-ledger", enable_cors=False)
+    client = TestClient(app)
+
+    first_response = client.post(
+        "/v1/chat",
+        json={
+            "prompt": "Review this strategy session for human development and skill growth.",
+            "raw_output": "This creates a reusable skill and growth practice for Codex sessions.",
+            "agent_id": "pcg-test-agent",
+            "agent_type": "external",
+        },
+    )
+    first_proposal = first_response.json()["personal_cognitive_garden_update"]
+    second_response = client.post(
+        "/v1/chat",
+        json={
+            "prompt": "Review this Personal Cognitive Garden roadmap session.",
+            "raw_output": "This roadmap creates an artifact and a growth direction.",
+            "agent_id": "pcg-test-agent",
+            "agent_type": "external",
+        },
+    )
+    second_proposal = second_response.json()["personal_cognitive_garden_update"]
+
+    client.post(
+        "/v1/pcg/accept",
+        json={
+            "proposal": first_proposal,
+            "reviewer": "operator",
+            "review_note": "Accepted into the garden.",
+        },
+    )
+
+    inbox_response = client.get("/v1/pcg/inbox")
+    proposed_response = client.get("/v1/pcg/inbox?status=proposed")
+
+    assert inbox_response.status_code == 200
+    inbox = inbox_response.json()
+    assert inbox["counts"]["total"] == 2
+    assert inbox["counts"]["accepted"] == 1
+    assert inbox["counts"]["proposed"] == 1
+    statuses_by_id = {item["garden_update_id"]: item["status"] for item in inbox["items"]}
+    assert statuses_by_id[first_proposal["garden_update_id"]] == "accepted"
+    assert statuses_by_id[second_proposal["garden_update_id"]] == "proposed"
+    assert proposed_response.json()["counts"]["total"] == 1
+    assert proposed_response.json()["items"][0]["garden_update_id"] == second_proposal["garden_update_id"]

@@ -67,6 +67,15 @@ python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
   --review-note "Accepted after review."
 ```
 
+List the local PCG Inbox:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox --status accepted
+```
+
+Inbox rows are collapsed by `garden_update_id`, so an accepted artifact supersedes the earlier proposed artifact in the summary.
+
 ## User-Facing Summary
 
 When summarizing a route result, prefer this shape:
@@ -77,6 +86,15 @@ Reason: <stop_reason>
 PCG proposal: yes|no
 Human review required: yes|no
 Durable state written: no
+```
+
+For inbox summaries, prefer:
+
+```text
+PCG Inbox: <total> total, <proposed> proposed, <accepted> accepted
+- <garden_update_id> [<status>]
+  claim: <claim>
+  artifact: <artifact path>
 ```
 
 ## Privacy Boundary

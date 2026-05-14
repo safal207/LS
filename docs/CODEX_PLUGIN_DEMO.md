@@ -108,7 +108,31 @@ accepted_node.governance.durable_state_allowed: true
 accepted_node.governance.external_action_allowed: false
 ```
 
-## 5. Why This Matters
+## 5. Review The PCG Inbox
+
+List every local garden proposal, collapsed by `garden_update_id`:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox
+```
+
+Filter by status:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox --status proposed
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py --inbox --status accepted
+```
+
+Expected summary:
+
+```text
+PCG Inbox: 2 total, 1 proposed, 1 accepted
+- pcg_update_<id> [accepted]
+  class: skill_building / growth_path
+  claim: This AI session may contain a reusable development signal...
+```
+
+## 6. Why This Matters
 
 Most AI sessions disappear into chat history. LS turns useful sessions into reviewable development signals while preserving consent and anti-surveillance boundaries.
 
