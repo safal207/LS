@@ -5,7 +5,14 @@ import json
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
+
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from ls.continuity import ContinuityInput, detect_continuity  # noqa: E402
 
 
 def _request_json(url: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -26,7 +33,33 @@ def _request_json(url: str, payload: dict[str, Any] | None = None) -> dict[str, 
         raise RuntimeError(f"Gateway is not reachable: {exc.reason}") from exc
 
 
+def _write_jsonl(path: str, payload: dict[str, Any]) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+def _print_continuity_summary(event: dict[str, Any]) -> None:
+    print(f"Session continuity: {event.get('continuity_status', 'unknown')}")
+    print(f"Rupture detected: {event.get('rupture_detected', 'unknown')}")
+    print(f"Rupture type: {event.get('rupture_type', 'unknown')}")
+    print(f"Hallucination risk: {event.get('hallucination_risk', 'unknown')}")
+    print(f"Decision: {event.get('governance_decision', 'unknown')}")
+    print(f"Repair prompt: {event.get('repair_prompt', '')}")
+    missing_context = event.get("missing_context") or []
+    if missing_context:
+        print("Missing context:")
+        for item in missing_context:
+            print(f"  - {item}")
+
+
 def _print_summary(payload: dict[str, Any]) -> None:
+    continuity = payload.get("session_continuity")
+    if continuity:
+        _print_continuity_summary(continuity)
+        print("")
+
     gate = payload.get("action_evidence_gate") or {}
     pcg = payload.get("personal_cognitive_garden_update")
     acceptance = payload.get("personal_cognitive_garden_acceptance")
@@ -88,8 +121,37 @@ def main() -> int:
     parser.add_argument("--accept", action="store_true", help="Accept an emitted PCG proposal after routing.")
     parser.add_argument("--reviewer", default="operator", help="Reviewer name for --accept.")
     parser.add_argument("--review-note", default="", help="Optional note recorded with --accept.")
+    parser.add_argument("--continuity", action="store_true", help="Run the local session-continuity check before routing.")
+    parser.add_argument(
+        "--emit-continuity-event",
+        action="store_true",
+        help="Include the session-continuity event in JSON output and summaries.",
+    )
+    parser.add_argument("--continuity-jsonl", help="Append the session-continuity event to a JSONL file.")
+    parser.add_argument(
+        "--skip-remote-gateway",
+        action="store_true",
+        help="Run local checks only and skip the remote /v1/chat request.",
+    )
     parser.add_argument("--json", action="store_true", help="Print full JSON response.")
     args = parser.parse_args()
+
+    response: dict[str, Any] = {}
+    continuity_event: dict[str, Any] | None = None
+
+    if args.continuity or args.emit_continuity_event or args.continuity_jsonl:
+        continuity_event = detect_continuity(
+            ContinuityInput(
+                prompt=args.prompt,
+                raw_output=args.raw_output,
+                agent_id=args.agent_id,
+                agent_type=args.agent_type,
+            )
+        ).to_dict()
+        if args.emit_continuity_event or args.continuity:
+            response["session_continuity"] = continuity_event
+        if args.continuity_jsonl:
+            _write_jsonl(args.continuity_jsonl, continuity_event)
 
     base_url = args.base_url.rstrip("/")
     try:
@@ -105,25 +167,32 @@ def main() -> int:
                 _print_inbox(inbox)
             return 0
 
-        payload = {
-            "prompt": args.prompt,
-            "raw_output": args.raw_output,
-            "agent_id": args.agent_id,
-            "agent_type": args.agent_type,
-        }
-        response = _request_json(f"{base_url}/v1/chat", payload)
-        if args.accept:
-            proposal = response.get("personal_cognitive_garden_update")
-            if not proposal:
-                raise RuntimeError("No Personal Cognitive Garden proposal was emitted, so nothing can be accepted.")
-            response["personal_cognitive_garden_acceptance"] = _request_json(
-                f"{base_url}/v1/pcg/accept",
-                {
-                    "proposal": proposal,
-                    "reviewer": args.reviewer,
-                    "review_note": args.review_note,
-                },
-            )
+        if not args.skip_remote_gateway:
+            payload = {
+                "prompt": args.prompt,
+                "raw_output": args.raw_output,
+                "agent_id": args.agent_id,
+                "agent_type": args.agent_type,
+            }
+            remote_response = _request_json(f"{base_url}/v1/chat", payload)
+            response.update(remote_response)
+            if continuity_event and (args.emit_continuity_event or args.continuity):
+                response["session_continuity"] = continuity_event
+
+            if args.accept:
+                proposal = response.get("personal_cognitive_garden_update")
+                if not proposal:
+                    raise RuntimeError("No Personal Cognitive Garden proposal was emitted, so nothing can be accepted.")
+                response["personal_cognitive_garden_acceptance"] = _request_json(
+                    f"{base_url}/v1/pcg/accept",
+                    {
+                        "proposal": proposal,
+                        "reviewer": args.reviewer,
+                        "review_note": args.review_note,
+                    },
+                )
+        elif args.accept:
+            raise RuntimeError("--accept requires the remote gateway; remove --skip-remote-gateway.")
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 1
