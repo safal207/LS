@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ls.dev/schemas/session-continuity-event.v0.1.json",
+  "title": "Session Continuity Event v0.1",
+  "description": "A local-first artifact recording whether a human-agent or agent-agent session can safely continue, or whether it needs repair before continuation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "session_id",
+    "agent_id",
+    "expected_session_type",
+    "actual_response_type",
+    "continuity_status",
+    "rupture_detected",
+    "hallucination_risk",
+    "governance_decision",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "session-continuity-event.v0.1"
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "previous_session_id": {
+      "type": "string"
+    },
+    "agent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent_type": {
+      "type": "string",
+      "enum": ["codex", "claude", "chatgpt", "browser_agent", "local_tool", "human", "other"]
+    },
+    "expected_session_type": {
+      "type": "string",
+      "enum": [
+        "contact",
+        "support",
+        "problem_solving",
+        "code_review",
+        "implementation",
+        "planning",
+        "decision_clarification",
+        "teaching",
+        "boundary",
+        "repair",
+        "handoff",
+        "unknown"
+      ]
+    },
+    "actual_response_type": {
+      "type": "string",
+      "enum": [
+        "contact",
+        "support",
+        "problem_solving",
+        "code_review",
+        "implementation",
+        "planning",
+        "decision_clarification",
+        "teaching",
+        "boundary",
+        "repair",
+        "handoff",
+        "unknown"
+      ]
+    },
+    "continuity_status": {
+      "type": "string",
+      "enum": ["intact", "uncertain", "ruptured", "repaired"]
+    },
+    "rupture_detected": {
+      "type": "boolean"
+    },
+    "rupture_type": {
+      "type": "string",
+      "enum": [
+        "none",
+        "missing_pr_context",
+        "session_type_mismatch",
+        "unanswered_signal",
+        "emotional_misread",
+        "identity_boundary_confusion",
+        "premature_solution",
+        "missing_acknowledgement",
+        "unverified_inference",
+        "abrupt_topic_shift",
+        "task_jump_without_anchor",
+        "missing_artifact",
+        "unknown"
+      ]
+    },
+    "last_shared_point": {
+      "type": "string",
+      "description": "Most recent point that both human and system can safely treat as shared context."
+    },
+    "missing_context": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "inferred_story": {
+      "type": "string",
+      "description": "Optional inferred continuity that must not be treated as fact without repair."
+    },
+    "hallucination_risk": {
+      "type": "string",
+      "enum": ["none", "low", "medium", "high"]
+    },
+    "repair_prompt": {
+      "type": "string"
+    },
+    "next_safe_action": {
+      "type": "string",
+      "enum": [
+        "continue",
+        "validate_context",
+        "repair_before_continue",
+        "hold_until_context",
+        "human_review"
+      ]
+    },
+    "governance_decision": {
+      "type": "string",
+      "enum": [
+        "continue",
+        "validate_context",
+        "repair_before_continue",
+        "hold_until_context",
+        "human_review"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "ref"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["message", "trace", "pull_request", "diff", "file", "summary", "external_ref"]
+          },
+          "ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "default": []
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "rupture_detected": { "const": true }
+        },
+        "required": ["rupture_detected"]
+      },
+      "then": {
+        "required": ["rupture_type", "last_shared_point", "repair_prompt", "next_safe_action"],
+        "properties": {
+          "continuity_status": {
+            "enum": ["uncertain", "ruptured", "repaired"]
+          }
+        }
+      }
+    }
+  ]
+}

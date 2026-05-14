@@ -1,0 +1,30 @@
+{
+  "schema_version": "session-continuity-event.v0.1",
+  "event_id": "sce_2026_05_14_repair_before_continue_001",
+  "session_id": "session_2026_05_14_support_to_solution_mismatch",
+  "agent_id": "claude-cowork",
+  "agent_type": "claude",
+  "expected_session_type": "support",
+  "actual_response_type": "problem_solving",
+  "continuity_status": "ruptured",
+  "rupture_detected": true,
+  "rupture_type": "session_type_mismatch",
+  "last_shared_point": "The user described confusion and emotional difficulty around how people lose session continuity and start inferring meaning.",
+  "missing_context": [
+    "Whether the user wanted emotional support, analysis, or next steps",
+    "Whether the response should stay with the feeling before proposing a framework"
+  ],
+  "inferred_story": "The agent may assume the user wants a solution and skip the contact/support layer.",
+  "hallucination_risk": "medium",
+  "repair_prompt": "I may have moved into problem-solving while you needed support. Do you want presence, analysis, or next steps right now?",
+  "next_safe_action": "repair_before_continue",
+  "governance_decision": "repair_before_continue",
+  "evidence": [
+    {
+      "kind": "message",
+      "ref": "current_user_message",
+      "description": "The user framed the issue as emotionally difficult and asked how to deal with session breaks."
+    }
+  ],
+  "created_at": "2026-05-14T15:06:00Z"
+}
