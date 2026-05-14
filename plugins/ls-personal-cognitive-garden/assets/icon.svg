@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="LS Personal Cognitive Garden icon">
+  <rect width="128" height="128" rx="28" fill="#10231d"/>
+  <path d="M64 101c-16-13-28-28-28-46 0-16 12-28 28-28s28 12 28 28c0 18-12 33-28 46Z" fill="#1f883d"/>
+  <circle cx="64" cy="55" r="13" fill="#e9fff0"/>
+  <path d="M64 68v28M50 82h28" stroke="#e9fff0" stroke-width="8" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,45 @@
+{
+  "name": "ls-personal-cognitive-garden",
+  "version": "0.1.0",
+  "description": "Route Codex and other agent drafts through the LS gateway and propose Personal Cognitive Garden updates.",
+  "author": {
+    "name": "LS Project",
+    "email": "maintainers@example.com",
+    "url": "https://github.com/safal207/LS"
+  },
+  "homepage": "https://github.com/safal207/LS/blob/main/GRANT.md",
+  "repository": "https://github.com/safal207/LS",
+  "license": "Apache-2.0",
+  "keywords": [
+    "ls",
+    "personal-cognitive-garden",
+    "agent-gateway",
+    "ai-governance"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "LS Personal Cognitive Garden",
+    "shortDescription": "Review agent drafts through LS and surface governed growth proposals.",
+    "longDescription": "A Codex plugin for using the local LS Web Agent Gateway as a safety and development layer. It helps route raw agent output through LS, detect risky actions, and expose Personal Cognitive Garden proposals that remain private and require human review before durable state is written.",
+    "developerName": "LS Project",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Local",
+      "Review",
+      "Governance"
+    ],
+    "websiteURL": "https://github.com/safal207/LS",
+    "privacyPolicyURL": "https://github.com/safal207/LS/blob/main/GRANT.md",
+    "termsOfServiceURL": "https://github.com/safal207/LS/blob/main/LICENSE",
+    "defaultPrompt": [
+      "Route this agent draft through LS.",
+      "Create a Personal Cognitive Garden proposal.",
+      "Check whether this action needs review."
+    ],
+    "brandColor": "#1F883D",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/logo.svg",
+    "screenshots": []
+  }
+}
