@@ -1,0 +1,33 @@
+{
+  "schema_version": "session-continuity-event.v0.1",
+  "event_id": "sce_2026_05_14_missing_pr_context_001",
+  "session_id": "session_2026_05_14_codex_pr_handoff",
+  "previous_session_id": "session_2026_05_14_pr_review",
+  "agent_id": "codex-plugin",
+  "agent_type": "codex",
+  "expected_session_type": "code_review",
+  "actual_response_type": "implementation",
+  "continuity_status": "ruptured",
+  "rupture_detected": true,
+  "rupture_type": "missing_pr_context",
+  "last_shared_point": "The user asked the agent to continue after a PR review, but the PR or reviewed diff was not available in the current session.",
+  "missing_context": [
+    "Pull request URL or number",
+    "Reviewed diff or changed files",
+    "Previous review conclusion",
+    "Exact next task requested after the PR"
+  ],
+  "inferred_story": "The agent may assume which PR was reviewed and begin implementing the wrong next step.",
+  "hallucination_risk": "high",
+  "repair_prompt": "I should not continue from an inferred PR state. Please attach the PR, provide the PR number, or restate the exact change set before I continue.",
+  "next_safe_action": "hold_until_context",
+  "governance_decision": "hold_until_context",
+  "evidence": [
+    {
+      "kind": "message",
+      "ref": "current_user_message",
+      "description": "The user asked to continue but did not provide the PR context in the current session."
+    }
+  ],
+  "created_at": "2026-05-14T15:05:00Z"
+}
