@@ -1,0 +1,27 @@
+{
+  "schema_version": "session-continuity-event.v0.1",
+  "event_id": "sce_2026_05_14_safe_continuation_001",
+  "session_id": "session_2026_05_14_codex_pr_500",
+  "agent_id": "codex-plugin",
+  "agent_type": "codex",
+  "expected_session_type": "unknown",
+  "actual_response_type": "unknown",
+  "continuity_status": "intact",
+  "rupture_detected": false,
+  "rupture_type": "none",
+  "last_shared_point": "The user asked to continue from PR #500 and the PR number and branch context were available.",
+  "missing_context": [],
+  "inferred_story": "",
+  "hallucination_risk": "low",
+  "repair_prompt": "Shared context appears sufficient to continue.",
+  "next_safe_action": "continue",
+  "governance_decision": "continue",
+  "evidence": [
+    {
+      "kind": "pull_request",
+      "ref": "PR #500",
+      "description": "The referenced PR context is explicitly available."
+    }
+  ],
+  "created_at": "2026-05-14T16:35:00Z"
+}
