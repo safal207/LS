@@ -1,3 +1,9 @@
+from pathlib import Path as _Path
+
+_repo_root_ls = _Path(__file__).resolve().parents[2] / "ls"
+if _repo_root_ls.is_dir() and str(_repo_root_ls) not in __path__:
+    __path__.append(str(_repo_root_ls))
+
 from ls.memory.memory_graph import MemoryGraph
 from ls.cognition.state_tracker import AgentState, StateTracker
 from ls.cognition.reflection_engine import ReflectionEngine, ReflectionResult
