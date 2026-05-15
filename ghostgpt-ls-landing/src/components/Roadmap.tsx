@@ -34,7 +34,7 @@ export default function Roadmap() {
         {phases.map((phase, i) => (
           <article
             key={phase.q}
-            className="glass group flex min-h-[15rem] flex-col overflow-hidden p-5 transition duration-300 hover:-translate-y-1 hover:bg-white/15"
+            className="glass group flex flex-col overflow-hidden p-5 transition duration-300 hover:-translate-y-1 hover:bg-white/15 md:min-h-[15rem]"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-xs font-medium tracking-[0.18em] text-cyan-200">
