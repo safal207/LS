@@ -42,6 +42,17 @@ const FALLBACK_SNAPSHOT: Snapshot = {
   ]
 };
 
+function hasUsefulSnapshot(data: Snapshot): boolean {
+  const confidence = data.metrics?.confidence_score ?? 0;
+  const rules = data.metrics?.canonical_count ?? 0;
+  const checks = data.metrics?.contradiction_count ?? 0;
+  const heatmapTotal = (data.heatmap || []).reduce((sum, cell) => sum + cell.count, 0);
+  const proposalCount = data.proposals?.length ?? 0;
+  const timelineCount = data.action_timeline?.length ?? 0;
+
+  return confidence > 0 || rules > 0 || checks > 0 || heatmapTotal > 0 || proposalCount > 0 || timelineCount > 0;
+}
+
 function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const id = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -123,8 +134,13 @@ export default function RuntimeLivePanel() {
         throw new Error(`HTTP ${response.status}`);
       }
       const data = (await response.json()) as Snapshot;
-      setSnapshot(data);
-      setMode('live');
+      if (hasUsefulSnapshot(data)) {
+        setSnapshot(data);
+        setMode('live');
+      } else {
+        setSnapshot(FALLBACK_SNAPSHOT);
+        setMode('demo');
+      }
       setError(null);
     } catch {
       setSnapshot((current) => current ?? FALLBACK_SNAPSHOT);

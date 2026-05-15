@@ -46,29 +46,29 @@
   },
   "plugin": {
     "eyebrow": "Codex / Cowork plugin",
-    "title": "What you can do through the LS plugin",
-    "subtitle": "The plugin turns an AI session into a governed workflow: check shared context first, create a proposed PCG update, then let the human accept or reject it.",
-    "flowTitle": "Default safety flow",
-    "flowBody": "Continuity before continuation. Evidence before action. Consent before memory. Repair before judgment.",
+    "title": "Turn Codex and Cowork into a governed quality system",
+    "subtitle": "LS adds the layer raw agents miss: catch broken context, hold risky actions, turn useful sessions into growth proposals, and keep the final decision with the human.",
+    "flowTitle": "User value",
+    "flowBody": "Fewer blind continuations. Fewer raw answers. More reviewable decisions you can show a team, reviewer, or investor.",
     "items": [
       {
-        "title": "Check session continuity",
-        "body": "Detect when an agent says it will continue from a PR, branch, diff, or previous decision that is missing from the current context.",
+        "title": "Stop false continuation",
+        "body": "When an agent says it will continue from that PR, LS checks whether the PR, branch, diff, and review conclusion are actually present.",
         "command": "--continuity --skip-remote-gateway"
       },
       {
-        "title": "Route a draft through LS",
-        "body": "Send a Claude, Kimi, Codex, local model, or phone-chat draft through the LS gateway before it reaches the user.",
+        "title": "Review before sending",
+        "body": "Route Claude, Kimi, Codex, a local model, or phone-chat draft through LS before the answer reaches the user.",
         "command": "route_gateway.py --prompt ... --raw-output ..."
       },
       {
-        "title": "Approve or reject PCG proposals",
-        "body": "Keep every growth update private and proposed by default; commit it only after explicit human review.",
+        "title": "Turn sessions into skill capital",
+        "body": "Useful work does not disappear into chat history: LS turns it into a private growth proposal that only saves after human consent.",
         "command": "--accept | --reject"
       },
       {
-        "title": "Open the review inbox",
-        "body": "List proposed, accepted, and rejected updates, then export continuity events into a Markdown audit report.",
+        "title": "Produce a trust report",
+        "body": "Show the log: what was proposed, accepted, rejected, and why LS held continuation or action.",
         "command": "--inbox --status proposed"
       }
     ]
