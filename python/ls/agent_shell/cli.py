@@ -114,21 +114,38 @@ def load_council_quality_rows(quality_dir: Path) -> list[dict]:
     return rows
 
 
-_CYCLE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
+_CYCLE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+
+
+def _sanitize_cycle_id_filename(cycle_id: str) -> str:
+    raw_cycle_id = str(cycle_id or "").strip()
+    if not raw_cycle_id:
+        raise ValueError("cycle_id is required")
+
+    basename = os.path.basename(raw_cycle_id)
+    if basename != raw_cycle_id:
+        raise ValueError(f"Invalid cycle_id path component: {cycle_id!r}")
+
+    safe_name = Path(basename).name
+    if safe_name != basename:
+        raise ValueError(f"Invalid cycle_id path component: {cycle_id!r}")
+
+    if safe_name in {".", ".."} or not _CYCLE_ID_PATTERN.fullmatch(safe_name):
+        raise ValueError(f"Invalid cycle_id: {cycle_id!r}")
+
+    return safe_name
 
 
 def _council_quality_path(quality_dir: Path, cycle_id: str) -> Path:
-    cycle_id = str(cycle_id or "").strip()
-    if not cycle_id:
-        raise ValueError("cycle_id is required")
-    if cycle_id in {".", ".."} or not _CYCLE_ID_PATTERN.match(cycle_id):
-        raise ValueError(f"Invalid cycle_id: {cycle_id!r}")
+    safe_cycle_id = _sanitize_cycle_id_filename(cycle_id)
     base = quality_dir.resolve()
-    candidate = (base / f"{cycle_id}.json").resolve()
+    candidate = (base / f"{safe_cycle_id}.json").resolve()
     try:
         candidate.relative_to(base)
     except ValueError as exc:
         raise ValueError(f"Invalid cycle_id path: {cycle_id}") from exc
+    if candidate.parent != base:
+        raise ValueError(f"Invalid cycle_id path: {cycle_id}")
     return candidate
 
 
