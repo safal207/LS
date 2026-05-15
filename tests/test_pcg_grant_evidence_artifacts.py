@@ -67,9 +67,43 @@ def test_pcg_evaluation_harness_matches_fixture_expectations():
 
     report = evaluate_sessions(sessions)
 
-    assert report["total"] == 7
+    assert report["version"] == "0.2"
+    assert report["total"] == 14
     assert report["developmental_accuracy"] == 1.0
+    assert report["false_positive_count"] == 0
+    assert report["false_negative_count"] == 0
     assert all(row["developmental_match"] for row in report["rows"])
+
+
+def test_pcg_evaluation_v02_contains_false_positive_traps():
+    sessions = load_sessions(FIXTURE_DIR / "evaluation_sessions.json")
+
+    report = evaluate_sessions(sessions)
+    trap_rows = [row for row in report["rows"] if row["trap_type"] != "none"]
+
+    assert len(trap_rows) >= 6
+    assert all(row["expected_developmental"] is False for row in trap_rows)
+    assert all(row["predicted_developmental"] is False for row in trap_rows)
+    assert {row["expected_class"] for row in trap_rows} >= {
+        "emotional_support",
+        "administrative",
+        "execution",
+        "noise",
+    }
+
+
+def test_pcg_evaluation_v02_reports_class_distribution():
+    sessions = load_sessions(FIXTURE_DIR / "evaluation_sessions.json")
+
+    report = evaluate_sessions(sessions)
+
+    assert report["class_counts"]["emotional_support"] == 2
+    assert report["class_counts"]["administrative"] == 2
+    assert report["class_counts"]["decision_clarification"] == 2
+    assert report["class_counts"]["skill_building"] == 2
+    assert report["class_counts"]["capital_compounding"] == 2
+    assert report["class_counts"]["execution"] == 2
+    assert report["class_counts"]["noise"] == 2
 
 
 def test_pcg_proposed_and_accepted_updates_follow_core_governance_invariants():

@@ -4,7 +4,15 @@
     "summary": "The user was anxious before a dentist appointment and asked for grounding support, not technical planning.",
     "expected_class": "emotional_support",
     "expected_developmental": false,
-    "evidence": ["anxiety", "dentist", "support", "panic"],
+    "trap_type": "support_not_skill_claim",
+    "expected_action": "support_without_durable_skill_claim"
+  },
+  {
+    "session_id": "eval_emotional_support_002",
+    "summary": "The user felt panic and fear in the dentist chair and needed calm reassurance rather than a durable profile update.",
+    "expected_class": "emotional_support",
+    "expected_developmental": false,
+    "trap_type": "emotional_state_not_memory",
     "expected_action": "support_without_durable_skill_claim"
   },
   {
@@ -12,7 +20,15 @@
     "summary": "The user asked to convert a date and remove a sentence from a document before saving it as a PDF.",
     "expected_class": "administrative",
     "expected_developmental": false,
-    "evidence": ["date", "remove sentence", "save PDF"],
+    "trap_type": "admin_task_not_growth",
+    "expected_action": "complete_task_without_memory_update"
+  },
+  {
+    "session_id": "eval_administrative_002",
+    "summary": "The user asked to update a signature, correct a form, save the file, and avoid changing any other document content.",
+    "expected_class": "administrative",
+    "expected_developmental": false,
+    "trap_type": "document_edit_not_skill_claim",
     "expected_action": "complete_task_without_memory_update"
   },
   {
@@ -20,7 +36,15 @@
     "summary": "The user compared Cyprus startup visa, grants, and other programs to decide which path fits LS funding strategy.",
     "expected_class": "decision_clarification",
     "expected_developmental": true,
-    "evidence": ["compare", "Cyprus", "grants", "funding strategy"],
+    "trap_type": "none",
+    "expected_action": "propose_reviewed_decision_update"
+  },
+  {
+    "session_id": "eval_decision_clarification_002",
+    "summary": "The user asked to compare subscription options and decide priority based on product development, architecture work, and coding support.",
+    "expected_class": "decision_clarification",
+    "expected_developmental": true,
+    "trap_type": "none",
     "expected_action": "propose_reviewed_decision_update"
   },
   {
@@ -28,7 +52,15 @@
     "summary": "The user asked to learn automated testing and practiced API/UI consistency, status codes, and defect reasoning.",
     "expected_class": "skill_building",
     "expected_developmental": true,
-    "evidence": ["learn", "automated testing", "API", "defect reasoning"],
+    "trap_type": "none",
+    "expected_action": "propose_skill_practice_update"
+  },
+  {
+    "session_id": "eval_skill_building_002",
+    "summary": "The user practiced SQL, API testing, Playwright autotest structure, and defect explanation for QA interview preparation.",
+    "expected_class": "skill_building",
+    "expected_developmental": true,
+    "trap_type": "none",
     "expected_action": "propose_skill_practice_update"
   },
   {
@@ -36,7 +68,15 @@
     "summary": "The user transformed LS reviewer criticism into executable artifacts: red-team runner, schema conformance, evaluation harness, and grant narrative cleanup.",
     "expected_class": "capital_compounding",
     "expected_developmental": true,
-    "evidence": ["reviewer criticism", "executable artifacts", "schema conformance", "grant narrative"],
+    "trap_type": "none",
+    "expected_action": "propose_capital_compounding_update"
+  },
+  {
+    "session_id": "eval_capital_compounding_002",
+    "summary": "The user built a grant evidence bundle, privacy model, red-team fixtures, and a research surface for Personal Cognitive Garden review.",
+    "expected_class": "capital_compounding",
+    "expected_developmental": true,
+    "trap_type": "none",
     "expected_action": "propose_capital_compounding_update"
   },
   {
@@ -44,7 +84,15 @@
     "summary": "The user asked to merge a small GitHub PR that fixed a Lighthouse warning on the landing page.",
     "expected_class": "execution",
     "expected_developmental": false,
-    "evidence": ["merge PR", "Lighthouse", "landing page"],
+    "trap_type": "execution_not_growth",
+    "expected_action": "log_execution_without_skill_growth_claim"
+  },
+  {
+    "session_id": "eval_execution_002",
+    "summary": "The user asked to deploy a landing page fix, check CI, and confirm the pull request merged successfully.",
+    "expected_class": "execution",
+    "expected_developmental": false,
+    "trap_type": "execution_not_memory",
     "expected_action": "log_execution_without_skill_growth_claim"
   },
   {
@@ -52,7 +100,15 @@
     "summary": "The conversation contained playful banter, emojis, and no durable decision, skill practice, evidence, or project artifact.",
     "expected_class": "noise",
     "expected_developmental": false,
-    "evidence": ["banter", "emojis", "no durable decision"],
+    "trap_type": "no_durable_signal",
+    "expected_action": "ignore_for_durable_graph_state"
+  },
+  {
+    "session_id": "eval_noise_002",
+    "summary": "The user made a joke with haha and emoji, then changed topic without any durable plan, artifact, or decision.",
+    "expected_class": "noise",
+    "expected_developmental": false,
+    "trap_type": "no_durable_signal",
     "expected_action": "ignore_for_durable_graph_state"
   }
 ]
