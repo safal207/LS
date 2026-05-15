@@ -1,0 +1,58 @@
+[
+  {
+    "session_id": "eval_emotional_support_001",
+    "summary": "The user was anxious before a dentist appointment and asked for grounding support, not technical planning.",
+    "expected_class": "emotional_support",
+    "expected_developmental": false,
+    "evidence": ["anxiety", "dentist", "support", "panic"],
+    "expected_action": "support_without_durable_skill_claim"
+  },
+  {
+    "session_id": "eval_administrative_001",
+    "summary": "The user asked to convert a date and remove a sentence from a document before saving it as a PDF.",
+    "expected_class": "administrative",
+    "expected_developmental": false,
+    "evidence": ["date", "remove sentence", "save PDF"],
+    "expected_action": "complete_task_without_memory_update"
+  },
+  {
+    "session_id": "eval_decision_clarification_001",
+    "summary": "The user compared Cyprus startup visa, grants, and other programs to decide which path fits LS funding strategy.",
+    "expected_class": "decision_clarification",
+    "expected_developmental": true,
+    "evidence": ["compare", "Cyprus", "grants", "funding strategy"],
+    "expected_action": "propose_reviewed_decision_update"
+  },
+  {
+    "session_id": "eval_skill_building_001",
+    "summary": "The user asked to learn automated testing and practiced API/UI consistency, status codes, and defect reasoning.",
+    "expected_class": "skill_building",
+    "expected_developmental": true,
+    "evidence": ["learn", "automated testing", "API", "defect reasoning"],
+    "expected_action": "propose_skill_practice_update"
+  },
+  {
+    "session_id": "eval_capital_compounding_001",
+    "summary": "The user transformed LS reviewer criticism into executable artifacts: red-team runner, schema conformance, evaluation harness, and grant narrative cleanup.",
+    "expected_class": "capital_compounding",
+    "expected_developmental": true,
+    "evidence": ["reviewer criticism", "executable artifacts", "schema conformance", "grant narrative"],
+    "expected_action": "propose_capital_compounding_update"
+  },
+  {
+    "session_id": "eval_execution_001",
+    "summary": "The user asked to merge a small GitHub PR that fixed a Lighthouse warning on the landing page.",
+    "expected_class": "execution",
+    "expected_developmental": false,
+    "evidence": ["merge PR", "Lighthouse", "landing page"],
+    "expected_action": "log_execution_without_skill_growth_claim"
+  },
+  {
+    "session_id": "eval_noise_001",
+    "summary": "The conversation contained playful banter, emojis, and no durable decision, skill practice, evidence, or project artifact.",
+    "expected_class": "noise",
+    "expected_developmental": false,
+    "evidence": ["banter", "emojis", "no durable decision"],
+    "expected_action": "ignore_for_durable_graph_state"
+  }
+]
