@@ -17,11 +17,11 @@ export default function Hero({ onSwitchLang }: Props) {
           {t('nav.switch')}
         </button>
       </div>
-      <div className="glass animate-fade-up p-6 text-center md:p-10 lg:p-12">
+      <div className="glass p-6 text-center md:p-10 lg:p-12">
         <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-ghost-300/20 px-4 py-1 text-xs uppercase tracking-widest text-ghost-300">
           <Sparkles className="h-3.5 w-3.5" /> {t('hero.eyebrow')}
         </div>
-        <h1 className="mx-auto max-w-4xl text-3xl font-semibold leading-tight md:text-5xl lg:text-6xl">
+        <h1 className="mx-auto min-h-[7.5rem] max-w-4xl text-3xl font-semibold leading-tight md:min-h-[7.5rem] md:text-5xl lg:min-h-[9rem] lg:text-6xl">
           {t('hero.title')}
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-base text-white/80 md:text-lg lg:text-xl">
@@ -36,7 +36,7 @@ export default function Hero({ onSwitchLang }: Props) {
         </div>
         <a
           href="#operator-delta"
-          className="mt-6 inline-flex rounded-xl bg-ghost-500 px-7 py-3 font-medium transition duration-300 hover:-translate-y-1 hover:bg-ghost-300 hover:text-ghost-900"
+          className="mt-6 inline-flex rounded-xl bg-cyan-200 px-7 py-3 font-semibold text-ghost-900 transition duration-300 hover:-translate-y-1 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-100"
         >
           {t('hero.cta')}
         </a>
