@@ -248,7 +248,7 @@ export default function RuntimeLivePanel() {
 
           <div className="rounded-xl border border-white/15 bg-black/20 p-4">
             <div className="text-xs uppercase tracking-wider text-white/60">{t('runtimeLive.heatmap')}</div>
-            <div className="mt-3 grid grid-cols-10 gap-1">
+            <div className="mt-3 grid grid-cols-5 gap-1 md:grid-cols-10">
               {(snapshot?.heatmap || []).slice(-20).map((cell) => (
                 <span
                   key={cell.hour}
