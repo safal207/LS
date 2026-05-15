@@ -4,6 +4,7 @@ import Features from '../components/Features';
 import GrantReviewer from '../components/GrantReviewer';
 import Hero from '../components/Hero';
 import OperatorDelta from '../components/OperatorDelta';
+import PluginCapabilities from '../components/PluginCapabilities';
 import ProblemSolution from '../components/ProblemSolution';
 import ReflectiveRuntime from '../components/ReflectiveRuntime';
 import Roadmap from '../components/Roadmap';
@@ -21,6 +22,7 @@ export default function IndexPage() {
     <main>
       <Hero onSwitchLang={onSwitchLang} />
       <GrantReviewer />
+      <PluginCapabilities />
       <ProblemSolution />
       <Features />
       <ReflectiveRuntime />

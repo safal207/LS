@@ -44,6 +44,35 @@
       "redteam": "Review safety boundary"
     }
   },
+  "plugin": {
+    "eyebrow": "Codex / Cowork plugin",
+    "title": "What you can do through the LS plugin",
+    "subtitle": "The plugin turns an AI session into a governed workflow: check shared context first, create a proposed PCG update, then let the human accept or reject it.",
+    "flowTitle": "Default safety flow",
+    "flowBody": "Continuity before continuation. Evidence before action. Consent before memory. Repair before judgment.",
+    "items": [
+      {
+        "title": "Check session continuity",
+        "body": "Detect when an agent says it will continue from a PR, branch, diff, or previous decision that is missing from the current context.",
+        "command": "--continuity --skip-remote-gateway"
+      },
+      {
+        "title": "Route a draft through LS",
+        "body": "Send a Claude, Kimi, Codex, local model, or phone-chat draft through the LS gateway before it reaches the user.",
+        "command": "route_gateway.py --prompt ... --raw-output ..."
+      },
+      {
+        "title": "Approve or reject PCG proposals",
+        "body": "Keep every growth update private and proposed by default; commit it only after explicit human review.",
+        "command": "--accept | --reject"
+      },
+      {
+        "title": "Open the review inbox",
+        "body": "List proposed, accepted, and rejected updates, then export continuity events into a Markdown audit report.",
+        "command": "--inbox --status proposed"
+      }
+    ]
+  },
   "problem": {
     "title": "AI adoption is measured by activity, not human development",
     "items": {
