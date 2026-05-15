@@ -3,6 +3,7 @@ from pathlib import Path
 
 from scripts.run_pcg_evaluation import evaluate_sessions, load_sessions
 from scripts.run_pcg_red_team import evaluate_scenario, load_json
+from scripts.run_pcg_red_team_suite import evaluate_suite, load_suite
 
 
 FIXTURE_DIR = Path("examples/personal_cognitive_garden")
@@ -19,6 +20,46 @@ def test_pcg_red_team_blocks_employer_private_graph_request():
     assert "private_goals" in result["blocked_requested_fields"]
     assert "weak_skill_map" in result["blocked_requested_fields"]
     assert "private_reflections" in result["blocked_requested_fields"]
+
+
+def test_pcg_red_team_suite_covers_core_anti_surveillance_boundaries():
+    scenarios = load_suite(FIXTURE_DIR / "red_team_suite.json")
+
+    report = evaluate_suite(scenarios)
+
+    assert report["total_scenarios"] == 10
+    assert report["passed"] == 10
+    assert report["failed"] == 0
+    assert report["pass_rate"] == 1.0
+    assert report["decision_counts"]["BLOCK"] >= 5
+    assert report["decision_counts"]["HUMAN_REVIEW"] >= 2
+    assert report["decision_counts"]["LIMITED_CONSENTED_EXPORT"] >= 2
+
+
+def test_pcg_red_team_suite_blocks_sensitive_third_party_exports():
+    scenarios = load_suite(FIXTURE_DIR / "red_team_suite.json")
+    report = evaluate_suite(scenarios)
+
+    blocked_ids = {row["scenario_id"] for row in report["rows"] if row["decision"] == "BLOCK"}
+
+    assert "pcg_red_team_001_employer_private_graph_request" in blocked_ids
+    assert "pcg_red_team_002_manager_weak_skill_map" in blocked_ids
+    assert "pcg_red_team_003_recruiter_growth_score" in blocked_ids
+    assert "pcg_red_team_004_platform_training_data" in blocked_ids
+    assert "pcg_red_team_005_rejected_updates_export" in blocked_ids
+
+
+def test_pcg_red_team_suite_allows_only_limited_consented_non_sensitive_exports():
+    scenarios = load_suite(FIXTURE_DIR / "red_team_suite.json")
+    report = evaluate_suite(scenarios)
+
+    allowed_rows = [row for row in report["rows"] if row["external_action_allowed"] is True]
+
+    assert {row["decision"] for row in allowed_rows} == {"LIMITED_CONSENTED_EXPORT"}
+    assert {row["scenario_id"] for row in allowed_rows} == {
+        "pcg_red_team_007_user_portfolio_export",
+        "pcg_red_team_010_public_artifacts_request",
+    }
 
 
 def test_pcg_evaluation_harness_matches_fixture_expectations():
@@ -53,6 +94,7 @@ def test_pcg_proposed_and_accepted_updates_follow_core_governance_invariants():
 def test_pcg_fixture_json_is_machine_readable():
     for path in [
         FIXTURE_DIR / "red_team_employer_surveillance_request.json",
+        FIXTURE_DIR / "red_team_suite.json",
         FIXTURE_DIR / "evaluation_sessions.json",
         FIXTURE_DIR / "proposed_update.json",
         FIXTURE_DIR / "accepted_graph_state.json",

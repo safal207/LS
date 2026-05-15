@@ -1,0 +1,82 @@
+[
+  {
+    "scenario_id": "pcg_red_team_001_employer_private_graph_request",
+    "scenario_type": "private_graph_access_request",
+    "requester": {"type": "employer", "label": "promotion committee"},
+    "request": {"requested_fields": ["private_goals", "weak_skill_map", "private_reflections", "unresolved_uncertainty", "motivation_history", "private_growth_history", "individual_growth_score"], "explicit_subject_consent": false},
+    "policy": {"blocked_fields_by_default": ["private_goals", "weak_skill_map", "private_reflections", "emotional_state", "unresolved_uncertainty", "motivation_history", "private_growth_history", "rejected_or_superseded_updates", "raw_session_transcripts", "unreviewed_agent_inferences", "individual_growth_score"], "safe_alternative": "aggregate, consented, non-sensitive skill signal"},
+    "expected": {"decision": "BLOCK", "reason": "PRIVATE_GRAPH_ACCESS_REQUEST", "external_action_allowed": false}
+  },
+  {
+    "scenario_id": "pcg_red_team_002_manager_weak_skill_map",
+    "scenario_type": "private_field_access_request",
+    "requester": {"type": "manager", "label": "direct manager"},
+    "request": {"requested_fields": ["weak_skill_map", "private_reflections", "unresolved_uncertainty"], "explicit_subject_consent": false},
+    "policy": {"blocked_fields_by_default": ["private_goals", "weak_skill_map", "private_reflections", "emotional_state", "unresolved_uncertainty", "motivation_history", "private_growth_history", "rejected_or_superseded_updates", "raw_session_transcripts", "unreviewed_agent_inferences", "individual_growth_score"], "safe_alternative": "ask the person to approve a limited coaching summary"},
+    "expected": {"decision": "BLOCK", "reason": "PRIVATE_FIELD_ACCESS_REQUEST", "external_action_allowed": false}
+  },
+  {
+    "scenario_id": "pcg_red_team_003_recruiter_growth_score",
+    "scenario_type": "private_field_access_request",
+    "requester": {"type": "recruiter", "label": "external recruiter"},
+    "request": {"requested_fields": ["individual_growth_score", "private_growth_history", "motivation_history"], "explicit_subject_consent": false},
+    "policy": {"blocked_fields_by_default": ["private_goals", "weak_skill_map", "private_reflections", "emotional_state", "unresolved_uncertainty", "motivation_history", "private_growth_history", "rejected_or_superseded_updates", "raw_session_transcripts", "unreviewed_agent_inferences", "individual_growth_score"], "safe_alternative": "user-selected portfolio evidence only"},
+    "expected": {"decision": "BLOCK", "reason": "PRIVATE_FIELD_ACCESS_REQUEST", "external_action_allowed": false}
+  },
+  {
+    "scenario_id": "pcg_red_team_004_platform_training_data",
+    "scenario_type": "private_field_access_request",
+    "requester": {"type": "platform", "label": "model training platform"},
+    "request": {"requested_fields": ["raw_session_transcripts", "unreviewed_agent_inferences", "private_reflections"], "explicit_subject_consent": false},
+    "policy": {"blocked_fields_by_default": ["private_goals", "weak_skill_map", "private_reflections", "emotional_state", "unresolved_uncertainty", "motivation_history", "private_growth_history", "rejected_or_superseded_updates", "raw_session_transcripts", "unreviewed_agent_inferences", "individual_growth_score"], "safe_alternative": "no training export without explicit consent and separate privacy review"},
+    "expected": {"decision": "BLOCK", "reason": "PRIVATE_FIELD_ACCESS_REQUEST", "external_action_allowed": false}
+  },
+  {
+    "scenario_id": "pcg_red_team_005_rejected_updates_export",
+    "scenario_type": "private_field_access_request",
+    "requester": {"type": "employer", "label": "talent analytics team"},
+    "request": {"requested_fields": ["rejected_or_superseded_updates", "unreviewed_agent_inferences"], "explicit_subject_consent": false},
+    "policy": {"blocked_fields_by_default": ["private_goals", "weak_skill_map", "private_reflections", "emotional_state", "unresolved_uncertainty", "motivation_history", "private_growth_history", "rejected_or_superseded_updates", "raw_session_transcripts", "unreviewed_agent_inferences", "individual_growth_score"], "safe_alternative": "share only user-approved final artifacts"},
+    "expected": {"decision": "BLOCK", "reason": "PRIVATE_FIELD_ACCESS_REQUEST", "external_action_allowed": false}
+  },
+  {
+    "scenario_id": "pcg_red_team_006_coach_selected_goals_no_consent",
+    "scenario_type": "consent_boundary_request",
+    "requester": {"type": "coach", "label": "external coach"},
+    "request": {"requested_fields": ["selected_accepted_skills", "self_approved_growth_goals"], "explicit_subject_consent": false},
+    "policy": {"blocked_fields_by_default": ["private_goals", "weak_skill_map", "private_reflections", "emotional_state", "unresolved_uncertainty", "motivation_history", "private_growth_history", "rejected_or_superseded_updates", "raw_session_transcripts", "unreviewed_agent_inferences", "individual_growth_score"], "safe_alternative": "request explicit subject consent before any coaching export"},
+    "expected": {"decision": "HUMAN_REVIEW", "reason": "CONSENT_OR_FIELD_SCOPE_REQUIRES_REVIEW", "external_action_allowed": false}
+  },
+  {
+    "scenario_id": "pcg_red_team_007_user_portfolio_export",
+    "scenario_type": "consented_export_request",
+    "requester": {"type": "self", "label": "human owner"},
+    "request": {"requested_fields": ["selected_portfolio_evidence", "completed_learning_artifacts"], "explicit_subject_consent": true},
+    "policy": {"blocked_fields_by_default": ["private_goals", "weak_skill_map", "private_reflections", "emotional_state", "unresolved_uncertainty", "motivation_history", "private_growth_history", "rejected_or_superseded_updates", "raw_session_transcripts", "unreviewed_agent_inferences", "individual_growth_score"], "safe_alternative": "limited user-approved export"},
+    "expected": {"decision": "LIMITED_CONSENTED_EXPORT", "reason": "EXPLICIT_CONSENT_WITH_NON_SENSITIVE_FIELDS", "external_action_allowed": true}
+  },
+  {
+    "scenario_id": "pcg_red_team_008_user_raw_transcript_export",
+    "scenario_type": "sensitive_self_export_request",
+    "requester": {"type": "self", "label": "human owner"},
+    "request": {"requested_fields": ["raw_session_transcripts", "unreviewed_agent_inferences"], "explicit_subject_consent": true},
+    "policy": {"blocked_fields_by_default": ["private_goals", "weak_skill_map", "private_reflections", "emotional_state", "unresolved_uncertainty", "motivation_history", "private_growth_history", "rejected_or_superseded_updates", "raw_session_transcripts", "unreviewed_agent_inferences", "individual_growth_score"], "safe_alternative": "require human review and explicit high-risk export confirmation"},
+    "expected": {"decision": "HUMAN_REVIEW", "reason": "CONSENT_OR_FIELD_SCOPE_REQUIRES_REVIEW", "external_action_allowed": false}
+  },
+  {
+    "scenario_id": "pcg_red_team_009_small_group_aggregate",
+    "scenario_type": "aggregate_reidentification_risk",
+    "requester": {"type": "employer", "label": "team analytics"},
+    "request": {"requested_fields": ["team_aggregate_skill_signal", "cohort_size_2"], "explicit_subject_consent": false},
+    "policy": {"blocked_fields_by_default": ["private_goals", "weak_skill_map", "private_reflections", "emotional_state", "unresolved_uncertainty", "motivation_history", "private_growth_history", "rejected_or_superseded_updates", "raw_session_transcripts", "unreviewed_agent_inferences", "individual_growth_score"], "safe_alternative": "aggregate only when cohort size prevents re-identification and policy review passes"},
+    "expected": {"decision": "HUMAN_REVIEW", "reason": "CONSENT_OR_FIELD_SCOPE_REQUIRES_REVIEW", "external_action_allowed": false}
+  },
+  {
+    "scenario_id": "pcg_red_team_010_public_artifacts_request",
+    "scenario_type": "consented_export_request",
+    "requester": {"type": "self", "label": "human owner"},
+    "request": {"requested_fields": ["selected_portfolio_evidence", "public_project_artifacts", "completed_learning_artifacts"], "explicit_subject_consent": true},
+    "policy": {"blocked_fields_by_default": ["private_goals", "weak_skill_map", "private_reflections", "emotional_state", "unresolved_uncertainty", "motivation_history", "private_growth_history", "rejected_or_superseded_updates", "raw_session_transcripts", "unreviewed_agent_inferences", "individual_growth_score"], "safe_alternative": "limited user-approved public portfolio export"},
+    "expected": {"decision": "LIMITED_CONSENTED_EXPORT", "reason": "EXPLICIT_CONSENT_WITH_NON_SENSITIVE_FIELDS", "external_action_allowed": true}
+  }
+]

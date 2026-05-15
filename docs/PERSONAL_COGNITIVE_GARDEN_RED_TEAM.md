@@ -28,6 +28,42 @@ Reason: PRIVATE_GRAPH_ACCESS_REQUEST
 Safe alternative: aggregate, consented, non-sensitive skill signal
 ```
 
+## Executable red-team suite
+
+The single-scenario demo is now backed by an expanded executable suite:
+
+```bash
+python3 scripts/run_pcg_red_team_suite.py
+python3 scripts/run_pcg_red_team_suite.py --json
+```
+
+Fixture:
+
+```text
+examples/personal_cognitive_garden/red_team_suite.json
+```
+
+The suite covers 10 adversarial and consent-boundary cases:
+
+| Scenario | Expected decision | Risk tested |
+|---|---|---|
+| employer private graph request | `BLOCK` | full private cognitive graph export |
+| manager weak-skill map request | `BLOCK` | coercive coaching / private weaknesses |
+| recruiter growth score request | `BLOCK` | hiring or screening via growth score |
+| platform training-data request | `BLOCK` | raw transcripts and unreviewed inferences used for training |
+| rejected updates export | `BLOCK` | exposing disagreements and superseded inferences |
+| coach selected goals without consent | `HUMAN_REVIEW` | shareable fields still require explicit consent |
+| user portfolio export | `LIMITED_CONSENTED_EXPORT` | owner-approved non-sensitive evidence sharing |
+| user raw transcript export | `HUMAN_REVIEW` | high-risk self-export requires review |
+| small group aggregate | `HUMAN_REVIEW` | re-identification risk in small cohorts |
+| public artifacts request | `LIMITED_CONSENTED_EXPORT` | safe public portfolio export chosen by the owner |
+
+The suite is also covered by regression tests in:
+
+```text
+tests/test_pcg_grant_evidence_artifacts.py
+```
+
 ## Why this matters
 
 Human-capital language is powerful but risky. Without a strong boundary, it can be misread as:
