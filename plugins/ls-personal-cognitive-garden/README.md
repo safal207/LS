@@ -41,6 +41,7 @@ For continuity and repair semantics, see:
 - [`schemas/session-continuity-event.v0.1.json`](../../schemas/session-continuity-event.v0.1.json)
 - [`examples/session_continuity/missing_pr_context.json`](../../examples/session_continuity/missing_pr_context.json)
 - [`examples/session_continuity/repair_before_continue.json`](../../examples/session_continuity/repair_before_continue.json)
+- [`examples/session_continuity/session_continuity_audit.md`](../../examples/session_continuity/session_continuity_audit.md)
 
 ## Local Gateway Requirement
 
@@ -101,6 +102,28 @@ Repair: ask for PR URL, PR number, or exact change set
 ```
 
 This turns a model behavior — asking for context — into a portable local artifact that the next agent can inspect.
+
+Generate a continuity event without contacting the remote gateway:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
+  --prompt "continue from that PR" \
+  --raw-output "I will update the files now" \
+  --continuity \
+  --skip-remote-gateway
+```
+
+Append continuity events to JSONL for an audit report:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
+  --prompt "continue from that PR" \
+  --raw-output "I will update the files now" \
+  --continuity \
+  --emit-continuity-event \
+  --continuity-jsonl artifacts/session_continuity_events.jsonl \
+  --skip-remote-gateway
+```
 
 ## Safety Boundary
 

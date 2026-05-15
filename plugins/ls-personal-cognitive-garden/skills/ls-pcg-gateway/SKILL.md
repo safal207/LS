@@ -11,7 +11,9 @@ Use this skill when the user asks to:
 - test the local LS Web Agent Gateway;
 - inspect whether an agent draft is safe to show;
 - create or review a Personal Cognitive Garden proposal;
-- connect Codex output to the LS/PCG workflow.
+- connect Codex output to the LS/PCG workflow;
+- check session continuity before continuing a Codex, Claude, or Cowork task;
+- produce continuity events for an audit report.
 
 ## Core Rule
 
@@ -47,6 +49,28 @@ Route a draft:
 python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
   --prompt "Review this strategy session for human development." \
   --raw-output "The session improves product framing and creates a practice loop for the Personal Cognitive Garden."
+```
+
+Run a local continuity check without contacting the remote gateway:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
+  --prompt "continue from that PR" \
+  --raw-output "I will update the files now" \
+  --continuity \
+  --skip-remote-gateway
+```
+
+Append a continuity event to JSONL for the audit report renderer:
+
+```bash
+python plugins/ls-personal-cognitive-garden/scripts/route_gateway.py \
+  --prompt "continue from that PR" \
+  --raw-output "I will update the files now" \
+  --continuity \
+  --emit-continuity-event \
+  --continuity-jsonl artifacts/session_continuity_events.jsonl \
+  --skip-remote-gateway
 ```
 
 ## How To Interpret Results
@@ -107,6 +131,21 @@ PCG Inbox: <total> total, <proposed> proposed, <accepted> accepted, <rejected> r
 - <garden_update_id> [<status>]
   claim: <claim>
   artifact: <artifact path>
+```
+
+For continuity summaries, prefer:
+
+```text
+Session continuity: intact|uncertain|ruptured
+Rupture type: <rupture_type>
+Decision: <governance_decision>
+Repair prompt: <repair_prompt>
+```
+
+For a ready-made reviewer artifact, reference:
+
+```text
+examples/session_continuity/session_continuity_audit.md
 ```
 
 ## Privacy Boundary

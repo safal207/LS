@@ -1,7 +1,7 @@
 {
   "name": "ls-personal-cognitive-garden",
-  "version": "0.1.0",
-  "description": "Route Codex and other agent drafts through the LS gateway and propose Personal Cognitive Garden updates.",
+  "version": "0.1.1",
+  "description": "Route Codex and other agent drafts through the LS gateway, check session continuity, and propose Personal Cognitive Garden updates.",
   "author": {
     "name": "LS Project",
     "email": "maintainers@example.com",
