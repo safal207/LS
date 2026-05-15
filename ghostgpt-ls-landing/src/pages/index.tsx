@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
+import AskGPTGrantReview from '../components/AskGPTGrantReview';
 import GrantReviewer from '../components/GrantReviewer';
 import Hero from '../components/Hero';
 
@@ -24,6 +25,7 @@ export default function IndexPage() {
     <main>
       <Hero onSwitchLang={onSwitchLang} />
       <GrantReviewer />
+      <AskGPTGrantReview />
       <Suspense fallback={null}>
         <PluginCapabilities />
         <ProblemSolution />
