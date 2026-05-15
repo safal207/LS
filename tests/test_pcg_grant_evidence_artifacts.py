@@ -1,11 +1,15 @@
 import json
+from pathlib import Path
 
 from scripts.run_pcg_evaluation import evaluate_sessions, load_sessions
 from scripts.run_pcg_red_team import evaluate_scenario, load_json
 
 
+FIXTURE_DIR = Path("examples/personal_cognitive_garden")
+
+
 def test_pcg_red_team_blocks_employer_private_graph_request():
-    scenario = load_json("examples/personal_cognitive_garden/red_team_employer_surveillance_request.json")
+    scenario = load_json(FIXTURE_DIR / "red_team_employer_surveillance_request.json")
 
     result = evaluate_scenario(scenario)
 
@@ -18,7 +22,7 @@ def test_pcg_red_team_blocks_employer_private_graph_request():
 
 
 def test_pcg_evaluation_harness_matches_fixture_expectations():
-    sessions = load_sessions("examples/personal_cognitive_garden/evaluation_sessions.json")
+    sessions = load_sessions(FIXTURE_DIR / "evaluation_sessions.json")
 
     report = evaluate_sessions(sessions)
 
@@ -28,8 +32,8 @@ def test_pcg_evaluation_harness_matches_fixture_expectations():
 
 
 def test_pcg_proposed_and_accepted_updates_follow_core_governance_invariants():
-    proposed = load_json("examples/personal_cognitive_garden/proposed_update.json")
-    accepted_graph = load_json("examples/personal_cognitive_garden/accepted_graph_state.json")
+    proposed = load_json(FIXTURE_DIR / "proposed_update.json")
+    accepted_graph = load_json(FIXTURE_DIR / "accepted_graph_state.json")
     accepted = accepted_graph["accepted_updates"][0]
 
     assert proposed["status"] == "proposed"
@@ -48,10 +52,10 @@ def test_pcg_proposed_and_accepted_updates_follow_core_governance_invariants():
 
 def test_pcg_fixture_json_is_machine_readable():
     for path in [
-        "examples/personal_cognitive_garden/red_team_employer_surveillance_request.json",
-        "examples/personal_cognitive_garden/evaluation_sessions.json",
-        "examples/personal_cognitive_garden/proposed_update.json",
-        "examples/personal_cognitive_garden/accepted_graph_state.json",
+        FIXTURE_DIR / "red_team_employer_surveillance_request.json",
+        FIXTURE_DIR / "evaluation_sessions.json",
+        FIXTURE_DIR / "proposed_update.json",
+        FIXTURE_DIR / "accepted_graph_state.json",
     ]:
-        with open(path, "r", encoding="utf-8") as file:
+        with path.open("r", encoding="utf-8") as file:
             json.load(file)
