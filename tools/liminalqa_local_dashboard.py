@@ -734,7 +734,6 @@ def assign_escalation(cycle_id: str, reviewer: str, assigned_by: str = "dashboar
 def remind_escalation(cycle_id: str, *, reminded_by: str = "dashboard-bot", reason: str = "critical breach reminder") -> tuple[int, object]:
     try:
         artifact = load_council_quality_artifact(COUNCIL_QUALITY_DIR, cycle_id)
-        path = _council_quality_path(COUNCIL_QUALITY_DIR, cycle_id)
         review = artifact.get("operator_review") or {}
         reminders_sent = int(review.get("reminder_count") or 0) + 1
         artifact["operator_review"] = {
@@ -752,7 +751,7 @@ def remind_escalation(cycle_id: str, *, reminded_by: str = "dashboard-bot", reas
                 "reason": reason,
             },
         )
-        save_council_quality_artifact(path, artifact)
+        path = save_council_quality_artifact(COUNCIL_QUALITY_DIR, cycle_id, artifact)
         return 200, {
             "cycle_id": cycle_id,
             "reminder_count": reminders_sent,

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+import re
 import sys
 import json
 import os
@@ -113,10 +114,15 @@ def load_council_quality_rows(quality_dir: Path) -> list[dict]:
     return rows
 
 
+_CYCLE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
 def _council_quality_path(quality_dir: Path, cycle_id: str) -> Path:
     cycle_id = str(cycle_id or "").strip()
     if not cycle_id:
         raise ValueError("cycle_id is required")
+    if cycle_id in {".", ".."} or not _CYCLE_ID_PATTERN.match(cycle_id):
+        raise ValueError(f"Invalid cycle_id: {cycle_id!r}")
     base = quality_dir.resolve()
     candidate = (base / f"{cycle_id}.json").resolve()
     try:
@@ -135,10 +141,12 @@ def load_council_quality_artifact(quality_dir: Path, cycle_id: str) -> dict:
     return payload
 
 
-def save_council_quality_artifact(path: Path, payload: dict) -> None:
+def save_council_quality_artifact(quality_dir: Path, cycle_id: str, payload: dict) -> Path:
+    path = _council_quality_path(quality_dir, cycle_id)
     payload = dict(payload)
     payload.pop("_path", None)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
 
 
 def append_council_review_history(payload: dict, entry: dict) -> None:
@@ -162,7 +170,6 @@ def update_council_operator_review(
     reason: str | None = None,
 ) -> Path:
     artifact = load_council_quality_artifact(quality_dir, cycle_id)
-    path = Path(str(artifact.get("_path") or _council_quality_path(quality_dir, cycle_id)))
     current = artifact.get("operator_review") or {}
     artifact["operator_review"] = {
         "decision": decision,
@@ -184,8 +191,7 @@ def update_council_operator_review(
             "reason": str(reason or ""),
         },
     )
-    save_council_quality_artifact(path, artifact)
-    return path
+    return save_council_quality_artifact(quality_dir, cycle_id, artifact)
 
 
 def assign_council_reviewer(
@@ -196,7 +202,6 @@ def assign_council_reviewer(
     assigned_by: str,
 ) -> Path:
     artifact = load_council_quality_artifact(quality_dir, cycle_id)
-    path = Path(str(artifact.get("_path") or _council_quality_path(quality_dir, cycle_id)))
     current = artifact.get("operator_review") or {}
     artifact["operator_review"] = {
         "decision": current.get("decision", "pending"),
@@ -214,8 +219,7 @@ def assign_council_reviewer(
             "assigned_by": assigned_by,
         },
     )
-    save_council_quality_artifact(path, artifact)
-    return path
+    return save_council_quality_artifact(quality_dir, cycle_id, artifact)
 
 
 def iter_council_escalation_rows(quality_dir: Path) -> list[dict]:
@@ -259,7 +263,6 @@ def close_council_escalation(
     reason: str,
 ) -> Path:
     artifact = load_council_quality_artifact(quality_dir, cycle_id)
-    path = Path(str(artifact.get("_path") or _council_quality_path(quality_dir, cycle_id)))
     current = artifact.get("operator_review") or {}
     artifact["operator_review"] = {
         "decision": "closed",
@@ -279,8 +282,7 @@ def close_council_escalation(
             "reason": reason,
         },
     )
-    save_council_quality_artifact(path, artifact)
-    return path
+    return save_council_quality_artifact(quality_dir, cycle_id, artifact)
 
 
 def manager() -> TaskManager:
