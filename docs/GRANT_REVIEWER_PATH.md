@@ -51,6 +51,7 @@ Implemented components:
 - AI Co-work Continuity Audit offer: `docs/offers/AI_COWORK_CONTINUITY_AUDIT.md`
 - Outreach kit: `docs/outreach/AI_COWORK_CONTINUITY_OUTREACH_KIT.md`
 - Ecosystem map: `docs/ECOSYSTEM_INTEGRATION_MAP.md`
+- Grant narrative layer: `docs/GRANT_NARRATIVE_LAYER.md`
 
 ## Reviewer quickstart
 

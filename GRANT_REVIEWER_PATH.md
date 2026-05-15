@@ -3,6 +3,7 @@
 For grant, fellowship, safety research, or open-source infrastructure review, start here:
 
 - [`docs/GRANT_REVIEWER_PATH.md`](docs/GRANT_REVIEWER_PATH.md)
+- [`docs/GRANT_NARRATIVE_LAYER.md`](docs/GRANT_NARRATIVE_LAYER.md)
 
 This reviewer path explains:
 
