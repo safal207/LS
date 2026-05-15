@@ -8,40 +8,45 @@
     "subtitle": "A local-first research prototype for measuring whether AI-assisted sessions develop human capability — with evidence, review, and anti-surveillance boundaries.",
     "cta": "Open the grant reviewer path",
     "proof": [
-      "runnable demo",
-      "machine-readable schema",
-      "red-team safety boundary"
+      "one-command evidence bundle",
+      "10-scenario red-team suite",
+      "privacy + pilot protocol"
     ]
   },
   "grant": {
     "eyebrow": "For grant reviewers",
-    "title": "A clear path from research question to reproducible artifact",
-    "subtitle": "The Personal Cognitive Garden asks how AI systems can help measure human development without turning private growth data into surveillance, opaque scoring, or unauthorized profiling.",
+    "title": "A concrete evidence stack for safe AI-assisted human development",
+    "subtitle": "The Personal Cognitive Garden asks whether AI sessions can compound into useful, human-owned development memory without becoming surveillance, opaque scoring, or unauthorized profiling.",
     "cards": [
       {
-        "title": "Research question",
-        "body": "Which AI sessions actually develop human capability, and what evidence is required before a system can claim skill growth?"
+        "title": "Reproducible evidence",
+        "body": "A one-command evidence bundle, runnable demo, JSON reports, and regression tests make the claim inspectable instead of purely conceptual."
       },
       {
-        "title": "Artifact path",
-        "body": "Schema, examples, accepted graph state, and a local demo runner show the mechanism as a reproducible repository artifact."
+        "title": "Evaluation surface",
+        "body": "The v0.2 harness separates support, admin work, execution, learning, capital-compounding, and noise while tracking false-positive and false-negative risks."
       },
       {
         "title": "Safety boundary",
-        "body": "Private cognitive graphs remain human-owned. Employer access to goals, weak skills, reflections, and growth history is blocked by design."
+        "body": "A red-team suite, privacy model, and pilot protocol test that private cognitive graphs remain human-owned and non-surveillance by default."
       }
     ],
     "pathTitle": "Reviewer path",
     "path": [
-      "1. Read the grant-ready brief",
-      "2. Run the Personal Cognitive Garden demo",
-      "3. Inspect the schema and examples",
-      "4. Review the employer-surveillance red-team scenario"
+      "1. Read the 10-minute reviewer path",
+      "2. Run make grant-evidence",
+      "3. Inspect the 10-scenario anti-surveillance red-team suite",
+      "4. Review the privacy and consent model",
+      "5. Check the v0.2 evaluation harness and false-positive traps",
+      "6. Read the consented 5-10 user pilot protocol"
     ],
     "links": {
-      "brief": "Read grant brief",
-      "demo": "Run demo path",
-      "redteam": "Review safety boundary"
+      "path": "10-min path",
+      "evidence": "Evidence bundle",
+      "redteam": "Red-team suite",
+      "privacy": "Privacy model",
+      "evaluation": "Evaluation v0.2",
+      "pilot": "Pilot protocol"
     }
   },
   "plugin": {

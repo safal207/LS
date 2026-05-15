@@ -3,16 +3,28 @@ import { useTranslation } from 'react-i18next';
 
 const links = [
   {
-    key: 'brief',
-    href: 'https://github.com/safal207/LS/blob/main/docs/GRANT_READY_BRIEF_PERSONAL_COGNITIVE_GARDEN.md'
+    key: 'path',
+    href: 'https://github.com/safal207/LS/blob/main/docs/GRANT_REVIEWER_10_MIN_PATH.md'
   },
   {
-    key: 'demo',
-    href: 'https://github.com/safal207/LS/blob/main/docs/PERSONAL_COGNITIVE_GARDEN_RUNNER.md'
+    key: 'evidence',
+    href: 'https://github.com/safal207/LS/blob/main/Makefile'
   },
   {
     key: 'redteam',
     href: 'https://github.com/safal207/LS/blob/main/docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md'
+  },
+  {
+    key: 'privacy',
+    href: 'https://github.com/safal207/LS/blob/main/docs/PCG_PRIVACY_AND_CONSENT_MODEL.md'
+  },
+  {
+    key: 'evaluation',
+    href: 'https://github.com/safal207/LS/blob/main/scripts/run_pcg_evaluation.py'
+  },
+  {
+    key: 'pilot',
+    href: 'https://github.com/safal207/LS/blob/main/docs/PCG_PILOT_PROTOCOL.md'
   }
 ];
 
