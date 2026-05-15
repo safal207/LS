@@ -48,6 +48,7 @@ Implemented components:
 - Demo runner: `scripts/run_session_continuity_demo.py`
 - Route gateway integration: `plugins/ls-personal-cognitive-garden/scripts/route_gateway.py`
 - Audit report renderer: `scripts/render_continuity_audit_report.py`
+- Ready-made audit report example: `examples/session_continuity/session_continuity_audit.md`
 - AI Co-work Continuity Audit offer: `docs/offers/AI_COWORK_CONTINUITY_AUDIT.md`
 - Outreach kit: `docs/outreach/AI_COWORK_CONTINUITY_OUTREACH_KIT.md`
 - Ecosystem map: `docs/ECOSYSTEM_INTEGRATION_MAP.md`
