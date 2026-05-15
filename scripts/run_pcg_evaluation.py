@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Run a tiny Personal Cognitive Garden evaluation harness.
+"""Run the Personal Cognitive Garden evaluation harness.
 
 This harness is deliberately simple and dependency-free. It gives grant reviewers
 an executable baseline for checking whether LS can distinguish session types
 that should create durable, reviewed cognitive-garden updates from sessions that
 should not become long-term claims about a person.
+
+The v0.2 harness is still a baseline, not a production classifier: it adds more
+fixtures, false-positive traps, and reviewer-facing summary metrics without
+claiming model-quality semantic understanding.
 """
 
 from __future__ import annotations
@@ -21,13 +25,13 @@ DEFAULT_FIXTURE = REPO_ROOT / "examples" / "personal_cognitive_garden" / "evalua
 
 
 CLASS_KEYWORDS: list[tuple[str, set[str]]] = [
-    ("emotional_support", {"anxious", "anxiety", "panic", "support", "grounding", "dentist"}),
-    ("administrative", {"convert", "date", "remove", "save", "pdf", "document"}),
-    ("decision_clarification", {"compare", "decide", "strategy", "funding", "visa", "grant", "program"}),
-    ("skill_building", {"learn", "practice", "testing", "api", "defect", "status codes"}),
-    ("capital_compounding", {"artifact", "schema", "evaluation", "grant narrative", "red-team", "conformance"}),
-    ("execution", {"merge", "pr", "lighthouse", "fix", "landing"}),
-    ("noise", {"banter", "emoji", "emojis", "playful", "no durable"}),
+    ("emotional_support", {"anxious", "anxiety", "panic", "support", "grounding", "dentist", "calm", "fear"}),
+    ("administrative", {"convert", "date", "remove", "save", "pdf", "document", "signature", "form", "file"}),
+    ("decision_clarification", {"compare", "decide", "strategy", "funding", "visa", "grant", "program", "roadmap", "priority"}),
+    ("skill_building", {"learn", "practice", "testing", "api", "defect", "status codes", "sql", "playwright", "autotest"}),
+    ("capital_compounding", {"artifact", "schema", "evaluation", "grant narrative", "red-team", "conformance", "evidence bundle", "research surface", "privacy model"}),
+    ("execution", {"merge", "pr", "lighthouse", "fix", "landing", "deploy", "ci", "pull request"}),
+    ("noise", {"banter", "emoji", "emojis", "playful", "no durable", "joke", "haha"}),
 ]
 
 DEVELOPMENTAL_CLASSES = {"decision_clarification", "skill_building", "capital_compounding"}
@@ -62,10 +66,18 @@ def classify_session(summary: str) -> str:
     return best_class if best_score > 0 else "neutral"
 
 
+def safe_divide(numerator: int, denominator: int) -> float:
+    return 0.0 if denominator == 0 else round(numerator / denominator, 4)
+
+
 def evaluate_sessions(sessions: list[dict[str, Any]]) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     class_matches = 0
     developmental_matches = 0
+    false_positives = 0
+    false_negatives = 0
+    class_counts: dict[str, int] = {}
+    predicted_counts: dict[str, int] = {}
 
     for session in sessions:
         session_id = str(session.get("session_id") or "unknown")
@@ -78,6 +90,10 @@ def evaluate_sessions(sessions: list[dict[str, Any]]) -> dict[str, Any]:
         developmental_match = predicted_developmental == expected_developmental
         class_matches += int(class_match)
         developmental_matches += int(developmental_match)
+        false_positives += int(predicted_developmental and not expected_developmental)
+        false_negatives += int(expected_developmental and not predicted_developmental)
+        class_counts[expected_class] = class_counts.get(expected_class, 0) + 1
+        predicted_counts[predicted_class] = predicted_counts.get(predicted_class, 0) + 1
         rows.append(
             {
                 "session_id": session_id,
@@ -88,18 +104,33 @@ def evaluate_sessions(sessions: list[dict[str, Any]]) -> dict[str, Any]:
                 "predicted_developmental": predicted_developmental,
                 "developmental_match": developmental_match,
                 "expected_action": session.get("expected_action", "unknown"),
+                "trap_type": session.get("trap_type", "none"),
             }
         )
 
     total = len(rows)
+    expected_developmental_total = sum(1 for row in rows if row["expected_developmental"])
+    expected_non_developmental_total = total - expected_developmental_total
+    predicted_developmental_total = sum(1 for row in rows if row["predicted_developmental"])
+
     return {
+        "version": "0.2",
         "total": total,
-        "class_accuracy": 0.0 if total == 0 else round(class_matches / total, 4),
-        "developmental_accuracy": 0.0 if total == 0 else round(developmental_matches / total, 4),
+        "class_accuracy": safe_divide(class_matches, total),
+        "developmental_accuracy": safe_divide(developmental_matches, total),
+        "false_positive_count": false_positives,
+        "false_negative_count": false_negatives,
+        "false_positive_rate": safe_divide(false_positives, expected_non_developmental_total),
+        "false_negative_rate": safe_divide(false_negatives, expected_developmental_total),
+        "expected_developmental_total": expected_developmental_total,
+        "predicted_developmental_total": predicted_developmental_total,
+        "class_counts": class_counts,
+        "predicted_counts": predicted_counts,
         "rows": rows,
         "limitations": [
             "This is a small synthetic harness, not a user study.",
             "It proves the evaluation path is executable, not that the classifier is production-ready.",
+            "Keyword matching can miss semantically equivalent phrasing and can overfit fixture wording.",
             "Reviewer-facing next step: replace keyword baseline with human-reviewed labels from 5-10 consented users.",
         ],
     }
@@ -109,9 +140,12 @@ def print_human(report: dict[str, Any]) -> None:
     print("Personal Cognitive Garden evaluation")
     print("=" * 37)
     print()
+    print(f"Version: {report['version']}")
     print(f"Total sessions: {report['total']}")
     print(f"Class accuracy: {report['class_accuracy']}")
     print(f"Developmental accuracy: {report['developmental_accuracy']}")
+    print(f"False positives: {report['false_positive_count']} ({report['false_positive_rate']})")
+    print(f"False negatives: {report['false_negative_count']} ({report['false_negative_rate']})")
     print()
     print("Rows:")
     for row in report["rows"]:
