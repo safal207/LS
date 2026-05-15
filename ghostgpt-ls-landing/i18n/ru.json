@@ -3,45 +3,45 @@
     "switch": "EN"
   },
   "hero": {
-    "eyebrow": "Grant-ready research prototype | Personal Cognitive Garden",
-    "title": "LS превращает AI-сессии в управляемый, принадлежащий человеку капитал навыков.",
-    "subtitle": "Local-first исследовательский прототип для проверки: развивают ли AI-сессии человеческие способности — с evidence, review и anti-surveillance boundaries.",
-    "cta": "Открыть путь для grant reviewer",
+    "eyebrow": "Исследовательский прототип для гранта | Личный сад навыков",
+    "title": "LS превращает сессии с ИИ в управляемый капитал навыков, который принадлежит человеку.",
+    "subtitle": "Локальный исследовательский прототип проверяет, развивают ли сессии с ИИ человеческие способности: с доказательствами, ручной проверкой и границами против надзора.",
+    "cta": "Открыть путь для грантового ревьюера",
     "proof": [
       "запускаемое демо",
       "машиночитаемая схема",
-      "red-team safety boundary"
+      "сценарий проверки рисков"
     ]
   },
   "grant": {
     "eyebrow": "Для грантового ревьюера",
-    "title": "Понятный путь от research question к reproducible artifact",
-    "subtitle": "Personal Cognitive Garden исследует, как AI-системы могут измерять развитие человека без превращения личных данных роста в surveillance, opaque scoring или unauthorized profiling.",
+    "title": "Понятный путь от исследовательского вопроса к воспроизводимому артефакту",
+    "subtitle": "Личный сад навыков исследует, как ИИ-системы могут измерять развитие человека без превращения личных данных роста в надзор, непрозрачную оценку или профиль без согласия.",
     "cards": [
       {
-        "title": "Research question",
-        "body": "Какие AI-сессии реально развивают способность человека, и какие evidence нужны, чтобы заявлять skill growth?"
+        "title": "Исследовательский вопрос",
+        "body": "Какие сессии с ИИ реально развивают способность человека, и какие доказательства нужны, чтобы заявлять рост навыка?"
       },
       {
-        "title": "Artifact path",
-        "body": "Schema, examples, accepted graph state и local demo runner показывают механизм как воспроизводимый repo artifact."
+        "title": "Путь артефакта",
+        "body": "Схема, примеры, принятое состояние графа и локальный запуск демо показывают механизм как воспроизводимый артефакт репозитория."
       },
       {
-        "title": "Safety boundary",
-        "body": "Private cognitive graph остаётся у человека. Доступ работодателя к целям, слабым навыкам, reflections и growth history блокируется by design."
+        "title": "Граница безопасности",
+        "body": "Личный когнитивный граф остаётся у человека. Доступ работодателя к целям, слабым навыкам, рефлексиям и истории роста блокируется по замыслу системы."
       }
     ],
-    "pathTitle": "Reviewer path",
+    "pathTitle": "Путь ревьюера",
     "path": [
-      "1. Прочитать grant-ready brief",
-      "2. Запустить Personal Cognitive Garden demo",
-      "3. Проверить schema и examples",
-      "4. Посмотреть employer-surveillance red-team scenario"
+      "1. Прочитать краткий материал для гранта",
+      "2. Запустить демо личного сада навыков",
+      "3. Проверить схему и примеры",
+      "4. Посмотреть сценарий риска с надзором работодателя"
     ],
     "links": {
-      "brief": "Read grant brief",
-      "demo": "Run demo path",
-      "redteam": "Review safety boundary"
+      "brief": "Прочитать грантовый материал",
+      "demo": "Запустить демо-путь",
+      "redteam": "Проверить границу безопасности"
     }
   },
   "plugin": {
@@ -53,7 +53,7 @@
     "items": [
       {
         "title": "Проверить непрерывность сессии",
-        "body": "Поймать момент, когда агент обещает продолжить из pull request, ветки, списка изменений или прошлого решения, но этих данных нет в текущем контексте.",
+        "body": "Поймать момент, когда агент обещает продолжить из запроса на изменение, ветки, списка изменений или прошлого решения, но этих данных нет в текущем контексте.",
         "command": "--continuity --skip-remote-gateway"
       },
       {
@@ -68,139 +68,139 @@
       },
       {
         "title": "Открыть список проверок и отчет",
-        "body": "Посмотреть предложенные, принятые и отклоненные обновления, а затем собрать события непрерывности в Markdown-отчет для ревью.",
+        "body": "Посмотреть предложенные, принятые и отклоненные обновления, а затем собрать события непрерывности в Markdown-отчет для проверки.",
         "command": "--inbox --status proposed"
       }
     ]
   },
   "problem": {
-    "title": "AI adoption измеряют по активности, а не по развитию человека",
+    "title": "Внедрение ИИ измеряют по активности, а не по развитию человека",
     "items": {
-      "centralized": "Команды видят usage, tokens, tasks и output, но не понимают, становятся ли люди реально сильнее.",
+      "centralized": "Команды видят использование, токены, задачи и выдачу, но не понимают, становятся ли люди реально сильнее.",
       "size": "Более сильная модель не гарантирует более сильный человеческий навык; она может скрывать слабое рассуждение или создавать зависимость.",
-      "hallucinations": "Agent inferences о skills, goals или weaknesses могут стать opaque memory, если нет evidence и human review.",
-      "memory": "Полезные сессии исчезают в chat history вместо того, чтобы накапливаться в human-owned development graph."
+      "hallucinations": "Выводы агента о навыках, целях или слабых местах могут стать непрозрачной памятью, если нет доказательств и проверки человеком.",
+      "memory": "Полезные сессии исчезают в истории чата вместо того, чтобы накапливаться в графе развития, принадлежащем человеку."
     },
     "solutionTitle": "Что добавляет LS",
-    "solutionBody": "LS классифицирует AI-сессии по developmental effect, извлекает evidence-backed skill deltas, требует human review и коммитит только accepted updates в private cognitive graph."
+    "solutionBody": "LS классифицирует сессии с ИИ по влиянию на развитие, извлекает подтвержденные изменения навыков, требует проверки человеком и сохраняет только принятые обновления в личный когнитивный граф."
   },
   "features": {
-    "title": "Что демонстрирует grant prototype",
+    "title": "Что демонстрирует грантовый прототип",
     "list": {
       "local": {
-        "title": "Human-owned graph",
-        "desc": "Goals, skills, decisions, evidence и growth paths по умолчанию остаются под контролем человека."
+        "title": "Граф принадлежит человеку",
+        "desc": "Цели, навыки, решения, доказательства и пути роста по умолчанию остаются под контролем человека."
       },
       "causal": {
-        "title": "Evidence-backed claims",
-        "desc": "Skill-growth claims требуют supporting artifacts и могут быть accepted, rejected или revised человеком."
+        "title": "Утверждения с доказательствами",
+        "desc": "Заявления о росте навыка требуют подтверждающих артефактов и могут быть приняты, отклонены или исправлены человеком."
       },
       "human": {
-        "title": "Development classification",
-        "desc": "Сессии разделяются на administrative, emotional support, execution, skill-building, capital-compounding и noise classes."
+        "title": "Классификация развития",
+        "desc": "Сессии разделяются на административные, поддерживающие, исполнительские, обучающие, усиливающие капитал и шумовые."
       },
       "anti": {
-        "title": "Anti-surveillance boundary",
-        "desc": "Private graph export requests блокируются; наружу могут уходить только consented, non-sensitive, aggregate-safe signals."
+        "title": "Граница против надзора",
+        "desc": "Запросы на экспорт личного графа блокируются; наружу могут уходить только согласованные, нечувствительные и безопасно агрегированные сигналы."
       },
       "identity": {
-        "title": "Reproducible demo",
-        "desc": "Repo содержит schema, examples, accepted graph state и local runner для проверки ревьюером."
+        "title": "Воспроизводимое демо",
+        "desc": "Репозиторий содержит схему, примеры, принятое состояние графа и локальный запуск для проверки ревьюером."
       }
     }
   },
   "roadmap": {
-    "title": "Grant milestones",
+    "title": "Этапы грантовой работы",
     "phases": [
       {
         "q": "0-3 месяца",
-        "name": "Schema hardening и red-team runner"
+        "name": "Укрепление схемы и сценарий проверки рисков"
       },
       {
         "q": "3-6 месяцев",
-        "name": "Evaluation harness и consent-safe export layer"
+        "name": "Контур оценки и экспорт только с согласием"
       },
       {
         "q": "6 месяцев",
-        "name": "Small user study с 5-10 AI-heavy users"
+        "name": "Небольшое исследование с 5-10 активными пользователями ИИ"
       },
       {
-        "q": "Output",
-        "name": "Open technical note, examples и reproducible reports"
+        "q": "Результат",
+        "name": "Открытая техническая заметка, примеры и воспроизводимые отчеты"
       }
     ]
   },
   "visuals": {
-    "title": "От AI-сессии к reviewed skill capital",
-    "web4": "Session classification",
-    "temporal": "Evidence-backed update",
-    "growth": "Human review",
-    "mockupTitle": "Personal Cognitive Garden review flow"
+    "title": "От сессии с ИИ к проверенному капиталу навыков",
+    "web4": "Классификация сессии",
+    "temporal": "Обновление с доказательствами",
+    "growth": "Проверка человеком",
+    "mockupTitle": "Поток проверки личного сада навыков"
   },
   "cta": {
-    "title": "Проверь grant package для безопасного AI-assisted human development",
-    "demo": "Read grant brief",
-    "community": "Run demo path",
-    "contact": "Contact builder"
+    "title": "Проверь грантовый пакет для безопасного развития человека с помощью ИИ",
+    "demo": "Прочитать грантовый материал",
+    "community": "Запустить демо-путь",
+    "contact": "Связаться с автором"
   },
   "runtime": {
-    "eyebrow": "LS: governed human-development layer",
-    "title": "От raw AI sessions к reviewed capability growth",
+    "eyebrow": "LS: управляемый слой развития человека",
+    "title": "От сырых сессий с ИИ к проверенному росту способностей",
     "problem": {
-      "title": "Problem",
-      "body": "AI-сессии всё чаще формируют learning, coding, research и decisions, но большинство систем не отличают useful activity от durable human development."
+      "title": "Проблема",
+      "body": "Сессии с ИИ всё чаще формируют обучение, код, исследования и решения, но большинство систем не отличают полезную активность от устойчивого развития человека."
     },
     "solution": {
-      "title": "Solution",
-      "body": "LS превращает сессии в proposed development updates: classify session, identify skill deltas, require evidence, and let the person accept or reject the graph change."
+      "title": "Решение",
+      "body": "LS превращает сессии в предложенные обновления развития: классифицирует сессию, находит изменение навыков, требует доказательства и дает человеку принять или отклонить изменение графа."
     },
     "architecture": {
-      "title": "Architecture",
+      "title": "Архитектура",
       "items": [
-        "Session summary",
-        "Development classification",
-        "Evidence-backed skill delta",
-        "Human-reviewed graph commit"
+        "Сводка сессии",
+        "Классификация развития",
+        "Изменение навыка с доказательствами",
+        "Сохранение графа после проверки человеком"
       ]
     }
   },
   "runtimeLive": {
-    "title": "Runtime Live Panel",
+    "title": "Живая панель работы",
     "loading": "загрузка",
     "live": "подключено",
     "demo": "демо-режим",
     "error": "Ошибка API",
-    "offlineNote": "Local demo data is shown because the reflection backend is offline. The panel remains interactive so the operator flow stays visible on a static landing.",
-    "metrics": "Metrics",
-    "heatmap": "Heatmap",
-    "timeline": "Action timeline",
-    "proposals": "Top proposals",
-    "approve": "Approve",
-    "reject": "Reject",
-    "edit": "Edit",
-    "saveEdit": "Save edit",
-    "cancelEdit": "Cancel",
-    "editPlaceholder": "JSON value, e.g. 0.42 or \"retrieve_context\"",
-    "editValueLabel": "New proposed value",
-    "noProposals": "No proposals to display"
+    "offlineNote": "Показаны локальные демо-данные, потому что сервер проверки сейчас недоступен. Панель остается интерактивной, чтобы поток оператора был виден даже на статической странице.",
+    "metrics": "Метрики",
+    "heatmap": "Тепловая карта",
+    "timeline": "Лента действий",
+    "proposals": "Главные предложения",
+    "approve": "Одобрить",
+    "reject": "Отклонить",
+    "edit": "Править",
+    "saveEdit": "Сохранить",
+    "cancelEdit": "Отмена",
+    "editPlaceholder": "Новое значение, например 0.42 или \"retrieve_context\"",
+    "editValueLabel": "Новое предлагаемое значение",
+    "noProposals": "Нет предложений для показа"
   },
   "hcpMarketplace": {
-    "title": "HCP Marketplace (internal credits)",
+    "title": "Каталог HCP: внутренние кредиты",
     "loading": "загрузка",
     "live": "подключено",
     "demo": "демо-режим",
-    "offlineNote": "The HCP API is offline — showing sample rows. Start scripts/run_hcp_marketplace_api.py to use a real catalog.",
-    "error": "Request error",
-    "instanceId": "Instance id",
-    "refresh": "Refresh",
-    "credits": "Credits",
-    "runtime": "Runtime",
-    "runtimeAttached": "attached (load enabled)",
-    "runtimeDetached": "detached",
+    "offlineNote": "API каталога HCP сейчас недоступен — показаны примеры строк. Запусти scripts/run_hcp_marketplace_api.py, чтобы использовать настоящий каталог.",
+    "error": "Ошибка запроса",
+    "instanceId": "ID экземпляра",
+    "refresh": "Обновить",
+    "credits": "Кредиты",
+    "runtime": "Среда выполнения",
+    "runtimeAttached": "подключена, загрузка включена",
+    "runtimeDetached": "не подключена",
     "price": "cr",
-    "buy": "Buy",
-    "install": "Install",
-    "loadRuntime": "Load",
-    "demoActions": "Connect API to buy/install"
+    "buy": "Купить",
+    "install": "Установить",
+    "loadRuntime": "Загрузить",
+    "demoActions": "Подключи API, чтобы покупать и устанавливать"
   }
 }
