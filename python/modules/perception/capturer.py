@@ -20,7 +20,7 @@ class ScreenCapturer:
         self.sct = None
         if mss:
             try:
-                self.sct = mss.mss()
+                self.sct = mss.MSS()
             except Exception as e:
                 logger.warning(f"Failed to initialize mss: {e}")
 
