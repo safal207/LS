@@ -1,15 +1,17 @@
+import { Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
-import CTA from '../components/CTA';
-import Features from '../components/Features';
 import GrantReviewer from '../components/GrantReviewer';
 import Hero from '../components/Hero';
-import OperatorDelta from '../components/OperatorDelta';
-import PluginCapabilities from '../components/PluginCapabilities';
-import ProblemSolution from '../components/ProblemSolution';
-import ReflectiveRuntime from '../components/ReflectiveRuntime';
-import Roadmap from '../components/Roadmap';
-import RuntimeLivePanel from '../components/RuntimeLivePanel';
-import Visuals from '../components/Visuals';
+
+const CTA = lazy(() => import('../components/CTA'));
+const Features = lazy(() => import('../components/Features'));
+const OperatorDelta = lazy(() => import('../components/OperatorDelta'));
+const PluginCapabilities = lazy(() => import('../components/PluginCapabilities'));
+const ProblemSolution = lazy(() => import('../components/ProblemSolution'));
+const ReflectiveRuntime = lazy(() => import('../components/ReflectiveRuntime'));
+const Roadmap = lazy(() => import('../components/Roadmap'));
+const RuntimeLivePanel = lazy(() => import('../components/RuntimeLivePanel'));
+const Visuals = lazy(() => import('../components/Visuals'));
 
 export default function IndexPage() {
   const { i18n } = useTranslation();
@@ -22,15 +24,17 @@ export default function IndexPage() {
     <main>
       <Hero onSwitchLang={onSwitchLang} />
       <GrantReviewer />
-      <PluginCapabilities />
-      <ProblemSolution />
-      <Features />
-      <ReflectiveRuntime />
-      <RuntimeLivePanel />
-      <OperatorDelta />
-      <Roadmap />
-      <Visuals />
-      <CTA />
+      <Suspense fallback={null}>
+        <PluginCapabilities />
+        <ProblemSolution />
+        <Features />
+        <ReflectiveRuntime />
+        <RuntimeLivePanel />
+        <OperatorDelta />
+        <Roadmap />
+        <Visuals />
+        <CTA />
+      </Suspense>
     </main>
   );
 }
