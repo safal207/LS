@@ -3,7 +3,7 @@ faster-whisper==1.2.1
 pyaudio==0.2.14
 requests==2.33.1
 PyYAML==6.0.1
-fastapi>=0.111.0
+fastapi>=0.118.0
 uvicorn>=0.44.0
 numpy>=2.0.0
 sounddevice==0.5.5
@@ -15,6 +15,12 @@ sentence-transformers>=2.2.2
 torch>=2.1.0
 cryptography>=46.0.7
 Pillow>=12.2.0
+
+# Security fixes for transitive dependencies (Dependabot alerts)
+python-multipart>=0.0.21
+urllib3>=2.7.0
+starlette>=0.46.0
+Pygments>=2.20.0
 
 # Vision Subsystem
 mss==10.2.0
