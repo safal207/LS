@@ -18,7 +18,8 @@ type Snapshot = {
 
 type PanelMode = 'loading' | 'live' | 'demo';
 
-const API_BASE = import.meta.env.VITE_REFLECTION_API_BASE || 'http://127.0.0.1:8780';
+const API_BASE = import.meta.env.VITE_REFLECTION_API_BASE || '';
+const CAN_USE_LIVE_API = Boolean(API_BASE);
 const FETCH_TIMEOUT_MS = 2_500;
 const FALLBACK_SNAPSHOT: Snapshot = {
   metrics: {
@@ -74,8 +75,8 @@ function parseEditValue(raw: string): unknown {
 export default function RuntimeLivePanel() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === 'ru' ? 'ru' : 'en';
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [mode, setMode] = useState<PanelMode>('loading');
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(CAN_USE_LIVE_API ? null : FALLBACK_SNAPSHOT);
+  const [mode, setMode] = useState<PanelMode>(CAN_USE_LIVE_API ? 'loading' : 'demo');
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -126,6 +127,13 @@ export default function RuntimeLivePanel() {
   };
 
   const loadSnapshot = async () => {
+    if (!CAN_USE_LIVE_API) {
+      setSnapshot(FALLBACK_SNAPSHOT);
+      setMode('demo');
+      setError(null);
+      return;
+    }
+
     try {
       const response = await fetchWithTimeout(
         `${API_BASE}/api/reflection/snapshot?recent_limit=5&timeline_limit=5`
@@ -151,6 +159,9 @@ export default function RuntimeLivePanel() {
 
   useEffect(() => {
     loadSnapshot();
+    if (!CAN_USE_LIVE_API) {
+      return undefined;
+    }
     const timer = window.setInterval(loadSnapshot, 5000);
     return () => window.clearInterval(timer);
   }, []);
@@ -162,7 +173,7 @@ export default function RuntimeLivePanel() {
     edit?: { proposedValue: unknown; note?: string }
   ) => {
     const busyKey = proposal.proposal_id ?? `__idx_${idx}`;
-    if (mode === 'demo') {
+    if (mode === 'demo' || !CAN_USE_LIVE_API) {
       setSnapshot((current) => {
         if (!current) return current;
         const proposals = (current.proposals || []).filter((_, proposalIndex) => proposalIndex !== idx);
