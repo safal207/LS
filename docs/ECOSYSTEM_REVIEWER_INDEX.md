@@ -19,12 +19,17 @@ If you arrived here from a grant application, email, demo, or repository link, s
 
 ```text
 LS / Liminal Stack
+  -> Grant Reviewer Packet 2026
   -> ProofPath Ecosystem Graph
   -> ProofPath / Compute Witness executable evidence
   -> PythiaLabs evidence-gate surface
   -> CML causal-validity layer
   -> LTP trace/replay/continuity layer
 ```
+
+Primary reviewer packet:
+
+- [Grant Reviewer Packet 2026](GRANT_REVIEWER_PACKET_2026.md)
 
 Primary ecosystem map:
 
@@ -94,16 +99,18 @@ coordination and continuity
 
 ### If you entered from LS
 
-1. Read this index.
-2. Open the ProofPath Ecosystem Graph.
-3. Open the Compute Witness grant reviewer path.
-4. Open CML and LTP if you want the causal-memory and trace/replay layers.
+1. Read the [Grant Reviewer Packet 2026](GRANT_REVIEWER_PACKET_2026.md).
+2. Read this index.
+3. Open the ProofPath Ecosystem Graph.
+4. Open the Compute Witness grant reviewer path.
+5. Open CML and LTP if you want the causal-memory and trace/replay layers.
 
 ### If you entered from ProofPath
 
 1. Read the ProofPath README.
 2. Read the ProofPath Ecosystem Graph.
 3. Return here to understand how LS frames the broader human-governance and continuity direction.
+4. Read the [Grant Reviewer Packet 2026](GRANT_REVIEWER_PACKET_2026.md) for the funder-facing evidence summary.
 
 ### If you entered from CML
 
@@ -138,6 +145,7 @@ PythiaLabs evidence gates
 ## Direct links
 
 - LS: https://github.com/safal207/LS
+- Grant Reviewer Packet 2026: https://github.com/safal207/LS/blob/main/docs/GRANT_REVIEWER_PACKET_2026.md
 - ProofPath: https://github.com/safal207/ProofPath
 - ProofPath Ecosystem Graph: https://github.com/safal207/ProofPath/blob/main/docs/ECOSYSTEM_GRAPH.md
 - Compute Witness Grant Reviewer Path: https://github.com/safal207/ProofPath/blob/main/docs/COMPUTE_WITNESS_GRANT_REVIEWER_PATH.md
