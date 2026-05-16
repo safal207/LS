@@ -18,6 +18,7 @@
 
 Live site: [GitHub Pages](https://safal207.github.io/LS/)
 Community: [Roadmap](ROADMAP.md) · [Task board](docs/COMMUNITY_TASKS.md) · [Contributing](CONTRIBUTING.md)
+Reviewer ecosystem: [Ecosystem Reviewer Index](docs/ECOSYSTEM_REVIEWER_INDEX.md)
 
 **LS is a local-first coordination and oversight runtime for human-plus-model systems.**
 It records council cycles (structured multi-model decision rounds), tracks contribution and receiver resonance (a signal of how cleanly outcomes were accepted), exposes approval-safe operator workflows, and produces replayable artifacts for evaluation and governance.
@@ -202,11 +203,12 @@ A reviewer should understand, quickly:
 For program, grant, fellowship, or technical-review contexts:
 
 1. [README.md](README.md)
-2. [`docs/SAFETY_PROGRAMS_POSITIONING.md`](docs/SAFETY_PROGRAMS_POSITIONING.md)
-3. [`docs/FELLOWSHIP_APPLICATION_READY.md`](docs/FELLOWSHIP_APPLICATION_READY.md)
-4. [`docs/FELLOWSHIP_DEMO_PATH.md`](docs/FELLOWSHIP_DEMO_PATH.md)
-5. [`benchmark/README.md`](benchmark/README.md)
-6. [`benchmark/RESULTS.md`](benchmark/RESULTS.md)
+2. [`docs/ECOSYSTEM_REVIEWER_INDEX.md`](docs/ECOSYSTEM_REVIEWER_INDEX.md)
+3. [`docs/SAFETY_PROGRAMS_POSITIONING.md`](docs/SAFETY_PROGRAMS_POSITIONING.md)
+4. [`docs/FELLOWSHIP_APPLICATION_READY.md`](docs/FELLOWSHIP_APPLICATION_READY.md)
+5. [`docs/FELLOWSHIP_DEMO_PATH.md`](docs/FELLOWSHIP_DEMO_PATH.md)
+6. [`benchmark/README.md`](benchmark/README.md)
+7. [`benchmark/RESULTS.md`](benchmark/RESULTS.md)
 
 ## How LS differs from typical agents
 
@@ -442,6 +444,7 @@ pytest python/tests/test_memory_store_locking.py
 | [SUBCONSCIOUS_TEMPORAL_LOOP.md](SUBCONSCIOUS_TEMPORAL_LOOP.md) | Subconscious loop + feedback loop diagram |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow and system components |
 | [docs/architecture/layers.md](docs/architecture/layers.md) | Full 12-layer catalogue |
+| [docs/ECOSYSTEM_REVIEWER_INDEX.md](docs/ECOSYSTEM_REVIEWER_INDEX.md) | Top-level reviewer index linking LS to ProofPath, PythiaLabs, CML, and LTP |
 | [docs/PERSONAL_GROWTH_ENTRY.md](docs/PERSONAL_GROWTH_ENTRY.md) | Short entry point for the Personal Cognitive Garden and human-development positioning |
 | [docs/LS_PERSONAL_COGNITIVE_GARDEN.md](docs/LS_PERSONAL_COGNITIVE_GARDEN.md) | Thesis for LS as a human-owned, goal-directed cognitive garden cultivated by agents |
 | [docs/PERSONAL_COGNITIVE_GARDEN_RUNNER.md](docs/PERSONAL_COGNITIVE_GARDEN_RUNNER.md) | Local runner instructions for replaying the Personal Cognitive Garden demo flow |
@@ -492,6 +495,7 @@ pytest python/tests/test_memory_store_locking.py
 
 Сайт: [GitHub Pages](https://safal207.github.io/LS/)
 Сообщество: [дорожная карта](ROADMAP.md) · [задачи](docs/COMMUNITY_TASKS.md) · [как помочь](CONTRIBUTING.md)
+Экосистема для ревьюеров: [Ecosystem Reviewer Index](docs/ECOSYSTEM_REVIEWER_INDEX.md)
 
 **LS — это local-first runtime для координации и oversight в системах человек + модели.**
 Он фиксирует council cycles (структурированные раунды многомодельных решений), отслеживает вклад и receiver resonance (насколько результат был принят получателем без трения), поддерживает approval-safe операторские потоки и выпускает replayable-артефакты для оценки и governance.
@@ -567,11 +571,12 @@ LS позиционируется как инфраструктура oversight,
 ## Лучший путь для ревьюера
 
 1. [README.md](README.md)
-2. [`docs/SAFETY_PROGRAMS_POSITIONING.md`](docs/SAFETY_PROGRAMS_POSITIONING.md)
-3. [`docs/FELLOWSHIP_APPLICATION_READY.md`](docs/FELLOWSHIP_APPLICATION_READY.md)
-4. [`docs/FELLOWSHIP_DEMO_PATH.md`](docs/FELLOWSHIP_DEMO_PATH.md)
-5. [`benchmark/README.md`](benchmark/README.md)
-6. [`benchmark/RESULTS.md`](benchmark/RESULTS.md)
+2. [`docs/ECOSYSTEM_REVIEWER_INDEX.md`](docs/ECOSYSTEM_REVIEWER_INDEX.md)
+3. [`docs/SAFETY_PROGRAMS_POSITIONING.md`](docs/SAFETY_PROGRAMS_POSITIONING.md)
+4. [`docs/FELLOWSHIP_APPLICATION_READY.md`](docs/FELLOWSHIP_APPLICATION_READY.md)
+5. [`docs/FELLOWSHIP_DEMO_PATH.md`](docs/FELLOWSHIP_DEMO_PATH.md)
+6. [`benchmark/README.md`](benchmark/README.md)
+7. [`benchmark/RESULTS.md`](benchmark/RESULTS.md)
 
 ## Базовая архитектура (кратко)
 
