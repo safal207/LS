@@ -18,6 +18,18 @@ The grant-facing Personal Cognitive Garden path adds a second question:
 When an AI session appears useful, should it become durable human-owned skill memory at all?
 ```
 
+For the broader multi-repository evidence chain, read:
+
+```text
+docs/LIMINAL_STACK_EVIDENCE_BRIDGE.md
+```
+
+That bridge explains how LS, CML, CaPU/CMC, and LTP fit together as one safety stack:
+
+```text
+continuity -> causal validity -> persona/action boundary -> replay/trace inspection -> audit artifact
+```
+
 ## One-line summary
 
 ```text
@@ -30,6 +42,12 @@ Grant-facing PCG summary:
 LS turns AI sessions into evidence-backed, human-reviewed, human-owned skill capital without employer surveillance.
 ```
 
+Stack-level bridge summary:
+
+```text
+Liminal Stack turns plausible agent continuation into causally legitimate, replayable, reviewable transitions.
+```
+
 ## Core principle
 
 ```text
@@ -37,6 +55,14 @@ Continuity before continuation.
 Evidence before action.
 Consent before memory.
 Repair before judgment.
+```
+
+Stack-level principle:
+
+```text
+Continuity before continuation.
+Causal legitimacy before memory, role, interpretation, or action.
+Replay before audit.
 ```
 
 ## What is implemented now
@@ -65,6 +91,8 @@ session summary
 
 Implemented components:
 
+- Liminal Stack evidence bridge: `docs/LIMINAL_STACK_EVIDENCE_BRIDGE.md`
+- Related CaPU persona-boundary update: `docs/RELATED_CAPU_PERSONA_BOUNDARY_UPDATE.md`
 - Session Continuity Repair Layer documentation: `docs/SESSION_CONTINUITY_REPAIR_LAYER.md`
 - Event schema: `schemas/session-continuity-event.v0.1.json`
 - Deterministic detector: `ls/continuity/`
@@ -84,7 +112,13 @@ Implemented components:
 
 ## Reviewer quickstart
 
-Run the continuity demo:
+Start with the stack bridge:
+
+```text
+docs/LIMINAL_STACK_EVIDENCE_BRIDGE.md
+```
+
+Then run the LS continuity demo:
 
 ```bash
 python scripts/run_session_continuity_demo.py
@@ -161,6 +195,7 @@ These artifacts directly address the most important current grant-review questio
 
 | Reviewer concern | Evidence artifact |
 |---|---|
+| How do the related repositories fit together? | `docs/LIMINAL_STACK_EVIDENCE_BRIDGE.md` |
 | Does the anti-surveillance boundary execute, or is it only prose? | `scripts/run_pcg_red_team.py` |
 | Are session-development classes inspectable? | `scripts/run_pcg_evaluation.py` |
 | Does durable memory require review? | `tests/test_pcg_grant_evidence_artifacts.py` |
@@ -213,8 +248,15 @@ LS
 ├── SCRL: session continuity / repair
 ├── PCG: human-owned cognitive artifacts
 ├── CML: causal validity and authorization lineage
+├── CaPU / CMC: persona/action boundary legitimacy
 ├── PythiaLabs: evidence/action gates before high-risk tools
 └── LTP: deterministic replay and trace inspection
+```
+
+For the full cross-repository map, see:
+
+```text
+docs/LIMINAL_STACK_EVIDENCE_BRIDGE.md
 ```
 
 ### Causal Memory Layer
@@ -228,6 +270,41 @@ Relationship:
 ```text
 LS asks: was the session continuous enough to continue?
 CML asks: was the action causally valid once recorded?
+```
+
+### CaPU / CMC Persona Boundary
+
+Repository: https://github.com/safal207/CaPU
+
+CaPU / CMC provides executable persona-boundary evidence for memory, state change, and introspection legitimacy.
+
+Current executable persona-boundary corpus:
+
+```text
+P1: Persona memory requires cause.
+P2: Persona state changes require authorization.
+P7: Introspection is hypothesis-labeled.
+```
+
+Relationship:
+
+```text
+LS asks: should this session continue or become durable memory?
+CaPU asks: does the AI persona have the right to remember, self-adapt, interpret, or act?
+```
+
+Operational summary:
+
+```text
+AI must not self-remember.
+AI must not self-appoint.
+AI must not claim inner truth.
+```
+
+See:
+
+```text
+docs/RELATED_CAPU_PERSONA_BOUNDARY_UPDATE.md
 ```
 
 ### PythiaLabs
@@ -265,6 +342,7 @@ session rupture
 -> continuity event
 -> causal validity check
 -> evidence/action gate
+-> persona/action boundary check
 -> trace/replay inspection
 -> audit artifact
 ```
@@ -290,6 +368,8 @@ AI session
 
 ### Implemented in LS
 
+- Liminal Stack evidence bridge;
+- related CaPU persona-boundary cross-reference;
 - deterministic continuity detector;
 - stable rupture classes;
 - repair prompts;
@@ -302,6 +382,13 @@ AI session
 - PCG governance regression tests;
 - paid audit offer and outreach kit.
 
+### Implemented in related repositories
+
+- CML: causal validity and authorization-lineage framing;
+- CaPU / CMC: manifest-linked executable persona-boundary corpus for P1/P2/P7;
+- LTP: deterministic replay and trace-inspection framing;
+- PythiaLabs: evidence/action gate direction for high-risk tools.
+
 ### Roadmap
 
 - replace synthetic PCG labels with 5-10 consented user-study sessions;
@@ -310,7 +397,7 @@ AI session
 - dashboard views over continuity and PCG governance events;
 - expanded rupture taxonomy;
 - pilot data from real AI co-work sessions;
-- deeper connection to CML, PythiaLabs, and LTP artifacts.
+- deeper connection to CML, CaPU/CMC, PythiaLabs, and LTP artifacts.
 
 ## Reviewer framing
 
@@ -324,6 +411,12 @@ For PCG, the reviewer question is:
 
 ```text
 Does LS prevent useful AI sessions from becoming unauthorized profiling or employer surveillance?
+```
+
+For the full stack, the reviewer question is:
+
+```text
+Can human-agent work become continuity-safe, causally legitimate, persona-bounded, replayable, and reviewable?
 ```
 
 The current answer is intentionally narrow but executable:
@@ -343,6 +436,14 @@ private graph access request in
 -> safe alternative limited to consented, non-sensitive sharing
 ```
 
+with related CaPU evidence showing:
+
+```text
+persona memory/state/introspection proposal in
+-> manifest-linked verifier decision out
+-> reject unauthorized self-memory, self-appointment, or inner-truth claims
+```
+
 ## Boundary claims
 
 LS is not claiming to solve all AI safety problems.
@@ -357,6 +458,7 @@ human-owned cognitive memory with consent-before-memory and anti-surveillance bo
 The related repositories contribute complementary primitives:
 
 - CML: causal validity;
+- CaPU / CMC: persona/action boundary legitimacy;
 - PythiaLabs: evidence/action gates;
 - LTP: replay and trace inspection.
 
