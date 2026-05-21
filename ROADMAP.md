@@ -1,6 +1,25 @@
 # LS Public Roadmap
 
-LS is moving toward a Personal Cognitive Garden: a local-first, human-owned development graph where AI sessions can become reviewed goals, skills, decisions, evidence, reflections, and growth paths.
+LS is moving toward two connected product lines:
+
+```text
+Personal Cognitive Garden
+-> AI sessions become reviewed, human-owned development artifacts
+
+Cooperative Precision Network
+-> repeated AI co-work becomes more precise through route memory and contribution scoring
+```
+
+The precision thesis:
+
+```text
+LS does not make models smarter.
+LS makes their cooperation more precise.
+```
+
+See: [Cooperative Precision Roadmap](docs/COOPERATIVE_PRECISION_ROADMAP.md)
+
+The Personal Cognitive Garden remains a local-first, human-owned development graph where AI sessions can become reviewed goals, skills, decisions, evidence, reflections, and growth paths.
 
 The near-term product line is:
 
@@ -22,6 +41,8 @@ Live landing page: https://safal207.github.io/LS/
 - Keep GitHub Pages deployment green from `ghostgpt-ls-landing`.
 - Connect the LS Web Agent Gateway demo to the PCG story: review first, propose growth update second.
 - Make the local PCG runner easy for reviewers to run and understand.
+- Make PR-review trail artifacts easy to run and paste into pull requests.
+- Clarify Cooperative Precision Network as a contributor-facing direction.
 - Collect community feedback on wording, diagrams, onboarding, and anti-surveillance boundaries.
 
 ## Next
@@ -36,6 +57,9 @@ Live landing page: https://safal207.github.io/LS/
 - Add more replayable PCG examples under `examples/personal_cognitive_garden/`.
 - Improve local setup docs for contributors who only want to run the landing page or the PCG demo.
 - Add screenshots and expected outcomes to issues that are ready for design help.
+- Add contribution scoring to PR-review trail artifacts.
+- Add fixtures and tests for cooperative precision signals.
+- Add a Markdown benchmark report comparing single-reviewer and cooperative-review routes.
 
 ## Later
 
@@ -44,6 +68,8 @@ Live landing page: https://safal207.github.io/LS/
 - Publish small public datasets of consented or synthetic PCG review traces.
 - Add integrations for external agent tools through a documented LS gateway.
 - Add consented export formats for portfolios, coaching, and aggregate-safe team views.
+- Add GitHub Actions examples that publish LS review artifacts as CI outputs.
+- Let external agents submit route artifacts through validation, trust boundaries, and decay.
 
 ## Community Tasks
 
@@ -54,5 +80,6 @@ Good first areas:
 - Docs: shorten setup paths and add reviewer scripts.
 - Tests: add focused checks for landing build, runtime fallback, gateway contracts, and PCG runner output.
 - Examples: create realistic before/after agent-output and PCG update cases.
+- Cooperative precision: improve PR-review trail signals, contribution scoring, and benchmark reports.
 
 If you want to help, start with an issue labeled `good first issue`, `landing`, `docs`, or `demo`.

@@ -10,11 +10,22 @@ They leave trails.
 LS remembers which trails worked.
 ```
 
+Contributor roadmap:
+
+- [Cooperative Precision Roadmap](COOPERATIVE_PRECISION_ROADMAP.md)
+
 Instead of treating every model call as a fresh isolated attempt, LS records the
 route that produced a result: which roles participated, what quality signals
 were observed, where the route needed repair, and whether the outcome was safe
 to reuse. The next agent group can start from the best known route instead of
 wandering from zero.
+
+The goal is precision, not vague intelligence:
+
+```text
+model intelligence stays external
+network precision compounds inside LS
+```
 
 ## Mountain Trail Metaphor
 

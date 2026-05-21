@@ -6,10 +6,16 @@ Current focus:
 
 > Personal Cognitive Garden: turn AI sessions into reviewed, evidence-backed, human-owned development updates without creating a surveillance layer.
 
+New contributor direction:
+
+> Cooperative Precision Network: make repeated AI co-work more precise by measuring routes, evidence, and contributions.
+
 Useful entry points:
 
 - [Grant reviewer path](../GRANT.md)
 - [Personal Cognitive Garden thesis](LS_PERSONAL_COGNITIVE_GARDEN.md)
+- [Cooperative Precision Roadmap](COOPERATIVE_PRECISION_ROADMAP.md)
+- [Cognitive Trail Network](COGNITIVE_TRAIL_NETWORK.md)
 - [Local demo runner](PERSONAL_COGNITIVE_GARDEN_RUNNER.md)
 - [Red-team safety scenario](PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md)
 
@@ -61,6 +67,55 @@ Acceptance criteria:
 - Links back to the PCG demo and full runtime setup for advanced contributors.
 
 Suggested labels: `good first issue`, `docs`, `landing`
+
+### Cooperative precision: add tiny PR diff fixtures
+
+Goal: give contributors a safe fixture set for the PR-review trail artifact builder.
+
+Acceptance criteria:
+- Add at least three fixtures under `examples/pr_review_trails/`.
+- Include a docs-only diff, a code change without tests, and a risky shell-command diff.
+- Each fixture includes the expected review signal.
+- No fixture contains secrets, real private code, or personal data.
+
+Suggested labels: `good first issue`, `cooperative-precision`, `pr-review`, `fixture`
+
+### Cooperative precision: test the artifact builder
+
+Goal: lock the behavior of `scripts/run_pr_review_trail_artifact.py` so contributors can improve it safely.
+
+Acceptance criteria:
+- Test verifies docs-only changes produce a low-risk signal.
+- Test verifies code changes without tests produce `missing_tests`.
+- Test verifies risky shell commands require human review.
+- Test verifies `--json` output is machine-readable.
+
+Suggested labels: `good first issue`, `test`, `cooperative-precision`, `pr-review`
+
+### Contribution ledger: score roles inside a route
+
+Goal: show who contributed value inside a cooperative route, not only which route won.
+
+Acceptance criteria:
+- PR-review artifacts include a `contributors` field.
+- Roles include draft reviewer, risk critic, evidence verifier, and final reviewer.
+- Contribution scoring rewards evidence-backed findings.
+- False positives or unsupported claims reduce the score.
+- Documentation explains that this is role-specific contribution scoring, not a general model ranking.
+
+Suggested labels: `engineering`, `contribution-ledger`, `cooperative-precision`, `benchmark`
+
+### Benchmark: compare single-reviewer and cooperative routes
+
+Goal: turn cooperative precision into a small repeatable benchmark.
+
+Acceptance criteria:
+- Add a command that runs the same fixture through a single-reviewer route and a cooperative route.
+- Report precision, false positives, missing-test detection, and evidence quality.
+- Render a Markdown report.
+- Avoid fake benchmark claims; fixtures and scoring must be visible.
+
+Suggested labels: `benchmark`, `cooperative-precision`, `trail-network`
 
 ## Design And Product Tasks
 

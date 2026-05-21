@@ -19,6 +19,7 @@
 Live site: [GitHub Pages](https://safal207.github.io/LS/)
 Community: [Roadmap](ROADMAP.md) · [Task board](docs/COMMUNITY_TASKS.md) · [Contributing](CONTRIBUTING.md)
 Reviewer ecosystem: [Ecosystem Reviewer Index](docs/ECOSYSTEM_REVIEWER_INDEX.md)
+Cooperative precision: [Roadmap](docs/COOPERATIVE_PRECISION_ROADMAP.md) · [Cognitive Trail Network](docs/COGNITIVE_TRAIL_NETWORK.md)
 
 **LS is a local-first coordination and oversight runtime for human-plus-model systems.**
 It records council cycles (structured multi-model decision rounds), tracks contribution and receiver resonance (a signal of how cleanly outcomes were accepted), exposes approval-safe operator workflows, and produces replayable artifacts for evaluation and governance.
@@ -29,6 +30,9 @@ It is also a **personal AI operating layer**: a system that lets any model or ag
 LS also supports a **Personal Cognitive Garden** direction: AI sessions should compound into a human-owned, goal-directed graph of goals, skills, decisions, constraints, evidence, reflections, and growth paths. Agents may help cultivate that graph, but the person owns it and governance decides what becomes durable state.
 
 LS also supports a **Cognitive Trail Network** direction: models and agents leave auditable route traces, successful cooperative routes gain weight, and later agents can reuse the best verified paths instead of starting from zero.
+
+The framing is precision, not magic intelligence: LS does not make models
+smarter; it makes repeated cooperation more precise.
 
 Run the PR-review trail demo:
 
