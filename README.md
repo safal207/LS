@@ -1,4 +1,4 @@
-# LS — Local-First Coordination and Oversight Runtime
+# LS — Cooperative Precision Layer for AI Co-work
 
 [English](#english) | [Русский](#russian)
 
@@ -6,7 +6,7 @@
 
 <a name="english"></a>
 
-# LS — Local-First Coordination and Oversight Runtime
+# LS — Cooperative Precision Layer for AI Co-work
 
 [![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
 [![Council Safety Gate](https://github.com/safal207/LS/actions/workflows/council_safety.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/council_safety.yml)
@@ -20,19 +20,26 @@ Live site: [GitHub Pages](https://safal207.github.io/LS/)
 Community: [Roadmap](ROADMAP.md) · [Task board](docs/COMMUNITY_TASKS.md) · [Contributing](CONTRIBUTING.md)
 Reviewer ecosystem: [Ecosystem Reviewer Index](docs/ECOSYSTEM_REVIEWER_INDEX.md)
 Cooperative precision: [Roadmap](docs/COOPERATIVE_PRECISION_ROADMAP.md) · [Cognitive Trail Network](docs/COGNITIVE_TRAIL_NETWORK.md)
+Positioning: [Project Positioning](docs/PROJECT_POSITIONING.md)
 
-**LS is a local-first coordination and oversight runtime for human-plus-model systems.**
-It records council cycles (structured multi-model decision rounds), tracks contribution and receiver resonance (a signal of how cleanly outcomes were accepted), exposes approval-safe operator workflows, and produces replayable artifacts for evaluation and governance.
-Instead of treating model output as a black box, LS turns decision cycles into measurable, reviewable, and improvable runtime artifacts.
+**LS is a local-first cooperative precision layer for human-plus-model work.**
+It does not make models magically smarter. It makes repeated cooperation more
+precise by checking continuity, evidence, consent, routes, and contributions
+before outputs become actions, memory, or reputation.
 
-It is also a **personal AI operating layer**: a system that lets any model or agent pass through your memory, quality, coordination, and review logic before it reaches you.
+The core loop:
 
-LS also supports a **Personal Cognitive Garden** direction: AI sessions should compound into a human-owned, goal-directed graph of goals, skills, decisions, constraints, evidence, reflections, and growth paths. Agents may help cultivate that graph, but the person owns it and governance decides what becomes durable state.
+```text
+task -> route -> evidence -> contribution -> decision -> reusable artifact
+```
 
-LS also supports a **Cognitive Trail Network** direction: models and agents leave auditable route traces, successful cooperative routes gain weight, and later agents can reuse the best verified paths instead of starting from zero.
+First wedge: **AI Code Review / PR Review Trail Network**. A real git diff can
+be routed through draft review, risk critique, evidence verification, and final
+summary, then saved as a reusable trail artifact.
 
-The framing is precision, not magic intelligence: LS does not make models
-smarter; it makes repeated cooperation more precise.
+LS also contains a **Personal Cognitive Garden** direction: useful AI sessions
+can become human-owned development memory, but only with evidence and human
+review. The system must grow skill capital without becoming surveillance.
 
 Run the PR-review trail demo:
 
@@ -195,7 +202,9 @@ If you are evaluating this repo, start by checking these artifacts before readin
 
 ## Safety and oversight relevance
 
-LS is positioned as oversight infrastructure, not convenience prompting UX.
+LS is positioned as cooperative precision infrastructure, not convenience
+prompting UX. The safety claim is narrow: repeated AI co-work should become more
+precise because routes, evidence, consent, and contributions are visible.
 
 Safety-relevant surfaces include:
 
@@ -205,8 +214,9 @@ Safety-relevant surfaces include:
 - quality-gated outputs and CI enforcement,
 - packaging for benchmark/dataset/demo artifacts.
 
-Primary positioning doc:
+Primary positioning docs:
 
+- [`docs/PROJECT_POSITIONING.md`](docs/PROJECT_POSITIONING.md)
 - [`docs/SAFETY_PROGRAMS_POSITIONING.md`](docs/SAFETY_PROGRAMS_POSITIONING.md)
 
 ## What reviewers should understand first
@@ -499,13 +509,13 @@ pytest python/tests/test_memory_store_locking.py
 
 ---
 
-© 2026 LS Team. Local-first coordination and oversight runtime.
+© 2026 LS Team. Cooperative precision layer for AI co-work.
 
 ---
 
 <a name="russian"></a>
 
-# LS — Local-first координационный и oversight runtime
+# LS — слой точности кооперации для работы человека и ИИ
 
 [![CI status](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/web4_runtime_ci.yml)
 [![Council Safety Gate](https://github.com/safal207/LS/actions/workflows/council_safety.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/council_safety.yml)
@@ -516,11 +526,33 @@ pytest python/tests/test_memory_store_locking.py
 Сайт: [GitHub Pages](https://safal207.github.io/LS/)
 Сообщество: [дорожная карта](ROADMAP.md) · [задачи](docs/COMMUNITY_TASKS.md) · [как помочь](CONTRIBUTING.md)
 Экосистема для ревьюеров: [Ecosystem Reviewer Index](docs/ECOSYSTEM_REVIEWER_INDEX.md)
+Позиционирование: [Project Positioning](docs/PROJECT_POSITIONING.md)
 
-**LS — это local-first runtime для координации и oversight в системах человек + модели.**
-Он фиксирует council cycles (структурированные раунды многомодельных решений), отслеживает вклад и receiver resonance (насколько результат был принят получателем без трения), поддерживает approval-safe операторские потоки и выпускает replayable-артефакты для оценки и governance.
+**LS — это local-first слой точности кооперации для систем человек + модели.**
+Он не делает модели магически “умнее”. Он делает повторяющуюся совместную работу
+точнее: проверяет контекст, доказательства, согласие, маршрут и вклад участников
+до того, как ответ станет действием, памятью или репутацией.
 
-LS также поддерживает направление **Personal Cognitive Garden**: AI-сессии должны накапливаться в принадлежащий человеку целевой граф развития — цели, навыки, решения, ограничения, доказательства, рефлексии и следующие шаги. Агенты помогают ухаживать за этим графом, но человек владеет им, а governance решает, что становится долговременным состоянием.
+Короткая формула:
+
+```text
+задача -> маршрут -> доказательства -> вклад -> решение -> reusable artifact
+```
+
+Первый прикладной вход — **AI Code Review / PR Review Trail Network**: реальный
+git diff проходит через маршрут проверки, получает сигналы риска, route reward и
+сохраняется как проверяемый артефакт для следующей похожей задачи.
+
+Быстрый запуск PR-review артефакта:
+
+```bash
+python3 scripts/run_pr_review_trail_artifact.py
+```
+
+LS также поддерживает направление **Personal Cognitive Garden**: полезные
+AI-сессии могут становиться принадлежащей человеку памятью развития, но только с
+доказательствами и ручной проверкой. Система должна развивать skill capital, не
+превращаясь в надзор.
 
 Быстрое демо Personal Cognitive Garden:
 
@@ -664,4 +696,4 @@ python apps/console/main.py
 
 ---
 
-© 2026 LS Team. Local-first coordination and oversight runtime.
+© 2026 LS Team. Cooperative precision layer for AI co-work.

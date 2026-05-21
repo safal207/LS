@@ -8,9 +8,10 @@ is responsible for, and which boundaries must remain strict.
 
 ## One-sentence thesis
 
-**LS is a local-first operating layer for AI agents that turns raw model output
-into reviewable answers, memories, profile updates, or actions only after it has
-passed through context, governance, evidence, and relational continuity.**
+**LS is a local-first cooperative precision layer for AI co-work. It makes
+repeated human-plus-model cooperation more precise by checking continuity,
+evidence, consent, routes, and contributions before outputs become actions,
+memory, or reputation.**
 
 Most AI systems remember facts. LS is designed to remember transitions:
 
@@ -20,22 +21,28 @@ Most AI systems remember facts. LS is designed to remember transitions:
 - how it affected the relationship,
 - and whether it may become memory, profile state, or action.
 
+Canonical positioning:
+
+- `docs/PROJECT_POSITIONING.md`
+
 ## Public framing stack
 
 LS should be described differently depending on audience:
 
 | Audience | Primary framing | Avoid leading with |
 |---|---|---|
-| Safety / grants | Local-first coordination and oversight runtime | Conscious AI |
+| Contributors | Cooperative Precision Network for AI co-work | Abstract cognition language |
+| Safety / grants | Local-first evidence, consent, and oversight runtime | Conscious AI |
 | Product / operators | Personal AI operating layer for agents | Generic chatbot wrapper |
 | Research / vision | Experimental living cognition runtime | Solves alignment |
 | Engineering | Governed agent gateway with traceable memory/action control | Magic memory |
 
 The safest external framing is:
 
-> LS is a local-first coordination and oversight runtime for human-plus-model
-> systems. It records decision cycles, controls memory/action writes, and emits
-> replayable artifacts for review, evaluation, and governance.
+> LS is a cooperative precision layer for AI co-work. It does not make models
+> magically smarter; it makes repeated cooperation more precise through
+> continuity checks, evidence gates, route memory, contribution scoring, and
+> replayable artifacts.
 
 The deeper internal research framing is:
 
@@ -251,6 +258,7 @@ LS is not:
 
 LS is better understood as:
 
+- a cooperative precision layer for AI co-work,
 - a personal AI operating layer,
 - an agent gateway,
 - a coordination and oversight runtime,
@@ -304,6 +312,10 @@ Use these lines consistently:
 
 > LS is a personal AI operating layer: agents pass through your memory,
 > governance, evidence, and relational context before they reach you.
+
+> LS does not make models smarter. LS makes their cooperation more precise.
+
+> LS remembers not only answers, but the routes that produced verified value.
 
 > LS remembers not only facts, but transitions: what changed, why, who allowed
 > it, and whether it may become action.

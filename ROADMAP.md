@@ -17,7 +17,10 @@ LS does not make models smarter.
 LS makes their cooperation more precise.
 ```
 
-See: [Cooperative Precision Roadmap](docs/COOPERATIVE_PRECISION_ROADMAP.md)
+See:
+
+- [Project Positioning](docs/PROJECT_POSITIONING.md)
+- [Cooperative Precision Roadmap](docs/COOPERATIVE_PRECISION_ROADMAP.md)
 
 The Personal Cognitive Garden remains a local-first, human-owned development graph where AI sessions can become reviewed goals, skills, decisions, evidence, reflections, and growth paths.
 

@@ -2,6 +2,10 @@
 
 LS is growing a cooperative precision layer for AI co-work.
 
+Canonical project positioning:
+
+- [Project Positioning](PROJECT_POSITIONING.md)
+
 The thesis is deliberately narrow:
 
 ```text
@@ -261,4 +265,3 @@ Consent before memory.
 Contribution before reputation.
 Precision before scale.
 ```
-
