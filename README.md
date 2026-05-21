@@ -65,6 +65,12 @@ Run the Cooperative Role Market demo:
 python3 scripts/run_role_market_demo.py
 ```
 
+Score cooperative roles over a real PR-style git diff:
+
+```bash
+python3 scripts/run_pr_role_market_demo.py
+```
+
 ---
 
 ## Personal AI Operating Layer
@@ -571,6 +577,12 @@ python3 scripts/run_free_pr_review_route.py
 
 ```bash
 python3 scripts/run_role_market_demo.py
+```
+
+Оценка ролей на реальном PR/diff:
+
+```bash
+python3 scripts/run_pr_role_market_demo.py
 ```
 
 LS также поддерживает направление **Personal Cognitive Garden**: полезные

@@ -117,6 +117,7 @@ Acceptance criteria:
 - Explain which fields are evidence, which are feedback, and which are authorization.
 - Include a PR-review example.
 - Include `python scripts/run_role_market_demo.py` as the executable proof.
+- Include `python scripts/run_pr_role_market_demo.py` as the real-diff proof.
 - State clearly that role reputation is contextual and must not become hidden people scoring.
 
 Suggested labels: `docs`, `cooperative-role-market`, `cooperative-precision`

@@ -221,6 +221,28 @@ need -> role route -> contribution score -> best role -> next route choice
 The best contribution can be route design, not just execution: LS can credit the
 role that chose the better cooperative process.
 
+## Real PR Role Market Demo
+
+Run role scoring over the latest real PR-style git diff:
+
+```bash
+python scripts/run_pr_role_market_demo.py
+```
+
+Example shape:
+
+```text
+Diff source: HEAD~1..HEAD
+Signals: missing_tests, large_diff
+Baseline reward: 0.5167
+Cooperative reward: 0.6639
+Best role contribution: risk_critic
+```
+
+This connects the role market to the existing PR-review trail artifact. The
+numbers are diff-dependent: LS is scoring the route and roles for this concrete
+review, not assigning a permanent global rank to people or models.
+
 ## Roadmap
 
 ### Phase 1: Role Schema
