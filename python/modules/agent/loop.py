@@ -1013,20 +1013,20 @@ class AgentLoop:
             )
             parts.append(f"{anchor_label}\n{lines}")
 
-        interviewer = item.get("_operator_profile") or item.get("_interviewer_profile")
-        if interviewer and isinstance(interviewer, dict) and interviewer.get("questions_seen", 0) >= 2:
-            p = interviewer.get("pressure_level", 0)
+        counterparty = item.get("_operator_profile")
+        if counterparty and isinstance(counterparty, dict) and counterparty.get("questions_seen", 0) >= 2:
+            p = counterparty.get("pressure_level", 0)
             flags = []
-            if interviewer.get("prefers_examples"):
+            if counterparty.get("prefers_examples"):
                 flags.append("любит конкретные кейсы")
-            if interviewer.get("prefers_reasoning"):
+            if counterparty.get("prefers_reasoning"):
                 flags.append("любит глубокие рассуждения")
-            if interviewer.get("prefers_theory"):
+            if counterparty.get("prefers_theory"):
                 flags.append("любит теорию и определения")
-            if interviewer.get("interrupt_count", 0) > 0:
+            if counterparty.get("interrupt_count", 0) > 0:
                 flags.append("перебивает — будь лаконичен")
             if flags:
-                parts.append(f"Интервьюер (давление {p:.0%}): {', '.join(flags)}.")
+                parts.append(f"Контрагент (давление {p:.0%}): {', '.join(flags)}.")
 
         empathy = item.get("_empathy_result")
         if empathy and isinstance(empathy, dict):

@@ -15,7 +15,7 @@ and returns a single structured dict matching the spec:
       "raw_stt":         "почему не использовали Redis?",
       "corrected":       "почему не использовали Redis?",
       "intent":          {"type": "defense", "entity": "Redis", ...},
-      "why":             "интервьюер проверяет trade-off reasoning",
+      "why":             "контрагент проверяет trade-off reasoning",
       "strategy":        "защити решение + покажи trade-offs",
       "anchor_used":     ["Оптимизировал Redis: 400ms→20ms"],
       "empathy_cues":    {"pause": 1.5, "breath": "inhale", ...},
@@ -762,7 +762,7 @@ class ResonanceAgent:
         log_max_mb:   Rotate log above this size (MB).
         orientation:  Optional free-text session context injected at the top
                       of every LLM system prompt
-                      (e.g. "Senior backend interview, fintech company").
+                      (e.g. "Senior backend operator workflow, fintech company").
     """
 
     def __init__(
@@ -2532,8 +2532,7 @@ class ResonanceAgent:
                 strategy = _analyze(text)
                 if self._profile:
                     self._profile.observe(text, strategy)
-                    strategy.apply_interviewer_bias(self._profile)
-                    item["_interviewer_profile"] = self._profile.to_dict()
+                    strategy.apply_counterparty_bias(self._profile)
                     item["_operator_profile"] = self._profile.to_dict()
                 item["_why_strategy"] = strategy.to_dict()
             except Exception as exc:
@@ -3264,7 +3263,7 @@ class ResonanceAgent:
         guidance_parts: list[str] = []
         if requires_softening:
             guidance_parts.append(
-                "Alignment guidance: начни с мягкой валидации позиции собеседника, затем предложи следующий шаг."
+                "Alignment guidance: начни с мягкой валидации позиции контрагента, затем предложи следующий шаг."
             )
         if requires_clarification:
             guidance_parts.append(
@@ -3669,9 +3668,8 @@ class ResonanceAgent:
             "empathy_cues":    copilot.get("empathy_cues"),
             "pre_prompt":      copilot.get("pre_prompt", ""),
             "intervention_level": copilot.get("intervention_level", "low"),
-            # Interviewer model
-            "operator_profile": item.get("_operator_profile") or item.get("_interviewer_profile"),
-            "interviewer_profile": item.get("_operator_profile") or item.get("_interviewer_profile"),
+            # OperatorSessioner model
+            "operator_profile": item.get("_operator_profile"),
             # Output
             "raw_agent_output": raw_agent_output,
             "final_output":    final_output,

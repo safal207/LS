@@ -63,7 +63,7 @@ Avoid leading with:
 - generic assistant language
 - “copilot” framing without oversight context
 - convenience UX features without evaluation value
-- legacy interview-helper wording
+- legacy assistant-wrapper wording
 
 ## Best repo entrypoints
 

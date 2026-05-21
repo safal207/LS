@@ -73,7 +73,7 @@ class WhyStrategy:
             "confidence":    round(self.confidence, 4),
         }
 
-    def apply_interviewer_bias(self, profile: "OperatorProfile") -> None:
+    def apply_counterparty_bias(self, profile: "OperatorProfile") -> None:
         """Hard-bind answer mode based on what the counterparty cares about.
 
         Called once per question, after OperatorProfile.observe().

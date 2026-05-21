@@ -7,7 +7,7 @@ mentor, or screening panel in roughly 60 to 90 seconds.
 
 Use this when the reviewer only gives you one minute.
 
-> LS is not an interview helper or a generic assistant wrapper. It is a local-first coordination and oversight runtime for human-plus-model systems.
+> LS is not an assistant wrapper or a generic assistant wrapper. It is a local-first coordination and oversight runtime for human-plus-model systems.
 >
 > The key thing it does is turn multi-model reasoning into measurable artifacts: council ledgers, contribution scores, receiver resonance, merit signals, approval-safe workflows, and replayable traces.
 >

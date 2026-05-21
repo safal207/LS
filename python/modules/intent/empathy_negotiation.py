@@ -132,14 +132,14 @@ _RE_THEORY_CHECK = re.compile(
 )
 
 
-def _compute_pressure(strategy: dict, interviewer: dict) -> float:
-    """Synthesise a 0-1 pressure score from strategy + interviewer."""
+def _compute_pressure(strategy: dict, counterparty: dict) -> float:
+    """Synthesise a 0-1 pressure score from strategy + counterparty."""
     base = {"low": 0.2, "medium": 0.5, "high": 0.85}.get(
         str(strategy.get("pressure", "low")).lower(), 0.5
     )
-    interviewer_p = interviewer.get("pressure_level", 0.0) if interviewer else 0.0
+    counterparty_p = counterparty.get("pressure_level", 0.0) if counterparty else 0.0
     # weighted average: current question 60%, session history 40%
-    return round(base * 0.6 + interviewer_p * 0.4, 3)
+    return round(base * 0.6 + counterparty_p * 0.4, 3)
 
 
 class EmpathyNegotiationLayer:
@@ -176,15 +176,15 @@ class EmpathyNegotiationLayer:
     def _build(self, item: dict) -> EmpathyResult:
         text       = item.get("text", "")
         strategy   = item.get("_why_strategy") or {}
-        interviewer = item.get("_operator_profile") or item.get("_interviewer_profile") or {}
+        counterparty = item.get("_operator_profile") or {}
         anchor_ctx = item.get("_anchor_context") or []
 
         goal        = strategy.get("goal", "general")
         answer_type = strategy.get("answer_type", "short")
-        pressure    = _compute_pressure(strategy, interviewer)
-        prefers_ex  = interviewer.get("prefers_examples", False)
-        interrupted = interviewer.get("interrupt_count", 0) > 0
-        questions_n = interviewer.get("questions_seen", 0)
+        pressure    = _compute_pressure(strategy, counterparty)
+        prefers_ex  = counterparty.get("prefers_examples", False)
+        interrupted = counterparty.get("interrupt_count", 0) > 0
+        questions_n = counterparty.get("questions_seen", 0)
         has_anchor  = bool(anchor_ctx)
 
         tone   = _Tone.CALM
@@ -217,9 +217,9 @@ class EmpathyNegotiationLayer:
         # ---- Rule 3: Interrupting counterparty → be brief (highest priority) ----
         if interrupted:
             _set_tone(_Tone.BRIEF)
-            hints.append("Отвечай коротко — собеседник перебивает")
+            hints.append("Отвечай коротко — контрагент перебивает")
             hints.append("Одна мысль — одно предложение")
-            rules.append("interviewer_interrupts_brief")
+            rules.append("counterparty_interrupts_brief")
 
         # ---- Rule 4: Experience goal + anchor available → ground in case ----
         if goal in ("evaluate_experience", "check_experience") and has_anchor:

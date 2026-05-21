@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from .interviewer_profile import InterviewerProfile
+from .counterparty_profile_model import CounterpartyProfile
 
 
-class OperatorProfile(InterviewerProfile):
-    """Neutral alias for the historical InterviewerProfile contract."""
+class OperatorProfile(CounterpartyProfile):
+    """Operator-facing profile contract for live response shaping."""
 
 
-__all__ = ["OperatorProfile", "InterviewerProfile"]
+__all__ = ["OperatorProfile", "CounterpartyProfile"]

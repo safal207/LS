@@ -26,7 +26,7 @@ from self_love_agent import SelfLoveAgent
 from conscious_logger import conscious_logger
 from stt.smart_ear import SmartEar
 from resonance_agent import ResonanceAgent
-from shared.interview_schema import ensure_interview_item
+from shared.operator_schema import ensure_operator_item
 
 class IntegratedSystem:
     def __init__(self):
@@ -73,7 +73,7 @@ class IntegratedSystem:
         
     def process_question(self, question, utterance=None):
         """Canonical entry point for both manual and voice questions."""
-        utterance = ensure_interview_item(
+        utterance = ensure_operator_item(
             utterance or {"text": question, "source": "manual_input"},
             default_source="manual_input",
         )
@@ -110,7 +110,7 @@ class IntegratedSystem:
 
     def process_structured_question(self, question, utterance, language=None, soul_response=None):
         """Process an interpreted utterance through ResonanceAgent + fallback."""
-        item = ensure_interview_item(utterance, default_source="local_stt")
+        item = ensure_operator_item(utterance, default_source="local_stt")
         question = item.get("text", question) or question
         clean_text = item.get("clean_text") or question
         language = language or self.detect_language(question)
@@ -205,7 +205,7 @@ class IntegratedSystem:
             return None
 
     def _get_voice_resonance_agent(self):
-        """Lazy-init ResonanceAgent for interview-aware voice answers."""
+        """Lazy-init ResonanceAgent for operator-runtime-aware voice answers."""
         if self.voice_resonance_agent is not None:
             return self.voice_resonance_agent
         try:
@@ -252,14 +252,14 @@ class IntegratedSystem:
             f"- intent: {utterance.get('_intent', utterance.get('intent', {}))}\n"
             f"- why: {utterance.get('_why', utterance.get('why', {}))}\n"
             f"- strategy: {utterance.get('_why_strategy', {})}\n"
-            f"- interviewer_profile: {utterance.get('_interviewer_profile', {})}\n"
+            f"- operator_profile: {utterance.get('_operator_profile', {})}\n"
             f"- anchor_context: {utterance.get('_anchor_context', utterance.get('anchor_context', []))}\n"
         )
 
     def handle_voice_utterance(self, utterance):
         """Handle structured STT payloads emitted by the audio worker."""
         try:
-            item = ensure_interview_item(utterance, default_source="local_stt")
+            item = ensure_operator_item(utterance, default_source="local_stt")
             source = item.get("source", "unknown")
             confidence = float(item.get("confidence", item.get("_asr_confidence", 0.0)) or 0.0)
             print(f"🗣️ STT utterance ({source}, conf={confidence:.2f}): {item.get('text', '')}")

@@ -14,7 +14,7 @@ This is the difference between:
     intent  → definition of "index"
     why     → evaluating reasoning depth about indexes (tradeoffs expected)
 
-Designed for interview-copilot and cognitive-agent contexts where understanding
+Designed for operator-runtime and cognitive-agent contexts where understanding
 the *evaluator's intent* is as important as understanding the surface question.
 
 Goals
@@ -360,7 +360,7 @@ _HINTS: Dict[str, List[str]] = {
 class WhyLayer:
     """Causal intent extraction: *why* was this question asked?
 
-    Rule-based engine with 15 patterns covering the main interview question
+    Rule-based engine with 15 patterns covering the main operator-runtime question
     archetypes.  Optionally enriches hints with the entity from IntentResult.
 
     Args:

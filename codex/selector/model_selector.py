@@ -12,7 +12,7 @@ from codex.registry.model_registry import ModelRegistry
 
 
 TASK_PROFILES = {
-    "realtime_interview": {
+    "realtime_operator_support": {
         "priority": "latency",
         "types": {"llm"},
         "preferred": ["phi3-mini-4k", "qwen2.5-1.5b", "llama3.2-3b"],

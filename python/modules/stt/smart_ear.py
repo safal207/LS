@@ -817,12 +817,11 @@ class WhyStrategyStage:
         if _INTENT_AVAILABLE and _analyze_strategy is not None:
             try:
                 strategy = _analyze_strategy(text)
-                # Update interviewer model and apply hard bindings
+                # Update counterparty model and apply hard bindings
                 if self._operator_profile is not None:
                     self._operator_profile.observe(text, strategy)
-                    strategy.apply_interviewer_bias(self._operator_profile)
+                    strategy.apply_counterparty_bias(self._operator_profile)
                     profile = self._operator_profile.to_dict()
-                    item["_interviewer_profile"] = profile
                     item["_operator_profile"] = profile
                 item["_why_strategy"] = strategy.to_dict()
             except Exception as exc:

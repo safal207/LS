@@ -417,7 +417,7 @@ python3 tests/unit/test_system_observer.py
 python3 tests/unit/test_new_features.py
 python3 tests/unit/test_orientation_force_ladder.py
 python3 tests/unit/test_world_poller.py
-python3 tests/unit/test_interview_pipeline.py   # multimodal operator pipeline + voice loop
+python3 tests/unit/test_operator_pipeline_flow.py   # multimodal operator pipeline + voice loop
 
 # Qwen Omni + memory store
 pytest python/tests/test_qwen_omni_worker.py
@@ -431,7 +431,7 @@ pytest python/tests/test_memory_store_locking.py
 | `test_new_features.py` | 30 | Causal graph, predictive axis, meta-lessons, user profiles, session report |
 | `test_orientation_force_ladder.py` | 11 | Forces 1–2, co-activation, propagation |
 | `test_world_poller.py` | 8 | WorldPoller git/logs |
-| `test_interview_pipeline.py` | 57 | OCR module, VisionSubsystem cache, TTS Speaker, screen-context injection for the operator pipeline |
+| `test_operator_pipeline_flow.py` | 57 | OCR module, VisionSubsystem cache, TTS Speaker, screen-context injection for the operator pipeline |
 | `test_qwen_omni_worker.py` | 4 | Multimodal worker fallback + store |
 
 ---

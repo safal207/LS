@@ -1,6 +1,6 @@
 from __future__ import annotations
 
+from .counterparty_profile_model import CounterpartyProfile
 from .operator_profile import OperatorProfile
-from .interviewer_profile import InterviewerProfile
 
-__all__ = ["OperatorProfile", "InterviewerProfile"]
+__all__ = ["OperatorProfile", "CounterpartyProfile"]

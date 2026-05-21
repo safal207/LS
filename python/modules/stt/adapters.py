@@ -97,21 +97,3 @@ def build_operator_utterance(
         words=words or [],
         clean_text=clean_text or text,
     ).to_item()
-
-
-def build_interview_utterance(
-    text: str,
-    *,
-    confidence: float = 0.0,
-    source: str = "unknown",
-    words: list[dict[str, Any]] | None = None,
-    clean_text: str | None = None,
-) -> dict[str, Any]:
-    """Backward-compatible alias for the historical helper name."""
-    return build_operator_utterance(
-        text,
-        confidence=confidence,
-        source=source,
-        words=words,
-        clean_text=clean_text,
-    )

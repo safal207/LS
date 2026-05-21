@@ -217,7 +217,7 @@ class CognitiveCycleLogger:
         anchor_ctx = item.get("_anchor_context")
         empathy_result = item.get("_empathy_result")
         copilot_output = item.get("_operator_response_output") or item.get("_copilot_output")
-        operator_profile = item.get("_operator_profile") or item.get("_interviewer_profile")
+        operator_profile = item.get("_operator_profile")
         body_cues = (
             copilot_output.get("empathy_cues") if copilot_output else None
         )
@@ -235,7 +235,6 @@ class CognitiveCycleLogger:
             "why_strategy":        why_strategy,
             "anchor_used":         anchor_ctx or [],
             "operator_profile":    operator_profile,
-            "interviewer_profile": operator_profile,
             "empathy":             empathy_result,
             "body_cues":           body_cues,
             "operator_response": {

@@ -6,7 +6,7 @@ Tests for the multimodal operator pipeline components:
   - TTS Speaker (tts/speaker.py)
   - _inject_screen_context logic
 
-Run: python3 tests/unit/test_interview_pipeline.py
+Run: python3 tests/unit/test_operator_pipeline_flow.py
 """
 from __future__ import annotations
 

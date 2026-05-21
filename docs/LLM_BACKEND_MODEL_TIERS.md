@@ -16,7 +16,7 @@ The ranking is meant for routing and fallback decisions.
 
 Related design docs:
 
-- `docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md`
+- `docs/MULTIMODAL_OPERATOR_PIPELINE_ARCHITECTURE.md`
 - `docs/RUST_MERITOCRACY_CORE_PLAN.md`
 - `docs/COOPERATIVE_MERITOCRACY_NETWORK.md`
 

@@ -23,7 +23,7 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "✅ Rust module built successfully!" -ForegroundColor Green
     
     # Copy to main directory for easy access
-    Copy-Item "target\release\interview_copilot_core.dll" "..\"
+    Copy-Item "target\release\operator_runtime_core.dll" "..\"
     Write-Host "✅ Library copied to main directory" -ForegroundColor Green
     
     Write-Host ""

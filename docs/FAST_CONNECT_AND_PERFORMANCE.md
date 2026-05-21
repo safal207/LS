@@ -49,8 +49,8 @@ From latest synthetic benchmark report:
   - C++: measurable speedup.
 
 See details in:
-- `docs/online_interview_llm_latency_results.md`
-- `docs/online_interview_llm_latency_review.md`
+- `docs/operator_runtime_llm_latency_results.md`
+- `docs/operator_runtime_llm_latency_review.md`
 - `docs/LLM_ACCELERATION_ROADMAP.md`
 
 ## What this means for end users

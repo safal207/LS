@@ -11,7 +11,7 @@ Usage:
   scripts/switch_profile.sh <profile-name>
 
 Available profiles:
-  interview_quality
+  operator_quality
   balanced_daily
   offline_survival
 USAGE

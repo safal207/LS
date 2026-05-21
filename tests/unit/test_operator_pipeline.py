@@ -10,4 +10,4 @@ _HERE = os.path.dirname(__file__)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-from test_interview_pipeline import *  # noqa: F401,F403
+from test_operator_pipeline_flow import *  # noqa: F401,F403

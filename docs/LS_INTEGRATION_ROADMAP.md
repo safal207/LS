@@ -190,7 +190,7 @@ After this phase, `LS` becomes:
 
 ### Source areas
 
-- [docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md](INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md)
+- [docs/MULTIMODAL_OPERATOR_PIPELINE_ARCHITECTURE.md](MULTIMODAL_OPERATOR_PIPELINE_ARCHITECTURE.md)
 - [docs/vision-v2.md](vision-v2.md)
 - [python/modules/smart_ear](../python/modules/smart_ear)
 - [python/modules/perception](../python/modules/perception)

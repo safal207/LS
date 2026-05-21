@@ -26,6 +26,6 @@ All notable changes to this project will be documented in this file.
 ### Initial Release Features
 - Full local execution (Ollama + Qwen/Phi).
 - RAM-aware model selection.
-- Interview Copilot (Ghost Mode).
+- Local operator runtime.
 - Temporal/causal memory integration.
 - AgentLoop state machine (Idle/Listening/Thinking/Responding).

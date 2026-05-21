@@ -6,7 +6,6 @@ from .adapters import (
     CloudSTTAdapter,
     FallbackSTTAdapter,
     build_operator_utterance,
-    build_interview_utterance,
 )
 from .factory import STTFactoryConfig, build_stt_adapter
 
@@ -19,7 +18,6 @@ __all__ = [
     "build_operator_utterance",
     "STTFactoryConfig",
     "build_stt_adapter",
-    "build_interview_utterance",
 ]
 
 

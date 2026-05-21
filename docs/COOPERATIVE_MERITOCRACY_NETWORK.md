@@ -499,7 +499,7 @@ This is the smallest version that turns simple routing into a cooperative, memor
 
 ## Related Documents
 
-- `docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md`
+- `docs/MULTIMODAL_OPERATOR_PIPELINE_ARCHITECTURE.md`
 - `docs/LLM_BACKEND_MODEL_TIERS.md`
 - `docs/RUST_MERITOCRACY_CORE_PLAN.md`
 - `docs/COOPERATIVE_MERITOCRACY_ROADMAP.md`

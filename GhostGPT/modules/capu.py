@@ -22,7 +22,7 @@ class CaPU:
         if logic:
             prompt += f"MY ARCHITECTURAL DECISIONS:\n{logic}\n\n"
             
-        prompt += f"QUESTION FROM INTERVIEWER: {question}\n"
+        prompt += f"QUESTION FROM COUNTERPARTY: {question}\n"
         prompt += "INSTRUCTION: Provide a concise, professional answer based on my experience provided above."
         
         return prompt

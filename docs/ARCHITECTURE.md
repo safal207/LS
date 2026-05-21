@@ -100,7 +100,7 @@ graph TB
 ### Qwen3.5 Small Series Integration
 Система оптимизирована для работы с серией Qwen3.5 (от 0.8B до 9B параметров).
 - **Qwen3.5-0.8B / 2B**: Используется для быстрых рефлексий и простых задач на Edge-устройствах.
-- **Qwen3.5-4B / 9B**: Основная модель для сложного reasoning и интервью-копилота.
+- **Qwen3.5-4B / 9B**: Основная модель для сложного reasoning и operator-runtime сценариев.
 
 ### Dynamic Model Size Policy (Planned)
 Роутер (`ModelSizePolicy`) динамически переключает размер модели в зависимости от:
@@ -173,7 +173,7 @@ graph TB
 
 ## Multimodal STT / SmartEar / AgentLoop Flow
 
-See `docs/INTERVIEW_STT_SMARTEAR_ARCHITECTURE.md` for the canonical multimodal perception pipeline:
+See `docs/MULTIMODAL_OPERATOR_PIPELINE_ARCHITECTURE.md` for the canonical multimodal perception pipeline:
 
 - STT is perception only.
 - SmartEar handles semantic interpretation.

@@ -19,7 +19,7 @@ Assembles the final, ready-to-use copilot output for each question cycle:
         "intonation": "slow + calm",
         "micro_expression": ["smile", "nod"]
       },
-      "interviewer_profile": {...},
+      "operator_profile": {...},
       "final_prompt": "...full LLM block..."
     }
 
@@ -101,7 +101,7 @@ class CopilotOutput:
     pre_prompt:          str                  # ← shown on screen first
     anchor_context:      List[str]
     empathy_cues:        BodyCues
-    interviewer_profile: dict
+    operator_profile: dict
     final_prompt:        str                  # ← injected into LLM system prompt
     # internal metadata
     intervention_level:  str  = "low"         # low | medium | high
@@ -113,8 +113,8 @@ class CopilotOutput:
             "pre_prompt":          self.pre_prompt,
             "anchor_context":      self.anchor_context,
             "empathy_cues":        self.empathy_cues.to_dict(),
-            "interviewer_profile": self.interviewer_profile,
-            "operator_profile":    self.interviewer_profile,
+            "operator_profile": self.operator_profile,
+            "operator_profile":    self.operator_profile,
             "final_prompt":        self.final_prompt,
             "intervention_level":  self.intervention_level,
             "active_rules":        self.active_rules,
@@ -194,7 +194,7 @@ def _build_body_cues(
         pause = max(pause, 0.8)
         rules.append("defense_posture")
 
-    # ---- interrupted by interviewer → cut the pause ----
+    # ---- interrupted by counterparty → cut the pause ----
     if interrupted:
         pause  = 0.3
         breath = "none"
@@ -211,7 +211,7 @@ def _build_body_cues(
 def _build_final_prompt(
     strategy:   dict,
     anchor_ctx: List[str],
-    interviewer: dict,
+    counterparty: dict,
     empathy:    dict,
     cues:       BodyCues,
 ) -> str:
@@ -242,20 +242,20 @@ def _build_final_prompt(
         anchor_lines = "\n".join(f"- {x}" for x in anchor_ctx)
         sections.append(f"{label}\n{anchor_lines}")
 
-    # 4 — Interviewer profile summary (after ≥ 2 questions)
-    if interviewer.get("questions_seen", 0) >= 2:
-        p = interviewer.get("pressure_level", 0.0)
+    # 4 — OperatorSessioner profile summary (after ≥ 2 questions)
+    if counterparty.get("questions_seen", 0) >= 2:
+        p = counterparty.get("pressure_level", 0.0)
         flags = []
-        if interviewer.get("prefers_examples"):
+        if counterparty.get("prefers_examples"):
             flags.append("любит кейсы")
-        if interviewer.get("prefers_reasoning"):
+        if counterparty.get("prefers_reasoning"):
             flags.append("любит рассуждения")
-        if interviewer.get("prefers_theory"):
+        if counterparty.get("prefers_theory"):
             flags.append("любит теорию")
-        if interviewer.get("interrupt_count", 0) > 0:
+        if counterparty.get("interrupt_count", 0) > 0:
             flags.append("перебивает")
         if flags:
-            sections.append(f"Интервьюер (давление {p:.0%}): {', '.join(flags)}.")
+            sections.append(f"Контрагент (давление {p:.0%}): {', '.join(flags)}.")
 
     # 5 — Empathy & negotiation
     tone_trigger  = empathy.get("tone_trigger", "")
@@ -296,7 +296,7 @@ class BodyAwareCopilot:
                 pre_prompt="🧠 Сейчас: ответь кратко",
                 anchor_context=[],
                 empathy_cues=BodyCues(),
-                interviewer_profile={},
+                operator_profile={},
                 final_prompt="ответь по существу",
             )
         output_dict = output.to_dict()
@@ -309,13 +309,13 @@ class BodyAwareCopilot:
     def _build(self, item: dict) -> CopilotOutput:
         strategy    = item.get("_why_strategy")    or {}
         empathy     = item.get("_empathy_result")  or {}
-        interviewer = item.get("_operator_profile") or item.get("_interviewer_profile") or {}
+        counterparty = item.get("_operator_profile") or {}
         anchor_ctx  = item.get("_anchor_context")  or []
 
         pressure    = empathy.get("pressure_score", 0.0)
         tone        = empathy.get("tone", "calm")
         answer_type = strategy.get("answer_type", "short")
-        interrupted = interviewer.get("interrupt_count", 0) > 0
+        interrupted = counterparty.get("interrupt_count", 0) > 0
         micro_trigger = strategy.get("micro_trigger", "ответь кратко")
 
         cues, level, rules = _build_body_cues(
@@ -331,7 +331,7 @@ class BodyAwareCopilot:
         final_prompt = _build_final_prompt(
             strategy=strategy,
             anchor_ctx=list(anchor_ctx),
-            interviewer=interviewer,
+            counterparty=counterparty,
             empathy=empathy,
             cues=cues,
         )
@@ -341,7 +341,7 @@ class BodyAwareCopilot:
             pre_prompt=pre_prompt,
             anchor_context=list(anchor_ctx),
             empathy_cues=cues,
-            interviewer_profile=dict(interviewer),
+            operator_profile=dict(counterparty),
             final_prompt=final_prompt,
             intervention_level=level,
             active_rules=rules + (empathy.get("active_rules") or []),

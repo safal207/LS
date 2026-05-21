@@ -10,7 +10,7 @@ the learner:
    get a positive bias; rules that correlate with low resonance get penalised.
 4. Persists the weight table to a JSON file so biases survive restarts.
 
-The weights are consumed by ``WhyStrategy.apply_interviewer_bias`` and
+The weights are consumed by ``WhyStrategy.apply_counterparty_bias`` and
 ``EmpathyNegotiationLayer._build`` through a shared ``get_bias(rule)`` call.
 Integration is opt-in — callers may ignore the weights; the pipeline works
 identically without them.

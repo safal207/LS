@@ -96,10 +96,10 @@ python main.py
 - [ ] Расширение базы знаний (больше фактов/решений)
 - [ ] Multi-language поддержка
 - [ ] Browser extension для Zoom/Meet
-- [ ] История интервью и аналитика
+- [ ] История операторских сессий и аналитика
 
 ---
 
 **Это не просто инструмент - это цифровое воплощение вашего профессионального "я".**
 
-*Built with ❤️ for the ultimate interview advantage*
+*Built with ❤️ for the local operator control*

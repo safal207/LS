@@ -36,7 +36,7 @@ Deliver measurable speed evolution for the operator runtime pipeline and publish
   - Rust parser timing,
   - C++ parser timing.
 - Results are published to:
-  - `docs/online_interview_llm_latency_results.md`.
+  - `docs/operator_runtime_llm_latency_results.md`.
 
 ## Phase 5 — Public transparency (✅ done)
 

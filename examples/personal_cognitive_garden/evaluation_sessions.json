@@ -57,7 +57,7 @@
   },
   {
     "session_id": "eval_skill_building_002",
-    "summary": "The user practiced SQL, API testing, Playwright autotest structure, and defect explanation for QA interview preparation.",
+    "summary": "The user practiced SQL, API testing, Playwright autotest structure, and defect explanation for QA skill growth.",
     "expected_class": "skill_building",
     "expected_developmental": true,
     "trap_type": "none",
