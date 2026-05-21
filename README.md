@@ -53,6 +53,12 @@ Build a real PR-review trail artifact from the latest git commit:
 python3 scripts/run_pr_review_trail_artifact.py
 ```
 
+Build a free-only PR-review route packet for Codex, local models, or human review:
+
+```bash
+python3 scripts/run_free_pr_review_route.py
+```
+
 ---
 
 ## Personal AI Operating Layer
@@ -547,6 +553,12 @@ git diff проходит через маршрут проверки, получ
 
 ```bash
 python3 scripts/run_pr_review_trail_artifact.py
+```
+
+Бесплатный маршрут без платных model API:
+
+```bash
+python3 scripts/run_free_pr_review_route.py
 ```
 
 LS также поддерживает направление **Personal Cognitive Garden**: полезные

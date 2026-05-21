@@ -71,6 +71,15 @@ def _files_from_diff(diff_text: str) -> list[str]:
     return sorted(set(files))
 
 
+def _added_diff_text(diff_text: str) -> str:
+    added_lines = []
+    for line in diff_text.splitlines():
+        if line.startswith("+++") or not line.startswith("+"):
+            continue
+        added_lines.append(line[1:])
+    return "\n".join(added_lines)
+
+
 def _classify_files(files: list[str]) -> dict[str, Any]:
     docs = [path for path in files if path.lower().endswith((".md", ".txt", ".rst"))]
     tests = [path for path in files if "test" in path.lower() or path.lower().endswith(("_test.py", ".test.ts", ".spec.ts"))]
@@ -86,7 +95,7 @@ def _classify_files(files: list[str]) -> dict[str, Any]:
 
 
 def _detect_signals(diff_text: str, files: list[str]) -> list[ReviewSignal]:
-    lower = diff_text.lower()
+    added_lower = _added_diff_text(diff_text).lower()
     signals: list[ReviewSignal] = []
     if not diff_text.strip():
         signals.append(ReviewSignal("empty_diff", "hold", "No diff was found, so the route cannot review concrete evidence."))
@@ -102,8 +111,8 @@ def _detect_signals(diff_text: str, files: list[str]) -> list[ReviewSignal]:
         ("token_literal", "api_key"),
     ]
     for code, token in risky_tokens:
-        if token in lower:
-            signals.append(ReviewSignal(code, "human_review", f"Diff contains `{token}`, which needs explicit review."))
+        if token in added_lower:
+            signals.append(ReviewSignal(code, "human_review", f"Added diff contains `{token}`, which needs explicit review."))
 
     file_info = _classify_files(files)
     if file_info["code"] and not file_info["tests"]:

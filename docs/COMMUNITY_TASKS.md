@@ -13,6 +13,7 @@ New contributor direction:
 Useful entry points:
 
 - [Project positioning](PROJECT_POSITIONING.md)
+- [Free agent integration](FREE_AGENT_INTEGRATION.md)
 - [Grant reviewer path](../GRANT.md)
 - [Personal Cognitive Garden thesis](LS_PERSONAL_COGNITIVE_GARDEN.md)
 - [Cooperative Precision Roadmap](COOPERATIVE_PRECISION_ROADMAP.md)
