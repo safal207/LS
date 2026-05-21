@@ -193,6 +193,16 @@ Selected route: pr_review>local>gonka>mimo
 Reason: goal-vector-cooperative
 ```
 
+Build an artifact from a real git diff:
+
+```bash
+python scripts/run_pr_review_trail_artifact.py
+```
+
+This reviews `HEAD~1..HEAD` by default and produces a route decision, review
+signals, route reward, and a human-facing summary. For a PR branch, pass
+`--base origin/main --head <branch>`.
+
 ## Personal Cognitive Garden evidence quickstart
 
 Run the PCG artifact flow:

@@ -167,3 +167,47 @@ PR diff + CI evidence
 -> route reward
 -> better default path next time
 ```
+
+## Real Git Diff Artifact
+
+The next step is a local-first artifact builder that reviews a real git diff
+instead of seeded sample data:
+
+```bash
+python scripts/run_pr_review_trail_artifact.py
+```
+
+By default it reviews the latest commit:
+
+```text
+HEAD~1..HEAD
+```
+
+For a branch or pull-request style range:
+
+```bash
+python scripts/run_pr_review_trail_artifact.py \
+  --base origin/main \
+  --head my-feature-branch \
+  --output reports/pr_review_trail.json \
+  --markdown-output reports/pr_review_trail.md
+```
+
+The artifact records:
+
+- selected review route
+- diff files and stat
+- review signals
+- route reward
+- updated route memory
+- human-facing review summary
+
+This turns PR review into a reusable trail:
+
+```text
+real diff
+-> draft reviewer / risk critic / evidence verifier / final reviewer
+-> artifact
+-> route reward
+-> better default route for the next PR
+```

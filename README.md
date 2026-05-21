@@ -36,6 +36,12 @@ Run the PR-review trail demo:
 python3 scripts/run_pr_review_trail_demo.py
 ```
 
+Build a real PR-review trail artifact from the latest git commit:
+
+```bash
+python3 scripts/run_pr_review_trail_artifact.py
+```
+
 ---
 
 ## Personal AI Operating Layer
