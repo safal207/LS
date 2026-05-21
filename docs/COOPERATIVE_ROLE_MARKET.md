@@ -260,6 +260,24 @@ human_operator
 artifact deterministically. The actor roster is explicit so future live role
 outputs can be attached without pretending that unsupported models were used.
 
+Attach real role outputs from those actors:
+
+```bash
+python scripts/run_pr_role_market_demo.py \
+  --role-outputs docs/examples/pr_role_outputs.sample.json
+```
+
+Or generate a template for the current diff:
+
+```bash
+python scripts/run_pr_role_market_demo.py \
+  --write-role-output-template reports/role_market/role_outputs.template.json
+```
+
+The role-output file is the bridge from a real Codex/local-model/human run back
+into LS scoring. Unknown actors are rejected so the report cannot silently claim
+that unsupported models participated.
+
 ## Roadmap
 
 ### Phase 1: Role Schema

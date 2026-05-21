@@ -194,14 +194,172 @@ def _actor_by_role() -> dict[str, dict[str, Any]]:
     return {assignment["role"]: assignment for assignment in _role_actor_assignments()}
 
 
-def _participants_for_artifact(artifact: dict[str, Any]) -> list[CouncilParticipant]:
+def _load_role_outputs(path: Path | None) -> list[dict[str, Any]]:
+    if path is None:
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, list):
+        raw_outputs = payload
+    elif isinstance(payload, dict) and isinstance(payload.get("role_outputs"), list):
+        raw_outputs = payload["role_outputs"]
+    else:
+        raise ValueError("role outputs must be a JSON list or an object with a role_outputs list")
+    return _normalize_role_outputs(raw_outputs)
+
+
+def _normalize_role_outputs(raw_outputs: list[Any]) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    known_roles = set(ROLE_ACTOR_ASSIGNMENTS)
+    known_actors = set(AVAILABLE_ACTORS)
+    for index, item in enumerate(raw_outputs):
+        if not isinstance(item, dict):
+            raise ValueError(f"role output #{index} must be an object")
+        role = str(item.get("role", "")).strip()
+        actor_id = str(item.get("actor_id") or ROLE_ACTOR_ASSIGNMENTS.get(role, {}).get("actor_id", "")).strip()
+        if role not in known_roles:
+            raise ValueError(f"unknown role output role: {role!r}")
+        if actor_id not in known_actors:
+            raise ValueError(f"unknown actor_id for role {role!r}: {actor_id!r}")
+        normalized.append(
+            {
+                "role": role,
+                "actor_id": actor_id,
+                "accepted": bool(item.get("accepted", True)),
+                "confidence": _clamp(float(item.get("confidence", 0.75) or 0.75)),
+                "latency_ms": int(item.get("latency_ms", 0) or 0),
+                "summary": str(item.get("summary", "")).strip(),
+                "output": str(item.get("output", "")).strip(),
+                "evidence": [str(value) for value in item.get("evidence", []) if str(value).strip()],
+                "supported_signal_codes": [
+                    str(value) for value in item.get("supported_signal_codes", []) if str(value).strip()
+                ],
+                "unsupported_claims": [str(value) for value in item.get("unsupported_claims", []) if str(value).strip()],
+            }
+        )
+    return normalized
+
+
+def _role_output_by_role(role_outputs: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {item["role"]: item for item in role_outputs}
+
+
+def _role_output_evaluation(role_outputs: list[dict[str, Any]], artifact: dict[str, Any]) -> list[dict[str, Any]]:
+    signal_codes = {str(signal.get("code")) for signal in artifact.get("signals") or []}
+    actor_map = _actor_by_role()
+    rows: list[dict[str, Any]] = []
+    for output in role_outputs:
+        role = output["role"]
+        matched_signal_codes = sorted(set(output["supported_signal_codes"]) & signal_codes)
+        unsupported_count = len(output["unsupported_claims"])
+        output_chars = len(output["summary"]) + len(output["output"])
+        evidence_count = len(output["evidence"]) + len(output["supported_signal_codes"])
+        signal_coverage = len(matched_signal_codes) / max(1, len(signal_codes))
+        contribution_hint = _clamp(
+            (0.30 if output["accepted"] else 0.0)
+            + (0.25 * output["confidence"])
+            + (0.20 * signal_coverage)
+            + (0.15 * _clamp(evidence_count / 4.0))
+            + (0.10 if output_chars > 0 else 0.0)
+            - (0.12 * unsupported_count)
+        )
+        actor = AVAILABLE_ACTORS[output["actor_id"]]
+        default_actor = actor_map.get(role, {})
+        rows.append(
+            {
+                "role": role,
+                "actor_id": output["actor_id"],
+                "provider": actor["provider"],
+                "model_name": actor["model_name"],
+                "accepted": output["accepted"],
+                "confidence": output["confidence"],
+                "matched_signal_codes": matched_signal_codes,
+                "evidence_count": evidence_count,
+                "unsupported_claim_count": unsupported_count,
+                "output_chars": output_chars,
+                "assignment_matches_default": output["actor_id"] == default_actor.get("actor_id"),
+                "contribution_hint_score": round(contribution_hint, 4),
+            }
+        )
+    return sorted(rows, key=lambda row: row["contribution_hint_score"], reverse=True)
+
+
+def _output_adjusted_participant(
+    participant: CouncilParticipant,
+    role_output: dict[str, Any] | None,
+    artifact: dict[str, Any],
+) -> CouncilParticipant:
+    if role_output is None:
+        return participant
+    signal_codes = {str(signal.get("code")) for signal in artifact.get("signals") or []}
+    matched_signal_count = len(set(role_output["supported_signal_codes"]) & signal_codes)
+    evidence_count = len(role_output["evidence"]) + len(role_output["supported_signal_codes"])
+    unsupported_count = len(role_output["unsupported_claims"])
+
+    selected = participant.selected and role_output["accepted"]
+    confidence = _clamp(role_output["confidence"] + (0.02 * matched_signal_count) - (0.05 * unsupported_count))
+    weight = _clamp(
+        participant.weight_in_final_decision
+        + (0.035 * matched_signal_count)
+        + (0.015 * evidence_count)
+        - (0.06 * unsupported_count)
+    )
+    if not role_output["accepted"]:
+        weight = 0.0
+    latency_ms = role_output["latency_ms"] or participant.latency_ms
+    summary = participant.proposal_summary
+    if role_output["summary"]:
+        summary = f"{summary} Attached output: {role_output['summary'][:140]}"
+
+    return CouncilParticipant(
+        model_id=participant.model_id,
+        model_type=participant.model_type,
+        proposal_id=participant.proposal_id,
+        proposal_summary=summary,
+        route_hint=participant.route_hint,
+        confidence=round(confidence, 4),
+        latency_ms=latency_ms,
+        token_cost=participant.token_cost,
+        selected=selected,
+        weight_in_final_decision=round(weight, 4),
+    )
+
+
+def _build_role_output_template(source_artifact: dict[str, Any]) -> dict[str, Any]:
+    signal_codes = [str(signal.get("code")) for signal in source_artifact.get("signals") or []]
+    return {
+        "schema": "ls.pr_role_outputs.v0.1",
+        "diff_source": source_artifact.get("diff_source"),
+        "allowed_actor_ids": list(AVAILABLE_ACTORS),
+        "role_outputs": [
+            {
+                "role": assignment["role"],
+                "actor_id": assignment["actor_id"],
+                "accepted": True,
+                "confidence": 0.75,
+                "latency_ms": 0,
+                "summary": "",
+                "output": "",
+                "evidence": [],
+                "supported_signal_codes": signal_codes[:1],
+                "unsupported_claims": [],
+            }
+            for assignment in _role_actor_assignments()
+            if assignment["role"] not in {"maintainer_customer", "direct_single_reviewer"}
+        ],
+    }
+
+
+def _participants_for_artifact(
+    artifact: dict[str, Any],
+    role_outputs: list[dict[str, Any]] | None = None,
+) -> list[CouncilParticipant]:
     signals = artifact.get("signals") or []
     has_risk_signals = bool(signals)
     risk_weight = 0.42 if has_risk_signals else 0.2
     verifier_weight = 0.34 if has_risk_signals else 0.26
     route_weight = 0.18 if has_risk_signals else 0.28
 
-    return [
+    participants = [
         CouncilParticipant(
             model_id="maintainer_customer",
             model_type="human",
@@ -280,6 +438,8 @@ def _participants_for_artifact(artifact: dict[str, Any]) -> list[CouncilParticip
             weight_in_final_decision=0.0,
         ),
     ]
+    output_by_role = _role_output_by_role(role_outputs or [])
+    return [_output_adjusted_participant(participant, output_by_role.get(participant.model_id), artifact) for participant in participants]
 
 
 def build_pr_role_market_payload(
@@ -290,6 +450,7 @@ def build_pr_role_market_payload(
     diff_file: Path | None,
     store_path: Path,
     max_diff_chars: int,
+    role_outputs: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     artifact = build_pr_review_artifact(
         repo=repo,
@@ -309,7 +470,8 @@ def build_pr_role_market_payload(
     synergy_quality = round(float(cooperative_quality["overall"]) - float(baseline_quality["overall"]), 4)
     synergy_reward = round(cooperative_reward - baseline_reward, 4)
 
-    participants = _participants_for_artifact(artifact)
+    attached_role_outputs = role_outputs or []
+    participants = _participants_for_artifact(artifact, attached_role_outputs)
     decision = artifact.get("decision", "unknown")
     operator_intervention_required = decision in {"hold_until_diff", "human_review"}
     receiver_resonance = 0.86 if decision != "hold_until_diff" else 0.55
@@ -363,6 +525,7 @@ def build_pr_role_market_payload(
         "artifact_type": "ls.pr_role_market.v0.1",
         "demo": "ls_real_pr_role_market",
         "live_model_calls": False,
+        "attached_role_outputs": bool(attached_role_outputs),
         "model_roster_source": "checked-in LS adapters and config defaults only",
         "available_actor_roster": [
             {"actor_id": actor_id, **actor}
@@ -370,6 +533,8 @@ def build_pr_role_market_payload(
         ],
         "role_actor_assignments": _role_actor_assignments(),
         "source_artifact": _compact_source_artifact(artifact),
+        "role_outputs": attached_role_outputs,
+        "role_output_evaluation": _role_output_evaluation(attached_role_outputs, artifact),
         "baseline": {
             "route": BASELINE_ROUTE,
             "quality": baseline_quality,
@@ -425,6 +590,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "This report scores a cooperative role route over a real PR-style git diff.",
         "",
         f"- Live model calls: `{str(payload.get('live_model_calls', False)).lower()}`",
+        f"- Attached role outputs: `{str(payload.get('attached_role_outputs', False)).lower()}`",
         f"- Model roster source: `{payload.get('model_roster_source', 'unknown')}`",
         "",
         "## Source",
@@ -482,6 +648,26 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "| {model_id} | {actor_id} | {model_name} | {total_contribution_score} | {adoption_score} | "
             "{outcome_lift} | {stability_impact} | {cost_efficiency} |".format(**score)
         )
+    if payload.get("role_output_evaluation"):
+        lines.extend(
+            [
+                "",
+                "## Attached Role Outputs",
+                "",
+                "| Role | Actor | Accepted | Matched signals | Evidence | Unsupported | Hint score |",
+                "| --- | --- | --- | --- | ---: | ---: | ---: |",
+            ]
+        )
+        for row in payload["role_output_evaluation"]:
+            lines.append(
+                "| {role} | {actor_id} | {accepted} | {matched_signal_codes} | {evidence_count} | "
+                "{unsupported_claim_count} | {contribution_hint_score} |".format(
+                    **{
+                        **row,
+                        "matched_signal_codes": ", ".join(row["matched_signal_codes"]) or "none",
+                    }
+                )
+            )
     lines.extend(
         [
             "",
@@ -521,6 +707,8 @@ def main() -> int:
     parser.add_argument("--head", default="HEAD", help="Head revision.")
     parser.add_argument("--diff-file", type=Path, default=None, help="Read a saved diff instead of running git diff.")
     parser.add_argument("--store-path", type=Path, default=None, help="Route stats JSON path.")
+    parser.add_argument("--role-outputs", type=Path, default=None, help="Attach JSON role outputs from existing LS actors.")
+    parser.add_argument("--write-role-output-template", type=Path, default=None, help="Write a JSON template for role outputs.")
     parser.add_argument("--output", type=Path, default=None, help="Write JSON role-market artifact.")
     parser.add_argument("--markdown-output", type=Path, default=None, help="Write Markdown role-market report.")
     parser.add_argument("--max-diff-chars", type=int, default=12000, help="Max diff excerpt used by source artifact.")
@@ -528,6 +716,7 @@ def main() -> int:
     args = parser.parse_args()
 
     repo = args.repo.resolve()
+    role_outputs = _load_role_outputs(args.role_outputs)
     if args.store_path is None:
         with tempfile.TemporaryDirectory(prefix="ls-pr-role-market-") as tmp:
             payload = build_pr_role_market_payload(
@@ -537,6 +726,7 @@ def main() -> int:
                 diff_file=args.diff_file,
                 store_path=Path(tmp) / "routes.json",
                 max_diff_chars=args.max_diff_chars,
+                role_outputs=role_outputs,
             )
     else:
         payload = build_pr_role_market_payload(
@@ -546,8 +736,15 @@ def main() -> int:
             diff_file=args.diff_file,
             store_path=args.store_path,
             max_diff_chars=args.max_diff_chars,
+            role_outputs=role_outputs,
         )
 
+    if args.write_role_output_template:
+        args.write_role_output_template.parent.mkdir(parents=True, exist_ok=True)
+        args.write_role_output_template.write_text(
+            json.dumps(_build_role_output_template(payload["source_artifact"]), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -567,6 +764,7 @@ def main() -> int:
         print(f"Decision: {source['decision']}")
         print(f"Signals: {_signal_codes(source)}")
         print(f"Live model calls: {str(payload['live_model_calls']).lower()}")
+        print(f"Attached role outputs: {str(payload['attached_role_outputs']).lower()}")
         print(f"Baseline route: {payload['baseline']['route']}")
         print(f"Cooperative route: {payload['cooperative']['route']}")
         print(f"Baseline reward: {payload['baseline']['reward']:.4f}")

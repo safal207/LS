@@ -1,0 +1,72 @@
+{
+  "schema": "ls.pr_role_outputs.v0.1",
+  "note": "Sample role outputs using only actors already present in LS.",
+  "role_outputs": [
+    {
+      "role": "route_planner",
+      "actor_id": "codex-self-use",
+      "accepted": true,
+      "confidence": 0.86,
+      "latency_ms": 1400,
+      "summary": "Split the review into draft, risk, evidence, and final-review roles.",
+      "output": "The diff should not be reviewed as one block. Route it through risk critique and evidence verification before final summary.",
+      "evidence": [
+        "selected cooperative PR-review route",
+        "diff contains enough surface area to justify role splitting"
+      ],
+      "supported_signal_codes": [
+        "large_diff"
+      ],
+      "unsupported_claims": []
+    },
+    {
+      "role": "risk_critic",
+      "actor_id": "gonka",
+      "accepted": true,
+      "confidence": 0.92,
+      "latency_ms": 2700,
+      "summary": "Found the concrete risk signal for this review route.",
+      "output": "The diff is large enough that the review should be split into smaller passes and checked with evidence before reuse.",
+      "evidence": [
+        "signal:large_diff",
+        "source artifact decision: review_with_conditions"
+      ],
+      "supported_signal_codes": [
+        "large_diff"
+      ],
+      "unsupported_claims": []
+    },
+    {
+      "role": "evidence_verifier",
+      "actor_id": "local-qwen-light",
+      "accepted": true,
+      "confidence": 0.84,
+      "latency_ms": 1800,
+      "summary": "Kept the finding tied to visible LS artifact signals.",
+      "output": "The accepted finding is supported by the source artifact signal list. No extra external claim is needed.",
+      "evidence": [
+        "source artifact signals"
+      ],
+      "supported_signal_codes": [
+        "large_diff"
+      ],
+      "unsupported_claims": []
+    },
+    {
+      "role": "final_reviewer",
+      "actor_id": "mimo",
+      "accepted": true,
+      "confidence": 0.8,
+      "latency_ms": 1300,
+      "summary": "Condensed the route result into a maintainer-facing decision.",
+      "output": "Continue with conditions: keep the cooperative route, but do not treat it as an automatic approval.",
+      "evidence": [
+        "review_with_conditions decision"
+      ],
+      "supported_signal_codes": [
+        "large_diff"
+      ],
+      "unsupported_claims": []
+    }
+  ]
+}

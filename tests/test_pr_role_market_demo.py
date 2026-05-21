@@ -3,13 +3,22 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from run_pr_role_market_demo import _baseline_quality_from_artifact, _role_actor_assignments, render_markdown  # noqa: E402
+from run_pr_role_market_demo import (  # noqa: E402
+    _baseline_quality_from_artifact,
+    _normalize_role_outputs,
+    _participants_for_artifact,
+    _role_actor_assignments,
+    _role_output_evaluation,
+    render_markdown,
+)
 
 
 def test_baseline_quality_penalizes_unsplit_risky_review():
@@ -114,3 +123,44 @@ def test_role_actor_assignments_use_existing_ls_roster_only():
     assert "codex-self-use" in actor_ids
     assert "claude" not in actor_ids
     assert "kimi" not in actor_ids
+
+
+def test_attached_role_outputs_adjust_participant_weight_from_evidence():
+    artifact = {
+        "signals": [{"code": "large_diff", "severity": "medium", "message": "Diff is large."}],
+    }
+    role_outputs = _normalize_role_outputs(
+        [
+            {
+                "role": "risk_critic",
+                "actor_id": "gonka",
+                "accepted": True,
+                "confidence": 0.92,
+                "summary": "Found the concrete large-diff risk.",
+                "evidence": ["signal:large_diff"],
+                "supported_signal_codes": ["large_diff"],
+            }
+        ]
+    )
+
+    participants = _participants_for_artifact(artifact, role_outputs)
+    risk_critic = next(item for item in participants if item.model_id == "risk_critic")
+    evaluation = _role_output_evaluation(role_outputs, artifact)
+
+    assert risk_critic.weight_in_final_decision > 0.42
+    assert risk_critic.confidence >= 0.92
+    assert evaluation[0]["role"] == "risk_critic"
+    assert evaluation[0]["matched_signal_codes"] == ["large_diff"]
+
+
+def test_role_outputs_reject_unknown_actors():
+    with pytest.raises(ValueError, match="unknown actor_id"):
+        _normalize_role_outputs(
+            [
+                {
+                    "role": "risk_critic",
+                    "actor_id": "claude",
+                    "summary": "not in the LS roster",
+                }
+            ]
+        )

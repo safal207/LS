@@ -109,6 +109,13 @@ python scripts/run_free_pr_review_route.py \
   --markdown-output reports/free_pr_review_route.md
 ```
 
+Attach completed role outputs back into LS scoring:
+
+```bash
+python scripts/run_pr_role_market_demo.py \
+  --role-outputs docs/examples/pr_role_outputs.sample.json
+```
+
 For a branch-style review:
 
 ```bash
@@ -134,4 +141,3 @@ The important product claim stays honest:
 ```text
 LS does not require paid model calls to begin measuring cooperative precision.
 ```
-
