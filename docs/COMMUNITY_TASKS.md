@@ -116,6 +116,7 @@ Acceptance criteria:
 - Add a role schema for customer, consumer, designer, executor, verifier, and operator.
 - Explain which fields are evidence, which are feedback, and which are authorization.
 - Include a PR-review example.
+- Include `python scripts/run_role_market_demo.py` as the executable proof.
 - State clearly that role reputation is contextual and must not become hidden people scoring.
 
 Suggested labels: `docs`, `cooperative-role-market`, `cooperative-precision`

@@ -69,6 +69,7 @@ Current commands:
 ```bash
 python scripts/run_pr_review_trail_demo.py
 python scripts/run_pr_review_trail_artifact.py
+python scripts/run_role_market_demo.py
 ```
 
 ## Phase 0: Local Trail Artifacts

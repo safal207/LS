@@ -59,6 +59,12 @@ Build a free-only PR-review route packet for Codex, local models, or human revie
 python3 scripts/run_free_pr_review_route.py
 ```
 
+Run the Cooperative Role Market demo:
+
+```bash
+python3 scripts/run_role_market_demo.py
+```
+
 ---
 
 ## Personal AI Operating Layer
@@ -559,6 +565,12 @@ python3 scripts/run_pr_review_trail_artifact.py
 
 ```bash
 python3 scripts/run_free_pr_review_route.py
+```
+
+Демо рынка ролей:
+
+```bash
+python3 scripts/run_role_market_demo.py
 ```
 
 LS также поддерживает направление **Personal Cognitive Garden**: полезные

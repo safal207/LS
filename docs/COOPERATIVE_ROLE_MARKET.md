@@ -192,6 +192,35 @@ The market does not need paid execution to begin measuring:
 role -> artifact -> evidence -> contribution score
 ```
 
+## Executable Demo
+
+Run the first role-market measurement demo:
+
+```bash
+python scripts/run_role_market_demo.py
+```
+
+Expected shape:
+
+```text
+Need: Safer pull-request review before merge.
+Best route: pr_review>designer>executor>verifier>final
+Baseline quality: 0.68
+Cooperative quality: 0.92
+Synergy quality lift: +0.24
+Best role contribution: route_designer
+Decision: use cooperative role route next time
+```
+
+This is still synthetic, but it proves that LS can express:
+
+```text
+need -> role route -> contribution score -> best role -> next route choice
+```
+
+The best contribution can be route design, not just execution: LS can credit the
+role that chose the better cooperative process.
+
 ## Roadmap
 
 ### Phase 1: Role Schema
@@ -264,4 +293,3 @@ Rules:
 
 > The network becomes more precise when the right role finds the right task and
 > the contribution is verified.
-
