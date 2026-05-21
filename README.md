@@ -28,6 +28,8 @@ It is also a **personal AI operating layer**: a system that lets any model or ag
 
 LS also supports a **Personal Cognitive Garden** direction: AI sessions should compound into a human-owned, goal-directed graph of goals, skills, decisions, constraints, evidence, reflections, and growth paths. Agents may help cultivate that graph, but the person owns it and governance decides what becomes durable state.
 
+LS also supports a **Cognitive Trail Network** direction: models and agents leave auditable route traces, successful cooperative routes gain weight, and later agents can reuse the best verified paths instead of starting from zero.
+
 ---
 
 ## Personal AI Operating Layer
@@ -70,6 +72,7 @@ See:
 - [`ROADMAP.md`](ROADMAP.md)
 - [`docs/COMMUNITY_TASKS.md`](docs/COMMUNITY_TASKS.md)
 - [`docs/GITHUB_PAGES_SETUP.md`](docs/GITHUB_PAGES_SETUP.md)
+- [`docs/COGNITIVE_TRAIL_NETWORK.md`](docs/COGNITIVE_TRAIL_NETWORK.md)
 - [`docs/PERSONAL_GROWTH_ENTRY.md`](docs/PERSONAL_GROWTH_ENTRY.md)
 - [`docs/LS_PERSONAL_COGNITIVE_GARDEN.md`](docs/LS_PERSONAL_COGNITIVE_GARDEN.md)
 - [`docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md`](docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md)
@@ -167,6 +170,7 @@ The repository already exposes a concrete evidence layer:
 - **Replayable traces** for task and council inspection
 - **Council result artifacts** with structured cycle outputs
 - **Contribution / merit / resonance signals** (`CouncilContributionLedger`, `CEL`)
+- **Cognitive trail route memory** (`TrailUpdater`, route rewards, route pheromone weights)
 - **Quality gates and machine-readable reports** (`LiminalQA`, CI thresholds)
 - **Benchmark snapshots** and interpretation notes under [`benchmark/`](benchmark/)
 - **Council Safety Gate in CI** for risk-aware review enforcement

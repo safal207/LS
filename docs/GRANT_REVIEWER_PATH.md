@@ -48,6 +48,12 @@ Stack-level bridge summary:
 Liminal Stack turns plausible agent continuation into causally legitimate, replayable, reviewable transitions.
 ```
 
+Cognitive Trail Network summary:
+
+```text
+LS gives models a shared map of verified routes: successful cooperative paths gain weight, weak paths decay, and every route can be audited.
+```
+
 ## Core principle
 
 ```text
@@ -109,6 +115,8 @@ Implemented components:
 - Outreach kit: `docs/outreach/AI_COWORK_CONTINUITY_OUTREACH_KIT.md`
 - Ecosystem map: `docs/ECOSYSTEM_INTEGRATION_MAP.md`
 - Grant narrative layer: `docs/GRANT_NARRATIVE_LAYER.md`
+- Cognitive Trail Network: `docs/COGNITIVE_TRAIL_NETWORK.md`
+- Cognitive trail demo runner: `scripts/run_cognitive_trail_demo.py`
 
 ## Reviewer quickstart
 
@@ -155,6 +163,21 @@ Expected result:
 Session continuity: ruptured
 Rupture type: missing_pr_context
 Decision: hold_until_context
+```
+
+## Cognitive Trail Network quickstart
+
+Run the route-memory demo:
+
+```bash
+python scripts/run_cognitive_trail_demo.py
+```
+
+Expected result:
+
+```text
+Best route: code_review>draft>critic>verifier
+Decision: prefer_for_next_similar_task
 ```
 
 ## Personal Cognitive Garden evidence quickstart
