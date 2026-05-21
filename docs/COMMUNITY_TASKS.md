@@ -119,6 +119,7 @@ Acceptance criteria:
 - Include `python scripts/run_role_market_demo.py` as the executable proof.
 - Include `python scripts/run_pr_role_market_demo.py` as the real-diff proof.
 - Include `python scripts/run_pr_role_market_demo.py --role-outputs docs/examples/pr_role_outputs.sample.json` as the attached-output proof.
+- Include `python scripts/run_pr_role_market_batch.py --last 10` as the history benchmark proof.
 - Show the actor/model roster using only existing LS actors: `codex-self-use`, `local-qwen`, `local-qwen-light`, `gonka`, `mimo`, and `human_operator`.
 - State clearly that role reputation is contextual and must not become hidden people scoring.
 

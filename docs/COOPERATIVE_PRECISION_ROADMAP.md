@@ -71,6 +71,7 @@ python scripts/run_pr_review_trail_demo.py
 python scripts/run_pr_review_trail_artifact.py
 python scripts/run_role_market_demo.py
 python scripts/run_pr_role_market_demo.py
+python scripts/run_pr_role_market_batch.py --last 10
 ```
 
 ## Phase 0: Local Trail Artifacts

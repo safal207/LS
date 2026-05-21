@@ -116,6 +116,14 @@ python scripts/run_pr_role_market_demo.py \
   --role-outputs docs/examples/pr_role_outputs.sample.json
 ```
 
+Run the same scoring across recent history:
+
+```bash
+python scripts/run_pr_role_market_batch.py \
+  --last 10 \
+  --role-outputs docs/examples/pr_role_outputs.sample.json
+```
+
 For a branch-style review:
 
 ```bash

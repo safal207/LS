@@ -278,6 +278,21 @@ The role-output file is the bridge from a real Codex/local-model/human run back
 into LS scoring. Unknown actors are rejected so the report cannot silently claim
 that unsupported models participated.
 
+Run a small batch benchmark over recent history:
+
+```bash
+python scripts/run_pr_role_market_batch.py \
+  --last 10 \
+  --role-outputs docs/examples/pr_role_outputs.sample.json \
+  --markdown-output reports/role_market/pr_role_market_history.md
+```
+
+This turns the single-diff proof into a table of repeated measurements:
+
+```text
+commit -> signals -> baseline reward -> cooperative reward -> lift -> best role -> best actor
+```
+
 ## Roadmap
 
 ### Phase 1: Role Schema

@@ -70,6 +70,7 @@ Score cooperative roles over a real PR-style git diff:
 ```bash
 python3 scripts/run_pr_role_market_demo.py
 python3 scripts/run_pr_role_market_demo.py --role-outputs docs/examples/pr_role_outputs.sample.json
+python3 scripts/run_pr_role_market_batch.py --last 10
 ```
 
 ---
@@ -585,6 +586,7 @@ python3 scripts/run_role_market_demo.py
 ```bash
 python3 scripts/run_pr_role_market_demo.py
 python3 scripts/run_pr_role_market_demo.py --role-outputs docs/examples/pr_role_outputs.sample.json
+python3 scripts/run_pr_role_market_batch.py --last 10
 ```
 
 LS также поддерживает направление **Personal Cognitive Garden**: полезные
