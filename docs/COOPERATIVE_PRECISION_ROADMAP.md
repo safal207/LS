@@ -6,6 +6,7 @@ Canonical project positioning:
 
 - [Project Positioning](PROJECT_POSITIONING.md)
 - [Cooperative Role Market](COOPERATIVE_ROLE_MARKET.md)
+- [PR Role Market Benchmark](PR_ROLE_MARKET_BENCHMARK.md)
 
 The thesis is deliberately narrow:
 

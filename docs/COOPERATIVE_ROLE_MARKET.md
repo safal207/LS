@@ -293,6 +293,10 @@ This turns the single-diff proof into a table of repeated measurements:
 commit -> signals -> baseline reward -> cooperative reward -> lift -> best role -> best actor
 ```
 
+See the short benchmark note:
+
+- [PR Role Market Benchmark](PR_ROLE_MARKET_BENCHMARK.md)
+
 ## Roadmap
 
 ### Phase 1: Role Schema

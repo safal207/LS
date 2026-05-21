@@ -19,7 +19,7 @@
 Live site: [GitHub Pages](https://safal207.github.io/LS/)
 Community: [Roadmap](ROADMAP.md) · [Task board](docs/COMMUNITY_TASKS.md) · [Contributing](CONTRIBUTING.md)
 Reviewer ecosystem: [Ecosystem Reviewer Index](docs/ECOSYSTEM_REVIEWER_INDEX.md)
-Cooperative precision: [Roadmap](docs/COOPERATIVE_PRECISION_ROADMAP.md) · [Cognitive Trail Network](docs/COGNITIVE_TRAIL_NETWORK.md)
+Cooperative precision: [Roadmap](docs/COOPERATIVE_PRECISION_ROADMAP.md) · [Cognitive Trail Network](docs/COGNITIVE_TRAIL_NETWORK.md) · [PR Role Market Benchmark](docs/PR_ROLE_MARKET_BENCHMARK.md)
 Positioning: [Project Positioning](docs/PROJECT_POSITIONING.md)
 
 **LS is a local-first cooperative precision layer for human-plus-model work.**
