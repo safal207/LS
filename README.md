@@ -27,6 +27,15 @@ It does not make models magically smarter. It makes repeated cooperation more
 precise by checking continuity, evidence, consent, routes, and contributions
 before outputs become actions, memory, or reputation.
 
+## First 10 seconds
+
+LS is for people who use AI heavily and do not want useful sessions to vanish
+inside chat history.
+
+It turns an AI session into a reviewed update: a goal, skill, decision,
+evidence item, or growth path. Nothing becomes durable personal memory until a
+human accepts it.
+
 The core loop:
 
 ```text
@@ -552,6 +561,15 @@ pytest python/tests/test_memory_store_locking.py
 Он не делает модели магически “умнее”. Он делает повторяющуюся совместную работу
 точнее: проверяет контекст, доказательства, согласие, маршрут и вклад участников
 до того, как ответ станет действием, памятью или репутацией.
+
+## Первые 10 секунд
+
+LS нужен человеку, который много работает с ИИ и не хочет, чтобы полезные
+сессии исчезали в истории чата.
+
+LS превращает сессию с ИИ в проверенное обновление: цель, навык, решение,
+доказательство или направление роста. Ничего не становится личной памятью,
+пока человек сам это не примет.
 
 Короткая формула:
 

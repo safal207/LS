@@ -3,14 +3,19 @@
     "switch": "RU"
   },
   "hero": {
-    "eyebrow": "Grant-ready research prototype | Personal Cognitive Garden",
-    "title": "LS turns AI sessions into governed, human-owned skill capital.",
-    "subtitle": "A local-first research prototype for measuring whether AI-assisted sessions develop human capability — with evidence, review, and anti-surveillance boundaries.",
-    "cta": "Open the grant reviewer path",
+    "eyebrow": "Personal Cognitive Garden",
+    "title": "LS turns AI work into reviewed goals, skills, decisions, and evidence you own.",
+    "subtitle": "Use an AI session, check what it actually changed, accept only the updates you trust, and keep a private growth trail instead of another forgotten chat.",
+    "cta": "See how it works",
+    "flow": [
+      "AI session",
+      "human review",
+      "private growth trail"
+    ],
     "proof": [
-      "one-command evidence bundle",
-      "10-scenario red-team suite",
-      "privacy + pilot protocol"
+      "review before saving",
+      "evidence for every update",
+      "private by default"
     ]
   },
   "grant": {
