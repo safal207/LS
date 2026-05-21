@@ -180,6 +180,19 @@ Best route: code_review>draft>critic>verifier
 Decision: prefer_for_next_similar_task
 ```
 
+Run the applied PR-review route demo:
+
+```bash
+python scripts/run_pr_review_trail_demo.py
+```
+
+Expected result:
+
+```text
+Selected route: pr_review>local>gonka>mimo
+Reason: goal-vector-cooperative
+```
+
 ## Personal Cognitive Garden evidence quickstart
 
 Run the PCG artifact flow:

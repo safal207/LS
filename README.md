@@ -30,6 +30,12 @@ LS also supports a **Personal Cognitive Garden** direction: AI sessions should c
 
 LS also supports a **Cognitive Trail Network** direction: models and agents leave auditable route traces, successful cooperative routes gain weight, and later agents can reuse the best verified paths instead of starting from zero.
 
+Run the PR-review trail demo:
+
+```bash
+python3 scripts/run_pr_review_trail_demo.py
+```
+
 ---
 
 ## Personal AI Operating Layer

@@ -138,3 +138,32 @@ auditable outcomes.
 
 The network starts local-first, then grows by accepting route artifacts from
 more models, agents, and repositories.
+
+## PR Review Trail Demo
+
+The first applied demo uses GitHub pull-request review as the concrete route
+memory use case:
+
+```bash
+python scripts/run_pr_review_trail_demo.py
+```
+
+The demo seeds a local route map with prior review outcomes, then asks LS which
+route should handle the next similar PR review.
+
+Expected result:
+
+```text
+Selected route: pr_review>local>gonka>mimo
+Reason: goal-vector-cooperative
+```
+
+This is the practical product wedge:
+
+```text
+PR diff + CI evidence
+-> learned review route
+-> draft / critic / verifier
+-> route reward
+-> better default path next time
+```
