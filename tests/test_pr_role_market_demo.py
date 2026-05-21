@@ -9,7 +9,7 @@ SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from run_pr_role_market_demo import _baseline_quality_from_artifact, render_markdown  # noqa: E402
+from run_pr_role_market_demo import _baseline_quality_from_artifact, _role_actor_assignments, render_markdown  # noqa: E402
 
 
 def test_baseline_quality_penalizes_unsplit_risky_review():
@@ -57,9 +57,37 @@ def test_markdown_report_keeps_role_score_contextual():
             "score": 0.8915,
             "reason": "found the concrete review risks in the real diff",
         },
+        "best_actor_contributor": {
+            "role": "risk_critic",
+            "actor_id": "gonka",
+            "provider": "gonka",
+            "model_name": "qwen/qwen3-235b-a22b-instruct-2507-fp8",
+            "execution_mode": "configured_backend_requires_key",
+            "score": 0.8915,
+        },
+        "live_model_calls": False,
+        "model_roster_source": "checked-in LS adapters and config defaults only",
+        "available_actor_roster": [
+            {
+                "actor_id": "gonka",
+                "provider": "gonka",
+                "model_name": "qwen/qwen3-235b-a22b-instruct-2507-fp8",
+                "execution_mode": "configured_backend_requires_key",
+            }
+        ],
+        "role_actor_assignments": [
+            {
+                "role": "risk_critic",
+                "actor_id": "gonka",
+                "model_name": "qwen/qwen3-235b-a22b-instruct-2507-fp8",
+                "assignment_reason": "uses the configured critic-style backend already present in LS",
+            }
+        ],
         "role_scores": [
             {
                 "model_id": "risk_critic",
+                "actor_id": "gonka",
+                "model_name": "qwen/qwen3-235b-a22b-instruct-2507-fp8",
                 "total_contribution_score": 0.8915,
                 "adoption_score": 0.884,
                 "outcome_lift": 0.7195,
@@ -72,4 +100,17 @@ def test_markdown_report_keeps_role_score_contextual():
     markdown = render_markdown(payload)
 
     assert "risk_critic" in markdown
+    assert "gonka" in markdown
     assert "not a hidden global rank of people" in markdown
+
+
+def test_role_actor_assignments_use_existing_ls_roster_only():
+    assignments = _role_actor_assignments()
+    actor_ids = {item["actor_id"] for item in assignments}
+
+    assert "gonka" in actor_ids
+    assert "mimo" in actor_ids
+    assert "local-qwen" in actor_ids
+    assert "codex-self-use" in actor_ids
+    assert "claude" not in actor_ids
+    assert "kimi" not in actor_ids

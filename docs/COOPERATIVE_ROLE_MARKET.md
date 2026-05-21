@@ -234,14 +234,31 @@ Example shape:
 ```text
 Diff source: HEAD~1..HEAD
 Signals: missing_tests, large_diff
+Live model calls: false
 Baseline reward: 0.5167
 Cooperative reward: 0.6639
 Best role contribution: risk_critic
+Best actor/model: gonka / qwen/qwen3-235b-a22b-instruct-2507-fp8
 ```
 
 This connects the role market to the existing PR-review trail artifact. The
 numbers are diff-dependent: LS is scoring the route and roles for this concrete
 review, not assigning a permanent global rank to people or models.
+
+The demo only names actors already present in LS:
+
+```text
+codex-self-use
+local-qwen / qwen2.5:7b
+local-qwen-light / qwen2.5:1.5b
+gonka / qwen/qwen3-235b-a22b-instruct-2507-fp8
+mimo / mimo-v2-flash
+human_operator
+```
+
+`live_model_calls: false` means the current script scores a real PR-review
+artifact deterministically. The actor roster is explicit so future live role
+outputs can be attached without pretending that unsupported models were used.
 
 ## Roadmap
 

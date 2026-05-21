@@ -118,6 +118,7 @@ Acceptance criteria:
 - Include a PR-review example.
 - Include `python scripts/run_role_market_demo.py` as the executable proof.
 - Include `python scripts/run_pr_role_market_demo.py` as the real-diff proof.
+- Show the actor/model roster using only existing LS actors: `codex-self-use`, `local-qwen`, `local-qwen-light`, `gonka`, `mimo`, and `human_operator`.
 - State clearly that role reputation is contextual and must not become hidden people scoring.
 
 Suggested labels: `docs`, `cooperative-role-market`, `cooperative-precision`

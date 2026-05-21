@@ -31,6 +31,82 @@ from run_pr_review_trail_artifact import build_pr_review_artifact  # noqa: E402
 COOPERATIVE_ROUTE = "pr_review>draft_reviewer>risk_critic>evidence_verifier>final_reviewer"
 BASELINE_ROUTE = "pr_review>direct_single_reviewer"
 
+AVAILABLE_ACTORS = {
+    "codex-self-use": {
+        "actor_type": "agent",
+        "provider": "codex",
+        "model_name": "codex-self-use",
+        "execution_mode": "codex_adapter",
+        "source": "scripts/codex_self_use_adapter_demo.py",
+    },
+    "local-qwen": {
+        "actor_type": "local_model",
+        "provider": "ollama",
+        "model_name": "qwen2.5:7b",
+        "execution_mode": "local_ollama",
+        "source": "python/modules/config.py",
+    },
+    "local-qwen-light": {
+        "actor_type": "local_model",
+        "provider": "ollama",
+        "model_name": "qwen2.5:1.5b",
+        "execution_mode": "local_ollama_fallback",
+        "source": "python/modules/config.py",
+    },
+    "gonka": {
+        "actor_type": "configured_backend",
+        "provider": "gonka",
+        "model_name": "qwen/qwen3-235b-a22b-instruct-2507-fp8",
+        "execution_mode": "configured_backend_requires_key",
+        "source": "python/modules/config.py",
+    },
+    "mimo": {
+        "actor_type": "configured_backend",
+        "provider": "mimo",
+        "model_name": "mimo-v2-flash",
+        "execution_mode": "configured_backend_requires_key",
+        "source": "python/modules/config.py",
+    },
+    "human_operator": {
+        "actor_type": "human",
+        "provider": "human",
+        "model_name": "operator",
+        "execution_mode": "human_review",
+        "source": "CouncilContributionLedger",
+    },
+}
+
+ROLE_ACTOR_ASSIGNMENTS = {
+    "maintainer_customer": {
+        "actor_id": "human_operator",
+        "reason": "sets the need, constraints, and acceptance boundary",
+    },
+    "route_planner": {
+        "actor_id": "codex-self-use",
+        "reason": "plans the LS role route inside the current Codex workflow",
+    },
+    "draft_reviewer": {
+        "actor_id": "local-qwen",
+        "reason": "uses the local Qwen path already present in LS",
+    },
+    "risk_critic": {
+        "actor_id": "gonka",
+        "reason": "uses the configured critic-style backend already present in LS",
+    },
+    "evidence_verifier": {
+        "actor_id": "local-qwen-light",
+        "reason": "uses the lightweight local Qwen fallback for grounded checks",
+    },
+    "final_reviewer": {
+        "actor_id": "mimo",
+        "reason": "uses the configured compressor/finalizer backend already present in LS",
+    },
+    "direct_single_reviewer": {
+        "actor_id": "local-qwen",
+        "reason": "baseline single-pass local review",
+    },
+}
+
 
 def _clamp(value: float, *, low: float = 0.0, high: float = 1.0) -> float:
     return max(low, min(high, value))
@@ -97,6 +173,25 @@ def _role_reason(role: str, signals: list[dict[str, Any]]) -> str:
     if role == "maintainer_customer":
         return "provided the need and acceptance boundary"
     return "highest verified role contribution score"
+
+
+def _actor_for_role(role: str) -> dict[str, Any]:
+    assignment = ROLE_ACTOR_ASSIGNMENTS.get(role, {"actor_id": "human_operator", "reason": "manual fallback"})
+    actor = AVAILABLE_ACTORS[assignment["actor_id"]]
+    return {
+        "role": role,
+        "actor_id": assignment["actor_id"],
+        "assignment_reason": assignment["reason"],
+        **actor,
+    }
+
+
+def _role_actor_assignments() -> list[dict[str, Any]]:
+    return [_actor_for_role(role) for role in ROLE_ACTOR_ASSIGNMENTS]
+
+
+def _actor_by_role() -> dict[str, dict[str, Any]]:
+    return {assignment["role"]: assignment for assignment in _role_actor_assignments()}
 
 
 def _participants_for_artifact(artifact: dict[str, Any]) -> list[CouncilParticipant]:
@@ -261,10 +356,19 @@ def build_pr_role_market_payload(
         reverse=True,
     )
     best = breakdown[0]
+    actor_map = _actor_by_role()
+    best_actor = actor_map.get(best.model_id, _actor_for_role("maintainer_customer"))
 
     return {
         "artifact_type": "ls.pr_role_market.v0.1",
         "demo": "ls_real_pr_role_market",
+        "live_model_calls": False,
+        "model_roster_source": "checked-in LS adapters and config defaults only",
+        "available_actor_roster": [
+            {"actor_id": actor_id, **actor}
+            for actor_id, actor in AVAILABLE_ACTORS.items()
+        ],
+        "role_actor_assignments": _role_actor_assignments(),
         "source_artifact": _compact_source_artifact(artifact),
         "baseline": {
             "route": BASELINE_ROUTE,
@@ -288,7 +392,24 @@ def build_pr_role_market_payload(
             "score": best.total_contribution_score,
             "reason": _role_reason(best.model_id, artifact.get("signals") or []),
         },
-        "role_scores": [item.__dict__ for item in breakdown],
+        "best_actor_contributor": {
+            "role": best.model_id,
+            "actor_id": best_actor["actor_id"],
+            "provider": best_actor["provider"],
+            "model_name": best_actor["model_name"],
+            "execution_mode": best_actor["execution_mode"],
+            "score": best.total_contribution_score,
+            "note": "Actor assignment is from the current LS roster; this demo does not live-call models.",
+        },
+        "role_scores": [
+            {
+                **item.__dict__,
+                "actor_id": actor_map.get(item.model_id, {}).get("actor_id", "unknown"),
+                "provider": actor_map.get(item.model_id, {}).get("provider", "unknown"),
+                "model_name": actor_map.get(item.model_id, {}).get("model_name", "unknown"),
+            }
+            for item in breakdown
+        ],
         "ledger": ledger.to_dict(),
         "next_step": "attach real role outputs from Codex, local models, or humans and compare contribution scores over many PRs",
     }
@@ -297,10 +418,14 @@ def build_pr_role_market_payload(
 def render_markdown(payload: dict[str, Any]) -> str:
     source = payload["source_artifact"]
     best = payload["best_role_contributor"]
+    best_actor = payload.get("best_actor_contributor") or {}
     lines = [
         "# LS PR Role Market Report",
         "",
         "This report scores a cooperative role route over a real PR-style git diff.",
+        "",
+        f"- Live model calls: `{str(payload.get('live_model_calls', False)).lower()}`",
+        f"- Model roster source: `{payload.get('model_roster_source', 'unknown')}`",
         "",
         "## Source",
         "",
@@ -318,19 +443,52 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"- Quality lift: `+{payload['synergy']['quality_lift']}`",
         f"- Reward lift: `+{payload['synergy']['reward_lift']}`",
         f"- Best role contribution: `{best['role']}` score `{best['score']}`",
+        f"- Best actor/model: `{best_actor.get('actor_id', 'unknown')}` / `{best_actor.get('model_name', 'unknown')}`",
         f"- Reason: {best['reason']}",
         "",
-        "## Role Scores",
+        "## Actor Roster",
         "",
-        "| Role | Score | Adoption | Outcome lift | Stability | Cost efficiency |",
-        "| --- | ---: | ---: | ---: | ---: | ---: |",
+        "| Actor | Provider | Model | Mode |",
+        "| --- | --- | --- | --- |",
     ]
+    for actor in payload.get("available_actor_roster") or []:
+        lines.append(
+            f"| {actor['actor_id']} | {actor['provider']} | {actor['model_name']} | {actor['execution_mode']} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Role Assignments",
+            "",
+            "| Role | Actor | Model | Reason |",
+            "| --- | --- | --- | --- |",
+        ]
+    )
+    for assignment in payload.get("role_actor_assignments") or []:
+        lines.append(
+            "| {role} | {actor_id} | {model_name} | {assignment_reason} |".format(**assignment)
+        )
+    lines.extend(
+        [
+            "",
+            "## Role Scores",
+            "",
+            "| Role | Actor | Model | Score | Adoption | Outcome lift | Stability | Cost efficiency |",
+            "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
     for score in payload["role_scores"]:
         lines.append(
-            "| {model_id} | {total_contribution_score} | {adoption_score} | {outcome_lift} | "
-            "{stability_impact} | {cost_efficiency} |".format(**score)
+            "| {model_id} | {actor_id} | {model_name} | {total_contribution_score} | {adoption_score} | "
+            "{outcome_lift} | {stability_impact} | {cost_efficiency} |".format(**score)
         )
-    lines.extend(["", "## Signals", ""])
+    lines.extend(
+        [
+            "",
+            "## Signals",
+            "",
+        ]
+    )
     for signal in source.get("signals") or []:
         lines.append(f"- `{signal['severity']}` `{signal['code']}`: {signal['message']}")
     if not source.get("signals"):
@@ -342,6 +500,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "",
             "The score is contextual: it credits the role that improved this review route, not a hidden global rank of people.",
             "Over many PRs, LS can learn which cooperative routes make the network more precise.",
+            "Model identity is limited to actors already present in this LS repository/config.",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -401,17 +560,23 @@ def main() -> int:
     else:
         source = payload["source_artifact"]
         best = payload["best_role_contributor"]
+        best_actor = payload["best_actor_contributor"]
         print("LS PR Role Market demo")
         print(f"Diff source: {source['diff_source']}")
         print(f"Files changed: {len(source.get('files') or [])}")
         print(f"Decision: {source['decision']}")
         print(f"Signals: {_signal_codes(source)}")
+        print(f"Live model calls: {str(payload['live_model_calls']).lower()}")
         print(f"Baseline route: {payload['baseline']['route']}")
         print(f"Cooperative route: {payload['cooperative']['route']}")
         print(f"Baseline reward: {payload['baseline']['reward']:.4f}")
         print(f"Cooperative reward: {payload['cooperative']['reward']:.4f}")
         print(f"Synergy quality lift: +{payload['synergy']['quality_lift']:.4f}")
         print(f"Best role contribution: {best['role']} score={best['score']:.4f}")
+        print(
+            "Best actor/model: "
+            f"{best_actor['actor_id']} provider={best_actor['provider']} model={best_actor['model_name']}"
+        )
         print(f"Reason: {best['reason']}")
     return 0
 
