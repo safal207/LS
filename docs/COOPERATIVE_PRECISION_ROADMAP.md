@@ -5,6 +5,7 @@ LS is growing a cooperative precision layer for AI co-work.
 Canonical project positioning:
 
 - [Project Positioning](PROJECT_POSITIONING.md)
+- [Cooperative Role Market](COOPERATIVE_ROLE_MARKET.md)
 
 The thesis is deliberately narrow:
 
@@ -38,6 +39,7 @@ process that produced the answer:
 - Which contribution had evidence?
 - Which route reduced uncertainty?
 - Which route should be reused next time?
+- Which role should be matched to the next similar task?
 
 This creates a thin but useful benchmark for cooperative AI work:
 
@@ -184,7 +186,31 @@ Definition of done:
 pull request -> LS artifact -> reviewer sees route, signals, and contribution trace
 ```
 
-## Phase 4: Open Cooperative Network
+## Phase 4: Cooperative Role Market
+
+Goal: match the right role to the right work.
+
+Role chain:
+
+```text
+customer -> consumer -> designer -> executor -> verifier -> operator
+```
+
+Contributor tasks:
+
+- Add role fields to PR review artifacts.
+- Add a role-output schema for draft reviewer, critic, verifier, and final reviewer.
+- Score verified value by role.
+- Track best role-specific contributors without turning it into general identity scoring.
+- Add examples where the designer improves the route even if another actor executes it.
+
+Definition of done:
+
+```text
+LS can explain which role contributed value and which role should be matched next time
+```
+
+## Phase 5: Open Cooperative Network
 
 Goal: let external agents submit route outcomes without giving them authority.
 

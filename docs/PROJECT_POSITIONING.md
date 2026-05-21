@@ -118,7 +118,23 @@ LS should measure who contributed verified value inside a route:
 - who produced unsupported claims;
 - whose contribution helped the final decision.
 
-### 4. Personal Cognitive Garden
+### 4. Cooperative Role Market
+
+Repeated work is not only a model-selection problem. It is a role-matching
+problem:
+
+```text
+customer -> consumer -> designer -> executor -> verifier -> operator
+```
+
+LS should learn which role arrangement produces verified value, not only which
+single model answered best.
+
+See:
+
+- `docs/COOPERATIVE_ROLE_MARKET.md`
+
+### 5. Personal Cognitive Garden
 
 Useful AI sessions can become human-owned development memory: goals, skills,
 decisions, constraints, evidence, reflections, and growth paths. This must stay
@@ -134,6 +150,7 @@ multi-agent orchestration
 + agent gateway
 + route memory
 + contribution ledger
++ cooperative role market
 + local-first personal AI layer
 ```
 
@@ -198,4 +215,3 @@ LS не делает модели “умнее” магически. Он де
 
 Первый прикладной вход — PR-review: реальный git diff превращается в проверяемый
 артефакт с маршрутом, сигналами риска, вкладом и route reward.
-

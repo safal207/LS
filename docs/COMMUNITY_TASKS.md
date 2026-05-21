@@ -17,6 +17,7 @@ Useful entry points:
 - [Grant reviewer path](../GRANT.md)
 - [Personal Cognitive Garden thesis](LS_PERSONAL_COGNITIVE_GARDEN.md)
 - [Cooperative Precision Roadmap](COOPERATIVE_PRECISION_ROADMAP.md)
+- [Cooperative Role Market](COOPERATIVE_ROLE_MARKET.md)
 - [Cognitive Trail Network](COGNITIVE_TRAIL_NETWORK.md)
 - [Local demo runner](PERSONAL_COGNITIVE_GARDEN_RUNNER.md)
 - [Red-team safety scenario](PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md)
@@ -106,6 +107,30 @@ Acceptance criteria:
 - Documentation explains that this is role-specific contribution scoring, not a general model ranking.
 
 Suggested labels: `engineering`, `contribution-ledger`, `cooperative-precision`, `benchmark`
+
+### Role market: define customer, consumer, designer, executor, verifier
+
+Goal: turn cooperative precision into a role-matching model contributors can understand.
+
+Acceptance criteria:
+- Add a role schema for customer, consumer, designer, executor, verifier, and operator.
+- Explain which fields are evidence, which are feedback, and which are authorization.
+- Include a PR-review example.
+- State clearly that role reputation is contextual and must not become hidden people scoring.
+
+Suggested labels: `docs`, `cooperative-role-market`, `cooperative-precision`
+
+### Role market: score designer vs executor contribution
+
+Goal: measure the value of route design separately from task execution.
+
+Acceptance criteria:
+- A route designer can receive credit when a better route improves the final result.
+- An executor can receive credit for completing the artifact.
+- A verifier can receive credit for catching unsupported claims.
+- The report shows role-specific scores and why they were assigned.
+
+Suggested labels: `engineering`, `contribution-ledger`, `cooperative-role-market`
 
 ### Benchmark: compare single-reviewer and cooperative routes
 

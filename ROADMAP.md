@@ -21,6 +21,7 @@ See:
 
 - [Project Positioning](docs/PROJECT_POSITIONING.md)
 - [Cooperative Precision Roadmap](docs/COOPERATIVE_PRECISION_ROADMAP.md)
+- [Cooperative Role Market](docs/COOPERATIVE_ROLE_MARKET.md)
 
 The Personal Cognitive Garden remains a local-first, human-owned development graph where AI sessions can become reviewed goals, skills, decisions, evidence, reflections, and growth paths.
 
@@ -61,6 +62,7 @@ Live landing page: https://safal207.github.io/LS/
 - Improve local setup docs for contributors who only want to run the landing page or the PCG demo.
 - Add screenshots and expected outcomes to issues that are ready for design help.
 - Add contribution scoring to PR-review trail artifacts.
+- Add role-market schema: customer, consumer, designer, executor, verifier, operator.
 - Add fixtures and tests for cooperative precision signals.
 - Add a Markdown benchmark report comparing single-reviewer and cooperative-review routes.
 
@@ -73,6 +75,7 @@ Live landing page: https://safal207.github.io/LS/
 - Add consented export formats for portfolios, coaching, and aggregate-safe team views.
 - Add GitHub Actions examples that publish LS review artifacts as CI outputs.
 - Let external agents submit route artifacts through validation, trust boundaries, and decay.
+- Match roles to tasks without turning role reputation into hidden people scoring.
 
 ## Community Tasks
 
@@ -84,5 +87,6 @@ Good first areas:
 - Tests: add focused checks for landing build, runtime fallback, gateway contracts, and PCG runner output.
 - Examples: create realistic before/after agent-output and PCG update cases.
 - Cooperative precision: improve PR-review trail signals, contribution scoring, and benchmark reports.
+- Role market: define how demand, design, execution, verification, and adoption become measurable artifacts.
 
 If you want to help, start with an issue labeled `good first issue`, `landing`, `docs`, or `demo`.
