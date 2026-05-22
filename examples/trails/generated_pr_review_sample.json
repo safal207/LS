@@ -1,0 +1,112 @@
+{
+  "schema_version": "cognitive_trail_run.v0.1",
+  "task_id": "generated-pr-review-sample-001",
+  "task_type": "pr_review",
+  "status": "local_research_mvp",
+  "input_ref": {
+    "kind": "git_diff",
+    "description": "Canonical generated sample derived from the LS PR Role Market batch shape over a small PR-review benchmark window.",
+    "repo": "safal207/LS",
+    "commit": "HEAD",
+    "path": "examples/trails/generated_pr_review_sample.json"
+  },
+  "route": [
+    {
+      "step": 1,
+      "role": "baseline_reviewer",
+      "actor": "codex-self-use",
+      "model": "codex-self-use",
+      "responsibility": "Provide direct single-pass baseline review signal."
+    },
+    {
+      "step": 2,
+      "role": "draft_reviewer",
+      "actor": "local-qwen",
+      "model": "qwen2.5:7b",
+      "responsibility": "Create the first cooperative draft review pass."
+    },
+    {
+      "step": 3,
+      "role": "risk_critic",
+      "actor": "gonka",
+      "model": "qwen/qwen3-235b-a22b-instruct-2507-fp8",
+      "responsibility": "Identify merge risks, weak evidence, and unsafe assumptions."
+    },
+    {
+      "step": 4,
+      "role": "evidence_verifier",
+      "actor": "local-qwen-light",
+      "model": "qwen2.5:1.5b",
+      "responsibility": "Check that review claims are grounded in available evidence."
+    },
+    {
+      "step": 5,
+      "role": "final_reviewer",
+      "actor": "mimo",
+      "model": "mimo-v2-flash",
+      "responsibility": "Produce the final human-facing review decision."
+    },
+    {
+      "step": 6,
+      "role": "final_authority",
+      "actor": "human_operator",
+      "model": "operator",
+      "responsibility": "Accept, reject, or edit the route result before reuse."
+    }
+  ],
+  "evidence": [
+    {
+      "kind": "diff_signal",
+      "description": "PR Role Market batch analyzed 3 run(s) from git history with 0 error(s).",
+      "strength": "medium",
+      "source": "scripts/run_pr_role_market_batch.py"
+    },
+    {
+      "kind": "risk_found",
+      "description": "The top contributing role was risk_critic; assigned top actor was gonka.",
+      "strength": "medium",
+      "source": "PR Role Market batch summary",
+      "role": "risk_critic",
+      "actor": "gonka"
+    },
+    {
+      "kind": "diff_signal",
+      "description": "Positive reward lift was observed in 3/3 analyzed run(s).",
+      "strength": "strong",
+      "source": "PR Role Market batch summary"
+    },
+    {
+      "kind": "human_decision",
+      "description": "The generated trail run remains a local research artifact and does not claim a global model ranking.",
+      "strength": "strong",
+      "source": "docs/COGNITIVE_TRAIL_RUN_CONTRACT.md",
+      "actor": "human_operator"
+    }
+  ],
+  "result": {
+    "baseline_reward": 0.5943,
+    "cooperative_reward": 0.7233,
+    "lift": 0.129,
+    "positive_lift": true,
+    "top_role": "risk_critic",
+    "top_actor": "gonka",
+    "route_key": "pr_review>draft_reviewer>risk_critic>evidence_verifier>final_reviewer",
+    "decision": "repeat_with_more_diffs"
+  },
+  "contribution_summary": {
+    "top_role": "risk_critic",
+    "top_actor": "gonka",
+    "positive_contributors": [
+      "gonka",
+      "human_operator"
+    ],
+    "noisy_actors": [],
+    "notes": "Canonical checked-in generated sample. This demonstrates the generated artifact shape while keeping local runtime reports ignored under reports/trails/*.json."
+  },
+  "repeatability": {
+    "should_repeat_route": true,
+    "needs_more_runs": true,
+    "reason": "The cooperative route produced positive lift +0.1290, but the sample is still small.",
+    "next_route_hint": "Run more PR diffs with real role outputs, CI/test signals, and human review outcomes."
+  }
+}
