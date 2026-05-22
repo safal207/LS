@@ -5,6 +5,7 @@ import GrantReviewer from '../components/GrantReviewer';
 import Hero from '../components/Hero';
 
 const CTA = lazy(() => import('../components/CTA'));
+const CognitiveTrailNetwork = lazy(() => import('../components/CognitiveTrailNetwork'));
 const Features = lazy(() => import('../components/Features'));
 const OperatorDelta = lazy(() => import('../components/OperatorDelta'));
 const PcgReviewMockup = lazy(() => import('../components/PcgReviewMockup'));
@@ -28,6 +29,7 @@ export default function IndexPage() {
       <GrantReviewer />
       <AskGPTGrantReview />
       <Suspense fallback={null}>
+        <CognitiveTrailNetwork />
         <PluginCapabilities />
         <PcgReviewMockup />
         <ProblemSolution />
