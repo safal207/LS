@@ -26,6 +26,7 @@ LS / Liminal Stack
   -> Cooperative Precision Metrics
   -> Nash-style route stability probe
   -> Route Stability Sample Contract
+  -> Route Stability Evidence Map
   -> checked-in generated PR-review trail sample
   -> Cognitive Trail Contract CI workflow
   -> Grant Reviewer Packet 2026
@@ -49,6 +50,7 @@ Primary Cognitive Trail reviewer path:
 - [Cooperative Precision Metrics](COOPERATIVE_PRECISION_METRICS.md)
 - [Nash-style route stability demo](../scripts/run_nash_route_stability_demo.py)
 - [Route Stability Sample Contract](ROUTE_STABILITY_SAMPLE_CONTRACT.md)
+- [Route Stability Evidence Map](ROUTE_STABILITY_EVIDENCE_MAP.md)
 - [Cognitive Trail Network](COGNITIVE_TRAIL_NETWORK.md)
 - [Generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json)
 - [Cognitive Trail Contract CI](../.github/workflows/cognitive_trail_contract.yml)
@@ -66,6 +68,7 @@ Primary ecosystem map:
 | Cognitive Trail Contract | LS-local contract for recording one measurable cooperative route. | Gives schema, examples, generated sample, benchmark note, validator, generator, CI, stability probe, and reviewer quickstart. |
 | Nash-style route stability probe | Deterministic counterfactual probe for one cooperative PR-review route. | Shows whether the full route beats a single baseline, participant ablations, and a bad ordering counterfactual; explicitly not a formal Nash equilibrium proof. |
 | Route Stability Sample Contract | Reviewer-facing contract for the Nash-style route-stability sample. | Ties schema, checked-in sample, negative fixture, deterministic probe, regression test, CI summary, artifact boundary, and non-claims into one evidence chain. |
+| Route Stability Evidence Map | Reviewer-facing map for the route-stability evidence surface. | Shows which file proves what, how to verify the chain, and which failures invalidate the sample as reviewer evidence. |
 | ProofPath | Current executable implementation hub for action-boundary verification. | Gives runnable gateway, verifier, demos, audit logs, and reviewer paths. |
 | Compute Witness | ProofPath workstream for reviewable AI/agent compute evidence. | Gives manifests, receipts, audit fixtures, Rust verifier path, and CI checks. |
 | PythiaLabs | Evidence-gate project surface for high-risk agentic actions. | Shows the deterministic evidence-gate framing behind action review. |
@@ -110,6 +113,12 @@ This is a route-stability proxy, not a formal proof of Nash equilibrium.
 Is the route-stability sample supported by a schema, negative fixture, deterministic generator, regression test, CI summary, CI artifact, and explicit non-claims?
 ```
 
+### Route Stability Evidence Map asks
+
+```text
+Which route-stability file proves what, how does a reviewer verify it, and which failure modes make the sample stale or incomplete?
+```
+
 ### ProofPath asks
 
 ```text
@@ -147,6 +156,7 @@ coordination and continuity
   -> measurable cooperative route artifacts
   -> route-stability proxy
   -> route-stability sample contract
+  -> route-stability evidence map
   -> causal validity
   -> trace/replay inspection
   -> evidence gate
@@ -165,12 +175,13 @@ coordination and continuity
 5. Inspect the [Cooperative Precision Metrics](COOPERATIVE_PRECISION_METRICS.md).
 6. Run the [Nash-style route stability demo](../scripts/run_nash_route_stability_demo.py).
 7. Read the [Route Stability Sample Contract](ROUTE_STABILITY_SAMPLE_CONTRACT.md).
-8. Inspect the [generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json).
-9. Read the [Grant Reviewer Packet 2026](GRANT_REVIEWER_PACKET_2026.md).
-10. Read this index.
-11. Open the ProofPath Ecosystem Graph.
-12. Open the Compute Witness grant reviewer path.
-13. Open CML and LTP if you want the causal-memory and trace/replay layers.
+8. Use the [Route Stability Evidence Map](ROUTE_STABILITY_EVIDENCE_MAP.md) as the reviewer checklist for the sample, schema, negative fixture, test, CI surface, artifact, and non-claims.
+9. Inspect the [generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json).
+10. Read the [Grant Reviewer Packet 2026](GRANT_REVIEWER_PACKET_2026.md).
+11. Read this index.
+12. Open the ProofPath Ecosystem Graph.
+13. Open the Compute Witness grant reviewer path.
+14. Open CML and LTP if you want the causal-memory and trace/replay layers.
 
 ### If you entered from the Cognitive Trail Contract
 
@@ -182,6 +193,7 @@ Cognitive Trail Run
   -> repeatability decision
   -> Nash-style route stability proxy
   -> Route Stability Sample Contract
+  -> Route Stability Evidence Map
   -> ProofPath action boundary
   -> Compute Witness receipt and audit evidence
 ```
@@ -195,8 +207,9 @@ Start here:
 5. [Cooperative Precision Metrics](COOPERATIVE_PRECISION_METRICS.md)
 6. [Nash-style route stability demo](../scripts/run_nash_route_stability_demo.py)
 7. [Route Stability Sample Contract](ROUTE_STABILITY_SAMPLE_CONTRACT.md)
-8. [Generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json)
-9. [Cognitive Trail Contract CI workflow](../.github/workflows/cognitive_trail_contract.yml)
+8. [Route Stability Evidence Map](ROUTE_STABILITY_EVIDENCE_MAP.md)
+9. [Generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json)
+10. [Cognitive Trail Contract CI workflow](../.github/workflows/cognitive_trail_contract.yml)
 
 ### If you entered from ProofPath
 
@@ -207,7 +220,8 @@ Start here:
 5. Run the [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) to see the LS-local measurable route contract.
 6. Run the [Nash-style route stability demo](../scripts/run_nash_route_stability_demo.py) to inspect the route-stability proxy.
 7. Read the [Route Stability Sample Contract](ROUTE_STABILITY_SAMPLE_CONTRACT.md) to inspect the schema, negative fixture, CI artifact, and non-claims around the sample.
-8. Read the [Grant Reviewer Packet 2026](GRANT_REVIEWER_PACKET_2026.md) for the funder-facing evidence summary.
+8. Use the [Route Stability Evidence Map](ROUTE_STABILITY_EVIDENCE_MAP.md) to verify which file proves what and which failure modes would stale the evidence chain.
+9. Read the [Grant Reviewer Packet 2026](GRANT_REVIEWER_PACKET_2026.md) for the funder-facing evidence summary.
 
 ### If you entered from CML
 
@@ -218,6 +232,7 @@ CML causal lineage
   -> LS Cognitive Trail Run
   -> Nash-style route stability proxy
   -> Route Stability Sample Contract
+  -> Route Stability Evidence Map
   -> ProofPath action boundary
   -> Compute Witness receipt and audit evidence
 ```
@@ -231,6 +246,7 @@ LTP trace/replay/admissibility
   -> LS Cognitive Trail Run
   -> Nash-style route stability proxy
   -> Route Stability Sample Contract
+  -> Route Stability Evidence Map
   -> ProofPath action boundary
   -> Compute Witness evidence chain
 ```
@@ -255,6 +271,7 @@ PythiaLabs evidence gates
 - Cooperative Precision Metrics: https://github.com/safal207/LS/blob/main/docs/COOPERATIVE_PRECISION_METRICS.md
 - Nash-style route stability demo: https://github.com/safal207/LS/blob/main/scripts/run_nash_route_stability_demo.py
 - Route Stability Sample Contract: https://github.com/safal207/LS/blob/main/docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md
+- Route Stability Evidence Map: https://github.com/safal207/LS/blob/main/docs/ROUTE_STABILITY_EVIDENCE_MAP.md
 - Cognitive Trail Network: https://github.com/safal207/LS/blob/main/docs/COGNITIVE_TRAIL_NETWORK.md
 - Generated PR-review trail sample: https://github.com/safal207/LS/blob/main/examples/trails/generated_pr_review_sample.json
 - Cognitive Trail Contract CI workflow: https://github.com/safal207/LS/blob/main/.github/workflows/cognitive_trail_contract.yml
@@ -302,6 +319,7 @@ LS governance and continuity artifacts
 + Cognitive Trail evidence snapshot, schema, generated sample, benchmark note, validator, generator, and CI
 + Nash-style route stability proxy
 + Route Stability Sample Contract
++ Route Stability Evidence Map
 + ProofPath executable gateway and verifier
 + Compute Witness manifests, receipts, fixtures, Rust path, and CI
 + CML causal-validity checks
@@ -322,5 +340,5 @@ cross-repo conformance
 ## One-sentence reviewer phrase
 
 ```text
-LS is the broad reviewer and governance surface; the Cognitive Trail Evidence Snapshot is the quickest proof-oriented entry; the Cognitive Trail Contract is the measurable cooperation-route artifact; the Nash-style route stability probe checks route robustness against simple counterfactuals; the Route Stability Sample Contract binds the schema, negative fixture, deterministic probe, CI evidence, artifact boundary, and non-claims; ProofPath / Compute Witness is the current executable evidence hub; CML and LTP provide causal-validity and trace/replay layers.
+LS is the broad reviewer and governance surface; the Cognitive Trail Evidence Snapshot is the quickest proof-oriented entry; the Cognitive Trail Contract is the measurable cooperation-route artifact; the Nash-style route stability probe checks route robustness against simple counterfactuals; the Route Stability Sample Contract binds the schema, negative fixture, deterministic probe, CI evidence, artifact boundary, and non-claims; the Route Stability Evidence Map shows which file proves what and how to detect stale route-stability evidence; ProofPath / Compute Witness is the current executable evidence hub; CML and LTP provide causal-validity and trace/replay layers.
 ```
