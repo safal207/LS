@@ -1,0 +1,127 @@
+{
+  "demo": "ls_nash_route_stability",
+  "metric_version": "nash_route_stability.v0.1",
+  "trail_metric_version": "trail_mcp_metrics.v0.2",
+  "interpretation_boundary": "Nash-style route stability proxy, not a formal proof of Nash equilibrium.",
+  "thresholds": {
+    "min_coalition_gain": 0.1,
+    "min_stability_margin": 0.05,
+    "min_marginal_contribution": 0.05
+  },
+  "full_route": {
+    "label": "full_cooperative_route",
+    "route_key": "pr_review>local>gonka>mimo",
+    "kind": "full",
+    "removed_participant": null,
+    "reward": 0.7863,
+    "outcome_success": true,
+    "decision": "success",
+    "repeatability_score": 0.9343,
+    "success_rate": 1.0,
+    "route_health": "promising"
+  },
+  "baseline_route": {
+    "label": "single_route",
+    "route_key": "pr_review>local",
+    "kind": "baseline",
+    "removed_participant": null,
+    "reward": 0.1207,
+    "outcome_success": false,
+    "decision": "weak_signal",
+    "repeatability_score": 0.3217,
+    "success_rate": 0.0,
+    "route_health": "weak"
+  },
+  "counterfactuals": [
+    {
+      "label": "single_route",
+      "route_key": "pr_review>local",
+      "kind": "baseline",
+      "removed_participant": null,
+      "reward": 0.1207,
+      "outcome_success": false,
+      "decision": "weak_signal",
+      "repeatability_score": 0.3217,
+      "success_rate": 0.0,
+      "route_health": "weak"
+    },
+    {
+      "label": "without_gonka",
+      "route_key": "pr_review>local>mimo",
+      "kind": "ablation",
+      "removed_participant": "gonka",
+      "reward": 0.495,
+      "outcome_success": false,
+      "decision": "weak_signal",
+      "repeatability_score": 0.559,
+      "success_rate": 0.0,
+      "route_health": "needs_more_evidence"
+    },
+    {
+      "label": "without_mimo",
+      "route_key": "pr_review>local>gonka",
+      "kind": "ablation",
+      "removed_participant": "mimo",
+      "reward": 0.5613,
+      "outcome_success": false,
+      "decision": "weak_signal",
+      "repeatability_score": 0.5894,
+      "success_rate": 0.0,
+      "route_health": "needs_more_evidence"
+    },
+    {
+      "label": "without_local",
+      "route_key": "pr_review>gonka>mimo",
+      "kind": "ablation",
+      "removed_participant": "local",
+      "reward": 0.4637,
+      "outcome_success": false,
+      "decision": "weak_signal",
+      "repeatability_score": 0.5477,
+      "success_rate": 0.0,
+      "route_health": "needs_more_evidence"
+    },
+    {
+      "label": "reordered_route",
+      "route_key": "pr_review>mimo>gonka>local",
+      "kind": "deviation",
+      "removed_participant": null,
+      "reward": 0.3424,
+      "outcome_success": false,
+      "decision": "weak_signal",
+      "repeatability_score": 0.3939,
+      "success_rate": 0.0,
+      "route_health": "weak"
+    }
+  ],
+  "participant_marginal_contributions": [
+    {
+      "participant": "gonka",
+      "without_route": "pr_review>local>mimo",
+      "without_reward": 0.495,
+      "marginal_contribution": 0.2913
+    },
+    {
+      "participant": "mimo",
+      "without_route": "pr_review>local>gonka",
+      "without_reward": 0.5613,
+      "marginal_contribution": 0.225
+    },
+    {
+      "participant": "local",
+      "without_route": "pr_review>gonka>mimo",
+      "without_reward": 0.4637,
+      "marginal_contribution": 0.3226
+    }
+  ],
+  "stability": {
+    "nash_style_stable": true,
+    "decision": "stable_candidate",
+    "coalition_gain": 0.6656,
+    "best_counterfactual_route": "pr_review>local>gonka",
+    "best_counterfactual_reward": 0.5613,
+    "stability_margin": 0.225,
+    "minimum_marginal_contribution": 0.225,
+    "needs_more_runs": true
+  }
+}
