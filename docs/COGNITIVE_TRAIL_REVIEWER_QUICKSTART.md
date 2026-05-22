@@ -8,7 +8,7 @@ want to verify the LS Cognitive Trail Network without reading the full codebase.
 Goal:
 
 ```text
-clone -> install one validator dependency -> validate examples -> generate a trail run -> validate generated artifact
+clone -> install dependencies -> validate examples -> generate a trail run -> validate generated artifact -> inspect route stability proxy
 ```
 
 Expected time: about 2 minutes after Python is available.
@@ -34,12 +34,21 @@ task
 -> repeatability decision
 ```
 
+LS also includes a deterministic Nash-style route stability probe for checking
+whether the full cooperative route beats simple counterfactuals.
+
+Boundary:
+
+```text
+This is a route-stability proxy, not a formal proof of Nash equilibrium.
+```
+
 ## 1. Validate Checked-in Trail Examples
 
-Install the single validation dependency:
+Install validation and test dependencies:
 
 ```bash
-python -m pip install jsonschema
+python -m pip install jsonschema pytest
 ```
 
 Run the contract validator:
@@ -160,7 +169,53 @@ The JSON file remains the canonical machine-checkable Cognitive Trail Run. The
 Markdown file is a reviewer-facing report with summary, result, route, evidence,
 contribution summary, repeatability, and non-claims.
 
-## 6. Inspect CI-Generated Report Artifacts
+## 6. Check Nash-Style Route Stability
+
+Run:
+
+```bash
+python scripts/run_nash_route_stability_demo.py
+```
+
+For a machine-readable artifact, run:
+
+```bash
+python scripts/run_nash_route_stability_demo.py --json > reports/trails/nash_route_stability.json
+```
+
+Current expected local result:
+
+```text
+full route:          pr_review>local>gonka>mimo
+reward:              0.7863
+single baseline:     0.1207
+coalition gain:      +0.6656
+best counterfactual: pr_review>local>gonka = 0.5613
+stability margin:    +0.2250
+decision:            stable_candidate
+```
+
+Participant marginal contributions:
+
+```text
+local: +0.3226
+gonka: +0.2913
+mimo:  +0.2250
+```
+
+Interpretation:
+
+```text
+The full cooperative route currently beats the single-route baseline, participant ablations, and a bad ordering counterfactual.
+```
+
+Boundary:
+
+```text
+This is a Nash-style route stability proxy, not a formal proof of Nash equilibrium.
+```
+
+## 7. Inspect CI-Generated Report Artifacts
 
 The `Cognitive Trail Contract` workflow also generates reviewer artifacts in CI.
 
@@ -181,18 +236,21 @@ The artifact contains:
 ```text
 reports/trails/ci/cognitive_trail_run.json
 reports/trails/ci/cognitive_trail_run_report.md
+reports/trails/ci/nash_route_stability.json
 ```
 
 Reviewer interpretation:
 
 ```text
-CI validates checked-in examples, runs generator and negative validation tests, generates a fresh runtime trail run, validates it, and exposes both JSON and Markdown as downloadable workflow artifacts.
+CI validates checked-in examples, runs generator and negative validation tests, tests the Nash-style route stability probe, generates a fresh runtime trail run, validates it, generates a Nash-style stability JSON artifact, and exposes all reviewer artifacts for download.
 ```
 
-The uploaded JSON is machine-checkable. The uploaded Markdown is intended for
-human review and PR/grant discussion.
+The uploaded Cognitive Trail JSON is machine-checkable. The uploaded Markdown is
+intended for human review and PR/grant discussion. The uploaded Nash-style
+stability JSON is a route-stability proxy artifact, not a formal game-theoretic
+proof.
 
-## 7. Validate One Specific Generated Artifact
+## 8. Validate One Specific Generated Artifact
 
 If a runtime report already exists, validate only that file:
 
@@ -201,7 +259,7 @@ python scripts/validate_cognitive_trail_runs.py \
   --example reports/trails/<timestamp>_pr_review_trail_run.json
 ```
 
-## 8. Check Negative Validation Behavior
+## 9. Check Negative Validation Behavior
 
 The test suite also verifies that invalid artifacts fail.
 
@@ -248,11 +306,18 @@ A positive trail run means:
 This route improved the measured task signal for this local benchmark run.
 ```
 
+A stable-candidate Nash-style route stability probe means:
+
+```text
+This full cooperative route beat the configured single-route baseline, participant ablations, and bad-ordering counterfactual for this deterministic local probe.
+```
+
 It does **not** mean:
 
 ```text
 This actor is globally best.
 This role should always dominate.
+This is a formal Nash equilibrium proof.
 LS already has a global live network.
 The system may act without human authority.
 ```
@@ -262,11 +327,14 @@ The system may act without human authority.
 ```text
 docs/COGNITIVE_TRAIL_RUN_CONTRACT.md
 docs/COGNITIVE_TRAIL_SCHEMA_VERSIONING.md
+docs/COOPERATIVE_PRECISION_METRICS.md
 schemas/cognitive_trail_run.schema.json
 examples/trails/generated_pr_review_sample.json
 scripts/validate_cognitive_trail_runs.py
 scripts/generate_pr_review_trail_run.py
+scripts/run_nash_route_stability_demo.py
 python/tests/test_generate_pr_review_trail_run.py
+python/tests/test_nash_route_stability.py
 .github/workflows/cognitive_trail_contract.yml
 ```
 
@@ -283,6 +351,7 @@ which evidence
 which contribution
 which result
 whether to repeat
+whether the route stays stronger than simple counterfactuals
 ```
 
 That is the first operational form of the **Cognitive Trail Network**.
