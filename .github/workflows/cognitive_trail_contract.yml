@@ -84,3 +84,35 @@ jobs:
             reports/trails/ci/cognitive_trail_run_report.md
           if-no-files-found: error
           retention-days: 14
+
+      - name: Write Cognitive Trail workflow summary
+        run: |
+          {
+            echo "## Cognitive Trail Contract"
+            echo ""
+            echo "Generated and validated a fresh LS Cognitive Trail runtime report."
+            echo ""
+            echo "### Command"
+            echo '```bash'
+            echo "python scripts/generate_pr_review_trail_run.py \\" 
+            echo "  --last 5 \\" 
+            echo "  --validate \\" 
+            echo "  --output reports/trails/ci/cognitive_trail_run.json \\" 
+            echo "  --markdown-output reports/trails/ci/cognitive_trail_run_report.md"
+            echo '```'
+            echo ""
+            echo "### Downloadable artifact"
+            echo ""
+            echo "- Name: \`cognitive-trail-report-${GITHUB_SHA}\`"
+            echo "- Retention: 14 days"
+            echo ""
+            echo "### Files inside the artifact"
+            echo ""
+            echo "- \`reports/trails/ci/cognitive_trail_run.json\` — canonical machine-checkable Cognitive Trail Run"
+            echo "- \`reports/trails/ci/cognitive_trail_run_report.md\` — human-readable reviewer report"
+            echo ""
+            echo "### Interpretation boundary"
+            echo ""
+            echo "This artifact shows that LS can generate, validate, and expose one local PR-review Cognitive Trail Run."
+            echo "It does not claim global model ranking, production-grade evaluation, or a global live Cognitive Trail Network."
+          } >> "$GITHUB_STEP_SUMMARY"
