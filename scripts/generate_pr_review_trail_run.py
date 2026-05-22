@@ -251,6 +251,133 @@ def _default_output_path(output_dir: Path) -> Path:
     return output_dir / f"{_timestamp()}_pr_review_trail_run.json"
 
 
+def _markdown_cell(value: Any) -> str:
+    return str(value if value is not None else "").replace("\n", " ").replace("|", "\\|")
+
+
+def _markdown_bool(value: Any) -> str:
+    return "true" if bool(value) else "false"
+
+
+def render_trail_run_markdown(trail_run: dict[str, Any], *, json_output_path: Path | None = None) -> str:
+    """Render a human-readable Markdown report for a Cognitive Trail Run."""
+
+    result = trail_run["result"]
+    repeatability = trail_run["repeatability"]
+    contribution = trail_run["contribution_summary"]
+    input_ref = trail_run["input_ref"]
+
+    lines = [
+        "# LS Cognitive Trail Run Report",
+        "",
+        "Status: **generated local research artifact**.",
+        "",
+        "## Summary",
+        "",
+        f"- Task ID: `{trail_run['task_id']}`",
+        f"- Task type: `{trail_run['task_type']}`",
+        f"- Schema version: `{trail_run['schema_version']}`",
+        f"- Input kind: `{input_ref['kind']}`",
+        f"- Input description: {input_ref['description']}",
+    ]
+
+    if json_output_path is not None:
+        lines.append(f"- Canonical JSON artifact: `{json_output_path}`")
+
+    lines.extend(
+        [
+            "",
+            "## Result",
+            "",
+            "| Metric | Value |",
+            "| --- | --- |",
+            f"| Baseline reward | `{float(result['baseline_reward']):.4f}` |",
+            f"| Cooperative reward | `{float(result['cooperative_reward']):.4f}` |",
+            f"| Lift | `{float(result['lift']):+.4f}` |",
+            f"| Positive lift | `{_markdown_bool(result['positive_lift'])}` |",
+            f"| Top role | `{result['top_role']}` |",
+            f"| Top actor | `{result['top_actor']}` |",
+            f"| Decision | `{result.get('decision', '')}` |",
+            "",
+            "## Route",
+            "",
+            "| Step | Role | Actor | Model | Responsibility |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+    )
+
+    for step in trail_run["route"]:
+        lines.append(
+            "| {step} | `{role}` | `{actor}` | `{model}` | {responsibility} |".format(
+                step=_markdown_cell(step["step"]),
+                role=_markdown_cell(step["role"]),
+                actor=_markdown_cell(step["actor"]),
+                model=_markdown_cell(step.get("model", "")),
+                responsibility=_markdown_cell(step.get("responsibility", "")),
+            )
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Evidence",
+            "",
+            "| Kind | Strength | Source | Description |",
+            "| --- | --- | --- | --- |",
+        ]
+    )
+
+    for evidence in trail_run["evidence"]:
+        lines.append(
+            "| `{kind}` | `{strength}` | {source} | {description} |".format(
+                kind=_markdown_cell(evidence["kind"]),
+                strength=_markdown_cell(evidence["strength"]),
+                source=_markdown_cell(evidence.get("source", "")),
+                description=_markdown_cell(evidence["description"]),
+            )
+        )
+
+    contributors = ", ".join(f"`{actor}`" for actor in contribution.get("positive_contributors", [])) or "none"
+    noisy_actors = ", ".join(f"`{actor}`" for actor in contribution.get("noisy_actors", [])) or "none"
+
+    lines.extend(
+        [
+            "",
+            "## Contribution Summary",
+            "",
+            f"- Top role: `{contribution['top_role']}`",
+            f"- Top actor: `{contribution['top_actor']}`",
+            f"- Positive contributors: {contributors}",
+            f"- Noisy actors: {noisy_actors}",
+            f"- Notes: {contribution.get('notes', '')}",
+            "",
+            "## Repeatability",
+            "",
+            f"- Should repeat route: `{_markdown_bool(repeatability['should_repeat_route'])}`",
+            f"- Needs more runs: `{_markdown_bool(repeatability['needs_more_runs'])}`",
+            f"- Reason: {repeatability['reason']}",
+            f"- Next route hint: {repeatability.get('next_route_hint', '')}",
+            "",
+            "## Non-Claims",
+            "",
+            "This report does not claim:",
+            "",
+            "- global model ranking;",
+            "- production-grade evaluation;",
+            "- that one actor is permanently best;",
+            "- that LS already runs a global live Cognitive Trail Network;",
+            "- that the route may affect action, memory, or reputation without human authority.",
+            "",
+            "## One-Line Interpretation",
+            "",
+            "> LS measured one cooperative PR-review route, recorded the evidence and contribution attribution, and marked whether the route should be tried again.",
+            "",
+        ]
+    )
+
+    return "\n".join(lines)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate a Cognitive Trail Run JSON artifact from the LS PR Role Market batch benchmark."
@@ -262,6 +389,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-diff-chars", type=int, default=6000, help="Max diff excerpt used by each source artifact.")
     parser.add_argument("--output", type=Path, default=None, help="Write trail-run JSON to this path.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="Directory for default output path.")
+    parser.add_argument("--markdown-output", type=Path, default=None, help="Write a human-readable Markdown report to this path.")
     parser.add_argument("--task-id", default=None, help="Override generated task_id.")
     parser.add_argument("--validate", action="store_true", help="Validate the generated trail-run artifact before exiting.")
     parser.add_argument("--schema", type=Path, default=DEFAULT_SCHEMA, help="Schema path used when --validate is set.")
@@ -289,6 +417,14 @@ def main() -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(trail_run, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
+    markdown_output_path = args.markdown_output
+    if markdown_output_path is not None:
+        markdown_output_path.parent.mkdir(parents=True, exist_ok=True)
+        markdown_output_path.write_text(
+            render_trail_run_markdown(trail_run, json_output_path=output_path) + "\n",
+            encoding="utf-8",
+        )
+
     validation_status = 0
     if args.validate:
         validation_status = validate_files(args.schema, [output_path])
@@ -300,6 +436,8 @@ def main() -> int:
         repeatability = trail_run["repeatability"]
         print("Generated LS Cognitive Trail Run")
         print(f"Output: {output_path}")
+        if markdown_output_path is not None:
+            print(f"Markdown: {markdown_output_path}")
         print(f"Task: {trail_run['task_id']}")
         print(f"Baseline reward: {result['baseline_reward']:.4f}")
         print(f"Cooperative reward: {result['cooperative_reward']:.4f}")
