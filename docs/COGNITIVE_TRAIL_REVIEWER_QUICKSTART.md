@@ -217,12 +217,13 @@ Current negative checks include:
 unknown top-level schema field                   -> rejected by JSON Schema
 inconsistent result.lift                         -> rejected by semantic validator
 contribution_summary/result attribution mismatch -> rejected by semantic validator
+route.step gap or non-contiguous route           -> rejected by semantic validator
 ```
 
 This is intentional. A Cognitive Trail artifact should not be accepted merely
 because it is valid JSON. It must match the strict schema and preserve semantic
-consistency across route, evidence, result, contribution, and repeatability
-fields.
+consistency across route, evidence, result, contribution, route ordering, and
+repeatability fields.
 
 ## What the Validator Checks
 
