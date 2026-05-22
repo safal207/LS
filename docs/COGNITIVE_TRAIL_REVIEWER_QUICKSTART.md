@@ -183,11 +183,12 @@ Inspect the route-stability contract:
 docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md
 ```
 
-Inspect the checked-in route-stability schema and sample:
+Inspect the checked-in route-stability schema, sample, and negative fixture:
 
 ```text
 schemas/route_stability_sample.schema.json
 examples/route-stability/nash_route_stability_sample.json
+python/tests/fixtures/route-stability/invalid_metric_version.json
 ```
 
 Run:
@@ -240,9 +241,10 @@ Regression check:
 PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
 ```
 
-This test validates the checked-in sample against `schemas/route_stability_sample.schema.json`
-and pins it against the deterministic `--json` output for stable fields such as
-route rewards, counterfactuals, marginal contributions, thresholds, and
+This test validates the checked-in sample against `schemas/route_stability_sample.schema.json`,
+rejects `python/tests/fixtures/route-stability/invalid_metric_version.json`, and pins the
+checked-in sample against the deterministic `--json` output for stable fields such
+as route rewards, counterfactuals, marginal contributions, thresholds, and
 interpretation boundary.
 
 ## 7. Inspect CI-Generated Report Artifacts
@@ -293,13 +295,19 @@ python scripts/validate_cognitive_trail_runs.py \
 
 The test suite also verifies that invalid artifacts fail.
 
-Run:
+Run Cognitive Trail negative validation tests:
 
 ```bash
 PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_generate_pr_review_trail_run.py
 ```
 
-Current negative checks include:
+Run route-stability schema negative validation tests:
+
+```bash
+PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
+```
+
+Current Cognitive Trail negative checks include:
 
 ```text
 unknown top-level schema field                   -> rejected by JSON Schema
@@ -308,10 +316,17 @@ contribution_summary/result attribution mismatch -> rejected by semantic validat
 route.step gap or non-contiguous route           -> rejected by semantic validator
 ```
 
-This is intentional. A Cognitive Trail artifact should not be accepted merely
-because it is valid JSON. It must match the strict schema and preserve semantic
-consistency across route, evidence, result, contribution, route ordering, and
-repeatability fields.
+Current route-stability negative checks include:
+
+```text
+wrong metric_version     -> rejected by JSON Schema
+unknown top-level field  -> rejected by JSON Schema
+```
+
+This is intentional. A Cognitive Trail or route-stability artifact should not be
+accepted merely because it is valid JSON. It must match the strict schema and
+preserve semantic consistency across route, evidence, result, contribution,
+route ordering, repeatability fields, and route-stability contract fields.
 
 ## What the Validator Checks
 
@@ -363,6 +378,7 @@ schemas/cognitive_trail_run.schema.json
 schemas/route_stability_sample.schema.json
 examples/trails/generated_pr_review_sample.json
 examples/route-stability/nash_route_stability_sample.json
+python/tests/fixtures/route-stability/invalid_metric_version.json
 scripts/validate_cognitive_trail_runs.py
 scripts/generate_pr_review_trail_run.py
 scripts/run_nash_route_stability_demo.py
