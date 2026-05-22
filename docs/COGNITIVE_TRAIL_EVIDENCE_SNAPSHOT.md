@@ -33,11 +33,12 @@ Cognitive Trail Run contract
 -> negative validation tests
 -> PR-review trail generator
 -> Nash-style route stability probe
+-> checked-in Nash-style stability sample
 -> Markdown reviewer report
 -> generator tests
 -> GitHub Actions workflow
 -> workflow summary
--> downloadable JSON/Markdown artifact
+-> downloadable JSON/Markdown/stability artifacts
 ```
 
 ## Current Snapshot
@@ -85,6 +86,12 @@ On the current small local PR-review sample, the cooperative route produced a be
 LS also includes a deterministic Nash-style route stability probe for the current
 PR-review cooperative route.
 
+Checked-in route-stability sample:
+
+```text
+examples/route-stability/nash_route_stability_sample.json
+```
+
 Run:
 
 ```bash
@@ -117,6 +124,16 @@ Interpretation boundary:
 This is a Nash-style route stability proxy, not a formal proof of Nash equilibrium.
 ```
 
+Regression check:
+
+```bash
+PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
+```
+
+The regression test pins the checked-in sample against the deterministic `--json`
+output for stable fields such as route rewards, counterfactuals, marginal
+contributions, thresholds, and interpretation boundary.
+
 ## Main Files
 
 | Evidence | File |
@@ -126,6 +143,7 @@ This is a Nash-style route stability proxy, not a formal proof of Nash equilibri
 | Schema versioning | [`COGNITIVE_TRAIL_SCHEMA_VERSIONING.md`](COGNITIVE_TRAIL_SCHEMA_VERSIONING.md) |
 | Schema | [`../schemas/cognitive_trail_run.schema.json`](../schemas/cognitive_trail_run.schema.json) |
 | Canonical generated sample | [`../examples/trails/generated_pr_review_sample.json`](../examples/trails/generated_pr_review_sample.json) |
+| Nash-style route stability sample | [`../examples/route-stability/nash_route_stability_sample.json`](../examples/route-stability/nash_route_stability_sample.json) |
 | Benchmark interpretation | [`COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md`](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md) |
 | Cooperative precision metrics | [`COOPERATIVE_PRECISION_METRICS.md`](COOPERATIVE_PRECISION_METRICS.md) |
 | Nash-style route stability demo | [`../scripts/run_nash_route_stability_demo.py`](../scripts/run_nash_route_stability_demo.py) |
@@ -162,6 +180,12 @@ Run the Nash-style route stability probe:
 python scripts/run_nash_route_stability_demo.py
 ```
 
+Check the Nash-style stability sample against the deterministic demo output:
+
+```bash
+PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
+```
+
 Generate and validate a runtime JSON artifact:
 
 ```bash
@@ -185,13 +209,14 @@ Workflow:
 .github/workflows/cognitive_trail_contract.yml
 ```
 
-The workflow performs four evidence-producing actions:
+The workflow performs five evidence-producing actions:
 
 ```text
 validate checked-in examples
 -> run generator and negative validation tests
+-> test the Nash-style stability sample and demo output
 -> generate and validate a fresh runtime trail JSON
--> generate a Markdown reviewer report
+-> generate a Markdown reviewer report and Nash-style stability JSON
 ```
 
 It also writes a GitHub Actions workflow summary that names the command, artifact,
@@ -208,6 +233,7 @@ Files inside:
 ```text
 reports/trails/ci/cognitive_trail_run.json
 reports/trails/ci/cognitive_trail_run_report.md
+reports/trails/ci/nash_route_stability.json
 ```
 
 ## What the Validator Checks
@@ -311,5 +337,5 @@ The next strongest evidence improvements are:
 ## Reviewer Bottom Line
 
 ```text
-The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema versioning -> schema -> examples -> generator -> validator -> negative tests -> Nash-style route stability proxy -> CI summary -> downloadable artifacts -> explicit non-claims.
+The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema versioning -> schema -> examples -> generator -> validator -> negative tests -> Nash-style route stability proxy -> checked-in stability sample -> CI summary -> downloadable artifacts -> explicit non-claims.
 ```
