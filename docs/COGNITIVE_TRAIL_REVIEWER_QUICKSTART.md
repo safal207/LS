@@ -214,8 +214,9 @@ PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_generate_p
 Current negative checks include:
 
 ```text
-unknown top-level schema field -> rejected by JSON Schema
-inconsistent result.lift       -> rejected by semantic validator
+unknown top-level schema field                   -> rejected by JSON Schema
+inconsistent result.lift                         -> rejected by semantic validator
+contribution_summary/result attribution mismatch -> rejected by semantic validator
 ```
 
 This is intentional. A Cognitive Trail artifact should not be accepted merely
