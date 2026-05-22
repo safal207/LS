@@ -16,6 +16,7 @@ PR diff
 -> Cognitive Trail Run artifact
 -> validator
 -> CI
+-> downloadable JSON/Markdown report artifact
 ```
 
 ## Start Here
@@ -39,8 +40,37 @@ PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_generate_p
 Optional runtime generation check:
 
 ```bash
-python scripts/generate_pr_review_trail_run.py --last 10 --validate
+python scripts/generate_pr_review_trail_run.py \
+  --last 10 \
+  --validate \
+  --markdown-output reports/trails/pr_review_trail_run_report.md
 ```
+
+## CI Report Artifact
+
+The `Cognitive Trail Contract` workflow generates and uploads reviewer artifacts.
+
+Workflow:
+
+```text
+.github/workflows/cognitive_trail_contract.yml
+```
+
+Artifact name:
+
+```text
+cognitive-trail-report-${{ github.sha }}
+```
+
+Artifact contents:
+
+```text
+reports/trails/ci/cognitive_trail_run.json
+reports/trails/ci/cognitive_trail_run_report.md
+```
+
+The JSON file is the canonical machine-checkable report. The Markdown file is the
+human-readable reviewer report.
 
 ## Contributor Rules
 
@@ -122,9 +152,9 @@ Acceptance criteria:
 
 Suggested labels: `test`, `validator`, `contract`, `cooperative-precision`
 
-### 4. Add a Markdown report for generated trail runs
+### 4. Improve the generated Markdown report
 
-Goal: make generated Cognitive Trail Runs readable in PR review comments.
+Goal: make generated Cognitive Trail Run reports easier to paste into PR review comments and grant updates.
 
 Relevant file:
 
@@ -132,27 +162,28 @@ Relevant file:
 scripts/generate_pr_review_trail_run.py
 ```
 
-Acceptance criteria:
+Current implemented path:
 
-- Add `--markdown-output <path>`.
-- Report includes:
-  - task id;
-  - route;
-  - baseline reward;
-  - cooperative reward;
-  - lift;
-  - top role;
-  - top actor;
-  - repeatability decision;
-  - limitations.
-- Report avoids global model-ranking language.
-- Add tests for output presence and key sections.
+```bash
+python scripts/generate_pr_review_trail_run.py \
+  --last 10 \
+  --validate \
+  --markdown-output reports/trails/pr_review_trail_run_report.md
+```
+
+Acceptance criteria for improvements:
+
+- Add a compact mode for PR comments.
+- Add a reviewer-summary section no longer than 10 lines.
+- Keep the full route/evidence tables available.
+- Preserve the non-claims section.
+- Add tests for any new Markdown mode or section.
 
 Suggested labels: `good first issue`, `reporting`, `benchmark`, `pr-review`
 
-### 5. Add CI artifact upload for runtime reports
+### 5. Improve CI artifact visibility
 
-Goal: let CI expose generated trail reports as review artifacts without committing runtime JSON.
+Goal: make CI-generated Cognitive Trail artifacts easier for reviewers to find and interpret.
 
 Relevant workflow:
 
@@ -160,13 +191,26 @@ Relevant workflow:
 .github/workflows/cognitive_trail_contract.yml
 ```
 
-Acceptance criteria:
+Current implemented artifact:
 
-- Workflow generates a sample runtime trail report.
-- The report is uploaded as a GitHub Actions artifact.
-- Runtime JSON remains ignored by git.
-- The existing schema/semantic validation still runs.
-- The README or quickstart explains where to find the artifact.
+```text
+cognitive-trail-report-${{ github.sha }}
+```
+
+Current artifact contents:
+
+```text
+reports/trails/ci/cognitive_trail_run.json
+reports/trails/ci/cognitive_trail_run_report.md
+```
+
+Acceptance criteria for improvements:
+
+- Add a workflow summary that links or names the uploaded artifact.
+- Keep runtime JSON ignored by git.
+- Keep the existing schema/semantic validation running.
+- Consider uploading a compact PR-comment Markdown report when pull request context is available.
+- Document any new artifact names in the quickstart.
 
 Suggested labels: `ci`, `github-actions`, `artifact`, `cooperative-precision`
 
