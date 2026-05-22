@@ -31,6 +31,7 @@ chain stays intact:
 schema
 -> checked-in sample
 -> negative fixture
+-> fixture interpretation note
 -> deterministic generator
 -> regression test
 -> CI summary
@@ -46,6 +47,7 @@ A reviewer should treat the sample as evidence only inside this chain.
 | --- | --- | --- | --- |
 | Reviewer contract | `docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md` | Defines the contract, files, local checks, CI behavior, artifact path, and non-claims. | Read first; verify that the contract and file paths below are in sync. |
 | Evidence map | `docs/ROUTE_STABILITY_EVIDENCE_MAP.md` | Shows how all route-stability artifacts connect into a single reviewer chain. | Use as the top-level navigation map. |
+| Fixture interpretation note | `docs/ROUTE_STABILITY_FIXTURE_INTERPRETATION.md` | Explains what current and future route-stability fixtures mean, including accepted and rejected cases. | Confirm fixture meaning is documented before treating a sample as evidence. |
 | JSON Schema | `schemas/route_stability_sample.schema.json` | Defines the structural contract for a route-stability sample. | Confirm required fields and fixed values such as `demo` and `metric_version`. |
 | Checked-in sample | `examples/route-stability/nash_route_stability_sample.json` | Provides the canonical current stable sample for reviewers. | Confirm it validates against the schema and matches stable demo fields. |
 | Negative fixture | `python/tests/fixtures/route-stability/invalid_metric_version.json` | Proves malformed route-stability artifacts are rejected. | Confirm the test rejects wrong `metric_version` and unknown top-level fields. |
@@ -56,6 +58,18 @@ A reviewer should treat the sample as evidence only inside this chain.
 | Reviewer packet | `docs/GRANT_REVIEWER_PACKET_2026.md` | Places the route-stability contract inside the grant-review evidence chain. | Verify it presents the contract as a separate evidence artifact. |
 | Ecosystem index | `docs/ECOSYSTEM_REVIEWER_INDEX.md` | Places the route-stability contract in the broader LS / ProofPath / CML / LTP map. | Verify direct navigation to the contract is present. |
 | README evidence surface | `README.md` | Surfaces the contract in the public landing path. | Verify English and Russian evidence bullets both include the contract. |
+
+## Fixture Interpretation
+
+Current and future fixtures should be read through:
+
+```text
+docs/ROUTE_STABILITY_FIXTURE_INTERPRETATION.md
+```
+
+That note defines the meaning of the accepted current sample, the current negative
+fixture, future non-stable fixtures, and future missing-field / unsupported-decision
+negative fixtures.
 
 ## Local Verification Path
 
@@ -91,10 +105,11 @@ For this evidence surface to remain reviewer-useful:
 ```text
 1. The checked-in sample must validate against schemas/route_stability_sample.schema.json.
 2. The negative fixture must be rejected by the same schema.
-3. The checked-in sample must match deterministic demo --json output for stable core fields.
-4. The CI workflow must run the route-stability regression path when relevant files change.
-5. The CI workflow must generate reports/trails/ci/nash_route_stability.json.
-6. Reviewer-facing docs must preserve the interpretation boundary.
+3. The fixture interpretation note must explain accepted and rejected fixture meaning.
+4. The checked-in sample must match deterministic demo --json output for stable core fields.
+5. The CI workflow must run the route-stability regression path when relevant files change.
+6. The CI workflow must generate reports/trails/ci/nash_route_stability.json.
+7. Reviewer-facing docs must preserve the interpretation boundary.
 ```
 
 ## Current Deterministic Values
@@ -132,6 +147,7 @@ mimo:  +0.2250
 | Metric version drifts silently | Negative fixture and schema checks expose version mismatch behavior. |
 | Extra undeclared fields become accepted | Negative fixture rejection fails. |
 | Demo output changes but sample is not updated | Sample-vs-demo stable-field regression fails. |
+| Fixture meaning becomes ambiguous | Fixture interpretation note no longer matches schema, sample, or tests. |
 | CI stops generating reviewer artifact | Workflow summary or artifact path check fails. |
 | Reviewer docs overclaim the result | Non-claim boundary review fails. |
 
@@ -164,10 +180,11 @@ A reviewer can use this file as a checklist:
 1. Open the contract.
 2. Inspect the schema and sample.
 3. Confirm the negative fixture exists.
-4. Run the route-stability test.
-5. Generate the demo payload.
-6. Inspect the CI workflow and artifact path.
-7. Confirm public docs preserve the non-claim boundary.
+4. Read the fixture interpretation note.
+5. Run the route-stability test.
+6. Generate the demo payload.
+7. Inspect the CI workflow and artifact path.
+8. Confirm public docs preserve the non-claim boundary.
 ```
 
 If any item fails, the route-stability sample should be treated as incomplete or
