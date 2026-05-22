@@ -11,6 +11,9 @@ on:
       - "scripts/generate_pr_review_trail_run.py"
       - "python/tests/test_generate_pr_review_trail_run.py"
       - "docs/COGNITIVE_TRAIL_RUN_CONTRACT.md"
+      - "docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md"
+      - "docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md"
+      - "docs/COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md"
       - "docs/COOPERATIVE_PRECISION_METRICS.md"
       - ".github/workflows/cognitive_trail_contract.yml"
   pull_request:
@@ -23,6 +26,9 @@ on:
       - "scripts/generate_pr_review_trail_run.py"
       - "python/tests/test_generate_pr_review_trail_run.py"
       - "docs/COGNITIVE_TRAIL_RUN_CONTRACT.md"
+      - "docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md"
+      - "docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md"
+      - "docs/COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md"
       - "docs/COOPERATIVE_PRECISION_METRICS.md"
       - ".github/workflows/cognitive_trail_contract.yml"
 
@@ -38,6 +44,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -57,3 +65,22 @@ jobs:
       - name: Test PR review trail-run generator
         run: |
           PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_generate_pr_review_trail_run.py
+
+      - name: Generate Cognitive Trail report artifacts
+        run: |
+          mkdir -p reports/trails/ci
+          python scripts/generate_pr_review_trail_run.py \
+            --last 5 \
+            --validate \
+            --output reports/trails/ci/cognitive_trail_run.json \
+            --markdown-output reports/trails/ci/cognitive_trail_run_report.md
+
+      - name: Upload Cognitive Trail report artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cognitive-trail-report-${{ github.sha }}
+          path: |
+            reports/trails/ci/cognitive_trail_run.json
+            reports/trails/ci/cognitive_trail_run_report.md
+          if-no-files-found: error
+          retention-days: 14
