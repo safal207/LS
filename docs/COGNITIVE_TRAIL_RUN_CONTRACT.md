@@ -128,6 +128,40 @@ A route can be marked:
 - `should_repeat_route: false` when it added noise, risk, or low-value latency;
 - `needs_more_runs: true` when the sample is too small to trust.
 
+## Generate a PR-Review Trail Run
+
+Generate a real Cognitive Trail Run artifact from the PR Role Market benchmark:
+
+```bash
+python scripts/generate_pr_review_trail_run.py --last 10
+```
+
+Default output:
+
+```text
+reports/trails/<timestamp>_pr_review_trail_run.json
+```
+
+Optional run with attached role outputs:
+
+```bash
+python scripts/generate_pr_review_trail_run.py \
+  --last 10 \
+  --role-outputs docs/examples/pr_role_outputs.sample.json
+```
+
+This command converts the PR Role Market batch summary into the canonical
+`cognitive_trail_run.v0.1` shape:
+
+```text
+PR diff history
+-> PR Role Market batch
+-> average baseline/cooperative reward
+-> top role and actor
+-> repeatability decision
+-> trail-run JSON artifact
+```
+
 ## Validation
 
 Trail-run examples are validated against the JSON Schema and LS-specific semantic
