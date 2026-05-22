@@ -20,7 +20,7 @@
 Live site: [GitHub Pages](https://safal207.github.io/LS/)
 Community: [Roadmap](ROADMAP.md) · [Task board](docs/COMMUNITY_TASKS.md) · [Contributing](CONTRIBUTING.md)
 Reviewer ecosystem: [Ecosystem Reviewer Index](docs/ECOSYSTEM_REVIEWER_INDEX.md)
-Cooperative precision: [Reviewer Quickstart](docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) · [Roadmap](docs/COOPERATIVE_PRECISION_ROADMAP.md) · [Cognitive Trail Network](docs/COGNITIVE_TRAIL_NETWORK.md) · [PR Role Market Benchmark](docs/PR_ROLE_MARKET_BENCHMARK.md)
+Cooperative precision: [Reviewer Quickstart](docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) · [Benchmark Note](docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md) · [Roadmap](docs/COOPERATIVE_PRECISION_ROADMAP.md) · [Cognitive Trail Network](docs/COGNITIVE_TRAIL_NETWORK.md) · [PR Role Market Benchmark](docs/PR_ROLE_MARKET_BENCHMARK.md)
 Positioning: [Project Positioning](docs/PROJECT_POSITIONING.md)
 
 **LS is a local-first cooperative precision layer for human-plus-model work.**
@@ -91,6 +91,7 @@ python3 scripts/generate_pr_review_trail_run.py --last 10 --validate
 ```
 
 See: [`docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md`](docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md)
+Benchmark note: [`docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md`](docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md)
 
 ---
 
@@ -524,6 +525,7 @@ pytest python/tests/test_memory_store_locking.py
 | [docs/architecture/layers.md](docs/architecture/layers.md) | Full 12-layer catalogue |
 | [docs/ECOSYSTEM_REVIEWER_INDEX.md](docs/ECOSYSTEM_REVIEWER_INDEX.md) | Top-level reviewer index linking LS to ProofPath, PythiaLabs, CML, and LTP |
 | [docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md](docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) | Two-minute reviewer path for validating Cognitive Trail contracts and generated PR-review trail runs |
+| [docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md](docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md) | Short benchmark note for the Cognitive Trail PR-review result, metrics, reproduction path, and non-claims |
 | [docs/PERSONAL_GROWTH_ENTRY.md](docs/PERSONAL_GROWTH_ENTRY.md) | Short entry point for the Personal Cognitive Garden and human-development positioning |
 | [docs/LS_PERSONAL_COGNITIVE_GARDEN.md](docs/LS_PERSONAL_COGNITIVE_GARDEN.md) | Thesis for LS as a human-owned, goal-directed cognitive garden cultivated by agents |
 | [docs/PERSONAL_COGNITIVE_GARDEN_QUICK_START.md](docs/PERSONAL_COGNITIVE_GARDEN_QUICK_START.md) | Minimal local quick start for the Personal Cognitive Garden demo runner |
@@ -577,7 +579,7 @@ pytest python/tests/test_memory_store_locking.py
 Сайт: [GitHub Pages](https://safal207.github.io/LS/)
 Сообщество: [дорожная карта](ROADMAP.md) · [задачи](docs/COMMUNITY_TASKS.md) · [как помочь](CONTRIBUTING.md)
 Экосистема для ревьюеров: [Ecosystem Reviewer Index](docs/ECOSYSTEM_REVIEWER_INDEX.md)
-Точность кооперации: [Reviewer Quickstart](docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) · [Cognitive Trail Network](docs/COGNITIVE_TRAIL_NETWORK.md) · [PR Role Market Benchmark](docs/PR_ROLE_MARKET_BENCHMARK.md)
+Точность кооперации: [Reviewer Quickstart](docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) · [Benchmark Note](docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md) · [Cognitive Trail Network](docs/COGNITIVE_TRAIL_NETWORK.md) · [PR Role Market Benchmark](docs/PR_ROLE_MARKET_BENCHMARK.md)
 Позиционирование: [Project Positioning](docs/PROJECT_POSITIONING.md)
 
 **LS — это local-first слой точности кооперации для систем человек + модели.**
@@ -638,6 +640,7 @@ python3 scripts/generate_pr_review_trail_run.py --last 10 --validate
 ```
 
 См.: [`docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md`](docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md)
+Benchmark note: [`docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md`](docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md)
 
 LS также поддерживает направление **Personal Cognitive Garden**: полезные
 AI-сессии могут становиться принадлежащей человеку памятью развития, но только с
