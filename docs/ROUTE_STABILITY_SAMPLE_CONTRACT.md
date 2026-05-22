@@ -207,14 +207,48 @@ The workflow is triggered by changes to:
 ```text
 schemas/route_stability_sample.schema.json
 examples/route-stability/*.json
+python/tests/fixtures/route-stability/*.json
 scripts/run_nash_route_stability_demo.py
 python/tests/test_nash_route_stability.py
+docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md
 ```
 
 Generated CI artifact path:
 
 ```text
 reports/trails/ci/nash_route_stability.json
+```
+
+## CI Evidence
+
+The workflow summary exposes the route-stability evidence boundary directly in
+GitHub Actions.
+
+It should show that CI:
+
+```text
+1. tests the checked-in route-stability sample against schemas/route_stability_sample.schema.json;
+2. confirms python/tests/fixtures/route-stability/invalid_metric_version.json is rejected;
+3. pins the checked-in route-stability sample to scripts/run_nash_route_stability_demo.py --json;
+4. generates reports/trails/ci/nash_route_stability.json as a reviewer artifact.
+```
+
+This makes the CI surface match the local evidence chain:
+
+```text
+schema
+-> checked-in sample
+-> negative fixture
+-> deterministic generator
+-> regression test
+-> CI summary
+-> CI artifact
+```
+
+CI visibility caveat:
+
+```text
+If GitHub API status endpoints return no workflow runs for a push commit, inspect the GitHub Actions UI directly. The contract still requires the workflow trigger paths and summary text above to remain in sync with the route-stability files.
 ```
 
 ## Reviewer Interpretation
@@ -246,6 +280,7 @@ schema
 -> negative fixture
 -> deterministic generator
 -> regression test
+-> CI summary
 -> CI artifact
 -> explicit non-claims
 ```
