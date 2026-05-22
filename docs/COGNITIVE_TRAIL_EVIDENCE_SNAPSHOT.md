@@ -33,6 +33,7 @@ Cognitive Trail Run contract
 -> negative validation tests
 -> PR-review trail generator
 -> Nash-style route stability probe
+-> route-stability sample contract
 -> checked-in Nash-style stability sample
 -> Markdown reviewer report
 -> generator tests
@@ -86,9 +87,16 @@ On the current small local PR-review sample, the cooperative route produced a be
 LS also includes a deterministic Nash-style route stability probe for the current
 PR-review cooperative route.
 
-Checked-in route-stability sample:
+Route-stability contract:
 
 ```text
+docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md
+```
+
+Checked-in route-stability schema and sample:
+
+```text
+schemas/route_stability_sample.schema.json
 examples/route-stability/nash_route_stability_sample.json
 ```
 
@@ -130,9 +138,10 @@ Regression check:
 PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
 ```
 
-The regression test pins the checked-in sample against the deterministic `--json`
-output for stable fields such as route rewards, counterfactuals, marginal
-contributions, thresholds, and interpretation boundary.
+The regression test validates the checked-in sample against `schemas/route_stability_sample.schema.json`
+and pins it against the deterministic `--json` output for stable fields such as
+route rewards, counterfactuals, marginal contributions, thresholds, and
+interpretation boundary.
 
 ## Main Files
 
@@ -143,6 +152,8 @@ contributions, thresholds, and interpretation boundary.
 | Schema versioning | [`COGNITIVE_TRAIL_SCHEMA_VERSIONING.md`](COGNITIVE_TRAIL_SCHEMA_VERSIONING.md) |
 | Schema | [`../schemas/cognitive_trail_run.schema.json`](../schemas/cognitive_trail_run.schema.json) |
 | Canonical generated sample | [`../examples/trails/generated_pr_review_sample.json`](../examples/trails/generated_pr_review_sample.json) |
+| Route stability contract | [`ROUTE_STABILITY_SAMPLE_CONTRACT.md`](ROUTE_STABILITY_SAMPLE_CONTRACT.md) |
+| Route stability schema | [`../schemas/route_stability_sample.schema.json`](../schemas/route_stability_sample.schema.json) |
 | Nash-style route stability sample | [`../examples/route-stability/nash_route_stability_sample.json`](../examples/route-stability/nash_route_stability_sample.json) |
 | Benchmark interpretation | [`COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md`](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md) |
 | Cooperative precision metrics | [`COOPERATIVE_PRECISION_METRICS.md`](COOPERATIVE_PRECISION_METRICS.md) |
@@ -180,7 +191,7 @@ Run the Nash-style route stability probe:
 python scripts/run_nash_route_stability_demo.py
 ```
 
-Check the Nash-style stability sample against the deterministic demo output:
+Check the Nash-style stability sample against its schema and the deterministic demo output:
 
 ```bash
 PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
@@ -337,5 +348,5 @@ The next strongest evidence improvements are:
 ## Reviewer Bottom Line
 
 ```text
-The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema versioning -> schema -> examples -> generator -> validator -> negative tests -> Nash-style route stability proxy -> checked-in stability sample -> CI summary -> downloadable artifacts -> explicit non-claims.
+The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema versioning -> schema -> examples -> generator -> validator -> negative tests -> Nash-style route stability proxy -> route-stability sample contract -> checked-in stability sample -> CI summary -> downloadable artifacts -> explicit non-claims.
 ```
