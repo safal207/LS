@@ -186,8 +186,9 @@ The test suite also verifies that broken artifacts fail by design.
 Current negative checks include:
 
 ```text
-unknown top-level schema field -> rejected by JSON Schema
-inconsistent result.lift       -> rejected by semantic validator
+unknown top-level schema field                  -> rejected by JSON Schema
+inconsistent result.lift                        -> rejected by semantic validator
+contribution_summary/result attribution mismatch -> rejected by semantic validator
 ```
 
 Reviewer interpretation:
