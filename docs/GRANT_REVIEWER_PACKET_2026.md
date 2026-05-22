@@ -12,7 +12,7 @@ This is not a bundle of unrelated repositories. It is a connected evidence stack
 LS / Liminal Stack
   -> governance, coordination, continuity, Cognitive Trail contracts, Nash-style route stability proxy, and reviewer surface
 Cognitive Trail Contract
-  -> evidence snapshot, schema, generated PR-review sample, benchmark note, validator, generator, stability probe, tests, CI workflow summary, downloadable JSON/Markdown artifacts, and reviewer quickstart
+  -> evidence snapshot, schema, generated PR-review sample, benchmark note, validator, generator, stability probe, checked-in stability sample, tests, CI workflow summary, downloadable JSON/Markdown/stability artifacts, and reviewer quickstart
 ProofPath / Compute Witness
   -> executable action-boundary and reviewable compute-evidence hub
 PythiaLabs
@@ -47,8 +47,8 @@ The current ecosystem tests whether this can be expressed as public repositories
 
 | Layer | Repository / surface | Evidence available today |
 | --- | --- | --- |
-| Governance and continuity surface | [LS](https://github.com/safal207/LS) | Council cycles, approval-safe workflows, personal-agent gateway framing, benchmark docs, safety positioning, Cognitive Trail contracts, Nash-style route stability probe, and this reviewer packet. |
-| Measurable cooperative route artifact | [Cognitive Trail Evidence Snapshot](COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md) | One-page evidence snapshot, contract schema, checked-in generated PR-review sample, PR-review benchmark note, Nash-style route stability probe, validator, generator, tests, CI workflow summary, downloadable JSON/Markdown workflow artifact, runtime report folder, and explicit interpretation boundary. |
+| Governance and continuity surface | [LS](https://github.com/safal207/LS) | Council cycles, approval-safe workflows, personal-agent gateway framing, benchmark docs, safety positioning, Cognitive Trail contracts, Nash-style route stability probe, checked-in stability sample, and this reviewer packet. |
+| Measurable cooperative route artifact | [Cognitive Trail Evidence Snapshot](COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md) | One-page evidence snapshot, contract schema, checked-in generated PR-review sample, PR-review benchmark note, Nash-style route stability probe, checked-in stability sample, validator, generator, tests, CI workflow summary, downloadable JSON/Markdown/stability workflow artifact, runtime report folder, and explicit interpretation boundary. |
 | Ecosystem map | [ProofPath ecosystem graph](https://github.com/safal207/ProofPath/blob/main/docs/ECOSYSTEM_GRAPH.md) | Cross-repository graph connecting LS, ProofPath, Compute Witness, PythiaLabs, CML, LTP, T-Trace, and CaPU. |
 | Executable action boundary | [ProofPath](https://github.com/safal207/ProofPath) | Rust verifier, gateway, action-context profile, dangerous-action demos, real-model demo, audit logs, reviewer docs. |
 | Reviewable compute evidence | [Compute Witness path](https://github.com/safal207/ProofPath/blob/main/docs/COMPUTE_WITNESS_GRANT_REVIEWER_PATH.md) | Manifests, receipts, audit fixtures, broken-evidence challenges, Python conformance, Rust CLI, Rust audit-hash verification, CI checks. |
@@ -86,6 +86,7 @@ Read:
 - [Cognitive Trail Network](COGNITIVE_TRAIL_NETWORK.md)
 - [Cooperative Precision Metrics](COOPERATIVE_PRECISION_METRICS.md)
 - [Nash-style route stability demo](../scripts/run_nash_route_stability_demo.py)
+- [Nash-style route stability sample](../examples/route-stability/nash_route_stability_sample.json)
 - [Generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json)
 - [Cognitive Trail Contract CI workflow](../.github/workflows/cognitive_trail_contract.yml)
 
@@ -103,6 +104,7 @@ Expected files inside:
 ```text
 reports/trails/ci/cognitive_trail_run.json
 reports/trails/ci/cognitive_trail_run_report.md
+reports/trails/ci/nash_route_stability.json
 ```
 
 Purpose:
@@ -112,6 +114,12 @@ Verify that LS can record, validate, repeat-measure, summarize, and expose which
 ```
 
 ### 2a. Inspect the Nash-style route stability proxy
+
+Inspect the checked-in sample:
+
+```text
+examples/route-stability/nash_route_stability_sample.json
+```
 
 Run:
 
@@ -139,10 +147,16 @@ gonka: +0.2913
 mimo:  +0.2250
 ```
 
+Regression check:
+
+```bash
+PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
+```
+
 Purpose:
 
 ```text
-Check whether the full cooperative route beats the single-route baseline, participant ablations, and a bad ordering counterfactual.
+Check whether the full cooperative route beats the single-route baseline, participant ablations, and a bad ordering counterfactual, and confirm that the checked-in sample matches the deterministic demo output for stable fields.
 ```
 
 Boundary:
@@ -255,6 +269,18 @@ python3 scripts/run_nash_route_stability_demo.py
 python3 scripts/run_nash_route_stability_demo.py --json
 ```
 
+Checked-in sample:
+
+```text
+examples/route-stability/nash_route_stability_sample.json
+```
+
+Regression check:
+
+```bash
+PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
+```
+
 Expected intent:
 
 ```text
@@ -283,6 +309,7 @@ python scripts/generate_pr_review_trail_run.py \
   --validate \
   --output reports/trails/ci/cognitive_trail_run.json \
   --markdown-output reports/trails/ci/cognitive_trail_run_report.md
+python scripts/run_nash_route_stability_demo.py --json > reports/trails/ci/nash_route_stability.json
 ```
 
 Then it uploads:
@@ -296,6 +323,7 @@ with:
 ```text
 reports/trails/ci/cognitive_trail_run.json
 reports/trails/ci/cognitive_trail_run_report.md
+reports/trails/ci/nash_route_stability.json
 ```
 
 The workflow summary also records the command, artifact name, file paths, and interpretation boundary.
@@ -412,12 +440,13 @@ LS reviewer and governance surface
   -> validator with semantic checks
   -> PR-review trail generator
   -> Nash-style route stability probe
+  -> checked-in Nash-style stability sample
   -> generate-and-validate command
   -> Markdown reviewer report
   -> generator tests
   -> Cognitive Trail Contract CI workflow
   -> CI workflow summary with explicit non-claims
-  -> downloadable JSON/Markdown workflow artifact
+  -> downloadable JSON/Markdown/stability workflow artifact
   -> runtime reports folder with gitignored generated JSON
 ```
 
@@ -478,13 +507,14 @@ Funding would harden and connect existing artifacts rather than start from zero.
 Cognitive Trail evidence snapshot
 + Cognitive Trail contract
 + generated trail samples
++ checked-in route-stability sample
 + PR-review benchmark note
 + Nash-style route stability probe
 + validator
 + generator
 + Markdown reports
 + CI workflow summary
-+ downloadable JSON/Markdown artifacts
++ downloadable JSON/Markdown/stability artifacts
 + reviewer quickstart
 ```
 
@@ -563,6 +593,7 @@ conceptual frame
 -> executable validators
 -> generators
 -> Nash-style stability probe
+-> checked-in stability sample
 -> Markdown reviewer reports
 -> Rust implementation path
 -> CI checks
