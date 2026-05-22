@@ -25,6 +25,7 @@ Read these first:
 
 - [`COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md`](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md)
 - [`COGNITIVE_TRAIL_RUN_CONTRACT.md`](COGNITIVE_TRAIL_RUN_CONTRACT.md)
+- [`COGNITIVE_TRAIL_SCHEMA_VERSIONING.md`](COGNITIVE_TRAIL_SCHEMA_VERSIONING.md)
 - [`COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md`](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md)
 - [`PR_ROLE_MARKET_BENCHMARK.md`](PR_ROLE_MARKET_BENCHMARK.md)
 - [`../examples/trails/generated_pr_review_sample.json`](../examples/trails/generated_pr_review_sample.json)
@@ -81,7 +82,8 @@ Keep the benchmark honest:
 - keep role and actor separate;
 - keep small samples marked `needs_more_runs: true`;
 - do not commit local runtime files under `reports/trails/*.json`;
-- commit only curated examples under `examples/trails/`.
+- commit only curated examples under `examples/trails/`;
+- if schema semantics change, follow [`COGNITIVE_TRAIL_SCHEMA_VERSIONING.md`](COGNITIVE_TRAIL_SCHEMA_VERSIONING.md).
 
 ## Good First Issues
 
@@ -245,8 +247,9 @@ Acceptance criteria:
   - needs follow-up;
   - false positive.
 - Benchmark note explains how human outcomes would strengthen the result.
+- If the schema changes, follow [`COGNITIVE_TRAIL_SCHEMA_VERSIONING.md`](COGNITIVE_TRAIL_SCHEMA_VERSIONING.md).
 
-Suggested labels: `benchmark`, `human-review`, `evidence`, `safety`
+Suggested labels: `benchmark`, `human-review`, `evidence`, `safety`, `versioning`
 
 ## Medium Tasks
 
@@ -277,16 +280,28 @@ Acceptance criteria:
 
 Suggested labels: `benchmark`, `ablation`, `role-market`, `research`
 
-### 10. Add versioned schema migration notes
+### 10. Extend schema versioning with migration examples
 
-Goal: prepare the Cognitive Trail schema for future versions without breaking reviewers.
+Goal: keep Cognitive Trail schema evolution reviewer-safe as new fields are added.
 
-Acceptance criteria:
+Relevant file:
 
-- Add a `docs/COGNITIVE_TRAIL_SCHEMA_VERSIONING.md` note.
-- Explain when to bump from `cognitive_trail_run.v0.1`.
-- Include compatibility expectations.
-- Include migration examples if fields are added.
+```text
+docs/COGNITIVE_TRAIL_SCHEMA_VERSIONING.md
+```
+
+Current implemented baseline:
+
+```text
+cognitive_trail_run.v0.1 versioning policy
+```
+
+Acceptance criteria for improvements:
+
+- Add a concrete `v0.1 -> v0.2` migration when a real schema change lands.
+- Preserve at least one canonical example for each documented schema version.
+- Update validator behavior for each supported schema version.
+- Update quickstart, evidence snapshot, benchmark note, and contributor tasks when schema semantics change.
 
 Suggested labels: `schema`, `docs`, `contract`, `versioning`
 
@@ -310,6 +325,7 @@ Before merging, check:
 - Does it keep generated runtime JSON out of git?
 - Does it pass `scripts/validate_cognitive_trail_runs.py`?
 - Does it make the next similar contribution easier?
+- If it changes schema semantics, does it follow `COGNITIVE_TRAIL_SCHEMA_VERSIONING.md`?
 
 ## One-Line Contributor Goal
 
