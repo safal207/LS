@@ -35,6 +35,7 @@ Cognitive Trail Run contract
 -> Nash-style route stability probe
 -> route-stability sample contract
 -> checked-in Nash-style stability sample
+-> route-stability negative fixture
 -> Markdown reviewer report
 -> generator tests
 -> GitHub Actions workflow
@@ -93,11 +94,12 @@ Route-stability contract:
 docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md
 ```
 
-Checked-in route-stability schema and sample:
+Checked-in route-stability schema, sample, and negative fixture:
 
 ```text
 schemas/route_stability_sample.schema.json
 examples/route-stability/nash_route_stability_sample.json
+python/tests/fixtures/route-stability/invalid_metric_version.json
 ```
 
 Run:
@@ -138,9 +140,10 @@ Regression check:
 PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
 ```
 
-The regression test validates the checked-in sample against `schemas/route_stability_sample.schema.json`
-and pins it against the deterministic `--json` output for stable fields such as
-route rewards, counterfactuals, marginal contributions, thresholds, and
+The regression test validates the checked-in sample against `schemas/route_stability_sample.schema.json`,
+rejects `python/tests/fixtures/route-stability/invalid_metric_version.json`, and pins the
+checked-in sample against the deterministic `--json` output for stable fields such
+as route rewards, counterfactuals, marginal contributions, thresholds, and
 interpretation boundary.
 
 ## Main Files
@@ -155,6 +158,7 @@ interpretation boundary.
 | Route stability contract | [`ROUTE_STABILITY_SAMPLE_CONTRACT.md`](ROUTE_STABILITY_SAMPLE_CONTRACT.md) |
 | Route stability schema | [`../schemas/route_stability_sample.schema.json`](../schemas/route_stability_sample.schema.json) |
 | Nash-style route stability sample | [`../examples/route-stability/nash_route_stability_sample.json`](../examples/route-stability/nash_route_stability_sample.json) |
+| Route stability negative fixture | [`../python/tests/fixtures/route-stability/invalid_metric_version.json`](../python/tests/fixtures/route-stability/invalid_metric_version.json) |
 | Benchmark interpretation | [`COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md`](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md) |
 | Cooperative precision metrics | [`COOPERATIVE_PRECISION_METRICS.md`](COOPERATIVE_PRECISION_METRICS.md) |
 | Nash-style route stability demo | [`../scripts/run_nash_route_stability_demo.py`](../scripts/run_nash_route_stability_demo.py) |
@@ -191,7 +195,7 @@ Run the Nash-style route stability probe:
 python scripts/run_nash_route_stability_demo.py
 ```
 
-Check the Nash-style stability sample against its schema and the deterministic demo output:
+Check the Nash-style stability sample against its schema, negative fixture, and deterministic demo output:
 
 ```bash
 PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
@@ -225,7 +229,7 @@ The workflow performs five evidence-producing actions:
 ```text
 validate checked-in examples
 -> run generator and negative validation tests
--> test the Nash-style stability sample and demo output
+-> test the Nash-style stability sample, negative fixture, and demo output
 -> generate and validate a fresh runtime trail JSON
 -> generate a Markdown reviewer report and Nash-style stability JSON
 ```
@@ -267,7 +271,7 @@ Schema evolution is documented in [`COGNITIVE_TRAIL_SCHEMA_VERSIONING.md`](COGNI
 
 The test suite also verifies that broken artifacts fail by design.
 
-Current negative checks include:
+Current Cognitive Trail negative checks include:
 
 ```text
 unknown top-level schema field                   -> rejected by JSON Schema
@@ -276,10 +280,17 @@ contribution_summary/result attribution mismatch -> rejected by semantic validat
 route.step gap or non-contiguous route           -> rejected by semantic validator
 ```
 
+Current route-stability negative checks include:
+
+```text
+wrong metric_version     -> rejected by JSON Schema
+unknown top-level field  -> rejected by JSON Schema
+```
+
 Reviewer interpretation:
 
 ```text
-A Cognitive Trail artifact is not accepted merely because it is JSON. It must match the strict schema and preserve semantic consistency between reported rewards, lift, contribution, route ordering, and route fields.
+A Cognitive Trail or route-stability artifact is not accepted merely because it is JSON. It must match the strict schema and preserve semantic consistency before it enters reviewer discussion.
 ```
 
 This matters because evidence artifacts become useful only if invalid or
@@ -348,5 +359,5 @@ The next strongest evidence improvements are:
 ## Reviewer Bottom Line
 
 ```text
-The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema versioning -> schema -> examples -> generator -> validator -> negative tests -> Nash-style route stability proxy -> route-stability sample contract -> checked-in stability sample -> CI summary -> downloadable artifacts -> explicit non-claims.
+The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema versioning -> schema -> examples -> generator -> validator -> negative tests -> Nash-style route stability proxy -> route-stability sample contract -> checked-in stability sample -> route-stability negative fixture -> CI summary -> downloadable artifacts -> explicit non-claims.
 ```
