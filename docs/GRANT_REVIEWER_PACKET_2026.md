@@ -12,7 +12,7 @@ This is not a bundle of unrelated repositories. It is a connected evidence stack
 LS / Liminal Stack
   -> governance, coordination, continuity, Cognitive Trail contracts, and reviewer surface
 Cognitive Trail Contract
-  -> schema, generated PR-review sample, benchmark note, validator, generator, CI, and reviewer quickstart
+  -> schema, generated PR-review sample, benchmark note, validator, generator, tests, CI workflow summary, downloadable JSON/Markdown artifacts, and reviewer quickstart
 ProofPath / Compute Witness
   -> executable action-boundary and reviewable compute-evidence hub
 PythiaLabs
@@ -40,14 +40,14 @@ intent
 -> auditability
 ```
 
-The current ecosystem tests whether this can be expressed as public repositories, committed fixtures, executable validators, CI checks, reviewer paths, and explicit non-claims.
+The current ecosystem tests whether this can be expressed as public repositories, committed fixtures, executable validators, CI checks, reviewer paths, downloadable artifacts, and explicit non-claims.
 
 ## What exists today
 
 | Layer | Repository / surface | Evidence available today |
 | --- | --- | --- |
 | Governance and continuity surface | [LS](https://github.com/safal207/LS) | Council cycles, approval-safe workflows, personal-agent gateway framing, benchmark docs, safety positioning, Cognitive Trail contracts, and this reviewer packet. |
-| Measurable cooperative route artifact | [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) | Contract schema, checked-in generated PR-review sample, PR-review benchmark note, validator, generator, CI workflow, runtime report folder, and explicit interpretation boundary. |
+| Measurable cooperative route artifact | [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) | Contract schema, checked-in generated PR-review sample, PR-review benchmark note, validator, generator, tests, CI workflow summary, downloadable JSON/Markdown workflow artifact, runtime report folder, and explicit interpretation boundary. |
 | Ecosystem map | [ProofPath ecosystem graph](https://github.com/safal207/ProofPath/blob/main/docs/ECOSYSTEM_GRAPH.md) | Cross-repository graph connecting LS, ProofPath, Compute Witness, PythiaLabs, CML, LTP, T-Trace, and CaPU. |
 | Executable action boundary | [ProofPath](https://github.com/safal207/ProofPath) | Rust verifier, gateway, action-context profile, dangerous-action demos, real-model demo, audit logs, reviewer docs. |
 | Reviewable compute evidence | [Compute Witness path](https://github.com/safal207/ProofPath/blob/main/docs/COMPUTE_WITNESS_GRANT_REVIEWER_PATH.md) | Manifests, receipts, audit fixtures, broken-evidence challenges, Python conformance, Rust CLI, Rust audit-hash verification, CI checks. |
@@ -84,10 +84,26 @@ Read:
 - [Generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json)
 - [Cognitive Trail Contract CI workflow](../.github/workflows/cognitive_trail_contract.yml)
 
+Then inspect the latest `Cognitive Trail Contract` GitHub Actions run summary.
+The workflow summary names the generated artifact and repeats the non-claim boundary.
+
+Downloadable workflow artifact:
+
+```text
+cognitive-trail-report-${{ github.sha }}
+```
+
+Expected files inside:
+
+```text
+reports/trails/ci/cognitive_trail_run.json
+reports/trails/ci/cognitive_trail_run_report.md
+```
+
 Purpose:
 
 ```text
-Verify that LS can record, validate, and repeat-measure which cooperative route made a concrete PR-review task more precise.
+Verify that LS can record, validate, repeat-measure, summarize, and expose which cooperative route made a concrete PR-review task more precise.
 ```
 
 ### 3. Inspect the executable hub
@@ -161,6 +177,56 @@ The short benchmark interpretation is:
 ```text
 docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md
 ```
+
+### Cognitive Trail Markdown report path
+
+From the LS repository root:
+
+```bash
+python3 scripts/generate_pr_review_trail_run.py \
+  --last 10 \
+  --validate \
+  --markdown-output reports/trails/pr_review_trail_run_report.md
+```
+
+Expected intent:
+
+```text
+generate the canonical JSON artifact and a human-readable Markdown report for reviewer discussion
+```
+
+### Cognitive Trail CI evidence artifact
+
+The GitHub Actions workflow:
+
+```text
+.github/workflows/cognitive_trail_contract.yml
+```
+
+runs:
+
+```bash
+python scripts/generate_pr_review_trail_run.py \
+  --last 5 \
+  --validate \
+  --output reports/trails/ci/cognitive_trail_run.json \
+  --markdown-output reports/trails/ci/cognitive_trail_run_report.md
+```
+
+Then it uploads:
+
+```text
+cognitive-trail-report-${{ github.sha }}
+```
+
+with:
+
+```text
+reports/trails/ci/cognitive_trail_run.json
+reports/trails/ci/cognitive_trail_run_report.md
+```
+
+The workflow summary also records the command, artifact name, file paths, and interpretation boundary.
 
 ### Compute Witness conformance
 
@@ -273,11 +339,15 @@ LS reviewer and governance surface
   -> validator with semantic checks
   -> PR-review trail generator
   -> generate-and-validate command
+  -> Markdown reviewer report
+  -> generator tests
   -> Cognitive Trail Contract CI workflow
+  -> CI workflow summary with explicit non-claims
+  -> downloadable JSON/Markdown workflow artifact
   -> runtime reports folder with gitignored generated JSON
 ```
 
-This chain shows how LS turns a cooperative PR-review route into a validated artifact with a repeatability decision.
+This chain shows how LS turns a cooperative PR-review route into a validated artifact with a repeatability decision, a human-readable report, and a CI-visible evidence packet.
 
 ### ProofPath / Compute Witness executable evidence chain
 
@@ -296,7 +366,7 @@ ProofPath ecosystem graph
 
 This chain shows how executable action-boundary and compute-evidence claims are turned into commands, fixtures, receipts, and CI checks.
 
-Together, these evidence chains are narrow, but concrete. They give reviewers artifacts, commands, and expected behavior rather than only a conceptual claim.
+Together, these evidence chains are narrow, but concrete. They give reviewers artifacts, commands, expected behavior, workflow summaries, downloadable evidence files, and explicit non-claims rather than only a conceptual claim.
 
 ## Current limitations and non-claims
 
@@ -335,7 +405,9 @@ Cognitive Trail contract
 + PR-review benchmark note
 + validator
 + generator
-+ CI workflow
++ Markdown reports
++ CI workflow summary
++ downloadable JSON/Markdown artifacts
 + reviewer quickstart
 ```
 
@@ -345,7 +417,9 @@ Deliverables:
 - generated reports promoted into curated examples when stable;
 - stronger schema versioning and migration notes;
 - role-output attachment fixtures;
-- clearer route-repeatability evaluation across more diffs.
+- clearer route-repeatability evaluation across more diffs;
+- compact PR-comment report format;
+- clearer CI artifact summaries for external reviewers.
 
 ### Workstream 2: Cross-repo conformance
 
@@ -410,8 +484,11 @@ conceptual frame
 -> committed fixtures
 -> executable validators
 -> generators
+-> Markdown reviewer reports
 -> Rust implementation path
 -> CI checks
+-> workflow summaries
+-> downloadable artifacts
 -> explicit limitations
 ```
 
