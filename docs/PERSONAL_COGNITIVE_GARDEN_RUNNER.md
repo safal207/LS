@@ -103,6 +103,18 @@ examples/personal_cognitive_garden/proposed_update.json
 examples/personal_cognitive_garden/accepted_graph_state.json
 ```
 
+## Gateway-to-garden before/after example
+
+For a compact raw-agent-output example, see:
+
+```text
+docs/PERSONAL_COGNITIVE_GARDEN_GATEWAY_BEFORE_AFTER.md
+examples/personal_cognitive_garden/gateway_to_garden_before_after.json
+```
+
+It shows one accepted update and one held/rejected update without making
+benchmark claims.
+
 ## What the core demo demonstrates
 
 ```text

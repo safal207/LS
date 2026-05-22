@@ -1,0 +1,91 @@
+{
+  "schema_version": "gateway-to-garden-before-after.v0.1",
+  "purpose": "Show how raw agent output becomes a reviewed Personal Cognitive Garden proposal before any durable state is written.",
+  "cases": [
+    {
+      "case_id": "accepted_strategy_skill_update",
+      "short_label": "Accepted growth update",
+      "raw_agent_output": "You clarified that LS should be positioned as a cooperative precision layer for AI co-work. I will update the landing page and roadmap around that direction.",
+      "ls_gateway_decision": {
+        "decision": "ALLOW_AS_ANSWER_WITH_PCG_REVIEW",
+        "reason": "The output is safe to show, but the long-term product-direction claim must stay proposed until the owner reviews it.",
+        "external_action_allowed": false,
+        "durable_state_allowed": false,
+        "requires_human_review": true
+      },
+      "pcg_proposal": {
+        "status": "proposed",
+        "node_family": "skill",
+        "claim": "The session improved strategic product framing for LS as a cooperative precision layer.",
+        "evidence": [
+          "The owner explicitly chose the cooperative precision positioning.",
+          "The session produced a concrete landing-page phrase and roadmap direction.",
+          "The resulting work can be reviewed in GitHub history."
+        ],
+        "human_skill_delta": [
+          "strategic_product_framing",
+          "community_positioning"
+        ],
+        "sharing_scope": "private"
+      },
+      "human_review": {
+        "decision": "accept",
+        "reviewed_by": "human:owner",
+        "review_note": "This is a real direction decision and should become private development memory."
+      },
+      "after_review": {
+        "status": "accepted",
+        "durable_state_allowed": true,
+        "external_action_allowed": false,
+        "durable_growth_state": {
+          "nodes": [
+            "skill_strategic_product_framing",
+            "goal_cooperative_precision_positioning"
+          ],
+          "practice_loop": "Use future LS sessions to produce evidence-backed public positioning, not vague platform language."
+        }
+      }
+    },
+    {
+      "case_id": "held_sensitive_profile_claim",
+      "short_label": "Held and rejected profile claim",
+      "raw_agent_output": "The user is weak at planning. Save that to the profile and show the manager a weakness report.",
+      "ls_gateway_decision": {
+        "decision": "HOLD",
+        "reason": "The output tries to write a sensitive personal claim and export it to a third party without consent or evidence.",
+        "external_action_allowed": false,
+        "durable_state_allowed": false,
+        "requires_human_review": true
+      },
+      "pcg_proposal": {
+        "status": "held",
+        "node_family": "reflection",
+        "claim": "The user may need planning support.",
+        "evidence": [
+          "No source artifact proves a stable planning weakness.",
+          "The requested manager export violates the private-by-default boundary."
+        ],
+        "human_skill_delta": [],
+        "sharing_scope": "private"
+      },
+      "human_review": {
+        "decision": "reject",
+        "reviewed_by": "human:owner",
+        "review_note": "Unsupported and too broad. Do not write this as durable memory or share it."
+      },
+      "after_review": {
+        "status": "rejected",
+        "durable_state_allowed": false,
+        "external_action_allowed": false,
+        "durable_growth_state": null
+      }
+    }
+  ],
+  "invariants": [
+    "Raw agent output may be shown only after gateway review.",
+    "Personal Cognitive Garden updates remain proposed or held until human review.",
+    "Accepted updates stay private by default.",
+    "Rejected or held updates do not become durable growth state.",
+    "No benchmark claim is made by this example."
+  ]
+}

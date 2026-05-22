@@ -108,6 +108,11 @@ python3 scripts/run_personal_cognitive_garden_demo.py
 python3 scripts/run_personal_cognitive_garden_demo.py --json
 ```
 
+See a compact before/after example:
+
+- [`docs/PERSONAL_COGNITIVE_GARDEN_GATEWAY_BEFORE_AFTER.md`](docs/PERSONAL_COGNITIVE_GARDEN_GATEWAY_BEFORE_AFTER.md)
+- [`examples/personal_cognitive_garden/gateway_to_garden_before_after.json`](examples/personal_cognitive_garden/gateway_to_garden_before_after.json)
+
 Run the Codex plugin demo:
 
 - [`docs/CODEX_PLUGIN_DEMO.md`](docs/CODEX_PLUGIN_DEMO.md)
@@ -617,6 +622,11 @@ AI-сессии могут становиться принадлежащей ч�
 ```bash
 python3 scripts/run_personal_cognitive_garden_demo.py
 ```
+
+Короткий пример "до/после" от сырого ответа агента до решения LS:
+
+- [`docs/PERSONAL_COGNITIVE_GARDEN_GATEWAY_BEFORE_AFTER.md`](docs/PERSONAL_COGNITIVE_GARDEN_GATEWAY_BEFORE_AFTER.md)
+- [`examples/personal_cognitive_garden/gateway_to_garden_before_after.json`](examples/personal_cognitive_garden/gateway_to_garden_before_after.json)
 
 Safety boundary: LS должен развивать принадлежащий человеку skill capital, не превращаясь в corporate surveillance layer.
 

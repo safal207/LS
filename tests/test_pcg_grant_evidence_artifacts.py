@@ -125,6 +125,18 @@ def test_pcg_proposed_and_accepted_updates_follow_core_governance_invariants():
     assert accepted["governance"]["sharing_scope"] == "private"
 
 
+def test_gateway_to_garden_before_after_has_accepted_and_rejected_outcomes():
+    example = load_json(FIXTURE_DIR / "gateway_to_garden_before_after.json")
+    cases = example["cases"]
+
+    assert len(cases) == 2
+    assert {case["human_review"]["decision"] for case in cases} == {"accept", "reject"}
+    assert {case["after_review"]["durable_state_allowed"] for case in cases} == {True, False}
+    assert all(case["ls_gateway_decision"]["external_action_allowed"] is False for case in cases)
+    assert all(case["pcg_proposal"]["sharing_scope"] == "private" for case in cases)
+    assert "No benchmark claim is made by this example." in example["invariants"]
+
+
 def test_pcg_fixture_json_is_machine_readable():
     for path in [
         FIXTURE_DIR / "red_team_employer_surveillance_request.json",
@@ -132,6 +144,7 @@ def test_pcg_fixture_json_is_machine_readable():
         FIXTURE_DIR / "evaluation_sessions.json",
         FIXTURE_DIR / "proposed_update.json",
         FIXTURE_DIR / "accepted_graph_state.json",
+        FIXTURE_DIR / "gateway_to_garden_before_after.json",
     ]:
         with path.open("r", encoding="utf-8") as file:
             json.load(file)
