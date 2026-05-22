@@ -186,15 +186,16 @@ The test suite also verifies that broken artifacts fail by design.
 Current negative checks include:
 
 ```text
-unknown top-level schema field                  -> rejected by JSON Schema
-inconsistent result.lift                        -> rejected by semantic validator
+unknown top-level schema field                   -> rejected by JSON Schema
+inconsistent result.lift                         -> rejected by semantic validator
 contribution_summary/result attribution mismatch -> rejected by semantic validator
+route.step gap or non-contiguous route           -> rejected by semantic validator
 ```
 
 Reviewer interpretation:
 
 ```text
-A Cognitive Trail artifact is not accepted merely because it is JSON. It must match the strict schema and preserve semantic consistency between reported rewards, lift, contribution, and route fields.
+A Cognitive Trail artifact is not accepted merely because it is JSON. It must match the strict schema and preserve semantic consistency between reported rewards, lift, contribution, route ordering, and route fields.
 ```
 
 This matters because evidence artifacts become useful only if invalid or
@@ -255,7 +256,7 @@ The next strongest evidence improvements are:
 5. CI/test outcome signals added to reward calculation.
 6. More generated reports promoted into curated checked-in examples.
 7. Versioned migration examples once the schema evolves beyond `cognitive_trail_run.v0.1`.
-8. More negative fixtures covering route-step gaps, unknown actors, contribution mismatch, and unsupported repeatability decisions.
+8. More negative fixtures covering unknown actors and unsupported repeatability decisions.
 
 ## Reviewer Bottom Line
 
