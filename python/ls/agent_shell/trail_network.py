@@ -12,9 +12,9 @@ MODULES_ROOT = Path(__file__).resolve().parents[2] / "modules"
 if MODULES_ROOT.exists() and str(MODULES_ROOT) not in sys.path:
     sys.path.insert(0, str(MODULES_ROOT))
 
-from modules.graph.path_selector import PathSelector
-from modules.graph.route_stats import RouteStats, RouteStatsStore
-from modules.graph.trail_updater import PathExecutionRecord, TrailUpdater
+from modules.graph.path_selector import PathSelector  # noqa: E402
+from modules.graph.route_stats import RouteStats, RouteStatsStore  # noqa: E402
+from modules.graph.trail_updater import PathExecutionRecord, TrailUpdater  # noqa: E402
 
 
 DEFAULT_BACKENDS = ["local", "gonka", "mimo"]
