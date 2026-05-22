@@ -25,6 +25,7 @@ This is a narrow infrastructure claim, not a global model-quality claim.
 
 ```text
 Cognitive Trail Run contract
+-> schema versioning note
 -> JSON Schema
 -> checked-in examples
 -> PR-review benchmark note
@@ -43,6 +44,18 @@ Canonical checked-in sample:
 
 ```text
 examples/trails/generated_pr_review_sample.json
+```
+
+Current schema version:
+
+```text
+cognitive_trail_run.v0.1
+```
+
+Versioning policy:
+
+```text
+docs/COGNITIVE_TRAIL_SCHEMA_VERSIONING.md
 ```
 
 Current local benchmark values recorded in the sample:
@@ -71,6 +84,7 @@ On the current small local PR-review sample, the cooperative route produced a be
 | --- | --- |
 | Reviewer quickstart | [`COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md`](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) |
 | Contract | [`COGNITIVE_TRAIL_RUN_CONTRACT.md`](COGNITIVE_TRAIL_RUN_CONTRACT.md) |
+| Schema versioning | [`COGNITIVE_TRAIL_SCHEMA_VERSIONING.md`](COGNITIVE_TRAIL_SCHEMA_VERSIONING.md) |
 | Schema | [`../schemas/cognitive_trail_run.schema.json`](../schemas/cognitive_trail_run.schema.json) |
 | Canonical generated sample | [`../examples/trails/generated_pr_review_sample.json`](../examples/trails/generated_pr_review_sample.json) |
 | Benchmark interpretation | [`COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md`](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md) |
@@ -162,6 +176,8 @@ The validator checks:
 - `top_actor` is present in the recorded route;
 - contribution summary agrees with result fields.
 
+Schema evolution is documented in [`COGNITIVE_TRAIL_SCHEMA_VERSIONING.md`](COGNITIVE_TRAIL_SCHEMA_VERSIONING.md). Any future schema semantics change should keep old reviewer evidence interpretable and explicitly bounded.
+
 ## What the Markdown Report Adds
 
 The JSON artifact is canonical and machine-checkable.
@@ -203,7 +219,8 @@ Current limitations:
 - role outputs may be sample artifacts unless replaced by real actor outputs;
 - CI/test outcomes are not yet part of the reward calculation;
 - human review acceptance/rejection labels are not yet included;
-- runtime reports are intentionally gitignored unless promoted into curated examples.
+- runtime reports are intentionally gitignored unless promoted into curated examples;
+- schema `v0.1` is strict and pre-stable; future changes require explicit versioning/migration notes.
 
 ## What Would Strengthen the Evidence
 
@@ -215,9 +232,10 @@ The next strongest evidence improvements are:
 4. Role-ablation comparison.
 5. CI/test outcome signals added to reward calculation.
 6. More generated reports promoted into curated checked-in examples.
+7. Versioned migration examples once the schema evolves beyond `cognitive_trail_run.v0.1`.
 
 ## Reviewer Bottom Line
 
 ```text
-The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema -> examples -> generator -> validator -> tests -> CI summary -> downloadable artifacts -> explicit non-claims.
+The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema versioning -> schema -> examples -> generator -> validator -> tests -> CI summary -> downloadable artifacts -> explicit non-claims.
 ```
