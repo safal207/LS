@@ -136,6 +136,12 @@ Generate a real Cognitive Trail Run artifact from the PR Role Market benchmark:
 python scripts/generate_pr_review_trail_run.py --last 10
 ```
 
+Generate and validate in one pass:
+
+```bash
+python scripts/generate_pr_review_trail_run.py --last 10 --validate
+```
+
 Default output:
 
 ```text
@@ -147,7 +153,8 @@ Optional run with attached role outputs:
 ```bash
 python scripts/generate_pr_review_trail_run.py \
   --last 10 \
-  --role-outputs docs/examples/pr_role_outputs.sample.json
+  --role-outputs docs/examples/pr_role_outputs.sample.json \
+  --validate
 ```
 
 This command converts the PR Role Market batch summary into the canonical
@@ -160,6 +167,7 @@ PR diff history
 -> top role and actor
 -> repeatability decision
 -> trail-run JSON artifact
+-> schema and semantic validation
 ```
 
 ## Validation
@@ -167,18 +175,25 @@ PR diff history
 Trail-run examples are validated against the JSON Schema and LS-specific semantic
 checks.
 
-Local command:
+Local command for all checked-in examples:
 
 ```bash
 python -m pip install jsonschema
 python scripts/validate_cognitive_trail_runs.py
 ```
 
+Local command for one generated artifact:
+
+```bash
+python scripts/validate_cognitive_trail_runs.py \
+  --example reports/trails/<timestamp>_pr_review_trail_run.json
+```
+
 The validator checks:
 
-- all `examples/trails/*.json` files are valid JSON;
+- all target trail-run files are valid JSON;
 - the schema itself is valid Draft 2020-12 JSON Schema;
-- each example matches `schemas/cognitive_trail_run.schema.json`;
+- each target file matches `schemas/cognitive_trail_run.schema.json`;
 - `lift == cooperative_reward - baseline_reward`;
 - `positive_lift` matches the sign of `lift`;
 - route steps are contiguous from `1`;
