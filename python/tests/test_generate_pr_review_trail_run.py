@@ -130,6 +130,20 @@ def test_invalid_trail_run_rejects_inconsistent_lift(tmp_path, capsys) -> None:
     assert "got 999.0" in stderr
 
 
+def test_invalid_trail_run_rejects_contribution_summary_mismatch(tmp_path, capsys) -> None:
+    artifact = build_trail_run_from_batch(_positive_batch(), task_id="contribution-mismatch-trail-run")
+    invalid_artifact = deepcopy(artifact)
+    invalid_artifact["contribution_summary"]["top_role"] = "unsupported_role"
+    invalid_artifact["contribution_summary"]["top_actor"] = "unsupported_actor"
+    output_path = _write_artifact(tmp_path, "contribution_mismatch_trail_run.json", invalid_artifact)
+
+    assert validate_files(DEFAULT_SCHEMA, [output_path]) == 1
+
+    stderr = capsys.readouterr().err
+    assert "contribution_summary.top_role must match result.top_role" in stderr
+    assert "contribution_summary.top_actor must match result.top_actor" in stderr
+
+
 def test_generated_trail_run_markdown_report_contains_reviewer_sections(tmp_path) -> None:
     artifact = build_trail_run_from_batch(_positive_batch(), task_id="markdown-trail-run")
     json_output_path = tmp_path / "markdown_trail_run.json"
