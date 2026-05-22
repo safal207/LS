@@ -30,6 +30,7 @@ Cognitive Trail Run contract
 -> checked-in examples
 -> PR-review benchmark note
 -> validator with semantic checks
+-> negative validation tests
 -> PR-review trail generator
 -> Markdown reviewer report
 -> generator tests
@@ -90,7 +91,7 @@ On the current small local PR-review sample, the cooperative route produced a be
 | Benchmark interpretation | [`COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md`](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md) |
 | Validator | [`../scripts/validate_cognitive_trail_runs.py`](../scripts/validate_cognitive_trail_runs.py) |
 | Generator | [`../scripts/generate_pr_review_trail_run.py`](../scripts/generate_pr_review_trail_run.py) |
-| Generator tests | [`../python/tests/test_generate_pr_review_trail_run.py`](../python/tests/test_generate_pr_review_trail_run.py) |
+| Generator and negative validation tests | [`../python/tests/test_generate_pr_review_trail_run.py`](../python/tests/test_generate_pr_review_trail_run.py) |
 | CI workflow | [`../.github/workflows/cognitive_trail_contract.yml`](../.github/workflows/cognitive_trail_contract.yml) |
 | Contributor tasks | [`COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md`](COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md) |
 
@@ -108,7 +109,7 @@ Validate checked-in examples:
 python scripts/validate_cognitive_trail_runs.py
 ```
 
-Run generator tests:
+Run generator and negative validation tests:
 
 ```bash
 PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_generate_pr_review_trail_run.py
@@ -141,7 +142,7 @@ The workflow performs four evidence-producing actions:
 
 ```text
 validate checked-in examples
--> run generator tests
+-> run generator and negative validation tests
 -> generate and validate a fresh runtime trail JSON
 -> generate a Markdown reviewer report
 ```
@@ -177,6 +178,26 @@ The validator checks:
 - contribution summary agrees with result fields.
 
 Schema evolution is documented in [`COGNITIVE_TRAIL_SCHEMA_VERSIONING.md`](COGNITIVE_TRAIL_SCHEMA_VERSIONING.md). Any future schema semantics change should keep old reviewer evidence interpretable and explicitly bounded.
+
+## Negative Validation Behavior
+
+The test suite also verifies that broken artifacts fail by design.
+
+Current negative checks include:
+
+```text
+unknown top-level schema field -> rejected by JSON Schema
+inconsistent result.lift       -> rejected by semantic validator
+```
+
+Reviewer interpretation:
+
+```text
+A Cognitive Trail artifact is not accepted merely because it is JSON. It must match the strict schema and preserve semantic consistency between reported rewards, lift, contribution, and route fields.
+```
+
+This matters because evidence artifacts become useful only if invalid or
+unsupported claims are blocked before they enter reviewer discussion.
 
 ## What the Markdown Report Adds
 
@@ -233,9 +254,10 @@ The next strongest evidence improvements are:
 5. CI/test outcome signals added to reward calculation.
 6. More generated reports promoted into curated checked-in examples.
 7. Versioned migration examples once the schema evolves beyond `cognitive_trail_run.v0.1`.
+8. More negative fixtures covering route-step gaps, unknown actors, contribution mismatch, and unsupported repeatability decisions.
 
 ## Reviewer Bottom Line
 
 ```text
-The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema versioning -> schema -> examples -> generator -> validator -> tests -> CI summary -> downloadable artifacts -> explicit non-claims.
+The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema versioning -> schema -> examples -> generator -> validator -> negative tests -> CI summary -> downloadable artifacts -> explicit non-claims.
 ```
