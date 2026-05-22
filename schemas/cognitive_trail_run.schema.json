@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/cognitive_trail_run.schema.json",
+  "title": "LS Cognitive Trail Run",
+  "description": "A local-first artifact recording one measurable cooperative route for an AI co-work task.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "task_type",
+    "status",
+    "input_ref",
+    "route",
+    "evidence",
+    "result",
+    "contribution_summary",
+    "repeatability"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "cognitive_trail_run.v0.1"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_type": {
+      "type": "string",
+      "enum": [
+        "code_review",
+        "pr_review",
+        "research_review",
+        "decision_review",
+        "other"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "local_research_mvp",
+        "experimental",
+        "validated",
+        "deprecated"
+      ]
+    },
+    "input_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "description"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["git_diff", "commit", "pull_request", "issue", "document", "dialogue", "other"]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repo": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "pull_request": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "hash": {
+          "type": "string"
+        }
+      }
+    },
+    "route": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step", "role", "actor"],
+        "properties": {
+          "step": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "actor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model": {
+            "type": "string"
+          },
+          "responsibility": {
+            "type": "string"
+          },
+          "output_ref": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "description", "strength"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "risk_found",
+              "missing_tests",
+              "ci_signal",
+              "diff_signal",
+              "human_decision",
+              "false_positive",
+              "unsupported_claim",
+              "latency_signal",
+              "other"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "strength": {
+            "type": "string",
+            "enum": ["weak", "medium", "strong"]
+          },
+          "source": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline_reward", "cooperative_reward", "lift", "positive_lift"],
+      "properties": {
+        "baseline_reward": {
+          "type": "number"
+        },
+        "cooperative_reward": {
+          "type": "number"
+        },
+        "lift": {
+          "type": "number"
+        },
+        "positive_lift": {
+          "type": "boolean"
+        },
+        "top_role": {
+          "type": "string"
+        },
+        "top_actor": {
+          "type": "string"
+        },
+        "route_key": {
+          "type": "string"
+        },
+        "decision": {
+          "type": "string"
+        }
+      }
+    },
+    "contribution_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["top_role", "top_actor"],
+      "properties": {
+        "top_role": {
+          "type": "string"
+        },
+        "top_actor": {
+          "type": "string"
+        },
+        "positive_contributors": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "noisy_actors": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "repeatability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["should_repeat_route", "needs_more_runs", "reason"],
+      "properties": {
+        "should_repeat_route": {
+          "type": "boolean"
+        },
+        "needs_more_runs": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "next_route_hint": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
