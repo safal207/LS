@@ -171,6 +171,12 @@ contribution summary, repeatability, and non-claims.
 
 ## 6. Check Nash-Style Route Stability
 
+Inspect the checked-in route-stability sample:
+
+```text
+examples/route-stability/nash_route_stability_sample.json
+```
+
 Run:
 
 ```bash
@@ -214,6 +220,16 @@ Boundary:
 ```text
 This is a Nash-style route stability proxy, not a formal proof of Nash equilibrium.
 ```
+
+Regression check:
+
+```bash
+PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
+```
+
+This test pins the checked-in sample against the deterministic `--json` output
+for stable fields such as route rewards, counterfactuals, marginal
+contributions, thresholds, and interpretation boundary.
 
 ## 7. Inspect CI-Generated Report Artifacts
 
@@ -330,6 +346,7 @@ docs/COGNITIVE_TRAIL_SCHEMA_VERSIONING.md
 docs/COOPERATIVE_PRECISION_METRICS.md
 schemas/cognitive_trail_run.schema.json
 examples/trails/generated_pr_review_sample.json
+examples/route-stability/nash_route_stability_sample.json
 scripts/validate_cognitive_trail_runs.py
 scripts/generate_pr_review_trail_run.py
 scripts/run_nash_route_stability_demo.py
