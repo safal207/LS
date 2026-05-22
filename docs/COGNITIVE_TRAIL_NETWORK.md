@@ -13,6 +13,9 @@ LS remembers which trails worked.
 Contributor roadmap:
 
 - [Cooperative Precision Roadmap](COOPERATIVE_PRECISION_ROADMAP.md)
+- [Cognitive Trail Run Contract](COGNITIVE_TRAIL_RUN_CONTRACT.md)
+- [Cooperative Precision Metrics](COOPERATIVE_PRECISION_METRICS.md)
+- [PR Role Market Benchmark](PR_ROLE_MARKET_BENCHMARK.md)
 
 Instead of treating every model call as a fresh isolated attempt, LS records the
 route that produced a result: which roles participated, what quality signals
@@ -49,6 +52,31 @@ opaque pheromones:
 - continuity and evidence events
 - replayable audit artifact
 
+## Trail Run Contract
+
+The smallest durable artifact in the network is now a **Cognitive Trail Run**:
+
+```text
+task
+-> route of roles and actors
+-> evidence
+-> contribution attribution
+-> result
+-> repeatability decision
+```
+
+A trail run is not a claim that LS has become a global live model network. It is
+a local-first, auditable cooperation record that can be validated, compared, and
+replayed.
+
+Canonical artifacts:
+
+- [`docs/COGNITIVE_TRAIL_RUN_CONTRACT.md`](COGNITIVE_TRAIL_RUN_CONTRACT.md)
+- [`docs/COOPERATIVE_PRECISION_METRICS.md`](COOPERATIVE_PRECISION_METRICS.md)
+- [`../schemas/cognitive_trail_run.schema.json`](../schemas/cognitive_trail_run.schema.json)
+- [`../examples/trails/pr_review_small_run.json`](../examples/trails/pr_review_small_run.json)
+- [`../examples/trails/pr_review_cooperative_result.json`](../examples/trails/pr_review_cooperative_result.json)
+
 ## What Exists Today
 
 The repository already has the main building blocks:
@@ -60,6 +88,9 @@ The repository already has the main building blocks:
 - `python/ls/cognition/council_contribution_ledger.py` records who contributed what.
 - `docs/COOPERATIVE_MERITOCRACY_NETWORK.md` describes the broader cooperative model network.
 - `docs/MERIT_LEDGER_CONSENSUS.md` describes merit and contribution consensus.
+- `docs/COGNITIVE_TRAIL_RUN_CONTRACT.md` defines the first formal trail-run contract.
+- `schemas/cognitive_trail_run.schema.json` defines the first machine-readable trail-run schema.
+- `examples/trails/` contains initial PR-review trail-run examples.
 
 ## Product Shape
 
@@ -140,7 +171,7 @@ auditable outcomes.
 
 ## What To Build Next
 
-1. Route artifact schema for cognitive trails.
+1. Add a CI validator for `examples/trails/*.json` against `schemas/cognitive_trail_run.schema.json`.
 2. One-command demo runner.
 3. GitHub PR review trail demo.
 4. Best-route replay report.
@@ -177,48 +208,4 @@ PR diff + CI evidence
 -> draft / critic / verifier
 -> route reward
 -> better default path next time
-```
-
-## Real Git Diff Artifact
-
-The next step is a local-first artifact builder that reviews a real git diff
-instead of seeded sample data:
-
-```bash
-python scripts/run_pr_review_trail_artifact.py
-```
-
-By default it reviews the latest commit:
-
-```text
-HEAD~1..HEAD
-```
-
-For a branch or pull-request style range:
-
-```bash
-python scripts/run_pr_review_trail_artifact.py \
-  --base origin/main \
-  --head my-feature-branch \
-  --output reports/pr_review_trail.json \
-  --markdown-output reports/pr_review_trail.md
-```
-
-The artifact records:
-
-- selected review route
-- diff files and stat
-- review signals
-- route reward
-- updated route memory
-- human-facing review summary
-
-This turns PR review into a reusable trail:
-
-```text
-real diff
--> draft reviewer / risk critic / evidence verifier / final reviewer
--> artifact
--> route reward
--> better default route for the next PR
 ```
