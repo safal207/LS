@@ -2,11 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 body {
   @apply bg-ghost-900 text-white antialiased;
   font-family: Inter, system-ui, sans-serif;
   background-image: radial-gradient(circle at 20% 20%, #1a2f5e 0%, transparent 45%),
     radial-gradient(circle at 80% 10%, #0d5f7a 0%, transparent 40%);
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+  touch-action: pan-y;
+}
+
+#root {
+  min-height: 100vh;
 }
 
 .glass {
