@@ -160,7 +160,39 @@ The JSON file remains the canonical machine-checkable Cognitive Trail Run. The
 Markdown file is a reviewer-facing report with summary, result, route, evidence,
 contribution summary, repeatability, and non-claims.
 
-## 6. Validate One Specific Generated Artifact
+## 6. Inspect CI-Generated Report Artifacts
+
+The `Cognitive Trail Contract` workflow also generates reviewer artifacts in CI.
+
+Workflow path:
+
+```text
+.github/workflows/cognitive_trail_contract.yml
+```
+
+The workflow uploads a GitHub Actions artifact named:
+
+```text
+cognitive-trail-report-${{ github.sha }}
+```
+
+The artifact contains:
+
+```text
+reports/trails/ci/cognitive_trail_run.json
+reports/trails/ci/cognitive_trail_run_report.md
+```
+
+Reviewer interpretation:
+
+```text
+CI validates checked-in examples, runs generator tests, generates a fresh runtime trail run, validates it, and exposes both JSON and Markdown as downloadable workflow artifacts.
+```
+
+The uploaded JSON is machine-checkable. The uploaded Markdown is intended for
+human review and PR/grant discussion.
+
+## 7. Validate One Specific Generated Artifact
 
 If a runtime report already exists, validate only that file:
 
