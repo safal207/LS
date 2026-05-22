@@ -1,6 +1,8 @@
 # ruff: noqa: E402
 from __future__ import annotations
 
+import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -59,11 +61,44 @@ def test_trail_mcp_recommends_and_updates_route_memory(tmp_path: Path) -> None:
     )
     assert outcome["status"] == "route_memory_updated"
     assert outcome["reward"] > 0
+    assert outcome["metric_version"] == "trail_mcp_metrics.v0.2"
+    assert outcome["outcome_success"] is True
+    assert outcome["decision"] == "success"
     assert outcome["route_stats"]["runs"] == 1
+    assert outcome["route_stats"]["success_rate"] == 1.0
     assert outcome["route_stats"]["repeatability_score"] > 0
+    assert outcome["route_stats"]["needs_more_runs"] is True
+    assert outcome["route_stats"]["route_health"] == "promising"
 
     best = tools.call_tool("ls_trail_query_best_trails", {"route_prefix": "pr_review", "limit": 1})
     assert best["routes"][0]["route_key"] == "pr_review>local>gonka>mimo"
+
+
+def test_trail_mcp_weak_positive_reward_is_not_success(tmp_path: Path) -> None:
+    tools = MCPToolRegistry(task_manager=_runtime(tmp_path), trail_network=_bridge(tmp_path))
+
+    outcome = tools.call_tool(
+        "ls_trail_record_outcome",
+        {
+            "route_key": "pr_review>local",
+            "task_id": "pr-weak",
+            "task_text": "review this diff",
+            "evidence_coverage": 0.25,
+            "false_positive_rate": 0.7,
+            "human_accepted": False,
+            "ci_passed": False,
+            "useful_findings": 1,
+            "unsupported_claims": 3,
+            "latency_ms": 9000,
+        },
+    )
+
+    assert outcome["reward"] > 0
+    assert outcome["outcome_success"] is False
+    assert outcome["decision"] == "weak_signal"
+    assert outcome["route_stats"]["runs"] == 1
+    assert outcome["route_stats"]["success_rate"] == 0.0
+    assert outcome["route_stats"]["route_health"] == "weak"
 
 
 def test_trail_mcp_records_contribution_and_exposes_events_resource(tmp_path: Path) -> None:
@@ -133,3 +168,20 @@ def test_trail_mcp_server_lists_trail_tools_and_resources(tmp_path: Path) -> Non
     assert "ls_trail_record_outcome" in tools
     assert "trail/routes" in resources
     assert "trail/events" in resources
+
+
+def test_trail_mcp_metrics_demo_ranks_cooperative_route() -> None:
+    script = ROOT / "scripts" / "run_trail_mcp_metrics_demo.py"
+    result = subprocess.run(
+        [sys.executable, str(script), "--json"],
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+        text=True,
+    )
+    payload = json.loads(result.stdout)
+
+    assert payload["metric_version"] == "trail_mcp_metrics.v0.2"
+    assert payload["routes"][0]["outcome_success"] is True
+    assert payload["routes"][1]["outcome_success"] is False
+    assert payload["ranking"][0]["route_key"] == "pr_review>local>gonka>mimo"

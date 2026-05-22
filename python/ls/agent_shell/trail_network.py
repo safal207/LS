@@ -18,6 +18,11 @@ from modules.graph.trail_updater import PathExecutionRecord, TrailUpdater  # noq
 
 
 DEFAULT_BACKENDS = ["local", "gonka", "mimo"]
+METRIC_VERSION = "trail_mcp_metrics.v0.2"
+DEFAULT_SUCCESS_MIN_REWARD = 0.5
+DEFAULT_SUCCESS_MIN_EVIDENCE_COVERAGE = 0.7
+DEFAULT_SUCCESS_MAX_FALSE_POSITIVE_RATE = 0.2
+DEFAULT_REPEATABILITY_MIN_RUNS = 3
 
 
 def _utc_now() -> str:
@@ -196,6 +201,10 @@ class TrailNetworkBridge:
             latency_ms=_safe_float(args.get("latency_ms"), 0.0),
         )
         route, reward = TrailUpdater(self.store).update(record)
+        success_evaluation = self._evaluate_outcome_success(args, quality=quality, reward=reward)
+        if not success_evaluation["outcome_success"] and reward > 0 and route.successes > 0:
+            route.successes = max(0, route.successes - 1)
+            route = self.store.save_route(route)
         event = {
             "event_id": f"trail-event-{uuid4()}",
             "event_type": "outcome_recorded",
@@ -206,12 +215,18 @@ class TrailNetworkBridge:
             "quality": quality,
             "human_accepted": bool(args.get("human_accepted", False)),
             "ci_passed": args.get("ci_passed"),
+            "metric_version": METRIC_VERSION,
+            "outcome_success": success_evaluation["outcome_success"],
+            "success_decision": success_evaluation["decision"],
+            "success_checks": success_evaluation["success_checks"],
         }
         self._append_event(event)
         return {
             "tool": "ls_trail_record_outcome",
+            "metric_version": METRIC_VERSION,
             "status": "route_memory_updated",
             "reward": reward,
+            **success_evaluation,
             "route_stats": self._route_payload(route),
             "event": event,
             "network_learning": "local_route_memory_updated",
@@ -319,6 +334,103 @@ class TrailNetworkBridge:
         }
         return any(key in args and args.get(key) is not None for key in signal_keys)
 
+    def _evaluate_outcome_success(
+        self,
+        args: dict[str, Any],
+        *,
+        quality: dict[str, Any],
+        reward: float,
+    ) -> dict[str, Any]:
+        min_reward = _safe_float(args.get("success_min_reward"), DEFAULT_SUCCESS_MIN_REWARD)
+        min_evidence = _safe_float(
+            args.get("success_min_evidence_coverage"),
+            DEFAULT_SUCCESS_MIN_EVIDENCE_COVERAGE,
+        )
+        max_false_positive = _safe_float(
+            args.get("success_max_false_positive_rate"),
+            DEFAULT_SUCCESS_MAX_FALSE_POSITIVE_RATE,
+        )
+        evidence_coverage = _safe_float(args.get("evidence_coverage"), _safe_float(quality.get("relevance"), 0.0))
+        false_positive_rate = _safe_float(
+            args.get("false_positive_rate"),
+            _safe_float(quality.get("hallucination_risk"), 1.0),
+        )
+        human_present = "human_accepted" in args
+        ci_present = "ci_passed" in args
+        human_accepted = bool(args.get("human_accepted", False))
+        ci_passed = bool(args.get("ci_passed", False))
+        useful = _safe_float(args.get("useful_findings"), 0.0)
+        unsupported = _safe_float(args.get("unsupported_claims"), 0.0)
+        finding_signal_present = "useful_findings" in args or "unsupported_claims" in args
+
+        checks = [
+            {
+                "check": "reward_at_or_above_threshold",
+                "passed": reward >= min_reward,
+                "actual": round(float(reward), 4),
+                "threshold": min_reward,
+            },
+            {
+                "check": "evidence_coverage_at_or_above_threshold",
+                "passed": evidence_coverage >= min_evidence,
+                "actual": round(evidence_coverage, 4),
+                "threshold": min_evidence,
+            },
+            {
+                "check": "false_positive_rate_at_or_below_threshold",
+                "passed": false_positive_rate <= max_false_positive,
+                "actual": round(false_positive_rate, 4),
+                "threshold": max_false_positive,
+            },
+        ]
+
+        confirmation_passed = (human_present and human_accepted) or (ci_present and ci_passed)
+        checks.append(
+            {
+                "check": "external_confirmation_present",
+                "passed": confirmation_passed,
+                "actual": {
+                    "human_accepted": human_accepted if human_present else None,
+                    "ci_passed": ci_passed if ci_present else None,
+                },
+                "threshold": "human_accepted=true or ci_passed=true",
+            }
+        )
+
+        if finding_signal_present:
+            checks.append(
+                {
+                    "check": "useful_findings_exceed_unsupported_claims",
+                    "passed": useful > unsupported,
+                    "actual": {"useful_findings": useful, "unsupported_claims": unsupported},
+                    "threshold": "useful_findings > unsupported_claims",
+                }
+            )
+
+        outcome_success = all(bool(check["passed"]) for check in checks)
+        if outcome_success:
+            decision = "success"
+            explanation = "Route outcome passed reward, evidence, noise, and external confirmation gates."
+        elif not confirmation_passed and all(bool(check["passed"]) for check in checks[:3]):
+            decision = "needs_human_or_ci_confirmation"
+            explanation = "Route has quality signal, but no human or CI confirmation yet."
+        else:
+            decision = "weak_signal"
+            explanation = "Route outcome was recorded, but one or more quality gates failed."
+
+        return {
+            "outcome_success": outcome_success,
+            "decision": decision,
+            "success_checks": checks,
+            "success_thresholds": {
+                "min_reward": min_reward,
+                "min_evidence_coverage": min_evidence,
+                "max_false_positive_rate": max_false_positive,
+                "requires_external_confirmation": True,
+            },
+            "explanation": explanation,
+        }
+
     def _route_payload(self, route: RouteStats) -> dict[str, Any]:
         runs = max(0, int(route.runs or 0))
         success_rate = round(float(route.successes or 0) / runs, 4) if runs else 0.0
@@ -333,4 +445,20 @@ class TrailNetworkBridge:
         payload = route.to_dict()
         payload["success_rate"] = success_rate
         payload["repeatability_score"] = repeatability_score
+        payload["metric_version"] = METRIC_VERSION
+        payload["needs_more_runs"] = runs < DEFAULT_REPEATABILITY_MIN_RUNS
+        if runs < 1:
+            payload["route_health"] = "untried"
+        elif (
+            runs >= DEFAULT_REPEATABILITY_MIN_RUNS
+            and repeatability_score >= 0.75
+            and success_rate >= 0.67
+        ):
+            payload["route_health"] = "validated_candidate"
+        elif repeatability_score >= 0.75:
+            payload["route_health"] = "promising"
+        elif repeatability_score >= 0.5:
+            payload["route_health"] = "needs_more_evidence"
+        else:
+            payload["route_health"] = "weak"
         return payload
