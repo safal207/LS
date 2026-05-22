@@ -11,12 +11,13 @@ This repository contains a grant-ready research direction around the **Personal 
 ## Start here
 
 1. [Grant-ready brief](docs/GRANT_READY_BRIEF_PERSONAL_COGNITIVE_GARDEN.md)
-2. [Personal Cognitive Garden runner](docs/PERSONAL_COGNITIVE_GARDEN_RUNNER.md)
-3. [Red-team safety scenario](docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md)
-4. [Update schema](schemas/personal-cognitive-garden-update.v0.1.json)
-5. [Example session summary](examples/personal_cognitive_garden/session_summary.json)
-6. [Proposed update](examples/personal_cognitive_garden/proposed_update.json)
-7. [Accepted graph state](examples/personal_cognitive_garden/accepted_graph_state.json)
+2. [Personal Cognitive Garden quick start](docs/PERSONAL_COGNITIVE_GARDEN_QUICK_START.md)
+3. [Personal Cognitive Garden runner](docs/PERSONAL_COGNITIVE_GARDEN_RUNNER.md)
+4. [Red-team safety scenario](docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md)
+5. [Update schema](schemas/personal-cognitive-garden-update.v0.1.json)
+6. [Example session summary](examples/personal_cognitive_garden/session_summary.json)
+7. [Proposed update](examples/personal_cognitive_garden/proposed_update.json)
+8. [Accepted graph state](examples/personal_cognitive_garden/accepted_graph_state.json)
 
 ## Reproducible demo
 

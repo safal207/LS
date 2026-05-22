@@ -108,6 +108,10 @@ python3 scripts/run_personal_cognitive_garden_demo.py
 python3 scripts/run_personal_cognitive_garden_demo.py --json
 ```
 
+New contributors can use the focused PCG quick start:
+
+- [`docs/PERSONAL_COGNITIVE_GARDEN_QUICK_START.md`](docs/PERSONAL_COGNITIVE_GARDEN_QUICK_START.md)
+
 See a compact before/after example:
 
 - [`docs/PERSONAL_COGNITIVE_GARDEN_GATEWAY_BEFORE_AFTER.md`](docs/PERSONAL_COGNITIVE_GARDEN_GATEWAY_BEFORE_AFTER.md)
@@ -511,6 +515,7 @@ pytest python/tests/test_memory_store_locking.py
 | [docs/ECOSYSTEM_REVIEWER_INDEX.md](docs/ECOSYSTEM_REVIEWER_INDEX.md) | Top-level reviewer index linking LS to ProofPath, PythiaLabs, CML, and LTP |
 | [docs/PERSONAL_GROWTH_ENTRY.md](docs/PERSONAL_GROWTH_ENTRY.md) | Short entry point for the Personal Cognitive Garden and human-development positioning |
 | [docs/LS_PERSONAL_COGNITIVE_GARDEN.md](docs/LS_PERSONAL_COGNITIVE_GARDEN.md) | Thesis for LS as a human-owned, goal-directed cognitive garden cultivated by agents |
+| [docs/PERSONAL_COGNITIVE_GARDEN_QUICK_START.md](docs/PERSONAL_COGNITIVE_GARDEN_QUICK_START.md) | Minimal local quick start for the Personal Cognitive Garden demo runner |
 | [docs/PERSONAL_COGNITIVE_GARDEN_RUNNER.md](docs/PERSONAL_COGNITIVE_GARDEN_RUNNER.md) | Local runner instructions for replaying the Personal Cognitive Garden demo flow |
 | [docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md](docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md) | Red-team scenario for blocking employer surveillance misuse of a private cognitive garden |
 | [docs/LIMINALQA_TEST_STRATEGY.md](docs/LIMINALQA_TEST_STRATEGY.md) | Strategy for integrating LiminalQAengineer with the current pytest and CI stack |
