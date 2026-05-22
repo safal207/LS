@@ -134,6 +134,13 @@ To test the practical signal:
 python scripts/run_trail_mcp_metrics_demo.py
 ```
 
+To test whether the cooperative route is Nash-style stable against simple
+counterfactuals:
+
+```bash
+python scripts/run_nash_route_stability_demo.py
+```
+
 ## Product Shape
 
 The first concrete product should be narrow:
