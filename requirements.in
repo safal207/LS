@@ -21,6 +21,7 @@ python-multipart>=0.0.21
 urllib3>=2.7.0
 starlette>=0.46.0
 Pygments>=2.20.0
+idna>=3.15
 
 # Vision Subsystem
 mss==10.2.0
