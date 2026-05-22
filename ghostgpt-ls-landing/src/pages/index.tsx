@@ -7,6 +7,7 @@ import Hero from '../components/Hero';
 const CTA = lazy(() => import('../components/CTA'));
 const Features = lazy(() => import('../components/Features'));
 const OperatorDelta = lazy(() => import('../components/OperatorDelta'));
+const PcgReviewMockup = lazy(() => import('../components/PcgReviewMockup'));
 const PluginCapabilities = lazy(() => import('../components/PluginCapabilities'));
 const ProblemSolution = lazy(() => import('../components/ProblemSolution'));
 const ReflectiveRuntime = lazy(() => import('../components/ReflectiveRuntime'));
@@ -28,6 +29,7 @@ export default function IndexPage() {
       <AskGPTGrantReview />
       <Suspense fallback={null}>
         <PluginCapabilities />
+        <PcgReviewMockup />
         <ProblemSolution />
         <Features />
         <ReflectiveRuntime />
