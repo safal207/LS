@@ -93,7 +93,7 @@ The repository already has the main building blocks:
 - `examples/trails/` contains initial PR-review trail-run examples.
 - `python/ls/agent_shell/trail_network.py` exposes the first local MCP bridge for route memory.
 
-## MCP Bridge v0.1
+## MCP Bridge v0.2
 
 The first MCP-facing bridge is documented in
 [`LS_TRAIL_MCP_SERVER.md`](LS_TRAIL_MCP_SERVER.md).
@@ -122,6 +122,17 @@ ask for the best known route
 The bridge is still local-first and does not update model weights. It makes the
 network more precise by updating route memory only after evidence or outcome
 signals exist.
+
+The current metric version is `trail_mcp_metrics.v0.2`. A route is not counted
+as successful just because it received a positive reward. It must pass evidence
+coverage, low false-positive rate, and human or CI confirmation gates. This
+keeps the network focused on precision rather than optimistic scoring.
+
+To test the practical signal:
+
+```bash
+python scripts/run_trail_mcp_metrics_demo.py
+```
 
 ## Product Shape
 

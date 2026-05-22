@@ -1,4 +1,4 @@
-# LS Trail MCP Server v0.1
+# LS Trail MCP Server v0.2
 
 Status: **local-first experimental bridge**.
 
@@ -49,7 +49,7 @@ signals exist.
 
 ## Safety Boundary
 
-The v0.1 bridge is deliberately local-first:
+The bridge is deliberately local-first:
 
 - it does not update model weights;
 - it does not call external services;
@@ -60,6 +60,52 @@ The v0.1 bridge is deliberately local-first:
 
 This keeps the network useful without pretending it is already a global live
 intelligence layer.
+
+## Metric Hardening v0.2
+
+In v0.2, `success_rate` is no longer just `reward > 0`.
+
+A route outcome counts as success only when all gates pass:
+
+- `reward >= 0.5`;
+- `evidence_coverage >= 0.7`;
+- `false_positive_rate <= 0.2`;
+- `human_accepted=true` or `ci_passed=true`.
+
+This matters because a weak answer can still have a small positive reward. LS
+records that signal, but does not treat it as a verified contribution until it
+has evidence, low noise, and an external confirmation signal.
+
+The output now includes:
+
+```json
+{
+  "metric_version": "trail_mcp_metrics.v0.2",
+  "outcome_success": true,
+  "decision": "success",
+  "success_checks": [],
+  "route_stats": {
+    "success_rate": 1.0,
+    "repeatability_score": 0.9063,
+    "route_health": "promising",
+    "needs_more_runs": true
+  }
+}
+```
+
+Plain meaning:
+
+```text
+good advice is useful
+verified advice improves the route map
+repeatable verified advice becomes the preferred trail
+```
+
+Run the deterministic local demo:
+
+```bash
+python scripts/run_trail_mcp_metrics_demo.py
+```
 
 ## Minimal Flow
 
