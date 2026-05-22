@@ -33,6 +33,11 @@ AI session
 -> accepted Personal Cognitive Garden update
 ```
 
+For a compact before/after artifact that starts from raw agent output, see:
+
+- [`docs/PERSONAL_COGNITIVE_GARDEN_GATEWAY_BEFORE_AFTER.md`](PERSONAL_COGNITIVE_GARDEN_GATEWAY_BEFORE_AFTER.md)
+- [`examples/personal_cognitive_garden/gateway_to_garden_before_after.json`](../examples/personal_cognitive_garden/gateway_to_garden_before_after.json)
+
 ## What to show on screen
 
 ### 1. Session summary
