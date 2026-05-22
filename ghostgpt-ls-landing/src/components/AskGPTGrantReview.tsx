@@ -149,7 +149,7 @@ export default function AskGPTGrantReview() {
 
           <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
             <div className="mb-3 text-xs uppercase tracking-wider text-white/60">{text.promptLabel}</div>
-            <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-cyan-50/85">
+            <pre className="whitespace-pre-wrap break-words text-xs leading-5 text-cyan-50/85">
               {prompt}
             </pre>
           </div>
