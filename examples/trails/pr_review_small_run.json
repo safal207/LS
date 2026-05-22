@@ -1,0 +1,105 @@
+{
+  "schema_version": "cognitive_trail_run.v0.1",
+  "task_id": "pr-review-small-run-001",
+  "task_type": "code_review",
+  "status": "local_research_mvp",
+  "input_ref": {
+    "kind": "git_diff",
+    "description": "Small PR-style diff reviewed through a cooperative route.",
+    "repo": "safal207/LS",
+    "commit": "local-demo"
+  },
+  "route": [
+    {
+      "step": 1,
+      "role": "draft_reviewer",
+      "actor": "codex-self-use",
+      "responsibility": "Create the first review pass over the diff."
+    },
+    {
+      "step": 2,
+      "role": "risk_critic",
+      "actor": "gonka",
+      "model": "qwen/qwen3-235b-a22b-instruct-2507-fp8",
+      "responsibility": "Find merge risks, weak evidence, and unsafe assumptions."
+    },
+    {
+      "step": 3,
+      "role": "evidence_verifier",
+      "actor": "local-qwen",
+      "model": "qwen2.5:7b",
+      "responsibility": "Check whether review claims are grounded in the diff or tests."
+    },
+    {
+      "step": 4,
+      "role": "light_checker",
+      "actor": "local-qwen-light",
+      "model": "qwen2.5:1.5b",
+      "responsibility": "Run a cheap sanity pass for obvious contradictions or missing context."
+    },
+    {
+      "step": 5,
+      "role": "fast_summarizer",
+      "actor": "mimo",
+      "model": "mimo-v2-flash",
+      "responsibility": "Compress the verified route outcome into a review summary."
+    },
+    {
+      "step": 6,
+      "role": "final_authority",
+      "actor": "human_operator",
+      "responsibility": "Accept, reject, or edit the route result before reuse."
+    }
+  ],
+  "evidence": [
+    {
+      "kind": "diff_signal",
+      "description": "The task input is a concrete git diff rather than an ungrounded prompt.",
+      "strength": "strong",
+      "source": "git diff"
+    },
+    {
+      "kind": "risk_found",
+      "description": "The risk_critic role is responsible for slowing down on large diffs, missing tests, and weak evidence.",
+      "strength": "medium",
+      "role": "risk_critic",
+      "actor": "gonka"
+    },
+    {
+      "kind": "human_decision",
+      "description": "The human operator remains the final authority before the trail is treated as reusable.",
+      "strength": "strong",
+      "actor": "human_operator"
+    }
+  ],
+  "result": {
+    "baseline_reward": 0.5943,
+    "cooperative_reward": 0.7233,
+    "lift": 0.129,
+    "positive_lift": true,
+    "top_role": "risk_critic",
+    "top_actor": "gonka",
+    "route_key": "pr_review>draft_reviewer>risk_critic>evidence_verifier>light_checker>fast_summarizer>final_authority",
+    "decision": "prefer_for_next_similar_task"
+  },
+  "contribution_summary": {
+    "top_role": "risk_critic",
+    "top_actor": "gonka",
+    "positive_contributors": [
+      "codex-self-use",
+      "gonka",
+      "local-qwen",
+      "local-qwen-light",
+      "mimo",
+      "human_operator"
+    ],
+    "noisy_actors": [],
+    "notes": "This is a small local MVP example, not a global actor ranking."
+  },
+  "repeatability": {
+    "should_repeat_route": true,
+    "needs_more_runs": true,
+    "reason": "The cooperative route showed positive lift in the current small benchmark, but the sample size is still small.",
+    "next_route_hint": "Repeat on more PR diffs and include CI/test outcome signals."
+  }
+}
