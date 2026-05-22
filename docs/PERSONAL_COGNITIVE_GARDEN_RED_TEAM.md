@@ -30,6 +30,13 @@ Safe alternative: aggregate, consented, non-sensitive skill signal
 
 ## Executable red-team suite
 
+Run the single employer-surveillance boundary check:
+
+```bash
+python3 scripts/run_pcg_red_team.py
+python3 scripts/run_pcg_red_team.py --json
+```
+
 The single-scenario demo is now backed by an expanded executable suite:
 
 ```bash
@@ -62,6 +69,7 @@ The suite is also covered by regression tests in:
 
 ```text
 tests/test_pcg_grant_evidence_artifacts.py
+tests/test_pcg_red_team_runner_output.py
 ```
 
 ## Why this matters
