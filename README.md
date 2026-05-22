@@ -265,6 +265,7 @@ The repository already exposes a concrete evidence layer:
 - **Cognitive trail route memory** (`TrailUpdater`, route rewards, route pheromone weights)
 - **Nash-style route stability proxy** for testing whether a cooperative route beats single-route, ablation, and bad-ordering counterfactuals
 - **Checked-in Nash-style stability sample** (`examples/route-stability/nash_route_stability_sample.json`)
+- **Route stability sample contract** (`docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md`) for schema, negative fixture, deterministic probe, CI summary, artifact boundary, and non-claims
 - **Quality gates and machine-readable reports** (`LiminalQA`, CI thresholds)
 - **Benchmark snapshots** and interpretation notes under [`benchmark/`](benchmark/)
 - **Council Safety Gate in CI** for risk-aware review enforcement
@@ -742,6 +743,7 @@ LS — это операторский runtime-слой вокруг decision cy
 - contribution / merit / resonance сигналы (`CouncilContributionLedger`, `CEL`);
 - Nash-style route stability proxy для проверки, выигрывает ли полный кооперативный маршрут у single-route, ablation и плохого порядка;
 - checked-in Nash-style stability sample (`examples/route-stability/nash_route_stability_sample.json`);
+- contract для route-stability sample (`docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md`): schema, negative fixture, deterministic probe, CI summary, artifact boundary и non-claims;
 - quality gates и машиночитаемые отчёты (`LiminalQA`, CI-пороги);
 - benchmark-снимки в [`benchmark/`](benchmark/);
 - `Council Safety Gate` в CI.
