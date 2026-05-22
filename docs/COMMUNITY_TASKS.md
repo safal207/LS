@@ -10,6 +10,10 @@ New contributor direction:
 
 > Cooperative Precision Network: make repeated AI co-work more precise by measuring routes, evidence, and contributions.
 
+Focused task lists:
+
+- [Cognitive Trail contributor tasks](COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md)
+
 Useful entry points:
 
 - [Project positioning](PROJECT_POSITIONING.md)
@@ -19,6 +23,8 @@ Useful entry points:
 - [Cooperative Precision Roadmap](COOPERATIVE_PRECISION_ROADMAP.md)
 - [Cooperative Role Market](COOPERATIVE_ROLE_MARKET.md)
 - [Cognitive Trail Network](COGNITIVE_TRAIL_NETWORK.md)
+- [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md)
+- [Cognitive Trail PR-Review Benchmark Note](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md)
 - [Local demo runner](PERSONAL_COGNITIVE_GARDEN_RUNNER.md)
 - [Red-team safety scenario](PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md)
 
