@@ -137,6 +137,30 @@ def test_gateway_to_garden_before_after_has_accepted_and_rejected_outcomes():
     assert "No benchmark claim is made by this example." in example["invariants"]
 
 
+def test_pcg_quick_start_documents_minimal_runner_commands():
+    quick_start = Path("docs/PERSONAL_COGNITIVE_GARDEN_QUICK_START.md").read_text(encoding="utf-8")
+
+    assert "python scripts/run_personal_cognitive_garden_demo.py" in quick_start
+    assert "python scripts/run_personal_cognitive_garden_demo.py --json" in quick_start
+    assert "../README.md#quick-start" in quick_start
+
+    for field in [
+        "session_id",
+        "session_type",
+        "development_class",
+        "is_developmental",
+        "human_skill_delta",
+        "capital_effect",
+        "practice_needed",
+        "compounding_score",
+        "proposed_status",
+        "review_decision",
+        "reviewed_by",
+        "accepted_nodes",
+    ]:
+        assert f"`{field}`" in quick_start
+
+
 def test_pcg_fixture_json_is_machine_readable():
     for path in [
         FIXTURE_DIR / "red_team_employer_surveillance_request.json",

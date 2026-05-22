@@ -4,6 +4,9 @@ This runner package provides a minimal local demonstration of the Personal Cogni
 
 It is intentionally dependency-free and uses checked-in examples so grant reviewers can reproduce the core safety claims without a backend service.
 
+For the shortest contributor path, start with
+[`PERSONAL_COGNITIVE_GARDEN_QUICK_START.md`](PERSONAL_COGNITIVE_GARDEN_QUICK_START.md).
+
 ## 1. Run the core PCG artifact demo
 
 ```bash
