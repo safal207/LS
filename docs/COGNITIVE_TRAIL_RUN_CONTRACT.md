@@ -128,6 +128,38 @@ A route can be marked:
 - `should_repeat_route: false` when it added noise, risk, or low-value latency;
 - `needs_more_runs: true` when the sample is too small to trust.
 
+## Validation
+
+Trail-run examples are validated against the JSON Schema and LS-specific semantic
+checks.
+
+Local command:
+
+```bash
+python -m pip install jsonschema
+python scripts/validate_cognitive_trail_runs.py
+```
+
+The validator checks:
+
+- all `examples/trails/*.json` files are valid JSON;
+- the schema itself is valid Draft 2020-12 JSON Schema;
+- each example matches `schemas/cognitive_trail_run.schema.json`;
+- `lift == cooperative_reward - baseline_reward`;
+- `positive_lift` matches the sign of `lift`;
+- route steps are contiguous from `1`;
+- `top_role` and `top_actor` are present in the recorded route;
+- contribution summary agrees with the result fields.
+
+CI workflow:
+
+```text
+.github/workflows/cognitive_trail_contract.yml
+```
+
+This makes the Cognitive Trail Run contract a checked artifact instead of only a
+documentation claim.
+
 ## First Applied Wedge: PR Review
 
 The first strong application is:
