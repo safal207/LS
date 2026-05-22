@@ -37,6 +37,12 @@ task
 LS also includes a deterministic Nash-style route stability probe for checking
 whether the full cooperative route beats simple counterfactuals.
 
+Route-stability contract:
+
+```text
+docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md
+```
+
 Boundary:
 
 ```text
@@ -171,9 +177,16 @@ contribution summary, repeatability, and non-claims.
 
 ## 6. Check Nash-Style Route Stability
 
-Inspect the checked-in route-stability sample:
+Inspect the route-stability contract:
 
 ```text
+docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md
+```
+
+Inspect the checked-in route-stability schema and sample:
+
+```text
+schemas/route_stability_sample.schema.json
 examples/route-stability/nash_route_stability_sample.json
 ```
 
@@ -227,9 +240,10 @@ Regression check:
 PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
 ```
 
-This test pins the checked-in sample against the deterministic `--json` output
-for stable fields such as route rewards, counterfactuals, marginal
-contributions, thresholds, and interpretation boundary.
+This test validates the checked-in sample against `schemas/route_stability_sample.schema.json`
+and pins it against the deterministic `--json` output for stable fields such as
+route rewards, counterfactuals, marginal contributions, thresholds, and
+interpretation boundary.
 
 ## 7. Inspect CI-Generated Report Artifacts
 
@@ -343,8 +357,10 @@ The system may act without human authority.
 ```text
 docs/COGNITIVE_TRAIL_RUN_CONTRACT.md
 docs/COGNITIVE_TRAIL_SCHEMA_VERSIONING.md
+docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md
 docs/COOPERATIVE_PRECISION_METRICS.md
 schemas/cognitive_trail_run.schema.json
+schemas/route_stability_sample.schema.json
 examples/trails/generated_pr_review_sample.json
 examples/route-stability/nash_route_stability_sample.json
 scripts/validate_cognitive_trail_runs.py
