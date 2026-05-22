@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate LS Cognitive Trail Run examples against the JSON schema.
+"""Validate LS Cognitive Trail Run artifacts against the JSON schema.
 
 This script is intentionally small and dependency-light. CI installs the single
 runtime validation dependency (`jsonschema`) only for this contract check so the
@@ -107,15 +107,20 @@ def validate_semantics(path: Path, artifact: dict[str, Any]) -> list[str]:
     return [f"{path}: {error}" for error in errors]
 
 
-def validate_examples(schema_path: Path, examples_dir: Path) -> int:
+def validate_files(schema_path: Path, files: list[Path]) -> int:
     schema = load_json(schema_path)
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
 
-    failures: list[str] = []
-    files = iter_example_files(examples_dir)
+    if not files:
+        raise FileNotFoundError("No Cognitive Trail Run JSON files were provided for validation")
 
+    failures: list[str] = []
     for path in files:
+        if not path.exists():
+            failures.append(f"{path}: file not found")
+            continue
+
         artifact = load_json(path)
 
         schema_errors = sorted(validator.iter_errors(artifact), key=lambda error: list(error.path))
@@ -134,15 +139,19 @@ def validate_examples(schema_path: Path, examples_dir: Path) -> int:
             print(f"- {failure}", file=sys.stderr)
         return 1
 
-    print(f"Validated {len(files)} cognitive trail run example(s) against {schema_path}.")
+    print(f"Validated {len(files)} cognitive trail run artifact(s) against {schema_path}.")
     for path in files:
         print(f"- {path}")
     return 0
 
 
+def validate_examples(schema_path: Path, examples_dir: Path) -> int:
+    return validate_files(schema_path, iter_example_files(examples_dir))
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Validate Cognitive Trail Run JSON examples against the LS schema."
+        description="Validate Cognitive Trail Run JSON artifacts against the LS schema."
     )
     parser.add_argument(
         "--schema",
@@ -156,12 +165,21 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_EXAMPLES_DIR,
         help=f"Directory containing trail run JSON examples. Default: {DEFAULT_EXAMPLES_DIR}",
     )
+    parser.add_argument(
+        "--example",
+        type=Path,
+        action="append",
+        default=[],
+        help="Specific trail-run JSON file to validate. Can be passed multiple times. If omitted, --examples-dir is used.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     try:
+        if args.example:
+            return validate_files(args.schema, args.example)
         return validate_examples(args.schema, args.examples_dir)
     except Exception as exc:  # noqa: BLE001 - CLI should report cleanly
         print(f"Cognitive Trail Run validation error: {exc}", file=sys.stderr)
