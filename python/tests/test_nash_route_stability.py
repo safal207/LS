@@ -5,8 +5,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+
 
 ROOT = Path(__file__).resolve().parents[2]
+SAMPLE_PATH = ROOT / "examples" / "route-stability" / "nash_route_stability_sample.json"
+SCHEMA_PATH = ROOT / "schemas" / "route_stability_sample.schema.json"
 
 
 def _run_demo_payload() -> dict:
@@ -19,6 +23,14 @@ def _run_demo_payload() -> dict:
         text=True,
     )
     return json.loads(result.stdout)
+
+
+def _load_sample() -> dict:
+    return json.loads(SAMPLE_PATH.read_text(encoding="utf-8"))
+
+
+def _load_schema() -> dict:
+    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
 
 def test_nash_route_stability_demo_marks_full_route_stable() -> None:
@@ -37,9 +49,19 @@ def test_nash_route_stability_demo_marks_full_route_stable() -> None:
     )
 
 
+def test_nash_route_stability_sample_matches_schema() -> None:
+    schema = _load_schema()
+    sample = _load_sample()
+
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+    errors = sorted(validator.iter_errors(sample), key=lambda error: list(error.path))
+
+    assert errors == []
+
+
 def test_nash_route_stability_sample_matches_demo_core_fields() -> None:
-    sample_path = ROOT / "examples" / "route-stability" / "nash_route_stability_sample.json"
-    sample = json.loads(sample_path.read_text(encoding="utf-8"))
+    sample = _load_sample()
     payload = _run_demo_payload()
 
     stable_paths = [
