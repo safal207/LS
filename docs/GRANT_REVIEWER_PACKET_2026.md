@@ -6,11 +6,13 @@ It is written for grant reviewers, technical evaluators, fellowship reviewers, a
 
 ## One-sentence summary
 
-This is not a bundle of unrelated repositories. It is a connected evidence stack for inspecting human-plus-agent coordination, causal validity, trace continuity, evidence gates, and action boundaries.
+This is not a bundle of unrelated repositories. It is a connected evidence stack for inspecting human-plus-agent coordination, measurable cooperative routes, causal validity, trace continuity, evidence gates, and action boundaries.
 
 ```text
 LS / Liminal Stack
-  -> governance, coordination, continuity, and reviewer surface
+  -> governance, coordination, continuity, Cognitive Trail contracts, and reviewer surface
+Cognitive Trail Contract
+  -> schema, generated PR-review sample, validator, generator, CI, and reviewer quickstart
 ProofPath / Compute Witness
   -> executable action-boundary and reviewable compute-evidence hub
 PythiaLabs
@@ -30,6 +32,7 @@ They should carry inspectable evidence of:
 ```text
 intent
 -> scope
+-> cooperative route evidence
 -> causal authorization
 -> trace continuity
 -> evidence-gate decision
@@ -41,9 +44,10 @@ The current ecosystem tests whether this can be expressed as public repositories
 
 ## What exists today
 
-| Layer | Repository | Evidence available today |
+| Layer | Repository / surface | Evidence available today |
 | --- | --- | --- |
-| Governance and continuity surface | [LS](https://github.com/safal207/LS) | Council cycles, approval-safe workflows, personal-agent gateway framing, benchmark docs, safety positioning, and this reviewer packet. |
+| Governance and continuity surface | [LS](https://github.com/safal207/LS) | Council cycles, approval-safe workflows, personal-agent gateway framing, benchmark docs, safety positioning, Cognitive Trail contracts, and this reviewer packet. |
+| Measurable cooperative route artifact | [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) | Contract schema, checked-in generated PR-review sample, validator, generator, CI workflow, runtime report folder, and explicit interpretation boundary. |
 | Ecosystem map | [ProofPath ecosystem graph](https://github.com/safal207/ProofPath/blob/main/docs/ECOSYSTEM_GRAPH.md) | Cross-repository graph connecting LS, ProofPath, Compute Witness, PythiaLabs, CML, LTP, T-Trace, and CaPU. |
 | Executable action boundary | [ProofPath](https://github.com/safal207/ProofPath) | Rust verifier, gateway, action-context profile, dangerous-action demos, real-model demo, audit logs, reviewer docs. |
 | Reviewable compute evidence | [Compute Witness path](https://github.com/safal207/ProofPath/blob/main/docs/COMPUTE_WITNESS_GRANT_REVIEWER_PATH.md) | Manifests, receipts, audit fixtures, broken-evidence challenges, Python conformance, Rust CLI, Rust audit-hash verification, CI checks. |
@@ -62,14 +66,30 @@ Read:
 - [LS README](../README.md)
 - [Ecosystem Reviewer Index](ECOSYSTEM_REVIEWER_INDEX.md)
 - [Safety Programs Positioning](SAFETY_PROGRAMS_POSITIONING.md)
+- [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md)
 
 Purpose:
 
 ```text
-Understand the broad governance and reviewer surface.
+Understand the broad governance and reviewer surface, then verify one LS-local measurable route contract.
 ```
 
-### 2. Inspect the executable hub
+### 2. Inspect the Cognitive Trail contract
+
+Read:
+
+- [Cognitive Trail Run Contract](COGNITIVE_TRAIL_RUN_CONTRACT.md)
+- [Cognitive Trail Network](COGNITIVE_TRAIL_NETWORK.md)
+- [Generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json)
+- [Cognitive Trail Contract CI workflow](../.github/workflows/cognitive_trail_contract.yml)
+
+Purpose:
+
+```text
+Verify that LS can record, validate, and repeat-measure which cooperative route made a concrete PR-review task more precise.
+```
+
+### 3. Inspect the executable hub
 
 Read:
 
@@ -83,7 +103,7 @@ Purpose:
 Verify that the abstract safety claim has executable artifacts and CI-backed evidence.
 ```
 
-### 3. Inspect causal validity and replay layers
+### 4. Inspect causal validity and replay layers
 
 Read:
 
@@ -98,7 +118,42 @@ Understand how causal authorization and trace continuity support the same resear
 
 ## Commands and inspection paths
 
-The exact commands vary by repository, but the current executable review path is centered on ProofPath / Compute Witness.
+The exact commands vary by repository. The current LS-local route review path is centered on the Cognitive Trail contract, while the current executable action-boundary path is centered on ProofPath / Compute Witness.
+
+### Cognitive Trail contract validation
+
+From the LS repository root:
+
+```bash
+python3 -m pip install jsonschema
+python3 scripts/validate_cognitive_trail_runs.py
+```
+
+Expected intent:
+
+```text
+validate checked-in Cognitive Trail examples against schema and semantic invariants
+```
+
+### Cognitive Trail generated artifact path
+
+From the LS repository root:
+
+```bash
+python3 scripts/generate_pr_review_trail_run.py --last 10 --validate
+```
+
+Expected intent:
+
+```text
+generate a runtime PR-review trail-run artifact, validate it, and keep it under reports/trails/*.json without committing local runtime reports
+```
+
+The canonical committed example is:
+
+```text
+examples/trails/generated_pr_review_sample.json
+```
 
 ### Compute Witness conformance
 
@@ -179,8 +234,8 @@ ordinary dashboard
   -> shows outputs, metrics, and workflow status
 
 this ecosystem
-  -> asks whether memory, action, compute, or continuation should be allowed at all
-  -> records why it was allowed, blocked, rejected, or held
+  -> asks whether memory, action, compute, route reuse, or continuation should be allowed at all
+  -> records why it was allowed, blocked, rejected, held, or marked for repeat
   -> makes the evidence inspectable and regression-testable
 ```
 
@@ -193,16 +248,33 @@ what did the model say?
 to:
 
 ```text
-what evidence allows this output, memory write, compute result, or action to become durable or executable?
+what evidence allows this output, memory write, route, compute result, or action to become durable, repeatable, or executable?
 ```
 
 ## Evidence chain
 
-The strongest current evidence chain is:
+The strongest current evidence chain now has two connected parts.
+
+### LS-local measurable route chain
 
 ```text
 LS reviewer and governance surface
-  -> ProofPath ecosystem graph
+  -> Cognitive Trail Run contract
+  -> JSON Schema
+  -> checked-in generated PR-review sample
+  -> validator with semantic checks
+  -> PR-review trail generator
+  -> generate-and-validate command
+  -> Cognitive Trail Contract CI workflow
+  -> runtime reports folder with gitignored generated JSON
+```
+
+This chain shows how LS turns a cooperative PR-review route into a validated artifact with a repeatability decision.
+
+### ProofPath / Compute Witness executable evidence chain
+
+```text
+ProofPath ecosystem graph
   -> Compute Witness job manifest
   -> compute receipt
   -> audit log entry
@@ -214,7 +286,9 @@ LS reviewer and governance surface
   -> CI regression checks
 ```
 
-This evidence chain is narrow, but it is concrete. It gives reviewers artifacts, commands, and expected behavior rather than only a conceptual claim.
+This chain shows how executable action-boundary and compute-evidence claims are turned into commands, fixtures, receipts, and CI checks.
+
+Together, these evidence chains are narrow, but concrete. They give reviewers artifacts, commands, and expected behavior rather than only a conceptual claim.
 
 ## Current limitations and non-claims
 
@@ -230,23 +304,45 @@ It does not currently prove:
 - trusted execution environment state;
 - zkML execution correctness;
 - distributed settlement;
+- global ranking of models, roles, tools, or human contributors;
+- that LS already operates a global live Cognitive Trail Network;
 - full cross-repository replay or dispute resolution;
 - full end-to-end production deployment across all layers.
 
 The current claim is narrower and testable:
 
 ```text
-The ecosystem already contains connected, public, inspectable artifacts for reviewing human-plus-agent coordination, causal validity, trace continuity, evidence gates, action boundaries, and compute-evidence checks.
+The ecosystem already contains connected, public, inspectable artifacts for reviewing human-plus-agent coordination, measurable cooperative routes, causal validity, trace continuity, evidence gates, action boundaries, and compute-evidence checks.
 ```
 
 ## What funding unlocks next
 
 Funding would harden and connect existing artifacts rather than start from zero.
 
-### Workstream 1: Cross-repo conformance
+### Workstream 1: Cognitive Trail hardening
+
+```text
+Cognitive Trail contract
++ generated trail samples
++ validator
++ generator
++ CI workflow
++ reviewer quickstart
+```
+
+Deliverables:
+
+- richer PR-review trail-run benchmark set;
+- generated reports promoted into curated examples when stable;
+- stronger schema versioning and migration notes;
+- role-output attachment fixtures;
+- clearer route-repeatability evaluation across more diffs.
+
+### Workstream 2: Cross-repo conformance
 
 ```text
 LS reviewer packet
++ Cognitive Trail route artifacts
 + ProofPath evidence hub
 + CML causal validation
 + LTP trace/replay
@@ -256,11 +352,11 @@ LS reviewer packet
 Deliverables:
 
 - shared terminology and reviewer routes;
-- compatibility notes between CML, LTP, ProofPath, and Compute Witness;
+- compatibility notes between Cognitive Trails, CML, LTP, ProofPath, and Compute Witness;
 - small cross-repo demo scenario;
 - CI-backed conformance snapshots where feasible.
 
-### Workstream 2: Deeper Rust verification
+### Workstream 3: Deeper Rust verification
 
 Deliverables:
 
@@ -269,7 +365,7 @@ Deliverables:
 - audit-packet verification beyond the first audit-hash primitive;
 - stable CLI outputs for reviewer and pilot usage.
 
-### Workstream 3: Pilot integrations
+### Workstream 4: Pilot integrations
 
 Deliverables:
 
@@ -278,7 +374,7 @@ Deliverables:
 - reviewable audit packets;
 - short risk notes explaining what passed, failed, and remains unproven.
 
-### Workstream 4: Research and reviewer artifacts
+### Workstream 5: Research and reviewer artifacts
 
 Deliverables:
 
@@ -304,6 +400,7 @@ conceptual frame
 -> reviewer paths
 -> committed fixtures
 -> executable validators
+-> generators
 -> Rust implementation path
 -> CI checks
 -> explicit limitations
@@ -327,7 +424,10 @@ The strongest reason to fund is not that every layer is finished. The strongest 
 
 ```text
 LS
-  asks whether agent output can become memory, profile state, coordination artifact, or action under human-owned governance.
+  asks whether agent output can become memory, profile state, coordination artifact, route artifact, or action under human-owned governance.
+
+Cognitive Trail Contract
+  asks whether one cooperative route made one concrete task more precise, with evidence strong enough to decide whether that route should be repeated.
 
 CML
   asks why an action was allowed and whether authorization lineage is causally valid.
@@ -349,6 +449,7 @@ Together:
 
 ```text
 human-owned governance
+  -> measurable cooperative route
   -> causal authorization
   -> trace continuity
   -> evidence gate
