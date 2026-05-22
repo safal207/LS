@@ -3,7 +3,7 @@
     "switch": "RU"
   },
   "hero": {
-    "eyebrow": "Personal Cognitive Garden",
+    "eyebrow": "LS — Cooperative Precision Layer for AI Co-work",
     "title": "LS turns AI work into reviewed goals, skills, decisions, and evidence you own.",
     "subtitle": "Use an AI session, check what it actually changed, accept only the updates you trust, and keep a private growth trail instead of another forgotten chat.",
     "cta": "See how it works",
@@ -151,6 +151,7 @@
     "title": "Review the grant package for safe AI-assisted human development",
     "demo": "Read grant brief",
     "community": "Run demo path",
+    "license": "Apache-2.0 License",
     "contact": "Contact builder"
   },
   "runtime": {

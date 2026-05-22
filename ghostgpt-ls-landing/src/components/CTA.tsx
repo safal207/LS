@@ -11,6 +11,7 @@ export default function CTA() {
       label: t('cta.community'),
       href: 'https://github.com/safal207/LS/blob/main/docs/PERSONAL_COGNITIVE_GARDEN_RUNNER.md'
     },
+    { label: t('cta.license'), href: 'https://github.com/safal207/LS/blob/main/LICENSE' },
     { label: t('cta.contact'), href: 'mailto:core@ghostos.ai' }
   ];
 
