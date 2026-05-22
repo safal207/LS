@@ -12,7 +12,7 @@ This is not a bundle of unrelated repositories. It is a connected evidence stack
 LS / Liminal Stack
   -> governance, coordination, continuity, Cognitive Trail contracts, Nash-style route stability proxy, and reviewer surface
 Cognitive Trail Contract
-  -> evidence snapshot, schema, generated PR-review sample, benchmark note, validator, generator, stability probe, checked-in stability sample, Route Stability Sample Contract, tests, CI workflow summary, downloadable JSON/Markdown/stability artifacts, and reviewer quickstart
+  -> evidence snapshot, schema, generated PR-review sample, benchmark note, validator, generator, stability probe, checked-in stability sample, Route Stability Sample Contract, Route Stability Evidence Map, tests, CI workflow summary, downloadable JSON/Markdown/stability artifacts, and reviewer quickstart
 ProofPath / Compute Witness
   -> executable action-boundary and reviewable compute-evidence hub
 PythiaLabs
@@ -47,8 +47,8 @@ The current ecosystem tests whether this can be expressed as public repositories
 
 | Layer | Repository / surface | Evidence available today |
 | --- | --- | --- |
-| Governance and continuity surface | [LS](https://github.com/safal207/LS) | Council cycles, approval-safe workflows, personal-agent gateway framing, benchmark docs, safety positioning, Cognitive Trail contracts, Nash-style route stability proxy, checked-in stability sample, Route Stability Sample Contract, and this reviewer packet. |
-| Measurable cooperative route artifact | [Cognitive Trail Evidence Snapshot](COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md) | One-page evidence snapshot, contract schema, checked-in generated PR-review sample, PR-review benchmark note, Nash-style route stability proxy, checked-in stability sample, Route Stability Sample Contract, validator, generator, tests, CI workflow summary, downloadable JSON/Markdown/stability workflow artifact, runtime report folder, and explicit interpretation boundary. |
+| Governance and continuity surface | [LS](https://github.com/safal207/LS) | Council cycles, approval-safe workflows, personal-agent gateway framing, benchmark docs, safety positioning, Cognitive Trail contracts, Nash-style route stability proxy, checked-in stability sample, Route Stability Sample Contract, Route Stability Evidence Map, and this reviewer packet. |
+| Measurable cooperative route artifact | [Cognitive Trail Evidence Snapshot](COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md) | One-page evidence snapshot, contract schema, checked-in generated PR-review sample, PR-review benchmark note, Nash-style route stability proxy, checked-in stability sample, Route Stability Sample Contract, Route Stability Evidence Map, validator, generator, tests, CI workflow summary, downloadable JSON/Markdown/stability workflow artifact, runtime report folder, and explicit interpretation boundary. |
 | Ecosystem map | [ProofPath ecosystem graph](https://github.com/safal207/ProofPath/blob/main/docs/ECOSYSTEM_GRAPH.md) | Cross-repository graph connecting LS, ProofPath, Compute Witness, PythiaLabs, CML, LTP, T-Trace, and CaPU. |
 | Executable action boundary | [ProofPath](https://github.com/safal207/ProofPath) | Rust verifier, gateway, action-context profile, dangerous-action demos, real-model demo, audit logs, reviewer docs. |
 | Reviewable compute evidence | [Compute Witness path](https://github.com/safal207/ProofPath/blob/main/docs/COMPUTE_WITNESS_GRANT_REVIEWER_PATH.md) | Manifests, receipts, audit fixtures, broken-evidence challenges, Python conformance, Rust CLI, Rust audit-hash verification, CI checks. |
@@ -88,6 +88,7 @@ Read:
 - [Nash-style route stability demo](../scripts/run_nash_route_stability_demo.py)
 - [Nash-style route stability sample](../examples/route-stability/nash_route_stability_sample.json)
 - [Route Stability Sample Contract](ROUTE_STABILITY_SAMPLE_CONTRACT.md)
+- [Route Stability Evidence Map](ROUTE_STABILITY_EVIDENCE_MAP.md)
 - [Generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json)
 - [Cognitive Trail Contract CI workflow](../.github/workflows/cognitive_trail_contract.yml)
 
@@ -128,6 +129,12 @@ Inspect the reviewer-facing sample contract:
 docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md
 ```
 
+Use the reviewer-facing evidence map as a checklist:
+
+```text
+docs/ROUTE_STABILITY_EVIDENCE_MAP.md
+```
+
 Run:
 
 ```bash
@@ -163,7 +170,7 @@ PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route
 Purpose:
 
 ```text
-Check whether the full cooperative route beats the single-route baseline, participant ablations, and a bad ordering counterfactual, confirm that the checked-in sample matches the deterministic demo output for stable fields, and verify that schema, negative fixture, regression test, CI summary, CI artifact, and non-claims are tied together in one contract.
+Check whether the full cooperative route beats the single-route baseline, participant ablations, and a bad ordering counterfactual, confirm that the checked-in sample matches the deterministic demo output for stable fields, and verify that schema, negative fixture, regression test, CI summary, CI artifact, and non-claims are tied together in one contract and evidence map.
 ```
 
 Boundary:
@@ -288,6 +295,12 @@ Reviewer-facing sample contract:
 docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md
 ```
 
+Reviewer-facing evidence map:
+
+```text
+docs/ROUTE_STABILITY_EVIDENCE_MAP.md
+```
+
 Regression check:
 
 ```bash
@@ -297,7 +310,7 @@ PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route
 Expected intent:
 
 ```text
-measure whether the full cooperative PR-review route beats the single-route baseline, ablation counterfactuals, and a bad ordering counterfactual; verify that the route-stability sample has a schema, negative fixture, deterministic generator, regression test, CI summary, CI artifact, and explicit non-claims
+measure whether the full cooperative PR-review route beats the single-route baseline, ablation counterfactuals, and a bad ordering counterfactual; verify that the route-stability sample has a schema, negative fixture, deterministic generator, regression test, CI summary, CI artifact, and explicit non-claims; use the evidence map to identify which file proves what and which failure modes stale the evidence
 ```
 
 Interpretation boundary:
@@ -455,6 +468,7 @@ LS reviewer and governance surface
   -> Nash-style route stability probe
   -> checked-in Nash-style stability sample
   -> Route Stability Sample Contract
+  -> Route Stability Evidence Map
   -> route-stability JSON Schema
   -> route-stability negative fixture
   -> generate-and-validate command
@@ -466,7 +480,7 @@ LS reviewer and governance surface
   -> runtime reports folder with gitignored generated JSON
 ```
 
-This chain shows how LS turns a cooperative PR-review route into a validated artifact with a repeatability decision, a route-stability proxy, a sample contract, a human-readable report, and a CI-visible evidence packet.
+This chain shows how LS turns a cooperative PR-review route into a validated artifact with a repeatability decision, a route-stability proxy, a sample contract, an evidence map, a human-readable report, and a CI-visible evidence packet.
 
 ### ProofPath / Compute Witness executable evidence chain
 
@@ -525,6 +539,7 @@ Cognitive Trail evidence snapshot
 + generated trail samples
 + checked-in route-stability sample
 + Route Stability Sample Contract
++ Route Stability Evidence Map
 + PR-review benchmark note
 + Nash-style route stability probe
 + validator
@@ -612,6 +627,7 @@ conceptual frame
 -> Nash-style stability probe
 -> checked-in stability sample
 -> Route Stability Sample Contract
+-> Route Stability Evidence Map
 -> Markdown reviewer reports
 -> Rust implementation path
 -> CI checks
@@ -649,6 +665,9 @@ Nash-style route stability probe
 Route Stability Sample Contract
   asks whether the route-stability sample is backed by schema, checked-in sample, negative fixture, deterministic probe, regression test, CI evidence, artifact boundary, and non-claims.
 
+Route Stability Evidence Map
+  asks which file proves what, how a reviewer verifies the route-stability chain, and which failures make the sample stale or incomplete.
+
 CML
   asks why an action was allowed and whether authorization lineage is causally valid.
 
@@ -672,6 +691,7 @@ human-owned governance
   -> measurable cooperative route
   -> route-stability proxy
   -> route-stability sample contract
+  -> route-stability evidence map
   -> causal authorization
   -> trace continuity
   -> evidence gate
