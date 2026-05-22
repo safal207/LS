@@ -27,6 +27,7 @@ network precision compounds inside LS
 | `noisy_actor` | Actor that adds unsupported claims, false positives, or low-value latency. | Route pruning. |
 | `repeatable_route` | Route that should be tried again for similar tasks. | Trail reuse. |
 | `needs_more_runs` | Whether the result is too small to treat as validated. | Anti-overclaim guard. |
+| `nash_route_stability` | Whether a cooperative route beats single-route and ablation counterfactuals. | Nash-style stability probe. |
 
 ## Baseline Reward
 
@@ -159,6 +160,55 @@ Every metric report should preserve these boundaries:
 4. Avoid global model-ranking claims.
 5. Keep human authority explicit when a route affects action, memory, or reputation.
 6. Mark small samples as `needs_more_runs: true`.
+
+## Nash-Style Route Stability
+
+`nash_route_stability` is a practical proxy, not a formal proof of Nash
+equilibrium.
+
+It asks a narrower question:
+
+```text
+Does the full cooperative route beat the routes where one participant leaves,
+the single-route baseline, and a bad role ordering?
+```
+
+The first local probe uses:
+
+```text
+full route:        pr_review>local>gonka>mimo
+single baseline:   pr_review>local
+without gonka:     pr_review>local>mimo
+without mimo:      pr_review>local>gonka
+without local:     pr_review>gonka>mimo
+reordered route:   pr_review>mimo>gonka>local
+```
+
+The route is marked as `stable_candidate` only when:
+
+- the full route passes Trail MCP success gates;
+- the full route beats the single baseline by at least `+0.10`;
+- the full route beats the best counterfactual by at least `+0.05`;
+- every participant has positive marginal contribution of at least `+0.05`.
+
+Run it locally:
+
+```bash
+python scripts/run_nash_route_stability_demo.py
+```
+
+Expected interpretation:
+
+```text
+The route looks stable when cooperation wins and removing any participant makes
+the result less precise.
+```
+
+Boundary:
+
+```text
+This is Nash-style route stability, not a global economic proof.
+```
 
 ## Current Metric Snapshot
 
