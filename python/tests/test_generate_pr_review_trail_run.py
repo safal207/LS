@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 
 from scripts.generate_pr_review_trail_run import build_trail_run_from_batch, render_trail_run_markdown
@@ -31,6 +32,12 @@ def _positive_batch() -> dict:
         },
         "rows": [],
     }
+
+
+def _write_artifact(tmp_path, name: str, artifact: dict) -> object:
+    output_path = tmp_path / name
+    output_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2), encoding="utf-8")
+    return output_path
 
 
 def test_build_trail_run_from_batch_contract_shape() -> None:
@@ -91,10 +98,36 @@ def test_build_trail_run_from_batch_handles_no_positive_lift() -> None:
 
 def test_generated_trail_run_validates_against_contract(tmp_path) -> None:
     artifact = build_trail_run_from_batch(_positive_batch(), task_id="validated-trail-run")
-    output_path = tmp_path / "validated_trail_run.json"
-    output_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2), encoding="utf-8")
+    output_path = _write_artifact(tmp_path, "validated_trail_run.json", artifact)
 
     assert validate_files(DEFAULT_SCHEMA, [output_path]) == 0
+
+
+def test_invalid_trail_run_rejects_unknown_schema_fields(tmp_path, capsys) -> None:
+    artifact = build_trail_run_from_batch(_positive_batch(), task_id="schema-invalid-trail-run")
+    invalid_artifact = deepcopy(artifact)
+    invalid_artifact["unexpected_reviewer_claim"] = "this field must not be accepted silently"
+    output_path = _write_artifact(tmp_path, "schema_invalid_trail_run.json", invalid_artifact)
+
+    assert validate_files(DEFAULT_SCHEMA, [output_path]) == 1
+
+    stderr = capsys.readouterr().err
+    assert "schema error at <root>" in stderr
+    assert "Additional properties are not allowed" in stderr
+    assert "unexpected_reviewer_claim" in stderr
+
+
+def test_invalid_trail_run_rejects_inconsistent_lift(tmp_path, capsys) -> None:
+    artifact = build_trail_run_from_batch(_positive_batch(), task_id="semantic-invalid-trail-run")
+    invalid_artifact = deepcopy(artifact)
+    invalid_artifact["result"]["lift"] = 999.0
+    output_path = _write_artifact(tmp_path, "semantic_invalid_trail_run.json", invalid_artifact)
+
+    assert validate_files(DEFAULT_SCHEMA, [output_path]) == 1
+
+    stderr = capsys.readouterr().err
+    assert "result.lift must equal cooperative_reward - baseline_reward" in stderr
+    assert "got 999.0" in stderr
 
 
 def test_generated_trail_run_markdown_report_contains_reviewer_sections(tmp_path) -> None:
