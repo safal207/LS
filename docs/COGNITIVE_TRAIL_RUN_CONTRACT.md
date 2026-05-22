@@ -148,6 +148,21 @@ Default output:
 reports/trails/<timestamp>_pr_review_trail_run.json
 ```
 
+The directory is kept in git with:
+
+```text
+reports/trails/.gitkeep
+```
+
+Generated runtime JSON reports are ignored by git:
+
+```text
+reports/trails/*.json
+```
+
+This keeps the trail output location stable without committing local benchmark
+runs by accident.
+
 Optional run with attached role outputs:
 
 ```bash
