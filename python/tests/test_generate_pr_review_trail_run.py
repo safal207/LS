@@ -82,4 +82,3 @@ def test_build_trail_run_from_batch_handles_no_positive_lift() -> None:
     assert artifact["result"]["positive_lift"] is False
     assert artifact["repeatability"]["should_repeat_route"] is False
     assert artifact["result"]["decision"] == "do_not_prefer_without_more_evidence"
-}
