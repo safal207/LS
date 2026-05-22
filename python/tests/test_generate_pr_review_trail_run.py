@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from scripts.generate_pr_review_trail_run import build_trail_run_from_batch
+from scripts.generate_pr_review_trail_run import build_trail_run_from_batch, render_trail_run_markdown
 from scripts.validate_cognitive_trail_runs import DEFAULT_SCHEMA, validate_files
 
 
@@ -95,3 +95,23 @@ def test_generated_trail_run_validates_against_contract(tmp_path) -> None:
     output_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2), encoding="utf-8")
 
     assert validate_files(DEFAULT_SCHEMA, [output_path]) == 0
+
+
+def test_generated_trail_run_markdown_report_contains_reviewer_sections(tmp_path) -> None:
+    artifact = build_trail_run_from_batch(_positive_batch(), task_id="markdown-trail-run")
+    json_output_path = tmp_path / "markdown_trail_run.json"
+    markdown = render_trail_run_markdown(artifact, json_output_path=json_output_path)
+
+    assert "# LS Cognitive Trail Run Report" in markdown
+    assert "Task ID: `markdown-trail-run`" in markdown
+    assert "| Baseline reward | `0.5943` |" in markdown
+    assert "| Cooperative reward | `0.7233` |" in markdown
+    assert "| Lift | `+0.1290` |" in markdown
+    assert "| Top role | `risk_critic` |" in markdown
+    assert "| Top actor | `gonka` |" in markdown
+    assert "## Route" in markdown
+    assert "## Evidence" in markdown
+    assert "## Repeatability" in markdown
+    assert "## Non-Claims" in markdown
+    assert "global model ranking" in markdown
+    assert str(json_output_path) in markdown
