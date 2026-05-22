@@ -1,0 +1,68 @@
+{
+  "demo": "ls_nash_route_stability",
+  "metric_version": "nash_route_stability.v999.0",
+  "trail_metric_version": "trail_mcp_metrics.v0.2",
+  "interpretation_boundary": "Nash-style route stability proxy, not a formal proof of Nash equilibrium.",
+  "thresholds": {
+    "min_coalition_gain": 0.1,
+    "min_stability_margin": 0.05,
+    "min_marginal_contribution": 0.05
+  },
+  "full_route": {
+    "label": "full_cooperative_route",
+    "route_key": "pr_review>local>gonka>mimo",
+    "kind": "full",
+    "removed_participant": null,
+    "reward": 0.7863,
+    "outcome_success": true,
+    "decision": "success",
+    "repeatability_score": 0.9343,
+    "success_rate": 1.0,
+    "route_health": "promising"
+  },
+  "baseline_route": {
+    "label": "single_route",
+    "route_key": "pr_review>local",
+    "kind": "baseline",
+    "removed_participant": null,
+    "reward": 0.1207,
+    "outcome_success": false,
+    "decision": "weak_signal",
+    "repeatability_score": 0.3217,
+    "success_rate": 0.0,
+    "route_health": "weak"
+  },
+  "counterfactuals": [
+    {
+      "label": "single_route",
+      "route_key": "pr_review>local",
+      "kind": "baseline",
+      "removed_participant": null,
+      "reward": 0.1207,
+      "outcome_success": false,
+      "decision": "weak_signal",
+      "repeatability_score": 0.3217,
+      "success_rate": 0.0,
+      "route_health": "weak"
+    }
+  ],
+  "participant_marginal_contributions": [
+    {
+      "participant": "mimo",
+      "without_route": "pr_review>local>gonka",
+      "without_reward": 0.5613,
+      "marginal_contribution": 0.225
+    }
+  ],
+  "stability": {
+    "nash_style_stable": true,
+    "decision": "stable_candidate",
+    "coalition_gain": 0.6656,
+    "best_counterfactual_route": "pr_review>local>gonka",
+    "best_counterfactual_reward": 0.5613,
+    "stability_margin": 0.225,
+    "minimum_marginal_contribution": 0.225,
+    "needs_more_runs": true
+  },
+  "unexpected_debug_field": "schema must reject undeclared route-stability fields"
+}
