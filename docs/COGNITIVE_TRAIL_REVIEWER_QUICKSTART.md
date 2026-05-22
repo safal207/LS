@@ -138,7 +138,29 @@ This is the core loop:
 artifact born -> artifact checked -> artifact ready for trail network reuse
 ```
 
-## 5. Validate One Specific Generated Artifact
+## 5. Generate a Human-Readable Markdown Report
+
+Run:
+
+```bash
+python scripts/generate_pr_review_trail_run.py \
+  --last 10 \
+  --validate \
+  --markdown-output reports/trails/pr_review_trail_run_report.md
+```
+
+This writes two artifacts:
+
+```text
+reports/trails/<timestamp>_pr_review_trail_run.json
+reports/trails/pr_review_trail_run_report.md
+```
+
+The JSON file remains the canonical machine-checkable Cognitive Trail Run. The
+Markdown file is a reviewer-facing report with summary, result, route, evidence,
+contribution summary, repeatability, and non-claims.
+
+## 6. Validate One Specific Generated Artifact
 
 If a runtime report already exists, validate only that file:
 
