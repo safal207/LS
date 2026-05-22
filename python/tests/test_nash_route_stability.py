@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_nash_route_stability_demo_marks_full_route_stable() -> None:
+def _run_demo_payload() -> dict:
     script = ROOT / "scripts" / "run_nash_route_stability_demo.py"
     result = subprocess.run(
         [sys.executable, str(script), "--json"],
@@ -18,7 +18,11 @@ def test_nash_route_stability_demo_marks_full_route_stable() -> None:
         encoding="utf-8",
         text=True,
     )
-    payload = json.loads(result.stdout)
+    return json.loads(result.stdout)
+
+
+def test_nash_route_stability_demo_marks_full_route_stable() -> None:
+    payload = _run_demo_payload()
 
     assert payload["metric_version"] == "nash_route_stability.v0.1"
     assert payload["interpretation_boundary"].startswith("Nash-style route stability proxy")
@@ -31,3 +35,46 @@ def test_nash_route_stability_demo_marks_full_route_stable() -> None:
         item["marginal_contribution"] > 0
         for item in payload["participant_marginal_contributions"]
     )
+
+
+def test_nash_route_stability_sample_matches_demo_core_fields() -> None:
+    sample_path = ROOT / "examples" / "route-stability" / "nash_route_stability_sample.json"
+    sample = json.loads(sample_path.read_text(encoding="utf-8"))
+    payload = _run_demo_payload()
+
+    stable_paths = [
+        ("demo",),
+        ("metric_version",),
+        ("trail_metric_version",),
+        ("interpretation_boundary",),
+        ("thresholds",),
+        ("full_route", "label"),
+        ("full_route", "route_key"),
+        ("full_route", "kind"),
+        ("full_route", "reward"),
+        ("full_route", "outcome_success"),
+        ("full_route", "decision"),
+        ("baseline_route", "route_key"),
+        ("baseline_route", "reward"),
+        ("stability", "nash_style_stable"),
+        ("stability", "decision"),
+        ("stability", "coalition_gain"),
+        ("stability", "best_counterfactual_route"),
+        ("stability", "best_counterfactual_reward"),
+        ("stability", "stability_margin"),
+        ("stability", "minimum_marginal_contribution"),
+        ("stability", "needs_more_runs"),
+    ]
+
+    for path in stable_paths:
+        left = sample
+        right = payload
+        for key in path:
+            left = left[key]
+            right = right[key]
+        assert left == right, ".".join(path)
+
+    assert sample["counterfactuals"] == payload["counterfactuals"]
+    assert sample["participant_marginal_contributions"] == payload[
+        "participant_marginal_contributions"
+    ]
