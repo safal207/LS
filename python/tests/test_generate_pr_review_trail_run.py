@@ -144,6 +144,19 @@ def test_invalid_trail_run_rejects_contribution_summary_mismatch(tmp_path, capsy
     assert "contribution_summary.top_actor must match result.top_actor" in stderr
 
 
+def test_invalid_trail_run_rejects_route_step_gaps(tmp_path, capsys) -> None:
+    artifact = build_trail_run_from_batch(_positive_batch(), task_id="route-gap-trail-run")
+    invalid_artifact = deepcopy(artifact)
+    invalid_artifact["route"][1]["step"] = 3
+    output_path = _write_artifact(tmp_path, "route_gap_trail_run.json", invalid_artifact)
+
+    assert validate_files(DEFAULT_SCHEMA, [output_path]) == 1
+
+    stderr = capsys.readouterr().err
+    assert "route.step values must be contiguous starting at 1" in stderr
+    assert "got [1, 3" in stderr
+
+
 def test_generated_trail_run_markdown_report_contains_reviewer_sections(tmp_path) -> None:
     artifact = build_trail_run_from_batch(_positive_batch(), task_id="markdown-trail-run")
     json_output_path = tmp_path / "markdown_trail_run.json"
