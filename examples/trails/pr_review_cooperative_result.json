@@ -1,0 +1,96 @@
+{
+  "schema_version": "cognitive_trail_run.v0.1",
+  "task_id": "pr-role-market-benchmark-snapshot-001",
+  "task_type": "pr_review",
+  "status": "local_research_mvp",
+  "input_ref": {
+    "kind": "git_diff",
+    "description": "Current PR Role Market benchmark snapshot over three recent PR-style git diffs.",
+    "repo": "safal207/LS",
+    "commit": "benchmark-local-history"
+  },
+  "route": [
+    {
+      "step": 1,
+      "role": "baseline_reviewer",
+      "actor": "codex-self-use",
+      "responsibility": "Provide direct single-pass baseline review signal."
+    },
+    {
+      "step": 2,
+      "role": "draft_reviewer",
+      "actor": "codex-self-use",
+      "responsibility": "Provide the first cooperative draft review pass."
+    },
+    {
+      "step": 3,
+      "role": "risk_critic",
+      "actor": "gonka",
+      "model": "qwen/qwen3-235b-a22b-instruct-2507-fp8",
+      "responsibility": "Identify risk-heavy review signals."
+    },
+    {
+      "step": 4,
+      "role": "evidence_verifier",
+      "actor": "local-qwen",
+      "model": "qwen2.5:7b",
+      "responsibility": "Check that review claims are grounded in available evidence."
+    },
+    {
+      "step": 5,
+      "role": "final_reviewer",
+      "actor": "human_operator",
+      "responsibility": "Keep final authority over reuse and interpretation."
+    }
+  ],
+  "evidence": [
+    {
+      "kind": "diff_signal",
+      "description": "Analyzed 3 out of 3 recent PR-style diffs with zero reported benchmark errors.",
+      "strength": "medium",
+      "source": "docs/PR_ROLE_MARKET_BENCHMARK.md"
+    },
+    {
+      "kind": "risk_found",
+      "description": "The risk_critic role was the top role in all three benchmarked runs.",
+      "strength": "medium",
+      "role": "risk_critic",
+      "actor": "gonka",
+      "source": "docs/PR_ROLE_MARKET_BENCHMARK.md"
+    },
+    {
+      "kind": "human_decision",
+      "description": "The benchmark explicitly states that the result is contextual and not a global model ranking.",
+      "strength": "strong",
+      "source": "docs/PR_ROLE_MARKET_BENCHMARK.md"
+    }
+  ],
+  "result": {
+    "baseline_reward": 0.5943,
+    "cooperative_reward": 0.7233,
+    "lift": 0.129,
+    "positive_lift": true,
+    "top_role": "risk_critic",
+    "top_actor": "gonka",
+    "route_key": "pr_review>draft_reviewer>risk_critic>evidence_verifier>final_reviewer",
+    "decision": "repeat_with_more_diffs"
+  },
+  "contribution_summary": {
+    "top_role": "risk_critic",
+    "top_actor": "gonka",
+    "positive_contributors": [
+      "codex-self-use",
+      "gonka",
+      "local-qwen",
+      "human_operator"
+    ],
+    "noisy_actors": [],
+    "notes": "Positive lift was observed in 3/3 current benchmark runs. This remains a small local benchmark snapshot."
+  },
+  "repeatability": {
+    "should_repeat_route": true,
+    "needs_more_runs": true,
+    "reason": "The cooperative route beat the direct baseline in the current three-run local benchmark, but LS should collect more real PR diffs, CI signals, and human review outcomes before treating the route as validated.",
+    "next_route_hint": "Run python scripts/run_pr_role_market_batch.py --last 10 with real role outputs and CI/test signals."
+  }
+}
