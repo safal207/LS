@@ -7,6 +7,7 @@ on:
     paths:
       - "schemas/cognitive_trail_run.schema.json"
       - "examples/trails/*.json"
+      - "examples/route-stability/*.json"
       - "scripts/validate_cognitive_trail_runs.py"
       - "scripts/generate_pr_review_trail_run.py"
       - "scripts/run_nash_route_stability_demo.py"
@@ -24,6 +25,7 @@ on:
     paths:
       - "schemas/cognitive_trail_run.schema.json"
       - "examples/trails/*.json"
+      - "examples/route-stability/*.json"
       - "scripts/validate_cognitive_trail_runs.py"
       - "scripts/generate_pr_review_trail_run.py"
       - "scripts/run_nash_route_stability_demo.py"
