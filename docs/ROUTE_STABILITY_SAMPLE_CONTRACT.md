@@ -30,6 +30,12 @@ Checked-in sample:
 examples/route-stability/nash_route_stability_sample.json
 ```
 
+Negative fixture:
+
+```text
+python/tests/fixtures/route-stability/invalid_metric_version.json
+```
+
 Deterministic demo generator:
 
 ```text
@@ -82,7 +88,7 @@ it as a route-stability sample.
 ## What the Test Adds Beyond Schema
 
 JSON Schema validates shape. The regression test validates the local deterministic
-contract.
+contract and its failure boundary.
 
 Run:
 
@@ -90,16 +96,46 @@ Run:
 PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
 ```
 
-The test currently checks three things:
+The test currently checks four things:
 
 ```text
 1. The deterministic demo marks the full route as stable_candidate.
 2. The checked-in sample matches schemas/route_stability_sample.schema.json.
-3. The checked-in sample matches the demo --json output for stable core fields.
+3. A broken fixture is rejected by the same schema.
+4. The checked-in sample matches the demo --json output for stable core fields.
 ```
 
 This means the sample is not only valid JSON. It is pinned to the current local
-probe behavior.
+probe behavior, and the schema is tested against at least one known-bad artifact.
+
+## Negative Fixture
+
+The negative fixture lives outside `examples/route-stability/` on purpose:
+
+```text
+python/tests/fixtures/route-stability/invalid_metric_version.json
+```
+
+It should not be interpreted as a reviewer sample. It is a schema-failure fixture
+for the test suite.
+
+The fixture is intentionally invalid in two ways:
+
+```text
+metric_version = nash_route_stability.v999.0
+unexpected_debug_field = schema must reject undeclared route-stability fields
+```
+
+The regression test expects the schema to reject both problems:
+
+```text
+wrong metric_version
+unknown top-level field
+```
+
+This proves the route-stability schema is not only permissive documentation. It
+actively blocks at least these classes of malformed artifacts before they can be
+presented as valid route-stability evidence.
 
 ## Current Expected Values
 
@@ -136,7 +172,7 @@ Install dependencies:
 python -m pip install jsonschema pytest
 ```
 
-Validate the route-stability contract:
+Validate the route-stability contract, checked-in sample, negative fixture, and deterministic output pin:
 
 ```bash
 PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
@@ -207,6 +243,7 @@ example. This contract gives reviewers a small inspectable chain:
 ```text
 schema
 -> checked-in sample
+-> negative fixture
 -> deterministic generator
 -> regression test
 -> CI artifact
