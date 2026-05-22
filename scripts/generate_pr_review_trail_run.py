@@ -30,6 +30,7 @@ from run_pr_role_market_demo import (  # noqa: E402
     ROLE_ACTOR_ASSIGNMENTS,
     _load_role_outputs,
 )
+from validate_cognitive_trail_runs import DEFAULT_SCHEMA, validate_files  # noqa: E402
 
 
 SCHEMA_VERSION = "cognitive_trail_run.v0.1"
@@ -262,6 +263,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=None, help="Write trail-run JSON to this path.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="Directory for default output path.")
     parser.add_argument("--task-id", default=None, help="Override generated task_id.")
+    parser.add_argument("--validate", action="store_true", help="Validate the generated trail-run artifact before exiting.")
+    parser.add_argument("--schema", type=Path, default=DEFAULT_SCHEMA, help="Schema path used when --validate is set.")
     parser.add_argument("--json", action="store_true", help="Print the generated trail run JSON.")
     return parser.parse_args()
 
@@ -286,6 +289,10 @@ def main() -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(trail_run, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
+    validation_status = 0
+    if args.validate:
+        validation_status = validate_files(args.schema, [output_path])
+
     if args.json:
         print(json.dumps(trail_run, ensure_ascii=False, indent=2))
     else:
@@ -301,7 +308,9 @@ def main() -> int:
         print(f"Top actor: {result['top_actor']}")
         print(f"Repeat route: {str(repeatability['should_repeat_route']).lower()}")
         print(f"Needs more runs: {str(repeatability['needs_more_runs']).lower()}")
-    return 0
+        if args.validate:
+            print(f"Validation: {'passed' if validation_status == 0 else 'failed'}")
+    return validation_status
 
 
 if __name__ == "__main__":
