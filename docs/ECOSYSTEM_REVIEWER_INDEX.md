@@ -2,7 +2,7 @@
 
 This page is a top-level reviewer index for LS / Liminal Stack and related repositories.
 
-LS is the broad reviewer and governance surface. It connects local-first coordination, human-owned cognitive artifacts, session continuity, safety gates, cognitive trail contracts, and oversight workflows.
+LS is the broad reviewer and governance surface. It connects local-first coordination, human-owned cognitive artifacts, session continuity, safety gates, cognitive trail contracts, route-stability probes, and oversight workflows.
 
 The related repositories are not exact aliases. They are different surfaces of one broader research program:
 
@@ -23,6 +23,8 @@ LS / Liminal Stack
   -> Cognitive Trail Reviewer Quickstart
   -> Cognitive Trail Run Contract
   -> Cognitive Trail PR-Review Benchmark Note
+  -> Cooperative Precision Metrics
+  -> Nash-style route stability probe
   -> checked-in generated PR-review trail sample
   -> Cognitive Trail Contract CI workflow
   -> Grant Reviewer Packet 2026
@@ -43,6 +45,8 @@ Primary Cognitive Trail reviewer path:
 - [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md)
 - [Cognitive Trail Run Contract](COGNITIVE_TRAIL_RUN_CONTRACT.md)
 - [Cognitive Trail PR-Review Benchmark Note](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md)
+- [Cooperative Precision Metrics](COOPERATIVE_PRECISION_METRICS.md)
+- [Nash-style route stability demo](../scripts/run_nash_route_stability_demo.py)
 - [Cognitive Trail Network](COGNITIVE_TRAIL_NETWORK.md)
 - [Generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json)
 - [Cognitive Trail Contract CI](../.github/workflows/cognitive_trail_contract.yml)
@@ -55,9 +59,10 @@ Primary ecosystem map:
 
 | Repository / surface | Role in the ecosystem | Reviewer value |
 | --- | --- | --- |
-| LS / Liminal Stack | Broad governance, coordination, continuity, cognitive-trail, and reviewer narrative surface. | Shows the human-owned operating layer, grant-level framing, and a machine-validated trail contract. |
-| Cognitive Trail Evidence Snapshot | One-page LS-local evidence snapshot for the PR-review Cognitive Trail path. | Shows the current claim, commands, files, CI artifacts, limitations, and non-claims in one page. |
-| Cognitive Trail Contract | LS-local contract for recording one measurable cooperative route. | Gives schema, examples, generated sample, benchmark note, validator, generator, CI, and reviewer quickstart. |
+| LS / Liminal Stack | Broad governance, coordination, continuity, cognitive-trail, route-stability, and reviewer narrative surface. | Shows the human-owned operating layer, grant-level framing, machine-validated trail contract, and Nash-style route stability proxy. |
+| Cognitive Trail Evidence Snapshot | One-page LS-local evidence snapshot for the PR-review Cognitive Trail path. | Shows the current claim, commands, files, CI artifacts, route-stability proxy, limitations, and non-claims in one page. |
+| Cognitive Trail Contract | LS-local contract for recording one measurable cooperative route. | Gives schema, examples, generated sample, benchmark note, validator, generator, CI, stability probe, and reviewer quickstart. |
+| Nash-style route stability probe | Deterministic counterfactual probe for one cooperative PR-review route. | Shows whether the full route beats a single baseline, participant ablations, and a bad ordering counterfactual; explicitly not a formal Nash equilibrium proof. |
 | ProofPath | Current executable implementation hub for action-boundary verification. | Gives runnable gateway, verifier, demos, audit logs, and reviewer paths. |
 | Compute Witness | ProofPath workstream for reviewable AI/agent compute evidence. | Gives manifests, receipts, audit fixtures, Rust verifier path, and CI checks. |
 | PythiaLabs | Evidence-gate project surface for high-risk agentic actions. | Shows the deterministic evidence-gate framing behind action review. |
@@ -82,6 +87,18 @@ What exactly exists today, how can it be checked, what does CI expose, and what 
 
 ```text
 Can we record and validate which cooperative route made one concrete task more precise?
+```
+
+### Nash-style route stability probe asks
+
+```text
+Does the full cooperative route beat the single-route baseline, participant ablations, and a bad ordering counterfactual?
+```
+
+Boundary:
+
+```text
+This is a route-stability proxy, not a formal proof of Nash equilibrium.
 ```
 
 ### ProofPath asks
@@ -119,6 +136,7 @@ Together, the layers form a reviewer-visible path:
 ```text
 coordination and continuity
   -> measurable cooperative route artifacts
+  -> route-stability proxy
   -> causal validity
   -> trace/replay inspection
   -> evidence gate
@@ -134,12 +152,14 @@ coordination and continuity
 2. Run the [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md).
 3. Read the [Cognitive Trail Run Contract](COGNITIVE_TRAIL_RUN_CONTRACT.md).
 4. Read the [Cognitive Trail PR-Review Benchmark Note](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md).
-5. Inspect the [generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json).
-6. Read the [Grant Reviewer Packet 2026](GRANT_REVIEWER_PACKET_2026.md).
-7. Read this index.
-8. Open the ProofPath Ecosystem Graph.
-9. Open the Compute Witness grant reviewer path.
-10. Open CML and LTP if you want the causal-memory and trace/replay layers.
+5. Inspect the [Cooperative Precision Metrics](COOPERATIVE_PRECISION_METRICS.md).
+6. Run the [Nash-style route stability demo](../scripts/run_nash_route_stability_demo.py).
+7. Inspect the [generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json).
+8. Read the [Grant Reviewer Packet 2026](GRANT_REVIEWER_PACKET_2026.md).
+9. Read this index.
+10. Open the ProofPath Ecosystem Graph.
+11. Open the Compute Witness grant reviewer path.
+12. Open CML and LTP if you want the causal-memory and trace/replay layers.
 
 ### If you entered from the Cognitive Trail Contract
 
@@ -149,6 +169,7 @@ Read it as the LS-local measurable route layer, then use ProofPath / Compute Wit
 Cognitive Trail Run
   -> route evidence and contribution attribution
   -> repeatability decision
+  -> Nash-style route stability proxy
   -> ProofPath action boundary
   -> Compute Witness receipt and audit evidence
 ```
@@ -159,8 +180,10 @@ Start here:
 2. [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md)
 3. [Cognitive Trail Run Contract](COGNITIVE_TRAIL_RUN_CONTRACT.md)
 4. [Cognitive Trail PR-Review Benchmark Note](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md)
-5. [Generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json)
-6. [Cognitive Trail Contract CI workflow](../.github/workflows/cognitive_trail_contract.yml)
+5. [Cooperative Precision Metrics](COOPERATIVE_PRECISION_METRICS.md)
+6. [Nash-style route stability demo](../scripts/run_nash_route_stability_demo.py)
+7. [Generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json)
+8. [Cognitive Trail Contract CI workflow](../.github/workflows/cognitive_trail_contract.yml)
 
 ### If you entered from ProofPath
 
@@ -169,7 +192,8 @@ Start here:
 3. Return here to understand how LS frames the broader human-governance and continuity direction.
 4. Read the [Cognitive Trail Evidence Snapshot](COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md).
 5. Run the [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) to see the LS-local measurable route contract.
-6. Read the [Grant Reviewer Packet 2026](GRANT_REVIEWER_PACKET_2026.md) for the funder-facing evidence summary.
+6. Run the [Nash-style route stability demo](../scripts/run_nash_route_stability_demo.py) to inspect the route-stability proxy.
+7. Read the [Grant Reviewer Packet 2026](GRANT_REVIEWER_PACKET_2026.md) for the funder-facing evidence summary.
 
 ### If you entered from CML
 
@@ -178,6 +202,7 @@ Read CML as the causal-validity layer, then use LS Cognitive Trails for measurab
 ```text
 CML causal lineage
   -> LS Cognitive Trail Run
+  -> Nash-style route stability proxy
   -> ProofPath action boundary
   -> Compute Witness receipt and audit evidence
 ```
@@ -189,6 +214,7 @@ Read LTP as the trace/replay layer, then use LS Cognitive Trails for route-level
 ```text
 LTP trace/replay/admissibility
   -> LS Cognitive Trail Run
+  -> Nash-style route stability proxy
   -> ProofPath action boundary
   -> Compute Witness evidence chain
 ```
@@ -210,6 +236,8 @@ PythiaLabs evidence gates
 - Cognitive Trail Reviewer Quickstart: https://github.com/safal207/LS/blob/main/docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md
 - Cognitive Trail Run Contract: https://github.com/safal207/LS/blob/main/docs/COGNITIVE_TRAIL_RUN_CONTRACT.md
 - Cognitive Trail PR-Review Benchmark Note: https://github.com/safal207/LS/blob/main/docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md
+- Cooperative Precision Metrics: https://github.com/safal207/LS/blob/main/docs/COOPERATIVE_PRECISION_METRICS.md
+- Nash-style route stability demo: https://github.com/safal207/LS/blob/main/scripts/run_nash_route_stability_demo.py
 - Cognitive Trail Network: https://github.com/safal207/LS/blob/main/docs/COGNITIVE_TRAIL_NETWORK.md
 - Generated PR-review trail sample: https://github.com/safal207/LS/blob/main/examples/trails/generated_pr_review_sample.json
 - Cognitive Trail Contract CI workflow: https://github.com/safal207/LS/blob/main/.github/workflows/cognitive_trail_contract.yml
@@ -235,6 +263,7 @@ It also does not claim:
 - zkML correctness;
 - model truthfulness;
 - universal agent alignment;
+- formal Nash equilibrium;
 - full cross-repository replay or dispute resolution;
 - global ranking of models, tools, or human contributors;
 - that LS already runs a global live Cognitive Trail Network.
@@ -242,7 +271,7 @@ It also does not claim:
 The current claim is narrower:
 
 ```text
-The ecosystem already contains connected, public, inspectable artifacts for reviewing human-plus-agent coordination, measurable cooperative routes, causal validity, trace continuity, evidence gates, and action boundaries.
+The ecosystem already contains connected, public, inspectable artifacts for reviewing human-plus-agent coordination, measurable cooperative routes, route-stability proxies, causal validity, trace continuity, evidence gates, and action boundaries.
 ```
 
 ## Funding interpretation
@@ -254,6 +283,7 @@ Current evidence:
 ```text
 LS governance and continuity artifacts
 + Cognitive Trail evidence snapshot, schema, generated sample, benchmark note, validator, generator, and CI
++ Nash-style route stability proxy
 + ProofPath executable gateway and verifier
 + Compute Witness manifests, receipts, fixtures, Rust path, and CI
 + CML causal-validity checks
@@ -274,5 +304,5 @@ cross-repo conformance
 ## One-sentence reviewer phrase
 
 ```text
-LS is the broad reviewer and governance surface; the Cognitive Trail Evidence Snapshot is the quickest proof-oriented entry; the Cognitive Trail Contract is the measurable cooperation-route artifact; ProofPath / Compute Witness is the current executable evidence hub; CML and LTP provide causal-validity and trace/replay layers.
+LS is the broad reviewer and governance surface; the Cognitive Trail Evidence Snapshot is the quickest proof-oriented entry; the Cognitive Trail Contract is the measurable cooperation-route artifact; the Nash-style route stability probe checks route robustness against simple counterfactuals; ProofPath / Compute Witness is the current executable evidence hub; CML and LTP provide causal-validity and trace/replay layers.
 ```
