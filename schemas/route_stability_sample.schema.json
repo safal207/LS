@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/route_stability_sample.schema.json",
+  "title": "LS Nash-Style Route Stability Sample",
+  "description": "Schema for checked-in Nash-style route stability samples and deterministic demo JSON output. This is a route-stability proxy contract, not a formal Nash equilibrium proof.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "demo",
+    "metric_version",
+    "trail_metric_version",
+    "interpretation_boundary",
+    "thresholds",
+    "full_route",
+    "baseline_route",
+    "counterfactuals",
+    "participant_marginal_contributions",
+    "stability"
+  ],
+  "properties": {
+    "demo": {
+      "const": "ls_nash_route_stability"
+    },
+    "metric_version": {
+      "const": "nash_route_stability.v0.1"
+    },
+    "trail_metric_version": {
+      "type": "string",
+      "pattern": "^trail_mcp_metrics\\.v[0-9]+\\.[0-9]+$"
+    },
+    "interpretation_boundary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "thresholds": {
+      "$ref": "#/$defs/thresholds"
+    },
+    "full_route": {
+      "$ref": "#/$defs/route_result"
+    },
+    "baseline_route": {
+      "$ref": "#/$defs/route_result"
+    },
+    "counterfactuals": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/route_result"
+      }
+    },
+    "participant_marginal_contributions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/marginal_contribution"
+      }
+    },
+    "stability": {
+      "$ref": "#/$defs/stability"
+    },
+    "ranking": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ranking_route"
+      }
+    }
+  },
+  "$defs": {
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min_coalition_gain",
+        "min_stability_margin",
+        "min_marginal_contribution"
+      ],
+      "properties": {
+        "min_coalition_gain": {
+          "type": "number",
+          "minimum": 0
+        },
+        "min_stability_margin": {
+          "type": "number",
+          "minimum": 0
+        },
+        "min_marginal_contribution": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "route_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "route_key",
+        "kind",
+        "removed_participant",
+        "reward",
+        "outcome_success",
+        "decision",
+        "repeatability_score",
+        "success_rate",
+        "route_health"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "route_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "full",
+            "baseline",
+            "ablation",
+            "deviation"
+          ]
+        },
+        "removed_participant": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reward": {
+          "type": "number"
+        },
+        "outcome_success": {
+          "type": "boolean"
+        },
+        "decision": {
+          "enum": [
+            "success",
+            "weak_signal",
+            "needs_human_or_ci_confirmation"
+          ]
+        },
+        "repeatability_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "success_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "route_health": {
+          "enum": [
+            "untried",
+            "weak",
+            "needs_more_evidence",
+            "promising",
+            "validated_candidate"
+          ]
+        }
+      }
+    },
+    "marginal_contribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "participant",
+        "without_route",
+        "without_reward",
+        "marginal_contribution"
+      ],
+      "properties": {
+        "participant": {
+          "type": "string",
+          "minLength": 1
+        },
+        "without_route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "without_reward": {
+          "type": "number"
+        },
+        "marginal_contribution": {
+          "type": "number"
+        }
+      }
+    },
+    "stability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nash_style_stable",
+        "decision",
+        "coalition_gain",
+        "best_counterfactual_route",
+        "best_counterfactual_reward",
+        "stability_margin",
+        "minimum_marginal_contribution",
+        "needs_more_runs"
+      ],
+      "properties": {
+        "nash_style_stable": {
+          "type": "boolean"
+        },
+        "decision": {
+          "enum": [
+            "stable_candidate",
+            "not_stable_yet"
+          ]
+        },
+        "coalition_gain": {
+          "type": "number"
+        },
+        "best_counterfactual_route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "best_counterfactual_reward": {
+          "type": "number"
+        },
+        "stability_margin": {
+          "type": "number"
+        },
+        "minimum_marginal_contribution": {
+          "type": "number"
+        },
+        "needs_more_runs": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ranking_route": {
+      "type": "object",
+      "required": [
+        "route_key",
+        "metric_version"
+      ],
+      "properties": {
+        "route_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metric_version": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
