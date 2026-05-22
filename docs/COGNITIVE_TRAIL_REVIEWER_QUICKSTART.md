@@ -186,7 +186,7 @@ reports/trails/ci/cognitive_trail_run_report.md
 Reviewer interpretation:
 
 ```text
-CI validates checked-in examples, runs generator tests, generates a fresh runtime trail run, validates it, and exposes both JSON and Markdown as downloadable workflow artifacts.
+CI validates checked-in examples, runs generator and negative validation tests, generates a fresh runtime trail run, validates it, and exposes both JSON and Markdown as downloadable workflow artifacts.
 ```
 
 The uploaded JSON is machine-checkable. The uploaded Markdown is intended for
@@ -200,6 +200,28 @@ If a runtime report already exists, validate only that file:
 python scripts/validate_cognitive_trail_runs.py \
   --example reports/trails/<timestamp>_pr_review_trail_run.json
 ```
+
+## 8. Check Negative Validation Behavior
+
+The test suite also verifies that invalid artifacts fail.
+
+Run:
+
+```bash
+PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_generate_pr_review_trail_run.py
+```
+
+Current negative checks include:
+
+```text
+unknown top-level schema field -> rejected by JSON Schema
+inconsistent result.lift       -> rejected by semantic validator
+```
+
+This is intentional. A Cognitive Trail artifact should not be accepted merely
+because it is valid JSON. It must match the strict schema and preserve semantic
+consistency across route, evidence, result, contribution, and repeatability
+fields.
 
 ## What the Validator Checks
 
@@ -237,10 +259,12 @@ The system may act without human authority.
 
 ```text
 docs/COGNITIVE_TRAIL_RUN_CONTRACT.md
+docs/COGNITIVE_TRAIL_SCHEMA_VERSIONING.md
 schemas/cognitive_trail_run.schema.json
 examples/trails/generated_pr_review_sample.json
 scripts/validate_cognitive_trail_runs.py
 scripts/generate_pr_review_trail_run.py
+python/tests/test_generate_pr_review_trail_run.py
 .github/workflows/cognitive_trail_contract.yml
 ```
 
