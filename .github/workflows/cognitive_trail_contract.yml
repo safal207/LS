@@ -9,6 +9,7 @@ on:
       - "schemas/route_stability_sample.schema.json"
       - "examples/trails/*.json"
       - "examples/route-stability/*.json"
+      - "python/tests/fixtures/route-stability/*.json"
       - "scripts/validate_cognitive_trail_runs.py"
       - "scripts/generate_pr_review_trail_run.py"
       - "scripts/run_nash_route_stability_demo.py"
@@ -16,9 +17,11 @@ on:
       - "python/tests/test_nash_route_stability.py"
       - "docs/COGNITIVE_TRAIL_RUN_CONTRACT.md"
       - "docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md"
+      - "docs/COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md"
       - "docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md"
       - "docs/COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md"
       - "docs/COOPERATIVE_PRECISION_METRICS.md"
+      - "docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md"
       - ".github/workflows/cognitive_trail_contract.yml"
   pull_request:
     branches:
@@ -28,6 +31,7 @@ on:
       - "schemas/route_stability_sample.schema.json"
       - "examples/trails/*.json"
       - "examples/route-stability/*.json"
+      - "python/tests/fixtures/route-stability/*.json"
       - "scripts/validate_cognitive_trail_runs.py"
       - "scripts/generate_pr_review_trail_run.py"
       - "scripts/run_nash_route_stability_demo.py"
@@ -35,9 +39,11 @@ on:
       - "python/tests/test_nash_route_stability.py"
       - "docs/COGNITIVE_TRAIL_RUN_CONTRACT.md"
       - "docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md"
+      - "docs/COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md"
       - "docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md"
       - "docs/COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md"
       - "docs/COOPERATIVE_PRECISION_METRICS.md"
+      - "docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md"
       - ".github/workflows/cognitive_trail_contract.yml"
 
 concurrency:
