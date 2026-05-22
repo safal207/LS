@@ -163,6 +163,15 @@ reports/trails/*.json
 This keeps the trail output location stable without committing local benchmark
 runs by accident.
 
+A canonical checked-in generated sample is kept here for reviewers and CI:
+
+```text
+examples/trails/generated_pr_review_sample.json
+```
+
+This sample has the same contract shape as generated runtime reports, but it is
+stable and intentionally committed as documentation-grade evidence.
+
 Optional run with attached role outputs:
 
 ```bash
@@ -245,6 +254,7 @@ Why this wedge works:
 See:
 
 - [`schemas/cognitive_trail_run.schema.json`](../schemas/cognitive_trail_run.schema.json)
+- [`examples/trails/generated_pr_review_sample.json`](../examples/trails/generated_pr_review_sample.json)
 - [`examples/trails/pr_review_small_run.json`](../examples/trails/pr_review_small_run.json)
 - [`examples/trails/pr_review_cooperative_result.json`](../examples/trails/pr_review_cooperative_result.json)
 - [`COOPERATIVE_PRECISION_METRICS.md`](COOPERATIVE_PRECISION_METRICS.md)
