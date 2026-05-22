@@ -6,6 +6,7 @@ import json
 from .cognitive_state import CognitiveStateBridge
 from .runtime.factory import RuntimeBindingError, resolve_task_runtime
 from .runtime.protocol import TaskRuntime
+from .trail_network import TrailNetworkBridge
 
 
 class MCPValidationError(ValueError):
@@ -19,9 +20,11 @@ class MCPToolRegistry:
         self,
         task_manager: TaskRuntime | None = None,
         cognitive_state: CognitiveStateBridge | None = None,
+        trail_network: TrailNetworkBridge | None = None,
     ) -> None:
         self.task_manager = task_manager or resolve_task_runtime()
         self._cognitive_state = cognitive_state or CognitiveStateBridge(task_manager=self.task_manager)
+        self._trail_network = trail_network or TrailNetworkBridge()
         self._tools = {
             "ls_plan_task": self._plan_task,
             "ls_run_task": self._run_task,
@@ -45,6 +48,12 @@ class MCPToolRegistry:
             "join_fellowship": self._join_fellowship,
             "propose_collective_insight": self._propose_collective_insight,
             "vote_on_proposal": self._vote_on_proposal,
+            # Cooperative Precision Network / Cognitive Trail MCP v0.1
+            "ls_trail_recommend_route": self._trail_recommend_route,
+            "ls_trail_submit_contribution": self._trail_submit_contribution,
+            "ls_trail_validate_evidence": self._trail_validate_evidence,
+            "ls_trail_record_outcome": self._trail_record_outcome,
+            "ls_trail_query_best_trails": self._trail_query_best_trails,
         }
 
     def list_tools(self) -> list[dict[str, Any]]:
@@ -53,6 +62,10 @@ class MCPToolRegistry:
     @property
     def cognitive_state(self) -> CognitiveStateBridge:
         return self._cognitive_state
+
+    @property
+    def trail_network(self) -> TrailNetworkBridge:
+        return self._trail_network
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if name not in self._tools:
@@ -252,6 +265,21 @@ class MCPToolRegistry:
         )
         outcome["resource"] = "fellowship/vote"
         return outcome
+
+    def _trail_recommend_route(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._trail_network.recommend_route(args)
+
+    def _trail_submit_contribution(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._trail_network.submit_contribution(args)
+
+    def _trail_validate_evidence(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._trail_network.validate_evidence(args)
+
+    def _trail_record_outcome(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._trail_network.record_outcome(args)
+
+    def _trail_query_best_trails(self, args: dict[str, Any]) -> dict[str, Any]:
+        return self._trail_network.query_best_trails(args)
 
 
 def tool_call_from_json(registry: MCPToolRegistry, raw: str) -> str:

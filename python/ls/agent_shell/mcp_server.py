@@ -16,6 +16,7 @@ class LSMCPServer:
         self.resources = MCPResourceRegistry(
             self.tools.task_manager,
             cognitive_state=self.tools.cognitive_state,
+            trail_network=self.tools.trail_network,
         )
 
     def handle(self, request: dict[str, Any]) -> dict[str, Any]:

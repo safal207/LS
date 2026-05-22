@@ -113,7 +113,6 @@ class CopilotOutput:
             "pre_prompt":          self.pre_prompt,
             "anchor_context":      self.anchor_context,
             "empathy_cues":        self.empathy_cues.to_dict(),
-            "operator_profile": self.operator_profile,
             "operator_profile":    self.operator_profile,
             "final_prompt":        self.final_prompt,
             "intervention_level":  self.intervention_level,
