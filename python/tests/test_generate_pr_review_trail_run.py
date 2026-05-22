@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
+
 from scripts.generate_pr_review_trail_run import build_trail_run_from_batch
+from scripts.validate_cognitive_trail_runs import DEFAULT_SCHEMA, validate_files
 
 
-def test_build_trail_run_from_batch_contract_shape() -> None:
-    batch = {
+def _positive_batch() -> dict:
+    return {
         "artifact_type": "ls.pr_role_market_batch.v0.1",
         "repo": "/tmp/LS",
         "head": "HEAD",
@@ -29,7 +32,9 @@ def test_build_trail_run_from_batch_contract_shape() -> None:
         "rows": [],
     }
 
-    artifact = build_trail_run_from_batch(batch, task_id="test-trail-run")
+
+def test_build_trail_run_from_batch_contract_shape() -> None:
+    artifact = build_trail_run_from_batch(_positive_batch(), task_id="test-trail-run")
 
     assert artifact["schema_version"] == "cognitive_trail_run.v0.1"
     assert artifact["task_id"] == "test-trail-run"
@@ -82,3 +87,11 @@ def test_build_trail_run_from_batch_handles_no_positive_lift() -> None:
     assert artifact["result"]["positive_lift"] is False
     assert artifact["repeatability"]["should_repeat_route"] is False
     assert artifact["result"]["decision"] == "do_not_prefer_without_more_evidence"
+
+
+def test_generated_trail_run_validates_against_contract(tmp_path) -> None:
+    artifact = build_trail_run_from_batch(_positive_batch(), task_id="validated-trail-run")
+    output_path = tmp_path / "validated_trail_run.json"
+    output_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    assert validate_files(DEFAULT_SCHEMA, [output_path]) == 0
