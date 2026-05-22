@@ -29,6 +29,38 @@ task
 
 The next similar task should start from a better known route, not from zero.
 
+## Product Atom
+
+The smallest durable product artifact is now a **Cognitive Trail Run**.
+
+```text
+Cognitive Trail Run = one recorded measurable cooperation route
+```
+
+A trail run records:
+
+- what task was attempted;
+- which roles and actors participated;
+- what evidence was produced;
+- which role or actor contributed value;
+- what result was achieved;
+- whether the route should be repeated.
+
+This keeps the claim narrow and measurable:
+
+```text
+LS does not make a model smarter.
+LS measures which cooperative route made a concrete task more precise.
+```
+
+See:
+
+- `docs/COGNITIVE_TRAIL_RUN_CONTRACT.md`
+- `docs/COOPERATIVE_PRECISION_METRICS.md`
+- `schemas/cognitive_trail_run.schema.json`
+- `examples/trails/pr_review_small_run.json`
+- `examples/trails/pr_review_cooperative_result.json`
+
 ## The Problem
 
 Modern AI work is becoming multi-agent and multi-model, but most systems still
@@ -107,6 +139,9 @@ proposal has enough continuity, authority, and evidence to continue.
 
 Cooperative routes leave route artifacts. Strong routes gain weight. Weak routes
 decay. The network becomes more precise at repeated work.
+
+A Cognitive Trail Run is the concrete route artifact that makes this layer
+measurable.
 
 ### 3. Contribution Ledger
 
