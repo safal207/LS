@@ -21,6 +21,7 @@ If you arrived here from a grant application, email, demo, or repository link, s
 LS / Liminal Stack
   -> Cognitive Trail Reviewer Quickstart
   -> Cognitive Trail Run Contract
+  -> Cognitive Trail PR-Review Benchmark Note
   -> checked-in generated PR-review trail sample
   -> Cognitive Trail Contract CI workflow
   -> Grant Reviewer Packet 2026
@@ -39,6 +40,7 @@ Primary Cognitive Trail reviewer path:
 
 - [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md)
 - [Cognitive Trail Run Contract](COGNITIVE_TRAIL_RUN_CONTRACT.md)
+- [Cognitive Trail PR-Review Benchmark Note](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md)
 - [Cognitive Trail Network](COGNITIVE_TRAIL_NETWORK.md)
 - [Generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json)
 - [Cognitive Trail Contract CI](../.github/workflows/cognitive_trail_contract.yml)
@@ -52,7 +54,7 @@ Primary ecosystem map:
 | Repository / surface | Role in the ecosystem | Reviewer value |
 | --- | --- | --- |
 | LS / Liminal Stack | Broad governance, coordination, continuity, cognitive-trail, and reviewer narrative surface. | Shows the human-owned operating layer, grant-level framing, and a machine-validated trail contract. |
-| Cognitive Trail Contract | LS-local contract for recording one measurable cooperative route. | Gives schema, examples, generated sample, validator, generator, CI, and reviewer quickstart. |
+| Cognitive Trail Contract | LS-local contract for recording one measurable cooperative route. | Gives schema, examples, generated sample, benchmark note, validator, generator, CI, and reviewer quickstart. |
 | ProofPath | Current executable implementation hub for action-boundary verification. | Gives runnable gateway, verifier, demos, audit logs, and reviewer paths. |
 | Compute Witness | ProofPath workstream for reviewable AI/agent compute evidence. | Gives manifests, receipts, audit fixtures, Rust verifier path, and CI checks. |
 | PythiaLabs | Evidence-gate project surface for high-risk agentic actions. | Shows the deterministic evidence-gate framing behind action review. |
@@ -121,12 +123,13 @@ coordination and continuity
 
 1. Run the [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md).
 2. Read the [Cognitive Trail Run Contract](COGNITIVE_TRAIL_RUN_CONTRACT.md).
-3. Inspect the [generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json).
-4. Read the [Grant Reviewer Packet 2026](GRANT_REVIEWER_PACKET_2026.md).
-5. Read this index.
-6. Open the ProofPath Ecosystem Graph.
-7. Open the Compute Witness grant reviewer path.
-8. Open CML and LTP if you want the causal-memory and trace/replay layers.
+3. Read the [Cognitive Trail PR-Review Benchmark Note](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md).
+4. Inspect the [generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json).
+5. Read the [Grant Reviewer Packet 2026](GRANT_REVIEWER_PACKET_2026.md).
+6. Read this index.
+7. Open the ProofPath Ecosystem Graph.
+8. Open the Compute Witness grant reviewer path.
+9. Open CML and LTP if you want the causal-memory and trace/replay layers.
 
 ### If you entered from the Cognitive Trail Contract
 
@@ -144,8 +147,9 @@ Start here:
 
 1. [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md)
 2. [Cognitive Trail Run Contract](COGNITIVE_TRAIL_RUN_CONTRACT.md)
-3. [Generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json)
-4. [Cognitive Trail Contract CI workflow](../.github/workflows/cognitive_trail_contract.yml)
+3. [Cognitive Trail PR-Review Benchmark Note](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md)
+4. [Generated PR-review trail sample](../examples/trails/generated_pr_review_sample.json)
+5. [Cognitive Trail Contract CI workflow](../.github/workflows/cognitive_trail_contract.yml)
 
 ### If you entered from ProofPath
 
@@ -192,6 +196,7 @@ PythiaLabs evidence gates
 - LS: https://github.com/safal207/LS
 - Cognitive Trail Reviewer Quickstart: https://github.com/safal207/LS/blob/main/docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md
 - Cognitive Trail Run Contract: https://github.com/safal207/LS/blob/main/docs/COGNITIVE_TRAIL_RUN_CONTRACT.md
+- Cognitive Trail PR-Review Benchmark Note: https://github.com/safal207/LS/blob/main/docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md
 - Cognitive Trail Network: https://github.com/safal207/LS/blob/main/docs/COGNITIVE_TRAIL_NETWORK.md
 - Generated PR-review trail sample: https://github.com/safal207/LS/blob/main/examples/trails/generated_pr_review_sample.json
 - Cognitive Trail Contract CI workflow: https://github.com/safal207/LS/blob/main/.github/workflows/cognitive_trail_contract.yml
@@ -235,7 +240,7 @@ Current evidence:
 
 ```text
 LS governance and continuity artifacts
-+ Cognitive Trail schema, generated sample, validator, generator, and CI
++ Cognitive Trail schema, generated sample, benchmark note, validator, generator, and CI
 + ProofPath executable gateway and verifier
 + Compute Witness manifests, receipts, fixtures, Rust path, and CI
 + CML causal-validity checks
