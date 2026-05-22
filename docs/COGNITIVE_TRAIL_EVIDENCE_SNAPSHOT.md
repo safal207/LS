@@ -32,6 +32,7 @@ Cognitive Trail Run contract
 -> validator with semantic checks
 -> negative validation tests
 -> PR-review trail generator
+-> Nash-style route stability probe
 -> Markdown reviewer report
 -> generator tests
 -> GitHub Actions workflow
@@ -79,6 +80,43 @@ Interpretation:
 On the current small local PR-review sample, the cooperative route produced a better measured review signal than the direct baseline.
 ```
 
+## Nash-Style Route Stability Snapshot
+
+LS also includes a deterministic Nash-style route stability probe for the current
+PR-review cooperative route.
+
+Run:
+
+```bash
+python scripts/run_nash_route_stability_demo.py
+```
+
+Current local probe:
+
+```text
+full route:          pr_review>local>gonka>mimo
+reward:              0.7863
+single baseline:     0.1207
+coalition gain:      +0.6656
+best counterfactual: pr_review>local>gonka = 0.5613
+stability margin:    +0.2250
+decision:            stable_candidate
+```
+
+Participant marginal contributions:
+
+```text
+local: +0.3226
+gonka: +0.2913
+mimo:  +0.2250
+```
+
+Interpretation boundary:
+
+```text
+This is a Nash-style route stability proxy, not a formal proof of Nash equilibrium.
+```
+
 ## Main Files
 
 | Evidence | File |
@@ -89,9 +127,12 @@ On the current small local PR-review sample, the cooperative route produced a be
 | Schema | [`../schemas/cognitive_trail_run.schema.json`](../schemas/cognitive_trail_run.schema.json) |
 | Canonical generated sample | [`../examples/trails/generated_pr_review_sample.json`](../examples/trails/generated_pr_review_sample.json) |
 | Benchmark interpretation | [`COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md`](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md) |
+| Cooperative precision metrics | [`COOPERATIVE_PRECISION_METRICS.md`](COOPERATIVE_PRECISION_METRICS.md) |
+| Nash-style route stability demo | [`../scripts/run_nash_route_stability_demo.py`](../scripts/run_nash_route_stability_demo.py) |
 | Validator | [`../scripts/validate_cognitive_trail_runs.py`](../scripts/validate_cognitive_trail_runs.py) |
 | Generator | [`../scripts/generate_pr_review_trail_run.py`](../scripts/generate_pr_review_trail_run.py) |
 | Generator and negative validation tests | [`../python/tests/test_generate_pr_review_trail_run.py`](../python/tests/test_generate_pr_review_trail_run.py) |
+| Nash-style route stability test | [`../python/tests/test_nash_route_stability.py`](../python/tests/test_nash_route_stability.py) |
 | CI workflow | [`../.github/workflows/cognitive_trail_contract.yml`](../.github/workflows/cognitive_trail_contract.yml) |
 | Contributor tasks | [`COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md`](COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md) |
 
@@ -113,6 +154,12 @@ Run generator and negative validation tests:
 
 ```bash
 PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_generate_pr_review_trail_run.py
+```
+
+Run the Nash-style route stability probe:
+
+```bash
+python scripts/run_nash_route_stability_demo.py
 ```
 
 Generate and validate a runtime JSON artifact:
@@ -228,6 +275,7 @@ This snapshot does not claim:
 - global actor or human contributor ranking;
 - that `risk_critic` is always the best role;
 - that `gonka` is globally best;
+- formal Nash equilibrium proof;
 - production-grade evaluation;
 - statistical sufficiency;
 - that LS already operates a global live Cognitive Trail Network;
@@ -239,6 +287,7 @@ Current limitations:
 
 - sample size is small;
 - scoring is deterministic and heuristic;
+- Nash-style stability is a route-stability proxy, not a formal game-theoretic proof;
 - role outputs may be sample artifacts unless replaced by real actor outputs;
 - CI/test outcomes are not yet part of the reward calculation;
 - human review acceptance/rejection labels are not yet included;
@@ -257,9 +306,10 @@ The next strongest evidence improvements are:
 6. More generated reports promoted into curated checked-in examples.
 7. Versioned migration examples once the schema evolves beyond `cognitive_trail_run.v0.1`.
 8. More negative fixtures covering unknown actors and unsupported repeatability decisions.
+9. More Nash-style stability probes across additional routes and fixtures.
 
 ## Reviewer Bottom Line
 
 ```text
-The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema versioning -> schema -> examples -> generator -> validator -> negative tests -> CI summary -> downloadable artifacts -> explicit non-claims.
+The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema versioning -> schema -> examples -> generator -> validator -> negative tests -> Nash-style route stability proxy -> CI summary -> downloadable artifacts -> explicit non-claims.
 ```
