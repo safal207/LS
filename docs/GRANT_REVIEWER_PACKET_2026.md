@@ -12,7 +12,7 @@ This is not a bundle of unrelated repositories. It is a connected evidence stack
 LS / Liminal Stack
   -> governance, coordination, continuity, Cognitive Trail contracts, and reviewer surface
 Cognitive Trail Contract
-  -> schema, generated PR-review sample, benchmark note, validator, generator, tests, CI workflow summary, downloadable JSON/Markdown artifacts, and reviewer quickstart
+  -> evidence snapshot, schema, generated PR-review sample, benchmark note, validator, generator, tests, CI workflow summary, downloadable JSON/Markdown artifacts, and reviewer quickstart
 ProofPath / Compute Witness
   -> executable action-boundary and reviewable compute-evidence hub
 PythiaLabs
@@ -47,7 +47,7 @@ The current ecosystem tests whether this can be expressed as public repositories
 | Layer | Repository / surface | Evidence available today |
 | --- | --- | --- |
 | Governance and continuity surface | [LS](https://github.com/safal207/LS) | Council cycles, approval-safe workflows, personal-agent gateway framing, benchmark docs, safety positioning, Cognitive Trail contracts, and this reviewer packet. |
-| Measurable cooperative route artifact | [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) | Contract schema, checked-in generated PR-review sample, PR-review benchmark note, validator, generator, tests, CI workflow summary, downloadable JSON/Markdown workflow artifact, runtime report folder, and explicit interpretation boundary. |
+| Measurable cooperative route artifact | [Cognitive Trail Evidence Snapshot](COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md) | One-page evidence snapshot, contract schema, checked-in generated PR-review sample, PR-review benchmark note, validator, generator, tests, CI workflow summary, downloadable JSON/Markdown workflow artifact, runtime report folder, and explicit interpretation boundary. |
 | Ecosystem map | [ProofPath ecosystem graph](https://github.com/safal207/ProofPath/blob/main/docs/ECOSYSTEM_GRAPH.md) | Cross-repository graph connecting LS, ProofPath, Compute Witness, PythiaLabs, CML, LTP, T-Trace, and CaPU. |
 | Executable action boundary | [ProofPath](https://github.com/safal207/ProofPath) | Rust verifier, gateway, action-context profile, dangerous-action demos, real-model demo, audit logs, reviewer docs. |
 | Reviewable compute evidence | [Compute Witness path](https://github.com/safal207/ProofPath/blob/main/docs/COMPUTE_WITNESS_GRANT_REVIEWER_PATH.md) | Manifests, receipts, audit fixtures, broken-evidence challenges, Python conformance, Rust CLI, Rust audit-hash verification, CI checks. |
@@ -65,6 +65,7 @@ Read:
 
 - [LS README](../README.md)
 - [Ecosystem Reviewer Index](ECOSYSTEM_REVIEWER_INDEX.md)
+- [Cognitive Trail Evidence Snapshot](COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md)
 - [Safety Programs Positioning](SAFETY_PROGRAMS_POSITIONING.md)
 - [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md)
 
@@ -78,6 +79,7 @@ Understand the broad governance and reviewer surface, then verify one LS-local m
 
 Read:
 
+- [Cognitive Trail Evidence Snapshot](COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md)
 - [Cognitive Trail Run Contract](COGNITIVE_TRAIL_RUN_CONTRACT.md)
 - [Cognitive Trail PR-Review Benchmark Note](COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md)
 - [Cognitive Trail Network](COGNITIVE_TRAIL_NETWORK.md)
@@ -170,6 +172,12 @@ The canonical committed example is:
 
 ```text
 examples/trails/generated_pr_review_sample.json
+```
+
+The compact evidence snapshot is:
+
+```text
+docs/COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md
 ```
 
 The short benchmark interpretation is:
@@ -332,6 +340,7 @@ The strongest current evidence chain now has two connected parts.
 
 ```text
 LS reviewer and governance surface
+  -> Cognitive Trail evidence snapshot
   -> Cognitive Trail Run contract
   -> JSON Schema
   -> checked-in generated PR-review sample
@@ -400,7 +409,8 @@ Funding would harden and connect existing artifacts rather than start from zero.
 ### Workstream 1: Cognitive Trail hardening
 
 ```text
-Cognitive Trail contract
+Cognitive Trail evidence snapshot
++ Cognitive Trail contract
 + generated trail samples
 + PR-review benchmark note
 + validator
@@ -482,6 +492,7 @@ conceptual frame
 -> public repositories
 -> reviewer paths
 -> committed fixtures
+-> evidence snapshots
 -> executable validators
 -> generators
 -> Markdown reviewer reports
