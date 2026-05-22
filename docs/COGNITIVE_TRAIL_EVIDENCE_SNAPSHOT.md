@@ -34,6 +34,7 @@ Cognitive Trail Run contract
 -> PR-review trail generator
 -> Nash-style route stability probe
 -> route-stability sample contract
+-> route-stability evidence map
 -> checked-in Nash-style stability sample
 -> route-stability negative fixture
 -> Markdown reviewer report
@@ -92,6 +93,12 @@ Route-stability contract:
 
 ```text
 docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md
+```
+
+Route-stability evidence map:
+
+```text
+docs/ROUTE_STABILITY_EVIDENCE_MAP.md
 ```
 
 Checked-in route-stability schema, sample, and negative fixture:
@@ -156,6 +163,7 @@ interpretation boundary.
 | Schema | [`../schemas/cognitive_trail_run.schema.json`](../schemas/cognitive_trail_run.schema.json) |
 | Canonical generated sample | [`../examples/trails/generated_pr_review_sample.json`](../examples/trails/generated_pr_review_sample.json) |
 | Route stability contract | [`ROUTE_STABILITY_SAMPLE_CONTRACT.md`](ROUTE_STABILITY_SAMPLE_CONTRACT.md) |
+| Route stability evidence map | [`ROUTE_STABILITY_EVIDENCE_MAP.md`](ROUTE_STABILITY_EVIDENCE_MAP.md) |
 | Route stability schema | [`../schemas/route_stability_sample.schema.json`](../schemas/route_stability_sample.schema.json) |
 | Nash-style route stability sample | [`../examples/route-stability/nash_route_stability_sample.json`](../examples/route-stability/nash_route_stability_sample.json) |
 | Route stability negative fixture | [`../python/tests/fixtures/route-stability/invalid_metric_version.json`](../python/tests/fixtures/route-stability/invalid_metric_version.json) |
@@ -359,5 +367,5 @@ The next strongest evidence improvements are:
 ## Reviewer Bottom Line
 
 ```text
-The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema versioning -> schema -> examples -> generator -> validator -> negative tests -> Nash-style route stability proxy -> route-stability sample contract -> checked-in stability sample -> route-stability negative fixture -> CI summary -> downloadable artifacts -> explicit non-claims.
+The current Cognitive Trail path is not a finished evaluation platform, but it is already an inspectable evidence loop: contract -> schema versioning -> schema -> examples -> generator -> validator -> negative tests -> Nash-style route stability proxy -> route-stability sample contract -> route-stability evidence map -> checked-in stability sample -> route-stability negative fixture -> CI summary -> downloadable artifacts -> explicit non-claims.
 ```
