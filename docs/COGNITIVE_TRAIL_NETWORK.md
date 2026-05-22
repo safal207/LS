@@ -91,6 +91,37 @@ The repository already has the main building blocks:
 - `docs/COGNITIVE_TRAIL_RUN_CONTRACT.md` defines the first formal trail-run contract.
 - `schemas/cognitive_trail_run.schema.json` defines the first machine-readable trail-run schema.
 - `examples/trails/` contains initial PR-review trail-run examples.
+- `python/ls/agent_shell/trail_network.py` exposes the first local MCP bridge for route memory.
+
+## MCP Bridge v0.1
+
+The first MCP-facing bridge is documented in
+[`LS_TRAIL_MCP_SERVER.md`](LS_TRAIL_MCP_SERVER.md).
+
+It lets connected agents interact with the network through five local tools:
+
+```text
+ls_trail_recommend_route
+ls_trail_submit_contribution
+ls_trail_validate_evidence
+ls_trail_record_outcome
+ls_trail_query_best_trails
+```
+
+This is the first practical way for external models to connect to LS route
+memory:
+
+```text
+ask for the best known route
+-> submit role output
+-> validate evidence
+-> record human / CI / task outcome
+-> update local route memory
+```
+
+The bridge is still local-first and does not update model weights. It makes the
+network more precise by updating route memory only after evidence or outcome
+signals exist.
 
 ## Product Shape
 
@@ -177,6 +208,7 @@ auditable outcomes.
 4. Best-route replay report.
 5. Contribution and route dashboard.
 6. External model/agent adapter so other agents can submit route outcomes.
+7. MCP client examples for Codex, local Qwen, Claude Desktop, and CI bots.
 
 The network starts local-first, then grows by accepting route artifacts from
 more models, agents, and repositories.

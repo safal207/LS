@@ -21,6 +21,7 @@ Live site: [GitHub Pages](https://safal207.github.io/LS/)
 Community: [Roadmap](ROADMAP.md) · [Task board](docs/COMMUNITY_TASKS.md) · [Cognitive Trail tasks](docs/COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md) · [Contributing](CONTRIBUTING.md)
 Reviewer ecosystem: [Ecosystem Reviewer Index](docs/ECOSYSTEM_REVIEWER_INDEX.md)
 Cooperative precision: [Evidence Snapshot](docs/COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md) · [Reviewer Quickstart](docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) · [Contributor Tasks](docs/COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md) · [Benchmark Note](docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md) · [Roadmap](docs/COOPERATIVE_PRECISION_ROADMAP.md) · [Cognitive Trail Network](docs/COGNITIVE_TRAIL_NETWORK.md) · [PR Role Market Benchmark](docs/PR_ROLE_MARKET_BENCHMARK.md)
+MCP bridge: [LS Trail MCP Server v0.1](docs/LS_TRAIL_MCP_SERVER.md)
 Positioning: [Project Positioning](docs/PROJECT_POSITIONING.md)
 
 **LS is a local-first cooperative precision layer for human-plus-model work.**
@@ -584,6 +585,7 @@ pytest python/tests/test_memory_store_locking.py
 Сообщество: [дорожная карта](ROADMAP.md) · [задачи](docs/COMMUNITY_TASKS.md) · [задачи Cognitive Trail](docs/COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md) · [как помочь](CONTRIBUTING.md)
 Экосистема для ревьюеров: [Ecosystem Reviewer Index](docs/ECOSYSTEM_REVIEWER_INDEX.md)
 Точность кооперации: [Evidence Snapshot](docs/COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md) · [Reviewer Quickstart](docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) · [Contributor Tasks](docs/COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md) · [Benchmark Note](docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md) · [Cognitive Trail Network](docs/COGNITIVE_TRAIL_NETWORK.md) · [PR Role Market Benchmark](docs/PR_ROLE_MARKET_BENCHMARK.md)
+MCP-мост: [LS Trail MCP Server v0.1](docs/LS_TRAIL_MCP_SERVER.md)
 Позиционирование: [Project Positioning](docs/PROJECT_POSITIONING.md)
 
 **LS — это local-first слой точности кооперации для систем человек + модели.**

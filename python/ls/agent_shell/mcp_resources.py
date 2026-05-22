@@ -6,6 +6,7 @@ from typing import Any
 from .cognitive_state import CognitiveStateBridge
 from .mcp_tools import MCPValidationError
 from .runtime.protocol import TaskRuntime
+from .trail_network import TrailNetworkBridge
 
 
 @dataclass(frozen=True)
@@ -21,9 +22,11 @@ class MCPResourceRegistry:
         self,
         task_manager: TaskRuntime,
         cognitive_state: CognitiveStateBridge | None = None,
+        trail_network: TrailNetworkBridge | None = None,
     ) -> None:
         self.task_manager = task_manager
         self._cognitive_state = cognitive_state or CognitiveStateBridge(task_manager=task_manager)
+        self._trail_network = trail_network or TrailNetworkBridge()
 
     def list_resources(self) -> list[ResourceRef]:
         return [
@@ -56,6 +59,8 @@ class MCPResourceRegistry:
             ResourceRef(uri="fellowship/current", name="Current fellowship groups and members"),
             ResourceRef(uri="fellowship/collective-self", name="Collective relational self snapshot"),
             ResourceRef(uri="fellowship/reputation", name="Fellowship reputation and trust profiles"),
+            ResourceRef(uri="trail/routes", name="Cognitive Trail route memory"),
+            ResourceRef(uri="trail/events", name="Cognitive Trail MCP contribution events"),
         ]
 
     def read_resource(self, uri: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -139,6 +144,18 @@ class MCPResourceRegistry:
             return self._cognitive_state.get_fellowship_collective_self()
         if uri == "fellowship/reputation":
             return self._cognitive_state.get_fellowship_reputation()
+        if uri == "trail/routes":
+            return {
+                "resource": "trail/routes",
+                **self._trail_network.query_best_trails(
+                    {
+                        "limit": int(args.get("limit", 10)),
+                        "route_prefix": str(args.get("route_prefix") or ""),
+                    }
+                ),
+            }
+        if uri == "trail/events":
+            return self._trail_network.read_events(limit=int(args.get("limit", 20)))
 
         task_id, suffix = self._parse_task_uri(uri)
 
