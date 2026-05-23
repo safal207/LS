@@ -23,6 +23,7 @@ Reviewer ecosystem: [Ecosystem Reviewer Index](docs/ECOSYSTEM_REVIEWER_INDEX.md)
 Cooperative precision: [Evidence Snapshot](docs/COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md) · [Reviewer Quickstart](docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) · [Contributor Tasks](docs/COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md) · [Benchmark Note](docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md) · [Metrics](docs/COOPERATIVE_PRECISION_METRICS.md) · [Stability Probe](docs/COOPERATIVE_PRECISION_METRICS.md#nash-style-route-stability) · [Stability Sample](examples/route-stability/nash_route_stability_sample.json) · [Stability Contract](docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md) · [Stability Evidence Map](docs/ROUTE_STABILITY_EVIDENCE_MAP.md) · [Roadmap](docs/COOPERATIVE_PRECISION_ROADMAP.md) · [Cognitive Trail Network](docs/COGNITIVE_TRAIL_NETWORK.md) · [PR Role Market Benchmark](docs/PR_ROLE_MARKET_BENCHMARK.md)
 MCP bridge: [LS Trail MCP Server v0.2](docs/LS_TRAIL_MCP_SERVER.md)
 Positioning: [Project Positioning](docs/PROJECT_POSITIONING.md)
+New here? Start with: [Why Star LS](docs/WHY_STAR_LS.md) · [2-minute route-stability demo](#2-minute-route-stability-demo) · [Contributor matrix](https://github.com/safal207/LS/issues/563)
 
 **LS is a local-first cooperative precision layer for human-plus-model work.**
 It does not make models magically smarter. It makes repeated cooperation more
@@ -51,6 +52,27 @@ summary, then saved as a reusable trail artifact.
 LS also contains a **Personal Cognitive Garden** direction: useful AI sessions
 can become human-owned development memory, but only with evidence and human
 review. The system must grow skill capital without becoming surveillance.
+
+### 2-minute route-stability demo
+
+```bash
+python -m pip install jsonschema pytest
+PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_nash_route_stability.py
+python scripts/run_nash_route_stability_demo.py --json
+```
+
+This checks the current route-stability evidence chain:
+
+```text
+schema
+-> checked-in sample
+-> negative fixtures
+-> deterministic probe
+-> regression test
+-> explicit non-claims
+```
+
+Want to help? Try the [contributor matrix](https://github.com/safal207/LS/issues/563): run the same bounded probe on your OS, model runtime, and hardware.
 
 Run the PR-review trail demo:
 
@@ -613,6 +635,7 @@ pytest python/tests/test_memory_store_locking.py
 Точность кооперации: [Evidence Snapshot](docs/COGNITIVE_TRAIL_EVIDENCE_SNAPSHOT.md) · [Reviewer Quickstart](docs/COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md) · [Contributor Tasks](docs/COGNITIVE_TRAIL_CONTRIBUTOR_TASKS.md) · [Benchmark Note](docs/COGNITIVE_TRAIL_PR_REVIEW_BENCHMARK_NOTE.md) · [Metrics](docs/COOPERATIVE_PRECISION_METRICS.md) · [Stability Probe](docs/COOPERATIVE_PRECISION_METRICS.md#nash-style-route-stability) · [Stability Sample](examples/route-stability/nash_route_stability_sample.json) · [Stability Contract](docs/ROUTE_STABILITY_SAMPLE_CONTRACT.md) · [Stability Evidence Map](docs/ROUTE_STABILITY_EVIDENCE_MAP.md) · [Cognitive Trail Network](docs/COGNITIVE_TRAIL_NETWORK.md) · [PR Role Market Benchmark](docs/PR_ROLE_MARKET_BENCHMARK.md)
 MCP-мост: [LS Trail MCP Server v0.2](docs/LS_TRAIL_MCP_SERVER.md)
 Позиционирование: [Project Positioning](docs/PROJECT_POSITIONING.md)
+Впервые здесь? Начните с: [Why Star LS](docs/WHY_STAR_LS.md) · [2-minute route-stability demo](#2-minute-route-stability-demo) · [Contributor matrix](https://github.com/safal207/LS/issues/563)
 
 **LS — это local-first слой точности кооперации для систем человек + модели.**
 Он не делает модели магически “умнее”. Он делает повторяющуюся совместную работу
