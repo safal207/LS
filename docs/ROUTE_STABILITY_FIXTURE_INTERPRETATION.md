@@ -20,6 +20,7 @@ global route ranking, global participant ranking, or production governance claim
 | --- | --- | --- |
 | `examples/route-stability/nash_route_stability_sample.json` | Accepted by schema and pinned against deterministic demo output for stable fields. | Shows the current PR-review route-stability sample is reproducible for the checked-in deterministic probe. |
 | `python/tests/fixtures/route-stability/invalid_metric_version.json` | Rejected by schema. | Shows that unsupported metric versions and undeclared fields do not silently enter reviewer evidence. |
+| `python/tests/fixtures/route-stability/missing_full_route_reward.json` | Rejected by schema. | Shows that incomplete route evidence is blocked when a required route field is missing. |
 
 ## Current Stable Candidate Sample
 
@@ -53,14 +54,14 @@ reviewer discussion.
 Current negative behavior:
 
 ```text
-wrong metric_version    -> rejected by schema
-unknown top-level field -> rejected by schema
+wrong metric_version       -> rejected by schema
+unknown top-level field    -> rejected by schema
+missing full_route.reward  -> rejected by schema
 ```
 
 Future negative fixtures should cover:
 
 ```text
-missing required route fields;
 unsupported stability.decision values;
 unsupported route.kind values;
 missing interpretation boundary;
