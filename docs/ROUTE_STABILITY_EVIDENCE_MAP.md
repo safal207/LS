@@ -30,7 +30,7 @@ chain stays intact:
 ```text
 schema
 -> checked-in sample
--> negative fixture
+-> negative fixtures
 -> fixture interpretation note
 -> deterministic generator
 -> regression test
@@ -50,7 +50,8 @@ A reviewer should treat the sample as evidence only inside this chain.
 | Fixture interpretation note | `docs/ROUTE_STABILITY_FIXTURE_INTERPRETATION.md` | Explains what current and future route-stability fixtures mean, including accepted and rejected cases. | Confirm fixture meaning is documented before treating a sample as evidence. |
 | JSON Schema | `schemas/route_stability_sample.schema.json` | Defines the structural contract for a route-stability sample. | Confirm required fields and fixed values such as `demo` and `metric_version`. |
 | Checked-in sample | `examples/route-stability/nash_route_stability_sample.json` | Provides the canonical current stable sample for reviewers. | Confirm it validates against the schema and matches stable demo fields. |
-| Negative fixture | `python/tests/fixtures/route-stability/invalid_metric_version.json` | Proves malformed route-stability artifacts are rejected. | Confirm the test rejects wrong `metric_version` and unknown top-level fields. |
+| Negative fixture: metric version | `python/tests/fixtures/route-stability/invalid_metric_version.json` | Proves unsupported metric versions and undeclared fields are rejected. | Confirm the test rejects wrong `metric_version` and unknown top-level fields. |
+| Negative fixture: missing route field | `python/tests/fixtures/route-stability/missing_full_route_reward.json` | Proves incomplete route evidence is rejected when `full_route.reward` is missing. | Confirm the test rejects the fixture with `'reward' is a required property`. |
 | Deterministic generator | `scripts/run_nash_route_stability_demo.py` | Produces the route-stability payload from the deterministic local probe. | Run with `--json` and compare stable core fields through the test. |
 | Regression test | `python/tests/test_nash_route_stability.py` | Pins schema validity, negative fixture rejection, and sample-vs-demo consistency. | Run the pytest command below. |
 | CI workflow | `.github/workflows/cognitive_trail_contract.yml` | Runs the route-stability regression path and generates the CI artifact. | Inspect workflow paths, summary text, and uploaded artifact list. |
@@ -68,8 +69,8 @@ docs/ROUTE_STABILITY_FIXTURE_INTERPRETATION.md
 ```
 
 That note defines the meaning of the accepted current sample, the current negative
-fixture, future non-stable fixtures, and future missing-field / unsupported-decision
-negative fixtures.
+fixtures, future non-stable fixtures, and future unsupported-decision negative
+fixtures.
 
 ## Local Verification Path
 
@@ -104,7 +105,7 @@ For this evidence surface to remain reviewer-useful:
 
 ```text
 1. The checked-in sample must validate against schemas/route_stability_sample.schema.json.
-2. The negative fixture must be rejected by the same schema.
+2. Negative fixtures must be rejected by the same schema.
 3. The fixture interpretation note must explain accepted and rejected fixture meaning.
 4. The checked-in sample must match deterministic demo --json output for stable core fields.
 5. The CI workflow must run the route-stability regression path when relevant files change.
@@ -144,8 +145,9 @@ mimo:  +0.2250
 | Failure mode | Expected detection surface |
 | --- | --- |
 | Sample shape drifts | JSON Schema validation fails. |
-| Metric version drifts silently | Negative fixture and schema checks expose version mismatch behavior. |
-| Extra undeclared fields become accepted | Negative fixture rejection fails. |
+| Metric version drifts silently | `invalid_metric_version.json` rejection exposes version mismatch behavior. |
+| Extra undeclared fields become accepted | `invalid_metric_version.json` rejection fails. |
+| Required route fields become optional by accident | `missing_full_route_reward.json` rejection fails. |
 | Demo output changes but sample is not updated | Sample-vs-demo stable-field regression fails. |
 | Fixture meaning becomes ambiguous | Fixture interpretation note no longer matches schema, sample, or tests. |
 | CI stops generating reviewer artifact | Workflow summary or artifact path check fails. |
@@ -179,7 +181,7 @@ A reviewer can use this file as a checklist:
 ```text
 1. Open the contract.
 2. Inspect the schema and sample.
-3. Confirm the negative fixture exists.
+3. Confirm the negative fixtures exist.
 4. Read the fixture interpretation note.
 5. Run the route-stability test.
 6. Generate the demo payload.
