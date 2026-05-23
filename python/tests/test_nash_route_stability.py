@@ -14,6 +14,14 @@ SCHEMA_PATH = ROOT / "schemas" / "route_stability_sample.schema.json"
 INVALID_METRIC_VERSION_PATH = (
     ROOT / "python" / "tests" / "fixtures" / "route-stability" / "invalid_metric_version.json"
 )
+MISSING_FULL_ROUTE_REWARD_PATH = (
+    ROOT
+    / "python"
+    / "tests"
+    / "fixtures"
+    / "route-stability"
+    / "missing_full_route_reward.json"
+)
 
 
 def _run_demo_payload() -> dict:
@@ -38,6 +46,10 @@ def _load_schema() -> dict:
 
 def _load_invalid_metric_version_sample() -> dict:
     return json.loads(INVALID_METRIC_VERSION_PATH.read_text(encoding="utf-8"))
+
+
+def _load_missing_full_route_reward_sample() -> dict:
+    return json.loads(MISSING_FULL_ROUTE_REWARD_PATH.read_text(encoding="utf-8"))
 
 
 def _route_stability_validator() -> Draft202012Validator:
@@ -80,6 +92,17 @@ def test_nash_route_stability_schema_rejects_invalid_fixture() -> None:
     assert any("'nash_route_stability.v0.1' was expected" in message for message in error_messages)
     assert any("Additional properties are not allowed" in message for message in error_messages)
     assert any("unexpected_debug_field" in message for message in error_messages)
+
+
+def test_nash_route_stability_schema_rejects_missing_route_field_fixture() -> None:
+    invalid_sample = _load_missing_full_route_reward_sample()
+    validator = _route_stability_validator()
+    errors = sorted(validator.iter_errors(invalid_sample), key=lambda error: list(error.path))
+
+    assert any(
+        list(error.path) == ["full_route"] and error.message == "'reward' is a required property"
+        for error in errors
+    )
 
 
 def test_nash_route_stability_sample_matches_demo_core_fields() -> None:
