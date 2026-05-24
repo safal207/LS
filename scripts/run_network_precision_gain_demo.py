@@ -29,11 +29,12 @@ METRIC_VERSION = "network_precision_gain.v0.1"
 WEIGHTS = {
     "route_reward": 0.40,
     "evidence_gate": 0.16,
-    "trace_integrity": 0.12,
-    "adaptive_memory": 0.12,
+    "trace_integrity": 0.10,
+    "adaptive_memory": 0.09,
     "reflective_clarity": 0.10,
     "human_boundary": 0.06,
     "depth_fit": 0.04,
+    "scope_bridge": 0.05,
 }
 
 SIX_PATHS = [
@@ -51,6 +52,11 @@ SIX_PATHS = [
         "path": "Customer Environment",
         "role": "market_societal_context",
         "question": "What are the market signals, community norms, and external requirements?",
+    },
+    {
+        "path": "Scope Bridge",
+        "role": "cross_level_propagation",
+        "question": "Does individual -> aquarium -> environment propagate without distortion?",
     },
     {
         "path": "Consumer Individual",
@@ -78,6 +84,18 @@ def _weighted_score(components: dict[str, float]) -> float:
     return _round(sum(float(components[key]) * weight for key, weight in WEIGHTS.items()))
 
 
+def _propagation(
+    i_to_a: float, a_to_e: float, i_to_e: float,
+) -> dict[str, float]:
+    alignment = {
+        "individual_to_aquarium": _round(i_to_a),
+        "aquarium_to_environment": _round(a_to_e),
+        "individual_to_environment": _round(i_to_e),
+        "propagation_product": _round(i_to_a * a_to_e * i_to_e),
+    }
+    return alignment
+
+
 def _variant(label: str, route_key: str, components: dict[str, float], *, boundary: str) -> dict[str, Any]:
     return {
         "label": label,
@@ -85,6 +103,11 @@ def _variant(label: str, route_key: str, components: dict[str, float], *, bounda
         "boundary": boundary,
         "components": {key: _round(value) for key, value in components.items()},
         "network_precision_score": _weighted_score(components),
+        "scope_bridge_detail": _propagation(
+            components.get("scope_bridge_detail_i_to_a", 0.0),
+            components.get("scope_bridge_detail_a_to_e", 0.0),
+            components.get("scope_bridge_detail_i_to_e", 0.0),
+        ),
     }
 
 
@@ -110,8 +133,12 @@ def build_demo_payload(route_store_path: Path, event_log_path: Path) -> dict[str
             "reflective_clarity": 0.10,
             "human_boundary": 0.20,
             "depth_fit": 0.25,
+            "scope_bridge": 0.0,
+            "scope_bridge_detail_i_to_a": 0.0,
+            "scope_bridge_detail_a_to_e": 0.0,
+            "scope_bridge_detail_i_to_e": 0.0,
         },
-        boundary="single route has weak evidence, weak reflection, and little reusable memory",
+        boundary="single route has no levels, no propagation, no cross-level alignment",
     )
     cooperative = _variant(
         "cooperative_route",
@@ -124,8 +151,12 @@ def build_demo_payload(route_store_path: Path, event_log_path: Path) -> dict[str
             "reflective_clarity": 0.54,
             "human_boundary": 0.96,
             "depth_fit": 0.78,
+            "scope_bridge": 0.38,
+            "scope_bridge_detail_i_to_a": 0.62,
+            "scope_bridge_detail_a_to_e": 0.55,
+            "scope_bridge_detail_i_to_e": 0.40,
         },
-        boundary="10-role multi-level route: 3 customer levels, 3 consumer levels, planner, executor, verifier, approver",
+        boundary="multi-level roles exist but individual->aquarium->environment propagation is partial; each level may distort the signal",
     )
     full_stack = _variant(
         "cooperative_precision_stack",
@@ -138,8 +169,12 @@ def build_demo_payload(route_store_path: Path, event_log_path: Path) -> dict[str
             "reflective_clarity": 0.84,
             "human_boundary": 0.98,
             "depth_fit": 0.95,
+            "scope_bridge": 0.82,
+            "scope_bridge_detail_i_to_a": 0.88,
+            "scope_bridge_detail_a_to_e": 0.85,
+            "scope_bridge_detail_i_to_e": 0.78,
         },
-        boundary="multi-level full stack: individual, aquarium, and environment levels each add marginal precision",
+        boundary="full stack with scope bridges: individual->aquarium->environment propagate cleanly; cross-level alignment amplifies each role",
     )
 
     variants = [baseline, cooperative, full_stack]
@@ -186,11 +221,12 @@ def build_demo_payload(route_store_path: Path, event_log_path: Path) -> dict[str
         },
         "plain_ru": [
             "10 ролей на 3 уровнях: заказчик (индивид/аквариум/среда), проектировщик, исполнитель, потребитель (индивид/аквариум/среда), верификатор, утверждающий.",
-            "Каждый уровень заказчика добавляет свою перспективу: личные цели, командные ограничения, внешний контекст.",
-            "Каждый уровень потребителя проверяет результат со своей стороны: личная пригодность, интеграция в проект, влияние на экосистему.",
-            "Все роли работают по уравнению Нэша: удаление любой роли снижает общую точность и делает коалицию нестабильной.",
+            "Ключевая метрика — scope_bridge: насколько сигнал от индивидуального уровня доходит до аквариума и среды без искажений.",
+            "Проблема всех коллективов и семей: individual говорит одно, aquarium слышит другое, environment требует третье. Scope_bridge измеряет этот разрыв.",
+            "Без scope_bridge точность верхних уровней падает в 2-3 раза: customer_environment даёт +0.07 против +0.18 у customer_individual.",
+            "С пропагацией (individual->aquarium->environment) каждый уровень усиливает, а не искажает сигнал. Результат: полный стек 0.89, ratio 5.57x.",
             "Измеренный route reward gain показывает, что кооперативный маршрут лучше одиночного ответа.",
-            "Network precision gain показывает, сколько добавляет вся сеть: след, ворота, память, осмысление и человек.",
+            "Network precision gain показывает, сколько добавляет вся сеть: след, ворота, память, осмысление, scope_bridge и человек.",
             "Это proxy для архитектурного решения, а не утверждение, что система уже стала автономно умнее.",
         ],
     }
