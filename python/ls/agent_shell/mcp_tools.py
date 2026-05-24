@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import sys
+import tempfile
+from pathlib import Path
 from typing import Any
 import json
 
@@ -11,6 +14,19 @@ from .trail_network import TrailNetworkBridge
 
 class MCPValidationError(ValueError):
     """MCP-facing validation error."""
+
+
+SCRIPTS_ROOT: Path | None = None
+
+
+def _ensure_scripts_path() -> Path:
+    global SCRIPTS_ROOT
+    if SCRIPTS_ROOT is None:
+        root = Path(__file__).resolve().parents[3]
+        SCRIPTS_ROOT = root / "scripts"
+        if str(SCRIPTS_ROOT) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS_ROOT))
+    return SCRIPTS_ROOT
 
 
 class MCPToolRegistry:
@@ -54,6 +70,10 @@ class MCPToolRegistry:
             "ls_trail_validate_evidence": self._trail_validate_evidence,
             "ls_trail_record_outcome": self._trail_record_outcome,
             "ls_trail_query_best_trails": self._trail_query_best_trails,
+            # Network Precision Probe MCP v0.1
+            "ls_run_network_precision_probe": self._run_network_precision_probe,
+            "ls_run_model_roster_probe": self._run_model_roster_probe,
+            "ls_prepare_contributor_report": self._prepare_contributor_report,
         }
 
     def list_tools(self) -> list[dict[str, Any]]:
@@ -280,6 +300,66 @@ class MCPToolRegistry:
 
     def _trail_query_best_trails(self, args: dict[str, Any]) -> dict[str, Any]:
         return self._trail_network.query_best_trails(args)
+
+    def _run_network_precision_probe(self, args: dict[str, Any]) -> dict[str, Any]:
+        _ensure_scripts_path()
+        from run_network_precision_gain_demo import build_demo_payload as _build_network  # noqa: E402
+        from run_nash_route_stability_demo import build_demo_payload as _build_nash  # noqa: E402
+
+        with tempfile.TemporaryDirectory(prefix="ls-mcp-network-probe-") as tmp:
+            tmp_path = Path(tmp)
+            nash = _build_nash(tmp_path / "routes.json", tmp_path / "events.jsonl")
+            network = _build_network(tmp_path / "routes.json", tmp_path / "events.jsonl")
+        return {
+            "tool": "ls_run_network_precision_probe",
+            "metric_version": network["metric_version"],
+            "measured_route_reward_gain": network["measured_route_reward_gain"],
+            "network_precision": network["network_precision"],
+            "route_stability": network["route_stability"],
+            "variants": network["variants"],
+            "interpretation_boundary": network["interpretation_boundary"],
+            "source": {
+                "nash_metric_version": nash.get("metric_version"),
+                "nash_decision": nash.get("stability", {}).get("decision"),
+            },
+        }
+
+    def _run_model_roster_probe(self, args: dict[str, Any]) -> dict[str, Any]:
+        _ensure_scripts_path()
+        from run_model_roster_depth_probe import build_probe_payload  # noqa: E402
+
+        live = bool(args.get("live", False))
+        max_tokens = int(args.get("max_tokens", 180))
+        payload = build_probe_payload(live=live, max_tokens=max_tokens)
+        return {
+            "tool": "ls_run_model_roster_probe",
+            "metric_version": payload["metric_version"],
+            "configured_route": payload["configured_route"],
+            "roster": payload["roster"],
+            "role_actor_assignments": payload["role_actor_assignments"],
+            "live_probe": payload.get("live_probe"),
+            "interpretation": payload["interpretation"],
+        }
+
+    def _prepare_contributor_report(self, args: dict[str, Any]) -> dict[str, Any]:
+        _ensure_scripts_path()
+        from prepare_network_precision_contributor_report import build_report_payload  # noqa: E402
+
+        runner = str(args.get("runner", ""))
+        live_roster = bool(args.get("live_roster", False))
+        max_tokens = int(args.get("max_tokens", 180))
+        payload = build_report_payload(runner=runner, live_roster=live_roster, max_tokens=max_tokens)
+        return {
+            "tool": "ls_prepare_contributor_report",
+            "report_version": payload["report_version"],
+            "created_at_utc": payload["created_at_utc"],
+            "runner": payload["runner"],
+            "environment": payload["environment"],
+            "commands": payload["commands"],
+            "summary": payload["summary"],
+            "boundary": payload["boundary"],
+            "_full": payload,
+        }
 
 
 def tool_call_from_json(registry: MCPToolRegistry, raw: str) -> str:

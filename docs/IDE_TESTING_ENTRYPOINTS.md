@@ -70,6 +70,63 @@ python scripts/prepare_network_precision_contributor_report.py \
   --include-full-json
 ```
 
+## MCP Tools (IDE-Agent Entry)
+
+Any MCP-compatible client (Cursor, Claude Desktop, Codex, Copilot) can call
+network precision probes as tools instead of running CLI commands:
+
+| Tool | What it does |
+| --- | --- |
+| `ls_run_network_precision_probe` | Run the network precision gain probe and return JSON metrics. |
+| `ls_run_model_roster_probe` | Probe which LS actors are ready or unavailable. Pass `{"live": true}` to call the configured model route. |
+| `ls_prepare_contributor_report` | Run all probes and compile a full contributor report payload. Pass `{"runner": "your-handle"}` to identify the run. |
+
+### Connect from an MCP client
+
+The MCP stdio server listens on stdin/stdout:
+
+```bash
+python -m ls.agent_shell.mcp_server
+```
+
+Or use the HTTP transport (default port 8042):
+
+```bash
+python -c "from ls.agent_shell.mcp_http import run_http_server; run_http_server()"
+```
+
+### Example: call a probe from another agent
+
+```python
+import json, subprocess, sys
+
+request = json.dumps({
+    "action": "tools/call",
+    "name": "ls_run_network_precision_probe",
+    "arguments": {}
+}) + "\n"
+
+proc = subprocess.run(
+    [sys.executable, "-m", "ls.agent_shell.mcp_server"],
+    input=request, capture_output=True, text=True, check=True
+)
+result = json.loads(proc.stdout.strip())["result"]
+print(result["network_precision"]["decision"])
+```
+
+### Example: prepare a contributor report from an IDE agent
+
+```python
+request = json.dumps({
+    "action": "tools/call",
+    "name": "ls_prepare_contributor_report",
+    "arguments": {"runner": "my-agent"}
+}) + "\n"
+```
+
+The agent receives the same payload that would be written to
+`reports/network_precision_contributor_report.md`.
+
 ## What This Gives The Network
 
 Each contributor report adds one environment-tested route sample:
