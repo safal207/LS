@@ -24,17 +24,18 @@ if hasattr(sys.stderr, "reconfigure"):
 from run_nash_route_stability_demo import build_demo_payload as build_nash_payload  # noqa: E402
 
 
-METRIC_VERSION = "network_precision_gain.v0.1"
+METRIC_VERSION = "network_precision_gain.v0.2"
 
 WEIGHTS = {
     "route_reward": 0.40,
     "evidence_gate": 0.16,
-    "trace_integrity": 0.10,
-    "adaptive_memory": 0.09,
+    "trace_integrity": 0.08,
+    "adaptive_memory": 0.07,
     "reflective_clarity": 0.10,
     "human_boundary": 0.06,
     "depth_fit": 0.04,
     "scope_bridge": 0.05,
+    "temporal_coherence": 0.04,
 }
 
 SIX_PATHS = [
@@ -57,6 +58,11 @@ SIX_PATHS = [
         "path": "Scope Bridge",
         "role": "cross_level_propagation",
         "question": "Does individual -> aquarium -> environment propagate without distortion?",
+    },
+    {
+        "path": "Temporal Observer",
+        "role": "external_observer_through_time",
+        "question": "How do levels drift, cycle, lag, and resonate over time across all three levels?",
     },
     {
         "path": "Consumer Individual",
@@ -96,7 +102,20 @@ def _propagation(
     return alignment
 
 
+def _temporal_observer(
+    drift: float, cycle: float, lag: float, resonance: float,
+) -> dict[str, float]:
+    return {
+        "drift_score": _round(drift),
+        "cycle_detection": _round(cycle),
+        "lag_between_levels": _round(lag),
+        "resonance": _round(resonance),
+        "temporal_product": _round(drift * cycle * (1.0 - lag) * resonance),
+    }
+
+
 def _variant(label: str, route_key: str, components: dict[str, float], *, boundary: str) -> dict[str, Any]:
+    sb = components.get("scope_bridge_detail_i_to_a", 0.0)
     return {
         "label": label,
         "route_key": route_key,
@@ -104,9 +123,15 @@ def _variant(label: str, route_key: str, components: dict[str, float], *, bounda
         "components": {key: _round(value) for key, value in components.items()},
         "network_precision_score": _weighted_score(components),
         "scope_bridge_detail": _propagation(
-            components.get("scope_bridge_detail_i_to_a", 0.0),
+            sb,
             components.get("scope_bridge_detail_a_to_e", 0.0),
             components.get("scope_bridge_detail_i_to_e", 0.0),
+        ),
+        "temporal_observer_detail": _temporal_observer(
+            components.get("temporal_drift", 0.0),
+            components.get("temporal_cycle", 0.0),
+            components.get("temporal_lag", 0.0),
+            components.get("temporal_resonance", 0.0),
         ),
     }
 
@@ -137,8 +162,13 @@ def build_demo_payload(route_store_path: Path, event_log_path: Path) -> dict[str
             "scope_bridge_detail_i_to_a": 0.0,
             "scope_bridge_detail_a_to_e": 0.0,
             "scope_bridge_detail_i_to_e": 0.0,
+            "temporal_coherence": 0.0,
+            "temporal_drift": 0.0,
+            "temporal_cycle": 0.0,
+            "temporal_lag": 0.0,
+            "temporal_resonance": 0.0,
         },
-        boundary="single route has no levels, no propagation, no cross-level alignment",
+        boundary="single answer has no levels, no observer, no temporal dimension",
     )
     cooperative = _variant(
         "cooperative_route",
@@ -155,8 +185,13 @@ def build_demo_payload(route_store_path: Path, event_log_path: Path) -> dict[str
             "scope_bridge_detail_i_to_a": 0.62,
             "scope_bridge_detail_a_to_e": 0.55,
             "scope_bridge_detail_i_to_e": 0.40,
+            "temporal_coherence": 0.22,
+            "temporal_drift": 0.55,
+            "temporal_cycle": 0.40,
+            "temporal_lag": 0.50,
+            "temporal_resonance": 0.25,
         },
-        boundary="multi-level roles exist but individual->aquarium->environment propagation is partial; each level may distort the signal",
+        boundary="observer sees drift between levels, partial cycles, and lag in propagation; resonance is weak because levels oscillate independently",
     )
     full_stack = _variant(
         "cooperative_precision_stack",
@@ -173,8 +208,13 @@ def build_demo_payload(route_store_path: Path, event_log_path: Path) -> dict[str
             "scope_bridge_detail_i_to_a": 0.88,
             "scope_bridge_detail_a_to_e": 0.85,
             "scope_bridge_detail_i_to_e": 0.78,
+            "temporal_coherence": 0.72,
+            "temporal_drift": 0.15,
+            "temporal_cycle": 0.75,
+            "temporal_lag": 0.20,
+            "temporal_resonance": 0.80,
         },
-        boundary="full stack with scope bridges: individual->aquarium->environment propagate cleanly; cross-level alignment amplifies each role",
+        boundary="observer sees low drift, stable cycles, minimal lag, and strong resonance: levels evolve in sync over time",
     )
 
     variants = [baseline, cooperative, full_stack]
@@ -220,14 +260,14 @@ def build_demo_payload(route_store_path: Path, event_log_path: Path) -> dict[str
             "minimum_marginal_contribution": stability["minimum_marginal_contribution"],
         },
         "plain_ru": [
-            "10 ролей на 3 уровнях: заказчик (индивид/аквариум/среда), проектировщик, исполнитель, потребитель (индивид/аквариум/среда), верификатор, утверждающий.",
-            "Ключевая метрика — scope_bridge: насколько сигнал от индивидуального уровня доходит до аквариума и среды без искажений.",
-            "Проблема всех коллективов и семей: individual говорит одно, aquarium слышит другое, environment требует третье. Scope_bridge измеряет этот разрыв.",
-            "Без scope_bridge точность верхних уровней падает в 2-3 раза: customer_environment даёт +0.07 против +0.18 у customer_individual.",
-            "С пропагацией (individual->aquarium->environment) каждый уровень усиливает, а не искажает сигнал. Результат: полный стек 0.89, ratio 5.57x.",
-            "Измеренный route reward gain показывает, что кооперативный маршрут лучше одиночного ответа.",
-            "Network precision gain показывает, сколько добавляет вся сеть: след, ворота, память, осмысление, scope_bridge и человек.",
-            "Это proxy для архитектурного решения, а не утверждение, что система уже стала автономно умнее.",
+            "10 ролей на 3 уровнях + внешний наблюдатель во времени.",
+            "Наблюдатель не участвует в маршруте — он снаружи. Он видит, как уровни дрейфуют, синхронизируются, запаздывают или резонируют.",
+            "temporal_drift: насколько individual и aquarium расходятся со временем. Чем выше — тем быстрее уровни теряют связь.",
+            "temporal_lag: задержка пропагации между уровнями. aquarium реагирует на individual с опозданием — сигнал гаснет.",
+            "temporal_cycle: обнаруживает устойчивые циклы в согласовании уровней. Есть ли регулярная синхронизация?",
+            "temporal_resonance: когда все три уровня колеблются в фазе — точность взрывно растёт.",
+            "Проблема всех коллективов и семей: individual говорит одно, aquarium слышит другое, environment требует третье, и со временем разрыв только растёт.",
+            "Наблюдатель подсвечивает: где дрейф, где задержка, где цикл сломался. Это не лечение — это диагноз. Но без диагноза нет лечения.",
         ],
     }
 
