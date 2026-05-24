@@ -138,7 +138,13 @@ def _sanitize_cycle_id_filename(cycle_id: str) -> str:
 
 def _council_quality_path(quality_dir: Path, cycle_id: str) -> Path:
     safe_cycle_id = _sanitize_cycle_id_filename(cycle_id)
-    base = quality_dir.resolve()
+    try:
+        base = quality_dir.resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise ValueError(f"Council quality directory not found: {quality_dir}") from exc
+    if not base.is_dir():
+        raise ValueError(f"Council quality directory is not a directory: {quality_dir}")
+
     candidate = (base / f"{safe_cycle_id}.json").resolve()
     try:
         candidate.relative_to(base)
