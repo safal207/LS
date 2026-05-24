@@ -1,6 +1,6 @@
 # IDE Testing Entrypoints
 
-Status: **lightweight contributor entrypoints for VS Code, Cursor, and similar IDEs**.
+Status: **lightweight contributor entrypoints for VS Code, Cursor, OpenCode, and similar IDE agents**.
 
 The goal is to let contributors test LS without learning the full architecture
 first. Open the repository in an IDE, run one task, and paste the generated
@@ -22,6 +22,24 @@ In VS Code or Cursor:
 The task runs the same probes used by the public Network Precision Contributor
 Call and writes a Markdown report with environment, actor readiness, and metric
 values.
+
+## OpenCode Entry
+
+The repository includes `opencode.json` with:
+
+- `ls-network-probes` MCP server: `python -m ls.agent_shell.mcp_server`
+- `/ls-precision-report <runner>`: prepares a contributor report for GitHub
+- `/ls-probe-roster`: shows ready and unavailable LS actors
+- `/ls-probe-precision`: shows the network precision gain metrics
+
+Recommended first command inside OpenCode:
+
+```text
+/ls-precision-report your-github-handle
+```
+
+Then paste `reports/network_precision_contributor_report.md` into the public
+contributor issue.
 
 ## Available Tasks
 
@@ -72,7 +90,7 @@ python scripts/prepare_network_precision_contributor_report.py \
 
 ## MCP Tools (IDE-Agent Entry)
 
-Any MCP-compatible client (Cursor, Claude Desktop, Codex, Copilot) can call
+Any MCP-compatible client (OpenCode, Cursor, Claude Desktop, Codex, Copilot) can call
 network precision probes as tools instead of running CLI commands:
 
 | Tool | What it does |

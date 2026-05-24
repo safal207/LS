@@ -83,7 +83,7 @@ https://github.com/safal207/LS
 ```text
 New easier LS contributor path:
 
-Open the repo in VS Code/Cursor
+Open the repo in VS Code/Cursor/OpenCode
 -> Terminal: Run Task
 -> LS: Prepare Contributor Report
 -> paste the generated report into GitHub
@@ -101,7 +101,7 @@ The current focus is PR/code-review routes: task -> route -> evidence -> role co
 
 The project now includes a route-stability contributor matrix, so people can run the same bounded probe on different operating systems, hardware, model runtimes, and fixtures.
 
-The next contributor call is Network Precision Gain: run the precision probe on your own model or runtime, report the environment, and help improve the shared route network. There is now an IDE path for VS Code/Cursor so contributors can generate the report from a task instead of assembling it by hand.
+The next contributor call is Network Precision Gain: run the precision probe on your own model or runtime, report the environment, and help improve the shared route network. There are now IDE paths for VS Code, Cursor, and OpenCode so contributors can generate the report instead of assembling it by hand.
 
 The claim is intentionally narrow: this is a small inspectable evidence path for cooperative AI route evaluation, not a production compliance platform.
 

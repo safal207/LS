@@ -49,9 +49,16 @@ If you use VS Code or Cursor:
 3. Run **LS: Prepare Contributor Report**.
 4. Paste `reports/network_precision_contributor_report.md` into the GitHub contributor issue.
 
+If you use OpenCode:
+
+1. Open the LS repository folder.
+2. Use the repo `opencode.json`.
+3. Run `/ls-precision-report your-github-handle`.
+4. Paste `reports/network_precision_contributor_report.md` into the GitHub contributor issue.
+
 ## MCP Agent Run
 
-If your IDE agent (Cursor Agent, Claude Desktop, Codex, Copilot) supports MCP:
+If your IDE agent (OpenCode, Cursor Agent, Claude Desktop, Codex, Copilot) supports MCP:
 
 1. Connect to the LS MCP server via stdio: `python -m ls.agent_shell.mcp_server`
 2. Call `ls_prepare_contributor_report` with optional `{"runner": "your-handle"}`
