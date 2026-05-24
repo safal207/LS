@@ -7,6 +7,7 @@ Canonical project positioning:
 - [Project Positioning](PROJECT_POSITIONING.md)
 - [Cooperative Precision Metrics](COOPERATIVE_PRECISION_METRICS.md)
 - [Depth Economy Layer](DEPTH_ECONOMY_LAYER.md)
+- [Model Roster Depth Probe](MODEL_ROSTER_DEPTH_PROBE.md)
 - [Cooperative Role Market](COOPERATIVE_ROLE_MARKET.md)
 - [PR Role Market Benchmark](PR_ROLE_MARKET_BENCHMARK.md)
 
