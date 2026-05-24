@@ -99,7 +99,7 @@ Goal: test whether the cooperative precision probe behaves clearly across
 different OS, hardware, model runtimes, and available actors.
 
 Acceptance criteria:
-- In VS Code or Cursor, run `LS: Prepare Contributor Report`, or use the CLI equivalent.
+- In VS Code or Cursor, run `LS: Prepare Contributor Report`; in OpenCode, run `/ls-precision-report your-github-handle`; or use the CLI equivalent.
 - Attach or paste `reports/network_precision_contributor_report.md`.
 - Run `python scripts/run_network_precision_gain_demo.py --json`.
 - Run `python scripts/run_model_roster_depth_probe.py --json`.

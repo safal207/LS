@@ -83,10 +83,13 @@ https://github.com/safal207/LS
 ```text
 New easier LS contributor path:
 
-Open the repo in VS Code/Cursor/OpenCode
--> Terminal: Run Task
--> LS: Prepare Contributor Report
--> paste the generated report into GitHub
+VS Code/Cursor:
+Terminal -> Run Task -> LS: Prepare Contributor Report
+
+OpenCode:
+/ls-precision-report your-github-handle
+
+Then paste the generated report into GitHub.
 
 Goal: test cooperative precision on more models/runtimes without making people learn the whole stack first.
 https://github.com/safal207/LS
