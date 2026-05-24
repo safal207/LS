@@ -195,15 +195,24 @@ def _build_co_learning(
     learned = []
     drift_cycles = [r for r in all_reasons if r["kind"] == "drift_narrowing"]
     resonance_cycles = [r for r in all_reasons if r["kind"] == "resonance_building"]
+    conductor_interventions = [r for r in all_reasons if r["kind"] in CONDUCTOR_DELTAS]
     if drift_cycles and resonance_cycles:
         learned.append("When drift narrows, resonance tends to build — the two signals are anti-correlated across levels")
     if kind_counts.get("observer_intervention", 0) >= 2:
         learned.append("Observer consistently adds +0.01-0.08 precision per cycle — its marginal value is >0 even at late cycles")
     if kind_counts.get("regret_reduction", 0) >= 2:
         learned.append("Regret decreases monotonically — the network is learning to avoid suboptimal routes without explicit retraining")
+    if len(conductor_interventions) >= 3:
+        learned.append("Conductor applies reason-based weight deltas — each observation becomes a corrective action")
+        if float(summary.get("conductor_velocity_multiplier", 0)) > float(summary.get("observer_velocity_multiplier", 1)):
+            learned.append("Conductor velocity exceeds observer velocity — active correction is more efficient than passive observation")
 
+    conductor_end = float(runs[-1]["with_conductor"]["network_precision_score"])
+    max_possible = 0.8764
     score_improvement = float(runs[-1]["with_observer"]["network_precision_score"]) - float(runs[0]["with_observer"]["network_precision_score"])
-    if score_improvement > 0.05 and float(summary["observer_velocity_multiplier"]) > 1.5:
+    if conductor_end >= max_possible * 0.98:
+        maturity = "harmony"
+    elif score_improvement > 0.05 and float(summary.get("observer_velocity_multiplier", 1)) > 1.5:
         maturity = "converging"
     elif score_improvement > 0.02:
         maturity = "developing"
@@ -229,6 +238,31 @@ def _build_co_learning(
         "unique_causal_patterns": len(kind_counts),
         "network_maturity": maturity,
     }
+
+
+CONDUCTOR_DELTAS: dict[str, list[tuple[str, float]]] = {
+    "drift_narrowing": [("scope_bridge", 0.02)],
+    "resonance_building": [("depth_fit", 0.02)],
+    "lag_decrease": [("trace_integrity", -0.01)],
+    "observer_intervention": [("adaptive_memory", 0.02)],
+    "confidence_growth": [("human_boundary", 0.01)],
+    "cycle_emerging": [("reflective_clarity", 0.01)],
+    "temporal_alignment_breakthrough": [
+        ("scope_bridge", 0.01), ("depth_fit", 0.01), ("adaptive_memory", 0.01),
+    ],
+    "regret_reduction": [("evidence_gate", 0.01)],
+}
+
+
+def _conductor_adjust(
+    components: dict[str, float],
+    reasons: list[dict[str, Any]],
+) -> dict[str, float]:
+    adjusted = dict(components)
+    for r in reasons:
+        for key, delta in CONDUCTOR_DELTAS.get(r["kind"], []):
+            adjusted[key] = _round(float(adjusted[key]) + delta)
+    return adjusted
 
 
 def build_demo_payload(
@@ -319,6 +353,26 @@ def build_demo_payload(
         }
         if runs:
             run["reasons"] = _extract_reasons(runs[-1], run, cycle)
+
+        conductor_components = _conductor_adjust(observer_components, run["reasons"])
+        conductor_score = _weighted_score(conductor_components)
+        conductor_progress = min(0.95, 0.95 * p) + 0.02 * min(len(run["reasons"]), 3)
+        conductor_temporal = _temporal_state(
+            start_temporal,
+            target_temporal,
+            progress=min(1.0, conductor_progress),
+        )
+        conf_base = 0.62 + 0.29 * p
+        regret_base = 0.18 - 0.14 * p
+        run["with_conductor"] = {
+            "network_precision_score": conductor_score,
+            "gain_over_baseline": _round(conductor_score - baseline_score),
+            "components": conductor_components,
+            "temporal": conductor_temporal,
+            "route_selection_confidence": _round(min(1.0, conf_base + 0.02 * len(run["reasons"]))),
+            "route_regret": _round(max(0.0, regret_base - 0.02 * len(run["reasons"]))),
+        }
+        run["conductor_delta"] = _round(conductor_score - observer_score)
         runs.append(run)
 
     first = runs[0]
@@ -327,12 +381,21 @@ def build_demo_payload(
     no_observer_end = float(last["no_observer"]["network_precision_score"])
     observer_start = float(first["with_observer"]["network_precision_score"])
     observer_end = float(last["with_observer"]["network_precision_score"])
+    conductor_start = float(first["with_conductor"]["network_precision_score"])
+    conductor_end = float(last["with_conductor"]["network_precision_score"])
     no_observer_velocity = _round((no_observer_end - no_observer_start) / (cycles - 1))
     observer_velocity = _round((observer_end - observer_start) / (cycles - 1))
+    conductor_velocity = _round((conductor_end - conductor_start) / (cycles - 1))
+    conductor_observer_delta = _round(conductor_end - observer_end)
+    max_possible = float(full_stack["network_precision_score"])
+    harmony_index = _round(conductor_end / max_possible) if max_possible > 0 else 0.0
 
     co_learning = _build_co_learning(runs, {
         "observer_velocity_multiplier": _round(
             observer_velocity / max(0.0001, no_observer_velocity)
+        ),
+        "conductor_velocity_multiplier": _round(
+            conductor_velocity / max(0.0001, no_observer_velocity)
         ),
     })
     return {
@@ -387,7 +450,20 @@ def build_demo_payload(
                 - float(last["with_observer"]["route_regret"])
             ),
             "best_route_after_n_runs": full_stack["route_key"],
-            "decision": "observer_improves_network_trajectory"
+            "conductor_start": _round(conductor_start),
+            "conductor_end": _round(conductor_end),
+            "conductor_precision_velocity": conductor_velocity,
+            "conductor_observer_delta": conductor_observer_delta,
+            "conductor_velocity_multiplier": _round(
+                conductor_velocity / max(0.0001, no_observer_velocity)
+            ),
+            "conductor_velocity_over_observer": _round(
+                conductor_velocity / max(0.0001, observer_velocity)
+            ),
+            "harmony_index": harmony_index,
+            "decision": "conductor_achieves_harmony"
+            if conductor_end >= max_possible * 0.98
+            else "observer_improves_network_trajectory"
             if observer_end > no_observer_end
             else "needs_more_runs",
         },
@@ -400,10 +476,14 @@ def _print_text(payload: dict[str, Any]) -> None:
     print(f"Metric version: {payload['metric_version']}")
     print(f"Cycles: {payload['cycles']}")
     print(f"Decision: {summary['decision']}")
-    print(f"Observer final delta: {summary['observer_delta_final']:+.4f}")
-    print(f"Observer velocity: {summary['observer_precision_velocity']:+.4f}/cycle")
     print(f"No-observer velocity: {summary['no_observer_precision_velocity']:+.4f}/cycle")
-    print(f"Velocity multiplier: {summary['observer_velocity_multiplier']:.2f}x")
+    print(f"Observer velocity: {summary['observer_precision_velocity']:+.4f}/cycle")
+    print(f"Conductor velocity: {summary['conductor_precision_velocity']:+.4f}/cycle")
+    print(f"Observer velocity multiplier: {summary['observer_velocity_multiplier']:.2f}x")
+    print(f"Conductor velocity multiplier: {summary['conductor_velocity_multiplier']:.2f}x")
+    print(f"Observer final delta: {summary['observer_delta_final']:+.4f}")
+    print(f"Conductor delta vs observer: {summary['conductor_observer_delta']:+.4f}")
+    print(f"Harmony index: {summary['harmony_index']:.4f}")
     print(f"Trajectory gain over baseline: {summary['trajectory_gain_over_baseline']:+.4f}")
     print(f"Drift reduction: {summary['drift_reduction_with_observer']:+.4f}")
     print(f"Lag reduction: {summary['lag_reduction_with_observer']:+.4f}")
@@ -411,13 +491,17 @@ def _print_text(payload: dict[str, Any]) -> None:
     print()
     print("Cycle trajectory:")
     for row in payload["trajectory"]:
+        cond = row.get("with_conductor", {})
+        cond_score = cond.get("network_precision_score", 0.0)
         print(
-            "- cycle {cycle}: no_observer={no:.4f} with_observer={obs:.4f} "
-            "delta={delta:+.4f} drift={drift:.4f} resonance={res:.4f}".format(
+            "- cycle {cycle}: no_obs={no:.4f} obs={obs:.4f} cond={cond:.4f} "
+            "obs_d={od:+.4f} cond_d={cd:+.4f} drift={drift:.4f} res={res:.4f}".format(
                 cycle=row["cycle"],
                 no=row["no_observer"]["network_precision_score"],
                 obs=row["with_observer"]["network_precision_score"],
-                delta=row["observer_delta"],
+                cond=cond_score,
+                od=row["observer_delta"],
+                cd=row.get("conductor_delta", 0.0),
                 drift=row["with_observer"]["temporal"]["drift_score"],
                 res=row["with_observer"]["temporal"]["resonance"],
             )
@@ -444,6 +528,8 @@ def _print_text(payload: dict[str, Any]) -> None:
             print(f"  Learned constraints:")
             for lc in co["learned_constraints"]:
                 print(f"    - {lc}")
+        if "conductor_velocity_multiplier" in co:
+            print(f"  Conductor synergy: {co.get('conductor_velocity_multiplier', 0):.2f}x over no-observer baseline")
 
 
 def main() -> int:

@@ -68,7 +68,7 @@
         "unique_causal_patterns": { "type": "integer" },
         "network_maturity": {
           "type": "string",
-          "enum": ["early", "developing", "converging"]
+          "enum": ["early", "developing", "converging", "harmony"]
         }
       }
     },
@@ -80,13 +80,15 @@
           "cycle": { "type": "integer" },
           "no_observer": { "$ref": "#/$defs/cycle_state" },
           "with_observer": { "$ref": "#/$defs/cycle_state" },
+          "with_conductor": { "$ref": "#/$defs/cycle_state" },
           "observer_delta": { "type": "number" },
+          "conductor_delta": { "type": "number" },
           "reasons": {
             "type": "array",
             "items": { "$ref": "#/$defs/reason" }
           }
         },
-        "required": ["cycle", "no_observer", "with_observer", "observer_delta", "reasons"]
+        "required": ["cycle", "no_observer", "with_observer", "with_conductor", "observer_delta", "conductor_delta", "reasons"]
       }
     },
     "summary": {
@@ -108,9 +110,16 @@
         "route_selection_confidence_gain": { "type": "number" },
         "route_regret_reduction": { "type": "number" },
         "best_route_after_n_runs": { "type": "string" },
+        "conductor_start": { "type": "number" },
+        "conductor_end": { "type": "number" },
+        "conductor_precision_velocity": { "type": "number" },
+        "conductor_observer_delta": { "type": "number" },
+        "conductor_velocity_multiplier": { "type": "number" },
+        "conductor_velocity_over_observer": { "type": "number" },
+        "harmony_index": { "type": "number" },
         "decision": {
           "type": "string",
-          "enum": ["observer_improves_network_trajectory", "needs_more_runs"]
+          "enum": ["conductor_achieves_harmony", "observer_improves_network_trajectory", "needs_more_runs"]
         }
       },
       "required": [
@@ -120,8 +129,12 @@
         "trajectory_gain_over_baseline",
         "drift_reduction_with_observer", "lag_reduction_with_observer",
         "resonance_gain_with_observer", "temporal_alignment_gain_with_observer",
-        "route_selection_confidence_gain", "route_regret_reduction",
-        "best_route_after_n_runs", "decision"
+        "route_selection_confidence_gain",         "route_regret_reduction",
+        "best_route_after_n_runs",
+        "conductor_start", "conductor_end", "conductor_precision_velocity",
+        "conductor_observer_delta", "conductor_velocity_multiplier",
+        "conductor_velocity_over_observer", "harmony_index",
+        "decision"
       ]
     }
   },
