@@ -21,6 +21,9 @@ Useful entry points:
 - [Grant reviewer path](../GRANT.md)
 - [Personal Cognitive Garden thesis](LS_PERSONAL_COGNITIVE_GARDEN.md)
 - [Cooperative Precision Roadmap](COOPERATIVE_PRECISION_ROADMAP.md)
+- [Cooperative Precision Stack](COOPERATIVE_PRECISION_STACK.md)
+- [Network Precision Gain](NETWORK_PRECISION_GAIN.md)
+- [Network Precision Contributor Call](NETWORK_PRECISION_CONTRIBUTOR_CALL.md)
 - [Cooperative Role Market](COOPERATIVE_ROLE_MARKET.md)
 - [Cognitive Trail Network](COGNITIVE_TRAIL_NETWORK.md)
 - [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md)
@@ -88,6 +91,35 @@ Acceptance criteria:
 - No fixture contains secrets, real private code, or personal data.
 
 Suggested labels: `good first issue`, `cooperative-precision`, `pr-review`, `fixture`
+
+### Network precision: run the probe on your model stack
+
+Goal: test whether the cooperative precision probe behaves clearly across
+different OS, hardware, model runtimes, and available actors.
+
+Acceptance criteria:
+- Run `python scripts/run_network_precision_gain_demo.py --json`.
+- Run `python scripts/run_model_roster_depth_probe.py --json`.
+- If local or hosted actors are configured, also run `python scripts/run_model_roster_depth_probe.py --live --json --max-tokens 180`.
+- Report OS, Python version, hardware, model runtime, model names, ready actors, unavailable actors, and measured precision values.
+- Preserve the boundary: this is not a global model ranking or formal Nash proof.
+- Do not include secrets, private prompts, customer data, tokens, or proprietary code.
+
+Suggested labels: `good first issue`, `cooperative-precision`, `benchmark`, `contributor-run`
+
+### Network precision: add a sanitized contributor fixture
+
+Goal: turn a safe contributor run into a curated example that future contributors
+can compare against.
+
+Acceptance criteria:
+- Add a sanitized result under `examples/network-precision/contributor-runs/`.
+- Add a short environment note with no secrets or private data.
+- Include the exact commands used.
+- Include measured route reward gain, network precision gain, stack added gain, and score ratio.
+- Explain any unavailable actors or runtime limitations.
+
+Suggested labels: `docs`, `fixture`, `cooperative-precision`, `benchmark`
 
 ### Cooperative precision: test the artifact builder
 

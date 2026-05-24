@@ -28,6 +28,10 @@ Regression test:
 PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_network_precision_gain_demo.py
 ```
 
+Contributor protocol:
+
+- [`NETWORK_PRECISION_CONTRIBUTOR_CALL.md`](NETWORK_PRECISION_CONTRIBUTOR_CALL.md)
+
 ## Current Local Result
 
 The deterministic demo currently reports:

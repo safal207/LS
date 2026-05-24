@@ -13,6 +13,8 @@ Start here:
 ```text
 README.md
 WHY_STAR_LS.md
+NETWORK_PRECISION_CONTRIBUTOR_CALL.md
+NETWORK_PRECISION_GAIN.md
 ROUTE_STABILITY_CONTRIBUTOR_RUNS.md
 Issue #563 contributor matrix
 ```
@@ -62,6 +64,19 @@ Repo:
 https://github.com/safal207/LS
 ```
 
+## X / Twitter Network Precision Call
+
+```text
+I am asking contributors to test LS Network Precision Gain on their own models and runtimes.
+
+Not a leaderboard.
+The question is narrower:
+does a cooperative route + evidence stack improve task precision over a single-answer baseline?
+
+Run it and report your environment:
+https://github.com/safal207/LS
+```
+
 ## LinkedIn
 
 ```text
@@ -70,6 +85,8 @@ I’m working on LS, an early open-source project for cooperative precision in h
 The current focus is PR/code-review routes: task -> route -> evidence -> role contribution -> counterfactuals -> reviewer-visible artifact.
 
 The project now includes a route-stability contributor matrix, so people can run the same bounded probe on different operating systems, hardware, model runtimes, and fixtures.
+
+The next contributor call is Network Precision Gain: run the precision probe on your own model or runtime, report the environment, and help improve the shared route network.
 
 The claim is intentionally narrow: this is a small inspectable evidence path for cooperative AI route evaluation, not a production compliance platform.
 
@@ -89,10 +106,11 @@ Current runnable path:
 - checked-in sample
 - negative fixtures
 - deterministic route-stability probe
+- network precision gain probe
 - regression test
 - explicit non-claims
 
-Useful contributor task: run the same probe on your OS/hardware/model runtime and report the environment.
+Useful contributor task: run the same probe on your OS/hardware/model runtime and report the environment. If you have local models configured, also run the network precision contributor call and share the measured gain values.
 
 Repo:
 https://github.com/safal207/LS
@@ -117,6 +135,8 @@ It records:
 - reviewer-visible artifact
 
 There is a 2-minute local route-stability check and a contributor matrix for people who want to run the same bounded probe on different OS/hardware/model runtimes.
+
+There is also a Network Precision Contributor Call for people who want to test whether cooperative routes plus evidence gates improve precision on their own model stack.
 
 Not a model leaderboard and not a formal Nash-equilibrium proof. The claim is narrower: small, inspectable, regression-tested evidence chains for cooperative AI route evaluation.
 
@@ -156,5 +176,6 @@ LS is trying to make AI co-work inspectable: not just what answer was produced, 
 ```text
 Star the repo if you want to follow cooperative AI route evaluation.
 Try the 2-minute demo if you want to test the current evidence path.
+Run the network precision contributor call if you have your own model runtime.
 Join the contributor matrix if you can run it on different hardware or model runtimes.
 ```
