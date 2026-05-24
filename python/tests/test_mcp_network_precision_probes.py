@@ -26,6 +26,7 @@ def test_mcp_network_precision_tools_are_registered(tmp_path: Path) -> None:
 
     assert "ls_run_network_precision_probe" in names
     assert "ls_run_model_roster_probe" in names
+    assert "ls_run_network_trajectory_probe" in names
     assert "ls_prepare_contributor_report" in names
 
 
@@ -35,6 +36,7 @@ def test_mcp_server_lists_network_precision_tools(tmp_path: Path) -> None:
 
     assert "ls_run_network_precision_probe" in tools
     assert "ls_run_model_roster_probe" in tools
+    assert "ls_run_network_trajectory_probe" in tools
     assert "ls_prepare_contributor_report" in tools
 
 
@@ -90,3 +92,15 @@ def test_mcp_prepare_contributor_report_subprocess() -> None:
     assert "os" in result["environment"]
     assert "python_version" in result["environment"]
     assert "boundary" in result
+
+
+def test_mcp_network_trajectory_probe_subprocess() -> None:
+    result = _mcp_call("ls_run_network_trajectory_probe", {"cycles": 4})
+
+    assert result["tool"] == "ls_run_network_trajectory_probe"
+    assert result["metric_version"] == "network_trajectory.v0.1"
+    assert result["source_metric_version"] == "network_precision_gain.v0.2"
+    assert result["cycles"] == 4
+    assert result["summary"]["observer_delta_final"] > 0
+    assert result["summary"]["observer_velocity_multiplier"] > 0
+    assert len(result["trajectory"]) == 4

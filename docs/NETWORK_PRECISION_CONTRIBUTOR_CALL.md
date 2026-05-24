@@ -66,7 +66,8 @@ If your IDE agent (OpenCode, Cursor Agent, Claude Desktop, Codex, Copilot) suppo
    the contributor issue.
 
 Individual probes are also available as MCP tools:
-`ls_run_network_precision_probe` and `ls_run_model_roster_probe`.
+`ls_run_network_precision_probe`, `ls_run_model_roster_probe`,
+and `ls_run_network_trajectory_probe`.
 
 CLI equivalent:
 
@@ -90,6 +91,13 @@ If you have local or hosted actors configured, run the live roster probe too:
 
 ```bash
 python scripts/run_model_roster_depth_probe.py --live --json --max-tokens 180
+```
+
+Also useful:
+
+```bash
+python scripts/run_network_trajectory_demo.py --json
+python scripts/run_network_trajectory_demo.py --cycles 10 --json
 ```
 
 ## What To Report
@@ -121,6 +129,11 @@ temporal_drift: drift between levels over time
 temporal_cycle: cycle detection score
 temporal_lag: propagation lag between levels
 temporal_resonance: cross-level resonance score
+trajectory_cycles: number of cycles run
+observer_delta_final: precision gain added by observer vs no-observer trajectory
+observer_velocity_multiplier: how many times faster the network grows with observer
+trajectory_gain_over_baseline: full trajectory end vs single baseline
+precision_velocity: score change per cycle
 notes: anything surprising, slow, brittle, or useful
 ```
 
@@ -160,6 +173,11 @@ temporal_drift:
 temporal_cycle:
 temporal_lag:
 temporal_resonance:
+trajectory_cycles:
+observer_delta_final:
+observer_velocity_multiplier:
+trajectory_gain_over_baseline:
+precision_velocity:
 ready_actors:
 unavailable_actors:
 

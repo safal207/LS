@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/network_trajectory.schema.json",
+  "title": "LS Network Trajectory",
+  "description": "Schema for a deterministic network trajectory probe that measures how repeated cooperative runs plus an external observer improve route precision over time.",
+  "type": "object",
+  "properties": {
+    "demo": {
+      "type": "string",
+      "enum": ["ls_network_trajectory"]
+    },
+    "metric_version": {
+      "type": "string",
+      "pattern": "^network_trajectory\\.v[0-9]+\\.[0-9]+$"
+    },
+    "source_metric_version": {
+      "type": "string",
+      "description": "The network_precision_gain metric version this trajectory builds on."
+    },
+    "interpretation_boundary": {
+      "type": "string",
+      "description": "Mandatory boundary statement — this is not model training or a safety claim."
+    },
+    "cycles": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "Number of repeated network cycles simulated."
+    },
+    "route_under_test": {
+      "type": "string",
+      "description": "The cooperative route key used as the target trajectory."
+    },
+    "baseline_score": {
+      "type": "number",
+      "description": "Single-answer baseline score for context."
+    },
+    "trajectory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "cycle": { "type": "integer" },
+          "no_observer": { "$ref": "#/$defs/cycle_state" },
+          "with_observer": { "$ref": "#/$defs/cycle_state" },
+          "observer_delta": { "type": "number" }
+        },
+        "required": ["cycle", "no_observer", "with_observer", "observer_delta"]
+      }
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "no_observer_start": { "type": "number" },
+        "no_observer_end": { "type": "number" },
+        "no_observer_precision_velocity": { "type": "number" },
+        "observer_start": { "type": "number" },
+        "observer_end": { "type": "number" },
+        "observer_precision_velocity": { "type": "number" },
+        "observer_delta_final": { "type": "number" },
+        "observer_velocity_multiplier": { "type": "number" },
+        "trajectory_gain_over_baseline": { "type": "number" },
+        "drift_reduction_with_observer": { "type": "number" },
+        "lag_reduction_with_observer": { "type": "number" },
+        "resonance_gain_with_observer": { "type": "number" },
+        "temporal_alignment_gain_with_observer": { "type": "number" },
+        "route_selection_confidence_gain": { "type": "number" },
+        "route_regret_reduction": { "type": "number" },
+        "best_route_after_n_runs": { "type": "string" },
+        "decision": {
+          "type": "string",
+          "enum": ["observer_improves_network_trajectory", "needs_more_runs"]
+        }
+      },
+      "required": [
+        "no_observer_start", "no_observer_end", "no_observer_precision_velocity",
+        "observer_start", "observer_end", "observer_precision_velocity",
+        "observer_delta_final", "observer_velocity_multiplier",
+        "trajectory_gain_over_baseline",
+        "drift_reduction_with_observer", "lag_reduction_with_observer",
+        "resonance_gain_with_observer", "temporal_alignment_gain_with_observer",
+        "route_selection_confidence_gain", "route_regret_reduction",
+        "best_route_after_n_runs", "decision"
+      ]
+    }
+  },
+  "required": [
+    "demo", "metric_version", "source_metric_version",
+    "interpretation_boundary", "cycles", "route_under_test",
+    "baseline_score", "trajectory", "summary"
+  ],
+  "$defs": {
+    "cycle_state": {
+      "type": "object",
+      "properties": {
+        "network_precision_score": { "type": "number" },
+        "gain_over_baseline": { "type": "number" },
+        "components": {
+          "type": "object",
+          "description": "Weighted components at this cycle state."
+        },
+        "temporal": {
+          "type": "object",
+          "properties": {
+            "drift_score": { "type": "number" },
+            "cycle_detection": { "type": "number" },
+            "lag_between_levels": { "type": "number" },
+            "resonance": { "type": "number" },
+            "temporal_alignment": { "type": "number" }
+          },
+          "required": ["drift_score", "cycle_detection", "lag_between_levels", "resonance", "temporal_alignment"]
+        },
+        "route_selection_confidence": { "type": "number" },
+        "route_regret": { "type": "number" }
+      },
+      "required": ["network_precision_score", "gain_over_baseline", "components", "temporal", "route_selection_confidence", "route_regret"]
+    }
+  }
+}
