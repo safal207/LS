@@ -1,0 +1,31 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "ls-network-probes": {
+      "type": "local",
+      "command": ["python", "-m", "ls.agent_shell.mcp_server"],
+      "enabled": true,
+      "environment": {
+        "PYTHONPATH": "python;python/modules"
+      }
+    }
+  },
+  "command": {
+    "ls-precision-report": {
+      "description": "Run LS network precision contributor report and create a GitHub issue body",
+      "template": "Run python scripts/prepare_network_precision_contributor_report.py --runner $ARGUMENTS --output reports/network_precision_contributor_report.md, then read the generated report and format it as a GitHub issue comment body using the contributor issue template at .github/ISSUE_TEMPLATE/network_precision_contributor_run.md. If $ARGUMENTS is empty, use a placeholder runner."
+    },
+    "ls-probe-roster": {
+      "description": "Show which LS actors are ready or unavailable on this environment",
+      "template": "Run python scripts/run_model_roster_depth_probe.py --json and display the roster table: which actors are ready, which are unavailable, and what they are missing."
+    },
+    "ls-probe-precision": {
+      "description": "Run the LS network precision gain probe and show results",
+      "template": "Run python scripts/run_network_precision_gain_demo.py --json and display the precision scores: measured_route_reward_gain, network_precision_gain_over_baseline, stack_added_gain_over_cooperation, and score_ratio_vs_baseline."
+    }
+  },
+  "instructions": [
+    "docs/IDE_TESTING_ENTRYPOINTS.md",
+    "docs/NETWORK_PRECISION_CONTRIBUTOR_CALL.md"
+  ]
+}

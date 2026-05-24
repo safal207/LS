@@ -19,6 +19,7 @@ assignees: ""
 ## How did you run it?
 
 - [ ] VS Code / Cursor task: `LS: Prepare Contributor Report`
+- [ ] OpenCode command: `/ls-precision-report`
 - [ ] CLI: `python scripts/prepare_network_precision_contributor_report.py`
 - [ ] Manual commands from `docs/NETWORK_PRECISION_CONTRIBUTOR_CALL.md`
 - [ ] Other:

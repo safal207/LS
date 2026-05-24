@@ -1,6 +1,6 @@
 # IDE Testing Entrypoints
 
-Status: **lightweight contributor entrypoints for VS Code, Cursor, and similar IDEs**.
+Status: **lightweight contributor entrypoints for VS Code, Cursor, OpenCode, and similar IDE agents**.
 
 The goal is to let contributors test LS without learning the full architecture
 first. Open the repository in an IDE, run one task, and paste the generated
@@ -22,6 +22,24 @@ In VS Code or Cursor:
 The task runs the same probes used by the public Network Precision Contributor
 Call and writes a Markdown report with environment, actor readiness, and metric
 values.
+
+## OpenCode Entry
+
+The repository includes `opencode.json` with:
+
+- `ls-network-probes` MCP server: `python -m ls.agent_shell.mcp_server`
+- `/ls-precision-report <runner>`: prepares a contributor report for GitHub
+- `/ls-probe-roster`: shows ready and unavailable LS actors
+- `/ls-probe-precision`: shows the network precision gain metrics
+
+Recommended first command inside OpenCode:
+
+```text
+/ls-precision-report your-github-handle
+```
+
+Then paste `reports/network_precision_contributor_report.md` into the public
+contributor issue.
 
 ## Available Tasks
 
@@ -69,6 +87,63 @@ python scripts/prepare_network_precision_contributor_report.py \
   --output reports/network_precision_contributor_report.md \
   --include-full-json
 ```
+
+## MCP Tools (IDE-Agent Entry)
+
+Any MCP-compatible client (OpenCode, Cursor, Claude Desktop, Codex, Copilot) can call
+network precision probes as tools instead of running CLI commands:
+
+| Tool | What it does |
+| --- | --- |
+| `ls_run_network_precision_probe` | Run the network precision gain probe and return JSON metrics. |
+| `ls_run_model_roster_probe` | Probe which LS actors are ready or unavailable. Pass `{"live": true}` to call the configured model route. |
+| `ls_prepare_contributor_report` | Run all probes and compile a full contributor report payload. Pass `{"runner": "your-handle"}` to identify the run. |
+
+### Connect from an MCP client
+
+The MCP stdio server listens on stdin/stdout:
+
+```bash
+python -m ls.agent_shell.mcp_server
+```
+
+Or use the HTTP transport (default port 8042):
+
+```bash
+python -c "from ls.agent_shell.mcp_http import run_http_server; run_http_server()"
+```
+
+### Example: call a probe from another agent
+
+```python
+import json, subprocess, sys
+
+request = json.dumps({
+    "action": "tools/call",
+    "name": "ls_run_network_precision_probe",
+    "arguments": {}
+}) + "\n"
+
+proc = subprocess.run(
+    [sys.executable, "-m", "ls.agent_shell.mcp_server"],
+    input=request, capture_output=True, text=True, check=True
+)
+result = json.loads(proc.stdout.strip())["result"]
+print(result["network_precision"]["decision"])
+```
+
+### Example: prepare a contributor report from an IDE agent
+
+```python
+request = json.dumps({
+    "action": "tools/call",
+    "name": "ls_prepare_contributor_report",
+    "arguments": {"runner": "my-agent"}
+}) + "\n"
+```
+
+The agent receives the same payload that would be written to
+`reports/network_precision_contributor_report.md`.
 
 ## What This Gives The Network
 

@@ -76,7 +76,7 @@ schema
 
 Want to help? Try the [network precision contributor call](docs/NETWORK_PRECISION_CONTRIBUTOR_CALL.md): run the same bounded probe on your OS, model runtime, and hardware. You can also join the [route-stability contributor matrix](https://github.com/safal207/LS/issues/563).
 
-Fastest IDE path: in VS Code or Cursor, run **Terminal -> Run Task... -> LS: Prepare Contributor Report** and paste the generated Markdown report into the contributor issue.
+Fastest IDE path: in VS Code or Cursor, run **Terminal -> Run Task... -> LS: Prepare Contributor Report** and paste the generated Markdown report into the contributor issue. In OpenCode, run `/ls-precision-report your-github-handle` from the repository.
 
 Run the PR-review trail demo:
 
