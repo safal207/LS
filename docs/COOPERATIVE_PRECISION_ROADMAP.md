@@ -6,6 +6,7 @@ Canonical project positioning:
 
 - [Project Positioning](PROJECT_POSITIONING.md)
 - [Cooperative Precision Metrics](COOPERATIVE_PRECISION_METRICS.md)
+- [Depth Economy Layer](DEPTH_ECONOMY_LAYER.md)
 - [Cooperative Role Market](COOPERATIVE_ROLE_MARKET.md)
 - [PR Role Market Benchmark](PR_ROLE_MARKET_BENCHMARK.md)
 
@@ -30,6 +31,17 @@ task
 This is a Nash-style repeated cooperative game, not a claim that LS proves Nash
 equilibrium. The practical goal is simpler: make it more rewarding for agents
 and contributors to produce verified value than to produce noisy output.
+
+Depth Economy adds the missing meta-interaction layer:
+
+```text
+executor correctness:        1 + 1 = 2
+designer synergy:            1 + 1 = 3
+customer-consumer depth:     1 + 1 = n
+```
+
+Before LS asks which route worked, it should ask what depth of
+customer-consumer pair the task deserves.
 
 ## Why Contributors Should Care
 

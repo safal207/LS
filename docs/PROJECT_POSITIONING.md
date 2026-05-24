@@ -169,7 +169,28 @@ See:
 
 - `docs/COOPERATIVE_ROLE_MARKET.md`
 
-### 5. Personal Cognitive Garden
+### 5. Depth Economy / Meta-Interaction
+
+Not every task should run at the same depth. LS should decide whether the task
+is a simple execution problem, a design-synergy problem, or a deeper
+customer-consumer problem:
+
+```text
+executor:            1 + 1 = 2
+designer:            1 + 1 = 3
+customer / consumer: 1 + 1 = n
+```
+
+The Amygdala layer can regulate when to execute directly, design for synergy,
+deepen the customer-consumer pair, expand the stakeholder radius, or hold for
+human review.
+
+See:
+
+- `docs/DEPTH_ECONOMY_LAYER.md`
+- `docs/AMYGDALA_LAYER_MAP.md`
+
+### 6. Personal Cognitive Garden
 
 Useful AI sessions can become human-owned development memory: goals, skills,
 decisions, constraints, evidence, reflections, and growth paths. This must stay
