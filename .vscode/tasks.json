@@ -1,0 +1,107 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "LS: Prepare Contributor Report",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/prepare_network_precision_contributor_report.py",
+        "--output",
+        "reports/network_precision_contributor_report.md"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "LS: Prepare Contributor Report JSON",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/prepare_network_precision_contributor_report.py",
+        "--json",
+        "--output",
+        "reports/network_precision_contributor_report.json"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "LS: Network Precision Test",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/run_network_precision_gain_demo.py",
+        "--json"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "LS: Model Roster Probe",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/run_model_roster_depth_probe.py",
+        "--json"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "LS: Live Model Roster Probe",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/run_model_roster_depth_probe.py",
+        "--live",
+        "--json",
+        "--max-tokens",
+        "180"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "LS: Route Stability Probe",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/run_nash_route_stability_demo.py",
+        "--json"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

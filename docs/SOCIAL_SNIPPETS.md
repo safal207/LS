@@ -15,6 +15,7 @@ README.md
 WHY_STAR_LS.md
 NETWORK_PRECISION_CONTRIBUTOR_CALL.md
 NETWORK_PRECISION_GAIN.md
+IDE_TESTING_ENTRYPOINTS.md
 ROUTE_STABILITY_CONTRIBUTOR_RUNS.md
 Issue #563 contributor matrix
 ```
@@ -77,6 +78,20 @@ Run it and report your environment:
 https://github.com/safal207/LS
 ```
 
+## X / Twitter IDE Call
+
+```text
+New easier LS contributor path:
+
+Open the repo in VS Code/Cursor
+-> Terminal: Run Task
+-> LS: Prepare Contributor Report
+-> paste the generated report into GitHub
+
+Goal: test cooperative precision on more models/runtimes without making people learn the whole stack first.
+https://github.com/safal207/LS
+```
+
 ## LinkedIn
 
 ```text
@@ -86,7 +101,7 @@ The current focus is PR/code-review routes: task -> route -> evidence -> role co
 
 The project now includes a route-stability contributor matrix, so people can run the same bounded probe on different operating systems, hardware, model runtimes, and fixtures.
 
-The next contributor call is Network Precision Gain: run the precision probe on your own model or runtime, report the environment, and help improve the shared route network.
+The next contributor call is Network Precision Gain: run the precision probe on your own model or runtime, report the environment, and help improve the shared route network. There is now an IDE path for VS Code/Cursor so contributors can generate the report from a task instead of assembling it by hand.
 
 The claim is intentionally narrow: this is a small inspectable evidence path for cooperative AI route evaluation, not a production compliance platform.
 

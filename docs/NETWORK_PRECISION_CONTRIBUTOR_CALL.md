@@ -12,6 +12,10 @@ This document asks contributors to run the same probe on their own machines,
 local models, hosted models, or manual-review routes, then report the result in
 a small reproducible note.
 
+Public collection issue:
+
+- [Contributor call: test Network Precision Gain on your models](https://github.com/safal207/LS/issues/571)
+
 ## Goal
 
 Build a public contributor matrix for cooperative precision:
@@ -35,6 +39,26 @@ From the repository root:
 python scripts/run_network_precision_gain_demo.py
 python scripts/run_network_precision_gain_demo.py --json
 ```
+
+## Easiest IDE Run
+
+If you use VS Code or Cursor:
+
+1. Open the LS repository folder.
+2. Choose **Terminal -> Run Task...**.
+3. Run **LS: Prepare Contributor Report**.
+4. Paste `reports/network_precision_contributor_report.md` into the GitHub contributor issue.
+
+CLI equivalent:
+
+```bash
+python scripts/prepare_network_precision_contributor_report.py \
+  --output reports/network_precision_contributor_report.md
+```
+
+More IDE options:
+
+- [`IDE_TESTING_ENTRYPOINTS.md`](IDE_TESTING_ENTRYPOINTS.md)
 
 Also useful:
 
