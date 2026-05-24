@@ -28,7 +28,7 @@ from ls.cognition.council_contribution_ledger import (  # noqa: E402
 from run_pr_review_trail_artifact import build_pr_review_artifact  # noqa: E402
 
 
-COOPERATIVE_ROUTE = "pr_review>draft_reviewer>risk_critic>evidence_verifier>final_reviewer"
+COOPERATIVE_ROUTE = "customer_i>customer_a>customer_e>planner>executor>consumer_i>consumer_a>consumer_e>verifier>approver"
 BASELINE_ROUTE = "pr_review>direct_single_reviewer"
 
 AVAILABLE_ACTORS = {
@@ -77,29 +77,45 @@ AVAILABLE_ACTORS = {
 }
 
 ROLE_ACTOR_ASSIGNMENTS = {
-    "maintainer_customer": {
+    "customer_individual": {
         "actor_id": "human_operator",
-        "reason": "sets the need, constraints, and acceptance boundary",
+        "reason": "sets personal needs, goals, and values; reviews output against individual meaning",
     },
-    "route_planner": {
+    "customer_aquarium": {
         "actor_id": "codex-self-use",
-        "reason": "plans the LS role route inside the current Codex workflow",
+        "reason": "represents team, org, and workflow needs; checks constraints and coordination fit",
     },
-    "draft_reviewer": {
-        "actor_id": "local-qwen",
-        "reason": "uses the local Qwen path already present in LS",
-    },
-    "risk_critic": {
+    "customer_environment": {
         "actor_id": "gonka",
-        "reason": "uses the configured critic-style backend already present in LS",
+        "reason": "represents market, community, and societal needs; checks broader context and external signals",
     },
-    "evidence_verifier": {
+    "planner": {
+        "actor_id": "codex-self-use",
+        "reason": "designs the cooperative route across all three customer levels",
+    },
+    "executor": {
+        "actor_id": "local-qwen",
+        "reason": "executes the planned route; produces the artifact",
+    },
+    "consumer_individual": {
+        "actor_id": "human_operator",
+        "reason": "validates result works for personal context; provides grounded individual feedback",
+    },
+    "consumer_aquarium": {
         "actor_id": "local-qwen-light",
-        "reason": "uses the lightweight local Qwen fallback for grounded checks",
+        "reason": "validates result works for team/project context; checks integration fit",
     },
-    "final_reviewer": {
+    "consumer_environment": {
         "actor_id": "mimo",
-        "reason": "uses the configured compressor/finalizer backend already present in LS",
+        "reason": "validates result works in broader ecosystem; checks long-term and external fit",
+    },
+    "verifier": {
+        "actor_id": "human_operator",
+        "reason": "checks evidence, traces, and claims across all levels; ensures nothing is unsupported",
+    },
+    "approver": {
+        "actor_id": "human_operator",
+        "reason": "final acceptance authority; verifies all three customer levels are satisfied",
     },
     "direct_single_reviewer": {
         "actor_id": "local-qwen",
