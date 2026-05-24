@@ -167,6 +167,7 @@ single model answered best.
 
 See:
 
+- `docs/COOPERATIVE_PRECISION_STACK.md`
 - `docs/COOPERATIVE_ROLE_MARKET.md`
 
 ### 5. Depth Economy / Meta-Interaction
@@ -190,6 +191,7 @@ See:
 - `docs/DEPTH_ECONOMY_LAYER.md`
 - `docs/AMYGDALA_LAYER_MAP.md`
 - `docs/MODEL_ROSTER_DEPTH_PROBE.md`
+- `docs/NETWORK_PRECISION_GAIN.md`
 
 ### 6. Personal Cognitive Garden
 

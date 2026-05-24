@@ -28,6 +28,7 @@ network precision compounds inside LS
 | `repeatable_route` | Route that should be tried again for similar tasks. | Trail reuse. |
 | `needs_more_runs` | Whether the result is too small to treat as validated. | Anti-overclaim guard. |
 | `nash_route_stability` | Whether a cooperative route beats single-route and ablation counterfactuals. | Nash-style stability probe. |
+| `network_precision_gain` | How much precision the cooperative stack adds over a single answer. | Six-path stack proxy. |
 
 ## Baseline Reward
 
@@ -210,6 +211,51 @@ Boundary:
 This is Nash-style route stability, not a global economic proof.
 ```
 
+## Network Precision Gain
+
+`network_precision_gain` asks:
+
+```text
+How much more precise is the full cooperative network than a single answer?
+```
+
+It uses the already measured route reward from the Nash-style probe and adds
+stack-support components:
+
+```text
+route_reward
+evidence_gate
+trace_integrity
+adaptive_memory
+reflective_clarity
+human_boundary
+depth_fit
+```
+
+Run:
+
+```bash
+python scripts/run_network_precision_gain_demo.py
+python scripts/run_network_precision_gain_demo.py --json
+```
+
+Current deterministic local result:
+
+```text
+single baseline score:      0.1603
+cooperative route score:    0.7186
+full stack score:           0.8628
+network precision gain:     +0.7025
+stack added gain:           +0.1442
+```
+
+Boundary:
+
+```text
+This is a stack precision proxy, not a production safety or general
+intelligence claim.
+```
+
 ## Current Metric Snapshot
 
 The first small local benchmark reports:
@@ -239,6 +285,8 @@ working local research MVP
 
 - [`COGNITIVE_TRAIL_RUN_CONTRACT.md`](COGNITIVE_TRAIL_RUN_CONTRACT.md)
 - [`COGNITIVE_TRAIL_NETWORK.md`](COGNITIVE_TRAIL_NETWORK.md)
+- [`COOPERATIVE_PRECISION_STACK.md`](COOPERATIVE_PRECISION_STACK.md)
+- [`NETWORK_PRECISION_GAIN.md`](NETWORK_PRECISION_GAIN.md)
 - [`PR_ROLE_MARKET_BENCHMARK.md`](PR_ROLE_MARKET_BENCHMARK.md)
 - [`../schemas/cognitive_trail_run.schema.json`](../schemas/cognitive_trail_run.schema.json)
 - [`../examples/trails/pr_review_small_run.json`](../examples/trails/pr_review_small_run.json)

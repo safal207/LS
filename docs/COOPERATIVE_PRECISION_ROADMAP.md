@@ -6,6 +6,8 @@ Canonical project positioning:
 
 - [Project Positioning](PROJECT_POSITIONING.md)
 - [Cooperative Precision Metrics](COOPERATIVE_PRECISION_METRICS.md)
+- [Cooperative Precision Stack](COOPERATIVE_PRECISION_STACK.md)
+- [Network Precision Gain](NETWORK_PRECISION_GAIN.md)
 - [Depth Economy Layer](DEPTH_ECONOMY_LAYER.md)
 - [Model Roster Depth Probe](MODEL_ROSTER_DEPTH_PROBE.md)
 - [Cooperative Role Market](COOPERATIVE_ROLE_MARKET.md)
@@ -87,6 +89,7 @@ python scripts/run_pr_review_trail_artifact.py
 python scripts/run_role_market_demo.py
 python scripts/run_pr_role_market_demo.py
 python scripts/run_pr_role_market_batch.py --last 10
+python scripts/run_network_precision_gain_demo.py
 ```
 
 ## Phase 0: Local Trail Artifacts
