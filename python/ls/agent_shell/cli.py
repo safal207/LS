@@ -118,16 +118,11 @@ _CYCLE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
 
 def _sanitize_cycle_id_filename(cycle_id: str) -> str:
-    raw_cycle_id = str(cycle_id or "").strip()
-    if not raw_cycle_id:
+    safe_name = str(cycle_id or "").strip()
+    if not safe_name:
         raise ValueError("cycle_id is required")
 
-    basename = os.path.basename(raw_cycle_id)
-    if basename != raw_cycle_id:
-        raise ValueError(f"Invalid cycle_id path component: {cycle_id!r}")
-
-    safe_name = Path(basename).name
-    if safe_name != basename:
+    if "\x00" in safe_name or "/" in safe_name or "\\" in safe_name:
         raise ValueError(f"Invalid cycle_id path component: {cycle_id!r}")
 
     if safe_name in {".", ".."} or not _CYCLE_ID_PATTERN.fullmatch(safe_name):
@@ -138,7 +133,13 @@ def _sanitize_cycle_id_filename(cycle_id: str) -> str:
 
 def _council_quality_path(quality_dir: Path, cycle_id: str) -> Path:
     safe_cycle_id = _sanitize_cycle_id_filename(cycle_id)
-    base = quality_dir.resolve()
+    try:
+        base = quality_dir.resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise ValueError(f"Council quality directory not found: {quality_dir}") from exc
+    if not base.is_dir():
+        raise ValueError(f"Council quality directory is not a directory: {quality_dir}")
+
     candidate = (base / f"{safe_cycle_id}.json").resolve()
     try:
         candidate.relative_to(base)
