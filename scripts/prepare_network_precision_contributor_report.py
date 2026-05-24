@@ -54,6 +54,33 @@ def _commands(*, live_roster: bool, max_tokens: int) -> list[str]:
     return commands
 
 
+def _extract_temporal(network: dict, variant_label: str) -> dict:
+    for v in network.get("variants", []):
+        if v.get("label") == variant_label:
+            detail = v.get("temporal_observer_detail", {})
+            return {
+                "temporal_product": detail.get("temporal_product", 0.0),
+                "drift": detail.get("drift_score", 0.0),
+                "cycle": detail.get("cycle_detection", 0.0),
+                "lag": detail.get("lag_between_levels", 0.0),
+                "resonance": detail.get("resonance", 0.0),
+            }
+    return {}
+
+
+def _extract_scope(network: dict, variant_label: str) -> dict:
+    for v in network.get("variants", []):
+        if v.get("label") == variant_label:
+            detail = v.get("scope_bridge_detail", {})
+            return {
+                "propagation_product": detail.get("propagation_product", 0.0),
+                "individual_to_aquarium": detail.get("individual_to_aquarium", 0.0),
+                "aquarium_to_environment": detail.get("aquarium_to_environment", 0.0),
+                "individual_to_environment": detail.get("individual_to_environment", 0.0),
+            }
+    return {}
+
+
 def build_report_payload(
     *,
     runner: str = "",
@@ -73,6 +100,10 @@ def build_report_payload(
 
     roster = build_roster_payload(live=live_roster, max_tokens=max_tokens)
     precision = network["network_precision"]
+    temporal_coop = _extract_temporal(network, "cooperative_route")
+    temporal_full = _extract_temporal(network, "cooperative_precision_stack")
+    scope_coop = _extract_scope(network, "cooperative_route")
+    scope_full = _extract_scope(network, "cooperative_precision_stack")
     summary = {
         "single_baseline_score": precision["baseline_score"],
         "cooperative_route_score": precision["cooperative_score"],
@@ -81,6 +112,14 @@ def build_report_payload(
         "network_precision_gain_over_baseline": precision["network_precision_gain_over_baseline"],
         "stack_added_gain_over_cooperation": precision["stack_added_gain_over_cooperation"],
         "score_ratio_vs_baseline": precision["score_ratio_vs_baseline"],
+        "scope_bridge_propagation": {
+            "cooperative": scope_coop,
+            "full_stack": scope_full,
+        },
+        "temporal_coherence": {
+            "cooperative": temporal_coop,
+            "full_stack": temporal_full,
+        },
         "network_decision": precision["decision"],
         "route_stability_decision": route_stability["stability"]["decision"],
         "ready_actors": roster["interpretation"]["available_now"],
@@ -142,6 +181,10 @@ def render_markdown(payload: dict[str, Any], *, include_full_json: bool = False)
         f"- network_precision_gain_over_baseline: {summary['network_precision_gain_over_baseline']}",
         f"- stack_added_gain_over_cooperation: {summary['stack_added_gain_over_cooperation']}",
         f"- score_ratio_vs_baseline: {summary['score_ratio_vs_baseline']}",
+        f"- scope_bridge_propagation (cooperative): {summary['scope_bridge_propagation']['cooperative']['propagation_product']}",
+        f"- scope_bridge_propagation (full_stack): {summary['scope_bridge_propagation']['full_stack']['propagation_product']}",
+        f"- temporal_coherence (cooperative): {summary['temporal_coherence']['cooperative']['temporal_product']} (drift={summary['temporal_coherence']['cooperative']['drift']}, cycle={summary['temporal_coherence']['cooperative']['cycle']}, lag={summary['temporal_coherence']['cooperative']['lag']}, resonance={summary['temporal_coherence']['cooperative']['resonance']})",
+        f"- temporal_coherence (full_stack): {summary['temporal_coherence']['full_stack']['temporal_product']} (drift={summary['temporal_coherence']['full_stack']['drift']}, cycle={summary['temporal_coherence']['full_stack']['cycle']}, lag={summary['temporal_coherence']['full_stack']['lag']}, resonance={summary['temporal_coherence']['full_stack']['resonance']})",
         f"- network_decision: {summary['network_decision']}",
         f"- route_stability_decision: {summary['route_stability_decision']}",
         "",

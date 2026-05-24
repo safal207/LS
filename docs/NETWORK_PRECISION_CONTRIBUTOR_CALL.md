@@ -115,6 +115,12 @@ network_precision_gain: value from the run
 measured_route_reward_gain: value from the run
 stack_added_gain_over_cooperation: value from the run
 score_ratio_vs_baseline: value from the run
+scope_bridge_propagation: propagation_product value from the run
+temporal_coherence: temporal_product value from the run
+temporal_drift: drift between levels over time
+temporal_cycle: cycle detection score
+temporal_lag: propagation lag between levels
+temporal_resonance: cross-level resonance score
 notes: anything surprising, slow, brittle, or useful
 ```
 
@@ -148,6 +154,12 @@ measured_route_reward_gain:
 network_precision_gain_over_baseline:
 stack_added_gain_over_cooperation:
 score_ratio_vs_baseline:
+scope_bridge_propagation:
+temporal_coherence:
+temporal_drift:
+temporal_cycle:
+temporal_lag:
+temporal_resonance:
 ready_actors:
 unavailable_actors:
 
@@ -184,14 +196,22 @@ examples/network-precision/contributor-runs/<run_id>.md
 The current deterministic reference run reports:
 
 ```text
-single baseline score:      0.1603
-cooperative route score:    0.7186
-full stack score:           0.8628
+single baseline score:      0.1423
+cooperative route score:    0.7436
+full stack score:           0.8764
 
 measured route reward gain: +0.6656
-network precision gain:     +0.7025
-stack added gain:           +0.1442
-ratio vs baseline:          5.3824x
+network precision gain:     +0.7341
+stack added gain:           +0.1328
+ratio vs baseline:          6.16x
+
+scope bridge propagation:
+  cooperative:              0.1364
+  full stack:               0.5834
+
+temporal coherence:
+  cooperative:              0.0275 (drift=0.55, cycle=0.40, lag=0.50, resonance=0.25)
+  full stack:               0.0720 (drift=0.15, cycle=0.75, lag=0.20, resonance=0.80)
 ```
 
 Use this only as the current local reference. Independent contributor runs are

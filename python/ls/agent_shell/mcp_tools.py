@@ -310,6 +310,14 @@ class MCPToolRegistry:
             tmp_path = Path(tmp)
             nash = _build_nash(tmp_path / "routes.json", tmp_path / "events.jsonl")
             network = _build_network(tmp_path / "routes.json", tmp_path / "events.jsonl")
+        temporal_details = {}
+        scope_details = {}
+        for v in network.get("variants", []):
+            label = v.get("label", "unknown")
+            if v.get("temporal_observer_detail"):
+                temporal_details[label] = v["temporal_observer_detail"]
+            if v.get("scope_bridge_detail"):
+                scope_details[label] = v["scope_bridge_detail"]
         return {
             "tool": "ls_run_network_precision_probe",
             "metric_version": network["metric_version"],
@@ -317,6 +325,8 @@ class MCPToolRegistry:
             "network_precision": network["network_precision"],
             "route_stability": network["route_stability"],
             "variants": network["variants"],
+            "temporal_observer_detail": temporal_details,
+            "scope_bridge_detail": scope_details,
             "interpretation_boundary": network["interpretation_boundary"],
             "source": {
                 "nash_metric_version": nash.get("metric_version"),

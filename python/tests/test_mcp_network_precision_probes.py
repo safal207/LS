@@ -62,10 +62,12 @@ def test_mcp_network_precision_probe_subprocess() -> None:
     result = _mcp_call("ls_run_network_precision_probe", {})
 
     assert result["tool"] == "ls_run_network_precision_probe"
-    assert result["metric_version"] == "network_precision_gain.v0.1"
+    assert result["metric_version"] == "network_precision_gain.v0.2"
     assert result["measured_route_reward_gain"] > 0
     assert result["network_precision"]["network_precision_gain_over_baseline"] > 0
     assert len(result["variants"]) == 3
+    assert "temporal_observer_detail" in result
+    assert "scope_bridge_detail" in result
 
 
 def test_mcp_model_roster_probe_subprocess() -> None:
