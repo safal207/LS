@@ -14,6 +14,7 @@ const ProblemSolution = lazy(() => import('../components/ProblemSolution'));
 const ReflectiveRuntime = lazy(() => import('../components/ReflectiveRuntime'));
 const Roadmap = lazy(() => import('../components/Roadmap'));
 const RuntimeLivePanel = lazy(() => import('../components/RuntimeLivePanel'));
+const SkillsVsNetwork = lazy(() => import('../components/SkillsVsNetwork'));
 const Visuals = lazy(() => import('../components/Visuals'));
 
 export default function IndexPage() {
@@ -30,6 +31,7 @@ export default function IndexPage() {
       <AskGPTGrantReview />
       <Suspense fallback={null}>
         <CognitiveTrailNetwork />
+        <SkillsVsNetwork />
         <PluginCapabilities />
         <PcgReviewMockup />
         <ProblemSolution />

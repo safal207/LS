@@ -47,6 +47,27 @@ The core loop:
 task -> route -> evidence -> contribution -> decision -> reusable artifact
 ```
 
+### Skills vs LS Network
+
+Skills are useful instructions for one agent. LS Network is the accumulated
+experience of routes: memory, metrics, evidence, and contributor signals.
+
+| Skills | LS Network |
+| --- | --- |
+| static instruction | accumulated experience |
+| helps one agent act | helps the network choose a route |
+| says how to do the task | measures what actually worked |
+| usually does not know who contributed | scores role and actor contribution |
+| may skip result verification | requires evidence, trace, and route score |
+| lives inside an agent | connects Codex, OpenCode, Cursor, and models through MCP |
+
+Short version:
+
+```text
+skill = instruction
+LS Network = verified route experience
+```
+
 First wedge: **AI Code Review / PR Review Trail Network**. A real git diff can
 be routed through draft review, risk critique, evidence verification, and final
 summary, then saved as a reusable trail artifact.
