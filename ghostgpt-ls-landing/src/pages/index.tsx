@@ -7,6 +7,7 @@ import Hero from '../components/Hero';
 const CTA = lazy(() => import('../components/CTA'));
 const CognitiveTrailNetwork = lazy(() => import('../components/CognitiveTrailNetwork'));
 const Features = lazy(() => import('../components/Features'));
+const NetworkTrajectory = lazy(() => import('../components/NetworkTrajectory'));
 const OperatorDelta = lazy(() => import('../components/OperatorDelta'));
 const PcgReviewMockup = lazy(() => import('../components/PcgReviewMockup'));
 const PluginCapabilities = lazy(() => import('../components/PluginCapabilities'));
@@ -32,6 +33,7 @@ export default function IndexPage() {
       <Suspense fallback={null}>
         <CognitiveTrailNetwork />
         <SkillsVsNetwork />
+        <NetworkTrajectory />
         <PluginCapabilities />
         <PcgReviewMockup />
         <ProblemSolution />
