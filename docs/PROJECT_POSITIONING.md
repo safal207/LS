@@ -189,6 +189,7 @@ See:
 
 - `docs/DEPTH_ECONOMY_LAYER.md`
 - `docs/AMYGDALA_LAYER_MAP.md`
+- `docs/MODEL_ROSTER_DEPTH_PROBE.md`
 
 ### 6. Personal Cognitive Garden
 

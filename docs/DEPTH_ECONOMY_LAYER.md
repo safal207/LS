@@ -141,6 +141,23 @@ Regression test:
 PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_depth_economy_demo.py
 ```
 
+## Model Roster Probe
+
+Depth decisions should know which actors are actually available. Run:
+
+```bash
+python scripts/run_model_roster_depth_probe.py --json
+PYTHONPATH=.:python:python/modules python scripts/run_model_roster_depth_probe.py --live --json
+```
+
+See:
+
+- `docs/MODEL_ROSTER_DEPTH_PROBE.md`
+
+This separates the LS actor roster from live runtime readiness: local Qwen can
+handle shallow checks, while deeper L2-L4 decisions should stay under Codex or
+human review unless stronger configured backends are available.
+
 ## Interpretation Boundary
 
 Depth Economy is not:
