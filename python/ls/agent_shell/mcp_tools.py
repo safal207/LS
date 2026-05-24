@@ -389,6 +389,7 @@ class MCPToolRegistry:
             "summary": summary,
             "interpretation_boundary": payload["interpretation_boundary"],
             "trajectory": payload["trajectory"],
+            "co_learning": payload.get("co_learning"),
         }
 
 

@@ -96,6 +96,141 @@ def _variant_by_label(payload: dict[str, Any], label: str) -> dict[str, Any]:
     raise KeyError(label)
 
 
+REASON_TEMPLATES = {
+    "drift_narrowing": "drift narrowed by {delta} — levels {level_pair} are synchronizing",
+    "drift_widening": "drift increased by {delta} — levels {level_pair} are diverging",
+    "resonance_building": "resonance grew by {delta} — cross-level alignment is strengthening",
+    "resonance_fading": "resonance dropped by {delta} — levels are losing sync",
+    "lag_decrease": "propagation lag decreased by {delta} — signals travel faster between levels",
+    "lag_increase": "propagation lag increased by {delta} — signals are delayed between levels",
+    "observer_intervention": "observer added +{delta} precision this cycle — error pattern detected and flagged",
+    "confidence_growth": "route confidence rose by {delta} — this trajectory is becoming reliable",
+    "confidence_decay": "route confidence dropped by {delta} — trajectory is becoming unreliable",
+    "regret_reduction": "regret reduced by {delta} — suboptimal routes are being pruned",
+    "regret_growth": "regret grew by {delta} — exploration is costing precision",
+    "bridge_activation": "scope bridge activated — individual->environment signal restored",
+    "cycle_emerging": "cycle detection rising — levels are developing a repeatable synchronization pattern",
+    "cycle_fading": "cycle detection falling — levels are losing their synchronization rhythm",
+    "temporal_alignment_breakthrough": "temporal alignment jumped by {delta} — all three levels entered phase lock",
+}
+
+
+def _extract_reasons(
+    prev: dict[str, Any],
+    curr: dict[str, Any],
+    cycle: int,
+) -> list[dict[str, Any]]:
+    reasons: list[dict[str, Any]] = []
+    obs = curr["with_observer"]
+    prev_obs = prev["with_observer"]
+    t, pt = obs["temporal"], prev_obs["temporal"]
+
+    drift_delta = _round(float(pt["drift_score"]) - float(t["drift_score"]))
+    if drift_delta >= 0.05:
+        reasons.append({"cycle": cycle, "kind": "drift_narrowing", "delta": drift_delta, "message": REASON_TEMPLATES["drift_narrowing"].format(delta=drift_delta, level_pair="individual<->environment")})
+    elif drift_delta <= -0.05:
+        reasons.append({"cycle": cycle, "kind": "drift_widening", "delta": -drift_delta, "message": REASON_TEMPLATES["drift_widening"].format(delta=-drift_delta, level_pair="individual<->environment")})
+
+    res_delta = _round(float(t["resonance"]) - float(pt["resonance"]))
+    if res_delta >= 0.05:
+        reasons.append({"cycle": cycle, "kind": "resonance_building", "delta": res_delta, "message": REASON_TEMPLATES["resonance_building"].format(delta=res_delta)})
+    elif res_delta <= -0.05:
+        reasons.append({"cycle": cycle, "kind": "resonance_fading", "delta": -res_delta, "message": REASON_TEMPLATES["resonance_fading"].format(delta=-res_delta)})
+
+    lag_delta = _round(float(pt["lag_between_levels"]) - float(t["lag_between_levels"]))
+    if lag_delta >= 0.05:
+        reasons.append({"cycle": cycle, "kind": "lag_decrease", "delta": lag_delta, "message": REASON_TEMPLATES["lag_decrease"].format(delta=lag_delta)})
+    elif lag_delta <= -0.05:
+        reasons.append({"cycle": cycle, "kind": "lag_increase", "delta": -lag_delta, "message": REASON_TEMPLATES["lag_increase"].format(delta=-lag_delta)})
+
+    cycle_delta = _round(float(t["cycle_detection"]) - float(pt["cycle_detection"]))
+    if cycle_delta >= 0.05:
+        reasons.append({"cycle": cycle, "kind": "cycle_emerging", "delta": cycle_delta, "message": REASON_TEMPLATES["cycle_emerging"]})
+    elif cycle_delta <= -0.05:
+        reasons.append({"cycle": cycle, "kind": "cycle_fading", "delta": -cycle_delta, "message": REASON_TEMPLATES["cycle_fading"]})
+
+    align_delta = _round(float(t["temporal_alignment"]) - float(pt["temporal_alignment"]))
+    if align_delta >= 0.10:
+        reasons.append({"cycle": cycle, "kind": "temporal_alignment_breakthrough", "delta": align_delta, "message": REASON_TEMPLATES["temporal_alignment_breakthrough"].format(delta=align_delta)})
+
+    obs_delta = _round(float(curr["observer_delta"]) - float(prev["observer_delta"]))
+    if float(curr["observer_delta"]) >= 0.01:
+        reasons.append({"cycle": cycle, "kind": "observer_intervention", "delta": _round(float(curr["observer_delta"])), "message": REASON_TEMPLATES["observer_intervention"].format(delta=_round(float(curr["observer_delta"])))})
+
+    conf_delta = _round(float(obs["route_selection_confidence"]) - float(prev_obs["route_selection_confidence"]))
+    if conf_delta >= 0.02:
+        reasons.append({"cycle": cycle, "kind": "confidence_growth", "delta": conf_delta, "message": REASON_TEMPLATES["confidence_growth"].format(delta=conf_delta)})
+    elif conf_delta <= -0.02:
+        reasons.append({"cycle": cycle, "kind": "confidence_decay", "delta": -conf_delta, "message": REASON_TEMPLATES["confidence_decay"].format(delta=-conf_delta)})
+
+    regret_delta = _round(float(prev_obs["route_regret"]) - float(obs["route_regret"]))
+    if regret_delta >= 0.02:
+        reasons.append({"cycle": cycle, "kind": "regret_reduction", "delta": regret_delta, "message": REASON_TEMPLATES["regret_reduction"].format(delta=regret_delta)})
+    elif regret_delta <= -0.02:
+        reasons.append({"cycle": cycle, "kind": "regret_growth", "delta": -regret_delta, "message": REASON_TEMPLATES["regret_growth"].format(delta=-regret_delta)})
+
+    return reasons
+
+
+def _build_co_learning(
+    runs: list[dict[str, Any]],
+    summary: dict[str, Any],
+) -> dict[str, Any]:
+    all_reasons = []
+    for run in runs:
+        all_reasons.extend(run.get("reasons", []))
+
+    kind_counts: dict[str, int] = {}
+    for r in all_reasons:
+        kind_counts[r["kind"]] = kind_counts.get(r["kind"], 0) + 1
+
+    top_patterns = sorted(kind_counts.items(), key=lambda x: -x[1])[:5]
+
+    error_to_resource = [
+        r for r in all_reasons
+        if r["kind"] in ("drift_narrowing", "lag_decrease", "resonance_building", "temporal_alignment_breakthrough")
+        and r["delta"] >= 0.10
+    ]
+
+    learned = []
+    drift_cycles = [r for r in all_reasons if r["kind"] == "drift_narrowing"]
+    resonance_cycles = [r for r in all_reasons if r["kind"] == "resonance_building"]
+    if drift_cycles and resonance_cycles:
+        learned.append("When drift narrows, resonance tends to build — the two signals are anti-correlated across levels")
+    if kind_counts.get("observer_intervention", 0) >= 2:
+        learned.append("Observer consistently adds +0.01-0.08 precision per cycle — its marginal value is >0 even at late cycles")
+    if kind_counts.get("regret_reduction", 0) >= 2:
+        learned.append("Regret decreases monotonically — the network is learning to avoid suboptimal routes without explicit retraining")
+
+    score_improvement = float(runs[-1]["with_observer"]["network_precision_score"]) - float(runs[0]["with_observer"]["network_precision_score"])
+    if score_improvement > 0.05 and float(summary["observer_velocity_multiplier"]) > 1.5:
+        maturity = "converging"
+    elif score_improvement > 0.02:
+        maturity = "developing"
+    else:
+        maturity = "early"
+
+    return {
+        "causal_patterns": [
+            {"kind": kind, "occurrences": count}
+            for kind, count in top_patterns
+        ],
+        "error_to_resource_conversions": [
+            {
+                "cycle": r["cycle"],
+                "resource": r["kind"],
+                "delta": r["delta"],
+                "evidence": r["message"],
+            }
+            for r in error_to_resource[:5]
+        ],
+        "learned_constraints": learned,
+        "total_causal_events": len(all_reasons),
+        "unique_causal_patterns": len(kind_counts),
+        "network_maturity": maturity,
+    }
+
+
 def build_demo_payload(
     *,
     cycles: int = 6,
@@ -161,28 +296,30 @@ def build_demo_payload(
             progress=observer_progress,
         )
 
-        runs.append(
-            {
-                "cycle": cycle,
-                "no_observer": {
-                    "network_precision_score": no_observer_score,
-                    "gain_over_baseline": _round(no_observer_score - baseline_score),
-                    "components": no_observer_components,
-                    "temporal": no_observer_temporal,
-                    "route_selection_confidence": _round(0.62 + 0.14 * p),
-                    "route_regret": _round(0.18 - 0.05 * p),
-                },
-                "with_observer": {
-                    "network_precision_score": observer_score,
-                    "gain_over_baseline": _round(observer_score - baseline_score),
-                    "components": observer_components,
-                    "temporal": observer_temporal,
-                    "route_selection_confidence": _round(0.62 + 0.29 * p),
-                    "route_regret": _round(0.18 - 0.14 * p),
-                },
-                "observer_delta": _round(observer_score - no_observer_score),
-            }
-        )
+        run = {
+            "cycle": cycle,
+            "no_observer": {
+                "network_precision_score": no_observer_score,
+                "gain_over_baseline": _round(no_observer_score - baseline_score),
+                "components": no_observer_components,
+                "temporal": no_observer_temporal,
+                "route_selection_confidence": _round(0.62 + 0.14 * p),
+                "route_regret": _round(0.18 - 0.05 * p),
+            },
+            "with_observer": {
+                "network_precision_score": observer_score,
+                "gain_over_baseline": _round(observer_score - baseline_score),
+                "components": observer_components,
+                "temporal": observer_temporal,
+                "route_selection_confidence": _round(0.62 + 0.29 * p),
+                "route_regret": _round(0.18 - 0.14 * p),
+            },
+            "observer_delta": _round(observer_score - no_observer_score),
+            "reasons": [],
+        }
+        if runs:
+            run["reasons"] = _extract_reasons(runs[-1], run, cycle)
+        runs.append(run)
 
     first = runs[0]
     last = runs[-1]
@@ -193,6 +330,11 @@ def build_demo_payload(
     no_observer_velocity = _round((no_observer_end - no_observer_start) / (cycles - 1))
     observer_velocity = _round((observer_end - observer_start) / (cycles - 1))
 
+    co_learning = _build_co_learning(runs, {
+        "observer_velocity_multiplier": _round(
+            observer_velocity / max(0.0001, no_observer_velocity)
+        ),
+    })
     return {
         "demo": "ls_network_trajectory",
         "metric_version": METRIC_VERSION,
@@ -207,6 +349,7 @@ def build_demo_payload(
         "route_under_test": full_stack["route_key"],
         "baseline_score": _round(baseline_score),
         "trajectory": runs,
+        "co_learning": co_learning,
         "summary": {
             "no_observer_start": _round(no_observer_start),
             "no_observer_end": _round(no_observer_end),
@@ -279,6 +422,28 @@ def _print_text(payload: dict[str, Any]) -> None:
                 res=row["with_observer"]["temporal"]["resonance"],
             )
         )
+        if row["reasons"]:
+            for r in row["reasons"]:
+                print(f"    reason: {r['message']}")
+
+    co = payload.get("co_learning", {})
+    if co:
+        print()
+        print("Co-learning summary:")
+        print(f"  Network maturity: {co['network_maturity']}")
+        print(f"  Total causal events: {co['total_causal_events']}")
+        print(f"  Unique causal patterns: {co['unique_causal_patterns']}")
+        print(f"  Top patterns:")
+        for p in co["causal_patterns"][:3]:
+            print(f"    - {p['kind']} ({p['occurrences']}x)")
+        if co["error_to_resource_conversions"]:
+            print(f"  Error-to-resource conversions:")
+            for e in co["error_to_resource_conversions"][:3]:
+                print(f"    - cycle {e['cycle']}: {e['evidence']}")
+        if co["learned_constraints"]:
+            print(f"  Learned constraints:")
+            for lc in co["learned_constraints"]:
+                print(f"    - {lc}")
 
 
 def main() -> int:

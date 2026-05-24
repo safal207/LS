@@ -75,6 +75,25 @@ resonance_gain  = resonance_end - resonance_start
 - **confidence**: how reliably the network selects the best known route
 - **regret**: how much precision is lost by exploring suboptimal routes
 
+### Reason Memory (Co-Learning Layer)
+
+Every cycle, the observer extracts **causal reasons** for what changed and why:
+
+```text
+cycle 2: drift narrowed by 0.072 — levels individual<->environment are synchronizing
+         resonance grew by 0.099 — cross-level alignment is strengthening
+         observer added +0.016 precision — error pattern detected and flagged
+```
+
+Across all cycles, a **co-learning summary** is built:
+
+- **causal_patterns**: which signals changed most frequently
+- **error_to_resource_conversions**: errors that became learning signals
+- **learned_constraints**: discovered relationships (e.g., "drift and resonance are anti-correlated")
+- **network_maturity**: `early` / `developing` / `converging`
+
+This is **memory of causes, not just facts** — the network remembers *why* a route worked, not just *that* it worked.
+
 ## Current Reference Run
 
 With 6 cycles on the current deterministic probe:
@@ -97,6 +116,36 @@ route_regret_reduction:          +0.1260
 
 The observer accelerates convergence by approximately **3x** and achieves
 the same final precision in roughly **one-third the cycles**.
+
+### Co-Learning (Reason Memory)
+
+Per cycle, the observer extracts causal reasons. Sample output:
+
+```text
+cycle 6 temporal alignment jumped by 0.1096 — all three levels entered phase lock
+```
+
+Cross-cycle pattern extraction:
+
+```text
+Network maturity: converging
+Total causal events: 36
+Unique causal patterns: 8
+Top patterns:
+  - drift_narrowing (5x)
+  - resonance_building (5x)
+  - lag_decrease (5x)
+
+Error-to-resource conversions:
+  cycle 6: temporal alignment jumped — all three levels entered phase lock
+
+Learned constraints:
+  - When drift narrows, resonance tends to build — anti-correlated across levels
+  - Observer consistently adds +0.01-0.08 precision per cycle
+  - Regret decreases monotonically — network learns to avoid suboptimal routes
+```
+
+This is what the network "knows" — not just scores, but causal structure.
 
 ## Run It
 

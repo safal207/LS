@@ -104,3 +104,7 @@ def test_mcp_network_trajectory_probe_subprocess() -> None:
     assert result["summary"]["observer_delta_final"] > 0
     assert result["summary"]["observer_velocity_multiplier"] > 0
     assert len(result["trajectory"]) == 4
+    assert "co_learning" in result
+    assert result["co_learning"]["total_causal_events"] > 0
+    assert result["co_learning"]["network_maturity"] in ("early", "developing", "converging")
+    assert len(result["trajectory"][-1]["reasons"]) > 0
