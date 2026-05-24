@@ -52,6 +52,7 @@ artifacts/relational-learning-loop/
 # Local Cognitive Trail runtime reports
 reports/trails/*.json
 !reports/trails/.gitkeep
+reports/network_precision_contributor_report.*
 
 # LS oversight integration (Level 1: replay traces)
 .ls/

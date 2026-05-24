@@ -24,6 +24,7 @@ Useful entry points:
 - [Cooperative Precision Stack](COOPERATIVE_PRECISION_STACK.md)
 - [Network Precision Gain](NETWORK_PRECISION_GAIN.md)
 - [Network Precision Contributor Call](NETWORK_PRECISION_CONTRIBUTOR_CALL.md)
+- [IDE Testing Entrypoints](IDE_TESTING_ENTRYPOINTS.md)
 - [Cooperative Role Market](COOPERATIVE_ROLE_MARKET.md)
 - [Cognitive Trail Network](COGNITIVE_TRAIL_NETWORK.md)
 - [Cognitive Trail Reviewer Quickstart](COGNITIVE_TRAIL_REVIEWER_QUICKSTART.md)
@@ -98,6 +99,8 @@ Goal: test whether the cooperative precision probe behaves clearly across
 different OS, hardware, model runtimes, and available actors.
 
 Acceptance criteria:
+- In VS Code or Cursor, run `LS: Prepare Contributor Report`, or use the CLI equivalent.
+- Attach or paste `reports/network_precision_contributor_report.md`.
 - Run `python scripts/run_network_precision_gain_demo.py --json`.
 - Run `python scripts/run_model_roster_depth_probe.py --json`.
 - If local or hosted actors are configured, also run `python scripts/run_model_roster_depth_probe.py --live --json --max-tokens 180`.
