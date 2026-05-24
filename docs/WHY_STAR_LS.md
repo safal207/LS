@@ -53,16 +53,22 @@ task
 -> reviewer-visible artifact
 ```
 
-## Current public contributor hook
+## Current public contributor hooks
 
-The current public contributor hook is the route-stability matrix:
+The current public contributor hooks are:
 
 ```text
-run the same bounded probe across different OS, hardware, runtimes, fixtures, and model outputs
+route stability: run the same bounded probe across different OS, hardware,
+runtimes, fixtures, and model outputs
+
+network precision: run the precision-gain probe on your own model stack and
+report whether cooperative routes plus evidence gates improve the task signal
 ```
 
 Start here:
 
+- [`NETWORK_PRECISION_CONTRIBUTOR_CALL.md`](NETWORK_PRECISION_CONTRIBUTOR_CALL.md)
+- [`NETWORK_PRECISION_GAIN.md`](NETWORK_PRECISION_GAIN.md)
 - [`ROUTE_STABILITY_CONTRIBUTOR_RUNS.md`](ROUTE_STABILITY_CONTRIBUTOR_RUNS.md)
 - [Issue #563: Contributor matrix](https://github.com/safal207/LS/issues/563)
 
@@ -71,6 +77,8 @@ Start here:
 - run the current probe on Linux CPU-only;
 - run it on Windows / WSL;
 - run it on Apple Silicon;
+- run the network precision probe on your local model runtime;
+- report which LS actors were ready or unavailable;
 - add a sanitized role-output fixture from a local model;
 - add a not-stable-yet fixture;
 - add an unsupported-decision negative fixture;
