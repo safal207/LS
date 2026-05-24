@@ -1,11 +1,42 @@
 from pathlib import Path
 import json
 
+import pytest
 from ls.agent_shell.runtime.task_manager import TaskManager
 from typer.testing import CliRunner
 
 from ls.agent_shell import cli
 from ls.agent_shell.cli import app
+
+
+def test_council_cycle_id_rejects_path_components() -> None:
+    for cycle_id in ("../cycle", "nested/cycle", "nested\\cycle", "cycle\x00id"):
+        with pytest.raises(ValueError, match="Invalid cycle_id path component"):
+            cli._sanitize_cycle_id_filename(cycle_id)
+
+
+def test_council_quality_path_requires_existing_directory(tmp_path: Path) -> None:
+    missing_dir = tmp_path / "missing"
+
+    with pytest.raises(ValueError, match="Council quality directory not found"):
+        cli._council_quality_path(missing_dir, "cycle-safe")
+
+
+def test_council_quality_path_rejects_file_as_directory(tmp_path: Path) -> None:
+    not_dir = tmp_path / "quality.json"
+    not_dir.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="is not a directory"):
+        cli._council_quality_path(not_dir, "cycle-safe")
+
+
+def test_council_quality_path_stays_under_quality_dir(tmp_path: Path) -> None:
+    quality_dir = tmp_path / "council-quality"
+    quality_dir.mkdir()
+
+    path = cli._council_quality_path(quality_dir, "cycle-safe")
+
+    assert path == (quality_dir / "cycle-safe.json").resolve()
 
 
 def test_plan_only_creates_steps(tmp_path: Path) -> None:
