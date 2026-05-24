@@ -7,13 +7,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 PYTHON_ROOT = ROOT / "python"
 
 from ls.agent_shell.mcp_server import LSMCPServer
-from ls.agent_shell.mcp_tools import MCPToolRegistry, MCPValidationError
+from ls.agent_shell.mcp_tools import MCPToolRegistry
 from ls.agent_shell.testing.runtime_fixture import FixtureRuntime
 
 
