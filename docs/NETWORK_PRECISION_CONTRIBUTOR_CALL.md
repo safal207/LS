@@ -36,6 +36,18 @@ gates, traces, and human boundaries make repeated AI co-work more precise.
 From the repository root:
 
 ```bash
+python scripts/prepare_contributor_pack.py --runner your-github-handle
+```
+
+This writes a complete copy-paste pack to:
+
+```text
+reports/contributor_pack/
+```
+
+For the raw baseline probe only:
+
+```bash
 python scripts/run_network_precision_gain_demo.py
 python scripts/run_network_precision_gain_demo.py --json
 ```
@@ -46,15 +58,15 @@ If you use VS Code or Cursor:
 
 1. Open the LS repository folder.
 2. Choose **Terminal -> Run Task...**.
-3. Run **LS: Prepare Contributor Report**.
-4. Paste `reports/network_precision_contributor_report.md` into the GitHub contributor issue.
+3. Run **LS: Prepare Contributor Pack**.
+4. Paste `reports/contributor_pack/issue_body.md` into the GitHub contributor issue.
 
 If you use OpenCode:
 
 1. Open the LS repository folder.
 2. Use the repo `opencode.json`.
-3. Run `/ls-precision-report your-github-handle`.
-4. Paste `reports/network_precision_contributor_report.md` into the GitHub contributor issue.
+3. Run `/ls-contributor-pack your-github-handle`.
+4. Paste `reports/contributor_pack/issue_body.md` into the GitHub contributor issue.
 
 ## MCP Agent Run
 
@@ -67,18 +79,20 @@ If your IDE agent (OpenCode, Cursor Agent, Claude Desktop, Codex, Copilot) suppo
 
 Individual probes are also available as MCP tools:
 `ls_run_network_precision_probe`, `ls_run_model_roster_probe`,
-and `ls_run_network_trajectory_probe`.
+`ls_run_network_trajectory_probe`, and `ls_run_live_model_pilot`.
 
 CLI equivalent:
 
 ```bash
-python scripts/prepare_network_precision_contributor_report.py \
-  --output reports/network_precision_contributor_report.md
+python scripts/prepare_contributor_pack.py \
+  --runner your-github-handle \
+  --output-dir reports/contributor_pack
 ```
 
 More IDE options:
 
 - [`IDE_TESTING_ENTRYPOINTS.md`](IDE_TESTING_ENTRYPOINTS.md)
+- [`CONTRIBUTOR_PACK.md`](CONTRIBUTOR_PACK.md)
 
 Also useful:
 
@@ -162,9 +176,7 @@ Models:
 ### Commands
 
 ```bash
-python scripts/run_network_precision_gain_demo.py --json
-python scripts/run_model_roster_depth_probe.py --json
-python scripts/run_nash_route_stability_demo.py --json
+python scripts/prepare_contributor_pack.py --runner your-github-handle
 ```
 
 ### Results

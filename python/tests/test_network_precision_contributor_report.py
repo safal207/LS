@@ -25,10 +25,14 @@ def test_contributor_report_json_contains_summary_and_roster() -> None:
     payload = json.loads(result.stdout)
     summary = payload["summary"]
 
-    assert payload["report_version"] == "network_precision_contributor_report.v0.1"
+    assert payload["report_version"] == "network_precision_contributor_report.v0.2"
     assert payload["runner"] == "test-runner"
     assert summary["network_precision_gain_over_baseline"] > 0
     assert summary["measured_route_reward_gain"] > 0
+    assert summary["network_trajectory"]["cycles"] == 6
+    assert summary["network_trajectory"]["precision_velocity"] > 0
+    assert summary["conductor_noise"]["decision"] == "robust_under_moderate_noise"
+    assert summary["conductor_noise"]["pass_rate_at_025"] >= 0.8
     assert summary["live_model_pilot"]["decision"] == "sample_pipeline_ready"
     assert summary["live_model_pilot"]["pilot_precision_proxy"] > 0
     assert summary["live_model_pilot"]["route_event_id"].startswith("e6-")
@@ -43,6 +47,8 @@ def test_contributor_report_markdown_is_issue_ready() -> None:
     assert "# LS Network Precision Contributor Report" in result.stdout
     assert "- Runner: test-runner" in result.stdout
     assert "network_precision_gain_over_baseline" in result.stdout
+    assert "## Conductor Noise Robustness" in result.stdout
+    assert "conductor_noise_pass_rate_at_0_25" in result.stdout
     assert "## Live Model Pilot" in result.stdout
     assert "live_model_pilot_decision" in result.stdout
     assert "## Ready Actors" in result.stdout

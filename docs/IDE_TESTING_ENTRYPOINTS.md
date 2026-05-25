@@ -16,8 +16,8 @@ In VS Code or Cursor:
 
 1. Open the LS repository folder.
 2. Open **Terminal -> Run Task...**.
-3. Choose **LS: Prepare Contributor Report**.
-4. Copy `reports/network_precision_contributor_report.md` into the contributor issue.
+3. Choose **LS: Prepare Contributor Pack**.
+4. Copy `reports/contributor_pack/issue_body.md` into the contributor issue.
 
 The task runs the same probes used by the public Network Precision Contributor
 Call and writes a Markdown report with environment, actor readiness, and metric
@@ -28,6 +28,7 @@ values.
 The repository includes `opencode.json` with:
 
 - `ls-network-probes` MCP server: `python -m ls.agent_shell.mcp_server`
+- `/ls-contributor-pack <runner>`: creates a full contributor pack
 - `/ls-precision-report <runner>`: prepares a contributor report for GitHub
 - `/ls-probe-roster`: shows ready and unavailable LS actors
 - `/ls-probe-precision`: shows the network precision gain metrics
@@ -38,16 +39,17 @@ The repository includes `opencode.json` with:
 Recommended first command inside OpenCode:
 
 ```text
-/ls-precision-report your-github-handle
+/ls-contributor-pack your-github-handle
 ```
 
-Then paste `reports/network_precision_contributor_report.md` into the public
+Then paste `reports/contributor_pack/issue_body.md` into the public
 contributor issue.
 
 ## Available Tasks
 
 | Task | What it does | Output |
 | --- | --- | --- |
+| `LS: Prepare Contributor Pack` | Builds a full pack with README, issue body, Markdown, and JSON. | `reports/contributor_pack/` |
 | `LS: Prepare Contributor Report` | Builds a copy-paste Markdown report. | `reports/network_precision_contributor_report.md` |
 | `LS: Prepare Contributor Report JSON` | Builds the same report as machine-readable JSON. | `reports/network_precision_contributor_report.json` |
 | `LS: Network Precision Test` | Runs the network precision gain probe. | terminal JSON |
@@ -64,6 +66,14 @@ hosted model backends.
 ## CLI Equivalent
 
 If the IDE task runner is not available:
+
+```bash
+python scripts/prepare_contributor_pack.py \
+  --runner your-github-handle \
+  --output-dir reports/contributor_pack
+```
+
+Raw report only:
 
 ```bash
 python scripts/prepare_network_precision_contributor_report.py \

@@ -18,6 +18,9 @@ assignees: ""
 
 ## How did you run it?
 
+- [ ] VS Code / Cursor task: `LS: Prepare Contributor Pack`
+- [ ] OpenCode command: `/ls-contributor-pack`
+- [ ] CLI: `python scripts/prepare_contributor_pack.py`
 - [ ] VS Code / Cursor task: `LS: Prepare Contributor Report`
 - [ ] OpenCode command: `/ls-precision-report`
 - [ ] CLI: `python scripts/prepare_network_precision_contributor_report.py`
@@ -27,7 +30,7 @@ assignees: ""
 ## Commands
 
 ```bash
-python scripts/prepare_network_precision_contributor_report.py
+python scripts/prepare_contributor_pack.py --runner <your-handle>
 ```
 
 ## Results
@@ -41,6 +44,35 @@ python scripts/prepare_network_precision_contributor_report.py
 - score_ratio_vs_baseline:
 - network_decision:
 - route_stability_decision:
+
+## Network Trajectory
+
+- trajectory_cycles:
+- observer_delta_final:
+- observer_velocity_multiplier:
+- trajectory_gain_over_baseline:
+- precision_velocity:
+- drift_reduction:
+- resonance_gain:
+
+## Conductor Noise Robustness
+
+- conductor_noise_decision:
+- conductor_noise_pass_rate_at_0_25:
+- conductor_noise_margin_at_0_25:
+- conductor_noise_moderate_supported:
+- conductor_noise_high_noise_degrades:
+
+## Live Model Pilot / Route Memory
+
+- live_model_pilot_decision:
+- live_model_pilot_mode:
+- live_model_pilot_score:
+- live_model_pilot_event:
+- route_won_vs_single:
+- route_memory_key:
+- route_memory_persisted:
+- route_memory_health:
 
 ## Ready Actors
 

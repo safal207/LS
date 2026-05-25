@@ -11,6 +11,10 @@
     }
   },
   "command": {
+    "ls-contributor-pack": {
+      "description": "Create a complete LS contributor pack with issue body and machine-readable report",
+      "template": "Run python scripts/prepare_contributor_pack.py --runner $ARGUMENTS --output-dir reports/contributor_pack, then show the generated issue title and files. If $ARGUMENTS is empty, use a placeholder runner. Tell the user to paste reports/contributor_pack/issue_body.md into issue #571."
+    },
     "ls-precision-report": {
       "description": "Run LS network precision contributor report and create a GitHub issue body",
       "template": "Run python scripts/prepare_network_precision_contributor_report.py --runner $ARGUMENTS --output reports/network_precision_contributor_report.md, then read the generated report and format it as a GitHub issue comment body using the contributor issue template at .github/ISSUE_TEMPLATE/network_precision_contributor_run.md. If $ARGUMENTS is empty, use a placeholder runner."
@@ -37,6 +41,7 @@
     }
   },
   "instructions": [
+    "docs/CONTRIBUTOR_PACK.md",
     "docs/IDE_TESTING_ENTRYPOINTS.md",
     "docs/NETWORK_PRECISION_CONTRIBUTOR_CALL.md",
     "docs/NETWORK_TRAJECTORY_LAYER.md",

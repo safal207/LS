@@ -87,9 +87,11 @@ def test_mcp_prepare_contributor_report_subprocess() -> None:
     result = _mcp_call("ls_prepare_contributor_report", {"runner": "mcp-test"})
 
     assert result["tool"] == "ls_prepare_contributor_report"
-    assert result["report_version"] == "network_precision_contributor_report.v0.1"
+    assert result["report_version"] == "network_precision_contributor_report.v0.2"
     assert result["runner"] == "mcp-test"
     assert result["summary"]["network_precision_gain_over_baseline"] > 0
+    assert result["summary"]["conductor_noise"]["decision"] == "robust_under_moderate_noise"
+    assert result["summary"]["network_trajectory"]["precision_velocity"] > 0
     assert "codex-self-use" in result["summary"]["ready_actors"]
     assert "os" in result["environment"]
     assert "python_version" in result["environment"]

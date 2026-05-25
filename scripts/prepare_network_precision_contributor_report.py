@@ -25,12 +25,13 @@ if hasattr(sys.stderr, "reconfigure"):
 
 from run_model_roster_depth_probe import build_probe_payload as build_roster_payload  # noqa: E402
 from run_nash_route_stability_demo import build_demo_payload as build_nash_payload  # noqa: E402
+from run_conductor_noise_robustness_demo import build_demo_payload as build_noise_payload  # noqa: E402
 from run_network_precision_gain_demo import build_demo_payload as build_network_payload  # noqa: E402
 from run_network_trajectory_demo import build_demo_payload as build_trajectory_payload  # noqa: E402
 from run_live_model_pilot import build_pilot_payload as build_live_pilot_payload  # noqa: E402
 
 
-REPORT_VERSION = "network_precision_contributor_report.v0.1"
+REPORT_VERSION = "network_precision_contributor_report.v0.2"
 
 
 def _platform_payload() -> dict[str, Any]:
@@ -51,6 +52,7 @@ def _commands(*, live_roster: bool, max_tokens: int, trajectory_cycles: int = 6)
         "python scripts/run_model_roster_depth_probe.py --json",
         "python scripts/run_nash_route_stability_demo.py --json",
         f"python scripts/run_network_trajectory_demo.py --cycles {trajectory_cycles} --json",
+        "python scripts/run_conductor_noise_robustness_demo.py --cycles 6 --seeds 12 --json",
         "python scripts/run_live_model_pilot.py --json",
     ]
     if live_roster:
@@ -105,6 +107,7 @@ def build_report_payload(
         )
 
     trajectory = build_trajectory_payload(cycles=trajectory_cycles)
+    conductor_noise = build_noise_payload(cycles=6, seeds=12)
     roster = build_roster_payload(live=live_roster, max_tokens=max_tokens)
     live_pilot = build_live_pilot_payload(live=live_roster, max_tokens=max_tokens, cycles=trajectory_cycles)
     precision = network["network_precision"]
@@ -133,12 +136,29 @@ def build_report_payload(
         "ready_actors": roster["interpretation"]["available_now"],
         "network_trajectory": {
             "decision": trajectory["summary"]["decision"],
-            "cycles": trajectory["summary"]["no_observer_end"],
+            "cycles": trajectory["cycles"],
             "observer_delta_final": trajectory["summary"]["observer_delta_final"],
             "observer_velocity_multiplier": trajectory["summary"]["observer_velocity_multiplier"],
             "trajectory_gain_over_baseline": trajectory["summary"]["trajectory_gain_over_baseline"],
+            "precision_velocity": trajectory["summary"]["observer_precision_velocity"],
             "drift_reduction": trajectory["summary"]["drift_reduction_with_observer"],
             "resonance_gain": trajectory["summary"]["resonance_gain_with_observer"],
+        },
+        "conductor_noise": {
+            "decision": conductor_noise["summary"]["decision"],
+            "moderate_supported": conductor_noise["summary"]["moderate_supported"],
+            "high_noise_degrades": conductor_noise["summary"]["high_noise_degrades"],
+            "moderate_noise_ceiling": conductor_noise["summary"]["moderate_noise_ceiling"],
+            "pass_rate_at_025": next(
+                item["pass_rate"]
+                for item in conductor_noise["aggregates"]
+                if float(item["noise_level"]) == 0.25
+            ),
+            "fresh_minus_stale_at_025": next(
+                item["avg_fresh_minus_stale"]
+                for item in conductor_noise["aggregates"]
+                if float(item["noise_level"]) == 0.25
+            ),
         },
         "live_model_pilot": {
             "decision": live_pilot["summary"]["decision"],
@@ -162,6 +182,7 @@ def build_report_payload(
         "summary": summary,
         "network_precision": network,
         "network_trajectory_full": trajectory,
+        "conductor_noise_robustness": conductor_noise,
         "live_model_pilot": live_pilot,
         "model_roster": roster,
         "route_stability": route_stability,
@@ -224,8 +245,17 @@ def render_markdown(payload: dict[str, Any], *, include_full_json: bool = False)
         f"- observer_delta_final: {summary['network_trajectory']['observer_delta_final']}",
         f"- observer_velocity_multiplier: {summary['network_trajectory']['observer_velocity_multiplier']}x",
         f"- trajectory_gain_over_baseline: {summary['network_trajectory']['trajectory_gain_over_baseline']}",
+        f"- precision_velocity: {summary['network_trajectory']['precision_velocity']}",
         f"- drift_reduction: {summary['network_trajectory']['drift_reduction']}",
         f"- resonance_gain: {summary['network_trajectory']['resonance_gain']}",
+        "",
+        "## Conductor Noise Robustness",
+        "",
+        f"- conductor_noise_decision: {summary['conductor_noise']['decision']}",
+        f"- conductor_noise_pass_rate_at_0_25: {summary['conductor_noise']['pass_rate_at_025']}",
+        f"- conductor_noise_margin_at_0_25: {summary['conductor_noise']['fresh_minus_stale_at_025']}",
+        f"- conductor_noise_moderate_supported: {summary['conductor_noise']['moderate_supported']}",
+        f"- conductor_noise_high_noise_degrades: {summary['conductor_noise']['high_noise_degrades']}",
         "",
         "## Live Model Pilot",
         "",

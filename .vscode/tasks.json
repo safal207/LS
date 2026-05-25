@@ -2,6 +2,23 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "LS: Prepare Contributor Pack",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/prepare_contributor_pack.py",
+        "--output-dir",
+        "reports/contributor_pack"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "LS: Prepare Contributor Report",
       "type": "shell",
       "command": "python",

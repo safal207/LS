@@ -23,6 +23,7 @@ def test_opencode_config_uses_templates_for_contributor_commands() -> None:
     commands = payload["command"]
 
     assert set(commands) == {
+        "ls-contributor-pack",
         "ls-precision-report",
         "ls-probe-roster",
         "ls-probe-precision",
@@ -35,6 +36,8 @@ def test_opencode_config_uses_templates_for_contributor_commands() -> None:
         assert command["template"]
         assert "prompt" not in command
 
+    assert "prepare_contributor_pack.py" in commands["ls-contributor-pack"]["template"]
+    assert "$ARGUMENTS" in commands["ls-contributor-pack"]["template"]
     assert "prepare_network_precision_contributor_report.py" in commands["ls-precision-report"]["template"]
     assert "$ARGUMENTS" in commands["ls-precision-report"]["template"]
     assert "run_conductor_noise_robustness_demo.py" in commands["ls-probe-conductor-noise"]["template"]
