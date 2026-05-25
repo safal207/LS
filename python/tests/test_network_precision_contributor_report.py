@@ -29,8 +29,12 @@ def test_contributor_report_json_contains_summary_and_roster() -> None:
     assert payload["runner"] == "test-runner"
     assert summary["network_precision_gain_over_baseline"] > 0
     assert summary["measured_route_reward_gain"] > 0
+    assert summary["live_model_pilot"]["decision"] == "sample_pipeline_ready"
+    assert summary["live_model_pilot"]["pilot_precision_proxy"] > 0
+    assert summary["live_model_pilot"]["route_event_id"].startswith("e6-")
     assert "codex-self-use" in summary["ready_actors"]
     assert "python scripts/run_network_precision_gain_demo.py --json" in payload["commands"]
+    assert "python scripts/run_live_model_pilot.py --json" in payload["commands"]
 
 
 def test_contributor_report_markdown_is_issue_ready() -> None:
@@ -39,5 +43,7 @@ def test_contributor_report_markdown_is_issue_ready() -> None:
     assert "# LS Network Precision Contributor Report" in result.stdout
     assert "- Runner: test-runner" in result.stdout
     assert "network_precision_gain_over_baseline" in result.stdout
+    assert "## Live Model Pilot" in result.stdout
+    assert "live_model_pilot_decision" in result.stdout
     assert "## Ready Actors" in result.stdout
     assert "not a model leaderboard" in result.stdout

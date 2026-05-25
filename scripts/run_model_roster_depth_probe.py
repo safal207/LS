@@ -26,8 +26,10 @@ for candidate in (str(PYTHON_DIR), str(MODULES_DIR), str(SCRIPTS_DIR)):
 
 from config import (  # noqa: E402
     GONKA_API_KEY,
+    GONKA_BASE_URL,
     GONKA_ENABLED,
     GONKA_MODEL,
+    GONKA_TIMEOUT_SEC,
     GROQ_API_KEY,
     GROQ_MODEL,
     LLM_BACKEND,
@@ -35,8 +37,10 @@ from config import (  # noqa: E402
     LLM_LIGHT_MODEL,
     LLM_MODEL_NAME,
     MIMO_API_KEY,
+    MIMO_BASE_URL,
     MIMO_ENABLED,
     MIMO_MODEL,
+    MIMO_TIMEOUT_SEC,
     OLLAMA_HOST,
     SYSTEM_PROMPT,
     TEMPERATURE,
@@ -268,6 +272,212 @@ def _live_probe(*, question: str, thread_context: str, max_tokens: int) -> dict[
             "text": response.text,
         },
         "quality": quality.to_dict(),
+    }
+
+
+def _call_ollama_actor(
+    *,
+    model_name: str,
+    question: str,
+    system_prompt: str = SYSTEM_PROMPT,
+    max_tokens: int = 180,
+) -> dict[str, Any]:
+    url = f"{str(OLLAMA_HOST).rstrip('/')}/api/generate"
+    body = json.dumps({
+        "model": model_name,
+        "prompt": f"{system_prompt}\n\n{question}" if system_prompt else question,
+        "stream": False,
+        "options": {"num_predict": max_tokens},
+    }).encode("utf-8")
+    try:
+        req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})  # noqa: S310
+        with urllib.request.urlopen(req, timeout=30.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        text = str(data.get("response") or "")
+        ok = bool(text.strip())
+        return {
+            "ok": ok,
+            "provider": "ollama",
+            "model": model_name,
+            "text": text,
+            "latency_ms": 0.0,
+            "error": None if ok else "empty response",
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "provider": "ollama",
+            "model": model_name,
+            "text": "",
+            "latency_ms": 0.0,
+            "error": str(exc),
+        }
+
+
+def _actor_system_prompt(role: str) -> str:
+    role_prompts = {
+        "executor": (
+            "You are an executor. Your job is to verify correctness and catch factual errors. "
+            "Be precise and literal."
+        ),
+        "designer": (
+            "You are a designer. Your job is to find synergy opportunities and improvements "
+            "beyond the literal answer."
+        ),
+        "consumer": (
+            "You are a consumer/customer representative. Your job is to assess whether the "
+            "answer is useful and practical."
+        ),
+        "planner": (
+            "You are a planner. Your job is to break down the task into concrete steps and "
+            "identify what is needed."
+        ),
+        "verifier": "You are a verifier. Your job is to double-check claims and flag unsupported statements.",
+        "risk_critic": "You are a risk critic. Your job is to identify risks, edge cases, and failure modes.",
+        "approver": (
+            "You are an approver. Your job is to decide if the answer is ready after reviewing "
+            "all perspectives."
+        ),
+    }
+    return role_prompts.get(role, SYSTEM_PROMPT)
+
+
+def call_actor(
+    *,
+    actor_id: str,
+    actor: dict[str, Any],
+    question: str,
+    role: str = "",
+    max_tokens: int = 180,
+) -> dict[str, Any]:
+    system_prompt = _actor_system_prompt(role) if role else SYSTEM_PROMPT
+    provider = str(actor.get("provider") or "")
+    model_name = str(actor.get("model_name") or "")
+    if provider == "ollama":
+        result = _call_ollama_actor(
+            model_name=model_name,
+            question=question,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+        )
+    elif provider == "gonka":
+        from llm.backends.gonka_adapter import GonkaLLMAdapter
+
+        backend = GonkaLLMAdapter(
+            model=GONKA_MODEL,
+            base_url=GONKA_BASE_URL,
+            api_key=GONKA_API_KEY,
+            timeout_sec=int(GONKA_TIMEOUT_SEC or 30),
+            enabled=bool(GONKA_ENABLED and GONKA_API_KEY),
+        )
+        response = backend.generate(
+            messages=[{"role": "user", "content": question}],
+            system_prompt=system_prompt,
+            temperature=TEMPERATURE,
+            max_tokens=max_tokens,
+        )
+        result = {
+            "ok": response.ok,
+            "provider": response.provider,
+            "model": response.model,
+            "text": response.text or "",
+            "latency_ms": response.latency_ms,
+            "error": response.error,
+        }
+    elif provider == "mimo":
+        from llm.backends.mimo_adapter import MimoLLMAdapter
+
+        backend = MimoLLMAdapter(
+            model=MIMO_MODEL,
+            base_url=MIMO_BASE_URL,
+            api_key=MIMO_API_KEY,
+            timeout_sec=int(MIMO_TIMEOUT_SEC or 30),
+            enabled=bool(MIMO_ENABLED and MIMO_API_KEY),
+        )
+        response = backend.generate(
+            messages=[{"role": "user", "content": question}],
+            system_prompt=system_prompt,
+            temperature=TEMPERATURE,
+            max_tokens=max_tokens,
+        )
+        result = {
+            "ok": response.ok,
+            "provider": response.provider,
+            "model": response.model,
+            "text": response.text or "",
+            "latency_ms": response.latency_ms,
+            "error": response.error,
+        }
+    else:
+        result = {
+            "ok": False,
+            "provider": provider,
+            "model": model_name,
+            "text": "",
+            "latency_ms": 0.0,
+            "error": f"no live caller for provider={provider}",
+        }
+    result["actor_id"] = actor_id
+    result["role"] = role
+    return result
+
+
+def build_multi_actor_probe_payload(
+    *,
+    question: str = DEFAULT_QUESTION,
+    thread_context: str = DEFAULT_THREAD_CONTEXT,
+    max_tokens: int = 180,
+) -> dict[str, Any]:
+    roster = build_roster()
+    available = [item for item in roster if item["ready_now"]]
+    callable_providers = {"ollama", "gonka", "mimo"}
+    callable_actors = [item for item in available if item.get("provider") in callable_providers]
+    role_order = list(ROLE_ACTOR_ASSIGNMENTS.keys())
+
+    actor_calls: list[dict[str, Any]] = []
+    used_roles: set[str] = set()
+    for actor_item in callable_actors:
+        actor_id = actor_item["actor_id"]
+        role = ""
+        for r in role_order:
+            if r not in used_roles and ROLE_ACTOR_ASSIGNMENTS.get(r, {}).get("actor_id") == actor_id:
+                role = r
+                used_roles.add(r)
+                break
+        actor_def = AVAILABLE_ACTORS.get(actor_id, {})
+        call_result = call_actor(
+            actor_id=actor_id,
+            actor=actor_def,
+            question=question,
+            role=role,
+            max_tokens=max_tokens,
+        )
+        quality = evaluate_llm_answer_quality(
+            question=question,
+            answer=call_result.get("text", ""),
+            thread_context=thread_context,
+        ).to_dict()
+        actor_calls.append(
+            {
+                "actor_id": actor_id,
+                "role": role,
+                "response": call_result,
+                "quality": quality,
+            }
+        )
+
+    return {
+        "demo": "ls_multi_actor_probe",
+        "metric_version": METRIC_VERSION,
+        "question": question,
+        "thread_context": thread_context,
+        "roster": roster,
+        "actor_calls": actor_calls,
+        "summary": {
+            "actors_probed": len(callable_actors),
+            "actors_responded": sum(1 for c in actor_calls if c["response"]["ok"]),
+            "roles_assigned": list(used_roles),
+        },
     }
 
 

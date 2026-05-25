@@ -27,6 +27,7 @@ from run_model_roster_depth_probe import build_probe_payload as build_roster_pay
 from run_nash_route_stability_demo import build_demo_payload as build_nash_payload  # noqa: E402
 from run_network_precision_gain_demo import build_demo_payload as build_network_payload  # noqa: E402
 from run_network_trajectory_demo import build_demo_payload as build_trajectory_payload  # noqa: E402
+from run_live_model_pilot import build_pilot_payload as build_live_pilot_payload  # noqa: E402
 
 
 REPORT_VERSION = "network_precision_contributor_report.v0.1"
@@ -50,9 +51,11 @@ def _commands(*, live_roster: bool, max_tokens: int, trajectory_cycles: int = 6)
         "python scripts/run_model_roster_depth_probe.py --json",
         "python scripts/run_nash_route_stability_demo.py --json",
         f"python scripts/run_network_trajectory_demo.py --cycles {trajectory_cycles} --json",
+        "python scripts/run_live_model_pilot.py --json",
     ]
     if live_roster:
         commands.append(f"python scripts/run_model_roster_depth_probe.py --live --json --max-tokens {max_tokens}")
+        commands.append(f"python scripts/run_live_model_pilot.py --live --json --max-tokens {max_tokens}")
     return commands
 
 
@@ -103,6 +106,7 @@ def build_report_payload(
 
     trajectory = build_trajectory_payload(cycles=trajectory_cycles)
     roster = build_roster_payload(live=live_roster, max_tokens=max_tokens)
+    live_pilot = build_live_pilot_payload(live=live_roster, max_tokens=max_tokens, cycles=trajectory_cycles)
     precision = network["network_precision"]
     temporal_coop = _extract_temporal(network, "cooperative_route")
     temporal_full = _extract_temporal(network, "cooperative_precision_stack")
@@ -136,6 +140,17 @@ def build_report_payload(
             "drift_reduction": trajectory["summary"]["drift_reduction_with_observer"],
             "resonance_gain": trajectory["summary"]["resonance_gain_with_observer"],
         },
+        "live_model_pilot": {
+            "decision": live_pilot["summary"]["decision"],
+            "mode": live_pilot["mode"],
+            "pilot_precision_proxy": live_pilot["summary"]["pilot_precision_proxy"],
+            "route_event_id": live_pilot["route_event"]["event_id"],
+            "route_won_vs_single": live_pilot["summary"]["route_won_vs_single"],
+            "route_best_quality": live_pilot["summary"]["route_best_quality"],
+            "route_memory_key": live_pilot["route_memory"]["route_key"],
+            "route_memory_persisted": live_pilot["route_memory"]["durable_state_written"],
+            "route_memory_health": live_pilot["route_memory"]["health"],
+        },
         "unavailable_actors": roster["interpretation"]["unavailable_now"],
     }
     return {
@@ -147,6 +162,7 @@ def build_report_payload(
         "summary": summary,
         "network_precision": network,
         "network_trajectory_full": trajectory,
+        "live_model_pilot": live_pilot,
         "model_roster": roster,
         "route_stability": route_stability,
         "boundary": (
@@ -210,6 +226,17 @@ def render_markdown(payload: dict[str, Any], *, include_full_json: bool = False)
         f"- trajectory_gain_over_baseline: {summary['network_trajectory']['trajectory_gain_over_baseline']}",
         f"- drift_reduction: {summary['network_trajectory']['drift_reduction']}",
         f"- resonance_gain: {summary['network_trajectory']['resonance_gain']}",
+        "",
+        "## Live Model Pilot",
+        "",
+        f"- live_model_pilot_decision: {summary['live_model_pilot']['decision']}",
+        f"- live_model_pilot_mode: {summary['live_model_pilot']['mode']}",
+        f"- live_model_pilot_score: {summary['live_model_pilot']['pilot_precision_proxy']}",
+        f"- live_model_pilot_event: {summary['live_model_pilot']['route_event_id']}",
+        f"- route_won_vs_single: {summary['live_model_pilot']['route_won_vs_single']}",
+        f"- route_memory_key: {summary['live_model_pilot']['route_memory_key'] or 'none'}",
+        f"- route_memory_persisted: {summary['live_model_pilot']['route_memory_persisted']}",
+        f"- route_memory_health: {summary['live_model_pilot']['route_memory_health'] or 'none'}",
         "",
         "## Ready Actors",
         "",

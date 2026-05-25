@@ -27,6 +27,7 @@ def test_mcp_network_precision_tools_are_registered(tmp_path: Path) -> None:
     assert "ls_run_network_precision_probe" in names
     assert "ls_run_model_roster_probe" in names
     assert "ls_run_network_trajectory_probe" in names
+    assert "ls_run_live_model_pilot" in names
     assert "ls_prepare_contributor_report" in names
 
 
@@ -37,6 +38,7 @@ def test_mcp_server_lists_network_precision_tools(tmp_path: Path) -> None:
     assert "ls_run_network_precision_probe" in tools
     assert "ls_run_model_roster_probe" in tools
     assert "ls_run_network_trajectory_probe" in tools
+    assert "ls_run_live_model_pilot" in tools
     assert "ls_prepare_contributor_report" in tools
 
 
@@ -111,3 +113,17 @@ def test_mcp_network_trajectory_probe_subprocess() -> None:
     assert result["co_learning"]["total_causal_events"] > 0
     assert result["co_learning"]["network_maturity"] in ("early", "developing", "converging", "harmony")
     assert len(result["trajectory"][-1]["reasons"]) > 0
+
+
+def test_mcp_live_model_pilot_subprocess() -> None:
+    result = _mcp_call("ls_run_live_model_pilot", {})
+
+    assert result["tool"] == "ls_run_live_model_pilot"
+    assert result["metric_version"] == "live_model_pilot.v0.2"
+    assert result["mode"] == "sample"
+    assert result["summary"]["decision"] == "sample_pipeline_ready"
+    assert result["route_event"]["durable_state_written"] is False
+    assert result["route_memory"]["version"] == "route_memory.v0"
+    assert result["route_memory"]["durable_state_written"] is False
+    assert result["multi_actor_route"] is None
+    assert result["network_context"]["trajectory_metric_version"] == "network_trajectory.v0.2"

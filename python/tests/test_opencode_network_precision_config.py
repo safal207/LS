@@ -27,6 +27,8 @@ def test_opencode_config_uses_templates_for_contributor_commands() -> None:
         "ls-probe-roster",
         "ls-probe-precision",
         "ls-probe-trajectory",
+        "ls-probe-conductor-noise",
+        "ls-live-pilot",
     }
     for command in commands.values():
         assert command["description"]
@@ -35,3 +37,6 @@ def test_opencode_config_uses_templates_for_contributor_commands() -> None:
 
     assert "prepare_network_precision_contributor_report.py" in commands["ls-precision-report"]["template"]
     assert "$ARGUMENTS" in commands["ls-precision-report"]["template"]
+    assert "run_conductor_noise_robustness_demo.py" in commands["ls-probe-conductor-noise"]["template"]
+    assert "run_live_model_pilot.py" in commands["ls-live-pilot"]["template"]
+    assert "--live" in commands["ls-live-pilot"]["template"]

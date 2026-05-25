@@ -17,7 +17,8 @@ const staticMetrics = [
   { key: 'cooperative', en: 'Cooperative route', ru: 'Кооперативный маршрут', value: '0.7436' },
   { key: 'fullStack', en: 'Full evidence stack', ru: 'Полный стек доказательств', value: '0.8764' },
   { key: 'gain', en: 'Network precision gain', ru: 'Прирост точности сети', value: '+0.7341' },
-  { key: 'ratio', en: 'Score ratio vs baseline', ru: 'Отношение к baseline', value: '6.16x' }
+  { key: 'ratio', en: 'Score ratio vs baseline', ru: 'Отношение к baseline', value: '6.16x' },
+
 ] as const;
 
 const copy = {
@@ -29,7 +30,7 @@ const copy = {
     staticTitle: 'Static precision (old approach)',
     staticBody: 'One cooperative pass over a single task already improves precision 6.16x over a lone answer.',
     temporalTitle: 'Temporal precision (new approach)',
-    temporalBody: 'Repeated cycles with an observer accelerate precision 3x. Conductor v0.2 applies reason, magnitude, and freshness deltas, pushing the network to 99.25% of its theoretical maximum.',
+    temporalBody: 'Repeated cycles with an observer accelerate precision 3x. Conductor v0.2 applies reason, magnitude, and freshness deltas, pushing the network to 99.25% of its theoretical maximum. Route Memory v0 persists successful multi-actor paths and recalls them on repeat tasks.',
     withoutObserver: 'without observer',
     withObserver: 'with observer',
     withConductor: '+ conductor',
@@ -39,13 +40,15 @@ const copy = {
     resonance: 'resonance',
     insightTitle: 'What the probe showed',
     insight:
-      'Old approach: one cooperative pass gives +0.7341 gain (6.16x). New approach: repeated cycles + observer + conductor v0.2 give +0.1262 over the route start and +0.0067 over observer-only, reaching 99.25% of the theoretical maximum. The conductor uses causal reasons, reason strength, and freshness instead of trial and error.',
+      'Old approach: one cooperative pass gives +0.7341 gain (6.16x). New approach: repeated cycles + observer + conductor v0.2 give +0.1262 over the route start and +0.0067 over observer-only, reaching 99.25% of the theoretical maximum. The conductor uses causal reasons, reason strength, and freshness instead of trial and error. Successful routes are now persisted in Route Memory v0 — the same task recalls the best path without re-probing all actors.',
     command: 'python scripts/run_network_trajectory_demo.py',
     metrics: [
       { label: 'conductor delta', value: '+0.1262', icon: Music },
       { label: 'velocity multiplier', value: '3.15x', icon: Gauge },
       { label: 'drift reduction', value: '+0.3600', icon: Activity },
-      { label: 'resonance gain', value: '+0.4950', icon: Waves }
+      { label: 'resonance gain', value: '+0.4950', icon: Waves },
+      { label: 'route memory', value: 'v0', icon: Archive },
+      { label: 'live pilot', value: 'v0.2', icon: Timer }
     ],
     footer:
       'This is still not model training. LS improves the map around the models: which route to repeat, when it drifts, and where a human should inspect the next step.'
@@ -58,7 +61,7 @@ const copy = {
     staticTitle: 'Статическая точность (старый подход)',
     staticBody: 'Один кооперативный проход по одной задаче уже даёт прирост точности в 6.16x против одиночного ответа.',
     temporalTitle: 'Временна́я точность (новый подход)',
-    temporalBody: 'Повторные циклы с наблюдателем ускоряют рост точности в 3x. Дирижёр v0.2 учитывает причину, силу сигнала и свежесть — сеть выходит на 99.25% от теоретического максимума.',
+    temporalBody: 'Повторные циклы с наблюдателем ускоряют рост точности в 3x. Дирижёр v0.2 учитывает причину, силу сигнала и свежесть — сеть выходит на 99.25% от теоретического максимума. Route Memory v0 сохраняет успешные многo-акторные маршруты и восстанавливает их при повторных задачах.',
     withoutObserver: 'без наблюдателя',
     withObserver: 'с наблюдателем',
     withConductor: '+ дирижёр',
@@ -68,13 +71,15 @@ const copy = {
     resonance: 'резонанс',
     insightTitle: 'Что показал probe',
     insight:
-      'Старый подход: один кооперативный проход даёт +0.7341 (6.16x). Новый подход: повторные циклы + наблюдатель + дирижёр v0.2 дают +0.1262 от старта маршрута и +0.0067 сверх observer-only, достигая 99.25% от теоретического максимума. Дирижёр использует причины, силу причины и свежесть, а не метод проб и ошибок.',
+      'Старый подход: один кооперативный проход даёт +0.7341 (6.16x). Новый подход: повторные циклы + наблюдатель + дирижёр v0.2 дают +0.1262 от старта маршрута и +0.0067 сверх observer-only, достигая 99.25% от теоретического максимума. Дирижёр использует причины, силу причины и свежесть, а не метод проб и ошибок. Успешные маршруты сохраняются в Route Memory v0 — при повторной задаче сеть вспоминает лучший путь без повторного опроса всех акторов.',
     command: 'python scripts/run_network_trajectory_demo.py',
     metrics: [
       { label: 'вклад дирижёра', value: '+0.1262', icon: Music },
       { label: 'скорость роста', value: '3.15x', icon: Gauge },
       { label: 'снижение дрейфа', value: '+0.3600', icon: Activity },
-      { label: 'рост резонанса', value: '+0.4950', icon: Waves }
+      { label: 'рост резонанса', value: '+0.4950', icon: Waves },
+      { label: 'память маршрутов', value: 'v0', icon: Archive },
+      { label: 'живой пилот', value: 'v0.2', icon: Timer }
     ],
     footer:
       'Это не обучение весов модели. LS улучшает карту вокруг моделей: какой маршрут повторять, где он начал плыть и где человеку стоит проверить следующий шаг.'

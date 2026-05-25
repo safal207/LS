@@ -33,6 +33,7 @@ The repository includes `opencode.json` with:
 - `/ls-probe-precision`: shows the network precision gain metrics
 - `/ls-probe-trajectory 6`: shows precision velocity across repeated cycles
 - `/ls-probe-conductor-noise`: tests whether conductor ordering survives noisy reasons
+- `/ls-live-pilot`: captures a sample route event, or a live one when requested
 
 Recommended first command inside OpenCode:
 
@@ -55,6 +56,7 @@ contributor issue.
 | `LS: Route Stability Probe` | Runs the Nash-style route-stability proxy. | terminal JSON |
 | `LS: Network Trajectory Probe` | Runs the precision velocity over N cycles. | terminal JSON |
 | `LS: Conductor Noise Robustness Probe` | Runs the multi-seed noisy-reason robustness check. | terminal JSON |
+| `LS: Live Model Pilot` | Captures a sample route event with roster and conductor context. | terminal JSON |
 
 `LS: Live Model Roster Probe` is opt-in because it may call configured local or
 hosted model backends.
@@ -96,6 +98,13 @@ Conductor noise robustness probe:
 python scripts/run_conductor_noise_robustness_demo.py --cycles 6 --seeds 12 --json
 ```
 
+Live model pilot:
+
+```bash
+python scripts/run_live_model_pilot.py --json
+python scripts/run_live_model_pilot.py --live --json --max-tokens 180
+```
+
 To include the full JSON inside the Markdown report:
 
 ```bash
@@ -115,6 +124,7 @@ network precision probes as tools instead of running CLI commands:
 | `ls_run_model_roster_probe` | Probe which LS actors are ready or unavailable. Pass `{"live": true}` to call the configured model route. |
 | `ls_prepare_contributor_report` | Run all probes and compile a full contributor report payload. Pass `{"runner": "your-handle"}` to identify the run. |
 | `ls_run_network_trajectory_probe` | Run the precision velocity over repeated cycles. Pass `{"cycles": 6}`. |
+| `ls_run_live_model_pilot` | Capture a sample or live route event. Pass `{"live": true}` only when model calls are intended. |
 
 ### Connect from an MCP client
 

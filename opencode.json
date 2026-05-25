@@ -30,12 +30,17 @@
     "ls-probe-conductor-noise": {
       "description": "Run the LS conductor noise robustness probe",
       "template": "Run python scripts/run_conductor_noise_robustness_demo.py --cycles 6 --seeds 12 --json and display the decision plus each aggregate noise_level, pass_rate, avg_fresh_minus_stale, avg_fresh_gain, avg_stale_gain, and avg_inverted_penalty."
+    },
+    "ls-live-pilot": {
+      "description": "Run the LS E6 live model pilot in safe sample mode",
+      "template": "Run python scripts/run_live_model_pilot.py --json and display the decision, pilot_precision_proxy, actor, ready actors, route event id, and next_step. Do not pass --live unless the user explicitly asks to call a configured model route."
     }
   },
   "instructions": [
     "docs/IDE_TESTING_ENTRYPOINTS.md",
     "docs/NETWORK_PRECISION_CONTRIBUTOR_CALL.md",
     "docs/NETWORK_TRAJECTORY_LAYER.md",
-    "docs/CONDUCTOR_NOISE_ROBUSTNESS.md"
+    "docs/CONDUCTOR_NOISE_ROBUSTNESS.md",
+    "docs/LIVE_MODEL_PILOT.md"
   ]
 }
