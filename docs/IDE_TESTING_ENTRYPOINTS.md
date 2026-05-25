@@ -31,6 +31,8 @@ The repository includes `opencode.json` with:
 - `/ls-precision-report <runner>`: prepares a contributor report for GitHub
 - `/ls-probe-roster`: shows ready and unavailable LS actors
 - `/ls-probe-precision`: shows the network precision gain metrics
+- `/ls-probe-trajectory 6`: shows precision velocity across repeated cycles
+- `/ls-probe-conductor-noise`: tests whether conductor ordering survives noisy reasons
 
 Recommended first command inside OpenCode:
 
@@ -52,6 +54,7 @@ contributor issue.
 | `LS: Live Model Roster Probe` | Calls the configured live model route. | terminal JSON |
 | `LS: Route Stability Probe` | Runs the Nash-style route-stability proxy. | terminal JSON |
 | `LS: Network Trajectory Probe` | Runs the precision velocity over N cycles. | terminal JSON |
+| `LS: Conductor Noise Robustness Probe` | Runs the multi-seed noisy-reason robustness check. | terminal JSON |
 
 `LS: Live Model Roster Probe` is opt-in because it may call configured local or
 hosted model backends.
@@ -85,6 +88,12 @@ Network trajectory probe:
 
 ```bash
 python scripts/run_network_trajectory_demo.py --cycles 6 --json
+```
+
+Conductor noise robustness probe:
+
+```bash
+python scripts/run_conductor_noise_robustness_demo.py --cycles 6 --seeds 12 --json
 ```
 
 To include the full JSON inside the Markdown report:

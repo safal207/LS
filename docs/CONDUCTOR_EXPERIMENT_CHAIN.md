@@ -94,6 +94,18 @@ Goal: add controlled perturbations to reason extraction and component values.
 Pass condition: conductor advantage survives small noise, but weakens when
 causal signals are heavily corrupted.
 
+Runnable probe:
+
+```bash
+python scripts/run_conductor_noise_robustness_demo.py --cycles 6 --seeds 12
+```
+
+Reference doc:
+
+```text
+docs/CONDUCTOR_NOISE_ROBUSTNESS.md
+```
+
 ### E6. Live Model Pilot
 
 Goal: run the same route protocol with real model outputs from the models
