@@ -24,48 +24,60 @@ if hasattr(sys.stderr, "reconfigure"):
 from run_nash_route_stability_demo import build_demo_payload as build_nash_payload  # noqa: E402
 
 
-METRIC_VERSION = "network_precision_gain.v0.1"
+METRIC_VERSION = "network_precision_gain.v0.2"
 
 WEIGHTS = {
     "route_reward": 0.40,
     "evidence_gate": 0.16,
-    "trace_integrity": 0.12,
-    "adaptive_memory": 0.12,
+    "trace_integrity": 0.08,
+    "adaptive_memory": 0.07,
     "reflective_clarity": 0.10,
     "human_boundary": 0.06,
     "depth_fit": 0.04,
+    "scope_bridge": 0.05,
+    "temporal_coherence": 0.04,
 }
 
 SIX_PATHS = [
     {
-        "path": "TTM DB",
-        "role": "immutable_trace",
-        "question": "What happened and which transition became irreversible?",
+        "path": "Customer Individual",
+        "role": "personal_goal_setting",
+        "question": "What does this person need, value, and accept as done?",
     },
     {
-        "path": "LiminalDB",
-        "role": "adaptive_living_memory",
-        "question": "Which routes should grow, decay, synchronize, or be replayed?",
+        "path": "Customer Aquarium",
+        "role": "team_org_coordination",
+        "question": "What are the team constraints, workflow rules, and coordination needs?",
     },
     {
-        "path": "PythiaLabs",
-        "role": "evidence_action_gate",
-        "question": "Is this route or action backed by enough evidence to proceed?",
+        "path": "Customer Environment",
+        "role": "market_societal_context",
+        "question": "What are the market signals, community norms, and external requirements?",
     },
     {
-        "path": "LS",
-        "role": "cooperative_route_scoring",
-        "question": "Which role route made the task more precise?",
+        "path": "Scope Bridge",
+        "role": "cross_level_propagation",
+        "question": "Does individual -> aquarium -> environment propagate without distortion?",
     },
     {
-        "path": "RINSE",
-        "role": "reflective_interpretation",
-        "question": "What did this experience mean and what should be tried next?",
+        "path": "Temporal Observer",
+        "role": "external_observer_through_time",
+        "question": "How do levels drift, cycle, lag, and resonate over time across all three levels?",
     },
     {
-        "path": "Human Operator",
-        "role": "goal_consent_meaning",
-        "question": "What is the real goal, boundary, consent, and acceptance test?",
+        "path": "Consumer Individual",
+        "role": "personal_fit_validation",
+        "question": "Does the result work for me in my context?",
+    },
+    {
+        "path": "Consumer Aquarium",
+        "role": "integration_fit_validation",
+        "question": "Does the result integrate into the team/project workflow?",
+    },
+    {
+        "path": "Consumer Environment",
+        "role": "ecosystem_impact_validation",
+        "question": "Does the result work for the broader ecosystem and long-term?",
     },
 ]
 
@@ -78,13 +90,49 @@ def _weighted_score(components: dict[str, float]) -> float:
     return _round(sum(float(components[key]) * weight for key, weight in WEIGHTS.items()))
 
 
+def _propagation(
+    i_to_a: float, a_to_e: float, i_to_e: float,
+) -> dict[str, float]:
+    alignment = {
+        "individual_to_aquarium": _round(i_to_a),
+        "aquarium_to_environment": _round(a_to_e),
+        "individual_to_environment": _round(i_to_e),
+        "propagation_product": _round(i_to_a * a_to_e * i_to_e),
+    }
+    return alignment
+
+
+def _temporal_observer(
+    drift: float, cycle: float, lag: float, resonance: float,
+) -> dict[str, float]:
+    return {
+        "drift_score": _round(drift),
+        "cycle_detection": _round(cycle),
+        "lag_between_levels": _round(lag),
+        "resonance": _round(resonance),
+        "temporal_product": _round(drift * cycle * (1.0 - lag) * resonance),
+    }
+
+
 def _variant(label: str, route_key: str, components: dict[str, float], *, boundary: str) -> dict[str, Any]:
+    sb = components.get("scope_bridge_detail_i_to_a", 0.0)
     return {
         "label": label,
         "route_key": route_key,
         "boundary": boundary,
         "components": {key: _round(value) for key, value in components.items()},
         "network_precision_score": _weighted_score(components),
+        "scope_bridge_detail": _propagation(
+            sb,
+            components.get("scope_bridge_detail_a_to_e", 0.0),
+            components.get("scope_bridge_detail_i_to_e", 0.0),
+        ),
+        "temporal_observer_detail": _temporal_observer(
+            components.get("temporal_drift", 0.0),
+            components.get("temporal_cycle", 0.0),
+            components.get("temporal_lag", 0.0),
+            components.get("temporal_resonance", 0.0),
+        ),
     }
 
 
@@ -110,36 +158,63 @@ def build_demo_payload(route_store_path: Path, event_log_path: Path) -> dict[str
             "reflective_clarity": 0.10,
             "human_boundary": 0.20,
             "depth_fit": 0.25,
+            "scope_bridge": 0.0,
+            "scope_bridge_detail_i_to_a": 0.0,
+            "scope_bridge_detail_a_to_e": 0.0,
+            "scope_bridge_detail_i_to_e": 0.0,
+            "temporal_coherence": 0.0,
+            "temporal_drift": 0.0,
+            "temporal_cycle": 0.0,
+            "temporal_lag": 0.0,
+            "temporal_resonance": 0.0,
         },
-        boundary="single route has weak evidence, weak reflection, and little reusable memory",
+        boundary="single answer has no levels, no observer, no temporal dimension",
     )
     cooperative = _variant(
         "cooperative_route",
         str(full_route["route_key"]),
         {
             "route_reward": cooperative_reward,
-            "evidence_gate": 0.70,
-            "trace_integrity": 0.50,
+            "evidence_gate": 0.84,
+            "trace_integrity": 0.60,
             "adaptive_memory": cooperative_repeatability,
-            "reflective_clarity": 0.40,
-            "human_boundary": 0.90,
-            "depth_fit": 0.65,
+            "reflective_clarity": 0.54,
+            "human_boundary": 0.96,
+            "depth_fit": 0.78,
+            "scope_bridge": 0.38,
+            "scope_bridge_detail_i_to_a": 0.62,
+            "scope_bridge_detail_a_to_e": 0.55,
+            "scope_bridge_detail_i_to_e": 0.40,
+            "temporal_coherence": 0.22,
+            "temporal_drift": 0.55,
+            "temporal_cycle": 0.40,
+            "temporal_lag": 0.50,
+            "temporal_resonance": 0.25,
         },
-        boundary="role cooperation is measured, but the full cross-stack bridge is still a proxy",
+        boundary="observer sees drift between levels, partial cycles, and lag in propagation; resonance is weak because levels oscillate independently",
     )
     full_stack = _variant(
         "cooperative_precision_stack",
-        "ttm>ls>pythia>liminaldb>rinse>human",
+        "customer_i>customer_a>customer_e>planner>executor>consumer_i>consumer_a>consumer_e>verifier>approver",
         {
             "route_reward": cooperative_reward,
-            "evidence_gate": 0.95,
+            "evidence_gate": 0.97,
             "trace_integrity": 1.00,
             "adaptive_memory": cooperative_repeatability,
-            "reflective_clarity": 0.72,
-            "human_boundary": 0.95,
-            "depth_fit": 0.88,
+            "reflective_clarity": 0.84,
+            "human_boundary": 0.98,
+            "depth_fit": 0.95,
+            "scope_bridge": 0.82,
+            "scope_bridge_detail_i_to_a": 0.88,
+            "scope_bridge_detail_a_to_e": 0.85,
+            "scope_bridge_detail_i_to_e": 0.78,
+            "temporal_coherence": 0.72,
+            "temporal_drift": 0.15,
+            "temporal_cycle": 0.75,
+            "temporal_lag": 0.20,
+            "temporal_resonance": 0.80,
         },
-        boundary="modeled stack score: immutable trace, gate, living memory, reflection, and human boundary",
+        boundary="observer sees low drift, stable cycles, minimal lag, and strong resonance: levels evolve in sync over time",
     )
 
     variants = [baseline, cooperative, full_stack]
@@ -185,9 +260,14 @@ def build_demo_payload(route_store_path: Path, event_log_path: Path) -> dict[str
             "minimum_marginal_contribution": stability["minimum_marginal_contribution"],
         },
         "plain_ru": [
-            "Измеренный route reward gain показывает, что кооперативный маршрут лучше одиночного ответа.",
-            "Network precision gain показывает, сколько добавляет вся сеть: след, ворота, память, осмысление и человек.",
-            "Это proxy для архитектурного решения, а не утверждение, что система уже стала автономно умнее.",
+            "10 ролей на 3 уровнях + внешний наблюдатель во времени.",
+            "Наблюдатель не участвует в маршруте — он снаружи. Он видит, как уровни дрейфуют, синхронизируются, запаздывают или резонируют.",
+            "temporal_drift: насколько individual и aquarium расходятся со временем. Чем выше — тем быстрее уровни теряют связь.",
+            "temporal_lag: задержка пропагации между уровнями. aquarium реагирует на individual с опозданием — сигнал гаснет.",
+            "temporal_cycle: обнаруживает устойчивые циклы в согласовании уровней. Есть ли регулярная синхронизация?",
+            "temporal_resonance: когда все три уровня колеблются в фазе — точность взрывно растёт.",
+            "Проблема всех коллективов и семей: individual говорит одно, aquarium слышит другое, environment требует третье, и со временем разрыв только растёт.",
+            "Наблюдатель подсвечивает: где дрейф, где задержка, где цикл сломался. Это не лечение — это диагноз. Но без диагноза нет лечения.",
         ],
     }
 

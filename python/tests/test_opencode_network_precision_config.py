@@ -26,6 +26,7 @@ def test_opencode_config_uses_templates_for_contributor_commands() -> None:
         "ls-precision-report",
         "ls-probe-roster",
         "ls-probe-precision",
+        "ls-probe-trajectory",
     }
     for command in commands.values():
         assert command["description"]

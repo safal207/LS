@@ -22,10 +22,15 @@
     "ls-probe-precision": {
       "description": "Run the LS network precision gain probe and show results",
       "template": "Run python scripts/run_network_precision_gain_demo.py --json and display the precision scores: measured_route_reward_gain, network_precision_gain_over_baseline, stack_added_gain_over_cooperation, and score_ratio_vs_baseline."
+    },
+    "ls-probe-trajectory": {
+      "description": "Run the LS network trajectory probe and show velocity and observer delta",
+      "template": "Run python scripts/run_network_trajectory_demo.py --cycles $ARGUMENTS --json and display the summary: observer_delta_final, observer_velocity_multiplier, trajectory_gain_over_baseline, drift_reduction, and resonance_gain. If $ARGUMENTS is empty, use 6 cycles."
     }
   },
   "instructions": [
     "docs/IDE_TESTING_ENTRYPOINTS.md",
-    "docs/NETWORK_PRECISION_CONTRIBUTOR_CALL.md"
+    "docs/NETWORK_PRECISION_CONTRIBUTOR_CALL.md",
+    "docs/NETWORK_TRAJECTORY_LAYER.md"
   ]
 }

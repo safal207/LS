@@ -26,7 +26,7 @@ def test_network_precision_gain_orders_baseline_cooperation_and_stack() -> None:
     variants = {item["label"]: item for item in payload["variants"]}
     precision = payload["network_precision"]
 
-    assert payload["metric_version"] == "network_precision_gain.v0.1"
+    assert payload["metric_version"] == "network_precision_gain.v0.2"
     assert payload["demo"] == "ls_network_precision_gain"
     assert payload["measured_route_reward_gain"] > 0
     assert variants["cooperative_route"]["network_precision_score"] > variants[
@@ -45,12 +45,14 @@ def test_network_precision_gain_includes_six_path_stack_roles() -> None:
     roles = {item["role"] for item in payload["six_paths"]}
 
     assert roles == {
-        "immutable_trace",
-        "adaptive_living_memory",
-        "evidence_action_gate",
-        "cooperative_route_scoring",
-        "reflective_interpretation",
-        "goal_consent_meaning",
+        "personal_goal_setting",
+        "team_org_coordination",
+        "market_societal_context",
+        "cross_level_propagation",
+        "external_observer_through_time",
+        "personal_fit_validation",
+        "integration_fit_validation",
+        "ecosystem_impact_validation",
     }
     assert set(payload["weights"]) == {
         "route_reward",
@@ -60,4 +62,6 @@ def test_network_precision_gain_includes_six_path_stack_roles() -> None:
         "reflective_clarity",
         "human_boundary",
         "depth_fit",
+        "scope_bridge",
+        "temporal_coherence",
     }

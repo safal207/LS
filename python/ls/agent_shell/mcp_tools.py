@@ -73,6 +73,7 @@ class MCPToolRegistry:
             # Network Precision Probe MCP v0.1
             "ls_run_network_precision_probe": self._run_network_precision_probe,
             "ls_run_model_roster_probe": self._run_model_roster_probe,
+            "ls_run_network_trajectory_probe": self._run_network_trajectory_probe,
             "ls_prepare_contributor_report": self._prepare_contributor_report,
         }
 
@@ -310,6 +311,14 @@ class MCPToolRegistry:
             tmp_path = Path(tmp)
             nash = _build_nash(tmp_path / "routes.json", tmp_path / "events.jsonl")
             network = _build_network(tmp_path / "routes.json", tmp_path / "events.jsonl")
+        temporal_details = {}
+        scope_details = {}
+        for v in network.get("variants", []):
+            label = v.get("label", "unknown")
+            if v.get("temporal_observer_detail"):
+                temporal_details[label] = v["temporal_observer_detail"]
+            if v.get("scope_bridge_detail"):
+                scope_details[label] = v["scope_bridge_detail"]
         return {
             "tool": "ls_run_network_precision_probe",
             "metric_version": network["metric_version"],
@@ -317,6 +326,8 @@ class MCPToolRegistry:
             "network_precision": network["network_precision"],
             "route_stability": network["route_stability"],
             "variants": network["variants"],
+            "temporal_observer_detail": temporal_details,
+            "scope_bridge_detail": scope_details,
             "interpretation_boundary": network["interpretation_boundary"],
             "source": {
                 "nash_metric_version": nash.get("metric_version"),
@@ -359,6 +370,27 @@ class MCPToolRegistry:
             "summary": payload["summary"],
             "boundary": payload["boundary"],
             "_full": payload,
+        }
+
+    def _run_network_trajectory_probe(self, args: dict[str, Any]) -> dict[str, Any]:
+        _ensure_scripts_path()
+        from run_network_trajectory_demo import build_demo_payload as _build_trajectory  # noqa: E402
+
+        cycles = int(args.get("cycles", 6))
+        payload = _build_trajectory(cycles=cycles)
+        summary = payload["summary"]
+        return {
+            "tool": "ls_run_network_trajectory_probe",
+            "metric_version": payload["metric_version"],
+            "source_metric_version": payload["source_metric_version"],
+            "cycles": payload["cycles"],
+            "conductor_policy": payload["conductor_policy"],
+            "route_under_test": payload["route_under_test"],
+            "baseline_score": payload["baseline_score"],
+            "summary": summary,
+            "interpretation_boundary": payload["interpretation_boundary"],
+            "trajectory": payload["trajectory"],
+            "co_learning": payload.get("co_learning"),
         }
 
 
