@@ -26,6 +26,7 @@ if hasattr(sys.stderr, "reconfigure"):
 from run_model_roster_depth_probe import build_probe_payload as build_roster_payload  # noqa: E402
 from run_nash_route_stability_demo import build_demo_payload as build_nash_payload  # noqa: E402
 from run_network_precision_gain_demo import build_demo_payload as build_network_payload  # noqa: E402
+from run_network_trajectory_demo import build_demo_payload as build_trajectory_payload  # noqa: E402
 
 
 REPORT_VERSION = "network_precision_contributor_report.v0.1"
@@ -43,15 +44,43 @@ def _platform_payload() -> dict[str, Any]:
     }
 
 
-def _commands(*, live_roster: bool, max_tokens: int) -> list[str]:
+def _commands(*, live_roster: bool, max_tokens: int, trajectory_cycles: int = 6) -> list[str]:
     commands = [
         "python scripts/run_network_precision_gain_demo.py --json",
         "python scripts/run_model_roster_depth_probe.py --json",
         "python scripts/run_nash_route_stability_demo.py --json",
+        f"python scripts/run_network_trajectory_demo.py --cycles {trajectory_cycles} --json",
     ]
     if live_roster:
         commands.append(f"python scripts/run_model_roster_depth_probe.py --live --json --max-tokens {max_tokens}")
     return commands
+
+
+def _extract_temporal(network: dict, variant_label: str) -> dict:
+    for v in network.get("variants", []):
+        if v.get("label") == variant_label:
+            detail = v.get("temporal_observer_detail", {})
+            return {
+                "temporal_product": detail.get("temporal_product", 0.0),
+                "drift": detail.get("drift_score", 0.0),
+                "cycle": detail.get("cycle_detection", 0.0),
+                "lag": detail.get("lag_between_levels", 0.0),
+                "resonance": detail.get("resonance", 0.0),
+            }
+    return {}
+
+
+def _extract_scope(network: dict, variant_label: str) -> dict:
+    for v in network.get("variants", []):
+        if v.get("label") == variant_label:
+            detail = v.get("scope_bridge_detail", {})
+            return {
+                "propagation_product": detail.get("propagation_product", 0.0),
+                "individual_to_aquarium": detail.get("individual_to_aquarium", 0.0),
+                "aquarium_to_environment": detail.get("aquarium_to_environment", 0.0),
+                "individual_to_environment": detail.get("individual_to_environment", 0.0),
+            }
+    return {}
 
 
 def build_report_payload(
@@ -59,6 +88,7 @@ def build_report_payload(
     runner: str = "",
     live_roster: bool = False,
     max_tokens: int = 180,
+    trajectory_cycles: int = 6,
 ) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="ls-contributor-report-") as tmp:
         tmp_path = Path(tmp)
@@ -71,8 +101,13 @@ def build_report_payload(
             tmp_path / "route_stability_events.jsonl",
         )
 
+    trajectory = build_trajectory_payload(cycles=trajectory_cycles)
     roster = build_roster_payload(live=live_roster, max_tokens=max_tokens)
     precision = network["network_precision"]
+    temporal_coop = _extract_temporal(network, "cooperative_route")
+    temporal_full = _extract_temporal(network, "cooperative_precision_stack")
+    scope_coop = _extract_scope(network, "cooperative_route")
+    scope_full = _extract_scope(network, "cooperative_precision_stack")
     summary = {
         "single_baseline_score": precision["baseline_score"],
         "cooperative_route_score": precision["cooperative_score"],
@@ -81,9 +116,26 @@ def build_report_payload(
         "network_precision_gain_over_baseline": precision["network_precision_gain_over_baseline"],
         "stack_added_gain_over_cooperation": precision["stack_added_gain_over_cooperation"],
         "score_ratio_vs_baseline": precision["score_ratio_vs_baseline"],
+        "scope_bridge_propagation": {
+            "cooperative": scope_coop,
+            "full_stack": scope_full,
+        },
+        "temporal_coherence": {
+            "cooperative": temporal_coop,
+            "full_stack": temporal_full,
+        },
         "network_decision": precision["decision"],
         "route_stability_decision": route_stability["stability"]["decision"],
         "ready_actors": roster["interpretation"]["available_now"],
+        "network_trajectory": {
+            "decision": trajectory["summary"]["decision"],
+            "cycles": trajectory["summary"]["no_observer_end"],
+            "observer_delta_final": trajectory["summary"]["observer_delta_final"],
+            "observer_velocity_multiplier": trajectory["summary"]["observer_velocity_multiplier"],
+            "trajectory_gain_over_baseline": trajectory["summary"]["trajectory_gain_over_baseline"],
+            "drift_reduction": trajectory["summary"]["drift_reduction_with_observer"],
+            "resonance_gain": trajectory["summary"]["resonance_gain_with_observer"],
+        },
         "unavailable_actors": roster["interpretation"]["unavailable_now"],
     }
     return {
@@ -94,6 +146,7 @@ def build_report_payload(
         "commands": _commands(live_roster=live_roster, max_tokens=max_tokens),
         "summary": summary,
         "network_precision": network,
+        "network_trajectory_full": trajectory,
         "model_roster": roster,
         "route_stability": route_stability,
         "boundary": (
@@ -142,8 +195,21 @@ def render_markdown(payload: dict[str, Any], *, include_full_json: bool = False)
         f"- network_precision_gain_over_baseline: {summary['network_precision_gain_over_baseline']}",
         f"- stack_added_gain_over_cooperation: {summary['stack_added_gain_over_cooperation']}",
         f"- score_ratio_vs_baseline: {summary['score_ratio_vs_baseline']}",
+        f"- scope_bridge_propagation (cooperative): {summary['scope_bridge_propagation']['cooperative']['propagation_product']}",
+        f"- scope_bridge_propagation (full_stack): {summary['scope_bridge_propagation']['full_stack']['propagation_product']}",
+        f"- temporal_coherence (cooperative): {summary['temporal_coherence']['cooperative']['temporal_product']} (drift={summary['temporal_coherence']['cooperative']['drift']}, cycle={summary['temporal_coherence']['cooperative']['cycle']}, lag={summary['temporal_coherence']['cooperative']['lag']}, resonance={summary['temporal_coherence']['cooperative']['resonance']})",
+        f"- temporal_coherence (full_stack): {summary['temporal_coherence']['full_stack']['temporal_product']} (drift={summary['temporal_coherence']['full_stack']['drift']}, cycle={summary['temporal_coherence']['full_stack']['cycle']}, lag={summary['temporal_coherence']['full_stack']['lag']}, resonance={summary['temporal_coherence']['full_stack']['resonance']})",
         f"- network_decision: {summary['network_decision']}",
         f"- route_stability_decision: {summary['route_stability_decision']}",
+        "",
+        "## Network Trajectory",
+        "",
+        f"- trajectory_decision: {summary['network_trajectory']['decision']}",
+        f"- observer_delta_final: {summary['network_trajectory']['observer_delta_final']}",
+        f"- observer_velocity_multiplier: {summary['network_trajectory']['observer_velocity_multiplier']}x",
+        f"- trajectory_gain_over_baseline: {summary['network_trajectory']['trajectory_gain_over_baseline']}",
+        f"- drift_reduction: {summary['network_trajectory']['drift_reduction']}",
+        f"- resonance_gain: {summary['network_trajectory']['resonance_gain']}",
         "",
         "## Ready Actors",
         "",

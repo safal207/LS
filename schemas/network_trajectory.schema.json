@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/network_trajectory.schema.json",
+  "title": "LS Network Trajectory",
+  "description": "Schema for a deterministic network trajectory probe that measures how repeated cooperative runs plus an external observer improve route precision over time.",
+  "type": "object",
+  "properties": {
+    "demo": {
+      "type": "string",
+      "enum": ["ls_network_trajectory"]
+    },
+    "metric_version": {
+      "type": "string",
+      "pattern": "^network_trajectory\\.v[0-9]+\\.[0-9]+$"
+    },
+    "source_metric_version": {
+      "type": "string",
+      "description": "The network_precision_gain metric version this trajectory builds on."
+    },
+    "interpretation_boundary": {
+      "type": "string",
+      "description": "Mandatory boundary statement — this is not model training or a safety claim."
+    },
+    "cycles": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "Number of repeated network cycles simulated."
+    },
+    "conductor_policy": {
+      "type": "object",
+      "description": "Reason-aware conductor correction policy used for the conductor trajectory.",
+      "properties": {
+        "version": { "type": "string" },
+        "uses_reason_kind": { "type": "boolean" },
+        "uses_reason_delta": { "type": "boolean" },
+        "uses_reason_freshness": { "type": "boolean" },
+        "delta_reference": { "type": "number" },
+        "freshness_decay_per_cycle": { "type": "number" },
+        "magnitude_scale_range": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "component_bounds": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "version",
+        "uses_reason_kind",
+        "uses_reason_delta",
+        "uses_reason_freshness",
+        "delta_reference",
+        "freshness_decay_per_cycle",
+        "magnitude_scale_range",
+        "component_bounds"
+      ]
+    },
+    "route_under_test": {
+      "type": "string",
+      "description": "The cooperative route key used as the target trajectory."
+    },
+    "baseline_score": {
+      "type": "number",
+      "description": "Single-answer baseline score for context."
+    },
+    "co_learning": {
+      "type": "object",
+      "description": "Causal memory extracted across all cycles.",
+      "properties": {
+        "causal_patterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": { "type": "string" },
+              "occurrences": { "type": "integer" }
+            }
+          }
+        },
+        "error_to_resource_conversions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "cycle": { "type": "integer" },
+              "resource": { "type": "string" },
+              "delta": { "type": "number" },
+              "evidence": { "type": "string" }
+            }
+          }
+        },
+        "learned_constraints": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "total_causal_events": { "type": "integer" },
+        "unique_causal_patterns": { "type": "integer" },
+        "network_maturity": {
+          "type": "string",
+          "enum": ["early", "developing", "converging", "harmony"]
+        }
+      }
+    },
+    "trajectory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "cycle": { "type": "integer" },
+          "no_observer": { "$ref": "#/$defs/cycle_state" },
+          "with_observer": { "$ref": "#/$defs/cycle_state" },
+          "with_conductor": { "$ref": "#/$defs/cycle_state" },
+          "observer_delta": { "type": "number" },
+          "conductor_delta": { "type": "number" },
+          "reasons": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/reason" }
+          }
+        },
+        "required": ["cycle", "no_observer", "with_observer", "with_conductor", "observer_delta", "conductor_delta", "reasons"]
+      }
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "no_observer_start": { "type": "number" },
+        "no_observer_end": { "type": "number" },
+        "no_observer_precision_velocity": { "type": "number" },
+        "observer_start": { "type": "number" },
+        "observer_end": { "type": "number" },
+        "observer_precision_velocity": { "type": "number" },
+        "observer_delta_final": { "type": "number" },
+        "observer_velocity_multiplier": { "type": "number" },
+        "trajectory_gain_over_baseline": { "type": "number" },
+        "drift_reduction_with_observer": { "type": "number" },
+        "lag_reduction_with_observer": { "type": "number" },
+        "resonance_gain_with_observer": { "type": "number" },
+        "temporal_alignment_gain_with_observer": { "type": "number" },
+        "route_selection_confidence_gain": { "type": "number" },
+        "route_regret_reduction": { "type": "number" },
+        "best_route_after_n_runs": { "type": "string" },
+        "conductor_start": { "type": "number" },
+        "conductor_end": { "type": "number" },
+        "conductor_precision_velocity": { "type": "number" },
+        "conductor_observer_delta": { "type": "number" },
+        "conductor_velocity_multiplier": { "type": "number" },
+        "conductor_velocity_over_observer": { "type": "number" },
+        "harmony_index": { "type": "number" },
+        "decision": {
+          "type": "string",
+          "enum": ["conductor_achieves_harmony", "observer_improves_network_trajectory", "needs_more_runs"]
+        }
+      },
+      "required": [
+        "no_observer_start", "no_observer_end", "no_observer_precision_velocity",
+        "observer_start", "observer_end", "observer_precision_velocity",
+        "observer_delta_final", "observer_velocity_multiplier",
+        "trajectory_gain_over_baseline",
+        "drift_reduction_with_observer", "lag_reduction_with_observer",
+        "resonance_gain_with_observer", "temporal_alignment_gain_with_observer",
+        "route_selection_confidence_gain",         "route_regret_reduction",
+        "best_route_after_n_runs",
+        "conductor_start", "conductor_end", "conductor_precision_velocity",
+        "conductor_observer_delta", "conductor_velocity_multiplier",
+        "conductor_velocity_over_observer", "harmony_index",
+        "decision"
+      ]
+    }
+  },
+  "required": [
+    "demo", "metric_version", "source_metric_version",
+    "interpretation_boundary", "cycles", "conductor_policy", "route_under_test",
+    "baseline_score", "trajectory", "summary", "co_learning"
+  ],
+  "$defs": {
+    "cycle_state": {
+      "type": "object",
+      "properties": {
+        "network_precision_score": { "type": "number" },
+        "gain_over_baseline": { "type": "number" },
+        "components": {
+          "type": "object",
+          "description": "Weighted components at this cycle state."
+        },
+        "temporal": {
+          "type": "object",
+          "properties": {
+            "drift_score": { "type": "number" },
+            "cycle_detection": { "type": "number" },
+            "lag_between_levels": { "type": "number" },
+            "resonance": { "type": "number" },
+            "temporal_alignment": { "type": "number" }
+          },
+          "required": ["drift_score", "cycle_detection", "lag_between_levels", "resonance", "temporal_alignment"]
+        },
+        "route_selection_confidence": { "type": "number" },
+        "route_regret": { "type": "number" }
+      },
+      "required": ["network_precision_score", "gain_over_baseline", "components", "temporal", "route_selection_confidence", "route_regret"]
+    },
+    "reason": {
+      "type": "object",
+      "properties": {
+        "cycle": { "type": "integer" },
+        "kind": {
+          "type": "string",
+          "enum": ["drift_narrowing", "drift_widening", "resonance_building", "resonance_fading", "lag_decrease", "lag_increase", "observer_intervention", "confidence_growth", "confidence_decay", "regret_reduction", "regret_growth", "bridge_activation", "cycle_emerging", "cycle_fading", "temporal_alignment_breakthrough"]
+        },
+        "delta": { "type": "number" },
+        "message": { "type": "string" }
+      },
+      "required": ["cycle", "kind", "delta", "message"]
+    }
+  }
+}

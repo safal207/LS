@@ -26,6 +26,7 @@ def test_mcp_network_precision_tools_are_registered(tmp_path: Path) -> None:
 
     assert "ls_run_network_precision_probe" in names
     assert "ls_run_model_roster_probe" in names
+    assert "ls_run_network_trajectory_probe" in names
     assert "ls_prepare_contributor_report" in names
 
 
@@ -35,6 +36,7 @@ def test_mcp_server_lists_network_precision_tools(tmp_path: Path) -> None:
 
     assert "ls_run_network_precision_probe" in tools
     assert "ls_run_model_roster_probe" in tools
+    assert "ls_run_network_trajectory_probe" in tools
     assert "ls_prepare_contributor_report" in tools
 
 
@@ -62,10 +64,12 @@ def test_mcp_network_precision_probe_subprocess() -> None:
     result = _mcp_call("ls_run_network_precision_probe", {})
 
     assert result["tool"] == "ls_run_network_precision_probe"
-    assert result["metric_version"] == "network_precision_gain.v0.1"
+    assert result["metric_version"] == "network_precision_gain.v0.2"
     assert result["measured_route_reward_gain"] > 0
     assert result["network_precision"]["network_precision_gain_over_baseline"] > 0
     assert len(result["variants"]) == 3
+    assert "temporal_observer_detail" in result
+    assert "scope_bridge_detail" in result
 
 
 def test_mcp_model_roster_probe_subprocess() -> None:
@@ -88,3 +92,22 @@ def test_mcp_prepare_contributor_report_subprocess() -> None:
     assert "os" in result["environment"]
     assert "python_version" in result["environment"]
     assert "boundary" in result
+
+
+def test_mcp_network_trajectory_probe_subprocess() -> None:
+    result = _mcp_call("ls_run_network_trajectory_probe", {"cycles": 4})
+
+    assert result["tool"] == "ls_run_network_trajectory_probe"
+    assert result["metric_version"] == "network_trajectory.v0.2"
+    assert result["source_metric_version"] == "network_precision_gain.v0.2"
+    assert result["cycles"] == 4
+    assert result["conductor_policy"]["version"] == "conductor.v0.2"
+    assert result["conductor_policy"]["uses_reason_freshness"] is True
+    assert result["summary"]["observer_delta_final"] > 0
+    assert result["summary"]["observer_velocity_multiplier"] > 0
+    assert result["summary"]["conductor_observer_delta"] > 0
+    assert len(result["trajectory"]) == 4
+    assert "co_learning" in result
+    assert result["co_learning"]["total_causal_events"] > 0
+    assert result["co_learning"]["network_maturity"] in ("early", "developing", "converging", "harmony")
+    assert len(result["trajectory"][-1]["reasons"]) > 0
