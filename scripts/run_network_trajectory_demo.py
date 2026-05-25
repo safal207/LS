@@ -28,7 +28,7 @@ from run_network_precision_gain_demo import (  # noqa: E402
 )
 
 
-METRIC_VERSION = "network_trajectory.v0.1"
+METRIC_VERSION = "network_trajectory.v0.2"
 
 
 def _round(value: float) -> float:
@@ -253,15 +253,49 @@ CONDUCTOR_DELTAS: dict[str, list[tuple[str, float]]] = {
     "regret_reduction": [("evidence_gate", 0.01)],
 }
 
+CONDUCTOR_DELTA_REFERENCE = 0.08
+CONDUCTOR_MIN_MAGNITUDE_SCALE = 0.25
+CONDUCTOR_MAX_MAGNITUDE_SCALE = 1.50
+CONDUCTOR_FRESHNESS_DECAY = 0.55
+
+
+def _bounded_component(value: float) -> float:
+    return _round(min(1.0, max(0.0, value)))
+
+
+def _conductor_reason_scale(
+    reason: dict[str, Any],
+    *,
+    current_cycle: int,
+) -> float:
+    magnitude = abs(float(reason.get("delta", 0.0)))
+    magnitude_scale = magnitude / CONDUCTOR_DELTA_REFERENCE
+    magnitude_scale = min(
+        CONDUCTOR_MAX_MAGNITUDE_SCALE,
+        max(CONDUCTOR_MIN_MAGNITUDE_SCALE, magnitude_scale),
+    )
+    reason_cycle = int(reason.get("cycle", current_cycle))
+    age = max(0, current_cycle - reason_cycle)
+    freshness_scale = CONDUCTOR_FRESHNESS_DECAY ** age
+    return _round(magnitude_scale * freshness_scale)
+
 
 def _conductor_adjust(
     components: dict[str, float],
     reasons: list[dict[str, Any]],
+    *,
+    current_cycle: int | None = None,
+    direction: float = 1.0,
 ) -> dict[str, float]:
     adjusted = dict(components)
+    if current_cycle is None:
+        current_cycle = max((int(r.get("cycle", 0)) for r in reasons), default=0)
     for r in reasons:
+        scale = _conductor_reason_scale(r, current_cycle=current_cycle)
         for key, delta in CONDUCTOR_DELTAS.get(r["kind"], []):
-            adjusted[key] = _round(float(adjusted[key]) + delta)
+            adjusted[key] = _bounded_component(
+                float(adjusted[key]) + direction * float(delta) * scale
+            )
     return adjusted
 
 
@@ -354,7 +388,11 @@ def build_demo_payload(
         if runs:
             run["reasons"] = _extract_reasons(runs[-1], run, cycle)
 
-        conductor_components = _conductor_adjust(observer_components, run["reasons"])
+        conductor_components = _conductor_adjust(
+            observer_components,
+            run["reasons"],
+            current_cycle=cycle,
+        )
         conductor_score = _weighted_score(conductor_components)
         conductor_progress = min(0.95, 0.95 * p) + 0.02 * min(len(run["reasons"]), 3)
         conductor_temporal = _temporal_state(
@@ -409,6 +447,19 @@ def build_demo_payload(
             "safety claim."
         ),
         "cycles": cycles,
+        "conductor_policy": {
+            "version": "conductor.v0.2",
+            "uses_reason_kind": True,
+            "uses_reason_delta": True,
+            "uses_reason_freshness": True,
+            "delta_reference": CONDUCTOR_DELTA_REFERENCE,
+            "freshness_decay_per_cycle": CONDUCTOR_FRESHNESS_DECAY,
+            "magnitude_scale_range": [
+                CONDUCTOR_MIN_MAGNITUDE_SCALE,
+                CONDUCTOR_MAX_MAGNITUDE_SCALE,
+            ],
+            "component_bounds": [0.0, 1.0],
+        },
         "route_under_test": full_stack["route_key"],
         "baseline_score": _round(baseline_score),
         "trajectory": runs,

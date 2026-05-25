@@ -5,11 +5,11 @@ type Lang = 'en' | 'ru';
 
 const trajectory = [
   { cycle: 1, noObserver: 0.7436, observer: 0.7436, conductor: 0.7436, drift: 0.55, resonance: 0.25 },
-  { cycle: 2, noObserver: 0.7515, observer: 0.7675, conductor: 0.7718, drift: 0.478, resonance: 0.349 },
-  { cycle: 3, noObserver: 0.7595, observer: 0.7914, conductor: 0.8001, drift: 0.406, resonance: 0.448 },
-  { cycle: 4, noObserver: 0.7675, observer: 0.8153, conductor: 0.8283, drift: 0.334, resonance: 0.547 },
-  { cycle: 5, noObserver: 0.7755, observer: 0.8392, conductor: 0.8566, drift: 0.262, resonance: 0.646 },
-  { cycle: 6, noObserver: 0.7834, observer: 0.8631, conductor: 0.8703, drift: 0.19, resonance: 0.745 }
+  { cycle: 2, noObserver: 0.7515, observer: 0.7675, conductor: 0.7710, drift: 0.478, resonance: 0.349 },
+  { cycle: 3, noObserver: 0.7595, observer: 0.7914, conductor: 0.7951, drift: 0.406, resonance: 0.448 },
+  { cycle: 4, noObserver: 0.7675, observer: 0.8153, conductor: 0.8193, drift: 0.334, resonance: 0.547 },
+  { cycle: 5, noObserver: 0.7755, observer: 0.8392, conductor: 0.8434, drift: 0.262, resonance: 0.646 },
+  { cycle: 6, noObserver: 0.7834, observer: 0.8631, conductor: 0.8698, drift: 0.19, resonance: 0.745 }
 ] as const;
 
 const staticMetrics = [
@@ -29,7 +29,7 @@ const copy = {
     staticTitle: 'Static precision (old approach)',
     staticBody: 'One cooperative pass over a single task already improves precision 6.16x over a lone answer.',
     temporalTitle: 'Temporal precision (new approach)',
-    temporalBody: 'Repeated cycles with an observer accelerate precision 3x. A conductor that applies reason-based weight deltas each cycle pushes the network to 99.3% of its theoretical maximum.',
+    temporalBody: 'Repeated cycles with an observer accelerate precision 3x. Conductor v0.2 applies reason, magnitude, and freshness deltas, pushing the network to 99.25% of its theoretical maximum.',
     withoutObserver: 'without observer',
     withObserver: 'with observer',
     withConductor: '+ conductor',
@@ -39,11 +39,11 @@ const copy = {
     resonance: 'resonance',
     insightTitle: 'What the probe showed',
     insight:
-      'Old approach: one cooperative pass gives +0.7341 gain (6.16x). New approach: repeated cycles + observer + conductor give an additional +0.1267 over plain cooperation, reaching 99.3% of the theoretical maximum. The conductor learns which weights to adjust from causal reasons, not from trial and error.',
+      'Old approach: one cooperative pass gives +0.7341 gain (6.16x). New approach: repeated cycles + observer + conductor v0.2 give +0.1262 over the route start and +0.0067 over observer-only, reaching 99.25% of the theoretical maximum. The conductor uses causal reasons, reason strength, and freshness instead of trial and error.',
     command: 'python scripts/run_network_trajectory_demo.py',
     metrics: [
-      { label: 'conductor delta', value: '+0.1267', icon: Music },
-      { label: 'velocity multiplier', value: '3.16x', icon: Gauge },
+      { label: 'conductor delta', value: '+0.1262', icon: Music },
+      { label: 'velocity multiplier', value: '3.15x', icon: Gauge },
       { label: 'drift reduction', value: '+0.3600', icon: Activity },
       { label: 'resonance gain', value: '+0.4950', icon: Waves }
     ],
@@ -58,7 +58,7 @@ const copy = {
     staticTitle: 'Статическая точность (старый подход)',
     staticBody: 'Один кооперативный проход по одной задаче уже даёт прирост точности в 6.16x против одиночного ответа.',
     temporalTitle: 'Временна́я точность (новый подход)',
-    temporalBody: 'Повторные циклы с наблюдателем ускоряют рост точности в 3x. Дирижёр применяет коррекции весов на основе причин каждый цикл — сеть выходит на 99.3% от теоретического максимума.',
+    temporalBody: 'Повторные циклы с наблюдателем ускоряют рост точности в 3x. Дирижёр v0.2 учитывает причину, силу сигнала и свежесть — сеть выходит на 99.25% от теоретического максимума.',
     withoutObserver: 'без наблюдателя',
     withObserver: 'с наблюдателем',
     withConductor: '+ дирижёр',
@@ -68,11 +68,11 @@ const copy = {
     resonance: 'резонанс',
     insightTitle: 'Что показал probe',
     insight:
-      'Старый подход: один кооперативный проход даёт +0.7341 (6.16x). Новый подход: повторные циклы + наблюдатель + дирижёр дают дополнительные +0.1267 сверх простой кооперации, достигая 99.3% от теоретического максимума. Дирижёр учится, какие веса корректировать, на основе причин, а не методом проб и ошибок.',
+      'Старый подход: один кооперативный проход даёт +0.7341 (6.16x). Новый подход: повторные циклы + наблюдатель + дирижёр v0.2 дают +0.1262 от старта маршрута и +0.0067 сверх observer-only, достигая 99.25% от теоретического максимума. Дирижёр использует причины, силу причины и свежесть, а не метод проб и ошибок.',
     command: 'python scripts/run_network_trajectory_demo.py',
     metrics: [
-      { label: 'вклад дирижёра', value: '+0.1267', icon: Music },
-      { label: 'скорость роста', value: '3.16x', icon: Gauge },
+      { label: 'вклад дирижёра', value: '+0.1262', icon: Music },
+      { label: 'скорость роста', value: '3.15x', icon: Gauge },
       { label: 'снижение дрейфа', value: '+0.3600', icon: Activity },
       { label: 'рост резонанса', value: '+0.4950', icon: Waves }
     ],
@@ -159,7 +159,7 @@ export default function NetworkTrajectory() {
                 </p>
               </div>
               <span className="rounded-full border border-emerald-300/35 bg-emerald-300/12 px-3 py-1 text-xs uppercase tracking-[0.14em] text-emerald-100">
-                v0.1
+                v0.2
               </span>
             </div>
 

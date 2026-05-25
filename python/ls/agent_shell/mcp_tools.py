@@ -384,6 +384,7 @@ class MCPToolRegistry:
             "metric_version": payload["metric_version"],
             "source_metric_version": payload["source_metric_version"],
             "cycles": payload["cycles"],
+            "conductor_policy": payload["conductor_policy"],
             "route_under_test": payload["route_under_test"],
             "baseline_score": payload["baseline_score"],
             "summary": summary,

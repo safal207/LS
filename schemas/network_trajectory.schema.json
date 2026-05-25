@@ -26,6 +26,40 @@
       "minimum": 2,
       "description": "Number of repeated network cycles simulated."
     },
+    "conductor_policy": {
+      "type": "object",
+      "description": "Reason-aware conductor correction policy used for the conductor trajectory.",
+      "properties": {
+        "version": { "type": "string" },
+        "uses_reason_kind": { "type": "boolean" },
+        "uses_reason_delta": { "type": "boolean" },
+        "uses_reason_freshness": { "type": "boolean" },
+        "delta_reference": { "type": "number" },
+        "freshness_decay_per_cycle": { "type": "number" },
+        "magnitude_scale_range": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "component_bounds": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "version",
+        "uses_reason_kind",
+        "uses_reason_delta",
+        "uses_reason_freshness",
+        "delta_reference",
+        "freshness_decay_per_cycle",
+        "magnitude_scale_range",
+        "component_bounds"
+      ]
+    },
     "route_under_test": {
       "type": "string",
       "description": "The cooperative route key used as the target trajectory."
@@ -140,7 +174,7 @@
   },
   "required": [
     "demo", "metric_version", "source_metric_version",
-    "interpretation_boundary", "cycles", "route_under_test",
+    "interpretation_boundary", "cycles", "conductor_policy", "route_under_test",
     "baseline_score", "trajectory", "summary", "co_learning"
   ],
   "$defs": {

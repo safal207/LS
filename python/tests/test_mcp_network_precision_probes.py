@@ -98,11 +98,14 @@ def test_mcp_network_trajectory_probe_subprocess() -> None:
     result = _mcp_call("ls_run_network_trajectory_probe", {"cycles": 4})
 
     assert result["tool"] == "ls_run_network_trajectory_probe"
-    assert result["metric_version"] == "network_trajectory.v0.1"
+    assert result["metric_version"] == "network_trajectory.v0.2"
     assert result["source_metric_version"] == "network_precision_gain.v0.2"
     assert result["cycles"] == 4
+    assert result["conductor_policy"]["version"] == "conductor.v0.2"
+    assert result["conductor_policy"]["uses_reason_freshness"] is True
     assert result["summary"]["observer_delta_final"] > 0
     assert result["summary"]["observer_velocity_multiplier"] > 0
+    assert result["summary"]["conductor_observer_delta"] > 0
     assert len(result["trajectory"]) == 4
     assert "co_learning" in result
     assert result["co_learning"]["total_causal_events"] > 0

@@ -101,9 +101,13 @@ With 6 cycles on the current deterministic probe:
 ```text
 no_observer:   0.7436 → 0.7834  (+0.0398, velocity=+0.0080/cycle)
 with_observer: 0.7436 → 0.8631  (+0.1195, velocity=+0.0239/cycle)
+conductor v0.2:0.7436 → 0.8698  (+0.1262, velocity=+0.0252/cycle)
 
 observer_delta_final:            +0.0797
 observer_velocity_multiplier:    2.99x
+conductor_observer_delta:        +0.0067
+conductor_velocity_multiplier:   3.15x
+conductor_harmony_index:         0.9925
 trajectory_gain_over_baseline:   +0.7208
 
 drift_reduction:                 +0.3600
@@ -116,6 +120,16 @@ route_regret_reduction:          +0.1260
 
 The observer accelerates convergence by approximately **3x** and achieves
 the same final precision in roughly **one-third the cycles**.
+
+The conductor v0.2 adds a stricter reason-aware correction policy:
+
+```text
+component_update = reason_kind_delta
+                 × reason_delta_scale
+                 × reason_freshness_decay
+```
+
+This prevents stale reasons from matching fresh reasons on longer runs.
 
 ### Co-Learning (Reason Memory)
 

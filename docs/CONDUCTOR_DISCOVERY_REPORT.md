@@ -12,7 +12,7 @@ LS измерила, что кооперативная сеть может ст�
 |-------|-------------|----------|------------|
 | Without observer | 0.7436 → 0.7834 | +0.0080/cycle | 1.0x (baseline) |
 | With observer | 0.7436 → 0.8631 | +0.0239/cycle | 2.99x |
-| **+ Conductor** | **0.7436 → 0.8703** | **+0.0253/cycle** | **3.16x** |
+| **+ Conductor v0.2** | **0.7436 → 0.8698** | **+0.0252/cycle** | **3.15x** |
 
 ## Старый vs новый подход
 
@@ -24,19 +24,22 @@ LS измерила, что кооперативная сеть может ст�
 
 ### Temporal precision (повторные циклы)
 - observer delta: +0.0797 over no_observer
-- conductor delta: +0.1267 over no_observer
-- conductor harmony index: **99.3%** от теоретического максимума (0.8764)
+- conductor delta: +0.1262 over start
+- conductor observer delta: +0.0067 over observer-only
+- conductor harmony index: **99.25%** от теоретического максимума (0.8764)
 
 ## Как работает conductor
 
-Conductor — это активная коррекция весов на основе причин (reason memory). Каждый цикл:
+Conductor v0.2 — это активная коррекция весов на основе причин (reason memory), силы причины и свежести причины. Каждый цикл:
 
 1. Observer извлекает причины изменений (drift_narrowing, resonance_building, lag_decrease, observer_intervention и др.)
 2. Conductor сопоставляет причины с дельтами весов из CONDUCTOR_DELTAS
-3. Применяет коррекции к компонентам наблюдателя
+3. Масштабирует коррекцию через `reason.delta` и decay свежести
 4. Прогресс растёт быстрее, чем у чистого observer
 
-Conductor прогресс = min(0.95, 0.95×p) + 0.02×len(reasons)
+```text
+component_update = reason_kind_delta × reason_delta_scale × freshness_decay
+```
 
 ## Co-learning (reason memory)
 
@@ -74,5 +77,5 @@ Conductor прогресс = min(0.95, 0.95×p) + 0.02×len(reasons)
 
 ## Результат
 
-**Гипотеза подтверждена:** conductor ускоряет рост точности сети в 3.16x против no_observer и достигает 99.3% теоретического максимума за 6 циклов.
+**Гипотеза поддержана v0.2:** conductor ускоряет рост точности сети в 3.15x против no_observer и достигает 99.25% теоретического максимума за 6 циклов.
 **Co-learning** извлекает 8 уникальных причин за 6 циклов, строит learned constraints без внешних данных.
