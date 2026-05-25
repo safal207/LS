@@ -114,6 +114,19 @@ available in the local environment.
 Pass condition: LS can produce route events, reason memory, and an audit report
 without relying on hidden state.
 
+Runnable probe:
+
+```bash
+python scripts/run_live_model_pilot.py
+python scripts/run_live_model_pilot.py --live --json --max-tokens 180
+```
+
+Reference doc:
+
+```text
+docs/LIVE_MODEL_PILOT.md
+```
+
 ### E7. Contributor Replication
 
 Goal: let outside contributors run the chain and report their own model stack.

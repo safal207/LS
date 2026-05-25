@@ -74,6 +74,7 @@ class MCPToolRegistry:
             "ls_run_network_precision_probe": self._run_network_precision_probe,
             "ls_run_model_roster_probe": self._run_model_roster_probe,
             "ls_run_network_trajectory_probe": self._run_network_trajectory_probe,
+            "ls_run_live_model_pilot": self._run_live_model_pilot,
             "ls_prepare_contributor_report": self._prepare_contributor_report,
         }
 
@@ -391,6 +392,36 @@ class MCPToolRegistry:
             "interpretation_boundary": payload["interpretation_boundary"],
             "trajectory": payload["trajectory"],
             "co_learning": payload.get("co_learning"),
+        }
+
+    def _run_live_model_pilot(self, args: dict[str, Any]) -> dict[str, Any]:
+        _ensure_scripts_path()
+        from run_live_model_pilot import build_pilot_payload  # noqa: E402
+
+        pilot_args: dict[str, Any] = {
+            "live": bool(args.get("live", False)),
+            "cycles": int(args.get("cycles", 6)),
+            "max_tokens": int(args.get("max_tokens", 180)),
+        }
+        if args.get("question"):
+            pilot_args["question"] = str(args["question"])
+        if args.get("thread_context"):
+            pilot_args["thread_context"] = str(args["thread_context"])
+        payload = build_pilot_payload(**pilot_args)
+        return {
+            "tool": "ls_run_live_model_pilot",
+            "metric_version": payload["metric_version"],
+            "mode": payload["mode"],
+            "task": payload["task"],
+            "actor": payload["actor"],
+            "quality": payload["quality"],
+            "roster": payload["roster"],
+            "multi_actor_route": payload["multi_actor_route"],
+            "network_context": payload["network_context"],
+            "route_event": payload["route_event"],
+            "route_memory": payload["route_memory"],
+            "summary": payload["summary"],
+            "interpretation_boundary": payload["interpretation_boundary"],
         }
 
 

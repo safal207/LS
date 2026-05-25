@@ -99,6 +99,7 @@ Also useful:
 python scripts/run_network_trajectory_demo.py --json
 python scripts/run_network_trajectory_demo.py --cycles 10 --json
 python scripts/run_conductor_noise_robustness_demo.py --cycles 6 --seeds 12 --json
+python scripts/run_live_model_pilot.py --json
 ```
 
 ## What To Report
@@ -137,6 +138,11 @@ trajectory_gain_over_baseline: full trajectory end vs single baseline
 precision_velocity: score change per cycle
 conductor_noise_pass_rate: pass rate for noisy fresh/stale/no-reason/inverted ordering
 conductor_noise_margin: fresh-minus-stale margin under moderate noise
+live_model_pilot_decision: sample_pipeline_ready / live_route_captured / live_route_needs_review
+live_model_pilot_score: pilot precision proxy from the live/sample route event
+route_memory_key: route key from Route Memory v0 (if persisted)
+route_memory_persisted: boolean, whether the route was saved to durable state
+route_memory_health: validated_candidate / promising / needs_more_evidence / weak / untried
 notes: anything surprising, slow, brittle, or useful
 ```
 
@@ -183,6 +189,11 @@ trajectory_gain_over_baseline:
 precision_velocity:
 conductor_noise_pass_rate:
 conductor_noise_margin:
+live_model_pilot_decision:
+live_model_pilot_score:
+route_memory_key:
+route_memory_persisted:
+route_memory_health:
 ready_actors:
 unavailable_actors:
 
