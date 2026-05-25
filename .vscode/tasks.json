@@ -102,6 +102,44 @@
         "clear": true
       },
       "problemMatcher": []
+    },
+    {
+      "label": "LS: Network Trajectory Probe",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/run_network_trajectory_demo.py",
+        "--cycles",
+        "6",
+        "--json"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "LS: Conductor Noise Robustness Probe",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/run_conductor_noise_robustness_demo.py",
+        "--cycles",
+        "6",
+        "--seeds",
+        "12",
+        "--json"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
     }
   ]
 }

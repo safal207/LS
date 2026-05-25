@@ -26,11 +26,16 @@
     "ls-probe-trajectory": {
       "description": "Run the LS network trajectory probe and show velocity and observer delta",
       "template": "Run python scripts/run_network_trajectory_demo.py --cycles $ARGUMENTS --json and display the summary: observer_delta_final, observer_velocity_multiplier, trajectory_gain_over_baseline, drift_reduction, and resonance_gain. If $ARGUMENTS is empty, use 6 cycles."
+    },
+    "ls-probe-conductor-noise": {
+      "description": "Run the LS conductor noise robustness probe",
+      "template": "Run python scripts/run_conductor_noise_robustness_demo.py --cycles 6 --seeds 12 --json and display the decision plus each aggregate noise_level, pass_rate, avg_fresh_minus_stale, avg_fresh_gain, avg_stale_gain, and avg_inverted_penalty."
     }
   },
   "instructions": [
     "docs/IDE_TESTING_ENTRYPOINTS.md",
     "docs/NETWORK_PRECISION_CONTRIBUTOR_CALL.md",
-    "docs/NETWORK_TRAJECTORY_LAYER.md"
+    "docs/NETWORK_TRAJECTORY_LAYER.md",
+    "docs/CONDUCTOR_NOISE_ROBUSTNESS.md"
   ]
 }
