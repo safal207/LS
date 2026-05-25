@@ -1,4 +1,4 @@
-import { Activity, Clock3, Eye, Gauge, Route, TrendingUp, Waves, Music } from 'lucide-react';
+import { Activity, Clock3, Eye, Gauge, Route, TrendingUp, Waves, Music, Archive, Timer } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 type Lang = 'en' | 'ru';
@@ -12,12 +12,24 @@ const trajectory = [
   { cycle: 6, noObserver: 0.7834, observer: 0.8631, conductor: 0.8703, drift: 0.19, resonance: 0.745 }
 ] as const;
 
+const staticMetrics = [
+  { key: 'baseline', en: 'Single answer (baseline)', ru: 'Одиночный ответ (baseline)', value: '0.1423' },
+  { key: 'cooperative', en: 'Cooperative route', ru: 'Кооперативный маршрут', value: '0.7436' },
+  { key: 'fullStack', en: 'Full evidence stack', ru: 'Полный стек доказательств', value: '0.8764' },
+  { key: 'gain', en: 'Network precision gain', ru: 'Прирост точности сети', value: '+0.7341' },
+  { key: 'ratio', en: 'Score ratio vs baseline', ru: 'Отношение к baseline', value: '6.16x' }
+] as const;
+
 const copy = {
   en: {
     eyebrow: 'Network trajectory',
     title: 'The network does not freeze a good route. It watches whether the route gets more precise over time.',
     subtitle:
       'A single score says which route worked now. A trajectory shows whether repeated cycles, memory, and an external observer make the next route selection better.',
+    staticTitle: 'Static precision (old approach)',
+    staticBody: 'One cooperative pass over a single task already improves precision 6.16x over a lone answer.',
+    temporalTitle: 'Temporal precision (new approach)',
+    temporalBody: 'Repeated cycles with an observer accelerate precision 3x. A conductor that applies reason-based weight deltas each cycle pushes the network to 99.3% of its theoretical maximum.',
     withoutObserver: 'without observer',
     withObserver: 'with observer',
     withConductor: '+ conductor',
@@ -27,7 +39,7 @@ const copy = {
     resonance: 'resonance',
     insightTitle: 'What the probe showed',
     insight:
-      'With an observer, route precision grew 3x faster (+0.0797). With a conductor applying reason-based weight deltas each cycle, precision reached +0.1267 — drift fell, resonance rose, and the network approached 99.3% of its theoretical maximum.',
+      'Old approach: one cooperative pass gives +0.7341 gain (6.16x). New approach: repeated cycles + observer + conductor give an additional +0.1267 over plain cooperation, reaching 99.3% of the theoretical maximum. The conductor learns which weights to adjust from causal reasons, not from trial and error.',
     command: 'python scripts/run_network_trajectory_demo.py',
     metrics: [
       { label: 'conductor delta', value: '+0.1267', icon: Music },
@@ -43,6 +55,10 @@ const copy = {
     title: 'Сеть не просто хранит хороший маршрут. Она смотрит, становится ли маршрут точнее со временем.',
     subtitle:
       'Одна оценка показывает, какой путь сработал сейчас. Траектория показывает, помогают ли повторные циклы, память и наблюдатель выбирать следующий путь точнее.',
+    staticTitle: 'Статическая точность (старый подход)',
+    staticBody: 'Один кооперативный проход по одной задаче уже даёт прирост точности в 6.16x против одиночного ответа.',
+    temporalTitle: 'Временна́я точность (новый подход)',
+    temporalBody: 'Повторные циклы с наблюдателем ускоряют рост точности в 3x. Дирижёр применяет коррекции весов на основе причин каждый цикл — сеть выходит на 99.3% от теоретического максимума.',
     withoutObserver: 'без наблюдателя',
     withObserver: 'с наблюдателем',
     withConductor: '+ дирижёр',
@@ -52,7 +68,7 @@ const copy = {
     resonance: 'резонанс',
     insightTitle: 'Что показал probe',
     insight:
-      'С наблюдателем точность росла в 3 раза быстрее (+0.0797). Дирижёр применяет коррекции весов на основе причин каждый цикл — точность достигла +0.1267, дрейф снизился, резонанс вырос, сеть вышла на 99.3% от теоретического максимума.',
+      'Старый подход: один кооперативный проход даёт +0.7341 (6.16x). Новый подход: повторные циклы + наблюдатель + дирижёр дают дополнительные +0.1267 сверх простой кооперации, достигая 99.3% от теоретического максимума. Дирижёр учится, какие веса корректировать, на основе причин, а не методом проб и ошибок.',
     command: 'python scripts/run_network_trajectory_demo.py',
     metrics: [
       { label: 'вклад дирижёра', value: '+0.1267', icon: Music },
@@ -86,15 +102,39 @@ export default function NetworkTrajectory() {
           <p className="mt-5 max-w-3xl text-base leading-7 text-white/75 md:text-lg">{text.subtitle}</p>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            {text.metrics.map(({ label, value, icon: Icon }) => (
-              <div key={label} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="min-w-0 text-xs uppercase leading-tight tracking-[0.12em] text-white/55">{label}</p>
-                  <Icon className="h-4 w-4 shrink-0 text-emerald-200" />
-                </div>
-                <p className="mt-3 font-mono text-2xl font-semibold text-emerald-50">{value}</p>
+            <div className="rounded-lg border border-amber-300/20 bg-amber-300/8 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="min-w-0 text-xs uppercase leading-tight tracking-[0.12em] text-amber-100/70">{text.staticTitle}</p>
+                <Archive className="h-4 w-4 shrink-0 text-amber-200" />
               </div>
-            ))}
+              <p className="mt-2 text-xs leading-5 text-amber-50/65">{text.staticBody}</p>
+              <div className="mt-3 space-y-1.5">
+                {staticMetrics.map((m) => (
+                  <div key={m.key} className="flex items-center justify-between gap-2 rounded-md bg-amber-950/40 px-2.5 py-1.5">
+                    <span className="text-[11px] uppercase tracking-[0.10em] text-amber-100/60">{lang === 'ru' ? m.ru : m.en}</span>
+                    <span className="font-mono text-sm font-semibold text-amber-100">{m.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/8 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="min-w-0 text-xs uppercase leading-tight tracking-[0.12em] text-emerald-100/70">{text.temporalTitle}</p>
+                <Timer className="h-4 w-4 shrink-0 text-emerald-200" />
+              </div>
+              <p className="mt-2 text-xs leading-5 text-emerald-50/65">{text.temporalBody}</p>
+              <div className="mt-3 grid grid-cols-2 gap-1.5">
+                {text.metrics.map(({ label, value, icon: Icon }) => (
+                  <div key={label} className="flex items-center gap-2 rounded-md bg-emerald-950/40 px-2.5 py-1.5">
+                    <Icon className="h-3 w-3 shrink-0 text-emerald-200" />
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase leading-tight tracking-[0.10em] text-emerald-100/55">{label}</p>
+                      <p className="font-mono text-sm font-semibold text-emerald-50">{value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="mt-6 rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4">
