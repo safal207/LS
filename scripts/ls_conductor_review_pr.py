@@ -216,8 +216,8 @@ def main() -> int:
     if args.output:
         out_path = Path(args.output)
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         payload["artifact_path"] = str(out_path.resolve())
+        out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
