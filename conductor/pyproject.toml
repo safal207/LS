@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ls-conductor"
+version = "0.1.0"
+description = "LS Conductor — cooperative AI route orchestration with evidence and route memory."
+readme = {text = "One task → many models/roles → conductor → best verified output.", content-type = "text/plain"}
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+authors = [{name = "LS Team"}]
+keywords = ["conductor", "ai", "multi-model", "cooperative", "evidence", "route-memory"]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/safal207/LS"
+Repository = "https://github.com/safal207/LS"
+Issues = "https://github.com/safal207/LS/issues"
+
+[tool.setuptools.packages.find]
+include = ["conductor*"]
