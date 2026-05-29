@@ -25,4 +25,4 @@ Repository = "https://github.com/safal207/LS"
 Issues = "https://github.com/safal207/LS/issues"
 
 [tool.setuptools.packages.find]
-include = ["conductor*"]
+include = ["ls_conductor*"]

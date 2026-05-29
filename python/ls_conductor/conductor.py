@@ -3,12 +3,11 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 from typing import Any
 
-from conductor.models import (
+from python.ls_conductor.models import (
     ConductorConfig,
     ConductorResponse,
     CompareResponse,
@@ -16,7 +15,7 @@ from conductor.models import (
 )
 
 
-_DEFAULT_REPO = Path(__file__).resolve().parents[1]
+_DEFAULT_REPO = Path(__file__).resolve().parents[2]
 _SCRIPT = _DEFAULT_REPO / "scripts" / "ls_conductor_review_pr.py"
 _CLAIM_BOUNDARY = (
     "Conductor wrapper over LS PR-review route artifacts; "
@@ -31,7 +30,7 @@ class LSConductor:
 
     Usage::
 
-        from ls_conductor import LSConductor
+        from python.ls_conductor import LSConductor
 
         ls = LSConductor()
         result = ls.run(diff_file="latest.diff")
