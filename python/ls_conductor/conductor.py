@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from python.ls_conductor.models import (
+from .models import (
     ConductorConfig,
     ConductorResponse,
     CompareResponse,
@@ -30,7 +30,7 @@ class LSConductor:
 
     Usage::
 
-        from python.ls_conductor import LSConductor
+        from ls_conductor import LSConductor
 
         ls = LSConductor()
         result = ls.run(diff_file="latest.diff")

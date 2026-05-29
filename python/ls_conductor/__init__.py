@@ -1,5 +1,5 @@
-from python.ls_conductor.conductor import LSConductor
-from python.ls_conductor.models import (
+from .conductor import LSConductor
+from .models import (
     ConductorConfig,
     ConductorResponse,
     CompareResponse,
