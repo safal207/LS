@@ -113,6 +113,56 @@ scripts/run_pr_review_trail_artifact.py
 scripts/run_pr_role_market_demo.py
 ```
 
+## Python SDK
+
+For programmatic use, the Python SDK wraps the CLI:
+
+```python
+from ls_conductor import LSConductor
+
+ls = LSConductor()
+result = ls.run(diff_file="latest.diff")
+
+print(result.final_answer)       # human-readable summary
+print(result.route_score)        # route score (0.0 - 1.0)
+print(result.confidence)         # confidence (0.0 - 1.0)
+print(result.route_won_vs_single)  # bool
+print(result.evidence)           # list[Evidence]
+print(result.decision)           # "review_with_conditions", etc.
+```
+
+### Healthcheck
+
+```python
+ls = LSConductor()
+health = ls.healthcheck()
+print(health.status)             # "ok" or "degraded"
+print(health.available_backends) # ["local_cli", "run_pr_review_trail_artifact", ...]
+```
+
+### Compare
+
+```python
+ls = LSConductor()
+result = ls.compare(
+    candidates=["output A", "output B", "output C"],
+    task="Review this PR for security risks",
+)
+print(result.winner)   # "candidate_1"
+print(result.why)      # ["Candidate selected by heuristic scoring"]
+```
+
+### Output to file
+
+```python
+ls = LSConductor()
+result = ls.run(
+    diff_file="latest.diff",
+    output="reports/conductor/review.json",
+)
+print(result.artifact_path)  # "/abs/path/to/review.json"
+```
+
 ## What It Does Not Do Yet
 
 The first wrapper does not provide:
@@ -120,7 +170,6 @@ The first wrapper does not provide:
 ```text
 hosted API;
 production auth;
-full SDK;
 live hosted model calls;
 global model ranking;
 formal proof of best answer;
