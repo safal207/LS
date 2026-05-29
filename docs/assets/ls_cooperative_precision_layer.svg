@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050" role="img" aria-labelledby="title desc">
+  <title id="title">LS Cooperative Precision Layer for Agent Workflows</title>
+  <desc id="desc">A diagram showing an orchestrator agent team sending tasks through implementer, verifier, and fixer roles, then through the LS Cooperative Precision Layer for continuity, evidence, consent, and route score, producing a cognitive trail run, route reward, reusable artifact, and a better route next time.</desc>
+  <defs>
+    <style>
+      .bg { fill: #fbfaf7; }
+      .ink { fill: #1f2230; }
+      .muted { fill: #62657a; }
+      .purple { fill: #5b3dbd; }
+      .purpleStroke { stroke: #5b3dbd; }
+      .blueStroke { stroke: #3569c8; }
+      .greenStroke { stroke: #31905b; }
+      .orangeStroke { stroke: #d99022; }
+      .box { fill: #ffffff; stroke: #d2d5df; stroke-width: 2; rx: 14; }
+      .soft { fill: #f7f4ff; stroke: #7a5de8; stroke-width: 2; rx: 18; }
+      .dark { fill: #11131a; rx: 14; }
+      .line { stroke: #232532; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+      .dash { stroke: #8a8fa3; stroke-width: 2; fill: none; stroke-dasharray: 7 7; marker-end: url(#arrowSoft); }
+      .thinDash { stroke: #b7bbc8; stroke-width: 1.5; fill: none; stroke-dasharray: 6 7; }
+      .label { font-family: Inter, Arial, sans-serif; font-size: 18px; letter-spacing: 3px; font-weight: 700; fill: #5b3dbd; }
+      .small { font-family: Inter, Arial, sans-serif; font-size: 20px; fill: #1f2230; }
+      .tiny { font-family: Inter, Arial, sans-serif; font-size: 16px; fill: #62657a; }
+      .title { font-family: Inter, Arial, sans-serif; font-size: 40px; font-weight: 800; letter-spacing: 8px; fill: #12131b; }
+      .subtitle { font-family: Inter, Arial, sans-serif; font-size: 24px; fill: #5b3dbd; }
+      .section { font-family: Inter, Arial, sans-serif; font-size: 26px; font-weight: 800; letter-spacing: 3px; fill: #353056; }
+      .h { font-family: Inter, Arial, sans-serif; font-size: 20px; font-weight: 800; fill: #1f2230; letter-spacing: 1px; }
+      .caption { font-family: Inter, Arial, sans-serif; font-size: 18px; fill: #62657a; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#232532" />
+    </marker>
+    <marker id="arrowSoft" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#8a8fa3" />
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="1050" />
+
+  <text x="800" y="64" text-anchor="middle" class="title">LS: COOPERATIVE PRECISION LAYER FOR AGENT WORKFLOWS</text>
+  <text x="800" y="104" text-anchor="middle" class="subtitle">Agents do not only answer. They leave trails. LS remembers which routes worked.</text>
+
+  <rect class="dark" x="520" y="135" width="560" height="80" />
+  <text x="800" y="168" text-anchor="middle" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="25" font-weight="800" letter-spacing="2">ORCHESTRATOR / AGENT TEAM</text>
+  <text x="800" y="198" text-anchor="middle" fill="#d8d8e0" font-family="Inter, Arial, sans-serif" font-size="18">kicks off many tasks across roles, tools, and models</text>
+
+  <path class="thinDash" d="M800 215 L800 260" />
+  <path class="thinDash" d="M800 245 L300 245 L300 285" />
+  <path class="thinDash" d="M800 245 L800 285" />
+  <path class="thinDash" d="M800 245 L1300 245 L1300 285" />
+
+  <text class="label" x="70" y="298">TASKS</text>
+  <text class="label" x="70" y="363">IMPLEMENT</text>
+  <text class="label" x="70" y="438">VERIFY</text>
+  <text class="label" x="70" y="513">FIX / IMPROVE</text>
+  <path class="thinDash" d="M170 350 L1430 350" />
+  <path class="thinDash" d="M170 425 L1430 425" />
+  <path class="thinDash" d="M170 500 L1430 500" />
+
+  <!-- Task 1 -->
+  <rect class="box" x="225" y="272" width="250" height="48" rx="10" />
+  <text x="350" y="302" text-anchor="middle" class="h">TASK 1</text>
+  <rect class="box" x="240" y="342" width="220" height="58" rx="10" />
+  <text x="350" y="368" text-anchor="middle" class="h">Implementer</text>
+  <text x="350" y="391" text-anchor="middle" class="tiny">Claude / agent</text>
+  <rect class="box" x="240" y="417" width="220" height="58" rx="10" />
+  <text x="350" y="443" text-anchor="middle" class="h">Verifier</text>
+  <text x="350" y="466" text-anchor="middle" class="tiny">evidence check</text>
+  <rect class="box" x="240" y="492" width="220" height="58" rx="10" />
+  <text x="350" y="518" text-anchor="middle" class="h">Fixer</text>
+  <text x="350" y="541" text-anchor="middle" class="tiny">repair path</text>
+  <path class="line" d="M350 320 L350 342" />
+  <path class="line" d="M350 400 L350 417" />
+  <path class="line" d="M350 475 L350 492" />
+
+  <!-- Task 2 -->
+  <rect class="box" x="675" y="272" width="250" height="48" rx="10" />
+  <text x="800" y="302" text-anchor="middle" class="h">TASK 2</text>
+  <rect class="box" x="690" y="342" width="220" height="58" rx="10" />
+  <text x="800" y="368" text-anchor="middle" class="h">Implementer</text>
+  <text x="800" y="391" text-anchor="middle" class="tiny">Claude / agent</text>
+  <rect class="box" x="690" y="417" width="220" height="58" rx="10" />
+  <text x="800" y="443" text-anchor="middle" class="h">Verifier</text>
+  <text x="800" y="466" text-anchor="middle" class="tiny">evidence check</text>
+  <rect class="box" x="690" y="492" width="220" height="58" rx="10" />
+  <text x="800" y="518" text-anchor="middle" class="h">Fixer</text>
+  <text x="800" y="541" text-anchor="middle" class="tiny">repair path</text>
+  <path class="line" d="M800 320 L800 342" />
+  <path class="line" d="M800 400 L800 417" />
+  <path class="line" d="M800 475 L800 492" />
+
+  <text x="1065" y="365" text-anchor="middle" class="section">...</text>
+  <text x="1065" y="445" text-anchor="middle" class="section">...</text>
+  <text x="1065" y="525" text-anchor="middle" class="section">...</text>
+
+  <!-- Task N -->
+  <rect class="box" x="1125" y="272" width="250" height="48" rx="10" />
+  <text x="1250" y="302" text-anchor="middle" class="h">TASK N</text>
+  <rect class="box" x="1140" y="342" width="220" height="58" rx="10" />
+  <text x="1250" y="368" text-anchor="middle" class="h">Implementer</text>
+  <text x="1250" y="391" text-anchor="middle" class="tiny">Claude / agent</text>
+  <rect class="box" x="1140" y="417" width="220" height="58" rx="10" />
+  <text x="1250" y="443" text-anchor="middle" class="h">Verifier</text>
+  <text x="1250" y="466" text-anchor="middle" class="tiny">evidence check</text>
+  <rect class="box" x="1140" y="492" width="220" height="58" rx="10" />
+  <text x="1250" y="518" text-anchor="middle" class="h">Fixer</text>
+  <text x="1250" y="541" text-anchor="middle" class="tiny">repair path</text>
+  <path class="line" d="M1250 320 L1250 342" />
+  <path class="line" d="M1250 400 L1250 417" />
+  <path class="line" d="M1250 475 L1250 492" />
+
+  <!-- To LS layer -->
+  <path class="line" d="M350 550 L350 585 L560 585" />
+  <path class="line" d="M800 550 L800 585" />
+  <path class="line" d="M1250 550 L1250 585 L1040 585" />
+
+  <rect class="soft" x="160" y="585" width="1280" height="190" rx="18" />
+  <text x="800" y="630" text-anchor="middle" class="section">LS COOPERATIVE PRECISION LAYER</text>
+  <text x="238" y="682" text-anchor="middle" fill="#5b3dbd" font-family="Inter, Arial, sans-serif" font-size="40" font-weight="800">LS</text>
+
+  <rect class="box" x="320" y="655" width="250" height="88" rx="12" />
+  <text x="445" y="682" text-anchor="middle" class="h">CONTINUITY</text>
+  <text x="445" y="708" text-anchor="middle" class="tiny">track context, handoffs,</text>
+  <text x="445" y="728" text-anchor="middle" class="tiny">and route state</text>
+
+  <rect class="box" x="600" y="655" width="250" height="88" rx="12" />
+  <text x="725" y="682" text-anchor="middle" class="h">EVIDENCE</text>
+  <text x="725" y="708" text-anchor="middle" class="tiny">store proof, checks, tests,</text>
+  <text x="725" y="728" text-anchor="middle" class="tiny">sources, and artifacts</text>
+
+  <rect class="box" x="880" y="655" width="250" height="88" rx="12" />
+  <text x="1005" y="682" text-anchor="middle" class="h">CONSENT</text>
+  <text x="1005" y="708" text-anchor="middle" class="tiny">require alignment, approval,</text>
+  <text x="1005" y="728" text-anchor="middle" class="tiny">and allowed scope</text>
+
+  <rect class="box" x="1160" y="655" width="250" height="88" rx="12" />
+  <text x="1285" y="682" text-anchor="middle" class="h">ROUTE SCORE</text>
+  <text x="1285" y="708" text-anchor="middle" class="tiny">measure quality, risk,</text>
+  <text x="1285" y="728" text-anchor="middle" class="tiny">efficiency, and contribution</text>
+
+  <!-- Feedback loop -->
+  <path class="dash" d="M1410 690 L1500 690 L1500 175 L1085 175" />
+  <text x="1512" y="510" class="tiny">feedback improves</text>
+  <text x="1512" y="532" class="tiny">routes and future</text>
+  <text x="1512" y="554" class="tiny">orchestration</text>
+
+  <!-- Bottom flow -->
+  <path class="line" d="M800 775 L800 810" />
+  <rect class="box" x="160" y="835" width="620" height="95" rx="14" />
+  <text x="470" y="872" text-anchor="middle" class="h">COGNITIVE TRAIL RUN</text>
+  <text x="470" y="901" text-anchor="middle" class="small">task → route → evidence → contribution → decision → reusable artifact</text>
+  <text x="470" y="922" text-anchor="middle" class="tiny">a recorded, measurable trail of how the task was solved</text>
+
+  <rect class="box" x="830" y="835" width="210" height="95" rx="14" />
+  <text x="935" y="872" text-anchor="middle" class="h">ROUTE REWARD</text>
+  <text x="935" y="901" text-anchor="middle" class="tiny">reward good routes;</text>
+  <text x="935" y="922" text-anchor="middle" class="tiny">penalize risky paths</text>
+
+  <rect class="box" x="1090" y="835" width="230" height="95" rx="14" />
+  <text x="1205" y="872" text-anchor="middle" class="h">REUSABLE ARTIFACT</text>
+  <text x="1205" y="901" text-anchor="middle" class="tiny">save the best route</text>
+  <text x="1205" y="922" text-anchor="middle" class="tiny">as a trail artifact</text>
+
+  <rect class="box" x="1360" y="835" width="200" height="95" rx="14" />
+  <text x="1460" y="872" text-anchor="middle" class="h">BETTER ROUTE</text>
+  <text x="1460" y="901" text-anchor="middle" class="tiny">next task starts from</text>
+  <text x="1460" y="922" text-anchor="middle" class="tiny">a verified path</text>
+
+  <path class="line" d="M780 882 L830 882" />
+  <path class="line" d="M1040 882 L1090 882" />
+  <path class="line" d="M1320 882 L1360 882" />
+
+  <text x="800" y="1000" text-anchor="middle" class="subtitle">Execution scales agents. LS preserves continuity and compounds precision.</text>
+</svg>
