@@ -115,7 +115,13 @@ scripts/run_pr_role_market_demo.py
 
 ## Python SDK
 
-For programmatic use, the Python SDK wraps the CLI:
+Install the local SDK from the package directory:
+
+```bash
+python -m pip install -e python/ls_conductor
+```
+
+Then use it programmatically:
 
 ```python
 from ls_conductor import LSConductor
@@ -130,6 +136,8 @@ print(result.route_won_vs_single)  # bool
 print(result.evidence)           # list[Evidence]
 print(result.decision)           # "review_with_conditions", etc.
 ```
+
+The SDK is currently a local wrapper over the CLI. It does not call hosted model APIs by default.
 
 ### Healthcheck
 
