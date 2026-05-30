@@ -24,5 +24,6 @@ Homepage = "https://github.com/safal207/LS"
 Repository = "https://github.com/safal207/LS"
 Issues = "https://github.com/safal207/LS/issues"
 
-[tool.setuptools.packages.find]
-include = ["ls_conductor*"]
+[tool.setuptools]
+packages = ["ls_conductor"]
+package-dir = {"ls_conductor" = "."}
