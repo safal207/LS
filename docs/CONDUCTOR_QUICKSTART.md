@@ -171,6 +171,68 @@ result = ls.run(
 print(result.artifact_path)  # "/abs/path/to/review.json"
 ```
 
+## Local HTTP API
+
+Install the local SDK with server dependencies:
+
+```bash
+python -m pip install -e 'python/ls_conductor[server]'
+```
+
+Start the local HTTP facade:
+
+```bash
+python -m ls_conductor.server
+```
+
+The server listens on:
+
+```text
+http://127.0.0.1:8788
+```
+
+Healthcheck:
+
+```bash
+curl http://127.0.0.1:8788/v1/health
+```
+
+Run a PR-review route against a saved diff:
+
+```bash
+curl -X POST http://127.0.0.1:8788/v1/conductor/run \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "diff_file": "latest.diff",
+    "policy": "cooperative_pr_review"
+  }'
+```
+
+Run against a git range:
+
+```bash
+curl -X POST http://127.0.0.1:8788/v1/conductor/run \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "base": "HEAD~1",
+    "head": "HEAD",
+    "policy": "cooperative_pr_review"
+  }'
+```
+
+Compare candidates:
+
+```bash
+curl -X POST http://127.0.0.1:8788/v1/conductor/compare \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "task": "Review this PR for security risks",
+    "candidates": ["output A", "output B"]
+  }'
+```
+
+The HTTP facade is local-only by default. It does not provide auth, tenancy, billing, hosted model routing, or production deployment controls.
+
 ## What It Does Not Do Yet
 
 The first wrapper does not provide:
@@ -192,17 +254,22 @@ Keep this boundary visible:
 Conductor wrapper over LS PR-review route artifacts; not a formal proof of best answer or global model ranking.
 ```
 
-## Next Step
-
-The next product step is a local HTTP facade:
+For the HTTP facade, keep this boundary visible:
 
 ```text
-POST /v1/conductor/run
-GET /v1/health
+Local HTTP facade over the LS Conductor Python SDK and PR-review CLI; not a hosted production API, formal proof of best answer, or global model ranking.
 ```
 
-But the current CLI is the first developer-facing handle:
+## Next Step
+
+The next product step is not a hosted SaaS yet. It is a minimal integration path:
 
 ```text
-one diff -> cooperative PR-review route -> evidence-shaped JSON
+GitHub Action / GitHub App -> POST /v1/conductor/run -> PR comment
+```
+
+The current local stack is:
+
+```text
+one diff -> CLI -> Python SDK -> local HTTP facade -> evidence-shaped JSON
 ```
