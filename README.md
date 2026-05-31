@@ -104,6 +104,11 @@ Run the PR-review trail demo:
 ```bash
 python3 scripts/run_pr_review_trail_demo.py
 ```
+## PR review trail demo screenshot
+
+Example output from the PR review trail demo command.
+
+![PR review trail demo](./assets/pr_review_demo.png)
 
 Build a real PR-review trail artifact from the latest git commit:
 
