@@ -1,8 +1,8 @@
 """Provider-neutral contracts for the LS Trusted Cooperative Runtime.
 
 The package intentionally contains no live provider integrations. It defines
-small stable data structures and adapter protocols that ecosystem modules can
-implement independently.
+small stable data structures, adapter protocols, and a deterministic local
+orchestrator that ecosystem modules can replace independently.
 """
 
 from .contracts import (
@@ -21,6 +21,11 @@ from .contracts import (
     WorkflowPlan,
     WorkflowStep,
 )
+from .orchestrator import (
+    DeterministicWorkflowOrchestrator,
+    OrchestrationDepthError,
+    OrchestratorConfig,
+)
 from .protocols import (
     AuthorizationBundleAdapter,
     CausalAuditAdapter,
@@ -37,11 +42,14 @@ __all__ = [
     "CausalAuditAdapter",
     "CognitiveTrail",
     "DecisionCode",
+    "DeterministicWorkflowOrchestrator",
     "EventStoreAdapter",
     "EvidenceDecision",
     "EvidenceGateAdapter",
     "ExecutionAuthorization",
     "ExecutionControlAdapter",
+    "OrchestrationDepthError",
+    "OrchestratorConfig",
     "ReplayAdapter",
     "ReplayDecision",
     "ReplayRecord",
