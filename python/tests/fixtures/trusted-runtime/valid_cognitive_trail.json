@@ -1,0 +1,53 @@
+{
+  "schema_version": "trusted_runtime.cognitive_trail.v0.1",
+  "task_id": "task-pr-001",
+  "trail_id": "trail-pr-001",
+  "actor": "runtime:ls",
+  "created_at": "2026-06-22T17:00:00Z",
+  "events": [
+    {
+      "event_id": "event-task-received",
+      "task_id": "task-pr-001",
+      "trail_id": "trail-pr-001",
+      "event_type": "TASK_RECEIVED",
+      "actor": "human:alexey",
+      "created_at": "2026-06-22T17:00:00Z",
+      "parent_cause": "task-pr-001",
+      "evidence_refs": ["diff:sha256:demo"],
+      "payload": {"intent": "Review a fixture git diff."}
+    },
+    {
+      "event_id": "event-plan-created",
+      "task_id": "task-pr-001",
+      "trail_id": "trail-pr-001",
+      "event_type": "PLAN_CREATED",
+      "actor": "orchestrator:deterministic",
+      "created_at": "2026-06-22T17:00:30Z",
+      "parent_cause": "event-task-received",
+      "evidence_refs": [],
+      "payload": {"plan_ref": "plan:task-pr-001:v1"}
+    },
+    {
+      "event_id": "event-route-selected",
+      "task_id": "task-pr-001",
+      "trail_id": "trail-pr-001",
+      "event_type": "ROUTE_SELECTED",
+      "actor": "routing:mock",
+      "created_at": "2026-06-22T17:01:00Z",
+      "parent_cause": "event-plan-created",
+      "evidence_refs": ["route:route-reviewer-001"],
+      "payload": {"backend": "backend:local-reviewer"}
+    },
+    {
+      "event_id": "event-work-completed",
+      "task_id": "task-pr-001",
+      "trail_id": "trail-pr-001",
+      "event_type": "WORK_COMPLETED",
+      "actor": "adapter:mock-reviewer",
+      "created_at": "2026-06-22T17:02:00Z",
+      "parent_cause": "event-route-selected",
+      "evidence_refs": ["finding:review-001"],
+      "payload": {"result": "completed"}
+    }
+  ]
+}
