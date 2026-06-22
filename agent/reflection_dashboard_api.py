@@ -69,45 +69,57 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
         super().__init__(*args, **kwargs)
 
     def do_OPTIONS(self) -> None:
-        parsed = urlparse(self.path)
-        if parsed.path not in ("/api/reflection/snapshot", "/api/reflection/action"):
-            self.send_response(404)
+        try:
+            parsed = urlparse(self.path)
+            if parsed.path not in ("/api/reflection/snapshot", "/api/reflection/action"):
+                self.send_response(404)
+                self.end_headers()
+                return
+            self.send_response(204)
+            self.send_header("Access-Control-Allow-Origin", _cors_allow_origin())
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
             self.end_headers()
-            return
-        self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", _cors_allow_origin())
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
+        except Exception:
+            logger.exception("reflection_api 500 OPTIONS %s", self.path)
+            self._send_json(500, {"error": "internal_error"})
 
     def do_GET(self) -> None:
-        parsed = urlparse(self.path)
-        if parsed.path != "/api/reflection/snapshot":
-            logger.warning("reflection_api 404 GET %s", parsed.path)
-            self._send_json(404, {"error": "not_found"})
-            return
+        try:
+            parsed = urlparse(self.path)
+            if parsed.path != "/api/reflection/snapshot":
+                logger.warning("reflection_api 404 GET %s", parsed.path)
+                self._send_json(404, {"error": "not_found"})
+                return
 
-        service = self._require_service()
-        snapshot = build_snapshot_response(service, parse_qs(parsed.query))
-        self._send_json(200, snapshot)
+            service = self._require_service()
+            snapshot = build_snapshot_response(service, parse_qs(parsed.query))
+            self._send_json(200, snapshot)
+        except Exception:
+            logger.exception("reflection_api 500 GET %s", self.path)
+            self._send_json(500, {"error": "internal_error"})
 
     def do_POST(self) -> None:
-        parsed = urlparse(self.path)
-        if parsed.path != "/api/reflection/action":
-            logger.warning("reflection_api 404 POST %s", parsed.path)
-            self._send_json(404, {"error": "not_found"})
-            return
-
-        service = self._require_service()
         try:
-            payload = self._read_json_body()
-            result = execute_action(service, payload)
-        except ValueError as error:
-            logger.warning("reflection_api 400 POST %s: %s", parsed.path, error)
-            self._send_json(400, {"error": str(error)})
-            return
+            parsed = urlparse(self.path)
+            if parsed.path != "/api/reflection/action":
+                logger.warning("reflection_api 404 POST %s", parsed.path)
+                self._send_json(404, {"error": "not_found"})
+                return
 
-        self._send_json(200, result)
+            service = self._require_service()
+            try:
+                payload = self._read_json_body()
+                result = execute_action(service, payload)
+            except ValueError as error:
+                logger.warning("reflection_api 400 POST %s: %s", parsed.path, error)
+                self._send_json(400, {"error": str(error)})
+                return
+
+            self._send_json(200, result)
+        except Exception:
+            logger.exception("reflection_api 500 POST %s", self.path)
+            self._send_json(500, {"error": "internal_error"})
 
     def _require_service(self) -> ReflectionDashboardService:
         if self.service_factory is None:
@@ -151,7 +163,11 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
         # BUG-API-02: Restore minimal server-side logging so errors are visible
-        logger.info("reflection_api %s", format % args)
+        msg = format % args
+        if " 40" in msg or " 50" in msg or msg.startswith("code "):
+            logger.warning("reflection_api %s", msg)
+        else:
+            logger.info("reflection_api %s", msg)
 
 
 def create_handler(service_factory: Callable[[], ReflectionDashboardService]) -> type[ReflectionDashboardApiHandler]:
