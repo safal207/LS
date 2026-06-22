@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -106,13 +107,36 @@ class TaskManager:
         self.trace.log(task_id, f"Approval rejected for {step_id}: {reason}", level="warning", step_id=step_id)
 
     def get_status(self, task_id: str) -> dict:
-        task = self.store.fetch_one("SELECT * FROM tasks WHERE id=:task_id", task_id=task_id)
-        if not task:
+        query = """
+            SELECT t.*, s.id as step_id, s.title as step_title, s.type as step_type,
+                   s.status as step_status, s.needs_approval as step_needs_approval
+            FROM tasks t
+            LEFT JOIN steps s ON t.id = s.task_id
+            WHERE t.id = :task_id
+            ORDER BY s.id ASC
+        """
+        rows = self.store.fetch_all(query, task_id=task_id)
+        if not rows:
             raise ValueError(f"Task not found: {task_id}")
-        task["steps"] = self.store.fetch_all(
-            "SELECT id, title, type, status, needs_approval FROM steps WHERE task_id=:task_id ORDER BY id ASC",
-            task_id=task_id,
-        )
+
+        first = rows[0]
+        # Reconstruct task dict, filtering out join-prefixed step columns
+        task = {k: v for k, v in first.items() if not k.startswith("step_")}
+
+        # Collect steps if they exist (step_id will be None if no steps due to LEFT JOIN)
+        if first["step_id"] is None:
+            task["steps"] = []
+        else:
+            task["steps"] = [
+                {
+                    "id": row["step_id"],
+                    "title": row["step_title"],
+                    "type": row["step_type"],
+                    "status": row["step_status"],
+                    "needs_approval": row["step_needs_approval"],
+                }
+                for row in rows
+            ]
         return task
 
     def list_artifacts(self, task_id: str) -> list[dict]:
@@ -124,7 +148,32 @@ class TaskManager:
     def get_trace(self, task_id: str) -> list[dict]:
         return self.trace.list_logs(task_id)
 
-    def list_tasks(self) -> list[dict]:
-        return self.store.fetch_all(
+    def list_tasks(self, include_steps: bool = False) -> list[dict]:
+        tasks = self.store.fetch_all(
             "SELECT id, title, mode, status, created_at, updated_at FROM tasks ORDER BY created_at DESC"
         )
+        if not tasks or not include_steps:
+            return tasks
+
+        task_ids = [t["id"] for t in tasks]
+        # SQLite parameter limit is usually 999, which is enough for typical task lists.
+        # We use named parameters :id0, :id1, ... to avoid positional parameter issues in fetch_all.
+        params = {f"id{i}": tid for i, tid in enumerate(task_ids)}
+        placeholders = ", ".join(f":id{i}" for i in range(len(task_ids)))
+        query = f"""
+            SELECT id, task_id, title, type, status, needs_approval
+            FROM steps
+            WHERE task_id IN ({placeholders})
+            ORDER BY id ASC
+        """
+        all_steps = self.store.fetch_all(query, **params)
+
+        steps_by_task = defaultdict(list)
+        for s in all_steps:
+            tid = s.pop("task_id")
+            steps_by_task[tid].append(s)
+
+        for t in tasks:
+            t["steps"] = steps_by_task[t["id"]]
+
+        return tasks
