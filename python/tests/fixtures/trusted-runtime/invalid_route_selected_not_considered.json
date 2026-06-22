@@ -1,0 +1,19 @@
+{
+  "schema_version": "trusted_runtime.route_decision.v0.1",
+  "route_id": "route-reviewer-002",
+  "task_id": "task-pr-001",
+  "trail_id": "trail-pr-001",
+  "role_id": "reviewer",
+  "capability": "code_review",
+  "adapter": "routing:mock",
+  "actor": "runtime:ls",
+  "selected_backend": "backend:unapproved-remote",
+  "considered_backends": [
+    "backend:local-reviewer",
+    "backend:offline-fixture"
+  ],
+  "reason": "This fixture must fail semantic validation.",
+  "created_at": "2026-06-22T17:01:00Z",
+  "parent_cause": "draft-review",
+  "metadata": {}
+}
