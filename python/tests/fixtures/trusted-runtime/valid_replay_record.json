@@ -1,0 +1,18 @@
+{
+  "schema_version": "trusted_runtime.replay_record.v0.1",
+  "replay_id": "replay-pr-001",
+  "task_id": "task-pr-001",
+  "trail_id": "trail-pr-001",
+  "actor": "replay:local",
+  "created_at": "2026-06-22T17:03:00Z",
+  "source_event_refs": [
+    "event-task-received",
+    "event-plan-created",
+    "event-route-selected",
+    "event-work-completed"
+  ],
+  "decision": "ADMISSIBLE",
+  "reason": "The saved path preserves event order and expected parent links.",
+  "drift_refs": [],
+  "parent_cause": "event-work-completed"
+}

@@ -1,0 +1,70 @@
+name: Trusted Runtime Contract
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "schemas/trusted_runtime/**"
+      - "python/modules/trusted_runtime/**"
+      - "python/tests/fixtures/trusted-runtime/**"
+      - "python/tests/test_trusted_runtime_*.py"
+      - "docs/trusted-runtime/**"
+      - ".github/workflows/trusted_runtime_contract.yml"
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - "schemas/trusted_runtime/**"
+      - "python/modules/trusted_runtime/**"
+      - "python/tests/fixtures/trusted-runtime/**"
+      - "python/tests/test_trusted_runtime_*.py"
+      - "docs/trusted-runtime/**"
+      - ".github/workflows/trusted_runtime_contract.yml"
+
+concurrency:
+  group: trusted-runtime-contract-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-contracts:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install contract test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema pytest
+
+      - name: Validate Trusted Runtime contracts
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python -m pytest python/tests/test_trusted_runtime_*.py
+
+      - name: Write contract summary
+        if: always()
+        run: |
+          {
+            echo "## Trusted Runtime Contract"
+            echo ""
+            echo "- Python: ${{ matrix.python-version }}"
+            echo "- Schemas: Draft 2020-12"
+            echo "- Scope: workflow, routing, trail, evidence, authorization, replay, artifact"
+            echo "- Boundary: deterministic local contract validation only"
+          } >> "$GITHUB_STEP_SUMMARY"

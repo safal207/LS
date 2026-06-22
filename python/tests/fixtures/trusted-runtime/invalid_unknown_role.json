@@ -1,0 +1,30 @@
+{
+  "schema_version": "trusted_runtime.workflow_plan.v0.1",
+  "task": {
+    "task_id": "task-pr-001",
+    "trail_id": "trail-pr-001",
+    "intent": "Review a fixture git diff.",
+    "actor": "human:alexey",
+    "created_at": "2026-06-22T17:00:00Z",
+    "evidence_refs": ["diff:sha256:demo"],
+    "metadata": {}
+  },
+  "roles": [
+    {
+      "role_id": "reviewer",
+      "capability": "code_review",
+      "actor": "adapter:mock-reviewer",
+      "parent_cause": "task-pr-001"
+    }
+  ],
+  "steps": [
+    {
+      "step_id": "verify-review",
+      "role_id": "ghost-verifier",
+      "action": "Verify findings.",
+      "parent_cause": "task-pr-001",
+      "depends_on": [],
+      "evidence_refs": ["diff:sha256:demo"]
+    }
+  ]
+}

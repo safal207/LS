@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Trusted Runtime Reusable Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_id",
+    "task_id",
+    "trail_id",
+    "created_at",
+    "route_refs",
+    "evidence_refs",
+    "contribution_refs",
+    "decision_ref",
+    "execution_ref",
+    "replay_ref"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.reusable_artifact.v0.1"},
+    "artifact_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "trail_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "route_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "contribution_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "decision_ref": {"type": "string", "minLength": 1},
+    "execution_ref": {"type": ["string", "null"]},
+    "replay_ref": {"type": ["string", "null"]}
+  }
+}

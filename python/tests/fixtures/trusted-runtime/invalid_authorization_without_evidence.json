@@ -1,0 +1,15 @@
+{
+  "schema_version": "trusted_runtime.execution_authorization.v0.1",
+  "authorization_id": "auth-pr-001",
+  "task_id": "task-pr-001",
+  "trail_id": "trail-pr-001",
+  "decision": "ALLOW",
+  "actor": "gate:mock",
+  "scope": ["artifact:write"],
+  "issued_at": "2026-06-22T17:00:00Z",
+  "expires_at": "2026-06-22T18:00:00Z",
+  "nonce": "nonce-pr-001",
+  "evidence_refs": [],
+  "policy_version": "policy.v0.1",
+  "parent_cause": "decision-pr-001"
+}
