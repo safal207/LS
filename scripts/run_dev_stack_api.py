@@ -6,6 +6,7 @@ import argparse
 import sys
 import threading
 import time
+from dataclasses import dataclass
 from http.server import HTTPServer
 from pathlib import Path
 
@@ -16,43 +17,46 @@ if str(ROOT / "python") not in sys.path:
     sys.path.insert(0, str(ROOT / "python"))
 
 
-def _serve_reflection(host: str, port: int, state_path: str, servers: list[HTTPServer]) -> None:
+@dataclass
+class ServerContext:
+    host: str
+    port: int
+    state_path: str
+    servers: list[HTTPServer]
+    bootstrap_entry: str | None = None
+    bootstrap_app_name: str = "console"
+
+
+def _serve_reflection(ctx: ServerContext) -> None:
     from agent.reflection_dashboard_api import create_handler, create_service
 
-    service = create_service(state_path=state_path)
+    service = create_service(state_path=ctx.state_path)
     handler = create_handler(lambda: service)
-    httpd = HTTPServer((host, port), handler)
-    servers.append(httpd)
-    print(f"Reflection API http://{host}:{port} (state: {state_path})")
+    httpd = HTTPServer((ctx.host, ctx.port), handler)
+    ctx.servers.append(httpd)
+    print(f"Reflection API http://{ctx.host}:{ctx.port} (state: {ctx.state_path})")
     httpd.serve_forever()
 
 
-def _serve_hcp(
-    host: str,
-    port: int,
-    state_path: str,
-    servers: list[HTTPServer],
-    bootstrap_entry: str | None,
-    bootstrap_app_name: str,
-) -> None:
+def _serve_hcp(ctx: ServerContext) -> None:
     from modules.hcp_marketplace.http_api import create_handler
     from modules.hcp_marketplace.service import HcpMarketplaceService
     from modules.hcp_marketplace.store import load_store_with_seed
 
-    store = load_store_with_seed(Path(state_path))
+    store = load_store_with_seed(Path(ctx.state_path))
     service = HcpMarketplaceService(store)
     plugin_manager = None
-    if bootstrap_entry:
+    if ctx.bootstrap_entry:
         from modules.shared.bootstrap import bootstrap_app
         from modules.shared.plugin_manager import PluginManager
 
-        ctx = bootstrap_app(bootstrap_entry, bootstrap_app_name)
-        plugin_manager = PluginManager(ctx)
+        bt_ctx = bootstrap_app(ctx.bootstrap_entry, ctx.bootstrap_app_name)
+        plugin_manager = PluginManager(bt_ctx)
     handler = create_handler(lambda: service, plugin_manager=plugin_manager)
-    httpd = HTTPServer((host, port), handler)
-    servers.append(httpd)
+    httpd = HTTPServer((ctx.host, ctx.port), handler)
+    ctx.servers.append(httpd)
     mode = "with PluginManager" if plugin_manager else "catalog-only"
-    print(f"HCP API http://{host}:{port} (state: {state_path}, {mode})")
+    print(f"HCP API http://{ctx.host}:{ctx.port} (state: {ctx.state_path}, {mode})")
     httpd.serve_forever()
 
 
@@ -68,15 +72,29 @@ def main() -> None:
     args = p.parse_args()
 
     servers: list[HTTPServer] = []
+    ctx_ref = ServerContext(
+        host=args.host,
+        port=args.reflection_port,
+        state_path=args.reflection_state,
+        servers=servers,
+    )
+    ctx_hcp = ServerContext(
+        host=args.host,
+        port=args.hcp_port,
+        state_path=args.hcp_state,
+        servers=servers,
+        bootstrap_entry=args.bootstrap,
+        bootstrap_app_name=args.app,
+    )
     t_ref = threading.Thread(
         target=_serve_reflection,
-        args=(args.host, args.reflection_port, args.reflection_state, servers),
+        args=(ctx_ref,),
         name="reflection-api",
         daemon=True,
     )
     t_hcp = threading.Thread(
         target=_serve_hcp,
-        args=(args.host, args.hcp_port, args.hcp_state, servers, args.bootstrap, args.app),
+        args=(ctx_hcp,),
         name="hcp-api",
         daemon=True,
     )
