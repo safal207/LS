@@ -1,6 +1,6 @@
 # LS Trusted Cooperative Runtime — Contract Architecture
 
-Status: **v0.1 foundation draft**  
+Status: **v0.1 contract foundation**  
 Parent issue: [#591](https://github.com/safal207/LS/issues/591)  
 Epic: [#599](https://github.com/safal207/LS/issues/599)
 
@@ -13,7 +13,7 @@ inspectable cooperation artifact:
 task
 -> plan and roles
 -> route
--> causal audit
+-> causal trail
 -> evidence decision
 -> authorization
 -> commit-before-effect execution
@@ -42,14 +42,18 @@ internal implementation of these repositories into its core.
 
 ## Canonical contract family
 
-The first checked-in contracts are:
+The checked-in v0.1 contracts are:
 
 - `TaskEnvelope`: original intent, actor, trail, time, and evidence references.
-- `RoleAssignment`: provider-neutral capability assignment with a parent cause.
-- `WorkflowStep`: bounded action, dependencies, role, evidence, and causal parent.
-- `WorkflowPlan`: one task plus its roles and ordered work graph.
+- `RoleAssignment`: provider-neutral capability assignment with a task parent.
+- `WorkflowStep`: bounded action, prior dependencies, role, evidence, and causal parent.
+- `WorkflowPlan`: one task plus its roles and topologically ordered work graph.
+- `RouteDecision`: selected backend, considered alternatives, route explanation, and parent cause.
+- `TrailEvent`: one typed, attributable, evidence-linked event in the cooperation path.
+- `CognitiveTrail`: ordered events whose parent links must resolve to the task or an earlier event.
 - `EvidenceDecision`: `ALLOW`, `HOLD`, `BLOCK`, or `ESCALATE` with evidence.
 - `ExecutionAuthorization`: scoped, expiring, nonce-bearing permission derived from `ALLOW`.
+- `ReplayRecord`: `ADMISSIBLE`, `DRIFTED`, or `REJECTED` inspection of saved event references.
 - `ReusableArtifact`: references to routes, evidence, contributions, decision, execution, and replay.
 
 Schemas live under:
@@ -70,8 +74,8 @@ Where applicable, records carry:
 
 - `task_id`: stable identity of the user-visible task;
 - `trail_id`: stable identity of the full cooperation trail;
-- `parent_cause`: the task, delegation, decision, or prior step that justifies the record;
-- `actor`: human, adapter, model, service, or gate responsible for the record;
+- `parent_cause`: the task, delegation, decision, or earlier event that justifies the record;
+- `actor`: human, adapter, model, service, runtime, or gate responsible for the record;
 - timestamp fields;
 - `evidence_refs`: references rather than embedded private payloads.
 
@@ -79,29 +83,46 @@ Where applicable, records carry:
 
 Validation is deliberately split:
 
-1. **JSON Schema validation** checks shape, required fields, versions, enums, and closed objects.
+1. **JSON Schema validation** checks shape, required fields, versions, enums, arrays, and closed objects.
 2. **Python semantic validation** checks relationships that JSON Schema cannot reliably express, such as:
-   - unique role and step identifiers;
+   - unique role, step, and event identifiers;
    - role references that resolve;
-   - causal parents that exist;
-   - dependencies that resolve;
+   - causal parents that already exist when a step or event is appended;
+   - dependencies that point only to prior steps;
    - prevention of self-parent and self-dependency links;
-   - execution permission only from an `ALLOW` decision.
+   - selected backends that were actually considered;
+   - event task and trail identity consistency;
+   - execution permission only from an `ALLOW` decision;
+   - replay consistency between decisions and drift references.
 
 A record is not accepted merely because it is valid JSON.
+
+## Causal ordering rule
+
+The v0.1 foundation treats workflow steps and trail events as append-only ordered
+records. A new record may reference:
+
+- the root `task_id`; or
+- a step/event that already appears earlier in the same ordered collection.
+
+It may not reference a future record. This keeps replay and causal audit
+inspectable without requiring hidden runtime state.
 
 ## Safety invariants
 
 The v0.1 contracts establish these invariants:
 
-1. Every workflow step has an explicit parent cause.
+1. Every workflow step and trail event has an explicit parent cause.
 2. Every workflow step references a declared role.
-3. `ALLOW` requires inspectable evidence before it can become authorization.
-4. Execution authorization is scoped, expiring, and nonce-bearing.
-5. `HOLD`, `BLOCK`, and `ESCALATE` are decisions, not execution permissions.
-6. Model output is a proposal and never authorizes a side effect by itself.
-7. Provider-specific fields remain behind adapter boundaries.
-8. Secret values and private payloads must not be copied into reusable artifacts.
+3. Workflow dependencies and causal parents cannot point into the future.
+4. A selected backend must appear in the declared considered set.
+5. `ALLOW` requires inspectable evidence before it can become authorization.
+6. Execution authorization is scoped, expiring, evidence-linked, and nonce-bearing.
+7. `HOLD`, `BLOCK`, and `ESCALATE` are decisions, not execution permissions.
+8. `ADMISSIBLE` replay cannot hide drift; `DRIFTED` replay must identify drift references.
+9. Model output is a proposal and never authorizes a side effect by itself.
+10. Provider-specific fields remain behind adapter boundaries.
+11. Secret values and private payloads must not be copied into reusable artifacts.
 
 ## Versioning
 
@@ -109,13 +130,16 @@ The initial versions are intentionally narrow:
 
 ```text
 trusted_runtime.workflow_plan.v0.1
+trusted_runtime.route_decision.v0.1
+trusted_runtime.cognitive_trail.v0.1
 trusted_runtime.evidence_decision.v0.1
 trusted_runtime.execution_authorization.v0.1
+trusted_runtime.replay_record.v0.1
 trusted_runtime.reusable_artifact.v0.1
 ```
 
-Breaking changes require a new version. Adapters should reject unknown major or
-contract versions rather than silently guessing.
+Breaking changes require a new version. Adapters should reject unknown contract
+versions rather than silently guessing.
 
 ## Local validation
 
@@ -127,8 +151,16 @@ PYTHONPATH=.:python:python/modules \
   python -m pytest python/tests/test_trusted_runtime_contracts.py
 ```
 
-The fixtures include one valid workflow and negative examples for missing
-causal ancestry, an unknown role reference, and authorization without evidence.
+The focused CI workflow runs the same suite on Python 3.9 and 3.11:
+
+```text
+.github/workflows/trusted_runtime_contract.yml
+```
+
+Fixtures cover valid workflow, routing, trail, and replay records plus negative
+cases for missing ancestry, unknown roles, unconsidered backend selection,
+forward parent links, missing authorization evidence, and replay without source
+events.
 
 ## Non-goals for v0.1
 
