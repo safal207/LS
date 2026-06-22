@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, is_dataclass
 from enum import Enum
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
 
 WORKFLOW_PLAN_VERSION = "trusted_runtime.workflow_plan.v0.1"
@@ -233,8 +233,8 @@ class ReusableArtifact:
     evidence_refs: tuple[str, ...]
     contribution_refs: tuple[str, ...]
     decision_ref: str
-    execution_ref: str | None
-    replay_ref: str | None
+    execution_ref: Optional[str]
+    replay_ref: Optional[str]
     schema_version: str = REUSABLE_ARTIFACT_VERSION
 
     def __post_init__(self) -> None:
