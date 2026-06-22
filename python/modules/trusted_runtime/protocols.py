@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
 
-from .contracts import EvidenceDecision, ExecutionAuthorization, WorkflowPlan
+from .contracts import (
+    CognitiveTrail,
+    EvidenceDecision,
+    ExecutionAuthorization,
+    ReplayRecord,
+    RouteDecision,
+    WorkflowPlan,
+)
 
 
 JsonObject = Mapping[str, Any]
@@ -32,7 +39,7 @@ class RoutingAdapter(Protocol):
     def adapter_name(self) -> str:
         ...
 
-    def route(self, request: JsonObject) -> JsonObject:
+    def route(self, request: JsonObject) -> RouteDecision:
         ...
 
 
@@ -44,7 +51,7 @@ class CausalAuditAdapter(Protocol):
     def adapter_name(self) -> str:
         ...
 
-    def audit(self, trail: JsonObject) -> JsonObject:
+    def audit(self, trail: CognitiveTrail) -> JsonObject:
         ...
 
 
@@ -95,7 +102,7 @@ class ReplayAdapter(Protocol):
     def adapter_name(self) -> str:
         ...
 
-    def replay(self, trail: JsonObject) -> JsonObject:
+    def replay(self, trail: CognitiveTrail) -> ReplayRecord:
         ...
 
 
