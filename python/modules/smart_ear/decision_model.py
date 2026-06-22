@@ -48,6 +48,7 @@ Usage::
 
 from __future__ import annotations
 
+import builtins
 import logging
 import os
 import pickle
@@ -55,6 +56,45 @@ import time
 from typing import Any, Dict, Optional
 
 from .features import features_to_vector
+
+
+class RestrictedUnpickler(pickle.Unpickler):
+    """Unpickler restricted to a whitelist of safe classes for SmartEar models."""
+
+    def find_class(self, module, name):
+        # 1. Safe builtins (data structures only)
+        if module == "builtins":
+            if name in {"dict", "list", "set", "int", "float", "str", "bool", "complex"}:
+                return getattr(builtins, name)
+
+        # 2. SmartEar internal classes
+        if name == "ProbabilityCalibrator" and (
+            module.endswith("smart_ear.calibration") or module == "calibration"
+        ):
+            from .calibration import ProbabilityCalibrator
+
+            return ProbabilityCalibrator
+
+        # 3. NumPy (required by most ML models)
+        if module.startswith("numpy"):
+            import numpy
+
+            if module == "numpy.core.multiarray" and name == "_reconstruct":
+                return numpy.core.multiarray._reconstruct
+            if name in {"ndarray", "dtype"}:
+                return getattr(numpy, name)
+            # If it is another numpy sub-module, allow it if scikit-learn is likely to use it
+            if module.startswith("numpy."):
+                mod = builtins.__import__(module, fromlist=[name])
+                return getattr(mod, name)
+
+        # 4. Scikit-Learn, LightGBM, XGBoost
+        if module.startswith(("sklearn.", "lightgbm.", "xgboost.")):
+            mod = builtins.__import__(module, fromlist=[name])
+            return getattr(mod, name)
+
+        # Forbid everything else
+        raise pickle.UnpicklingError(f"Refusing to unpickle unsafe class: {module}.{name}")
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +174,7 @@ class SmartEarDecisionModel:
 
         try:
             with open(self.model_path, "rb") as fh:
-                payload = pickle.load(fh)
+                payload = RestrictedUnpickler(fh).load()
 
             # Support versioned payloads: dict with 'model' and 'version' keys
             if isinstance(payload, dict) and "model" in payload:
