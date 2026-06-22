@@ -148,7 +148,7 @@ Run the focused contract tests:
 ```bash
 python -m pip install jsonschema pytest
 PYTHONPATH=.:python:python/modules \
-  python -m pytest python/tests/test_trusted_runtime_contracts.py
+  python -m pytest python/tests/test_trusted_runtime_*.py
 ```
 
 The focused CI workflow runs the same suite on Python 3.9 and 3.11:
@@ -160,7 +160,8 @@ The focused CI workflow runs the same suite on Python 3.9 and 3.11:
 Fixtures cover valid workflow, routing, trail, and replay records plus negative
 cases for missing ancestry, unknown roles, unconsidered backend selection,
 forward parent links, missing authorization evidence, and replay without source
-events.
+events. A separate ordering regression test also proves that a workflow step
+cannot depend on or descend from a step that appears later in the plan.
 
 ## Non-goals for v0.1
 
