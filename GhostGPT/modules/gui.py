@@ -241,7 +241,7 @@ class GhostWindow(QMainWindow):
         secure_row.addWidget(self.btn_export_secure)
         secure_row.addWidget(self.btn_import_secure)
         secure_row.addWidget(self.btn_sleep)
-        secure_row.addWidget(self.btn_reflect)  # BUG-03 fix: added only once
+        secure_row.addWidget(self.btn_reflect)
         secure_row.addWidget(self.btn_audit)
 
         self.amygdala_tip_targets = [self.state_bar, self.protection_badge, self.personality_label, self.phantom_bar]
