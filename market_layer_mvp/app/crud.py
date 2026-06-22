@@ -38,9 +38,14 @@ DEFAULT_GOVERNANCE: dict[str, float] = {
 
 def ensure_governance_defaults(db: Session) -> None:
     changed = False
+    keys = list(DEFAULT_GOVERNANCE.keys())
+    existing_params = db.scalars(
+        select(GovernanceParam).where(GovernanceParam.key.in_(keys))
+    ).all()
+    existing_keys = {p.key for p in existing_params}
+
     for key, value in DEFAULT_GOVERNANCE.items():
-        existing = db.get(GovernanceParam, key)
-        if existing is None:
+        if key not in existing_keys:
             db.add(GovernanceParam(key=key, value=value))
             changed = True
     if changed:
