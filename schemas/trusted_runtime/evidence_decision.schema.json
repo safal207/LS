@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Trusted Runtime Evidence Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "trail_id",
+    "decision",
+    "reason",
+    "policy_version",
+    "actor",
+    "created_at",
+    "evidence_refs",
+    "parent_cause"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.evidence_decision.v0.1"},
+    "task_id": {"type": "string", "minLength": 1},
+    "trail_id": {"type": "string", "minLength": 1},
+    "decision": {"enum": ["ALLOW", "HOLD", "BLOCK", "ESCALATE"]},
+    "reason": {"type": "string", "minLength": 1},
+    "policy_version": {"type": "string", "minLength": 1},
+    "actor": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "parent_cause": {"type": "string", "minLength": 1}
+  }
+}
