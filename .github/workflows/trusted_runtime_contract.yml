@@ -8,7 +8,7 @@ on:
       - "schemas/trusted_runtime/**"
       - "python/modules/trusted_runtime/**"
       - "python/tests/fixtures/trusted-runtime/**"
-      - "python/tests/test_trusted_runtime_contracts.py"
+      - "python/tests/test_trusted_runtime_*.py"
       - "docs/trusted-runtime/**"
       - ".github/workflows/trusted_runtime_contract.yml"
   pull_request:
@@ -18,7 +18,7 @@ on:
       - "schemas/trusted_runtime/**"
       - "python/modules/trusted_runtime/**"
       - "python/tests/fixtures/trusted-runtime/**"
-      - "python/tests/test_trusted_runtime_contracts.py"
+      - "python/tests/test_trusted_runtime_*.py"
       - "docs/trusted-runtime/**"
       - ".github/workflows/trusted_runtime_contract.yml"
 
@@ -55,7 +55,7 @@ jobs:
       - name: Validate Trusted Runtime contracts
         run: |
           PYTHONPATH=.:python:python/modules \
-            python -m pytest python/tests/test_trusted_runtime_contracts.py
+            python -m pytest python/tests/test_trusted_runtime_*.py
 
       - name: Write contract summary
         if: always()
