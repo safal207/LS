@@ -17,9 +17,20 @@ JsonObject = Mapping[str, Any]
 
 @runtime_checkable
 class WorkflowOrchestrator(Protocol):
-    """Create and revise provider-neutral workflow plans."""
+    """Create, assign, revise, and trace provider-neutral workflow plans."""
+
+    @property
+    def adapter_name(self) -> str:
+        ...
 
     def create_plan(self, task: JsonObject, context: JsonObject) -> WorkflowPlan:
+        ...
+
+    def assign_roles(
+        self,
+        plan: WorkflowPlan,
+        available_capabilities: Mapping[str, str],
+    ) -> WorkflowPlan:
         ...
 
     def revise_plan(
@@ -28,6 +39,9 @@ class WorkflowOrchestrator(Protocol):
         results: Sequence[JsonObject],
         reason: str,
     ) -> WorkflowPlan:
+        ...
+
+    def revision_trail(self, plan: WorkflowPlan) -> CognitiveTrail:
         ...
 
 
