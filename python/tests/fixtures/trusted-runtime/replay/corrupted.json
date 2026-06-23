@@ -1,0 +1,5 @@
+{
+  "corrupted_tail": "{not-valid-json",
+  "expected_decision": "REJECTED",
+  "expected_code": "CORRUPTED_TAIL"
+}
