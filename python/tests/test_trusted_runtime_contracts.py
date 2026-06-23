@@ -45,6 +45,7 @@ def test_all_trusted_runtime_schemas_are_valid_draft_2020_12() -> None:
         "evidence_decision.schema.json",
         "execution_authorization.schema.json",
         "authorization_bundle.schema.json",
+        "execution_record.schema.json",
         "replay_record.schema.json",
         "reusable_artifact.schema.json",
     }
