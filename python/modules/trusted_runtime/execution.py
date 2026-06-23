@@ -61,15 +61,15 @@ class ExecutionControlUnavailableError(ExecutionControlError):
 
 
 class ExecutionAuthorizationError(ExecutionControlError):
-    """Raised when a request is not backed by a valid authorization bundle."""
+    """Raised when a request lacks a valid authorization bundle."""
 
 
 class ExecutionStateConflictError(ExecutionControlError):
-    """Raised when an idempotency key is reused for a different action."""
+    """Raised when an idempotency key is rebound to different inputs."""
 
 
 class DurableCommitError(ExecutionControlError):
-    """Raised when the durable commit cannot be persisted."""
+    """Raised when durable commit fails before an effect is invoked."""
 
     def __init__(self, message: str, record: "ExecutionRecord") -> None:
         super().__init__(message)
@@ -106,13 +106,9 @@ class ProtectedAction:
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        required = (
-            self.action_id,
-            self.action_ref,
-            self.idempotency_key,
-            self.requested_at,
-        )
-        if not all(required):
+        if not all(
+            (self.action_id, self.action_ref, self.idempotency_key, self.requested_at)
+        ):
             raise ValueError("protected action identifiers must not be empty")
         if not self.scope:
             raise ValueError("protected action requires a non-empty scope")
@@ -220,6 +216,7 @@ class ExecutionRecord:
     action_ref: str
     action_digest: str
     authorization_ref: str
+    authorization_nonce: str
     state: ExecutionState
     decision_code: CaPUDecisionCode
     actor: str
@@ -245,6 +242,7 @@ class ExecutionRecord:
             self.action_ref,
             self.action_digest,
             self.authorization_ref,
+            self.authorization_nonce,
             self.actor,
             self.created_at,
             self.updated_at,
@@ -276,6 +274,7 @@ class ExecutionRecord:
             action_ref=str(payload["action_ref"]),
             action_digest=str(payload["action_digest"]),
             authorization_ref=str(payload["authorization_ref"]),
+            authorization_nonce=str(payload["authorization_nonce"]),
             state=ExecutionState(payload["state"]),
             decision_code=CaPUDecisionCode(payload["decision_code"]),
             actor=str(payload["actor"]),
@@ -306,6 +305,7 @@ class ExecutionRecord:
             "action_ref": self.action_ref,
             "action_digest": self.action_digest,
             "authorization_ref": self.authorization_ref,
+            "authorization_nonce": self.authorization_nonce,
             "state": self.state.value,
             "decision_code": self.decision_code.value,
             "actor": self.actor,
@@ -374,15 +374,14 @@ class InMemoryExecutionJournal:
 
 
 class JsonFileExecutionJournal:
-    """Small atomic JSON journal used by local demos and crash fixtures."""
+    """Atomic JSON journal used by local demos and crash fixtures."""
 
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def load(self, execution_id: str) -> Optional[ExecutionRecord]:
-        records = self._read_all()
-        payload = records.get(execution_id)
+        payload = self._read_all().get(execution_id)
         return ExecutionRecord.from_mapping(payload) if payload is not None else None
 
     def save(self, record: ExecutionRecord) -> None:
@@ -399,10 +398,7 @@ class JsonFileExecutionJournal:
             return {}
         payload = json.loads(self.path.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
-            raise DurableCommitError(
-                "execution journal root must be an object",
-                _invalid_record_for_error(),
-            )
+            raise ValueError("execution journal root must be an object")
         return payload
 
 
@@ -432,7 +428,6 @@ class ReviewResultFileExecutor:
             effect_ref=f"file:{target}",
             effect_digest=hashlib.sha256(content.encode("utf-8")).hexdigest(),
             created_at=str(payload["created_at"]),
-            no_effect=False,
         )
 
     def execute(
@@ -470,12 +465,10 @@ class ReviewResultFileExecutor:
             effect_ref=f"file:{target}",
             effect_digest=hashlib.sha256(content.encode("utf-8")).hexdigest(),
             created_at=now,
-            no_effect=False,
         )
 
     def _target(self, execution_id: str) -> Path:
-        safe_name = execution_id.replace(":", "-")
-        return self.root / f"{safe_name}.review.json"
+        return self.root / f"{execution_id.replace(':', '-')}.review.json"
 
 
 class DeterministicExecutionController:
@@ -514,6 +507,7 @@ class DeterministicExecutionController:
                 self._validate_existing(existing, bundle, action)
                 return self._resume(
                     existing,
+                    bundle,
                     action,
                     now=now,
                     preconditions_met=preconditions_met,
@@ -529,38 +523,14 @@ class DeterministicExecutionController:
                 now,
                 "validating authorization bundle and action scope",
             )
-            try:
-                verify_authorization_bundle_files(
-                    bundle.to_files(),
-                    now=now,
-                    nonce_store=self.nonce_store,
-                    consume_nonce=False,
-                )
-                self._validate_bundle_action(bundle, action)
-            except (AuthorizationExpiredError, AuthorizationReplayError) as error:
-                record = self._transition(
-                    record,
-                    ExecutionState.REJECTED,
-                    "gate.reject",
-                    CaPUDecisionCode.REJECT_POLICY,
-                    now,
-                    str(error),
-                )
-                return self._persist_terminal(record)
-            except Exception as error:
-                record = self._transition(
-                    record,
-                    ExecutionState.REJECTED,
-                    "gate.reject",
-                    CaPUDecisionCode.REJECT_INVALID_CAUSE,
-                    now,
-                    str(error),
-                )
-                return self._persist_terminal(record)
+            rejection = self._validate_new_request(record, bundle, action, now)
+            if rejection is not None:
+                self.journal.save(rejection)
+                return rejection
 
             maturity = self._maturity_state(action, now, preconditions_met)
             if maturity is ExecutionState.EXPIRED:
-                record = self._transition(
+                expired = self._transition(
                     record,
                     ExecutionState.EXPIRED,
                     "incubator.expire",
@@ -568,9 +538,10 @@ class DeterministicExecutionController:
                     now,
                     "action expired before commit",
                 )
-                return self._persist_terminal(record)
+                self.journal.save(expired)
+                return expired
             if maturity is ExecutionState.HELD:
-                record = self._transition(
+                held = self._transition(
                     record,
                     ExecutionState.HELD,
                     "gate.hold",
@@ -578,10 +549,10 @@ class DeterministicExecutionController:
                     now,
                     "action is valid but maturity or preconditions are unresolved",
                 )
-                self.journal.save(record)
-                return record
+                self.journal.save(held)
+                return held
 
-            record = self._transition(
+            accepted = self._transition(
                 record,
                 ExecutionState.ACCEPTED,
                 "gate.accept",
@@ -589,11 +560,11 @@ class DeterministicExecutionController:
                 now,
                 "authorization, scope, maturity, and preconditions accepted",
             )
-            record = self._commit(record, bundle, now)
+            committed = self._commit(accepted, bundle, now)
             if interrupt_after_commit:
-                raise ExecutionInterrupted("after_commit", record)
+                raise ExecutionInterrupted("after_commit", committed)
             return self._complete_effect(
-                record,
+                committed,
                 action,
                 now=now,
                 interrupt_after_effect=interrupt_after_effect,
@@ -617,6 +588,7 @@ class DeterministicExecutionController:
     def _resume(
         self,
         record: ExecutionRecord,
+        bundle: AuthorizationBundle,
         action: ProtectedAction,
         *,
         now: str,
@@ -634,47 +606,99 @@ class DeterministicExecutionController:
                 now=now,
                 interrupt_after_effect=interrupt_after_effect,
             )
-        if record.state is ExecutionState.HELD:
-            maturity = self._maturity_state(action, now, preconditions_met)
-            if maturity is ExecutionState.HELD:
-                return record
-            if maturity is ExecutionState.EXPIRED:
-                expired = self._transition(
-                    record,
-                    ExecutionState.EXPIRED,
-                    "incubator.expire",
-                    CaPUDecisionCode.TTL_EXPIRED,
-                    now,
-                    "held action expired",
-                )
-                self.journal.save(expired)
-                return expired
-            accepted = self._transition(
+        if record.state is not ExecutionState.HELD:
+            raise ExecutionStateConflictError(
+                f"cannot resume execution from state {record.state.value}"
+            )
+
+        rejection = self._validate_new_request(record, bundle, action, now)
+        if rejection is not None:
+            self.journal.save(rejection)
+            return rejection
+        maturity = self._maturity_state(action, now, preconditions_met)
+        if maturity is ExecutionState.HELD:
+            return record
+        if maturity is ExecutionState.EXPIRED:
+            expired = self._transition(
                 record,
-                ExecutionState.ACCEPTED,
-                "incubator.release",
-                CaPUDecisionCode.PERMIT_OK,
+                ExecutionState.EXPIRED,
+                "incubator.expire",
+                CaPUDecisionCode.TTL_EXPIRED,
                 now,
-                "maturity and preconditions satisfied",
+                "held action expired",
             )
-            committed = self._commit(accepted, None, now)
-            return self._complete_effect(
-                committed,
-                action,
-                now=now,
-                interrupt_after_effect=interrupt_after_effect,
-            )
-        raise ExecutionStateConflictError(
-            f"cannot resume execution from state {record.state.value}"
+            self.journal.save(expired)
+            return expired
+        accepted = self._transition(
+            record,
+            ExecutionState.ACCEPTED,
+            "incubator.release",
+            CaPUDecisionCode.PERMIT_OK,
+            now,
+            "maturity and preconditions satisfied",
         )
+        committed = self._commit(accepted, bundle, now)
+        return self._complete_effect(
+            committed,
+            action,
+            now=now,
+            interrupt_after_effect=interrupt_after_effect,
+        )
+
+    def _validate_new_request(
+        self,
+        record: ExecutionRecord,
+        bundle: AuthorizationBundle,
+        action: ProtectedAction,
+        now: str,
+    ) -> Optional[ExecutionRecord]:
+        try:
+            verify_authorization_bundle_files(
+                bundle.to_files(),
+                now=now,
+                nonce_store=self.nonce_store,
+                consume_nonce=False,
+            )
+        except (AuthorizationExpiredError, AuthorizationReplayError) as error:
+            return self._transition(
+                record,
+                ExecutionState.REJECTED,
+                "gate.reject",
+                CaPUDecisionCode.REJECT_POLICY,
+                now,
+                str(error),
+                error=str(error),
+            )
+        except Exception as error:
+            return self._transition(
+                record,
+                ExecutionState.REJECTED,
+                "gate.reject",
+                CaPUDecisionCode.REJECT_INVALID_CAUSE,
+                now,
+                str(error),
+                error=str(error),
+            )
+        if not set(action.scope).issubset(set(bundle.scope)):
+            message = "protected action scope exceeds authorization scope"
+            return self._transition(
+                record,
+                ExecutionState.REJECTED,
+                "gate.reject",
+                CaPUDecisionCode.REJECT_POLICY,
+                now,
+                message,
+                error=message,
+            )
+        return None
 
     def _commit(
         self,
         record: ExecutionRecord,
-        bundle: Optional[AuthorizationBundle],
+        bundle: AuthorizationBundle,
         now: str,
     ) -> ExecutionRecord:
-        if bundle is not None and self.nonce_store.is_consumed(bundle.nonce):
+        if self.nonce_store.is_consumed(bundle.nonce):
             raise ExecutionAuthorizationError("authorization nonce already consumed")
         committed = self._transition(
             record,
@@ -698,8 +722,7 @@ class DeterministicExecutionController:
                 error=str(error),
             )
             raise DurableCommitError("durable commit failed", failed) from error
-        if bundle is not None:
-            self.nonce_store.consume(bundle.nonce)
+        self.nonce_store.consume(bundle.nonce)
         return committed
 
     def _complete_effect(
@@ -780,6 +803,7 @@ class DeterministicExecutionController:
             action_ref=action.action_ref,
             action_digest=action.digest,
             authorization_ref=bundle.authorization_ref,
+            authorization_nonce=bundle.nonce,
             state=ExecutionState.RECEIVED,
             decision_code=CaPUDecisionCode.PERMIT_OK,
             actor=self.actor,
@@ -809,6 +833,11 @@ class DeterministicExecutionController:
         effect_succeeded: Optional[bool] = None,
         error: Optional[str] = None,
     ) -> ExecutionRecord:
+        attempted = (
+            record.effect_attempted
+            if effect_attempted is None
+            else effect_attempted
+        )
         transition = ExecutionTransition(
             sequence=len(record.transitions),
             state=state,
@@ -817,11 +846,7 @@ class DeterministicExecutionController:
             created_at=now,
             actor=self.actor,
             detail=detail,
-            effect_attempted=(
-                record.effect_attempted
-                if effect_attempted is None
-                else effect_attempted
-            ),
+            effect_attempted=attempted,
         )
         return replace(
             record,
@@ -831,11 +856,7 @@ class DeterministicExecutionController:
             committed_at=committed_at or record.committed_at,
             executed_at=executed_at or record.executed_at,
             effect_ref=effect_ref or record.effect_ref,
-            effect_attempted=(
-                record.effect_attempted
-                if effect_attempted is None
-                else effect_attempted
-            ),
+            effect_attempted=attempted,
             effect_succeeded=(
                 record.effect_succeeded
                 if effect_succeeded is None
@@ -844,10 +865,6 @@ class DeterministicExecutionController:
             error=error,
             transitions=(*record.transitions, transition),
         )
-
-    def _persist_terminal(self, record: ExecutionRecord) -> ExecutionRecord:
-        self.journal.save(record)
-        return record
 
     @staticmethod
     def _maturity_state(
@@ -865,16 +882,6 @@ class DeterministicExecutionController:
         return ExecutionState.ACCEPTED
 
     @staticmethod
-    def _validate_bundle_action(
-        bundle: AuthorizationBundle,
-        action: ProtectedAction,
-    ) -> None:
-        if not set(action.scope).issubset(set(bundle.scope)):
-            raise ExecutionAuthorizationError(
-                "protected action scope exceeds authorization scope"
-            )
-
-    @staticmethod
     def _validate_existing(
         record: ExecutionRecord,
         bundle: AuthorizationBundle,
@@ -883,6 +890,10 @@ class DeterministicExecutionController:
         if record.authorization_ref != bundle.authorization_ref:
             raise ExecutionStateConflictError(
                 "execution id is already bound to another authorization"
+            )
+        if record.authorization_nonce != bundle.nonce:
+            raise ExecutionStateConflictError(
+                "execution id is already bound to another authorization nonce"
             )
         if record.action_digest != action.digest:
             raise ExecutionStateConflictError(
@@ -930,7 +941,7 @@ def execution_transition_events(
                 "execution_id": record.execution_id,
                 "action_ref": record.action_ref,
                 "state": transition.state.value,
-                "event_type": transition.event_type,
+                "capu_event_type": transition.event_type,
                 "decision_code": transition.decision_code.value,
                 "detail": transition.detail,
                 "effect_attempted": transition.effect_attempted,
@@ -981,11 +992,7 @@ def _trail_event_type(transition: ExecutionTransition) -> TrailEventType:
         return TrailEventType.EXECUTION_COMMITTED
     if transition.state is ExecutionState.EXECUTED:
         return TrailEventType.EXECUTION_COMPLETED
-    if transition.state is ExecutionState.HELD:
-        return TrailEventType.EXECUTION_HELD
-    if transition.state in (ExecutionState.REJECTED, ExecutionState.EXPIRED):
-        return TrailEventType.EXECUTION_REJECTED
-    return TrailEventType.EXECUTION_GATE
+    return TrailEventType.WORK_COMPLETED
 
 
 def canonical_json(payload: Mapping[str, Any]) -> str:
@@ -999,36 +1006,3 @@ def canonical_json(payload: Mapping[str, Any]) -> str:
 
 def pretty_json(payload: Mapping[str, Any]) -> str:
     return json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
-
-
-def _invalid_record_for_error() -> ExecutionRecord:
-    transition = ExecutionTransition(
-        sequence=0,
-        state=ExecutionState.REJECTED,
-        event_type="commit.fail",
-        decision_code=CaPUDecisionCode.ABORT_INTERNAL_ERROR,
-        created_at="1970-01-01T00:00:00Z",
-        actor="adapter:deterministic-capu",
-        detail="invalid journal",
-    )
-    return ExecutionRecord(
-        execution_id="execution:invalid",
-        task_id="task:invalid",
-        trail_id="trail:invalid",
-        action_id="action:invalid",
-        action_ref="action:invalid",
-        action_digest="invalid",
-        authorization_ref="authorization:invalid",
-        state=ExecutionState.REJECTED,
-        decision_code=CaPUDecisionCode.ABORT_INTERNAL_ERROR,
-        actor="adapter:deterministic-capu",
-        created_at="1970-01-01T00:00:00Z",
-        updated_at="1970-01-01T00:00:00Z",
-        committed_at=None,
-        executed_at=None,
-        effect_ref=None,
-        effect_attempted=False,
-        effect_succeeded=False,
-        transitions=(transition,),
-        error="invalid journal",
-    )
