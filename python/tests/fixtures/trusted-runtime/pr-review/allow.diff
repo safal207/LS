@@ -1,0 +1,28 @@
+diff --git a/app/slug.py b/app/slug.py
+index 1111111..2222222 100644
+--- a/app/slug.py
++++ b/app/slug.py
+@@ -1,4 +1,8 @@
+ def normalize_slug(value: str) -> str:
+-    return value.lower()
++    normalized = value.strip().lower()
++    return "-".join(normalized.split())
++
++
++def is_empty_slug(value: str) -> bool:
++    return normalize_slug(value) == ""
+diff --git a/tests/test_slug.py b/tests/test_slug.py
+index 3333333..4444444 100644
+--- a/tests/test_slug.py
++++ b/tests/test_slug.py
+@@ -1,3 +1,9 @@
+ from app.slug import normalize_slug
+ 
++
+ def test_normalize_slug():
+-    assert normalize_slug("Hello") == "hello"
++    assert normalize_slug("  Hello World  ") == "hello-world"
++
++
++def test_normalize_empty_slug():
++    assert normalize_slug("   ") == ""
