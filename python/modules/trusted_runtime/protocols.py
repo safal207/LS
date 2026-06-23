@@ -1,17 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
+from typing import Any, Mapping, Optional, Protocol, Sequence, runtime_checkable
 
 from .authorization import AuthorizationBundle
 from .causal import CausalAuditReport
-from .contracts import (
-    CognitiveTrail,
-    EvidenceDecision,
-    ReplayRecord,
-    RouteDecision,
-    WorkflowPlan,
-)
+from .contracts import CognitiveTrail, EvidenceDecision, RouteDecision, WorkflowPlan
 from .execution import ExecutionRecord, ProtectedAction
+from .replay_models import ReplayOutcome
 
 
 JsonObject = Mapping[str, Any]
@@ -130,13 +125,20 @@ class ExecutionControlAdapter(Protocol):
 
 @runtime_checkable
 class ReplayAdapter(Protocol):
-    """Replay or inspect a saved workflow path."""
+    """Inspect a durable path without rerunning models, tools, or effects."""
 
     @property
     def adapter_name(self) -> str:
         ...
 
-    def replay(self, trail: CognitiveTrail) -> ReplayRecord:
+    def replay(
+        self,
+        events: Sequence[JsonObject],
+        *,
+        now: str,
+        baseline_payload_digests: Optional[Mapping[str, str]] = None,
+        corrupted_tail: bool = False,
+    ) -> ReplayOutcome:
         ...
 
 
