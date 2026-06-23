@@ -4,7 +4,7 @@ import hashlib
 import json
 import os
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, MutableMapping, Optional, Sequence
 
