@@ -85,7 +85,7 @@ class CMLCausalAuditAdapter:
             )
         except CausalAuditTimeoutError:
             raise
-        except subprocess.TimeoutExpired as error:
+        except (TimeoutError, subprocess.TimeoutExpired) as error:
             raise CausalAuditTimeoutError("CML audit timed out") from error
         except (OSError, FileNotFoundError) as error:
             raise CausalAuditUnavailableError("CML audit command is unavailable") from error
@@ -160,12 +160,10 @@ class CMLCausalAuditAdapter:
             severity_value = item.get("severity")
             record_id = item.get("record_id")
             message = item.get("message")
-            if not all(isinstance(value, str) and value for value in (
-                code,
-                severity_value,
-                record_id,
-                message,
-            )):
+            required_values = (code, severity_value, record_id, message)
+            if not all(
+                isinstance(value, str) and value for value in required_values
+            ):
                 raise MalformedCausalAuditResponseError(
                     "CML finding requires code, severity, record_id, and message"
                 )
