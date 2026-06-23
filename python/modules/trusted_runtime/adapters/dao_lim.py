@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional
@@ -21,6 +22,7 @@ from ..routing import (
 
 JsonObject = Mapping[str, Any]
 Transport = Callable[[JsonObject, "DAOlimConfig"], Mapping[str, Any]]
+ROUTING_TAG_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
 @dataclass(frozen=True)
@@ -99,10 +101,15 @@ class DAOlimRoutingAdapter:
         routing_intent = request.get("routing_intent", request.get("capability"))
         if not isinstance(routing_intent, str) or not routing_intent.strip():
             raise ValueError("routing_intent must be a non-empty string")
+        routing_tag = routing_intent.strip()
+        if ROUTING_TAG_PATTERN.fullmatch(routing_tag) is None:
+            raise ValueError(
+                "routing_intent must be a machine tag, not free-form task content"
+            )
         return {
             "capability": _required_string(request, "capability"),
             "role_id": _required_string(request, "role_id"),
-            "routing_intent": routing_intent.strip(),
+            "routing_intent": routing_tag,
             "constraints": _sanitize(constraints),
             "host": str(request.get("host", self.config.host)),
             "path": str(request.get("path", self.config.path)),
