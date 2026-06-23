@@ -1,0 +1,1 @@
+"""LiminalDB adapter facade."""
