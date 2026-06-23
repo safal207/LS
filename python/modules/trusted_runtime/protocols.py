@@ -7,11 +7,11 @@ from .causal import CausalAuditReport
 from .contracts import (
     CognitiveTrail,
     EvidenceDecision,
-    ExecutionAuthorization,
     ReplayRecord,
     RouteDecision,
     WorkflowPlan,
 )
+from .execution import ExecutionRecord, ProtectedAction
 
 
 JsonObject = Mapping[str, Any]
@@ -101,20 +101,30 @@ class AuthorizationBundleAdapter(Protocol):
 
 @runtime_checkable
 class ExecutionControlAdapter(Protocol):
-    """Enforce commit-before-effect for a protected action."""
+    """Enforce Gate -> Incubate -> Commit -> Execute for protected effects."""
 
     @property
     def adapter_name(self) -> str:
         ...
 
-    def commit(
+    def run(
         self,
-        authorization: ExecutionAuthorization,
-        action: JsonObject,
-    ) -> JsonObject:
+        bundle: AuthorizationBundle,
+        action: ProtectedAction,
+        *,
+        now: str,
+        preconditions_met: bool = True,
+    ) -> ExecutionRecord:
         ...
 
-    def execute(self, committed_action: JsonObject) -> JsonObject:
+    def recover(
+        self,
+        bundle: AuthorizationBundle,
+        action: ProtectedAction,
+        *,
+        now: str,
+        preconditions_met: bool = True,
+    ) -> ExecutionRecord:
         ...
 
 
