@@ -44,6 +44,7 @@ def test_all_trusted_runtime_schemas_are_valid_draft_2020_12() -> None:
         "causal_audit_report.schema.json",
         "evidence_decision.schema.json",
         "execution_authorization.schema.json",
+        "authorization_bundle.schema.json",
         "replay_record.schema.json",
         "reusable_artifact.schema.json",
     }
@@ -82,7 +83,6 @@ def test_semantic_contract_rejects_unknown_role_reference() -> None:
     payload = _load(FIXTURE_ROOT / "invalid_unknown_role.json")
     validator = _validator("workflow_plan.schema.json")
 
-    # JSON Schema validates shape; Python contracts validate cross-record links.
     assert _errors(validator, payload) == []
 
     with pytest.raises(ValueError, match="unknown role"):
