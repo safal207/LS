@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
 
+from .authorization import AuthorizationBundle
 from .causal import CausalAuditReport
 from .contracts import (
     CognitiveTrail,
@@ -84,7 +85,7 @@ class EvidenceGateAdapter(Protocol):
 
 @runtime_checkable
 class AuthorizationBundleAdapter(Protocol):
-    """Build a portable authorization bundle from an accepted decision."""
+    """Build a portable authorization bundle from accepted intent and evidence."""
 
     @property
     def adapter_name(self) -> str:
@@ -93,8 +94,8 @@ class AuthorizationBundleAdapter(Protocol):
     def build(
         self,
         decision: EvidenceDecision,
-        scope: Sequence[str],
-    ) -> ExecutionAuthorization:
+        request: JsonObject,
+    ) -> AuthorizationBundle:
         ...
 
 
