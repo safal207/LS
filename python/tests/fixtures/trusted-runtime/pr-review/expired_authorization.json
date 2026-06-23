@@ -1,0 +1,8 @@
+{
+  "issued_at": "2026-06-23T14:00:00Z",
+  "expires_at": "2026-06-23T14:01:00Z",
+  "execute_at": "2026-06-23T14:05:00Z",
+  "expected_state": "REJECTED",
+  "expected_decision_code": "REJECT_POLICY",
+  "expected_effect_files": 0
+}
