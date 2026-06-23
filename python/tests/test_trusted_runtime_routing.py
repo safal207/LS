@@ -147,6 +147,30 @@ def test_dao_lim_is_disabled_by_default() -> None:
         adapter.route(_request())
 
 
+def test_dao_lim_requires_allowlist_and_machine_tag() -> None:
+    def transport(payload, config):
+        return {
+            "selected_backend": "dao-private",
+            "considered_backends": ["dao-private"],
+            "reason": "approved route",
+        }
+
+    adapter = DAOlimRoutingAdapter(
+        DAOlimConfig(enabled=True),
+        transport=transport,
+    )
+    with pytest.raises(NoRouteError, match="approved_backends"):
+        adapter.route(_request())
+    with pytest.raises(ValueError, match="machine tag"):
+        adapter.route(
+            {
+                **_request(),
+                "routing_intent": "full task text must not be sent",
+                "approved_backends": ["dao-private"],
+            }
+        )
+
+
 def test_dao_lim_sends_only_route_metadata_and_preserves_safe_explainability() -> None:
     captured = {}
 
