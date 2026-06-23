@@ -1,0 +1,9 @@
+{
+  "task_id": "task-broken-lineage",
+  "trail_id": "trail-broken-lineage",
+  "records": [
+    {"record_id": "task-broken-lineage", "timestamp_ns": 0, "actor": "human", "action": "open", "object_ref": {"kind": "task_root"}, "permitted_by": "root_event:task-broken-lineage", "parent_cause": null},
+    {"record_id": "cycle-a", "timestamp_ns": 1, "actor": "worker-a", "action": "write", "object_ref": {"kind": "delegated_work"}, "permitted_by": "delegation:a", "parent_cause": "cycle-b", "delegation_ref": "a"},
+    {"record_id": "cycle-b", "timestamp_ns": 2, "actor": "worker-b", "action": "write", "object_ref": {"kind": "recursive_work"}, "permitted_by": "delegation:b", "parent_cause": "cycle-a", "delegation_ref": "b", "high_impact": true}
+  ]
+}
