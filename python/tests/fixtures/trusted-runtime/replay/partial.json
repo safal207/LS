@@ -1,0 +1,6 @@
+{
+  "event_count": 3,
+  "expected_decision": "DRIFTED",
+  "expected_next_event_type": "WORK_COMPLETED",
+  "expected_code": "PARTIAL_PATH"
+}
