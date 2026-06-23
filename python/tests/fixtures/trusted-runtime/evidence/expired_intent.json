@@ -1,0 +1,21 @@
+{
+  "intent": {
+    "intent_id": "intent:expired-001",
+    "task_id": "task-evidence-001",
+    "trail_id": "trail-evidence-001",
+    "actor": "human:owner",
+    "action_ref": "artifact:write:review-summary",
+    "scope": ["artifact:write"],
+    "issued_at": "2026-06-23T08:00:00Z",
+    "expires_at": "2026-06-23T08:05:00Z",
+    "nonce": "nonce-expired-001",
+    "policy_version": "policy.trusted-runtime.v0.1",
+    "evidence_refs": ["evidence:review-001"],
+    "evidence_digest": "evidence-sha256-001",
+    "causal_audit_refs": ["event-causal-audit-001"],
+    "parent_cause": "event-causal-audit-001",
+    "metadata": {}
+  },
+  "verify_at": "2026-06-23T08:06:00Z",
+  "expected_error": "authorization_expired"
+}
