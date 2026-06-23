@@ -1,0 +1,6 @@
+{
+  "event_id": "event-decision",
+  "payload_key": "decision",
+  "replacement": "BLOCK",
+  "expected_code": "AUTHORIZATION_AFTER_NON_ALLOW"
+}
