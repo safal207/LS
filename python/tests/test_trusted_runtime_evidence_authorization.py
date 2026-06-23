@@ -319,3 +319,6 @@ def test_authorization_event_descends_from_evidence_decision_event() -> None:
     assert event.event_type.value == "AUTHORIZATION_ISSUED"
     assert event.payload["bundle_id"] == bundle.bundle_id
     assert event.evidence_refs == bundle.evidence_refs
+    assert event.parent_cause == (
+        f"event-{bundle.decision_ref.split(':')[-1][:16]}"
+    )

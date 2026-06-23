@@ -635,7 +635,14 @@ def verify_authorization_bundle_files(
     )
 
 
-def authorization_bundle_event(bundle: AuthorizationBundle) -> TrailEvent:
+def authorization_bundle_event(
+    bundle: AuthorizationBundle,
+    *,
+    parent_event_id: Optional[str] = None,
+) -> TrailEvent:
+    decision_event_id = parent_event_id or (
+        f"event-{bundle.decision_ref.split(':')[-1][:16]}"
+    )
     return TrailEvent(
         event_id=f"event-{bundle.authorization_ref.split(':')[-1][:16]}",
         task_id=bundle.task_id,
@@ -643,7 +650,7 @@ def authorization_bundle_event(bundle: AuthorizationBundle) -> TrailEvent:
         event_type=TrailEventType.AUTHORIZATION_ISSUED,
         actor=bundle.actor,
         created_at=bundle.created_at,
-        parent_cause=bundle.decision_ref,
+        parent_cause=decision_event_id,
         evidence_refs=bundle.evidence_refs,
         payload=bundle.to_dict(),
     )
