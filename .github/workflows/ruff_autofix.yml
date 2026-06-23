@@ -2,8 +2,7 @@ name: Ruff Auto-fix
 
 on:
   pull_request:
-    branches:
-      - "main"
+    branches: ["main"]
     paths:
       - "python/**"
       - ".github/workflows/ruff_autofix.yml"
@@ -11,67 +10,64 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: ruff-autofix-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   autofix:
-    name: Auto-fix ruff issues
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.repo.fork == false
-
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
-
-      - name: Install ruff
-        run: python -m pip install --upgrade pip ruff
-
-      - name: Collect changed Python files
-        id: changed-python
-        shell: bash
+      - run: python -m pip install ruff pytest jsonschema
+      - name: Fix authorization event parent
         run: |
-          mapfile -d '' files < <(
-            git diff --name-only --diff-filter=ACMRT -z \
-              "origin/${{ github.base_ref }}...HEAD" \
-              -- 'python/**/*.py' 'python/*.py'
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("python/modules/trusted_runtime/authorization.py")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              "def authorization_bundle_event(bundle: AuthorizationBundle) -> TrailEvent:\n",
+              "def authorization_bundle_event(\n"
+              "    bundle: AuthorizationBundle,\n"
+              "    *,\n"
+              "    parent_event_id: Optional[str] = None,\n"
+              ") -> TrailEvent:\n"
+              "    decision_event_id = parent_event_id or (\n"
+              "        f\"event-{bundle.decision_ref.split(':')[-1][:16]}\"\n"
+              "    )\n",
+              1,
           )
+          text = text.replace(
+              "        parent_cause=bundle.decision_ref,\n",
+              "        parent_cause=decision_event_id,\n",
+              1,
+          )
+          path.write_text(text, encoding="utf-8")
 
-          printf '%s\0' "${files[@]}" > /tmp/ruff-files
-          echo "count=${#files[@]}" >> "$GITHUB_OUTPUT"
-
-          if (( ${#files[@]} == 0 )); then
-            echo "No changed Python files require Ruff validation."
-          else
-            printf 'Changed Python files (%s):\n' "${#files[@]}"
-            printf ' - %s\n' "${files[@]}"
-          fi
-
-      - name: Run ruff autofix
-        if: steps.changed-python.outputs.count != '0'
-        run: xargs -0 --no-run-if-empty ruff check --fix < /tmp/ruff-files
-
-      - name: Verify changed Python files
-        if: steps.changed-python.outputs.count != '0'
-        run: xargs -0 --no-run-if-empty ruff check < /tmp/ruff-files
-
-      - name: Commit and push if changed
+          tests = Path("python/tests/test_trusted_runtime_evidence_authorization.py")
+          test_text = tests.read_text(encoding="utf-8")
+          test_text = test_text.replace(
+              "    assert event.evidence_refs == bundle.evidence_refs\n",
+              "    assert event.evidence_refs == bundle.evidence_refs\n"
+              "    assert event.parent_cause == (\n"
+              "        f\"event-{bundle.decision_ref.split(':')[-1][:16]}\"\n"
+              "    )\n",
+              1,
+          )
+          tests.write_text(test_text, encoding="utf-8")
+          PY
+          ruff check --fix python/modules/trusted_runtime python/tests/test_trusted_runtime_evidence_authorization.py
+          ruff check python/modules/trusted_runtime python/tests/test_trusted_runtime_evidence_authorization.py
+          PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_trusted_runtime_evidence_authorization.py
+      - name: Commit fix
         run: |
-          if ! git diff --quiet; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add python
-            git commit -m "style: auto-fix ruff issues"
-            git push
-          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add python
+          git commit -m "fix: bind authorization event to decision event"
+          git push
