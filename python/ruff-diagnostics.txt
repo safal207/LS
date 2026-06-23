@@ -1,0 +1,24 @@
+F402 Import `field` from line 5 shadowed by loop variable
+   --> python/modules/trusted_runtime/authorization.py:585:9
+    |
+583 |         raise AuthorizationMismatchError("manifest authorization_ref mismatch")
+584 |
+585 |     for field in ("task_id", "trail_id", "policy_version", "nonce"):
+    |         ^^^^^
+586 |         if manifest.get(field) != authorization_payload.get(field):
+587 |             raise AuthorizationMismatchError(f"authorization field mismatch:{field}")
+    |
+
+Found 1 error.
+F402 Import `field` from line 5 shadowed by loop variable
+   --> python/modules/trusted_runtime/authorization.py:585:9
+    |
+583 |         raise AuthorizationMismatchError("manifest authorization_ref mismatch")
+584 |
+585 |     for field in ("task_id", "trail_id", "policy_version", "nonce"):
+    |         ^^^^^
+586 |         if manifest.get(field) != authorization_payload.get(field):
+587 |             raise AuthorizationMismatchError(f"authorization field mismatch:{field}")
+    |
+
+Found 1 error.
