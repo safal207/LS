@@ -41,6 +41,7 @@ def test_all_trusted_runtime_schemas_are_valid_draft_2020_12() -> None:
         "workflow_plan.schema.json",
         "route_decision.schema.json",
         "cognitive_trail.schema.json",
+        "causal_audit_report.schema.json",
         "evidence_decision.schema.json",
         "execution_authorization.schema.json",
         "replay_record.schema.json",
