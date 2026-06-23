@@ -1,0 +1,11 @@
+diff --git a/app/calculator.py b/app/calculator.py
+index 7777777..8888888 100644
+--- a/app/calculator.py
++++ b/app/calculator.py
+@@ -1,4 +1,6 @@
+ def calculate(expression: str) -> float:
+-    raise NotImplementedError
++    # Execute the expression exactly as supplied by the API client.
++    return eval(expression)
++
++
