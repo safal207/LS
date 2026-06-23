@@ -58,20 +58,20 @@ jobs:
             printf ' - %s\n' "${files[@]}"
           fi
 
-      - name: Run ruff autofix
+      - name: Run ruff autofix and capture diagnostics
         if: steps.changed-python.outputs.count != '0'
-        run: xargs -0 --no-run-if-empty ruff check --fix < /tmp/ruff-files
-
-      - name: Verify changed Python files
-        if: steps.changed-python.outputs.count != '0'
-        run: xargs -0 --no-run-if-empty ruff check < /tmp/ruff-files
-
-      - name: Commit and push if changed
         run: |
-          if ! git diff --quiet; then
+          xargs -0 --no-run-if-empty ruff check --fix < /tmp/ruff-files \
+            > python/ruff-diagnostics.txt 2>&1 || true
+          xargs -0 --no-run-if-empty ruff check < /tmp/ruff-files \
+            >> python/ruff-diagnostics.txt 2>&1 || true
+
+      - name: Commit and push diagnostics
+        run: |
+          if ! git diff --quiet || [[ -f python/ruff-diagnostics.txt ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add python
-            git commit -m "style: auto-fix ruff issues"
+            git commit -m "chore: capture temporary Ruff diagnostics"
             git push
           fi
