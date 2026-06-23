@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
 
+from .causal import CausalAuditReport
 from .contracts import (
     CognitiveTrail,
     EvidenceDecision,
@@ -65,7 +66,7 @@ class CausalAuditAdapter(Protocol):
     def adapter_name(self) -> str:
         ...
 
-    def audit(self, trail: CognitiveTrail) -> JsonObject:
+    def audit(self, trail: CognitiveTrail) -> CausalAuditReport:
         ...
 
 
@@ -89,7 +90,11 @@ class AuthorizationBundleAdapter(Protocol):
     def adapter_name(self) -> str:
         ...
 
-    def build(self, decision: EvidenceDecision, scope: Sequence[str]) -> ExecutionAuthorization:
+    def build(
+        self,
+        decision: EvidenceDecision,
+        scope: Sequence[str],
+    ) -> ExecutionAuthorization:
         ...
 
 
@@ -101,7 +106,11 @@ class ExecutionControlAdapter(Protocol):
     def adapter_name(self) -> str:
         ...
 
-    def commit(self, authorization: ExecutionAuthorization, action: JsonObject) -> JsonObject:
+    def commit(
+        self,
+        authorization: ExecutionAuthorization,
+        action: JsonObject,
+    ) -> JsonObject:
         ...
 
     def execute(self, committed_action: JsonObject) -> JsonObject:
