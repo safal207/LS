@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Mapping, Optional, Sequence
 
-from .contracts import (
-    CognitiveTrail,
-    ReusableArtifact,
-    TrailEvent,
-    TrailEventType,
-)
+from .contracts import CognitiveTrail, ReusableArtifact, TrailEvent, TrailEventType
 
 
 CAUSAL_AUDIT_REPORT_VERSION = "trusted_runtime.causal_audit_report.v0.1"
@@ -164,9 +159,15 @@ class CausalAuditReport:
             raise ValueError(
                 f"unsupported causal audit report version: {self.schema_version}"
             )
-        if not all(
-            (self.audit_id, self.task_id, self.trail_id, self.adapter, self.actor, self.created_at)
-        ):
+        required = (
+            self.audit_id,
+            self.task_id,
+            self.trail_id,
+            self.adapter,
+            self.actor,
+            self.created_at,
+        )
+        if not all(required):
             raise ValueError("causal audit identifiers and timestamps must not be empty")
         if self.records_checked < 1:
             raise ValueError("causal audit requires at least one checked record")
@@ -185,9 +186,7 @@ class CausalAuditReport:
 
     @property
     def blocking_codes(self) -> tuple[str, ...]:
-        return tuple(
-            finding.code for finding in self.findings if finding.blocking
-        )
+        return tuple(finding.code for finding in self.findings if finding.blocking)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -481,23 +480,20 @@ def causal_audit_event(
 def attach_causal_audit(
     artifact: ReusableArtifact,
     reports: Sequence[CausalAuditReport],
-) -> ReusableArtifact:
-    """Embed causal report references and inspectable findings in an artifact."""
+) -> dict[str, Any]:
+    """Export causal references and findings into an artifact payload."""
 
-    audit_refs = tuple(dict.fromkeys(
-        (*artifact.causal_audit_refs, *(report.audit_id for report in reports))
-    ))
-    finding_payloads = tuple(
+    payload = artifact.to_dict()
+    payload["causal_audit_refs"] = list(
+        dict.fromkeys(report.audit_id for report in reports)
+    )
+    payload["causal_findings"] = [
         finding.to_dict()
         for report in reports
         for finding in report.findings
         if finding.severity is not CausalSeverity.OK
-    )
-    return replace(
-        artifact,
-        causal_audit_refs=audit_refs,
-        causal_findings=(*artifact.causal_findings, *finding_payloads),
-    )
+    ]
+    return payload
 
 
 def _trace_chain(
