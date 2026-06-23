@@ -40,7 +40,6 @@ from .pr_review_artifact import build_pr_review_artifact, pretty_json
 from .pr_review_markdown import render_review_markdown
 from .pr_review_plan import PlannedPRReview, plan_pr_review
 from .replay import replay_checked_event, replay_from_store
-from .replay_models import ReplayOutcome
 
 
 SCENARIOS = {"allow", "hold", "block"}
