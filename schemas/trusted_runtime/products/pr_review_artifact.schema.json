@@ -1,1 +1,34 @@
-{}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Trusted PR Review Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "scenario", "task_id", "trail_id", "created_at", "source_diff", "summary", "workflow_plan", "routes", "contributions", "causal_audit", "evidence_decision", "authorization", "execution", "replay", "reusable_artifact", "integrity"],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.pr_review_artifact.v0.1"},
+    "scenario": {"const": "ALLOW"},
+    "task_id": {"type": "string", "minLength": 1},
+    "trail_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "source_diff": {"type": "object"},
+    "summary": {"type": "object", "required": ["decision", "reason", "review", "findings"]},
+    "workflow_plan": {"type": "object"},
+    "routes": {"type": "array", "minItems": 3, "items": {"type": "object"}},
+    "contributions": {"type": "array", "minItems": 3, "items": {"type": "object"}},
+    "causal_audit": {"type": "object"},
+    "evidence_decision": {"type": "object"},
+    "authorization": {"type": "object"},
+    "execution": {"type": "object"},
+    "replay": {"type": "object", "required": ["record", "report", "checkpoint"]},
+    "reusable_artifact": {"type": "object"},
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "artifact_digest"],
+      "properties": {
+        "algorithm": {"const": "sha256"},
+        "artifact_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}
