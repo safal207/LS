@@ -1,0 +1,12 @@
+diff --git a/app/limits.py b/app/limits.py
+index 5555555..6666666 100644
+--- a/app/limits.py
++++ b/app/limits.py
+@@ -1,4 +1,7 @@
+ def daily_limit(account_type: str) -> int:
+     if account_type == "premium":
+-        return 1000
++        return 2500
++    if account_type == "business":
++        return 5000
+     return 250
