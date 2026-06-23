@@ -582,9 +582,11 @@ def verify_authorization_bundle_files(
     if manifest.get("authorization_ref") != authorization_ref:
         raise AuthorizationMismatchError("manifest authorization_ref mismatch")
 
-    for field in ("task_id", "trail_id", "policy_version", "nonce"):
-        if manifest.get(field) != authorization_payload.get(field):
-            raise AuthorizationMismatchError(f"authorization field mismatch:{field}")
+    for field_name in ("task_id", "trail_id", "policy_version", "nonce"):
+        if manifest.get(field_name) != authorization_payload.get(field_name):
+            raise AuthorizationMismatchError(
+                f"authorization field mismatch:{field_name}"
+            )
     if manifest.get("evidence_refs") != authorization_payload.get("evidence_refs"):
         raise AuthorizationMismatchError("authorization evidence mismatch")
     if manifest.get("scope") != authorization_payload.get("scope"):
