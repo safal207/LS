@@ -1,10 +1,6 @@
-"""Provider-neutral contracts for the LS Trusted Cooperative Runtime.
+"""Provider-neutral components for the LS Trusted Cooperative Runtime."""
 
-The package intentionally contains no live provider integrations. It defines
-small stable data structures, adapter protocols, and a deterministic local
-orchestrator that ecosystem modules can replace independently.
-"""
-
+from .adapters import DAOlimConfig, DAOlimRoutingAdapter
 from .contracts import (
     CognitiveTrail,
     DecisionCode,
@@ -36,18 +32,48 @@ from .protocols import (
     RoutingAdapter,
     WorkflowOrchestrator,
 )
+from .registry import (
+    AdapterRegistration,
+    AdapterRegistry,
+    AdapterRegistryError,
+    DuplicateAdapterError,
+    UnknownAdapterError,
+    UnsupportedCapabilityError,
+)
+from .routing import (
+    BackendCandidate,
+    DeterministicRoutingAdapter,
+    MalformedRouteResponseError,
+    NoRouteError,
+    RoutingDisabledError,
+    RoutingError,
+    RoutingPolicy,
+    RoutingTimeoutError,
+    RoutingUnavailableError,
+    route_decision_event,
+)
 
 __all__ = [
+    "AdapterRegistration",
+    "AdapterRegistry",
+    "AdapterRegistryError",
     "AuthorizationBundleAdapter",
+    "BackendCandidate",
     "CausalAuditAdapter",
     "CognitiveTrail",
+    "DAOlimConfig",
+    "DAOlimRoutingAdapter",
     "DecisionCode",
+    "DeterministicRoutingAdapter",
     "DeterministicWorkflowOrchestrator",
+    "DuplicateAdapterError",
     "EventStoreAdapter",
     "EvidenceDecision",
     "EvidenceGateAdapter",
     "ExecutionAuthorization",
     "ExecutionControlAdapter",
+    "MalformedRouteResponseError",
+    "NoRouteError",
     "OrchestrationDepthError",
     "OrchestratorConfig",
     "ReplayAdapter",
@@ -57,10 +83,18 @@ __all__ = [
     "RoleAssignment",
     "RouteDecision",
     "RoutingAdapter",
+    "RoutingDisabledError",
+    "RoutingError",
+    "RoutingPolicy",
+    "RoutingTimeoutError",
+    "RoutingUnavailableError",
     "TaskEnvelope",
     "TrailEvent",
     "TrailEventType",
+    "UnknownAdapterError",
+    "UnsupportedCapabilityError",
     "WorkflowOrchestrator",
     "WorkflowPlan",
     "WorkflowStep",
+    "route_decision_event",
 ]
