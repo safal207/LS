@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Trusted Runtime Causal Audit Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "audit_id", "task_id", "trail_id", "adapter", "actor", "created_at", "records_checked", "root_ids", "passed", "authorization_allowed", "blocking_codes", "findings", "metadata"],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.causal_audit_report.v0.1"},
+    "audit_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "trail_id": {"type": "string", "minLength": 1},
+    "adapter": {"type": "string", "minLength": 1},
+    "actor": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "records_checked": {"type": "integer", "minimum": 1},
+    "root_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "passed": {"type": "boolean"},
+    "authorization_allowed": {"type": "boolean"},
+    "blocking_codes": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "severity", "record_id", "message", "blocking", "parent_cause", "chain_ids", "context"],
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "severity": {"enum": ["OK", "WARN", "FAIL"]},
+          "record_id": {"type": "string", "minLength": 1},
+          "message": {"type": "string", "minLength": 1},
+          "blocking": {"type": "boolean"},
+          "parent_cause": {"type": ["string", "null"]},
+          "chain_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "context": {"type": "object"}
+        }
+      }
+    },
+    "metadata": {"type": "object"}
+  }
+}
