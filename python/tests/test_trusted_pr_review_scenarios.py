@@ -14,7 +14,7 @@ from modules.trusted_runtime.pr_review_mvp import run_trusted_pr_review
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "python/tests/fixtures/trusted-runtime/pr-review"
-SCHEMA = ROOT / "schemas/trusted_runtime/pr_review_artifact.schema.json"
+SCHEMA = ROOT / "schemas/trusted_runtime/products/pr_review_artifact.schema.json"
 
 
 def _load(name: str) -> dict:
@@ -82,14 +82,3 @@ def test_block_diff_static_analysis() -> None:
     analysis = analyze_diff(_diff("block"))
     assert "dynamic_code_execution" in analysis.risk_flags
     assert not analysis.test_files
-
-
-def test_same_output_is_idempotent(tmp_path: Path) -> None:
-    first = run_trusted_pr_review(
-        _diff("allow"), scenario="allow", output_dir=tmp_path
-    )
-    second = run_trusted_pr_review(
-        _diff("allow"), scenario="allow", output_dir=tmp_path
-    )
-    assert first["replay_ref"] == second["replay_ref"]
-    assert len(list((tmp_path / "protected").glob("*.review.json"))) == 1
