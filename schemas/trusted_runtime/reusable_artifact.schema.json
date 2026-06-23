@@ -39,6 +39,15 @@
     },
     "decision_ref": {"type": "string", "minLength": 1},
     "execution_ref": {"type": ["string", "null"]},
-    "replay_ref": {"type": ["string", "null"]}
+    "replay_ref": {"type": ["string", "null"]},
+    "causal_audit_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "causal_findings": {
+      "type": "array",
+      "items": {"type": "object"}
+    }
   }
 }
