@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/fixtures/operational-continuity/shared-envelope/schema-v0.1.json",
+  "title": "RAMR-LS Recovered Evidence Envelope v0.1",
+  "type": "object",
+  "required": [
+    "envelope_version",
+    "fixture_id",
+    "description",
+    "frozen",
+    "synthetic",
+    "query_context",
+    "authoritative_state",
+    "proposed_action",
+    "retrieval_variants",
+    "cross_layer_invariants"
+  ],
+  "properties": {
+    "envelope_version": {
+      "const": "ramr-ls-evidence-v0.1"
+    },
+    "fixture_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]+$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "frozen": {
+      "const": true
+    },
+    "synthetic": {
+      "const": true
+    },
+    "query_context": {
+      "type": "object",
+      "required": [
+        "workspace_id",
+        "continuation_id",
+        "intent_digest",
+        "target_state_digest",
+        "as_of"
+      ],
+      "additionalProperties": true
+    },
+    "authoritative_state": {
+      "type": "object",
+      "required": [
+        "workspace_id",
+        "continuation_id",
+        "intent_digest",
+        "target_state_digest",
+        "completed_side_effects"
+      ],
+      "properties": {
+        "completed_side_effects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "side_effect_key",
+              "action_ref",
+              "idempotency_key",
+              "completed_at"
+            ]
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "proposed_action": {
+      "type": "object",
+      "required": [
+        "action_type",
+        "workspace_id",
+        "continuation_id",
+        "intent_digest",
+        "target_state_digest",
+        "side_effect_key",
+        "action_ref",
+        "idempotency_key"
+      ],
+      "additionalProperties": true
+    },
+    "retrieval_variants": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "variant_id",
+          "retrieval",
+          "recovered_evidence",
+          "expected_ramr",
+          "expected_ls"
+        ],
+        "properties": {
+          "variant_id": {
+            "type": "string"
+          },
+          "retrieval": {
+            "type": "object",
+            "required": [
+              "budget",
+              "recency_weight",
+              "reliability_signal"
+            ]
+          },
+          "recovered_evidence": {
+            "type": "array"
+          },
+          "expected_ramr": {
+            "type": "object",
+            "required": [
+              "completion_record_recovered",
+              "naive_duplicate_side_effect",
+              "duplicate_side_effect_rate"
+            ]
+          },
+          "expected_ls": {
+            "type": "object",
+            "required": [
+              "outcome",
+              "failed_invariants",
+              "authority_source"
+            ],
+            "properties": {
+              "outcome": {
+                "enum": ["RESUME", "REVALIDATE", "REJECT", "ABSTAIN"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "cross_layer_invariants": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

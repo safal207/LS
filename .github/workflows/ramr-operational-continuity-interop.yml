@@ -7,6 +7,7 @@ on:
       - "fixtures/operational-continuity/**"
       - "tools/run_operational_continuity_fixtures.py"
       - "tools/export_ramr_operational_continuity_interop.py"
+      - "tools/run_ramr_ls_shared_evidence_fixture.py"
       - ".github/workflows/ramr-operational-continuity-interop.yml"
   push:
     branches:
@@ -16,6 +17,7 @@ on:
       - "fixtures/operational-continuity/**"
       - "tools/run_operational_continuity_fixtures.py"
       - "tools/export_ramr_operational_continuity_interop.py"
+      - "tools/run_ramr_ls_shared_evidence_fixture.py"
 
 permissions:
   contents: read
@@ -28,7 +30,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Validate frozen shared input
+        run: |
+          python -m json.tool fixtures/operational-continuity/shared-envelope/schema-v0.1.json > /dev/null
+          python -m json.tool fixtures/operational-continuity/shared-envelope/duplicate_successful_outcome.json > /dev/null
+      - name: Run frozen shared fixture
+        run: python tools/run_ramr_ls_shared_evidence_fixture.py
+      - name: Validate frozen shared result
+        run: python -m json.tool artifacts/ramr-ls-duplicate-successful-outcome-result.json > /dev/null
       - name: Export interoperability result
         run: python tools/export_ramr_operational_continuity_interop.py
-      - name: Validate JSON output
-        run: python -m json.tool artifacts/ramr-operational-continuity-interop-result.json
+      - name: Validate interoperability output
+        run: python -m json.tool artifacts/ramr-operational-continuity-interop-result.json > /dev/null
