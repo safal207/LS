@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Identity Update Proposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "proposal_id",
+    "scope",
+    "repeat_key",
+    "candidate_statement",
+    "created_at",
+    "aggregated_confidence",
+    "support_count",
+    "required_support_count",
+    "supporting_episode_refs",
+    "evidence_refs",
+    "approval_required",
+    "approval_state",
+    "applied",
+    "application_ref",
+    "policy_version",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.identity_update_proposal.v0.1"},
+    "proposal_id": {"type": "string", "minLength": 1},
+    "scope": {"type": "string", "minLength": 1},
+    "repeat_key": {"type": "string", "minLength": 1},
+    "candidate_statement": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "minLength": 1},
+    "aggregated_confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "support_count": {"type": "integer", "minimum": 3},
+    "required_support_count": {"type": "integer", "minimum": 3},
+    "supporting_episode_refs": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "evidence_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "approval_required": {"const": true},
+    "approval_state": {"const": "PENDING"},
+    "applied": {"const": false},
+    "application_ref": {"type": "null"},
+    "policy_version": {"const": "identity_update.proposal.v0.1"},
+    "metadata": {"type": "object"}
+  }
+}
