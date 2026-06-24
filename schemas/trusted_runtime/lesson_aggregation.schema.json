@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Lesson Aggregation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "aggregation_id",
+    "scope",
+    "repeat_key",
+    "candidate_statement",
+    "created_at",
+    "status",
+    "supporting_episode_refs",
+    "contradicting_episode_refs",
+    "ignored_episode_refs",
+    "support_count",
+    "contradiction_count",
+    "ignored_count",
+    "aggregated_confidence",
+    "required_support_count",
+    "proposal",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.lesson_aggregation.v0.1"},
+    "aggregation_id": {"type": "string", "minLength": 1},
+    "scope": {"type": "string", "minLength": 1},
+    "repeat_key": {"type": "string", "minLength": 1},
+    "candidate_statement": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "minLength": 1},
+    "status": {"enum": ["NO_ELIGIBLE_EPISODES", "INSUFFICIENT_SUPPORT", "CONFLICTED", "READY_FOR_REVIEW"]},
+    "supporting_episode_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "contradicting_episode_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "ignored_episode_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "support_count": {"type": "integer", "minimum": 0},
+    "contradiction_count": {"type": "integer", "minimum": 0},
+    "ignored_count": {"type": "integer", "minimum": 0},
+    "aggregated_confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "required_support_count": {"type": "integer", "minimum": 3},
+    "proposal": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "object"}
+      ]
+    },
+    "metadata": {"type": "object"}
+  }
+}

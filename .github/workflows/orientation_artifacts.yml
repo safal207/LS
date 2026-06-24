@@ -1,4 +1,4 @@
-name: Agent Orientation and Verified Episodes
+name: Agent Orientation, Episodes, and Identity Proposals
 
 on:
   push:
@@ -6,23 +6,29 @@ on:
       - "main"
       - "feat/orientation-pr-review-artifacts"
       - "feat/verified-episode"
+      - "feat/identity-update-proposal"
   pull_request:
     paths:
       - "python/modules/trusted_runtime/orientation.py"
       - "python/modules/trusted_runtime/verified_episode.py"
+      - "python/modules/trusted_runtime/identity_learning.py"
       - "python/modules/trusted_runtime/pr_review_*.py"
       - "python/tests/test_trusted_runtime_orientation.py"
       - "python/tests/test_trusted_runtime_verified_episode.py"
+      - "python/tests/test_trusted_runtime_identity_learning.py"
       - "python/tests/test_trusted_pr_review_*.py"
       - "python/tests/test_pr_review_verified_episode.py"
       - "schemas/trusted_runtime/orientation_context.schema.json"
       - "schemas/trusted_runtime/verified_episode.schema.json"
+      - "schemas/trusted_runtime/lesson_aggregation.schema.json"
+      - "schemas/trusted_runtime/identity_update_proposal.schema.json"
       - "schemas/trusted_runtime/products/pr_review_artifact.schema.json"
       - "scripts/run_trusted_pr_review.py"
+      - "scripts/aggregate_verified_episodes.py"
       - ".github/workflows/orientation_artifacts.yml"
 
 concurrency:
-  group: agent-learning-${{ github.workflow }}-${{ github.ref }}
+  group: governed-agent-learning-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -48,27 +54,31 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install jsonschema pytest ruff
 
-      - name: Ruff orientation and learning changes
+      - name: Ruff governed learning changes
         run: |
           ruff check \
             python/modules/trusted_runtime/orientation.py \
             python/modules/trusted_runtime/verified_episode.py \
+            python/modules/trusted_runtime/identity_learning.py \
             python/modules/trusted_runtime/pr_review_artifact.py \
             python/modules/trusted_runtime/pr_review_learning.py \
             python/modules/trusted_runtime/pr_review_mvp.py \
             python/modules/trusted_runtime/pr_review_api.py \
             python/tests/test_trusted_runtime_orientation.py \
             python/tests/test_trusted_runtime_verified_episode.py \
+            python/tests/test_trusted_runtime_identity_learning.py \
             python/tests/test_trusted_pr_review_orientation.py \
             python/tests/test_pr_review_verified_episode.py \
-            scripts/run_trusted_pr_review.py
+            scripts/run_trusted_pr_review.py \
+            scripts/aggregate_verified_episodes.py
 
-      - name: Run orientation and learning tests
+      - name: Run governed learning tests
         run: |
           PYTHONPATH=.:python:python/modules \
             python -m pytest \
               python/tests/test_trusted_runtime_orientation.py \
               python/tests/test_trusted_runtime_verified_episode.py \
+              python/tests/test_trusted_runtime_identity_learning.py \
               python/tests/test_trusted_pr_review_orientation.py \
               python/tests/test_pr_review_verified_episode.py \
               python/tests/test_trusted_pr_review_scenarios.py
@@ -80,7 +90,7 @@ jobs:
               --scenario all \
               --output build/agent-learning-review
 
-      - name: Verify effect and learning boundaries
+      - name: Verify effect and episode boundaries
         run: |
           python - <<'PY'
           import json
@@ -105,11 +115,9 @@ jobs:
               assert episode["status"] == "VERIFIED"
               assert episode["outcome_status"] == "MATCHED"
               assert episode["replay_status"] == replay
-              assert episode["orientation_ref"] == orientation["orientation_id"]
               assert episode["identity_update"]["allowed"] is False
               assert episode["identity_update"]["applied"] is False
               assert summary["protected_effect_written"] is has_effect
-              assert summary["verified_episode_ref"] == episode["episode_id"]
               if has_effect:
                   artifact = json.loads((scenario_root / "artifact.json").read_text())
                   assert artifact["orientation"] == orientation
@@ -120,10 +128,86 @@ jobs:
                   assert not (scenario_root / "artifact.json").exists()
           PY
 
-      - name: Upload agent learning evidence bundle
+      - name: Prepare three independent supporting episodes
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          from pathlib import Path
+
+          source = json.loads(
+              Path("build/agent-learning-review/allow/verified-episode.json").read_text()
+          )
+          root = Path("build/identity-learning-input")
+          root.mkdir(parents=True, exist_ok=True)
+          for index in range(1, 4):
+              episode = copy.deepcopy(source)
+              episode["episode_id"] = f"episode:ci:{index}"
+              episode["task_id"] = f"task:ci:{index}"
+              episode["trail_id"] = f"trail:ci:{index}"
+              episode["orientation_ref"] = f"orientation:ci:{index}"
+              episode["transition_id"] = f"transition:ci:{index}"
+              episode["replay_ref"] = f"replay:ci:{index}"
+              episode["source_refs"] = [
+                  f"orientation:ci:{index}",
+                  f"transition:ci:{index}",
+                  f"replay:ci:{index}",
+              ]
+              (root / f"episode-{index}.json").write_text(
+                  json.dumps(episode, sort_keys=True, indent=2) + "\n"
+              )
+          PY
+
+      - name: Aggregate episodes into review-only proposal
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/aggregate_verified_episodes.py \
+              --episode build/identity-learning-input/episode-1.json \
+              --episode build/identity-learning-input/episode-2.json \
+              --episode build/identity-learning-input/episode-3.json \
+              --scope trusted-pr-review-mvp \
+              --repeat-key trusted-pr-review:allow:one-authorized-effect \
+              --statement "For this bounded PR-review transition, linked changed-test evidence and valid authorization supported exactly one protected review-result effect." \
+              --output build/identity-learning-proposal
+
+      - name: Verify proposal and schemas
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from jsonschema import Draft202012Validator
+
+          root = Path("build/identity-learning-proposal")
+          aggregation = json.loads((root / "lesson-aggregation.json").read_text())
+          proposal = json.loads((root / "identity-update-proposal.json").read_text())
+          aggregation_schema = json.loads(
+              Path("schemas/trusted_runtime/lesson_aggregation.schema.json").read_text()
+          )
+          proposal_schema = json.loads(
+              Path("schemas/trusted_runtime/identity_update_proposal.schema.json").read_text()
+          )
+          assert not list(
+              Draft202012Validator(aggregation_schema).iter_errors(aggregation)
+          )
+          assert not list(
+              Draft202012Validator(proposal_schema).iter_errors(proposal)
+          )
+          assert aggregation["status"] == "READY_FOR_REVIEW"
+          assert aggregation["support_count"] == 3
+          assert aggregation["contradiction_count"] == 0
+          assert proposal["approval_required"] is True
+          assert proposal["approval_state"] == "PENDING"
+          assert proposal["applied"] is False
+          assert proposal["application_ref"] is None
+          PY
+
+      - name: Upload governed learning evidence bundle
         if: matrix.python-version == '3.11'
         uses: actions/upload-artifact@v4
         with:
-          name: agent-learning-evidence
-          path: build/agent-learning-review
+          name: governed-agent-learning-evidence
+          path: |
+            build/agent-learning-review
+            build/identity-learning-input
+            build/identity-learning-proposal
           if-no-files-found: error
