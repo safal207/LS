@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Trusted PR Review MVP v0.2 Run Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "command",
+    "scenarios_total",
+    "scenarios_passed",
+    "statuses_covered",
+    "protected_effects_written",
+    "boundary",
+    "results",
+    "passed"
+  ],
+  "properties": {
+    "contract_version": {"const": "ls.trusted_pr_review_mvp.v0.2"},
+    "command": {"const": "python scripts/run_trusted_pr_review_v0_2.py"},
+    "scenarios_total": {"type": "integer", "minimum": 1},
+    "scenarios_passed": {"type": "integer", "minimum": 0},
+    "statuses_covered": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": ["VERIFIED", "HOLD", "BLOCK"]}
+    },
+    "protected_effects_written": {"type": "integer", "minimum": 0, "maximum": 1},
+    "boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_output_is_authorization",
+        "hold_can_reach_protected_effect",
+        "block_can_reach_protected_effect",
+        "effect_can_precede_durable_commit",
+        "replay_reruns_models_tools_or_effects",
+        "outcome_verification_creates_retroactive_authority"
+      ],
+      "properties": {
+        "model_output_is_authorization": {"const": false},
+        "hold_can_reach_protected_effect": {"const": false},
+        "block_can_reach_protected_effect": {"const": false},
+        "effect_can_precede_durable_commit": {"const": false},
+        "replay_reruns_models_tools_or_effects": {"const": false},
+        "outcome_verification_creates_retroactive_authority": {"const": false}
+      }
+    },
+    "results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "scenario_id",
+          "final_status",
+          "stop_reason",
+          "protected_effect_written",
+          "stage_records",
+          "replay",
+          "expected",
+          "passed",
+          "errors"
+        ],
+        "properties": {
+          "schema_version": {"const": "ls.trusted_pr_review_mvp.v0.2"},
+          "scenario_id": {"type": "string", "minLength": 1},
+          "final_status": {"enum": ["VERIFIED", "HOLD", "BLOCK"]},
+          "stop_reason": {"type": "string", "minLength": 1},
+          "protected_effect_written": {"type": "boolean"},
+          "protected_effect_ref": {"type": ["string", "null"]},
+          "stage_records": {"type": "array", "minItems": 4},
+          "replay": {
+            "type": "object",
+            "required": [
+              "classification",
+              "completion_state",
+              "resume_allowed",
+              "integrity_valid",
+              "model_calls",
+              "tool_calls",
+              "effect_calls"
+            ],
+            "properties": {
+              "classification": {"enum": ["ADMISSIBLE", "DRIFTED", "REJECTED"]},
+              "completion_state": {"enum": ["COMPLETE", "PARTIAL", "INVALID"]},
+              "resume_allowed": {"type": "boolean"},
+              "integrity_valid": {"const": true},
+              "model_calls": {"const": 0},
+              "tool_calls": {"const": 0},
+              "effect_calls": {"const": 0}
+            }
+          },
+          "expected": {"type": "object"},
+          "passed": {"type": "boolean"},
+          "errors": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "passed": {"type": "boolean"}
+  }
+}
