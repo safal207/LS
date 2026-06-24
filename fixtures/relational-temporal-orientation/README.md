@@ -10,6 +10,7 @@ python -m pip install jsonschema==4.23.0
 python tools/run_relational_temporal_orientation_fixtures.py \
   schemas/relational-temporal-orientation-v0.1.schema.json \
   fixtures/relational-temporal-orientation/mandatory-v0.1.json \
+  fixtures/relational-temporal-orientation/agent-agent-v0.1.json \
   fixtures/relational-temporal-orientation/precedence-v0.1.json
 ```
 
@@ -18,6 +19,7 @@ The runner materializes each case from the suite's `base_case`, applies determin
 ## Covered boundaries
 
 - valid user-agent delegation returns `RESUME`;
+- valid agent-agent delegation plus accepted handoff returns `RESUME`;
 - revoked delegation returns `REJECT`;
 - an action attempted by the wrong actor returns `REJECT`;
 - shared-intent drift returns `REVALIDATE`;
