@@ -1,0 +1,34 @@
+name: Operational continuity fixtures
+
+on:
+  pull_request:
+    paths:
+      - "spec/operational-continuity-fixtures-v0.1.md"
+      - "fixtures/operational-continuity/**"
+      - "tools/run_operational_continuity_fixtures.py"
+  push:
+    branches:
+      - main
+    paths:
+      - "spec/operational-continuity-fixtures-v0.1.md"
+      - "fixtures/operational-continuity/**"
+      - "tools/run_operational_continuity_fixtures.py"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run mandatory fixtures
+        run: |
+          python tools/run_operational_continuity_fixtures.py \
+            fixtures/operational-continuity/resume_no_duplicate_side_effect.json \
+            fixtures/operational-continuity/superseded_approval_rejected.json \
+            fixtures/operational-continuity/complete_chain_preferred_over_disconnected_facts.json \
+            fixtures/operational-continuity/workspace_drift_requires_revalidation.json
