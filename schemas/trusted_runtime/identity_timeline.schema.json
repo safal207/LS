@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Governed Identity Timeline",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "agent_id",
+    "task_id",
+    "trail_id",
+    "status",
+    "active_profile",
+    "profile_versions",
+    "proposal_refs",
+    "approval_refs",
+    "patch_refs",
+    "commit_refs",
+    "application_refs",
+    "rollback_refs",
+    "events",
+    "findings",
+    "replay_mode",
+    "side_effects_applied",
+    "policy_version",
+    "metadata",
+    "integrity"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.identity_timeline.v0.1"},
+    "agent_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "trail_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["PROFILE_ONLY", "PENDING", "REJECTED", "EXPIRED", "INVALIDATED", "APPROVED", "APPLIED", "ROLLED_BACK"]},
+    "active_profile": {"type": "object"},
+    "profile_versions": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "proposal_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "approval_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "patch_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "commit_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "application_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "rollback_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["sequence", "event_id", "event_ref", "event_type", "actor", "created_at", "parent_event_id", "payload_digest", "event_hash", "previous_hash"]
+      }
+    },
+    "findings": {"type": "array", "items": {"type": "object"}},
+    "replay_mode": {"const": "projection_only"},
+    "side_effects_applied": {"const": false},
+    "policy_version": {"const": "identity_timeline.replay.v0.1"},
+    "metadata": {"type": "object"},
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "event_count", "tail_event_ref", "timeline_digest"],
+      "properties": {
+        "algorithm": {"const": "sha256"},
+        "event_count": {"type": "integer", "minimum": 1},
+        "tail_event_ref": {"type": "string", "minLength": 1},
+        "timeline_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}
