@@ -50,7 +50,12 @@ jobs:
           python -m json.tool fixtures/trusted-pr-review/scenarios-v0.1.json > /dev/null
           python -m json.tool schemas/trusted_pr_review_mvp_v0_2.schema.json > /dev/null
       - name: Run modern-main one-command demo
-        run: python scripts/run_trusted_pr_review_v0_2.py
+        run: |
+          set +e
+          python scripts/run_trusted_pr_review_v0_2.py > /tmp/trusted-pr-review-v0.2.log 2>&1
+          status=$?
+          tail -n 160 /tmp/trusted-pr-review-v0.2.log
+          exit $status
       - name: Validate machine-readable output
         run: |
           python -m json.tool artifacts/trusted-pr-review-mvp-v0.2/run-report.json > /dev/null
