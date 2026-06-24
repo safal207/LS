@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/trusted_runtime/verified_episode_v0.2.schema.json",
+  "title": "LS Verified Episode v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "episode_id", "task_id", "trail_id", "orientation_ref", "transition_id", "decision", "created_at", "status", "outcome_class", "expected_state_digest", "verified_state_digest", "provenance", "lesson", "lifecycle", "experience_eligible", "identity_update_eligible", "identity_update", "v0_1_projection"],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.verified_episode.v0.2"},
+    "episode_id": {"type": "string", "pattern": "^episode:sha256:[0-9a-f]{64}$"},
+    "task_id": {"type": "string", "minLength": 1},
+    "trail_id": {"type": "string", "minLength": 1},
+    "orientation_ref": {"type": "string", "minLength": 1},
+    "transition_id": {"type": "string", "minLength": 1},
+    "decision": {"enum": ["ALLOW", "HOLD", "BLOCK", "ESCALATE"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "status": {"const": "VERIFIED"},
+    "outcome_class": {"enum": ["expected", "failed", "unexpected"]},
+    "expected_state_digest": {"type": "string", "minLength": 1},
+    "verified_state_digest": {"type": "string", "minLength": 1},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verification_version", "verification_reason_code", "execution_id", "action_id", "action_digest", "actor_id", "target_id", "side_effect_key", "receipt_id", "receipt_digest", "causal_trace_id", "observer_evidence_digests", "source_event_ids"],
+      "properties": {
+        "verification_version": {"const": "outcome-verification-v0.1"},
+        "verification_reason_code": {"type": "string", "minLength": 1},
+        "execution_id": {"type": "string", "minLength": 1},
+        "action_id": {"type": "string", "minLength": 1},
+        "action_digest": {"type": "string", "minLength": 1},
+        "actor_id": {"type": "string", "minLength": 1},
+        "target_id": {"type": "string", "minLength": 1},
+        "side_effect_key": {"type": "string", "minLength": 1},
+        "receipt_id": {"type": "string", "minLength": 1},
+        "receipt_digest": {"type": "string", "minLength": 1},
+        "causal_trace_id": {"type": "string", "minLength": 1},
+        "observer_evidence_digests": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+        "source_event_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true}
+      }
+    },
+    "lesson": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["statement", "scope", "confidence", "repeat_key", "evidence_role", "evidence_refs"],
+      "properties": {
+        "statement": {"type": "string", "minLength": 1},
+        "scope": {"type": "string", "minLength": 1},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "repeat_key": {"type": "string", "minLength": 1},
+        "evidence_role": {"enum": ["supporting", "failure", "contradicting"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true}
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retention_class", "review_after", "expires_at", "redactable_fields", "redaction_state", "supersedes_episode_id"],
+      "properties": {
+        "retention_class": {"enum": ["ephemeral", "bounded", "durable"]},
+        "review_after": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": ["string", "null"], "format": "date-time"},
+        "redactable_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "redaction_state": {"enum": ["clear", "redacted"]},
+        "supersedes_episode_id": {"type": ["string", "null"]}
+      }
+    },
+    "experience_eligible": {"const": true},
+    "identity_update_eligible": {"const": false},
+    "identity_update": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "applied", "reason", "policy_version", "minimum_verified_episodes", "current_verified_episodes"],
+      "properties": {
+        "allowed": {"const": false},
+        "applied": {"const": false},
+        "reason": {"const": "single_verified_episode_cannot_modify_stable_identity"},
+        "policy_version": {"const": "identity_update.single_episode.v0.2"},
+        "minimum_verified_episodes": {"type": "integer", "minimum": 3},
+        "current_verified_episodes": {"const": 1}
+      }
+    },
+    "v0_1_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "status", "outcome_status"],
+      "properties": {
+        "schema_version": {"const": "trusted_runtime.verified_episode.v0.1"},
+        "status": {"enum": ["VERIFIED", "UNVERIFIED"]},
+        "outcome_status": {"enum": ["MATCHED", "MISMATCHED"]}
+      }
+    }
+  }
+}

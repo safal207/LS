@@ -1,0 +1,118 @@
+{
+  "suite_id": "ovc-verified-episode-v0.2-mandatory",
+  "base_case": {
+    "adapter": {
+      "adapter_version": "ovc-to-verified-episode-v0.1",
+      "ovc_result": {
+        "verification_version": "outcome-verification-v0.1",
+        "verdict": "VERIFIED",
+        "reason_code": "EXPECTED_OUTCOME_VERIFIED",
+        "outcome_class": "expected",
+        "verified_state_digest": "sha256:state-after",
+        "new_orientation_state_digest_candidate": "sha256:state-after",
+        "experience_eligible": true,
+        "execution_authorized": false,
+        "retroactive_authorization_created": false,
+        "downstream_learning_gate_required": true
+      },
+      "bindings": {
+        "execution_id": "exec-1",
+        "action_id": "action-1",
+        "action_digest": "sha256:action-1",
+        "actor_id": "agent-a",
+        "target_id": "target-1",
+        "side_effect_key": "effect-1",
+        "expected_state_digest": "sha256:state-after",
+        "verified_state_digest": "sha256:state-after",
+        "receipt_id": "receipt-1",
+        "receipt_digest": "sha256:receipt-1",
+        "causal_trace_id": "trace-1",
+        "observer_evidence_digests": ["sha256:ev-1", "sha256:ev-2"],
+        "source_event_ids": ["event-1", "event-2"]
+      },
+      "learning": {
+        "task_id": "task-1",
+        "trail_id": "trail-1",
+        "orientation_ref": "orientation-1",
+        "transition_id": "transition-1",
+        "decision": "ALLOW",
+        "lesson_statement": "The exact action produced the expected state.",
+        "lesson_scope": "repo-update",
+        "lesson_confidence": 0.9,
+        "lesson_repeat_key": "repo-update:expected",
+        "evidence_role": "supporting"
+      },
+      "lifecycle": {
+        "created_at": "2026-06-25T00:00:00Z",
+        "review_after": "2026-07-25T00:00:00Z",
+        "expires_at": "2026-12-25T00:00:00Z",
+        "retention_class": "bounded",
+        "redactable_fields": ["lesson.statement"],
+        "redaction_state": "clear",
+        "supersedes_episode_id": null
+      }
+    },
+    "authoritative_state": {
+      "current_time": "2026-06-25T00:10:00Z",
+      "seen_episode_ids": [],
+      "seen_causal_trace_ids": [],
+      "required_unredacted_fields": ["provenance.causal_trace_id"]
+    }
+  },
+  "cases": [
+    {"fixture_id": "expected_verified_episode", "overrides": {}, "expected": {"verdict": "WRITE_CANDIDATE", "reason_code": "VERIFIED_EXPERIENCE_READY"}},
+    {
+      "fixture_id": "failed_verified_episode",
+      "overrides": {
+        "adapter.bindings.verified_state_digest": "sha256:state-before",
+        "adapter.learning.evidence_role": "failure",
+        "adapter.learning.lesson_statement": "The action failed and the pre-state remained authoritative.",
+        "adapter.learning.lesson_repeat_key": "repo-update:failed",
+        "adapter.ovc_result.reason_code": "FAILURE_OUTCOME_VERIFIED",
+        "adapter.ovc_result.outcome_class": "failed",
+        "adapter.ovc_result.verified_state_digest": "sha256:state-before",
+        "adapter.ovc_result.new_orientation_state_digest_candidate": "sha256:state-before"
+      },
+      "expected": {"verdict": "WRITE_CANDIDATE", "reason_code": "VERIFIED_EXPERIENCE_READY"}
+    },
+    {
+      "fixture_id": "unexpected_verified_episode",
+      "overrides": {
+        "adapter.bindings.verified_state_digest": "sha256:state-unexpected",
+        "adapter.learning.evidence_role": "contradicting",
+        "adapter.learning.lesson_statement": "The action produced a different verified state.",
+        "adapter.learning.lesson_repeat_key": "repo-update:unexpected",
+        "adapter.ovc_result.reason_code": "UNEXPECTED_OUTCOME_VERIFIED",
+        "adapter.ovc_result.outcome_class": "unexpected",
+        "adapter.ovc_result.verified_state_digest": "sha256:state-unexpected",
+        "adapter.ovc_result.new_orientation_state_digest_candidate": "sha256:state-unexpected"
+      },
+      "expected": {"verdict": "WRITE_CANDIDATE", "reason_code": "VERIFIED_EXPERIENCE_READY"}
+    },
+    {"fixture_id": "non_verified_ovc_rejected", "overrides": {"adapter.ovc_result.experience_eligible": false, "adapter.ovc_result.verdict": "REOBSERVE"}, "expected": {"verdict": "REJECT", "reason_code": "OVC_NOT_VERIFIED"}},
+    {"fixture_id": "ovc_safety_invariant_violation", "overrides": {"adapter.ovc_result.execution_authorized": true}, "expected": {"verdict": "REJECT", "reason_code": "OVC_SAFETY_INVARIANT_VIOLATION"}},
+    {"fixture_id": "experience_not_eligible", "overrides": {"adapter.ovc_result.experience_eligible": false}, "expected": {"verdict": "REJECT", "reason_code": "EXPERIENCE_NOT_ELIGIBLE"}},
+    {"fixture_id": "missing_identity_binding", "overrides": {"adapter.bindings.action_digest": ""}, "expected": {"verdict": "REJECT", "reason_code": "MISSING_IDENTITY_BINDING"}},
+    {"fixture_id": "missing_provenance", "overrides": {"adapter.bindings.source_event_ids": []}, "expected": {"verdict": "REJECT", "reason_code": "MISSING_PROVENANCE"}},
+    {"fixture_id": "episode_replay", "overrides": {"authoritative_state.seen_episode_ids": ["episode:sha256:bc320cbac9077a78db55f0056a21c90676982d7b951617ae8db982b1ecab4d9a"]}, "expected": {"verdict": "REJECT", "reason_code": "EPISODE_REPLAY"}},
+    {"fixture_id": "causal_trace_replay", "overrides": {"authoritative_state.seen_causal_trace_ids": ["trace-1"]}, "expected": {"verdict": "REJECT", "reason_code": "CAUSAL_TRACE_REPLAY"}},
+    {"fixture_id": "retention_expired", "overrides": {"authoritative_state.current_time": "2027-01-01T00:00:00Z"}, "expected": {"verdict": "FORGET", "reason_code": "RETENTION_EXPIRED"}},
+    {"fixture_id": "invalid_retention_window", "overrides": {"adapter.lifecycle.review_after": "2026-05-25T00:00:00Z"}, "expected": {"verdict": "REJECT", "reason_code": "INVALID_RETENTION_WINDOW"}},
+    {
+      "fixture_id": "lesson_outcome_mismatch",
+      "overrides": {
+        "adapter.bindings.verified_state_digest": "sha256:state-unexpected",
+        "adapter.ovc_result.reason_code": "UNEXPECTED_OUTCOME_VERIFIED",
+        "adapter.ovc_result.outcome_class": "unexpected",
+        "adapter.ovc_result.verified_state_digest": "sha256:state-unexpected",
+        "adapter.ovc_result.new_orientation_state_digest_candidate": "sha256:state-unexpected"
+      },
+      "expected": {"verdict": "REVIEW", "reason_code": "LESSON_OUTCOME_MISMATCH"}
+    },
+    {"fixture_id": "ovc_reason_mismatch", "overrides": {"adapter.ovc_result.reason_code": "FAILURE_OUTCOME_VERIFIED"}, "expected": {"verdict": "REVIEW", "reason_code": "OVC_OUTCOME_REASON_MISMATCH"}},
+    {"fixture_id": "redaction_incomplete", "overrides": {"adapter.lifecycle.redactable_fields": ["provenance.causal_trace_id"], "adapter.lifecycle.redaction_state": "redacted"}, "expected": {"verdict": "ABSTAIN", "reason_code": "REDACTION_INCOMPLETE"}},
+    {"fixture_id": "missing_lesson_evidence", "overrides": {"adapter.learning.lesson_statement": ""}, "expected": {"verdict": "ABSTAIN", "reason_code": "MISSING_LESSON_EVIDENCE"}},
+    {"fixture_id": "superseding_episode_candidate", "overrides": {"adapter.lifecycle.supersedes_episode_id": "episode:legacy:1"}, "expected": {"verdict": "WRITE_CANDIDATE", "reason_code": "VERIFIED_EXPERIENCE_READY"}},
+    {"fixture_id": "durable_episode_without_expiry", "overrides": {"adapter.lifecycle.expires_at": null, "adapter.lifecycle.retention_class": "durable"}, "expected": {"verdict": "WRITE_CANDIDATE", "reason_code": "VERIFIED_EXPERIENCE_READY"}}
+  ]
+}

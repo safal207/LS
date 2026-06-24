@@ -1,0 +1,94 @@
+{
+  "suite_id": "ovc-verified-episode-v0.2-precedence",
+  "base_case": {
+    "adapter": {
+      "adapter_version": "ovc-to-verified-episode-v0.1",
+      "ovc_result": {
+        "verification_version": "outcome-verification-v0.1",
+        "verdict": "VERIFIED",
+        "reason_code": "EXPECTED_OUTCOME_VERIFIED",
+        "outcome_class": "expected",
+        "verified_state_digest": "sha256:state-after",
+        "new_orientation_state_digest_candidate": "sha256:state-after",
+        "experience_eligible": true,
+        "execution_authorized": false,
+        "retroactive_authorization_created": false,
+        "downstream_learning_gate_required": true
+      },
+      "bindings": {
+        "execution_id": "exec-1",
+        "action_id": "action-1",
+        "action_digest": "sha256:action-1",
+        "actor_id": "agent-a",
+        "target_id": "target-1",
+        "side_effect_key": "effect-1",
+        "expected_state_digest": "sha256:state-after",
+        "verified_state_digest": "sha256:state-after",
+        "receipt_id": "receipt-1",
+        "receipt_digest": "sha256:receipt-1",
+        "causal_trace_id": "trace-1",
+        "observer_evidence_digests": ["sha256:ev-1", "sha256:ev-2"],
+        "source_event_ids": ["event-1", "event-2"]
+      },
+      "learning": {
+        "task_id": "task-1",
+        "trail_id": "trail-1",
+        "orientation_ref": "orientation-1",
+        "transition_id": "transition-1",
+        "decision": "ALLOW",
+        "lesson_statement": "The exact action produced the expected state.",
+        "lesson_scope": "repo-update",
+        "lesson_confidence": 0.9,
+        "lesson_repeat_key": "repo-update:expected",
+        "evidence_role": "supporting"
+      },
+      "lifecycle": {
+        "created_at": "2026-06-25T00:00:00Z",
+        "review_after": "2026-07-25T00:00:00Z",
+        "expires_at": "2026-12-25T00:00:00Z",
+        "retention_class": "bounded",
+        "redactable_fields": ["lesson.statement"],
+        "redaction_state": "clear",
+        "supersedes_episode_id": null
+      }
+    },
+    "authoritative_state": {
+      "current_time": "2026-06-25T00:10:00Z",
+      "seen_episode_ids": [],
+      "seen_causal_trace_ids": [],
+      "required_unredacted_fields": ["provenance.causal_trace_id"]
+    }
+  },
+  "cases": [
+    {
+      "fixture_id": "safety_reject_precedes_review",
+      "overrides": {
+        "adapter.learning.evidence_role": "failure",
+        "adapter.ovc_result.execution_authorized": true
+      },
+      "expected": {"verdict": "REJECT", "reason_code": "OVC_SAFETY_INVARIANT_VIOLATION"}
+    },
+    {
+      "fixture_id": "review_precedes_forget",
+      "overrides": {
+        "adapter.learning.evidence_role": "failure",
+        "authoritative_state.current_time": "2027-01-01T00:00:00Z"
+      },
+      "expected": {"verdict": "REVIEW", "reason_code": "LESSON_OUTCOME_MISMATCH"}
+    },
+    {
+      "fixture_id": "forget_precedes_abstain",
+      "overrides": {
+        "adapter.lifecycle.redactable_fields": ["provenance.causal_trace_id"],
+        "adapter.lifecycle.redaction_state": "redacted",
+        "authoritative_state.current_time": "2027-01-01T00:00:00Z"
+      },
+      "expected": {"verdict": "FORGET", "reason_code": "RETENTION_EXPIRED"}
+    },
+    {
+      "fixture_id": "abstain_precedes_write",
+      "overrides": {"adapter.learning.lesson_statement": ""},
+      "expected": {"verdict": "ABSTAIN", "reason_code": "MISSING_LESSON_EVIDENCE"}
+    }
+  ]
+}
