@@ -1,0 +1,41 @@
+{
+  "case": "block_handoff_not_eligible",
+  "contract_version": "ls-evidence-gate-v0.1",
+  "policy_context": {"policy_id": "ls.policy.high-risk-action", "policy_version": "1.0.0"},
+  "handoff": {
+    "handoff_outcome": "WITHHOLD",
+    "recognition_result_ref": "recognition-result:allow-001",
+    "candidate_digest": "sha256:CANDIDATE_A",
+    "intent_digest": "sha256:INTENT_A",
+    "target_state_digest": "sha256:STATE_A",
+    "execution_authorized": false
+  },
+  "request": {
+    "candidate_digest": "sha256:CANDIDATE_A",
+    "intent_digest": "sha256:INTENT_A",
+    "target_state_digest": "sha256:STATE_A",
+    "evidence_refs": ["evidence:test-report:001", "evidence:causal-audit:001"],
+    "evidence_snapshot_digest": "sha256:EVIDENCE_SNAPSHOT_A",
+    "causal_status": "VALID",
+    "policy_id": "ls.policy.high-risk-action",
+    "policy_version": "1.0.0",
+    "scope": ["repo:safal207/LS", "action:merge"],
+    "reversibility": "REVERSIBLE",
+    "approval_required": false,
+    "approval_ref": null,
+    "verifier_status": "VERIFIED"
+  },
+  "expected": {
+    "decision": "BLOCK",
+    "reason_code": "HANDOFF_NOT_ELIGIBLE",
+    "authorization_bundle_eligible": false,
+    "execution_authorized": false,
+    "candidate_digest": "sha256:CANDIDATE_A",
+    "intent_digest": "sha256:INTENT_A",
+    "target_state_digest": "sha256:STATE_A",
+    "recognition_result_ref": "recognition-result:allow-001",
+    "evidence_refs": ["evidence:test-report:001", "evidence:causal-audit:001"],
+    "policy_id": "ls.policy.high-risk-action",
+    "policy_version": "1.0.0"
+  }
+}
