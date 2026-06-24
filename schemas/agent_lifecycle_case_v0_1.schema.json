@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Agent Lifecycle Reliability Case v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "case_id",
+    "description",
+    "operation",
+    "initial",
+    "parameters",
+    "events",
+    "expected"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ls.agent_lifecycle_case.v0.1"
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "operation": {
+      "enum": [
+        "ORPHAN_RECONCILE",
+        "CLOSE_AGENT",
+        "STREAM_RECONCILE"
+      ]
+    },
+    "initial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registry_state",
+        "runtime_state",
+        "active_generation",
+        "client_cursor"
+      ],
+      "properties": {
+        "registry_state": {
+          "enum": [
+            "MISSING",
+            "STARTING",
+            "RUNNING",
+            "COMPLETED",
+            "ABORTED",
+            "TERMINATED"
+          ]
+        },
+        "runtime_state": {
+          "enum": [
+            "MISSING",
+            "RUNNING",
+            "UNRESPONSIVE",
+            "TERMINATED"
+          ]
+        },
+        "active_generation": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "client_cursor": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "grace_timeout_ms",
+        "hard_timeout_ms"
+      ],
+      "properties": {
+        "grace_timeout_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "hard_timeout_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "sequence",
+          "generation",
+          "type",
+          "delivery"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "type": {
+            "enum": [
+              "TURN_STARTED",
+              "TURN_COMPLETED",
+              "TURN_INTERRUPTED",
+              "AGENT_TERMINATED",
+              "HEARTBEAT"
+            ]
+          },
+          "delivery": {
+            "enum": [
+              "DELIVERED",
+              "DROPPED",
+              "REPLAYED"
+            ]
+          }
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "reason_code",
+        "parent_blocked",
+        "slot_released",
+        "elapsed_ms",
+        "accepted_event_ids",
+        "client_cursor"
+      ],
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parent_blocked": {
+          "type": "boolean"
+        },
+        "slot_released": {
+          "type": "boolean"
+        },
+        "elapsed_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accepted_event_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "client_cursor": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}
