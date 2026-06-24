@@ -13,7 +13,9 @@ PYTHON_ROOT = ROOT / "python"
 if str(PYTHON_ROOT) not in sys.path:
     sys.path.insert(0, str(PYTHON_ROOT))
 
-from modules.trusted_runtime.pr_review_mvp import run_trusted_pr_review  # noqa: E402
+from modules.trusted_runtime.pr_review_learning import (  # noqa: E402
+    run_trusted_pr_review_with_episode,
+)
 
 
 FIXTURE_ROOT = ROOT / "python/tests/fixtures/trusted-runtime/pr-review"
@@ -57,7 +59,7 @@ def main() -> int:
             shutil.rmtree(scenario_root)
         diff_path = args.diff or (FIXTURE_ROOT / f"{scenario}.diff")
         diff_text = diff_path.read_text(encoding="utf-8")
-        results[scenario] = run_trusted_pr_review(
+        results[scenario] = run_trusted_pr_review_with_episode(
             diff_text,
             scenario=scenario,
             output_dir=scenario_root,

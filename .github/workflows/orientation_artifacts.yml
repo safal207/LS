@@ -1,22 +1,28 @@
-name: Agent Orientation Artifacts
+name: Agent Orientation and Verified Episodes
 
 on:
   push:
     branches:
       - "main"
       - "feat/orientation-pr-review-artifacts"
+      - "feat/verified-episode"
   pull_request:
     paths:
       - "python/modules/trusted_runtime/orientation.py"
+      - "python/modules/trusted_runtime/verified_episode.py"
       - "python/modules/trusted_runtime/pr_review_*.py"
       - "python/tests/test_trusted_runtime_orientation.py"
+      - "python/tests/test_trusted_runtime_verified_episode.py"
       - "python/tests/test_trusted_pr_review_*.py"
+      - "python/tests/test_pr_review_verified_episode.py"
       - "schemas/trusted_runtime/orientation_context.schema.json"
+      - "schemas/trusted_runtime/verified_episode.schema.json"
       - "schemas/trusted_runtime/products/pr_review_artifact.schema.json"
+      - "scripts/run_trusted_pr_review.py"
       - ".github/workflows/orientation_artifacts.yml"
 
 concurrency:
-  group: orientation-artifacts-${{ github.workflow }}-${{ github.ref }}
+  group: agent-learning-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -42,21 +48,29 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install jsonschema pytest ruff
 
-      - name: Ruff orientation changes
+      - name: Ruff orientation and learning changes
         run: |
           ruff check \
             python/modules/trusted_runtime/orientation.py \
+            python/modules/trusted_runtime/verified_episode.py \
             python/modules/trusted_runtime/pr_review_artifact.py \
+            python/modules/trusted_runtime/pr_review_learning.py \
             python/modules/trusted_runtime/pr_review_mvp.py \
+            python/modules/trusted_runtime/pr_review_api.py \
             python/tests/test_trusted_runtime_orientation.py \
-            python/tests/test_trusted_pr_review_orientation.py
+            python/tests/test_trusted_runtime_verified_episode.py \
+            python/tests/test_trusted_pr_review_orientation.py \
+            python/tests/test_pr_review_verified_episode.py \
+            scripts/run_trusted_pr_review.py
 
-      - name: Run orientation and product tests
+      - name: Run orientation and learning tests
         run: |
           PYTHONPATH=.:python:python/modules \
             python -m pytest \
               python/tests/test_trusted_runtime_orientation.py \
+              python/tests/test_trusted_runtime_verified_episode.py \
               python/tests/test_trusted_pr_review_orientation.py \
+              python/tests/test_pr_review_verified_episode.py \
               python/tests/test_trusted_pr_review_scenarios.py
 
       - name: Generate all scenario artifacts
@@ -64,30 +78,38 @@ jobs:
           PYTHONPATH=.:python:python/modules \
             python scripts/run_trusted_pr_review.py \
               --scenario all \
-              --output build/orientation-review
+              --output build/agent-learning-review
 
-      - name: Verify orientation effect boundaries
+      - name: Verify effect and learning boundaries
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
 
-          root = Path("build/orientation-review")
+          root = Path("build/agent-learning-review")
           expected = {
-              "allow": ("REPLAYABLE", True),
-              "hold": ("HELD", False),
-              "block": ("BLOCKED", False),
+              "allow": ("REPLAYABLE", "ADMISSIBLE", True),
+              "hold": ("HELD", "DRIFTED", False),
+              "block": ("BLOCKED", "ADMISSIBLE", False),
           }
-          for scenario, (stage, has_effect) in expected.items():
+          for scenario, (stage, replay, has_effect) in expected.items():
               scenario_root = root / scenario
               orientation = json.loads(
                   (scenario_root / "orientation-context.json").read_text()
               )
+              episode = json.loads(
+                  (scenario_root / "verified-episode.json").read_text()
+              )
               summary = json.loads((scenario_root / "run-summary.json").read_text())
               assert orientation["stage"] == stage
-              assert summary["orientation_stage"] == stage
-              assert orientation["replay_ref"] == summary["replay_ref"]
+              assert episode["status"] == "VERIFIED"
+              assert episode["outcome_status"] == "MATCHED"
+              assert episode["replay_status"] == replay
+              assert episode["orientation_ref"] == orientation["orientation_id"]
+              assert episode["identity_update"]["allowed"] is False
+              assert episode["identity_update"]["applied"] is False
               assert summary["protected_effect_written"] is has_effect
+              assert summary["verified_episode_ref"] == episode["episode_id"]
               if has_effect:
                   artifact = json.loads((scenario_root / "artifact.json").read_text())
                   assert artifact["orientation"] == orientation
@@ -98,10 +120,10 @@ jobs:
                   assert not (scenario_root / "artifact.json").exists()
           PY
 
-      - name: Upload orientation evidence bundle
+      - name: Upload agent learning evidence bundle
         if: matrix.python-version == '3.11'
         uses: actions/upload-artifact@v4
         with:
-          name: agent-orientation-evidence
-          path: build/orientation-review
+          name: agent-learning-evidence
+          path: build/agent-learning-review
           if-no-files-found: error

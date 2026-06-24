@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Verified Episode",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "episode_id",
+    "task_id",
+    "trail_id",
+    "orientation_ref",
+    "transition_id",
+    "decision",
+    "created_at",
+    "status",
+    "expected_outcome",
+    "observed_outcome",
+    "outcome_status",
+    "causal_status",
+    "replay_status",
+    "replay_ref",
+    "lesson",
+    "identity_update",
+    "source_refs",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.verified_episode.v0.1"},
+    "episode_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "trail_id": {"type": "string", "minLength": 1},
+    "orientation_ref": {"type": "string", "minLength": 1},
+    "transition_id": {"type": "string", "minLength": 1},
+    "decision": {"enum": ["ALLOW", "HOLD", "BLOCK", "ESCALATE"]},
+    "created_at": {"type": "string", "minLength": 1},
+    "status": {"enum": ["VERIFIED", "UNVERIFIED"]},
+    "expected_outcome": {"type": "object"},
+    "observed_outcome": {"type": "object"},
+    "outcome_status": {"enum": ["MATCHED", "MISMATCHED"]},
+    "causal_status": {"enum": ["VALID", "INVALID", "UNVERIFIED"]},
+    "replay_status": {"enum": ["ADMISSIBLE", "DRIFTED", "REJECTED"]},
+    "replay_ref": {"type": "string", "minLength": 1},
+    "lesson": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["statement", "scope", "confidence", "repeat_key", "evidence_refs"],
+      "properties": {
+        "statement": {"type": "string", "minLength": 1},
+        "scope": {"type": "string", "minLength": 1},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "repeat_key": {"type": "string", "minLength": 1},
+        "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "identity_update": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "applied", "reason", "policy_version", "minimum_verified_episodes", "current_verified_episodes"],
+      "properties": {
+        "allowed": {"const": false},
+        "applied": {"const": false},
+        "reason": {"const": "single_verified_episode_cannot_modify_stable_identity"},
+        "policy_version": {"const": "identity_update.single_episode.v0.1"},
+        "minimum_verified_episodes": {"type": "integer", "minimum": 2},
+        "current_verified_episodes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "source_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "metadata": {"type": "object"}
+  }
+}
