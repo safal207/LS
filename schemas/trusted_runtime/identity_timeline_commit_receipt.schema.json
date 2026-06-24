@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Identity Timeline Commit Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_id",
+    "schema_version",
+    "agent_id",
+    "bundle_path",
+    "task_id",
+    "trail_id",
+    "tail_event_ref",
+    "event_count",
+    "timeline_digest",
+    "committed_at"
+  ],
+  "properties": {
+    "request_id": {"type": "string", "minLength": 1},
+    "schema_version": {"const": "trusted_runtime.identity_timeline_commit_receipt.v0.1"},
+    "agent_id": {"type": "string", "minLength": 1},
+    "bundle_path": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "trail_id": {"type": "string", "minLength": 1},
+    "tail_event_ref": {"type": "string", "minLength": 1},
+    "event_count": {"type": "integer", "minimum": 1},
+    "timeline_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "committed_at": {"type": "string", "minLength": 1}
+  }
+}

@@ -1,0 +1,206 @@
+name: Durable Identity Catalog Commit Trigger
+
+on:
+  push:
+    branches:
+      - "feat/identity-catalog-commit-trigger"
+  pull_request:
+    paths:
+      - "python/modules/trusted_runtime/identity_catalog_trigger.py"
+      - "python/tests/identity_catalog_trigger_fixtures.py"
+      - "python/tests/test_identity_catalog_commit_trigger.py"
+      - "python/tests/test_identity_catalog_trigger_recovery.py"
+      - "schemas/trusted_runtime/identity_timeline_commit_receipt.schema.json"
+      - "schemas/trusted_runtime/identity_catalog_trigger_batch.schema.json"
+      - "scripts/persist_identity_lifecycle.py"
+      - "scripts/process_identity_catalog_triggers.py"
+      - ".github/workflows/identity_catalog_commit_trigger.yml"
+
+concurrency:
+  group: identity-catalog-trigger-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+    env:
+      LS_IDENTITY_CATALOG_KEYRING_JSON: '{"key-old":"ci-old-key-material","key-new":"ci-new-key-material"}'
+      LS_IDENTITY_VISIBILITY_JSON: '{"agent:hook-reviewer":["internal"],"agent:hook-auditor":["internal"],"agent:hook-third":["internal"]}'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema pytest ruff
+
+      - name: Ruff trigger changes
+        run: |
+          ruff check \
+            python/modules/trusted_runtime/identity_catalog_trigger.py \
+            python/tests/identity_catalog_trigger_fixtures.py \
+            python/tests/test_identity_catalog_commit_trigger.py \
+            python/tests/test_identity_catalog_trigger_recovery.py \
+            scripts/persist_identity_lifecycle.py \
+            scripts/process_identity_catalog_triggers.py
+
+      - name: Run trigger and publisher regression tests
+        run: |
+          PYTHONPATH=.:python:python/modules:python/tests \
+            python -m pytest \
+              python/tests/test_identity_catalog_commit_trigger.py \
+              python/tests/test_identity_catalog_trigger_recovery.py \
+              python/tests/test_identity_catalog_publisher.py \
+              python/tests/test_identity_catalog_publisher_fail_closed.py \
+              python/tests/test_identity_catalog.py \
+              python/tests/test_identity_timeline_projection.py
+
+      - name: Commit two agent timelines into one durable outbox
+        run: |
+          PYTHONPATH=.:python:python/modules:python/tests python - <<'PY'
+          from pathlib import Path
+          from identity_catalog_trigger_fixtures import build_committed_timeline
+
+          root = Path("build/hook-runtime")
+          build_committed_timeline(root, "agent:hook-reviewer")
+          build_committed_timeline(root, "agent:hook-auditor")
+          PY
+
+      - name: Process coalesced generation one with production worker
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/process_identity_catalog_triggers.py \
+              --data-root build/hook-runtime/data \
+              --outbox build/hook-runtime/identity-catalog-publication-outbox.jsonl \
+              --publisher-output-root build/hook-runtime/publisher \
+              --trigger-output-root build/hook-runtime/trigger \
+              --active-key-id key-old \
+              --signing-key-id key-old \
+              --audience internal \
+              --processed-at 2026-06-24T04:10:00Z \
+              --stale-after-seconds 86400 \
+              > build/hook-generation-1.json
+
+      - name: Restart worker without duplicate publication
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/process_identity_catalog_triggers.py \
+              --data-root build/hook-runtime/data \
+              --outbox build/hook-runtime/identity-catalog-publication-outbox.jsonl \
+              --publisher-output-root build/hook-runtime/publisher \
+              --trigger-output-root build/hook-runtime/trigger \
+              --active-key-id key-old \
+              --signing-key-id key-old \
+              --audience internal \
+              --processed-at 2026-06-24T04:15:00Z \
+              --stale-after-seconds 86400 \
+              > build/hook-restart.json
+
+      - name: Commit a third agent and process generation two
+        run: |
+          PYTHONPATH=.:python:python/modules:python/tests python - <<'PY'
+          from pathlib import Path
+          from identity_catalog_trigger_fixtures import build_committed_timeline
+
+          build_committed_timeline(
+              Path("build/hook-runtime"),
+              "agent:hook-third",
+              committed_at="2026-06-24T04:16:00Z",
+          )
+          PY
+          PYTHONPATH=.:python:python/modules \
+            python scripts/process_identity_catalog_triggers.py \
+              --data-root build/hook-runtime/data \
+              --outbox build/hook-runtime/identity-catalog-publication-outbox.jsonl \
+              --publisher-output-root build/hook-runtime/publisher \
+              --trigger-output-root build/hook-runtime/trigger \
+              --active-key-id key-old \
+              --signing-key-id key-old \
+              --audience internal \
+              --processed-at 2026-06-24T04:20:00Z \
+              --stale-after-seconds 86400 \
+              > build/hook-generation-2.json
+
+      - name: Validate trigger generations schemas and health
+        run: |
+          PYTHONPATH=.:python:python/modules python - <<'PY'
+          import json
+          from pathlib import Path
+          from jsonschema import Draft202012Validator
+
+          root = Path("build/hook-runtime")
+          first = json.loads(Path("build/hook-generation-1.json").read_text())
+          restart = json.loads(Path("build/hook-restart.json").read_text())
+          second = json.loads(Path("build/hook-generation-2.json").read_text())
+          assert first["published"] is True
+          assert first["publication_changed"] is True
+          assert first["generation"] == 1
+          assert len(first["processed_request_ids"]) == 2
+          assert restart["published"] is False
+          assert restart["generation"] is None
+          assert second["published"] is True
+          assert second["generation"] == 2
+          assert len(second["processed_request_ids"]) == 1
+
+          trigger = root / "trigger"
+          batch = json.loads(
+              (trigger / "identity-catalog-trigger-generation.json").read_text()
+          )
+          batch_schema = json.loads(
+              Path(
+                  "schemas/trusted_runtime/identity_catalog_trigger_batch.schema.json"
+              ).read_text()
+          )
+          assert not list(
+              Draft202012Validator(batch_schema).iter_errors(batch)
+          )
+          assert batch["generation"] == 2
+          assert batch["agent_ids"] == ["agent:hook-third"]
+
+          receipt_schema = json.loads(
+              Path(
+                  "schemas/trusted_runtime/identity_timeline_commit_receipt.schema.json"
+              ).read_text()
+          )
+          markers = sorted(root.glob("data/*/identity-timeline-commit.json"))
+          assert len(markers) == 3
+          for marker in markers:
+              payload = json.loads(marker.read_text())
+              assert not list(
+                  Draft202012Validator(receipt_schema).iter_errors(payload)
+              )
+
+          health = json.loads(
+              (trigger / "identity-catalog-trigger-health.json").read_text()
+          )
+          assert health["read_only"] is True
+          assert health["last_successful_generation"] == 2
+          assert health["pending_request_count"] == 0
+          assert health["quarantined_request_count"] == 0
+          assert health["publisher_lag_seconds"] == 240.0
+          assert len(tuple((root / "publisher/history").glob("*.json"))) == 2
+          assert len(tuple((trigger / "history").glob("*.json"))) == 2
+          PY
+
+      - name: Upload durable trigger evidence
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: durable-identity-catalog-trigger-evidence
+          path: |
+            build/hook-runtime
+            build/hook-generation-1.json
+            build/hook-restart.json
+            build/hook-generation-2.json
+          if-no-files-found: error

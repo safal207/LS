@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Identity Catalog Trigger Batch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generation",
+    "publication_digest",
+    "processed_at",
+    "changed",
+    "request_ids",
+    "trigger_tail_event_refs",
+    "agent_ids",
+    "outbox_sequences",
+    "integrity"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.identity_catalog_trigger_batch.v0.1"},
+    "generation": {"type": "integer", "minimum": 1},
+    "publication_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "processed_at": {"type": "string", "minLength": 1},
+    "changed": {"type": "boolean"},
+    "request_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "trigger_tail_event_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "agent_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "outbox_sequences": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 0}},
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "trigger_batch_digest"],
+      "properties": {
+        "algorithm": {"const": "sha256"},
+        "trigger_batch_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}
