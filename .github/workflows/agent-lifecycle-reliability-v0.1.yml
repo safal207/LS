@@ -1,0 +1,40 @@
+name: Agent Lifecycle Reliability v0.1
+
+on:
+  pull_request:
+    paths:
+      - "docs/agent-lifecycle-reliability-conformance-v0.1.md"
+      - "schemas/agent_lifecycle_case_v0_1.schema.json"
+      - "fixtures/agent-lifecycle-reliability/**"
+      - "tools/validate_agent_lifecycle_reliability_v0_1.py"
+      - ".github/workflows/agent-lifecycle-reliability-v0.1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/agent-lifecycle-reliability-conformance-v0.1.md"
+      - "schemas/agent_lifecycle_case_v0_1.schema.json"
+      - "fixtures/agent-lifecycle-reliability/**"
+      - "tools/validate_agent_lifecycle_reliability_v0_1.py"
+      - ".github/workflows/agent-lifecycle-reliability-v0.1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate JSON artifacts
+        run: |
+          python -m json.tool schemas/agent_lifecycle_case_v0_1.schema.json > /dev/null
+          python -m json.tool fixtures/agent-lifecycle-reliability/manifest.json > /dev/null
+          while IFS= read -r line; do
+            [ -z "$line" ] || printf '%s\n' "$line" | python -m json.tool > /dev/null
+          done < fixtures/agent-lifecycle-reliability/cases.jsonl
+      - name: Run lifecycle conformance suite
+        run: python tools/validate_agent_lifecycle_reliability_v0_1.py
