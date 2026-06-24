@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/orientation-triad-v0.1.schema.json",
+  "title": "LS Orientation Triad Input v0.1",
+  "type": "object",
+  "required": ["triad_version", "toc", "rtoc", "patoc"],
+  "properties": {
+    "triad_version": {"const": "orientation-triad-v0.1"},
+    "toc": {
+      "type": "object",
+      "required": ["center_version", "verdict", "reason_code", "execution_authorized", "downstream_gates_required", "bindings"],
+      "properties": {
+        "center_version": {"type": "string", "minLength": 1},
+        "verdict": {"enum": ["RESUME", "REVALIDATE", "ABSTAIN", "REJECT"]},
+        "reason_code": {"type": "string", "minLength": 1},
+        "execution_authorized": {"type": "boolean"},
+        "downstream_gates_required": {"type": "boolean"},
+        "bindings": {
+          "type": "object",
+          "required": ["workspace_id", "trajectory_id", "continuation_id", "action_digest"],
+          "properties": {
+            "workspace_id": {"type": "string", "minLength": 1},
+            "trajectory_id": {"type": "string", "minLength": 1},
+            "continuation_id": {"type": "string", "minLength": 1},
+            "action_digest": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "rtoc": {
+      "type": "object",
+      "required": ["center_version", "verdict", "reason_code", "execution_authorized", "downstream_gates_required", "bindings"],
+      "properties": {
+        "center_version": {"type": "string", "minLength": 1},
+        "verdict": {"enum": ["RESUME", "REVALIDATE", "ABSTAIN", "REJECT"]},
+        "reason_code": {"type": "string", "minLength": 1},
+        "execution_authorized": {"type": "boolean"},
+        "downstream_gates_required": {"type": "boolean"},
+        "bindings": {
+          "type": "object",
+          "required": ["relationship_id", "actor_id", "action_digest"],
+          "properties": {
+            "relationship_id": {"type": "string", "minLength": 1},
+            "actor_id": {"type": "string", "minLength": 1},
+            "action_digest": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "patoc": {
+      "type": "object",
+      "required": ["center_version", "verdict", "reason_code", "execution_authorized", "downstream_gates_required", "bindings"],
+      "properties": {
+        "center_version": {"type": "string", "minLength": 1},
+        "verdict": {"enum": ["EXECUTE_CANDIDATE", "WAIT", "REVALIDATE", "ABSTAIN", "REJECT"]},
+        "reason_code": {"type": "string", "minLength": 1},
+        "execution_authorized": {"type": "boolean"},
+        "downstream_gates_required": {"type": "boolean"},
+        "bindings": {
+          "type": "object",
+          "required": ["workspace_id", "trajectory_id", "continuation_id", "relationship_id", "actor_id", "action_digest"],
+          "properties": {
+            "workspace_id": {"type": "string", "minLength": 1},
+            "trajectory_id": {"type": "string", "minLength": 1},
+            "continuation_id": {"type": "string", "minLength": 1},
+            "relationship_id": {"type": "string", "minLength": 1},
+            "actor_id": {"type": "string", "minLength": 1},
+            "action_digest": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,99 @@
+{
+  "suite_id": "orientation-triad-v0.1-precedence",
+  "base_case": {
+    "triad_version": "orientation-triad-v0.1",
+    "toc": {
+      "center_version": "temporal-orientation-v0.1",
+      "verdict": "RESUME",
+      "reason_code": "ORIENTATION_VALID",
+      "execution_authorized": false,
+      "downstream_gates_required": true,
+      "bindings": {
+        "workspace_id": "repo:safal207/LS",
+        "trajectory_id": "issue-672",
+        "continuation_id": "triad-1",
+        "action_digest": "sha256:update-file-v1"
+      }
+    },
+    "rtoc": {
+      "center_version": "relational-temporal-orientation-v0.1",
+      "verdict": "RESUME",
+      "reason_code": "RELATIONAL_ORIENTATION_VALID",
+      "execution_authorized": false,
+      "downstream_gates_required": true,
+      "bindings": {
+        "relationship_id": "rel-maintainer-agent",
+        "actor_id": "agent-codex",
+        "action_digest": "sha256:update-file-v1"
+      }
+    },
+    "patoc": {
+      "center_version": "precise-action-temporal-orientation-v0.1",
+      "verdict": "EXECUTE_CANDIDATE",
+      "reason_code": "PRECISE_ACTION_ORIENTATION_VALID",
+      "execution_authorized": false,
+      "downstream_gates_required": true,
+      "bindings": {
+        "workspace_id": "repo:safal207/LS",
+        "trajectory_id": "issue-672",
+        "continuation_id": "triad-1",
+        "relationship_id": "rel-maintainer-agent",
+        "actor_id": "agent-codex",
+        "action_digest": "sha256:update-file-v1"
+      }
+    }
+  },
+  "cases": [
+    {
+      "fixture_id": "reject_precedes_wait",
+      "overrides": {
+        "toc.verdict": "REJECT",
+        "toc.reason_code": "CONTINUATION_MISMATCH",
+        "patoc.verdict": "WAIT",
+        "patoc.reason_code": "APPROVAL_PENDING"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "TOC_REJECTED"
+      }
+    },
+    {
+      "fixture_id": "revalidate_precedes_wait",
+      "overrides": {
+        "rtoc.verdict": "REVALIDATE",
+        "rtoc.reason_code": "SHARED_INTENT_DRIFT",
+        "patoc.verdict": "WAIT",
+        "patoc.reason_code": "APPROVAL_PENDING"
+      },
+      "expected": {
+        "verdict": "REVALIDATE",
+        "reason_code": "RTOC_REVALIDATION_REQUIRED"
+      }
+    },
+    {
+      "fixture_id": "wait_precedes_abstain",
+      "overrides": {
+        "toc.verdict": "ABSTAIN",
+        "toc.reason_code": "INCOMPLETE_DEPENDENCY_CHAIN",
+        "patoc.verdict": "WAIT",
+        "patoc.reason_code": "APPROVAL_PENDING"
+      },
+      "expected": {
+        "verdict": "WAIT",
+        "reason_code": "PATOC_WAIT_REQUIRED"
+      }
+    },
+    {
+      "fixture_id": "binding_reject_precedes_revalidate",
+      "overrides": {
+        "patoc.bindings.actor_id": "agent-other",
+        "rtoc.verdict": "REVALIDATE",
+        "rtoc.reason_code": "SHARED_INTENT_DRIFT"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "ACTOR_BINDING_MISMATCH"
+      }
+    }
+  ]
+}
