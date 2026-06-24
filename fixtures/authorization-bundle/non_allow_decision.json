@@ -1,0 +1,1 @@
+{"case":"non_allow_decision","overrides":{"evidence_decision":{"decision":"HOLD","authorization_bundle_eligible":false}},"consumed_nonces":[],"tamper":null,"expected":{"outcome":"REJECTED","reason_code":"EVIDENCE_GATE_NOT_ALLOW","bundle_created":false,"offline_verified":false,"commit_before_effect_eligible":false,"execution_authorized":false}}
