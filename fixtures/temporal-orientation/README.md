@@ -8,7 +8,8 @@ This directory contains the v0.1 conformance suites for LS temporal orientation.
 python tools/validate_temporal_orientation_schema.py \
   schemas/temporal-orientation-v0.1.schema.json \
   fixtures/temporal-orientation/mandatory-v0.1.json \
-  fixtures/temporal-orientation/additional-v0.1.json
+  fixtures/temporal-orientation/additional-v0.1.json \
+  fixtures/temporal-orientation/precedence-v0.1.json
 
 python tools/evaluate_temporal_orientation.py \
   fixtures/temporal-orientation/mandatory-v0.1.json \
@@ -16,6 +17,10 @@ python tools/evaluate_temporal_orientation.py \
 
 python tools/evaluate_temporal_orientation.py \
   fixtures/temporal-orientation/additional-v0.1.json \
+  --check-expected
+
+python tools/evaluate_temporal_orientation.py \
+  fixtures/temporal-orientation/precedence-v0.1.json \
   --check-expected
 ```
 
@@ -33,6 +38,21 @@ Each command exits with status `0` only when the inputs satisfy the published sc
 - incomplete dependency chain returns `ABSTAIN`;
 - same-workspace intent substitution returns `REJECT`;
 - `RESUME` preserves downstream policy and effect gates.
+
+## Executable precedence
+
+The mixed-fault suite freezes the normative priority:
+
+```text
+REJECT > REVALIDATE > ABSTAIN > RESUME
+```
+
+It currently proves that:
+
+- stale continuation plus target-state drift returns `REJECT / CONTINUATION_MISMATCH`;
+- target-state drift plus incomplete dependency chain returns `REVALIDATE / TARGET_STATE_DRIFT`.
+
+These rows make evaluator order part of the portable contract rather than an incidental implementation detail.
 
 ## Output invariant
 
