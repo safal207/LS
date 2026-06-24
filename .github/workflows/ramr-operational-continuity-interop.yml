@@ -1,0 +1,34 @@
+name: RAMR operational continuity interop
+
+on:
+  pull_request:
+    paths:
+      - "spec/ramr-operational-continuity-interop-v0.1.md"
+      - "fixtures/operational-continuity/**"
+      - "tools/run_operational_continuity_fixtures.py"
+      - "tools/export_ramr_operational_continuity_interop.py"
+      - ".github/workflows/ramr-operational-continuity-interop.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "spec/ramr-operational-continuity-interop-v0.1.md"
+      - "fixtures/operational-continuity/**"
+      - "tools/run_operational_continuity_fixtures.py"
+      - "tools/export_ramr_operational_continuity_interop.py"
+
+permissions:
+  contents: read
+
+jobs:
+  interoperability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Export interoperability result
+        run: python tools/export_ramr_operational_continuity_interop.py
+      - name: Validate JSON output
+        run: python -m json.tool artifacts/ramr-operational-continuity-interop-result.json
