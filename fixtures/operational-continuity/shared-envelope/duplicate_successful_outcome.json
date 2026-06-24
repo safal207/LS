@@ -1,0 +1,115 @@
+{
+  "envelope_version": "ramr-ls-evidence-v0.1",
+  "fixture_id": "duplicate_successful_outcome",
+  "description": "The same completed side effect must not execute twice, whether or not recall recovers the completion record.",
+  "frozen": true,
+  "synthetic": true,
+  "query_context": {
+    "workspace_id": "ws-zafek",
+    "continuation_id": "cont-moravi-001",
+    "intent_digest": "sha256:intent-publish-novek-report-v1",
+    "target_state_digest": "sha256:state-novek-report-7f3a",
+    "as_of": "2026-06-24T07:00:00Z"
+  },
+  "authoritative_state": {
+    "workspace_id": "ws-zafek",
+    "continuation_id": "cont-moravi-001",
+    "intent_digest": "sha256:intent-publish-novek-report-v1",
+    "target_state_digest": "sha256:state-novek-report-7f3a",
+    "active_approval_id": "approval-tavon-009",
+    "completed_side_effects": [
+      {
+        "side_effect_key": "effect-publish-novek-001",
+        "action_ref": "action-ref-novek-001",
+        "idempotency_key": "idem-novek-001",
+        "completed_at": "2026-06-24T06:45:00Z"
+      }
+    ]
+  },
+  "proposed_action": {
+    "action_type": "publish_report",
+    "workspace_id": "ws-zafek",
+    "continuation_id": "cont-moravi-001",
+    "intent_digest": "sha256:intent-publish-novek-report-v1",
+    "target_state_digest": "sha256:state-novek-report-7f3a",
+    "approval_id": "approval-tavon-009",
+    "side_effect_key": "effect-publish-novek-001",
+    "action_ref": "action-ref-novek-001",
+    "idempotency_key": "idem-novek-001"
+  },
+  "retrieval_variants": [
+    {
+      "variant_id": "completion_recovered",
+      "retrieval": {
+        "budget": 1,
+        "recency_weight": 0.25,
+        "reliability_signal": 1.0
+      },
+      "recovered_evidence": [
+        {
+          "evidence_id": "ev-novek-completion-001",
+          "evidence_type": "completion_record",
+          "payload_digest": "sha256:completion-novek-001",
+          "scope": {
+            "workspace_id": "ws-zafek"
+          },
+          "bindings": {
+            "continuation_id": "cont-moravi-001",
+            "intent_digest": "sha256:intent-publish-novek-report-v1",
+            "target_state_digest": "sha256:state-novek-report-7f3a",
+            "approval_id": "approval-tavon-009",
+            "side_effect_key": "effect-publish-novek-001",
+            "action_ref": "action-ref-novek-001",
+            "idempotency_key": "idem-novek-001"
+          },
+          "valid_from": "2026-06-24T06:45:00Z",
+          "invalidated_at": null,
+          "retrieved_at": "2026-06-24T07:00:01Z",
+          "provenance": {
+            "record_source": "agent-checkpoint",
+            "record_digest": "sha256:record-novek-001"
+          }
+        }
+      ],
+      "expected_ramr": {
+        "completion_record_recovered": true,
+        "naive_duplicate_side_effect": false,
+        "duplicate_side_effect_rate": 0.0
+      },
+      "expected_ls": {
+        "outcome": "REJECT",
+        "failed_invariants": [
+          "side_effect_must_not_repeat"
+        ],
+        "authority_source": "authoritative_state"
+      }
+    },
+    {
+      "variant_id": "completion_missed",
+      "retrieval": {
+        "budget": 0,
+        "recency_weight": 0.25,
+        "reliability_signal": 0.0
+      },
+      "recovered_evidence": [],
+      "expected_ramr": {
+        "completion_record_recovered": false,
+        "naive_duplicate_side_effect": true,
+        "duplicate_side_effect_rate": 1.0
+      },
+      "expected_ls": {
+        "outcome": "REJECT",
+        "failed_invariants": [
+          "side_effect_must_not_repeat"
+        ],
+        "authority_source": "authoritative_state"
+      }
+    }
+  ],
+  "cross_layer_invariants": [
+    "retrieval_confidence_must_not_override_authoritative_completion_state",
+    "missing_completion_recall_is_a_reliability_failure_not_execution_permission",
+    "duplicate_completed_side_effect_must_be_rejected_in_every_retrieval_variant",
+    "recency_may_prioritize_evidence_but_must_not_grant_authority"
+  ]
+}
