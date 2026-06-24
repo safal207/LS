@@ -1,0 +1,206 @@
+name: Identity Control Plane Acceptance
+
+on:
+  push:
+    branches:
+      - "feat/identity-control-plane-acceptance"
+  pull_request:
+    paths:
+      - "python/modules/trusted_runtime/identity_control_plane_acceptance.py"
+      - "python/modules/trusted_runtime/identity_control_plane_viewer.py"
+      - "python/modules/trusted_runtime/identity_control_plane_dashboard/**"
+      - "python/tests/test_identity_control_plane_acceptance.py"
+      - "schemas/trusted_runtime/identity_control_plane_*.schema.json"
+      - "scripts/run_identity_control_plane_acceptance.py"
+      - "docs/IDENTITY_CONTROL_PLANE_ACCEPTANCE.md"
+      - ".github/workflows/identity_control_plane_acceptance.yml"
+
+concurrency:
+  group: identity-control-plane-acceptance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+    env:
+      LS_IDENTITY_CATALOG_KEYRING_JSON: '{"acceptance-key":"ci-acceptance-key-material"}'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema pytest ruff
+
+      - name: Ruff acceptance implementation
+        run: |
+          ruff check \
+            python/modules/trusted_runtime/identity_control_plane_acceptance.py \
+            python/modules/trusted_runtime/identity_control_plane_viewer.py \
+            python/tests/test_identity_control_plane_acceptance.py \
+            scripts/run_identity_control_plane_acceptance.py
+
+      - name: Run acceptance and regression tests
+        run: |
+          PYTHONPATH=.:python:python/modules:python/tests \
+            python -m pytest \
+              python/tests/test_identity_control_plane_acceptance.py \
+              python/tests/test_identity_catalog_commit_trigger.py \
+              python/tests/test_identity_catalog_trigger_recovery.py \
+              python/tests/test_identity_catalog_publisher.py \
+              python/tests/test_identity_live_viewer.py \
+              python/tests/test_identity_timeline_projection.py \
+              python/tests/test_identity_approval_boundaries.py \
+              python/tests/test_identity_commit_activation.py \
+              python/tests/test_identity_application_rollback.py \
+              python/tests/test_identity_replay_safety.py \
+              python/tests/test_pr_review_verified_episode.py \
+              python/tests/test_trusted_runtime_verified_episode.py
+
+      - name: Generate complete reviewer bundle with one command
+        run: |
+          mkdir -p build
+          PYTHONPATH=.:python:python/modules \
+            python scripts/run_identity_control_plane_acceptance.py \
+              --output-root build/identity-control-plane-acceptance \
+              --active-key-id acceptance-key \
+              --signing-key-id acceptance-key \
+              --audience internal \
+              --reset \
+              > build/identity-control-plane-command.json
+
+      - name: Validate reviewer bundle and read-only dashboard
+        run: |
+          PYTHONPATH=.:python:python/modules python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from jsonschema import Draft202012Validator
+          from modules.trusted_runtime.identity_control_plane_viewer import (
+              build_identity_control_plane_viewer,
+          )
+
+          root = Path("build/identity-control-plane-acceptance")
+          command = json.loads(
+              Path("build/identity-control-plane-command.json").read_text()
+          )
+          assert command["result"] == "PASS"
+          assert command["first_generation"] == 1
+          assert command["identical_replay_generation"] == 1
+          assert command["second_generation"] == 2
+
+          manifest = json.loads(
+              (root / "identity-control-plane-acceptance.json").read_text()
+          )
+          manifest_schema = json.loads(
+              Path(
+                  "schemas/trusted_runtime/identity_control_plane_acceptance.schema.json"
+              ).read_text()
+          )
+          assert not list(
+              Draft202012Validator(manifest_schema).iter_errors(manifest)
+          )
+          assert manifest["result"] == "PASS"
+          assert len(manifest["agents"]) == 2
+          assert all(
+              item["verified_episode_count"] == 3
+              for item in manifest["agents"]
+          )
+
+          status = json.loads((root / "api/control-plane-status.json").read_text())
+          status_schema = json.loads(
+              Path(
+                  "schemas/trusted_runtime/identity_control_plane_status.schema.json"
+              ).read_text()
+          )
+          assert not list(
+              Draft202012Validator(status_schema).iter_errors(status)
+          )
+          assert status["authoritative"] is True
+          assert status["generation"] == 2
+          assert status["authoritative_agent_count"] == 2
+          assert status["health"]["pending_request_count"] == 0
+          assert status["health"]["quarantined_request_count"] == 0
+
+          tamper = json.loads((root / "tamper-report.json").read_text())
+          assert tamper["all_fail_closed_checks_passed"] is True
+          assert (root / "dashboard/index.html").exists()
+          assert (root / "dashboard/styles.css").exists()
+          assert (root / "dashboard/app.js").exists()
+
+          keyring_payload = json.loads(
+              os.environ["LS_IDENTITY_CATALOG_KEYRING_JSON"]
+          )
+          keyring = {
+              key: value.encode() for key, value in keyring_payload.items()
+          }
+          app = build_identity_control_plane_viewer(
+              root / "identity-data",
+              root / "publisher/identity-catalog.json",
+              root / "publisher",
+              root / "trigger",
+              catalog_secret=keyring["acceptance-key"],
+              publication_keyring=keyring,
+              acceptance_manifest_path=(
+                  root / "identity-control-plane-acceptance.json"
+              ),
+              asset_root=root / "dashboard",
+          )
+
+          def request(method, path):
+              captured = {}
+              def start_response(status_line, headers):
+                  captured["status"] = status_line
+                  captured["headers"] = dict(headers)
+              body = b"".join(
+                  app(
+                      {
+                          "REQUEST_METHOD": method,
+                          "PATH_INFO": path,
+                          "QUERY_STRING": "",
+                          "SERVER_NAME": "test",
+                          "SERVER_PORT": "80",
+                          "wsgi.url_scheme": "http",
+                          "wsgi.input": None,
+                      },
+                      start_response,
+                  )
+              )
+              return captured, body
+
+          root_response, root_body = request("GET", "/")
+          status_response, status_body = request(
+              "GET", "/api/v1/control-plane/status"
+          )
+          mutation_response, mutation_body = request(
+              "POST", "/api/v1/control-plane/status"
+          )
+          assert root_response["status"].startswith("200")
+          assert b"Identity Control Plane" in root_body
+          assert status_response["status"].startswith("200")
+          assert json.loads(status_body)["authoritative"] is True
+          assert mutation_response["status"].startswith("405")
+          assert mutation_response["headers"]["Allow"] == "GET, HEAD"
+          assert b"read-only" in mutation_body.lower()
+          PY
+
+      - name: Upload complete acceptance evidence
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: identity-control-plane-acceptance-evidence
+          path: |
+            build/identity-control-plane-acceptance
+            build/identity-control-plane-command.json
+          if-no-files-found: error

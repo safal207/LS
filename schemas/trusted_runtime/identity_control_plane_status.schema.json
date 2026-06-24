@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Identity Control Plane Read-Only Status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "read_only",
+    "integrity_status",
+    "authoritative",
+    "generation",
+    "publication_digest",
+    "previous_publication_digest",
+    "active_key_id",
+    "accepted_key_ids",
+    "agent_count",
+    "authoritative_agent_count",
+    "trigger",
+    "health",
+    "findings",
+    "links"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.identity_control_plane_status.v0.1"},
+    "read_only": {"const": true},
+    "integrity_status": {"enum": ["VALID", "INVALID"]},
+    "authoritative": {"type": "boolean"},
+    "generation": {"type": ["integer", "null"], "minimum": 1},
+    "publication_digest": {"type": ["string", "null"]},
+    "previous_publication_digest": {"type": ["string", "null"]},
+    "active_key_id": {"type": ["string", "null"]},
+    "accepted_key_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "agent_count": {"type": "integer", "minimum": 0},
+    "authoritative_agent_count": {"type": "integer", "minimum": 0},
+    "trigger": {
+      "type": "object",
+      "required": ["request_ids", "tail_event_refs", "agent_ids", "outbox_sequences", "processed_at"],
+      "properties": {
+        "request_ids": {"type": "array", "items": {"type": "string"}},
+        "tail_event_refs": {"type": "array", "items": {"type": "string"}},
+        "agent_ids": {"type": "array", "items": {"type": "string"}},
+        "outbox_sequences": {"type": "array", "items": {"type": "integer"}},
+        "processed_at": {"type": ["string", "null"]}
+      }
+    },
+    "health": {
+      "type": "object",
+      "required": [
+        "publisher_lag_seconds",
+        "pending_request_count",
+        "quarantined_request_count",
+        "pending_request_ids",
+        "quarantined",
+        "last_successful_generation"
+      ],
+      "properties": {
+        "publisher_lag_seconds": {"type": ["number", "null"], "minimum": 0},
+        "pending_request_count": {"type": ["integer", "null"], "minimum": 0},
+        "quarantined_request_count": {"type": ["integer", "null"], "minimum": 0},
+        "pending_request_ids": {"type": "array", "items": {"type": "string"}},
+        "quarantined": {"type": "array", "items": {"type": "object"}},
+        "last_successful_generation": {"type": ["integer", "null"], "minimum": 1}
+      }
+    },
+    "findings": {"type": "array", "items": {"type": "object"}},
+    "links": {
+      "type": "object",
+      "required": ["acceptance_manifest"],
+      "properties": {
+        "acceptance_manifest": {"type": ["string", "null"]}
+      }
+    }
+  }
+}
