@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Resume Checkpoint v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "trail_id",
+    "last_valid_event_id",
+    "last_valid_sequence",
+    "next_expected_stage",
+    "source_chain_head",
+    "resume_allowed",
+    "checkpoint_ref"
+  ],
+  "properties": {
+    "schema_version": {"const": "ls.resume_checkpoint.v0.1"},
+    "trail_id": {"type": "string", "minLength": 1},
+    "last_valid_event_id": {"type": ["string", "null"]},
+    "last_valid_sequence": {"type": ["integer", "null"], "minimum": 0},
+    "next_expected_stage": {"type": "string", "minLength": 1},
+    "source_chain_head": {"type": ["string", "null"]},
+    "resume_allowed": {"type": "boolean"},
+    "checkpoint_ref": {"type": "string", "pattern": "^resume-checkpoint:[0-9a-f]{64}$"}
+  }
+}

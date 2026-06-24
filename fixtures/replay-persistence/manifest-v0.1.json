@@ -1,0 +1,125 @@
+{
+  "contract_version": "ls.replay_persistence.v0.1",
+  "trail_id": "trail:trusted-action:001",
+  "events": [
+    {
+      "event_id": "event:task:001",
+      "event_type": "TASK_ACCEPTED",
+      "created_at": "2026-06-25T18:00:00Z",
+      "payload": {
+        "task_id": "task:001",
+        "summary": "review a deterministic fixture change",
+        "private_task_content": "fixture-private-task",
+        "metadata": {"credentials": "fixture-token", "safe_label": "review"}
+      }
+    },
+    {
+      "event_id": "event:orientation:001",
+      "event_type": "ORIENTATION_COORDINATED",
+      "created_at": "2026-06-25T18:00:01Z",
+      "payload": {
+        "verdict": "COORDINATED_ACTION_CANDIDATE",
+        "action_digest": "sha256:CANDIDATE_A",
+        "execution_authorized": false
+      }
+    },
+    {
+      "event_id": "event:recognition:001",
+      "event_type": "RECOGNITION_ALLOWED",
+      "created_at": "2026-06-25T18:00:02Z",
+      "payload": {
+        "decision": "ALLOW",
+        "recognition_result_ref": "recognition-result:001",
+        "execution_authorized": false
+      }
+    },
+    {
+      "event_id": "event:evidence:001",
+      "event_type": "EVIDENCE_ALLOWED",
+      "created_at": "2026-06-25T18:00:03Z",
+      "payload": {
+        "decision": "ALLOW",
+        "evidence_result_ref": "evidence-gate-result:001",
+        "evidence_refs": ["evidence:test-report:001", "evidence:causal-audit:001"],
+        "authorization_bundle_eligible": true,
+        "execution_authorized": false
+      }
+    },
+    {
+      "event_id": "event:authorization:001",
+      "event_type": "AUTHORIZATION_VERIFIED",
+      "created_at": "2026-06-25T18:00:04Z",
+      "payload": {
+        "valid": true,
+        "authorization_ref": "authorization-record:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "nonce": "nonce-bundle-001",
+        "commit_before_effect_eligible": true,
+        "execution_authorized": false
+      }
+    },
+    {
+      "event_id": "event:commit:001",
+      "event_type": "EXECUTION_COMMITTED",
+      "created_at": "2026-06-25T18:00:05Z",
+      "payload": {
+        "state": "COMMITTED",
+        "execution_id": "execution:sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "effect_attempted": false,
+        "execution_authorized": true
+      }
+    },
+    {
+      "event_id": "event:execution:001",
+      "event_type": "EXECUTION_COMPLETED",
+      "created_at": "2026-06-25T18:00:06Z",
+      "payload": {
+        "state": "EXECUTED",
+        "execution_id": "execution:sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "effect_ref": "file:review-result.effect.json",
+        "effect_attempted": true,
+        "effect_succeeded": true
+      }
+    },
+    {
+      "event_id": "event:artifact:001",
+      "event_type": "ARTIFACT_EXPORTED",
+      "created_at": "2026-06-25T18:00:07Z",
+      "payload": {
+        "artifact_ref": "artifact:trusted-review:001",
+        "artifact_digest": "sha256:ARTIFACT_A",
+        "raw_model_output": "fixture-raw-output",
+        "nested": {"payment_data": "fixture-card", "public_status": "complete"}
+      }
+    }
+  ],
+  "cases": [
+    "clean_replay.json",
+    "drifted_baseline.json",
+    "rejected_after_non_allow.json",
+    "partial_resume.json",
+    "reordered_stream.json",
+    "tampered_event.json",
+    "corrupted_tail.json",
+    "redacted_sensitive_fields.json",
+    "idempotent_duplicate_append.json",
+    "conflicting_duplicate_event.json"
+  ],
+  "sensitive_keys": [
+    "credentials",
+    "private_task_content",
+    "prompt",
+    "raw_model_output",
+    "payment_data",
+    "secret",
+    "token"
+  ],
+  "boundary_invariants": [
+    "replay never reruns a model tool or protected effect",
+    "every persisted event belongs to a contiguous per-trail hash chain",
+    "reordered tampered malformed or conflicting events fail closed",
+    "a non-ALLOW decision cannot be followed by authorization or execution",
+    "partial replay resumes only from the last valid durable prefix",
+    "sensitive payload values are redacted while source payload digests remain bound",
+    "local JSONL conformance is not a claim of distributed transactional storage"
+  ]
+}
