@@ -1,0 +1,132 @@
+name: Read-Only Identity Timeline Dashboard
+
+on:
+  push:
+    branches:
+      - "feat/identity-timeline-dashboard"
+  pull_request:
+    paths:
+      - "python/modules/trusted_runtime/identity_timeline_api.py"
+      - "python/modules/trusted_runtime/identity_dashboard/**"
+      - "python/tests/identity_timeline_api_fixtures.py"
+      - "python/tests/test_identity_timeline_api*.py"
+      - "python/tests/test_identity_timeline_dashboard.py"
+      - "schemas/trusted_runtime/identity_timeline_api.schema.json"
+      - ".github/workflows/identity_timeline_dashboard.yml"
+
+concurrency:
+  group: identity-dashboard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema pytest ruff
+
+      - name: Ruff API and dashboard tests
+        run: |
+          ruff check \
+            python/modules/trusted_runtime/identity_timeline_api.py \
+            python/tests/identity_timeline_api_fixtures.py \
+            python/tests/test_identity_timeline_api.py \
+            python/tests/test_identity_timeline_api_fail_closed.py \
+            python/tests/test_identity_timeline_dashboard.py
+
+      - name: Run API dashboard and timeline regression tests
+        run: |
+          PYTHONPATH=.:python:python/modules:python/tests \
+            python -m pytest \
+              python/tests/test_identity_timeline_api.py \
+              python/tests/test_identity_timeline_api_fail_closed.py \
+              python/tests/test_identity_timeline_dashboard.py \
+              python/tests/test_identity_timeline_projection.py \
+              python/tests/test_identity_timeline_failures.py \
+              python/tests/test_identity_timeline_terminal_paths.py
+
+      - name: Generate multi-agent dashboard evidence
+        run: |
+          PYTHONPATH=.:python:python/modules:python/tests python - <<'PY'
+          import json
+          from pathlib import Path
+          from identity_timeline_api_fixtures import build_timeline_bundle
+          from modules.trusted_runtime.identity_timeline_api import (
+              DirectoryIdentityTimelineRepository,
+              IdentityTimelineReadOnlyAPI,
+          )
+
+          root = Path("build/identity-dashboard-data")
+          output = Path("build/identity-dashboard-evidence")
+          output.mkdir(parents=True, exist_ok=True)
+          first = build_timeline_bundle(root, "agent:dashboard-alpha")
+          build_timeline_bundle(root, "agent:dashboard-beta")
+          api = IdentityTimelineReadOnlyAPI(
+              DirectoryIdentityTimelineRepository(root)
+          )
+
+          before = first["events_path"].read_bytes()
+          requests = {
+              "health.json": ("GET", "/api/v1/health"),
+              "agents.json": ("GET", "/api/v1/agents"),
+              "timeline.json": (
+                  "GET",
+                  "/api/v1/agents/agent%3Adashboard-alpha/timeline",
+              ),
+              "profiles.json": (
+                  "GET",
+                  "/api/v1/agents/agent%3Adashboard-alpha/profiles",
+              ),
+          }
+          for filename, (method, path) in requests.items():
+              status, _, body, _ = api.handle(method, path)
+              assert status == 200
+              (output / filename).write_bytes(body)
+          assert first["events_path"].read_bytes() == before
+
+          mutation = api.handle(
+              "POST", "/api/v1/agents/agent%3Adashboard-alpha/timeline"
+          )
+          assert mutation[0] == 405
+          assert first["events_path"].read_bytes() == before
+
+          timeline = json.loads((output / "timeline.json").read_text())
+          assert timeline["read_only"] is True
+          assert timeline["authoritative"] is True
+          assert timeline["active_profile"]["version"] == 3
+          assert len(timeline["timeline"]["events"]) == 9
+          PY
+
+      - name: Export static dashboard assets
+        if: matrix.python-version == '3.11'
+        run: |
+          mkdir -p build/identity-dashboard-evidence/dashboard
+          cp python/modules/trusted_runtime/identity_dashboard/index.html \
+             python/modules/trusted_runtime/identity_dashboard/styles.css \
+             python/modules/trusted_runtime/identity_dashboard/app.js \
+             build/identity-dashboard-evidence/dashboard/
+
+      - name: Upload dashboard evidence
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: identity-timeline-dashboard-evidence
+          path: |
+            build/identity-dashboard-data
+            build/identity-dashboard-evidence
+          if-no-files-found: error

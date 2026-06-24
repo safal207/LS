@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Read-only governed identity timeline dashboard">
+  <title>LS Identity Timeline</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to timeline</a>
+  <header class="site-header">
+    <div>
+      <p class="eyebrow">LS · Governed Agent Learning</p>
+      <h1>Identity Timeline</h1>
+      <p class="subtitle">A read-only view reconstructed from append-only evidence.</p>
+    </div>
+    <div class="read-only-badge" aria-label="This dashboard is read-only">
+      <span aria-hidden="true">◉</span> Read only
+    </div>
+  </header>
+
+  <nav class="toolbar" aria-label="Timeline controls">
+    <label for="agent-select">Agent</label>
+    <select id="agent-select" aria-describedby="agent-help">
+      <option value="">Loading agents…</option>
+    </select>
+    <span id="agent-help" class="visually-hidden">Choose an agent timeline to inspect.</span>
+    <button id="refresh-button" type="button">Refresh evidence</button>
+    <span id="load-status" role="status" aria-live="polite">Loading…</span>
+  </nav>
+
+  <main id="main-content" tabindex="-1">
+    <section id="integrity-banner" class="integrity-banner" aria-live="assertive" hidden>
+      <div>
+        <p class="eyebrow">Integrity status</p>
+        <h2 id="integrity-title">Timeline unavailable</h2>
+        <p id="integrity-message"></p>
+      </div>
+    </section>
+
+    <section aria-labelledby="overview-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Current projection</p>
+          <h2 id="overview-heading">Identity overview</h2>
+        </div>
+        <p id="timeline-digest" class="digest"></p>
+      </div>
+      <div id="overview-cards" class="card-grid" aria-live="polite"></div>
+    </section>
+
+    <section aria-labelledby="profiles-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Version history</p>
+          <h2 id="profiles-heading">Profile snapshots</h2>
+        </div>
+      </div>
+      <div id="profile-versions" class="profile-grid"></div>
+    </section>
+
+    <section aria-labelledby="timeline-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Causal evidence</p>
+          <h2 id="timeline-heading">Lifecycle events</h2>
+        </div>
+        <p id="event-count" class="section-meta"></p>
+      </div>
+      <ol id="timeline-list" class="timeline-list"></ol>
+    </section>
+
+    <section aria-labelledby="findings-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Fail-closed diagnostics</p>
+          <h2 id="findings-heading">Integrity findings</h2>
+        </div>
+      </div>
+      <div id="findings-list" class="findings-list"></div>
+    </section>
+
+    <section aria-labelledby="evidence-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Portable proof</p>
+          <h2 id="evidence-heading">Evidence downloads</h2>
+        </div>
+      </div>
+      <div id="evidence-links" class="evidence-links"></div>
+    </section>
+  </main>
+
+  <aside id="record-panel" class="record-panel" aria-labelledby="record-heading" hidden>
+    <div class="record-panel-header">
+      <div>
+        <p class="eyebrow">Durable source record</p>
+        <h2 id="record-heading">Event details</h2>
+      </div>
+      <button id="close-record" type="button" aria-label="Close event details">Close</button>
+    </div>
+    <pre id="record-json" tabindex="0"></pre>
+  </aside>
+
+  <footer>
+    <p>Projection-only replay. This interface cannot approve, apply, or roll back identity changes.</p>
+  </footer>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
