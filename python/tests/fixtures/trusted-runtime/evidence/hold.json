@@ -1,0 +1,22 @@
+{
+  "request": {
+    "request_id": "evidence-request-hold",
+    "task_id": "task-evidence-001",
+    "trail_id": "trail-evidence-001",
+    "actor": "human:owner",
+    "intent_ref": "intent:artifact-write-001",
+    "scope": ["artifact:write"],
+    "evidence_refs": ["evidence:review-001"],
+    "policy_version": "policy.trusted-runtime.v0.1",
+    "causal_audit_ref": "event-causal-audit-001",
+    "causal_authorization_allowed": true,
+    "created_at": "2026-06-23T08:00:00Z",
+    "artifact_digest": "",
+    "artifact_verified": false,
+    "missing_evidence_refs": ["evidence:security-001"],
+    "risk_flags": [],
+    "escalation_reasons": [],
+    "metadata": {}
+  },
+  "expected_decision": "HOLD"
+}

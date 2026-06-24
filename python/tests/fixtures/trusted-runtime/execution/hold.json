@@ -1,0 +1,17 @@
+{
+  "now": "2026-06-23T10:00:00Z",
+  "preconditions_met": false,
+  "action": {
+    "action_id": "action-review-001",
+    "action_ref": "artifact:write:review-result",
+    "scope": ["artifact:write"],
+    "payload": {"status": "approved"},
+    "idempotency_key": "review-result-001",
+    "requested_at": "2026-06-23T10:00:00Z",
+    "mature_after": "2026-06-23T10:05:00Z",
+    "expires_at": "2026-06-23T11:00:00Z",
+    "metadata": {}
+  },
+  "expected_state": "HELD",
+  "expected_code": "DEFER_PENDING_CONTEXT"
+}

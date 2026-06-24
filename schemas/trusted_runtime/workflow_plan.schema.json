@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://safal207.github.io/LS/schemas/trusted_runtime/workflow_plan.schema.json",
+  "title": "LS Trusted Runtime Workflow Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task", "roles", "steps"],
+  "properties": {
+    "schema_version": {
+      "const": "trusted_runtime.workflow_plan.v0.1"
+    },
+    "task": {"$ref": "#/$defs/taskEnvelope"},
+    "roles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/roleAssignment"}
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/workflowStep"}
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stringRefs": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/nonEmptyString"},
+      "uniqueItems": true
+    },
+    "taskEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "trail_id",
+        "intent",
+        "actor",
+        "created_at",
+        "evidence_refs",
+        "metadata"
+      ],
+      "properties": {
+        "task_id": {"$ref": "#/$defs/nonEmptyString"},
+        "trail_id": {"$ref": "#/$defs/nonEmptyString"},
+        "intent": {"$ref": "#/$defs/nonEmptyString"},
+        "actor": {"$ref": "#/$defs/nonEmptyString"},
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "evidence_refs": {"$ref": "#/$defs/stringRefs"},
+        "metadata": {
+          "type": "object"
+        }
+      }
+    },
+    "roleAssignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role_id", "capability", "actor", "parent_cause"],
+      "properties": {
+        "role_id": {"$ref": "#/$defs/nonEmptyString"},
+        "capability": {"$ref": "#/$defs/nonEmptyString"},
+        "actor": {"$ref": "#/$defs/nonEmptyString"},
+        "parent_cause": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "workflowStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "step_id",
+        "role_id",
+        "action",
+        "parent_cause",
+        "depends_on",
+        "evidence_refs"
+      ],
+      "properties": {
+        "step_id": {"$ref": "#/$defs/nonEmptyString"},
+        "role_id": {"$ref": "#/$defs/nonEmptyString"},
+        "action": {"$ref": "#/$defs/nonEmptyString"},
+        "parent_cause": {"$ref": "#/$defs/nonEmptyString"},
+        "depends_on": {"$ref": "#/$defs/stringRefs"},
+        "evidence_refs": {"$ref": "#/$defs/stringRefs"}
+      }
+    }
+  }
+}

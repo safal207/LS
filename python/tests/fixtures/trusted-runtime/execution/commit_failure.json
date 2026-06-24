@@ -1,0 +1,6 @@
+{
+  "now": "2026-06-23T10:00:00Z",
+  "fail_next_save": true,
+  "expected_error": "durable commit failed",
+  "expected_effect_calls": 0
+}

@@ -1,0 +1,25 @@
+{
+  "constraints": {
+    "required_privacy": "local",
+    "min_reliability": 0.99,
+    "allow_fallback": true
+  },
+  "candidates": [
+    {
+      "backend_id": "public-only",
+      "capabilities": ["evidence_verification"],
+      "latency_ms": 20,
+      "reliability": 0.999,
+      "privacy": "public"
+    },
+    {
+      "backend_id": "local-unapproved",
+      "capabilities": ["evidence_verification"],
+      "latency_ms": 20,
+      "reliability": 0.999,
+      "privacy": "local",
+      "approved": false,
+      "fallback": true
+    }
+  ]
+}

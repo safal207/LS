@@ -1,0 +1,7 @@
+{
+  "now": "2026-06-23T10:00:00Z",
+  "recover_at": "2026-06-23T10:00:10Z",
+  "boundary": "after_effect_before_receipt",
+  "expected_state": "EXECUTED",
+  "expected_new_effect_calls": 0
+}

@@ -1,0 +1,11 @@
+{
+  "task_id": "task-recursive-001",
+  "trail_id": "trail-recursive-valid",
+  "records": [
+    {"record_id": "task-recursive-001", "timestamp_ns": 0, "actor": "human", "action": "open", "object_ref": {"kind": "task_root"}, "permitted_by": "root_event:task-recursive-001", "parent_cause": null},
+    {"record_id": "event-plan", "timestamp_ns": 1, "actor": "planner", "action": "write", "object_ref": {"kind": "workflow_plan"}, "permitted_by": "parent_cause:task-recursive-001", "parent_cause": "task-recursive-001"},
+    {"record_id": "event-worker", "timestamp_ns": 2, "actor": "worker", "action": "write", "object_ref": {"kind": "delegated_work"}, "permitted_by": "delegation:delegate-worker", "parent_cause": "event-plan", "delegation_ref": "delegate-worker"},
+    {"record_id": "event-subworker", "timestamp_ns": 3, "actor": "subworker", "action": "write", "object_ref": {"kind": "recursive_work"}, "permitted_by": "delegation:delegate-subworker", "parent_cause": "event-worker", "delegation_ref": "delegate-subworker"},
+    {"record_id": "event-proposed-action", "timestamp_ns": 4, "actor": "subworker", "action": "write", "object_ref": {"kind": "reviewed_proposal"}, "permitted_by": "approval:approval-42", "parent_cause": "event-subworker", "approval_ref": "approval-42", "high_impact": true}
+  ]
+}

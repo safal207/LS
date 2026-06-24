@@ -1,0 +1,6 @@
+{
+  "event_id": "event-route",
+  "payload_key": "selected_backend",
+  "replacement": "backend:alternate-reviewer",
+  "expected_code": "PAYLOAD_DRIFT"
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Trusted Runtime Resume Checkpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "checkpoint_id",
+    "task_id",
+    "trail_id",
+    "created_at",
+    "last_event_id",
+    "last_event_ref",
+    "last_event_type",
+    "next_expected_event_type",
+    "durable_event_count",
+    "corrupted_tail"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.resume_checkpoint.v0.1"},
+    "checkpoint_id": {"type": "string", "pattern": "^resume:sha256:[0-9a-f]{64}$"},
+    "task_id": {"type": "string", "minLength": 1},
+    "trail_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "last_event_id": {"type": "string", "minLength": 1},
+    "last_event_ref": {
+      "type": "string",
+      "pattern": "^liminal-event:sha256:[0-9a-f]{64}$"
+    },
+    "last_event_type": {"type": "string", "minLength": 1},
+    "next_expected_event_type": {"type": ["string", "null"]},
+    "durable_event_count": {"type": "integer", "minimum": 1},
+    "corrupted_tail": {"type": "boolean"}
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "task": {
+    "task_id": "task-recursive-001",
+    "trail_id": "trail-recursive-001",
+    "intent": "Review a workflow until evidence and risk concerns are resolved.",
+    "actor": "human:alexey",
+    "created_at": "2026-06-23T09:20:00Z",
+    "evidence_refs": [
+      "diff:sha256:recursive-demo"
+    ],
+    "metadata": {}
+  },
+  "context": {
+    "workflow": "recursive",
+    "roles": [
+      "implementer",
+      "critic",
+      "verifier",
+      "summarizer"
+    ]
+  },
+  "config": {
+    "max_depth": 2,
+    "max_steps": 8
+  },
+  "revisions": [
+    {
+      "reason": "Address the critic's risk findings.",
+      "results": [
+        {
+          "result_id": "result:critic-001",
+          "evidence_refs": [
+            "evidence:risk-001"
+          ]
+        }
+      ]
+    },
+    {
+      "reason": "Resolve the verifier's remaining evidence gap.",
+      "results": [
+        {
+          "result_id": "result:verifier-001",
+          "evidence_refs": [
+            "evidence:verification-001"
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "final_depth": 2,
+    "revision_step_ids": [
+      "revision-01-critic",
+      "revision-02-critic"
+    ],
+    "trail_event_ids": [
+      "event-task-received",
+      "event-plan-created",
+      "event-plan-revised-01",
+      "event-plan-revised-02"
+    ]
+  }
+}

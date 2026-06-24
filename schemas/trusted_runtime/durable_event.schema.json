@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Trusted Runtime Durable Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "task_id",
+    "trail_id",
+    "sequence",
+    "event_type",
+    "actor",
+    "created_at",
+    "parent_event_id",
+    "payload_digest",
+    "payload",
+    "redacted_fields",
+    "previous_hash",
+    "event_hash",
+    "event_ref"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.durable_event.v0.1"},
+    "event_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "trail_id": {"type": "string", "minLength": 1},
+    "sequence": {"type": "integer", "minimum": 0},
+    "event_type": {"type": "string", "minLength": 1},
+    "actor": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "parent_event_id": {"type": "string", "minLength": 1},
+    "payload_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "payload": {"type": "object"},
+    "redacted_fields": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "previous_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "event_ref": {
+      "type": "string",
+      "pattern": "^liminal-event:sha256:[0-9a-f]{64}$"
+    }
+  }
+}

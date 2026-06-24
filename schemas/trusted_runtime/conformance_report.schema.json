@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Trusted Runtime Conformance Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "report_id",
+    "replay_id",
+    "task_id",
+    "trail_id",
+    "decision",
+    "created_at",
+    "trace_digest",
+    "durable_event_count",
+    "verified_event_count",
+    "last_durable_event_ref",
+    "findings",
+    "redacted_field_count",
+    "resume_checkpoint_ref"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.conformance_report.v0.1"},
+    "report_id": {"type": "string", "pattern": "^conformance:sha256:[0-9a-f]{64}$"},
+    "replay_id": {"type": "string", "pattern": "^replay:sha256:[0-9a-f]{64}$"},
+    "task_id": {"type": "string", "minLength": 1},
+    "trail_id": {"type": "string", "minLength": 1},
+    "decision": {"enum": ["ADMISSIBLE", "DRIFTED", "REJECTED"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "trace_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "durable_event_count": {"type": "integer", "minimum": 1},
+    "verified_event_count": {"type": "integer", "minimum": 0},
+    "last_durable_event_ref": {
+      "type": "string",
+      "pattern": "^liminal-event:sha256:[0-9a-f]{64}$"
+    },
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "redacted_field_count": {"type": "integer", "minimum": 0},
+    "resume_checkpoint_ref": {
+      "type": "string",
+      "pattern": "^checkpoint:sha256:[0-9a-f]{64}$"
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "severity", "event_ref"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "message": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["INFO", "DRIFT", "REJECT"]},
+        "event_ref": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

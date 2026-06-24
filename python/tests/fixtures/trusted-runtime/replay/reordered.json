@@ -1,0 +1,4 @@
+{
+  "swap_lines": [1, 2],
+  "expected_store_code": "REORDERED_EVENT"
+}

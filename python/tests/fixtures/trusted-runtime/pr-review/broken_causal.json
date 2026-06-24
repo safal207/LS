@@ -1,0 +1,29 @@
+{
+  "task_id": "task-pr-review-broken",
+  "trail_id": "trail-pr-review-broken",
+  "records": [
+    {
+      "record_id": "task-pr-review-broken",
+      "timestamp_ns": 0,
+      "actor": "human:owner",
+      "action": "open",
+      "object_ref": {"kind": "task_root"},
+      "permitted_by": "root_event:task-pr-review-broken",
+      "parent_cause": null
+    },
+    {
+      "record_id": "event-protected-write",
+      "timestamp_ns": 1,
+      "actor": "runtime:ls",
+      "action": "exec",
+      "object_ref": {"kind": "protected_artifact_write"},
+      "permitted_by": "parent_cause:event-missing-approval",
+      "parent_cause": "event-missing-approval",
+      "high_impact": true
+    }
+  ],
+  "expected_codes": [
+    "CML-AUDIT-R1-MISSING_PARENT",
+    "LS-CML-R6-ORPHAN_HIGH_IMPACT_ACTION"
+  ]
+}

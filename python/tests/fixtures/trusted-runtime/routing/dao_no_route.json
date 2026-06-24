@@ -1,0 +1,1 @@
+{"behavior": "response", "response": {"status": "no_route", "reason": "all approved backends are degraded"}}

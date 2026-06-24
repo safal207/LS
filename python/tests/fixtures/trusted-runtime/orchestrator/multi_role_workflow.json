@@ -1,0 +1,49 @@
+{
+  "task": {
+    "task_id": "task-multi-001",
+    "trail_id": "trail-multi-001",
+    "intent": "Research, implement, critique, verify, and summarize a provider-neutral orchestrator.",
+    "actor": "human:alexey",
+    "created_at": "2026-06-23T09:10:00Z",
+    "evidence_refs": [
+      "issue:592"
+    ],
+    "metadata": {
+      "priority": "high"
+    }
+  },
+  "context": {
+    "workflow": "multi-role",
+    "available_capabilities": {
+      "research": "agent:research-local",
+      "implementer": "agent:implementation-local",
+      "risk_critique": "agent:critic-local",
+      "verifier": "agent:verifier-local",
+      "summarization": "agent:summarizer-local"
+    }
+  },
+  "expected": {
+    "role_ids": [
+      "researcher",
+      "implementer",
+      "critic",
+      "verifier",
+      "summarizer"
+    ],
+    "step_ids": [
+      "step-01-researcher",
+      "step-02-implementer",
+      "step-03-critic",
+      "step-04-verifier",
+      "step-05-summarizer"
+    ],
+    "actors": [
+      "agent:research-local",
+      "agent:implementation-local",
+      "agent:critic-local",
+      "agent:verifier-local",
+      "agent:summarizer-local"
+    ],
+    "depth": 0
+  }
+}

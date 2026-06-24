@@ -1,0 +1,31 @@
+{
+  "schema_version": "trusted_runtime.cognitive_trail.v0.1",
+  "task_id": "task-pr-001",
+  "trail_id": "trail-pr-001",
+  "actor": "runtime:ls",
+  "created_at": "2026-06-22T17:00:00Z",
+  "events": [
+    {
+      "event_id": "event-plan-created",
+      "task_id": "task-pr-001",
+      "trail_id": "trail-pr-001",
+      "event_type": "PLAN_CREATED",
+      "actor": "orchestrator:deterministic",
+      "created_at": "2026-06-22T17:00:30Z",
+      "parent_cause": "event-task-received",
+      "evidence_refs": [],
+      "payload": {}
+    },
+    {
+      "event_id": "event-task-received",
+      "task_id": "task-pr-001",
+      "trail_id": "trail-pr-001",
+      "event_type": "TASK_RECEIVED",
+      "actor": "human:alexey",
+      "created_at": "2026-06-22T17:00:00Z",
+      "parent_cause": "task-pr-001",
+      "evidence_refs": ["diff:sha256:demo"],
+      "payload": {}
+    }
+  ]
+}

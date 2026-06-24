@@ -1,0 +1,45 @@
+{
+  "candidates": [
+    {
+      "backend_id": "local-verifier",
+      "capabilities": ["evidence_verification"],
+      "latency_ms": 120,
+      "reliability": 0.995,
+      "load": 0.2,
+      "privacy": "local",
+      "cost_per_1k": 0.1
+    },
+    {
+      "backend_id": "private-secondary",
+      "capabilities": ["evidence_verification"],
+      "latency_ms": 240,
+      "reliability": 0.98,
+      "load": 0.4,
+      "privacy": "private",
+      "cost_per_1k": 0.4
+    },
+    {
+      "backend_id": "public-fast",
+      "capabilities": ["evidence_verification"],
+      "latency_ms": 40,
+      "reliability": 0.999,
+      "load": 0.1,
+      "privacy": "public",
+      "cost_per_1k": 0.05
+    },
+    {
+      "backend_id": "unapproved-cheap",
+      "capabilities": ["evidence_verification"],
+      "latency_ms": 30,
+      "reliability": 0.999,
+      "load": 0.1,
+      "privacy": "local",
+      "cost_per_1k": 0.01,
+      "approved": false
+    }
+  ],
+  "expected": {
+    "selected_backend": "local-verifier",
+    "considered_backends": ["local-verifier", "private-secondary"]
+  }
+}

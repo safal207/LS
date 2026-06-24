@@ -1,0 +1,100 @@
+name: Trusted PR Review MVP
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "scripts/run_trusted_pr_review.py"
+      - "python/modules/trusted_runtime/pr_review_*.py"
+      - "python/tests/test_trusted_pr_review_*.py"
+      - "python/tests/fixtures/trusted-runtime/pr-review/**"
+      - "schemas/trusted_runtime/products/**"
+      - "docs/trusted-runtime/PR_REVIEW_MVP.md"
+      - ".github/workflows/trusted_pr_review_mvp.yml"
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - "scripts/run_trusted_pr_review.py"
+      - "python/modules/trusted_runtime/pr_review_*.py"
+      - "python/tests/test_trusted_pr_review_*.py"
+      - "python/tests/fixtures/trusted-runtime/pr-review/**"
+      - "schemas/trusted_runtime/products/**"
+      - "docs/trusted-runtime/PR_REVIEW_MVP.md"
+      - ".github/workflows/trusted_pr_review_mvp.yml"
+
+concurrency:
+  group: trusted-pr-review-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-product-slice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema pytest
+
+      - name: Run one-command product demo
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/run_trusted_pr_review.py \
+              --scenario all \
+              --output build/trusted-pr-review
+
+      - name: Verify product acceptance tests
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python -m pytest \
+              python/tests/test_trusted_pr_review_scenarios.py \
+              python/tests/test_trusted_pr_review_failures.py
+
+      - name: Verify effect boundaries from generated index
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("build/trusted-pr-review")
+          index = json.loads((root / "index.json").read_text())
+          assert index["allow"]["decision"] == "ALLOW"
+          assert index["allow"]["protected_effect_written"] is True
+          assert index["allow"]["artifact_written"] is True
+          for scenario in ("hold", "block"):
+              assert index[scenario]["protected_effect_written"] is False
+              assert index[scenario]["artifact_written"] is False
+              assert not list((root / scenario / "protected").glob("*.review.json"))
+          PY
+
+      - name: Upload deterministic evidence bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: trusted-pr-review-evidence
+          path: build/trusted-pr-review
+          if-no-files-found: error
+
+      - name: Write product summary
+        if: always()
+        run: |
+          {
+            echo "## Trusted PR Review MVP"
+            echo ""
+            echo "- Flow: diff -> plan -> route -> CML -> evidence -> ProofPath -> CaPU -> LTP -> artifact"
+            echo "- Scenarios: ALLOW, HOLD, BLOCK"
+            echo "- Protected effect: ALLOW only"
+            echo "- Evidence bundle: uploaded as trusted-pr-review-evidence"
+          } >> "$GITHUB_STEP_SUMMARY"

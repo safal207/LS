@@ -1,0 +1,8 @@
+{
+  "task_id": "task-ambiguous-root",
+  "trail_id": "trail-ambiguous-root",
+  "records": [
+    {"record_id": "ambiguous-root", "timestamp_ns": 0, "actor": "human", "action": "open", "object_ref": {"kind": "task_root"}, "permitted_by": "root_eventtask-ambiguous-root", "parent_cause": null},
+    {"record_id": "reviewed-action", "timestamp_ns": 1, "actor": "worker", "action": "write", "object_ref": {"kind": "proposal"}, "permitted_by": "parent_cause:ambiguous-root", "parent_cause": "ambiguous-root", "high_impact": true}
+  ]
+}

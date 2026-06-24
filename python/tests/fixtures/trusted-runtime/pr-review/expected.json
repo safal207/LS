@@ -1,0 +1,20 @@
+{
+  "allow": {
+    "decision": "ALLOW",
+    "protected_effect_written": true,
+    "artifact_written": true,
+    "replay_decision": "ADMISSIBLE"
+  },
+  "hold": {
+    "decision": "HOLD",
+    "protected_effect_written": false,
+    "artifact_written": false,
+    "replay_decision": "DRIFTED"
+  },
+  "block": {
+    "decision": "BLOCK",
+    "protected_effect_written": false,
+    "artifact_written": false,
+    "replay_decision": "ADMISSIBLE"
+  }
+}

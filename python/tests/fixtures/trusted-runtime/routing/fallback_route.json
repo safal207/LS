@@ -1,0 +1,39 @@
+{
+  "constraints": {
+    "max_latency_ms": 500,
+    "min_reliability": 0.95,
+    "required_privacy": "private",
+    "max_cost_per_1k": 1.0,
+    "max_load": 0.8,
+    "allow_fallback": true
+  },
+  "candidates": [
+    {
+      "backend_id": "primary-unavailable",
+      "capabilities": ["evidence_verification"],
+      "latency_ms": 80,
+      "reliability": 0.99,
+      "privacy": "private",
+      "available": false
+    },
+    {
+      "backend_id": "private-fallback",
+      "capabilities": ["evidence_verification"],
+      "latency_ms": 180,
+      "reliability": 0.98,
+      "load": 0.3,
+      "privacy": "private",
+      "cost_per_1k": 0.3,
+      "fallback": true
+    },
+    {
+      "backend_id": "unapproved-fallback",
+      "capabilities": ["evidence_verification"],
+      "latency_ms": 10,
+      "reliability": 1.0,
+      "privacy": "local",
+      "approved": false,
+      "fallback": true
+    }
+  ]
+}

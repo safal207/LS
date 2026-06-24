@@ -6,6 +6,7 @@ on:
       - "main"
     paths:
       - "python/**"
+      - ".github/workflows/ruff_autofix.yml"
 
 permissions:
   contents: write
@@ -26,6 +27,7 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -36,8 +38,33 @@ jobs:
       - name: Install ruff
         run: python -m pip install --upgrade pip ruff
 
+      - name: Collect changed Python files
+        id: changed-python
+        shell: bash
+        run: |
+          mapfile -d '' files < <(
+            git diff --name-only --diff-filter=ACMRT -z \
+              "origin/${{ github.base_ref }}...HEAD" \
+              -- 'python/**/*.py' 'python/*.py'
+          )
+
+          printf '%s\0' "${files[@]}" > /tmp/ruff-files
+          echo "count=${#files[@]}" >> "$GITHUB_OUTPUT"
+
+          if (( ${#files[@]} == 0 )); then
+            echo "No changed Python files require Ruff validation."
+          else
+            printf 'Changed Python files (%s):\n' "${#files[@]}"
+            printf ' - %s\n' "${files[@]}"
+          fi
+
       - name: Run ruff autofix
-        run: ruff check python --fix
+        if: steps.changed-python.outputs.count != '0'
+        run: xargs -0 --no-run-if-empty ruff check --fix < /tmp/ruff-files
+
+      - name: Verify changed Python files
+        if: steps.changed-python.outputs.count != '0'
+        run: xargs -0 --no-run-if-empty ruff check < /tmp/ruff-files
 
       - name: Commit and push if changed
         run: |

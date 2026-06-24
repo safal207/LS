@@ -1,0 +1,8 @@
+{
+  "task_id": "task-missing-parent",
+  "trail_id": "trail-missing-parent",
+  "records": [
+    {"record_id": "task-missing-parent", "timestamp_ns": 0, "actor": "human", "action": "open", "object_ref": {"kind": "task_root"}, "permitted_by": "root_event:task-missing-parent", "parent_cause": null},
+    {"record_id": "orphan-worker-action", "timestamp_ns": 1, "actor": "worker", "action": "write", "object_ref": {"kind": "proposed_change"}, "permitted_by": "delegation:missing-delegation", "parent_cause": "event-that-does-not-exist", "delegation_ref": "missing-delegation", "high_impact": true}
+  ]
+}
