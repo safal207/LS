@@ -1,0 +1,35 @@
+name: Recognition Gate conformance
+
+on:
+  pull_request:
+    paths:
+      - "spec/recognition-gate-v0.1.md"
+      - "fixtures/recognition-gate/**"
+      - "tools/validate_recognition_gate_v0_1.py"
+      - ".github/workflows/recognition-gate.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "spec/recognition-gate-v0.1.md"
+      - "fixtures/recognition-gate/**"
+      - "tools/validate_recognition_gate_v0_1.py"
+      - ".github/workflows/recognition-gate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate recognition fixture JSON
+        run: python -m json.tool fixtures/recognition-gate/v0.1.json > /dev/null
+      - name: Run Recognition Gate conformance
+        run: python tools/validate_recognition_gate_v0_1.py
+      - name: Validate machine-readable report
+        run: python -m json.tool artifacts/recognition-gate-v0.1-result.json > /dev/null
