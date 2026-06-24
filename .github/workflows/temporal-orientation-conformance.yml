@@ -36,12 +36,16 @@ jobs:
           python tools/validate_temporal_orientation_schema.py \
             schemas/temporal-orientation-v0.1.schema.json \
             fixtures/temporal-orientation/mandatory-v0.1.json \
-            fixtures/temporal-orientation/additional-v0.1.json
-      - name: Run mandatory temporal-orientation fixtures
+            fixtures/temporal-orientation/additional-v0.1.json \
+            fixtures/temporal-orientation/precedence-v0.1.json
+      - name: Run temporal-orientation fixture suites
         run: |
           python tools/evaluate_temporal_orientation.py \
             fixtures/temporal-orientation/mandatory-v0.1.json \
             --check-expected
           python tools/evaluate_temporal_orientation.py \
             fixtures/temporal-orientation/additional-v0.1.json \
+            --check-expected
+          python tools/evaluate_temporal_orientation.py \
+            fixtures/temporal-orientation/precedence-v0.1.json \
             --check-expected
