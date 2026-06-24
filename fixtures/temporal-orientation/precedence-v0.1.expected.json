@@ -1,0 +1,15 @@
+{
+  "suite_id": "temporal-orientation-v0.1-precedence-expected",
+  "expected": [
+    {
+      "fixture_id": "stale_continuation_precedes_target_state_drift",
+      "verdict": "REJECT",
+      "reason_code": "CONTINUATION_MISMATCH"
+    },
+    {
+      "fixture_id": "target_state_drift_precedes_incomplete_dependency_chain",
+      "verdict": "REVALIDATE",
+      "reason_code": "TARGET_STATE_DRIFT"
+    }
+  ]
+}
