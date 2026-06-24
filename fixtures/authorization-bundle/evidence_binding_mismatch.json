@@ -1,0 +1,1 @@
+{"case":"evidence_binding_mismatch","overrides":{"authorization_intent":{"evidence_refs":["evidence:test-report:001"]}},"consumed_nonces":[],"tamper":null,"expected":{"outcome":"REJECTED","reason_code":"EVIDENCE_BINDING_MISMATCH","bundle_created":false,"offline_verified":false,"commit_before_effect_eligible":false,"execution_authorized":false}}
