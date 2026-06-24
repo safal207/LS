@@ -1,0 +1,312 @@
+{
+  "suite_id": "precise-action-temporal-orientation-v0.1-mandatory",
+  "base_case": {
+    "orientation": {
+      "action_orientation_version": "precise-action-temporal-orientation-v0.1",
+      "context": {
+        "workspace_id": "repo:safal207/LS",
+        "trajectory_id": "issue-671",
+        "continuation_id": "patoc-implementation-1",
+        "relationship_id": "rel-maintainer-agent"
+      },
+      "action_identity": {
+        "action_id": "update-file-1",
+        "action_digest": "sha256:update-file-spec-v1",
+        "action_type": "github.update_file",
+        "actor_id": "agent-codex",
+        "target_id": "spec/precise-action-temporal-orientation-center-v0.1.md"
+      },
+      "temporal_position": {
+        "logical_step": "update-specification",
+        "sequence_index": 2,
+        "valid_from": "2026-06-24T19:00:00Z",
+        "execute_not_before": "2026-06-24T19:10:00Z",
+        "deadline_at": "2026-06-25T19:00:00Z",
+        "invalidated_at": null
+      },
+      "parameters": {
+        "parameter_digest": "sha256:params-update-spec-v1",
+        "exact_arguments": {
+          "repository_full_name": "safal207/LS",
+          "path": "spec/precise-action-temporal-orientation-center-v0.1.md",
+          "branch": "feat/patoc-v0.1",
+          "content_digest": "sha256:content-v1",
+          "message": "spec: finalize PATOC v0.1"
+        },
+        "immutable_fields": [
+          "repository_full_name",
+          "path",
+          "branch"
+        ]
+      },
+      "preconditions": [
+        {
+          "precondition_id": "branch-exists",
+          "required_state_digest": "sha256:branch-feat-patoc",
+          "status": "satisfied"
+        },
+        {
+          "precondition_id": "spec-reviewed",
+          "required_state_digest": "sha256:spec-reviewed-v1",
+          "status": "satisfied"
+        }
+      ],
+      "dependencies": {
+        "previous_action_ids": [
+          "create-branch-1"
+        ],
+        "required_event_ids": [
+          "event-spec-reviewed"
+        ],
+        "required_approval_ids": [
+          "approval-671"
+        ]
+      },
+      "side_effect_control": {
+        "side_effect_key": "github:update-file:patoc-spec:v1",
+        "replay_policy": "reject",
+        "completed": false
+      },
+      "expected_transition": {
+        "current_state_digest": "sha256:repo-before-update",
+        "expected_state_digest": "sha256:repo-after-update"
+      },
+      "verification": {
+        "verification_type": "receipt",
+        "verification_requirements": [
+          "commit_sha",
+          "content_sha"
+        ]
+      }
+    },
+    "authoritative_state": {
+      "workspace_id": "repo:safal207/LS",
+      "trajectory_id": "issue-671",
+      "active_continuation_id": "patoc-implementation-1",
+      "relationship_id": "rel-maintainer-agent",
+      "expected_action_id": "update-file-1",
+      "expected_action_digest": "sha256:update-file-spec-v1",
+      "expected_action_type": "github.update_file",
+      "expected_actor_id": "agent-codex",
+      "expected_target_id": "spec/precise-action-temporal-orientation-center-v0.1.md",
+      "expected_parameter_digest": "sha256:params-update-spec-v1",
+      "expected_exact_arguments": {
+        "repository_full_name": "safal207/LS",
+        "path": "spec/precise-action-temporal-orientation-center-v0.1.md",
+        "branch": "feat/patoc-v0.1",
+        "content_digest": "sha256:content-v1",
+        "message": "spec: finalize PATOC v0.1"
+      },
+      "next_sequence_index": 2,
+      "completed_action_ids": [
+        "create-branch-1"
+      ],
+      "occurred_event_ids": [
+        "event-spec-reviewed"
+      ],
+      "active_approval_ids": [
+        "approval-671"
+      ],
+      "preconditions": {
+        "branch-exists": {
+          "state_digest": "sha256:branch-feat-patoc",
+          "status": "satisfied"
+        },
+        "spec-reviewed": {
+          "state_digest": "sha256:spec-reviewed-v1",
+          "status": "satisfied"
+        }
+      },
+      "current_time": "2026-06-24T19:30:00Z",
+      "expected_deadline_at": "2026-06-25T19:00:00Z",
+      "completed_side_effect_keys": [],
+      "current_state_digest": "sha256:repo-before-update",
+      "expected_state_digest": "sha256:repo-after-update",
+      "required_verification_type": "receipt",
+      "required_verification_requirements": [
+        "commit_sha",
+        "content_sha"
+      ]
+    },
+    "proposed_action": {
+      "action_id": "update-file-1",
+      "action_digest": "sha256:update-file-spec-v1",
+      "action_type": "github.update_file",
+      "actor_id": "agent-codex",
+      "target_id": "spec/precise-action-temporal-orientation-center-v0.1.md",
+      "parameter_digest": "sha256:params-update-spec-v1",
+      "exact_arguments": {
+        "repository_full_name": "safal207/LS",
+        "path": "spec/precise-action-temporal-orientation-center-v0.1.md",
+        "branch": "feat/patoc-v0.1",
+        "content_digest": "sha256:content-v1",
+        "message": "spec: finalize PATOC v0.1"
+      },
+      "sequence_index": 2,
+      "side_effect_key": "github:update-file:patoc-spec:v1"
+    }
+  },
+  "cases": [
+    {
+      "fixture_id": "valid_exact_action_execute_candidate",
+      "overrides": {},
+      "expected": {
+        "verdict": "EXECUTE_CANDIDATE",
+        "reason_code": "PRECISE_ACTION_ORIENTATION_VALID"
+      }
+    },
+    {
+      "fixture_id": "approval_pending_wait",
+      "overrides": {
+        "authoritative_state.active_approval_ids": []
+      },
+      "expected": {
+        "verdict": "WAIT",
+        "reason_code": "APPROVAL_PENDING"
+      }
+    },
+    {
+      "fixture_id": "required_event_missing_wait",
+      "overrides": {
+        "authoritative_state.occurred_event_ids": []
+      },
+      "expected": {
+        "verdict": "WAIT",
+        "reason_code": "REQUIRED_EVENT_NOT_OCCURRED"
+      }
+    },
+    {
+      "fixture_id": "schedule_not_reached_wait",
+      "overrides": {
+        "authoritative_state.current_time": "2026-06-24T19:05:00Z"
+      },
+      "expected": {
+        "verdict": "WAIT",
+        "reason_code": "SCHEDULE_NOT_REACHED"
+      }
+    },
+    {
+      "fixture_id": "wrong_actor_rejected",
+      "overrides": {
+        "proposed_action.actor_id": "agent-other"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "WRONG_ACTOR"
+      }
+    },
+    {
+      "fixture_id": "wrong_target_rejected",
+      "overrides": {
+        "proposed_action.target_id": "README.md"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "WRONG_TARGET"
+      }
+    },
+    {
+      "fixture_id": "parameter_substitution_rejected",
+      "overrides": {
+        "proposed_action.parameter_digest": "sha256:params-substituted"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "PARAMETER_SUBSTITUTION"
+      }
+    },
+    {
+      "fixture_id": "immutable_field_changed_rejected",
+      "overrides": {
+        "proposed_action.exact_arguments.branch": "main",
+        "proposed_action.parameter_digest": "sha256:params-main-branch"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "IMMUTABLE_FIELD_CHANGED"
+      }
+    },
+    {
+      "fixture_id": "action_out_of_sequence_rejected",
+      "overrides": {
+        "proposed_action.sequence_index": 3
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "ACTION_OUT_OF_SEQUENCE"
+      }
+    },
+    {
+      "fixture_id": "completed_side_effect_replay_rejected",
+      "overrides": {
+        "authoritative_state.completed_side_effect_keys": [
+          "github:update-file:patoc-spec:v1"
+        ]
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "ACTION_ALREADY_COMPLETED"
+      }
+    },
+    {
+      "fixture_id": "target_state_drift_revalidate",
+      "overrides": {
+        "authoritative_state.current_state_digest": "sha256:repo-changed"
+      },
+      "expected": {
+        "verdict": "REVALIDATE",
+        "reason_code": "TARGET_STATE_DRIFT"
+      }
+    },
+    {
+      "fixture_id": "parameters_stale_revalidate",
+      "overrides": {
+        "authoritative_state.expected_parameter_digest": "sha256:params-update-spec-v2"
+      },
+      "expected": {
+        "verdict": "REVALIDATE",
+        "reason_code": "PARAMETERS_STALE"
+      }
+    },
+    {
+      "fixture_id": "predecessor_not_completed_wait",
+      "overrides": {
+        "authoritative_state.completed_action_ids": []
+      },
+      "expected": {
+        "verdict": "WAIT",
+        "reason_code": "PREDECESSOR_NOT_COMPLETED"
+      }
+    },
+    {
+      "fixture_id": "missing_parameter_abstain",
+      "overrides": {
+        "proposed_action.parameter_digest": null
+      },
+      "expected": {
+        "verdict": "ABSTAIN",
+        "reason_code": "MISSING_PARAMETER"
+      }
+    },
+    {
+      "fixture_id": "missing_verification_contract_abstain",
+      "overrides": {
+        "orientation.verification.verification_requirements": [],
+        "authoritative_state.required_verification_type": null,
+        "authoritative_state.required_verification_requirements": null
+      },
+      "expected": {
+        "verdict": "ABSTAIN",
+        "reason_code": "MISSING_VERIFICATION_CONTRACT"
+      }
+    },
+    {
+      "fixture_id": "execute_candidate_does_not_grant_permission",
+      "overrides": {},
+      "expected": {
+        "verdict": "EXECUTE_CANDIDATE",
+        "reason_code": "PRECISE_ACTION_ORIENTATION_VALID"
+      }
+    }
+  ]
+}
