@@ -1,19 +1,19 @@
 {
-  "profile": "ls-ramr-operational-continuity-interop-v0.1",
+  "profile": "ls-ramr-operational-continuity-interop-v0.3.0",
   "ramr": {
     "repository": "DanceNitra/ramr",
-    "release": "v0.2.0",
-    "commit": "8f21771f7ee6012d6839b8c89ceae61f639e93ed",
+    "release": "v0.3.0",
+    "commit": "35de7d3a1641e3ba9401aa2d1ea50171cd5cc86d",
     "metric": "OPERATIONAL-CONTINUITY",
     "script": "ramr_operational_continuity.py",
     "evidence_harness": "ramr_ls_evidence.py",
-    "measurement": "duplicate_side_effect_rate_under_budgeted_resume_recall",
-    "result_file": "operational_continuity_result.json"
+    "measurement": "canonical_fixture_reliability_under_budgeted_resume_recall",
+    "result_file": "ramr_ls_fixture_suite_result.json"
   },
   "shared_evidence_envelope": {
     "version": "ramr-ls-evidence-v0.1",
     "canonical_repository": "DanceNitra/ramr",
-    "canonical_commit": "8f21771f7ee6012d6839b8c89ceae61f639e93ed",
+    "canonical_commit": "35de7d3a1641e3ba9401aa2d1ea50171cd5cc86d",
     "canonical_path": "fixtures/ramr_ls/duplicate_successful_outcome.json",
     "canonical_sha256": "bb28e8a390f0cae50f49b5befa0b903b8459aeaa0edc7dc199113f75dabf48ce",
     "local_mirror": "shared-envelope/duplicate_successful_outcome.json",
@@ -21,11 +21,43 @@
     "schema": "shared-envelope/schema-v0.1.json",
     "runner": "tools/run_ramr_ls_shared_evidence_fixture.py",
     "result_file": "artifacts/ramr-ls-duplicate-successful-outcome-result.json",
+    "suite_runner": "tools/run_ramr_ls_fixture_suite.py",
+    "suite_result_file": "artifacts/ramr-ls-fixture-suite-result.json",
     "ownership": {
       "ramr": "canonical fixture bytes and retrieval reliability harness",
-      "ls": "pinned version and digest plus deterministic continuation verdict"
+      "ls": "pinned versions and digests plus deterministic continuation verdicts"
     }
   },
+  "canonical_suite": [
+    {
+      "fixture_id": "duplicate_successful_outcome",
+      "canonical_path": "fixtures/ramr_ls/duplicate_successful_outcome.json",
+      "canonical_sha256": "bb28e8a390f0cae50f49b5befa0b903b8459aeaa0edc7dc199113f75dabf48ce",
+      "local_mirror": "shared-envelope/duplicate_successful_outcome.json",
+      "local_digest_pin": "shared-envelope/duplicate_successful_outcome.sha256"
+    },
+    {
+      "fixture_id": "superseded_approval",
+      "canonical_path": "fixtures/ramr_ls/superseded_approval.json",
+      "canonical_sha256": "ecd3cb375b8a6ea0abf0ec4594d666a1f65c135010af3274b67227ff9209ac2e",
+      "local_mirror": "shared-envelope/superseded_approval.json",
+      "local_digest_pin": "shared-envelope/superseded_approval.sha256"
+    },
+    {
+      "fixture_id": "incomplete_dependency_chain",
+      "canonical_path": "fixtures/ramr_ls/incomplete_dependency_chain.json",
+      "canonical_sha256": "092edf5a3ff589366fcd894d62369cb07efff96222c83d88d6d85933d421e60a",
+      "local_mirror": "shared-envelope/incomplete_dependency_chain.json",
+      "local_digest_pin": "shared-envelope/incomplete_dependency_chain.sha256"
+    },
+    {
+      "fixture_id": "target_state_drift",
+      "canonical_path": "fixtures/ramr_ls/target_state_drift.json",
+      "canonical_sha256": "e920c0c7790733404d3e1d46d8977238a7489b6d1071b0f27cbc3b63e60dedee",
+      "local_mirror": "shared-envelope/target_state_drift.json",
+      "local_digest_pin": "shared-envelope/target_state_drift.sha256"
+    }
+  ],
   "mappings": [
     {
       "ramr_condition": "current_completion_missed_and_replay_proposed",
@@ -51,13 +83,16 @@
   ],
   "normative_rules": [
     "ramr_is_the_canonical_home_for_shared_fixture_bytes",
-    "ls_must_verify_the_pinned_fixture_digest_before_evaluation",
+    "ls_must_verify_every_pinned_fixture_digest_before_evaluation",
     "semantic_changes_require_a_new_envelope_version",
     "recency_improves_priority_but_does_not_grant_authority",
     "aggregate_duplicate_rate_is_not_a_conformance_verdict",
     "recalled_completion_must_be_bound_to_current_intent_and_state",
     "missing_authoritative_evidence_requires_abstention",
     "retrieval_failure_is_not_execution_permission",
-    "authoritative_completion_requires_replay_rejection"
+    "authoritative_completion_requires_replay_rejection",
+    "incomplete_dependency_chain_requires_abstention",
+    "target_state_drift_requires_revalidation",
+    "resume_is_local_continuation_eligibility_not_global_execution_authority"
   ]
 }
