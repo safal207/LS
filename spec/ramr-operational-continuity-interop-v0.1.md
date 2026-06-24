@@ -1,13 +1,13 @@
 # RAMR ↔ LS Operational Continuity Interoperability Profile v0.1
 
-Status: Draft
+Status: Draft — first cross-repository fixture frozen
 
 ## Purpose
 
 RAMR and LS measure two different layers of the same failure class.
 
-- **RAMR OPERATIONAL-CONTINUITY** measures a population-level failure rate: after compaction, how often does budget-limited recall miss a current completion record and therefore cause a duplicate side effect?
-- **LS Operational Continuity Fixtures** measure deterministic conformance: given recovered state and current verifiable state, must the agent `RESUME`, `REVALIDATE`, `REJECT`, or `ABSTAIN`?
+- **RAMR OPERATIONAL-CONTINUITY** measures a population-level failure rate: after compaction, how often does budget-limited recall miss a current completion record and therefore expose an agent to duplicate-side-effect risk?
+- **LS Operational Continuity Fixtures** measure deterministic conformance: given recovered evidence plus current authoritative state, must the agent `RESUME`, `REVALIDATE`, `REJECT`, or `ABSTAIN`?
 
 This profile defines how the two layers compose without treating either one as a replacement for the other.
 
@@ -15,11 +15,11 @@ This profile defines how the two layers compose without treating either one as a
 
 RAMR sweeps recall budget and recency weighting while accumulating historical completion records.
 
-Its primary result is a duplicate-side-effect rate. The metric answers:
+Its primary result is a duplicate-side-effect risk measurement. The metric answers:
 
 > How likely is the memory layer to make the evidence required for idempotent resume available?
 
-A low duplicate rate is necessary, but it is not sufficient for safe continuation. A completion record may be recalled yet still be stale, from the wrong workspace, bound to a superseded approval, or associated with a different intended action.
+A high recovery rate is useful, but it is not sufficient for safe continuation. A completion record may be recalled yet still be stale, from the wrong workspace, bound to a superseded approval, or associated with a different intended action.
 
 ## Layer 2 — conformance decision
 
@@ -32,7 +32,7 @@ LS consumes recovered evidence plus current authoritative state and returns exac
 
 The conformance layer answers:
 
-> Given the evidence that was recovered, is this exact continuation safe now?
+> Given the recovered evidence and current authoritative state, is this exact continuation safe now?
 
 ## Normative bridge
 
@@ -64,50 +64,67 @@ RAMR aggregate rates MUST be reported as reliability measurements, not PASS/FAIL
 
 LS fixture outcomes MUST be reported per scenario, not averaged into a claim that a memory system is globally safe.
 
+## Cross-repository ownership
+
+Beginning with RAMR v0.2.0, the ownership boundary is:
+
+- **RAMR** hosts the canonical shared fixture bytes and the retrieval reliability harness;
+- **LS** pins the envelope version and canonical content digest, mirrors the bytes for offline conformance, and owns the deterministic continuation verdict;
+- framework adapters such as CrewAI MAY consume the same pinned fixture without becoming a source of truth.
+
+The canonical source for the first fixture is:
+
+- repository: `DanceNitra/ramr`;
+- release: `v0.2.0`;
+- commit: `8f21771f7ee6012d6839b8c89ceae61f639e93ed`;
+- path: `fixtures/ramr_ls/duplicate_successful_outcome.json`;
+- SHA-256: `bb28e8a390f0cae50f49b5befa0b903b8459aeaa0edc7dc199113f75dabf48ce`.
+
+The LS mirror is:
+
+- fixture: `fixtures/operational-continuity/shared-envelope/duplicate_successful_outcome.json`;
+- digest pin: `fixtures/operational-continuity/shared-envelope/duplicate_successful_outcome.sha256`;
+- schema: `fixtures/operational-continuity/shared-envelope/schema-v0.1.json`;
+- verifier: `tools/run_ramr_ls_shared_evidence_fixture.py`.
+
+LS CI MUST hash the local mirror before evaluating it. A digest mismatch MUST fail conformance before any verdict is produced.
+
+Any semantic change to the frozen v0.1 fixture requires a new `envelope_version`. Existing v0.1 bytes MUST NOT be modified silently.
+
+## Frozen recovered-evidence fixture
+
+The canonical fixture contains two cases over the same query context and authoritative completion ledger:
+
+1. `completion_recovered` — RAMR reports `ramr_recovered_side_effect: true`; LS returns `REJECT` because the side effect already completed.
+2. `completion_not_recovered` — RAMR reports `ramr_recovered_side_effect: false`; LS still returns `REJECT` because retrieval failure does not override authoritative completion state.
+
+The frozen boundary invariant is:
+
+> A retrieval miss is a reliability failure, not execution permission.
+
+RAMR measures whether the completion record was recovered. LS decides whether the action may execute. For this fixture, the LS verdict MUST remain `REJECT` in both cases and therefore MUST be independent of the RAMR recovery flag.
+
 ## Shared result envelope
 
-An interoperability result SHOULD contain:
+An interoperability result SHOULD identify both the pinned source and the two layer-specific results:
 
 ```json
 {
   "profile": "ls-ramr-operational-continuity-interop-v0.1",
+  "shared_evidence_envelope": {
+    "version": "ramr-ls-evidence-v0.1",
+    "canonical_repository": "DanceNitra/ramr",
+    "canonical_commit": "8f21771f7ee6012d6839b8c89ceae61f639e93ed",
+    "canonical_sha256": "bb28e8a390f0cae50f49b5befa0b903b8459aeaa0edc7dc199113f75dabf48ce"
+  },
   "ramr": {
-    "metric": "OPERATIONAL-CONTINUITY",
-    "measurement": "duplicate_side_effect_rate_under_budgeted_resume_recall"
+    "measurement": "recovered_side_effect"
   },
   "ls": {
-    "fixtures_total": 4,
-    "fixtures_passed": 4,
-    "outcomes": {
-      "REJECT": 2,
-      "ABSTAIN": 1,
-      "REVALIDATE": 1,
-      "RESUME": 0
-    }
+    "verdict": "REJECT"
   }
 }
 ```
-
-## Frozen recovered-evidence envelope
-
-The first frozen cross-project input is:
-
-- envelope version: `ramr-ls-evidence-v0.1`;
-- fixture: `fixtures/operational-continuity/shared-envelope/duplicate_successful_outcome.json`;
-- schema: `fixtures/operational-continuity/shared-envelope/schema-v0.1.json`.
-
-The fixture contains two retrieval variants over identical query context, authoritative state, and proposed action:
-
-1. `completion_recovered` — RAMR observes no retrieval-driven duplicate risk; LS still returns `REJECT` because authoritative state proves the side effect completed.
-2. `completion_missed` — RAMR observes duplicate risk `1.0` for a naive replaying agent; LS still returns `REJECT` because retrieval failure does not override authoritative completion state.
-
-This distinction is normative:
-
-> A missed completion record is a reliability failure, not execution permission.
-
-Within a retrieval-only benchmark, a miss may model a duplicate action. In the composed profile, that implication becomes the boundary under test: RAMR reports the risk signal, while LS decides whether execution is permitted from current authoritative state.
-
-The shared fixture MUST remain synthetic and frozen. Changes to field meaning, expected outcomes, or cross-layer invariants require a new envelope version.
 
 ## Initial mapping
 
@@ -116,7 +133,7 @@ The shared fixture MUST remain synthetic and frozen. Changes to field meaning, e
 | current completion missed; replay proposed | `resume_no_duplicate_side_effect` | `REJECT` when authoritative completion evidence exists |
 | stale authorization recalled | `superseded_approval_rejected` | `REJECT` |
 | incomplete dependency chain recalled | `complete_chain_preferred_over_disconnected_facts` | `ABSTAIN` |
-| checkpoint recalled after workspace drift | `workspace_drift_requires_revalidation` | `REVALIDATE` |
+| checkpoint recalled after target/workspace drift | `workspace_drift_requires_revalidation` | `REVALIDATE` |
 
 ## Conformance claim
 
@@ -125,4 +142,4 @@ A system MAY claim support for this profile only when it publishes both:
 1. its RAMR operational-continuity measurement inputs and persisted result; and
 2. machine-readable results for the mandatory LS fixtures.
 
-The claim MUST identify benchmark version, fixture version, memory configuration, recall budget, and all enabled recency or decay settings.
+The claim MUST identify benchmark release and commit, envelope version, canonical fixture digest, memory configuration, recall budget, and all enabled recency or decay settings.
