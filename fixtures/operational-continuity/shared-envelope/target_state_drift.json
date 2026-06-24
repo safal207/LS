@@ -1,0 +1,83 @@
+{
+  "_meta": {
+    "role": "CANONICAL shared RAMR<->LS evidence fixture (RAMR is the source of truth; LS pins this version + content digest).",
+    "envelope_version": "ramr-ls-evidence-v0.1",
+    "interop_spec": "https://github.com/safal207/LS/blob/main/spec/ramr-operational-continuity-interop-v0.1.md",
+    "ls_conformance": "https://github.com/safal207/LS/tree/main/fixtures/operational-continuity",
+    "collaboration": "anthropics/claude-code#34556 (RAMR = reliability layer, LS = conformance layer)",
+    "versioning": "Any semantic change requires a NEW envelope_version; v0.1 bytes are frozen.",
+    "boundary_invariant": "target_drifted -> REVALIDATE (do not blindly resume against a stale target)"
+  },
+  "fixture_id": "target_state_drift",
+  "envelope_version": "ramr-ls-evidence-v0.1",
+  "description": "A plan/completion was made against target_state_digest TARGET_A. If the CURRENT authoritative target state has drifted (now TARGET_B), LS must REVALIDATE before acting, not blindly resume. RAMR measures whether recovered evidence's target matches the current target_state_digest. Boundary: a stale target is a revalidation trigger, not execution permission.",
+  "authoritative_state": {
+    "current_target_state_digest": "sha256:TARGET_A",
+    "continuation_id": "cont-456"
+  },
+  "query_context": {
+    "workspace_id": "ws-123",
+    "continuation_id": "cont-456",
+    "intent_digest": "sha256:INTENT_A",
+    "target_state_digest": "sha256:TARGET_A",
+    "as_of": "2026-06-24T07:00:00Z"
+  },
+  "cases": [
+    {
+      "case": "target_matches",
+      "recovered_evidence": [
+        {
+          "evidence_id": "ev-plan",
+          "evidence_type": "plan_record",
+          "bindings": {
+            "continuation_id": "cont-456",
+            "intent_digest": "sha256:INTENT_A",
+            "target_state_digest": "sha256:TARGET_A"
+          },
+          "valid_from": "2026-06-24T06:00:00Z",
+          "invalidated_at": null
+        }
+      ],
+      "retrieval": {
+        "budget": 8,
+        "recency_weight": 0.25,
+        "reliability_signal": 0.92
+      },
+      "expected": {
+        "ramr_target_current": true,
+        "ls_verdict": "RESUME"
+      }
+    },
+    {
+      "case": "target_drifted",
+      "recovered_evidence": [
+        {
+          "evidence_id": "ev-plan-stale",
+          "evidence_type": "plan_record",
+          "bindings": {
+            "continuation_id": "cont-456",
+            "intent_digest": "sha256:INTENT_A",
+            "target_state_digest": "sha256:TARGET_B"
+          },
+          "valid_from": "2026-06-24T05:30:00Z",
+          "invalidated_at": null
+        }
+      ],
+      "retrieval": {
+        "budget": 8,
+        "recency_weight": 0.25,
+        "reliability_signal": 0.7
+      },
+      "expected": {
+        "ramr_target_current": false,
+        "ls_verdict": "REVALIDATE",
+        "rationale": "recovered plan was made against TARGET_B but current target is TARGET_A -> target drifted -> revalidate before acting"
+      }
+    }
+  ],
+  "scoring": {
+    "ramr_measures": "target_current = recovered plan_record bindings.target_state_digest == query_context.target_state_digest",
+    "ls_measures": "verdict == expected.ls_verdict",
+    "boundary_invariant": "target_drifted -> REVALIDATE (do not blindly resume against a stale target)"
+  }
+}
