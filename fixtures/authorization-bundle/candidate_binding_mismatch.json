@@ -1,1 +1,1 @@
-{}
+{"case":"candidate_binding_mismatch","overrides":{"authorization_intent":{"candidate_digest":"sha256:MUTATED"}},"consumed_nonces":[],"tamper":null,"expected":{"outcome":"REJECTED","reason_code":"CANDIDATE_BINDING_MISMATCH","bundle_created":false,"offline_verified":false,"commit_before_effect_eligible":false,"execution_authorized":false}}
