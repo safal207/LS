@@ -1,0 +1,218 @@
+{
+  "_meta": {
+    "adapter_version": "engram-ls-provenance-v0.1",
+    "source_repository": "Patdolitse/piia-engram",
+    "source_version": "4.12.0",
+    "source_commit": "dbf0a3d582eab69a829d094fde379c87c71e1823",
+    "source_license": "AGPL-3.0-or-later",
+    "independent_compatibility_layer": true,
+    "boundary_invariants": [
+      "source_tool remains tool-level assertion provenance after later validation",
+      "source_agent is treated as validator identity when confirmation_source is present",
+      "typed confirmation requires a recognized method, validator identity, parseable validation time, and verified tier",
+      "untyped verified items fail closed and are not represented as fully confirmed",
+      "memory remains advisory-only and never grants execution authority",
+      "the adapter does not imply endorsement, adoption, or co-maintenance by Engram"
+    ]
+  },
+  "cases": [
+    {
+      "case": "staging_assertion",
+      "source_item_type": "lesson",
+      "engram_item": {
+        "id": "lesson-codex-001",
+        "tier": "staging",
+        "source_tool": "codex",
+        "provenance": {
+          "source_agent": "codex:worker-7",
+          "run_id": "run-codex-001"
+        }
+      },
+      "expected": {
+        "source_item_id": "lesson-codex-001",
+        "source_item_type": "lesson",
+        "assertion": {
+          "tool": "codex",
+          "agent": "codex:worker-7",
+          "attribution_level": "agent"
+        },
+        "confirmation": {
+          "state": "asserted",
+          "actor": null,
+          "method": null,
+          "validated_at": null
+        },
+        "advisory_only": true,
+        "execution_authorized": false,
+        "warnings": []
+      }
+    },
+    {
+      "case": "human_promoted_cross_tool",
+      "source_item_type": "lesson",
+      "engram_item": {
+        "id": "lesson-codex-001",
+        "tier": "verified",
+        "source_tool": "codex",
+        "promoted_at": "2026-06-24T17:00:00Z",
+        "promotion_reason": "user_confirmed",
+        "provenance": {
+          "source_agent": "owner",
+          "run_id": "run-codex-001",
+          "confirmation_source": "human",
+          "last_validated_at": "2026-06-24T17:00:00Z"
+        }
+      },
+      "expected": {
+        "source_item_id": "lesson-codex-001",
+        "source_item_type": "lesson",
+        "assertion": {
+          "tool": "codex",
+          "agent": null,
+          "attribution_level": "tool"
+        },
+        "confirmation": {
+          "state": "confirmed",
+          "actor": "owner",
+          "method": "human",
+          "validated_at": "2026-06-24T17:00:00Z"
+        },
+        "advisory_only": true,
+        "execution_authorized": false,
+        "warnings": []
+      }
+    },
+    {
+      "case": "test_signal_confirmation",
+      "source_item_type": "decision",
+      "engram_item": {
+        "id": "decision-cursor-002",
+        "tier": "verified",
+        "source_tool": "cursor",
+        "provenance": {
+          "source_agent": "owner",
+          "confirmation_source": "test_signal",
+          "last_validated_at": "2026-06-24T17:05:00+00:00"
+        }
+      },
+      "expected": {
+        "source_item_id": "decision-cursor-002",
+        "source_item_type": "decision",
+        "assertion": {
+          "tool": "cursor",
+          "agent": null,
+          "attribution_level": "tool"
+        },
+        "confirmation": {
+          "state": "confirmed",
+          "actor": "owner",
+          "method": "test",
+          "validated_at": "2026-06-24T17:05:00+00:00"
+        },
+        "advisory_only": true,
+        "execution_authorized": false,
+        "warnings": []
+      }
+    },
+    {
+      "case": "anchor_promoted",
+      "source_item_type": "lesson",
+      "engram_item": {
+        "id": "lesson-anchor-003",
+        "tier": "verified",
+        "source_tool": "onboard-repo",
+        "provenance": {
+          "source_agent": "owner",
+          "confirmation_source": "anchor",
+          "last_validated_at": "2026-06-24T17:10:00Z",
+          "anchor_ref": "file:pyproject.toml",
+          "anchor_status": "valid"
+        }
+      },
+      "expected": {
+        "source_item_id": "lesson-anchor-003",
+        "source_item_type": "lesson",
+        "assertion": {
+          "tool": "onboard-repo",
+          "agent": null,
+          "attribution_level": "tool"
+        },
+        "confirmation": {
+          "state": "confirmed",
+          "actor": "owner",
+          "method": "anchor",
+          "validated_at": "2026-06-24T17:10:00Z"
+        },
+        "advisory_only": true,
+        "execution_authorized": false,
+        "warnings": []
+      }
+    },
+    {
+      "case": "verified_without_typed_confirmation",
+      "source_item_type": "playbook",
+      "engram_item": {
+        "id": "playbook-legacy-004",
+        "tier": "verified",
+        "source_tool": "claude_code",
+        "provenance": {
+          "source_agent": "claude_code"
+        }
+      },
+      "expected": {
+        "source_item_id": "playbook-legacy-004",
+        "source_item_type": "playbook",
+        "assertion": {
+          "tool": "claude_code",
+          "agent": "claude_code",
+          "attribution_level": "agent"
+        },
+        "confirmation": {
+          "state": "asserted",
+          "actor": null,
+          "method": null,
+          "validated_at": null
+        },
+        "advisory_only": true,
+        "execution_authorized": false,
+        "warnings": [
+          "verified_without_typed_confirmation"
+        ]
+      }
+    },
+    {
+      "case": "confirmation_missing_validation_time",
+      "source_item_type": "lesson",
+      "engram_item": {
+        "id": "lesson-incomplete-005",
+        "tier": "verified",
+        "source_tool": "codex",
+        "provenance": {
+          "source_agent": "owner",
+          "confirmation_source": "human"
+        }
+      },
+      "expected": {
+        "source_item_id": "lesson-incomplete-005",
+        "source_item_type": "lesson",
+        "assertion": {
+          "tool": "codex",
+          "agent": null,
+          "attribution_level": "tool"
+        },
+        "confirmation": {
+          "state": "asserted",
+          "actor": "owner",
+          "method": "human",
+          "validated_at": null
+        },
+        "advisory_only": true,
+        "execution_authorized": false,
+        "warnings": [
+          "invalid_or_missing_last_validated_at",
+          "verified_without_typed_confirmation"
+        ]
+      }
+    }
+  ]
+}
