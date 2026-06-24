@@ -37,7 +37,7 @@ def _errors(validator: Draft202012Validator, payload: dict) -> list:
 
 
 def test_all_trusted_runtime_schemas_are_valid_draft_2020_12() -> None:
-    schema_names = {
+    required_schema_names = {
         "workflow_plan.schema.json",
         "route_decision.schema.json",
         "cognitive_trail.schema.json",
@@ -53,8 +53,11 @@ def test_all_trusted_runtime_schemas_are_valid_draft_2020_12() -> None:
         "reusable_artifact.schema.json",
         "orientation_context.schema.json",
     }
+    schema_names = {
+        path.name for path in SCHEMA_ROOT.glob("*.schema.json")
+    }
 
-    assert {path.name for path in SCHEMA_ROOT.glob("*.schema.json")} == schema_names
+    assert required_schema_names <= schema_names
 
     for schema_name in sorted(schema_names):
         Draft202012Validator.check_schema(_load(SCHEMA_ROOT / schema_name))
