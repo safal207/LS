@@ -1,6 +1,6 @@
 # LS Precise Action Temporal Orientation Center v0.1
 
-Status: Draft
+Status: Implementation candidate
 
 ## Purpose
 
@@ -22,9 +22,10 @@ A semantically similar action is not necessarily the exact valid action.
 
 Exact action orientation binds:
 
+- workspace, trajectory, continuation, and optional relationship context;
 - action, actor, and target identity;
 - exact parameters and immutable fields;
-- sequence position;
+- sequence position and predecessor completion;
 - temporal validity window;
 - preconditions, dependencies, approvals, and events;
 - replay policy and completed effects;
@@ -58,6 +59,10 @@ PreciseActionTemporalOrientationState:
     parameter_digest: string
     exact_arguments: object
     immutable_fields: [string]
+  preconditions:
+    - precondition_id: string
+      required_state_digest: string
+      status: satisfied | unsatisfied | unknown
   dependencies:
     previous_action_ids: [string]
     required_event_ids: [string]
@@ -74,13 +79,24 @@ PreciseActionTemporalOrientationState:
     verification_requirements: [string]
 ```
 
+## Inputs
+
+A conformant evaluator consumes:
+
+1. a PATOC orientation state;
+2. authoritative current state derived from validated TOC/RTOC context;
+3. the proposed exact action;
+4. dependency, approval, event, replay, and verification evidence.
+
+The evaluator does not independently grant TOC or RTOC validity. The compatibility contract defines how validated upstream state is mapped into PATOC authoritative input.
+
 ## Verdicts
 
-- `EXECUTE_CANDIDATE`: exact-action invariant passed;
-- `WAIT`: correct action, but required time, event, approval, predecessor, or precondition has not arrived;
-- `REVALIDATE`: target, parameters, deadline, current state, or expected transition drifted;
+- `EXECUTE_CANDIDATE`: the exact-action invariant passed;
+- `WAIT`: the action is correct, but required time, event, approval, predecessor, precondition, or replay verification has not arrived;
+- `REVALIDATE`: target, action expectation, parameters, sequence, deadline, current state, expected transition, or verification contract drifted;
 - `ABSTAIN`: exact action cannot be determined from available evidence;
-- `REJECT`: unsafe mismatch, wrong actor or target, parameter substitution, invalid sequence, expired action, or replay violation.
+- `REJECT`: unsafe context or action mismatch, wrong actor or target, parameter substitution, invalid sequence, expired action, or forbidden replay.
 
 Every result MUST preserve:
 
@@ -95,16 +111,17 @@ Every result MUST preserve:
 
 ## Required checks
 
-1. context and identity completeness;
-2. actor, target, action, and parameter digest match;
-3. immutable-field match;
-4. sequence and predecessor completion;
-5. temporal validity window;
-6. approval, event, and precondition state;
-7. replay and idempotency policy;
-8. current-state digest match;
-9. expected-transition declaration;
-10. verification-contract completeness.
+1. identity and parameter completeness;
+2. workspace, trajectory, continuation, and relationship context;
+3. actor, target, action ID, type, and digest;
+4. parameter digest, exact arguments, and immutable fields;
+5. sequence position and predecessor completion;
+6. temporal validity window and deadline freshness;
+7. required event and approval presence;
+8. precondition state and digest;
+9. side-effect identity, replay, and idempotency policy;
+10. current-state and expected-transition digests;
+11. verification-contract completeness and freshness.
 
 ## Normative precedence
 
@@ -114,13 +131,56 @@ REJECT > REVALIDATE > WAIT > ABSTAIN > EXECUTE_CANDIDATE
 
 Mixed-fault fixtures MUST make this order executable.
 
-## Initial reason-code families
+## Stable reason-code families
 
-- Reject: `WRONG_ACTOR`, `WRONG_TARGET`, `PARAMETER_SUBSTITUTION`, `ACTION_OUT_OF_SEQUENCE`, `ACTION_ALREADY_COMPLETED`, `ACTION_WINDOW_EXPIRED`.
-- Revalidate: `TARGET_STATE_DRIFT`, `PARAMETERS_STALE`, `CURRENT_STATE_DIGEST_MISMATCH`, `EXPECTED_TRANSITION_CHANGED`.
-- Wait: `SCHEDULE_NOT_REACHED`, `REQUIRED_EVENT_NOT_OCCURRED`, `APPROVAL_PENDING`, `PREDECESSOR_NOT_COMPLETED`.
-- Abstain: `AMBIGUOUS_ACTION`, `MISSING_PARAMETER`, `INCOMPLETE_DEPENDENCY_CHAIN`, `MISSING_VERIFICATION_CONTRACT`.
-- Execute candidate: `PRECISE_ACTION_ORIENTATION_VALID`.
+### REJECT
+
+- `WORKSPACE_MISMATCH`
+- `TRAJECTORY_MISMATCH`
+- `CONTINUATION_MISMATCH`
+- `RELATIONSHIP_MISMATCH`
+- `WRONG_ACTOR`
+- `WRONG_TARGET`
+- `ACTION_DIGEST_MISMATCH`
+- `IMMUTABLE_FIELD_CHANGED`
+- `PARAMETER_SUBSTITUTION`
+- `ACTION_OUT_OF_SEQUENCE`
+- `ACTION_ALREADY_COMPLETED`
+- `REPLAY_POLICY_VIOLATION`
+- `ACTION_WINDOW_EXPIRED`
+
+### REVALIDATE
+
+- `EXPECTED_ACTION_CHANGED`
+- `TARGET_STATE_DRIFT`
+- `CURRENT_STATE_DIGEST_MISMATCH`
+- `PARAMETERS_STALE`
+- `SEQUENCE_POSITION_DRIFT`
+- `DEADLINE_CHANGED`
+- `EXPECTED_TRANSITION_CHANGED`
+- `VERIFICATION_CONTRACT_CHANGED`
+
+### WAIT
+
+- `SCHEDULE_NOT_REACHED`
+- `REQUIRED_EVENT_NOT_OCCURRED`
+- `APPROVAL_PENDING`
+- `PREDECESSOR_NOT_COMPLETED`
+- `PRECONDITION_NOT_YET_SATISFIED`
+- `SIDE_EFFECT_VERIFICATION_REQUIRED`
+
+### ABSTAIN
+
+- `AMBIGUOUS_ACTION`
+- `MISSING_PARAMETER`
+- `INCOMPLETE_DEPENDENCY_CHAIN`
+- `UNKNOWN_PRECONDITION_STATE`
+- `MISSING_VERIFICATION_CONTRACT`
+- `INVALID_TIME_EVIDENCE`
+
+### EXECUTE_CANDIDATE
+
+- `PRECISE_ACTION_ORIENTATION_VALID`
 
 ## Orientation triad
 
@@ -148,6 +208,11 @@ No center can substitute for another:
 - relational authority does not prove exact action correctness;
 - exact action correctness does not grant execution permission.
 
-## Acceptance criteria
+## Conformance
 
-See issue #671 for the complete fixture list and implementation criteria. Composition behavior is tracked in #672.
+- schema: `schemas/precise-action-temporal-orientation-v0.1.schema.json`;
+- evaluator: `tools/evaluate_precise_action_temporal_orientation.py`;
+- fixture runner: `tools/run_precise_action_temporal_orientation_fixtures.py`;
+- mandatory fixtures: `fixtures/precise-action-temporal-orientation/mandatory-v0.1.json`;
+- precedence fixtures: `fixtures/precise-action-temporal-orientation/precedence-v0.1.json`;
+- composition behavior: issue `#672`.
