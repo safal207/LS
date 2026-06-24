@@ -49,13 +49,33 @@ jobs:
         run: |
           python -m json.tool fixtures/trusted-pr-review/scenarios-v0.1.json > /dev/null
           python -m json.tool schemas/trusted_pr_review_mvp_v0_2.schema.json > /dev/null
+      - name: Diagnose each modern-main scenario
+        run: |
+          set -uo pipefail
+          for scenario in \
+            allow_verified \
+            hold_pending_evidence \
+            block_broken_lineage \
+            block_expired_authorization
+          do
+            echo "===== ${scenario} ====="
+            set +e
+            python scripts/run_trusted_pr_review_v0_2.py \
+              --scenario "${scenario}" \
+              --output "artifacts/trusted-pr-review-mvp-v0.2-${scenario}" \
+              > "/tmp/${scenario}.log" 2>&1
+            status=$?
+            set -e
+            tail -n 100 "/tmp/${scenario}.log"
+            if [ "${status}" -ne 0 ]; then
+              echo "Scenario ${scenario} failed with status ${status}"
+              exit "${status}"
+            fi
+          done
       - name: Run modern-main one-command demo
         run: |
-          set +e
           python scripts/run_trusted_pr_review_v0_2.py > /tmp/trusted-pr-review-v0.2.log 2>&1
-          status=$?
-          tail -n 160 /tmp/trusted-pr-review-v0.2.log
-          exit $status
+          tail -n 80 /tmp/trusted-pr-review-v0.2.log
       - name: Validate machine-readable output
         run: |
           python -m json.tool artifacts/trusted-pr-review-mvp-v0.2/run-report.json > /dev/null
