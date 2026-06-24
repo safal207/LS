@@ -1,0 +1,39 @@
+name: Relational temporal orientation conformance
+
+on:
+  push:
+    paths:
+      - "spec/relational-temporal-orientation-center-v0.1.md"
+      - "schemas/relational-temporal-orientation-v0.1.schema.json"
+      - "tools/evaluate_relational_temporal_orientation.py"
+      - "tools/run_relational_temporal_orientation_fixtures.py"
+      - "fixtures/relational-temporal-orientation/**"
+      - ".github/workflows/relational-temporal-orientation-conformance.yml"
+  pull_request:
+    paths:
+      - "spec/relational-temporal-orientation-center-v0.1.md"
+      - "schemas/relational-temporal-orientation-v0.1.schema.json"
+      - "tools/evaluate_relational_temporal_orientation.py"
+      - "tools/run_relational_temporal_orientation_fixtures.py"
+      - "fixtures/relational-temporal-orientation/**"
+      - ".github/workflows/relational-temporal-orientation-conformance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install JSON Schema validator
+        run: python -m pip install --disable-pip-version-check jsonschema==4.23.0
+      - name: Validate and run RTOC fixtures
+        run: |
+          python tools/run_relational_temporal_orientation_fixtures.py \
+            schemas/relational-temporal-orientation-v0.1.schema.json \
+            fixtures/relational-temporal-orientation/mandatory-v0.1.json \
+            fixtures/relational-temporal-orientation/precedence-v0.1.json
