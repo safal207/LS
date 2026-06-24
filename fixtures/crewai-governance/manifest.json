@@ -1,0 +1,56 @@
+{
+  "profile": "ls-crewai-governance-conformance-v0.1",
+  "source": {
+    "repository": "crewAIInc/crewAI",
+    "pull_request": 6030,
+    "observed_contract": "GovernanceDecision",
+    "observed_decisions": [
+      "allow",
+      "deny",
+      "require_approval",
+      "revise"
+    ]
+  },
+  "required_bindings": [
+    "intent_digest",
+    "target_state_digest",
+    "continuation_id"
+  ],
+  "fixtures": [
+    "resume_same_intent.json",
+    "target_state_drift.json",
+    "superseded_approval.json",
+    "incomplete_dependency_chain.json"
+  ],
+  "mapping": {
+    "RESUME": {
+      "status": "EXACT",
+      "decision": "allow"
+    },
+    "REVALIDATE": {
+      "status": "EXACT",
+      "decision": "revise"
+    },
+    "REJECT": {
+      "status": "EXACT",
+      "decision": "deny"
+    },
+    "ABSTAIN": {
+      "status": "UNREPRESENTABLE",
+      "decision": null,
+      "recommended_decision": "defer"
+    }
+  },
+  "forbidden_mappings": [
+    {
+      "from": "ABSTAIN",
+      "to": "allow",
+      "reason": "Missing authoritative evidence must never become implicit permission."
+    },
+    {
+      "from": "ABSTAIN",
+      "to": "require_approval",
+      "reason": "Human approval is not a generic substitute for unavailable causal evidence."
+    }
+  ]
+}
