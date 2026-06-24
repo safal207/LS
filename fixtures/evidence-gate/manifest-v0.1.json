@@ -1,0 +1,23 @@
+{
+  "contract_version": "ls-evidence-gate-v0.1",
+  "related": ["#595", "#677", "PR #669", "draft PR #620"],
+  "cases": [
+    "allow_complete_verified.json",
+    "hold_missing_evidence.json",
+    "hold_verifier_pending.json",
+    "block_causal_invalid.json",
+    "block_handoff_not_eligible.json",
+    "block_candidate_digest_mismatch.json",
+    "block_policy_mismatch.json",
+    "escalate_missing_approval.json"
+  ],
+  "required_decisions": ["ALLOW", "HOLD", "BLOCK", "ESCALATE"],
+  "boundary_invariants": [
+    "only FORWARD_TO_EVIDENCE_GATE handoffs are evaluated",
+    "Recognition Gate ALLOW is not Evidence Gate ALLOW",
+    "Evidence Gate ALLOW is not execution authorization",
+    "candidate intent target-state and policy bindings are immutable",
+    "model output alone cannot satisfy evidence causal policy or approval requirements",
+    "HOLD BLOCK and ESCALATE are terminal for the current execution attempt"
+  ]
+}
