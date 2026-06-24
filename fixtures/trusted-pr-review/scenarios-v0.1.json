@@ -1,0 +1,89 @@
+{
+  "contract_version": "ls.trusted_pr_review_mvp.v0.1",
+  "diff_path": "fixtures/trusted-pr-review/sample.diff",
+  "task": {
+    "task_id": "task:trusted-pr-review:001",
+    "trail_id": "trail:trusted-pr-review:001",
+    "workspace_id": "workspace:safal207/LS",
+    "trajectory_id": "trajectory:trusted-pr-review:001",
+    "continuation_id": "continuation:trusted-pr-review:001",
+    "relationship_id": "relationship:owner-agent",
+    "actor_id": "agent:ls-review-runtime",
+    "action_ref": "artifact:write:trusted-pr-review",
+    "scope": ["artifact:write"],
+    "policy_id": "ls.policy.trusted-pr-review",
+    "policy_version": "1.0.0"
+  },
+  "roles": [
+    {
+      "role": "reviewer",
+      "contribution": "checks functional behavior and edge cases"
+    },
+    {
+      "role": "risk_critic",
+      "contribution": "checks failure modes, authority boundaries, and unsafe effects"
+    },
+    {
+      "role": "verifier",
+      "contribution": "checks evidence bindings, outcome evidence, and replay integrity"
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "allow_verified",
+      "evidence_mode": "verified",
+      "causal_status": "VALID",
+      "authorization_mode": "current",
+      "expected": {
+        "final_status": "VERIFIED",
+        "stop_reason": "EXPECTED_OUTCOME_VERIFIED",
+        "protected_effect_written": true,
+        "replay_classification": "ADMISSIBLE",
+        "replay_completion_state": "COMPLETE",
+        "resume_allowed": false
+      }
+    },
+    {
+      "scenario_id": "hold_pending_evidence",
+      "evidence_mode": "pending",
+      "causal_status": "VALID",
+      "authorization_mode": "not_attempted",
+      "expected": {
+        "final_status": "HOLD",
+        "stop_reason": "VERIFICATION_PENDING",
+        "protected_effect_written": false,
+        "replay_classification": "ADMISSIBLE",
+        "replay_completion_state": "PARTIAL",
+        "resume_allowed": true
+      }
+    },
+    {
+      "scenario_id": "block_broken_lineage",
+      "evidence_mode": "verified",
+      "causal_status": "INVALID",
+      "authorization_mode": "not_attempted",
+      "expected": {
+        "final_status": "BLOCK",
+        "stop_reason": "CAUSAL_LINEAGE_INVALID",
+        "protected_effect_written": false,
+        "replay_classification": "REJECTED",
+        "replay_completion_state": "INVALID",
+        "resume_allowed": false
+      }
+    },
+    {
+      "scenario_id": "block_expired_authorization",
+      "evidence_mode": "verified",
+      "causal_status": "VALID",
+      "authorization_mode": "expired",
+      "expected": {
+        "final_status": "BLOCK",
+        "stop_reason": "AUTHORIZATION_EXPIRED",
+        "protected_effect_written": false,
+        "replay_classification": "REJECTED",
+        "replay_completion_state": "INVALID",
+        "resume_allowed": false
+      }
+    }
+  ]
+}
