@@ -1,0 +1,45 @@
+{
+  "fixture_id": "duplicate_successful_outcome",
+  "description": "A successful action must not execute twice under the same action reference and idempotency key.",
+  "checkpoint": {
+    "intent_digest": "sha256:intent-publish-v1",
+    "target_state_digest": "sha256:publish-state-ggg777",
+    "continuation_id": "cont-008",
+    "approval_id": "approval-026"
+  },
+  "current_state": {
+    "intent_digest": "sha256:intent-publish-v1",
+    "target_state_digest": "sha256:publish-state-ggg777",
+    "continuation_id": "cont-008",
+    "active_approval_id": "approval-026",
+    "completed_action_refs": [
+      "action-ref-008"
+    ],
+    "completed_idempotency_keys": [
+      "idem-008"
+    ]
+  },
+  "proposed_action": {
+    "tool": "publish_report",
+    "intent_digest": "sha256:intent-publish-v1",
+    "target_state_digest": "sha256:publish-state-ggg777",
+    "continuation_id": "cont-008",
+    "action_ref": "action-ref-008",
+    "idempotency_key": "idem-008"
+  },
+  "required_bindings": [
+    "intent_digest",
+    "target_state_digest",
+    "continuation_id"
+  ],
+  "expected_ls_outcome": "REJECT",
+  "expected_crewai_mapping": {
+    "status": "EXACT",
+    "decision": "deny",
+    "recommended_decision": "deny",
+    "rationale": "The same successful action and idempotency key were already recorded."
+  },
+  "expected_failed_invariants": [
+    "successful_action_must_not_repeat"
+  ]
+}
