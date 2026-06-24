@@ -1,0 +1,49 @@
+{
+  "fixture_id": "incomplete_dependency_chain",
+  "description": "Missing authoritative causal evidence requires abstention rather than implicit approval.",
+  "checkpoint": {
+    "intent_digest": "sha256:intent-publish-summary-v1",
+    "target_state_digest": "sha256:summary-state-ddd444",
+    "continuation_id": "cont-004",
+    "approval_id": "approval-023"
+  },
+  "current_state": {
+    "intent_digest": "sha256:intent-publish-summary-v1",
+    "target_state_digest": "sha256:summary-state-ddd444",
+    "continuation_id": "cont-004",
+    "active_approval_id": "approval-023"
+  },
+  "proposed_action": {
+    "tool": "publish_summary",
+    "intent_digest": "sha256:intent-publish-summary-v1",
+    "target_state_digest": "sha256:summary-state-ddd444",
+    "continuation_id": "cont-004"
+  },
+  "required_bindings": [
+    "intent_digest",
+    "target_state_digest",
+    "continuation_id"
+  ],
+  "dependency_graph": {
+    "nodes": [
+      {"id": "source_record", "available": true},
+      {"id": "policy_decision", "available": true},
+      {"id": "verification_result", "available": false}
+    ],
+    "required_path": [
+      "source_record",
+      "policy_decision",
+      "verification_result"
+    ]
+  },
+  "expected_ls_outcome": "ABSTAIN",
+  "expected_crewai_mapping": {
+    "status": "UNREPRESENTABLE",
+    "decision": null,
+    "recommended_decision": "defer",
+    "rationale": "CrewAI PR #6030 has no neutral decision for unresolved evidence without implying human approval."
+  },
+  "expected_failed_invariants": [
+    "required_dependency_chain_incomplete"
+  ]
+}

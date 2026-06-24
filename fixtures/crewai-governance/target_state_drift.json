@@ -1,0 +1,37 @@
+{
+  "fixture_id": "target_state_drift",
+  "description": "A changed authoritative target state requires revalidation before resuming.",
+  "checkpoint": {
+    "intent_digest": "sha256:intent-write-report-v1",
+    "target_state_digest": "sha256:document-state-aaa111",
+    "continuation_id": "cont-002",
+    "approval_id": "approval-018"
+  },
+  "current_state": {
+    "intent_digest": "sha256:intent-write-report-v1",
+    "target_state_digest": "sha256:document-state-bbb222",
+    "continuation_id": "cont-002",
+    "active_approval_id": "approval-018"
+  },
+  "proposed_action": {
+    "tool": "write_report",
+    "intent_digest": "sha256:intent-write-report-v1",
+    "target_state_digest": "sha256:document-state-aaa111",
+    "continuation_id": "cont-002"
+  },
+  "required_bindings": [
+    "intent_digest",
+    "target_state_digest",
+    "continuation_id"
+  ],
+  "expected_ls_outcome": "REVALIDATE",
+  "expected_crewai_mapping": {
+    "status": "EXACT",
+    "decision": "revise",
+    "recommended_decision": "revise",
+    "rationale": "The target state changed after the checkpoint."
+  },
+  "expected_failed_invariants": [
+    "binding_mismatch:target_state_digest"
+  ]
+}

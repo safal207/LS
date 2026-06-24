@@ -1,0 +1,37 @@
+{
+  "fixture_id": "continuation_mismatch",
+  "description": "A prior authorization must not be reused by another continuation chain.",
+  "checkpoint": {
+    "intent_digest": "sha256:intent-review-v1",
+    "target_state_digest": "sha256:review-state-fff666",
+    "continuation_id": "cont-006",
+    "approval_id": "approval-025"
+  },
+  "current_state": {
+    "intent_digest": "sha256:intent-review-v1",
+    "target_state_digest": "sha256:review-state-fff666",
+    "continuation_id": "cont-007",
+    "active_approval_id": "approval-025"
+  },
+  "proposed_action": {
+    "tool": "submit_review",
+    "intent_digest": "sha256:intent-review-v1",
+    "target_state_digest": "sha256:review-state-fff666",
+    "continuation_id": "cont-006"
+  },
+  "required_bindings": [
+    "intent_digest",
+    "target_state_digest",
+    "continuation_id"
+  ],
+  "expected_ls_outcome": "REJECT",
+  "expected_crewai_mapping": {
+    "status": "EXACT",
+    "decision": "deny",
+    "recommended_decision": "deny",
+    "rationale": "The continuation identity differs from the authorized chain."
+  },
+  "expected_failed_invariants": [
+    "continuation_must_match"
+  ]
+}

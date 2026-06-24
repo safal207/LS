@@ -1,0 +1,41 @@
+name: CrewAI governance conformance
+
+on:
+  pull_request:
+    paths:
+      - "spec/crewai-governance-conformance-v0.1.md"
+      - "fixtures/crewai-governance/**"
+      - "tools/run_crewai_governance_fixtures.py"
+      - ".github/workflows/crewai-governance-conformance.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "spec/crewai-governance-conformance-v0.1.md"
+      - "fixtures/crewai-governance/**"
+      - "tools/run_crewai_governance_fixtures.py"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate JSON artifacts
+        run: |
+          python -m json.tool fixtures/crewai-governance/schema.json > /dev/null
+          python -m json.tool fixtures/crewai-governance/manifest.json > /dev/null
+          python -m json.tool fixtures/crewai-governance/resume_same_intent.json > /dev/null
+          python -m json.tool fixtures/crewai-governance/exact_intent_mismatch.json > /dev/null
+          python -m json.tool fixtures/crewai-governance/target_state_drift.json > /dev/null
+          python -m json.tool fixtures/crewai-governance/continuation_mismatch.json > /dev/null
+          python -m json.tool fixtures/crewai-governance/duplicate_successful_outcome.json > /dev/null
+          python -m json.tool fixtures/crewai-governance/superseded_approval.json > /dev/null
+          python -m json.tool fixtures/crewai-governance/incomplete_dependency_chain.json > /dev/null
+      - name: Run conformance fixtures
+        run: python tools/run_crewai_governance_fixtures.py

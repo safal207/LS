@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/fixtures/crewai-governance/schema.json",
+  "title": "LS CrewAI Governance Conformance Fixture",
+  "type": "object",
+  "required": [
+    "fixture_id",
+    "description",
+    "checkpoint",
+    "current_state",
+    "proposed_action",
+    "expected_ls_outcome",
+    "expected_crewai_mapping"
+  ],
+  "properties": {
+    "fixture_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_\\-]+$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "current_state": {
+      "type": "object",
+      "properties": {
+        "completed_action_refs": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "completed_idempotency_keys": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "proposed_action": {
+      "type": "object",
+      "required": ["tool", "intent_digest", "target_state_digest", "continuation_id"],
+      "properties": {
+        "tool": {"type": "string"},
+        "intent_digest": {"type": "string"},
+        "target_state_digest": {"type": "string"},
+        "continuation_id": {"type": "string"},
+        "action_ref": {"type": "string"},
+        "idempotency_key": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "required_bindings": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true,
+      "default": []
+    },
+    "dependency_graph": {
+      "type": "object",
+      "properties": {
+        "nodes": {"type": "array"},
+        "required_path": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "expected_ls_outcome": {
+      "enum": ["RESUME", "REVALIDATE", "REJECT", "ABSTAIN"]
+    },
+    "expected_crewai_mapping": {
+      "type": "object",
+      "required": ["status", "decision", "recommended_decision"],
+      "properties": {
+        "status": {"enum": ["EXACT", "LOSSY", "UNREPRESENTABLE"]},
+        "decision": {
+          "type": ["string", "null"],
+          "enum": ["allow", "deny", "require_approval", "revise", null]
+        },
+        "recommended_decision": {
+          "type": ["string", "null"]
+        },
+        "rationale": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "expected_failed_invariants": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": []
+    }
+  },
+  "additionalProperties": true
+}

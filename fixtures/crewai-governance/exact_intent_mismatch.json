@@ -1,0 +1,37 @@
+{
+  "fixture_id": "exact_intent_mismatch",
+  "description": "A prior authorization must not be reused for a different exact intent, even when tool and target state are unchanged.",
+  "checkpoint": {
+    "intent_digest": "sha256:intent-summary-v1",
+    "target_state_digest": "sha256:document-state-eee555",
+    "continuation_id": "cont-005",
+    "approval_id": "approval-024"
+  },
+  "current_state": {
+    "intent_digest": "sha256:intent-summary-v2",
+    "target_state_digest": "sha256:document-state-eee555",
+    "continuation_id": "cont-005",
+    "active_approval_id": "approval-024"
+  },
+  "proposed_action": {
+    "tool": "write_summary",
+    "intent_digest": "sha256:intent-summary-v1",
+    "target_state_digest": "sha256:document-state-eee555",
+    "continuation_id": "cont-005"
+  },
+  "required_bindings": [
+    "intent_digest",
+    "target_state_digest",
+    "continuation_id"
+  ],
+  "expected_ls_outcome": "REJECT",
+  "expected_crewai_mapping": {
+    "status": "EXACT",
+    "decision": "deny",
+    "recommended_decision": "deny",
+    "rationale": "The current intent differs from the intent that was authorized."
+  },
+  "expected_failed_invariants": [
+    "intent_must_match_authorized_intent"
+  ]
+}
