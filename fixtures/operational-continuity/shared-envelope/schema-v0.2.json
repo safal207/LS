@@ -1,0 +1,456 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/fixtures/operational-continuity/shared-envelope/schema-v0.2.json",
+  "title": "RAMR-LS Evidence Fixture v0.2",
+  "type": "object",
+  "required": [
+    "_meta",
+    "fixture_id",
+    "envelope_version",
+    "description",
+    "trajectory",
+    "authoritative_state",
+    "query_context",
+    "cases",
+    "scoring"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": [
+        "role",
+        "envelope_version",
+        "previous_envelope_version",
+        "interop_spec",
+        "collaboration",
+        "adapter_target",
+        "boundary_invariants",
+        "versioning"
+      ],
+      "properties": {
+        "envelope_version": {
+          "const": "ramr-ls-evidence-v0.2"
+        },
+        "previous_envelope_version": {
+          "const": "ramr-ls-evidence-v0.1"
+        },
+        "boundary_invariants": {
+          "type": "array",
+          "minItems": 4,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "fixture_id": {
+      "const": "resumed_constraint_defer"
+    },
+    "envelope_version": {
+      "const": "ramr-ls-evidence-v0.2"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trajectory": {
+      "type": "object",
+      "required": [
+        "trajectory_id",
+        "instance_id",
+        "arm"
+      ],
+      "properties": {
+        "trajectory_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instance_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arm": {
+          "enum": [
+            "baseline",
+            "treatment"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "authoritative_state": {
+      "type": "object",
+      "required": [
+        "learned_constraints"
+      ],
+      "properties": {
+        "_note": {
+          "type": "string"
+        },
+        "learned_constraints": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "constraint_id",
+              "statement_digest",
+              "trajectory_id",
+              "status",
+              "scope",
+              "provenance"
+            ],
+            "properties": {
+              "constraint_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "statement_digest": {
+                "type": "string",
+                "pattern": "^sha256:"
+              },
+              "trajectory_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "const": "active"
+              },
+              "scope": {
+                "type": "object",
+                "required": [
+                  "repository",
+                  "operation",
+                  "target_pattern"
+                ],
+                "properties": {
+                  "repository": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "operation": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_pattern": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              },
+              "provenance": {
+                "$ref": "#/$defs/provenance"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "query_context": {
+      "type": "object",
+      "required": [
+        "workspace_id",
+        "trajectory_id",
+        "continuation_id",
+        "resumed_from_continuation_id",
+        "execution_phase",
+        "intent_digest",
+        "target_state_digest",
+        "tool_event",
+        "as_of"
+      ],
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trajectory_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "continuation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resumed_from_continuation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "execution_phase": {
+          "const": "resumed"
+        },
+        "intent_digest": {
+          "type": "string",
+          "pattern": "^sha256:"
+        },
+        "target_state_digest": {
+          "type": "string",
+          "pattern": "^sha256:"
+        },
+        "tool_event": {
+          "type": "object",
+          "required": [
+            "hook",
+            "tool_name",
+            "event_id",
+            "sequence"
+          ],
+          "properties": {
+            "hook": {
+              "const": "PreToolUse"
+            },
+            "tool_name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "event_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "as_of": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "case",
+          "recovered_evidence",
+          "retrieval",
+          "expected"
+        ],
+        "properties": {
+          "case": {
+            "enum": [
+              "valid_constraint_strong_retrieval",
+              "valid_constraint_weak_retrieval"
+            ]
+          },
+          "recovered_evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "evidence_id",
+                "constraint_id",
+                "statement_digest",
+                "bindings",
+                "retrieved_at",
+                "provenance"
+              ],
+              "properties": {
+                "evidence_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "constraint_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "statement_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:"
+                },
+                "bindings": {
+                  "type": "object",
+                  "required": [
+                    "workspace_id",
+                    "trajectory_id",
+                    "continuation_id",
+                    "intent_digest",
+                    "target_state_digest"
+                  ],
+                  "properties": {
+                    "workspace_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "trajectory_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "continuation_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "intent_digest": {
+                      "type": "string",
+                      "pattern": "^sha256:"
+                    },
+                    "target_state_digest": {
+                      "type": "string",
+                      "pattern": "^sha256:"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "retrieved_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "provenance": {
+                  "$ref": "#/$defs/provenance"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "retrieval": {
+            "type": "object",
+            "required": [
+              "budget",
+              "rank",
+              "reliability_signal"
+            ],
+            "properties": {
+              "budget": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "rank": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reliability_signal": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "expected": {
+            "type": "object",
+            "required": [
+              "knowledge_recovered",
+              "valid_for_trajectory",
+              "valid_for_continuation",
+              "constraint_fired",
+              "enforcement_decision",
+              "execution_authorized"
+            ],
+            "properties": {
+              "knowledge_recovered": {
+                "const": true
+              },
+              "valid_for_trajectory": {
+                "const": true
+              },
+              "valid_for_continuation": {
+                "const": true
+              },
+              "constraint_fired": {
+                "const": true
+              },
+              "enforcement_decision": {
+                "const": "DEFER"
+              },
+              "execution_authorized": {
+                "const": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "scoring": {
+      "type": "object",
+      "required": [
+        "recovery_measure",
+        "validity_measure",
+        "enforcement_measure",
+        "cross_case_invariant"
+      ],
+      "properties": {
+        "recovery_measure": {
+          "type": "string",
+          "minLength": 1
+        },
+        "validity_measure": {
+          "type": "string",
+          "minLength": 1
+        },
+        "enforcement_measure": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cross_case_invariant": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "provenance": {
+      "type": "object",
+      "required": [
+        "asserted_by",
+        "confirmer",
+        "confirmation_state",
+        "evidence_type",
+        "last_decay_at",
+        "half_life_days"
+      ],
+      "properties": {
+        "asserted_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmation_state": {
+          "enum": [
+            "asserted",
+            "confirmed",
+            "disputed",
+            "invalidated"
+          ]
+        },
+        "evidence_type": {
+          "enum": [
+            "test",
+            "bug_fix",
+            "user_correction",
+            "source_code",
+            "session"
+          ]
+        },
+        "last_decay_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "half_life_days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

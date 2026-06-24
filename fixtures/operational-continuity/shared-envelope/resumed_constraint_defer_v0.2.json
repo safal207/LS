@@ -1,0 +1,151 @@
+{
+  "_meta": {
+    "role": "CANONICAL RAMR<->LS recovered-evidence conformance fixture for resumable headless execution.",
+    "envelope_version": "ramr-ls-evidence-v0.2",
+    "previous_envelope_version": "ramr-ls-evidence-v0.1",
+    "interop_spec": "https://github.com/safal207/LS/blob/main/spec/ramr-operational-continuity-interop-v0.1.md",
+    "collaboration": "anthropics/claude-code#47023",
+    "adapter_target": "world-model-mcp v0.9 provenance + PreToolUse defer semantics",
+    "boundary_invariants": [
+      "trajectory_id identifies the logical (instance_id, arm) run; continuation_id identifies one paused-or-resumed execution inside that trajectory.",
+      "Recovered knowledge validity is evaluated independently from retrieval reliability.",
+      "A valid learned constraint that fires at PreToolUse MUST DEFER execution regardless of retrieval confidence.",
+      "A retrieval result is never execution permission."
+    ],
+    "versioning": "v0.1 remains frozen. v0.2 adds trajectory/continuation separation, provenance decay fields, and an explicit enforcement decision."
+  },
+  "fixture_id": "resumed_constraint_defer",
+  "envelope_version": "ramr-ls-evidence-v0.2",
+  "description": "A SWE-bench treatment trajectory is paused and resumed under a new continuation. A previously learned, confirmed constraint is recovered before a tool call. The same valid constraint must produce DEFER under both strong and weak retrieval reliability.",
+  "trajectory": {
+    "trajectory_id": "swebench:sphinx-9461:treatment",
+    "instance_id": "sphinx-9461",
+    "arm": "treatment"
+  },
+  "authoritative_state": {
+    "_note": "The learned-constraint registry is the validity source. Retrieval confidence affects reliability scoring, not execution authority.",
+    "learned_constraints": [
+      {
+        "constraint_id": "constraint-classmethod-wrapper-001",
+        "statement_digest": "sha256:CLASSMETHOD_WRAPPER_CONSTRAINT",
+        "trajectory_id": "swebench:sphinx-9461:treatment",
+        "status": "active",
+        "scope": {
+          "repository": "sphinx-doc/sphinx",
+          "operation": "Edit",
+          "target_pattern": "classmethod-wrapper"
+        },
+        "provenance": {
+          "asserted_by": "world-model-mcp:constraint-extractor",
+          "confirmer": "swebench:test-patch",
+          "confirmation_state": "confirmed",
+          "evidence_type": "bug_fix",
+          "last_decay_at": "2026-06-24T08:00:00Z",
+          "half_life_days": 365
+        }
+      }
+    ]
+  },
+  "query_context": {
+    "workspace_id": "ws-sphinx-9461",
+    "trajectory_id": "swebench:sphinx-9461:treatment",
+    "continuation_id": "cont-sphinx-9461-treatment-002",
+    "resumed_from_continuation_id": "cont-sphinx-9461-treatment-001",
+    "execution_phase": "resumed",
+    "intent_digest": "sha256:FIX_SPHINX_9461",
+    "target_state_digest": "sha256:SPHINX_REPO_STATE_A",
+    "tool_event": {
+      "hook": "PreToolUse",
+      "tool_name": "Edit",
+      "event_id": "evt-pretooluse-002",
+      "sequence": 42
+    },
+    "as_of": "2026-06-24T09:00:00Z"
+  },
+  "cases": [
+    {
+      "case": "valid_constraint_strong_retrieval",
+      "recovered_evidence": [
+        {
+          "evidence_id": "ev-constraint-001-strong",
+          "constraint_id": "constraint-classmethod-wrapper-001",
+          "statement_digest": "sha256:CLASSMETHOD_WRAPPER_CONSTRAINT",
+          "bindings": {
+            "workspace_id": "ws-sphinx-9461",
+            "trajectory_id": "swebench:sphinx-9461:treatment",
+            "continuation_id": "cont-sphinx-9461-treatment-002",
+            "intent_digest": "sha256:FIX_SPHINX_9461",
+            "target_state_digest": "sha256:SPHINX_REPO_STATE_A"
+          },
+          "retrieved_at": "2026-06-24T09:00:01Z",
+          "provenance": {
+            "asserted_by": "world-model-mcp:constraint-extractor",
+            "confirmer": "swebench:test-patch",
+            "confirmation_state": "confirmed",
+            "evidence_type": "bug_fix",
+            "last_decay_at": "2026-06-24T08:00:00Z",
+            "half_life_days": 365
+          }
+        }
+      ],
+      "retrieval": {
+        "budget": 8,
+        "rank": 1,
+        "reliability_signal": 0.96
+      },
+      "expected": {
+        "knowledge_recovered": true,
+        "valid_for_trajectory": true,
+        "valid_for_continuation": true,
+        "constraint_fired": true,
+        "enforcement_decision": "DEFER",
+        "execution_authorized": false
+      }
+    },
+    {
+      "case": "valid_constraint_weak_retrieval",
+      "recovered_evidence": [
+        {
+          "evidence_id": "ev-constraint-001-weak",
+          "constraint_id": "constraint-classmethod-wrapper-001",
+          "statement_digest": "sha256:CLASSMETHOD_WRAPPER_CONSTRAINT",
+          "bindings": {
+            "workspace_id": "ws-sphinx-9461",
+            "trajectory_id": "swebench:sphinx-9461:treatment",
+            "continuation_id": "cont-sphinx-9461-treatment-002",
+            "intent_digest": "sha256:FIX_SPHINX_9461",
+            "target_state_digest": "sha256:SPHINX_REPO_STATE_A"
+          },
+          "retrieved_at": "2026-06-24T09:00:02Z",
+          "provenance": {
+            "asserted_by": "world-model-mcp:constraint-extractor",
+            "confirmer": "swebench:test-patch",
+            "confirmation_state": "confirmed",
+            "evidence_type": "bug_fix",
+            "last_decay_at": "2026-06-24T08:00:00Z",
+            "half_life_days": 365
+          }
+        }
+      ],
+      "retrieval": {
+        "budget": 8,
+        "rank": 8,
+        "reliability_signal": 0.18
+      },
+      "expected": {
+        "knowledge_recovered": true,
+        "valid_for_trajectory": true,
+        "valid_for_continuation": true,
+        "constraint_fired": true,
+        "enforcement_decision": "DEFER",
+        "execution_authorized": false
+      }
+    }
+  ],
+  "scoring": {
+    "recovery_measure": "knowledge_recovered is true when the matching constraint appears in recovered_evidence.",
+    "validity_measure": "valid_for_trajectory and valid_for_continuation are true only when trajectory, continuation, intent, target-state, statement digest, and active provenance bindings match authoritative_state and query_context.",
+    "enforcement_measure": "PASS iff a valid fired constraint produces DEFER and execution_authorized=false.",
+    "cross_case_invariant": "enforcement_decision remains DEFER when reliability_signal changes from 0.96 to 0.18."
+  }
+}
