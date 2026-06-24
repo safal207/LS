@@ -1,0 +1,35 @@
+name: Outcome verification conformance
+
+on:
+  push:
+    paths:
+      - "spec/outcome-verification-center-v0.1.md"
+      - "schemas/outcome-verification-v0.1.schema.json"
+      - "tools/evaluate_outcome_verification.py"
+      - "tools/run_outcome_verification_fixtures.py"
+      - "fixtures/outcome-verification/**"
+      - ".github/workflows/outcome-verification-conformance.yml"
+  pull_request:
+    paths:
+      - "spec/outcome-verification-center-v0.1.md"
+      - "schemas/outcome-verification-v0.1.schema.json"
+      - "tools/evaluate_outcome_verification.py"
+      - "tools/run_outcome_verification_fixtures.py"
+      - "fixtures/outcome-verification/**"
+      - ".github/workflows/outcome-verification-conformance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install validator
+        run: python -m pip install jsonschema==4.23.0
+      - name: Run outcome verification conformance
+        run: python tools/run_outcome_verification_fixtures.py schemas/outcome-verification-v0.1.schema.json fixtures/outcome-verification/mandatory-v0.1.json fixtures/outcome-verification/precedence-v0.1.json

@@ -1,0 +1,317 @@
+{
+  "suite_id": "outcome-verification-v0.1-mandatory",
+  "base_case": {
+    "verification": {
+      "verification_version": "outcome-verification-v0.1",
+      "execution_identity": {
+        "execution_id": "exec-1001",
+        "action_id": "update-file-1",
+        "action_digest": "sha256:update-file-v1",
+        "actor_id": "agent-codex",
+        "target_id": "spec/example.md",
+        "side_effect_key": "github:update-file:example:v1"
+      },
+      "expected_outcome": {
+        "pre_state_digest": "sha256:state-before",
+        "expected_state_digest": "sha256:state-after",
+        "consistency_window_until": "2026-06-24T20:15:00Z",
+        "verification_deadline_at": "2026-06-24T20:30:00Z"
+      },
+      "evidence_contract": {
+        "required_evidence_kinds": [
+          "state_digest",
+          "external_receipt"
+        ],
+        "min_independent_observers": 2,
+        "required_observer_scope_digest": "sha256:scope-repo-file",
+        "allow_receipt_only": false
+      },
+      "execution_receipt": {
+        "receipt_id": "receipt-1001",
+        "receipt_digest": "sha256:receipt-1001",
+        "execution_id": "exec-1001",
+        "action_id": "update-file-1",
+        "action_digest": "sha256:update-file-v1",
+        "side_effect_key": "github:update-file:example:v1",
+        "status": "completed",
+        "issued_at": "2026-06-24T20:00:00Z",
+        "issuer_id": "github-runtime"
+      },
+      "observations": [
+        {
+          "observation_id": "obs-state-store",
+          "observer_id": "state-store-1",
+          "observer_type": "state_store",
+          "independent": true,
+          "authority_scope_digest": "sha256:scope-repo-file",
+          "observed_at": "2026-06-24T20:05:00Z",
+          "state_digest": "sha256:state-after",
+          "evidence_kind": "state_digest",
+          "evidence_digest": "sha256:evidence-state-1",
+          "outcome_status": "complete"
+        },
+        {
+          "observation_id": "obs-external",
+          "observer_id": "github-api",
+          "observer_type": "external_system",
+          "independent": true,
+          "authority_scope_digest": "sha256:scope-repo-file",
+          "observed_at": "2026-06-24T20:06:00Z",
+          "state_digest": "sha256:state-after",
+          "evidence_kind": "external_receipt",
+          "evidence_digest": "sha256:evidence-external-1",
+          "outcome_status": "complete"
+        }
+      ],
+      "provenance": {
+        "causal_trace_id": "trace-1001",
+        "source_event_ids": [
+          "event-exec-1001",
+          "event-observe-1001"
+        ]
+      }
+    },
+    "authoritative_state": {
+      "expected_execution_id": "exec-1001",
+      "expected_action_id": "update-file-1",
+      "expected_action_digest": "sha256:update-file-v1",
+      "expected_side_effect_key": "github:update-file:example:v1",
+      "expected_state_digest": "sha256:state-after",
+      "trusted_receipt_issuers": [
+        "github-runtime"
+      ],
+      "seen_receipt_ids": [],
+      "seen_evidence_digests": [],
+      "required_observer_scope_digest": "sha256:scope-repo-file",
+      "required_evidence_kinds": [
+        "state_digest",
+        "external_receipt"
+      ],
+      "min_independent_observers": 2,
+      "current_time": "2026-06-24T20:10:00Z"
+    }
+  },
+  "cases": [
+    {
+      "fixture_id": "expected_outcome_verified",
+      "overrides": {},
+      "expected": {
+        "verdict": "VERIFIED",
+        "reason_code": "EXPECTED_OUTCOME_VERIFIED"
+      }
+    },
+    {
+      "fixture_id": "unexpected_outcome_verified",
+      "overrides": {
+        "verification.observations.0.state_digest": "sha256:state-unexpected",
+        "verification.observations.1.state_digest": "sha256:state-unexpected"
+      },
+      "expected": {
+        "verdict": "VERIFIED",
+        "reason_code": "UNEXPECTED_OUTCOME_VERIFIED"
+      }
+    },
+    {
+      "fixture_id": "failure_outcome_verified",
+      "overrides": {
+        "verification.execution_receipt.status": "failed",
+        "verification.observations.0.state_digest": "sha256:state-before",
+        "verification.observations.1.state_digest": "sha256:state-before"
+      },
+      "expected": {
+        "verdict": "VERIFIED",
+        "reason_code": "FAILURE_OUTCOME_VERIFIED"
+      }
+    },
+    {
+      "fixture_id": "receipt_only_within_window_reobserve",
+      "overrides": {
+        "verification.observations": []
+      },
+      "expected": {
+        "verdict": "REOBSERVE",
+        "reason_code": "REQUIRED_EVIDENCE_NOT_YET_AVAILABLE"
+      }
+    },
+    {
+      "fixture_id": "required_evidence_kind_pending_reobserve",
+      "overrides": {
+        "verification.observations": [
+          {
+            "observation_id": "obs-state-store",
+            "observer_id": "state-store-1",
+            "observer_type": "state_store",
+            "independent": true,
+            "authority_scope_digest": "sha256:scope-repo-file",
+            "observed_at": "2026-06-24T20:05:00Z",
+            "state_digest": "sha256:state-after",
+            "evidence_kind": "state_digest",
+            "evidence_digest": "sha256:evidence-state-1",
+            "outcome_status": "complete"
+          }
+        ]
+      },
+      "expected": {
+        "verdict": "REOBSERVE",
+        "reason_code": "REQUIRED_EVIDENCE_NOT_YET_AVAILABLE"
+      }
+    },
+    {
+      "fixture_id": "insufficient_evidence_after_deadline_abstain",
+      "overrides": {
+        "verification.observations": [],
+        "authoritative_state.current_time": "2026-06-24T20:40:00Z"
+      },
+      "expected": {
+        "verdict": "ABSTAIN",
+        "reason_code": "INSUFFICIENT_EVIDENCE_AFTER_DEADLINE"
+      }
+    },
+    {
+      "fixture_id": "partial_outcome_investigate",
+      "overrides": {
+        "verification.observations.1.outcome_status": "partial",
+        "verification.observations.1.state_digest": null
+      },
+      "expected": {
+        "verdict": "INVESTIGATE",
+        "reason_code": "PARTIAL_OUTCOME"
+      }
+    },
+    {
+      "fixture_id": "contradictory_evidence_investigate",
+      "overrides": {
+        "verification.observations.1.state_digest": "sha256:state-other"
+      },
+      "expected": {
+        "verdict": "INVESTIGATE",
+        "reason_code": "CONTRADICTORY_EVIDENCE"
+      }
+    },
+    {
+      "fixture_id": "expected_contract_drift_investigate",
+      "overrides": {
+        "authoritative_state.expected_state_digest": "sha256:state-after-v2"
+      },
+      "expected": {
+        "verdict": "INVESTIGATE",
+        "reason_code": "EXPECTED_OUTCOME_CONTRACT_DRIFT"
+      }
+    },
+    {
+      "fixture_id": "receipt_observation_conflict_investigate",
+      "overrides": {
+        "verification.execution_receipt.status": "failed"
+      },
+      "expected": {
+        "verdict": "INVESTIGATE",
+        "reason_code": "RECEIPT_OBSERVATION_CONFLICT"
+      }
+    },
+    {
+      "fixture_id": "execution_identity_mismatch_reject",
+      "overrides": {
+        "verification.execution_identity.action_digest": "sha256:other-action"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "EXECUTION_IDENTITY_MISMATCH"
+      }
+    },
+    {
+      "fixture_id": "receipt_identity_mismatch_reject",
+      "overrides": {
+        "verification.execution_receipt.action_digest": "sha256:other-action"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "RECEIPT_IDENTITY_MISMATCH"
+      }
+    },
+    {
+      "fixture_id": "untrusted_receipt_issuer_reject",
+      "overrides": {
+        "verification.execution_receipt.issuer_id": "unknown-runtime"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "UNTRUSTED_RECEIPT_ISSUER"
+      }
+    },
+    {
+      "fixture_id": "receipt_replay_reject",
+      "overrides": {
+        "authoritative_state.seen_receipt_ids": [
+          "receipt-1001"
+        ]
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "RECEIPT_REPLAY"
+      }
+    },
+    {
+      "fixture_id": "evidence_replay_reject",
+      "overrides": {
+        "authoritative_state.seen_evidence_digests": [
+          "sha256:evidence-state-1"
+        ]
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "EVIDENCE_REPLAY"
+      }
+    },
+    {
+      "fixture_id": "invalid_evidence_time_reject",
+      "overrides": {
+        "verification.observations.0.observed_at": "2026-06-24T19:59:00Z"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "INVALID_EVIDENCE_TIME"
+      }
+    },
+    {
+      "fixture_id": "observer_scope_mismatch_reject",
+      "overrides": {
+        "verification.observations.0.authority_scope_digest": "sha256:wrong-scope"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "OBSERVER_SCOPE_MISMATCH"
+      }
+    },
+    {
+      "fixture_id": "absent_state_within_window_reobserve",
+      "overrides": {
+        "verification.observations.0.outcome_status": "absent",
+        "verification.observations.0.state_digest": null,
+        "verification.observations.1.outcome_status": "absent",
+        "verification.observations.1.state_digest": null
+      },
+      "expected": {
+        "verdict": "REOBSERVE",
+        "reason_code": "CONSISTENCY_WINDOW_OPEN"
+      }
+    },
+    {
+      "fixture_id": "ambiguous_complete_state_abstain",
+      "overrides": {
+        "verification.observations.0.state_digest": null
+      },
+      "expected": {
+        "verdict": "ABSTAIN",
+        "reason_code": "AMBIGUOUS_OBSERVED_STATE"
+      }
+    },
+    {
+      "fixture_id": "verified_result_never_retroactively_authorizes",
+      "overrides": {},
+      "expected": {
+        "verdict": "VERIFIED",
+        "reason_code": "EXPECTED_OUTCOME_VERIFIED"
+      }
+    }
+  ]
+}
