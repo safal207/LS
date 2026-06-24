@@ -1,0 +1,184 @@
+name: Governed Identity Approval and Rollback
+
+on:
+  push:
+    branches:
+      - "feat/identity-approval-application"
+  pull_request:
+    paths:
+      - "python/modules/trusted_runtime/identity_governance.py"
+      - "python/tests/test_identity_*.py"
+      - "schemas/trusted_runtime/identity_*.schema.json"
+      - "scripts/run_identity_governance.py"
+      - ".github/workflows/identity_governance.yml"
+
+concurrency:
+  group: identity-governance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema pytest ruff
+
+      - name: Ruff governance changes
+        run: |
+          ruff check \
+            python/modules/trusted_runtime/identity_governance.py \
+            python/tests/test_identity_approval_boundaries.py \
+            python/tests/test_identity_commit_activation.py \
+            python/tests/test_identity_application_rollback.py \
+            python/tests/test_identity_replay_safety.py \
+            scripts/run_identity_governance.py
+
+      - name: Run governance tests
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python -m pytest \
+              python/tests/test_identity_approval_boundaries.py \
+              python/tests/test_identity_commit_activation.py \
+              python/tests/test_identity_application_rollback.py \
+              python/tests/test_identity_replay_safety.py
+
+      - name: Generate one verified episode
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/run_trusted_pr_review.py \
+              --scenario allow \
+              --output build/governance-review
+
+      - name: Prepare three independent episodes
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          from pathlib import Path
+
+          source = json.loads(
+              Path("build/governance-review/allow/verified-episode.json").read_text()
+          )
+          root = Path("build/governance-episodes")
+          root.mkdir(parents=True, exist_ok=True)
+          for index in range(1, 4):
+              item = copy.deepcopy(source)
+              item["episode_id"] = f"episode:governance:{index}"
+              item["task_id"] = f"task:governance:{index}"
+              item["trail_id"] = f"trail:governance:{index}"
+              item["orientation_ref"] = f"orientation:governance:{index}"
+              item["transition_id"] = f"transition:governance:{index}"
+              item["replay_ref"] = f"replay:governance:{index}"
+              item["source_refs"] = [
+                  item["orientation_ref"], item["transition_id"], item["replay_ref"]
+              ]
+              (root / f"episode-{index}.json").write_text(
+                  json.dumps(item, sort_keys=True, indent=2) + "\n"
+              )
+          PY
+
+      - name: Aggregate a pending proposal
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/aggregate_verified_episodes.py \
+              --episode build/governance-episodes/episode-1.json \
+              --episode build/governance-episodes/episode-2.json \
+              --episode build/governance-episodes/episode-3.json \
+              --scope trusted-pr-review-mvp \
+              --repeat-key trusted-pr-review:allow:one-authorized-effect \
+              --statement "For this bounded PR-review transition, linked changed-test evidence and valid authorization supported exactly one protected review-result effect." \
+              --output build/governance-proposal
+
+      - name: Approve apply and rollback
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/run_identity_governance.py \
+              --proposal build/governance-proposal/identity-update-proposal.json \
+              --output build/identity-governance
+
+      - name: Validate contracts and version chain
+        run: |
+          PYTHONPATH=.:python:python/modules python - <<'PY'
+          import json
+          from pathlib import Path
+          from jsonschema import Draft202012Validator
+          from modules.trusted_runtime.identity_governance import IdentityProfile
+
+          root = Path("build/identity-governance")
+          schemas = Path("schemas/trusted_runtime")
+          pairs = {
+              "identity-update-approval.json": "identity_update_approval.schema.json",
+              "identity-profile-patch.json": "identity_profile_patch.schema.json",
+              "identity-patch-commit.json": "identity_patch_commit.schema.json",
+              "identity-application.json": "identity_application.schema.json",
+              "identity-rollback.json": "identity_rollback.schema.json",
+              "identity-profile-v1.json": "identity_profile.schema.json",
+              "identity-profile-v2.json": "identity_profile.schema.json",
+              "identity-profile-v3-rollback.json": "identity_profile.schema.json",
+          }
+          data = {}
+          for filename, schema_name in pairs.items():
+              payload = json.loads((root / filename).read_text())
+              schema = json.loads((schemas / schema_name).read_text())
+              assert not list(Draft202012Validator(schema).iter_errors(payload))
+              data[filename] = payload
+
+          def profile(payload):
+              return IdentityProfile(
+                  profile_id=payload["profile_id"], agent_id=payload["agent_id"],
+                  version=payload["version"], traits=payload["traits"],
+                  created_at=payload["created_at"],
+                  previous_profile_ref=payload["previous_profile_ref"],
+                  source_application_ref=payload["source_application_ref"],
+                  active=payload["active"], metadata=payload["metadata"],
+                  schema_version=payload["schema_version"],
+              )
+
+          v1 = profile(data["identity-profile-v1.json"])
+          v2 = profile(data["identity-profile-v2.json"])
+          v3 = profile(data["identity-profile-v3-rollback.json"])
+          approval = data["identity-update-approval.json"]
+          application = data["identity-application.json"]
+          rollback = data["identity-rollback.json"]
+          summary = json.loads((root / "summary.json").read_text())
+
+          assert approval["decision"] == "APPROVE"
+          assert approval["proposer_actor"] != approval["approver_actor"]
+          assert v2.previous_profile_ref == v1.profile_ref
+          assert v3.previous_profile_ref == v2.profile_ref
+          assert v3.traits == v1.traits
+          assert application["previous_profile_ref"] == v1.profile_ref
+          assert application["new_profile_ref"] == v2.profile_ref
+          assert rollback["rollback_profile_ref"] == v3.profile_ref
+          assert summary["patch_committed_before_activation"] is True
+          assert summary["history_deleted"] is False
+          assert summary["self_approval"] is False
+          assert summary["replay_reapplies_patch"] is False
+          PY
+
+      - name: Upload governance evidence
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: identity-governance-evidence
+          path: |
+            build/governance-review
+            build/governance-episodes
+            build/governance-proposal
+            build/identity-governance
+          if-no-files-found: error
