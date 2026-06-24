@@ -1,0 +1,39 @@
+{
+  "profile": "ls-ramr-operational-continuity-interop-v0.1",
+  "ramr": {
+    "repository": "DanceNitra/ramr",
+    "metric": "OPERATIONAL-CONTINUITY",
+    "script": "ramr_operational_continuity.py",
+    "measurement": "duplicate_side_effect_rate_under_budgeted_resume_recall",
+    "result_file": "operational_continuity_result.json"
+  },
+  "mappings": [
+    {
+      "ramr_condition": "current_completion_missed_and_replay_proposed",
+      "ls_fixture": "resume_no_duplicate_side_effect",
+      "expected_outcome_with_authoritative_completion": "REJECT",
+      "fallback_without_authoritative_completion": "ABSTAIN"
+    },
+    {
+      "ramr_condition": "stale_authorization_recalled",
+      "ls_fixture": "superseded_approval_rejected",
+      "expected_outcome": "REJECT"
+    },
+    {
+      "ramr_condition": "required_dependency_hop_missing",
+      "ls_fixture": "complete_chain_preferred_over_disconnected_facts",
+      "expected_outcome": "ABSTAIN"
+    },
+    {
+      "ramr_condition": "checkpoint_recalled_after_workspace_drift",
+      "ls_fixture": "workspace_drift_requires_revalidation",
+      "expected_outcome": "REVALIDATE"
+    }
+  ],
+  "normative_rules": [
+    "recency_improves_priority_but_does_not_grant_authority",
+    "aggregate_duplicate_rate_is_not_a_conformance_verdict",
+    "recalled_completion_must_be_bound_to_current_intent_and_state",
+    "missing_authoritative_evidence_requires_abstention"
+  ]
+}
