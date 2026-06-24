@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/relational-temporal-orientation-v0.1.schema.json",
+  "title": "LS Relational Temporal Orientation State v0.1",
+  "type": "object",
+  "required": [
+    "relationship_version",
+    "relationship",
+    "temporal_frame",
+    "shared_orientation",
+    "authority_edges",
+    "commitments",
+    "boundaries",
+    "trust",
+    "handoff",
+    "completed_history",
+    "next_relational_transition"
+  ],
+  "properties": {
+    "relationship_version": {"const": "relational-temporal-orientation-v0.1"},
+    "relationship": {
+      "type": "object",
+      "required": ["relationship_id", "relationship_type", "relationship_epoch", "participants"],
+      "properties": {
+        "relationship_id": {"type": "string", "minLength": 1},
+        "relationship_type": {"enum": ["user_agent", "agent_agent", "team", "organization"]},
+        "relationship_epoch": {"type": "string", "minLength": 1},
+        "participants": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["actor_id", "role", "participation_state"],
+            "properties": {
+              "actor_id": {"type": "string", "minLength": 1},
+              "role": {"type": "string", "minLength": 1},
+              "participation_state": {"enum": ["active", "suspended", "exited"]}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "temporal_frame": {
+      "type": "object",
+      "required": ["as_of", "established_at", "last_mutual_confirmation_at", "invalidated_at"],
+      "properties": {
+        "as_of": {"type": "string", "format": "date-time"},
+        "established_at": {"type": "string", "format": "date-time"},
+        "last_mutual_confirmation_at": {"type": ["string", "null"], "format": "date-time"},
+        "invalidated_at": {"type": ["string", "null"], "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "shared_orientation": {
+      "type": "object",
+      "required": ["shared_intent_digest", "shared_target_state_digest", "shared_context_digest"],
+      "properties": {
+        "shared_intent_digest": {"type": "string", "minLength": 1},
+        "shared_target_state_digest": {"type": "string", "minLength": 1},
+        "shared_context_digest": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "authority_edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["grant_id", "grantor", "grantee", "capability", "scope_digest", "state", "valid_from", "invalidated_at"],
+        "properties": {
+          "grant_id": {"type": "string", "minLength": 1},
+          "grantor": {"type": "string", "minLength": 1},
+          "grantee": {"type": "string", "minLength": 1},
+          "capability": {"type": "string", "minLength": 1},
+          "scope_digest": {"type": "string", "minLength": 1},
+          "state": {"enum": ["active", "revoked", "expired", "superseded"]},
+          "valid_from": {"type": "string", "format": "date-time"},
+          "invalidated_at": {"type": ["string", "null"], "format": "date-time"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "commitments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["commitment_id", "debtor", "creditor", "obligation_digest", "state"],
+        "properties": {
+          "commitment_id": {"type": "string", "minLength": 1},
+          "debtor": {"type": "string", "minLength": 1},
+          "creditor": {"type": "string", "minLength": 1},
+          "obligation_digest": {"type": "string", "minLength": 1},
+          "state": {"enum": ["open", "fulfilled", "superseded", "cancelled", "disputed"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "boundaries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["boundary_id", "owner", "rule_digest", "state"],
+        "properties": {
+          "boundary_id": {"type": "string", "minLength": 1},
+          "owner": {"type": "string", "minLength": 1},
+          "rule_digest": {"type": "string", "minLength": 1},
+          "state": {"enum": ["active", "superseded", "revoked"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "trust": {
+      "type": "object",
+      "required": ["state", "evidence_refs"],
+      "properties": {
+        "state": {"enum": ["confirmed", "conditional", "disputed", "revoked"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "additionalProperties": false
+    },
+    "handoff": {
+      "type": "object",
+      "required": ["handoff_id", "from_actor", "to_actor", "state"],
+      "properties": {
+        "handoff_id": {"type": ["string", "null"]},
+        "from_actor": {"type": ["string", "null"]},
+        "to_actor": {"type": ["string", "null"]},
+        "state": {"enum": ["absent", "proposed", "accepted", "rejected", "incomplete"]}
+      },
+      "additionalProperties": false
+    },
+    "completed_history": {
+      "type": "object",
+      "required": ["completed_relational_effect_keys", "superseded_grants", "resolved_commitments"],
+      "properties": {
+        "completed_relational_effect_keys": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "superseded_grants": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "resolved_commitments": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "additionalProperties": false
+    },
+    "next_relational_transition": {
+      "type": "object",
+      "required": ["allowed_actor_id", "allowed_action_digest"],
+      "properties": {
+        "allowed_actor_id": {"type": ["string", "null"]},
+        "allowed_action_digest": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
