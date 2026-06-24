@@ -17,26 +17,10 @@ CREWAI_DECISIONS = {"allow", "deny", "require_approval", "revise"}
 REQUIRED_ACTION_FIELDS = {"tool", "intent_digest", "target_state_digest", "continuation_id"}
 
 OUTCOME_MAPPING: dict[str, dict[str, Any]] = {
-    "RESUME": {
-        "status": "EXACT",
-        "decision": "allow",
-        "recommended_decision": "allow",
-    },
-    "REVALIDATE": {
-        "status": "EXACT",
-        "decision": "revise",
-        "recommended_decision": "revise",
-    },
-    "REJECT": {
-        "status": "EXACT",
-        "decision": "deny",
-        "recommended_decision": "deny",
-    },
-    "ABSTAIN": {
-        "status": "UNREPRESENTABLE",
-        "decision": None,
-        "recommended_decision": "defer",
-    },
+    "RESUME": {"status": "EXACT", "decision": "allow", "recommended_decision": "allow"},
+    "REVALIDATE": {"status": "EXACT", "decision": "revise", "recommended_decision": "revise"},
+    "REJECT": {"status": "EXACT", "decision": "deny", "recommended_decision": "deny"},
+    "ABSTAIN": {"status": "UNREPRESENTABLE", "decision": None, "recommended_decision": "defer"},
 }
 
 
@@ -83,16 +67,6 @@ def _validate_fixture(fixture: dict[str, Any]) -> None:
         )
 
 
-def _binding_mismatches(fixture: dict[str, Any]) -> list[str]:
-    checkpoint = fixture["checkpoint"]
-    current = fixture["current_state"]
-    return [
-        binding
-        for binding in fixture.get("required_bindings", [])
-        if checkpoint.get(binding) != current.get(binding)
-    ]
-
-
 def _dependency_chain_complete(fixture: dict[str, Any]) -> bool:
     graph = fixture.get("dependency_graph")
     if not graph:
@@ -105,6 +79,19 @@ def _dependency_chain_complete(fixture: dict[str, Any]) -> bool:
     return all(node_id in available for node_id in graph.get("required_path", []))
 
 
+def _duplicate_success(fixture: dict[str, Any]) -> bool:
+    action = fixture["proposed_action"]
+    current = fixture["current_state"]
+    action_ref = action.get("action_ref")
+    idempotency_key = action.get("idempotency_key")
+    return bool(
+        action_ref
+        and idempotency_key
+        and action_ref in set(current.get("completed_action_refs", []))
+        and idempotency_key in set(current.get("completed_idempotency_keys", []))
+    )
+
+
 def evaluate(fixture: dict[str, Any]) -> dict[str, Any]:
     _validate_fixture(fixture)
     checkpoint = fixture["checkpoint"]
@@ -114,19 +101,26 @@ def evaluate(fixture: dict[str, Any]) -> dict[str, Any]:
     approval_id = checkpoint.get("approval_id")
     active_approval_id = current.get("active_approval_id")
 
-    if approval_id is not None and active_approval_id is not None and approval_id != active_approval_id:
+    if _duplicate_success(fixture):
+        failed.append("successful_action_must_not_repeat")
+        outcome = "REJECT"
+    elif approval_id is not None and active_approval_id is not None and approval_id != active_approval_id:
         failed.append("approval_must_be_current")
+        outcome = "REJECT"
+    elif checkpoint.get("intent_digest") != current.get("intent_digest"):
+        failed.append("intent_must_match_authorized_intent")
+        outcome = "REJECT"
+    elif checkpoint.get("continuation_id") != current.get("continuation_id"):
+        failed.append("continuation_must_match")
         outcome = "REJECT"
     elif not _dependency_chain_complete(fixture):
         failed.append("required_dependency_chain_incomplete")
         outcome = "ABSTAIN"
+    elif checkpoint.get("target_state_digest") != current.get("target_state_digest"):
+        failed.append("binding_mismatch:target_state_digest")
+        outcome = "REVALIDATE"
     else:
-        mismatches = _binding_mismatches(fixture)
-        if mismatches:
-            failed.extend(f"binding_mismatch:{name}" for name in mismatches)
-            outcome = "REVALIDATE"
-        else:
-            outcome = "RESUME"
+        outcome = "RESUME"
 
     mapping = OUTCOME_MAPPING[outcome]
     expected_mapping = fixture["expected_crewai_mapping"]
