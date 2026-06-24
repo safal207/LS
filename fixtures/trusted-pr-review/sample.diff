@@ -1,0 +1,14 @@
+diff --git a/src/review_target.py b/src/review_target.py
+index 9d4c30a..f3b9f7e 100644
+--- a/src/review_target.py
++++ b/src/review_target.py
+@@ -1,5 +1,8 @@
+ def normalize_title(value: str) -> str:
+-    return value.strip()
++    normalized = value.strip()
++    if not normalized:
++        raise ValueError("title must not be empty")
++    return normalized
+ 
+ 
+ def display_title(value: str) -> str:

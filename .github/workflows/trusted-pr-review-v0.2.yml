@@ -1,0 +1,156 @@
+name: Trusted PR Review MVP v0.2
+
+on:
+  pull_request:
+    paths:
+      - "scripts/run_trusted_pr_review_v0_2.py"
+      - "scripts/run_trusted_pr_review_v0_2_impl.py"
+      - "scripts/run_trusted_pr_review.py"
+      - "fixtures/trusted-pr-review/**"
+      - "schemas/trusted_pr_review_mvp_v0_2.schema.json"
+      - "docs/trusted-runtime/PR_REVIEW_MVP_V0_2.md"
+      - "tools/evaluate_orientation_triad.py"
+      - "tools/validate_recognition_gate_v0_1.py"
+      - "tools/validate_recognition_evidence_handoff_v0_1.py"
+      - "tools/validate_evidence_gate_v0_1.py"
+      - "tools/validate_authorization_bundle_v0_1.py"
+      - "tools/validate_commit_before_effect_v0_1.py"
+      - "tools/evaluate_outcome_verification.py"
+      - "tools/validate_replay_persistence_v0_1.py"
+      - ".github/workflows/trusted-pr-review-v0.2.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/run_trusted_pr_review_v0_2.py"
+      - "scripts/run_trusted_pr_review_v0_2_impl.py"
+      - "fixtures/trusted-pr-review/**"
+      - "schemas/trusted_pr_review_mvp_v0_2.schema.json"
+      - "tools/evaluate_orientation_triad.py"
+      - "tools/validate_recognition_gate_v0_1.py"
+      - "tools/validate_recognition_evidence_handoff_v0_1.py"
+      - "tools/validate_evidence_gate_v0_1.py"
+      - "tools/validate_authorization_bundle_v0_1.py"
+      - "tools/validate_commit_before_effect_v0_1.py"
+      - "tools/evaluate_outcome_verification.py"
+      - "tools/validate_replay_persistence_v0_1.py"
+      - ".github/workflows/trusted-pr-review-v0.2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate static JSON
+        run: |
+          python -m json.tool fixtures/trusted-pr-review/scenarios-v0.1.json > /dev/null
+          python -m json.tool schemas/trusted_pr_review_mvp_v0_2.schema.json > /dev/null
+      - name: Diagnose each modern-main scenario
+        run: |
+          set -uo pipefail
+          for scenario in \
+            allow_verified \
+            hold_pending_evidence \
+            block_broken_lineage \
+            block_expired_authorization
+          do
+            echo "===== ${scenario} ====="
+            set +e
+            python scripts/run_trusted_pr_review_v0_2.py \
+              --scenario "${scenario}" \
+              --output "artifacts/trusted-pr-review-mvp-v0.2-${scenario}" \
+              > "/tmp/${scenario}.log" 2>&1
+            status=$?
+            set -e
+            tail -n 100 "/tmp/${scenario}.log"
+            if [ "${status}" -ne 0 ]; then
+              echo "Scenario ${scenario} failed with status ${status}"
+              exit "${status}"
+            fi
+          done
+      - name: Run modern-main one-command demo
+        run: |
+          python scripts/run_trusted_pr_review_v0_2.py > /tmp/trusted-pr-review-v0.2.log 2>&1
+          tail -n 80 /tmp/trusted-pr-review-v0.2.log
+      - name: Validate machine-readable output
+        run: |
+          python -m json.tool artifacts/trusted-pr-review-mvp-v0.2/run-report.json > /dev/null
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("artifacts/trusted-pr-review-mvp-v0.2")
+          report = json.loads((root / "run-report.json").read_text(encoding="utf-8"))
+          assert report["passed"] is True
+          assert report["scenarios_total"] == 4
+          assert report["scenarios_passed"] == 4
+          assert set(report["statuses_covered"]) == {"VERIFIED", "HOLD", "BLOCK"}
+          assert report["protected_effects_written"] == 1
+
+          by_id = {item["scenario_id"]: item for item in report["results"]}
+          allow = by_id["allow_verified"]
+          assert allow["final_status"] == "VERIFIED"
+          assert allow["stop_reason"] == "EXPECTED_OUTCOME_VERIFIED"
+          assert allow["protected_effect_written"] is True
+          assert allow["replay"]["classification"] == "ADMISSIBLE"
+          assert allow["replay"]["completion_state"] == "COMPLETE"
+          assert (root / "allow_verified" / "trusted-pr-review-artifact.json").is_file()
+          assert len(list((root / "allow_verified" / "protected").glob("*.effect.json"))) == 1
+
+          hold = by_id["hold_pending_evidence"]
+          assert hold["final_status"] == "HOLD"
+          assert hold["stop_reason"] == "VERIFICATION_PENDING"
+          assert hold["replay"]["resume_allowed"] is True
+
+          broken = by_id["block_broken_lineage"]
+          assert broken["final_status"] == "BLOCK"
+          assert broken["stop_reason"] == "CAUSAL_LINEAGE_INVALID"
+
+          expired = by_id["block_expired_authorization"]
+          assert expired["final_status"] == "BLOCK"
+          assert expired["stop_reason"] == "AUTHORIZATION_EXPIRED"
+
+          for name in (
+              "hold_pending_evidence",
+              "block_broken_lineage",
+              "block_expired_authorization",
+          ):
+              item = by_id[name]
+              assert item["protected_effect_written"] is False
+              protected = root / name / "protected"
+              assert not protected.exists() or not list(protected.iterdir())
+              assert not (root / name / "trusted-pr-review-artifact.json").exists()
+
+          for item in report["results"]:
+              replay = item["replay"]
+              assert replay["integrity_valid"] is True
+              assert replay["model_calls"] == 0
+              assert replay["tool_calls"] == 0
+              assert replay["effect_calls"] == 0
+          PY
+      - name: Smoke-test original MVP command
+        run: |
+          python scripts/run_trusted_pr_review.py \
+            --scenario all \
+            --output artifacts/trusted-pr-review-mvp-v0.1-compat
+          python -m json.tool artifacts/trusted-pr-review-mvp-v0.1-compat/index.json > /dev/null
+      - name: Upload acceptance evidence and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trusted-pr-review-mvp-v0.2-evidence
+          path: |
+            artifacts/trusted-pr-review-mvp-v0.2*
+            artifacts/trusted-pr-review-mvp-v0.1-compat
+            /tmp/allow_verified.log
+            /tmp/hold_pending_evidence.log
+            /tmp/block_broken_lineage.log
+            /tmp/block_expired_authorization.log
+            /tmp/trusted-pr-review-v0.2.log
+          if-no-files-found: warn
