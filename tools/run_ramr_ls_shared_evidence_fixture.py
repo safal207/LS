@@ -90,10 +90,12 @@ def _target_binding(fixture: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Canonical fixture must identify exactly one bound completion effect")
 
     values = next(iter(candidates))
+    if len(values) != len(BINDING_FIELDS):
+        raise ValueError("Canonical completion binding has unexpected arity")
     if any(value is None for value in values) or None in workspace_ids:
         raise ValueError("Canonical completion binding is incomplete")
 
-    target = dict(zip(BINDING_FIELDS, values, strict=True))
+    target = dict(zip(BINDING_FIELDS, values))
     target["workspace_id"] = next(iter(workspace_ids))
 
     context = fixture["query_context"]
