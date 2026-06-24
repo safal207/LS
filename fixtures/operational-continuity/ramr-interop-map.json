@@ -7,6 +7,13 @@
     "measurement": "duplicate_side_effect_rate_under_budgeted_resume_recall",
     "result_file": "operational_continuity_result.json"
   },
+  "shared_evidence_envelope": {
+    "version": "ramr-ls-evidence-v0.1",
+    "schema": "shared-envelope/schema-v0.1.json",
+    "frozen_fixture": "shared-envelope/duplicate_successful_outcome.json",
+    "runner": "tools/run_ramr_ls_shared_evidence_fixture.py",
+    "result_file": "artifacts/ramr-ls-duplicate-successful-outcome-result.json"
+  },
   "mappings": [
     {
       "ramr_condition": "current_completion_missed_and_replay_proposed",
@@ -34,6 +41,8 @@
     "recency_improves_priority_but_does_not_grant_authority",
     "aggregate_duplicate_rate_is_not_a_conformance_verdict",
     "recalled_completion_must_be_bound_to_current_intent_and_state",
-    "missing_authoritative_evidence_requires_abstention"
+    "missing_authoritative_evidence_requires_abstention",
+    "retrieval_failure_is_not_execution_permission",
+    "authoritative_completion_requires_replay_rejection"
   ]
 }
