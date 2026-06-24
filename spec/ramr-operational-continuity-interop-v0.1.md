@@ -88,6 +88,27 @@ An interoperability result SHOULD contain:
 }
 ```
 
+## Frozen recovered-evidence envelope
+
+The first frozen cross-project input is:
+
+- envelope version: `ramr-ls-evidence-v0.1`;
+- fixture: `fixtures/operational-continuity/shared-envelope/duplicate_successful_outcome.json`;
+- schema: `fixtures/operational-continuity/shared-envelope/schema-v0.1.json`.
+
+The fixture contains two retrieval variants over identical query context, authoritative state, and proposed action:
+
+1. `completion_recovered` — RAMR observes no retrieval-driven duplicate risk; LS still returns `REJECT` because authoritative state proves the side effect completed.
+2. `completion_missed` — RAMR observes duplicate risk `1.0` for a naive replaying agent; LS still returns `REJECT` because retrieval failure does not override authoritative completion state.
+
+This distinction is normative:
+
+> A missed completion record is a reliability failure, not execution permission.
+
+Within a retrieval-only benchmark, a miss may model a duplicate action. In the composed profile, that implication becomes the boundary under test: RAMR reports the risk signal, while LS decides whether execution is permitted from current authoritative state.
+
+The shared fixture MUST remain synthetic and frozen. Changes to field meaning, expected outcomes, or cross-layer invariants require a new envelope version.
+
 ## Initial mapping
 
 | RAMR failure condition | LS fixture | Required LS behavior |
