@@ -1,0 +1,53 @@
+{
+  "contract_version": "ls.commit_before_effect.v0.1",
+  "base": {
+    "current_time": "2026-06-24T20:00:00Z",
+    "verified_bundle": {
+      "bundle_id": "ls-bundle-0123456789abcdefabcd",
+      "authorization_ref": "authorization-record:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "verifier_result_ref": "bundle-verifier-result:001",
+      "valid": true,
+      "commit_before_effect_eligible": true,
+      "execution_authorized": false,
+      "task_id": "task:001",
+      "trail_id": "trail:001",
+      "action_ref": "artifact:write:review-result",
+      "candidate_digest": "sha256:CANDIDATE_A",
+      "policy_id": "ls.policy.high-risk-action",
+      "policy_version": "1.0.0",
+      "nonce": "nonce-bundle-001",
+      "scope": ["artifact:write"],
+      "expires_at": "2026-06-24T20:30:00Z"
+    },
+    "action": {
+      "action_id": "action:review-result:001",
+      "action_ref": "artifact:write:review-result",
+      "candidate_digest": "sha256:CANDIDATE_A",
+      "scope": ["artifact:write"],
+      "payload": {"status": "approved", "summary": "review complete"},
+      "idempotency_key": "review-result-001",
+      "requested_at": "2026-06-24T19:58:00Z",
+      "mature_after": null,
+      "expires_at": "2026-06-24T20:25:00Z"
+    }
+  },
+  "cases": [
+    "successful_execution.json",
+    "hold_pending_preconditions.json",
+    "expired_action.json",
+    "scope_mismatch.json",
+    "commit_failure.json",
+    "duplicate_retry.json",
+    "interrupted_after_commit.json",
+    "interrupted_after_effect.json"
+  ],
+  "boundary_invariants": [
+    "no effect before a durable COMMITTED record is visible",
+    "only an offline-verified eligible bundle can enter execution control",
+    "the bundle action and scope bindings cannot change",
+    "HOLD REJECTED and EXPIRED produce no effect",
+    "a completed idempotency identity cannot produce a second effect",
+    "recovery from COMMITTED inspects the effect before invoking it",
+    "local idempotent recovery is not a claim of universal distributed exactly-once semantics"
+  ]
+}
