@@ -1,0 +1,163 @@
+name: Governed Identity Timeline Replay
+
+on:
+  push:
+    branches:
+      - "feat/identity-lifecycle-replay"
+  pull_request:
+    paths:
+      - "python/modules/trusted_runtime/identity_timeline.py"
+      - "python/tests/identity_timeline_fixtures.py"
+      - "python/tests/test_identity_timeline_*.py"
+      - "schemas/trusted_runtime/identity_timeline.schema.json"
+      - "scripts/persist_identity_lifecycle.py"
+      - ".github/workflows/identity_timeline.yml"
+
+concurrency:
+  group: identity-timeline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema pytest ruff
+
+      - name: Ruff timeline changes
+        run: |
+          ruff check \
+            python/modules/trusted_runtime/identity_timeline.py \
+            python/tests/identity_timeline_fixtures.py \
+            python/tests/test_identity_timeline_projection.py \
+            python/tests/test_identity_timeline_failures.py \
+            python/tests/test_identity_timeline_terminal_paths.py \
+            scripts/persist_identity_lifecycle.py
+
+      - name: Run timeline and tamper tests
+        run: |
+          PYTHONPATH=.:python:python/modules:python/tests \
+            python -m pytest \
+              python/tests/test_identity_timeline_projection.py \
+              python/tests/test_identity_timeline_failures.py \
+              python/tests/test_identity_timeline_terminal_paths.py
+
+      - name: Generate one verified episode
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/run_trusted_pr_review.py \
+              --scenario allow \
+              --output build/timeline-review
+
+      - name: Prepare three independent episodes
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          from pathlib import Path
+
+          source = json.loads(
+              Path("build/timeline-review/allow/verified-episode.json").read_text()
+          )
+          root = Path("build/timeline-episodes")
+          root.mkdir(parents=True, exist_ok=True)
+          for index in range(1, 4):
+              item = copy.deepcopy(source)
+              item["episode_id"] = f"episode:timeline:{index}"
+              item["task_id"] = f"task:timeline:{index}"
+              item["trail_id"] = f"trail:timeline:{index}"
+              item["orientation_ref"] = f"orientation:timeline:{index}"
+              item["transition_id"] = f"transition:timeline:{index}"
+              item["replay_ref"] = f"replay:timeline:{index}"
+              item["source_refs"] = [
+                  item["orientation_ref"], item["transition_id"], item["replay_ref"]
+              ]
+              (root / f"episode-{index}.json").write_text(
+                  json.dumps(item, sort_keys=True, indent=2) + "\n"
+              )
+          PY
+
+      - name: Aggregate identity proposal
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/aggregate_verified_episodes.py \
+              --episode build/timeline-episodes/episode-1.json \
+              --episode build/timeline-episodes/episode-2.json \
+              --episode build/timeline-episodes/episode-3.json \
+              --scope trusted-pr-review-mvp \
+              --repeat-key trusted-pr-review:allow:one-authorized-effect \
+              --statement "For this bounded PR-review transition, linked changed-test evidence and valid authorization supported exactly one protected review-result effect." \
+              --output build/governance-proposal
+
+      - name: Generate governed application and rollback
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/run_identity_governance.py \
+              --proposal build/governance-proposal/identity-update-proposal.json \
+              --output build/identity-governance
+
+      - name: Persist and replay append-only identity timeline
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/persist_identity_lifecycle.py \
+              --input build/identity-governance \
+              --output build/identity-timeline
+
+      - name: Validate timeline schema and deterministic replay
+        run: |
+          PYTHONPATH=.:python:python/modules python - <<'PY'
+          import json
+          from pathlib import Path
+          from jsonschema import Draft202012Validator
+          from modules.trusted_runtime.identity_timeline import replay_identity_timeline
+          from modules.trusted_runtime.persistence import JsonlEventStoreAdapter
+
+          root = Path("build/identity-timeline")
+          persisted = json.loads((root / "identity-timeline.json").read_text())
+          schema = json.loads(
+              Path("schemas/trusted_runtime/identity_timeline.schema.json").read_text()
+          )
+          assert not list(Draft202012Validator(schema).iter_errors(persisted))
+          assert persisted["status"] == "ROLLED_BACK"
+          assert persisted["active_profile"]["version"] == 3
+          assert len(persisted["profile_versions"]) == 3
+          assert persisted["integrity"]["event_count"] == 9
+          assert persisted["side_effects_applied"] is False
+
+          store = JsonlEventStoreAdapter(root / "identity-events.jsonl")
+          replayed = replay_identity_timeline(
+              store, agent_id="agent:trusted-reviewer"
+          ).to_dict()
+          assert replayed == persisted
+          assert replayed["metadata"]["models_rerun"] is False
+          assert replayed["metadata"]["approvals_rerun"] is False
+          assert replayed["metadata"]["patches_reapplied"] is False
+          PY
+
+      - name: Upload identity timeline evidence
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: identity-timeline-evidence
+          path: |
+            build/timeline-review
+            build/timeline-episodes
+            build/governance-proposal
+            build/identity-governance
+            build/identity-timeline
+          if-no-files-found: error
