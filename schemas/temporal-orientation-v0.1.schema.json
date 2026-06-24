@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/temporal-orientation-v0.1.schema.json",
+  "title": "LS Temporal Orientation State v0.1",
+  "type": "object",
+  "required": ["orientation_version", "location", "current_frame", "validity", "active_authority", "completed_history", "dependency_chain_complete", "next_transition"],
+  "properties": {
+    "orientation_version": {"const": "temporal-orientation-v0.1"},
+    "location": {
+      "type": "object",
+      "required": ["workspace_id", "trajectory_id", "continuation_id"],
+      "properties": {
+        "workspace_id": {"type": "string", "minLength": 1},
+        "trajectory_id": {"type": "string", "minLength": 1},
+        "continuation_id": {"type": "string", "minLength": 1},
+        "resumed_from_continuation_id": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "current_frame": {
+      "type": "object",
+      "required": ["logical_time", "as_of", "intent_digest", "target_state_digest"],
+      "properties": {
+        "logical_time": {"type": "string", "minLength": 1},
+        "as_of": {"type": "string", "format": "date-time"},
+        "intent_digest": {"type": "string", "minLength": 1},
+        "target_state_digest": {"type": "string", "minLength": 1},
+        "policy_version": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "validity": {
+      "type": "object",
+      "required": ["valid_from", "invalidated_at"],
+      "properties": {
+        "valid_from": {"type": "string", "format": "date-time"},
+        "invalidated_at": {"type": ["string", "null"], "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "active_authority": {
+      "type": "object",
+      "required": ["approval_id", "approval_state", "confirmed_constraints"],
+      "properties": {
+        "approval_id": {"type": ["string", "null"]},
+        "approval_state": {"enum": ["active", "revoked", "expired", "absent"]},
+        "confirmed_constraints": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "additionalProperties": false
+    },
+    "completed_history": {
+      "type": "object",
+      "required": ["completed_side_effect_keys", "rejected_approaches", "superseded_claims"],
+      "properties": {
+        "completed_side_effect_keys": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "rejected_approaches": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "superseded_claims": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "additionalProperties": false
+    },
+    "dependency_chain_complete": {"type": "boolean"},
+    "next_transition": {
+      "type": "object",
+      "required": ["allowed_next_action_digest"],
+      "properties": {
+        "allowed_next_action_digest": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
