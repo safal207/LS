@@ -1,0 +1,38 @@
+name: Evidence Gate v0.1
+
+on:
+  pull_request:
+    paths:
+      - "spec/evidence-gate-v0.1.md"
+      - "fixtures/evidence-gate/**"
+      - "tools/validate_evidence_gate_v0_1.py"
+      - ".github/workflows/evidence-gate-v0.1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "spec/evidence-gate-v0.1.md"
+      - "fixtures/evidence-gate/**"
+      - "tools/validate_evidence_gate_v0_1.py"
+      - ".github/workflows/evidence-gate-v0.1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate fixture JSON
+        run: |
+          for file in fixtures/evidence-gate/*.json; do
+            python -m json.tool "$file" > /dev/null
+          done
+      - name: Run Evidence Gate conformance
+        run: python tools/validate_evidence_gate_v0_1.py
+      - name: Validate machine-readable report
+        run: python -m json.tool artifacts/evidence-gate-v0.1-result.json > /dev/null
