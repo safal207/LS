@@ -1,0 +1,57 @@
+{
+  "contract_version": "ls.authorization_bundle.v0.1",
+  "base": {
+    "current_time": "2026-06-24T20:00:00Z",
+    "evidence_decision": {
+      "result_ref": "evidence-gate-result:001",
+      "decision": "ALLOW",
+      "authorization_bundle_eligible": true,
+      "execution_authorized": false,
+      "candidate_digest": "sha256:CANDIDATE_A",
+      "intent_digest": "sha256:INTENT_A",
+      "target_state_digest": "sha256:STATE_A",
+      "evidence_refs": ["evidence:test-report:001", "evidence:causal-audit:001"],
+      "evidence_snapshot_digest": "sha256:EVIDENCE_SNAPSHOT_A",
+      "policy_id": "ls.policy.high-risk-action",
+      "policy_version": "1.0.0",
+      "causal_audit_refs": ["evidence:causal-audit:001"]
+    },
+    "authorization_intent": {
+      "intent_id": "intent:bundle-001",
+      "task_id": "task:001",
+      "trail_id": "trail:001",
+      "actor": "human:owner",
+      "action_ref": "repo:safal207/LS#merge",
+      "scope": ["repo:safal207/LS", "action:merge"],
+      "issued_at": "2026-06-24T19:55:00Z",
+      "expires_at": "2026-06-24T20:30:00Z",
+      "nonce": "nonce-bundle-001",
+      "candidate_digest": "sha256:CANDIDATE_A",
+      "intent_digest": "sha256:INTENT_A",
+      "target_state_digest": "sha256:STATE_A",
+      "policy_id": "ls.policy.high-risk-action",
+      "policy_version": "1.0.0",
+      "evidence_refs": ["evidence:test-report:001", "evidence:causal-audit:001"],
+      "evidence_snapshot_digest": "sha256:EVIDENCE_SNAPSHOT_A",
+      "causal_audit_refs": ["evidence:causal-audit:001"],
+      "parent_cause": "evidence-gate-result:001"
+    }
+  },
+  "cases": [
+    "valid_bundle.json",
+    "non_allow_decision.json",
+    "expired_intent.json",
+    "replayed_nonce.json",
+    "candidate_binding_mismatch.json",
+    "policy_binding_mismatch.json",
+    "evidence_binding_mismatch.json",
+    "tampered_payload.json"
+  ],
+  "boundary_invariants": [
+    "only Evidence Gate ALLOW results can create a bundle",
+    "a valid bundle is not execution authorization",
+    "offline verification requires no model or live service",
+    "expiry nonce bindings hashes and chain order fail closed",
+    "verifier-result is output evidence and not an authorization source"
+  ]
+}
