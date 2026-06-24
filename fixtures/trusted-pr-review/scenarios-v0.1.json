@@ -1,5 +1,5 @@
 {
-  "contract_version": "ls.trusted_pr_review_mvp.v0.1",
+  "contract_version": "ls.trusted_pr_review_mvp.v0.2",
   "diff_path": "fixtures/trusted-pr-review/sample.diff",
   "task": {
     "task_id": "task:trusted-pr-review:001",
