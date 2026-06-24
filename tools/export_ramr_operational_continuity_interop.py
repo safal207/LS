@@ -55,6 +55,7 @@ def build_envelope() -> dict[str, Any]:
     return {
         "profile": mapping["profile"],
         "ramr": mapping["ramr"],
+        "shared_evidence_envelope": mapping["shared_evidence_envelope"],
         "ls": {
             "fixture_profile": "ls-operational-continuity-v0.1",
             "fixtures_total": len(results),
