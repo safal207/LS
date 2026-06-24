@@ -1,0 +1,47 @@
+name: Replay and Persistence v0.1
+
+on:
+  pull_request:
+    paths:
+      - "spec/replay-persistence-v0.1.md"
+      - "schemas/durable_event_v0_1.schema.json"
+      - "schemas/replay_conformance_report_v0_1.schema.json"
+      - "schemas/resume_checkpoint_v0_1.schema.json"
+      - "fixtures/replay-persistence/**"
+      - "tools/validate_replay_persistence_v0_1.py"
+      - ".github/workflows/replay-persistence-v0.1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "spec/replay-persistence-v0.1.md"
+      - "schemas/durable_event_v0_1.schema.json"
+      - "schemas/replay_conformance_report_v0_1.schema.json"
+      - "schemas/resume_checkpoint_v0_1.schema.json"
+      - "fixtures/replay-persistence/**"
+      - "tools/validate_replay_persistence_v0_1.py"
+      - ".github/workflows/replay-persistence-v0.1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate JSON inputs
+        run: |
+          python -m json.tool schemas/durable_event_v0_1.schema.json > /dev/null
+          python -m json.tool schemas/replay_conformance_report_v0_1.schema.json > /dev/null
+          python -m json.tool schemas/resume_checkpoint_v0_1.schema.json > /dev/null
+          for file in fixtures/replay-persistence/*.json; do
+            python -m json.tool "$file" > /dev/null
+          done
+      - name: Run replay and persistence conformance
+        run: python tools/validate_replay_persistence_v0_1.py
+      - name: Validate machine-readable report
+        run: python -m json.tool artifacts/replay-persistence-v0.1-result.json > /dev/null
