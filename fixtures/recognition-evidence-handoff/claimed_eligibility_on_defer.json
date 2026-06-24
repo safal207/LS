@@ -1,0 +1,32 @@
+{
+  "candidate": {
+    "candidate_digest": "sha256:CANDIDATE_H",
+    "candidate_type": "tool_call",
+    "effectful": true
+  },
+  "case": "claimed_eligibility_on_defer",
+  "claimed_downstream_eligible": true,
+  "context": {
+    "intent_digest": "sha256:INTENT_A",
+    "target_state_digest": "sha256:STATE_A"
+  },
+  "contract_version": "ls-recognition-evidence-handoff-v0.1",
+  "expected": {
+    "candidate_emission_authorized": false,
+    "clarification_authorized": false,
+    "evidence_gate_request_created": false,
+    "execution_authorized": false,
+    "handoff_outcome": "WITHHOLD",
+    "reason_code": "BLOCKED_RESULT_CANNOT_FORWARD"
+  },
+  "recognition_result": {
+    "candidate_digest": "sha256:CANDIDATE_H",
+    "decision": "DEFER",
+    "execution_authorized": false,
+    "intent_digest": "sha256:INTENT_A",
+    "recognition_gate_passed": false,
+    "result_ref": "recognition-result:008",
+    "target_state_digest": "sha256:STATE_A",
+    "terminal_disposition": "WITHHOLD"
+  }
+}

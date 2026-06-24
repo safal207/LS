@@ -1,0 +1,32 @@
+{
+  "candidate": {
+    "candidate_digest": "sha256:CANDIDATE_D",
+    "candidate_type": "clarification_request",
+    "effectful": false
+  },
+  "case": "escalate_clarification_only",
+  "claimed_downstream_eligible": false,
+  "context": {
+    "intent_digest": "sha256:INTENT_A",
+    "target_state_digest": "sha256:STATE_A"
+  },
+  "contract_version": "ls-recognition-evidence-handoff-v0.1",
+  "expected": {
+    "candidate_emission_authorized": false,
+    "clarification_authorized": true,
+    "evidence_gate_request_created": false,
+    "execution_authorized": false,
+    "handoff_outcome": "ESCALATION_ONLY",
+    "reason_code": "HUMAN_INPUT_REQUIRED"
+  },
+  "recognition_result": {
+    "candidate_digest": "sha256:CANDIDATE_D",
+    "decision": "ESCALATE",
+    "execution_authorized": false,
+    "intent_digest": "sha256:INTENT_A",
+    "recognition_gate_passed": false,
+    "result_ref": "recognition-result:004",
+    "target_state_digest": "sha256:STATE_A",
+    "terminal_disposition": "EMIT_CLARIFICATION"
+  }
+}
