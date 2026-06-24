@@ -1,0 +1,1 @@
+{"case":"expired_intent","overrides":{"current_time":"2026-06-24T20:31:00Z"},"consumed_nonces":[],"tamper":null,"expected":{"outcome":"REJECTED","reason_code":"AUTHORIZATION_EXPIRED","bundle_created":false,"offline_verified":false,"commit_before_effect_eligible":false,"execution_authorized":false}}
