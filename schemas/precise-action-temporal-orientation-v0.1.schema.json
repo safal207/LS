@@ -1,0 +1,292 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/precise-action-temporal-orientation-v0.1.schema.json",
+  "title": "LS Precise Action Temporal Orientation State v0.1",
+  "type": "object",
+  "required": [
+    "action_orientation_version",
+    "context",
+    "action_identity",
+    "temporal_position",
+    "parameters",
+    "preconditions",
+    "dependencies",
+    "side_effect_control",
+    "expected_transition",
+    "verification"
+  ],
+  "properties": {
+    "action_orientation_version": {
+      "const": "precise-action-temporal-orientation-v0.1"
+    },
+    "context": {
+      "type": "object",
+      "required": [
+        "workspace_id",
+        "trajectory_id",
+        "continuation_id",
+        "relationship_id"
+      ],
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trajectory_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "continuation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relationship_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "action_identity": {
+      "type": "object",
+      "required": [
+        "action_id",
+        "action_digest",
+        "action_type",
+        "actor_id",
+        "target_id"
+      ],
+      "properties": {
+        "action_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action_digest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actor_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "temporal_position": {
+      "type": "object",
+      "required": [
+        "logical_step",
+        "sequence_index",
+        "valid_from",
+        "execute_not_before",
+        "deadline_at",
+        "invalidated_at"
+      ],
+      "properties": {
+        "logical_step": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sequence_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "valid_from": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "execute_not_before": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "deadline_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "invalidated_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "parameters": {
+      "type": "object",
+      "required": [
+        "parameter_digest",
+        "exact_arguments",
+        "immutable_fields"
+      ],
+      "properties": {
+        "parameter_digest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exact_arguments": {
+          "type": "object"
+        },
+        "immutable_fields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "preconditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "precondition_id",
+          "required_state_digest",
+          "status"
+        ],
+        "properties": {
+          "precondition_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required_state_digest": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "satisfied",
+              "unsatisfied",
+              "unknown"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "required": [
+        "previous_action_ids",
+        "required_event_ids",
+        "required_approval_ids"
+      ],
+      "properties": {
+        "previous_action_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "required_event_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "required_approval_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "side_effect_control": {
+      "type": "object",
+      "required": [
+        "side_effect_key",
+        "replay_policy",
+        "completed"
+      ],
+      "properties": {
+        "side_effect_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "replay_policy": {
+          "enum": [
+            "reject",
+            "idempotent",
+            "verify"
+          ]
+        },
+        "completed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "expected_transition": {
+      "type": "object",
+      "required": [
+        "current_state_digest",
+        "expected_state_digest"
+      ],
+      "properties": {
+        "current_state_digest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_state_digest": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "verification": {
+      "type": "object",
+      "required": [
+        "verification_type",
+        "verification_requirements"
+      ],
+      "properties": {
+        "verification_type": {
+          "enum": [
+            "observation",
+            "receipt",
+            "state_digest",
+            "human_confirmation"
+          ]
+        },
+        "verification_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
