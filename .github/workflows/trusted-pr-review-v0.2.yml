@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "scripts/run_trusted_pr_review_v0_2.py"
+      - "scripts/run_trusted_pr_review_v0_2_impl.py"
       - "scripts/run_trusted_pr_review.py"
       - "fixtures/trusted-pr-review/**"
       - "schemas/trusted_pr_review_mvp_v0_2.schema.json"
@@ -22,6 +23,7 @@ on:
       - main
     paths:
       - "scripts/run_trusted_pr_review_v0_2.py"
+      - "scripts/run_trusted_pr_review_v0_2_impl.py"
       - "fixtures/trusted-pr-review/**"
       - "schemas/trusted_pr_review_mvp_v0_2.schema.json"
       - "tools/evaluate_orientation_triad.py"
