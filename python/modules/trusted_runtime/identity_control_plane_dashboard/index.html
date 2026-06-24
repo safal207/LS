@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Read-only LS Identity Control Plane evidence dashboard">
+  <title>LS Identity Control Plane</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to evidence</a>
+  <header class="site-header">
+    <div>
+      <p class="eyebrow">LS · Identity Control Plane</p>
+      <h1>Governed identity evidence</h1>
+      <p class="subtitle">From verified experience to a signed, automatically published identity generation.</p>
+    </div>
+    <div class="read-only-badge" aria-label="This dashboard is read-only">Read only</div>
+  </header>
+
+  <nav class="toolbar" aria-label="Evidence controls">
+    <label for="agent-select">Agent</label>
+    <select id="agent-select"><option value="">Loading agents…</option></select>
+    <button id="refresh-button" type="button">Refresh evidence</button>
+    <span id="load-status" role="status" aria-live="polite">Loading…</span>
+  </nav>
+
+  <main id="main-content" tabindex="-1">
+    <section id="integrity-banner" class="integrity-banner" aria-live="assertive" hidden>
+      <p class="eyebrow">Fail-closed status</p>
+      <h2 id="integrity-title">Evidence is not authoritative</h2>
+      <p id="integrity-message"></p>
+    </section>
+
+    <section aria-labelledby="control-plane-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Automatic publication</p>
+          <h2 id="control-plane-heading">Control Plane status</h2>
+        </div>
+        <p id="publication-digest" class="digest"></p>
+      </div>
+      <div id="control-plane-cards" class="card-grid" aria-live="polite"></div>
+      <div class="split-grid">
+        <article class="panel">
+          <h3>Triggering durable tail references</h3>
+          <ol id="trigger-refs" class="reference-list"></ol>
+        </article>
+        <article class="panel">
+          <h3>Publication health</h3>
+          <div id="control-plane-findings"></div>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="identity-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Current projection</p>
+          <h2 id="identity-heading">Identity overview</h2>
+        </div>
+        <p id="timeline-digest" class="digest"></p>
+      </div>
+      <div id="overview-cards" class="card-grid"></div>
+    </section>
+
+    <section aria-labelledby="profiles-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Version history</p>
+          <h2 id="profiles-heading">Profile snapshots</h2>
+        </div>
+      </div>
+      <div id="profile-versions" class="profile-grid"></div>
+    </section>
+
+    <section aria-labelledby="timeline-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Causal evidence</p>
+          <h2 id="timeline-heading">Lifecycle events</h2>
+        </div>
+        <p id="event-count" class="section-meta"></p>
+      </div>
+      <ol id="timeline-list" class="timeline-list"></ol>
+    </section>
+
+    <section aria-labelledby="evidence-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Portable proof</p>
+          <h2 id="evidence-heading">Evidence downloads</h2>
+        </div>
+      </div>
+      <div id="evidence-links" class="evidence-links"></div>
+    </section>
+  </main>
+
+  <aside id="record-panel" class="record-panel" aria-labelledby="record-heading" hidden>
+    <div class="record-panel-header">
+      <div>
+        <p class="eyebrow">Durable source record</p>
+        <h2 id="record-heading">Event details</h2>
+      </div>
+      <button id="close-record" type="button">Close</button>
+    </div>
+    <pre id="record-json" tabindex="0"></pre>
+  </aside>
+
+  <footer>
+    <p>This interface cannot approve, apply, invalidate, or roll back identity changes.</p>
+  </footer>
+  <script src="/app.js" defer></script>
+</body>
+</html>

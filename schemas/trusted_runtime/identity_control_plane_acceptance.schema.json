@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Identity Control Plane Acceptance Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_version",
+    "result",
+    "read_only_viewer",
+    "audience",
+    "active_key_id",
+    "signing_key_ids",
+    "key_ids_present",
+    "stages",
+    "generation_assertions",
+    "agents",
+    "publication",
+    "health",
+    "api_exports",
+    "tamper_report",
+    "files"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.identity_control_plane_acceptance.v0.1"},
+    "policy_version": {"const": "identity_control_plane.acceptance.v0.1"},
+    "result": {"const": "PASS"},
+    "read_only_viewer": {"const": true},
+    "audience": {"type": "string", "minLength": 1},
+    "active_key_id": {"type": "string", "minLength": 1},
+    "signing_key_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "key_ids_present": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "stages": {"type": "array", "minItems": 10, "uniqueItems": true, "items": {"type": "string"}},
+    "generation_assertions": {
+      "type": "object",
+      "required": [
+        "first_commit_generation",
+        "identical_replay_generation",
+        "next_commit_generation",
+        "identical_replay_created_no_generation",
+        "next_commit_incremented_once"
+      ],
+      "properties": {
+        "first_commit_generation": {"const": 1},
+        "identical_replay_generation": {"const": 1},
+        "next_commit_generation": {"const": 2},
+        "identical_replay_created_no_generation": {"const": true},
+        "next_commit_incremented_once": {"const": true}
+      }
+    },
+    "agents": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "agent_id",
+          "verified_episode_count",
+          "publication_request_id",
+          "tail_event_ref",
+          "timeline_digest",
+          "profile_v1",
+          "profile_v2",
+          "timeline",
+          "timeline_commit"
+        ],
+        "properties": {
+          "agent_id": {"type": "string"},
+          "verified_episode_count": {"const": 3},
+          "publication_request_id": {"type": "string"},
+          "tail_event_ref": {"type": "string"},
+          "timeline_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "profile_v1": {"type": "string"},
+          "profile_v2": {"type": "string"},
+          "timeline": {"type": "string"},
+          "timeline_commit": {"type": "string"}
+        }
+      }
+    },
+    "publication": {
+      "type": "object",
+      "required": [
+        "generation",
+        "publication_digest",
+        "previous_publication_digest",
+        "catalog_path",
+        "trigger_request_ids",
+        "trigger_tail_event_refs"
+      ],
+      "properties": {
+        "generation": {"const": 2},
+        "publication_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "previous_publication_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "catalog_path": {"type": "string"},
+        "trigger_request_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "trigger_tail_event_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    },
+    "health": {"type": "object"},
+    "api_exports": {"type": "array", "minItems": 6, "uniqueItems": true, "items": {"type": "string"}},
+    "tamper_report": {"type": "string"},
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256", "size_bytes"],
+        "properties": {
+          "path": {"type": "string"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "size_bytes": {"type": "integer", "minimum": 1}
+        }
+      }
+    }
+  }
+}
