@@ -1,0 +1,59 @@
+{
+  "fixture_id": "complete_chain_preferred_over_disconnected_facts",
+  "description": "The agent must not continue from high-similarity fragments when a required causal hop is missing.",
+  "checkpoint": {
+    "continuation_id": "cont-003",
+    "intent_digest": "sha256:investigate-timeout"
+  },
+  "current_state": {
+    "continuation_id": "cont-003",
+    "intent_digest": "sha256:investigate-timeout"
+  },
+  "proposed_action": {
+    "action_type": "apply_database_retry_fix",
+    "intent_digest": "sha256:investigate-timeout"
+  },
+  "required_bindings": [
+    "continuation_id",
+    "intent_digest"
+  ],
+  "dependency_graph": {
+    "nodes": [
+      {
+        "id": "symptom",
+        "available": true,
+        "value": "checkout timed out"
+      },
+      {
+        "id": "trace",
+        "available": true,
+        "value": "request crossed gateway and order service"
+      },
+      {
+        "id": "database_evidence",
+        "available": false,
+        "value": null
+      },
+      {
+        "id": "decision",
+        "available": true,
+        "value": "add database retry"
+      }
+    ],
+    "edges": [
+      ["symptom", "trace"],
+      ["trace", "database_evidence"],
+      ["database_evidence", "decision"]
+    ],
+    "required_path": [
+      "symptom",
+      "trace",
+      "database_evidence",
+      "decision"
+    ]
+  },
+  "expected_outcome": "ABSTAIN",
+  "expected_failed_invariants": [
+    "required_dependency_chain_incomplete"
+  ]
+}

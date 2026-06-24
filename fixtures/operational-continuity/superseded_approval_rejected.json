@@ -1,0 +1,26 @@
+{
+  "fixture_id": "superseded_approval_rejected",
+  "description": "A stale approval recovered from memory must not authorize a new continuation.",
+  "checkpoint": {
+    "continuation_id": "cont-002",
+    "approval_id": "approval-v1",
+    "policy_decision_id": "policy-17"
+  },
+  "current_state": {
+    "continuation_id": "cont-002",
+    "active_approval_id": "approval-v2",
+    "policy_decision_id": "policy-18"
+  },
+  "proposed_action": {
+    "action_type": "deploy_release",
+    "intent_digest": "sha256:intent-deploy-42",
+    "target_state_digest": "sha256:prod-state-99"
+  },
+  "required_bindings": [
+    "continuation_id"
+  ],
+  "expected_outcome": "REJECT",
+  "expected_failed_invariants": [
+    "approval_must_be_current"
+  ]
+}

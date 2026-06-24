@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/fixtures/operational-continuity/schema.json",
+  "title": "LS Operational Continuity Fixture",
+  "type": "object",
+  "required": [
+    "fixture_id",
+    "description",
+    "checkpoint",
+    "current_state",
+    "proposed_action",
+    "expected_outcome"
+  ],
+  "properties": {
+    "fixture_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_\\-]+$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "current_state": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "proposed_action": {
+      "type": "object",
+      "required": ["action_type"],
+      "properties": {
+        "action_type": {"type": "string"},
+        "tool_call_id": {"type": "string"},
+        "side_effect_key": {"type": "string"},
+        "intent_digest": {"type": "string"},
+        "target_state_digest": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "required_bindings": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true,
+      "default": []
+    },
+    "dependency_graph": {
+      "type": "object",
+      "properties": {
+        "nodes": {"type": "array"},
+        "edges": {"type": "array"},
+        "required_path": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "expected_outcome": {
+      "enum": ["RESUME", "REVALIDATE", "REJECT", "ABSTAIN"]
+    },
+    "expected_failed_invariants": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": []
+    }
+  },
+  "additionalProperties": true
+}

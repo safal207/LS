@@ -1,0 +1,17 @@
+version: "0.1"
+profile: ls-operational-continuity
+schema: fixtures/operational-continuity/schema.json
+runner: tools/run_operational_continuity_fixtures.py
+fixtures:
+  - id: resume_no_duplicate_side_effect
+    path: fixtures/operational-continuity/resume_no_duplicate_side_effect.json
+    mandatory: true
+  - id: superseded_approval_rejected
+    path: fixtures/operational-continuity/superseded_approval_rejected.json
+    mandatory: true
+  - id: complete_chain_preferred_over_disconnected_facts
+    path: fixtures/operational-continuity/complete_chain_preferred_over_disconnected_facts.json
+    mandatory: true
+  - id: workspace_drift_requires_revalidation
+    path: fixtures/operational-continuity/workspace_drift_requires_revalidation.json
+    mandatory: true

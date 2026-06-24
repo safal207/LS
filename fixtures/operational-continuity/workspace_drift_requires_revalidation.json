@@ -1,0 +1,30 @@
+{
+  "fixture_id": "workspace_drift_requires_revalidation",
+  "description": "A checkpoint created under a different Git HEAD must be revalidated before continuation.",
+  "checkpoint": {
+    "continuation_id": "cont-004",
+    "repository_identity": "safal207/LS",
+    "git_head": "git-head-before",
+    "dirty_worktree_digest": "clean-worktree"
+  },
+  "current_state": {
+    "continuation_id": "cont-004",
+    "repository_identity": "safal207/LS",
+    "git_head": "git-head-after",
+    "dirty_worktree_digest": "clean-worktree"
+  },
+  "proposed_action": {
+    "action_type": "continue_patch",
+    "intent_digest": "fixture-suite-v01"
+  },
+  "required_bindings": [
+    "continuation_id",
+    "repository_identity",
+    "git_head",
+    "dirty_worktree_digest"
+  ],
+  "expected_outcome": "REVALIDATE",
+  "expected_failed_invariants": [
+    "binding_mismatch:git_head"
+  ]
+}

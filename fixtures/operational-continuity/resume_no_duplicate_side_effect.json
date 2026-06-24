@@ -1,0 +1,27 @@
+{
+  "fixture_id": "resume_no_duplicate_side_effect",
+  "description": "A recovered checkpoint must not replay an external side effect that already completed.",
+  "checkpoint": {
+    "continuation_id": "cont-001",
+    "tool_call_id": "tool-044",
+    "side_effect_key": "payment:invoice-8842:capture"
+  },
+  "current_state": {
+    "continuation_id": "cont-001",
+    "completed_side_effect_keys": [
+      "payment:invoice-8842:capture"
+    ]
+  },
+  "proposed_action": {
+    "action_type": "capture_payment",
+    "tool_call_id": "tool-044-retry",
+    "side_effect_key": "payment:invoice-8842:capture"
+  },
+  "required_bindings": [
+    "continuation_id"
+  ],
+  "expected_outcome": "REJECT",
+  "expected_failed_invariants": [
+    "side_effect_must_not_repeat"
+  ]
+}
