@@ -1,0 +1,126 @@
+{
+  "suite_id": "relational-temporal-orientation-v0.1-agent-agent",
+  "base_case": {
+    "orientation": {
+      "relationship_version": "relational-temporal-orientation-v0.1",
+      "relationship": {
+        "relationship_id": "rel-1",
+        "relationship_type": "agent_agent",
+        "relationship_epoch": "epoch-2",
+        "participants": [
+          {
+            "actor_id": "agent-a",
+            "role": "coordinator",
+            "participation_state": "active"
+          },
+          {
+            "actor_id": "agent-b",
+            "role": "executor",
+            "participation_state": "active"
+          }
+        ]
+      },
+      "temporal_frame": {
+        "as_of": "2026-06-24T19:00:00Z",
+        "established_at": "2026-06-01T00:00:00Z",
+        "last_mutual_confirmation_at": "2026-06-24T18:00:00Z",
+        "invalidated_at": null
+      },
+      "shared_orientation": {
+        "shared_intent_digest": "sha256:intent-current",
+        "shared_target_state_digest": "sha256:target-current",
+        "shared_context_digest": "sha256:context-current"
+      },
+      "authority_edges": [
+        {
+          "grant_id": "grant-apply-patch",
+          "grantor": "agent-a",
+          "grantee": "agent-b",
+          "capability": "apply_patch",
+          "scope_digest": "sha256:scope-repo-branch",
+          "state": "active",
+          "valid_from": "2026-06-24T18:00:00Z",
+          "invalidated_at": null
+        }
+      ],
+      "commitments": [],
+      "boundaries": [
+        {
+          "boundary_id": "boundary-feature-branch",
+          "owner": "agent-a",
+          "rule_digest": "sha256:boundary-feature-branch-only",
+          "state": "active"
+        }
+      ],
+      "trust": {
+        "state": "confirmed",
+        "evidence_refs": [
+          "receipt:confirmation-1"
+        ]
+      },
+      "handoff": {
+        "handoff_id": "handoff-agent-a-b",
+        "from_actor": "agent-a",
+        "to_actor": "agent-b",
+        "state": "accepted"
+      },
+      "completed_history": {
+        "completed_relational_effect_keys": [],
+        "superseded_grants": [],
+        "resolved_commitments": []
+      },
+      "next_relational_transition": {
+        "allowed_actor_id": "agent-b",
+        "allowed_action_digest": "sha256:apply-patch-1"
+      }
+    },
+    "authoritative_state": {
+      "relationship_id": "rel-1",
+      "relationship_epoch": "epoch-2",
+      "current_shared_intent_digest": "sha256:intent-current",
+      "current_shared_target_state_digest": "sha256:target-current",
+      "active_roles": {
+        "agent-a": "coordinator",
+        "agent-b": "executor"
+      },
+      "authority_grants": [
+        {
+          "grant_id": "grant-apply-patch",
+          "grantee": "agent-b",
+          "capability": "apply_patch",
+          "scope_digest": "sha256:scope-repo-branch",
+          "state": "active"
+        }
+      ],
+      "active_boundary_rule_digests": [
+        "sha256:boundary-feature-branch-only"
+      ],
+      "trust_state": "confirmed",
+      "completed_relational_effect_keys": [],
+      "open_commitment_ids": [],
+      "handoff_state": "accepted"
+    },
+    "proposed_action": {
+      "actor_id": "agent-b",
+      "action_digest": "sha256:apply-patch-1",
+      "capability": "apply_patch",
+      "scope_digest": "sha256:scope-repo-branch",
+      "relational_effect_key": "apply-patch-1",
+      "requires_delegation": true,
+      "requires_trust": true,
+      "requires_no_open_commitments": false,
+      "requires_accepted_handoff": true,
+      "boundary_rule_digest": "sha256:boundary-feature-branch-only"
+    }
+  },
+  "cases": [
+    {
+      "fixture_id": "valid_agent_agent_handoff_resume",
+      "overrides": {},
+      "expected": {
+        "verdict": "RESUME",
+        "reason_code": "RELATIONAL_ORIENTATION_VALID"
+      }
+    }
+  ]
+}
