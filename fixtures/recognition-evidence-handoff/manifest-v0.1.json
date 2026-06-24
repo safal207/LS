@@ -1,0 +1,21 @@
+{
+  "contract_version": "ls-recognition-evidence-handoff-v0.1",
+  "related": ["#595", "#657", "#667", "PR #620"],
+  "cases": [
+    "allow_effectful_forward.json",
+    "allow_non_effectful_no_action_gate.json",
+    "defer_withhold.json",
+    "escalate_clarification_only.json",
+    "candidate_digest_changed.json",
+    "context_binding_mismatch.json",
+    "missing_recognition_result_ref.json",
+    "claimed_eligibility_on_defer.json"
+  ],
+  "boundary_invariants": [
+    "only a current untampered Recognition Gate ALLOW may reach evidence evaluation",
+    "DEFER and ESCALATE never become evidence-gate ALLOW candidates",
+    "candidate and context bindings are immutable across the handoff",
+    "Recognition Gate ALLOW is not execution authorization",
+    "downstream eligibility claims are recomputed rather than trusted"
+  ]
+}
