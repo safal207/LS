@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Signed Identity Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "key_id",
+    "algorithm",
+    "policy_version",
+    "entries",
+    "signature"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.identity_catalog.v0.1"},
+    "generated_at": {"type": "string", "minLength": 1},
+    "key_id": {"type": "string", "minLength": 1},
+    "algorithm": {"const": "hmac-sha256"},
+    "policy_version": {"const": "identity_catalog.read_only.v0.1"},
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "agent_id",
+          "bundle_path",
+          "timeline_digest",
+          "tail_event_ref",
+          "event_count",
+          "active_profile_version",
+          "lifecycle_status",
+          "freshness_at"
+        ],
+        "properties": {
+          "agent_id": {"type": "string", "minLength": 1},
+          "bundle_path": {"type": "string", "minLength": 1},
+          "timeline_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "tail_event_ref": {"type": "string", "minLength": 1},
+          "event_count": {"type": "integer", "minimum": 1},
+          "active_profile_version": {"type": "integer", "minimum": 1},
+          "lifecycle_status": {"type": "string", "minLength": 1},
+          "freshness_at": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "signature": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
