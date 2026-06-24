@@ -2,17 +2,29 @@
   "profile": "ls-ramr-operational-continuity-interop-v0.1",
   "ramr": {
     "repository": "DanceNitra/ramr",
+    "release": "v0.2.0",
+    "commit": "8f21771f7ee6012d6839b8c89ceae61f639e93ed",
     "metric": "OPERATIONAL-CONTINUITY",
     "script": "ramr_operational_continuity.py",
+    "evidence_harness": "ramr_ls_evidence.py",
     "measurement": "duplicate_side_effect_rate_under_budgeted_resume_recall",
     "result_file": "operational_continuity_result.json"
   },
   "shared_evidence_envelope": {
     "version": "ramr-ls-evidence-v0.1",
+    "canonical_repository": "DanceNitra/ramr",
+    "canonical_commit": "8f21771f7ee6012d6839b8c89ceae61f639e93ed",
+    "canonical_path": "fixtures/ramr_ls/duplicate_successful_outcome.json",
+    "canonical_sha256": "bb28e8a390f0cae50f49b5befa0b903b8459aeaa0edc7dc199113f75dabf48ce",
+    "local_mirror": "shared-envelope/duplicate_successful_outcome.json",
+    "local_digest_pin": "shared-envelope/duplicate_successful_outcome.sha256",
     "schema": "shared-envelope/schema-v0.1.json",
-    "frozen_fixture": "shared-envelope/duplicate_successful_outcome.json",
     "runner": "tools/run_ramr_ls_shared_evidence_fixture.py",
-    "result_file": "artifacts/ramr-ls-duplicate-successful-outcome-result.json"
+    "result_file": "artifacts/ramr-ls-duplicate-successful-outcome-result.json",
+    "ownership": {
+      "ramr": "canonical fixture bytes and retrieval reliability harness",
+      "ls": "pinned version and digest plus deterministic continuation verdict"
+    }
   },
   "mappings": [
     {
@@ -38,6 +50,9 @@
     }
   ],
   "normative_rules": [
+    "ramr_is_the_canonical_home_for_shared_fixture_bytes",
+    "ls_must_verify_the_pinned_fixture_digest_before_evaluation",
+    "semantic_changes_require_a_new_envelope_version",
     "recency_improves_priority_but_does_not_grant_authority",
     "aggregate_duplicate_rate_is_not_a_conformance_verdict",
     "recalled_completion_must_be_bound_to_current_intent_and_state",

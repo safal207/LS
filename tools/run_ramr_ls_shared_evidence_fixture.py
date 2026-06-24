@@ -1,21 +1,28 @@
 #!/usr/bin/env python3
-"""Validate the frozen RAMR-LS recovered-evidence fixture."""
+"""Verify and evaluate the RAMR-canonical shared evidence fixture."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE_PATH = (
-    ROOT
-    / "fixtures"
-    / "operational-continuity"
-    / "shared-envelope"
-    / "duplicate_successful_outcome.json"
-)
+FIXTURE_DIR = ROOT / "fixtures" / "operational-continuity" / "shared-envelope"
+FIXTURE_PATH = FIXTURE_DIR / "duplicate_successful_outcome.json"
+DIGEST_PATH = FIXTURE_DIR / "duplicate_successful_outcome.sha256"
 OUTPUT_PATH = ROOT / "artifacts" / "ramr-ls-duplicate-successful-outcome-result.json"
+CANONICAL_REPOSITORY = "DanceNitra/ramr"
+CANONICAL_COMMIT = "8f21771f7ee6012d6839b8c89ceae61f639e93ed"
+CANONICAL_PATH = "fixtures/ramr_ls/duplicate_successful_outcome.json"
+BINDING_FIELDS = (
+    "side_effect_key",
+    "continuation_id",
+    "intent_digest",
+    "target_state_digest",
+    "approval_id",
+)
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -26,129 +33,155 @@ def _load_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def _expected_digest() -> str:
+    line = DIGEST_PATH.read_text(encoding="utf-8").strip()
+    digest_token, filename = line.split(maxsplit=1)
+    if filename.strip() != FIXTURE_PATH.name:
+        raise ValueError(f"Digest file targets unexpected fixture: {filename}")
+    algorithm, digest = digest_token.split(":", maxsplit=1)
+    if algorithm != "sha256" or len(digest) != 64:
+        raise ValueError("Pinned fixture digest must be sha256:<64 lowercase hex characters>")
+    if any(character not in "0123456789abcdef" for character in digest):
+        raise ValueError("Pinned fixture digest must use lowercase hexadecimal")
+    return digest
+
+
+def _actual_digest() -> str:
+    return hashlib.sha256(FIXTURE_PATH.read_bytes()).hexdigest()
+
+
 def _validate_top_level(fixture: dict[str, Any]) -> None:
     required = {
-        "envelope_version",
+        "_meta",
         "fixture_id",
-        "frozen",
-        "synthetic",
-        "query_context",
+        "envelope_version",
+        "description",
         "authoritative_state",
-        "proposed_action",
-        "retrieval_variants",
-        "cross_layer_invariants",
+        "query_context",
+        "cases",
+        "scoring",
     }
     missing = sorted(required - fixture.keys())
     if missing:
         raise ValueError(f"Missing top-level fields: {missing}")
-    if fixture["envelope_version"] != "ramr-ls-evidence-v0.1":
-        raise ValueError("Unsupported envelope version")
     if fixture["fixture_id"] != "duplicate_successful_outcome":
         raise ValueError("Unexpected fixture id")
-    if fixture["frozen"] is not True or fixture["synthetic"] is not True:
-        raise ValueError("Shared fixture must be frozen and synthetic")
+    if fixture["envelope_version"] != "ramr-ls-evidence-v0.1":
+        raise ValueError("Unsupported envelope version")
+    if fixture.get("_meta", {}).get("envelope_version") != fixture["envelope_version"]:
+        raise ValueError("Metadata and fixture envelope versions differ")
+    case_names = [case.get("case") for case in fixture["cases"]]
+    if case_names != ["completion_recovered", "completion_not_recovered"]:
+        raise ValueError(f"Unexpected canonical case order: {case_names}")
 
 
-def _completion_recovered(variant: dict[str, Any], action: dict[str, Any]) -> bool:
-    for item in variant.get("recovered_evidence", []):
-        if item.get("evidence_type") != "completion_record":
+def _target_binding(fixture: dict[str, Any]) -> dict[str, Any]:
+    candidates: set[tuple[Any, ...]] = set()
+    workspace_ids: set[Any] = set()
+    for case in fixture["cases"]:
+        for evidence in case.get("recovered_evidence", []):
+            if evidence.get("evidence_type") != "completion_record":
+                continue
+            bindings = evidence.get("bindings", {})
+            candidates.add(tuple(bindings.get(field) for field in BINDING_FIELDS))
+            workspace_ids.add(evidence.get("scope", {}).get("workspace_id"))
+
+    if len(candidates) != 1 or len(workspace_ids) != 1:
+        raise ValueError("Canonical fixture must identify exactly one bound completion effect")
+
+    values = next(iter(candidates))
+    if len(values) != len(BINDING_FIELDS):
+        raise ValueError("Canonical completion binding has unexpected arity")
+    if any(value is None for value in values) or None in workspace_ids:
+        raise ValueError("Canonical completion binding is incomplete")
+
+    target = dict(zip(BINDING_FIELDS, values))
+    target["workspace_id"] = next(iter(workspace_ids))
+
+    context = fixture["query_context"]
+    for field in ("continuation_id", "intent_digest", "target_state_digest", "workspace_id"):
+        if target[field] != context.get(field):
+            raise ValueError(f"Canonical target binding disagrees with query_context: {field}")
+    return target
+
+
+def _bindings_match(bindings: dict[str, Any], target: dict[str, Any]) -> bool:
+    return all(bindings.get(field) == target.get(field) for field in BINDING_FIELDS)
+
+
+def _recovered_side_effect(case: dict[str, Any], target: dict[str, Any]) -> bool:
+    for evidence in case.get("recovered_evidence", []):
+        if evidence.get("evidence_type") != "completion_record":
             continue
-        bindings = item.get("bindings", {})
-        if (
-            bindings.get("side_effect_key") == action.get("side_effect_key")
-            and bindings.get("action_ref") == action.get("action_ref")
-            and bindings.get("idempotency_key") == action.get("idempotency_key")
-        ):
+        if evidence.get("scope", {}).get("workspace_id") != target["workspace_id"]:
+            continue
+        if _bindings_match(evidence.get("bindings", {}), target):
             return True
     return False
 
 
-def _authoritative_completion_exists(
-    authoritative_state: dict[str, Any], action: dict[str, Any]
-) -> bool:
-    for completed in authoritative_state.get("completed_side_effects", []):
-        if (
-            completed.get("side_effect_key") == action.get("side_effect_key")
-            and completed.get("action_ref") == action.get("action_ref")
-            and completed.get("idempotency_key") == action.get("idempotency_key")
-        ):
-            return True
-    return False
+def _ls_verdict(fixture: dict[str, Any], target: dict[str, Any]) -> tuple[str, list[str]]:
+    ledger = fixture["authoritative_state"].get("completion_ledger", [])
+    for record in ledger:
+        if record.get("status") == "completed" and _bindings_match(record, target):
+            return "REJECT", ["side_effect_must_not_repeat"]
+    return "ABSTAIN", ["authoritative_completion_state_unavailable"]
 
 
-def _bindings_match(fixture: dict[str, Any]) -> bool:
-    action = fixture["proposed_action"]
-    current = fixture["authoritative_state"]
-    return all(
-        action.get(name) == current.get(name)
-        for name in (
-            "workspace_id",
-            "continuation_id",
-            "intent_digest",
-            "target_state_digest",
-        )
-    )
-
-
-def evaluate_variant(fixture: dict[str, Any], variant: dict[str, Any]) -> dict[str, Any]:
-    action = fixture["proposed_action"]
-    authoritative_state = fixture["authoritative_state"]
-
-    completion_recovered = _completion_recovered(variant, action)
-    ramr_duplicate = not completion_recovered
-    observed_ramr = {
-        "completion_record_recovered": completion_recovered,
-        "naive_duplicate_side_effect": ramr_duplicate,
-        "duplicate_side_effect_rate": 1.0 if ramr_duplicate else 0.0,
-    }
-
-    failed: list[str] = []
-    if not _bindings_match(fixture):
-        ls_outcome = "REVALIDATE"
-        failed.append("binding_mismatch")
-    elif _authoritative_completion_exists(authoritative_state, action):
-        ls_outcome = "REJECT"
-        failed.append("side_effect_must_not_repeat")
-    elif not completion_recovered:
-        ls_outcome = "ABSTAIN"
-        failed.append("authoritative_completion_state_unavailable")
-    else:
-        ls_outcome = "RESUME"
-
-    observed_ls = {
-        "outcome": ls_outcome,
-        "failed_invariants": failed,
-        "authority_source": "authoritative_state",
-    }
-
-    expected_ramr = variant["expected_ramr"]
-    expected_ls = variant["expected_ls"]
+def evaluate_case(
+    fixture: dict[str, Any], case: dict[str, Any], target: dict[str, Any]
+) -> dict[str, Any]:
+    observed_ramr = _recovered_side_effect(case, target)
+    observed_ls, failed_invariants = _ls_verdict(fixture, target)
+    expected = case["expected"]
     return {
-        "variant_id": variant["variant_id"],
-        "observed_ramr": observed_ramr,
-        "expected_ramr": expected_ramr,
-        "observed_ls": observed_ls,
-        "expected_ls": expected_ls,
-        "passed": observed_ramr == expected_ramr and observed_ls == expected_ls,
+        "case": case["case"],
+        "observed": {
+            "ramr_recovered_side_effect": observed_ramr,
+            "ls_verdict": observed_ls,
+            "failed_invariants": failed_invariants,
+            "authority_source": "authoritative_state.completion_ledger",
+            "bound_side_effect_key": target["side_effect_key"],
+            "bound_approval_id": target["approval_id"],
+        },
+        "expected": expected,
+        "passed": (
+            observed_ramr == expected["ramr_recovered_side_effect"]
+            and observed_ls == expected["ls_verdict"]
+        ),
     }
 
 
 def main() -> int:
+    expected_digest = _expected_digest()
+    actual_digest = _actual_digest()
+    if actual_digest != expected_digest:
+        raise ValueError(
+            "RAMR canonical fixture digest mismatch: "
+            f"expected {expected_digest}, observed {actual_digest}"
+        )
+
     fixture = _load_json(FIXTURE_PATH)
     _validate_top_level(fixture)
-
-    results = [evaluate_variant(fixture, variant) for variant in fixture["retrieval_variants"]]
+    target = _target_binding(fixture)
+    results = [evaluate_case(fixture, case, target) for case in fixture["cases"]]
     passed = sum(bool(result["passed"]) for result in results)
+
     report = {
+        "profile": "ls-ramr-operational-continuity-interop-v0.1",
         "envelope_version": fixture["envelope_version"],
         "fixture_id": fixture["fixture_id"],
-        "frozen": fixture["frozen"],
-        "variants_total": len(results),
-        "variants_passed": passed,
-        "cross_layer_property": (
-            "RAMR may report retrieval-driven duplicate risk while LS still rejects replay "
-            "from authoritative completion state"
-        ),
+        "canonical_source": {
+            "repository": CANONICAL_REPOSITORY,
+            "commit": CANONICAL_COMMIT,
+            "path": CANONICAL_PATH,
+            "sha256": actual_digest,
+            "local_mirror_verified": True,
+        },
+        "bound_action": target,
+        "cases_total": len(results),
+        "cases_passed": passed,
+        "boundary_invariant": fixture["scoring"]["boundary_invariant"],
         "results": results,
     }
 

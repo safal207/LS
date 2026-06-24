@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export deterministic LS fixture results in a RAMR interoperability envelope."""
+"""Export deterministic LS and RAMR-canonical interoperability results."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_DIR = ROOT / "fixtures" / "operational-continuity"
 RUNNER_PATH = ROOT / "tools" / "run_operational_continuity_fixtures.py"
 MAP_PATH = FIXTURE_DIR / "ramr-interop-map.json"
+SHARED_RESULT_PATH = ROOT / "artifacts" / "ramr-ls-duplicate-successful-outcome-result.json"
 OUTPUT_PATH = ROOT / "artifacts" / "ramr-operational-continuity-interop-result.json"
 
 FIXTURE_FILES = (
@@ -42,6 +43,7 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 def build_envelope() -> dict[str, Any]:
     mapping = _load_json(MAP_PATH)
+    shared_result = _load_json(SHARED_RESULT_PATH)
     evaluate = _load_evaluator()
 
     results: list[dict[str, Any]] = []
@@ -56,6 +58,7 @@ def build_envelope() -> dict[str, Any]:
         "profile": mapping["profile"],
         "ramr": mapping["ramr"],
         "shared_evidence_envelope": mapping["shared_evidence_envelope"],
+        "shared_evidence_result": shared_result,
         "ls": {
             "fixture_profile": "ls-operational-continuity-v0.1",
             "fixtures_total": len(results),
@@ -80,7 +83,14 @@ def main() -> int:
         encoding="utf-8",
     )
     print(json.dumps(envelope, indent=2, sort_keys=True))
-    return 0 if envelope["ls"]["fixtures_passed"] == envelope["ls"]["fixtures_total"] else 1
+
+    ls_passed = envelope["ls"]["fixtures_passed"] == envelope["ls"]["fixtures_total"]
+    shared = envelope["shared_evidence_result"]
+    shared_passed = (
+        shared.get("canonical_source", {}).get("local_mirror_verified") is True
+        and shared.get("cases_passed") == shared.get("cases_total")
+    )
+    return 0 if ls_passed and shared_passed else 1
 
 
 if __name__ == "__main__":

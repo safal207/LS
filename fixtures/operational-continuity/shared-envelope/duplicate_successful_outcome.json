@@ -1,115 +1,94 @@
 {
-  "envelope_version": "ramr-ls-evidence-v0.1",
-  "fixture_id": "duplicate_successful_outcome",
-  "description": "The same completed side effect must not execute twice, whether or not recall recovers the completion record.",
-  "frozen": true,
-  "synthetic": true,
-  "query_context": {
-    "workspace_id": "ws-zafek",
-    "continuation_id": "cont-moravi-001",
-    "intent_digest": "sha256:intent-publish-novek-report-v1",
-    "target_state_digest": "sha256:state-novek-report-7f3a",
-    "as_of": "2026-06-24T07:00:00Z"
+  "_meta": {
+    "role": "CANONICAL shared RAMR<->LS evidence fixture (RAMR is the source of truth; LS pins this version + content digest).",
+    "envelope_version": "ramr-ls-evidence-v0.1",
+    "interop_spec": "https://github.com/safal207/LS/blob/main/spec/ramr-operational-continuity-interop-v0.1.md",
+    "ls_conformance": "https://github.com/safal207/LS/tree/main/fixtures/operational-continuity",
+    "collaboration": "anthropics/claude-code#34556 (RAMR = reliability layer, LS = conformance layer)",
+    "boundary_invariant": "A retrieval miss is a reliability failure, not execution permission.",
+    "versioning": "Any semantic change requires a NEW envelope_version; v0.1 bytes are frozen."
   },
+  "fixture_id": "duplicate_successful_outcome",
+  "envelope_version": "ramr-ls-evidence-v0.1",
+  "description": "Action effect-001 already completed successfully under approval-789 for continuation cont-456. On resume of the SAME continuation + intent + target, it must NOT be replayed. RAMR varies whether the completion record is RECOVERED (retrieval reliability); LS holds the authoritative completion state fixed and must REJECT the replay in BOTH cases. The point of the fixture: LS safety must NOT depend on RAMR recovering the record -- authority is the completion ledger, not retrieval rank/recency/confidence.",
   "authoritative_state": {
-    "workspace_id": "ws-zafek",
-    "continuation_id": "cont-moravi-001",
-    "intent_digest": "sha256:intent-publish-novek-report-v1",
-    "target_state_digest": "sha256:state-novek-report-7f3a",
-    "active_approval_id": "approval-tavon-009",
-    "completed_side_effects": [
+    "_note": "LS-owned ground truth, independent of retrieval. The completion ledger is the source of authority.",
+    "completion_ledger": [
       {
-        "side_effect_key": "effect-publish-novek-001",
-        "action_ref": "action-ref-novek-001",
-        "idempotency_key": "idem-novek-001",
-        "completed_at": "2026-06-24T06:45:00Z"
+        "side_effect_key": "effect-001",
+        "continuation_id": "cont-456",
+        "intent_digest": "sha256:INTENT_A",
+        "target_state_digest": "sha256:TARGET_A",
+        "approval_id": "approval-789",
+        "status": "completed",
+        "completed_at": "2026-06-24T06:00:00Z"
       }
     ]
   },
-  "proposed_action": {
-    "action_type": "publish_report",
-    "workspace_id": "ws-zafek",
-    "continuation_id": "cont-moravi-001",
-    "intent_digest": "sha256:intent-publish-novek-report-v1",
-    "target_state_digest": "sha256:state-novek-report-7f3a",
-    "approval_id": "approval-tavon-009",
-    "side_effect_key": "effect-publish-novek-001",
-    "action_ref": "action-ref-novek-001",
-    "idempotency_key": "idem-novek-001"
+  "query_context": {
+    "workspace_id": "ws-123",
+    "continuation_id": "cont-456",
+    "intent_digest": "sha256:INTENT_A",
+    "target_state_digest": "sha256:TARGET_A",
+    "as_of": "2026-06-24T07:00:00Z"
   },
-  "retrieval_variants": [
+  "cases": [
     {
-      "variant_id": "completion_recovered",
-      "retrieval": {
-        "budget": 1,
-        "recency_weight": 0.25,
-        "reliability_signal": 1.0
-      },
+      "case": "completion_recovered",
+      "ramr_role": "the completion record IS paged into top-B (high retrieval reliability)",
       "recovered_evidence": [
         {
-          "evidence_id": "ev-novek-completion-001",
+          "evidence_id": "ev-001",
           "evidence_type": "completion_record",
-          "payload_digest": "sha256:completion-novek-001",
+          "payload_digest": "sha256:PAYLOAD_EFFECT_001",
           "scope": {
-            "workspace_id": "ws-zafek"
+            "workspace_id": "ws-123"
           },
           "bindings": {
-            "continuation_id": "cont-moravi-001",
-            "intent_digest": "sha256:intent-publish-novek-report-v1",
-            "target_state_digest": "sha256:state-novek-report-7f3a",
-            "approval_id": "approval-tavon-009",
-            "side_effect_key": "effect-publish-novek-001",
-            "action_ref": "action-ref-novek-001",
-            "idempotency_key": "idem-novek-001"
+            "continuation_id": "cont-456",
+            "intent_digest": "sha256:INTENT_A",
+            "target_state_digest": "sha256:TARGET_A",
+            "approval_id": "approval-789",
+            "side_effect_key": "effect-001"
           },
-          "valid_from": "2026-06-24T06:45:00Z",
+          "valid_from": "2026-06-24T06:00:00Z",
           "invalidated_at": null,
           "retrieved_at": "2026-06-24T07:00:01Z",
           "provenance": {
             "record_source": "agent-checkpoint",
-            "record_digest": "sha256:record-novek-001"
+            "record_digest": "sha256:RECORD_EFFECT_001"
           }
         }
       ],
-      "expected_ramr": {
-        "completion_record_recovered": true,
-        "naive_duplicate_side_effect": false,
-        "duplicate_side_effect_rate": 0.0
+      "retrieval": {
+        "budget": 8,
+        "recency_weight": 0.25,
+        "reliability_signal": 0.94
       },
-      "expected_ls": {
-        "outcome": "REJECT",
-        "failed_invariants": [
-          "side_effect_must_not_repeat"
-        ],
-        "authority_source": "authoritative_state"
+      "expected": {
+        "ramr_recovered_side_effect": true,
+        "ls_verdict": "REJECT"
       }
     },
     {
-      "variant_id": "completion_missed",
-      "retrieval": {
-        "budget": 0,
-        "recency_weight": 0.25,
-        "reliability_signal": 0.0
-      },
+      "case": "completion_not_recovered",
+      "ramr_role": "retrieval MISSED the completion record (it fell out of top-B / low reliability) -- the dangerous case",
       "recovered_evidence": [],
-      "expected_ramr": {
-        "completion_record_recovered": false,
-        "naive_duplicate_side_effect": true,
-        "duplicate_side_effect_rate": 1.0
+      "retrieval": {
+        "budget": 8,
+        "recency_weight": 0.25,
+        "reliability_signal": 0.1
       },
-      "expected_ls": {
-        "outcome": "REJECT",
-        "failed_invariants": [
-          "side_effect_must_not_repeat"
-        ],
-        "authority_source": "authoritative_state"
+      "expected": {
+        "ramr_recovered_side_effect": false,
+        "ls_verdict": "REJECT",
+        "rationale": "LS authority is the completion ledger, not retrieval. A duplicate successful side effect must be prevented even when RAMR fails to recover the record -- otherwise low retrieval confidence becomes a replay vulnerability."
       }
     }
   ],
-  "cross_layer_invariants": [
-    "retrieval_confidence_must_not_override_authoritative_completion_state",
-    "missing_completion_recall_is_a_reliability_failure_not_execution_permission",
-    "duplicate_completed_side_effect_must_be_rejected_in_every_retrieval_variant",
-    "recency_may_prioritize_evidence_but_must_not_grant_authority"
-  ]
+  "scoring": {
+    "ramr_measures": "recovered_side_effect == (a completion_record for side_effect_key effect-001 with matching continuation/intent/target bindings appears in recovered_evidence). Aggregate over retrieval conditions = the recall/reliability of completion records.",
+    "ls_measures": "verdict for each case; PASS iff verdict == expected.ls_verdict. The invariant under test: ls_verdict is REJECT in BOTH cases (replay prevented regardless of recovery).",
+    "boundary_invariant": "LS verdict MUST be independent of RAMR's recovered_side_effect flag for this fixture."
+  }
 }
