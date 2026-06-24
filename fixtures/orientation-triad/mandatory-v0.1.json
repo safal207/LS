@@ -1,0 +1,270 @@
+{
+  "suite_id": "orientation-triad-v0.1-mandatory",
+  "base_case": {
+    "triad_version": "orientation-triad-v0.1",
+    "toc": {
+      "center_version": "temporal-orientation-v0.1",
+      "verdict": "RESUME",
+      "reason_code": "ORIENTATION_VALID",
+      "execution_authorized": false,
+      "downstream_gates_required": true,
+      "bindings": {
+        "workspace_id": "repo:safal207/LS",
+        "trajectory_id": "issue-672",
+        "continuation_id": "triad-1",
+        "action_digest": "sha256:update-file-v1"
+      }
+    },
+    "rtoc": {
+      "center_version": "relational-temporal-orientation-v0.1",
+      "verdict": "RESUME",
+      "reason_code": "RELATIONAL_ORIENTATION_VALID",
+      "execution_authorized": false,
+      "downstream_gates_required": true,
+      "bindings": {
+        "relationship_id": "rel-maintainer-agent",
+        "actor_id": "agent-codex",
+        "action_digest": "sha256:update-file-v1"
+      }
+    },
+    "patoc": {
+      "center_version": "precise-action-temporal-orientation-v0.1",
+      "verdict": "EXECUTE_CANDIDATE",
+      "reason_code": "PRECISE_ACTION_ORIENTATION_VALID",
+      "execution_authorized": false,
+      "downstream_gates_required": true,
+      "bindings": {
+        "workspace_id": "repo:safal207/LS",
+        "trajectory_id": "issue-672",
+        "continuation_id": "triad-1",
+        "relationship_id": "rel-maintainer-agent",
+        "actor_id": "agent-codex",
+        "action_digest": "sha256:update-file-v1"
+      }
+    }
+  },
+  "cases": [
+    {
+      "fixture_id": "valid_user_agent_candidate",
+      "overrides": {},
+      "expected": {
+        "verdict": "COORDINATED_ACTION_CANDIDATE",
+        "reason_code": "TRIAD_ORIENTATION_VALID"
+      }
+    },
+    {
+      "fixture_id": "valid_agent_agent_candidate",
+      "overrides": {
+        "rtoc.bindings.relationship_id": "rel-agent-a-agent-b",
+        "rtoc.bindings.actor_id": "agent-b",
+        "rtoc.bindings.action_digest": "sha256:apply-patch-v1",
+        "patoc.bindings.relationship_id": "rel-agent-a-agent-b",
+        "patoc.bindings.actor_id": "agent-b",
+        "patoc.bindings.action_digest": "sha256:apply-patch-v1",
+        "toc.bindings.action_digest": "sha256:apply-patch-v1"
+      },
+      "expected": {
+        "verdict": "COORDINATED_ACTION_CANDIDATE",
+        "reason_code": "TRIAD_ORIENTATION_VALID"
+      }
+    },
+    {
+      "fixture_id": "toc_rejected",
+      "overrides": {
+        "toc.verdict": "REJECT",
+        "toc.reason_code": "CONTINUATION_MISMATCH"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "TOC_REJECTED"
+      }
+    },
+    {
+      "fixture_id": "rtoc_rejected",
+      "overrides": {
+        "rtoc.verdict": "REJECT",
+        "rtoc.reason_code": "AUTHORITY_REVOKED"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "RTOC_REJECTED"
+      }
+    },
+    {
+      "fixture_id": "patoc_rejected",
+      "overrides": {
+        "patoc.verdict": "REJECT",
+        "patoc.reason_code": "WRONG_ACTOR"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "PATOC_REJECTED"
+      }
+    },
+    {
+      "fixture_id": "toc_revalidation_required",
+      "overrides": {
+        "toc.verdict": "REVALIDATE",
+        "toc.reason_code": "TARGET_STATE_DRIFT"
+      },
+      "expected": {
+        "verdict": "REVALIDATE",
+        "reason_code": "TOC_REVALIDATION_REQUIRED"
+      }
+    },
+    {
+      "fixture_id": "rtoc_revalidation_required",
+      "overrides": {
+        "rtoc.verdict": "REVALIDATE",
+        "rtoc.reason_code": "SHARED_INTENT_DRIFT"
+      },
+      "expected": {
+        "verdict": "REVALIDATE",
+        "reason_code": "RTOC_REVALIDATION_REQUIRED"
+      }
+    },
+    {
+      "fixture_id": "patoc_revalidation_required",
+      "overrides": {
+        "patoc.verdict": "REVALIDATE",
+        "patoc.reason_code": "PARAMETERS_STALE"
+      },
+      "expected": {
+        "verdict": "REVALIDATE",
+        "reason_code": "PATOC_REVALIDATION_REQUIRED"
+      }
+    },
+    {
+      "fixture_id": "patoc_wait_required",
+      "overrides": {
+        "patoc.verdict": "WAIT",
+        "patoc.reason_code": "APPROVAL_PENDING"
+      },
+      "expected": {
+        "verdict": "WAIT",
+        "reason_code": "PATOC_WAIT_REQUIRED"
+      }
+    },
+    {
+      "fixture_id": "toc_abstained",
+      "overrides": {
+        "toc.verdict": "ABSTAIN",
+        "toc.reason_code": "INCOMPLETE_DEPENDENCY_CHAIN"
+      },
+      "expected": {
+        "verdict": "ABSTAIN",
+        "reason_code": "TOC_ABSTAINED"
+      }
+    },
+    {
+      "fixture_id": "rtoc_abstained",
+      "overrides": {
+        "rtoc.verdict": "ABSTAIN",
+        "rtoc.reason_code": "INCOMPLETE_HANDOFF"
+      },
+      "expected": {
+        "verdict": "ABSTAIN",
+        "reason_code": "RTOC_ABSTAINED"
+      }
+    },
+    {
+      "fixture_id": "patoc_abstained",
+      "overrides": {
+        "patoc.verdict": "ABSTAIN",
+        "patoc.reason_code": "MISSING_PARAMETER"
+      },
+      "expected": {
+        "verdict": "ABSTAIN",
+        "reason_code": "PATOC_ABSTAINED"
+      }
+    },
+    {
+      "fixture_id": "workspace_binding_mismatch",
+      "overrides": {
+        "patoc.bindings.workspace_id": "repo:other/project"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "WORKSPACE_BINDING_MISMATCH"
+      }
+    },
+    {
+      "fixture_id": "trajectory_binding_mismatch",
+      "overrides": {
+        "patoc.bindings.trajectory_id": "issue-other"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "TRAJECTORY_BINDING_MISMATCH"
+      }
+    },
+    {
+      "fixture_id": "continuation_binding_mismatch",
+      "overrides": {
+        "patoc.bindings.continuation_id": "triad-other"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "CONTINUATION_BINDING_MISMATCH"
+      }
+    },
+    {
+      "fixture_id": "relationship_binding_mismatch",
+      "overrides": {
+        "patoc.bindings.relationship_id": "rel-other"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "RELATIONSHIP_BINDING_MISMATCH"
+      }
+    },
+    {
+      "fixture_id": "actor_binding_mismatch",
+      "overrides": {
+        "patoc.bindings.actor_id": "agent-other"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "ACTOR_BINDING_MISMATCH"
+      }
+    },
+    {
+      "fixture_id": "action_binding_mismatch",
+      "overrides": {
+        "patoc.bindings.action_digest": "sha256:other-action"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "ACTION_BINDING_MISMATCH"
+      }
+    },
+    {
+      "fixture_id": "upstream_authorization_invariant_violation",
+      "overrides": {
+        "patoc.execution_authorized": true
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "UPSTREAM_AUTHORIZATION_INVARIANT_VIOLATION"
+      }
+    },
+    {
+      "fixture_id": "unsupported_center_version",
+      "overrides": {
+        "rtoc.center_version": "relational-temporal-orientation-v9"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "UNSUPPORTED_CENTER_VERSION"
+      }
+    },
+    {
+      "fixture_id": "candidate_does_not_grant_permission",
+      "overrides": {},
+      "expected": {
+        "verdict": "COORDINATED_ACTION_CANDIDATE",
+        "reason_code": "TRIAD_ORIENTATION_VALID"
+      }
+    }
+  ]
+}
