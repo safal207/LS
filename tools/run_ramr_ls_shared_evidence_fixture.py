@@ -16,6 +16,13 @@ OUTPUT_PATH = ROOT / "artifacts" / "ramr-ls-duplicate-successful-outcome-result.
 CANONICAL_REPOSITORY = "DanceNitra/ramr"
 CANONICAL_COMMIT = "8f21771f7ee6012d6839b8c89ceae61f639e93ed"
 CANONICAL_PATH = "fixtures/ramr_ls/duplicate_successful_outcome.json"
+BINDING_FIELDS = (
+    "side_effect_key",
+    "continuation_id",
+    "intent_digest",
+    "target_state_digest",
+    "approval_id",
+)
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -34,6 +41,8 @@ def _expected_digest() -> str:
     algorithm, digest = digest_token.split(":", maxsplit=1)
     if algorithm != "sha256" or len(digest) != 64:
         raise ValueError("Pinned fixture digest must be sha256:<64 lowercase hex characters>")
+    if any(character not in "0123456789abcdef" for character in digest):
+        raise ValueError("Pinned fixture digest must use lowercase hexadecimal")
     return digest
 
 
@@ -66,49 +75,62 @@ def _validate_top_level(fixture: dict[str, Any]) -> None:
         raise ValueError(f"Unexpected canonical case order: {case_names}")
 
 
-def _binding_matches_context(bindings: dict[str, Any], context: dict[str, Any]) -> bool:
-    return all(
-        bindings.get(field) == context.get(field)
-        for field in ("continuation_id", "intent_digest", "target_state_digest")
-    )
+def _target_binding(fixture: dict[str, Any]) -> dict[str, Any]:
+    candidates: set[tuple[Any, ...]] = set()
+    workspace_ids: set[Any] = set()
+    for case in fixture["cases"]:
+        for evidence in case.get("recovered_evidence", []):
+            if evidence.get("evidence_type") != "completion_record":
+                continue
+            bindings = evidence.get("bindings", {})
+            candidates.add(tuple(bindings.get(field) for field in BINDING_FIELDS))
+            workspace_ids.add(evidence.get("scope", {}).get("workspace_id"))
 
+    if len(candidates) != 1 or len(workspace_ids) != 1:
+        raise ValueError("Canonical fixture must identify exactly one bound completion effect")
 
-def _recovered_side_effect(case: dict[str, Any], fixture: dict[str, Any]) -> bool:
+    values = next(iter(candidates))
+    if any(value is None for value in values) or None in workspace_ids:
+        raise ValueError("Canonical completion binding is incomplete")
+
+    target = dict(zip(BINDING_FIELDS, values, strict=True))
+    target["workspace_id"] = next(iter(workspace_ids))
+
     context = fixture["query_context"]
-    ledger = fixture["authoritative_state"].get("completion_ledger", [])
-    completed_keys = {
-        record.get("side_effect_key")
-        for record in ledger
-        if record.get("status") == "completed" and _binding_matches_context(record, context)
-    }
+    for field in ("continuation_id", "intent_digest", "target_state_digest", "workspace_id"):
+        if target[field] != context.get(field):
+            raise ValueError(f"Canonical target binding disagrees with query_context: {field}")
+    return target
+
+
+def _bindings_match(bindings: dict[str, Any], target: dict[str, Any]) -> bool:
+    return all(bindings.get(field) == target.get(field) for field in BINDING_FIELDS)
+
+
+def _recovered_side_effect(case: dict[str, Any], target: dict[str, Any]) -> bool:
     for evidence in case.get("recovered_evidence", []):
         if evidence.get("evidence_type") != "completion_record":
             continue
-        bindings = evidence.get("bindings", {})
-        scope = evidence.get("scope", {})
-        if scope.get("workspace_id") != context.get("workspace_id"):
+        if evidence.get("scope", {}).get("workspace_id") != target["workspace_id"]:
             continue
-        if not _binding_matches_context(bindings, context):
-            continue
-        if bindings.get("side_effect_key") in completed_keys:
+        if _bindings_match(evidence.get("bindings", {}), target):
             return True
     return False
 
 
-def _ls_verdict(fixture: dict[str, Any]) -> tuple[str, list[str]]:
-    context = fixture["query_context"]
+def _ls_verdict(fixture: dict[str, Any], target: dict[str, Any]) -> tuple[str, list[str]]:
     ledger = fixture["authoritative_state"].get("completion_ledger", [])
     for record in ledger:
-        if record.get("status") != "completed":
-            continue
-        if _binding_matches_context(record, context):
+        if record.get("status") == "completed" and _bindings_match(record, target):
             return "REJECT", ["side_effect_must_not_repeat"]
     return "ABSTAIN", ["authoritative_completion_state_unavailable"]
 
 
-def evaluate_case(fixture: dict[str, Any], case: dict[str, Any]) -> dict[str, Any]:
-    observed_ramr = _recovered_side_effect(case, fixture)
-    observed_ls, failed_invariants = _ls_verdict(fixture)
+def evaluate_case(
+    fixture: dict[str, Any], case: dict[str, Any], target: dict[str, Any]
+) -> dict[str, Any]:
+    observed_ramr = _recovered_side_effect(case, target)
+    observed_ls, failed_invariants = _ls_verdict(fixture, target)
     expected = case["expected"]
     return {
         "case": case["case"],
@@ -117,6 +139,8 @@ def evaluate_case(fixture: dict[str, Any], case: dict[str, Any]) -> dict[str, An
             "ls_verdict": observed_ls,
             "failed_invariants": failed_invariants,
             "authority_source": "authoritative_state.completion_ledger",
+            "bound_side_effect_key": target["side_effect_key"],
+            "bound_approval_id": target["approval_id"],
         },
         "expected": expected,
         "passed": (
@@ -137,7 +161,8 @@ def main() -> int:
 
     fixture = _load_json(FIXTURE_PATH)
     _validate_top_level(fixture)
-    results = [evaluate_case(fixture, case) for case in fixture["cases"]]
+    target = _target_binding(fixture)
+    results = [evaluate_case(fixture, case, target) for case in fixture["cases"]]
     passed = sum(bool(result["passed"]) for result in results)
 
     report = {
@@ -151,6 +176,7 @@ def main() -> int:
             "sha256": actual_digest,
             "local_mirror_verified": True,
         },
+        "bound_action": target,
         "cases_total": len(results),
         "cases_passed": passed,
         "boundary_invariant": fixture["scoring"]["boundary_invariant"],
