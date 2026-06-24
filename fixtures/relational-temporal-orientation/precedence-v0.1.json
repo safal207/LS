@@ -1,0 +1,149 @@
+{
+  "suite_id": "relational-temporal-orientation-v0.1-precedence",
+  "base_case": {
+    "orientation": {
+      "relationship_version": "relational-temporal-orientation-v0.1",
+      "relationship": {
+        "relationship_id": "rel-1",
+        "relationship_type": "user_agent",
+        "relationship_epoch": "epoch-2",
+        "participants": [
+          {
+            "actor_id": "user-1",
+            "role": "principal",
+            "participation_state": "active"
+          },
+          {
+            "actor_id": "agent-a",
+            "role": "delegate",
+            "participation_state": "active"
+          }
+        ]
+      },
+      "temporal_frame": {
+        "as_of": "2026-06-24T19:00:00Z",
+        "established_at": "2026-06-01T00:00:00Z",
+        "last_mutual_confirmation_at": "2026-06-24T18:00:00Z",
+        "invalidated_at": null
+      },
+      "shared_orientation": {
+        "shared_intent_digest": "sha256:intent-current",
+        "shared_target_state_digest": "sha256:target-current",
+        "shared_context_digest": "sha256:context-current"
+      },
+      "authority_edges": [
+        {
+          "grant_id": "grant-send-report",
+          "grantor": "user-1",
+          "grantee": "agent-a",
+          "capability": "send_report",
+          "scope_digest": "sha256:scope-client-a",
+          "state": "active",
+          "valid_from": "2026-06-20T00:00:00Z",
+          "invalidated_at": null
+        }
+      ],
+      "commitments": [],
+      "boundaries": [
+        {
+          "boundary_id": "boundary-review",
+          "owner": "user-1",
+          "rule_digest": "sha256:boundary-reviewed-only",
+          "state": "active"
+        }
+      ],
+      "trust": {
+        "state": "confirmed",
+        "evidence_refs": [
+          "receipt:confirmation-1"
+        ]
+      },
+      "handoff": {
+        "handoff_id": null,
+        "from_actor": null,
+        "to_actor": null,
+        "state": "absent"
+      },
+      "completed_history": {
+        "completed_relational_effect_keys": [],
+        "superseded_grants": [],
+        "resolved_commitments": []
+      },
+      "next_relational_transition": {
+        "allowed_actor_id": "agent-a",
+        "allowed_action_digest": "sha256:send-report-v7"
+      }
+    },
+    "authoritative_state": {
+      "relationship_id": "rel-1",
+      "relationship_epoch": "epoch-2",
+      "current_shared_intent_digest": "sha256:intent-current",
+      "current_shared_target_state_digest": "sha256:target-current",
+      "active_roles": {
+        "user-1": "principal",
+        "agent-a": "delegate"
+      },
+      "authority_grants": [
+        {
+          "grant_id": "grant-send-report",
+          "grantee": "agent-a",
+          "capability": "send_report",
+          "scope_digest": "sha256:scope-client-a",
+          "state": "active"
+        }
+      ],
+      "active_boundary_rule_digests": [
+        "sha256:boundary-reviewed-only"
+      ],
+      "trust_state": "confirmed",
+      "completed_relational_effect_keys": [],
+      "open_commitment_ids": [],
+      "handoff_state": "absent"
+    },
+    "proposed_action": {
+      "actor_id": "agent-a",
+      "action_digest": "sha256:send-report-v7",
+      "capability": "send_report",
+      "scope_digest": "sha256:scope-client-a",
+      "relational_effect_key": "send-report-v7-client-a",
+      "requires_delegation": true,
+      "requires_trust": true,
+      "requires_no_open_commitments": false,
+      "requires_accepted_handoff": false,
+      "boundary_rule_digest": "sha256:boundary-reviewed-only"
+    }
+  },
+  "cases": [
+    {
+      "fixture_id": "revoked_authority_precedes_shared_intent_drift",
+      "overrides": {
+        "orientation.authority_edges.0.state": "revoked",
+        "orientation.authority_edges.0.invalidated_at": "2026-06-24T18:30:00Z",
+        "authoritative_state.authority_grants.0.state": "revoked",
+        "authoritative_state.current_shared_intent_digest": "sha256:intent-new"
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "AUTHORITY_REVOKED"
+      }
+    },
+    {
+      "fixture_id": "shared_intent_drift_precedes_incomplete_handoff",
+      "overrides": {
+        "authoritative_state.current_shared_intent_digest": "sha256:intent-new",
+        "orientation.handoff": {
+          "handoff_id": "handoff-1",
+          "from_actor": "agent-old",
+          "to_actor": "agent-a",
+          "state": "incomplete"
+        },
+        "authoritative_state.handoff_state": "incomplete",
+        "proposed_action.requires_accepted_handoff": true
+      },
+      "expected": {
+        "verdict": "REVALIDATE",
+        "reason_code": "SHARED_INTENT_DRIFT"
+      }
+    }
+  ]
+}
