@@ -36,7 +36,7 @@
     "hold_pending_preconditions.json",
     "expired_action.json",
     "scope_mismatch.json",
-    "commit_failure.json",
+    "journal_error.json",
     "duplicate_retry.json",
     "interrupted_after_commit.json",
     "interrupted_after_effect.json"
