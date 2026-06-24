@@ -51,6 +51,7 @@ def test_all_trusted_runtime_schemas_are_valid_draft_2020_12() -> None:
         "conformance_report.schema.json",
         "resume_checkpoint.schema.json",
         "reusable_artifact.schema.json",
+        "orientation_context.schema.json",
     }
 
     assert {path.name for path in SCHEMA_ROOT.glob("*.schema.json")} == schema_names
