@@ -6,6 +6,7 @@ on:
       - "spec/operational-continuity-fixtures-v0.1.md"
       - "fixtures/operational-continuity/**"
       - "tools/run_operational_continuity_fixtures.py"
+      - "tools/validate_recovered_evidence_v0_2.py"
   push:
     branches:
       - main
@@ -13,6 +14,7 @@ on:
       - "spec/operational-continuity-fixtures-v0.1.md"
       - "fixtures/operational-continuity/**"
       - "tools/run_operational_continuity_fixtures.py"
+      - "tools/validate_recovered_evidence_v0_2.py"
 
 permissions:
   contents: read
@@ -32,3 +34,8 @@ jobs:
             fixtures/operational-continuity/superseded_approval_rejected.json \
             fixtures/operational-continuity/complete_chain_preferred_over_disconnected_facts.json \
             fixtures/operational-continuity/workspace_drift_requires_revalidation.json
+      - name: Validate recovered evidence envelope v0.2
+        run: |
+          python tools/validate_recovered_evidence_v0_2.py \
+            fixtures/operational-continuity/shared-envelope/resumed_constraint_defer_v0.2.json \
+            fixtures/operational-continuity/shared-envelope/schema-v0.2.json
