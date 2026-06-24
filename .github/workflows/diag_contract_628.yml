@@ -1,0 +1,16 @@
+name: Diagnose Contract 628
+
+on:
+  push:
+    branches: ["feat/orientation-pr-review-artifacts"]
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -q jsonschema pytest
+      - run: PYTHONPATH=.:python:python/modules python -m pytest -q python/tests/test_trusted_runtime_*.py --tb=short
