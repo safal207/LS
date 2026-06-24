@@ -1,23 +1,34 @@
 # Temporal Orientation Center fixtures
 
-This directory contains the mandatory v0.1 conformance suite for LS temporal orientation.
+This directory contains the v0.1 conformance suites for LS temporal orientation.
 
 ## Run
 
 ```bash
+python tools/validate_temporal_orientation_schema.py \
+  schemas/temporal-orientation-v0.1.schema.json \
+  fixtures/temporal-orientation/mandatory-v0.1.json \
+  fixtures/temporal-orientation/additional-v0.1.json
+
 python tools/evaluate_temporal_orientation.py \
   fixtures/temporal-orientation/mandatory-v0.1.json \
   --check-expected
+
+python tools/evaluate_temporal_orientation.py \
+  fixtures/temporal-orientation/additional-v0.1.json \
+  --check-expected
 ```
 
-The command exits with status `0` only when every fixture produces its frozen verdict and reason code.
+Each command exits with status `0` only when the inputs satisfy the published schema and every fixture produces its frozen verdict and reason code.
 
 ## Covered boundaries
 
+- a new continuation inside the same trajectory can return `RESUME`;
 - valid current orientation returns `RESUME`;
 - stale continuation returns `REJECT`;
 - revoked approval returns `REJECT`;
 - completed side-effect replay returns `REJECT`;
+- retrieval miss does not turn authoritative replay state into permission;
 - target-state drift returns `REVALIDATE`;
 - incomplete dependency chain returns `ABSTAIN`;
 - same-workspace intent substitution returns `REJECT`;
