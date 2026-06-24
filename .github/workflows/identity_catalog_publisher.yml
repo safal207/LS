@@ -1,0 +1,174 @@
+name: Atomic Identity Catalog Publisher
+
+on:
+  push:
+    branches:
+      - "feat/identity-catalog-publisher"
+  pull_request:
+    paths:
+      - "python/modules/trusted_runtime/identity_catalog_publisher.py"
+      - "python/tests/identity_catalog_publisher_fixtures.py"
+      - "python/tests/test_identity_catalog_publisher*.py"
+      - "schemas/trusted_runtime/identity_catalog_publication.schema.json"
+      - "scripts/publish_identity_catalog.py"
+      - ".github/workflows/identity_catalog_publisher.yml"
+
+concurrency:
+  group: identity-catalog-publisher-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+    env:
+      LS_IDENTITY_CATALOG_KEYRING_JSON: '{"key-old":"ci-old-key-material","key-new":"ci-new-key-material"}'
+      LS_IDENTITY_VISIBILITY_JSON: '{"agent:published-reviewer":["internal"],"agent:published-auditor":["internal"]}'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema pytest ruff
+
+      - name: Ruff publisher changes
+        run: |
+          ruff check \
+            python/modules/trusted_runtime/identity_catalog_publisher.py \
+            python/tests/identity_catalog_publisher_fixtures.py \
+            python/tests/test_identity_catalog_publisher.py \
+            python/tests/test_identity_catalog_publisher_fail_closed.py \
+            python/tests/test_identity_catalog_publisher_atomicity.py \
+            scripts/publish_identity_catalog.py
+
+      - name: Run publisher and catalog regression tests
+        run: |
+          PYTHONPATH=.:python:python/modules:python/tests \
+            python -m pytest \
+              python/tests/test_identity_catalog_publisher.py \
+              python/tests/test_identity_catalog_publisher_fail_closed.py \
+              python/tests/test_identity_catalog_publisher_atomicity.py \
+              python/tests/test_identity_catalog.py \
+              python/tests/test_identity_live_viewer.py \
+              python/tests/test_identity_timeline_projection.py
+
+      - name: Generate two governed identity streams
+        run: |
+          PYTHONPATH=.:python:python/modules:python/tests python - <<'PY'
+          from pathlib import Path
+          from identity_timeline_api_fixtures import build_timeline_bundle
+
+          root = Path("build/publisher-data")
+          build_timeline_bundle(root, "agent:published-reviewer")
+          build_timeline_bundle(root, "agent:published-auditor")
+          PY
+
+      - name: Publish generation one
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/publish_identity_catalog.py \
+              --data-root build/publisher-data \
+              --output-root build/published-catalog \
+              --active-key-id key-old \
+              --signing-key-id key-old \
+              --audience internal \
+              --published-at 2026-06-24T05:00:00Z \
+              --stale-after-seconds 86400 \
+              > build/publish-generation-1.json
+
+      - name: Restart without duplicate generation
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/publish_identity_catalog.py \
+              --data-root build/publisher-data \
+              --output-root build/published-catalog \
+              --active-key-id key-old \
+              --signing-key-id key-old \
+              --audience internal \
+              --published-at 2026-06-24T05:05:00Z \
+              --stale-after-seconds 86400 \
+              > build/publish-restart.json
+
+      - name: Rotate signing key into generation two
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/publish_identity_catalog.py \
+              --data-root build/publisher-data \
+              --output-root build/published-catalog \
+              --active-key-id key-new \
+              --signing-key-id key-new \
+              --signing-key-id key-old \
+              --audience internal \
+              --published-at 2026-06-24T05:10:00Z \
+              --stale-after-seconds 86400 \
+              > build/publish-generation-2.json
+
+      - name: Validate generation chain and rotation
+        run: |
+          PYTHONPATH=.:python:python/modules python - <<'PY'
+          import json
+          from pathlib import Path
+          from jsonschema import Draft202012Validator
+          from modules.trusted_runtime.identity_catalog_publisher import (
+              load_published_identity_catalog,
+          )
+
+          root = Path("build/published-catalog")
+          first = json.loads(Path("build/publish-generation-1.json").read_text())
+          restart = json.loads(Path("build/publish-restart.json").read_text())
+          second = json.loads(Path("build/publish-generation-2.json").read_text())
+          assert first["changed"] is True and first["generation"] == 1
+          assert restart["changed"] is False and restart["generation"] == 1
+          assert second["changed"] is True and second["generation"] == 2
+
+          publication_payload = json.loads(
+              (root / "identity-catalog-publication.json").read_text()
+          )
+          schema = json.loads(
+              Path(
+                  "schemas/trusted_runtime/identity_catalog_publication.schema.json"
+              ).read_text()
+          )
+          assert not list(
+              Draft202012Validator(schema).iter_errors(publication_payload)
+          )
+          old = load_published_identity_catalog(
+              root / "identity-catalog-publication.json",
+              keyring={"key-old": b"ci-old-key-material"},
+              minimum_generation=2,
+          )
+          new = load_published_identity_catalog(
+              root / "identity-catalog-publication.json",
+              keyring={"key-new": b"ci-new-key-material"},
+              minimum_generation=2,
+          )
+          assert old.publication_digest == new.publication_digest
+          assert old.previous_publication_digest is not None
+          assert len(tuple((root / "history").glob("*.json"))) == 2
+          assert len(old.entries) == 2
+          assert all(entry.authoritative for entry in old.entries)
+          PY
+
+      - name: Upload publisher evidence
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomic-identity-catalog-publisher-evidence
+          path: |
+            build/publisher-data
+            build/published-catalog
+            build/publish-generation-1.json
+            build/publish-restart.json
+            build/publish-generation-2.json
+          if-no-files-found: error
