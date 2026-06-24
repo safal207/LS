@@ -1,0 +1,117 @@
+{
+  "suite_id": "temporal-orientation-v0.1-precedence",
+  "cases": [
+    {
+      "fixture_id": "stale_continuation_precedes_target_state_drift",
+      "orientation": {
+        "orientation_version": "temporal-orientation-v0.1",
+        "location": {
+          "workspace_id": "ws-1",
+          "trajectory_id": "traj-1",
+          "continuation_id": "cont-stale",
+          "resumed_from_continuation_id": "cont-1"
+        },
+        "current_frame": {
+          "logical_time": "step-42",
+          "as_of": "2026-06-24T18:00:00Z",
+          "intent_digest": "sha256:intent-a",
+          "target_state_digest": "sha256:target-stale",
+          "policy_version": "policy-1"
+        },
+        "validity": {
+          "valid_from": "2026-06-24T17:00:00Z",
+          "invalidated_at": null
+        },
+        "active_authority": {
+          "approval_id": "approval-1",
+          "approval_state": "active",
+          "confirmed_constraints": ["constraint-1"]
+        },
+        "completed_history": {
+          "completed_side_effect_keys": [],
+          "rejected_approaches": [],
+          "superseded_claims": []
+        },
+        "dependency_chain_complete": true,
+        "next_transition": {
+          "allowed_next_action_digest": "sha256:action-a"
+        }
+      },
+      "authoritative_state": {
+        "workspace_id": "ws-1",
+        "trajectory_id": "traj-1",
+        "active_continuation_id": "cont-2",
+        "current_intent_digest": "sha256:intent-a",
+        "current_target_state_digest": "sha256:target-current",
+        "active_approval_id": "approval-1",
+        "completed_side_effect_keys": []
+      },
+      "proposed_action": {
+        "action_digest": "sha256:action-a",
+        "side_effect_key": "effect-1",
+        "requires_approval": true,
+        "requires_complete_dependency_chain": true
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason_code": "CONTINUATION_MISMATCH"
+      }
+    },
+    {
+      "fixture_id": "target_state_drift_precedes_incomplete_dependency_chain",
+      "orientation": {
+        "orientation_version": "temporal-orientation-v0.1",
+        "location": {
+          "workspace_id": "ws-1",
+          "trajectory_id": "traj-1",
+          "continuation_id": "cont-2",
+          "resumed_from_continuation_id": "cont-1"
+        },
+        "current_frame": {
+          "logical_time": "step-42",
+          "as_of": "2026-06-24T18:00:00Z",
+          "intent_digest": "sha256:intent-a",
+          "target_state_digest": "sha256:target-stale",
+          "policy_version": "policy-1"
+        },
+        "validity": {
+          "valid_from": "2026-06-24T17:00:00Z",
+          "invalidated_at": null
+        },
+        "active_authority": {
+          "approval_id": "approval-1",
+          "approval_state": "active",
+          "confirmed_constraints": ["constraint-1"]
+        },
+        "completed_history": {
+          "completed_side_effect_keys": [],
+          "rejected_approaches": [],
+          "superseded_claims": []
+        },
+        "dependency_chain_complete": false,
+        "next_transition": {
+          "allowed_next_action_digest": "sha256:action-a"
+        }
+      },
+      "authoritative_state": {
+        "workspace_id": "ws-1",
+        "trajectory_id": "traj-1",
+        "active_continuation_id": "cont-2",
+        "current_intent_digest": "sha256:intent-a",
+        "current_target_state_digest": "sha256:target-current",
+        "active_approval_id": "approval-1",
+        "completed_side_effect_keys": []
+      },
+      "proposed_action": {
+        "action_digest": "sha256:action-a",
+        "side_effect_key": "effect-1",
+        "requires_approval": true,
+        "requires_complete_dependency_chain": true
+      },
+      "expected": {
+        "verdict": "REVALIDATE",
+        "reason_code": "TARGET_STATE_DRIFT"
+      }
+    }
+  ]
+}
