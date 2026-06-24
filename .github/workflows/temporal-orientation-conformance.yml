@@ -6,6 +6,7 @@ on:
       - "spec/temporal-orientation-center-v0.1.md"
       - "schemas/temporal-orientation-v0.1.schema.json"
       - "tools/evaluate_temporal_orientation.py"
+      - "tools/validate_temporal_orientation_schema.py"
       - "fixtures/temporal-orientation/**"
       - ".github/workflows/temporal-orientation-conformance.yml"
   pull_request:
@@ -13,6 +14,7 @@ on:
       - "spec/temporal-orientation-center-v0.1.md"
       - "schemas/temporal-orientation-v0.1.schema.json"
       - "tools/evaluate_temporal_orientation.py"
+      - "tools/validate_temporal_orientation_schema.py"
       - "fixtures/temporal-orientation/**"
       - ".github/workflows/temporal-orientation-conformance.yml"
 
@@ -27,8 +29,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install schema validator
+        run: python -m pip install --disable-pip-version-check jsonschema==4.23.0
+      - name: Validate fixture orientations against JSON Schema
+        run: |
+          python tools/validate_temporal_orientation_schema.py \
+            schemas/temporal-orientation-v0.1.schema.json \
+            fixtures/temporal-orientation/mandatory-v0.1.json \
+            fixtures/temporal-orientation/additional-v0.1.json
       - name: Run mandatory temporal-orientation fixtures
         run: |
           python tools/evaluate_temporal_orientation.py \
             fixtures/temporal-orientation/mandatory-v0.1.json \
+            --check-expected
+          python tools/evaluate_temporal_orientation.py \
+            fixtures/temporal-orientation/additional-v0.1.json \
             --check-expected
