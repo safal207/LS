@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/trusted_runtime/ovc_verified_episode_adapter_v0.1.schema.json",
+  "title": "LS OVC to VerifiedEpisode Adapter Request v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["adapter", "authoritative_state"],
+  "properties": {
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter_version", "ovc_result", "bindings", "learning", "lifecycle"],
+      "properties": {
+        "adapter_version": {"const": "ovc-to-verified-episode-v0.1"},
+        "ovc_result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["verification_version", "verdict", "reason_code", "outcome_class", "verified_state_digest", "new_orientation_state_digest_candidate", "experience_eligible", "execution_authorized", "retroactive_authorization_created", "downstream_learning_gate_required"],
+          "properties": {
+            "verification_version": {"type": "string", "minLength": 1},
+            "verdict": {"enum": ["VERIFIED", "REOBSERVE", "INVESTIGATE", "ABSTAIN", "REJECT"]},
+            "reason_code": {"type": "string", "minLength": 1},
+            "outcome_class": {"enum": ["expected", "failed", "unexpected", "partial", "unknown"]},
+            "verified_state_digest": {"type": ["string", "null"]},
+            "new_orientation_state_digest_candidate": {"type": ["string", "null"]},
+            "experience_eligible": {"type": "boolean"},
+            "execution_authorized": {"type": "boolean"},
+            "retroactive_authorization_created": {"type": "boolean"},
+            "downstream_learning_gate_required": {"type": "boolean"}
+          }
+        },
+        "bindings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["execution_id", "action_id", "action_digest", "actor_id", "target_id", "side_effect_key", "expected_state_digest", "verified_state_digest", "receipt_id", "receipt_digest", "causal_trace_id", "observer_evidence_digests", "source_event_ids"],
+          "properties": {
+            "execution_id": {"type": "string"},
+            "action_id": {"type": "string"},
+            "action_digest": {"type": "string"},
+            "actor_id": {"type": "string"},
+            "target_id": {"type": "string"},
+            "side_effect_key": {"type": "string"},
+            "expected_state_digest": {"type": "string"},
+            "verified_state_digest": {"type": "string"},
+            "receipt_id": {"type": "string"},
+            "receipt_digest": {"type": "string"},
+            "causal_trace_id": {"type": "string"},
+            "observer_evidence_digests": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+            "source_event_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+          }
+        },
+        "learning": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["task_id", "trail_id", "orientation_ref", "transition_id", "decision", "lesson_statement", "lesson_scope", "lesson_confidence", "lesson_repeat_key", "evidence_role"],
+          "properties": {
+            "task_id": {"type": "string"},
+            "trail_id": {"type": "string"},
+            "orientation_ref": {"type": "string"},
+            "transition_id": {"type": "string"},
+            "decision": {"enum": ["ALLOW", "HOLD", "BLOCK", "ESCALATE"]},
+            "lesson_statement": {"type": "string"},
+            "lesson_scope": {"type": "string"},
+            "lesson_confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "lesson_repeat_key": {"type": "string"},
+            "evidence_role": {"enum": ["supporting", "failure", "contradicting"]}
+          }
+        },
+        "lifecycle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["created_at", "review_after", "expires_at", "retention_class", "redactable_fields", "redaction_state", "supersedes_episode_id"],
+          "properties": {
+            "created_at": {"type": "string", "format": "date-time"},
+            "review_after": {"type": "string", "format": "date-time"},
+            "expires_at": {"type": ["string", "null"], "format": "date-time"},
+            "retention_class": {"enum": ["ephemeral", "bounded", "durable"]},
+            "redactable_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+            "redaction_state": {"enum": ["clear", "redacted"]},
+            "supersedes_episode_id": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    "authoritative_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current_time", "seen_episode_ids", "seen_causal_trace_ids", "required_unredacted_fields"],
+      "properties": {
+        "current_time": {"type": "string", "format": "date-time"},
+        "seen_episode_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "seen_causal_trace_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "required_unredacted_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    }
+  }
+}
