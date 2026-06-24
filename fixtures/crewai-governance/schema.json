@@ -27,6 +27,18 @@
     },
     "current_state": {
       "type": "object",
+      "properties": {
+        "completed_action_refs": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "completed_idempotency_keys": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        }
+      },
       "additionalProperties": true
     },
     "proposed_action": {
@@ -36,7 +48,9 @@
         "tool": {"type": "string"},
         "intent_digest": {"type": "string"},
         "target_state_digest": {"type": "string"},
-        "continuation_id": {"type": "string"}
+        "continuation_id": {"type": "string"},
+        "action_ref": {"type": "string"},
+        "idempotency_key": {"type": "string"}
       },
       "additionalProperties": true
     },
