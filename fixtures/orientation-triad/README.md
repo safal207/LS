@@ -2,6 +2,8 @@
 
 These suites define the executable composition contract for TOC + RTOC + PATOC.
 
+Implementation tracking: issue `#672`, pull request `#690`.
+
 ## Run
 
 ```bash
