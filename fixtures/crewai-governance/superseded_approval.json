@@ -1,0 +1,37 @@
+{
+  "fixture_id": "superseded_approval",
+  "description": "A checkpoint bound to a superseded approval must not authorize execution.",
+  "checkpoint": {
+    "intent_digest": "sha256:intent-export-summary-v1",
+    "target_state_digest": "sha256:summary-state-ccc333",
+    "continuation_id": "cont-003",
+    "approval_id": "approval-021"
+  },
+  "current_state": {
+    "intent_digest": "sha256:intent-export-summary-v1",
+    "target_state_digest": "sha256:summary-state-ccc333",
+    "continuation_id": "cont-003",
+    "active_approval_id": "approval-022"
+  },
+  "proposed_action": {
+    "tool": "export_summary",
+    "intent_digest": "sha256:intent-export-summary-v1",
+    "target_state_digest": "sha256:summary-state-ccc333",
+    "continuation_id": "cont-003"
+  },
+  "required_bindings": [
+    "intent_digest",
+    "target_state_digest",
+    "continuation_id"
+  ],
+  "expected_ls_outcome": "REJECT",
+  "expected_crewai_mapping": {
+    "status": "EXACT",
+    "decision": "deny",
+    "recommended_decision": "deny",
+    "rationale": "The approval referenced by the checkpoint is no longer current."
+  },
+  "expected_failed_invariants": [
+    "approval_must_be_current"
+  ]
+}
