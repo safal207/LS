@@ -3,7 +3,7 @@
   "title": "LS Trusted PR Review Artifact",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "scenario", "task_id", "trail_id", "created_at", "source_diff", "summary", "workflow_plan", "routes", "contributions", "causal_audit", "evidence_decision", "authorization", "execution", "replay", "reusable_artifact", "integrity"],
+  "required": ["schema_version", "scenario", "task_id", "trail_id", "created_at", "source_diff", "summary", "workflow_plan", "routes", "contributions", "causal_audit", "evidence_decision", "authorization", "execution", "replay", "orientation", "reusable_artifact", "integrity"],
   "properties": {
     "schema_version": {"const": "trusted_runtime.pr_review_artifact.v0.1"},
     "scenario": {"const": "ALLOW"},
@@ -20,6 +20,7 @@
     "authorization": {"type": "object"},
     "execution": {"type": "object"},
     "replay": {"type": "object", "required": ["record", "report", "checkpoint"]},
+    "orientation": {"type": "object"},
     "reusable_artifact": {"type": "object"},
     "integrity": {
       "type": "object",

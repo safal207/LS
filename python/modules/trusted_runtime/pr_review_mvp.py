@@ -29,6 +29,7 @@ from .execution import (
     append_execution_record,
     execution_record_ref,
 )
+from .orientation import OrientationContext, project_orientation_context
 from .persistence import (
     JsonlEventStoreAdapter,
     persist_artifact_metadata,
@@ -148,6 +149,26 @@ def run_trusted_pr_review(
             execution_ref=execution_record_ref(execution),
             replay_ref=replay.report_ref,
         )
+
+    orientation = _project_pr_review_orientation(
+        scenario=normalized_scenario,
+        analysis=analysis,
+        planned=planned,
+        trail=trail,
+        decision=decision,
+        bundle=bundle,
+        execution=execution,
+        replay=replay,
+        reusable_artifact=reusable_artifact,
+    )
+    orientation_path = root / "orientation-context.json"
+    _write_json(orientation_path, orientation.to_dict())
+
+    if decision.decision is DecisionCode.ALLOW:
+        if bundle is None or execution is None or reusable_artifact is None:
+            raise PRReviewMVPError(
+                "ALLOW reached artifact rendering without complete records"
+            )
         artifact_payload = build_pr_review_artifact(
             scenario=normalized_scenario,
             created_at=REPLAY_AT,
@@ -161,6 +182,7 @@ def run_trusted_pr_review(
             authorization=bundle,
             execution=execution,
             replay=replay,
+            orientation=orientation.to_dict(),
             reusable_artifact=reusable_artifact,
         )
         artifact_path = root / "artifact.json"
@@ -209,6 +231,10 @@ def run_trusted_pr_review(
         "protected_effect_files": [str(path) for path in protected_files],
         "replay_decision": replay.record.decision.value,
         "replay_ref": replay.report_ref,
+        "orientation_stage": orientation.stage.value,
+        "orientation_ref": orientation.orientation_id,
+        "orientation_dimensions": dict(orientation.dimensions),
+        "orientation_path": str(orientation_path),
         "artifact_written": artifact_path is not None,
         "artifact_path": str(artifact_path) if artifact_path is not None else None,
         "event_store_path": str(store.path),
@@ -216,6 +242,139 @@ def run_trusted_pr_review(
     }
     _write_json(root / "run-summary.json", result)
     return result
+
+
+def _project_pr_review_orientation(
+    *,
+    scenario: str,
+    analysis: DiffAnalysis,
+    planned: PlannedPRReview,
+    trail: CognitiveTrail,
+    decision: Any,
+    bundle: Optional[AuthorizationBundle],
+    execution: Optional[ExecutionRecord],
+    replay: Any,
+    reusable_artifact: Optional[ReusableArtifact],
+) -> OrientationContext:
+    actual_state, expected_state, forbidden_deltas, constraints = (
+        _orientation_state_contract(scenario, analysis)
+    )
+    risk = {
+        "allow": "high",
+        "hold": "medium",
+        "block": "critical",
+    }[scenario]
+    reversibility = "compensatable" if scenario == "allow" else "not_applicable"
+
+    replay_input = replay if decision.decision is DecisionCode.ALLOW else None
+    artifact_input = reusable_artifact
+    metadata: dict[str, Any] = {
+        "product_slice": "trusted-pr-review-mvp",
+        "scenario": scenario,
+        "risk": risk,
+        "reversibility": reversibility,
+        "replay_decision": replay.record.decision.value,
+        "state_basis": "pre_transition_to_expected_post_transition",
+    }
+    if reusable_artifact is not None and execution is not None:
+        metadata["execution_record_ref"] = reusable_artifact.execution_ref
+        artifact_input = replace(
+            reusable_artifact,
+            execution_ref=execution.execution_id,
+        )
+
+    context = project_orientation_context(
+        planned.plan,
+        routes=planned.routes,
+        trail=trail,
+        evidence_decision=decision,
+        authorization=bundle,
+        execution=execution,
+        replay=replay_input,
+        artifact=artifact_input,
+        actual_state=actual_state,
+        expected_state=expected_state,
+        forbidden_deltas=forbidden_deltas,
+        constraints=constraints,
+        orientation_id=f"orientation:trusted-pr-review:{scenario}",
+        transition_id=f"transition:trusted-pr-review:{scenario}",
+        metadata=metadata,
+    )
+    if replay_input is not None:
+        return context
+
+    causal_refs = tuple(
+        dict.fromkeys(
+            (
+                *context.causal_parent_refs,
+                *replay.record.source_event_refs,
+                replay.record.parent_cause,
+            )
+        )
+    )
+    return replace(
+        context,
+        replay_ref=replay.report_ref,
+        causal_parent_refs=causal_refs,
+    )
+
+
+def _orientation_state_contract(
+    scenario: str,
+    analysis: DiffAnalysis,
+) -> tuple[dict[str, Any], dict[str, Any], tuple[str, ...], tuple[str, ...]]:
+    shared_actual = {
+        "changed_tests_linked": bool(analysis.test_files),
+        "risk_flags": list(analysis.risk_flags),
+        "protected_effect_count": 0,
+    }
+    if scenario == "allow":
+        return (
+            {**shared_actual, "review_status": "not_published"},
+            {
+                "review_status": "published",
+                "authorization_created": True,
+                "protected_effect_count": 1,
+            },
+            (
+                "merge_pull_request",
+                "modify_source_files",
+                "write_more_than_one_protected_effect",
+            ),
+            (
+                "authorization_scope_is_artifact_write",
+                "authorization_is_unexpired",
+                "protected_effect_occurs_exactly_once",
+            ),
+        )
+    if scenario == "hold":
+        return (
+            {**shared_actual, "review_status": "held"},
+            {
+                "review_status": "eligible_after_evidence_repair",
+                "changed_tests_linked": True,
+                "protected_effect_count": 0,
+            },
+            (
+                "create_authorization",
+                "write_protected_effect",
+                "create_reusable_artifact",
+            ),
+            ("changed_test_evidence_is_required",),
+        )
+    return (
+        {**shared_actual, "review_status": "blocked"},
+        {
+            "review_status": "blocked",
+            "protected_effect_count": 0,
+        },
+        (
+            "create_authorization",
+            "write_protected_effect",
+            "create_reusable_artifact",
+        ),
+        ("prohibited_dynamic_execution_signatures_must_block",),
+    )
 
 
 def _audit_trail(

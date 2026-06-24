@@ -31,6 +31,7 @@ def build_pr_review_artifact(
     authorization: AuthorizationBundle,
     execution: ExecutionRecord,
     replay: ReplayOutcome,
+    orientation: Mapping[str, Any],
     reusable_artifact: ReusableArtifact,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
@@ -61,6 +62,7 @@ def build_pr_review_artifact(
             "report": replay.report.to_dict(),
             "checkpoint": replay.checkpoint.to_dict(),
         },
+        "orientation": dict(orientation),
         "reusable_artifact": reusable_artifact.to_dict(),
     }
     payload["integrity"] = {
