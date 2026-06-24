@@ -1,0 +1,35 @@
+{
+  "contract_version": "ls.agent_lifecycle_reliability.v0.1",
+  "schema": "schemas/agent_lifecycle_case_v0_1.schema.json",
+  "cases": "fixtures/agent-lifecycle-reliability/cases.jsonl",
+  "validator": "tools/validate_agent_lifecycle_reliability_v0_1.py",
+  "motivating_reports": [
+    "https://github.com/openai/codex/issues/19197",
+    "https://github.com/openai/codex/issues/24389",
+    "https://github.com/openai/codex/issues/28495",
+    "https://github.com/openai/codex/issues/14722"
+  ],
+  "covered_failure_modes": [
+    "stale registry without runtime",
+    "live orphan runtime without registry",
+    "unresponsive child bounded close",
+    "idempotent close of terminal child",
+    "dropped terminal event replay",
+    "duplicate terminal delivery deduplication",
+    "stale connection generation rejection"
+  ],
+  "boundary_invariants": [
+    "not visible does not mean terminated",
+    "termination requested does not mean termination confirmed",
+    "server completion does not mean subscriber observation",
+    "event publication does not mean acknowledgement",
+    "superseded generations cannot update the active projection",
+    "lifecycle recovery does not grant execution authorization"
+  ],
+  "non_claims": [
+    "no integration with Codex or another vendor runtime",
+    "no distributed exactly-once delivery guarantee",
+    "no universal operating-system process termination guarantee",
+    "no execution authorization derived from recovered lifecycle state"
+  ]
+}
