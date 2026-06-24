@@ -1,0 +1,1 @@
+{"case":"replayed_nonce","overrides":{},"consumed_nonces":["nonce-bundle-001"],"tamper":null,"expected":{"outcome":"REJECTED","reason_code":"NONCE_REPLAY","bundle_created":false,"offline_verified":false,"commit_before_effect_eligible":false,"execution_authorized":false}}
