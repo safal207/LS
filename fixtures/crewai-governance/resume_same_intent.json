@@ -1,0 +1,35 @@
+{
+  "fixture_id": "resume_same_intent",
+  "description": "Resume is allowed only when intent, target state, continuation, and approval remain unchanged.",
+  "checkpoint": {
+    "intent_digest": "sha256:intent-write-report-v1",
+    "target_state_digest": "sha256:document-state-aaa111",
+    "continuation_id": "cont-001",
+    "approval_id": "approval-017"
+  },
+  "current_state": {
+    "intent_digest": "sha256:intent-write-report-v1",
+    "target_state_digest": "sha256:document-state-aaa111",
+    "continuation_id": "cont-001",
+    "active_approval_id": "approval-017"
+  },
+  "proposed_action": {
+    "tool": "write_report",
+    "intent_digest": "sha256:intent-write-report-v1",
+    "target_state_digest": "sha256:document-state-aaa111",
+    "continuation_id": "cont-001"
+  },
+  "required_bindings": [
+    "intent_digest",
+    "target_state_digest",
+    "continuation_id"
+  ],
+  "expected_ls_outcome": "RESUME",
+  "expected_crewai_mapping": {
+    "status": "EXACT",
+    "decision": "allow",
+    "recommended_decision": "allow",
+    "rationale": "All authoritative continuation bindings match."
+  },
+  "expected_failed_invariants": []
+}
