@@ -18,9 +18,18 @@
   ],
   "fixtures": [
     "resume_same_intent.json",
+    "exact_intent_mismatch.json",
     "target_state_drift.json",
+    "continuation_mismatch.json",
+    "duplicate_successful_outcome.json",
     "superseded_approval.json",
     "incomplete_dependency_chain.json"
+  ],
+  "maintainer_requested_cases": [
+    "exact_intent_mismatch",
+    "target_state_drift",
+    "continuation_mismatch",
+    "duplicate_successful_outcome"
   ],
   "mapping": {
     "RESUME": {
