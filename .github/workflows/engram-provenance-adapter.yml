@@ -1,0 +1,35 @@
+name: Engram provenance adapter
+
+on:
+  pull_request:
+    paths:
+      - "spec/engram-provenance-adapter-v0.1.md"
+      - "fixtures/engram-provenance/**"
+      - "tools/validate_engram_provenance_adapter_v0_1.py"
+      - ".github/workflows/engram-provenance-adapter.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "spec/engram-provenance-adapter-v0.1.md"
+      - "fixtures/engram-provenance/**"
+      - "tools/validate_engram_provenance_adapter_v0_1.py"
+      - ".github/workflows/engram-provenance-adapter.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate public fixture JSON
+        run: python -m json.tool fixtures/engram-provenance/public-v4.12.0.json > /dev/null
+      - name: Run Engram provenance adapter conformance
+        run: python tools/validate_engram_provenance_adapter_v0_1.py
+      - name: Validate machine-readable report
+        run: python -m json.tool artifacts/engram-provenance-adapter-v0.1-result.json > /dev/null
