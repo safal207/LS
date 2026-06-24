@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the public-source Engram -> LS provenance adapter v0.1."""
+"""Public-source Engram -> LS provenance adapter v0.1 conformance runner."""
 
 from __future__ import annotations
 
@@ -10,56 +10,205 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_FIXTURE = (
-    ROOT
-    / "fixtures"
-    / "engram-provenance"
-    / "public-v4.12.0.json"
-)
-DEFAULT_OUTPUT = (
-    ROOT
-    / "artifacts"
-    / "engram-provenance-adapter-v0.1-result.json"
-)
-
-ADAPTER_VERSION = "engram-ls-provenance-v0.1"
-SOURCE_REPOSITORY = "Patdolitse/piia-engram"
-SOURCE_COMMIT = "dbf0a3d582eab69a829d094fde379c87c71e1823"
+FIXTURE = ROOT / "fixtures" / "engram-provenance" / "public-v4.12.0.json"
+OUTPUT = ROOT / "artifacts" / "engram-provenance-adapter-v0.1-result.json"
+ADAPTER = "engram-ls-provenance-v0.1"
+REPO = "Patdolitse/piia-engram"
+COMMIT = "dbf0a3d582eab69a829d094fde379c87c71e1823"
 ITEM_TYPES = {"lesson", "decision", "playbook"}
-CONFIRMATION_METHODS = {
-    "human": "human",
-    "test_signal": "test",
-    "anchor": "anchor",
-}
+METHODS = {"human": "human", "test_signal": "test", "anchor": "anchor"}
 
 
-def _text(value: object) -> str | None:
-    if not isinstance(value, str):
-        return None
-    clean = value.strip()
-    return clean or None
+def clean(value: object) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
 
 
-def _parse_iso(value: object) -> str | None:
-    text = _text(value)
-    if text is None:
+def iso(value: object) -> str | None:
+    value = clean(value)
+    if value is None:
         return None
     try:
-        datetime.fromisoformat(text.replace("Z", "+00:00"))
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
-    return text
+    return value
 
 
-def adapt_engram_item(
-    item: dict[str, Any],
-    source_item_type: str,
-[]) -> dict[str, Any]:
-    if source_item_type not in ITEM_TYPES:
-        raise ValueError(f"unsupported source item type: {source_item_type!r}")
-
-    item_id = _text(item.get("id"))
+def adapt(item: dict[str, Any], item_type: str) -> dict[str, Any]:
+    if item_type not in ITEM_TYPES:
+        raise ValueError(f"unsupported source item type: {item_type}")
+    item_id = clean(item.get("id"))
     if item_id is None:
         raise ValueError("Engram item id is required")
 
-    tier = _text(item.get("tier")) ¢°€‰Ù•É¥™¥•ˆ(€€€Í½ÕÉ•}Ñ½½°€ô}Ñ•áÐ¡¥Ñ•´¹•Ð ‰Í½ÕÉ•}Ñ½½°ˆ¤¤(€€€ÁÉ½Ù•¹…¹”€ô¥Ñ•´¹•Ð ‰ÁÉ½Ù•¹…¹”ˆ¤(€€€¥˜¹½Ð¥Í¥¹ÍÑ…¹”¡ÁÉ½Ù•¹…¹”°‘¥Ð¤è(€€€€€€€ÁÉ½Ù•¹…¹”€ôíô((€€€Í½ÕÉ•}…•¹Ð€ô}Ñ•áÐ¡ÁÉ½Ù•¹…¹”¹•Ð ‰Í½ÕÉ•}…•¹Ðˆ¤¤(€€€É…Ý}½¹™¥Éµ…Ñ¥½¸€ô}Ñ•áÐ¡ÁÉ½Ù•¹…¹”¹•Ð ‰½¹™¥Éµ…Ñ¥½¹}Í½ÕÉ”ˆ¤¤(€€€½¹™¥Éµ…Ñ¥½¹}µ•Ñ¡½€ô=9%I5Q%=9}5Q!=L¹•Ð¡É…Ý}½¹™¥Éµ…Ñ¥½¸¤(€€€Ù…±¥‘…Ñ•‘}…Ð€ô}Á…ÉÍ•}¥Í¼¡ÁÉ½Ù•¹…¹”¹•Ð ‰±…ÍÑ}Ù…±¥‘…Ñ•‘}…Ðˆ¤¤(€€€Ý…É¹¥¹Ìè±¥ÍÑmÍÑÉt€ômt((€€€¡…Í}…¹å}½¹™¥Éµ…Ñ¥½¹}µ…É­•È€ôÉ…Ý}½¹™¥Éµ…Ñ¥½¸¥Ì¹½Ð9½¹”(€€€¥˜É…Ý}½¹™¥Éµ…Ñ¥½¸¥Ì¹½Ð9½¹”…¹½¹™¥Éµ…Ñ¥½¹}µ•Ñ¡½¥Ì9½¹”è(€€€€€€€Ý…É¹¥¹Ì¹…ÁÁ•¹¡˜‰Õ¹ÍÕÁÁ½ÉÑ•‘}½¹™¥Éµ…Ñ¥½¹}Í½ÕÉ”éíÉ…Ý}½¹™¥Éµ…Ñ¥½¹ôˆ¤((€€€½¹™¥Éµ…Ñ¥½¹}…Ñ½È€ôÍ½ÕÉ•}…•¹Ð¥˜¡…Í}…¹å}½¹™¥Éµ…Ñ¥½¹}µ…É­•È•±Í”9½¹”((€€€½¹™¥Éµ…Ñ¥½¹}¥Í}½µÁ±•Ñ”€ô€ (€€€€€€€Ñ¥•È€ôô€‰Ù•É¥™¥•ˆ(€€€€€€€…¹½¹™¥Éµ…Ñ¥½¹}µ•Ñ¡½¥Ì¹½Ð9½¹”(€€€€€€€…¹½¹™¥Éµ…Ñ¥½¹}…Ñ½È¥Ì¹½Ð9½¹”(€€€€€€€…¹Ù…±¥‘…Ñ•‘}…Ð¥Ì¹½Ð9½¹”(€€€€¤((€€€¥˜¡…Í}…¹å}½¹™¥Éµ…Ñ¥½¹}µ…É­•È…¹Ù…±¥‘…Ñ•‘}…Ð¥Ì9½¹”è(€€€€€€€Ý…É¹¥¹Ì¹…ÁÁ•¹ ‰¥¹Ù…±¥‘}½É}µ¥ÍÍ¥¹}±…ÍÑ}Ù…±¥‘…Ñ•‘}…Ðˆ¤(€€€¥˜¡…Í}…¹å}½¹™¥Éµ…Ñ¥½¹}µ…É­•È…¹½¹™¥Éµ…Ñ¥½¹}…Ñ½È¥Ì9½¹”è(€€€€€€€Ý…É¹¥¹Ì¹…ÁÁ•¹ ‰½¹™¥Éµ…Ñ¥½¹}…Ñ½É}µ¥ÍÍ¥¹œˆ¤(€€€¥˜¡…Í}…¹å}½¹™¥Éµ…Ñ¥½¹}µ…É­•È…¹Ñ¥•È€„ô€‰Ù•É¥™¥•ˆè(€€€€€€€Ý…É¹¥¹Ì¹…ÁÁ•¹ ‰ÑåÁ•‘}½¹™¥Éµ…Ñ¥½¹}Ý¥Ñ¡½ÕÑ}Ù•É¥™¥•‘}Ñ¥•Èˆ¤(€€€¥˜Ñ¥•È€ôô€‰Ù•É¥™¥•ˆ…¹¹½Ð½¹™¥Éµ…Ñ¥½¹}¥Í}½µÁ±•Ñ”è(€€€€€€€Ý…É¹¥¹Ì¹…ÁÁ•¹ ‰Ù•É¥™¥•‘}Ý¥Ñ¡½ÕÑ}ÑåÁ•‘}½¹™¥Éµ…Ñ¥½¸ˆ¤((€€€…ÍÍ•ÉÑ¥½¹}…•¹Ð€ô9½¹”¥˜¡…Í}…¹å}½¹™¥Éµ…Ñ¥½¹}µ…É­•È•±Í”Í½ÕÉ•}…•¹Ð(€€€¥˜…ÍÍ•ÉÑ¥½¹}…•¹Ð¥Ì¹½Ð9½¹”è(€€€€€€€…ÑÑÉ¥‰ÕÑ¥½¹}±•Ù•°€ô€‰…•¹Ðˆ(€€€•±¥˜Í½ÕÉ•}Ñ½½°¥Ì¹½Ð9½¹”è(€€€€€€€…ÑÑÉ¥‰ÕÑ¥½¹}±•Ù•°€ô€‰Ñ½½°ˆ(€€€•±Í”è(€€€€€€€…ÑÑÉ¥‰ÕÑ¥½¹}±•Ù•°€ô€‰Õ¹­¹½Ý¸ˆ(€€€€€€€Ý…É¹¥¹Ì¹…ÁÁ•¹ ‰…ÍÍ•ÉÑ¥½¹}¥‘•¹Ñ¥Ñå}Õ¹­¹½Ý¸ˆ¤((€€€É•ÑÕÉ¸ì(€€€€€€€€‰Í½ÕÉ•}¥Ñ•µ}¥ˆè¥Ñ•µ}¥°(€€€€€€€€‰Í½ÕÉ•}¥Ñ•µ}ÑåÁ”ˆèÍ½ÕÉ•}¥Ñ•µ}ÑåÁ”°(€€€€€€€€‰…ÍÍ•ÉÑ¥½¸ˆèì(€€€€€€€€€€€€‰Ñ½½°ˆèÍ½ÕÉ•}Ñ½½°°(€€€€€€€€€€€€‰…•¹Ðˆè…ÍÍ•ÉÑ¥½¹}…•¹Ð°(€€€€€€€€€€€€‰…ÑÑÉ¥‰ÕÑ¥½¹}±•Ù•°ˆè…ÑÑÉ¥‰ÕÑ¥½¹}±•Ù•°°(€€€€€€€ô°(€€€€€€€€‰½¹™¥Éµ…Ñ¥½¸ˆèì(€€€€€€€€€€€€‰ÍÑ…Ñ”ˆè€‰½¹™¥Éµ•ˆ¥˜½¹™¥Éµ…Ñ¥½¹}¥Í}½µÁ±•Ñ”•±Í”€‰…ÍÍ•ÉÑ•ˆ°(€€€€€€€€€€€€‰…Ñ½Èˆè½¹™¥Éµ…Ñ¥½¹}…Ñ½È°(€€€€€€€€€€€€‰µ•Ñ¡½ˆè½¹™¥Éµ…Ñ¥½¹}µ•Ñ¡½°(€€€€€€€€€€€€‰Ù…±¥‘…Ñ•‘}…ÐˆèÙ…±¥‘…Ñ•‘}…Ð°(€€€€€€€ô°(€€€€€€€€‰…‘Ù¥Í½Éå}½¹±äˆèQÉÕ”°(€€€€€€€€‰•á•ÕÑ¥½¹}…ÕÑ¡½É¥é•ˆè…±Í”°(€€€€€€€€‰Ý…É¹¥¹ÌˆèÝ…É¹¥¹Ì°(€€€ô(()‘•˜}±½…‘}½‰©•Ð¡Á…Ñ èA…Ñ ¤€´ø‘¥ÑmÍÑÈ°¹åtè(€€€Ý¥Ñ Á…Ñ ¹½Á•¸ ‰Èˆ°•¹½‘¥¹œô‰ÕÑ˜´àˆ¤…Ì¡…¹‘±”è(€€€€€€€Ù…±Õ”€ô©Í½¸¹±½…¡¡…¹‘±”¤(€€€¥˜¹½Ð¥Í¥¹ÍÑ…¹”¡Ù…±Õ”°‘¥Ð¤è(€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È¡˜‰íÁ…Ñ¡ôèÑ½Àµ±•Ù•°)M=8µÕÍÐ‰”…¸½‰©•Ðˆ¤(€€€É•ÑÕÉ¸Ù…±Õ”(()‘•˜Ù…±¥‘…Ñ•}™¥áÑÕÉ”¡™¥áÑÕÉ”è‘¥ÑmÍÑÈ°¹åt¤€´ø‘¥ÑmÍÑÈ°¹åtè(€€€µ•Ñ„€ô™¥áÑÕÉ”¹•Ð ‰}µ•Ñ„ˆ¤(€€€¥˜¹½Ð¥Í¥¹ÍÑ…¹”¡µ•Ñ„°‘¥Ð¤è(€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È ‰™¥áÑÕÉ”}µ•Ñ„µÕÍÐ‰”…¸½‰©•Ðˆ¤(€€€¥˜µ•Ñ„¹•Ð ‰…‘…ÁÑ•É}Ù•ÉÍ¥½¸ˆ¤€„ôAQI}YIM%=8è(€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È ‰™¥áÑÕÉ”…‘…ÁÑ•É}Ù•ÉÍ¥½¸µ¥Íµ…Ñ ˆ¤(€€€¥˜µ•Ñ„¹•Ð ‰Í½ÕÉ•}É•Á½Í¥Ñ½Éäˆ¤€„ôM=UI}IA=M%Q=Idè(€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È á™¥áÑÕÉ”Í½ÕÉ•}É•Á½Í¥Ñ½Éäµ¥Íµ…Ñ ˆ¤(€€€¥˜µ•Ñ„¹•Ð ‰Í½ÕÉ•}½µµ¥Ðˆ¤€„ôM=UI}=55%Pè(€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È ‰™¥áÑÕÉ”Í½ÕÉ•}½µµ¥Ðµ¥Íµ…Ñ ˆ¤(€€€¥˜µ•Ñ„¹•Ð ‰¥¹‘•Á•¹‘•¹Ñ}½µÁ…Ñ¥‰¥±¥Ñå}±…å•Èˆ¤¥Ì¹½ÐQÉÕ”è(€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È ‰™¥áÑÕÉ”µÕÍÐ‘•±…É”¥¹‘•Á•¹‘•¹Ð½µÁ…Ñ¥‰¥±¥Ñäˆ¤((€€€É…Ý}…Í•Ì€ô™¥áÑÕÉ”¹•Ð ‰…Í•Ìˆ¤(€€€¥˜¹½Ð¥Í¥¹ÍÑ…¹”¡É…Ý}…Í•Ì°±¥ÍÐ¤½È¹½ÐÉ…Ý}…Í•Ìè(€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È ‰™¥áÑÕÉ”…Í•ÌµÕÍÐ‰”„¹½¸µ•µÁÑä±¥ÍÐˆ¤((€€€…Í•}É•ÍÕ±ÑÌè±¥ÍÑm‘¥ÑmÍÑÈ°¹åut€ômt(€€€Í••¸èÍ•ÑmÍÑÉt€ôÍ•Ð ¤(€€€™½È¥¹‘•à°…Í”¥¸•¹Õµ•É…Ñ”¡É…Ý}…Í•Ì¤è(€€€€€€€¥˜¹½Ð¥Í¥¹ÍÑ…¹”¡…Í”°‘¥Ð¤è(€€€€€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È¡˜‰…Í•Ímí¥¹‘•áõtµÕÍÐ‰”…¸½‰©•Ðˆ¤(€€€€€€€¹…µ”€ô}Ñ•áÐ¡…Í”¹•Ð ‰…Í”ˆ¤¤(€€€€€€€¥˜¹…µ”¥Ì9½¹”½È¹…µ”¥¸Í••¸è(€€€€€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È¡˜‰…Í•Ímí¥¹‘•áõt¡…Ìµ¥ÍÍ¥¹œ½È‘ÕÁ±¥…Ñ”…Í”¹…µ”ˆ¤(€€€€€€€Í••¸¹…‘¡¹…µ”¤((€€€€€€€Í½ÕÉ•}¥Ñ•µ}ÑåÁ”€ô}Ñ•áÐ¡…Í”¹•Ð ‰Í½ÕÉ•}¥Ñ•µ}ÑåÁ”ˆ¤¤(€€€€€€€¥˜Í½ÕÉ•}¥Ñ•µ}ÑåÁ”¥Ì9½¹”è(€€€€€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È É˜‰í¹…µ•ôèÍ½ÕÉ•}¥Ñ•µ}ÑåÁ”¥ÌÉ•ÅÕ¥É•ˆ¤(€€€€€€€¥Ñ•´€ô…Í”¹•Ð ‰•¹É…µ}¥Ñ•´ˆ¤(€€€€€€€•áÁ•Ñ•€ô…Í”¹•Ð ‰•áÁ•Ñ•ˆ¤(€€€€€€€¥˜¹½Ð¥Í¥¹ÍÑ…¹”¡¥Ñ•´°‘¥Ð¤½È¹½Ð¥Í¥¹ÍÑ…¹”¡•áÁ•Ñ•°‘¥Ð¤è(€€€€€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È¡˜‰í¹…µ•ôè•¹É…µ}¥Ñ•´…¹•áÁ•Ñ•µÕÍÐ‰”½‰©•ÑÌˆ¤((€€€€€€€½‰Í•ÉÙ•€ô…‘…ÁÑ}•¹É…µ}¥Ñ•´¡¥Ñ•´°Í½ÕÉ•}¥Ñ•µ}ÑåÁ”¤(€€€€€€€•ÉÉ½ÉÌè±¥ÍÑmÍÑÉt€ômt(€€€€€€€¥˜½‰Í•ÉÙ•€„ô•áÁ•Ñ•è(€€€€€€€€€€€•ÉÉ½ÉÌ¹…ÁÁ•¹ ‰½‰Í•ÉÙ•ÁÉ½©•Ñ¥½¸‘¥™™•ÉÌ™É½´•áÁ•Ñ•ˆ¤((€€€€€€€¥˜½‰Í•ÉÙ•‘l‰Í½ÕÉ•}¥Ñ•µ}¥‰t€„ô¥Ñ•´¹•Ð ‰¥ˆ¤è(€€€€€€€€€€€•ÉÉ½ÉÌ¹…ÁÁ•¹ ‰Í½ÕÉ”¥Ñ•´¥Ý…Ì¹½ÐÁÉ•Í•ÉÙ•ˆ¤(€€€€€€€¥˜½‰Í•ÉÙ•‘l‰•á•ÕÑ¥½¹}…ÕÑ¡½É¥é•‰t¥Ì¹½Ð…±Í”è(€€€€€€€€€€€•ÉÉ½ÉÌ¹…ÁÁ•¹ ‰µ•µ½ÉäÁÉ½©•Ñ¥½¸…ÕÑ¡½É¥é••á•ÕÑ¥½¸ˆ¤(€€€€€€€¥˜½‰Í•ÉÙ•‘l‰…‘Ù¥Í½Éå}½¹±ä‰t¥Ì¹½ÐQÉÕ”è(€€€€€€€€€€€•ÉÉ½ÉÌ¹…ÁÁ•¹ ‰µ•µ½ÉäÁÉ½©•Ñ¥½¸¥Ì¹½Ð…‘Ù¥Í½Éäµ½¹±äˆ¤((€€€€€€€½¹™¥Éµ…Ñ¥½¸€ô½‰Í•ÉÙ•‘l‰½¹™¥Éµ…Ñ¥½¸‰t(€€€€€€€¥˜½¹™¥Éµ…Ñ¥½¹l‰ÍÑ…Ñ”‰t€ôô€‰½¹™¥Éµ•ˆè(€€€€€€€€€€€™½È­•ä¥¸€ ‰…Ñ½Èˆ°€‰µ•Ñ¡½ˆ°€‰Ù…±¥‘…Ñ•‘}…Ðˆ¤è(€€€€€€€€€€€€€€€¥˜½¹™¥Éµ…Ñ¥½¸¹•Ð¡­•ä¤¥Ì9½¹”è(€€€€€€€€€€€€€€€€€€€•ÉÉ½ÉÌ¹…ÁÁ•¹¡˜‰½¹™¥Éµ•ÁÉ½©•Ñ¥½¸µ¥ÍÍ¥¹œí­•åôˆ¤((€€€€€€€ÁÉ½Ù•¹…¹”€ô¥Ñ•´¹•Ð ‰ÁÉ½Ù•¹…¹”ˆ¤(€€€€€€€¥˜¹½Ð¥Í¥¹ÍÑ…¹”¡ÁÉ½Ù•¹…¹”°‘¥Ð¤è(€€€€€€€€€€€ÁÉ½Ù•¹…¹”€ôíô(€€€€€€€¥˜ÁÉ½Ù•¹…¹”¹•Ð ‰½¹™¥Éµ…Ñ¥½¹}Í½ÕÉ”ˆ¤¥Ì¹½Ð9½¹”è(€€€€€€€€€€€¥˜½‰Í•ÉÙ•‘l‰…ÍÍ•ÉÑ¥½¸‰ul‰…•¹Ð‰t¥Ì¹½Ð9½¹”è(€€€€€€€€€€€€€€€•ÉÉ½ÉÌ¹…ÁÁ•¹ (€€€€€€€€€€€€€€€€€€€€‰Ù…±¥‘…Ñ½ÈÍ½ÕÉ•}…•¹ÐÝ…Ìµ¥Í…ÑÑÉ¥‰ÕÑ•…Ì…ÍÍ•ÉÑ¥½¸…•¹Ðˆ(€€€€€€€€€€€€€€€€¤((€€€€€€€…Í•}É•ÍÕ±ÑÌ¹…ÁÁ•¹ (€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€‰…Í”ˆè¹…µ”°(€€€€€€€€€€€€€€€€‰Á…ÍÍ•ˆè¹½Ð•ÉÉ½ÉÌ°(€€€€€€€€€€€€€€€€‰•ÉÉ½ÉÌˆè•ÉÉ½ÉÌ°(€€€€€€€€€€€€€€€€‰½‰Í•ÉÙ•ˆè½‰Í•ÉÙ•°(€€€€€€€€€€€€€€€€‰•áÁ•Ñ•ˆè•áÁ•Ñ•°(€€€€€€€€€€€ô(€€€€€€€€¤((€€€É•ÅÕ¥É•‘}…Í•Ì€ôì(€€€€€€€€‰ÍÑ…¥¹}…ÍÍ•ÉÑ¥½¸ˆ°(€€€€€€€€‰¡Õµ…¹}ÁÉ½µ½Ñ•‘}É½ÍÍ}Ñ½½°ˆ°(€€€€€€€€‰Ñ•ÍÑ}Í¥¹…±}½¹™¥Éµ…Ñ¥½¸ˆ°(€€€€€€€€‰…¹¡½É}ÁÉ½µ½Ñ•ˆ°(€€€€€€€€‰Ù•É¥™¥•‘}Ý¥Ñ¡½ÕÑ}ÑåÁ•‘}½¹™¥Éµ…Ñ¥½¸ˆ°(€€€€€€€€‰½¹™¥Éµ…Ñ¥½¹}µ¥ÍÍ¥¹}Ù…±¥‘…Ñ¥½¹}Ñ¥µ”ˆ°(€€€ô(€€€µ¥ÍÍ¥¹œ€ôÍ½ÉÑ•¡É•ÅÕ¥É•‘}…Í•Ì€´Í••¸¤(€€€¥˜µ¥ÍÍ¥¹œè(€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È¡˜‰™¥áÑÕÉ”µ¥ÍÍ¥¹œÉ•ÅÕ¥É•…Í•Ìèíµ¥ÍÍ¥¹ôˆ¤((€€€½¹™¥Éµ•‘}µ•Ñ¡½‘Ì€ôÍ½ÉÑ• (€€€€€€€ì(€€€€€€€€€€€É•ÍÕ±Ñl‰½‰Í•ÉÙ•‰ul‰½¹™¥Éµ…Ñ¥½¸‰ul‰µ•Ñ¡½‰t(€€€€€€€€€€€™½ÈÉ•ÍÕ±Ð¥¸…Í•}É•ÍÕ±ÑÌ(€€€€€€€€€€€¥˜É•ÍÕ±Ñl‰½‰Í•ÉÙ•‰ul‰½¹™¥Éµ…Ñ¥½¸‰ul‰ÍÑ…Ñ”‰t€ôô€‰½¹™¥Éµ•ˆ(€€€€€€€ô(€€€€¤(€€€Ý…É¹¥¹Í}½‰Í•ÉÙ•€ôÍ½ÉÑ• (€€€€€€€ì(€€€€€€€€€€€Ý…É¹¥¹œ(€€€€€€€€€€€™½ÈÉ•ÍÕ±Ð¥¸…Í•}É•ÍÕ±ÑÌ(€€€€€€€€€€€™½ÈÝ…É¹¥¹œ¥¸É•ÍÕ±Ñl‰½‰Í•ÉÙ•‰ul‰Ý…É¹¥¹Ì‰t(€€€€€€€ô(€€€€¤((€€€É•Á½ÉÐ€ôì(€€€€€€€€‰…‘…ÁÑ•É}Ù•ÉÍ¥½¸ˆèAQI}YIM%=8°(€€€€€€€€‰Í½ÕÉ”ˆèì(€€€€€€€€€€€€‰É•Á½Í¥Ñ½ÉäˆèM=UI}IA=M%Q=Id°(€€€€€€€€€€€€‰Ù•ÉÍ¥½¸ˆèµ•Ñ„¹•Ð ‰Í½ÕÉ•}Ù•ÉÍ¥½¸ˆ¤°(€€€€€€€€€€€€‰½µµ¥ÐˆèM=UI}=55%P°(€€€€€€€€€€€€‰±¥•¹Í”ˆèµ•Ñ„¹•Ð ‰Í½ÕÉ•}±¥•¹Í”ˆ¤°(€€€€€€€ô°(€€€€€€€€‰¥¹‘•Á•¹‘•¹Ñ}½µÁ…Ñ¥‰¥±¥Ñå}±…å•ÈˆèQÉÕ”°(€€€€€€€€‰…Í•Í}Ñ½Ñ…°ˆè±•¸¡…Í•}É•ÍÕ±ÑÌ¤°(€€€€€€€€‰…Í•Í}Á…ÍÍ•ˆèÍÕ´¡‰½½°¡É•ÍÕ±Ñl‰Á…ÍÍ•‰t¤™½ÈÉ•ÍÕ±Ð¥¸…Í•}É•ÍÕ±ÑÌ¤°(€€€€€€€€‰½¹™¥Éµ•‘}µ•Ñ¡½‘Í}½Ù•É•ˆè½¹™¥Éµ•‘}µ•Ñ¡½‘Ì°(€€€€€€€€‰Ý…É¹¥¹Í}½‰Í•ÉÙ•ˆèÝ…É¹¥¹Í}½‰Í•ÉÙ•°(€€€€€€€€‰‰½Õ¹‘…Éäˆèì(€€€€€€€€€€€€‰…‘Ù¥Í½Éå}½¹±äˆèQÉÕ”°(€€€€€€€€€€€€‰•á•ÕÑ¥½¹}…ÕÑ¡½É¥é•ˆè…±Í”°(€€€€€€€€€€€€‰ÕÁÍÑÉ•…µ}•¹‘½ÉÍ•µ•¹Ñ}±…¥µ•ˆè…±Í”°(€€€€€€€ô°(€€€€€€€€‰É•ÍÕ±ÑÌˆè…Í•}É•ÍÕ±ÑÌ°(€€€ô(€€€É•Á½ÉÑl‰Á…ÍÍ•‰t€ô€ (€€€€€€€É•Á½ÉÑl‰…Í•Í}Á…ÍÍ•‰t€ôôÉ•Á½ÉÑl‰…Í•Í}Ñ½Ñ…°‰t(€€€€€€€…¹½¹™¥Éµ•‘}µ•Ñ¡½‘Ì€ôôl‰…¹¡½Èˆ°€‰¡Õµ…¸ˆ°€‰Ñ•ÍÐ‰t(€€€€€€€…¹€‰Ù•É¥™¥•‘}Ý¥Ñ¡½ÕÑ}ÑåÁ•‘}½¹™¥Éµ…Ñ¥½¸ˆ¥¸Ý…É¹¥¹Í}½‰Í•ÉÙ•(€€€€€¤(€€€É•ÑÕÉ¸É•Á½ÉÐ(()‘•˜µ…¥¸ ¤€´ø¥¹Ðè(€€€Á…ÉÍ•È€ô…ÉÁ…ÉÍ”¹ÉÕµ•¹ÑA…ÉÍ•È ¤(€€€Á…ÉÍ•È¹…‘‘}…ÉÕµ•¹Ð ‰™¥áÑÕÉ”ˆ°¹…ÉÌôˆüˆ°ÑåÁ”õA…Ñ °‘•™…Õ±ÐõU1Q}%aQUI¤(€€€Á…ÉÍ•È¹…‘‘}…ÉÕµ•¹Ð ˆ´µ½ÕÑÁÕÐˆ°ÑåÁ”õA…Ñ °‘•™…Õ±ÐõU1Q}=UQAUP¤(€€€…ÉÌ€ôÁ…ÉÍ•È¹Á…ÉÍ•}…ÉÌ ¤((€€€É•Á½ÉÐ€ôÙ…±¥‘…Ñ•}™¥áÑÕÉ”¡}±½…‘}½‰©•Ð¡…ÉÌ¹™¥áÑÕÉ”¤¤(€€€…ÉÌ¹½ÕÑÁÕÐ¹Á…É•¹Ð¹µ­‘¥È¡Á…É•¹ÑÌõQÉÕ”°•á¥ÍÑ}½¬õQÉÕ”¤(€€€…ÉÌ¹½ÕÑÁÕÐ¹ÝÉ¥Ñ•}Ñ•áÐ (€€€€€€€©Í½¸¹‘ÕµÁÌ¡É•Á½ÉÐ°¥¹‘•¹ÐôÈ°Í½ÉÑ}­•åÌõQÉÕ”¤€¬€‰q¸ˆ°(€€€€€€€•¹½‘¥¹œô‰ÕÑ˜´àˆ°(€€€€€¤(€€€ÁÉ¥¹Ð¡©Í½¸¹‘ÕµÁÌ¡É•Á½ÉÐ°¥¹‘•¹ÐôÈ°Í½ÉÑ}­•åÌõQÉÕ”¤¤(€€€É•ÑÕÉ¸€À¥˜É•Á½ÉÑl‰Á…ÍÍ•‰t•±Í”€Ä(()¥˜}}¹…µ•}|€ôô€‰}}µ…¥¹}|ˆè(€€€É…¥Í”MåÍÑ•µá¥Ð¡µ…¥¸ ¤¤(
+    tier = clean(item.get("tier")) or "verified"
+    tool = clean(item.get("source_tool"))
+    provenance = item.get("provenance")
+    provenance = provenance if isinstance(provenance, dict) else {}
+    agent = clean(provenance.get("source_agent"))
+    raw_method = clean(provenance.get("confirmation_source"))
+    method = METHODS.get(raw_method)
+    validated_at = iso(provenance.get("last_validated_at"))
+    warnings: list[str] = []
+
+    has_marker = raw_method is not None
+    actor = agent if has_marker else None
+    complete = (
+        tier == "verified"
+        and method is not None
+        and actor is not None
+        and validated_at is not None
+    )
+
+    if raw_method is not None and method is None:
+        warnings.append(f"unsupported_confirmation_source:{raw_method}")
+    if has_marker and validated_at is None:
+        warnings.append("invalid_or_missing_last_validated_at")
+    if has_marker and actor is None:
+        warnings.append("confirmation_actor_missing")
+    if has_marker and tier != "verified":
+        warnings.append("typed_confirmation_without_verified_tier")
+    if tier == "verified" and not complete:
+        warnings.append("verified_without_typed_confirmation")
+
+    assertion_agent = None if has_marker else agent
+    if assertion_agent:
+        level = "agent"
+    elif tool:
+        level = "tool"
+    else:
+        level = "unknown"
+        warnings.append("assertion_identity_unknown")
+
+    return {
+        "source_item_id": item_id,
+        "source_item_type": item_type,
+        "assertion": {"tool": tool, "agent": assertion_agent, "attribution_level": level},
+        "confirmation": {
+            "state": "confirmed" if complete else "asserted",
+            "actor": actor,
+            "method": method,
+            "validated_at": validated_at,
+        },
+        "advisory_only": True,
+        "execution_authorized": False,
+        "warnings": warnings,
+    }
+
+
+def load(path: Path) -> dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError("fixture must be a JSON object")
+    return value
+
+
+def validate(fixture: dict[str, Any]) -> dict[str, Any]:
+    meta = fixture.get("_meta")
+    if not isinstance(meta, dict):
+        raise ValueError("_meta must be an object")
+    expected_meta = {
+        "adapter_version": ADAPTER,
+        "source_repository": REPO,
+        "source_commit": COMMIT,
+        "independent_compatibility_layer": True,
+    }
+    for key, expected in expected_meta.items():
+        if meta.get(key) != expected:
+            raise ValueError(f"fixture {key} mismatch")
+
+    results = []
+    seen: set[str] = set()
+    for case in fixture.get("cases", []):
+        if not isinstance(case, dict):
+            raise ValueError("case must be an object")
+        name = clean(case.get("case"))
+        item_type = clean(case.get("source_item_type"))
+        item = case.get("engram_item")
+        expected = case.get("expected")
+        if not name or name in seen or not item_type:
+            raise ValueError("case name/type missing or duplicated")
+        if not isinstance(item, dict) or not isinstance(expected, dict):
+            raise ValueError(f"{name}: item/expected must be objects")
+        seen.add(name)
+
+        observed = adapt(item, item_type)
+        errors = []
+        if observed != expected:
+            errors.append("projection differs from expected")
+        if observed["source_item_id"] != item.get("id"):
+            errors.append("source item id changed")
+        if observed["execution_authorized"] is not False:
+            errors.append("memory authorized execution")
+        provenance = item.get("provenance")
+        provenance = provenance if isinstance(provenance, dict) else {}
+        if provenance.get("confirmation_source") is not None:
+            if observed["assertion"]["agent"] is not None:
+                errors.append("validator misattributed as assertion agent")
+        results.append(
+            {"case": name, "passed": not errors, "errors": errors, "observed": observed}
+        )
+
+    required = {
+        "staging_assertion",
+        "human_promoted_cross_tool",
+        "test_signal_confirmation",
+        "anchor_promoted",
+        "verified_without_typed_confirmation",
+        "confirmation_missing_validation_time",
+    }
+    if seen != required:
+        raise ValueError(f"required case mismatch: {sorted(required - seen)}")
+
+    methods = sorted(
+        {
+            row["observed"]["confirmation"]["method"]
+            for row in results
+            if row["observed"]["confirmation"]["state"] == "confirmed"
+        }
+    )
+    warnings = sorted(
+        {warning for row in results for warning in row["observed"]["warnings"]}
+    )
+    report = {
+        "adapter_version": ADAPTER,
+        "source": {
+            "repository": REPO,
+            "version": meta.get("source_version"),
+            "commit": COMMIT,
+            "license": meta.get("source_license"),
+        },
+        "independent_compatibility_layer": True,
+        "cases_total": len(results),
+        "cases_passed": sum(row["passed"] for row in results),
+        "confirmed_methods_covered": methods,
+        "warnings_observed": warnings,
+        "boundary": {
+            "advisory_only": True,
+            "execution_authorized": False,
+            "upstream_endorsement_claimed": False,
+        },
+        "results": results,
+    }
+    report["passed"] = (
+        report["cases_passed"] == report["cases_total"]
+        and methods == ["anchor", "human", "test"]
+        and "verified_without_typed_confirmation" in warnings
+    )
+    return report
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("fixture", nargs="?", type=Path, default=FIXTURE)
+    parser.add_argument("--output", type=Path, default=OUTPUT)
+    args = parser.parse_args()
+    report = validate(load(args.fixture))
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report["passed"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
