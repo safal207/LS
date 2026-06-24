@@ -1,0 +1,121 @@
+{
+  "_meta": {
+    "role": "CANONICAL shared RAMR<->LS evidence fixture (RAMR is the source of truth; LS pins this version + content digest).",
+    "envelope_version": "ramr-ls-evidence-v0.1",
+    "interop_spec": "https://github.com/safal207/LS/blob/main/spec/ramr-operational-continuity-interop-v0.1.md",
+    "ls_conformance": "https://github.com/safal207/LS/tree/main/fixtures/operational-continuity",
+    "collaboration": "anthropics/claude-code#34556 (RAMR = reliability layer, LS = conformance layer)",
+    "versioning": "Any semantic change requires a NEW envelope_version; v0.1 bytes are frozen.",
+    "boundary_invariant": "chain_incomplete -> ABSTAIN (never serve a misleading partial chain)"
+  },
+  "fixture_id": "incomplete_dependency_chain",
+  "envelope_version": "ramr-ls-evidence-v0.1",
+  "description": "An action depends on a complete causal chain (decision -> rationale -> constraint). If one link is missing from recovered evidence, LS must ABSTAIN (report the chain incomplete) rather than serve a misleading partial. RAMR measures full-chain recovery. Boundary: a missing link is a reliability gap to surface, not grounds to proceed on partial memory.",
+  "authoritative_state": {
+    "required_chain": [
+      "decision",
+      "rationale",
+      "constraint"
+    ],
+    "continuation_id": "cont-456",
+    "intent_digest": "sha256:INTENT_A"
+  },
+  "query_context": {
+    "workspace_id": "ws-123",
+    "continuation_id": "cont-456",
+    "intent_digest": "sha256:INTENT_A",
+    "target_state_digest": "sha256:TARGET_A",
+    "as_of": "2026-06-24T07:00:00Z"
+  },
+  "cases": [
+    {
+      "case": "chain_complete",
+      "recovered_evidence": [
+        {
+          "evidence_id": "ev-d",
+          "evidence_type": "decision_record",
+          "bindings": {
+            "continuation_id": "cont-456",
+            "intent_digest": "sha256:INTENT_A",
+            "chain_role": "decision"
+          },
+          "valid_from": "2026-06-24T06:00:00Z",
+          "invalidated_at": null
+        },
+        {
+          "evidence_id": "ev-r",
+          "evidence_type": "rationale_record",
+          "bindings": {
+            "continuation_id": "cont-456",
+            "intent_digest": "sha256:INTENT_A",
+            "chain_role": "rationale"
+          },
+          "valid_from": "2026-06-24T06:05:00Z",
+          "invalidated_at": null
+        },
+        {
+          "evidence_id": "ev-c",
+          "evidence_type": "constraint_record",
+          "bindings": {
+            "continuation_id": "cont-456",
+            "intent_digest": "sha256:INTENT_A",
+            "chain_role": "constraint"
+          },
+          "valid_from": "2026-06-24T06:10:00Z",
+          "invalidated_at": null
+        }
+      ],
+      "retrieval": {
+        "budget": 8,
+        "recency_weight": 0.25,
+        "reliability_signal": 0.9
+      },
+      "expected": {
+        "ramr_full_chain_recovered": true,
+        "ls_verdict": "RESUME"
+      }
+    },
+    {
+      "case": "chain_incomplete",
+      "recovered_evidence": [
+        {
+          "evidence_id": "ev-d",
+          "evidence_type": "decision_record",
+          "bindings": {
+            "continuation_id": "cont-456",
+            "intent_digest": "sha256:INTENT_A",
+            "chain_role": "decision"
+          },
+          "valid_from": "2026-06-24T06:00:00Z",
+          "invalidated_at": null
+        },
+        {
+          "evidence_id": "ev-c",
+          "evidence_type": "constraint_record",
+          "bindings": {
+            "continuation_id": "cont-456",
+            "intent_digest": "sha256:INTENT_A",
+            "chain_role": "constraint"
+          },
+          "valid_from": "2026-06-24T06:10:00Z",
+          "invalidated_at": null
+        }
+      ],
+      "retrieval": {
+        "budget": 8,
+        "recency_weight": 0.25,
+        "reliability_signal": 0.6
+      },
+      "expected": {
+        "ramr_full_chain_recovered": false,
+        "ls_verdict": "ABSTAIN",
+        "rationale": "rationale link missing; report incomplete rather than proceed on a partial chain (chain-fragility: a partial chain is near-useless)"
+      }
+    }
+  ],
+  "scoring": {
+    "ramr_measures": "full_chain_recovered = required_chain roles all present in recovered_evidence chain_role bindings",
+    "ls_measures": "verdict == expected.ls_verdict",
+    "boundary_invariant": "chain_incomplete -> ABSTAIN (never serve a misleading partial chain)"
+  }
+}
