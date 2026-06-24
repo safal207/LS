@@ -1,0 +1,1 @@
+{"case":"policy_binding_mismatch","overrides":{"authorization_intent":{"policy_version":"2.0.0"}},"consumed_nonces":[],"tamper":null,"expected":{"outcome":"REJECTED","reason_code":"POLICY_BINDING_MISMATCH","bundle_created":false,"offline_verified":false,"commit_before_effect_eligible":false,"execution_authorized":false}}

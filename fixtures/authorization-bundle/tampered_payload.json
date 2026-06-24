@@ -1,0 +1,1 @@
+{"case":"tampered_payload","overrides":{},"consumed_nonces":[],"tamper":{"file":"decisions.jsonl","append":"tamper"},"expected":{"outcome":"REJECTED","reason_code":"FILE_HASH_MISMATCH","bundle_created":true,"offline_verified":false,"commit_before_effect_eligible":false,"execution_authorized":false}}

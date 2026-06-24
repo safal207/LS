@@ -1,0 +1,41 @@
+name: Authorization Bundle v0.1
+
+on:
+  pull_request:
+    paths:
+      - "spec/authorization-bundle-v0.1.md"
+      - "schemas/authorization_bundle_v0_1.schema.json"
+      - "fixtures/authorization-bundle/**"
+      - "tools/validate_authorization_bundle_v0_1.py"
+      - ".github/workflows/authorization-bundle-v0.1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "spec/authorization-bundle-v0.1.md"
+      - "schemas/authorization_bundle_v0_1.schema.json"
+      - "fixtures/authorization-bundle/**"
+      - "tools/validate_authorization_bundle_v0_1.py"
+      - ".github/workflows/authorization-bundle-v0.1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate JSON inputs
+        run: |
+          python -m json.tool schemas/authorization_bundle_v0_1.schema.json > /dev/null
+          for file in fixtures/authorization-bundle/*.json; do
+            python -m json.tool "$file" > /dev/null
+          done
+      - name: Run bundle build and offline verification
+        run: python tools/validate_authorization_bundle_v0_1.py
+      - name: Validate machine-readable report
+        run: python -m json.tool artifacts/authorization-bundle-v0.1-result.json > /dev/null

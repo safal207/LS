@@ -1,0 +1,1 @@
+{"case":"valid_bundle","overrides":{},"consumed_nonces":[],"tamper":null,"expected":{"outcome":"ISSUED_AND_VERIFIED","reason_code":"BUNDLE_VERIFIED","bundle_created":true,"offline_verified":true,"commit_before_effect_eligible":true,"execution_authorized":false}}
