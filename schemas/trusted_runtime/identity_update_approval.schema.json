@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Identity Update Approval",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "approval_id", "proposal_id", "proposal_digest", "proposer_actor", "approver_actor", "decision", "reason", "decided_at", "expires_at", "contradiction_refs", "policy_version", "metadata"],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.identity_update_approval.v0.1"},
+    "approval_id": {"type": "string", "minLength": 1},
+    "proposal_id": {"type": "string", "minLength": 1},
+    "proposal_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "proposer_actor": {"type": "string", "minLength": 1},
+    "approver_actor": {"type": "string", "minLength": 1},
+    "decision": {"enum": ["APPROVE", "REJECT", "EXPIRE", "INVALIDATE"]},
+    "reason": {"type": "string", "minLength": 1},
+    "decided_at": {"type": "string", "minLength": 1},
+    "expires_at": {"type": ["string", "null"]},
+    "contradiction_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "policy_version": {"const": "identity_governance.v0.1"},
+    "metadata": {"type": "object"}
+  }
+}

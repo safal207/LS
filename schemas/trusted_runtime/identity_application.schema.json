@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Identity Application Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "application_id", "proposal_id", "approval_id", "patch_id", "patch_digest", "commit_id", "agent_id", "previous_profile_ref", "new_profile_ref", "previous_version", "new_version", "activated_at", "activated_by", "replay_safe", "metadata"],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.identity_application.v0.1"},
+    "application_id": {"type": "string", "minLength": 1},
+    "proposal_id": {"type": "string", "minLength": 1},
+    "approval_id": {"type": "string", "minLength": 1},
+    "patch_id": {"type": "string", "minLength": 1},
+    "patch_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "commit_id": {"type": "string", "minLength": 1},
+    "agent_id": {"type": "string", "minLength": 1},
+    "previous_profile_ref": {"type": "string", "minLength": 1},
+    "new_profile_ref": {"type": "string", "minLength": 1},
+    "previous_version": {"type": "integer", "minimum": 1},
+    "new_version": {"type": "integer", "minimum": 2},
+    "activated_at": {"type": "string", "minLength": 1},
+    "activated_by": {"type": "string", "minLength": 1},
+    "replay_safe": {"const": true},
+    "metadata": {"type": "object"}
+  }
+}

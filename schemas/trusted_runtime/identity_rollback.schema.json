@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS Identity Rollback Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "rollback_id", "agent_id", "application_id", "from_profile_ref", "restored_from_profile_ref", "rollback_profile_ref", "from_version", "rollback_version", "reason", "rolled_back_at", "rolled_back_by", "metadata"],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.identity_rollback.v0.1"},
+    "rollback_id": {"type": "string", "minLength": 1},
+    "agent_id": {"type": "string", "minLength": 1},
+    "application_id": {"type": "string", "minLength": 1},
+    "from_profile_ref": {"type": "string", "minLength": 1},
+    "restored_from_profile_ref": {"type": "string", "minLength": 1},
+    "rollback_profile_ref": {"type": "string", "minLength": 1},
+    "from_version": {"type": "integer", "minimum": 2},
+    "rollback_version": {"type": "integer", "minimum": 3},
+    "reason": {"type": "string", "minLength": 1},
+    "rolled_back_at": {"type": "string", "minLength": 1},
+    "rolled_back_by": {"type": "string", "minLength": 1},
+    "metadata": {"type": "object"}
+  }
+}
