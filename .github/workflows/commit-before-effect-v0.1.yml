@@ -1,0 +1,41 @@
+name: Commit-Before-Effect v0.1
+
+on:
+  pull_request:
+    paths:
+      - "spec/commit-before-effect-v0.1.md"
+      - "schemas/execution_record_v0_1.schema.json"
+      - "fixtures/commit-before-effect/**"
+      - "tools/validate_commit_before_effect_v0_1.py"
+      - ".github/workflows/commit-before-effect-v0.1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "spec/commit-before-effect-v0.1.md"
+      - "schemas/execution_record_v0_1.schema.json"
+      - "fixtures/commit-before-effect/**"
+      - "tools/validate_commit_before_effect_v0_1.py"
+      - ".github/workflows/commit-before-effect-v0.1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate JSON inputs
+        run: |
+          python -m json.tool schemas/execution_record_v0_1.schema.json > /dev/null
+          for file in fixtures/commit-before-effect/*.json; do
+            python -m json.tool "$file" > /dev/null
+          done
+      - name: Run commit-before-effect conformance
+        run: python tools/validate_commit_before_effect_v0_1.py
+      - name: Validate machine-readable report
+        run: python -m json.tool artifacts/commit-before-effect-v0.1-result.json > /dev/null
