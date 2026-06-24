@@ -1,0 +1,114 @@
+{
+  "_meta": {
+    "role": "CANONICAL shared RAMR<->LS evidence fixture (RAMR is the source of truth; LS pins this version + content digest).",
+    "envelope_version": "ramr-ls-evidence-v0.1",
+    "interop_spec": "https://github.com/safal207/LS/blob/main/spec/ramr-operational-continuity-interop-v0.1.md",
+    "ls_conformance": "https://github.com/safal207/LS/tree/main/fixtures/operational-continuity",
+    "collaboration": "anthropics/claude-code#34556 (RAMR = reliability layer, LS = conformance layer)",
+    "versioning": "Any semantic change requires a NEW envelope_version; v0.1 bytes are frozen.",
+    "boundary_invariant": "ls_verdict is REJECT in BOTH cases -- independent of whether RAMR recovered the revocation (a retrieval miss is a reliability failure, not authorization)."
+  },
+  "fixture_id": "superseded_approval",
+  "envelope_version": "ramr-ls-evidence-v0.1",
+  "description": "Approval approval-789 was GRANTED (valid_from T0) then REVOKED/superseded (invalidated_at T1) by approval-790. On resume at as_of T2 > T1, an action that relies on approval-789 must be REJECTED -- the grant is no longer valid. RAMR measures whether it recovered the CURRENT approval state (i.e. that approval-789 is invalidated as of T2, via bi-temporal valid_from/invalidated_at). LS must REJECT in BOTH retrieval conditions: a retrieval that MISSES the revocation must not re-authorize the action.",
+  "authoritative_state": {
+    "_note": "LS-owned ground truth. approval-789 is superseded as of T1.",
+    "approval_ledger": [
+      {
+        "approval_id": "approval-789",
+        "status": "superseded",
+        "superseded_by": "approval-790",
+        "continuation_id": "cont-456",
+        "intent_digest": "sha256:INTENT_A",
+        "valid_from": "2026-06-24T05:00:00Z",
+        "invalidated_at": "2026-06-24T06:00:00Z"
+      }
+    ]
+  },
+  "query_context": {
+    "workspace_id": "ws-123",
+    "continuation_id": "cont-456",
+    "intent_digest": "sha256:INTENT_A",
+    "target_state_digest": "sha256:TARGET_A",
+    "as_of": "2026-06-24T07:00:00Z",
+    "_acting_under_approval": "approval-789"
+  },
+  "cases": [
+    {
+      "case": "supersession_recovered",
+      "ramr_role": "RAMR recovered the CURRENT approval state -- the record carries invalidated_at (revoked as of T2)",
+      "recovered_evidence": [
+        {
+          "evidence_id": "ev-apr-789",
+          "evidence_type": "approval_record",
+          "payload_digest": "sha256:APPR_789",
+          "scope": {
+            "workspace_id": "ws-123"
+          },
+          "bindings": {
+            "continuation_id": "cont-456",
+            "intent_digest": "sha256:INTENT_A",
+            "approval_id": "approval-789"
+          },
+          "valid_from": "2026-06-24T05:00:00Z",
+          "invalidated_at": "2026-06-24T06:00:00Z",
+          "retrieved_at": null,
+          "provenance": {
+            "record_source": "approval-service",
+            "record_digest": "sha256:REC_789"
+          }
+        }
+      ],
+      "retrieval": {
+        "budget": 8,
+        "recency_weight": 0.25,
+        "reliability_signal": 0.93
+      },
+      "expected": {
+        "ramr_recovered_current_approval": true,
+        "ls_verdict": "REJECT"
+      }
+    },
+    {
+      "case": "supersession_missed",
+      "ramr_role": "RAMR recovered only the STALE grant (invalidated_at null) -- it MISSED the revocation; the dangerous case",
+      "recovered_evidence": [
+        {
+          "evidence_id": "ev-apr-789-stale",
+          "evidence_type": "approval_record",
+          "payload_digest": "sha256:APPR_789",
+          "scope": {
+            "workspace_id": "ws-123"
+          },
+          "bindings": {
+            "continuation_id": "cont-456",
+            "intent_digest": "sha256:INTENT_A",
+            "approval_id": "approval-789"
+          },
+          "valid_from": "2026-06-24T05:00:00Z",
+          "invalidated_at": null,
+          "retrieved_at": null,
+          "provenance": {
+            "record_source": "approval-service",
+            "record_digest": "sha256:REC_789"
+          }
+        }
+      ],
+      "retrieval": {
+        "budget": 8,
+        "recency_weight": 0.25,
+        "reliability_signal": 0.4
+      },
+      "expected": {
+        "ramr_recovered_current_approval": false,
+        "ls_verdict": "REJECT",
+        "rationale": "authority is the approval ledger; a stale grant whose revocation was not recovered must not re-authorize. A retrieval miss is a reliability failure, not authorization."
+      }
+    }
+  ],
+  "scoring": {
+    "ramr_measures": "recovered_current_approval = the recovered approval_record reflects the CURRENT validity at as_of (invalidated_at set and <= as_of). Aggregate = recall of revocation state under bi-temporal as-of.",
+    "ls_measures": "verdict == expected.ls_verdict",
+    "boundary_invariant": "ls_verdict is REJECT in BOTH cases -- independent of whether RAMR recovered the revocation (a retrieval miss is a reliability failure, not authorization)."
+  }
+}
