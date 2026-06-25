@@ -1,261 +1,41 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/safal207/LS/schemas/trusted_runtime/track_center_route_result.schema.json",
-  "title": "LS Track Center Route Result v0.1",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "schema_version", "route_result_id", "envelope_id", "envelope_digest",
-    "requested_route", "selected_route", "decision", "reason_codes",
-    "routed_result", "diagnostic_code", "relational_self_mutation_allowed",
-    "project_registry_mutation_allowed", "task_scheduling_allowed",
-    "value_registry_mutation_allowed", "priority_mutation_allowed",
-    "incident_registry_mutation_allowed", "blame_assignment_allowed",
-    "remediation_scheduling_allowed", "goal_registry_mutation_allowed",
-    "obligation_assignment_allowed", "work_scheduling_allowed",
-    "stable_identity_update_allowed", "execution_authorized", "policy_version",
-    "processed_at", "processed_by", "metadata"
-  ],
-  "properties": {
-    "schema_version": {"const": "trusted_runtime.track_center_route_result.v0.1"},
-    "route_result_id": {
-      "type": "string",
-      "pattern": "^track-center-route-result:sha256:[0-9a-f]{64}$"
-    },
-    "envelope_id": {"type": "string", "minLength": 1},
-    "envelope_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "requested_route": {"type": "string", "minLength": 1},
-    "selected_route": {
-      "type": ["string", "null"],
-      "enum": [
-        "relationships.loss", "projects.lifecycle", "values.evidence",
-        "errors.learning", "goals.commitments", null
-      ]
-    },
-    "decision": {
-      "enum": ["ROUTED", "HOLD_UNKNOWN_ROUTE", "HOLD_MALFORMED_PAYLOAD"]
-    },
-    "reason_codes": {
-      "type": "array",
-      "minItems": 1,
-      "uniqueItems": true,
-      "items": {
-        "enum": [
-          "EXACT_ROUTE_MATCH", "UNKNOWN_ROUTE", "MALFORMED_PAYLOAD",
-          "NO_ROUTE_INFERENCE"
-        ]
-      }
-    },
-    "routed_result": {
-      "oneOf": [
-        {"type": "null"},
-        {"$ref": "#/$defs/relationshipResult"},
-        {"$ref": "#/$defs/projectResult"},
-        {"$ref": "#/$defs/valueResult"},
-        {"$ref": "#/$defs/errorResult"},
-        {"$ref": "#/$defs/goalResult"}
-      ]
-    },
-    "diagnostic_code": {
-      "type": ["string", "null"],
-      "enum": [
-        "unknown_track_center_route", "relationship_loss_payload_invalid",
-        "project_payload_invalid", "value_payload_invalid",
-        "error_learning_payload_invalid", "goal_commitment_payload_invalid", null
-      ]
-    },
-    "relational_self_mutation_allowed": {"const": false},
-    "project_registry_mutation_allowed": {"const": false},
-    "task_scheduling_allowed": {"const": false},
-    "value_registry_mutation_allowed": {"const": false},
-    "priority_mutation_allowed": {"const": false},
-    "incident_registry_mutation_allowed": {"const": false},
-    "blame_assignment_allowed": {"const": false},
-    "remediation_scheduling_allowed": {"const": false},
-    "goal_registry_mutation_allowed": {"const": false},
-    "obligation_assignment_allowed": {"const": false},
-    "work_scheduling_allowed": {"const": false},
-    "stable_identity_update_allowed": {"const": false},
-    "execution_authorized": {"const": false},
-    "policy_version": {"const": "track_center_router.v0.1"},
-    "processed_at": {"type": "string", "minLength": 1},
-    "processed_by": {"type": "string", "minLength": 1},
-    "metadata": {
-      "type": "object",
-      "required": [
-        "supported_routes", "route_matching", "free_text_route_inference",
-        "router_output_is_not_authority"
-      ],
-      "properties": {
-        "supported_routes": {
-          "const": [
-            "relationships.loss", "projects.lifecycle", "values.evidence",
-            "errors.learning", "goals.commitments"
-          ]
-        },
-        "route_matching": {"const": "exact_only"},
-        "free_text_route_inference": {"const": false},
-        "router_output_is_not_authority": {"const": true}
-      },
-      "additionalProperties": true
-    }
-  },
-  "$defs": {
-    "continuityAssessment": {
-      "type": "object",
-      "required": ["decision", "stable_identity_update_allowed", "execution_authorized"],
-      "properties": {
-        "decision": {
-          "enum": [
-            "ACCEPT_BOUNDED_OBSERVATION", "HOLD_FOR_REVIEW",
-            "BLOCK_FALSE_PRESENCE"
-          ]
-        },
-        "stable_identity_update_allowed": {"const": false},
-        "execution_authorized": {"const": false}
-      },
-      "additionalProperties": true
-    },
-    "relationshipResult": {
-      "type": "object",
-      "required": [
-        "schema_version", "result_id", "assessment",
-        "relational_self_mutation_allowed", "stable_identity_update_allowed",
-        "execution_authorized"
-      ],
-      "properties": {
-        "schema_version": {"const": "trusted_runtime.relationship_loss_result.v0.1"},
-        "result_id": {"type": "string", "pattern": "^relationship-loss-result:sha256:[0-9a-f]{64}$"},
-        "assessment": {"$ref": "#/$defs/continuityAssessment"},
-        "relational_self_mutation_allowed": {"const": false},
-        "stable_identity_update_allowed": {"const": false},
-        "execution_authorized": {"const": false}
-      },
-      "additionalProperties": true
-    },
-    "projectResult": {
-      "type": "object",
-      "required": [
-        "schema_version", "result_id", "assessment",
-        "project_registry_mutation_allowed", "task_scheduling_allowed",
-        "stable_identity_update_allowed", "execution_authorized"
-      ],
-      "properties": {
-        "schema_version": {"const": "trusted_runtime.project_track_result.v0.1"},
-        "result_id": {"type": "string", "pattern": "^project-track-result:sha256:[0-9a-f]{64}$"},
-        "assessment": {"$ref": "#/$defs/continuityAssessment"},
-        "project_registry_mutation_allowed": {"const": false},
-        "task_scheduling_allowed": {"const": false},
-        "stable_identity_update_allowed": {"const": false},
-        "execution_authorized": {"const": false}
-      },
-      "additionalProperties": true
-    },
-    "valueResult": {
-      "type": "object",
-      "required": [
-        "schema_version", "result_id", "assessment",
-        "value_registry_mutation_allowed", "priority_mutation_allowed",
-        "stable_identity_update_allowed", "execution_authorized"
-      ],
-      "properties": {
-        "schema_version": {"const": "trusted_runtime.value_track_result.v0.1"},
-        "result_id": {"type": "string", "pattern": "^value-track-result:sha256:[0-9a-f]{64}$"},
-        "assessment": {"$ref": "#/$defs/continuityAssessment"},
-        "value_registry_mutation_allowed": {"const": false},
-        "priority_mutation_allowed": {"const": false},
-        "stable_identity_update_allowed": {"const": false},
-        "execution_authorized": {"const": false}
-      },
-      "additionalProperties": true
-    },
-    "errorResult": {
-      "type": "object",
-      "required": [
-        "schema_version", "result_id", "assessment",
-        "incident_registry_mutation_allowed", "blame_assignment_allowed",
-        "remediation_scheduling_allowed", "stable_identity_update_allowed",
-        "execution_authorized"
-      ],
-      "properties": {
-        "schema_version": {"const": "trusted_runtime.error_learning_result.v0.1"},
-        "result_id": {"type": "string", "pattern": "^error-learning-result:sha256:[0-9a-f]{64}$"},
-        "assessment": {"$ref": "#/$defs/continuityAssessment"},
-        "incident_registry_mutation_allowed": {"const": false},
-        "blame_assignment_allowed": {"const": false},
-        "remediation_scheduling_allowed": {"const": false},
-        "stable_identity_update_allowed": {"const": false},
-        "execution_authorized": {"const": false}
-      },
-      "additionalProperties": true
-    },
-    "goalResult": {
-      "type": "object",
-      "required": [
-        "schema_version", "result_id", "assessment",
-        "goal_registry_mutation_allowed", "obligation_assignment_allowed",
-        "work_scheduling_allowed", "priority_mutation_allowed",
-        "stable_identity_update_allowed", "execution_authorized"
-      ],
-      "properties": {
-        "schema_version": {"const": "trusted_runtime.goal_commitment_result.v0.1"},
-        "result_id": {"type": "string", "pattern": "^goal-commitment-result:sha256:[0-9a-f]{64}$"},
-        "assessment": {"$ref": "#/$defs/continuityAssessment"},
-        "goal_registry_mutation_allowed": {"const": false},
-        "obligation_assignment_allowed": {"const": false},
-        "work_scheduling_allowed": {"const": false},
-        "priority_mutation_allowed": {"const": false},
-        "stable_identity_update_allowed": {"const": false},
-        "execution_authorized": {"const": false}
-      },
-      "additionalProperties": true
-    }
-  },
-  "allOf": [
-    {
-      "if": {"properties": {"decision": {"const": "ROUTED"}}},
-      "then": {
-        "properties": {
-          "selected_route": {
-            "enum": [
-              "relationships.loss", "projects.lifecycle", "values.evidence",
-              "errors.learning", "goals.commitments"
-            ]
-          },
-          "routed_result": {"type": "object"},
-          "diagnostic_code": {"type": "null"}
-        }
-      }
-    },
-    {
-      "if": {"properties": {"decision": {"const": "HOLD_UNKNOWN_ROUTE"}}},
-      "then": {
-        "properties": {
-          "selected_route": {"type": "null"},
-          "routed_result": {"type": "null"},
-          "diagnostic_code": {"const": "unknown_track_center_route"}
-        }
-      }
-    },
-    {
-      "if": {"properties": {"decision": {"const": "HOLD_MALFORMED_PAYLOAD"}, "selected_route": {"const": "relationships.loss"}}, "required": ["decision", "selected_route"]},
-      "then": {"properties": {"routed_result": {"type": "null"}, "diagnostic_code": {"const": "relationship_loss_payload_invalid"}}}
-    },
-    {
-      "if": {"properties": {"decision": {"const": "HOLD_MALFORMED_PAYLOAD"}, "selected_route": {"const": "projects.lifecycle"}}, "required": ["decision", "selected_route"]},
-      "then": {"properties": {"routed_result": {"type": "null"}, "diagnostic_code": {"const": "project_payload_invalid"}}}
-    },
-    {
-      "if": {"properties": {"decision": {"const": "HOLD_MALFORMED_PAYLOAD"}, "selected_route": {"const": "values.evidence"}}, "required": ["decision", "selected_route"]},
-      "then": {"properties": {"routed_result": {"type": "null"}, "diagnostic_code": {"const": "value_payload_invalid"}}}
-    },
-    {
-      "if": {"properties": {"decision": {"const": "HOLD_MALFORMED_PAYLOAD"}, "selected_route": {"const": "errors.learning"}}, "required": ["decision", "selected_route"]},
-      "then": {"properties": {"routed_result": {"type": "null"}, "diagnostic_code": {"const": "error_learning_payload_invalid"}}}
-    },
-    {
-      "if": {"properties": {"decision": {"const": "HOLD_MALFORMED_PAYLOAD"}, "selected_route": {"const": "goals.commitments"}}, "required": ["decision", "selected_route"]},
-      "then": {"properties": {"routed_result": {"type": "null"}, "diagnostic_code": {"const": "goal_commitment_payload_invalid"}}}
-    }
-  ]
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://github.com/safal207/LS/schemas/trusted_runtime/track_center_route_result.schema.json",
+  "title":"LS Track Center Route Result v0.1",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","route_result_id","envelope_id","envelope_digest","requested_route","selected_route","decision","reason_codes","routed_result","diagnostic_code","relational_self_mutation_allowed","project_registry_mutation_allowed","task_scheduling_allowed","value_registry_mutation_allowed","priority_mutation_allowed","incident_registry_mutation_allowed","blame_assignment_allowed","remediation_scheduling_allowed","goal_registry_mutation_allowed","obligation_assignment_allowed","work_scheduling_allowed","capability_registry_mutation_allowed","capability_restriction_allowed","global_limitation_assignment_allowed","training_scheduling_allowed","stable_identity_update_allowed","execution_authorized","policy_version","processed_at","processed_by","metadata"],
+  "properties":{
+    "schema_version":{"const":"trusted_runtime.track_center_route_result.v0.1"},
+    "route_result_id":{"type":"string","pattern":"^track-center-route-result:sha256:[0-9a-f]{64}$"},
+    "envelope_id":{"type":"string"},
+    "envelope_digest":{"pattern":"^[0-9a-f]{64}$"},
+    "requested_route":{"type":"string"},
+    "selected_route":{"type":["string","null"],"enum":["relationships.loss","projects.lifecycle","values.evidence","errors.learning","goals.commitments","capabilities.constraints",null]},
+    "decision":{"enum":["ROUTED","HOLD_UNKNOWN_ROUTE","HOLD_MALFORMED_PAYLOAD"]},
+    "reason_codes":{"type":"array","minItems":1,"uniqueItems":true},
+    "routed_result":{"type":["object","null"]},
+    "diagnostic_code":{"type":["string","null"],"enum":["unknown_track_center_route","relationship_loss_payload_invalid","project_payload_invalid","value_payload_invalid","error_learning_payload_invalid","goal_commitment_payload_invalid","capability_constraint_payload_invalid",null]},
+    "relational_self_mutation_allowed":{"const":false},
+    "project_registry_mutation_allowed":{"const":false},
+    "task_scheduling_allowed":{"const":false},
+    "value_registry_mutation_allowed":{"const":false},
+    "priority_mutation_allowed":{"const":false},
+    "incident_registry_mutation_allowed":{"const":false},
+    "blame_assignment_allowed":{"const":false},
+    "remediation_scheduling_allowed":{"const":false},
+    "goal_registry_mutation_allowed":{"const":false},
+    "obligation_assignment_allowed":{"const":false},
+    "work_scheduling_allowed":{"const":false},
+    "capability_registry_mutation_allowed":{"const":false},
+    "capability_restriction_allowed":{"const":false},
+    "global_limitation_assignment_allowed":{"const":false},
+    "training_scheduling_allowed":{"const":false},
+    "stable_identity_update_allowed":{"const":false},
+    "execution_authorized":{"const":false},
+    "policy_version":{"const":"track_center_router.v0.1"},
+    "processed_at":{"type":"string"},
+    "processed_by":{"type":"string"},
+    "metadata":{"type":"object","required":["supported_routes","route_matching","free_text_route_inference","router_output_is_not_authority"],"properties":{"supported_routes":{"const":["relationships.loss","projects.lifecycle","values.evidence","errors.learning","goals.commitments","capabilities.constraints"]},"route_matching":{"const":"exact_only"},"free_text_route_inference":{"const":false},"router_output_is_not_authority":{"const":true}},"additionalProperties":true}
+  }
 }
