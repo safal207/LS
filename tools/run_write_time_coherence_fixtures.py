@@ -82,6 +82,8 @@ def _source_integrity(
     digest_map = candidate.get("source_digests", {})
     if not isinstance(referenced_ids, list) or not isinstance(digest_map, dict):
         return False
+    if any(event.get("immutable") is not True for event in sources.values()):
+        return False
     if len(referenced_ids) != len(set(referenced_ids)):
         return False
     if set(referenced_ids) != set(digest_map):
@@ -102,7 +104,10 @@ def _source_integrity(
     return True
 
 
-def _contradiction_state(fixture: dict[str, Any]) -> tuple[bool, bool]:
+def _contradiction_state(
+    fixture: dict[str, Any],
+    sources: dict[str, dict[str, Any]],
+) -> tuple[bool, bool]:
     relations = fixture.get("relations", [])
     candidate_refs = set(fixture["candidate"].get("contradiction_refs", []))
     material = [
@@ -113,6 +118,8 @@ def _contradiction_state(fixture: dict[str, Any]) -> tuple[bool, bool]:
     ]
     visible = all(
         relation.get("relation_id") in candidate_refs
+        and relation.get("from_event_id") in sources
+        and relation.get("to_event_id") in sources
         for relation in material
     )
     unresolved = any(relation.get("resolved") is False for relation in material)
@@ -135,16 +142,35 @@ def _dependency_chain_complete(
     return required.issubset(declared) and required.issubset(evidenced)
 
 
-def _bindings_current(fixture: dict[str, Any]) -> bool:
+def _bindings_current(
+    fixture: dict[str, Any],
+    sources: dict[str, dict[str, Any]],
+) -> bool:
     expected = fixture.get("query_context", {})
-    observed = fixture["candidate"].get("bindings", {})
+    candidate = fixture["candidate"]
     fields = (
         "trajectory_id",
         "continuation_id",
         "intent_digest",
         "target_state_digest",
     )
-    return all(observed.get(field) == expected.get(field) for field in fields)
+    candidate_current = all(
+        candidate.get("bindings", {}).get(field) == expected.get(field)
+        for field in fields
+    )
+    if not candidate_current:
+        return False
+
+    for event_id in candidate.get("source_event_ids", []):
+        event = sources.get(event_id)
+        if event is None:
+            return False
+        if any(
+            event.get("bindings", {}).get(field) != expected.get(field)
+            for field in fields
+        ):
+            return False
+    return True
 
 
 def _confirmer_independent(fixture: dict[str, Any]) -> bool:
@@ -180,13 +206,13 @@ def _confirmation_verified(fixture: dict[str, Any]) -> bool:
 
 def _observed_checks(fixture: dict[str, Any]) -> dict[str, bool]:
     sources = _source_map(fixture)
-    contradiction_visible, unresolved = _contradiction_state(fixture)
+    contradiction_visible, unresolved = _contradiction_state(fixture, sources)
     return {
         "source_integrity": _source_integrity(fixture, sources),
         "contradiction_visible": contradiction_visible,
         "unresolved_material_contradiction": unresolved,
         "dependency_chain_complete": _dependency_chain_complete(fixture, sources),
-        "bindings_current": _bindings_current(fixture),
+        "bindings_current": _bindings_current(fixture, sources),
         "confirmer_independent": _confirmer_independent(fixture),
         "confirmation_verified": _confirmation_verified(fixture),
         "synthesis_digest_valid": _synthesis_digest_valid(fixture),
