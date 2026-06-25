@@ -110,9 +110,9 @@ def _request() -> AuthorizationRequest:
     )
 
 
-def _evaluate(request: AuthorizationRequest):
+def _evaluate(auth_request: AuthorizationRequest):
     return evaluate_authorization(
-        request,
+        auth_request,
         evaluated_at="2026-06-25T12:00:01Z",
     )
 
@@ -132,24 +132,24 @@ def test_verified_scoped_evidence_allows_action_but_does_not_execute() -> None:
 
 
 def test_required_verified_approval_allows() -> None:
-    request = _request()
-    request = replace(
-        request,
-        policy=replace(request.policy, effect=PolicyEffect.REQUIRE_APPROVAL),
+    auth_request = _request()
+    auth_request = replace(
+        auth_request,
+        policy=replace(auth_request.policy, effect=PolicyEffect.REQUIRE_APPROVAL),
         authority=replace(
-            request.authority,
+            auth_request.authority,
             basis=AuthorityBasis.APPROVAL,
             approval_refs=("approval:change-board:42",),
         ),
         approval=replace(
-            request.approval,
+            auth_request.approval,
             approval_id="approval:change-board:42",
             state=ApprovalState.VERIFIED,
             approver_refs=("approver:change-board",),
             evidence_refs=("evidence:approval",),
         ),
     )
-    result = _evaluate(request)
+    result = _evaluate(auth_request)
     assert result.decision is AuthorizationDecision.ALLOW
     assert AuthorizationReason.APPROVAL_VERIFIED in result.reason_codes
 
@@ -164,8 +164,13 @@ def test_required_verified_approval_allows() -> None:
     ],
 )
 def test_closed_authority_blocks(state: AuthorityState, reason: AuthorizationReason) -> None:
-    request = _request()
-    result = _evaluate(replace(request, authority=replace(request.authority, state=state)))
+    auth_request = _request()
+    result = _evaluate(
+        replace(
+            auth_request,
+            authority=replace(auth_request.authority, state=state),
+        )
+    )
     assert result.decision is AuthorizationDecision.BLOCK
     assert reason in result.reason_codes
     assert result.action_authorized is False
@@ -180,8 +185,13 @@ def test_closed_authority_blocks(state: AuthorityState, reason: AuthorizationRea
     ],
 )
 def test_negative_approval_blocks(state: ApprovalState, reason: AuthorizationReason) -> None:
-    request = _request()
-    result = _evaluate(replace(request, approval=replace(request.approval, state=state)))
+    auth_request = _request()
+    result = _evaluate(
+        replace(
+            auth_request,
+            approval=replace(auth_request.approval, state=state),
+        )
+    )
     assert result.decision is AuthorizationDecision.BLOCK
     assert reason in result.reason_codes
 
@@ -197,31 +207,42 @@ def test_current_capability_failure_blocks(
     state: CapabilityState,
     reason: AuthorizationReason,
 ) -> None:
-    request = _request()
-    result = _evaluate(replace(request, capability=replace(request.capability, state=state)))
+    auth_request = _request()
+    result = _evaluate(
+        replace(
+            auth_request,
+            capability=replace(auth_request.capability, state=state),
+        )
+    )
     assert result.decision is AuthorizationDecision.BLOCK
     assert reason in result.reason_codes
 
 
 def test_policy_deny_has_precedence_over_uncertainty() -> None:
-    request = _request()
-    request = replace(
-        request,
-        policy=replace(request.policy, effect=PolicyEffect.DENY),
-        context=replace(request.context, state=ContextState.STALE),
-        authority=replace(request.authority, basis=AuthorityBasis.ROLE_ASSIGNMENT),
+    auth_request = _request()
+    auth_request = replace(
+        auth_request,
+        policy=replace(auth_request.policy, effect=PolicyEffect.DENY),
+        context=replace(auth_request.context, state=ContextState.STALE),
+        authority=replace(
+            auth_request.authority,
+            basis=AuthorityBasis.ROLE_ASSIGNMENT,
+        ),
     )
-    result = _evaluate(request)
+    result = _evaluate(auth_request)
     assert result.decision is AuthorizationDecision.BLOCK
     assert result.reason_codes == (AuthorizationReason.POLICY_DENIED,)
 
 
 def test_cross_subject_evidence_blocks() -> None:
-    request = _request()
+    auth_request = _request()
     result = _evaluate(
         replace(
-            request,
-            authority=replace(request.authority, subject_id="agent:other"),
+            auth_request,
+            authority=replace(
+                auth_request.authority,
+                subject_id="agent:other",
+            ),
         )
     )
     assert result.decision is AuthorizationDecision.BLOCK
@@ -229,7 +250,7 @@ def test_cross_subject_evidence_blocks() -> None:
 
 
 @pytest.mark.parametrize(
-    ("request", "reason"),
+    ("auth_request", "reason"),
     [
         (
             replace(_request(), capability_subject_binding_ref=""),
@@ -258,7 +279,10 @@ def test_cross_subject_evidence_blocks() -> None:
         (
             replace(
                 _request(),
-                context=replace(_request().context, state=ContextState.STALE),
+                context=replace(
+                    _request().context,
+                    state=ContextState.STALE,
+                ),
             ),
             AuthorizationReason.CONTEXT_STALE,
         ),
@@ -282,81 +306,90 @@ def test_cross_subject_evidence_blocks() -> None:
         (
             replace(
                 _request(),
-                authority=replace(_request().authority, scope_ref="scope:staging"),
+                authority=replace(
+                    _request().authority,
+                    scope_ref="scope:staging",
+                ),
             ),
             AuthorizationReason.AUTHORITY_SCOPE_MISMATCH,
         ),
     ],
 )
 def test_uncertainty_escalates(
-    request: AuthorizationRequest,
+    auth_request: AuthorizationRequest,
     reason: AuthorizationReason,
 ) -> None:
-    result = _evaluate(request)
+    result = _evaluate(auth_request)
     assert result.decision is AuthorizationDecision.ESCALATE
     assert reason in result.reason_codes
     assert result.action_authorized is False
 
 
 def test_required_pending_approval_escalates() -> None:
-    request = _request()
-    request = replace(
-        request,
-        policy=replace(request.policy, effect=PolicyEffect.REQUIRE_APPROVAL),
-        approval=replace(request.approval, state=ApprovalState.PENDING),
+    auth_request = _request()
+    auth_request = replace(
+        auth_request,
+        policy=replace(auth_request.policy, effect=PolicyEffect.REQUIRE_APPROVAL),
+        approval=replace(
+            auth_request.approval,
+            state=ApprovalState.PENDING,
+        ),
     )
-    result = _evaluate(request)
+    result = _evaluate(auth_request)
     assert result.decision is AuthorizationDecision.ESCALATE
     assert AuthorizationReason.APPROVAL_PENDING in result.reason_codes
 
 
 def test_verified_approval_must_match_scope_and_have_provenance() -> None:
-    request = _request()
-    request = replace(
-        request,
-        policy=replace(request.policy, effect=PolicyEffect.REQUIRE_APPROVAL),
+    auth_request = _request()
+    auth_request = replace(
+        auth_request,
+        policy=replace(auth_request.policy, effect=PolicyEffect.REQUIRE_APPROVAL),
         approval=replace(
-            request.approval,
+            auth_request.approval,
             state=ApprovalState.VERIFIED,
             scope_ref="scope:staging",
         ),
     )
-    result = _evaluate(request)
+    result = _evaluate(auth_request)
     assert result.decision is AuthorizationDecision.ESCALATE
     assert AuthorizationReason.APPROVAL_SCOPE_MISMATCH in result.reason_codes
     assert AuthorizationReason.APPROVAL_UNKNOWN in result.reason_codes
 
 
 def test_approval_basis_requires_matching_authority_reference() -> None:
-    request = _request()
-    request = replace(
-        request,
-        policy=replace(request.policy, effect=PolicyEffect.REQUIRE_APPROVAL),
+    auth_request = _request()
+    auth_request = replace(
+        auth_request,
+        policy=replace(auth_request.policy, effect=PolicyEffect.REQUIRE_APPROVAL),
         authority=replace(
-            request.authority,
+            auth_request.authority,
             basis=AuthorityBasis.APPROVAL,
             approval_refs=("approval:other",),
         ),
         approval=replace(
-            request.approval,
+            auth_request.approval,
             approval_id="approval:change-board:42",
             state=ApprovalState.VERIFIED,
             approver_refs=("approver:change-board",),
             evidence_refs=("evidence:approval",),
         ),
     )
-    result = _evaluate(request)
+    result = _evaluate(auth_request)
     assert result.decision is AuthorizationDecision.ESCALATE
     assert AuthorizationReason.APPROVAL_REFERENCE_MISMATCH in result.reason_codes
 
 
 def test_request_and_result_are_schema_valid_and_deterministic() -> None:
-    request = _request()
+    auth_request = _request()
     request_schema = json.loads(REQUEST_SCHEMA.read_text(encoding="utf-8"))
-    assert list(Draft202012Validator(request_schema).iter_errors(request.to_dict())) == []
+    assert (
+        list(Draft202012Validator(request_schema).iter_errors(auth_request.to_dict()))
+        == []
+    )
 
-    first = _evaluate(request)
-    second = _evaluate(request)
+    first = _evaluate(auth_request)
+    second = _evaluate(auth_request)
     assert first.decision_id == second.decision_id
     payload = first.to_dict()
     denied = (
