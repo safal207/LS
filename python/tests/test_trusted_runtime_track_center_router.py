@@ -7,6 +7,7 @@ from typing import Optional
 import pytest
 from jsonschema import Draft202012Validator
 
+from trusted_runtime.capabilities_constraints_track_center import CAPABILITIES_TRACK
 from trusted_runtime.continuity_coordinator import ContinuityDecision
 from trusted_runtime.errors_learning_track_center import ERRORS_TRACK
 from trusted_runtime.goals_commitments_track_center import GOALS_TRACK
@@ -101,24 +102,46 @@ def _payload(route: str) -> dict[str, object]:
             "identity_repeat_key": "error:timeout:verification",
             "metadata": {},
         }
+    if route == GOALS_TRACK:
+        return {
+            "schema_version": "trusted_runtime.goal_commitment_event.v0.1",
+            "event_id": "goal-event:router",
+            "goal_id": "goal:release",
+            "event_type": "FOLLOW_THROUGH_VERIFIED",
+            "goal_status": "COMPLETED",
+            "commitment_level": "COMMITMENT",
+            "knowledge_class": "FACT",
+            "statement": "Repeated follow-through produced a bounded lesson.",
+            "occurred_at": "2026-06-25T05:00:00Z",
+            "confidence": 0.94,
+            "repeat_count": 2,
+            "evidence_refs": ["evidence:goal:work", "evidence:goal:family"],
+            "context_refs": ["context:work", "context:family"],
+            "commitment_refs": ["commitment:1", "commitment:2"],
+            "identity_candidate_statement": "Confirm scope before accepting deadlines.",
+            "identity_scope": "goals.commitments",
+            "identity_repeat_key": "goals:scope-before-deadline",
+            "metadata": {},
+        }
     return {
-        "schema_version": "trusted_runtime.goal_commitment_event.v0.1",
-        "event_id": "goal-event:router",
-        "goal_id": "goal:release",
-        "event_type": "FOLLOW_THROUGH_VERIFIED",
-        "goal_status": "COMPLETED",
-        "commitment_level": "COMMITMENT",
+        "schema_version": "trusted_runtime.capability_constraint_event.v0.1",
+        "event_id": "capability-event:router",
+        "capability_id": "capability:evidence-backed-review",
+        "event_type": "REPEATED_CAPABILITY_VERIFIED",
+        "capability_status": "AVAILABLE",
+        "capability_scope": "CROSS_CONTEXT",
         "knowledge_class": "FACT",
-        "statement": "Repeated follow-through produced a bounded lesson.",
+        "statement": "Repeated capability was verified across contexts.",
         "occurred_at": "2026-06-25T05:00:00Z",
-        "confidence": 0.94,
+        "confidence": 0.95,
         "repeat_count": 2,
-        "evidence_refs": ["evidence:goal:work", "evidence:goal:family"],
-        "context_refs": ["context:work", "context:family"],
-        "commitment_refs": ["commitment:1", "commitment:2"],
-        "identity_candidate_statement": "Confirm scope before accepting deadlines.",
-        "identity_scope": "goals.commitments",
-        "identity_repeat_key": "goals:scope-before-deadline",
+        "evidence_refs": ["evidence:capability:repo-a", "evidence:capability:repo-b"],
+        "context_refs": ["context:repo-a", "context:repo-b"],
+        "capability_refs": ["observation:1", "observation:2"],
+        "resource_refs": [],
+        "identity_candidate_statement": "Verify evidence before claiming capability.",
+        "identity_scope": "capabilities.constraints",
+        "identity_repeat_key": "capabilities:evidence-before-claim",
         "metadata": {},
     }
 
@@ -144,6 +167,7 @@ def test_supported_routes_are_explicit() -> None:
         VALUES_TRACK,
         ERRORS_TRACK,
         GOALS_TRACK,
+        CAPABILITIES_TRACK,
     )
 
 
@@ -155,6 +179,7 @@ def test_supported_routes_are_explicit() -> None:
         VALUES_TRACK,
         ERRORS_TRACK,
         GOALS_TRACK,
+        CAPABILITIES_TRACK,
     ],
 )
 def test_valid_payload_routes_exactly(route: str) -> None:
@@ -196,6 +221,35 @@ def test_goal_hold_and_block_are_preserved() -> None:
     )
 
 
+def test_capability_hold_and_block_are_preserved() -> None:
+    disputed = _payload(CAPABILITIES_TRACK)
+    disputed.update(
+        {
+            "event_type": "CURRENT_INCAPABILITY_CLAIM",
+            "capability_status": "DISPUTED",
+            "capability_scope": "LOCAL",
+            "repeat_count": 1,
+            "evidence_refs": ["evidence:capability:claim"],
+            "context_refs": ["context:repo-a"],
+            "capability_refs": ["observation:1"],
+            "identity_candidate_statement": None,
+            "identity_scope": None,
+            "identity_repeat_key": None,
+        }
+    )
+    recovered = dict(disputed)
+    recovered["capability_status"] = "RECOVERED"
+    held = _route(CAPABILITIES_TRACK, disputed)
+    blocked = _route(CAPABILITIES_TRACK, recovered)
+    assert held.routed_result is not None
+    assert blocked.routed_result is not None
+    assert held.routed_result.assessment.decision is ContinuityDecision.HOLD_FOR_REVIEW
+    assert (
+        blocked.routed_result.assessment.decision
+        is ContinuityDecision.BLOCK_FALSE_PRESENCE
+    )
+
+
 def test_unknown_route_is_held() -> None:
     result = _route("unknown.route", {})
     assert result.decision is RouterDecision.HOLD_UNKNOWN_ROUTE
@@ -211,6 +265,11 @@ def test_unknown_route_is_held() -> None:
         (VALUES_TRACK, "value_key", "value_payload_invalid"),
         (ERRORS_TRACK, "error_id", "error_learning_payload_invalid"),
         (GOALS_TRACK, "goal_id", "goal_commitment_payload_invalid"),
+        (
+            CAPABILITIES_TRACK,
+            "capability_id",
+            "capability_constraint_payload_invalid",
+        ),
     ],
 )
 def test_malformed_payload_is_held(route: str, field: str, diagnostic: str) -> None:
@@ -235,6 +294,10 @@ def test_router_never_grants_authority() -> None:
         "goal_registry_mutation_allowed",
         "obligation_assignment_allowed",
         "work_scheduling_allowed",
+        "capability_registry_mutation_allowed",
+        "access_denial_allowed",
+        "permanent_incapacity_assignment_allowed",
+        "training_scheduling_allowed",
         "stable_identity_update_allowed",
         "execution_authorized",
     )
@@ -244,14 +307,15 @@ def test_router_never_grants_authority() -> None:
         VALUES_TRACK,
         ERRORS_TRACK,
         GOALS_TRACK,
+        CAPABILITIES_TRACK,
     ):
         result = _route(route).to_dict()
         assert all(result[field] is False for field in denied)
 
 
-def test_goal_route_is_deterministic_and_matches_schema() -> None:
-    first = _route(GOALS_TRACK)
-    second = _route(GOALS_TRACK)
+def test_capability_route_is_deterministic_and_matches_schema() -> None:
+    first = _route(CAPABILITIES_TRACK)
+    second = _route(CAPABILITIES_TRACK)
     assert first.route_result_id == second.route_result_id
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
     assert list(Draft202012Validator(schema).iter_errors(first.to_dict())) == []
