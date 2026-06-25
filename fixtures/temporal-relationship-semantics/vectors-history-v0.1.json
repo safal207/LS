@@ -165,6 +165,58 @@
         ],
         "source_entity_id": "person:dev"
       }
+    },
+    {
+      "description": "A future-dated relationship is neither current nor historical before its validity window begins.",
+      "edges": [
+        {
+          "asserted_by": "system:hr",
+          "confirmed_by": [
+            "system:hr"
+          ],
+          "directionality": "directed",
+          "edge_id": "edge:future-employment",
+          "evidence_kind": "document",
+          "evidence_refs": [
+            "offer:future-start"
+          ],
+          "promotion_authorization_ref": null,
+          "ratification_ref": "offer:future-start",
+          "relation_type": "works_at",
+          "scope": "private",
+          "semantic_weight": 1.0,
+          "source_entity_id": "person:lee",
+          "source_scope": "private",
+          "status": "RATIFIED",
+          "supersedes": null,
+          "target_entity_id": "org:futureco",
+          "valid_from": "2026-07-01T00:00:00Z",
+          "valid_until": null
+        }
+      ],
+      "expected": {
+        "decision": "ABSTAIN",
+        "historical_edge_ids": [],
+        "reason_codes": [
+          "RELATIONSHIP_NOT_YET_VALID"
+        ],
+        "selected_edge_ids": [],
+        "suppressed_edge_ids": [
+          "edge:future-employment"
+        ]
+      },
+      "fixture_id": "future_relationship_is_not_historical",
+      "query": {
+        "now": "2026-06-25T12:00:00Z",
+        "relation_type": "works_at",
+        "requires_mutual": false,
+        "scope_precedence": [
+          "private",
+          "group",
+          "global"
+        ],
+        "source_entity_id": "person:lee"
+      }
     }
   ]
 }
