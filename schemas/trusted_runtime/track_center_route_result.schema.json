@@ -13,6 +13,8 @@
     "incident_registry_mutation_allowed", "blame_assignment_allowed",
     "remediation_scheduling_allowed", "goal_registry_mutation_allowed",
     "obligation_assignment_allowed", "work_scheduling_allowed",
+    "capability_registry_mutation_allowed", "access_denial_allowed",
+    "permanent_incapacity_assignment_allowed", "training_scheduling_allowed",
     "stable_identity_update_allowed", "execution_authorized", "policy_version",
     "processed_at", "processed_by", "metadata"
   ],
@@ -29,7 +31,7 @@
       "type": ["string", "null"],
       "enum": [
         "relationships.loss", "projects.lifecycle", "values.evidence",
-        "errors.learning", "goals.commitments", null
+        "errors.learning", "goals.commitments", "capabilities.constraints", null
       ]
     },
     "decision": {
@@ -53,7 +55,8 @@
         {"$ref": "#/$defs/projectResult"},
         {"$ref": "#/$defs/valueResult"},
         {"$ref": "#/$defs/errorResult"},
-        {"$ref": "#/$defs/goalResult"}
+        {"$ref": "#/$defs/goalResult"},
+        {"$ref": "#/$defs/capabilityResult"}
       ]
     },
     "diagnostic_code": {
@@ -61,7 +64,8 @@
       "enum": [
         "unknown_track_center_route", "relationship_loss_payload_invalid",
         "project_payload_invalid", "value_payload_invalid",
-        "error_learning_payload_invalid", "goal_commitment_payload_invalid", null
+        "error_learning_payload_invalid", "goal_commitment_payload_invalid",
+        "capability_constraint_payload_invalid", null
       ]
     },
     "relational_self_mutation_allowed": {"const": false},
@@ -75,6 +79,10 @@
     "goal_registry_mutation_allowed": {"const": false},
     "obligation_assignment_allowed": {"const": false},
     "work_scheduling_allowed": {"const": false},
+    "capability_registry_mutation_allowed": {"const": false},
+    "access_denial_allowed": {"const": false},
+    "permanent_incapacity_assignment_allowed": {"const": false},
+    "training_scheduling_allowed": {"const": false},
     "stable_identity_update_allowed": {"const": false},
     "execution_authorized": {"const": false},
     "policy_version": {"const": "track_center_router.v0.1"},
@@ -90,7 +98,7 @@
         "supported_routes": {
           "const": [
             "relationships.loss", "projects.lifecycle", "values.evidence",
-            "errors.learning", "goals.commitments"
+            "errors.learning", "goals.commitments", "capabilities.constraints"
           ]
         },
         "route_matching": {"const": "exact_only"},
@@ -209,6 +217,29 @@
         "execution_authorized": {"const": false}
       },
       "additionalProperties": true
+    },
+    "capabilityResult": {
+      "type": "object",
+      "required": [
+        "schema_version", "result_id", "assessment",
+        "capability_registry_mutation_allowed", "access_denial_allowed",
+        "permanent_incapacity_assignment_allowed", "training_scheduling_allowed",
+        "priority_mutation_allowed", "stable_identity_update_allowed",
+        "execution_authorized"
+      ],
+      "properties": {
+        "schema_version": {"const": "trusted_runtime.capability_constraint_result.v0.1"},
+        "result_id": {"type": "string", "pattern": "^capability-constraint-result:sha256:[0-9a-f]{64}$"},
+        "assessment": {"$ref": "#/$defs/continuityAssessment"},
+        "capability_registry_mutation_allowed": {"const": false},
+        "access_denial_allowed": {"const": false},
+        "permanent_incapacity_assignment_allowed": {"const": false},
+        "training_scheduling_allowed": {"const": false},
+        "priority_mutation_allowed": {"const": false},
+        "stable_identity_update_allowed": {"const": false},
+        "execution_authorized": {"const": false}
+      },
+      "additionalProperties": true
     }
   },
   "allOf": [
@@ -219,7 +250,7 @@
           "selected_route": {
             "enum": [
               "relationships.loss", "projects.lifecycle", "values.evidence",
-              "errors.learning", "goals.commitments"
+              "errors.learning", "goals.commitments", "capabilities.constraints"
             ]
           },
           "routed_result": {"type": "object"},
@@ -256,6 +287,10 @@
     {
       "if": {"properties": {"decision": {"const": "HOLD_MALFORMED_PAYLOAD"}, "selected_route": {"const": "goals.commitments"}}, "required": ["decision", "selected_route"]},
       "then": {"properties": {"routed_result": {"type": "null"}, "diagnostic_code": {"const": "goal_commitment_payload_invalid"}}}
+    },
+    {
+      "if": {"properties": {"decision": {"const": "HOLD_MALFORMED_PAYLOAD"}, "selected_route": {"const": "capabilities.constraints"}}, "required": ["decision", "selected_route"]},
+      "then": {"properties": {"routed_result": {"type": "null"}, "diagnostic_code": {"const": "capability_constraint_payload_invalid"}}}
     }
   ]
 }
