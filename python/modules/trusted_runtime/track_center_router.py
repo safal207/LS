@@ -28,6 +28,7 @@ class TrackCenterRoute(str, Enum):
     ERRORS_LEARNING = "errors.learning"
     GOALS_COMMITMENTS = "goals.commitments"
     CAPABILITIES_CONSTRAINTS = "capabilities.constraints"
+    ROLES_PERMISSIONS = "roles.permissions"
 
 
 class RouterDecision(str, Enum):
@@ -153,6 +154,13 @@ class TrackCenterRouteResult:
             "capability_restriction_allowed": False,
             "global_limitation_assignment_allowed": False,
             "training_scheduling_allowed": False,
+            "role_registry_mutation_allowed": False,
+            "permission_registry_mutation_allowed": False,
+            "access_grant_allowed": False,
+            "access_denial_allowed": False,
+            "approval_allowed": False,
+            "delegation_allowed": False,
+            "policy_mutation_allowed": False,
             "stable_identity_update_allowed": False,
             "execution_authorized": False,
             "policy_version": self.policy_version,
