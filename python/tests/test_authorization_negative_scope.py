@@ -16,7 +16,7 @@ from trusted_runtime.authorization_contract import (
 
 
 @pytest.mark.parametrize(
-    ("request", "mismatch_reason", "blocked_reason"),
+    ("auth_request", "mismatch_reason", "blocked_reason"),
     [
         (
             replace(
@@ -69,11 +69,11 @@ from trusted_runtime.authorization_contract import (
     ],
 )
 def test_irrelevant_negative_evidence_escalates_instead_of_blocking(
-    request,
+    auth_request,
     mismatch_reason: AuthorizationReason,
     blocked_reason: AuthorizationReason,
 ) -> None:
-    result = _evaluate(request)
+    result = _evaluate(auth_request)
     assert result.decision is AuthorizationDecision.ESCALATE
     assert mismatch_reason in result.reason_codes
     assert blocked_reason not in result.reason_codes
