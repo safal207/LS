@@ -1,0 +1,88 @@
+{
+  "$schema_note": "Reference example only. This is not yet the normative JSON Schema for IdentityUpdateRecord.",
+  "example_name": "identity_update_record_reference_v0_1",
+  "schema_version": "identity_update_record.example.v0.1",
+  "identity_update_id": "iur_2026_06_25_competence_publish_001",
+  "update_version": "0.1",
+  "created_at": "2026-06-25T09:40:00Z",
+  "applied_at": "2026-06-25T09:42:00Z",
+  "created_by": "governance_layer:v0.1",
+  "source_issue": "https://github.com/safal207/LS/issues/721",
+  "source_proposal_ref": "ipc_2026_06_25_competence_publish_001",
+  "governance_decision_ref": "gd_2026_06_25_competence_publish_approve_001",
+  "source_aggregation_record_ref": "tar_2026_06_25_competence_publish_001",
+  "track_identity": {
+    "track_type": "competence_track",
+    "aggregation_key": "lesson_repeat_key:publish-draft-to-user-visible-doc",
+    "continuity_level": "individual",
+    "identity_scope": "agent_local_competence",
+    "actor_ref": "agent:assistant-worker"
+  },
+  "update_class": "competence_increase",
+  "applied_identity_influence": {
+    "influence_type": "competence_confidence_update",
+    "summary": "Governance approved a bounded competence-confidence increase for the agent's ability to publish user-visible draft artifacts to GitHub documentation workflows.",
+    "allowed_effect": "May increase local planning confidence for this workflow and reduce unnecessary confirmation prompts when no contradictory evidence is present.",
+    "forbidden_effects": [
+      "must_not_grant_system_level_trust",
+      "must_not_authorize unrelated publication workflows",
+      "must_not_bypass future governance review for trust or policy changes"
+    ]
+  },
+  "previous_identity_state_ref": "identity_state_snapshot_2026_06_24_agent_local_competence",
+  "new_identity_state_ref": "identity_state_snapshot_2026_06_25_agent_local_competence",
+  "supporting_episode_refs": [
+    "vep_publish_001",
+    "vep_publish_002",
+    "vep_publish_003"
+  ],
+  "counterevidence_episode_refs": [
+    "vep_publish_005"
+  ],
+  "evidence_quality_summary": {
+    "state": "sufficient_but_bounded",
+    "reason": "Governance accepted the proposal as a narrow competence-confidence update while preserving one recent counterevidence episode and keeping the scope local rather than system-wide."
+  },
+  "rollback_plan_ref": "rollback_plan:competence_publish_update_v0_1",
+  "supersedes_update_ref": "iur_2026_06_20_competence_publish_000",
+  "superseded_by_update_ref": null,
+  "active_state": "active",
+  "revalidate_if": [
+    "new_material_counterevidence",
+    "repeated_publish_failure",
+    "human_correction",
+    "governance_policy_change",
+    "scope_expansion_attempt"
+  ],
+  "rollback_triggers": [
+    "two new unexpected_verified failures within the same workflow family",
+    "counterevidence reclassified as stronger than original support",
+    "human explicitly revokes confidence in the workflow pattern",
+    "governance supersedes this update with a narrower competence constraint"
+  ],
+  "ledger_links": {
+    "rollback_ledger_ref": "rollback_ledger:agent_local_competence",
+    "decision_reason": "Approved as a bounded local competence update because support outweighed contradiction, but the retained counterevidence prevents any broader trust or authority change.",
+    "review_timestamp": "2026-06-25T09:41:30Z"
+  },
+  "fail_closed_guards": {
+    "missing_source_proposal_ref": "reject",
+    "missing_governance_decision_ref": "reject",
+    "non_approving_governance_decision": "reject",
+    "missing_identity_scope": "reject",
+    "missing_update_class": "reject",
+    "missing_rollback_plan": "reject",
+    "known_counterevidence_omitted": "reject",
+    "implicit_scope_promotion": "reject"
+  },
+  "notes": [
+    "This example shows a successful governed identity update rather than a blocked candidate.",
+    "The update remains rollback-aware and does not erase counterevidence or supersession history."
+  ],
+  "related_documents": [
+    "docs/identity-update-record.md",
+    "docs/governance-handoff.md",
+    "docs/identity-proposal-candidate.md",
+    "schemas/identity_proposal_candidate.example.json"
+  ]
+}

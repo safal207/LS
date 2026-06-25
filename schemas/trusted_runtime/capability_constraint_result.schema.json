@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/trusted_runtime/capability_constraint_result.schema.json",
+  "title": "LS Capability Constraint Result v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "result_id", "event", "observation", "assessment",
+    "capability_registry_mutation_allowed", "capability_restriction_allowed",
+    "global_limitation_assignment_allowed", "training_scheduling_allowed",
+    "priority_mutation_allowed", "stable_identity_update_allowed",
+    "execution_authorized", "policy_version", "processed_at", "processed_by",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.capability_constraint_result.v0.1"},
+    "result_id": {"type": "string", "pattern": "^capability-constraint-result:sha256:[0-9a-f]{64}$"},
+    "event": {"type": "object", "required": ["schema_version", "event_id", "capability_id", "event_type", "capability_status", "constraint_kind", "knowledge_class", "evidence_refs", "context_refs"]},
+    "observation": {"type": "object", "required": ["observation_id", "track", "entity_status", "claims_current_presence", "metadata"], "properties": {"observation_id": {"pattern": "^capability-observation:sha256:[0-9a-f]{64}$"}, "track": {"const": "capabilities.constraints"}}},
+    "assessment": {"type": "object", "required": ["schema_version", "assessment_id", "decision", "stable_identity_update_allowed", "execution_authorized"]},
+    "capability_registry_mutation_allowed": {"const": false},
+    "capability_restriction_allowed": {"const": false},
+    "global_limitation_assignment_allowed": {"const": false},
+    "training_scheduling_allowed": {"const": false},
+    "priority_mutation_allowed": {"const": false},
+    "stable_identity_update_allowed": {"const": false},
+    "execution_authorized": {"const": false},
+    "policy_version": {"const": "capabilities_constraints_track_center.v0.1"},
+    "processed_at": {"type": "string", "minLength": 1},
+    "processed_by": {"type": "string", "minLength": 1},
+    "metadata": {"type": "object"}
+  }
+}
