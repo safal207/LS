@@ -1,0 +1,38 @@
+{
+  "fixture_family": "missed_terminal_event_reconciliation",
+  "type": "accept",
+  "vectors": [
+    {
+      "id": "accept_gap_detect_pull_terminal_state",
+      "description": "Client misses live terminal event, detects a sequence gap, pulls authoritative terminal state, and converges.",
+      "input": {
+        "client_connected": true,
+        "stream_interrupted": true,
+        "server_terminal_state": "completed",
+        "terminal_event_delivered_to_client": false,
+        "notification_sequence_gap_detected": true,
+        "terminal_state_pull_available": true
+      },
+      "expected": {
+        "client_converges": true,
+        "requires_resume_as_truth_oracle": false,
+        "duplicate_side_effects": false
+      }
+    },
+    {
+      "id": "accept_reconnect_query_committed_state",
+      "description": "After reconnect, client can query committed terminal state without replaying the turn.",
+      "input": {
+        "reconnected": true,
+        "terminal_state_pull": "thread_read_or_get_turn_state",
+        "server_terminal_state": "failed",
+        "client_terminal_state_before_pull": "unknown"
+      },
+      "expected": {
+        "client_terminal_state_after_pull": "failed",
+        "bounded_recovery": true,
+        "replay_required": false
+      }
+    }
+  ]
+}
