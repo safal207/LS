@@ -1,10 +1,14 @@
 {
   "$schema_note": "Reference example only. This is not yet the normative JSON Schema for VerifiedEpisode.",
-  "schema_version": "verified_episode.example.v0.1",
+  "example_name": "verified_episode_prism_reference_v0_1",
+  "description": "Reference specimen showing how VerifiedEpisode prism layers, OVC evidence channels, and continuity eligibility can be represented together.",
+  "schema_version": "verified_episode_prism.example.v0.1",
   "episode_id": "vep_2026_06_25_publish_001",
+  "created_at": "2026-06-25T04:45:00Z",
   "episode_identity_preimage": {
     "adapter_schema_version": "ovc_to_verified_episode_adapter.v0.2",
     "ovc_result_digest": "sha256:ovc-result-991",
+    "verification_result_digest": "sha256:ovc-result-991",
     "execution_ref": "execution:run-991",
     "action_digest": "sha256:action-publish-doc-42",
     "side_effect_key": "doc:post-42:published-state",
@@ -44,6 +48,7 @@
   },
   "verified_outcome": {
     "ovc_result_ref": "ovc:result:991",
+    "ovc_result_digest": "sha256:ovc-result-991",
     "verification_result_digest": "sha256:ovc-result-991",
     "observer_set_digest": "sha256:observer-set-991",
     "observer_independence_basis": "target repository readback and GitHub commit URL are separate from actor self-report; receipt issuer and target observation are preserved as distinct evidence channels",
@@ -51,58 +56,81 @@
     "expected_state_matched": true,
     "verification_timestamp": "2026-06-25T04:46:10Z",
     "verification_status": "verified",
-    "contradictions": []
-  },
-  "evidence_channels": [
-    {
-      "kind": "actor_assertion",
-      "evidence_digest": "sha256:actor-report-991",
-      "source_ref": "agent:assistant-worker",
-      "observed_at": "2026-06-25T04:45:05Z",
-      "independent": false,
-      "observer_independence_basis": null,
-      "supports_verification": false,
-      "supports_continuity_influence": false,
-      "confidence_scope": "context_only",
-      "notes": "Actor reported that the file was created; not sufficient for verification."
-    },
-    {
-      "kind": "runtime_receipt",
-      "evidence_digest": "sha256:github-create-file-receipt",
-      "source_ref": "tool:github-contents-api",
-      "observed_at": "2026-06-25T04:45:03Z",
-      "independent": false,
-      "observer_independence_basis": null,
-      "supports_verification": true,
-      "supports_continuity_influence": false,
-      "confidence_scope": "execution_attempt_and_commit_receipt",
-      "notes": "Shows that the create-file action returned a commit SHA."
-    },
-    {
-      "kind": "target_observation",
-      "evidence_digest": "sha256:repo-readback-doc-42",
-      "source_ref": "github:file:docs/verified-episode-prism.md",
-      "observed_at": "2026-06-25T04:46:00Z",
-      "independent": true,
-      "observer_independence_basis": "repository readback observes the target state after execution rather than relying on actor explanation",
-      "supports_verification": true,
-      "supports_continuity_influence": true,
-      "confidence_scope": "expected_target_state",
-      "notes": "Confirms that the expected document exists in the target repository."
-    },
-    {
-      "kind": "human_confirmation",
-      "evidence_digest": "sha256:user-visible-confirmation-placeholder",
-      "source_ref": "human:user",
-      "observed_at": null,
-      "independent": true,
-      "observer_independence_basis": "human confirmation is separate from actor runtime, but may be subjective and should remain typed as human-valued outcome evidence",
-      "supports_verification": false,
-      "supports_continuity_influence": false,
-      "confidence_scope": "pending_human_value_confirmation",
-      "notes": "Optional channel; not required for this infrastructure example until the human validates usefulness."
+    "contradictions": [],
+    "evidence_channels": [
+      {
+        "kind": "actor_assertion",
+        "evidence_digest": "sha256:actor-report-991",
+        "source_ref": "agent:assistant-worker",
+        "observed_at": "2026-06-25T04:45:05Z",
+        "independent": false,
+        "observer_independence_basis": null,
+        "supports_verification": false,
+        "supports_continuity_influence": false,
+        "confidence_scope": "context_only",
+        "notes": "Actor reported that the file was created; not sufficient for verification."
+      },
+      {
+        "kind": "runtime_receipt",
+        "evidence_digest": "sha256:github-create-file-receipt",
+        "source_ref": "tool:github-contents-api",
+        "observed_at": "2026-06-25T04:45:03Z",
+        "independent": false,
+        "observer_independence_basis": null,
+        "supports_verification": true,
+        "supports_continuity_influence": false,
+        "confidence_scope": "execution_attempt_and_commit_receipt",
+        "notes": "Shows that the create-file action returned a commit SHA."
+      },
+      {
+        "kind": "target_observation",
+        "evidence_digest": "sha256:repo-readback-doc-42",
+        "source_ref": "github:file:docs/verified-episode-prism.md",
+        "observed_at": "2026-06-25T04:46:00Z",
+        "independent": true,
+        "observer_independence_basis": "repository readback observes the target state after execution rather than relying on actor explanation",
+        "supports_verification": true,
+        "supports_continuity_influence": true,
+        "confidence_scope": "expected_target_state",
+        "notes": "Confirms that the expected document exists in the target repository."
+      },
+      {
+        "kind": "human_confirmation",
+        "evidence_digest": "sha256:user-visible-confirmation-placeholder",
+        "source_ref": "human:user",
+        "observed_at": null,
+        "independent": true,
+        "observer_independence_basis": "human confirmation is separate from actor runtime, but may be subjective and should remain typed as human-valued outcome evidence",
+        "supports_verification": false,
+        "supports_continuity_influence": false,
+        "confidence_scope": "pending_human_value_confirmation",
+        "notes": "Optional channel; not required for this infrastructure example until the human validates usefulness."
+      }
+    ],
+    "channel_assessment": {
+      "present_channels": [
+        "actor_assertion",
+        "runtime_receipt",
+        "target_observation",
+        "human_confirmation"
+      ],
+      "missing_channels": [
+        "independent_observer",
+        "relational_counterparty"
+      ],
+      "contradictions": [],
+      "dependencies": [
+        {
+          "channels": [
+            "actor_assertion",
+            "runtime_receipt"
+          ],
+          "reason": "actor self-report is derived from tool execution context and cannot strengthen verification independently"
+        }
+      ],
+      "sufficiency_result": "sufficient_for_expected_transition_verification"
     }
-  ],
+  },
   "retained_experience": {
     "evidence_role": "supporting",
     "retention_status": "active",
@@ -132,6 +160,23 @@
     "self_authored_only_evidence": "reject_or_investigate",
     "wrong_patoc_or_triad_ref": "reject_experience_eligibility",
     "superseded_episode_current_support": "reject_current_support_count",
-    "single_episode_identity_mutation": "reject"
-  }
+    "single_episode_identity_mutation": "reject",
+    "runtime_receipt_only_identity_influence": "reject",
+    "actor_assertion_only_trusted_experience": "reject"
+  },
+  "invariants": {
+    "verified_episode_is_not_identity_update": true,
+    "retained_experience_is_not_self_authorizing_memory": true,
+    "expected_transition_bound_explicitly": true,
+    "observer_independence_basis_required": true,
+    "actor_assertion_not_sufficient_for_trusted_experience": true,
+    "runtime_receipt_not_sufficient_for_identity_influence": true,
+    "verification_sufficiency_is_not_continuity_influence": true
+  },
+  "related_documents": [
+    "docs/bronnikov-to-ls.md",
+    "docs/verified-episode-prism.md",
+    "docs/evidence-channels.md"
+  ],
+  "related_issue": "https://github.com/safal207/LS/issues/704"
 }
