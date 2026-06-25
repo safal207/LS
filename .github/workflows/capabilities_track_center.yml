@@ -1,0 +1,74 @@
+name: Capabilities Constraints Track Center
+
+on:
+  push:
+    branches:
+      - "feat/capabilities-constraints-track-center"
+  pull_request:
+    paths:
+      - "python/modules/trusted_runtime/capabilities_constraints_track_center.py"
+      - "python/modules/trusted_runtime/track_center_router.py"
+      - "python/tests/test_trusted_runtime_capabilities_constraints_track_center.py"
+      - "python/tests/test_trusted_runtime_track_center_router.py"
+      - "schemas/trusted_runtime/capability_constraint_result.schema.json"
+      - "schemas/trusted_runtime/track_center_route_result.schema.json"
+      - "scripts/run_capabilities_constraints_track_demo.py"
+      - "docs/CAPABILITIES_CONSTRAINTS_TRACK_CENTER_V0_1.md"
+      - "docs/TRACK_CENTER_ROUTER_V0_1.md"
+      - ".github/workflows/capabilities_track_center.yml"
+
+concurrency:
+  group: capabilities-track-center-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema pytest ruff
+
+      - name: Ruff capability center and router
+        run: |
+          ruff check \
+            python/modules/trusted_runtime/capabilities_constraints_track_center.py \
+            python/modules/trusted_runtime/track_center_router.py \
+            python/tests/test_trusted_runtime_capabilities_constraints_track_center.py \
+            python/tests/test_trusted_runtime_track_center_router.py \
+            scripts/run_capabilities_constraints_track_demo.py
+
+      - name: Compile capability center and demo
+        run: |
+          python -m py_compile \
+            python/modules/trusted_runtime/capabilities_constraints_track_center.py \
+            python/modules/trusted_runtime/track_center_router.py \
+            scripts/run_capabilities_constraints_track_demo.py
+
+      - name: Run capability and router tests
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python -m pytest \
+              python/tests/test_trusted_runtime_capabilities_constraints_track_center.py \
+              python/tests/test_trusted_runtime_track_center_router.py
+
+      - name: Run deterministic demo
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/run_capabilities_constraints_track_demo.py \
+              > /tmp/capabilities-track-center-demo.json
+          python -m json.tool /tmp/capabilities-track-center-demo.json > /dev/null
