@@ -92,17 +92,43 @@ def evaluate_authorization(
 
 def _block_reasons(request: AuthorizationRequest) -> tuple[AuthorizationReason, ...]:
     reasons: list[AuthorizationReason] = []
-    if request.policy.effect is PolicyEffect.DENY:
-        reasons.append(AuthorizationReason.POLICY_DENIED)
-    if request.capability.assessment_decision is ContinuityDecision.BLOCK_FALSE_PRESENCE:
-        reasons.append(AuthorizationReason.CAPABILITY_EVIDENCE_BLOCKED)
-    _append_mapping(reasons, CAPABILITY_BLOCK, request.capability.state)
-    if request.authority.assessment_decision is ContinuityDecision.BLOCK_FALSE_PRESENCE:
-        reasons.append(AuthorizationReason.AUTHORITY_EVIDENCE_BLOCKED)
-    _append_mapping(reasons, AUTHORITY_BLOCK, request.authority.state)
-    _append_mapping(reasons, APPROVAL_BLOCK, request.approval.state)
     if _subject_mismatch(request):
         reasons.append(AuthorizationReason.SUBJECT_MISMATCH)
+    if _scope_matches(
+        request,
+        request.policy.action,
+        request.policy.resource,
+        request.policy.scope_ref,
+    ) and request.policy.effect is PolicyEffect.DENY:
+        reasons.append(AuthorizationReason.POLICY_DENIED)
+    if request.capability.capability_id == request.required_capability_id:
+        if (
+            request.capability.assessment_decision
+            is ContinuityDecision.BLOCK_FALSE_PRESENCE
+        ):
+            reasons.append(AuthorizationReason.CAPABILITY_EVIDENCE_BLOCKED)
+        _append_mapping(reasons, CAPABILITY_BLOCK, request.capability.state)
+    authority_relevant = _scope_matches(
+        request,
+        request.authority.action,
+        request.authority.resource,
+        request.authority.scope_ref,
+    )
+    if authority_relevant:
+        if (
+            request.authority.assessment_decision
+            is ContinuityDecision.BLOCK_FALSE_PRESENCE
+        ):
+            reasons.append(AuthorizationReason.AUTHORITY_EVIDENCE_BLOCKED)
+        _append_mapping(reasons, AUTHORITY_BLOCK, request.authority.state)
+    approval_relevant = _scope_matches(
+        request,
+        request.approval.action,
+        request.approval.resource,
+        request.approval.scope_ref,
+    )
+    if approval_relevant:
+        _append_mapping(reasons, APPROVAL_BLOCK, request.approval.state)
     return _unique(reasons)
 
 
@@ -147,7 +173,10 @@ def _escalation_reasons(request: AuthorizationRequest) -> tuple[AuthorizationRea
     if not _scope_matches(request, policy.action, policy.resource, policy.scope_ref):
         reasons.append(AuthorizationReason.POLICY_SCOPE_MISMATCH)
 
-    required = policy.effect is PolicyEffect.REQUIRE_APPROVAL or auth.basis is AuthorityBasis.APPROVAL
+    required = (
+        policy.effect is PolicyEffect.REQUIRE_APPROVAL
+        or auth.basis is AuthorityBasis.APPROVAL
+    )
     if required and approval.state is not ApprovalState.VERIFIED:
         reasons.append(
             AuthorizationReason.APPROVAL_PENDING
@@ -156,25 +185,41 @@ def _escalation_reasons(request: AuthorizationRequest) -> tuple[AuthorizationRea
             if approval.state is ApprovalState.NOT_REQUIRED
             else AuthorizationReason.APPROVAL_UNKNOWN
         )
-    elif not required and approval.state in {ApprovalState.PENDING, ApprovalState.UNKNOWN}:
+    elif not required and approval.state in {
+        ApprovalState.PENDING,
+        ApprovalState.UNKNOWN,
+    }:
         reasons.append(
             AuthorizationReason.APPROVAL_PENDING
             if approval.state is ApprovalState.PENDING
             else AuthorizationReason.APPROVAL_UNKNOWN
         )
     if approval.state is ApprovalState.VERIFIED:
-        if not _scope_matches(request, approval.action, approval.resource, approval.scope_ref):
+        if not _scope_matches(
+            request,
+            approval.action,
+            approval.resource,
+            approval.scope_ref,
+        ):
             reasons.append(AuthorizationReason.APPROVAL_SCOPE_MISMATCH)
         if not approval.approver_refs or not approval.evidence_refs:
             reasons.append(AuthorizationReason.APPROVAL_UNKNOWN)
-        if auth.basis is AuthorityBasis.APPROVAL and approval.approval_id not in auth.approval_refs:
+        if (
+            auth.basis is AuthorityBasis.APPROVAL
+            and approval.approval_id not in auth.approval_refs
+        ):
             reasons.append(AuthorizationReason.APPROVAL_REFERENCE_MISMATCH)
 
     if context.state is ContextState.STALE:
         reasons.append(AuthorizationReason.CONTEXT_STALE)
     elif context.state is ContextState.UNKNOWN or not context.evidence_refs:
         reasons.append(AuthorizationReason.CONTEXT_UNKNOWN)
-    if not _scope_matches(request, context.action, context.resource, context.scope_ref):
+    if not _scope_matches(
+        request,
+        context.action,
+        context.resource,
+        context.scope_ref,
+    ):
         reasons.append(AuthorizationReason.CONTEXT_SCOPE_MISMATCH)
     if context.age_seconds > context.max_age_seconds:
         reasons.append(AuthorizationReason.CONTEXT_TOO_OLD)
@@ -205,11 +250,24 @@ def _subject_mismatch(request: AuthorizationRequest) -> bool:
     )
 
 
-def _scope_matches(request: AuthorizationRequest, action: str, resource: str, scope_ref: str) -> bool:
-    return (action, resource, scope_ref) == (request.action, request.resource, request.scope_ref)
+def _scope_matches(
+    request: AuthorizationRequest,
+    action: str,
+    resource: str,
+    scope_ref: str,
+) -> bool:
+    return (action, resource, scope_ref) == (
+        request.action,
+        request.resource,
+        request.scope_ref,
+    )
 
 
-def _append_mapping(reasons: list[AuthorizationReason], mapping: dict, key: object) -> None:
+def _append_mapping(
+    reasons: list[AuthorizationReason],
+    mapping: dict[object, AuthorizationReason],
+    key: object,
+) -> None:
     reason = mapping.get(key)
     if reason is not None:
         reasons.append(reason)
