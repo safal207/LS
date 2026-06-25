@@ -10,7 +10,7 @@ on:
       - ".github/workflows/temporal-relationship-semantics.yml"
   push:
     branches:
-      - "interop/temporal-relationship-semantics"
+      - main
     paths:
       - "fixtures/temporal-relationship-semantics/**"
       - "spec/temporal-relationship-semantics-v0.1.md"
@@ -57,7 +57,7 @@ jobs:
               .read_text(encoding="utf-8")
           )
           assert report["passed"] is True
-          assert len(report["results"]) == 10
+          assert len(report["results"]) == 13
           assert all(result["passed"] for result in report["results"])
           for result in report["results"]:
               effects = result["observed"]["authority_effects"]
