@@ -37,6 +37,20 @@
       "immutable": true
     },
     {
+      "event_id": "event-rationale",
+      "session_id": "session-a",
+      "event_type": "rationale",
+      "content": "Constraint Y makes approach X unsafe.",
+      "bindings": {
+        "trajectory_id": "traj-001",
+        "continuation_id": "cont-001",
+        "intent_digest": "sha256:INTENT_A",
+        "target_state_digest": "sha256:TARGET_A",
+        "chain_role": "rationale"
+      },
+      "immutable": true
+    },
+    {
       "event_id": "event-b",
       "session_id": "session-b",
       "event_type": "assumption",
@@ -69,17 +83,20 @@
       "id": "deterministic-verifier-1",
       "basis": "deterministic_test"
     },
-    "confirmation_state": "staging",
+    "confirmation_state": "verified",
     "source_event_ids": [
       "event-a",
+      "event-rationale",
       "event-b"
     ],
     "source_digests": {
       "event-a": "sha256:7414e0c360d74dc6e1309c3f06f7d5835cd0016d80babc6e3ff34251668a19ec",
-      "event-b": "sha256:1b16c1a1209e0f6133771610e1b0bcb56a18844fc17cb5cc8e01ca8a0dc3e770"
+      "event-b": "sha256:1b16c1a1209e0f6133771610e1b0bcb56a18844fc17cb5cc8e01ca8a0dc3e770",
+      "event-rationale": "sha256:239ecf61d5c98060656bd0c725910819cd600e8bab42917efb523c276458d481"
     },
     "dependency_roles": [
       "decision",
+      "rationale",
       "constraint"
     ],
     "contradiction_refs": [
@@ -102,6 +119,13 @@
           ]
         },
         {
+          "claim_id": "claim-rationale",
+          "text": "Constraint Y made X unsafe.",
+          "supported_by": [
+            "event-rationale"
+          ]
+        },
+        {
           "claim_id": "claim-b",
           "text": "A later session assumed X remained valid.",
           "supported_by": [
@@ -111,7 +135,7 @@
       ],
       "status": "conflicted"
     },
-    "synthesis_digest": "sha256:d9c452dc29337044162af550d61c8b950f5b1ca6c2c0751faa2866bd47644275",
+    "synthesis_digest": "sha256:67b1a36a264835122a8facf763ef77e6b2f2fb04f5425904ef6646d9d0d3f5af",
     "stable_identity_update_allowed": false,
     "execution_authorized": false,
     "downstream_gates_required": true
@@ -122,12 +146,12 @@
       "source_integrity": true,
       "contradiction_visible": true,
       "unresolved_material_contradiction": true,
-      "dependency_chain_complete": false,
+      "dependency_chain_complete": true,
       "bindings_current": true,
       "confirmer_independent": true,
       "synthesis_digest_valid": true,
       "safety_defaults_preserved": true,
-      "confirmation_verified": false
+      "confirmation_verified": true
     }
   },
   "scoring": {
