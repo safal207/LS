@@ -1,0 +1,10 @@
+{
+  "profile": "temporal-relationship-semantics-v0.1",
+  "sha256": {
+    "vectors-authority-v0.1.json": "35e03339f1a977f2596d7dbddc2eda12c87f7393db13e561136342978b39db50",
+    "vectors-conflict-v0.1.json": "f9619d25b088d4a09ddfdf6d643c1d9c6d6c1dade8cbd2e2dff0cf3a1f5b6e31",
+    "vectors-friendship-v0.1.json": "c15bfbec26bd601761772fdbc10bb3be2d4ddbcb225ce255a2fae0f3bae6f4eb",
+    "vectors-history-v0.1.json": "f51f166e521083382a966e6d817502422204d0d0c8dbfea0db2fbd5b340a3394",
+    "vectors-scope-v0.1.json": "63014a3012359b1dabfcca63b33c3d0ee10052f5368bb27dedaaff1d607b4180"
+  }
+}
