@@ -1,0 +1,196 @@
+{
+  "$schema_note": "Reference example only. This is not yet the normative JSON Schema for IdentitySnapshot.",
+  "example_name": "identity_snapshot_reference_v0_1",
+  "schema_version": "identity_snapshot.example.v0.1",
+  "snapshot_id": "ids_2026_06_25_agent_assistant_worker_001",
+  "snapshot_version": "0.1",
+  "snapshot_time": "2026-06-25T10:35:00Z",
+  "created_by": "identity_snapshot_reconstructor:v0.1",
+  "source_issue": "https://github.com/safal207/LS/issues/727",
+  "snapshot_scope": {
+    "agent_ref": "agent:assistant-worker",
+    "scope_type": "individual_with_relational_overlay",
+    "relational_context_ref": "human:alex",
+    "included_continuity_levels": [
+      "individual",
+      "relational"
+    ],
+    "excluded_continuity_levels": [
+      "system"
+    ]
+  },
+  "reconstruction_basis": {
+    "identity_update_refs": [
+      "iur_2026_06_25_competence_publish_001",
+      "iur_2026_06_25_governance_contract_reasoning_001",
+      "iur_2026_06_25_preference_fail_closed_001"
+    ],
+    "rollback_ledger_refs": [
+      "rle_2026_06_25_competence_publish_supersede_001",
+      "rle_2026_06_24_trust_scope_rollback_001"
+    ],
+    "proposal_refs": [
+      "ipc_2026_06_25_competence_publish_001",
+      "ipc_2026_06_25_governance_contract_reasoning_001"
+    ],
+    "governance_decision_refs": [
+      "gd_2026_06_25_competence_publish_approve_001",
+      "gd_2026_06_25_governance_contract_approve_001"
+    ],
+    "reconstruction_mode": "point_in_time_current",
+    "as_of": "2026-06-25T10:35:00Z"
+  },
+  "active_identity_influences": {
+    "competence": [
+      {
+        "influence_id": "active_competence_publish_docs",
+        "update_ref": "iur_2026_06_25_competence_publish_001",
+        "track_type": "competence_track",
+        "scope": "individual",
+        "label": "publish-doc workflow competence",
+        "state": "moderate_confidence",
+        "allowed_effect": "May inform local planning confidence for GitHub documentation publication workflows.",
+        "forbidden_effects": [
+          "must_not_grant_system_level_trust",
+          "must_not_authorize unrelated publication workflows"
+        ],
+        "provenance_refs": [
+          "tar_2026_06_25_competence_publish_001",
+          "ipc_2026_06_25_competence_publish_001",
+          "gd_2026_06_25_competence_publish_approve_001"
+        ]
+      },
+      {
+        "influence_id": "active_competence_governance_contracts",
+        "update_ref": "iur_2026_06_25_governance_contract_reasoning_001",
+        "track_type": "competence_track",
+        "scope": "individual",
+        "label": "governance contract reasoning",
+        "state": "strong_confidence",
+        "allowed_effect": "May prioritize exact binding, fail-closed behavior, and evidence-preserving test design.",
+        "forbidden_effects": [
+          "must_not_skip external review",
+          "must_not treat contract reasoning as runtime authorization"
+        ],
+        "provenance_refs": [
+          "tar_2026_06_25_governance_contract_reasoning_001",
+          "ipc_2026_06_25_governance_contract_reasoning_001",
+          "gd_2026_06_25_governance_contract_approve_001"
+        ]
+      }
+    ],
+    "trust": [
+      {
+        "influence_id": "active_trust_no_system_elevation",
+        "update_ref": "iur_2026_06_24_trust_scope_constraint_001",
+        "track_type": "trust_track",
+        "scope": "system",
+        "label": "no system-level trust elevation",
+        "state": "constraint_active",
+        "allowed_effect": "Keep autonomous authority bounded unless a separate governance approval exists.",
+        "forbidden_effects": [
+          "must_not infer broad trust from local competence",
+          "must_not promote relational trust into system trust"
+        ],
+        "provenance_refs": [
+          "gd_2026_06_24_trust_scope_constraint_001"
+        ]
+      }
+    ],
+    "preferences": [
+      {
+        "influence_id": "active_preference_fail_closed",
+        "update_ref": "iur_2026_06_25_preference_fail_closed_001",
+        "track_type": "preference_value_track",
+        "scope": "individual",
+        "label": "fail-closed review preference",
+        "state": "active",
+        "allowed_effect": "Prefer explicit evidence, counterevidence preservation, and bounded identity promotion.",
+        "provenance_refs": [
+          "ipc_2026_06_25_preference_fail_closed_001",
+          "gd_2026_06_25_preference_fail_closed_approve_001"
+        ]
+      }
+    ],
+    "relationship_memory": [
+      {
+        "influence_id": "active_relationship_alex_ls_continuity",
+        "update_ref": "iur_2026_06_25_relationship_alex_ls_001",
+        "track_type": "relationship_track",
+        "scope": "relational",
+        "relationship_ref": "human:alex",
+        "label": "Alex-specific LS architecture continuity",
+        "state": "active",
+        "allowed_effect": "May preserve continuity of LS architecture work with Alex across GitHub issue cycles.",
+        "forbidden_effects": [
+          "must_not expose relational context outside authorized scope",
+          "must_not treat Alex-specific context as global identity"
+        ],
+        "provenance_refs": [
+          "gd_2026_06_25_relationship_alex_ls_approve_001"
+        ]
+      }
+    ]
+  },
+  "quarantined_influences": [
+    {
+      "proposal_ref": "ipc_2026_06_25_trust_autonomy_expansion_001",
+      "track_type": "trust_track",
+      "scope": "system",
+      "reason": "System-level autonomy expansion requires stronger independent evidence and explicit governance approval.",
+      "state": "quarantined"
+    }
+  ],
+  "recent_rollbacks": [
+    {
+      "rollback_entry_ref": "rle_2026_06_24_trust_scope_rollback_001",
+      "target_identity_update_ref": "iur_2026_06_24_trust_scope_elevation_001",
+      "prior_active_state": "active",
+      "new_active_state": "rolled_back",
+      "reason": "Local competence evidence was incorrectly interpreted as system-level trust elevation."
+    }
+  ],
+  "recent_supersessions": [
+    {
+      "rollback_entry_ref": "rle_2026_06_25_competence_publish_supersede_001",
+      "superseded_update_ref": "iur_2026_06_20_competence_publish_000",
+      "superseding_update_ref": "iur_2026_06_25_competence_publish_001",
+      "reason": "Newer bounded competence update includes clearer counterevidence handling and rollback triggers."
+    }
+  ],
+  "provenance_summary": {
+    "active_update_count": 5,
+    "quarantined_count": 1,
+    "recent_rollback_count": 1,
+    "recent_supersession_count": 1,
+    "broken_provenance_count": 0,
+    "notes": [
+      "Snapshot includes individual and Alex-relational scopes only.",
+      "System-level trust elevation remains explicitly blocked."
+    ]
+  },
+  "warnings": [
+    {
+      "warning_type": "scope_boundary",
+      "message": "Do not promote local GitHub workflow competence into system-level autonomous authority."
+    },
+    {
+      "warning_type": "counterevidence_retained",
+      "message": "Competence publish-doc workflow still carries retained counterevidence from prior unexpected_verified episode."
+    }
+  ],
+  "fail_closed_guards": {
+    "active_influence_without_update_ref": "reject_snapshot",
+    "rolled_back_update_in_active_identity": "reject_snapshot",
+    "superseded_update_in_active_identity": "reject_snapshot",
+    "missing_scope": "reject_snapshot",
+    "broken_provenance_chain": "reject_snapshot",
+    "contradictory_active_states": "surface_uncertainty"
+  },
+  "related_documents": [
+    "docs/identity-snapshot.md",
+    "docs/identity-update-record.md",
+    "docs/rollback-ledger.md",
+    "docs/snapshot-reconstruction.md"
+  ]
+}
