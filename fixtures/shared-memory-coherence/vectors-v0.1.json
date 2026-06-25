@@ -1,0 +1,385 @@
+{
+  "authority_defaults": {
+    "may_authorize_execution": false,
+    "may_establish_consensus": false,
+    "may_establish_human_approval": false,
+    "may_establish_truth": false,
+    "may_grant_permissions": false
+  },
+  "profile": "shared-memory-coherence-v0.1",
+  "schema_version": "shared-memory-coherence-fixtures-v0.1",
+  "vectors": [
+    {
+      "description": "A single writer contributes a claim, not group truth or consensus.",
+      "entries": [
+        {
+          "approval_ref": null,
+          "claim_type": "assertion",
+          "evidence_refs": [
+            "event:agent-a-observation"
+          ],
+          "key": "ready",
+          "memory_id": "mem:single-claim",
+          "promotion_authorization_ref": null,
+          "scope": "group",
+          "source_scope": "group",
+          "status": "CLAIMED",
+          "subject_id": "deployment:blue",
+          "supersedes": null,
+          "valid_until": null,
+          "value": true,
+          "writer_id": "agent:a"
+        }
+      ],
+      "expected": {
+        "decision": "RETURN_CLAIM",
+        "reason_codes": [
+          "UNRATIFIED_SINGLE_WRITER"
+        ],
+        "selected_memory_ids": [
+          "mem:single-claim"
+        ],
+        "suppressed_memory_ids": [],
+        "winning_scope": "group"
+      },
+      "fixture_id": "single_agent_claim_stays_claim",
+      "query": {
+        "consumer_agent_id": "agent:b",
+        "key": "ready",
+        "now": "2026-06-25T12:00:00Z",
+        "scope_precedence": [
+          "group",
+          "global"
+        ],
+        "subject_id": "deployment:blue"
+      }
+    },
+    {
+      "description": "Promotion from agent scope to global scope requires explicit authorization.",
+      "entries": [
+        {
+          "approval_ref": null,
+          "claim_type": "preference",
+          "evidence_refs": [
+            "conversation:agent-a:42"
+          ],
+          "key": "response_style",
+          "memory_id": "mem:unauthorized-promotion",
+          "promotion_authorization_ref": null,
+          "scope": "global",
+          "source_scope": "agent",
+          "status": "CLAIMED",
+          "subject_id": "preference:user-1",
+          "supersedes": null,
+          "valid_until": null,
+          "value": "terse",
+          "writer_id": "agent:a"
+        }
+      ],
+      "expected": {
+        "decision": "REJECT",
+        "reason_codes": [
+          "SCOPE_PROMOTION_UNAUTHORIZED"
+        ],
+        "selected_memory_ids": [],
+        "suppressed_memory_ids": [
+          "mem:unauthorized-promotion"
+        ],
+        "winning_scope": null
+      },
+      "fixture_id": "unauthorized_scope_promotion_rejected",
+      "query": {
+        "consumer_agent_id": "agent:b",
+        "key": "response_style",
+        "now": "2026-06-25T12:00:00Z",
+        "scope_precedence": [
+          "agent",
+          "group",
+          "global"
+        ],
+        "subject_id": "preference:user-1"
+      }
+    },
+    {
+      "description": "Current contradictory claims remain conflicted instead of last-write-wins.",
+      "entries": [
+        {
+          "approval_ref": null,
+          "claim_type": "assessment",
+          "evidence_refs": [
+            "report:a"
+          ],
+          "key": "risk_level",
+          "memory_id": "mem:risk-low",
+          "promotion_authorization_ref": null,
+          "scope": "group",
+          "source_scope": "group",
+          "status": "CLAIMED",
+          "subject_id": "task:release",
+          "supersedes": null,
+          "valid_until": null,
+          "value": "low",
+          "writer_id": "agent:a"
+        },
+        {
+          "approval_ref": null,
+          "claim_type": "assessment",
+          "evidence_refs": [
+            "report:b"
+          ],
+          "key": "risk_level",
+          "memory_id": "mem:risk-high",
+          "promotion_authorization_ref": null,
+          "scope": "group",
+          "source_scope": "group",
+          "status": "CLAIMED",
+          "subject_id": "task:release",
+          "supersedes": null,
+          "valid_until": null,
+          "value": "high",
+          "writer_id": "agent:b"
+        }
+      ],
+      "expected": {
+        "decision": "CONFLICTED",
+        "reason_codes": [
+          "UNRESOLVED_CURRENT_CONTRADICTION"
+        ],
+        "selected_memory_ids": [],
+        "suppressed_memory_ids": [],
+        "winning_scope": "group"
+      },
+      "fixture_id": "contradictory_current_claims_conflicted",
+      "query": {
+        "consumer_agent_id": "agent:c",
+        "key": "risk_level",
+        "now": "2026-06-25T12:00:00Z",
+        "scope_precedence": [
+          "group",
+          "global"
+        ],
+        "subject_id": "task:release"
+      }
+    },
+    {
+      "description": "Superseded history remains auditable but does not count as current.",
+      "entries": [
+        {
+          "approval_ref": "approval:policy-v1",
+          "claim_type": "policy",
+          "evidence_refs": [
+            "policy-doc:v1"
+          ],
+          "key": "pii_allowed",
+          "memory_id": "mem:old-policy",
+          "promotion_authorization_ref": null,
+          "scope": "global",
+          "source_scope": "global",
+          "status": "SUPERSEDED",
+          "subject_id": "policy:logging",
+          "supersedes": null,
+          "valid_until": null,
+          "value": true,
+          "writer_id": "human:admin"
+        },
+        {
+          "approval_ref": "approval:policy-v2",
+          "claim_type": "policy",
+          "evidence_refs": [
+            "policy-doc:v2"
+          ],
+          "key": "pii_allowed",
+          "memory_id": "mem:new-policy",
+          "promotion_authorization_ref": null,
+          "scope": "global",
+          "source_scope": "global",
+          "status": "RATIFIED",
+          "subject_id": "policy:logging",
+          "supersedes": "mem:old-policy",
+          "valid_until": null,
+          "value": false,
+          "writer_id": "human:admin"
+        }
+      ],
+      "expected": {
+        "decision": "RETURN_RATIFIED",
+        "reason_codes": [
+          "SUPERSEDED_HISTORY_RETAINED"
+        ],
+        "selected_memory_ids": [
+          "mem:new-policy"
+        ],
+        "suppressed_memory_ids": [
+          "mem:old-policy"
+        ],
+        "winning_scope": "global"
+      },
+      "fixture_id": "superseded_history_not_current",
+      "query": {
+        "consumer_agent_id": "agent:a",
+        "key": "pii_allowed",
+        "now": "2026-06-25T12:00:00Z",
+        "scope_precedence": [
+          "global"
+        ],
+        "subject_id": "policy:logging"
+      }
+    },
+    {
+      "description": "Declared scope precedence selects the group convention and records why.",
+      "entries": [
+        {
+          "approval_ref": "approval:global-default",
+          "claim_type": "convention",
+          "evidence_refs": [
+            "standard:python-tests"
+          ],
+          "key": "test_command",
+          "memory_id": "mem:global-command",
+          "promotion_authorization_ref": null,
+          "scope": "global",
+          "source_scope": "global",
+          "status": "RATIFIED",
+          "subject_id": "project:alpha",
+          "supersedes": null,
+          "valid_until": null,
+          "value": "pytest",
+          "writer_id": "human:platform-admin"
+        },
+        {
+          "approval_ref": "approval:project-alpha",
+          "claim_type": "convention",
+          "evidence_refs": [
+            "project-config:alpha"
+          ],
+          "key": "test_command",
+          "memory_id": "mem:group-command",
+          "promotion_authorization_ref": null,
+          "scope": "group",
+          "source_scope": "group",
+          "status": "RATIFIED",
+          "subject_id": "project:alpha",
+          "supersedes": null,
+          "valid_until": null,
+          "value": "uv run pytest",
+          "writer_id": "human:project-owner"
+        }
+      ],
+      "expected": {
+        "decision": "RETURN_RATIFIED",
+        "reason_codes": [
+          "DECLARED_SCOPE_PRECEDENCE"
+        ],
+        "selected_memory_ids": [
+          "mem:group-command"
+        ],
+        "suppressed_memory_ids": [
+          "mem:global-command"
+        ],
+        "winning_scope": "group"
+      },
+      "fixture_id": "group_scope_precedence_is_explained",
+      "query": {
+        "consumer_agent_id": "agent:test",
+        "key": "test_command",
+        "now": "2026-06-25T12:00:00Z",
+        "scope_precedence": [
+          "group",
+          "global"
+        ],
+        "subject_id": "project:alpha"
+      }
+    },
+    {
+      "description": "Human approval text is not approval evidence without approval_ref.",
+      "entries": [
+        {
+          "approval_ref": null,
+          "claim_type": "human_approval",
+          "evidence_refs": [
+            "message:agent-a:99"
+          ],
+          "key": "approved",
+          "memory_id": "mem:approval-claim",
+          "promotion_authorization_ref": null,
+          "scope": "group",
+          "source_scope": "group",
+          "status": "CLAIMED",
+          "subject_id": "action:deploy-prod",
+          "supersedes": null,
+          "valid_until": null,
+          "value": true,
+          "writer_id": "agent:a"
+        }
+      ],
+      "expected": {
+        "decision": "ABSTAIN",
+        "reason_codes": [
+          "APPROVAL_REF_MISSING"
+        ],
+        "selected_memory_ids": [],
+        "suppressed_memory_ids": [
+          "mem:approval-claim"
+        ],
+        "winning_scope": "group"
+      },
+      "fixture_id": "human_approval_text_without_ref_abstains",
+      "query": {
+        "consumer_agent_id": "agent:executor",
+        "key": "approved",
+        "now": "2026-06-25T12:00:00Z",
+        "scope_precedence": [
+          "group",
+          "global"
+        ],
+        "subject_id": "action:deploy-prod"
+      }
+    },
+    {
+      "description": "Ratified context remains non-authoritative for permission and execution.",
+      "entries": [
+        {
+          "approval_ref": "review:capability-acceptance",
+          "claim_type": "capability_observation",
+          "evidence_refs": [
+            "evaluation:review-code-12",
+            "evaluation:review-code-13"
+          ],
+          "key": "can_review_code",
+          "memory_id": "mem:ratified-capability",
+          "promotion_authorization_ref": null,
+          "scope": "group",
+          "source_scope": "group",
+          "status": "RATIFIED",
+          "subject_id": "capability:agent-a",
+          "supersedes": null,
+          "valid_until": "2026-07-25T00:00:00Z",
+          "value": true,
+          "writer_id": "human:team-lead"
+        }
+      ],
+      "expected": {
+        "decision": "RETURN_RATIFIED",
+        "reason_codes": [
+          "RATIFIED_CONTEXT_ONLY"
+        ],
+        "selected_memory_ids": [
+          "mem:ratified-capability"
+        ],
+        "suppressed_memory_ids": [],
+        "winning_scope": "group"
+      },
+      "fixture_id": "ratified_memory_still_not_execution_authority",
+      "query": {
+        "consumer_agent_id": "agent:orchestrator",
+        "key": "can_review_code",
+        "now": "2026-06-25T12:00:00Z",
+        "scope_precedence": [
+          "group",
+          "global"
+        ],
+        "subject_id": "capability:agent-a"
+      }
+    }
+  ]
+}

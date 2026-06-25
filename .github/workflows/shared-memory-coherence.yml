@@ -1,0 +1,47 @@
+name: Shared Memory Coherence Fixtures
+
+on:
+  pull_request:
+    paths:
+      - "fixtures/shared-memory-coherence/**"
+      - "spec/shared-memory-coherence-fixtures-v0.1.md"
+      - "tools/run_shared_memory_coherence_fixtures.py"
+      - ".github/workflows/shared-memory-coherence.yml"
+  push:
+    branches:
+      - "interop/shared-memory-coherence-fixtures"
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install validator
+        run: python -m pip install jsonschema
+      - name: Validate JSON syntax
+        run: |
+          python -m json.tool fixtures/shared-memory-coherence/schema-v0.1.json > /dev/null
+          python -m json.tool fixtures/shared-memory-coherence/vectors-v0.1.json > /dev/null
+      - name: Validate fixture document against schema
+        run: python -c "import json,pathlib; from jsonschema import Draft202012Validator; p=pathlib.Path('fixtures/shared-memory-coherence'); s=json.loads((p/'schema-v0.1.json').read_text()); d=json.loads((p/'vectors-v0.1.json').read_text()); Draft202012Validator.check_schema(s); Draft202012Validator(s).validate(d)"
+      - name: Compile evaluator
+        run: python -m py_compile tools/run_shared_memory_coherence_fixtures.py
+      - name: Run conformance vectors
+        run: python tools/run_shared_memory_coherence_fixtures.py
+      - name: Verify report is green
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('artifacts/shared-memory-coherence-conformance.json').read_text())
+          assert report['passed'] is True
+          assert all(item['passed'] for item in report['results'])
+          PY
