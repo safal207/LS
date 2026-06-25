@@ -1,0 +1,150 @@
+{
+  "_meta": {
+    "role": "FROZEN LS write-time coherence fixture",
+    "envelope_version": "ls-write-time-coherence-v0.1",
+    "interop_spec": "https://github.com/safal207/LS/blob/main/spec/write-time-coherence-v0.1.md",
+    "versioning": "Any semantic change requires a new envelope version; v0.1 fixture bytes are frozen.",
+    "ownership": "LS owns fixture bytes, deterministic evaluation, verdicts, and conformance reporting.",
+    "boundary_invariant": "complete_provenance_and_chain_and_current_bindings -> RESUME"
+  },
+  "fixture_id": "synthesized_chain_with_provenance",
+  "envelope_version": "ls-write-time-coherence-v0.1",
+  "description": "A derived episode candidate preserves immutable parents, complete dependency roles, independent confirmation, and current bindings.",
+  "required_dependency_roles": [
+    "decision",
+    "rationale",
+    "constraint"
+  ],
+  "query_context": {
+    "trajectory_id": "traj-001",
+    "continuation_id": "cont-001",
+    "intent_digest": "sha256:INTENT_A",
+    "target_state_digest": "sha256:TARGET_A"
+  },
+  "source_events": [
+    {
+      "event_id": "event-decision",
+      "session_id": "session-a",
+      "event_type": "decision",
+      "content": "Use approach Z.",
+      "bindings": {
+        "trajectory_id": "traj-001",
+        "continuation_id": "cont-001",
+        "intent_digest": "sha256:INTENT_A",
+        "target_state_digest": "sha256:TARGET_A",
+        "chain_role": "decision"
+      },
+      "immutable": true
+    },
+    {
+      "event_id": "event-rationale",
+      "session_id": "session-b",
+      "event_type": "rationale",
+      "content": "Approach Z preserves idempotent continuation.",
+      "bindings": {
+        "trajectory_id": "traj-001",
+        "continuation_id": "cont-001",
+        "intent_digest": "sha256:INTENT_A",
+        "target_state_digest": "sha256:TARGET_A",
+        "chain_role": "rationale"
+      },
+      "immutable": true
+    },
+    {
+      "event_id": "event-constraint",
+      "session_id": "session-c",
+      "event_type": "constraint",
+      "content": "Do not bypass downstream policy or effect gates.",
+      "bindings": {
+        "trajectory_id": "traj-001",
+        "continuation_id": "cont-001",
+        "intent_digest": "sha256:INTENT_A",
+        "target_state_digest": "sha256:TARGET_A",
+        "chain_role": "constraint"
+      },
+      "immutable": true
+    }
+  ],
+  "relations": [],
+  "candidate": {
+    "candidate_id": "candidate-complete",
+    "evidence_type": "synthesis",
+    "asserted_by": "continuity-coordinator-1",
+    "confirmer": {
+      "id": "deterministic-verifier-1",
+      "basis": "deterministic_test"
+    },
+    "confirmation_state": "verified",
+    "source_event_ids": [
+      "event-decision",
+      "event-rationale",
+      "event-constraint"
+    ],
+    "source_digests": {
+      "event-decision": "sha256:440ac4228a7553b0b1eff65b45b6eb2a4087c6a2403e0e3e89d75240d4fbb7f4",
+      "event-rationale": "sha256:6a7c58f930dc0e6088517725c986054b4db468e13c8558ec709cdcf7078f93d2",
+      "event-constraint": "sha256:dc519bca20cb3638c7a66c0204b3d4660e1d5b602267ad43f37600dc73d80fac"
+    },
+    "dependency_roles": [
+      "decision",
+      "rationale",
+      "constraint"
+    ],
+    "contradiction_refs": [],
+    "supersedes_refs": [],
+    "bindings": {
+      "trajectory_id": "traj-001",
+      "continuation_id": "cont-001",
+      "intent_digest": "sha256:INTENT_A",
+      "target_state_digest": "sha256:TARGET_A"
+    },
+    "synthesis_payload": {
+      "claims": [
+        {
+          "claim_id": "decision",
+          "text": "Use approach Z.",
+          "supported_by": [
+            "event-decision"
+          ]
+        },
+        {
+          "claim_id": "rationale",
+          "text": "Z preserves idempotent continuation.",
+          "supported_by": [
+            "event-rationale"
+          ]
+        },
+        {
+          "claim_id": "constraint",
+          "text": "Downstream gates remain mandatory.",
+          "supported_by": [
+            "event-constraint"
+          ]
+        }
+      ],
+      "status": "coherent"
+    },
+    "synthesis_digest": "sha256:94ab3219d47685dc9d126b1a0d435df07dadbabdd26f846f6ccae4f0741f8ff3",
+    "stable_identity_update_allowed": false,
+    "execution_authorized": false,
+    "downstream_gates_required": true
+  },
+  "expected": {
+    "ls_verdict": "RESUME",
+    "checks": {
+      "source_integrity": true,
+      "contradiction_visible": true,
+      "unresolved_material_contradiction": false,
+      "dependency_chain_complete": true,
+      "bindings_current": true,
+      "confirmer_independent": true,
+      "synthesis_digest_valid": true,
+      "safety_defaults_preserved": true,
+      "confirmation_verified": true
+    }
+  },
+  "scoring": {
+    "boundary_invariant": "complete_provenance_and_chain_and_current_bindings -> RESUME",
+    "rule": "RESUME is local continuation eligibility only and never global execution authorization."
+  }
+}
