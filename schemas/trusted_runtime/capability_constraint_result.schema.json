@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/trusted_runtime/capability_constraint_result.schema.json",
+  "title": "LS Capability Constraint Result v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "result_id", "event", "observation", "assessment",
+    "capability_registry_mutation_allowed", "access_denial_allowed",
+    "permanent_incapacity_assignment_allowed", "training_scheduling_allowed",
+    "priority_mutation_allowed", "stable_identity_update_allowed",
+    "execution_authorized", "policy_version", "processed_at", "processed_by",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.capability_constraint_result.v0.1"},
+    "result_id": {
+      "type": "string",
+      "pattern": "^capability-constraint-result:sha256:[0-9a-f]{64}$"
+    },
+    "event": {"$ref": "#/$defs/event"},
+    "observation": {"$ref": "#/$defs/observation"},
+    "assessment": {"$ref": "#/$defs/assessment"},
+    "capability_registry_mutation_allowed": {"const": false},
+    "access_denial_allowed": {"const": false},
+    "permanent_incapacity_assignment_allowed": {"const": false},
+    "training_scheduling_allowed": {"const": false},
+    "priority_mutation_allowed": {"const": false},
+    "stable_identity_update_allowed": {"const": false},
+    "execution_authorized": {"const": false},
+    "policy_version": {"const": "capabilities_constraints_track_center.v0.1"},
+    "processed_at": {"type": "string", "minLength": 1},
+    "processed_by": {"type": "string", "minLength": 1},
+    "metadata": {"type": "object"}
+  },
+  "$defs": {
+    "nullableString": {"type": ["string", "null"]},
+    "refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "event_id", "capability_id", "event_type",
+        "capability_status", "capability_scope", "knowledge_class", "statement",
+        "occurred_at", "confidence", "repeat_count", "evidence_refs",
+        "context_refs", "capability_refs", "resource_refs",
+        "identity_candidate_statement", "identity_scope", "identity_repeat_key",
+        "metadata"
+      ],
+      "properties": {
+        "schema_version": {"const": "trusted_runtime.capability_constraint_event.v0.1"},
+        "event_id": {"type": "string", "minLength": 1},
+        "capability_id": {"type": "string", "minLength": 1},
+        "event_type": {
+          "enum": [
+            "ABILITY_OBSERVED", "CAPABILITY_VERIFIED", "CONSTRAINT_RECORDED",
+            "RESOURCE_UNAVAILABLE", "CAPABILITY_RECOVERED", "CONSTRAINT_EXPIRED",
+            "CAPABILITY_RETIRED", "CAPABILITY_DISPUTED",
+            "REPEATED_CAPABILITY_VERIFIED", "REPEATED_RECOVERY_VERIFIED",
+            "CURRENT_INCAPABILITY_CLAIM"
+          ]
+        },
+        "capability_status": {
+          "enum": [
+            "OBSERVED", "AVAILABLE", "CONSTRAINED", "DISPUTED", "UNAVAILABLE",
+            "RECOVERED", "EXPIRED", "RETIRED", "UNKNOWN"
+          ]
+        },
+        "capability_scope": {"enum": ["LOCAL", "PROJECT", "CROSS_CONTEXT"]},
+        "knowledge_class": {
+          "enum": ["FACT", "MEMORY", "INFERENCE", "SYMBOLIC_MEANING"]
+        },
+        "statement": {"type": "string", "minLength": 1},
+        "occurred_at": {"type": "string", "minLength": 1},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "repeat_count": {"type": "integer", "minimum": 1},
+        "evidence_refs": {"$ref": "#/$defs/refs"},
+        "context_refs": {"$ref": "#/$defs/refs"},
+        "capability_refs": {"$ref": "#/$defs/refs"},
+        "resource_refs": {"$ref": "#/$defs/refs"},
+        "identity_candidate_statement": {"$ref": "#/$defs/nullableString"},
+        "identity_scope": {"$ref": "#/$defs/nullableString"},
+        "identity_repeat_key": {"$ref": "#/$defs/nullableString"},
+        "metadata": {"type": "object"}
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observation_id", "track", "subject_id", "entity_status",
+        "knowledge_class", "statement", "occurred_at", "confidence",
+        "evidence_refs", "claims_current_presence", "claims_current_intention",
+        "identity_candidate_statement", "identity_scope", "identity_repeat_key",
+        "metadata"
+      ],
+      "properties": {
+        "observation_id": {
+          "type": "string",
+          "pattern": "^capability-observation:sha256:[0-9a-f]{64}$"
+        },
+        "track": {"const": "capabilities.constraints"},
+        "subject_id": {"type": "string", "minLength": 1},
+        "entity_status": {"enum": ["ACTIVE", "PAUSED", "CLOSED", "UNKNOWN"]},
+        "knowledge_class": {
+          "enum": ["FACT", "MEMORY", "INFERENCE", "SYMBOLIC_MEANING"]
+        },
+        "statement": {"type": "string", "minLength": 1},
+        "occurred_at": {"type": "string", "minLength": 1},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "evidence_refs": {"$ref": "#/$defs/refs"},
+        "claims_current_presence": {"type": "boolean"},
+        "claims_current_intention": {"const": false},
+        "identity_candidate_statement": {"$ref": "#/$defs/nullableString"},
+        "identity_scope": {"$ref": "#/$defs/nullableString"},
+        "identity_repeat_key": {"$ref": "#/$defs/nullableString"},
+        "metadata": {
+          "type": "object",
+          "required": [
+            "capability_id", "capability_event_id", "capability_event_digest",
+            "capability_event_type", "capability_status", "capability_scope",
+            "repeat_count", "context_refs", "capability_refs", "resource_refs",
+            "temporary_constraint_is_not_permanent_incapacity",
+            "local_failure_is_not_global_inability", "track_center_policy_version",
+            "capability_registry_mutation_allowed", "access_denial_allowed",
+            "permanent_incapacity_assignment_allowed", "training_scheduling_allowed",
+            "priority_mutation_allowed"
+          ],
+          "properties": {
+            "temporary_constraint_is_not_permanent_incapacity": {"const": true},
+            "local_failure_is_not_global_inability": {"const": true},
+            "capability_registry_mutation_allowed": {"const": false},
+            "access_denial_allowed": {"const": false},
+            "permanent_incapacity_assignment_allowed": {"const": false},
+            "training_scheduling_allowed": {"const": false},
+            "priority_mutation_allowed": {"const": false}
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "assessment": {
+      "type": "object",
+      "required": [
+        "schema_version", "assessment_id", "observation_id", "decision",
+        "stable_identity_update_allowed", "execution_authorized"
+      ],
+      "properties": {
+        "schema_version": {"const": "trusted_runtime.continuity_assessment.v0.1"},
+        "assessment_id": {
+          "type": "string",
+          "pattern": "^continuity-assessment:sha256:[0-9a-f]{64}$"
+        },
+        "observation_id": {
+          "type": "string",
+          "pattern": "^capability-observation:sha256:[0-9a-f]{64}$"
+        },
+        "decision": {
+          "enum": [
+            "ACCEPT_BOUNDED_OBSERVATION", "HOLD_FOR_REVIEW",
+            "BLOCK_FALSE_PRESENCE"
+          ]
+        },
+        "stable_identity_update_allowed": {"const": false},
+        "execution_authorized": {"const": false}
+      },
+      "additionalProperties": true
+    }
+  }
+}
