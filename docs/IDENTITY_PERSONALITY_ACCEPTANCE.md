@@ -88,6 +88,10 @@ PYTHONPATH=.:python:python/modules \
   --markdown-output /tmp/identity-personality.md
 ```
 
+The acceptance function itself is side-effect free. Files are written only by
+the explicit CLI output arguments, so repeated in-memory execution cannot mutate
+identity state or silently reapply an application.
+
 Inspect the JSON:
 
 ```bash
