@@ -1,0 +1,170 @@
+{
+  "authority_defaults": {
+    "may_authorize_execution": false,
+    "may_establish_consent": false,
+    "may_establish_mutuality": false,
+    "may_establish_truth": false,
+    "may_grant_permissions": false
+  },
+  "profile": "temporal-relationship-semantics-v0.1",
+  "relation_policies": {
+    "delegated_to": {
+      "authority_sensitive": true,
+      "cardinality": "many",
+      "mutuality": "not_required"
+    },
+    "friend_of": {
+      "authority_sensitive": false,
+      "cardinality": "many",
+      "mutuality": "required"
+    },
+    "reports_to": {
+      "authority_sensitive": false,
+      "cardinality": "one",
+      "mutuality": "not_required"
+    },
+    "trusts": {
+      "authority_sensitive": false,
+      "cardinality": "many",
+      "mutuality": "not_required"
+    },
+    "works_at": {
+      "authority_sensitive": false,
+      "cardinality": "many",
+      "mutuality": "not_required"
+    }
+  },
+  "schema_version": "temporal-relationship-semantics-fixtures-v0.1",
+  "vectors": [
+    {
+      "description": "A relationship can remain historically true after it stops being current.",
+      "edges": [
+        {
+          "asserted_by": "human:lee",
+          "confirmed_by": [
+            "human:lee"
+          ],
+          "directionality": "directed",
+          "edge_id": "edge:former-employment",
+          "evidence_kind": "document",
+          "evidence_refs": [
+            "contract:acme-2019"
+          ],
+          "promotion_authorization_ref": null,
+          "ratification_ref": "ratification:employment-2019",
+          "relation_type": "works_at",
+          "scope": "private",
+          "semantic_weight": 1.0,
+          "source_entity_id": "person:lee",
+          "source_scope": "private",
+          "status": "EXPIRED",
+          "supersedes": null,
+          "target_entity_id": "org:acme",
+          "valid_from": "2019-01-01T00:00:00Z",
+          "valid_until": "2024-01-01T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "decision": "RETURN_HISTORICAL",
+        "historical_edge_ids": [
+          "edge:former-employment"
+        ],
+        "reason_codes": [
+          "RELATIONSHIP_NOT_CURRENT"
+        ],
+        "selected_edge_ids": [],
+        "suppressed_edge_ids": []
+      },
+      "fixture_id": "former_employment_is_historical",
+      "query": {
+        "now": "2026-06-25T12:00:00Z",
+        "relation_type": "works_at",
+        "requires_mutual": false,
+        "scope_precedence": [
+          "private",
+          "group",
+          "global"
+        ],
+        "source_entity_id": "person:lee"
+      }
+    },
+    {
+      "description": "A new current edge can supersede an old one without deleting history.",
+      "edges": [
+        {
+          "asserted_by": "system:hr",
+          "confirmed_by": [
+            "system:hr"
+          ],
+          "directionality": "directed",
+          "edge_id": "edge:old-manager",
+          "evidence_kind": "directory",
+          "evidence_refs": [
+            "directory:2025-q4"
+          ],
+          "promotion_authorization_ref": null,
+          "ratification_ref": "hr-record:1",
+          "relation_type": "reports_to",
+          "scope": "group",
+          "semantic_weight": 1.0,
+          "source_entity_id": "person:dev",
+          "source_scope": "group",
+          "status": "SUPERSEDED",
+          "supersedes": null,
+          "target_entity_id": "person:manager-a",
+          "valid_from": "2025-10-01T00:00:00Z",
+          "valid_until": "2026-06-01T00:00:00Z"
+        },
+        {
+          "asserted_by": "system:hr",
+          "confirmed_by": [
+            "system:hr"
+          ],
+          "directionality": "directed",
+          "edge_id": "edge:new-manager",
+          "evidence_kind": "directory",
+          "evidence_refs": [
+            "directory:2026-q2"
+          ],
+          "promotion_authorization_ref": null,
+          "ratification_ref": "hr-record:2",
+          "relation_type": "reports_to",
+          "scope": "group",
+          "semantic_weight": 1.0,
+          "source_entity_id": "person:dev",
+          "source_scope": "group",
+          "status": "RATIFIED",
+          "supersedes": "edge:old-manager",
+          "target_entity_id": "person:manager-b",
+          "valid_from": "2026-06-01T00:00:00Z",
+          "valid_until": null
+        }
+      ],
+      "expected": {
+        "decision": "RETURN_CURRENT",
+        "historical_edge_ids": [
+          "edge:old-manager"
+        ],
+        "reason_codes": [
+          "SUPERSEDED_HISTORY_RETAINED"
+        ],
+        "selected_edge_ids": [
+          "edge:new-manager"
+        ],
+        "suppressed_edge_ids": []
+      },
+      "fixture_id": "superseded_manager_edge_preserves_history",
+      "query": {
+        "now": "2026-06-25T12:00:00Z",
+        "relation_type": "reports_to",
+        "requires_mutual": false,
+        "scope_precedence": [
+          "group",
+          "private",
+          "global"
+        ],
+        "source_entity_id": "person:dev"
+      }
+    }
+  ]
+}
