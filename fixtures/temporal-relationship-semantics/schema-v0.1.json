@@ -1,0 +1,335 @@
+{
+  "$id": "https://github.com/safal207/LS/fixtures/temporal-relationship-semantics/schema-v0.1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority_defaults": {
+      "additionalProperties": false,
+      "properties": {
+        "may_authorize_execution": {
+          "const": false
+        },
+        "may_establish_consent": {
+          "const": false
+        },
+        "may_establish_mutuality": {
+          "const": false
+        },
+        "may_establish_truth": {
+          "const": false
+        },
+        "may_grant_permissions": {
+          "const": false
+        }
+      },
+      "required": [
+        "may_authorize_execution",
+        "may_establish_consent",
+        "may_establish_mutuality",
+        "may_establish_truth",
+        "may_grant_permissions"
+      ],
+      "type": "object"
+    },
+    "profile": {
+      "const": "temporal-relationship-semantics-v0.1"
+    },
+    "relation_policies": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "authority_sensitive": {
+            "type": "boolean"
+          },
+          "cardinality": {
+            "enum": [
+              "one",
+              "many"
+            ]
+          },
+          "mutuality": {
+            "enum": [
+              "required",
+              "not_required"
+            ]
+          }
+        },
+        "required": [
+          "cardinality",
+          "mutuality",
+          "authority_sensitive"
+        ],
+        "type": "object"
+      },
+      "minProperties": 1,
+      "type": "object"
+    },
+    "schema_version": {
+      "const": "temporal-relationship-semantics-fixtures-v0.1"
+    },
+    "vectors": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "edges": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "asserted_by": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "confirmed_by": {
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "uniqueItems": true
+                },
+                "directionality": {
+                  "enum": [
+                    "directed",
+                    "symmetric"
+                  ]
+                },
+                "edge_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "evidence_kind": {
+                  "enum": [
+                    "mention",
+                    "participant_assertion",
+                    "participant_confirmation",
+                    "document",
+                    "directory",
+                    "governance_event",
+                    "interaction_assessment"
+                  ]
+                },
+                "evidence_refs": {
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array",
+                  "uniqueItems": true
+                },
+                "promotion_authorization_ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "ratification_ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "relation_type": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "scope": {
+                  "enum": [
+                    "private",
+                    "group",
+                    "global"
+                  ]
+                },
+                "semantic_weight": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "source_entity_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "source_scope": {
+                  "enum": [
+                    "private",
+                    "group",
+                    "global"
+                  ]
+                },
+                "status": {
+                  "enum": [
+                    "CLAIMED",
+                    "RATIFIED",
+                    "DISPUTED",
+                    "SUPERSEDED",
+                    "EXPIRED",
+                    "REVOKED"
+                  ]
+                },
+                "supersedes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "target_entity_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "valid_from": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "valid_until": {
+                  "format": "date-time",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "edge_id",
+                "source_entity_id",
+                "target_entity_id",
+                "relation_type",
+                "directionality",
+                "scope",
+                "source_scope",
+                "status",
+                "evidence_kind",
+                "semantic_weight",
+                "asserted_by",
+                "confirmed_by",
+                "evidence_refs",
+                "ratification_ref",
+                "promotion_authorization_ref",
+                "valid_from",
+                "valid_until",
+                "supersedes"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "expected": {
+            "additionalProperties": false,
+            "properties": {
+              "decision": {
+                "enum": [
+                  "RETURN_CURRENT",
+                  "RETURN_CLAIM",
+                  "RETURN_HISTORICAL",
+                  "CONFLICTED",
+                  "ABSTAIN",
+                  "REJECT"
+                ]
+              },
+              "historical_edge_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "reason_codes": {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "selected_edge_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "suppressed_edge_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "decision",
+              "selected_edge_ids",
+              "historical_edge_ids",
+              "suppressed_edge_ids",
+              "reason_codes"
+            ],
+            "type": "object"
+          },
+          "fixture_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "query": {
+            "additionalProperties": false,
+            "properties": {
+              "now": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "relation_type": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "requires_mutual": {
+                "type": "boolean"
+              },
+              "scope_precedence": {
+                "items": {
+                  "enum": [
+                    "private",
+                    "group",
+                    "global"
+                  ]
+                },
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "source_entity_id": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "source_entity_id",
+              "relation_type",
+              "now",
+              "scope_precedence",
+              "requires_mutual"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "fixture_id",
+          "description",
+          "query",
+          "edges",
+          "expected"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "profile",
+    "schema_version",
+    "authority_defaults",
+    "relation_policies",
+    "vectors"
+  ],
+  "title": "Temporal Relationship Semantics Fixtures v0.1",
+  "type": "object"
+}
