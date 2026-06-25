@@ -110,9 +110,6 @@ class RolePermissionEvent:
             self.event_id,
             self.authority_id,
             self.subject_id,
-            self.action,
-            self.resource,
-            self.scope_ref,
             self.statement,
             self.occurred_at,
         )
@@ -148,6 +145,10 @@ class RolePermissionEvent:
                 raise ValueError("source-backed authority events require FACT")
             if not self.evidence_refs or not self.provenance_refs:
                 raise ValueError("source-backed authority events require evidence and provenance")
+            if not all((self.action, self.resource, self.scope_ref)):
+                raise ValueError(
+                    "source-backed authority events require action, resource, and scope"
+                )
         self._validate_contract()
 
     def _validate_candidate(self) -> None:
@@ -163,6 +164,18 @@ class RolePermissionEvent:
             raise ValueError("authority candidate requires two evidence and provenance refs")
         if len(self.context_refs) < 2 or len(self.observer_refs) < 2:
             raise ValueError("authority candidate requires cross-context independent evidence")
+        if self.event_type is RolePermissionEventType.AUTHORIZATION_PATTERN_VERIFIED:
+            if (
+                self.authority_status is not AuthorityStatus.ACTIVE
+                or self.authority_basis not in AUTHORIZING_BASES
+            ):
+                raise ValueError("authorization pattern requires active authorizing basis")
+        if self.event_type is RolePermissionEventType.ESCALATION_PATTERN_VERIFIED:
+            if (
+                self.authority_status is not AuthorityStatus.PENDING_APPROVAL
+                or self.authority_basis not in {AuthorityBasis.APPROVAL, AuthorityBasis.POLICY}
+            ):
+                raise ValueError("escalation pattern requires pending approval basis")
 
     def _validate_contract(self) -> None:
         expected = {
