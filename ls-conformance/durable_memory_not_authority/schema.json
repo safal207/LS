@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/ls-conformance/durable_memory_not_authority/schema.json",
+  "title": "durable_memory_not_authority",
+  "type": "object",
+  "required": [
+    "memory_state",
+    "authority_state",
+    "revalidation_required"
+  ],
+  "properties": {
+    "memory_state": {
+      "type": "string",
+      "enum": ["durable", "surfaced", "decayed", "archived"]
+    },
+    "authority_state": {
+      "type": "string",
+      "enum": ["missing", "spendable", "advisory_only", "expired", "requires_revalidation"]
+    },
+    "authority_state_before": {
+      "type": "string",
+      "enum": ["missing", "spendable", "advisory_only", "expired", "requires_revalidation"]
+    },
+    "authority_state_after": {
+      "type": "string",
+      "enum": ["missing", "spendable", "advisory_only", "expired", "requires_revalidation"]
+    },
+    "authority_phase_ref": { "type": ["string", "null"] },
+    "new_authority_phase_ref": { "type": ["string", "null"] },
+    "revalidation_required": { "type": "boolean" },
+    "verifier_ref": { "type": ["string", "null"] },
+    "recall_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "created_in_current_run": { "type": "boolean" },
+    "requested_action": {
+      "type": "string",
+      "enum": ["none", "tool_call", "publish", "promote", "identity_update", "continue"]
+    },
+    "may_orient_context": { "type": "boolean" },
+    "may_authorize_action": { "type": "boolean" },
+    "new_phase_boundary_created": { "type": "boolean" },
+    "old_memory_remains_provenance_only": { "type": "boolean" }
+  },
+  "additionalProperties": true
+}
