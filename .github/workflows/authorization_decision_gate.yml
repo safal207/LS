@@ -12,6 +12,8 @@ on:
       - "python/modules/trusted_runtime/roles_permissions_track_center.py"
       - "python/tests/test_trusted_runtime_authorization_decision_gate.py"
       - "python/tests/test_trusted_runtime_authorization_evidence_adapters.py"
+      - "python/tests/test_authorization_negative_scope.py"
+      - "python/tests/test_authorization_adapter_current_claims.py"
       - "schemas/trusted_runtime/authorization_request.schema.json"
       - "schemas/trusted_runtime/authorization_result.schema.json"
       - "scripts/run_authorization_decision_gate_demo.py"
@@ -35,6 +37,8 @@ jobs:
             python/modules/trusted_runtime/authorization_evidence_adapters.py \
             python/tests/test_trusted_runtime_authorization_decision_gate.py \
             python/tests/test_trusted_runtime_authorization_evidence_adapters.py \
+            python/tests/test_authorization_negative_scope.py \
+            python/tests/test_authorization_adapter_current_claims.py \
             scripts/run_authorization_decision_gate_demo.py
       - name: Tests
         run: |
@@ -43,7 +47,9 @@ jobs:
             python/tests/test_trusted_runtime_capabilities_constraints_track_center.py \
             python/tests/test_trusted_runtime_roles_permissions_track_center.py \
             python/tests/test_trusted_runtime_authorization_decision_gate.py \
-            python/tests/test_trusted_runtime_authorization_evidence_adapters.py
+            python/tests/test_trusted_runtime_authorization_evidence_adapters.py \
+            python/tests/test_authorization_negative_scope.py \
+            python/tests/test_authorization_adapter_current_claims.py
       - name: Demo
         run: |
           PYTHONPATH=.:python:python/modules \
