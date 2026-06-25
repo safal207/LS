@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Optional
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -78,7 +79,7 @@ def _payload(route: str) -> dict[str, object]:
     }
 
 
-def _route(route: str, payload: dict[str, object] | None = None):
+def _route(route: str, payload: Optional[dict[str, object]] = None):
     envelope = TrackCenterEnvelope(
         envelope_id="track-envelope:1",
         route_key=route,
@@ -129,12 +130,16 @@ def test_value_hold_and_block_are_preserved() -> None:
     retired = dict(contested)
     retired["value_status"] = "RETIRED"
 
+    contested_result = _route(VALUES_TRACK, contested)
+    retired_result = _route(VALUES_TRACK, retired)
+    assert contested_result.routed_result is not None
+    assert retired_result.routed_result is not None
     assert (
-        _route(VALUES_TRACK, contested).routed_result.assessment.decision
+        contested_result.routed_result.assessment.decision
         is ContinuityDecision.HOLD_FOR_REVIEW
     )
     assert (
-        _route(VALUES_TRACK, retired).routed_result.assessment.decision
+        retired_result.routed_result.assessment.decision
         is ContinuityDecision.BLOCK_FALSE_PRESENCE
     )
 
