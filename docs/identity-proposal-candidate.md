@@ -2,31 +2,40 @@
 
 ## Status
 
-Design note for LS continuity architecture.
+Design note for LS continuity and identity-governance architecture.
 
-This document defines `IdentityProposalCandidate` as the explicit handoff object between track aggregation and governed identity change.
+This document defines `IdentityProposalCandidate` as the explicit, fail-closed handoff object between continuity-track aggregation and governed identity change.
 
 It follows:
 
 - `docs/continuity-coordinator.md`
 - `docs/identity-proposal-thresholds.md`
+- `docs/continuity-vocabulary.md`
 - `schemas/track_aggregation.example.json`
+- the Trusted Runtime identity proposal, approval, application, invalidation, expiry, and rollback contracts
 - issue `#717`
 
 ---
 
 ## 1. Core boundary
 
-`IdentityProposalCandidate` is not an identity update.
-
 ```text
 TrackAggregationRecord
   -> IdentityProposalCandidate
-  -> GovernanceDecision
-  -> IdentityUpdate / Reject / Quarantine / Rollback
+  -> governance intake
+  -> IdentityUpdateProposal / Reject / Quarantine / MoreEvidence
+  -> approval / patch / commit / application / rollback
 ```
 
-A proposal can request review. It cannot approve itself, apply itself, or mutate stable identity directly.
+`IdentityProposalCandidate` is not an identity update, approval, patch, active profile, authorization decision, or runtime permission.
+
+```text
+IdentityProposalCandidate != IdentityUpdate
+IdentityProposalCandidate != IdentityUpdateApproval
+IdentityProposalCandidate != IdentityProfilePatch
+```
+
+A candidate can request review. It cannot approve itself, apply itself, or mutate stable identity directly.
 
 ---
 
@@ -34,10 +43,10 @@ A proposal can request review. It cannot approve itself, apply itself, or mutate
 
 Track aggregation can show a pattern, but a pattern is not yet identity.
 
-`IdentityProposalCandidate` exists to preserve the boundary between:
+`IdentityProposalCandidate` preserves the boundary between:
 
 - accumulated experience;
-- a proposed identity influence;
+- an inspectable proposed identity influence;
 - and a governed identity decision.
 
 Without a proposal object, LS risks continuity inflation:
@@ -50,86 +59,162 @@ This must remain forbidden.
 
 ---
 
-## 3. Responsibilities
+## 3. Relationship to existing Trusted Runtime contracts
+
+The current Trusted Runtime already contains a review-only `IdentityUpdateProposal` and a separated governance lifecycle:
+
+```text
+IdentityUpdateProposal
+  -> IdentityUpdateApproval
+  -> IdentityProfilePatch
+  -> IdentityPatchCommit
+  -> IdentityApplication
+  -> optional IdentityRollback
+```
+
+`IdentityProposalCandidate` does not replace that stack.
+
+It is the continuity-side handoff object immediately before the runtime proposal contract.
+
+A conforming adapter may convert a ready candidate into the existing `IdentityUpdateProposal`, but only when:
+
+- all required candidate fields are present;
+- the source aggregation is bound by reference and digest;
+- support, failure, contradiction, and counterevidence remain distinguishable;
+- continuity scope is unchanged;
+- governance requirements are preserved;
+- expiry, revalidation, and rollback semantics are explicit;
+- no approval, application, patch, or profile activation is inferred.
+
+Until such an adapter exists, the example artifact is descriptive and must not be treated as a runtime identity mutation command.
+
+---
+
+## 4. Responsibilities
 
 An `IdentityProposalCandidate` should answer:
 
 - what identity influence is being proposed;
 - which aggregation record produced it;
 - which episodes support it;
-- which counterevidence weakens or blocks it;
+- which failures remain relevant;
+- which contradiction or counterevidence weakens or blocks it;
 - what scope it applies to;
-- what confidence state it carries;
+- what confidence state and evidence quality it carries;
 - whether governance review is required;
-- how it can be rejected, quarantined, superseded, or rolled back.
+- how it can expire, be rejected, quarantined, superseded, revalidated, or rolled back.
 
 ---
 
-## 4. Non-responsibilities
+## 5. Non-responsibilities
 
 An `IdentityProposalCandidate` must not:
 
 - verify action outcomes;
 - aggregate episodes by itself;
+- infer traits from free-form prose;
 - omit counterevidence;
+- collapse verified failure into successful support;
 - promote scope silently;
 - approve its own identity effect;
 - mutate stable identity;
+- grant tool, execution, access, delegation, or policy authority;
 - erase rollback requirements.
 
 ---
 
-## 5. Minimum fields
+## 6. Minimum fields
 
-Candidate fields:
+### Identity and provenance
 
 - `proposal_id`
 - `proposal_version`
 - `created_at`
 - `created_by`
 - `source_aggregation_record_ref`
+- `source_aggregation_digest`
+
+### Track and scope
+
 - `track_type`
 - `aggregation_key`
 - `continuity_level`
-- `eligible_influence`
+- `actor_ref`
+- `target_scope`
+- `scope_constraints`
+
+### Evidence
+
 - `supporting_episode_refs`
+- `failure_episode_refs`
+- `contradicting_episode_refs`
 - `counterevidence_episode_refs`
+- `superseded_episode_refs`
 - `confidence_snapshot_ref`
 - `evidence_quality_summary`
+
+### Proposed influence
+
+- `eligible_influence`
 - `proposed_identity_influence`
+
+### Governance and lifecycle
+
 - `governance_review_required`
 - `governance_reason`
 - `rollback_plan_ref`
 - `expires_at`
 - `revalidate_if`
+- `candidate_state`
+
+### Authority boundary
+
+- `authority_effects`
+
+All authority-effect values must remain false at candidate creation.
+
+A missing source aggregation reference or digest is a fail-closed error.
 
 ---
 
-## 6. Proposed identity influence
+## 7. Candidate states
 
-The proposal should describe the intended identity influence explicitly.
+Suggested states:
 
-Examples:
+- `READY_FOR_GOVERNANCE` — complete candidate eligible for governance intake;
+- `MORE_EVIDENCE_REQUIRED` — meaningful pattern, insufficient evidence;
+- `BLOCKED_BY_COUNTEREVIDENCE` — material contradiction prevents promotion;
+- `QUARANTINED` — malformed, scope-inflating, provenance-weak, or policy-sensitive candidate;
+- `EXPIRED` — candidate requires revalidation before further review;
+- `SUPERSEDED` — a later candidate or aggregation replaces it.
 
-- competence confidence increase;
-- competence weakness candidate;
-- trust repair candidate;
-- trust reduction candidate;
-- stable preference candidate;
-- relational memory update candidate;
-- governance-risk quarantine candidate.
+A candidate in any state other than `READY_FOR_GOVERNANCE` must not be adapted into an active runtime proposal.
 
-The proposal should also specify what it does **not** authorize.
+---
 
-Example:
+## 8. Proposed identity influence
 
-```text
-This proposal may update a local lesson track but must not grant system-level trust authority.
+The intended influence should be bounded and machine-inspectable.
+
+Recommended shape:
+
+```json
+{
+  "operation": "SET_TRAIT_CANDIDATE",
+  "trait_key": "working_tendencies.test_before_claim",
+  "proposed_value": true,
+  "scope": "individual",
+  "reason": "Repeated trusted evidence supports an evidence-first working tendency."
+}
 ```
 
+The candidate must not contain an already-applied profile patch or imply that a trait is active.
+
+Free-form explanatory prose may accompany the structured influence, but prose alone is not sufficient for runtime governance.
+
 ---
 
-## 7. Evidence preservation
+## 9. Evidence preservation
 
 A proposal must preserve both support and counterevidence.
 
@@ -143,17 +228,25 @@ Minimum evidence summary:
 - missing or weak evidence notes;
 - evidence-channel quality summary.
 
-Counterevidence omission should fail closed.
+The candidate must not:
+
+- omit known contradicting episodes;
+- remove counterevidence because support remains above threshold;
+- summarize conflicting evidence into one unsupported confidence number;
+- treat superseded support as current support;
+- use duplicate refs to amplify confidence or counts.
+
+Counterevidence omission must fail closed.
 
 ---
 
-## 8. Scope binding
+## 10. Scope binding
 
 A proposal must be explicitly scope-bound.
 
 At minimum:
 
-- `continuity_level`: individual / relational / system;
+- `continuity_level`: `individual`, `relational`, or `system`;
 - track family;
 - aggregation key;
 - affected agent or relationship;
@@ -165,94 +258,138 @@ A proposal must not silently promote:
 individual -> relational -> system
 ```
 
-Any scope promotion should require governance review.
+Examples:
+
+- a preference confirmed with one human must not become a global preference;
+- project-local competence must not become system-wide competence;
+- relationship trust must not grant execution authority;
+- local failure must not become permanent incapability.
+
+Any scope promotion requires explicit justification and governance review.
 
 ---
 
-## 9. Governance requirement
+## 11. Governance requirement
 
-`governance_review_required` should be true when the proposal affects:
+`governance_review_required` must be true when the proposal affects or may affect:
 
 - trust;
-- system-level memory;
-- shared memory;
-- policy behavior;
+- system-level or shared memory;
+- policy or safety behavior;
 - high-risk action classes;
-- consent or delegation authority;
+- consent or delegation boundaries;
+- durable capability or incapability claims;
 - identity confidence;
 - contradiction-heavy tracks;
-- evidence with material uncertainty.
+- evidence with material uncertainty;
+- continuity-scope expansion.
 
-A proposal may be auto-rejected or quarantined before review if required fields are missing.
+A proposal may be rejected or quarantined before review if required fields are missing.
+
+Even when review is not mandatory for a low-risk local candidate, application remains a separate governed operation.
 
 ---
 
-## 10. Rollback and supersession
+## 12. Rollback, expiry, and supersession
 
-Every proposal should be rollback-aware.
+Every proposal must be rollback-aware.
 
 It should define:
 
-- how an accepted update can be superseded;
+- how an accepted update can be removed or superseded;
 - what new evidence triggers revalidation;
 - what counterevidence invalidates the proposal;
-- whether the proposal expires;
-- what prior proposal or update it replaces.
+- whether and when the proposal expires;
+- what prior proposal or update it replaces;
+- which source records remain available for replay.
+
+Typical revalidation triggers:
+
+- new material counterevidence;
+- confidence drop;
+- human correction;
+- policy change;
+- relationship-scope change;
+- source aggregation supersession;
+- source episode expiry or redaction;
+- attempted scope expansion.
 
 No identity influence should be treated as irreversible by default.
 
 ---
 
-## 11. Fail-closed guards
+## 13. Fail-closed invariants
 
-The proposal should fail closed when:
-
-- `source_aggregation_record_ref` is missing;
-- supporting evidence is absent;
-- counterevidence is known but omitted;
-- continuity level is missing;
-- scope promotion is implicit;
-- rollback plan is missing;
-- governance is required but not requested;
-- confidence snapshot is missing;
-- a single episode tries to become identity update directly.
+1. One episode cannot create a ready identity candidate.
+2. Missing source aggregation reference or digest blocks the candidate.
+3. Counterevidence cannot be omitted.
+4. Duplicate evidence refs cannot amplify confidence or support.
+5. Candidate scope cannot exceed source aggregation scope.
+6. Blocked, quarantined, expired, or superseded candidates cannot be applied.
+7. The proposing actor cannot approve its own candidate.
+8. Candidate creation cannot produce a patch, application, active profile, tool permission, or execution authorization.
+9. Every accepted influence must remain reversible or supersedable.
+10. Governance remains separate from continuity aggregation.
 
 ---
 
-## 12. Relationship to ContinuityCoordinator
+## 14. Compatibility mapping
 
-ContinuityCoordinator creates or recommends proposals from track state.
+A future adapter into the existing Trusted Runtime `IdentityUpdateProposal` should map conservatively:
+
+| Candidate field | Existing runtime proposal field or handling |
+|---|---|
+| `proposal_id` | `proposal_id` |
+| `target_scope` / `continuity_level` | bounded `scope` plus typed metadata |
+| `aggregation_key` | `repeat_key` or canonical aggregation key |
+| structured proposed influence | `candidate_statement` plus structured metadata until a typed patch-candidate contract exists |
+| supporting refs | `supporting_episode_refs` |
+| failure / contradiction / counterevidence refs | `evidence_refs` plus mandatory typed metadata; no silent dropping |
+| confidence snapshot | `aggregated_confidence` plus source snapshot ref |
+| governance requirement | `approval_required=true`; reason preserved in metadata |
+| expiry / revalidation | preserved in metadata until first-class fields exist |
+| rollback plan | preserved and validated before patch creation |
+
+The adapter must fail closed when the current runtime schema cannot preserve a candidate invariant.
+
+---
+
+## 15. Relationship to ContinuityCoordinator
+
+ContinuityCoordinator creates or recommends candidates from track state.
 
 It does not approve them.
 
-The coordinator should pass forward:
+The coordinator passes forward:
 
-- track type;
-- aggregation key;
-- evidence roles;
+- track type and aggregation key;
+- source aggregation reference and digest;
+- evidence roles and lifecycle states;
 - counterevidence;
 - confidence state;
 - threshold result;
+- continuity scope;
 - governance requirement.
 
 ---
 
-## 13. Relationship to GovernanceDecision
+## 16. Relationship to governance
 
-Governance receives an `IdentityProposalCandidate` and may produce a decision such as:
+Governance receives a candidate and may:
 
-- approve;
-- reject;
-- quarantine;
+- accept it for runtime proposal construction;
+- reject it;
+- quarantine it;
 - request more evidence;
-- supersede;
-- rollback.
+- mark it expired;
+- supersede it;
+- later rollback an applied influence through the existing governance stack.
 
-Governance must preserve the proposal reference so the identity change remains auditable.
+Governance must preserve the candidate and source aggregation references so the lifecycle remains auditable and replayable.
 
 ---
 
-## 14. Summary
+## 17. Summary
 
 `IdentityProposalCandidate` is the explicit bridge from aggregated continuity to governed identity review.
 
@@ -261,7 +398,5 @@ It prevents this collapse:
 ```text
 track aggregation == identity update
 ```
-
-Core principle:
 
 > Experience may influence continuity, but only governed continuity may reposition the identity center.
