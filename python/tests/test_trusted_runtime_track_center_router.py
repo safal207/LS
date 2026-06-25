@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Optional
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -64,7 +65,7 @@ def _payload(
 def _envelope(
     *,
     route_key: str = RELATIONSHIP_LOSS_TRACK,
-    payload: dict[str, object] | None = None,
+    payload: Optional[dict[str, object]] = None,
 ) -> TrackCenterEnvelope:
     return TrackCenterEnvelope(
         envelope_id="track-envelope:1",
