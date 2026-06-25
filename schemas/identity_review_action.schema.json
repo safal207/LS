@@ -1,0 +1,562 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/blob/main/schemas/identity_review_action.schema.json",
+  "title": "LS IdentityReviewAction v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "action_id",
+    "created_at",
+    "idempotency_key",
+    "actor",
+    "snapshot_binding",
+    "target",
+    "action",
+    "reason",
+    "provenance_refs",
+    "evidence_considered",
+    "review_context",
+    "rollback_request",
+    "supersession_request",
+    "authority_effects",
+    "ui_context"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "identity_review_action.v0.1"
+    },
+    "action_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 16
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actor_id",
+        "actor_type",
+        "role",
+        "authenticated_session_ref"
+      ],
+      "properties": {
+        "actor_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actor_type": {
+          "enum": [
+            "human",
+            "reviewing_agent"
+          ]
+        },
+        "role": {
+          "enum": [
+            "identity_reviewer",
+            "relationship_reviewer",
+            "system_governance_reviewer",
+            "auditor"
+          ]
+        },
+        "authenticated_session_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "snapshot_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshot_id",
+        "snapshot_digest",
+        "snapshot_time",
+        "reconstruction_as_of"
+      ],
+      "properties": {
+        "snapshot_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshot_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "snapshot_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reconstruction_as_of": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_kind",
+        "target_ref",
+        "target_digest",
+        "observed_state",
+        "scope",
+        "display_binding"
+      ],
+      "properties": {
+        "target_kind": {
+          "enum": [
+            "identity_proposal_candidate",
+            "identity_update_record",
+            "identity_application",
+            "identity_snapshot",
+            "identity_influence"
+          ]
+        },
+        "target_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "observed_state": {
+          "enum": [
+            "proposed",
+            "under_review",
+            "active",
+            "quarantined",
+            "rolled_back",
+            "superseded",
+            "expired",
+            "uncertain"
+          ]
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "display_binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "snapshot_section",
+            "influence_id"
+          ],
+          "properties": {
+            "snapshot_section": {
+              "type": "string",
+              "minLength": 1
+            },
+            "influence_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "action": {
+      "enum": [
+        "approve",
+        "reject",
+        "rollback",
+        "quarantine",
+        "request_more_evidence",
+        "supersede",
+        "annotate"
+      ]
+    },
+    "reason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "text"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "evidence_sufficient",
+            "evidence_insufficient",
+            "material_counterevidence",
+            "scope_inflation",
+            "broken_provenance",
+            "stale_identity_influence",
+            "human_correction",
+            "policy_change",
+            "newer_governed_material",
+            "annotation_only"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 8
+        }
+      }
+    },
+    "provenance_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "evidence_considered": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supporting_refs",
+        "failure_refs",
+        "contradicting_refs",
+        "counterevidence_refs",
+        "superseded_refs"
+      ],
+      "properties": {
+        "supporting_refs": {
+          "$ref": "#/$defs/refArray"
+        },
+        "failure_refs": {
+          "$ref": "#/$defs/refArray"
+        },
+        "contradicting_refs": {
+          "$ref": "#/$defs/refArray"
+        },
+        "counterevidence_refs": {
+          "$ref": "#/$defs/refArray"
+        },
+        "superseded_refs": {
+          "$ref": "#/$defs/refArray"
+        }
+      }
+    },
+    "review_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected_handoff",
+        "governance_case_ref",
+        "requires_fresh_revalidation"
+      ],
+      "properties": {
+        "expected_handoff": {
+          "enum": [
+            "RECORDED_ONLY",
+            "ROUTE_TO_GOVERNANCE",
+            "ROUTE_TO_ROLLBACK_GOVERNANCE"
+          ]
+        },
+        "governance_case_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requires_fresh_revalidation": {
+          "const": true
+        }
+      }
+    },
+    "rollback_request": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/rollbackRequest"
+        }
+      ]
+    },
+    "supersession_request": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/supersessionRequest"
+        }
+      ]
+    },
+    "authority_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity_update_approved",
+        "identity_patch_created",
+        "identity_update_applied",
+        "stable_identity_mutated",
+        "execution_authorized",
+        "policy_bypass_granted",
+        "downstream_governance_required"
+      ],
+      "properties": {
+        "identity_update_approved": {
+          "const": false
+        },
+        "identity_patch_created": {
+          "const": false
+        },
+        "identity_update_applied": {
+          "const": false
+        },
+        "stable_identity_mutated": {
+          "const": false
+        },
+        "execution_authorized": {
+          "const": false
+        },
+        "policy_bypass_granted": {
+          "const": false
+        },
+        "downstream_governance_required": {
+          "const": true
+        }
+      }
+    },
+    "ui_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "view_id",
+        "selected_snapshot_id",
+        "locale"
+      ],
+      "properties": {
+        "view_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "selected_snapshot_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locale": {
+          "type": "string",
+          "minLength": 2
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "rollback"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "properties": {
+              "target_kind": {
+                "enum": [
+                  "identity_update_record",
+                  "identity_application"
+                ]
+              },
+              "observed_state": {
+                "const": "active"
+              }
+            }
+          },
+          "review_context": {
+            "properties": {
+              "expected_handoff": {
+                "const": "ROUTE_TO_ROLLBACK_GOVERNANCE"
+              }
+            }
+          },
+          "rollback_request": {
+            "$ref": "#/$defs/rollbackRequest"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "supersede"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "review_context": {
+            "properties": {
+              "expected_handoff": {
+                "const": "ROUTE_TO_GOVERNANCE"
+              }
+            }
+          },
+          "supersession_request": {
+            "$ref": "#/$defs/supersessionRequest"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "annotate"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "review_context": {
+            "properties": {
+              "expected_handoff": {
+                "const": "RECORDED_ONLY"
+              }
+            }
+          },
+          "rollback_request": {
+            "type": "null"
+          },
+          "supersession_request": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": [
+              "approve",
+              "reject",
+              "quarantine",
+              "request_more_evidence"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "properties": {
+              "target_kind": {
+                "const": "identity_proposal_candidate"
+              }
+            }
+          },
+          "review_context": {
+            "properties": {
+              "expected_handoff": {
+                "const": "ROUTE_TO_GOVERNANCE"
+              }
+            }
+          },
+          "rollback_request": {
+            "type": "null"
+          },
+          "supersession_request": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "refArray": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "continuity_level",
+        "actor_ref",
+        "relationship_ref",
+        "target_scope"
+      ],
+      "properties": {
+        "continuity_level": {
+          "enum": [
+            "individual",
+            "relational",
+            "shared_memory",
+            "system"
+          ]
+        },
+        "actor_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relationship_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target_scope": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "rollbackRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_application_ref",
+        "rollback_plan_ref",
+        "expected_new_state"
+      ],
+      "properties": {
+        "target_application_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rollback_plan_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_new_state": {
+          "const": "rollback_pending"
+        }
+      }
+    },
+    "supersessionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "superseding_target_ref",
+        "superseding_target_digest"
+      ],
+      "properties": {
+        "superseding_target_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "superseding_target_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        }
+      }
+    }
+  }
+}

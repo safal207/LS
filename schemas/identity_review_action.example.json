@@ -1,0 +1,90 @@
+{
+  "schema_version": "identity_review_action.v0.1",
+  "action_id": "ira_2026_06_25_competence_publish_rollback_001",
+  "created_at": "2026-06-25T12:20:00Z",
+  "idempotency_key": "human:alex|rollback|snapshot:ids_2026_06_25_agent_assistant_worker_001|update:iur_2026_06_25_competence_publish_001",
+  "actor": {
+    "actor_id": "human:alex",
+    "actor_type": "human",
+    "role": "identity_reviewer",
+    "authenticated_session_ref": "review-session:2026-06-25:alex:001"
+  },
+  "snapshot_binding": {
+    "snapshot_id": "ids_2026_06_25_agent_assistant_worker_001",
+    "snapshot_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "snapshot_time": "2026-06-25T10:35:00Z",
+    "reconstruction_as_of": "2026-06-25T10:35:00Z"
+  },
+  "target": {
+    "target_kind": "identity_update_record",
+    "target_ref": "iur_2026_06_25_competence_publish_001",
+    "target_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    "observed_state": "active",
+    "scope": {
+      "continuity_level": "individual",
+      "actor_ref": "agent:assistant-worker",
+      "relationship_ref": null,
+      "target_scope": "github-doc-publication-workflow"
+    },
+    "display_binding": {
+      "snapshot_section": "active_identity_influences.competence",
+      "influence_id": "active_competence_publish_docs"
+    }
+  },
+  "action": "rollback",
+  "reason": {
+    "code": "material_counterevidence",
+    "text": "New verified counterevidence weakens the active publication-workflow competence influence and requires governed rollback review."
+  },
+  "provenance_refs": [
+    "tar_2026_06_25_competence_publish_001",
+    "ipc_2026_06_25_competence_publish_001",
+    "gd_2026_06_25_competence_publish_approve_001",
+    "iur_2026_06_25_competence_publish_001",
+    "identity_application:competence_publish_001"
+  ],
+  "evidence_considered": {
+    "supporting_refs": [
+      "vep_publish_001",
+      "vep_publish_002",
+      "vep_publish_003"
+    ],
+    "failure_refs": [
+      "vep_publish_004"
+    ],
+    "contradicting_refs": [
+      "vep_publish_005"
+    ],
+    "counterevidence_refs": [
+      "vep_publish_005"
+    ],
+    "superseded_refs": [
+      "vep_publish_000_old"
+    ]
+  },
+  "review_context": {
+    "expected_handoff": "ROUTE_TO_ROLLBACK_GOVERNANCE",
+    "governance_case_ref": null,
+    "requires_fresh_revalidation": true
+  },
+  "rollback_request": {
+    "target_application_ref": "identity_application:competence_publish_001",
+    "rollback_plan_ref": "rollback_plan:competence_publish_candidate_v0_1",
+    "expected_new_state": "rollback_pending"
+  },
+  "supersession_request": null,
+  "authority_effects": {
+    "identity_update_approved": false,
+    "identity_patch_created": false,
+    "identity_update_applied": false,
+    "stable_identity_mutated": false,
+    "execution_authorized": false,
+    "policy_bypass_granted": false,
+    "downstream_governance_required": true
+  },
+  "ui_context": {
+    "view_id": "identity-dashboard:agent-assistant-worker",
+    "selected_snapshot_id": "ids_2026_06_25_agent_assistant_worker_001",
+    "locale": "ru-RU"
+  }
+}
