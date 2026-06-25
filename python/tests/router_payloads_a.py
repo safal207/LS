@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from typing import Optional
 
-def payload_a(route: str) -> dict[str, object] | None:
+
+def payload_a(route: str) -> Optional[dict[str, object]]:
     if route == "relationships.loss":
         return {
             "schema_version": "trusted_runtime.relationship_loss_event.v0.1",
