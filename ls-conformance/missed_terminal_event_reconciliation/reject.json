@@ -1,0 +1,33 @@
+{
+  "fixture_family": "missed_terminal_event_reconciliation",
+  "type": "reject",
+  "vectors": [
+    {
+      "id": "reject_push_only_terminal_state",
+      "description": "Terminal state exists only as a live push event, so a client that missed it has no bounded recovery path.",
+      "input": {
+        "server_terminal_state": "completed",
+        "terminal_event_delivered_to_client": false,
+        "notification_sequence_gap_detected": true,
+        "terminal_state_pull_available": false
+      },
+      "expected": {
+        "client_converges": false,
+        "failure_reason": "push_only_terminal_state"
+      }
+    },
+    {
+      "id": "reject_resume_as_truth_oracle",
+      "description": "Client must call resume merely to discover that the turn had already reached terminal state.",
+      "input": {
+        "server_terminal_state": "completed",
+        "terminal_state_pull_available": false,
+        "resume_required_to_discover_terminal_state": true
+      },
+      "expected": {
+        "conformance_pass": false,
+        "failure_reason": "resume_used_as_reconciliation_truth_oracle"
+      }
+    }
+  ]
+}
