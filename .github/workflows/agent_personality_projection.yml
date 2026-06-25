@@ -1,0 +1,66 @@
+name: Agent Personality Projection
+
+on:
+  push:
+    branches:
+      - "feat/agent-personality-projection-v0-1"
+  pull_request:
+    paths:
+      - "python/modules/trusted_runtime/agent_personality_projection.py"
+      - "python/tests/test_trusted_runtime_agent_personality_projection.py"
+      - "schemas/trusted_runtime/agent_personality_projection.schema.json"
+      - "scripts/run_agent_personality_projection.py"
+      - "docs/AGENT_PERSONALITY_PROJECTION_V0_1.md"
+      - ".github/workflows/agent_personality_projection.yml"
+
+concurrency:
+  group: agent-personality-projection-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema pytest ruff
+
+      - name: Ruff personality projection
+        run: |
+          ruff check \
+            python/modules/trusted_runtime/agent_personality_projection.py \
+            python/tests/test_trusted_runtime_agent_personality_projection.py \
+            scripts/run_agent_personality_projection.py
+
+      - name: Compile personality projection
+        run: |
+          python -m py_compile \
+            python/modules/trusted_runtime/agent_personality_projection.py \
+            scripts/run_agent_personality_projection.py
+
+      - name: Run personality projection tests
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python -m pytest \
+              python/tests/test_trusted_runtime_agent_personality_projection.py
+
+      - name: Run deterministic demo
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/run_agent_personality_projection.py \
+              > /tmp/agent-personality-projection.json
+          python -m json.tool /tmp/agent-personality-projection.json > /dev/null
