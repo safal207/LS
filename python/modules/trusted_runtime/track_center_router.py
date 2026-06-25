@@ -8,6 +8,15 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Mapping, Optional, Union
 
+from .capabilities_constraints_track_center import (
+    CAPABILITIES_TRACK,
+    CapabilityConstraintEvent,
+    CapabilityConstraintResult,
+    CapabilityEventType,
+    CapabilityScope,
+    CapabilityStatus,
+    process_capability_event,
+)
 from .continuity_coordinator import EntityStatus, KnowledgeClass
 from .errors_learning_track_center import (
     ERRORS_TRACK,
@@ -62,6 +71,7 @@ RoutedTrackResult = Union[
     ValueTrackResult,
     ErrorLearningResult,
     GoalCommitmentResult,
+    CapabilityConstraintResult,
 ]
 
 
@@ -71,6 +81,7 @@ class TrackCenterRoute(str, Enum):
     VALUES_EVIDENCE = VALUES_TRACK
     ERRORS_LEARNING = ERRORS_TRACK
     GOALS_COMMITMENTS = GOALS_TRACK
+    CAPABILITIES_CONSTRAINTS = CAPABILITIES_TRACK
 
 
 class RouterDecision(str, Enum):
@@ -192,6 +203,10 @@ class TrackCenterRouteResult:
             "goal_registry_mutation_allowed": False,
             "obligation_assignment_allowed": False,
             "work_scheduling_allowed": False,
+            "capability_registry_mutation_allowed": False,
+            "access_denial_allowed": False,
+            "permanent_incapacity_assignment_allowed": False,
+            "training_scheduling_allowed": False,
             "stable_identity_update_allowed": False,
             "execution_authorized": False,
             "policy_version": self.policy_version,
@@ -294,11 +309,19 @@ def _dispatch(
             processed_at=processed_at,
             processed_by="runtime:errors-learning-track-center",
         )
-    return process_goal_event(
-        _goal_event(envelope.payload),
-        processed_at=processed_at,
-        processed_by="runtime:goals-commitments-track-center",
-    )
+    if envelope.route_key == GOALS_TRACK:
+        return process_goal_event(
+            _goal_event(envelope.payload),
+            processed_at=processed_at,
+            processed_by="runtime:goals-commitments-track-center",
+        )
+    if envelope.route_key == CAPABILITIES_TRACK:
+        return process_capability_event(
+            _capability_event(envelope.payload),
+            processed_at=processed_at,
+            processed_by="runtime:capabilities-constraints-track-center",
+        )
+    raise ValueError("unsupported track-center route")
 
 
 def _relationship_event(payload: Mapping[str, Any]) -> RelationshipLossEvent:
@@ -430,6 +453,35 @@ def _goal_event(payload: Mapping[str, Any]) -> GoalCommitmentEvent:
     )
 
 
+def _capability_event(payload: Mapping[str, Any]) -> CapabilityConstraintEvent:
+    return CapabilityConstraintEvent(
+        event_id=str(payload["event_id"]),
+        capability_id=str(payload["capability_id"]),
+        event_type=CapabilityEventType(str(payload["event_type"])),
+        capability_status=CapabilityStatus(str(payload["capability_status"])),
+        capability_scope=CapabilityScope(str(payload["capability_scope"])),
+        knowledge_class=KnowledgeClass(str(payload["knowledge_class"])),
+        statement=str(payload["statement"]),
+        occurred_at=str(payload["occurred_at"]),
+        confidence=float(payload["confidence"]),
+        repeat_count=int(payload["repeat_count"]),
+        evidence_refs=_refs(payload, "evidence_refs"),
+        context_refs=_refs(payload, "context_refs"),
+        capability_refs=_refs(payload, "capability_refs"),
+        resource_refs=_refs(payload, "resource_refs"),
+        identity_candidate_statement=_optional(payload, "identity_candidate_statement"),
+        identity_scope=_optional(payload, "identity_scope"),
+        identity_repeat_key=_optional(payload, "identity_repeat_key"),
+        metadata=_metadata(payload, "capability"),
+        schema_version=str(
+            payload.get(
+                "schema_version",
+                "trusted_runtime.capability_constraint_event.v0.1",
+            )
+        ),
+    )
+
+
 def _refs(payload: Mapping[str, Any], field_name: str) -> tuple[str, ...]:
     raw = payload[field_name]
     if isinstance(raw, (str, bytes)):
@@ -456,6 +508,7 @@ def _diagnostic_for_route(route: str) -> str:
         VALUES_TRACK: "value_payload_invalid",
         ERRORS_TRACK: "error_learning_payload_invalid",
         GOALS_TRACK: "goal_commitment_payload_invalid",
+        CAPABILITIES_TRACK: "capability_constraint_payload_invalid",
     }[route]
 
 
