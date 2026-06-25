@@ -1,0 +1,70 @@
+name: Identity Personality Acceptance
+
+on:
+  push:
+    branches:
+      - "feat/identity-personality-e2e-735"
+  pull_request:
+    paths:
+      - "python/modules/trusted_runtime/identity_personality_acceptance.py"
+      - "python/tests/test_trusted_runtime_identity_personality_acceptance.py"
+      - "scripts/run_identity_personality_acceptance.py"
+      - "docs/IDENTITY_PERSONALITY_ACCEPTANCE.md"
+      - ".github/workflows/identity_personality_acceptance.yml"
+
+concurrency:
+  group: identity-personality-acceptance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema pytest ruff
+
+      - name: Ruff acceptance path
+        run: |
+          ruff check \
+            python/modules/trusted_runtime/identity_personality_acceptance.py \
+            python/tests/test_trusted_runtime_identity_personality_acceptance.py \
+            scripts/run_identity_personality_acceptance.py
+
+      - name: Compile acceptance path
+        run: |
+          python -m py_compile \
+            python/modules/trusted_runtime/identity_personality_acceptance.py \
+            scripts/run_identity_personality_acceptance.py
+
+      - name: Run focused acceptance tests
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python -m pytest \
+              python/tests/test_trusted_runtime_identity_personality_acceptance.py
+
+      - name: Run one-command acceptance demo
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/run_identity_personality_acceptance.py \
+              --output /tmp/identity-personality-acceptance.json \
+              --markdown-output /tmp/identity-personality.md
+          python -m json.tool /tmp/identity-personality-acceptance.json > /dev/null
+          grep -F "Execution authorization: **false**" \
+            /tmp/identity-personality.md
+          grep -F "Identity approval or application: **false**" \
+            /tmp/identity-personality.md
