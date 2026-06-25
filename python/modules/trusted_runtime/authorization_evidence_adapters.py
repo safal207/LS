@@ -9,6 +9,8 @@ from .authorization_contract import (
     digest,
 )
 from .capabilities_constraints_track_center import CapabilityConstraintResult
+from .capability_contract import CapabilityEventType
+from .roles_permissions_contract import RolePermissionEventType
 from .roles_permissions_track_center import RolePermissionResult
 
 
@@ -18,9 +20,11 @@ def capability_evidence_from_result(
     subject_id: str,
     subject_binding_ref: str,
 ) -> CapabilityEvidence:
-    """Bind a capability result to a subject using separate provenance."""
+    """Bind a current capability claim to a subject using separate provenance."""
     if not subject_id or not subject_binding_ref:
         raise ValueError("subject_id and subject_binding_ref are required")
+    if result.event.event_type is not CapabilityEventType.CURRENT_CAPABILITY_CLAIM:
+        raise ValueError("authorization requires a current capability claim")
     return CapabilityEvidence(
         result_id=result.result_id,
         assessment_id=result.assessment.assessment_id,
@@ -37,8 +41,10 @@ def capability_evidence_from_result(
 def authority_evidence_from_result(
     result: RolePermissionResult,
 ) -> AuthorityEvidence:
-    """Preserve the role/permission result's scoped subject and provenance."""
+    """Adapt only a current, scoped authority claim."""
     event = result.event
+    if event.event_type is not RolePermissionEventType.CURRENT_AUTHORITY_CLAIM:
+        raise ValueError("authorization requires a current authority claim")
     return AuthorityEvidence(
         result_id=result.result_id,
         assessment_id=result.assessment.assessment_id,
