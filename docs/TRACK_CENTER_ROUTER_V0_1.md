@@ -7,7 +7,7 @@ events.
 
 It receives an explicit `TrackCenterEnvelope`, performs exact route matching,
 and delegates the payload to the selected track center. It never infers a route
-from free-form text and never grants identity, track-state, task-scheduling, or
+from free-form text and never grants identity, track-state, priority, task, or
 execution authority.
 
 ## Runtime position
@@ -28,6 +28,7 @@ TrackCenterEnvelope
 |---|---|
 | `relationships.loss` | Relationship/Loss Track Center v0.1 |
 | `projects.lifecycle` | Projects Track Center v0.1 |
+| `values.evidence` | Values Track Center v0.1 |
 
 The route set is explicit. Adding a center requires reviewed code, schema,
 tests, deterministic artifacts, and authority-boundary assertions.
@@ -69,7 +70,8 @@ versioned event contract.
 Bounded diagnostic codes are route-specific:
 
 - `relationship_loss_payload_invalid`;
-- `project_payload_invalid`.
+- `project_payload_invalid`;
+- `value_payload_invalid`.
 
 The diagnostic never echoes raw payload content.
 
@@ -79,7 +81,7 @@ The diagnostic never echoes raw payload content.
 {
   "schema_version": "trusted_runtime.track_center_envelope.v0.1",
   "envelope_id": "track-envelope:123",
-  "route_key": "projects.lifecycle",
+  "route_key": "values.evidence",
   "payload": {},
   "submitted_at": "2026-06-25T05:00:00Z",
   "source_refs": ["source:event-bus:123"],
@@ -102,11 +104,12 @@ The deterministic route-result ID binds:
 - bounded diagnostic code;
 - router policy version.
 
-Replayable lineage now supports both paths:
+Replayable lineage now supports three paths:
 
 ```text
 envelope -> route result -> relationship/loss result -> continuity assessment
 envelope -> route result -> project result -> continuity assessment
+envelope -> route result -> value result -> continuity assessment
 ```
 
 ## Authority boundary
@@ -118,6 +121,8 @@ Every route result states:
   "relational_self_mutation_allowed": false,
   "project_registry_mutation_allowed": false,
   "task_scheduling_allowed": false,
+  "value_registry_mutation_allowed": false,
+  "priority_mutation_allowed": false,
   "stable_identity_update_allowed": false,
   "execution_authorized": false
 }
@@ -135,8 +140,8 @@ v0.1 does not:
 - infer a track from natural language;
 - choose among centers using an LLM;
 - execute fallback routing;
-- mutate relationship or project state;
-- schedule tasks;
+- mutate relationship, project, or value state;
+- schedule tasks or reorder priorities;
 - retry malformed payloads automatically;
 - authorize tools or external effects;
 - dynamically load unreviewed track-center plugins.
