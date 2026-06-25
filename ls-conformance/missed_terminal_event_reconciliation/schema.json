@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/ls-conformance/missed_terminal_event_reconciliation/schema.json",
+  "title": "missed_terminal_event_reconciliation",
+  "type": "object",
+  "required": [
+    "client_connected",
+    "server_terminal_state",
+    "terminal_event_delivered_to_client",
+    "notification_sequence_gap_detected",
+    "terminal_state_pull_available"
+  ],
+  "properties": {
+    "client_connected": { "type": "boolean" },
+    "stream_interrupted": { "type": "boolean" },
+    "reconnected": { "type": "boolean" },
+    "server_terminal_state": {
+      "type": "string",
+      "enum": ["unknown", "running", "completed", "failed", "cancelled", "expired"]
+    },
+    "client_terminal_state_before_pull": {
+      "type": "string",
+      "enum": ["unknown", "running", "completed", "failed", "cancelled", "expired"]
+    },
+    "client_terminal_state_after_pull": {
+      "type": "string",
+      "enum": ["unknown", "running", "completed", "failed", "cancelled", "expired"]
+    },
+    "terminal_event_delivered_to_client": { "type": "boolean" },
+    "notification_sequence_gap_detected": { "type": "boolean" },
+    "terminal_state_pull_available": { "type": "boolean" },
+    "terminal_state_pull": {
+      "type": "string",
+      "enum": ["none", "thread_read", "get_turn_state", "thread_read_or_get_turn_state"]
+    },
+    "requires_resume_as_truth_oracle": { "type": "boolean" },
+    "resume_required_to_discover_terminal_state": { "type": "boolean" },
+    "duplicate_side_effects": { "type": "boolean" },
+    "bounded_recovery": { "type": "boolean" },
+    "replay_required": { "type": "boolean" }
+  },
+  "additionalProperties": true
+}
