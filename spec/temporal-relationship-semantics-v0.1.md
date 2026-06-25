@@ -54,13 +54,44 @@ CLAIMED / RATIFIED / DISPUTED / SUPERSEDED / EXPIRED / REVOKED
 1. A co-mention is not a relationship.
 2. One participant's assertion cannot establish mutual friendship or consent.
 3. Historical truth does not imply current validity.
-4. Revoked or expired delegation remains auditable but inactive.
-5. Supersession preserves history without making old and new states current.
-6. Cardinality-one contradictions produce `CONFLICTED`, never last-write-wins.
-7. A disputed edge cannot be returned as settled current context.
-8. Private edges cannot be promoted to broader scopes without explicit authority.
-9. Even a current ratified delegation edge does not authorize execution at the
-   memory layer.
+4. A future-dated edge is neither current nor historical before `valid_from`.
+5. Revoked or expired delegation remains auditable but inactive.
+6. A revoked edge for one target does not poison a distinct, independently ratified current target.
+7. Supersession preserves history without making old and new states current.
+8. Cardinality-one contradictions produce `CONFLICTED`, never last-write-wins.
+9. A disputed edge cannot be returned as settled current context.
+10. A weak mention cannot downgrade a stronger ratified relationship in the same visible scope.
+11. Private edges cannot be promoted to broader scopes without explicit authority.
+12. Every `RATIFIED` edge requires an explicit ratification reference.
+13. Supersession references must resolve to an older `SUPERSEDED` edge with the same source and relation type.
+14. Even a current ratified delegation edge does not authorize execution at the memory layer.
+
+## Temporal classification
+
+The evaluator classifies matching edges into three disjoint sets:
+
+- `current` — `valid_from <= now`, not expired/revoked/superseded, and not past `valid_until`;
+- `historical` — expired, revoked, superseded, or past `valid_until`;
+- `future` — `valid_from > now`.
+
+Future edges are suppressed from current results and produce
+`RELATIONSHIP_NOT_YET_VALID` when no current or historical edge is available.
+They must never be mislabeled as history.
+
+## Resolution precedence
+
+For the queried source entity and relation type:
+
+1. classify current, historical, and future edges;
+2. reject current unauthorized scope promotion;
+3. preserve revoked authority history, rejecting only when no valid current authority-sensitive edge exists or when revocation conflicts with the same target;
+4. choose the first visible scope from explicit query precedence;
+5. abstain on disputed winners;
+6. suppress mention-only evidence when stronger substantive evidence exists;
+7. prefer ratified evidence over weaker claims for the same target;
+8. enforce reciprocity for mutual relations;
+9. detect cardinality-one contradictions;
+10. return current context or a clearly labeled claim while retaining history.
 
 ## Decisions
 
@@ -68,29 +99,31 @@ CLAIMED / RATIFIED / DISPUTED / SUPERSEDED / EXPIRED / REVOKED
 - `RETURN_CLAIM` — a current unratified claim may be returned as a claim.
 - `RETURN_HISTORICAL` — relationship evidence is valid history but not current.
 - `CONFLICTED` — current exclusive edges disagree.
-- `ABSTAIN` — mutuality, provenance, or settled state is insufficient.
-- `REJECT` — a hard boundary such as revoked delegation or unauthorized scope
-  promotion is violated.
+- `ABSTAIN` — mutuality, provenance, temporal readiness, or settled state is insufficient.
+- `REJECT` — a hard boundary such as revoked delegation, revocation conflict, or unauthorized scope promotion is violated.
 
 ## Fixture suites
 
-The profile freezes ten cases across five digest-pinned suites:
+The profile freezes thirteen cases across five digest-pinned suites:
 
 ### Friendship
 
 - mention does not create `friend_of`;
 - unilateral friendship does not become mutual;
-- mutually confirmed friendship becomes current context only.
+- mutually confirmed friendship becomes current context only;
+- a later co-mention cannot downgrade an already ratified friendship.
 
 ### Temporal history
 
 - former employment remains historical;
-- a new manager edge supersedes the old edge without deleting history.
+- a new manager edge supersedes the old edge without deleting history;
+- a future employment edge is not returned as historical before its start time.
 
 ### Authority-sensitive relationships
 
-- revoked delegation is rejected;
-- active delegation is still non-authoritative memory context.
+- revoked delegation is rejected when it is the only relevant delegation state;
+- active delegation is still non-authoritative memory context;
+- revoked delegation to one target does not poison a separate active target.
 
 ### Conflict and dispute
 
@@ -110,10 +143,10 @@ python tools/run_temporal_relationship_semantics_fixtures.py
 The command:
 
 1. verifies the pinned SHA-256 fixture set;
-2. validates every suite against Draft 2020-12 JSON Schema with date-time
-   format checks;
-3. evaluates all vectors deterministically;
-4. emits:
+2. validates every suite against Draft 2020-12 JSON Schema with date-time format checks;
+3. validates ratification, supersession references, and disjoint result classifications;
+4. evaluates all vectors deterministically;
+5. emits:
 
 ```text
 artifacts/temporal-relationship-semantics-conformance.json
