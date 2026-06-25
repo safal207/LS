@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Optional
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -29,7 +30,7 @@ def _event(
     *,
     event_type: ProjectEventType,
     project_status: ProjectStatus,
-    previous_status: ProjectStatus | None = None,
+    previous_status: Optional[ProjectStatus] = None,
     knowledge_class: KnowledgeClass = KnowledgeClass.FACT,
     evidence_refs: tuple[str, ...] = ("evidence:project:1",),
     with_identity_candidate: bool = False,
@@ -182,8 +183,14 @@ def test_valid_pause_and_resume_transitions() -> None:
         previous_status=ProjectStatus.PAUSED,
     )
 
-    assert _process(paused).assessment.decision is ContinuityDecision.ACCEPT_BOUNDED_OBSERVATION
-    assert _process(resumed).assessment.decision is ContinuityDecision.ACCEPT_BOUNDED_OBSERVATION
+    assert (
+        _process(paused).assessment.decision
+        is ContinuityDecision.ACCEPT_BOUNDED_OBSERVATION
+    )
+    assert (
+        _process(resumed).assessment.decision
+        is ContinuityDecision.ACCEPT_BOUNDED_OBSERVATION
+    )
 
 
 def test_invalid_lifecycle_transition_fails_closed() -> None:
