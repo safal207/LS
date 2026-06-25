@@ -9,12 +9,14 @@ from jsonschema import Draft202012Validator
 
 from router_payloads_a import payload_a
 from router_payloads_b import payload_b
+from router_payloads_c import role_payload
 from trusted_runtime.capabilities_constraints_track_center import CAPABILITIES_TRACK
 from trusted_runtime.continuity_coordinator import ContinuityDecision
 from trusted_runtime.errors_learning_track_center import ERRORS_TRACK
 from trusted_runtime.goals_commitments_track_center import GOALS_TRACK
 from trusted_runtime.projects_track_center import PROJECTS_TRACK
 from trusted_runtime.relationship_loss_track_center import RELATIONSHIP_LOSS_TRACK
+from trusted_runtime.roles_permissions_track_center import ROLES_PERMISSIONS_TRACK
 from trusted_runtime.track_center_router import (
     RouterDecision,
     TrackCenterEnvelope,
@@ -32,10 +34,13 @@ ROUTES = (
     ERRORS_TRACK,
     GOALS_TRACK,
     CAPABILITIES_TRACK,
+    ROLES_PERMISSIONS_TRACK,
 )
 
 
 def _payload(route: str) -> dict[str, object]:
+    if route == ROLES_PERMISSIONS_TRACK:
+        return role_payload()
     primary = payload_a(route)
     return primary if primary is not None else payload_b(route)
 
@@ -105,6 +110,41 @@ def test_capability_hold_and_block_are_preserved() -> None:
     )
 
 
+def test_role_authority_hold_and_block_are_preserved() -> None:
+    held_payload = role_payload()
+    held_payload.update(
+        {
+            "event_type": "CURRENT_AUTHORITY_CLAIM",
+            "authority_status": "ACTIVE",
+            "authority_basis": "ROLE_ASSIGNMENT",
+            "repeat_count": 1,
+            "evidence_refs": ["evidence:role"],
+            "provenance_refs": ["provenance:role"],
+            "context_refs": ["context:production"],
+            "observer_refs": ["observer:security"],
+            "identity_candidate_statement": None,
+            "identity_scope": None,
+            "identity_repeat_key": None,
+        }
+    )
+    blocked_payload = dict(held_payload)
+    blocked_payload.update(
+        {
+            "authority_status": "REVOKED",
+            "authority_basis": "DIRECT_PERMISSION",
+        }
+    )
+    held = _route(ROLES_PERMISSIONS_TRACK, held_payload)
+    blocked = _route(ROLES_PERMISSIONS_TRACK, blocked_payload)
+    assert held.routed_result is not None
+    assert blocked.routed_result is not None
+    assert held.routed_result.assessment.decision is ContinuityDecision.HOLD_FOR_REVIEW
+    assert (
+        blocked.routed_result.assessment.decision
+        is ContinuityDecision.BLOCK_FALSE_PRESENCE
+    )
+
+
 def test_unknown_route_is_held() -> None:
     result = _route("unknown.route", {})
     assert result.decision is RouterDecision.HOLD_UNKNOWN_ROUTE
@@ -121,6 +161,7 @@ def test_unknown_route_is_held() -> None:
         (ERRORS_TRACK, "error_id", "error_learning_payload_invalid"),
         (GOALS_TRACK, "goal_id", "goal_commitment_payload_invalid"),
         (CAPABILITIES_TRACK, "capability_id", "capability_constraint_payload_invalid"),
+        (ROLES_PERMISSIONS_TRACK, "authority_id", "role_permission_payload_invalid"),
     ],
 )
 def test_malformed_payload_is_held(route: str, field: str, diagnostic: str) -> None:
@@ -149,6 +190,13 @@ def test_router_never_grants_authority() -> None:
         "capability_restriction_allowed",
         "global_limitation_assignment_allowed",
         "training_scheduling_allowed",
+        "role_registry_mutation_allowed",
+        "permission_registry_mutation_allowed",
+        "access_grant_allowed",
+        "access_denial_allowed",
+        "approval_allowed",
+        "delegation_allowed",
+        "policy_mutation_allowed",
         "stable_identity_update_allowed",
         "execution_authorized",
     )
@@ -157,9 +205,9 @@ def test_router_never_grants_authority() -> None:
         assert all(result[field] is False for field in denied)
 
 
-def test_capability_route_is_deterministic_and_matches_schema() -> None:
-    first = _route(CAPABILITIES_TRACK)
-    second = _route(CAPABILITIES_TRACK)
+def test_roles_route_is_deterministic_and_matches_schema() -> None:
+    first = _route(ROLES_PERMISSIONS_TRACK)
+    second = _route(ROLES_PERMISSIONS_TRACK)
     assert first.route_result_id == second.route_result_id
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
     assert list(Draft202012Validator(schema).iter_errors(first.to_dict())) == []
