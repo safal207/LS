@@ -8,6 +8,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from trusted_runtime.continuity_coordinator import ContinuityDecision
+from trusted_runtime.errors_learning_track_center import ERRORS_TRACK
 from trusted_runtime.projects_track_center import PROJECTS_TRACK
 from trusted_runtime.relationship_loss_track_center import RELATIONSHIP_LOSS_TRACK
 from trusted_runtime.track_center_router import (
@@ -59,22 +60,43 @@ def _payload(route: str) -> dict[str, object]:
             "identity_repeat_key": "project:ls:evidence-first",
             "metadata": {},
         }
+    if route == VALUES_TRACK:
+        return {
+            "schema_version": "trusted_runtime.value_event.v0.1",
+            "event_id": "value-event:router",
+            "value_key": "value:evidence-first",
+            "event_type": "VALUE_REAFFIRMED",
+            "value_status": "ACTIVE",
+            "knowledge_class": "FACT",
+            "statement": "Evidence should precede confident conclusions.",
+            "occurred_at": "2026-06-25T05:00:00Z",
+            "confidence": 0.92,
+            "repeat_count": 3,
+            "evidence_refs": ["evidence:value:work", "evidence:value:family"],
+            "context_refs": ["context:work", "context:family"],
+            "identity_candidate_statement": "Prefer evidence before conclusions.",
+            "identity_scope": "values",
+            "identity_repeat_key": "value:evidence-first",
+            "metadata": {},
+        }
     return {
-        "schema_version": "trusted_runtime.value_event.v0.1",
-        "event_id": "value-event:router",
-        "value_key": "value:evidence-first",
-        "event_type": "VALUE_REAFFIRMED",
-        "value_status": "ACTIVE",
+        "schema_version": "trusted_runtime.error_learning_event.v0.1",
+        "event_id": "error-event:router",
+        "error_id": "error:checkout-timeout",
+        "event_type": "ERROR_RECURRENCE_CONFIRMED",
+        "error_status": "RECURRING",
+        "outcome_class": "FAILED",
         "knowledge_class": "FACT",
-        "statement": "Evidence should precede confident conclusions.",
+        "statement": "A repeated failure produced a bounded learning signal.",
         "occurred_at": "2026-06-25T05:00:00Z",
-        "confidence": 0.92,
-        "repeat_count": 3,
-        "evidence_refs": ["evidence:value:work", "evidence:value:family"],
-        "context_refs": ["context:work", "context:family"],
-        "identity_candidate_statement": "Prefer evidence before conclusions.",
-        "identity_scope": "values",
-        "identity_repeat_key": "value:evidence-first",
+        "confidence": 0.93,
+        "occurrence_count": 2,
+        "evidence_refs": ["evidence:error:api", "evidence:error:ui"],
+        "context_refs": ["context:api", "context:ui"],
+        "observer_refs": ["observer:qa", "observer:sre"],
+        "identity_candidate_statement": "Verify timeout assumptions before release.",
+        "identity_scope": "errors.learning",
+        "identity_repeat_key": "error:timeout:verification",
         "metadata": {},
     }
 
@@ -98,12 +120,13 @@ def test_supported_routes_are_explicit() -> None:
         RELATIONSHIP_LOSS_TRACK,
         PROJECTS_TRACK,
         VALUES_TRACK,
+        ERRORS_TRACK,
     )
 
 
 @pytest.mark.parametrize(
     "route",
-    [RELATIONSHIP_LOSS_TRACK, PROJECTS_TRACK, VALUES_TRACK],
+    [RELATIONSHIP_LOSS_TRACK, PROJECTS_TRACK, VALUES_TRACK, ERRORS_TRACK],
 )
 def test_valid_payload_routes_exactly(route: str) -> None:
     result = _route(route)
@@ -116,30 +139,31 @@ def test_valid_payload_routes_exactly(route: str) -> None:
     )
 
 
-def test_value_hold_and_block_are_preserved() -> None:
-    contested = _payload(VALUES_TRACK)
-    contested.update(
+def test_error_hold_and_block_are_preserved() -> None:
+    disputed = _payload(ERRORS_TRACK)
+    disputed.update(
         {
-            "event_type": "CURRENT_VALUE_CLAIM",
-            "value_status": "CONTESTED",
+            "event_type": "CURRENT_BLAME_CLAIM",
+            "error_status": "DISPUTED",
+            "outcome_class": "UNEXPECTED",
+            "occurrence_count": 1,
+            "evidence_refs": ["evidence:error:claim"],
+            "context_refs": ["context:incident"],
+            "observer_refs": ["observer:qa"],
             "identity_candidate_statement": None,
             "identity_scope": None,
             "identity_repeat_key": None,
         }
     )
-    retired = dict(contested)
-    retired["value_status"] = "RETIRED"
-
-    contested_result = _route(VALUES_TRACK, contested)
-    retired_result = _route(VALUES_TRACK, retired)
-    assert contested_result.routed_result is not None
-    assert retired_result.routed_result is not None
+    resolved = dict(disputed)
+    resolved["error_status"] = "RESOLVED"
+    held = _route(ERRORS_TRACK, disputed)
+    blocked = _route(ERRORS_TRACK, resolved)
+    assert held.routed_result is not None
+    assert blocked.routed_result is not None
+    assert held.routed_result.assessment.decision is ContinuityDecision.HOLD_FOR_REVIEW
     assert (
-        contested_result.routed_result.assessment.decision
-        is ContinuityDecision.HOLD_FOR_REVIEW
-    )
-    assert (
-        retired_result.routed_result.assessment.decision
+        blocked.routed_result.assessment.decision
         is ContinuityDecision.BLOCK_FALSE_PRESENCE
     )
 
@@ -157,6 +181,7 @@ def test_unknown_route_is_held() -> None:
         (RELATIONSHIP_LOSS_TRACK, "subject_id", "relationship_loss_payload_invalid"),
         (PROJECTS_TRACK, "project_id", "project_payload_invalid"),
         (VALUES_TRACK, "value_key", "value_payload_invalid"),
+        (ERRORS_TRACK, "error_id", "error_learning_payload_invalid"),
     ],
 )
 def test_malformed_payload_is_held(route: str, field: str, diagnostic: str) -> None:
@@ -175,17 +200,25 @@ def test_router_never_grants_authority() -> None:
         "task_scheduling_allowed",
         "value_registry_mutation_allowed",
         "priority_mutation_allowed",
+        "incident_registry_mutation_allowed",
+        "blame_assignment_allowed",
+        "remediation_scheduling_allowed",
         "stable_identity_update_allowed",
         "execution_authorized",
     )
-    for route in (RELATIONSHIP_LOSS_TRACK, PROJECTS_TRACK, VALUES_TRACK):
+    for route in (
+        RELATIONSHIP_LOSS_TRACK,
+        PROJECTS_TRACK,
+        VALUES_TRACK,
+        ERRORS_TRACK,
+    ):
         result = _route(route).to_dict()
         assert all(result[field] is False for field in denied)
 
 
-def test_value_route_is_deterministic_and_matches_schema() -> None:
-    first = _route(VALUES_TRACK)
-    second = _route(VALUES_TRACK)
+def test_error_route_is_deterministic_and_matches_schema() -> None:
+    first = _route(ERRORS_TRACK)
+    second = _route(ERRORS_TRACK)
     assert first.route_result_id == second.route_result_id
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
     assert list(Draft202012Validator(schema).iter_errors(first.to_dict())) == []
