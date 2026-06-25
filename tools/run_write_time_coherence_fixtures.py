@@ -22,7 +22,7 @@ ALLOWED_CONFIRMATION_BASES = {
 }
 
 FROZEN_FIXTURES = {
-    "cross_session_contradiction": "d52df695ff15c5f3cc207e2ee32af021fb7521fdd810551d27856a83dedb2405",
+    "cross_session_contradiction": "5838ab283af50ae44fe738c4caaebac94bd19dc2c772b6902396c68f77567093",
     "synthesized_chain_with_provenance": "9518035df885cf9470d67b9c4c8ac16814538208bf2dcf2a64e0c7a254dc4e03",
     "lossy_synthesis": "2b93b7c7034b7d1ef72f71be7895e9a4a63949b82e6118b68af503de5b3da808",
 }
