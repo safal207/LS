@@ -1,6 +1,7 @@
 name: Relational temporal orientation conformance
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - "spec/relational-temporal-orientation-center-v0.1.md"
@@ -26,17 +27,61 @@ permissions:
 jobs:
   conformance:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
       - name: Install JSON Schema validator
         run: python -m pip install --disable-pip-version-check jsonschema==4.23.0
+      - name: Validate Draft 2020-12 schema
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from jsonschema import Draft202012Validator
+
+          schema = json.loads(
+              Path("schemas/relational-temporal-orientation-v0.1.schema.json")
+              .read_text(encoding="utf-8")
+          )
+          Draft202012Validator.check_schema(schema)
+          PY
+      - name: Compile deterministic evaluators
+        run: |
+          python -m py_compile tools/evaluate_relational_temporal_orientation.py
+          python -m py_compile tools/run_relational_temporal_orientation_fixtures.py
       - name: Validate and run RTOC fixtures
         run: |
+          mkdir -p artifacts
           python tools/run_relational_temporal_orientation_fixtures.py \
             schemas/relational-temporal-orientation-v0.1.schema.json \
             fixtures/relational-temporal-orientation/mandatory-v0.1.json \
             fixtures/relational-temporal-orientation/agent-agent-v0.1.json \
-            fixtures/relational-temporal-orientation/precedence-v0.1.json
+            fixtures/relational-temporal-orientation/precedence-v0.1.json \
+            | tee artifacts/rtoc-conformance-${{ matrix.python-version }}.json
+      - name: Verify non-authority boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          reports = sorted(Path("artifacts").glob("rtoc-conformance-*.json"))
+          assert reports, "missing RTOC conformance report"
+          for report_path in reports:
+              report = json.loads(report_path.read_text(encoding="utf-8"))
+              assert report["validated"] >= 13
+              assert report["failures"] == []
+              for result in report["results"]:
+                  assert result["execution_authorized"] is False
+                  assert result["downstream_gates_required"] is True
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rtoc-conformance-${{ matrix.python-version }}
+          path: artifacts/rtoc-conformance-${{ matrix.python-version }}.json
