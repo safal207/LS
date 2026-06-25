@@ -1,0 +1,39 @@
+{
+  "fixture_family": "credential_bound_tool_authority",
+  "type": "accept",
+  "vectors": [
+    {
+      "id": "accept_valid_credential_reaches_gateway",
+      "description": "A constrained tool call with a valid credential bound to the exact call reaches the gateway.",
+      "input": {
+        "credential_present": true,
+        "credential_expired": false,
+        "tool_name_matches": true,
+        "argument_commitment_matches": true,
+        "tenant_matches": true,
+        "constraint_profile_matches": true,
+        "decision_id_matches": true,
+        "authority_phase_valid": true
+      },
+      "expected": {
+        "upstream_reached": true,
+        "credential_reference_recorded": true,
+        "signed_decision_outcome_recorded": true
+      }
+    },
+    {
+      "id": "accept_deny_emits_positive_outcome",
+      "description": "A fail-closed credential denial emits a concrete GovernanceOutcome rather than silence.",
+      "input": {
+        "credential_present": false,
+        "constrained_tool_call": true,
+        "constraint_profile": "workspace-write-v1"
+      },
+      "expected": {
+        "upstream_reached": false,
+        "governance_outcome_emitted": true,
+        "decision_code_present": true
+      }
+    }
+  ]
+}
