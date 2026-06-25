@@ -12,6 +12,9 @@ PYTHON_ROOT = ROOT / "python"
 if str(PYTHON_ROOT) not in sys.path:
     sys.path.insert(0, str(PYTHON_ROOT))
 
+from modules.trusted_runtime.projects_track_center import (  # noqa: E402
+    PROJECTS_TRACK,
+)
 from modules.trusted_runtime.relationship_loss_track_center import (  # noqa: E402
     RELATIONSHIP_LOSS_TRACK,
 )
@@ -43,7 +46,7 @@ def relationship_payload(event_id: str) -> dict[str, Any]:
         "statement": "Remembered evidence-first discipline remains influential.",
         "occurred_at": "2026-06-25T05:00:00Z",
         "confidence": 0.86,
-        "evidence_refs": ["evidence:router-demo:1"],
+        "evidence_refs": ["evidence:router-demo:relationship"],
         "identity_candidate_statement": (
             "Preserve evidence-first discipline in bounded reviews."
         ),
@@ -53,35 +56,100 @@ def relationship_payload(event_id: str) -> dict[str, Any]:
     }
 
 
+def project_payload(
+    event_id: str,
+    *,
+    event_type: str = "PROJECT_LESSON_RETAINED",
+    project_status: str = "COMPLETED",
+    knowledge_class: str = "MEMORY",
+) -> dict[str, Any]:
+    lesson = event_type == "PROJECT_LESSON_RETAINED"
+    return {
+        "schema_version": "trusted_runtime.project_event.v0.1",
+        "event_id": event_id,
+        "project_id": "project:ls",
+        "event_type": event_type,
+        "project_status": project_status,
+        "previous_status": None,
+        "knowledge_class": knowledge_class,
+        "statement": "A bounded project observation for routing review.",
+        "occurred_at": "2026-06-25T05:00:00Z",
+        "confidence": 0.9,
+        "evidence_refs": ["evidence:router-demo:project"],
+        "identity_candidate_statement": (
+            "Preserve evidence-first delivery discipline." if lesson else None
+        ),
+        "identity_scope": "projects" if lesson else None,
+        "identity_repeat_key": (
+            "project:ls:evidence-first-delivery" if lesson else None
+        ),
+        "metadata": {"source": "track-center-router-demo"},
+    }
+
+
 def main() -> int:
     args = parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
 
-    valid = relationship_payload("relationship-event:router:valid")
-    invalid = relationship_payload("relationship-event:router:invalid")
-    invalid.pop("subject_id")
+    relationship = relationship_payload("relationship-event:router:valid")
+    project_lesson = project_payload("project-event:router:lesson")
+    project_paused = project_payload(
+        "project-event:router:paused-task",
+        event_type="CURRENT_TASK_CLAIM",
+        project_status="PAUSED",
+        knowledge_class="FACT",
+    )
+    project_closed = project_payload(
+        "project-event:router:closed-task",
+        event_type="CURRENT_TASK_CLAIM",
+        project_status="COMPLETED",
+        knowledge_class="INFERENCE",
+    )
+    invalid_project = dict(project_lesson)
+    invalid_project.pop("project_id")
 
     envelopes = (
         TrackCenterEnvelope(
-            envelope_id="track-envelope:valid",
+            envelope_id="track-envelope:relationship",
             route_key=RELATIONSHIP_LOSS_TRACK,
-            payload=valid,
+            payload=relationship,
             submitted_at="2026-06-25T05:10:00Z",
-            source_refs=("source:demo:valid",),
+            source_refs=("source:demo:relationship",),
+        ),
+        TrackCenterEnvelope(
+            envelope_id="track-envelope:project-lesson",
+            route_key=PROJECTS_TRACK,
+            payload=project_lesson,
+            submitted_at="2026-06-25T05:11:00Z",
+            source_refs=("source:demo:project-lesson",),
+        ),
+        TrackCenterEnvelope(
+            envelope_id="track-envelope:project-paused",
+            route_key=PROJECTS_TRACK,
+            payload=project_paused,
+            submitted_at="2026-06-25T05:12:00Z",
+            source_refs=("source:demo:project-paused",),
+        ),
+        TrackCenterEnvelope(
+            envelope_id="track-envelope:project-closed",
+            route_key=PROJECTS_TRACK,
+            payload=project_closed,
+            submitted_at="2026-06-25T05:13:00Z",
+            source_refs=("source:demo:project-closed",),
         ),
         TrackCenterEnvelope(
             envelope_id="track-envelope:unknown",
-            route_key="projects.future",
-            payload={"event_id": "project-event:future:1"},
-            submitted_at="2026-06-25T05:11:00Z",
+            route_key="values.future",
+            payload={"event_id": "future-event:1"},
+            submitted_at="2026-06-25T05:14:00Z",
             source_refs=("source:demo:unknown",),
         ),
         TrackCenterEnvelope(
-            envelope_id="track-envelope:invalid",
-            route_key=RELATIONSHIP_LOSS_TRACK,
-            payload=invalid,
-            submitted_at="2026-06-25T05:12:00Z",
-            source_refs=("source:demo:invalid",),
+            envelope_id="track-envelope:invalid-project",
+            route_key=PROJECTS_TRACK,
+            payload=invalid_project,
+            submitted_at="2026-06-25T05:15:00Z",
+            source_refs=("source:demo:invalid-project",),
         ),
     )
 
@@ -106,12 +174,15 @@ def main() -> int:
             {
                 "envelope_id": result.envelope_id,
                 "decision": result.decision.value,
+                "selected_route": result.selected_route,
                 "nested_continuity_decision": (
                     result.routed_result.assessment.decision.value
                     if result.routed_result
                     else None
                 ),
                 "relational_self_mutation_allowed": False,
+                "project_registry_mutation_allowed": False,
+                "task_scheduling_allowed": False,
                 "stable_identity_update_allowed": False,
                 "execution_authorized": False,
             }
