@@ -1,8 +1,9 @@
 """Deterministic fail-closed routing for LS track-center events.
 
 The router performs exact route matching only. It does not infer a route from
-free-form text, mutate identity, write Relational Self, or authorize execution.
-Known-route malformed payloads and unknown routes are held for review.
+free-form text, mutate identity, write track-center state, or authorize
+execution. Known-route malformed payloads and unknown routes are held for
+review.
 """
 
 from __future__ import annotations
@@ -11,9 +12,17 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Union
 
 from .continuity_coordinator import EntityStatus, KnowledgeClass
+from .projects_track_center import (
+    PROJECTS_TRACK,
+    ProjectEvent,
+    ProjectEventType,
+    ProjectStatus,
+    ProjectTrackResult,
+    process_project_event,
+)
 from .relationship_loss_track_center import (
     RELATIONSHIP_LOSS_TRACK,
     RelationshipEventType,
@@ -28,9 +37,12 @@ TRACK_CENTER_ROUTE_RESULT_VERSION = "trusted_runtime.track_center_route_result.v
 TRACK_CENTER_ROUTER_POLICY_VERSION = "track_center_router.v0.1"
 TRACK_CENTER_ROUTER_ID = "runtime:track-center-router"
 
+RoutedTrackResult = Union[RelationshipLossResult, ProjectTrackResult]
+
 
 class TrackCenterRoute(str, Enum):
     RELATIONSHIPS_LOSS = RELATIONSHIP_LOSS_TRACK
+    PROJECTS_LIFECYCLE = PROJECTS_TRACK
 
 
 class RouterDecision(str, Enum):
@@ -91,7 +103,7 @@ class TrackCenterRouteResult:
     selected_route: Optional[str]
     decision: RouterDecision
     reason_codes: tuple[RouterReason, ...]
-    routed_result: Optional[RelationshipLossResult]
+    routed_result: Optional[RoutedTrackResult]
     diagnostic_code: Optional[str]
     processed_at: str
     processed_by: str = TRACK_CENTER_ROUTER_ID
@@ -151,6 +163,8 @@ class TrackCenterRouteResult:
             ),
             "diagnostic_code": self.diagnostic_code,
             "relational_self_mutation_allowed": False,
+            "project_registry_mutation_allowed": False,
+            "task_scheduling_allowed": False,
             "stable_identity_update_allowed": False,
             "execution_authorized": False,
             "policy_version": self.policy_version,
@@ -178,17 +192,10 @@ def route_track_center_envelope(
         raise ValueError("processed_at and processed_by are required")
 
     selected_route: Optional[str] = None
-    routed_result: Optional[RelationshipLossResult] = None
+    routed_result: Optional[RoutedTrackResult] = None
     diagnostic_code: Optional[str] = None
 
-    if envelope.route_key != TrackCenterRoute.RELATIONSHIPS_LOSS.value:
-        decision = RouterDecision.HOLD_UNKNOWN_ROUTE
-        reason_codes = (
-            RouterReason.UNKNOWN_ROUTE,
-            RouterReason.NO_ROUTE_INFERENCE,
-        )
-        diagnostic_code = "unknown_track_center_route"
-    else:
+    if envelope.route_key == TrackCenterRoute.RELATIONSHIPS_LOSS.value:
         selected_route = TrackCenterRoute.RELATIONSHIPS_LOSS.value
         try:
             event = _relationship_event_from_mapping(envelope.payload)
@@ -204,6 +211,29 @@ def route_track_center_envelope(
         else:
             decision = RouterDecision.ROUTED
             reason_codes = (RouterReason.EXACT_ROUTE_MATCH,)
+    elif envelope.route_key == TrackCenterRoute.PROJECTS_LIFECYCLE.value:
+        selected_route = TrackCenterRoute.PROJECTS_LIFECYCLE.value
+        try:
+            project_event = _project_event_from_mapping(envelope.payload)
+            routed_result = process_project_event(
+                project_event,
+                processed_at=processed_at,
+                processed_by="runtime:projects-track-center",
+            )
+        except (KeyError, TypeError, ValueError):
+            decision = RouterDecision.HOLD_MALFORMED_PAYLOAD
+            reason_codes = (RouterReason.MALFORMED_PAYLOAD,)
+            diagnostic_code = "project_payload_invalid"
+        else:
+            decision = RouterDecision.ROUTED
+            reason_codes = (RouterReason.EXACT_ROUTE_MATCH,)
+    else:
+        decision = RouterDecision.HOLD_UNKNOWN_ROUTE
+        reason_codes = (
+            RouterReason.UNKNOWN_ROUTE,
+            RouterReason.NO_ROUTE_INFERENCE,
+        )
+        diagnostic_code = "unknown_track_center_route"
 
     result_payload = {
         "envelope_digest": envelope.envelope_digest,
@@ -241,14 +271,8 @@ def route_track_center_envelope(
 def _relationship_event_from_mapping(
     payload: Mapping[str, Any],
 ) -> RelationshipLossEvent:
-    evidence_refs_raw = payload["evidence_refs"]
-    if isinstance(evidence_refs_raw, (str, bytes)):
-        raise ValueError("evidence_refs must be a sequence")
-    evidence_refs = tuple(str(value) for value in evidence_refs_raw)
-
-    metadata_raw = payload.get("metadata", {})
-    if not isinstance(metadata_raw, Mapping):
-        raise ValueError("relationship metadata must be a mapping")
+    evidence_refs = _evidence_refs(payload)
+    metadata = _metadata(payload, "relationship")
 
     return RelationshipLossEvent(
         event_id=str(payload["event_id"]),
@@ -266,7 +290,7 @@ def _relationship_event_from_mapping(
         ),
         identity_scope=_optional_string(payload.get("identity_scope")),
         identity_repeat_key=_optional_string(payload.get("identity_repeat_key")),
-        metadata=dict(metadata_raw),
+        metadata=metadata,
         schema_version=str(
             payload.get(
                 "schema_version",
@@ -274,6 +298,53 @@ def _relationship_event_from_mapping(
             )
         ),
     )
+
+
+def _project_event_from_mapping(payload: Mapping[str, Any]) -> ProjectEvent:
+    evidence_refs = _evidence_refs(payload)
+    metadata = _metadata(payload, "project")
+    previous_status_value = payload.get("previous_status")
+    previous_status = (
+        ProjectStatus(str(previous_status_value))
+        if previous_status_value is not None
+        else None
+    )
+
+    return ProjectEvent(
+        event_id=str(payload["event_id"]),
+        project_id=str(payload["project_id"]),
+        event_type=ProjectEventType(str(payload["event_type"])),
+        project_status=ProjectStatus(str(payload["project_status"])),
+        previous_status=previous_status,
+        knowledge_class=KnowledgeClass(str(payload["knowledge_class"])),
+        statement=str(payload["statement"]),
+        occurred_at=str(payload["occurred_at"]),
+        confidence=float(payload["confidence"]),
+        evidence_refs=evidence_refs,
+        identity_candidate_statement=_optional_string(
+            payload.get("identity_candidate_statement")
+        ),
+        identity_scope=_optional_string(payload.get("identity_scope")),
+        identity_repeat_key=_optional_string(payload.get("identity_repeat_key")),
+        metadata=metadata,
+        schema_version=str(
+            payload.get("schema_version", "trusted_runtime.project_event.v0.1")
+        ),
+    )
+
+
+def _evidence_refs(payload: Mapping[str, Any]) -> tuple[str, ...]:
+    evidence_refs_raw = payload["evidence_refs"]
+    if isinstance(evidence_refs_raw, (str, bytes)):
+        raise ValueError("evidence_refs must be a sequence")
+    return tuple(str(value) for value in evidence_refs_raw)
+
+
+def _metadata(payload: Mapping[str, Any], kind: str) -> dict[str, Any]:
+    metadata_raw = payload.get("metadata", {})
+    if not isinstance(metadata_raw, Mapping):
+        raise ValueError(f"{kind} metadata must be a mapping")
+    return dict(metadata_raw)
 
 
 def _optional_string(value: Any) -> Optional[str]:
