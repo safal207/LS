@@ -82,6 +82,7 @@ class AuthorizationReason(str, Enum):
     CAPABILITY_EVIDENCE_BLOCKED = "CAPABILITY_EVIDENCE_BLOCKED"
     AUTHORITY_EVIDENCE_BLOCKED = "AUTHORITY_EVIDENCE_BLOCKED"
     SUBJECT_MISMATCH = "SUBJECT_MISMATCH"
+    CAPABILITY_SUBJECT_BINDING_MISSING = "CAPABILITY_SUBJECT_BINDING_MISSING"
     CAPABILITY_UNVERIFIED = "CAPABILITY_UNVERIFIED"
     CAPABILITY_DISPUTED = "CAPABILITY_DISPUTED"
     CAPABILITY_UNKNOWN = "CAPABILITY_UNKNOWN"
@@ -100,6 +101,7 @@ class AuthorizationReason(str, Enum):
     APPROVAL_PENDING = "APPROVAL_PENDING"
     APPROVAL_UNKNOWN = "APPROVAL_UNKNOWN"
     APPROVAL_SCOPE_MISMATCH = "APPROVAL_SCOPE_MISMATCH"
+    APPROVAL_REFERENCE_MISMATCH = "APPROVAL_REFERENCE_MISMATCH"
     CONTEXT_STALE = "CONTEXT_STALE"
     CONTEXT_UNKNOWN = "CONTEXT_UNKNOWN"
     CONTEXT_SCOPE_MISMATCH = "CONTEXT_SCOPE_MISMATCH"
@@ -302,6 +304,7 @@ class AuthorizationRequest:
     resource: str
     scope_ref: str
     required_capability_id: str
+    capability_subject_binding_ref: str
     capability: CapabilityEvidence
     authority: AuthorityEvidence
     policy: PolicyEvidence
@@ -322,6 +325,8 @@ class AuthorizationRequest:
             self.required_capability_id,
             self.requested_at,
         )
+        if not isinstance(self.capability_subject_binding_ref, str):
+            raise ValueError("capability_subject_binding_ref must be a string")
         if self.schema_version != AUTHORIZATION_REQUEST_VERSION:
             raise ValueError(f"unsupported authorization request: {self.schema_version}")
 
@@ -339,6 +344,7 @@ class AuthorizationRequest:
             "resource": self.resource,
             "scope_ref": self.scope_ref,
             "required_capability_id": self.required_capability_id,
+            "capability_subject_binding_ref": self.capability_subject_binding_ref,
             "capability": self.capability.to_dict(),
             "authority": self.authority.to_dict(),
             "policy": self.policy.to_dict(),
