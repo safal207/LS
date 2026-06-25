@@ -7,7 +7,7 @@ events.
 
 It receives an explicit `TrackCenterEnvelope`, performs exact route matching,
 and delegates the payload to the selected track center. It never infers a route
-from free-form text and never grants identity, memory, Relational Self, or
+from free-form text and never grants identity, track-state, task-scheduling, or
 execution authority.
 
 ## Runtime position
@@ -27,16 +27,17 @@ TrackCenterEnvelope
 | Route key | Handler |
 |---|---|
 | `relationships.loss` | Relationship/Loss Track Center v0.1 |
+| `projects.lifecycle` | Projects Track Center v0.1 |
 
-The route set is explicit and immutable for the v0.1 contract. Adding a future
-center requires a reviewed code and schema change.
+The route set is explicit. Adding a center requires reviewed code, schema,
+tests, deterministic artifacts, and authority-boundary assertions.
 
 ## Decisions
 
 ### `ROUTED`
 
 The route key exactly matched a registered center and the payload passed that
-center's event-contract validation.
+center's versioned event-contract validation.
 
 `ROUTED` does not mean the inner observation was accepted. The routed result may
 still contain a Continuity Coordinator decision of:
@@ -65,17 +66,12 @@ keywords, embeddings, or model output.
 The route exists, but the payload cannot instantiate the selected center's
 versioned event contract.
 
-Examples:
+Bounded diagnostic codes are route-specific:
 
-- missing required field;
-- invalid lifecycle status;
-- invalid enum value;
-- relationship lifecycle inconsistency;
-- duplicate evidence references;
-- partial identity-candidate fields.
+- `relationship_loss_payload_invalid`;
+- `project_payload_invalid`.
 
-The diagnostic is intentionally bounded and does not echo potentially sensitive
-payload content.
+The diagnostic never echoes raw payload content.
 
 ## Envelope contract
 
@@ -83,7 +79,7 @@ payload content.
 {
   "schema_version": "trusted_runtime.track_center_envelope.v0.1",
   "envelope_id": "track-envelope:123",
-  "route_key": "relationships.loss",
+  "route_key": "projects.lifecycle",
   "payload": {},
   "submitted_at": "2026-06-25T05:00:00Z",
   "source_refs": ["source:event-bus:123"],
@@ -91,8 +87,8 @@ payload content.
 }
 ```
 
-The envelope digest binds the full canonical envelope, including the requested
-route and payload.
+The envelope digest binds the full canonical envelope, including requested route
+and payload.
 
 ## Provenance
 
@@ -106,14 +102,11 @@ The deterministic route-result ID binds:
 - bounded diagnostic code;
 - router policy version.
 
-This preserves replayable lineage:
+Replayable lineage now supports both paths:
 
 ```text
-envelope
-  -> route result
-  -> relationship/loss result
-  -> track observation
-  -> continuity assessment
+envelope -> route result -> relationship/loss result -> continuity assessment
+envelope -> route result -> project result -> continuity assessment
 ```
 
 ## Authority boundary
@@ -123,13 +116,15 @@ Every route result states:
 ```json
 {
   "relational_self_mutation_allowed": false,
+  "project_registry_mutation_allowed": false,
+  "task_scheduling_allowed": false,
   "stable_identity_update_allowed": false,
   "execution_authorized": false
 }
 ```
 
-These flags remain false even when routing succeeds and the nested center emits
-a bounded `LessonCandidate`.
+These flags remain false even when routing succeeds and a nested center emits a
+bounded `LessonCandidate`.
 
 A route is a destination decision, not permission.
 
@@ -138,9 +133,10 @@ A route is a destination decision, not permission.
 v0.1 does not:
 
 - infer a track from natural language;
-- choose among multiple candidate centers using an LLM;
+- choose among centers using an LLM;
 - execute fallback routing;
-- mutate memory or identity;
+- mutate relationship or project state;
+- schedule tasks;
 - retry malformed payloads automatically;
 - authorize tools or external effects;
 - dynamically load unreviewed track-center plugins.
