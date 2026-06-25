@@ -1,0 +1,73 @@
+name: Values Track Center
+
+on:
+  push:
+    branches: [main, "feat/values-track-center-v0.1"]
+  pull_request:
+    paths:
+      - "python/modules/trusted_runtime/values_track_center.py"
+      - "python/tests/test_trusted_runtime_values_track_center.py"
+      - "schemas/trusted_runtime/value_track_result.schema.json"
+      - "scripts/run_values_track_demo.py"
+      - "docs/VALUES_TRACK_CENTER_V0_1.md"
+      - ".github/workflows/values_track_center.yml"
+
+concurrency:
+  group: values-track-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install jsonschema pytest ruff
+      - name: Ruff
+        run: |
+          ruff check python/modules/trusted_runtime/values_track_center.py \
+            python/tests/test_trusted_runtime_values_track_center.py \
+            scripts/run_values_track_demo.py
+      - name: Tests
+        run: |
+          PYTHONPATH=.:python:python/modules python -m pytest \
+            python/tests/test_trusted_runtime_continuity_coordinator.py \
+            python/tests/test_trusted_runtime_values_track_center.py
+      - name: Demo
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/run_values_track_demo.py \
+              --output build/values-track-center
+      - name: Verify boundaries
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("build/values-track-center/summary.json").read_text())
+          items = {x["event_id"]: x for x in data["decisions"]}
+          assert data["result"] == "PASS"
+          assert not items["value-event:single-signal"]["lesson_candidate_emitted"]
+          assert items["value-event:repeated-practice"]["lesson_candidate_emitted"]
+          assert items["value-event:contested-current"]["decision"] == "HOLD_FOR_REVIEW"
+          assert items["value-event:retired-current"]["decision"] == "BLOCK_FALSE_PRESENCE"
+          assert not items["value-event:mood"]["lesson_candidate_emitted"]
+          for item in items.values():
+              assert item["value_registry_mutation_allowed"] is False
+              assert item["priority_mutation_allowed"] is False
+              assert item["stable_identity_update_allowed"] is False
+              assert item["execution_authorized"] is False
+          PY
+      - if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: values-track-center-evidence
+          path: build/values-track-center
+          if-no-files-found: error
