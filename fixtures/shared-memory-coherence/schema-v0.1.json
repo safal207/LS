@@ -1,0 +1,135 @@
+{
+  "$id": "https://example.invalid/shared-memory-coherence-fixtures-v0.1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority_defaults": {
+      "additionalProperties": false,
+      "properties": {
+        "may_authorize_execution": {"const": false},
+        "may_establish_consensus": {"const": false},
+        "may_establish_human_approval": {"const": false},
+        "may_establish_truth": {"const": false},
+        "may_grant_permissions": {"const": false}
+      },
+      "required": [
+        "may_authorize_execution",
+        "may_establish_consensus",
+        "may_establish_human_approval",
+        "may_establish_truth",
+        "may_grant_permissions"
+      ],
+      "type": "object"
+    },
+    "profile": {"const": "shared-memory-coherence-v0.1"},
+    "schema_version": {"const": "shared-memory-coherence-fixtures-v0.1"},
+    "vectors": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {"minLength": 1, "type": "string"},
+          "entries": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "approval_ref": {"type": ["string", "null"]},
+                "claim_type": {"minLength": 1, "type": "string"},
+                "evidence_refs": {"items": {"type": "string"}, "type": "array"},
+                "key": {"minLength": 1, "type": "string"},
+                "memory_id": {"minLength": 1, "type": "string"},
+                "promotion_authorization_ref": {"type": ["string", "null"]},
+                "scope": {"enum": ["agent", "group", "global"]},
+                "source_scope": {"enum": ["agent", "group", "global"]},
+                "status": {"enum": ["CLAIMED", "RATIFIED", "SUPERSEDED", "EXPIRED"]},
+                "subject_id": {"minLength": 1, "type": "string"},
+                "supersedes": {"type": ["string", "null"]},
+                "valid_until": {"type": ["string", "null"]},
+                "value": {},
+                "writer_id": {"minLength": 1, "type": "string"}
+              },
+              "required": [
+                "memory_id",
+                "scope",
+                "source_scope",
+                "writer_id",
+                "subject_id",
+                "key",
+                "value",
+                "claim_type",
+                "status",
+                "evidence_refs",
+                "approval_ref",
+                "promotion_authorization_ref",
+                "valid_until",
+                "supersedes"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "expected": {
+            "additionalProperties": false,
+            "properties": {
+              "decision": {"enum": ["RETURN_CLAIM", "RETURN_RATIFIED", "CONFLICTED", "REJECT", "ABSTAIN"]},
+              "reason_codes": {"items": {"type": "string"}, "minItems": 1, "type": "array"},
+              "selected_memory_ids": {"items": {"type": "string"}, "type": "array"},
+              "suppressed_memory_ids": {"items": {"type": "string"}, "type": "array"},
+              "winning_scope": {"type": ["string", "null"]}
+            },
+            "required": [
+              "decision",
+              "selected_memory_ids",
+              "suppressed_memory_ids",
+              "winning_scope",
+              "reason_codes"
+            ],
+            "type": "object"
+          },
+          "fixture_id": {"minLength": 1, "type": "string"},
+          "query": {
+            "additionalProperties": false,
+            "properties": {
+              "consumer_agent_id": {"minLength": 1, "type": "string"},
+              "key": {"minLength": 1, "type": "string"},
+              "now": {"format": "date-time", "type": "string"},
+              "scope_precedence": {
+                "items": {"enum": ["agent", "group", "global"]},
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "subject_id": {"minLength": 1, "type": "string"}
+            },
+            "required": [
+              "consumer_agent_id",
+              "subject_id",
+              "key",
+              "now",
+              "scope_precedence"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "fixture_id",
+          "description",
+          "query",
+          "entries",
+          "expected"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "profile",
+    "schema_version",
+    "authority_defaults",
+    "vectors"
+  ],
+  "title": "Shared Memory Coherence Fixtures v0.1",
+  "type": "object"
+}
