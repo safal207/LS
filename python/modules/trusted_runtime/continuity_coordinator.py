@@ -23,6 +23,7 @@ CONTINUITY_POLICY_VERSION = "continuity_coordinator.v0.1"
 
 class EntityStatus(str, Enum):
     ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
     DECEASED = "DECEASED"
     CLOSED = "CLOSED"
     DELETED = "DELETED"
@@ -48,6 +49,7 @@ class ContinuityReason(str, Enum):
     FALSE_CURRENT_PRESENCE = "FALSE_CURRENT_PRESENCE"
     FALSE_CURRENT_INTENTION = "FALSE_CURRENT_INTENTION"
     ENTITY_STATUS_UNKNOWN = "ENTITY_STATUS_UNKNOWN"
+    ENTITY_TEMPORARILY_INACTIVE = "ENTITY_TEMPORARILY_INACTIVE"
     HISTORICAL_INFLUENCE_PRESERVED = "HISTORICAL_INFLUENCE_PRESERVED"
     BOUNDED_LESSON_ONLY = "BOUNDED_LESSON_ONLY"
     NO_IDENTITY_CANDIDATE = "NO_IDENTITY_CANDIDATE"
@@ -60,6 +62,8 @@ IRREVERSIBLY_INACTIVE_STATUSES = frozenset(
         EntityStatus.DELETED,
     }
 )
+
+TEMPORARILY_INACTIVE_STATUSES = frozenset({EntityStatus.PAUSED})
 
 
 @dataclass(frozen=True)
@@ -222,6 +226,12 @@ def assess_track_observation(
         raise ValueError("assessed_at and assessed_by are required")
 
     inactive = observation.entity_status in IRREVERSIBLY_INACTIVE_STATUSES
+    temporarily_inactive = (
+        observation.entity_status in TEMPORARILY_INACTIVE_STATUSES
+    )
+    current_claim = (
+        observation.claims_current_presence or observation.claims_current_intention
+    )
     false_presence = inactive and observation.claims_current_presence
     false_intention = inactive and observation.claims_current_intention
 
@@ -241,9 +251,14 @@ def assess_track_observation(
             "Historical influence may be retained, but no current presence or "
             "new intention is established."
         )
-    elif (
-        observation.claims_current_presence or observation.claims_current_intention
-    ) and (
+    elif current_claim and temporarily_inactive:
+        decision = ContinuityDecision.HOLD_FOR_REVIEW
+        reason_codes.append(ContinuityReason.ENTITY_TEMPORARILY_INACTIVE)
+        normalized_statement = (
+            "The entity is temporarily inactive; current presence or intention "
+            "cannot enter the identity-learning path until reactivation is verified."
+        )
+    elif current_claim and (
         observation.entity_status is EntityStatus.UNKNOWN
         or observation.knowledge_class is not KnowledgeClass.FACT
         or not observation.evidence_refs
@@ -259,7 +274,7 @@ def assess_track_observation(
     else:
         decision = ContinuityDecision.ACCEPT_BOUNDED_OBSERVATION
         normalized_statement = observation.statement
-        if observation.claims_current_presence or observation.claims_current_intention:
+        if current_claim:
             reason_codes.append(ContinuityReason.VERIFIED_CURRENT_CLAIM)
         if inactive:
             preserved_influence = observation.statement
@@ -309,6 +324,7 @@ def assess_track_observation(
                 "independent_approval -> committed_patch"
             ),
             "memory_is_not_presence": True,
+            "temporarily_inactive_requires_verified_reactivation": True,
             "single_observation_cannot_modify_stable_identity": True,
         },
     )

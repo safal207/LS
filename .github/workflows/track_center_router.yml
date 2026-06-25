@@ -5,11 +5,15 @@ on:
     branches:
       - "main"
       - "feat/track-center-router-v0.1"
+      - "feat/projects-track-center-v0.1"
   pull_request:
     paths:
       - "python/modules/trusted_runtime/track_center_router.py"
+      - "python/modules/trusted_runtime/projects_track_center.py"
       - "python/tests/test_trusted_runtime_track_center_router.py"
+      - "python/tests/test_trusted_runtime_projects_track_center.py"
       - "schemas/trusted_runtime/track_center_route_result.schema.json"
+      - "schemas/trusted_runtime/project_track_result.schema.json"
       - "scripts/run_track_center_router_demo.py"
       - "docs/TRACK_CENTER_ROUTER_V0_1.md"
       - ".github/workflows/track_center_router.yml"
@@ -41,11 +45,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install jsonschema pytest ruff
 
-      - name: Ruff router changes
+      - name: Ruff routed track changes
         run: |
           ruff check \
             python/modules/trusted_runtime/track_center_router.py \
+            python/modules/trusted_runtime/projects_track_center.py \
             python/tests/test_trusted_runtime_track_center_router.py \
+            python/tests/test_trusted_runtime_projects_track_center.py \
             scripts/run_track_center_router_demo.py
 
       - name: Run routed continuity tests
@@ -54,6 +60,7 @@ jobs:
             python -m pytest \
               python/tests/test_trusted_runtime_continuity_coordinator.py \
               python/tests/test_trusted_runtime_relationship_loss_track_center.py \
+              python/tests/test_trusted_runtime_projects_track_center.py \
               python/tests/test_trusted_runtime_track_center_router.py
 
       - name: Generate deterministic router artifacts
@@ -75,18 +82,24 @@ jobs:
           decisions = {
               item["envelope_id"]: item for item in summary["decisions"]
           }
-          assert decisions["track-envelope:valid"]["decision"] == "ROUTED"
-          assert decisions["track-envelope:valid"][
+          assert decisions["track-envelope:relationship"]["decision"] == "ROUTED"
+          assert decisions["track-envelope:project-lesson"]["decision"] == "ROUTED"
+          assert decisions["track-envelope:project-paused"][
               "nested_continuity_decision"
-          ] == "ACCEPT_BOUNDED_OBSERVATION"
+          ] == "HOLD_FOR_REVIEW"
+          assert decisions["track-envelope:project-closed"][
+              "nested_continuity_decision"
+          ] == "BLOCK_FALSE_PRESENCE"
           assert decisions["track-envelope:unknown"]["decision"] == (
               "HOLD_UNKNOWN_ROUTE"
           )
-          assert decisions["track-envelope:invalid"]["decision"] == (
+          assert decisions["track-envelope:invalid-project"]["decision"] == (
               "HOLD_MALFORMED_PAYLOAD"
           )
           for item in decisions.values():
               assert item["relational_self_mutation_allowed"] is False
+              assert item["project_registry_mutation_allowed"] is False
+              assert item["task_scheduling_allowed"] is False
               assert item["stable_identity_update_allowed"] is False
               assert item["execution_authorized"] is False
           PY

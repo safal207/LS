@@ -16,6 +16,8 @@
     "routed_result",
     "diagnostic_code",
     "relational_self_mutation_allowed",
+    "project_registry_mutation_allowed",
+    "task_scheduling_allowed",
     "stable_identity_update_allowed",
     "execution_authorized",
     "policy_version",
@@ -31,27 +33,18 @@
       "type": "string",
       "pattern": "^track-center-route-result:sha256:[0-9a-f]{64}$"
     },
-    "envelope_id": {
-      "type": "string",
-      "minLength": 1
-    },
+    "envelope_id": {"type": "string", "minLength": 1},
     "envelope_digest": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
-    "requested_route": {
-      "type": "string",
-      "minLength": 1
-    },
+    "requested_route": {"type": "string", "minLength": 1},
     "selected_route": {
-      "type": ["string", "null"]
+      "type": ["string", "null"],
+      "enum": ["relationships.loss", "projects.lifecycle", null]
     },
     "decision": {
-      "enum": [
-        "ROUTED",
-        "HOLD_UNKNOWN_ROUTE",
-        "HOLD_MALFORMED_PAYLOAD"
-      ]
+      "enum": ["ROUTED", "HOLD_UNKNOWN_ROUTE", "HOLD_MALFORMED_PAYLOAD"]
     },
     "reason_codes": {
       "type": "array",
@@ -69,69 +62,27 @@
     "routed_result": {
       "oneOf": [
         {"type": "null"},
-        {
-          "type": "object",
-          "required": [
-            "schema_version",
-            "result_id",
-            "assessment",
-            "relational_self_mutation_allowed",
-            "stable_identity_update_allowed",
-            "execution_authorized"
-          ],
-          "properties": {
-            "schema_version": {
-              "const": "trusted_runtime.relationship_loss_result.v0.1"
-            },
-            "result_id": {
-              "type": "string",
-              "pattern": "^relationship-loss-result:sha256:[0-9a-f]{64}$"
-            },
-            "assessment": {
-              "type": "object",
-              "required": [
-                "decision",
-                "stable_identity_update_allowed",
-                "execution_authorized"
-              ],
-              "properties": {
-                "decision": {
-                  "enum": [
-                    "ACCEPT_BOUNDED_OBSERVATION",
-                    "HOLD_FOR_REVIEW",
-                    "BLOCK_FALSE_PRESENCE"
-                  ]
-                },
-                "stable_identity_update_allowed": {"const": false},
-                "execution_authorized": {"const": false}
-              },
-              "additionalProperties": true
-            },
-            "relational_self_mutation_allowed": {"const": false},
-            "stable_identity_update_allowed": {"const": false},
-            "execution_authorized": {"const": false}
-          },
-          "additionalProperties": true
-        }
+        {"$ref": "#/$defs/relationshipResult"},
+        {"$ref": "#/$defs/projectResult"}
       ]
     },
     "diagnostic_code": {
-      "type": ["string", "null"]
+      "type": ["string", "null"],
+      "enum": [
+        "unknown_track_center_route",
+        "relationship_loss_payload_invalid",
+        "project_payload_invalid",
+        null
+      ]
     },
     "relational_self_mutation_allowed": {"const": false},
+    "project_registry_mutation_allowed": {"const": false},
+    "task_scheduling_allowed": {"const": false},
     "stable_identity_update_allowed": {"const": false},
     "execution_authorized": {"const": false},
-    "policy_version": {
-      "const": "track_center_router.v0.1"
-    },
-    "processed_at": {
-      "type": "string",
-      "minLength": 1
-    },
-    "processed_by": {
-      "type": "string",
-      "minLength": 1
-    },
+    "policy_version": {"const": "track_center_router.v0.1"},
+    "processed_at": {"type": "string", "minLength": 1},
+    "processed_by": {"type": "string", "minLength": 1},
     "metadata": {
       "type": "object",
       "required": [
@@ -143,7 +94,7 @@
       "properties": {
         "supported_routes": {
           "type": "array",
-          "const": ["relationships.loss"]
+          "const": ["relationships.loss", "projects.lifecycle"]
         },
         "route_matching": {"const": "exact_only"},
         "free_text_route_inference": {"const": false},
@@ -152,23 +103,95 @@
       "additionalProperties": true
     }
   },
+  "$defs": {
+    "continuityAssessment": {
+      "type": "object",
+      "required": [
+        "decision",
+        "stable_identity_update_allowed",
+        "execution_authorized"
+      ],
+      "properties": {
+        "decision": {
+          "enum": [
+            "ACCEPT_BOUNDED_OBSERVATION",
+            "HOLD_FOR_REVIEW",
+            "BLOCK_FALSE_PRESENCE"
+          ]
+        },
+        "stable_identity_update_allowed": {"const": false},
+        "execution_authorized": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "relationshipResult": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "result_id",
+        "assessment",
+        "relational_self_mutation_allowed",
+        "stable_identity_update_allowed",
+        "execution_authorized"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "trusted_runtime.relationship_loss_result.v0.1"
+        },
+        "result_id": {
+          "type": "string",
+          "pattern": "^relationship-loss-result:sha256:[0-9a-f]{64}$"
+        },
+        "assessment": {"$ref": "#/$defs/continuityAssessment"},
+        "relational_self_mutation_allowed": {"const": false},
+        "stable_identity_update_allowed": {"const": false},
+        "execution_authorized": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "projectResult": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "result_id",
+        "assessment",
+        "project_registry_mutation_allowed",
+        "task_scheduling_allowed",
+        "stable_identity_update_allowed",
+        "execution_authorized"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "trusted_runtime.project_track_result.v0.1"
+        },
+        "result_id": {
+          "type": "string",
+          "pattern": "^project-track-result:sha256:[0-9a-f]{64}$"
+        },
+        "assessment": {"$ref": "#/$defs/continuityAssessment"},
+        "project_registry_mutation_allowed": {"const": false},
+        "task_scheduling_allowed": {"const": false},
+        "stable_identity_update_allowed": {"const": false},
+        "execution_authorized": {"const": false}
+      },
+      "additionalProperties": true
+    }
+  },
   "allOf": [
     {
-      "if": {
-        "properties": {"decision": {"const": "ROUTED"}}
-      },
+      "if": {"properties": {"decision": {"const": "ROUTED"}}},
       "then": {
         "properties": {
-          "selected_route": {"const": "relationships.loss"},
+          "selected_route": {
+            "enum": ["relationships.loss", "projects.lifecycle"]
+          },
           "routed_result": {"type": "object"},
           "diagnostic_code": {"type": "null"}
         }
       }
     },
     {
-      "if": {
-        "properties": {"decision": {"const": "HOLD_UNKNOWN_ROUTE"}}
-      },
+      "if": {"properties": {"decision": {"const": "HOLD_UNKNOWN_ROUTE"}}},
       "then": {
         "properties": {
           "selected_route": {"type": "null"},
@@ -179,13 +202,31 @@
     },
     {
       "if": {
-        "properties": {"decision": {"const": "HOLD_MALFORMED_PAYLOAD"}}
+        "properties": {
+          "decision": {"const": "HOLD_MALFORMED_PAYLOAD"},
+          "selected_route": {"const": "relationships.loss"}
+        },
+        "required": ["decision", "selected_route"]
       },
       "then": {
         "properties": {
-          "selected_route": {"const": "relationships.loss"},
           "routed_result": {"type": "null"},
           "diagnostic_code": {"const": "relationship_loss_payload_invalid"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision": {"const": "HOLD_MALFORMED_PAYLOAD"},
+          "selected_route": {"const": "projects.lifecycle"}
+        },
+        "required": ["decision", "selected_route"]
+      },
+      "then": {
+        "properties": {
+          "routed_result": {"type": "null"},
+          "diagnostic_code": {"const": "project_payload_invalid"}
         }
       }
     }

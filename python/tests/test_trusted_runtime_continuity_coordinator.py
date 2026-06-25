@@ -123,6 +123,24 @@ def test_unknown_entity_current_intention_is_held() -> None:
     assert assessment.lesson_candidate is None
 
 
+def test_paused_entity_current_intention_is_held_until_reactivation() -> None:
+    assessment = _assess(
+        _observation(
+            status=EntityStatus.PAUSED,
+            knowledge_class=KnowledgeClass.FACT,
+            current_intention=True,
+        )
+    )
+
+    assert assessment.decision is ContinuityDecision.HOLD_FOR_REVIEW
+    assert (
+        ContinuityReason.ENTITY_TEMPORARILY_INACTIVE
+        in assessment.reason_codes
+    )
+    assert assessment.lesson_candidate is None
+    assert assessment.preserved_influence is None
+
+
 def test_active_verified_current_claim_can_emit_only_bounded_lesson() -> None:
     assessment = _assess(
         _observation(

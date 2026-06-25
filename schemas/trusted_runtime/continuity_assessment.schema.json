@@ -53,6 +53,7 @@
     "entity_status": {
       "enum": [
         "ACTIVE",
+        "PAUSED",
         "DECEASED",
         "CLOSED",
         "DELETED",
@@ -85,6 +86,7 @@
           "FALSE_CURRENT_PRESENCE",
           "FALSE_CURRENT_INTENTION",
           "ENTITY_STATUS_UNKNOWN",
+          "ENTITY_TEMPORARILY_INACTIVE",
           "HISTORICAL_INFLUENCE_PRESERVED",
           "BOUNDED_LESSON_ONLY",
           "NO_IDENTITY_CANDIDATE"
