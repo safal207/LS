@@ -7,8 +7,8 @@ events.
 
 It receives an explicit `TrackCenterEnvelope`, performs exact route matching,
 and delegates the payload to the selected track center. It never infers a route
-from free-form text and never grants identity, track-state, blame, priority,
-task, remediation, or execution authority.
+from free-form text and never grants identity, track-state, blame, obligation,
+priority, task, remediation, scheduling, or execution authority.
 
 ## Runtime position
 
@@ -30,6 +30,7 @@ TrackCenterEnvelope
 | `projects.lifecycle` | Projects Track Center v0.1 |
 | `values.evidence` | Values Track Center v0.1 |
 | `errors.learning` | Errors/Learning Track Center v0.1 |
+| `goals.commitments` | Goals/Commitments Track Center v0.1 |
 
 The route set is explicit. Adding a center requires reviewed code, schema,
 tests, deterministic artifacts, and authority-boundary assertions.
@@ -73,7 +74,8 @@ Bounded diagnostic codes are route-specific:
 - `relationship_loss_payload_invalid`;
 - `project_payload_invalid`;
 - `value_payload_invalid`;
-- `error_learning_payload_invalid`.
+- `error_learning_payload_invalid`;
+- `goal_commitment_payload_invalid`.
 
 The diagnostic never echoes raw payload content.
 
@@ -83,7 +85,7 @@ The diagnostic never echoes raw payload content.
 {
   "schema_version": "trusted_runtime.track_center_envelope.v0.1",
   "envelope_id": "track-envelope:123",
-  "route_key": "errors.learning",
+  "route_key": "goals.commitments",
   "payload": {},
   "submitted_at": "2026-06-25T05:00:00Z",
   "source_refs": ["source:event-bus:123"],
@@ -106,13 +108,14 @@ The deterministic route-result ID binds:
 - bounded diagnostic code;
 - router policy version.
 
-Replayable lineage now supports four paths:
+Replayable lineage now supports five paths:
 
 ```text
 envelope -> route result -> relationship/loss result -> continuity assessment
 envelope -> route result -> project result -> continuity assessment
 envelope -> route result -> value result -> continuity assessment
 envelope -> route result -> error-learning result -> continuity assessment
+envelope -> route result -> goal-commitment result -> continuity assessment
 ```
 
 ## Authority boundary
@@ -129,6 +132,9 @@ Every route result states:
   "incident_registry_mutation_allowed": false,
   "blame_assignment_allowed": false,
   "remediation_scheduling_allowed": false,
+  "goal_registry_mutation_allowed": false,
+  "obligation_assignment_allowed": false,
+  "work_scheduling_allowed": false,
   "stable_identity_update_allowed": false,
   "execution_authorized": false
 }
@@ -146,8 +152,10 @@ v0.1 does not:
 - infer a track from natural language;
 - choose among centers using an LLM;
 - execute fallback routing;
-- mutate relationship, project, value, or incident state;
-- assign blame, schedule remediation, or reorder priorities;
+- mutate relationship, project, value, incident, or goal state;
+- assign blame or obligation;
+- schedule remediation or work;
+- reorder priorities;
 - retry malformed payloads automatically;
 - authorize tools or external effects;
 - dynamically load unreviewed track-center plugins.

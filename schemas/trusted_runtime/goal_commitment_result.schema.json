@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/trusted_runtime/goal_commitment_result.schema.json",
+  "title": "LS Goal Commitment Result v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "result_id", "event", "observation", "assessment",
+    "goal_registry_mutation_allowed", "obligation_assignment_allowed",
+    "work_scheduling_allowed", "priority_mutation_allowed",
+    "stable_identity_update_allowed", "execution_authorized",
+    "policy_version", "processed_at", "processed_by", "metadata"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.goal_commitment_result.v0.1"},
+    "result_id": {
+      "type": "string",
+      "pattern": "^goal-commitment-result:sha256:[0-9a-f]{64}$"
+    },
+    "event": {"$ref": "#/$defs/event"},
+    "observation": {"$ref": "#/$defs/observation"},
+    "assessment": {"$ref": "#/$defs/assessment"},
+    "goal_registry_mutation_allowed": {"const": false},
+    "obligation_assignment_allowed": {"const": false},
+    "work_scheduling_allowed": {"const": false},
+    "priority_mutation_allowed": {"const": false},
+    "stable_identity_update_allowed": {"const": false},
+    "execution_authorized": {"const": false},
+    "policy_version": {"const": "goals_commitments_track_center.v0.1"},
+    "processed_at": {"type": "string", "minLength": 1},
+    "processed_by": {"type": "string", "minLength": 1},
+    "metadata": {"type": "object"}
+  },
+  "$defs": {
+    "nullableString": {"type": ["string", "null"]},
+    "refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "event_id", "goal_id", "event_type",
+        "goal_status", "commitment_level", "knowledge_class", "statement",
+        "occurred_at", "confidence", "repeat_count", "evidence_refs",
+        "context_refs", "commitment_refs", "identity_candidate_statement",
+        "identity_scope", "identity_repeat_key", "metadata"
+      ],
+      "properties": {
+        "schema_version": {"const": "trusted_runtime.goal_commitment_event.v0.1"},
+        "event_id": {"type": "string", "minLength": 1},
+        "goal_id": {"type": "string", "minLength": 1},
+        "event_type": {
+          "enum": [
+            "WISH_OBSERVED", "INTENTION_STATED", "PLAN_RECORDED",
+            "COMMITMENT_DECLARED", "COMMITMENT_REAFFIRMED",
+            "OBLIGATION_ACCEPTED", "FOLLOW_THROUGH_VERIFIED",
+            "COMMITMENT_PAUSED", "COMMITMENT_COMPLETED",
+            "COMMITMENT_CANCELLED", "COMMITMENT_EXPIRED",
+            "COMMITMENT_RETIRED", "COMMITMENT_RELEASE_VERIFIED",
+            "CURRENT_DUTY_CLAIM"
+          ]
+        },
+        "goal_status": {
+          "enum": [
+            "PROPOSED", "ACTIVE", "PAUSED", "DISPUTED", "COMPLETED",
+            "CANCELLED", "EXPIRED", "RETIRED", "UNKNOWN"
+          ]
+        },
+        "commitment_level": {
+          "enum": ["WISH", "INTENTION", "PLAN", "COMMITMENT", "OBLIGATION"]
+        },
+        "knowledge_class": {
+          "enum": ["FACT", "MEMORY", "INFERENCE", "SYMBOLIC_MEANING"]
+        },
+        "statement": {"type": "string", "minLength": 1},
+        "occurred_at": {"type": "string", "minLength": 1},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "repeat_count": {"type": "integer", "minimum": 1},
+        "evidence_refs": {"$ref": "#/$defs/refs"},
+        "context_refs": {"$ref": "#/$defs/refs"},
+        "commitment_refs": {"$ref": "#/$defs/refs"},
+        "identity_candidate_statement": {"$ref": "#/$defs/nullableString"},
+        "identity_scope": {"$ref": "#/$defs/nullableString"},
+        "identity_repeat_key": {"$ref": "#/$defs/nullableString"},
+        "metadata": {"type": "object"}
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observation_id", "track", "subject_id", "entity_status",
+        "knowledge_class", "statement", "occurred_at", "confidence",
+        "evidence_refs", "claims_current_presence",
+        "claims_current_intention", "identity_candidate_statement",
+        "identity_scope", "identity_repeat_key", "metadata"
+      ],
+      "properties": {
+        "observation_id": {
+          "type": "string",
+          "pattern": "^goal-observation:sha256:[0-9a-f]{64}$"
+        },
+        "track": {"const": "goals.commitments"},
+        "subject_id": {"type": "string", "minLength": 1},
+        "entity_status": {"enum": ["ACTIVE", "PAUSED", "CLOSED", "UNKNOWN"]},
+        "knowledge_class": {
+          "enum": ["FACT", "MEMORY", "INFERENCE", "SYMBOLIC_MEANING"]
+        },
+        "statement": {"type": "string", "minLength": 1},
+        "occurred_at": {"type": "string", "minLength": 1},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "evidence_refs": {"$ref": "#/$defs/refs"},
+        "claims_current_presence": {"const": false},
+        "claims_current_intention": {"type": "boolean"},
+        "identity_candidate_statement": {"$ref": "#/$defs/nullableString"},
+        "identity_scope": {"$ref": "#/$defs/nullableString"},
+        "identity_repeat_key": {"$ref": "#/$defs/nullableString"},
+        "metadata": {
+          "type": "object",
+          "required": [
+            "goal_id", "goal_event_id", "goal_event_digest", "goal_event_type",
+            "goal_status", "commitment_level", "repeat_count", "context_refs",
+            "commitment_refs", "wish_is_not_commitment",
+            "closed_goal_is_not_current_debt", "track_center_policy_version",
+            "goal_registry_mutation_allowed", "obligation_assignment_allowed",
+            "work_scheduling_allowed", "priority_mutation_allowed"
+          ],
+          "properties": {
+            "wish_is_not_commitment": {"const": true},
+            "closed_goal_is_not_current_debt": {"const": true},
+            "goal_registry_mutation_allowed": {"const": false},
+            "obligation_assignment_allowed": {"const": false},
+            "work_scheduling_allowed": {"const": false},
+            "priority_mutation_allowed": {"const": false}
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "assessment": {
+      "type": "object",
+      "required": [
+        "schema_version", "assessment_id", "observation_id", "decision",
+        "stable_identity_update_allowed", "execution_authorized"
+      ],
+      "properties": {
+        "schema_version": {"const": "trusted_runtime.continuity_assessment.v0.1"},
+        "assessment_id": {
+          "type": "string",
+          "pattern": "^continuity-assessment:sha256:[0-9a-f]{64}$"
+        },
+        "observation_id": {
+          "type": "string",
+          "pattern": "^goal-observation:sha256:[0-9a-f]{64}$"
+        },
+        "decision": {
+          "enum": [
+            "ACCEPT_BOUNDED_OBSERVATION", "HOLD_FOR_REVIEW",
+            "BLOCK_FALSE_PRESENCE"
+          ]
+        },
+        "stable_identity_update_allowed": {"const": false},
+        "execution_authorized": {"const": false}
+      },
+      "additionalProperties": true
+    }
+  }
+}

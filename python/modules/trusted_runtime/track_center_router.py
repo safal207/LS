@@ -18,6 +18,15 @@ from .errors_learning_track_center import (
     OutcomeClass,
     process_error_event,
 )
+from .goals_commitments_track_center import (
+    GOALS_TRACK,
+    CommitmentLevel,
+    GoalCommitmentEvent,
+    GoalCommitmentResult,
+    GoalEventType,
+    GoalStatus,
+    process_goal_event,
+)
 from .projects_track_center import (
     PROJECTS_TRACK,
     ProjectEvent,
@@ -52,6 +61,7 @@ RoutedTrackResult = Union[
     ProjectTrackResult,
     ValueTrackResult,
     ErrorLearningResult,
+    GoalCommitmentResult,
 ]
 
 
@@ -60,6 +70,7 @@ class TrackCenterRoute(str, Enum):
     PROJECTS_LIFECYCLE = PROJECTS_TRACK
     VALUES_EVIDENCE = VALUES_TRACK
     ERRORS_LEARNING = ERRORS_TRACK
+    GOALS_COMMITMENTS = GOALS_TRACK
 
 
 class RouterDecision(str, Enum):
@@ -178,6 +189,9 @@ class TrackCenterRouteResult:
             "incident_registry_mutation_allowed": False,
             "blame_assignment_allowed": False,
             "remediation_scheduling_allowed": False,
+            "goal_registry_mutation_allowed": False,
+            "obligation_assignment_allowed": False,
+            "work_scheduling_allowed": False,
             "stable_identity_update_allowed": False,
             "execution_authorized": False,
             "policy_version": self.policy_version,
@@ -274,10 +288,16 @@ def _dispatch(
             processed_at=processed_at,
             processed_by="runtime:values-track-center",
         )
-    return process_error_event(
-        _error_event(envelope.payload),
+    if envelope.route_key == ERRORS_TRACK:
+        return process_error_event(
+            _error_event(envelope.payload),
+            processed_at=processed_at,
+            processed_by="runtime:errors-learning-track-center",
+        )
+    return process_goal_event(
+        _goal_event(envelope.payload),
         processed_at=processed_at,
-        processed_by="runtime:errors-learning-track-center",
+        processed_by="runtime:goals-commitments-track-center",
     )
 
 
@@ -382,6 +402,34 @@ def _error_event(payload: Mapping[str, Any]) -> ErrorLearningEvent:
     )
 
 
+def _goal_event(payload: Mapping[str, Any]) -> GoalCommitmentEvent:
+    return GoalCommitmentEvent(
+        event_id=str(payload["event_id"]),
+        goal_id=str(payload["goal_id"]),
+        event_type=GoalEventType(str(payload["event_type"])),
+        goal_status=GoalStatus(str(payload["goal_status"])),
+        commitment_level=CommitmentLevel(str(payload["commitment_level"])),
+        knowledge_class=KnowledgeClass(str(payload["knowledge_class"])),
+        statement=str(payload["statement"]),
+        occurred_at=str(payload["occurred_at"]),
+        confidence=float(payload["confidence"]),
+        repeat_count=int(payload["repeat_count"]),
+        evidence_refs=_refs(payload, "evidence_refs"),
+        context_refs=_refs(payload, "context_refs"),
+        commitment_refs=_refs(payload, "commitment_refs"),
+        identity_candidate_statement=_optional(payload, "identity_candidate_statement"),
+        identity_scope=_optional(payload, "identity_scope"),
+        identity_repeat_key=_optional(payload, "identity_repeat_key"),
+        metadata=_metadata(payload, "goal"),
+        schema_version=str(
+            payload.get(
+                "schema_version",
+                "trusted_runtime.goal_commitment_event.v0.1",
+            )
+        ),
+    )
+
+
 def _refs(payload: Mapping[str, Any], field_name: str) -> tuple[str, ...]:
     raw = payload[field_name]
     if isinstance(raw, (str, bytes)):
@@ -407,6 +455,7 @@ def _diagnostic_for_route(route: str) -> str:
         PROJECTS_TRACK: "project_payload_invalid",
         VALUES_TRACK: "value_payload_invalid",
         ERRORS_TRACK: "error_learning_payload_invalid",
+        GOALS_TRACK: "goal_commitment_payload_invalid",
     }[route]
 
 
