@@ -1,0 +1,35 @@
+{
+  "fixture_family": "durable_memory_not_authority",
+  "type": "reject",
+  "vectors": [
+    {
+      "id": "reject_recall_confidence_as_permission",
+      "description": "High-confidence recall is incorrectly treated as spendable execution authority.",
+      "input": {
+        "memory_state": "durable",
+        "recall_confidence": 0.98,
+        "authority_state": "advisory_only",
+        "requested_action": "publish"
+      },
+      "expected": {
+        "conformance_pass": false,
+        "failure_reason": "memory_recall_laundered_into_authority"
+      }
+    },
+    {
+      "id": "reject_current_run_memory_write_as_authority",
+      "description": "A memory written during the current run is incorrectly used as authority without separate confirmation.",
+      "input": {
+        "memory_state": "surfaced",
+        "created_in_current_run": true,
+        "authority_state": "missing",
+        "verifier_ref": null,
+        "requested_action": "tool_call"
+      },
+      "expected": {
+        "conformance_pass": false,
+        "failure_reason": "current_run_memory_write_used_as_authority"
+      }
+    }
+  ]
+}
