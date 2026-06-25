@@ -22,6 +22,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.9", "3.11"]
     steps:
@@ -40,16 +41,25 @@ jobs:
             python/tests/test_authorization_negative_scope.py \
             python/tests/test_authorization_adapter_current_claims.py \
             scripts/run_authorization_decision_gate_demo.py
-      - name: Tests
+      - name: Dependency center regressions
         run: |
-          PYTHONPATH=.:python:python/modules python -m pytest \
+          PYTHONPATH=.:python:python/modules python -m pytest -q \
             python/tests/test_trusted_runtime_continuity_coordinator.py \
             python/tests/test_trusted_runtime_capabilities_constraints_track_center.py \
-            python/tests/test_trusted_runtime_roles_permissions_track_center.py \
-            python/tests/test_trusted_runtime_authorization_decision_gate.py \
+            python/tests/test_trusted_runtime_roles_permissions_track_center.py
+      - name: Gate decisions
+        run: |
+          PYTHONPATH=.:python:python/modules python -m pytest -q \
+            python/tests/test_trusted_runtime_authorization_decision_gate.py
+      - name: Evidence adapters
+        run: |
+          PYTHONPATH=.:python:python/modules python -m pytest -q \
             python/tests/test_trusted_runtime_authorization_evidence_adapters.py \
-            python/tests/test_authorization_negative_scope.py \
             python/tests/test_authorization_adapter_current_claims.py
+      - name: Scope hardening
+        run: |
+          PYTHONPATH=.:python:python/modules python -m pytest -q \
+            python/tests/test_authorization_negative_scope.py
       - name: Demo
         run: |
           PYTHONPATH=.:python:python/modules \
