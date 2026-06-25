@@ -1,0 +1,36 @@
+{
+  "fixture_family": "durable_memory_not_authority",
+  "type": "accept",
+  "vectors": [
+    {
+      "id": "accept_durable_memory_advisory_only",
+      "description": "Durable memory is surfaced as context but remains advisory-only and cannot authorize side effects.",
+      "input": {
+        "memory_state": "durable",
+        "authority_state": "advisory_only",
+        "revalidation_required": true,
+        "requested_action": "tool_call"
+      },
+      "expected": {
+        "may_orient_context": true,
+        "may_authorize_action": false,
+        "requires_revalidation": true
+      }
+    },
+    {
+      "id": "accept_revalidated_memory_creates_new_authority_phase",
+      "description": "A separate verifier event converts remembered context into current authority under a new phase reference.",
+      "input": {
+        "memory_state": "surfaced",
+        "authority_state_before": "requires_revalidation",
+        "verifier_ref": "verifier-001",
+        "new_authority_phase_ref": "phase-002"
+      },
+      "expected": {
+        "authority_state_after": "spendable",
+        "new_phase_boundary_created": true,
+        "old_memory_remains_provenance_only": true
+      }
+    }
+  ]
+}
