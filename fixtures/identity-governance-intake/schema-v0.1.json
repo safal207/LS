@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/blob/main/fixtures/identity-governance-intake/schema-v0.1.json",
+  "title": "LS IdentityProposalCandidate governance-intake fixture v0.1",
+  "type": "object",
+  "required": [
+    "_meta",
+    "fixture_id",
+    "envelope_version",
+    "as_of",
+    "source_aggregation",
+    "candidate",
+    "expected",
+    "scoring"
+  ],
+  "properties": {
+    "fixture_id": {
+      "type": "string"
+    },
+    "envelope_version": {
+      "const": "ls-identity-governance-intake-v0.1"
+    },
+    "as_of": {
+      "type": "string"
+    },
+    "source_aggregation": {
+      "type": "object",
+      "required": [
+        "aggregation_id",
+        "continuity_level",
+        "actor_ref",
+        "target_scope",
+        "supporting_episode_refs",
+        "failure_episode_refs",
+        "contradicting_episode_refs",
+        "counterevidence_episode_refs",
+        "superseded_episode_refs",
+        "confidence_snapshot_ref",
+        "evidence_quality_summary",
+        "evidence_state"
+      ]
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "proposal_id",
+        "proposal_version",
+        "created_at",
+        "created_by",
+        "candidate_digest",
+        "source_aggregation_record_ref",
+        "source_aggregation_digest",
+        "track_identity",
+        "supporting_episode_refs",
+        "failure_episode_refs",
+        "contradicting_episode_refs",
+        "counterevidence_episode_refs",
+        "superseded_episode_refs",
+        "confidence_snapshot_ref",
+        "evidence_quality_summary",
+        "proposed_identity_influence",
+        "governance",
+        "lifecycle",
+        "runtime_state",
+        "authority_effects",
+        "adapter_preserved_fields"
+      ]
+    },
+    "expected": {
+      "type": "object",
+      "required": [
+        "intake_outcome"
+      ],
+      "properties": {
+        "intake_outcome": {
+          "enum": [
+            "ACCEPT_FOR_REVIEW",
+            "REQUEST_MORE_EVIDENCE",
+            "REJECT",
+            "QUARANTINE",
+            "EXPIRE",
+            "SUPERSEDE"
+          ]
+        }
+      }
+    }
+  }
+}

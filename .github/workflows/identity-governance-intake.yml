@@ -1,0 +1,57 @@
+name: Identity governance intake conformance
+
+on:
+  pull_request:
+    paths:
+      - "spec/identity-governance-intake-v0.1.md"
+      - "fixtures/identity-governance-intake/**"
+      - "tools/run_identity_governance_intake_fixtures.py"
+      - ".github/workflows/identity-governance-intake.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "spec/identity-governance-intake-v0.1.md"
+      - "fixtures/identity-governance-intake/**"
+      - "tools/run_identity_governance_intake_fixtures.py"
+      - ".github/workflows/identity-governance-intake.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate frozen JSON
+        run: |
+          python -m json.tool fixtures/identity-governance-intake/schema-v0.1.json > /dev/null
+          for fixture in \
+            ready_candidate \
+            insufficient_evidence \
+            omitted_counterevidence \
+            scope_inflation \
+            expired_candidate \
+            superseded_candidate \
+            self_approval_attempt; do
+            python -m json.tool "fixtures/identity-governance-intake/${fixture}.json" > /dev/null
+            test -s "fixtures/identity-governance-intake/${fixture}.sha256"
+          done
+      - name: Verify frozen fixture digests
+        working-directory: fixtures/identity-governance-intake
+        run: |
+          sha256sum -c ready_candidate.sha256
+          sha256sum -c insufficient_evidence.sha256
+          sha256sum -c omitted_counterevidence.sha256
+          sha256sum -c scope_inflation.sha256
+          sha256sum -c expired_candidate.sha256
+          sha256sum -c superseded_candidate.sha256
+          sha256sum -c self_approval_attempt.sha256
+      - name: Run deterministic intake suite
+        run: python tools/run_identity_governance_intake_fixtures.py
+      - name: Validate conformance report
+        run: python -m json.tool artifacts/identity-governance-intake-conformance-result.json > /dev/null
