@@ -21,6 +21,7 @@ OUTPUT_PATH = ROOT / "artifacts" / "temporal-relationship-semantics-conformance.
 PROFILE = "temporal-relationship-semantics-v0.1"
 SCHEMA_VERSION = "temporal-relationship-semantics-fixtures-v0.1"
 SCOPE_RANK = {"private": 0, "group": 1, "global": 2}
+HISTORICAL_STATUSES = {"SUPERSEDED", "EXPIRED", "REVOKED"}
 AUTHORITY_DEFAULTS = {
     "may_authorize_execution": False,
     "may_establish_consent": False,
@@ -88,12 +89,17 @@ def _validate_document(document: dict[str, Any], schema: dict[str, Any]) -> None
             raise ValueError(f"duplicate fixture id: {fixture_id}")
         fixture_ids.add(fixture_id)
 
-        edge_ids: set[str] = set()
+        query_relation = vector["query"]["relation_type"]
+        if query_relation not in document["relation_policies"]:
+            raise ValueError(f"{fixture_id}: missing policy for query relation")
+
+        edge_by_id: dict[str, dict[str, Any]] = {}
         for edge in vector["edges"]:
             edge_id = edge["edge_id"]
-            if edge_id in edge_ids:
+            if edge_id in edge_by_id:
                 raise ValueError(f"{fixture_id}: duplicate edge id {edge_id}")
-            edge_ids.add(edge_id)
+            edge_by_id[edge_id] = edge
+
             if edge["relation_type"] not in document["relation_policies"]:
                 raise ValueError(
                     f"{fixture_id}: missing policy for relation {edge['relation_type']}"
@@ -101,6 +107,53 @@ def _validate_document(document: dict[str, Any], schema: dict[str, Any]) -> None
             if edge["valid_until"] is not None:
                 if _parse_time(edge["valid_until"]) < _parse_time(edge["valid_from"]):
                     raise ValueError(f"{fixture_id}: valid_until precedes valid_from")
+            if edge["status"] == "RATIFIED" and not edge.get("ratification_ref"):
+                raise ValueError(f"{fixture_id}: RATIFIED edge lacks ratification_ref")
+
+        for edge in vector["edges"]:
+            prior_id = edge.get("supersedes")
+            if prior_id is None:
+                continue
+            prior = edge_by_id.get(prior_id)
+            if prior is None:
+                raise ValueError(
+                    f"{fixture_id}: supersedes references unknown edge {prior_id}"
+                )
+            if prior["status"] != "SUPERSEDED":
+                raise ValueError(
+                    f"{fixture_id}: superseded edge {prior_id} is not SUPERSEDED"
+                )
+            if (
+                prior["source_entity_id"] != edge["source_entity_id"]
+                or prior["relation_type"] != edge["relation_type"]
+            ):
+                raise ValueError(
+                    f"{fixture_id}: supersession changes source or relation type"
+                )
+            if _parse_time(edge["valid_from"]) < _parse_time(prior["valid_from"]):
+                raise ValueError(
+                    f"{fixture_id}: superseding edge predates superseded edge"
+                )
+
+        expected = vector["expected"]
+        expected_ids = set(
+            expected["selected_edge_ids"]
+            + expected["historical_edge_ids"]
+            + expected["suppressed_edge_ids"]
+        )
+        if not expected_ids.issubset(edge_by_id):
+            raise ValueError(f"{fixture_id}: expected result references unknown edge")
+        result_sets = [
+            set(expected["selected_edge_ids"]),
+            set(expected["historical_edge_ids"]),
+            set(expected["suppressed_edge_ids"]),
+        ]
+        if any(
+            result_sets[left].intersection(result_sets[right])
+            for left in range(len(result_sets))
+            for right in range(left + 1, len(result_sets))
+        ):
+            raise ValueError(f"{fixture_id}: expected edge classifications overlap")
 
 
 def _result(
@@ -113,20 +166,32 @@ def _result(
     return {
         "authority_effects": dict(AUTHORITY_DEFAULTS),
         "decision": decision,
-        "historical_edge_ids": sorted(historical),
+        "historical_edge_ids": sorted(set(historical)),
         "reason_codes": reasons,
-        "selected_edge_ids": sorted(selected),
-        "suppressed_edge_ids": sorted(suppressed),
+        "selected_edge_ids": sorted(set(selected)),
+        "suppressed_edge_ids": sorted(set(suppressed)),
     }
 
 
-def _is_temporally_current(edge: dict[str, Any], now: datetime) -> bool:
-    if edge["status"] in {"SUPERSEDED", "EXPIRED", "REVOKED"}:
-        return False
-    if _parse_time(edge["valid_from"]) > now:
-        return False
+def _temporal_state(edge: dict[str, Any], now: datetime) -> str:
+    valid_from = _parse_time(edge["valid_from"])
+    if valid_from > now:
+        return "future"
+    if edge["status"] in HISTORICAL_STATUSES:
+        return "historical"
     valid_until = edge.get("valid_until")
-    return valid_until is None or _parse_time(valid_until) > now
+    if valid_until is not None and _parse_time(valid_until) <= now:
+        return "historical"
+    return "current"
+
+
+def _history_reason(historical: list[dict[str, Any]]) -> str:
+    statuses = {edge["status"] for edge in historical}
+    if "REVOKED" in statuses:
+        return "REVOKED_HISTORY_RETAINED"
+    if "SUPERSEDED" in statuses:
+        return "SUPERSEDED_HISTORY_RETAINED"
+    return "HISTORICAL_CONTEXT_RETAINED"
 
 
 def _evaluate(
@@ -147,9 +212,25 @@ def _evaluate(
     if not matching:
         return _result("ABSTAIN", [], [], [], ["NO_RELATIONSHIP_EVIDENCE"])
 
+    temporal = {
+        edge["edge_id"]: _temporal_state(edge, now)
+        for edge in matching
+    }
+    historical = [
+        edge for edge in matching if temporal[edge["edge_id"]] == "historical"
+    ]
+    current = [
+        edge for edge in matching if temporal[edge["edge_id"]] == "current"
+    ]
+    future = [
+        edge for edge in matching if temporal[edge["edge_id"]] == "future"
+    ]
+    historical_ids = [edge["edge_id"] for edge in historical]
+    future_ids = [edge["edge_id"] for edge in future]
+
     unauthorized_promotions = [
         edge
-        for edge in matching
+        for edge in current
         if SCOPE_RANK[edge["scope"]] > SCOPE_RANK[edge["source_scope"]]
         and not edge.get("promotion_authorization_ref")
     ]
@@ -157,69 +238,64 @@ def _evaluate(
         return _result(
             "REJECT",
             [],
-            [],
-            [edge["edge_id"] for edge in unauthorized_promotions],
+            historical_ids,
+            future_ids + [edge["edge_id"] for edge in unauthorized_promotions],
             ["SCOPE_PROMOTION_UNAUTHORIZED"],
         )
 
     revoked = [
         edge
-        for edge in matching
+        for edge in historical
         if edge["status"] == "REVOKED"
         and policy.get("authority_sensitive") is True
     ]
-    if revoked:
-        return _result(
-            "REJECT",
-            [],
-            [edge["edge_id"] for edge in revoked],
-            [],
-            ["DELEGATION_REVOKED"],
-        )
-
-    historical = [
-        edge
-        for edge in matching
-        if not _is_temporally_current(edge, now)
-    ]
-    current = [
-        edge
-        for edge in matching
-        if _is_temporally_current(edge, now)
-    ]
-    historical_ids = [edge["edge_id"] for edge in historical]
+    if revoked and current:
+        revocation_conflicts = []
+        for revoked_edge in revoked:
+            revocation_time = (
+                _parse_time(revoked_edge["valid_until"])
+                if revoked_edge.get("valid_until")
+                else now
+            )
+            for current_edge in current:
+                if (
+                    current_edge["target_entity_id"]
+                    == revoked_edge["target_entity_id"]
+                    and _parse_time(current_edge["valid_from"]) < revocation_time
+                ):
+                    revocation_conflicts.extend([revoked_edge, current_edge])
+        if revocation_conflicts:
+            return _result(
+                "REJECT",
+                [],
+                historical_ids,
+                future_ids + [edge["edge_id"] for edge in revocation_conflicts],
+                ["DELEGATION_REVOCATION_CONFLICT"],
+            )
 
     if not current:
-        return _result(
-            "RETURN_HISTORICAL",
-            [],
-            historical_ids,
-            [],
-            ["RELATIONSHIP_NOT_CURRENT"],
-        )
-
-    disputed = [edge for edge in current if edge["status"] == "DISPUTED"]
-    if disputed:
-        return _result(
-            "ABSTAIN",
-            [],
-            historical_ids,
-            [edge["edge_id"] for edge in disputed],
-            ["RELATIONSHIP_DISPUTED"],
-        )
-
-    mention_only = [
-        edge
-        for edge in current
-        if edge["evidence_kind"] == "mention"
-    ]
-    if mention_only:
+        if revoked:
+            return _result(
+                "REJECT",
+                [],
+                historical_ids,
+                future_ids,
+                ["DELEGATION_REVOKED"],
+            )
+        if historical:
+            return _result(
+                "RETURN_HISTORICAL",
+                [],
+                historical_ids,
+                future_ids,
+                ["RELATIONSHIP_NOT_CURRENT"],
+            )
         return _result(
             "ABSTAIN",
             [],
-            historical_ids,
-            [edge["edge_id"] for edge in mention_only],
-            ["MENTION_ONLY"],
+            [],
+            future_ids,
+            ["RELATIONSHIP_NOT_YET_VALID"],
         )
 
     winning_scope: Optional[str] = next(
@@ -235,16 +311,62 @@ def _evaluate(
             "ABSTAIN",
             [],
             historical_ids,
-            [edge["edge_id"] for edge in current],
+            future_ids + [edge["edge_id"] for edge in current],
             ["NO_VISIBLE_SCOPE"],
         )
 
     winners = [edge for edge in current if edge["scope"] == winning_scope]
-    suppressed = [
+    suppressed = future_ids + [
         edge["edge_id"]
         for edge in current
         if edge["scope"] != winning_scope
     ]
+
+    disputed = [edge for edge in winners if edge["status"] == "DISPUTED"]
+    if disputed:
+        return _result(
+            "ABSTAIN",
+            [],
+            historical_ids,
+            suppressed + [edge["edge_id"] for edge in winners],
+            ["RELATIONSHIP_DISPUTED"],
+        )
+
+    mentions = [edge for edge in winners if edge["evidence_kind"] == "mention"]
+    substantive = [edge for edge in winners if edge["evidence_kind"] != "mention"]
+    if not substantive:
+        return _result(
+            "ABSTAIN",
+            [],
+            historical_ids,
+            suppressed + [edge["edge_id"] for edge in winners],
+            ["MENTION_ONLY"],
+        )
+    suppressed.extend(edge["edge_id"] for edge in mentions)
+
+    resolved: list[dict[str, Any]] = []
+    targets: list[str] = []
+    for edge in substantive:
+        target = edge["target_entity_id"]
+        if target not in targets:
+            targets.append(target)
+    for target in targets:
+        target_edges = [
+            edge for edge in substantive if edge["target_entity_id"] == target
+        ]
+        ratified_edges = [
+            edge for edge in target_edges if edge["status"] == "RATIFIED"
+        ]
+        if ratified_edges:
+            resolved.extend(ratified_edges)
+            suppressed.extend(
+                edge["edge_id"]
+                for edge in target_edges
+                if edge["status"] != "RATIFIED"
+            )
+        else:
+            resolved.extend(target_edges)
+    winners = resolved
 
     mutuality_required = (
         query["requires_mutual"]
@@ -273,8 +395,8 @@ def _evaluate(
             )
 
     if policy.get("cardinality") == "one":
-        targets = {edge["target_entity_id"] for edge in winners}
-        if len(targets) > 1:
+        current_targets = {edge["target_entity_id"] for edge in winners}
+        if len(current_targets) > 1:
             return _result(
                 "CONFLICTED",
                 [],
@@ -286,8 +408,8 @@ def _evaluate(
     selected_ids = [edge["edge_id"] for edge in winners]
     ratified = all(edge["status"] == "RATIFIED" for edge in winners)
 
-    if historical_ids:
-        reasons = ["SUPERSEDED_HISTORY_RETAINED"]
+    if historical:
+        reasons = [_history_reason(historical)]
     elif ratified:
         reasons = ["CURRENT_RELATIONSHIP_CONTEXT_ONLY"]
     else:
