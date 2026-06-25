@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/blob/main/fixtures/write-time-coherence/schema-v0.1.json",
+  "title": "LS write-time coherence fixture envelope v0.1",
+  "type": "object",
+  "required": [
+    "_meta",
+    "fixture_id",
+    "envelope_version",
+    "required_dependency_roles",
+    "query_context",
+    "source_events",
+    "relations",
+    "candidate",
+    "expected",
+    "scoring"
+  ],
+  "properties": {
+    "fixture_id": {
+      "type": "string"
+    },
+    "envelope_version": {
+      "const": "ls-write-time-coherence-v0.1"
+    },
+    "required_dependency_roles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "query_context": {
+      "type": "object",
+      "required": [
+        "trajectory_id",
+        "continuation_id",
+        "intent_digest",
+        "target_state_digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "trajectory_id": {
+          "type": "string"
+        },
+        "continuation_id": {
+          "type": "string"
+        },
+        "intent_digest": {
+          "type": "string"
+        },
+        "target_state_digest": {
+          "type": "string"
+        }
+      }
+    },
+    "source_events": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object"
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "candidate_id",
+        "evidence_type",
+        "asserted_by",
+        "confirmer",
+        "confirmation_state",
+        "source_event_ids",
+        "source_digests",
+        "dependency_roles",
+        "contradiction_refs",
+        "supersedes_refs",
+        "bindings",
+        "synthesis_payload",
+        "synthesis_digest",
+        "stable_identity_update_allowed",
+        "execution_authorized",
+        "downstream_gates_required"
+      ],
+      "properties": {
+        "evidence_type": {
+          "const": "synthesis"
+        },
+        "confirmation_state": {
+          "enum": [
+            "staging",
+            "verified",
+            "rejected"
+          ]
+        },
+        "stable_identity_update_allowed": {
+          "const": false
+        },
+        "execution_authorized": {
+          "const": false
+        },
+        "downstream_gates_required": {
+          "const": true
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "required": [
+        "ls_verdict",
+        "checks"
+      ],
+      "properties": {
+        "ls_verdict": {
+          "enum": [
+            "RESUME",
+            "REVALIDATE",
+            "REJECT",
+            "ABSTAIN"
+          ]
+        }
+      }
+    }
+  }
+}
