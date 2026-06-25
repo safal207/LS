@@ -27,7 +27,8 @@ from trusted_runtime.continuity_coordinator import ContinuityDecision
 from trusted_runtime.roles_permissions_contract import AuthorityBasis
 
 ROOT = Path(__file__).resolve().parents[2]
-SCHEMA = ROOT / "schemas/trusted_runtime/authorization_result.schema.json"
+RESULT_SCHEMA = ROOT / "schemas/trusted_runtime/authorization_result.schema.json"
+REQUEST_SCHEMA = ROOT / "schemas/trusted_runtime/authorization_request.schema.json"
 SUBJECT = "agent:release-bot"
 ACTION = "deploy"
 RESOURCE = "service:payments"
@@ -44,6 +45,7 @@ def _request() -> AuthorizationRequest:
         resource=RESOURCE,
         scope_ref=SCOPE,
         required_capability_id=CAPABILITY,
+        capability_subject_binding_ref="binding:agent-capability:1",
         capability=CapabilityEvidence(
             result_id="capability-result:1",
             assessment_id="capability-assessment:1",
@@ -230,6 +232,10 @@ def test_cross_subject_evidence_blocks() -> None:
     ("request", "reason"),
     [
         (
+            replace(_request(), capability_subject_binding_ref=""),
+            AuthorizationReason.CAPABILITY_SUBJECT_BINDING_MISSING,
+        ),
+        (
             replace(
                 _request(),
                 authority=replace(
@@ -321,9 +327,36 @@ def test_verified_approval_must_match_scope_and_have_provenance() -> None:
     assert AuthorizationReason.APPROVAL_UNKNOWN in result.reason_codes
 
 
-def test_result_is_deterministic_schema_valid_and_non_executing() -> None:
-    first = _evaluate(_request())
-    second = _evaluate(_request())
+def test_approval_basis_requires_matching_authority_reference() -> None:
+    request = _request()
+    request = replace(
+        request,
+        policy=replace(request.policy, effect=PolicyEffect.REQUIRE_APPROVAL),
+        authority=replace(
+            request.authority,
+            basis=AuthorityBasis.APPROVAL,
+            approval_refs=("approval:other",),
+        ),
+        approval=replace(
+            request.approval,
+            approval_id="approval:change-board:42",
+            state=ApprovalState.VERIFIED,
+            approver_refs=("approver:change-board",),
+            evidence_refs=("evidence:approval",),
+        ),
+    )
+    result = _evaluate(request)
+    assert result.decision is AuthorizationDecision.ESCALATE
+    assert AuthorizationReason.APPROVAL_REFERENCE_MISMATCH in result.reason_codes
+
+
+def test_request_and_result_are_schema_valid_and_deterministic() -> None:
+    request = _request()
+    request_schema = json.loads(REQUEST_SCHEMA.read_text(encoding="utf-8"))
+    assert list(Draft202012Validator(request_schema).iter_errors(request.to_dict())) == []
+
+    first = _evaluate(request)
+    second = _evaluate(request)
     assert first.decision_id == second.decision_id
     payload = first.to_dict()
     denied = (
@@ -338,5 +371,5 @@ def test_result_is_deterministic_schema_valid_and_non_executing() -> None:
         "execution_authorized",
     )
     assert all(payload[field] is False for field in denied)
-    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
-    assert list(Draft202012Validator(schema).iter_errors(payload)) == []
+    result_schema = json.loads(RESULT_SCHEMA.read_text(encoding="utf-8"))
+    assert list(Draft202012Validator(result_schema).iter_errors(payload)) == []
