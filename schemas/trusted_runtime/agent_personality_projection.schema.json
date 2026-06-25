@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/trusted_runtime/agent_personality_projection.schema.json",
+  "title": "LS Agent Personality Projection v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "projection_id",
+    "agent_id",
+    "identity_profile_ref",
+    "identity_profile_version",
+    "created_at",
+    "expires_at",
+    "validity",
+    "scope",
+    "communication_style",
+    "working_tendencies",
+    "relationship_rules",
+    "capability_claims",
+    "active_constraints",
+    "source_refs",
+    "excluded_or_disputed_refs",
+    "authority_effects",
+    "policy_version",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "trusted_runtime.agent_personality_projection.v0.1"
+    },
+    "projection_id": {
+      "type": "string",
+      "pattern": "^agent-personality-projection:sha256:[0-9a-f]{64}$"
+    },
+    "agent_id": {"type": "string", "minLength": 1},
+    "identity_profile_ref": {
+      "type": "string",
+      "pattern": "^identity-profile:sha256:[0-9a-f]{64}$"
+    },
+    "identity_profile_version": {"type": "integer", "minimum": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": ["string", "null"]},
+    "validity": {"const": "ACTIVE"},
+    "scope": {"$ref": "#/$defs/scope"},
+    "communication_style": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/item"}
+    },
+    "working_tendencies": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/item"}
+    },
+    "relationship_rules": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/item"}
+    },
+    "capability_claims": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/item"}
+    },
+    "active_constraints": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/item"}
+    },
+    "source_refs": {"$ref": "#/$defs/refs"},
+    "excluded_or_disputed_refs": {"$ref": "#/$defs/refs"},
+    "authority_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "may_authorize_execution",
+        "may_approve_identity_change",
+        "may_apply_identity_change",
+        "may_create_profile_patch",
+        "may_grant_tool_access",
+        "may_deny_tool_access",
+        "may_bypass_governance",
+        "may_expand_scope"
+      ],
+      "properties": {
+        "may_authorize_execution": {"const": false},
+        "may_approve_identity_change": {"const": false},
+        "may_apply_identity_change": {"const": false},
+        "may_create_profile_patch": {"const": false},
+        "may_grant_tool_access": {"const": false},
+        "may_deny_tool_access": {"const": false},
+        "may_bypass_governance": {"const": false},
+        "may_expand_scope": {"const": false}
+      }
+    },
+    "policy_version": {"const": "agent_personality_projection.v0.1"},
+    "metadata": {"type": "object"}
+  },
+  "$defs": {
+    "refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "counterparty_ref",
+        "project_ref",
+        "organization_ref"
+      ],
+      "properties": {
+        "level": {
+          "enum": [
+            "individual",
+            "relationship",
+            "project",
+            "organization",
+            "system"
+          ]
+        },
+        "counterparty_ref": {"type": ["string", "null"]},
+        "project_ref": {"type": ["string", "null"]},
+        "organization_ref": {"type": ["string", "null"]}
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "key",
+        "value",
+        "source_refs",
+        "source_scope",
+        "status",
+        "confidence",
+        "context_refs",
+        "metadata"
+      ],
+      "properties": {
+        "category": {
+          "enum": [
+            "communication_style",
+            "working_tendency",
+            "relationship_rule",
+            "capability_claim",
+            "active_constraint"
+          ]
+        },
+        "key": {"type": "string", "minLength": 1},
+        "source_refs": {"$ref": "#/$defs/refs"},
+        "source_scope": {"$ref": "#/$defs/scope"},
+        "status": {"type": "string", "minLength": 1},
+        "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "context_refs": {"$ref": "#/$defs/refs"},
+        "metadata": {"type": "object"}
+      }
+    }
+  }
+}
