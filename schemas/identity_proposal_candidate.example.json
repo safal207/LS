@@ -1,0 +1,125 @@
+{
+  "$schema_note": "Reference example only. This is not yet the normative JSON Schema for IdentityProposalCandidate.",
+  "example_name": "identity_proposal_candidate_reference_v0_1",
+  "schema_version": "identity_proposal_candidate.example.v0.1",
+  "proposal_id": "ipc_2026_06_25_competence_publish_001",
+  "proposal_version": "0.1",
+  "created_at": "2026-06-25T09:10:00Z",
+  "created_by": "continuity_coordinator:v0.1",
+  "proposal_status": "candidate",
+  "source_aggregation_record_ref": "tar_2026_06_25_competence_publish_001",
+  "source_issue": "https://github.com/safal207/LS/issues/717",
+  "track_identity": {
+    "track_type": "competence_track",
+    "aggregation_key": "lesson_repeat_key:publish-draft-to-user-visible-doc",
+    "continuity_level": "individual",
+    "actor_ref": "agent:assistant-worker",
+    "target_scope": "github-doc-publication-workflow"
+  },
+  "eligible_influence": "lesson_candidate_with_identity_review_blocked",
+  "proposed_identity_influence": {
+    "influence_type": "competence_pattern_candidate",
+    "summary": "The agent appears moderately reliable at publishing user-visible draft artifacts to GitHub documents, but confidence is not high enough for identity update because material counterevidence exists.",
+    "allowed_effect": "May inform local workflow lessons and future checklist behavior.",
+    "forbidden_effects": [
+      "must_not_increase_system_level_trust",
+      "must_not_grant_autonomous_publication_authority",
+      "must_not_mutate_stable_identity_without_governance"
+    ]
+  },
+  "supporting_episode_refs": [
+    "vep_publish_001",
+    "vep_publish_002",
+    "vep_publish_003"
+  ],
+  "failure_episode_refs": [
+    "vep_publish_004"
+  ],
+  "contradicting_episode_refs": [
+    "vep_publish_005"
+  ],
+  "counterevidence_episode_refs": [
+    "vep_publish_005"
+  ],
+  "superseded_episode_refs": [
+    "vep_publish_000_old"
+  ],
+  "confidence_snapshot": {
+    "confidence_state": "moderate",
+    "confidence_direction": "stalled",
+    "trusted_supporting_count": 2,
+    "active_supporting_count": 3,
+    "failure_count": 1,
+    "counterevidence_count": 1,
+    "reason": "Trusted support exists, but one supporting episode lacks observer independence basis and one recent unexpected_verified episode is material counterevidence."
+  },
+  "evidence_quality_summary": {
+    "evidence_quality_state": "mixed",
+    "strong_points": [
+      "two active supporting episodes include observer independence basis",
+      "counterevidence is explicitly preserved",
+      "superseded episode is not counted as current support"
+    ],
+    "weak_points": [
+      "one supporting episode lacks observer_independence_basis",
+      "one recent unexpected_verified episode contradicts the expected transition",
+      "trusted support count is below high-confidence identity threshold"
+    ],
+    "missing_or_weak_evidence_notes": [
+      "No system-level continuity evidence is present.",
+      "No governance approval exists for stable identity mutation."
+    ]
+  },
+  "governance": {
+    "governance_review_required": false,
+    "governance_reason": "Identity proposal is blocked before governance because material counterevidence exists and confidence is only moderate. The object is retained as a candidate specimen for reviewable handoff shape, not as an active identity proposal.",
+    "recommended_decision": "do_not_promote_to_identity_update",
+    "allowed_next_states": [
+      "lesson_candidate",
+      "request_more_evidence",
+      "quarantine_if_repeated_counterevidence",
+      "reconsider_after_new_trusted_support"
+    ]
+  },
+  "rollback_and_supersession": {
+    "rollback_plan_ref": "rollback_plan:competence_publish_candidate_v0_1",
+    "supersedes_proposal_ref": null,
+    "superseded_by": null,
+    "rollback_triggers": [
+      "new_material_counterevidence",
+      "human_correction",
+      "repeated_publish_failure",
+      "evidence_channel_dispute",
+      "scope_expansion_attempt"
+    ],
+    "revalidate_if": [
+      "counterevidence_count_increases",
+      "trusted_supporting_count_reaches_identity_threshold",
+      "continuity_level_changes",
+      "governance_policy_changes"
+    ],
+    "expires_at": "2026-09-25T09:10:00Z"
+  },
+  "fail_closed_guards": {
+    "proposal_without_source_aggregation_record": "reject",
+    "proposal_without_supporting_episode_refs": "reject",
+    "known_counterevidence_omitted": "reject",
+    "implicit_scope_promotion": "reject",
+    "missing_confidence_snapshot": "reject",
+    "missing_rollback_plan": "reject",
+    "proposal_self_approval": "reject",
+    "single_episode_direct_identity_update": "reject"
+  },
+  "handoff_boundary": {
+    "may_enter_governance_review": false,
+    "may_apply_identity_update": false,
+    "requires_new_evidence_before_identity_review": true,
+    "handoff_reason": "This specimen demonstrates the handoff object shape, but its concrete evidence state blocks active identity proposal promotion."
+  },
+  "related_documents": [
+    "docs/identity-proposal-candidate.md",
+    "docs/identity-proposal-thresholds.md",
+    "docs/continuity-coordinator.md",
+    "schemas/track_aggregation.example.json"
+  ]
+}
