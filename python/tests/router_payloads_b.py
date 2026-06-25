@@ -1,0 +1,66 @@
+from __future__ import annotations
+
+
+def payload_b(route: str) -> dict[str, object]:
+    if route == "errors.learning":
+        return {
+            "schema_version": "trusted_runtime.error_learning_event.v0.1",
+            "event_id": "error-event:router",
+            "error_id": "error:checkout-timeout",
+            "event_type": "ERROR_RECURRENCE_CONFIRMED",
+            "error_status": "RECURRING",
+            "outcome_class": "FAILED",
+            "knowledge_class": "FACT",
+            "statement": "Repeated failure produced a bounded lesson.",
+            "occurred_at": "2026-06-25T05:00:00Z",
+            "confidence": 0.93,
+            "occurrence_count": 2,
+            "evidence_refs": ["evidence:error:api", "evidence:error:ui"],
+            "context_refs": ["context:api", "context:ui"],
+            "observer_refs": ["observer:qa", "observer:sre"],
+            "identity_candidate_statement": "Verify timeout assumptions.",
+            "identity_scope": "errors.learning",
+            "identity_repeat_key": "error:timeout:verification",
+            "metadata": {},
+        }
+    if route == "goals.commitments":
+        return {
+            "schema_version": "trusted_runtime.goal_commitment_event.v0.1",
+            "event_id": "goal-event:router",
+            "goal_id": "goal:release",
+            "event_type": "FOLLOW_THROUGH_VERIFIED",
+            "goal_status": "COMPLETED",
+            "commitment_level": "COMMITMENT",
+            "knowledge_class": "FACT",
+            "statement": "Repeated follow-through produced a bounded lesson.",
+            "occurred_at": "2026-06-25T05:00:00Z",
+            "confidence": 0.94,
+            "repeat_count": 2,
+            "evidence_refs": ["evidence:goal:work", "evidence:goal:family"],
+            "context_refs": ["context:work", "context:family"],
+            "commitment_refs": ["commitment:1", "commitment:2"],
+            "identity_candidate_statement": "Confirm scope before deadlines.",
+            "identity_scope": "goals.commitments",
+            "identity_repeat_key": "goals:scope-before-deadline",
+            "metadata": {},
+        }
+    return {
+        "schema_version": "trusted_runtime.capability_constraint_event.v0.1",
+        "event_id": "capability-event:router",
+        "capability_id": "capability:evidence-review",
+        "event_type": "CAPABILITY_PATTERN_VERIFIED",
+        "capability_status": "AVAILABLE",
+        "constraint_kind": "NONE",
+        "knowledge_class": "FACT",
+        "statement": "Capability repeated across independent contexts.",
+        "occurred_at": "2026-06-25T05:00:00Z",
+        "confidence": 0.95,
+        "repeat_count": 2,
+        "evidence_refs": ["evidence:capability:api", "evidence:capability:ui"],
+        "context_refs": ["context:api", "context:ui"],
+        "observer_refs": ["observer:qa", "observer:sre"],
+        "identity_candidate_statement": "Verify context before declaring a limit.",
+        "identity_scope": "capabilities.constraints",
+        "identity_repeat_key": "capability:verify-context",
+        "metadata": {},
+    }
