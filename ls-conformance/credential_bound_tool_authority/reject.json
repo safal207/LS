@@ -1,0 +1,49 @@
+{
+  "fixture_family": "credential_bound_tool_authority",
+  "type": "reject",
+  "vectors": [
+    {
+      "id": "reject_changed_args_reach_upstream",
+      "description": "Arguments change after credential minting, but the constrained tool call still reaches upstream.",
+      "input": {
+        "credential_present": true,
+        "argument_commitment_matches": false,
+        "tool_name_matches": true,
+        "tenant_matches": true,
+        "constraint_profile_matches": true
+      },
+      "expected": {
+        "conformance_pass": false,
+        "failure_reason": "changed_arguments_reached_upstream"
+      }
+    },
+    {
+      "id": "reject_receipt_spent_as_credential",
+      "description": "An audit receipt is incorrectly treated as spendable enforcement material.",
+      "input": {
+        "credential_present": false,
+        "receipt_present": true,
+        "constrained_tool_call": true,
+        "requested_action": "tool_call"
+      },
+      "expected": {
+        "conformance_pass": false,
+        "failure_reason": "receipt_laundered_into_credential"
+      }
+    },
+    {
+      "id": "reject_replayed_or_expired_credential",
+      "description": "A replayed or expired credential is accepted for a later call.",
+      "input": {
+        "credential_present": true,
+        "credential_expired": true,
+        "credential_replayed": true,
+        "authority_phase_valid": false
+      },
+      "expected": {
+        "conformance_pass": false,
+        "failure_reason": "expired_or_replayed_credential_accepted"
+      }
+    }
+  ]
+}
