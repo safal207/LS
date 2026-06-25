@@ -1,0 +1,140 @@
+{
+  "_meta": {
+    "role": "FROZEN LS write-time coherence fixture",
+    "envelope_version": "ls-write-time-coherence-v0.1",
+    "interop_spec": "https://github.com/safal207/LS/blob/main/spec/write-time-coherence-v0.1.md",
+    "versioning": "Any semantic change requires a new envelope version; v0.1 fixture bytes are frozen.",
+    "ownership": "LS owns fixture bytes, deterministic evaluation, verdicts, and conformance reporting.",
+    "boundary_invariant": "fluent_summary_without_complete_provenance -> ABSTAIN"
+  },
+  "fixture_id": "lossy_synthesis",
+  "envelope_version": "ls-write-time-coherence-v0.1",
+  "description": "The shared store contains a complete source chain, but the synthesized candidate omits the rationale parent and role. Fluent prose cannot repair the missing lineage.",
+  "required_dependency_roles": [
+    "decision",
+    "rationale",
+    "constraint"
+  ],
+  "query_context": {
+    "trajectory_id": "traj-001",
+    "continuation_id": "cont-001",
+    "intent_digest": "sha256:INTENT_A",
+    "target_state_digest": "sha256:TARGET_A"
+  },
+  "source_events": [
+    {
+      "event_id": "event-decision",
+      "session_id": "session-a",
+      "event_type": "decision",
+      "content": "Use approach Q.",
+      "bindings": {
+        "trajectory_id": "traj-001",
+        "continuation_id": "cont-001",
+        "intent_digest": "sha256:INTENT_A",
+        "target_state_digest": "sha256:TARGET_A",
+        "chain_role": "decision"
+      },
+      "immutable": true
+    },
+    {
+      "event_id": "event-rationale",
+      "session_id": "session-b",
+      "event_type": "rationale",
+      "content": "Approach Q was selected for a recoverability reason.",
+      "bindings": {
+        "trajectory_id": "traj-001",
+        "continuation_id": "cont-001",
+        "intent_digest": "sha256:INTENT_A",
+        "target_state_digest": "sha256:TARGET_A",
+        "chain_role": "rationale"
+      },
+      "immutable": true
+    },
+    {
+      "event_id": "event-constraint",
+      "session_id": "session-c",
+      "event_type": "constraint",
+      "content": "Q is valid only while target state A is current.",
+      "bindings": {
+        "trajectory_id": "traj-001",
+        "continuation_id": "cont-001",
+        "intent_digest": "sha256:INTENT_A",
+        "target_state_digest": "sha256:TARGET_A",
+        "chain_role": "constraint"
+      },
+      "immutable": true
+    }
+  ],
+  "relations": [],
+  "candidate": {
+    "candidate_id": "candidate-lossy",
+    "evidence_type": "synthesis",
+    "asserted_by": "continuity-coordinator-1",
+    "confirmer": {
+      "id": "deterministic-verifier-1",
+      "basis": "deterministic_test"
+    },
+    "confirmation_state": "verified",
+    "source_event_ids": [
+      "event-decision",
+      "event-constraint"
+    ],
+    "source_digests": {
+      "event-decision": "sha256:b6e668ae62d2c9d32a48bd438b83b12441c05d864b434229fa7efae6a324c573",
+      "event-constraint": "sha256:d6bf8978f17e538757a1cb34fe5bc2cccde7df4f7908f3eaafabe17f67cfdf23"
+    },
+    "dependency_roles": [
+      "decision",
+      "constraint"
+    ],
+    "contradiction_refs": [],
+    "supersedes_refs": [],
+    "bindings": {
+      "trajectory_id": "traj-001",
+      "continuation_id": "cont-001",
+      "intent_digest": "sha256:INTENT_A",
+      "target_state_digest": "sha256:TARGET_A"
+    },
+    "synthesis_payload": {
+      "claims": [
+        {
+          "claim_id": "decision",
+          "text": "Use approach Q.",
+          "supported_by": [
+            "event-decision"
+          ]
+        },
+        {
+          "claim_id": "constraint",
+          "text": "Q remains acceptable.",
+          "supported_by": [
+            "event-constraint"
+          ]
+        }
+      ],
+      "status": "apparently_coherent"
+    },
+    "synthesis_digest": "sha256:839d5df8f6c75f38bc5ef29c86f18b1ccd16006665ed7d6cb60d38115fd10398",
+    "stable_identity_update_allowed": false,
+    "execution_authorized": false,
+    "downstream_gates_required": true
+  },
+  "expected": {
+    "ls_verdict": "ABSTAIN",
+    "checks": {
+      "source_integrity": true,
+      "contradiction_visible": true,
+      "unresolved_material_contradiction": false,
+      "dependency_chain_complete": false,
+      "bindings_current": true,
+      "confirmer_independent": true,
+      "synthesis_digest_valid": true,
+      "safety_defaults_preserved": true,
+      "confirmation_verified": true
+    }
+  },
+  "scoring": {
+    "boundary_invariant": "fluent_summary_without_complete_provenance -> ABSTAIN",
+    "rule": "A coherent-looking synthesis that omits a material parent or dependency role cannot produce RESUME."
+  }
+}
