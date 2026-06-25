@@ -1,0 +1,137 @@
+{
+  "_meta": {
+    "role": "FROZEN LS write-time coherence fixture",
+    "envelope_version": "ls-write-time-coherence-v0.1",
+    "interop_spec": "https://github.com/safal207/LS/blob/main/spec/write-time-coherence-v0.1.md",
+    "versioning": "Any semantic change requires a new envelope version; v0.1 fixture bytes are frozen.",
+    "ownership": "LS owns fixture bytes, deterministic evaluation, verdicts, and conformance reporting.",
+    "boundary_invariant": "unresolved_material_contradiction -> ABSTAIN"
+  },
+  "fixture_id": "cross_session_contradiction",
+  "envelope_version": "ls-write-time-coherence-v0.1",
+  "description": "Two sessions preserve incompatible claims about approach X. The contradiction is explicit and unresolved, so synthesis cannot yield RESUME.",
+  "required_dependency_roles": [
+    "decision",
+    "rationale",
+    "constraint"
+  ],
+  "query_context": {
+    "trajectory_id": "traj-001",
+    "continuation_id": "cont-001",
+    "intent_digest": "sha256:INTENT_A",
+    "target_state_digest": "sha256:TARGET_A"
+  },
+  "source_events": [
+    {
+      "event_id": "event-a",
+      "session_id": "session-a",
+      "event_type": "decision",
+      "content": "Reject approach X.",
+      "bindings": {
+        "trajectory_id": "traj-001",
+        "continuation_id": "cont-001",
+        "intent_digest": "sha256:INTENT_A",
+        "target_state_digest": "sha256:TARGET_A",
+        "chain_role": "decision"
+      },
+      "immutable": true
+    },
+    {
+      "event_id": "event-b",
+      "session_id": "session-b",
+      "event_type": "assumption",
+      "content": "Proceed as though approach X remains valid.",
+      "bindings": {
+        "trajectory_id": "traj-001",
+        "continuation_id": "cont-001",
+        "intent_digest": "sha256:INTENT_A",
+        "target_state_digest": "sha256:TARGET_A",
+        "chain_role": "constraint"
+      },
+      "immutable": true
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "contradiction-x",
+      "type": "contradicts",
+      "from_event_id": "event-b",
+      "to_event_id": "event-a",
+      "material": true,
+      "resolved": false
+    }
+  ],
+  "candidate": {
+    "candidate_id": "candidate-contradiction",
+    "evidence_type": "synthesis",
+    "asserted_by": "continuity-coordinator-1",
+    "confirmer": {
+      "id": "deterministic-verifier-1",
+      "basis": "deterministic_test"
+    },
+    "confirmation_state": "staging",
+    "source_event_ids": [
+      "event-a",
+      "event-b"
+    ],
+    "source_digests": {
+      "event-a": "sha256:7414e0c360d74dc6e1309c3f06f7d5835cd0016d80babc6e3ff34251668a19ec",
+      "event-b": "sha256:1b16c1a1209e0f6133771610e1b0bcb56a18844fc17cb5cc8e01ca8a0dc3e770"
+    },
+    "dependency_roles": [
+      "decision",
+      "constraint"
+    ],
+    "contradiction_refs": [
+      "contradiction-x"
+    ],
+    "supersedes_refs": [],
+    "bindings": {
+      "trajectory_id": "traj-001",
+      "continuation_id": "cont-001",
+      "intent_digest": "sha256:INTENT_A",
+      "target_state_digest": "sha256:TARGET_A"
+    },
+    "synthesis_payload": {
+      "claims": [
+        {
+          "claim_id": "claim-a",
+          "text": "Approach X was rejected.",
+          "supported_by": [
+            "event-a"
+          ]
+        },
+        {
+          "claim_id": "claim-b",
+          "text": "A later session assumed X remained valid.",
+          "supported_by": [
+            "event-b"
+          ]
+        }
+      ],
+      "status": "conflicted"
+    },
+    "synthesis_digest": "sha256:d9c452dc29337044162af550d61c8b950f5b1ca6c2c0751faa2866bd47644275",
+    "stable_identity_update_allowed": false,
+    "execution_authorized": false,
+    "downstream_gates_required": true
+  },
+  "expected": {
+    "ls_verdict": "ABSTAIN",
+    "checks": {
+      "source_integrity": true,
+      "contradiction_visible": true,
+      "unresolved_material_contradiction": true,
+      "dependency_chain_complete": false,
+      "bindings_current": true,
+      "confirmer_independent": true,
+      "synthesis_digest_valid": true,
+      "safety_defaults_preserved": true,
+      "confirmation_verified": false
+    }
+  },
+  "scoring": {
+    "boundary_invariant": "unresolved_material_contradiction -> ABSTAIN",
+    "rule": "An explicit unresolved material contradiction dominates linguistic coherence and blocks RESUME."
+  }
+}
