@@ -47,6 +47,15 @@ from .relationship_loss_track_center import (
     RelationshipLossResult,
     process_relationship_event,
 )
+from .roles_permissions_track_center import (
+    ROLES_PERMISSIONS_TRACK,
+    AuthorityBasis,
+    AuthorityStatus,
+    RolePermissionEvent,
+    RolePermissionEventType,
+    RolePermissionResult,
+    process_role_permission_event,
+)
 from .values_track_center import (
     VALUES_TRACK,
     ValueEvent,
@@ -63,6 +72,7 @@ SUPPORTED_ROUTES = (
     ERRORS_TRACK,
     GOALS_TRACK,
     CAPABILITIES_TRACK,
+    ROLES_PERMISSIONS_TRACK,
 )
 
 RoutedTrackResult = Union[
@@ -72,6 +82,7 @@ RoutedTrackResult = Union[
     ErrorLearningResult,
     GoalCommitmentResult,
     CapabilityConstraintResult,
+    RolePermissionResult,
 ]
 
 
@@ -117,6 +128,12 @@ def dispatch_track_event(
             processed_at=processed_at,
             processed_by="runtime:capabilities-constraints-track-center",
         )
+    if route == ROLES_PERMISSIONS_TRACK:
+        return process_role_permission_event(
+            _role_permission_event(payload),
+            processed_at=processed_at,
+            processed_by="runtime:roles-permissions-track-center",
+        )
     raise ValueError(f"unsupported route: {route}")
 
 
@@ -128,6 +145,7 @@ def diagnostic_for_route(route: str) -> str:
         ERRORS_TRACK: "error_learning_payload_invalid",
         GOALS_TRACK: "goal_commitment_payload_invalid",
         CAPABILITIES_TRACK: "capability_constraint_payload_invalid",
+        ROLES_PERMISSIONS_TRACK: "role_permission_payload_invalid",
     }[route]
 
 
@@ -147,7 +165,12 @@ def _relationship_event(payload: Mapping[str, Any]) -> RelationshipLossEvent:
         identity_scope=_optional(payload, "identity_scope"),
         identity_repeat_key=_optional(payload, "identity_repeat_key"),
         metadata=_metadata(payload, "relationship"),
-        schema_version=str(payload.get("schema_version", "trusted_runtime.relationship_loss_event.v0.1")),
+        schema_version=str(
+            payload.get(
+                "schema_version",
+                "trusted_runtime.relationship_loss_event.v0.1",
+            )
+        ),
     )
 
 
@@ -168,7 +191,9 @@ def _project_event(payload: Mapping[str, Any]) -> ProjectEvent:
         identity_scope=_optional(payload, "identity_scope"),
         identity_repeat_key=_optional(payload, "identity_repeat_key"),
         metadata=_metadata(payload, "project"),
-        schema_version=str(payload.get("schema_version", "trusted_runtime.project_event.v0.1")),
+        schema_version=str(
+            payload.get("schema_version", "trusted_runtime.project_event.v0.1")
+        ),
     )
 
 
@@ -189,7 +214,9 @@ def _value_event(payload: Mapping[str, Any]) -> ValueEvent:
         identity_scope=_optional(payload, "identity_scope"),
         identity_repeat_key=_optional(payload, "identity_repeat_key"),
         metadata=_metadata(payload, "value"),
-        schema_version=str(payload.get("schema_version", "trusted_runtime.value_event.v0.1")),
+        schema_version=str(
+            payload.get("schema_version", "trusted_runtime.value_event.v0.1")
+        ),
     )
 
 
@@ -212,7 +239,12 @@ def _error_event(payload: Mapping[str, Any]) -> ErrorLearningEvent:
         identity_scope=_optional(payload, "identity_scope"),
         identity_repeat_key=_optional(payload, "identity_repeat_key"),
         metadata=_metadata(payload, "error"),
-        schema_version=str(payload.get("schema_version", "trusted_runtime.error_learning_event.v0.1")),
+        schema_version=str(
+            payload.get(
+                "schema_version",
+                "trusted_runtime.error_learning_event.v0.1",
+            )
+        ),
     )
 
 
@@ -235,7 +267,12 @@ def _goal_event(payload: Mapping[str, Any]) -> GoalCommitmentEvent:
         identity_scope=_optional(payload, "identity_scope"),
         identity_repeat_key=_optional(payload, "identity_repeat_key"),
         metadata=_metadata(payload, "goal"),
-        schema_version=str(payload.get("schema_version", "trusted_runtime.goal_commitment_event.v0.1")),
+        schema_version=str(
+            payload.get(
+                "schema_version",
+                "trusted_runtime.goal_commitment_event.v0.1",
+            )
+        ),
     )
 
 
@@ -258,12 +295,59 @@ def _capability_event(payload: Mapping[str, Any]) -> CapabilityConstraintEvent:
         identity_scope=_optional(payload, "identity_scope"),
         identity_repeat_key=_optional(payload, "identity_repeat_key"),
         metadata=_metadata(payload, "capability"),
-        schema_version=str(payload.get("schema_version", "trusted_runtime.capability_constraint_event.v0.1")),
+        schema_version=str(
+            payload.get(
+                "schema_version",
+                "trusted_runtime.capability_constraint_event.v0.1",
+            )
+        ),
+    )
+
+
+def _role_permission_event(payload: Mapping[str, Any]) -> RolePermissionEvent:
+    return RolePermissionEvent(
+        event_id=str(payload["event_id"]),
+        authority_id=str(payload["authority_id"]),
+        subject_id=str(payload["subject_id"]),
+        event_type=RolePermissionEventType(str(payload["event_type"])),
+        authority_status=AuthorityStatus(str(payload["authority_status"])),
+        authority_basis=AuthorityBasis(str(payload["authority_basis"])),
+        action=str(payload["action"]),
+        resource=str(payload["resource"]),
+        scope_ref=str(payload["scope_ref"]),
+        knowledge_class=KnowledgeClass(str(payload["knowledge_class"])),
+        statement=str(payload["statement"]),
+        occurred_at=str(payload["occurred_at"]),
+        confidence=float(payload["confidence"]),
+        repeat_count=int(payload["repeat_count"]),
+        evidence_refs=_refs(payload, "evidence_refs"),
+        provenance_refs=_refs(payload, "provenance_refs"),
+        context_refs=_refs(payload, "context_refs"),
+        observer_refs=_refs(payload, "observer_refs"),
+        role_refs=_optional_refs(payload, "role_refs"),
+        approval_refs=_optional_refs(payload, "approval_refs"),
+        identity_candidate_statement=_optional(payload, "identity_candidate_statement"),
+        identity_scope=_optional(payload, "identity_scope"),
+        identity_repeat_key=_optional(payload, "identity_repeat_key"),
+        metadata=_metadata(payload, "role_permission"),
+        schema_version=str(
+            payload.get(
+                "schema_version",
+                "trusted_runtime.role_permission_event.v0.1",
+            )
+        ),
     )
 
 
 def _refs(payload: Mapping[str, Any], field_name: str) -> tuple[str, ...]:
     raw = payload[field_name]
+    if isinstance(raw, (str, bytes)):
+        raise ValueError(f"{field_name} must be a sequence")
+    return tuple(str(value) for value in raw)
+
+
+def _optional_refs(payload: Mapping[str, Any], field_name: str) -> tuple[str, ...]:
+    raw = payload.get(field_name, ())
     if isinstance(raw, (str, bytes)):
         raise ValueError(f"{field_name} must be a sequence")
     return tuple(str(value) for value in raw)
