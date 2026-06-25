@@ -7,9 +7,14 @@ on:
     paths:
       - "python/modules/trusted_runtime/roles_permissions_contract.py"
       - "python/modules/trusted_runtime/roles_permissions_track_center.py"
+      - "python/modules/trusted_runtime/track_routes.py"
+      - "python/modules/trusted_runtime/track_center_router.py"
       - "python/tests/test_trusted_runtime_roles_permissions_track_center.py"
       - "python/tests/test_roles_scope.py"
+      - "python/tests/test_trusted_runtime_track_center_router.py"
+      - "python/tests/router_payloads_c.py"
       - "schemas/trusted_runtime/role_permission_result.schema.json"
+      - "schemas/trusted_runtime/track_center_route_result.schema.json"
       - "scripts/run_roles_permissions_track_demo.py"
 
 jobs:
@@ -28,15 +33,20 @@ jobs:
         run: |
           ruff check python/modules/trusted_runtime/roles_permissions_contract.py \
             python/modules/trusted_runtime/roles_permissions_track_center.py \
+            python/modules/trusted_runtime/track_routes.py \
+            python/modules/trusted_runtime/track_center_router.py \
             python/tests/test_trusted_runtime_roles_permissions_track_center.py \
             python/tests/test_roles_scope.py \
+            python/tests/test_trusted_runtime_track_center_router.py \
+            python/tests/router_payloads_c.py \
             scripts/run_roles_permissions_track_demo.py
       - name: Tests
         run: |
           PYTHONPATH=.:python:python/modules python -m pytest \
             python/tests/test_trusted_runtime_continuity_coordinator.py \
             python/tests/test_trusted_runtime_roles_permissions_track_center.py \
-            python/tests/test_roles_scope.py
+            python/tests/test_roles_scope.py \
+            python/tests/test_trusted_runtime_track_center_router.py
       - name: Demo
         run: |
           PYTHONPATH=.:python:python/modules \
