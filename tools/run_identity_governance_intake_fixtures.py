@@ -147,6 +147,17 @@ def _observed_checks(fixture: dict[str, Any]) -> dict[str, bool]:
     )
     not_single_episode = len(source_refs) > 1
 
+    evidence_fields = (
+        "supporting_episode_refs",
+        "failure_episode_refs",
+        "contradicting_episode_refs",
+        "counterevidence_episode_refs",
+        "superseded_episode_refs",
+    )
+    evidence_preserved = all(
+        set(candidate.get(field, [])) == set(source.get(field, []))
+        for field in evidence_fields
+    )
     counterevidence_preserved = (
         set(candidate.get("contradicting_episode_refs", []))
         == set(source.get("contradicting_episode_refs", []))
@@ -154,6 +165,10 @@ def _observed_checks(fixture: dict[str, Any]) -> dict[str, bool]:
         == set(source.get("counterevidence_episode_refs", []))
     )
     evidence_refs_unique = _refs_unique(candidate)
+    evidence_summary_bound = (
+        candidate.get("confidence_snapshot_ref") == source.get("confidence_snapshot_ref")
+        and candidate.get("evidence_quality_summary") == source.get("evidence_quality_summary")
+    )
 
     source_level = source.get("continuity_level")
     candidate_level = candidate.get("track_identity", {}).get("continuity_level")
@@ -164,6 +179,7 @@ def _observed_checks(fixture: dict[str, Any]) -> dict[str, bool]:
         and LEVEL_RANK[candidate_level] <= LEVEL_RANK[source_level]
         and influence_level == candidate_level
         and candidate.get("track_identity", {}).get("actor_ref") == source.get("actor_ref")
+        and candidate.get("track_identity", {}).get("target_scope") == source.get("target_scope")
     )
 
     lifecycle_ready = (
@@ -197,19 +213,38 @@ def _observed_checks(fixture: dict[str, Any]) -> dict[str, bool]:
         source.get("evidence_state") == "sufficient"
         and source.get("evidence_quality_summary", {}).get("trusted_supporting_count", 0) >= 2
     )
+    candidate_state = governance.get("candidate_state")
+    candidate_state_consistent = (
+        (superseded and candidate_state == "SUPERSEDED")
+        or (
+            not superseded
+            and not evidence_sufficient
+            and candidate_state == "MORE_EVIDENCE_REQUIRED"
+        )
+        or (
+            not superseded
+            and evidence_sufficient
+            and candidate_state == "READY_FOR_GOVERNANCE"
+        )
+    )
+    governance_review_required = governance.get("governance_review_required") is True
 
     return {
         "source_binding_valid": source_binding_valid,
         "candidate_digest_valid": candidate_digest_valid,
         "not_single_episode": not_single_episode,
+        "evidence_preserved": evidence_preserved,
         "counterevidence_preserved": counterevidence_preserved,
         "evidence_refs_unique": evidence_refs_unique,
+        "evidence_summary_bound": evidence_summary_bound,
         "scope_preserved": scope_preserved,
         "lifecycle_ready": lifecycle_ready,
         "self_approval_absent": self_approval_absent,
         "authority_clean": authority_clean,
         "runtime_unapplied": runtime_unapplied,
         "adapter_preserves_required": adapter_preserves_required,
+        "candidate_state_consistent": candidate_state_consistent,
+        "governance_review_required": governance_review_required,
         "expired": expired,
         "superseded": superseded,
         "evidence_sufficient": evidence_sufficient,
@@ -221,13 +256,17 @@ def _outcome(checks: dict[str, bool]) -> str:
         "source_binding_valid",
         "candidate_digest_valid",
         "not_single_episode",
+        "evidence_preserved",
         "counterevidence_preserved",
         "evidence_refs_unique",
+        "evidence_summary_bound",
         "lifecycle_ready",
         "self_approval_absent",
         "authority_clean",
         "runtime_unapplied",
         "adapter_preserves_required",
+        "candidate_state_consistent",
+        "governance_review_required",
     )
     if not all(checks[name] for name in reject_checks):
         return "REJECT"
