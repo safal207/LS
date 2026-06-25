@@ -1,0 +1,53 @@
+name: Roles Permissions Track Center
+
+on:
+  push:
+    branches: [main, "feat/roles-center"]
+  pull_request:
+    paths:
+      - "python/modules/trusted_runtime/roles_permissions_contract.py"
+      - "python/modules/trusted_runtime/roles_permissions_track_center.py"
+      - "python/modules/trusted_runtime/track_routes.py"
+      - "python/modules/trusted_runtime/track_center_router.py"
+      - "python/tests/test_trusted_runtime_roles_permissions_track_center.py"
+      - "python/tests/test_roles_scope.py"
+      - "python/tests/test_trusted_runtime_track_center_router.py"
+      - "python/tests/router_payloads_c.py"
+      - "schemas/trusted_runtime/role_permission_result.schema.json"
+      - "schemas/trusted_runtime/track_center_route_result.schema.json"
+      - "scripts/run_roles_permissions_track_demo.py"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install jsonschema pytest ruff
+      - name: Ruff
+        run: |
+          ruff check python/modules/trusted_runtime/roles_permissions_contract.py \
+            python/modules/trusted_runtime/roles_permissions_track_center.py \
+            python/modules/trusted_runtime/track_routes.py \
+            python/modules/trusted_runtime/track_center_router.py \
+            python/tests/test_trusted_runtime_roles_permissions_track_center.py \
+            python/tests/test_roles_scope.py \
+            python/tests/test_trusted_runtime_track_center_router.py \
+            python/tests/router_payloads_c.py \
+            scripts/run_roles_permissions_track_demo.py
+      - name: Tests
+        run: |
+          PYTHONPATH=.:python:python/modules python -m pytest \
+            python/tests/test_trusted_runtime_continuity_coordinator.py \
+            python/tests/test_trusted_runtime_roles_permissions_track_center.py \
+            python/tests/test_roles_scope.py \
+            python/tests/test_trusted_runtime_track_center_router.py
+      - name: Demo
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/run_roles_permissions_track_demo.py

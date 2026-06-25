@@ -1,7 +1,5 @@
 # LS Track Center Router v0.1
 
-The Router is the fail-closed entry point for LS track events:
-
 ```text
 TrackCenterEnvelope -> exact route -> typed center
   -> Continuity Coordinator -> ACCEPT | HOLD | BLOCK
@@ -15,44 +13,41 @@ TrackCenterEnvelope -> exact route -> typed center
 4. `errors.learning`
 5. `goals.commitments`
 6. `capabilities.constraints`
+7. `roles.permissions`
 
-The enum and typed dispatch registry must match exactly. No free-text route
-inference or fallback routing is allowed.
+The enum and typed dispatch registry must match exactly. Free-text inference and
+fallback routing are forbidden.
 
-## Router decisions
+## Decisions
 
-- `ROUTED`: exact route and valid versioned payload. The nested decision may
-  still be `ACCEPT_BOUNDED_OBSERVATION`, `HOLD_FOR_REVIEW`, or
+- `ROUTED`: exact route and valid versioned payload. The nested result may still
+  be `ACCEPT_BOUNDED_OBSERVATION`, `HOLD_FOR_REVIEW`, or
   `BLOCK_FALSE_PRESENCE`.
 - `HOLD_UNKNOWN_ROUTE`: no exact route exists.
-- `HOLD_MALFORMED_PAYLOAD`: the typed event contract rejected the payload.
+- `HOLD_MALFORMED_PAYLOAD`: the typed contract rejected the payload.
 
-Capability payload failures use `capability_constraint_payload_invalid`. Raw
-payload content is never echoed in diagnostics.
-
-## Provenance
-
-The deterministic route-result ID binds the envelope digest, requested and
-selected routes, decision, reason codes, nested result ID, diagnostic, and
-Router policy version.
+Roles/permissions failures use `role_permission_payload_invalid`. Diagnostics do
+not echo raw payload data.
 
 ## Authority boundary
 
-Routing never grants permission. Every result keeps relationship, project,
-value, incident, goal, capability, task, remediation, priority, scheduling,
-identity, and execution authority disabled. The capability route explicitly
-adds:
+Routing is not authorization. The seventh route adds explicit denials for role
+and permission mutation, access grants and denials, approval, delegation,
+policy mutation, stable-identity updates, and execution.
 
 ```json
 {
-  "capability_registry_mutation_allowed": false,
-  "capability_restriction_allowed": false,
-  "global_limitation_assignment_allowed": false,
-  "training_scheduling_allowed": false,
+  "role_registry_mutation_allowed": false,
+  "permission_registry_mutation_allowed": false,
+  "access_grant_allowed": false,
+  "access_denial_allowed": false,
+  "approval_allowed": false,
+  "delegation_allowed": false,
+  "policy_mutation_allowed": false,
   "stable_identity_update_allowed": false,
   "execution_authorized": false
 }
 ```
 
-A future route requires a reviewed key, event contract, typed adapter,
-fail-closed diagnostic, schema, tests, artifacts, docs, and authority denials.
+A future route requires a reviewed key, contract, typed adapter, fail-closed
+diagnostic, schema, tests, artifacts, docs, and authority denials.
