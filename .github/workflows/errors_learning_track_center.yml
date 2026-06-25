@@ -1,0 +1,78 @@
+name: Errors Learning Track Center
+
+on:
+  push:
+    branches: [main, "feat/errors-learning-track-center-v0.1"]
+  pull_request:
+    paths:
+      - "python/modules/trusted_runtime/errors_learning_track_center.py"
+      - "python/tests/test_trusted_runtime_errors_learning_track_center.py"
+      - "schemas/trusted_runtime/error_learning_result.schema.json"
+      - "scripts/run_errors_learning_track_demo.py"
+      - "docs/ERRORS_LEARNING_TRACK_CENTER_V0_1.md"
+      - ".github/workflows/errors_learning_track_center.yml"
+
+concurrency:
+  group: errors-learning-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install jsonschema pytest ruff
+      - name: Ruff
+        run: |
+          ruff check \
+            python/modules/trusted_runtime/errors_learning_track_center.py \
+            python/tests/test_trusted_runtime_errors_learning_track_center.py \
+            scripts/run_errors_learning_track_demo.py
+      - name: Tests
+        run: |
+          PYTHONPATH=.:python:python/modules python -m pytest \
+            python/tests/test_trusted_runtime_continuity_coordinator.py \
+            python/tests/test_trusted_runtime_errors_learning_track_center.py
+      - name: Demo
+        run: |
+          PYTHONPATH=.:python:python/modules \
+            python scripts/run_errors_learning_track_demo.py \
+              --output build/errors-learning-track-center
+      - name: Verify boundaries
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(
+              Path("build/errors-learning-track-center/summary.json").read_text()
+          )
+          items = {x["event_id"]: x for x in data["decisions"]}
+          assert data["result"] == "PASS"
+          assert not items["error-event:single-failure"]["lesson_candidate_emitted"]
+          assert items["error-event:near-miss"]["outcome_class"] == "NEAR_MISS"
+          assert not items["error-event:near-miss"]["lesson_candidate_emitted"]
+          assert items["error-event:recurrence"]["lesson_candidate_emitted"]
+          assert items["error-event:disputed-blame"]["decision"] == "HOLD_FOR_REVIEW"
+          assert items["error-event:resolved-blame"]["decision"] == "BLOCK_FALSE_PRESENCE"
+          for item in items.values():
+              assert item["incident_registry_mutation_allowed"] is False
+              assert item["blame_assignment_allowed"] is False
+              assert item["remediation_scheduling_allowed"] is False
+              assert item["stable_identity_update_allowed"] is False
+              assert item["execution_authorized"] is False
+          PY
+      - if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: errors-learning-track-center-evidence
+          path: build/errors-learning-track-center
+          if-no-files-found: error

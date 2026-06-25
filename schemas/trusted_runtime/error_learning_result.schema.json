@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/trusted_runtime/error_learning_result.schema.json",
+  "title": "LS Error Learning Result v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "result_id",
+    "event",
+    "observation",
+    "assessment",
+    "incident_registry_mutation_allowed",
+    "blame_assignment_allowed",
+    "remediation_scheduling_allowed",
+    "stable_identity_update_allowed",
+    "execution_authorized",
+    "policy_version",
+    "processed_at",
+    "processed_by",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {"const": "trusted_runtime.error_learning_result.v0.1"},
+    "result_id": {
+      "type": "string",
+      "pattern": "^error-learning-result:sha256:[0-9a-f]{64}$"
+    },
+    "event": {"$ref": "#/$defs/event"},
+    "observation": {"$ref": "#/$defs/observation"},
+    "assessment": {"$ref": "#/$defs/assessment"},
+    "incident_registry_mutation_allowed": {"const": false},
+    "blame_assignment_allowed": {"const": false},
+    "remediation_scheduling_allowed": {"const": false},
+    "stable_identity_update_allowed": {"const": false},
+    "execution_authorized": {"const": false},
+    "policy_version": {"const": "errors_learning_track_center.v0.1"},
+    "processed_at": {"type": "string", "minLength": 1},
+    "processed_by": {"type": "string", "minLength": 1},
+    "metadata": {"type": "object"}
+  },
+  "$defs": {
+    "nullableString": {"type": ["string", "null"]},
+    "refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "event_id", "error_id", "event_type",
+        "error_status", "outcome_class", "knowledge_class", "statement",
+        "occurred_at", "confidence", "occurrence_count", "evidence_refs",
+        "context_refs", "observer_refs", "identity_candidate_statement",
+        "identity_scope", "identity_repeat_key", "metadata"
+      ],
+      "properties": {
+        "schema_version": {"const": "trusted_runtime.error_learning_event.v0.1"},
+        "event_id": {"type": "string", "minLength": 1},
+        "error_id": {"type": "string", "minLength": 1},
+        "event_type": {
+          "enum": [
+            "ERROR_OBSERVED", "FAILURE_VERIFIED",
+            "UNEXPECTED_OUTCOME_RECORDED", "NEAR_MISS_RECORDED",
+            "REMEDIATION_APPLIED", "REMEDIATION_VERIFIED",
+            "ERROR_RECURRENCE_CONFIRMED", "ATTRIBUTION_DISPUTED",
+            "ERROR_RESOLVED", "ERROR_RETIRED", "CURRENT_BLAME_CLAIM"
+          ]
+        },
+        "error_status": {
+          "enum": [
+            "OBSERVED", "INVESTIGATING", "CONFIRMED", "DISPUTED",
+            "RESOLVED", "RECURRING", "RETIRED", "UNKNOWN"
+          ]
+        },
+        "outcome_class": {
+          "enum": [
+            "FAILED", "UNEXPECTED", "NEAR_MISS", "CORRECTED",
+            "SUCCESSFUL_REMEDIATION"
+          ]
+        },
+        "knowledge_class": {
+          "enum": ["FACT", "MEMORY", "INFERENCE", "SYMBOLIC_MEANING"]
+        },
+        "statement": {"type": "string", "minLength": 1},
+        "occurred_at": {"type": "string", "minLength": 1},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "occurrence_count": {"type": "integer", "minimum": 1},
+        "evidence_refs": {"$ref": "#/$defs/refs"},
+        "context_refs": {"$ref": "#/$defs/refs"},
+        "observer_refs": {"$ref": "#/$defs/refs"},
+        "identity_candidate_statement": {"$ref": "#/$defs/nullableString"},
+        "identity_scope": {"$ref": "#/$defs/nullableString"},
+        "identity_repeat_key": {"$ref": "#/$defs/nullableString"},
+        "metadata": {"type": "object"}
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observation_id", "track", "subject_id", "entity_status",
+        "knowledge_class", "statement", "occurred_at", "confidence",
+        "evidence_refs", "claims_current_presence",
+        "claims_current_intention", "identity_candidate_statement",
+        "identity_scope", "identity_repeat_key", "metadata"
+      ],
+      "properties": {
+        "observation_id": {
+          "type": "string",
+          "pattern": "^error-observation:sha256:[0-9a-f]{64}$"
+        },
+        "track": {"const": "errors.learning"},
+        "subject_id": {"type": "string", "minLength": 1},
+        "entity_status": {"enum": ["ACTIVE", "PAUSED", "CLOSED", "UNKNOWN"]},
+        "knowledge_class": {
+          "enum": ["FACT", "MEMORY", "INFERENCE", "SYMBOLIC_MEANING"]
+        },
+        "statement": {"type": "string", "minLength": 1},
+        "occurred_at": {"type": "string", "minLength": 1},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "evidence_refs": {"$ref": "#/$defs/refs"},
+        "claims_current_presence": {"type": "boolean"},
+        "claims_current_intention": {"const": false},
+        "identity_candidate_statement": {"$ref": "#/$defs/nullableString"},
+        "identity_scope": {"$ref": "#/$defs/nullableString"},
+        "identity_repeat_key": {"$ref": "#/$defs/nullableString"},
+        "metadata": {
+          "type": "object",
+          "required": [
+            "error_id", "error_event_id", "error_event_digest",
+            "error_event_type", "error_status", "outcome_class",
+            "occurrence_count", "context_refs", "observer_refs",
+            "failed_outcome_is_not_success", "track_center_policy_version",
+            "incident_registry_mutation_allowed", "blame_assignment_allowed",
+            "remediation_scheduling_allowed"
+          ],
+          "properties": {
+            "failed_outcome_is_not_success": {"const": true},
+            "incident_registry_mutation_allowed": {"const": false},
+            "blame_assignment_allowed": {"const": false},
+            "remediation_scheduling_allowed": {"const": false}
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "assessment": {
+      "type": "object",
+      "required": [
+        "schema_version", "assessment_id", "observation_id", "decision",
+        "stable_identity_update_allowed", "execution_authorized"
+      ],
+      "properties": {
+        "schema_version": {"const": "trusted_runtime.continuity_assessment.v0.1"},
+        "assessment_id": {
+          "type": "string",
+          "pattern": "^continuity-assessment:sha256:[0-9a-f]{64}$"
+        },
+        "observation_id": {
+          "type": "string",
+          "pattern": "^error-observation:sha256:[0-9a-f]{64}$"
+        },
+        "decision": {
+          "enum": [
+            "ACCEPT_BOUNDED_OBSERVATION", "HOLD_FOR_REVIEW",
+            "BLOCK_FALSE_PRESENCE"
+          ]
+        },
+        "stable_identity_update_allowed": {"const": false},
+        "execution_authorized": {"const": false}
+      },
+      "additionalProperties": true
+    }
+  }
+}

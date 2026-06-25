@@ -9,6 +9,15 @@ from enum import Enum
 from typing import Any, Mapping, Optional, Union
 
 from .continuity_coordinator import EntityStatus, KnowledgeClass
+from .errors_learning_track_center import (
+    ERRORS_TRACK,
+    ErrorEventType,
+    ErrorLearningEvent,
+    ErrorLearningResult,
+    ErrorStatus,
+    OutcomeClass,
+    process_error_event,
+)
 from .projects_track_center import (
     PROJECTS_TRACK,
     ProjectEvent,
@@ -38,13 +47,19 @@ TRACK_CENTER_ROUTE_RESULT_VERSION = "trusted_runtime.track_center_route_result.v
 TRACK_CENTER_ROUTER_POLICY_VERSION = "track_center_router.v0.1"
 TRACK_CENTER_ROUTER_ID = "runtime:track-center-router"
 
-RoutedTrackResult = Union[RelationshipLossResult, ProjectTrackResult, ValueTrackResult]
+RoutedTrackResult = Union[
+    RelationshipLossResult,
+    ProjectTrackResult,
+    ValueTrackResult,
+    ErrorLearningResult,
+]
 
 
 class TrackCenterRoute(str, Enum):
     RELATIONSHIPS_LOSS = RELATIONSHIP_LOSS_TRACK
     PROJECTS_LIFECYCLE = PROJECTS_TRACK
     VALUES_EVIDENCE = VALUES_TRACK
+    ERRORS_LEARNING = ERRORS_TRACK
 
 
 class RouterDecision(str, Enum):
@@ -160,6 +175,9 @@ class TrackCenterRouteResult:
             "task_scheduling_allowed": False,
             "value_registry_mutation_allowed": False,
             "priority_mutation_allowed": False,
+            "incident_registry_mutation_allowed": False,
+            "blame_assignment_allowed": False,
+            "remediation_scheduling_allowed": False,
             "stable_identity_update_allowed": False,
             "execution_authorized": False,
             "policy_version": self.policy_version,
@@ -250,10 +268,16 @@ def _dispatch(
             processed_at=processed_at,
             processed_by="runtime:projects-track-center",
         )
-    return process_value_event(
-        _value_event(envelope.payload),
+    if envelope.route_key == VALUES_TRACK:
+        return process_value_event(
+            _value_event(envelope.payload),
+            processed_at=processed_at,
+            processed_by="runtime:values-track-center",
+        )
+    return process_error_event(
+        _error_event(envelope.payload),
         processed_at=processed_at,
-        processed_by="runtime:values-track-center",
+        processed_by="runtime:errors-learning-track-center",
     )
 
 
@@ -273,7 +297,12 @@ def _relationship_event(payload: Mapping[str, Any]) -> RelationshipLossEvent:
         identity_scope=_optional(payload, "identity_scope"),
         identity_repeat_key=_optional(payload, "identity_repeat_key"),
         metadata=_metadata(payload, "relationship"),
-        schema_version=str(payload.get("schema_version", "trusted_runtime.relationship_loss_event.v0.1")),
+        schema_version=str(
+            payload.get(
+                "schema_version",
+                "trusted_runtime.relationship_loss_event.v0.1",
+            )
+        ),
     )
 
 
@@ -284,7 +313,9 @@ def _project_event(payload: Mapping[str, Any]) -> ProjectEvent:
         project_id=str(payload["project_id"]),
         event_type=ProjectEventType(str(payload["event_type"])),
         project_status=ProjectStatus(str(payload["project_status"])),
-        previous_status=ProjectStatus(str(previous)) if previous is not None else None,
+        previous_status=(
+            ProjectStatus(str(previous)) if previous is not None else None
+        ),
         knowledge_class=KnowledgeClass(str(payload["knowledge_class"])),
         statement=str(payload["statement"]),
         occurred_at=str(payload["occurred_at"]),
@@ -294,7 +325,9 @@ def _project_event(payload: Mapping[str, Any]) -> ProjectEvent:
         identity_scope=_optional(payload, "identity_scope"),
         identity_repeat_key=_optional(payload, "identity_repeat_key"),
         metadata=_metadata(payload, "project"),
-        schema_version=str(payload.get("schema_version", "trusted_runtime.project_event.v0.1")),
+        schema_version=str(
+            payload.get("schema_version", "trusted_runtime.project_event.v0.1")
+        ),
     )
 
 
@@ -315,7 +348,37 @@ def _value_event(payload: Mapping[str, Any]) -> ValueEvent:
         identity_scope=_optional(payload, "identity_scope"),
         identity_repeat_key=_optional(payload, "identity_repeat_key"),
         metadata=_metadata(payload, "value"),
-        schema_version=str(payload.get("schema_version", "trusted_runtime.value_event.v0.1")),
+        schema_version=str(
+            payload.get("schema_version", "trusted_runtime.value_event.v0.1")
+        ),
+    )
+
+
+def _error_event(payload: Mapping[str, Any]) -> ErrorLearningEvent:
+    return ErrorLearningEvent(
+        event_id=str(payload["event_id"]),
+        error_id=str(payload["error_id"]),
+        event_type=ErrorEventType(str(payload["event_type"])),
+        error_status=ErrorStatus(str(payload["error_status"])),
+        outcome_class=OutcomeClass(str(payload["outcome_class"])),
+        knowledge_class=KnowledgeClass(str(payload["knowledge_class"])),
+        statement=str(payload["statement"]),
+        occurred_at=str(payload["occurred_at"]),
+        confidence=float(payload["confidence"]),
+        occurrence_count=int(payload["occurrence_count"]),
+        evidence_refs=_refs(payload, "evidence_refs"),
+        context_refs=_refs(payload, "context_refs"),
+        observer_refs=_refs(payload, "observer_refs"),
+        identity_candidate_statement=_optional(payload, "identity_candidate_statement"),
+        identity_scope=_optional(payload, "identity_scope"),
+        identity_repeat_key=_optional(payload, "identity_repeat_key"),
+        metadata=_metadata(payload, "error"),
+        schema_version=str(
+            payload.get(
+                "schema_version",
+                "trusted_runtime.error_learning_event.v0.1",
+            )
+        ),
     )
 
 
@@ -343,11 +406,17 @@ def _diagnostic_for_route(route: str) -> str:
         RELATIONSHIP_LOSS_TRACK: "relationship_loss_payload_invalid",
         PROJECTS_TRACK: "project_payload_invalid",
         VALUES_TRACK: "value_payload_invalid",
+        ERRORS_TRACK: "error_learning_payload_invalid",
     }[route]
 
 
 def _canonical_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
 
 
 def _digest(value: Any) -> str:

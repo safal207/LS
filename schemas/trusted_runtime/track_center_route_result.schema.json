@@ -5,26 +5,14 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version",
-    "route_result_id",
-    "envelope_id",
-    "envelope_digest",
-    "requested_route",
-    "selected_route",
-    "decision",
-    "reason_codes",
-    "routed_result",
-    "diagnostic_code",
-    "relational_self_mutation_allowed",
-    "project_registry_mutation_allowed",
-    "task_scheduling_allowed",
-    "value_registry_mutation_allowed",
-    "priority_mutation_allowed",
-    "stable_identity_update_allowed",
-    "execution_authorized",
-    "policy_version",
-    "processed_at",
-    "processed_by",
+    "schema_version", "route_result_id", "envelope_id", "envelope_digest",
+    "requested_route", "selected_route", "decision", "reason_codes",
+    "routed_result", "diagnostic_code", "relational_self_mutation_allowed",
+    "project_registry_mutation_allowed", "task_scheduling_allowed",
+    "value_registry_mutation_allowed", "priority_mutation_allowed",
+    "incident_registry_mutation_allowed", "blame_assignment_allowed",
+    "remediation_scheduling_allowed", "stable_identity_update_allowed",
+    "execution_authorized", "policy_version", "processed_at", "processed_by",
     "metadata"
   ],
   "properties": {
@@ -38,7 +26,10 @@
     "requested_route": {"type": "string", "minLength": 1},
     "selected_route": {
       "type": ["string", "null"],
-      "enum": ["relationships.loss", "projects.lifecycle", "values.evidence", null]
+      "enum": [
+        "relationships.loss", "projects.lifecycle", "values.evidence",
+        "errors.learning", null
+      ]
     },
     "decision": {
       "enum": ["ROUTED", "HOLD_UNKNOWN_ROUTE", "HOLD_MALFORMED_PAYLOAD"]
@@ -49,9 +40,7 @@
       "uniqueItems": true,
       "items": {
         "enum": [
-          "EXACT_ROUTE_MATCH",
-          "UNKNOWN_ROUTE",
-          "MALFORMED_PAYLOAD",
+          "EXACT_ROUTE_MATCH", "UNKNOWN_ROUTE", "MALFORMED_PAYLOAD",
           "NO_ROUTE_INFERENCE"
         ]
       }
@@ -61,17 +50,16 @@
         {"type": "null"},
         {"$ref": "#/$defs/relationshipResult"},
         {"$ref": "#/$defs/projectResult"},
-        {"$ref": "#/$defs/valueResult"}
+        {"$ref": "#/$defs/valueResult"},
+        {"$ref": "#/$defs/errorResult"}
       ]
     },
     "diagnostic_code": {
       "type": ["string", "null"],
       "enum": [
-        "unknown_track_center_route",
-        "relationship_loss_payload_invalid",
-        "project_payload_invalid",
-        "value_payload_invalid",
-        null
+        "unknown_track_center_route", "relationship_loss_payload_invalid",
+        "project_payload_invalid", "value_payload_invalid",
+        "error_learning_payload_invalid", null
       ]
     },
     "relational_self_mutation_allowed": {"const": false},
@@ -79,6 +67,9 @@
     "task_scheduling_allowed": {"const": false},
     "value_registry_mutation_allowed": {"const": false},
     "priority_mutation_allowed": {"const": false},
+    "incident_registry_mutation_allowed": {"const": false},
+    "blame_assignment_allowed": {"const": false},
+    "remediation_scheduling_allowed": {"const": false},
     "stable_identity_update_allowed": {"const": false},
     "execution_authorized": {"const": false},
     "policy_version": {"const": "track_center_router.v0.1"},
@@ -87,18 +78,14 @@
     "metadata": {
       "type": "object",
       "required": [
-        "supported_routes",
-        "route_matching",
-        "free_text_route_inference",
+        "supported_routes", "route_matching", "free_text_route_inference",
         "router_output_is_not_authority"
       ],
       "properties": {
         "supported_routes": {
-          "type": "array",
           "const": [
-            "relationships.loss",
-            "projects.lifecycle",
-            "values.evidence"
+            "relationships.loss", "projects.lifecycle", "values.evidence",
+            "errors.learning"
           ]
         },
         "route_matching": {"const": "exact_only"},
@@ -115,8 +102,7 @@
       "properties": {
         "decision": {
           "enum": [
-            "ACCEPT_BOUNDED_OBSERVATION",
-            "HOLD_FOR_REVIEW",
+            "ACCEPT_BOUNDED_OBSERVATION", "HOLD_FOR_REVIEW",
             "BLOCK_FALSE_PRESENCE"
           ]
         },
@@ -128,11 +114,8 @@
     "relationshipResult": {
       "type": "object",
       "required": [
-        "schema_version",
-        "result_id",
-        "assessment",
-        "relational_self_mutation_allowed",
-        "stable_identity_update_allowed",
+        "schema_version", "result_id", "assessment",
+        "relational_self_mutation_allowed", "stable_identity_update_allowed",
         "execution_authorized"
       ],
       "properties": {
@@ -151,13 +134,9 @@
     "projectResult": {
       "type": "object",
       "required": [
-        "schema_version",
-        "result_id",
-        "assessment",
-        "project_registry_mutation_allowed",
-        "task_scheduling_allowed",
-        "stable_identity_update_allowed",
-        "execution_authorized"
+        "schema_version", "result_id", "assessment",
+        "project_registry_mutation_allowed", "task_scheduling_allowed",
+        "stable_identity_update_allowed", "execution_authorized"
       ],
       "properties": {
         "schema_version": {"const": "trusted_runtime.project_track_result.v0.1"},
@@ -176,13 +155,9 @@
     "valueResult": {
       "type": "object",
       "required": [
-        "schema_version",
-        "result_id",
-        "assessment",
-        "value_registry_mutation_allowed",
-        "priority_mutation_allowed",
-        "stable_identity_update_allowed",
-        "execution_authorized"
+        "schema_version", "result_id", "assessment",
+        "value_registry_mutation_allowed", "priority_mutation_allowed",
+        "stable_identity_update_allowed", "execution_authorized"
       ],
       "properties": {
         "schema_version": {"const": "trusted_runtime.value_track_result.v0.1"},
@@ -197,6 +172,29 @@
         "execution_authorized": {"const": false}
       },
       "additionalProperties": true
+    },
+    "errorResult": {
+      "type": "object",
+      "required": [
+        "schema_version", "result_id", "assessment",
+        "incident_registry_mutation_allowed", "blame_assignment_allowed",
+        "remediation_scheduling_allowed", "stable_identity_update_allowed",
+        "execution_authorized"
+      ],
+      "properties": {
+        "schema_version": {"const": "trusted_runtime.error_learning_result.v0.1"},
+        "result_id": {
+          "type": "string",
+          "pattern": "^error-learning-result:sha256:[0-9a-f]{64}$"
+        },
+        "assessment": {"$ref": "#/$defs/continuityAssessment"},
+        "incident_registry_mutation_allowed": {"const": false},
+        "blame_assignment_allowed": {"const": false},
+        "remediation_scheduling_allowed": {"const": false},
+        "stable_identity_update_allowed": {"const": false},
+        "execution_authorized": {"const": false}
+      },
+      "additionalProperties": true
     }
   },
   "allOf": [
@@ -205,7 +203,10 @@
       "then": {
         "properties": {
           "selected_route": {
-            "enum": ["relationships.loss", "projects.lifecycle", "values.evidence"]
+            "enum": [
+              "relationships.loss", "projects.lifecycle", "values.evidence",
+              "errors.learning"
+            ]
           },
           "routed_result": {"type": "object"},
           "diagnostic_code": {"type": "null"}
@@ -230,12 +231,7 @@
         },
         "required": ["decision", "selected_route"]
       },
-      "then": {
-        "properties": {
-          "routed_result": {"type": "null"},
-          "diagnostic_code": {"const": "relationship_loss_payload_invalid"}
-        }
-      }
+      "then": {"properties": {"routed_result": {"type": "null"}, "diagnostic_code": {"const": "relationship_loss_payload_invalid"}}}
     },
     {
       "if": {
@@ -245,12 +241,7 @@
         },
         "required": ["decision", "selected_route"]
       },
-      "then": {
-        "properties": {
-          "routed_result": {"type": "null"},
-          "diagnostic_code": {"const": "project_payload_invalid"}
-        }
-      }
+      "then": {"properties": {"routed_result": {"type": "null"}, "diagnostic_code": {"const": "project_payload_invalid"}}}
     },
     {
       "if": {
@@ -260,12 +251,17 @@
         },
         "required": ["decision", "selected_route"]
       },
-      "then": {
+      "then": {"properties": {"routed_result": {"type": "null"}, "diagnostic_code": {"const": "value_payload_invalid"}}}
+    },
+    {
+      "if": {
         "properties": {
-          "routed_result": {"type": "null"},
-          "diagnostic_code": {"const": "value_payload_invalid"}
-        }
-      }
+          "decision": {"const": "HOLD_MALFORMED_PAYLOAD"},
+          "selected_route": {"const": "errors.learning"}
+        },
+        "required": ["decision", "selected_route"]
+      },
+      "then": {"properties": {"routed_result": {"type": "null"}, "diagnostic_code": {"const": "error_learning_payload_invalid"}}}
     }
   ]
 }
