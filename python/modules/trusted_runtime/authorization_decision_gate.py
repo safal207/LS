@@ -173,6 +173,14 @@ def _escalation_reasons(request: AuthorizationRequest) -> tuple[AuthorizationRea
     if not _scope_matches(request, policy.action, policy.resource, policy.scope_ref):
         reasons.append(AuthorizationReason.POLICY_SCOPE_MISMATCH)
 
+    approval_matches = _scope_matches(
+        request,
+        approval.action,
+        approval.resource,
+        approval.scope_ref,
+    )
+    if approval.state is not ApprovalState.NOT_REQUIRED and not approval_matches:
+        reasons.append(AuthorizationReason.APPROVAL_SCOPE_MISMATCH)
     required = (
         policy.effect is PolicyEffect.REQUIRE_APPROVAL
         or auth.basis is AuthorityBasis.APPROVAL
@@ -195,13 +203,6 @@ def _escalation_reasons(request: AuthorizationRequest) -> tuple[AuthorizationRea
             else AuthorizationReason.APPROVAL_UNKNOWN
         )
     if approval.state is ApprovalState.VERIFIED:
-        if not _scope_matches(
-            request,
-            approval.action,
-            approval.resource,
-            approval.scope_ref,
-        ):
-            reasons.append(AuthorizationReason.APPROVAL_SCOPE_MISMATCH)
         if not approval.approver_refs or not approval.evidence_refs:
             reasons.append(AuthorizationReason.APPROVAL_UNKNOWN)
         if (
