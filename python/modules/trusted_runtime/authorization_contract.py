@@ -6,7 +6,7 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping
 
 from .continuity_coordinator import ContinuityDecision
 from .roles_permissions_contract import AuthorityBasis
@@ -81,6 +81,7 @@ class AuthorizationReason(str, Enum):
     CAPABILITY_UNAVAILABLE = "CAPABILITY_UNAVAILABLE"
     CAPABILITY_EVIDENCE_BLOCKED = "CAPABILITY_EVIDENCE_BLOCKED"
     AUTHORITY_EVIDENCE_BLOCKED = "AUTHORITY_EVIDENCE_BLOCKED"
+    SUBJECT_MISMATCH = "SUBJECT_MISMATCH"
     CAPABILITY_UNVERIFIED = "CAPABILITY_UNVERIFIED"
     CAPABILITY_DISPUTED = "CAPABILITY_DISPUTED"
     CAPABILITY_UNKNOWN = "CAPABILITY_UNKNOWN"
@@ -116,6 +117,7 @@ class CapabilityEvidence:
     result_id: str
     assessment_id: str
     assessment_decision: ContinuityDecision
+    subject_id: str
     capability_id: str
     state: CapabilityState
     evidence_refs: tuple[str, ...]
@@ -126,6 +128,7 @@ class CapabilityEvidence:
         _require_strings(
             self.result_id,
             self.assessment_id,
+            self.subject_id,
             self.capability_id,
             self.result_digest,
         )
@@ -137,6 +140,7 @@ class CapabilityEvidence:
             "result_id": self.result_id,
             "assessment_id": self.assessment_id,
             "assessment_decision": self.assessment_decision.value,
+            "subject_id": self.subject_id,
             "capability_id": self.capability_id,
             "state": self.state.value,
             "evidence_refs": list(self.evidence_refs),
@@ -150,6 +154,7 @@ class AuthorityEvidence:
     result_id: str
     assessment_id: str
     assessment_decision: ContinuityDecision
+    subject_id: str
     authority_id: str
     state: AuthorityState
     basis: AuthorityBasis
@@ -165,6 +170,7 @@ class AuthorityEvidence:
         _require_strings(
             self.result_id,
             self.assessment_id,
+            self.subject_id,
             self.authority_id,
             self.result_digest,
         )
@@ -180,6 +186,7 @@ class AuthorityEvidence:
             "result_id": self.result_id,
             "assessment_id": self.assessment_id,
             "assessment_decision": self.assessment_decision.value,
+            "subject_id": self.subject_id,
             "authority_id": self.authority_id,
             "state": self.state.value,
             "basis": self.basis.value,
@@ -224,6 +231,7 @@ class PolicyEvidence:
 @dataclass(frozen=True)
 class ApprovalEvidence:
     approval_id: str
+    subject_id: str
     state: ApprovalState
     action: str
     resource: str
@@ -233,13 +241,14 @@ class ApprovalEvidence:
     approval_digest: str
 
     def __post_init__(self) -> None:
-        _require_strings(self.approval_id, self.approval_digest)
+        _require_strings(self.approval_id, self.subject_id, self.approval_digest)
         _validate_refs("approval approver_refs", self.approver_refs)
         _validate_refs("approval evidence_refs", self.evidence_refs)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "approval_id": self.approval_id,
+            "subject_id": self.subject_id,
             "state": self.state.value,
             "action": self.action,
             "resource": self.resource,
@@ -253,6 +262,7 @@ class ApprovalEvidence:
 @dataclass(frozen=True)
 class ExecutionContextEvidence:
     context_id: str
+    subject_id: str
     state: ContextState
     action: str
     resource: str
@@ -263,7 +273,7 @@ class ExecutionContextEvidence:
     context_digest: str
 
     def __post_init__(self) -> None:
-        _require_strings(self.context_id, self.context_digest)
+        _require_strings(self.context_id, self.subject_id, self.context_digest)
         if self.age_seconds < 0 or self.max_age_seconds < 0:
             raise ValueError("context ages must be non-negative")
         _validate_refs("context evidence_refs", self.evidence_refs)
@@ -271,6 +281,7 @@ class ExecutionContextEvidence:
     def to_dict(self) -> dict[str, Any]:
         return {
             "context_id": self.context_id,
+            "subject_id": self.subject_id,
             "state": self.state.value,
             "action": self.action,
             "resource": self.resource,
