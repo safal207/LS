@@ -27,7 +27,7 @@ def capability_evidence_from_result(
         assessment_decision=result.assessment.decision,
         subject_id=subject_id,
         capability_id=result.event.capability_id,
-        state=CapabilityState(result.event.capability_status.value),
+        state=_capability_state(result.event.capability_status.value),
         evidence_refs=result.event.evidence_refs,
         context_refs=result.event.context_refs,
         result_digest=digest(result.to_dict()),
@@ -45,7 +45,7 @@ def authority_evidence_from_result(
         assessment_decision=result.assessment.decision,
         subject_id=event.subject_id,
         authority_id=event.authority_id,
-        state=AuthorityState(event.authority_status.value),
+        state=_authority_state(event.authority_status.value),
         basis=event.authority_basis,
         action=event.action,
         resource=event.resource,
@@ -55,6 +55,14 @@ def authority_evidence_from_result(
         approval_refs=event.approval_refs,
         result_digest=digest(result.to_dict()),
     )
+
+
+def _capability_state(value: str) -> CapabilityState:
+    return CapabilityState._value2member_map_.get(value, CapabilityState.UNKNOWN)
+
+
+def _authority_state(value: str) -> AuthorityState:
+    return AuthorityState._value2member_map_.get(value, AuthorityState.UNKNOWN)
 
 
 __all__ = [
