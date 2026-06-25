@@ -13,9 +13,9 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_DIR = ROOT / "fixtures" / "temporal-relationship-semantics"
-VECTOR_PATH = FIXTURE_DIR / "vectors-v0.1.json"
 SCHEMA_PATH = FIXTURE_DIR / "schema-v0.1.json"
-PIN_PATH = FIXTURE_DIR / "vectors-v0.1.sha256"
+PINS_PATH = FIXTURE_DIR / "pins-v0.1.json"
+VECTOR_GLOB = "vectors-*.json"
 OUTPUT_PATH = ROOT / "artifacts" / "temporal-relationship-semantics-conformance.json"
 
 PROFILE = "temporal-relationship-semantics-v0.1"
@@ -41,13 +41,29 @@ def _parse_time(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
-def _verify_pin() -> str:
-    parts = PIN_PATH.read_text(encoding="utf-8").strip().split()
-    if len(parts) != 2 or parts[1] != VECTOR_PATH.name:
-        raise ValueError("malformed vector digest pin")
-    actual = hashlib.sha256(VECTOR_PATH.read_bytes()).hexdigest()
-    if actual != parts[0]:
-        raise ValueError(f"vector digest mismatch: actual={actual} pinned={parts[0]}")
+def _verify_pins() -> dict[str, str]:
+    pins = _load_json(PINS_PATH)
+    expected = pins.get("sha256")
+    if not isinstance(expected, dict) or not expected:
+        raise ValueError("missing fixture digest pins")
+
+    paths = sorted(FIXTURE_DIR.glob(VECTOR_GLOB))
+    observed_names = {path.name for path in paths}
+    if observed_names != set(expected):
+        raise ValueError(
+            f"fixture set mismatch: observed={sorted(observed_names)} "
+            f"pinned={sorted(expected)}"
+        )
+
+    actual: dict[str, str] = {}
+    for path in paths:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if digest != expected[path.name]:
+            raise ValueError(
+                f"{path.name}: digest mismatch actual={digest} "
+                f"pinned={expected[path.name]}"
+            )
+        actual[path.name] = digest
     return actual
 
 
@@ -287,31 +303,46 @@ def _evaluate(
 
 
 def main() -> int:
-    digest = _verify_pin()
+    digests = _verify_pins()
     schema = _load_json(SCHEMA_PATH)
-    document = _load_json(VECTOR_PATH)
-    _validate_document(document, schema)
+
+    documents = [
+        _load_json(FIXTURE_DIR / filename)
+        for filename in sorted(digests)
+    ]
+    for document in documents:
+        _validate_document(document, schema)
+
+    baseline_policies = documents[0]["relation_policies"]
+    for document in documents[1:]:
+        if document["relation_policies"] != baseline_policies:
+            raise ValueError("relation policies drifted across fixture suites")
 
     results = []
-    for vector in document["vectors"]:
-        observed = _evaluate(vector, document["relation_policies"])
-        expected = {
-            **vector["expected"],
-            "authority_effects": dict(AUTHORITY_DEFAULTS),
-        }
-        results.append(
-            {
-                "fixture_id": vector["fixture_id"],
-                "expected": expected,
-                "observed": observed,
-                "passed": observed == expected,
+    for document in documents:
+        for vector in document["vectors"]:
+            observed = _evaluate(vector, baseline_policies)
+            expected = {
+                **vector["expected"],
+                "authority_effects": dict(AUTHORITY_DEFAULTS),
             }
-        )
+            results.append(
+                {
+                    "fixture_id": vector["fixture_id"],
+                    "expected": expected,
+                    "observed": observed,
+                    "passed": observed == expected,
+                }
+            )
+
+    fixture_ids = [result["fixture_id"] for result in results]
+    if len(fixture_ids) != len(set(fixture_ids)):
+        raise ValueError("duplicate fixture id across suites")
 
     report = {
         "profile": PROFILE,
         "schema_version": SCHEMA_VERSION,
-        "vector_sha256": digest,
+        "vector_sha256": digests,
         "boundary": (
             "Relationship memory may describe context and history. "
             "It does not create mutuality, consent, permission, truth, "
