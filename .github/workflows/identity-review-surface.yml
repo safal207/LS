@@ -1,0 +1,41 @@
+name: Identity review surface contract
+
+on:
+  pull_request:
+    paths:
+      - "docs/identity-dashboard.md"
+      - "docs/human-review-workflow.md"
+      - "schemas/identity_review_action.schema.json"
+      - "schemas/identity_review_action.example.json"
+      - "tools/validate_identity_review_surface.py"
+      - ".github/workflows/identity-review-surface.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/identity-dashboard.md"
+      - "docs/human-review-workflow.md"
+      - "schemas/identity_review_action.schema.json"
+      - "schemas/identity_review_action.example.json"
+      - "tools/validate_identity_review_surface.py"
+      - ".github/workflows/identity-review-surface.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate JSON artifacts
+        run: |
+          python -m json.tool schemas/identity_review_action.schema.json > /dev/null
+          python -m json.tool schemas/identity_review_action.example.json > /dev/null
+      - name: Validate review surface invariants
+        run: python tools/validate_identity_review_surface.py
+      - name: Validate machine-readable report
+        run: python -m json.tool artifacts/identity-review-surface-validation.json > /dev/null
