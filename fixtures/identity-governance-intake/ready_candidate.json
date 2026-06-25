@@ -1,0 +1,125 @@
+{
+  "_meta": {
+    "role": "FROZEN LS IdentityProposalCandidate governance-intake fixture",
+    "envelope_version": "ls-identity-governance-intake-v0.1",
+    "spec": "spec/identity-governance-intake-v0.1.md",
+    "versioning": "Semantic changes require a new envelope version; v0.1 bytes are frozen."
+  },
+  "fixture_id": "ready_candidate",
+  "envelope_version": "ls-identity-governance-intake-v0.1",
+  "as_of": "2026-06-25T10:00:00Z",
+  "source_aggregation": {
+    "aggregation_id": "agg-ready_candidate",
+    "continuity_level": "individual",
+    "actor_ref": "agent:assistant-worker",
+    "target_scope": "qa-publication-workflow",
+    "supporting_episode_refs": [
+      "ep-support-1",
+      "ep-support-2",
+      "ep-support-3"
+    ],
+    "failure_episode_refs": [],
+    "contradicting_episode_refs": [],
+    "counterevidence_episode_refs": [],
+    "superseded_episode_refs": [],
+    "confidence_snapshot_ref": "confidence:ready_candidate",
+    "evidence_quality_summary": {
+      "state": "strong",
+      "trusted_supporting_count": 3
+    },
+    "evidence_state": "sufficient"
+  },
+  "candidate": {
+    "proposal_id": "proposal-ready_candidate",
+    "proposal_version": "0.1",
+    "created_at": "2026-06-25T08:00:00Z",
+    "created_by": "continuity-coordinator:v0.1",
+    "source_aggregation_record_ref": "agg-ready_candidate",
+    "source_aggregation_digest": "sha256:c61b108aaab6f4bc219d6e5e6301a35f6b54e3677ec1119573eeaa72718620d9",
+    "track_identity": {
+      "track_type": "competence_track",
+      "aggregation_key": "lesson_repeat_key:evidence-backed-publication",
+      "continuity_level": "individual",
+      "actor_ref": "agent:assistant-worker",
+      "target_scope": "qa-publication-workflow"
+    },
+    "supporting_episode_refs": [
+      "ep-support-1",
+      "ep-support-2",
+      "ep-support-3"
+    ],
+    "failure_episode_refs": [],
+    "contradicting_episode_refs": [],
+    "counterevidence_episode_refs": [],
+    "superseded_episode_refs": [],
+    "confidence_snapshot_ref": "confidence:ready_candidate",
+    "evidence_quality_summary": {
+      "state": "strong",
+      "trusted_supporting_count": 3
+    },
+    "proposed_identity_influence": {
+      "operation": "SET_TRAIT_CANDIDATE",
+      "trait_key": "working_tendencies.evidence_backed_publication",
+      "proposed_value": true,
+      "scope": "individual"
+    },
+    "governance": {
+      "candidate_state": "READY_FOR_GOVERNANCE",
+      "governance_review_required": true,
+      "governance_reason": "Complete candidate requires independent review.",
+      "reviewer_id": "governance-reviewer:1"
+    },
+    "lifecycle": {
+      "rollback_plan_ref": "rollback:ready_candidate",
+      "revalidate_if": [
+        "new_material_counterevidence",
+        "scope_change"
+      ],
+      "expires_at": "2026-09-25T08:00:00Z",
+      "superseded_by": null
+    },
+    "runtime_state": {
+      "approval_state": "PENDING",
+      "identity_patch_ref": null,
+      "application_ref": null,
+      "active_profile": false
+    },
+    "authority_effects": {
+      "may_approve_identity_change": false,
+      "may_apply_identity_change": false,
+      "may_create_profile_patch": false,
+      "may_activate_profile": false,
+      "may_authorize_execution": false,
+      "may_grant_tool_access": false,
+      "may_change_policy": false,
+      "may_expand_scope": false
+    },
+    "adapter_preserved_fields": [
+      "candidate_ref",
+      "candidate_digest",
+      "source_aggregation_ref",
+      "source_aggregation_digest",
+      "track_identity",
+      "supporting_episode_refs",
+      "failure_episode_refs",
+      "contradicting_episode_refs",
+      "counterevidence_episode_refs",
+      "superseded_episode_refs",
+      "confidence_snapshot_ref",
+      "evidence_quality_summary",
+      "proposed_identity_influence",
+      "governance_reason",
+      "expires_at",
+      "revalidate_if",
+      "rollback_plan_ref",
+      "authority_effects"
+    ],
+    "candidate_digest": "sha256:163d653ab09f5fecfc15cecb120a08ba8bba724375a4dc3cf4fce3929b2db67c"
+  },
+  "expected": {
+    "intake_outcome": "ACCEPT_FOR_REVIEW"
+  },
+  "scoring": {
+    "boundary_invariant": "complete_current_scope_bound_candidate -> ACCEPT_FOR_REVIEW"
+  }
+}
