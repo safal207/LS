@@ -195,6 +195,8 @@ def _entity_status(event: RolePermissionEvent) -> EntityStatus:
             return EntityStatus.UNKNOWN
         if event.authority_basis not in AUTHORIZING_BASES:
             return EntityStatus.UNKNOWN
+        if not all((event.action, event.resource, event.scope_ref)):
+            return EntityStatus.UNKNOWN
         if not event.evidence_refs or not event.provenance_refs or not event.context_refs:
             return EntityStatus.UNKNOWN
         if event.authority_basis is AuthorityBasis.APPROVAL and not event.approval_refs:
