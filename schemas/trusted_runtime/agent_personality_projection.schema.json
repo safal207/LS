@@ -147,6 +147,7 @@
           ]
         },
         "key": {"type": "string", "minLength": 1},
+        "value": {},
         "source_refs": {"$ref": "#/$defs/refs"},
         "source_scope": {"$ref": "#/$defs/scope"},
         "status": {"type": "string", "minLength": 1},
