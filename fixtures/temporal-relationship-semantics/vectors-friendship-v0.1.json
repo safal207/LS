@@ -1,0 +1,274 @@
+{
+  "authority_defaults": {
+    "may_authorize_execution": false,
+    "may_establish_consent": false,
+    "may_establish_mutuality": false,
+    "may_establish_truth": false,
+    "may_grant_permissions": false
+  },
+  "profile": "temporal-relationship-semantics-v0.1",
+  "relation_policies": {
+    "delegated_to": {
+      "authority_sensitive": true,
+      "cardinality": "many",
+      "mutuality": "not_required"
+    },
+    "friend_of": {
+      "authority_sensitive": false,
+      "cardinality": "many",
+      "mutuality": "required"
+    },
+    "reports_to": {
+      "authority_sensitive": false,
+      "cardinality": "one",
+      "mutuality": "not_required"
+    },
+    "trusts": {
+      "authority_sensitive": false,
+      "cardinality": "many",
+      "mutuality": "not_required"
+    },
+    "works_at": {
+      "authority_sensitive": false,
+      "cardinality": "many",
+      "mutuality": "not_required"
+    }
+  },
+  "schema_version": "temporal-relationship-semantics-fixtures-v0.1",
+  "vectors": [
+    {
+      "description": "A co-mention is evidence of context, not a typed relationship edge.",
+      "edges": [
+        {
+          "asserted_by": "extractor:ner",
+          "confirmed_by": [],
+          "directionality": "symmetric",
+          "edge_id": "edge:mention-only",
+          "evidence_kind": "mention",
+          "evidence_refs": [
+            "memory:co-mentioned-at-event"
+          ],
+          "promotion_authorization_ref": null,
+          "ratification_ref": null,
+          "relation_type": "friend_of",
+          "scope": "private",
+          "semantic_weight": 0.2,
+          "source_entity_id": "person:alex",
+          "source_scope": "private",
+          "status": "CLAIMED",
+          "supersedes": null,
+          "target_entity_id": "person:maria",
+          "valid_from": "2026-06-24T10:00:00Z",
+          "valid_until": null
+        }
+      ],
+      "expected": {
+        "decision": "ABSTAIN",
+        "historical_edge_ids": [],
+        "reason_codes": [
+          "MENTION_ONLY"
+        ],
+        "selected_edge_ids": [],
+        "suppressed_edge_ids": [
+          "edge:mention-only"
+        ]
+      },
+      "fixture_id": "mention_does_not_create_relationship",
+      "query": {
+        "now": "2026-06-25T12:00:00Z",
+        "relation_type": "friend_of",
+        "requires_mutual": true,
+        "scope_precedence": [
+          "private",
+          "group",
+          "global"
+        ],
+        "source_entity_id": "person:alex"
+      }
+    },
+    {
+      "description": "One participant can claim closeness, but cannot create a mutual friendship edge alone.",
+      "edges": [
+        {
+          "asserted_by": "person:alex",
+          "confirmed_by": [
+            "person:alex"
+          ],
+          "directionality": "symmetric",
+          "edge_id": "edge:unilateral-friendship",
+          "evidence_kind": "participant_assertion",
+          "evidence_refs": [
+            "message:alex-101"
+          ],
+          "promotion_authorization_ref": null,
+          "ratification_ref": null,
+          "relation_type": "friend_of",
+          "scope": "private",
+          "semantic_weight": 0.8,
+          "source_entity_id": "person:alex",
+          "source_scope": "private",
+          "status": "CLAIMED",
+          "supersedes": null,
+          "target_entity_id": "person:maria",
+          "valid_from": "2026-06-25T09:00:00Z",
+          "valid_until": null
+        }
+      ],
+      "expected": {
+        "decision": "ABSTAIN",
+        "historical_edge_ids": [],
+        "reason_codes": [
+          "RECIPROCITY_MISSING"
+        ],
+        "selected_edge_ids": [],
+        "suppressed_edge_ids": [
+          "edge:unilateral-friendship"
+        ]
+      },
+      "fixture_id": "unilateral_friendship_not_mutual",
+      "query": {
+        "now": "2026-06-25T12:00:00Z",
+        "relation_type": "friend_of",
+        "requires_mutual": true,
+        "scope_precedence": [
+          "private",
+          "group",
+          "global"
+        ],
+        "source_entity_id": "person:alex"
+      }
+    },
+    {
+      "description": "A symmetric friendship edge becomes current only after both participants confirm it.",
+      "edges": [
+        {
+          "asserted_by": "person:alex",
+          "confirmed_by": [
+            "person:alex",
+            "person:maria"
+          ],
+          "directionality": "symmetric",
+          "edge_id": "edge:mutual-friendship",
+          "evidence_kind": "participant_confirmation",
+          "evidence_refs": [
+            "message:alex-102",
+            "message:maria-88"
+          ],
+          "promotion_authorization_ref": null,
+          "ratification_ref": "ratification:friendship-1",
+          "relation_type": "friend_of",
+          "scope": "private",
+          "semantic_weight": 1.0,
+          "source_entity_id": "person:alex",
+          "source_scope": "private",
+          "status": "RATIFIED",
+          "supersedes": null,
+          "target_entity_id": "person:maria",
+          "valid_from": "2026-06-25T10:00:00Z",
+          "valid_until": null
+        }
+      ],
+      "expected": {
+        "decision": "RETURN_CURRENT",
+        "historical_edge_ids": [],
+        "reason_codes": [
+          "CURRENT_RELATIONSHIP_CONTEXT_ONLY"
+        ],
+        "selected_edge_ids": [
+          "edge:mutual-friendship"
+        ],
+        "suppressed_edge_ids": []
+      },
+      "fixture_id": "mutually_confirmed_friendship_current",
+      "query": {
+        "now": "2026-06-25T12:00:00Z",
+        "relation_type": "friend_of",
+        "requires_mutual": true,
+        "scope_precedence": [
+          "private",
+          "group",
+          "global"
+        ],
+        "source_entity_id": "person:alex"
+      }
+    },
+    {
+      "description": "A weak co-mention cannot downgrade an already ratified friendship in the same visible scope.",
+      "edges": [
+        {
+          "asserted_by": "extractor:ner",
+          "confirmed_by": [],
+          "directionality": "symmetric",
+          "edge_id": "edge:extra-mention",
+          "evidence_kind": "mention",
+          "evidence_refs": [
+            "memory:co-mentioned-later"
+          ],
+          "promotion_authorization_ref": null,
+          "ratification_ref": null,
+          "relation_type": "friend_of",
+          "scope": "private",
+          "semantic_weight": 0.1,
+          "source_entity_id": "person:alex",
+          "source_scope": "private",
+          "status": "CLAIMED",
+          "supersedes": null,
+          "target_entity_id": "person:maria",
+          "valid_from": "2026-06-25T11:00:00Z",
+          "valid_until": null
+        },
+        {
+          "asserted_by": "person:alex",
+          "confirmed_by": [
+            "person:alex",
+            "person:maria"
+          ],
+          "directionality": "symmetric",
+          "edge_id": "edge:ratified-friendship",
+          "evidence_kind": "participant_confirmation",
+          "evidence_refs": [
+            "message:alex-102",
+            "message:maria-88"
+          ],
+          "promotion_authorization_ref": null,
+          "ratification_ref": "ratification:friendship-1",
+          "relation_type": "friend_of",
+          "scope": "private",
+          "semantic_weight": 1.0,
+          "source_entity_id": "person:alex",
+          "source_scope": "private",
+          "status": "RATIFIED",
+          "supersedes": null,
+          "target_entity_id": "person:maria",
+          "valid_from": "2026-06-25T10:00:00Z",
+          "valid_until": null
+        }
+      ],
+      "expected": {
+        "decision": "RETURN_CURRENT",
+        "historical_edge_ids": [],
+        "reason_codes": [
+          "CURRENT_RELATIONSHIP_CONTEXT_ONLY"
+        ],
+        "selected_edge_ids": [
+          "edge:ratified-friendship"
+        ],
+        "suppressed_edge_ids": [
+          "edge:extra-mention"
+        ]
+      },
+      "fixture_id": "mention_does_not_override_ratified_relationship",
+      "query": {
+        "now": "2026-06-25T12:00:00Z",
+        "relation_type": "friend_of",
+        "requires_mutual": true,
+        "scope_precedence": [
+          "private",
+          "group",
+          "global"
+        ],
+        "source_entity_id": "person:alex"
+      }
+    }
+  ]
+}

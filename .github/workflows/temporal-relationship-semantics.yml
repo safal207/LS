@@ -1,0 +1,75 @@
+name: Temporal Relationship Semantics Fixtures
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "fixtures/temporal-relationship-semantics/**"
+      - "spec/temporal-relationship-semantics-v0.1.md"
+      - "tools/run_temporal_relationship_semantics_fixtures.py"
+      - ".github/workflows/temporal-relationship-semantics.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "fixtures/temporal-relationship-semantics/**"
+      - "spec/temporal-relationship-semantics-v0.1.md"
+      - "tools/run_temporal_relationship_semantics_fixtures.py"
+      - ".github/workflows/temporal-relationship-semantics.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install JSON Schema validator
+        run: python -m pip install --disable-pip-version-check jsonschema==4.23.0
+      - name: Validate JSON syntax
+        run: |
+          python -m json.tool fixtures/temporal-relationship-semantics/schema-v0.1.json > /dev/null
+          python -m json.tool fixtures/temporal-relationship-semantics/pins-v0.1.json > /dev/null
+          for file in fixtures/temporal-relationship-semantics/vectors-*.json; do
+            python -m json.tool "$file" > /dev/null
+          done
+      - name: Compile deterministic evaluator
+        run: python -m py_compile tools/run_temporal_relationship_semantics_fixtures.py
+      - name: Run conformance suites
+        run: python tools/run_temporal_relationship_semantics_fixtures.py
+      - name: Verify report and non-authority boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("artifacts/temporal-relationship-semantics-conformance.json")
+              .read_text(encoding="utf-8")
+          )
+          assert report["passed"] is True
+          assert len(report["results"]) == 13
+          assert all(result["passed"] for result in report["results"])
+          for result in report["results"]:
+              effects = result["observed"]["authority_effects"]
+              assert effects == {
+                  "may_authorize_execution": False,
+                  "may_establish_consent": False,
+                  "may_establish_mutuality": False,
+                  "may_establish_truth": False,
+                  "may_grant_permissions": False,
+              }
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: temporal-relationship-semantics-${{ matrix.python-version }}
+          path: artifacts/temporal-relationship-semantics-conformance.json

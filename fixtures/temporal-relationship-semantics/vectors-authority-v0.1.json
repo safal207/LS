@@ -1,0 +1,224 @@
+{
+  "authority_defaults": {
+    "may_authorize_execution": false,
+    "may_establish_consent": false,
+    "may_establish_mutuality": false,
+    "may_establish_truth": false,
+    "may_grant_permissions": false
+  },
+  "profile": "temporal-relationship-semantics-v0.1",
+  "relation_policies": {
+    "delegated_to": {
+      "authority_sensitive": true,
+      "cardinality": "many",
+      "mutuality": "not_required"
+    },
+    "friend_of": {
+      "authority_sensitive": false,
+      "cardinality": "many",
+      "mutuality": "required"
+    },
+    "reports_to": {
+      "authority_sensitive": false,
+      "cardinality": "one",
+      "mutuality": "not_required"
+    },
+    "trusts": {
+      "authority_sensitive": false,
+      "cardinality": "many",
+      "mutuality": "not_required"
+    },
+    "works_at": {
+      "authority_sensitive": false,
+      "cardinality": "many",
+      "mutuality": "not_required"
+    }
+  },
+  "schema_version": "temporal-relationship-semantics-fixtures-v0.1",
+  "vectors": [
+    {
+      "description": "Remembered delegation does not recreate revoked authority.",
+      "edges": [
+        {
+          "asserted_by": "governance:runtime",
+          "confirmed_by": [
+            "human:owner"
+          ],
+          "directionality": "directed",
+          "edge_id": "edge:revoked-delegation",
+          "evidence_kind": "governance_event",
+          "evidence_refs": [
+            "grant:42",
+            "revocation:42"
+          ],
+          "promotion_authorization_ref": null,
+          "ratification_ref": "grant:42",
+          "relation_type": "delegated_to",
+          "scope": "private",
+          "semantic_weight": 1.0,
+          "source_entity_id": "human:owner",
+          "source_scope": "private",
+          "status": "REVOKED",
+          "supersedes": null,
+          "target_entity_id": "agent:assistant",
+          "valid_from": "2026-05-01T00:00:00Z",
+          "valid_until": "2026-06-20T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "decision": "REJECT",
+        "historical_edge_ids": [
+          "edge:revoked-delegation"
+        ],
+        "reason_codes": [
+          "DELEGATION_REVOKED"
+        ],
+        "selected_edge_ids": [],
+        "suppressed_edge_ids": []
+      },
+      "fixture_id": "revoked_delegation_rejected",
+      "query": {
+        "now": "2026-06-25T12:00:00Z",
+        "relation_type": "delegated_to",
+        "requires_mutual": false,
+        "scope_precedence": [
+          "private",
+          "group",
+          "global"
+        ],
+        "source_entity_id": "human:owner"
+      }
+    },
+    {
+      "description": "Even a ratified active delegation edge is context only at the memory layer.",
+      "edges": [
+        {
+          "asserted_by": "governance:runtime",
+          "confirmed_by": [
+            "human:owner"
+          ],
+          "directionality": "directed",
+          "edge_id": "edge:active-delegation",
+          "evidence_kind": "governance_event",
+          "evidence_refs": [
+            "grant:84"
+          ],
+          "promotion_authorization_ref": null,
+          "ratification_ref": "grant:84",
+          "relation_type": "delegated_to",
+          "scope": "private",
+          "semantic_weight": 1.0,
+          "source_entity_id": "human:owner",
+          "source_scope": "private",
+          "status": "RATIFIED",
+          "supersedes": null,
+          "target_entity_id": "agent:assistant",
+          "valid_from": "2026-06-24T00:00:00Z",
+          "valid_until": "2026-06-30T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "decision": "RETURN_CURRENT",
+        "historical_edge_ids": [],
+        "reason_codes": [
+          "CURRENT_RELATIONSHIP_CONTEXT_ONLY"
+        ],
+        "selected_edge_ids": [
+          "edge:active-delegation"
+        ],
+        "suppressed_edge_ids": []
+      },
+      "fixture_id": "active_delegation_is_context_not_execution",
+      "query": {
+        "now": "2026-06-25T12:00:00Z",
+        "relation_type": "delegated_to",
+        "requires_mutual": false,
+        "scope_precedence": [
+          "private",
+          "group",
+          "global"
+        ],
+        "source_entity_id": "human:owner"
+      }
+    },
+    {
+      "description": "A revoked delegation to one agent remains historical and does not poison a distinct current delegation.",
+      "edges": [
+        {
+          "asserted_by": "governance:runtime",
+          "confirmed_by": [
+            "human:owner"
+          ],
+          "directionality": "directed",
+          "edge_id": "edge:revoked-agent-a",
+          "evidence_kind": "governance_event",
+          "evidence_refs": [
+            "grant:agent-a",
+            "revocation:agent-a"
+          ],
+          "promotion_authorization_ref": null,
+          "ratification_ref": "grant:agent-a",
+          "relation_type": "delegated_to",
+          "scope": "private",
+          "semantic_weight": 1.0,
+          "source_entity_id": "human:owner",
+          "source_scope": "private",
+          "status": "REVOKED",
+          "supersedes": null,
+          "target_entity_id": "agent:a",
+          "valid_from": "2026-05-01T00:00:00Z",
+          "valid_until": "2026-06-20T00:00:00Z"
+        },
+        {
+          "asserted_by": "governance:runtime",
+          "confirmed_by": [
+            "human:owner"
+          ],
+          "directionality": "directed",
+          "edge_id": "edge:active-agent-b",
+          "evidence_kind": "governance_event",
+          "evidence_refs": [
+            "grant:agent-b"
+          ],
+          "promotion_authorization_ref": null,
+          "ratification_ref": "grant:agent-b",
+          "relation_type": "delegated_to",
+          "scope": "private",
+          "semantic_weight": 1.0,
+          "source_entity_id": "human:owner",
+          "source_scope": "private",
+          "status": "RATIFIED",
+          "supersedes": null,
+          "target_entity_id": "agent:b",
+          "valid_from": "2026-06-24T00:00:00Z",
+          "valid_until": "2026-06-30T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "decision": "RETURN_CURRENT",
+        "historical_edge_ids": [
+          "edge:revoked-agent-a"
+        ],
+        "reason_codes": [
+          "REVOKED_HISTORY_RETAINED"
+        ],
+        "selected_edge_ids": [
+          "edge:active-agent-b"
+        ],
+        "suppressed_edge_ids": []
+      },
+      "fixture_id": "revoked_other_target_does_not_poison_current_delegation",
+      "query": {
+        "now": "2026-06-25T12:00:00Z",
+        "relation_type": "delegated_to",
+        "requires_mutual": false,
+        "scope_precedence": [
+          "private",
+          "group",
+          "global"
+        ],
+        "source_entity_id": "human:owner"
+      }
+    }
+  ]
+}
