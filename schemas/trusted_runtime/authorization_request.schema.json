@@ -4,7 +4,7 @@
   "title":"LS Authorization Request v0.1",
   "type":"object",
   "additionalProperties":false,
-  "required":["schema_version","request_id","subject_id","intent_ref","action","resource","scope_ref","required_capability_id","capability","authority","policy","approval","context","requested_at","metadata"],
+  "required":["schema_version","request_id","subject_id","intent_ref","action","resource","scope_ref","required_capability_id","capability_subject_binding_ref","capability","authority","policy","approval","context","requested_at","metadata"],
   "properties":{
     "schema_version":{"const":"trusted_runtime.authorization_request.v0.1"},
     "request_id":{"type":"string","minLength":1},
@@ -14,6 +14,7 @@
     "resource":{"type":"string","minLength":1},
     "scope_ref":{"type":"string","minLength":1},
     "required_capability_id":{"type":"string","minLength":1},
+    "capability_subject_binding_ref":{"type":"string"},
     "capability":{"type":"object","required":["result_id","assessment_id","assessment_decision","subject_id","capability_id","state","evidence_refs","context_refs","result_digest"]},
     "authority":{"type":"object","required":["result_id","assessment_id","assessment_decision","subject_id","authority_id","state","basis","action","resource","scope_ref","evidence_refs","provenance_refs","approval_refs","result_digest"]},
     "policy":{"type":"object","required":["policy_id","policy_version","effect","action","resource","scope_ref","evidence_refs","policy_digest"]},
