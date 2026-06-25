@@ -1,0 +1,137 @@
+{
+  "$schema_note": "Reference example only. This is not yet the normative JSON Schema for VerifiedEpisode.",
+  "schema_version": "verified_episode.example.v0.1",
+  "episode_id": "vep_2026_06_25_publish_001",
+  "episode_identity_preimage": {
+    "adapter_schema_version": "ovc_to_verified_episode_adapter.v0.2",
+    "ovc_result_digest": "sha256:ovc-result-991",
+    "execution_ref": "execution:run-991",
+    "action_digest": "sha256:action-publish-doc-42",
+    "side_effect_key": "doc:post-42:published-state",
+    "causal_trace_digest": "sha256:causal-trace-991",
+    "episode_outcome_class": "expected_verified",
+    "verified_state_digest": "sha256:state-after-publish",
+    "lesson_repeat_key": "publish-draft-to-user-visible-doc"
+  },
+  "orientation_source": {
+    "toc_result_ref": "toc:2026-06-25:user-visible-workflow",
+    "rtoc_result_ref": "rtoc:user-request-active-consent",
+    "patoc_result_ref": "patoc:publish-doc-42-v1",
+    "memory_input_refs": [
+      "mem:user-request:publish-draft",
+      "mem:project-context:ls-docs"
+    ],
+    "delegation_ref": null,
+    "handoff_ref": null,
+    "consent_context_ref": "consent:user:explicit-publish-request"
+  },
+  "intended_transition": {
+    "expected_transition_ref": "triad:expected-transition:publish-doc-42",
+    "patoc_result_ref": "patoc:publish-doc-42-v1",
+    "expected_outcome_digest": "sha256:expected-doc-visible",
+    "expected_target_state_ref": "state:doc-42:published-visible",
+    "transition_scope": "individual"
+  },
+  "executed_action": {
+    "execution_ref": "execution:run-991",
+    "action_digest": "sha256:action-publish-doc-42",
+    "actor_ref": "agent:assistant-worker",
+    "target_ref": "doc:post-42",
+    "tool_ref": "tool:github-contents-api",
+    "parameters_digest": "sha256:publish-params-42",
+    "receipt_ref": "receipt:github-create-file:commit-abc123",
+    "executed_at": "2026-06-25T04:45:00Z"
+  },
+  "verified_outcome": {
+    "ovc_result_ref": "ovc:result:991",
+    "verification_result_digest": "sha256:ovc-result-991",
+    "observer_set_digest": "sha256:observer-set-991",
+    "observer_independence_basis": "target repository readback and GitHub commit URL are separate from actor self-report; receipt issuer and target observation are preserved as distinct evidence channels",
+    "episode_outcome_class": "expected_verified",
+    "expected_state_matched": true,
+    "verification_timestamp": "2026-06-25T04:46:10Z",
+    "verification_status": "verified",
+    "contradictions": []
+  },
+  "evidence_channels": [
+    {
+      "kind": "actor_assertion",
+      "evidence_digest": "sha256:actor-report-991",
+      "source_ref": "agent:assistant-worker",
+      "observed_at": "2026-06-25T04:45:05Z",
+      "independent": false,
+      "observer_independence_basis": null,
+      "supports_verification": false,
+      "supports_continuity_influence": false,
+      "confidence_scope": "context_only",
+      "notes": "Actor reported that the file was created; not sufficient for verification."
+    },
+    {
+      "kind": "runtime_receipt",
+      "evidence_digest": "sha256:github-create-file-receipt",
+      "source_ref": "tool:github-contents-api",
+      "observed_at": "2026-06-25T04:45:03Z",
+      "independent": false,
+      "observer_independence_basis": null,
+      "supports_verification": true,
+      "supports_continuity_influence": false,
+      "confidence_scope": "execution_attempt_and_commit_receipt",
+      "notes": "Shows that the create-file action returned a commit SHA."
+    },
+    {
+      "kind": "target_observation",
+      "evidence_digest": "sha256:repo-readback-doc-42",
+      "source_ref": "github:file:docs/verified-episode-prism.md",
+      "observed_at": "2026-06-25T04:46:00Z",
+      "independent": true,
+      "observer_independence_basis": "repository readback observes the target state after execution rather than relying on actor explanation",
+      "supports_verification": true,
+      "supports_continuity_influence": true,
+      "confidence_scope": "expected_target_state",
+      "notes": "Confirms that the expected document exists in the target repository."
+    },
+    {
+      "kind": "human_confirmation",
+      "evidence_digest": "sha256:user-visible-confirmation-placeholder",
+      "source_ref": "human:user",
+      "observed_at": null,
+      "independent": true,
+      "observer_independence_basis": "human confirmation is separate from actor runtime, but may be subjective and should remain typed as human-valued outcome evidence",
+      "supports_verification": false,
+      "supports_continuity_influence": false,
+      "confidence_scope": "pending_human_value_confirmation",
+      "notes": "Optional channel; not required for this infrastructure example until the human validates usefulness."
+    }
+  ],
+  "retained_experience": {
+    "evidence_role": "supporting",
+    "retention_status": "active",
+    "redaction_status": "none",
+    "replay_status": "not_replay",
+    "superseded_by": null,
+    "query_visibility": "queryable",
+    "retained_at": "2026-06-25T04:46:30Z",
+    "retention_notes": "Retained as experience input only; not identity evidence by retention alone."
+  },
+  "identity_eligibility": {
+    "continuity_level": "individual",
+    "eligible_influence": "lesson_candidate",
+    "identity_update_eligible": false,
+    "aggregation_gate_ref": "continuity-aggregation-required",
+    "governance_review_required": false,
+    "eligibility_notes": "A single expected_verified episode may support a future lesson candidate but cannot directly mutate stable identity."
+  },
+  "compatibility_projection_v0_1": {
+    "legacy_verification_status": "VERIFIED",
+    "legacy_match_status": "MATCHED",
+    "projection_notes": "Only expected_verified can project as VERIFIED/MATCHED for legacy consumers. failed_verified and unexpected_verified must project fail-closed."
+  },
+  "fail_closed_guards": {
+    "missing_expected_transition_ref": "reject_experience_eligibility",
+    "missing_observer_independence_basis": "reject_or_investigate",
+    "self_authored_only_evidence": "reject_or_investigate",
+    "wrong_patoc_or_triad_ref": "reject_experience_eligibility",
+    "superseded_episode_current_support": "reject_current_support_count",
+    "single_episode_identity_mutation": "reject"
+  }
+}
