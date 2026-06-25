@@ -1,0 +1,131 @@
+{
+  "$schema_note": "Reference example only. This is not yet the normative JSON Schema for TrackAggregationRecord.",
+  "example_name": "track_aggregation_reference_v0_1",
+  "description": "Reference specimen showing how ContinuityCoordinator aggregates multiple VerifiedEpisode records into a continuity track while preserving counterevidence and identity proposal boundaries.",
+  "schema_version": "track_aggregation.example.v0.1",
+  "aggregation_record_id": "tar_2026_06_25_competence_publish_001",
+  "created_at": "2026-06-25T05:15:00Z",
+  "coordinator_ref": "continuity_coordinator:v0.1",
+  "track_identity": {
+    "track_type": "competence_track",
+    "aggregation_key": "lesson_repeat_key:publish-draft-to-user-visible-doc",
+    "continuity_level": "individual",
+    "actor_ref": "agent:assistant-worker",
+    "target_scope": "github-doc-publication-workflow"
+  },
+  "episode_members": [
+    {
+      "episode_id": "vep_publish_001",
+      "episode_outcome_class": "expected_verified",
+      "evidence_role": "supporting",
+      "retention_status": "active",
+      "continuity_level": "individual",
+      "eligible_influence": "lesson_candidate",
+      "current_support": true,
+      "observer_independence_basis_present": true
+    },
+    {
+      "episode_id": "vep_publish_002",
+      "episode_outcome_class": "expected_verified",
+      "evidence_role": "supporting",
+      "retention_status": "active",
+      "continuity_level": "individual",
+      "eligible_influence": "lesson_candidate",
+      "current_support": true,
+      "observer_independence_basis_present": true
+    },
+    {
+      "episode_id": "vep_publish_003",
+      "episode_outcome_class": "expected_verified",
+      "evidence_role": "supporting",
+      "retention_status": "active",
+      "continuity_level": "individual",
+      "eligible_influence": "lesson_candidate",
+      "current_support": true,
+      "observer_independence_basis_present": false
+    },
+    {
+      "episode_id": "vep_publish_004",
+      "episode_outcome_class": "failed_verified",
+      "evidence_role": "failure",
+      "retention_status": "active",
+      "continuity_level": "individual",
+      "eligible_influence": "lesson_candidate",
+      "current_support": false,
+      "observer_independence_basis_present": true
+    },
+    {
+      "episode_id": "vep_publish_005",
+      "episode_outcome_class": "unexpected_verified",
+      "evidence_role": "contradicting",
+      "retention_status": "active",
+      "continuity_level": "individual",
+      "eligible_influence": "lesson_candidate",
+      "current_support": false,
+      "observer_independence_basis_present": true
+    },
+    {
+      "episode_id": "vep_publish_000_old",
+      "episode_outcome_class": "expected_verified",
+      "evidence_role": "historical_only",
+      "retention_status": "superseded",
+      "continuity_level": "individual",
+      "eligible_influence": "history_only",
+      "current_support": false,
+      "observer_independence_basis_present": true
+    }
+  ],
+  "support_summary": {
+    "total_episode_count": 6,
+    "active_supporting_count": 3,
+    "trusted_supporting_count": 2,
+    "supporting_missing_independence_basis_count": 1,
+    "failure_count": 1,
+    "contradicting_count": 1,
+    "counterevidence_count": 1,
+    "superseded_count": 1,
+    "current_support_count": 2
+  },
+  "counterevidence_assessment": {
+    "has_counterevidence": true,
+    "counterevidence_episode_refs": [
+      "vep_publish_005"
+    ],
+    "counterevidence_strength": "material",
+    "effect_on_track": "blocks_high_confidence_and_identity_proposal",
+    "reason": "A recent unexpected_verified episode contradicts the expected publish transition and has observer independence basis present."
+  },
+  "confidence_snapshot": {
+    "confidence_state": "moderate",
+    "confidence_direction": "stalled",
+    "confidence_reasoning": [
+      "Two active supporting episodes have required independence basis.",
+      "One supporting episode is missing observer_independence_basis and cannot count as trusted current support.",
+      "One failed_verified episode contributes failure evidence rather than support.",
+      "One unexpected_verified episode acts as material counterevidence.",
+      "One superseded expected_verified episode remains queryable but cannot count as current support."
+    ]
+  },
+  "proposal_boundary": {
+    "lesson_candidate_allowed": true,
+    "identity_proposal_candidate": false,
+    "governance_review_candidate": false,
+    "identity_update_eligible": false,
+    "proposal_reason": "The track may support local learning, but identity proposal is blocked because trusted support is insufficient and material counterevidence is present."
+  },
+  "fail_closed_guards": {
+    "single_episode_identity_mutation": "reject",
+    "superseded_episode_current_support": "reject_current_support_count",
+    "support_missing_observer_independence_basis": "exclude_from_trusted_support",
+    "failure_as_successful_support": "reject",
+    "unexpected_verified_as_expected_success": "reject",
+    "counterevidence_ignored_for_identity_proposal": "reject"
+  },
+  "related_documents": [
+    "docs/continuity-coordinator.md",
+    "docs/continuity-vocabulary.md",
+    "docs/verified-episode-prism.md",
+    "docs/evidence-channels.md"
+  ],
+  "related_issue": "https://github.com/safal207/LS/issues/710"
+}
