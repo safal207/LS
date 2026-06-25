@@ -1,0 +1,29 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://github.com/safal207/LS/schemas/trusted_runtime/role_permission_result.schema.json",
+  "title":"LS Role Permission Result v0.1",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","result_id","event","observation","assessment","role_registry_mutation_allowed","permission_registry_mutation_allowed","access_grant_allowed","access_denial_allowed","approval_allowed","delegation_allowed","policy_mutation_allowed","work_scheduling_allowed","stable_identity_update_allowed","execution_authorized","policy_version","processed_at","processed_by","metadata"],
+  "properties":{
+    "schema_version":{"const":"trusted_runtime.role_permission_result.v0.1"},
+    "result_id":{"type":"string","pattern":"^role-permission-result:sha256:[0-9a-f]{64}$"},
+    "event":{"type":"object","required":["schema_version","event_id","authority_id","subject_id","event_type","authority_status","authority_basis","action","resource","scope_ref","knowledge_class","evidence_refs","provenance_refs"]},
+    "observation":{"type":"object","required":["observation_id","track","subject_id","entity_status","claims_current_presence","metadata"],"properties":{"observation_id":{"type":"string","pattern":"^role-permission-observation:sha256:[0-9a-f]{64}$"},"track":{"const":"roles.permissions"}}},
+    "assessment":{"type":"object","required":["schema_version","assessment_id","decision","stable_identity_update_allowed","execution_authorized"],"properties":{"schema_version":{"const":"trusted_runtime.continuity_assessment.v0.1"},"decision":{"enum":["ACCEPT_BOUNDED_OBSERVATION","HOLD_FOR_REVIEW","BLOCK_FALSE_PRESENCE"]},"stable_identity_update_allowed":{"const":false},"execution_authorized":{"const":false}},"additionalProperties":true},
+    "role_registry_mutation_allowed":{"const":false},
+    "permission_registry_mutation_allowed":{"const":false},
+    "access_grant_allowed":{"const":false},
+    "access_denial_allowed":{"const":false},
+    "approval_allowed":{"const":false},
+    "delegation_allowed":{"const":false},
+    "policy_mutation_allowed":{"const":false},
+    "work_scheduling_allowed":{"const":false},
+    "stable_identity_update_allowed":{"const":false},
+    "execution_authorized":{"const":false},
+    "policy_version":{"const":"roles_permissions_track_center.v0.1"},
+    "processed_at":{"type":"string","minLength":1},
+    "processed_by":{"type":"string","minLength":1},
+    "metadata":{"type":"object"}
+  }
+}
