@@ -1,0 +1,49 @@
+name: Write-time coherence conformance
+
+on:
+  pull_request:
+    paths:
+      - "spec/write-time-coherence-v0.1.md"
+      - "fixtures/write-time-coherence/**"
+      - "tools/run_write_time_coherence_fixtures.py"
+      - ".github/workflows/write-time-coherence.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "spec/write-time-coherence-v0.1.md"
+      - "fixtures/write-time-coherence/**"
+      - "tools/run_write_time_coherence_fixtures.py"
+      - ".github/workflows/write-time-coherence.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate frozen fixture JSON
+        run: |
+          python -m json.tool fixtures/write-time-coherence/schema-v0.1.json > /dev/null
+          for fixture in \
+            cross_session_contradiction \
+            synthesized_chain_with_provenance \
+            lossy_synthesis; do
+            python -m json.tool "fixtures/write-time-coherence/${fixture}.json" > /dev/null
+            test -s "fixtures/write-time-coherence/${fixture}.sha256"
+          done
+      - name: Verify frozen fixture digests
+        working-directory: fixtures/write-time-coherence
+        run: |
+          sha256sum -c cross_session_contradiction.sha256
+          sha256sum -c synthesized_chain_with_provenance.sha256
+          sha256sum -c lossy_synthesis.sha256
+      - name: Run deterministic write-time coherence suite
+        run: python tools/run_write_time_coherence_fixtures.py
+      - name: Validate machine-readable conformance report
+        run: python -m json.tool artifacts/write-time-coherence-conformance-result.json > /dev/null
