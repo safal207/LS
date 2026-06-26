@@ -1,0 +1,62 @@
+{
+  "schema_version": "temporal_meaning_edge.v0.1",
+  "edge_id": "tme-invalid-identity-flag",
+  "source_refs": [
+    "episode:repeated-verified-recovery"
+  ],
+  "individual_phase": "reflection",
+  "system_phase": "stable",
+  "environment_phase": "unchanged",
+  "transition_class": "phase_transition",
+  "meaning_statement": "This fixture marks identity impact while incorrectly denying proposal eligibility.",
+  "evidence_refs": [
+    "track:recovery-pattern"
+  ],
+  "congruence_state": {
+    "goal_alignment": true,
+    "evidence_alignment": true,
+    "system_alignment": true,
+    "temporal_alignment": true,
+    "consequence_alignment": true,
+    "decision": "revalidate"
+  },
+  "observer_state": {
+    "current_phase": "reflect",
+    "dominant_driver": "evidence",
+    "repeated_pattern": "recovery after verified correction",
+    "unresolved_dissonance": [],
+    "progress_signal": "goal_level"
+  },
+  "force_delta": {
+    "amplify": [
+      "recovery_capacity"
+    ],
+    "attenuate": [
+      "repeated_error"
+    ],
+    "protect": [
+      "identity_continuity"
+    ]
+  },
+  "temporal_state": {
+    "memory_freshness": "current",
+    "evidence_validity": "valid",
+    "action_authority": "authorized",
+    "entered_at": "2026-06-26T09:00:00Z",
+    "last_validated_at": "2026-06-26T09:00:00Z",
+    "validity_horizon": "until_counterevidence",
+    "resume_policy": "revalidate"
+  },
+  "integrity_preservation": {
+    "preserve_identity_continuity": true,
+    "preserve_state_integrity": true,
+    "preserve_safety_constraints": true,
+    "preserve_recovery_capacity": true,
+    "surface_uncertainty": true
+  },
+  "continuity_impact": "identity_proposal_candidate",
+  "identity_proposal_eligible": false,
+  "governance_requirements": [
+    "human_review_required"
+  ]
+}
