@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/ls-conformance/credential_bound_tool_authority/schema.json",
+  "title": "credential_bound_tool_authority",
+  "type": "object",
+  "required": [
+    "credential_present",
+    "constrained_tool_call"
+  ],
+  "properties": {
+    "credential_present": { "type": "boolean" },
+    "credential_expired": { "type": "boolean" },
+    "credential_replayed": { "type": "boolean" },
+    "receipt_present": { "type": "boolean" },
+    "constrained_tool_call": { "type": "boolean" },
+    "tool_name_matches": { "type": "boolean" },
+    "argument_commitment_matches": { "type": "boolean" },
+    "tenant_matches": { "type": "boolean" },
+    "constraint_profile_matches": { "type": "boolean" },
+    "decision_id_matches": { "type": "boolean" },
+    "authority_phase_valid": { "type": "boolean" },
+    "attestation_bound": { "type": "boolean" },
+    "upstream_reached": { "type": "boolean" },
+    "credential_reference_recorded": { "type": "boolean" },
+    "signed_decision_outcome_recorded": { "type": "boolean" },
+    "governance_outcome_emitted": { "type": "boolean" },
+    "decision_code_present": { "type": "boolean" },
+    "requested_action": {
+      "type": "string",
+      "enum": ["none", "tool_call", "publish", "promote", "identity_update", "continue"]
+    },
+    "constraint_profile": { "type": "string" }
+  },
+  "additionalProperties": true
+}
