@@ -1,4 +1,5 @@
 {
+  "schema_version": "temporal_meaning_edge.v0.1",
   "edge_id": "tme-2026-06-26-001",
   "source_refs": [
     "episode:migration-plan-created",
