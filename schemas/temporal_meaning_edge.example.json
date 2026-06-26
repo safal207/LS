@@ -1,0 +1,72 @@
+{
+  "edge_id": "tme-2026-06-26-001",
+  "source_refs": [
+    "episode:migration-plan-created",
+    "episode:repository-drift-detected"
+  ],
+  "individual_phase": "recalibration",
+  "system_phase": "revalidating",
+  "environment_phase": "repository_drift",
+  "transition_class": "stale_action_rejected",
+  "meaning_statement": "Continuity was preserved by revalidating the prior plan instead of executing a stale committed step.",
+  "evidence_refs": [
+    "git:head-changed-since-commit",
+    "test:compatibility-regression-detected"
+  ],
+  "congruence_state": {
+    "goal_alignment": true,
+    "evidence_alignment": false,
+    "system_alignment": false,
+    "temporal_alignment": false,
+    "consequence_alignment": false,
+    "decision": "recalibrate"
+  },
+  "observer_state": {
+    "current_phase": "verify",
+    "dominant_driver": "evidence",
+    "repeated_pattern": null,
+    "unresolved_dissonance": [
+      "The original migration goal remains active, but the previous implementation step is no longer compatible with the current repository state."
+    ],
+    "progress_signal": "goal_level"
+  },
+  "force_delta": {
+    "amplify": [
+      "verified_knowledge",
+      "system_coherence",
+      "recovery_capacity"
+    ],
+    "attenuate": [
+      "urgency",
+      "false_certainty"
+    ],
+    "protect": [
+      "state_integrity",
+      "compatibility",
+      "action_authority"
+    ]
+  },
+  "temporal_state": {
+    "memory_freshness": "current",
+    "evidence_validity": "revalidation_required",
+    "action_authority": "expired",
+    "entered_at": "2026-06-26T08:00:00Z",
+    "last_validated_at": "2026-06-25T20:00:00Z",
+    "validity_horizon": "repository_state_change",
+    "resume_policy": "recalibrate"
+  },
+  "integrity_preservation": {
+    "preserve_identity_continuity": true,
+    "preserve_state_integrity": true,
+    "preserve_safety_constraints": true,
+    "preserve_recovery_capacity": true,
+    "surface_uncertainty": true
+  },
+  "continuity_impact": "track_signal",
+  "identity_proposal_eligible": false,
+  "governance_requirements": [
+    "retain_source_provenance",
+    "revalidate_before_action",
+    "do_not_inherit_expired_authority"
+  ]
+}
