@@ -1,0 +1,60 @@
+{
+  "schema_version": "temporal_meaning_edge.v0.1",
+  "edge_id": "tme-invalid-stale-allow",
+  "source_refs": [
+    "episode:remembered-plan"
+  ],
+  "individual_phase": "commitment",
+  "system_phase": "stable",
+  "environment_phase": "repository_drift",
+  "transition_class": "congruent_step",
+  "meaning_statement": "This fixture incorrectly allows continuation even though evidence and authority are stale.",
+  "evidence_refs": [
+    "memory:prior-test-result"
+  ],
+  "congruence_state": {
+    "goal_alignment": true,
+    "evidence_alignment": true,
+    "system_alignment": true,
+    "temporal_alignment": true,
+    "consequence_alignment": true,
+    "decision": "allow"
+  },
+  "observer_state": {
+    "current_phase": "commit",
+    "dominant_driver": "habit",
+    "repeated_pattern": "continuing from remembered state without revalidation",
+    "unresolved_dissonance": [],
+    "progress_signal": "local"
+  },
+  "force_delta": {
+    "amplify": [
+      "urgency"
+    ],
+    "attenuate": [],
+    "protect": [
+      "state_integrity"
+    ]
+  },
+  "temporal_state": {
+    "memory_freshness": "current",
+    "evidence_validity": "revalidation_required",
+    "action_authority": "expired",
+    "entered_at": "2026-06-26T09:00:00Z",
+    "last_validated_at": "2026-06-25T09:00:00Z",
+    "validity_horizon": "repository_state_change",
+    "resume_policy": "continue"
+  },
+  "integrity_preservation": {
+    "preserve_identity_continuity": true,
+    "preserve_state_integrity": true,
+    "preserve_safety_constraints": true,
+    "preserve_recovery_capacity": true,
+    "surface_uncertainty": false
+  },
+  "continuity_impact": "track_signal",
+  "identity_proposal_eligible": false,
+  "governance_requirements": [
+    "revalidate_before_action"
+  ]
+}
