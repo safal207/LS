@@ -1,0 +1,56 @@
+{
+  "schema_version": "temporal_meaning_edge.v0.1",
+  "edge_id": "tme-invalid-missing-provenance",
+  "source_refs": [],
+  "individual_phase": "verification",
+  "system_phase": "revalidating",
+  "environment_phase": "new_evidence",
+  "transition_class": "recalibration",
+  "meaning_statement": "This fixture lacks the source and evidence provenance required to support a meaning edge.",
+  "evidence_refs": [],
+  "congruence_state": {
+    "goal_alignment": true,
+    "evidence_alignment": false,
+    "system_alignment": true,
+    "temporal_alignment": true,
+    "consequence_alignment": true,
+    "decision": "revalidate"
+  },
+  "observer_state": {
+    "current_phase": "verify",
+    "dominant_driver": "unknown",
+    "repeated_pattern": null,
+    "unresolved_dissonance": [
+      "No source or evidence provenance is available."
+    ],
+    "progress_signal": "none"
+  },
+  "force_delta": {
+    "amplify": [],
+    "attenuate": [],
+    "protect": [
+      "state_integrity"
+    ]
+  },
+  "temporal_state": {
+    "memory_freshness": "unknown",
+    "evidence_validity": "revalidation_required",
+    "action_authority": "blocked",
+    "entered_at": "2026-06-26T09:00:00Z",
+    "last_validated_at": "2026-06-26T09:00:00Z",
+    "validity_horizon": "until_provenance_is_restored",
+    "resume_policy": "block"
+  },
+  "integrity_preservation": {
+    "preserve_identity_continuity": true,
+    "preserve_state_integrity": true,
+    "preserve_safety_constraints": true,
+    "preserve_recovery_capacity": true,
+    "surface_uncertainty": true
+  },
+  "continuity_impact": "recalibration_required",
+  "identity_proposal_eligible": false,
+  "governance_requirements": [
+    "restore_source_provenance"
+  ]
+}
