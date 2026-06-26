@@ -1,0 +1,45 @@
+name: Temporal Meaning Edge Contract
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/temporal-meaning-web.md"
+      - "schemas/temporal_meaning_edge.schema.json"
+      - "schemas/temporal_meaning_edge.example.json"
+      - "python/tests/test_temporal_meaning_edge.py"
+      - "python/tests/fixtures/temporal-meaning-web/**"
+      - ".github/workflows/temporal_meaning_edge_contract.yml"
+  pull_request:
+    paths:
+      - "docs/temporal-meaning-web.md"
+      - "schemas/temporal_meaning_edge.schema.json"
+      - "schemas/temporal_meaning_edge.example.json"
+      - "python/tests/test_temporal_meaning_edge.py"
+      - "python/tests/fixtures/temporal-meaning-web/**"
+      - ".github/workflows/temporal_meaning_edge_contract.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install validation dependencies
+        run: python -m pip install --upgrade pip pytest jsonschema
+
+      - name: Run Temporal Meaning Edge contract tests
+        run: python -m pytest python/tests/test_temporal_meaning_edge.py -q
