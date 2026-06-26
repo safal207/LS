@@ -64,6 +64,52 @@ Most AI systems can produce answers, but they usually do not separate:
 
 LS exists to make those boundaries explicit and auditable.
 
+## LS Conformance Catalog
+
+LS also acts as a **conformance and continuity framework** for agent runtimes, memory systems, governance layers, and external clients.
+
+The goal of the conformance catalog is not to require adoption of LS as a whole. The goal is to provide small, portable fixture families that capture recurring failure modes and invariants across real agent ecosystems.
+
+### What the catalog covers
+
+The current conformance work focuses on failures such as:
+
+- missed terminal events and bounded client reconciliation;
+- durable memory being mistaken for spendable authority;
+- constrained tool calls reaching upstream without a valid credential;
+- pending approval being collapsed into missing approval;
+- incomplete record sets being treated as complete authority.
+
+### Read these first
+
+The current flagship fixture families live in [`ls-conformance/`](ls-conformance/README.md):
+
+1. [`missed_terminal_event_reconciliation`](ls-conformance/missed_terminal_event_reconciliation/README.md)
+2. [`durable_memory_not_authority`](ls-conformance/durable_memory_not_authority/README.md)
+3. [`credential_bound_tool_authority`](ls-conformance/credential_bound_tool_authority/README.md)
+
+Each fixture family includes:
+
+- a short problem statement;
+- the core invariant;
+- accept vectors;
+- reject vectors;
+- a minimal machine-readable schema.
+
+### Canonical vocabulary for the conformance layer
+
+| Term | Meaning |
+| --- | --- |
+| **Authority** | spendable permission to act |
+| **Memory** | durable recallable context, not permission |
+| **Receipt** | audit evidence |
+| **Credential** | spendable enforcement material |
+| **Phase** | lifecycle-bound validity window |
+| **Seal** | proof that a record set is terminally complete |
+| **Reconciliation** | bounded recovery after missed or partial observation |
+
+Canonical pack issue: [LS Conformance Pack v0.1 #757](https://github.com/safal207/LS/issues/757)
+
 ### The current LS identity chain
 
 The repo now contains a full continuity / identity / review path:
@@ -101,6 +147,7 @@ If you want the shortest path through the architecture, read in this order:
 4. [`docs/identity-dashboard.md`](docs/identity-dashboard.md)
 5. [`docs/human-review-workflow.md`](docs/human-review-workflow.md)
 6. [`docs/roadmap.md`](docs/roadmap.md)
+7. [`ls-conformance/README.md`](ls-conformance/README.md)
 
 ### Current status of the identity architecture
 
@@ -295,88 +342,107 @@ See the red-team scenario:
 
 - [`docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md`](docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md)
 
+## Architecture map
+
+The fastest overview of the current LS architecture lives here:
+
+- [`docs/architecture-map.md`](docs/architecture-map.md)
+
+It shows how the main LS surfaces connect:
+
+- cognitive trail / review / evidence pipeline
+- personal cognitive garden
+- identity continuity stack
+- MCP bridge and plugin surface
+- route stability and cooperative precision metrics
+- near-term roadmap blocks
+
+If you are new to the repo, start there first.
+
+## Quick start
+
+Requirements:
+
+- Python 3.9+
+- optional local LLM runtime (for some demos)
+
+Install dependencies:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+Run the demo:
+
+```bash
+python3 scripts/run_demo.py
+```
+
+This will:
+
+1. create a small task,
+2. run it through LS,
+3. produce a reusable trail artifact.
+
+## How LS differs from a memory wrapper
+
+LS is not just “save conversations and retrieve them later”.
+
+LS adds:
+
+- route-level evidence and review;
+- contributor and role scoring;
+- explicit approval / rejection / rollback structures;
+- governed durable memory;
+- continuity-aware identity updates;
+- reusable trail artifacts.
+
+## Core architecture summary
+
+LS is currently organized around several connected layers:
+
+- **Trail / review layer** — capture work, critiques, evidence, and outputs.
+- **Governance layer** — decide what becomes durable or blocked.
+- **Identity layer** — accumulate durable changes into a coherent current state.
+- **Precision / metrics layer** — score route quality and cooperative performance.
+- **Personal layer** — turn sessions into human-owned growth memory.
+
+## Roadmap
+
 See:
+
+- [`docs/roadmap.md`](docs/roadmap.md)
 - [`ROADMAP.md`](ROADMAP.md)
-- [`docs/COMMUNITY_TASKS.md`](docs/COMMUNITY_TASKS.md)
-- [`docs/GITHUB_PAGES_SETUP.md`](docs/GITHUB_PAGES_SETUP.md)
-- [`docs/COGNITIVE_TRAIL_NETWORK.md`](docs/COGNITIVE_TRAIL_NETWORK.md)
-- [`docs/PERSONAL_GROWTH_ENTRY.md`](docs/PERSONAL_GROWTH_ENTRY.md)
-- [`docs/LS_PERSONAL_COGNITIVE_GARDEN.md`](docs/LS_PERSONAL_COGNITIVE_GARDEN.md)
-- [`docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md`](docs/PERSONAL_COGNITIVE_GARDEN_RED_TEAM.md)
-- [`docs/positioning/personal-ai-operating-layer.md`](docs/positioning/personal-ai-operating-layer.md)
-- [`docs/personal-agent-gateway-runtime.md`](docs/personal-agent-gateway-runtime.md)
-- [`docs/harmonic-state-model-mvp.md`](docs/harmonic-state-model-mvp.md)
 
-Current runtime contract now exposes:
+## Contributing
 
-- `raw_agent_output`
-- `final_output`
-- `personal_agent_gateway`
-- `gateway_mode`
-- `gateway_reason`
-- `operator_identity_governance`
-- `operator_profile_write_decision`
-- `action_evidence_gate`
+See:
 
-### Before vs now, in simple terms
-
-Before, LS mostly acted like a smart helper at the door:
-
-```text
-Agent: here is my answer.
-LS: is the answer clear, safe, warm, and aligned enough to show?
-```
-
-The main question was:
-
-```text
-How should this answer reach the human?
-```
-
-Now LS also acts like a trusted checkpoint with a decision log:
-
-```text
-Agent: I want to write memory, change profile state, or take an action.
-LS: did the operator confirm it, is there source evidence, is the scope allowed,
-and can we prove later why this was allowed, held, or rejected?
-```
-
-The new question is:
-
-```text
-Can this agent output become memory, profile state, or action at all?
-```
-
-Example:
-
-```text
-Agent: write "the user always wants short answers" into the profile.
-
-LS checks:
-1. Did the user explicitly confirm this profile write?
-2. Is there source evidence?
-3. Is the agent deciding for the user?
-4. Can the decision be replayed and verified later?
-
-Decision:
-hold
-stop_reason:
-missing_operator_confirmation
-```
-
-In plain language: LS used to help agents say things better. Now it also checks whether an agent is allowed to turn words into memory, profile, or action.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md)
 
 ---
 
-## Why LS exists
+<a name="russian"></a>
 
-Most AI systems produce answers but do not preserve reviewable structure around:
+# LS — Кооперативный слой точности для совместной работы человека и ИИ
 
-- who participated,
-- which route was chosen,
-- what was adopted,
-- whether the receiver accepted the outcome cleanly,
-- how memory or profile changes were authorized,
-- and whether the result can be checked later.
+> Русская секция репозитория будет постепенно синхронизироваться с английской по мере стабилизации архитектуры.
 
-LS treats these as first-class objects rather than hidden side effects.
+Сейчас лучший вход в проект:
+
+- [`docs/architecture-map.md`](docs/architecture-map.md)
+- [`docs/roadmap.md`](docs/roadmap.md)
+- [`ls-conformance/README.md`](ls-conformance/README.md)
+- [`docs/PERSONAL_COGNITIVE_GARDEN_QUICK_START.md`](docs/PERSONAL_COGNITIVE_GARDEN_QUICK_START.md)
+
+Коротко:
+
+LS — это слой над агентами и моделями, который помогает превращать сырые ответы в проверяемые, управляемые и накапливаемые артефакты: следы работы, решения, память, обновления идентичности и личный рост.
+
+Он нужен, чтобы разделять:
+
+- событие и устойчивый паттерн,
+- память и разрешение действовать,
+- предложение об изменении и одобренное изменение,
+- текущую идентичность и историю её формирования,
+- полезную автоматизацию и потерю человеческого контроля.
