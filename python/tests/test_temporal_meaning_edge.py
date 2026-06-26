@@ -11,6 +11,8 @@ SCHEMA_PATH = ROOT / "schemas" / "temporal_meaning_edge.schema.json"
 EXAMPLE_PATH = ROOT / "schemas" / "temporal_meaning_edge.example.json"
 FIXTURE_ROOT = ROOT / "python" / "tests" / "fixtures" / "temporal-meaning-web"
 VALID_CONTINUE_PATH = FIXTURE_ROOT / "valid_congruent_continue.json"
+VALID_COUNTEREVIDENCE_PATH = FIXTURE_ROOT / "valid_counterevidence_signal.json"
+VALID_CONTINUITY_BREAK_PATH = FIXTURE_ROOT / "valid_continuity_break.json"
 INVALID_STALE_ALLOW_PATH = FIXTURE_ROOT / "invalid_allow_with_stale_evidence.json"
 INVALID_IDENTITY_FLAG_PATH = FIXTURE_ROOT / "invalid_identity_candidate_flag.json"
 INVALID_MISSING_PROVENANCE_PATH = FIXTURE_ROOT / "invalid_missing_provenance.json"
@@ -64,6 +66,30 @@ def test_congruent_current_authorized_fixture_can_continue() -> None:
         "validity_horizon": "until_repository_or_user_intent_changes",
         "resume_policy": "continue",
     }
+
+
+def test_counterevidence_fixture_revalidates_without_identity_promotion() -> None:
+    payload = _load_json(VALID_COUNTEREVIDENCE_PATH)
+
+    assert _errors_for(VALID_COUNTEREVIDENCE_PATH) == []
+    assert payload["continuity_impact"] == "counterevidence_signal"
+    assert payload["congruence_state"]["decision"] == "revalidate"
+    assert payload["temporal_state"]["resume_policy"] == "revalidate"
+    assert payload["identity_proposal_eligible"] is False
+    assert "recompute_track_confidence" in payload["governance_requirements"]
+
+
+def test_continuity_break_fixture_blocks_authority_inheritance() -> None:
+    payload = _load_json(VALID_CONTINUITY_BREAK_PATH)
+
+    assert _errors_for(VALID_CONTINUITY_BREAK_PATH) == []
+    assert payload["transition_class"] == "continuity_break"
+    assert payload["continuity_impact"] == "continuity_break"
+    assert payload["congruence_state"]["decision"] == "block"
+    assert payload["temporal_state"]["evidence_validity"] == "invalid"
+    assert payload["temporal_state"]["action_authority"] == "blocked"
+    assert payload["temporal_state"]["resume_policy"] == "block"
+    assert "do_not_inherit_authority" in payload["governance_requirements"]
 
 
 def test_schema_rejects_allow_when_evidence_or_authority_is_stale() -> None:
