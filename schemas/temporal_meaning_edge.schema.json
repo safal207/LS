@@ -1,0 +1,525 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/temporal_meaning_edge.schema.json",
+  "title": "LS Temporal Meaning Edge",
+  "description": "Fail-closed contract for phase-aware, evidence-bound meaning transitions across individuals, systems, environments, and time.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "edge_id",
+    "source_refs",
+    "individual_phase",
+    "system_phase",
+    "environment_phase",
+    "transition_class",
+    "meaning_statement",
+    "evidence_refs",
+    "congruence_state",
+    "observer_state",
+    "force_delta",
+    "temporal_state",
+    "integrity_preservation",
+    "continuity_impact",
+    "identity_proposal_eligible",
+    "governance_requirements"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "temporal_meaning_edge.v0.1"
+    },
+    "edge_id": {
+      "type": "string",
+      "pattern": "^tme-[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "source_refs": {
+      "$ref": "#/$defs/reference_list"
+    },
+    "individual_phase": {
+      "enum": [
+        "exploration",
+        "commitment",
+        "execution",
+        "verification",
+        "reflection",
+        "recovery",
+        "recalibration",
+        "closure"
+      ]
+    },
+    "system_phase": {
+      "enum": [
+        "initializing",
+        "expanding",
+        "converging",
+        "executing",
+        "degraded",
+        "recovering",
+        "revalidating",
+        "stable",
+        "closing"
+      ]
+    },
+    "environment_phase": {
+      "enum": [
+        "unchanged",
+        "constraint_shift",
+        "permission_change",
+        "repository_drift",
+        "resource_pressure",
+        "new_evidence",
+        "external_failure",
+        "opportunity_window"
+      ]
+    },
+    "transition_class": {
+      "enum": [
+        "phase_transition",
+        "congruent_step",
+        "stale_action_rejected",
+        "recalibration",
+        "continuity_break",
+        "continuity_restoration",
+        "closure"
+      ]
+    },
+    "meaning_statement": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_refs": {
+      "$ref": "#/$defs/reference_list"
+    },
+    "congruence_state": {
+      "$ref": "#/$defs/congruence_state"
+    },
+    "observer_state": {
+      "$ref": "#/$defs/observer_state"
+    },
+    "force_delta": {
+      "$ref": "#/$defs/force_delta"
+    },
+    "temporal_state": {
+      "$ref": "#/$defs/temporal_state"
+    },
+    "integrity_preservation": {
+      "$ref": "#/$defs/integrity_preservation"
+    },
+    "continuity_impact": {
+      "enum": [
+        "no_durable_impact",
+        "episode_context_only",
+        "track_signal",
+        "counterevidence_signal",
+        "recalibration_required",
+        "identity_proposal_candidate",
+        "continuity_break",
+        "continuity_restoration"
+      ]
+    },
+    "identity_proposal_eligible": {
+      "type": "boolean"
+    },
+    "governance_requirements": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "congruence_state": {
+            "properties": {
+              "decision": {
+                "const": "allow"
+              }
+            },
+            "required": [
+              "decision"
+            ]
+          }
+        },
+        "required": [
+          "congruence_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "congruence_state": {
+            "properties": {
+              "goal_alignment": {
+                "const": true
+              },
+              "evidence_alignment": {
+                "const": true
+              },
+              "system_alignment": {
+                "const": true
+              },
+              "temporal_alignment": {
+                "const": true
+              },
+              "consequence_alignment": {
+                "const": true
+              }
+            }
+          },
+          "temporal_state": {
+            "properties": {
+              "evidence_validity": {
+                "const": "valid"
+              },
+              "action_authority": {
+                "const": "authorized"
+              },
+              "resume_policy": {
+                "const": "continue"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "temporal_state": {
+            "properties": {
+              "action_authority": {
+                "enum": [
+                  "expired",
+                  "blocked"
+                ]
+              }
+            },
+            "required": [
+              "action_authority"
+            ]
+          }
+        },
+        "required": [
+          "temporal_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "temporal_state": {
+            "properties": {
+              "resume_policy": {
+                "enum": [
+                  "revalidate",
+                  "recalibrate",
+                  "block"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "temporal_state": {
+            "properties": {
+              "evidence_validity": {
+                "const": "invalid"
+              }
+            },
+            "required": [
+              "evidence_validity"
+            ]
+          }
+        },
+        "required": [
+          "temporal_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "temporal_state": {
+            "properties": {
+              "action_authority": {
+                "const": "blocked"
+              },
+              "resume_policy": {
+                "const": "block"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "continuity_impact": {
+            "const": "identity_proposal_candidate"
+          }
+        },
+        "required": [
+          "continuity_impact"
+        ]
+      },
+      "then": {
+        "properties": {
+          "identity_proposal_eligible": {
+            "const": true
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "identity_proposal_eligible": {
+            "const": true
+          }
+        },
+        "required": [
+          "identity_proposal_eligible"
+        ]
+      },
+      "then": {
+        "properties": {
+          "continuity_impact": {
+            "const": "identity_proposal_candidate"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "reference_list": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]*:.+$"
+      }
+    },
+    "congruence_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal_alignment",
+        "evidence_alignment",
+        "system_alignment",
+        "temporal_alignment",
+        "consequence_alignment",
+        "decision"
+      ],
+      "properties": {
+        "goal_alignment": {
+          "type": "boolean"
+        },
+        "evidence_alignment": {
+          "type": "boolean"
+        },
+        "system_alignment": {
+          "type": "boolean"
+        },
+        "temporal_alignment": {
+          "type": "boolean"
+        },
+        "consequence_alignment": {
+          "type": "boolean"
+        },
+        "decision": {
+          "enum": [
+            "allow",
+            "revalidate",
+            "recalibrate",
+            "block"
+          ]
+        }
+      }
+    },
+    "observer_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_phase",
+        "dominant_driver",
+        "repeated_pattern",
+        "unresolved_dissonance",
+        "progress_signal"
+      ],
+      "properties": {
+        "current_phase": {
+          "enum": [
+            "calibrate",
+            "expand",
+            "commit",
+            "execute",
+            "verify",
+            "reflect",
+            "continue",
+            "recalibrate",
+            "close",
+            "escalate"
+          ]
+        },
+        "dominant_driver": {
+          "enum": [
+            "evidence",
+            "urgency",
+            "habit",
+            "fear",
+            "recovery",
+            "unknown"
+          ]
+        },
+        "repeated_pattern": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unresolved_dissonance": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "progress_signal": {
+          "enum": [
+            "none",
+            "local",
+            "goal_level"
+          ]
+        }
+      }
+    },
+    "force_delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "amplify",
+        "attenuate",
+        "protect"
+      ],
+      "properties": {
+        "amplify": {
+          "$ref": "#/$defs/force_list"
+        },
+        "attenuate": {
+          "$ref": "#/$defs/force_list"
+        },
+        "protect": {
+          "$ref": "#/$defs/force_list_nonempty"
+        }
+      }
+    },
+    "force_list": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "force_list_nonempty": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "temporal_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "memory_freshness",
+        "evidence_validity",
+        "action_authority",
+        "entered_at",
+        "last_validated_at",
+        "validity_horizon",
+        "resume_policy"
+      ],
+      "properties": {
+        "memory_freshness": {
+          "enum": [
+            "current",
+            "stale",
+            "unknown"
+          ]
+        },
+        "evidence_validity": {
+          "enum": [
+            "valid",
+            "revalidation_required",
+            "invalid"
+          ]
+        },
+        "action_authority": {
+          "enum": [
+            "authorized",
+            "expired",
+            "blocked"
+          ]
+        },
+        "entered_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "last_validated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "validity_horizon": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resume_policy": {
+          "enum": [
+            "continue",
+            "revalidate",
+            "recalibrate",
+            "block"
+          ]
+        }
+      }
+    },
+    "integrity_preservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preserve_identity_continuity",
+        "preserve_state_integrity",
+        "preserve_safety_constraints",
+        "preserve_recovery_capacity",
+        "surface_uncertainty"
+      ],
+      "properties": {
+        "preserve_identity_continuity": {
+          "type": "boolean"
+        },
+        "preserve_state_integrity": {
+          "type": "boolean"
+        },
+        "preserve_safety_constraints": {
+          "type": "boolean"
+        },
+        "preserve_recovery_capacity": {
+          "type": "boolean"
+        },
+        "surface_uncertainty": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
