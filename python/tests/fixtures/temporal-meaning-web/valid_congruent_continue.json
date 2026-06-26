@@ -1,0 +1,66 @@
+{
+  "schema_version": "temporal_meaning_edge.v0.1",
+  "edge_id": "tme-valid-congruent-continue",
+  "source_refs": [
+    "episode:verified-change-request"
+  ],
+  "individual_phase": "commitment",
+  "system_phase": "stable",
+  "environment_phase": "unchanged",
+  "transition_class": "congruent_step",
+  "meaning_statement": "The next bounded action is supported by current evidence and remains authorized in the current phase.",
+  "evidence_refs": [
+    "test:current-regression-pass",
+    "receipt:active-user-approval"
+  ],
+  "congruence_state": {
+    "goal_alignment": true,
+    "evidence_alignment": true,
+    "system_alignment": true,
+    "temporal_alignment": true,
+    "consequence_alignment": true,
+    "decision": "allow"
+  },
+  "observer_state": {
+    "current_phase": "commit",
+    "dominant_driver": "evidence",
+    "repeated_pattern": null,
+    "unresolved_dissonance": [],
+    "progress_signal": "goal_level"
+  },
+  "force_delta": {
+    "amplify": [
+      "verified_knowledge",
+      "system_coherence"
+    ],
+    "attenuate": [
+      "uncertainty"
+    ],
+    "protect": [
+      "state_integrity",
+      "recovery_capacity"
+    ]
+  },
+  "temporal_state": {
+    "memory_freshness": "current",
+    "evidence_validity": "valid",
+    "action_authority": "authorized",
+    "entered_at": "2026-06-26T09:00:00Z",
+    "last_validated_at": "2026-06-26T09:00:00Z",
+    "validity_horizon": "until_repository_or_user_intent_changes",
+    "resume_policy": "continue"
+  },
+  "integrity_preservation": {
+    "preserve_identity_continuity": true,
+    "preserve_state_integrity": true,
+    "preserve_safety_constraints": true,
+    "preserve_recovery_capacity": true,
+    "surface_uncertainty": true
+  },
+  "continuity_impact": "track_signal",
+  "identity_proposal_eligible": false,
+  "governance_requirements": [
+    "retain_source_provenance",
+    "verify_observable_result"
+  ]
+}
