@@ -1,0 +1,73 @@
+{
+  "schema_version": "temporal_meaning_edge.v0.1",
+  "edge_id": "tme-valid-continuity-restoration",
+  "source_refs": [
+    "episode:prior-continuity-break",
+    "episode:terminal-state-reconciled",
+    "episode:authority-renewed"
+  ],
+  "individual_phase": "recovery",
+  "system_phase": "recovering",
+  "environment_phase": "new_evidence",
+  "transition_class": "continuity_restoration",
+  "meaning_statement": "Continuity may be restored after terminal state, evidence validity, and action authority are independently re-established.",
+  "evidence_refs": [
+    "receipt:terminal-state-reconciled",
+    "test:current-state-revalidated",
+    "credential:renewed-action-authority"
+  ],
+  "congruence_state": {
+    "goal_alignment": true,
+    "evidence_alignment": true,
+    "system_alignment": true,
+    "temporal_alignment": true,
+    "consequence_alignment": true,
+    "decision": "allow"
+  },
+  "observer_state": {
+    "current_phase": "continue",
+    "dominant_driver": "recovery",
+    "repeated_pattern": "continuity restored only after explicit reconciliation",
+    "unresolved_dissonance": [],
+    "progress_signal": "goal_level"
+  },
+  "force_delta": {
+    "amplify": [
+      "verified_knowledge",
+      "system_coherence",
+      "recovery_capacity"
+    ],
+    "attenuate": [
+      "uncertainty",
+      "continuity_gap"
+    ],
+    "protect": [
+      "state_integrity",
+      "action_authority",
+      "auditability"
+    ]
+  },
+  "temporal_state": {
+    "memory_freshness": "current",
+    "evidence_validity": "valid",
+    "action_authority": "authorized",
+    "entered_at": "2026-06-26T10:30:00Z",
+    "last_validated_at": "2026-06-26T10:30:00Z",
+    "validity_horizon": "until_repository_permissions_or_user_intent_change",
+    "resume_policy": "continue"
+  },
+  "integrity_preservation": {
+    "preserve_identity_continuity": true,
+    "preserve_state_integrity": true,
+    "preserve_safety_constraints": true,
+    "preserve_recovery_capacity": true,
+    "surface_uncertainty": true
+  },
+  "continuity_impact": "continuity_restoration",
+  "identity_proposal_eligible": false,
+  "governance_requirements": [
+    "retain_break_and_restoration_provenance",
+    "require_explicit_authority_renewal",
+    "verify_current_external_state"
+  ]
+}
