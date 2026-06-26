@@ -1,0 +1,72 @@
+{
+  "schema_version": "temporal_meaning_edge.v0.1",
+  "edge_id": "tme-valid-continuity-break",
+  "source_refs": [
+    "episode:session-resume",
+    "episode:missing-terminal-state"
+  ],
+  "individual_phase": "recalibration",
+  "system_phase": "degraded",
+  "environment_phase": "external_failure",
+  "transition_class": "continuity_break",
+  "meaning_statement": "The system cannot safely claim continuity across the boundary because terminal state and action authority are not reconstructable.",
+  "evidence_refs": [
+    "receipt:missing-terminal-event",
+    "audit:incomplete-reconciliation-window"
+  ],
+  "congruence_state": {
+    "goal_alignment": true,
+    "evidence_alignment": false,
+    "system_alignment": false,
+    "temporal_alignment": false,
+    "consequence_alignment": false,
+    "decision": "block"
+  },
+  "observer_state": {
+    "current_phase": "recalibrate",
+    "dominant_driver": "evidence",
+    "repeated_pattern": null,
+    "unresolved_dissonance": [
+      "The final state of the previous action is unknown.",
+      "No valid authority can be inherited across the missing boundary."
+    ],
+    "progress_signal": "none"
+  },
+  "force_delta": {
+    "amplify": [
+      "uncertainty_visibility",
+      "auditability"
+    ],
+    "attenuate": [
+      "unsafe_continuation"
+    ],
+    "protect": [
+      "state_integrity",
+      "action_authority",
+      "recovery_capacity"
+    ]
+  },
+  "temporal_state": {
+    "memory_freshness": "unknown",
+    "evidence_validity": "invalid",
+    "action_authority": "blocked",
+    "entered_at": "2026-06-26T10:05:00Z",
+    "last_validated_at": "2026-06-26T09:00:00Z",
+    "validity_horizon": "until_terminal_state_is_reconciled",
+    "resume_policy": "block"
+  },
+  "integrity_preservation": {
+    "preserve_identity_continuity": true,
+    "preserve_state_integrity": true,
+    "preserve_safety_constraints": true,
+    "preserve_recovery_capacity": true,
+    "surface_uncertainty": true
+  },
+  "continuity_impact": "continuity_break",
+  "identity_proposal_eligible": false,
+  "governance_requirements": [
+    "reconcile_terminal_state",
+    "do_not_inherit_authority",
+    "human_or_external_review_required"
+  ]
+}
