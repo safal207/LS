@@ -1,0 +1,70 @@
+{
+  "schema_version": "temporal_meaning_edge.v0.1",
+  "edge_id": "tme-valid-counterevidence-signal",
+  "source_refs": [
+    "episode:prior-success-pattern",
+    "episode:new-contradicting-result"
+  ],
+  "individual_phase": "verification",
+  "system_phase": "revalidating",
+  "environment_phase": "new_evidence",
+  "transition_class": "recalibration",
+  "meaning_statement": "New verified counterevidence weakens the previous interpretation and requires track recalibration.",
+  "evidence_refs": [
+    "test:contradicting-result",
+    "receipt:independent-observer-check"
+  ],
+  "congruence_state": {
+    "goal_alignment": true,
+    "evidence_alignment": false,
+    "system_alignment": true,
+    "temporal_alignment": true,
+    "consequence_alignment": true,
+    "decision": "revalidate"
+  },
+  "observer_state": {
+    "current_phase": "verify",
+    "dominant_driver": "evidence",
+    "repeated_pattern": "previously supported interpretation challenged by new evidence",
+    "unresolved_dissonance": [
+      "The prior track direction is no longer fully supported."
+    ],
+    "progress_signal": "goal_level"
+  },
+  "force_delta": {
+    "amplify": [
+      "verified_knowledge",
+      "epistemic_honesty"
+    ],
+    "attenuate": [
+      "false_certainty"
+    ],
+    "protect": [
+      "state_integrity",
+      "counterevidence_visibility"
+    ]
+  },
+  "temporal_state": {
+    "memory_freshness": "current",
+    "evidence_validity": "revalidation_required",
+    "action_authority": "authorized",
+    "entered_at": "2026-06-26T10:00:00Z",
+    "last_validated_at": "2026-06-26T09:55:00Z",
+    "validity_horizon": "until_counterevidence_review_completes",
+    "resume_policy": "revalidate"
+  },
+  "integrity_preservation": {
+    "preserve_identity_continuity": true,
+    "preserve_state_integrity": true,
+    "preserve_safety_constraints": true,
+    "preserve_recovery_capacity": true,
+    "surface_uncertainty": true
+  },
+  "continuity_impact": "counterevidence_signal",
+  "identity_proposal_eligible": false,
+  "governance_requirements": [
+    "retain_counterevidence",
+    "recompute_track_confidence",
+    "block_identity_promotion_until_review"
+  ]
+}
