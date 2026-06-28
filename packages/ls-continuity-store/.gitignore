@@ -1,0 +1,10 @@
+node_modules/
+dist/
+data/continuity.db
+data/continuity.db-*
+data/objects/*
+!data/objects/.gitkeep
+data/manifests/*
+!data/manifests/.gitkeep
+coverage/
+.env
