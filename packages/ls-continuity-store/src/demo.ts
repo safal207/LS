@@ -7,6 +7,7 @@ import { recoverSubject } from "./recover.js";
 const db = openDatabase(path.resolve("data/continuity.db"));
 const store = new ContinuityStore(db, path.resolve("data/objects"));
 const now = new Date().toISOString();
+const paramsDigest = `sha256:${"0".repeat(64)}`;
 
 const intent = store.persist({
   schema: "ls.continuity.v1",
@@ -14,9 +15,9 @@ const intent = store.persist({
   subject_id: "agent-demo",
   created_at: now,
   payload: {
-    action: "send_email",
+    action: "example_action",
     target: "user@example.com",
-    params_digest: "sha256:example"
+    params_digest: paramsDigest
   }
 });
 
