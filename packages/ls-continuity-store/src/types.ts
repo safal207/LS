@@ -15,6 +15,7 @@ export type ResumePosture =
   | "non_retryable"
   | "pending_approval";
 
+/** Canonical envelope persisted by the continuity store. */
 export interface ContinuityEnvelope<TPayload = Record<string, unknown>> {
   schema: "ls.continuity.v1";
   object_type: ObjectType;
@@ -26,9 +27,16 @@ export interface ContinuityEnvelope<TPayload = Record<string, unknown>> {
   extensions?: Record<string, unknown>;
 }
 
+/** Envelope after a content-addressed identifier has been assigned. */
 export interface StoredContinuityObject<TPayload = Record<string, unknown>>
   extends ContinuityEnvelope<TPayload> {
   object_id: string;
+}
+
+export interface IntentPayload {
+  action: string;
+  target?: string;
+  params_digest: string;
 }
 
 export interface GovernanceDecisionPayload {
@@ -57,14 +65,19 @@ export interface ContinuationCheckpointPayload {
   required_checks?: string[];
 }
 
+/** Rebuildable projection. It carries evidence needed to recompute resume safety. */
 export interface ContinuationState {
   subject_id: string;
   checkpoint_ref: string | null;
   decision_ref: string | null;
   outcome_ref: string | null;
+  decision_state: DecisionState | null;
   validity_state: ValidityState;
   resume_posture: ResumePosture;
   pending_approval_ref: string | null;
+  expires_at: string | null;
+  revalidate_if: string[];
+  required_checks: string[];
   updated_at: string;
 }
 
@@ -74,11 +87,13 @@ export interface ResumeDecision {
     | "OK"
     | "NO_STATE"
     | "PENDING_APPROVAL"
+    | "DECISION_NOT_ALLOWED"
     | "REVALIDATION_REQUIRED"
     | "AUTHORITY_CONSUMED"
     | "AUTHORITY_EXPIRED"
     | "AUTHORITY_INVALIDATED"
-    | "NON_RETRYABLE";
+    | "NON_RETRYABLE"
+    | "UNKNOWN_STATE";
   checkpoint_ref: string | null;
   required_checks: string[];
 }
