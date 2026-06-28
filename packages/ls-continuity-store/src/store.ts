@@ -3,7 +3,7 @@ import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { canonicalBytes } from "./canonicalize.js";
 import { sha256Ref } from "./hash.js";
-import { envelopeSchema } from "./schema.js";
+import { envelopeSchema, OBJECT_REF_RE } from "./schema.js";
 import type {
   ContinuityEnvelope,
   StoredContinuityObject,
@@ -18,6 +18,11 @@ function withoutObjectId<T>(input: ContinuityEnvelope<T>): ContinuityEnvelope<T>
   return rest;
 }
 
+function unique(values: readonly string[]): string[] {
+  return [...new Set(values)].sort();
+}
+
+/** Local content-addressed continuity store with append-only evidence replay. */
 export class ContinuityStore {
   constructor(
     private readonly db: DatabaseSync,
@@ -26,6 +31,7 @@ export class ContinuityStore {
     fs.mkdirSync(objectsDir, { recursive: true });
   }
 
+  /** Persists an immutable object exactly once and updates the rebuildable projection. */
   persist<T extends Record<string, unknown>>(
     input: ContinuityEnvelope<T>
   ): StoredContinuityObject<T> {
@@ -36,26 +42,32 @@ export class ContinuityStore {
     const stored: StoredContinuityObject<T> = { ...normalized, object_id: objectId };
 
     const filename = this.objectPath(objectId);
-    const storedJson = JSON.stringify(stored, null, 2);
     if (fs.existsSync(filename)) {
-      const existing = fs.readFileSync(filename, "utf8");
-      if (existing !== storedJson) {
+      const existing = JSON.parse(fs.readFileSync(filename, "utf8")) as StoredContinuityObject<T>;
+      const { object_id: existingId, ...existingUnsigned } = existing;
+      if (existingId !== objectId || !canonicalBytes(existingUnsigned).equals(canonical)) {
         throw new Error("CONTENT_ADDRESS_COLLISION");
       }
     } else {
       fs.mkdirSync(path.dirname(filename), { recursive: true });
-      fs.writeFileSync(filename, storedJson, { flag: "wx" });
+      fs.writeFileSync(filename, JSON.stringify(stored, null, 2), { flag: "wx" });
     }
 
     this.db.exec("BEGIN IMMEDIATE");
     try {
+      const indexed = this.db.prepare(`SELECT 1 AS present FROM objects WHERE object_id = ?`).get(objectId);
+      if (indexed) {
+        this.db.exec("COMMIT");
+        return stored;
+      }
+
       this.db.prepare(`
-        INSERT OR IGNORE INTO objects(object_id, object_type, subject_id, canonical_json, created_at)
+        INSERT INTO objects(object_id, object_type, subject_id, canonical_json, created_at)
         VALUES (?, ?, ?, ?, ?)
       `).run(objectId, stored.object_type, stored.subject_id, canonical.toString("utf8"), stored.created_at);
 
       this.appendEvent("object_persisted", stored.subject_id, objectId, stored.created_at);
-      this.updateProjection(stored);
+      this.updateProjection(stored as StoredContinuityObject<Record<string, unknown>>);
       this.db.exec("COMMIT");
     } catch (error) {
       this.db.exec("ROLLBACK");
@@ -65,10 +77,13 @@ export class ContinuityStore {
     return stored;
   }
 
+  /** Loads and revalidates a content-addressed object. */
   load<T = Record<string, unknown>>(objectId: string): StoredContinuityObject<T> {
+    if (!OBJECT_REF_RE.test(objectId)) throw new Error("INVALID_OBJECT_REF");
     const filename = this.objectPath(objectId);
     if (!fs.existsSync(filename)) throw new Error("OBJECT_NOT_FOUND");
     const parsed = JSON.parse(fs.readFileSync(filename, "utf8")) as StoredContinuityObject<T>;
+    envelopeSchema.parse(parsed);
     const { object_id, ...unsigned } = parsed;
     const recomputed = sha256Ref(canonicalBytes(unsigned));
     if (recomputed !== object_id || object_id !== objectId) {
@@ -77,11 +92,30 @@ export class ContinuityStore {
     return parsed;
   }
 
+  /** Reads the mutable projection. It is never the source of truth. */
   getCurrentState(subjectId: string): ContinuationState | null {
-    const row = this.db.prepare(`SELECT * FROM current_state WHERE subject_id = ?`).get(subjectId) as ContinuationState | undefined;
-    return row ? { ...row } : null;
+    const row = this.db.prepare(`SELECT * FROM current_state WHERE subject_id = ?`).get(subjectId) as
+      | Record<string, unknown>
+      | undefined;
+    if (!row) return null;
+
+    return {
+      subject_id: row.subject_id as string,
+      checkpoint_ref: (row.checkpoint_ref as string | null) ?? null,
+      decision_ref: (row.decision_ref as string | null) ?? null,
+      outcome_ref: (row.outcome_ref as string | null) ?? null,
+      decision_state: (row.decision_state as ContinuationState["decision_state"]) ?? null,
+      validity_state: row.validity_state as ContinuationState["validity_state"],
+      resume_posture: row.resume_posture as ContinuationState["resume_posture"],
+      pending_approval_ref: (row.pending_approval_ref as string | null) ?? null,
+      expires_at: (row.expires_at as string | null) ?? null,
+      revalidate_if: JSON.parse((row.revalidate_if_json as string) ?? "[]") as string[],
+      required_checks: JSON.parse((row.required_checks_json as string) ?? "[]") as string[],
+      updated_at: row.updated_at as string
+    };
   }
 
+  /** Returns ordered evidence events for one subject. */
   listEvents(subjectId: string): Array<Record<string, unknown>> {
     return this.db.prepare(`
       SELECT sequence_number, event_type, subject_id, object_ref, previous_event_hash, event_hash, created_at
@@ -89,8 +123,116 @@ export class ContinuityStore {
     `).all(subjectId) as Array<Record<string, unknown>>;
   }
 
+  /** Executes recovery reads under one SQLite snapshot. */
+  withReadSnapshot<T>(callback: () => T): T {
+    this.db.exec("BEGIN DEFERRED");
+    try {
+      const result = callback();
+      this.db.exec("COMMIT");
+      return result;
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  /** Applies one verified evidence object to a deterministic state projection. */
+  deriveNextState(
+    previous: ContinuationState | null,
+    object: StoredContinuityObject<Record<string, unknown>>
+  ): ContinuationState {
+    const next: ContinuationState = previous
+      ? {
+          ...previous,
+          revalidate_if: [...previous.revalidate_if],
+          required_checks: [...previous.required_checks]
+        }
+      : {
+          subject_id: object.subject_id,
+          checkpoint_ref: null,
+          decision_ref: null,
+          outcome_ref: null,
+          decision_state: null,
+          validity_state: "active",
+          resume_posture: "requires_revalidation",
+          pending_approval_ref: null,
+          expires_at: null,
+          revalidate_if: [],
+          required_checks: [],
+          updated_at: object.created_at
+        };
+
+    if (object.subject_id !== next.subject_id) throw new Error("SUBJECT_MISMATCH");
+
+    if (object.object_type === "governance_decision") {
+      const payload = object.payload as unknown as GovernanceDecisionPayload;
+      next.decision_ref = object.object_id;
+      next.outcome_ref = null;
+      next.decision_state = payload.decision;
+      next.validity_state = payload.validity_state;
+      next.expires_at = payload.expires_at ?? null;
+      next.revalidate_if = unique(payload.revalidate_if ?? []);
+      next.required_checks = [];
+      next.pending_approval_ref = null;
+
+      if (payload.decision === "allow") next.resume_posture = payload.resume_posture;
+      else if (payload.decision === "require_approval") {
+        next.resume_posture = "pending_approval";
+        next.pending_approval_ref = object.object_id;
+      } else if (payload.decision === "revise") {
+        next.resume_posture = "requires_revalidation";
+        next.required_checks = unique([...next.revalidate_if, "revised_decision"]);
+      } else {
+        next.resume_posture = "non_retryable";
+      }
+    }
+
+    if (object.object_type === "governance_outcome") {
+      const payload = object.payload as unknown as GovernanceOutcomePayload;
+      if (payload.decision_ref !== next.decision_ref) throw new Error("OUTCOME_DECISION_MISMATCH");
+      const decision = this.load<GovernanceDecisionPayload>(payload.decision_ref);
+      if (decision.object_type !== "governance_decision") throw new Error("OUTCOME_DECISION_TYPE_MISMATCH");
+      if (decision.subject_id !== object.subject_id) throw new Error("OUTCOME_SUBJECT_MISMATCH");
+      if (next.decision_state !== "allow") throw new Error("OUTCOME_WITHOUT_ALLOW");
+
+      next.outcome_ref = object.object_id;
+      next.pending_approval_ref = null;
+      if (payload.side_effect_committed || payload.status === "executed") {
+        next.resume_posture = "consumed";
+      } else if (payload.status === "errored") {
+        next.resume_posture = "requires_revalidation";
+        next.required_checks = unique([...next.required_checks, "retry_safety"]);
+      } else {
+        next.resume_posture = "non_retryable";
+      }
+    }
+
+    if (object.object_type === "continuation_checkpoint") {
+      const payload = object.payload as unknown as ContinuationCheckpointPayload;
+      if (payload.latest_decision_ref !== undefined && payload.latest_decision_ref !== next.decision_ref) {
+        throw new Error("CHECKPOINT_DECISION_MISMATCH");
+      }
+      if (payload.latest_outcome_ref !== undefined && payload.latest_outcome_ref !== next.outcome_ref) {
+        throw new Error("CHECKPOINT_OUTCOME_MISMATCH");
+      }
+      if (payload.pending_approval_ref !== undefined && payload.pending_approval_ref !== next.pending_approval_ref) {
+        throw new Error("CHECKPOINT_APPROVAL_MISMATCH");
+      }
+      if (payload.validity_state !== next.validity_state || payload.resume_posture !== next.resume_posture) {
+        throw new Error("CHECKPOINT_AUTHORITY_MISMATCH");
+      }
+
+      next.checkpoint_ref = object.object_id;
+      next.required_checks = unique([...next.required_checks, ...(payload.required_checks ?? [])]);
+    }
+
+    next.updated_at = object.created_at;
+    return next;
+  }
+
   private objectPath(objectId: string): string {
-    const digest = objectId.replace(/^sha256:/, "");
+    if (!OBJECT_REF_RE.test(objectId)) throw new Error("INVALID_OBJECT_REF");
+    const digest = objectId.slice("sha256:".length);
     return path.join(this.objectsDir, digest.slice(0, 2), digest.slice(2, 4), `${digest}.json`);
   }
 
@@ -110,73 +252,49 @@ export class ContinuityStore {
     const eventHash = sha256Ref(canonicalBytes(eventBody));
 
     this.db.prepare(`
-      INSERT OR IGNORE INTO event_log(event_type, subject_id, object_ref, previous_event_hash, event_hash, created_at)
+      INSERT INTO event_log(event_type, subject_id, object_ref, previous_event_hash, event_hash, created_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(eventType, subjectId, objectRef, previousEventHash, eventHash, createdAt);
   }
 
   private updateProjection(object: StoredContinuityObject<Record<string, unknown>>): void {
-    const previous = this.getCurrentState(object.subject_id);
-    const next: ContinuationState = previous ?? {
-      subject_id: object.subject_id,
-      checkpoint_ref: null,
-      decision_ref: null,
-      outcome_ref: null,
-      validity_state: "active",
-      resume_posture: "requires_revalidation",
-      pending_approval_ref: null,
-      updated_at: object.created_at
-    };
-
-    if (object.object_type === "governance_decision") {
-      const payload = object.payload as unknown as GovernanceDecisionPayload;
-      next.decision_ref = object.object_id;
-      next.validity_state = payload.validity_state;
-      next.resume_posture = payload.resume_posture;
-      next.pending_approval_ref = payload.decision === "require_approval" ? object.object_id : null;
-    }
-
-    if (object.object_type === "governance_outcome") {
-      const payload = object.payload as unknown as GovernanceOutcomePayload;
-      next.outcome_ref = object.object_id;
-      if (payload.side_effect_committed || payload.status === "executed") {
-        next.resume_posture = "consumed";
-      } else if (payload.status === "errored") {
-        next.resume_posture = "requires_revalidation";
-      }
-    }
-
-    if (object.object_type === "continuation_checkpoint") {
-      const payload = object.payload as unknown as ContinuationCheckpointPayload;
-      next.checkpoint_ref = object.object_id;
-      next.decision_ref = payload.latest_decision_ref ?? next.decision_ref;
-      next.outcome_ref = payload.latest_outcome_ref ?? next.outcome_ref;
-      next.pending_approval_ref = payload.pending_approval_ref ?? null;
-      next.validity_state = payload.validity_state;
-      next.resume_posture = payload.resume_posture;
-    }
-
-    next.updated_at = object.created_at;
+    const next = this.deriveNextState(this.getCurrentState(object.subject_id), object);
 
     this.db.prepare(`
-      INSERT INTO current_state(subject_id, checkpoint_ref, decision_ref, outcome_ref, validity_state, resume_posture, pending_approval_ref, updated_at)
-      VALUES (@subject_id, @checkpoint_ref, @decision_ref, @outcome_ref, @validity_state, @resume_posture, @pending_approval_ref, @updated_at)
+      INSERT INTO current_state(
+        subject_id, checkpoint_ref, decision_ref, outcome_ref, decision_state,
+        validity_state, resume_posture, pending_approval_ref, expires_at,
+        revalidate_if_json, required_checks_json, updated_at
+      )
+      VALUES (
+        @subject_id, @checkpoint_ref, @decision_ref, @outcome_ref, @decision_state,
+        @validity_state, @resume_posture, @pending_approval_ref, @expires_at,
+        @revalidate_if_json, @required_checks_json, @updated_at
+      )
       ON CONFLICT(subject_id) DO UPDATE SET
         checkpoint_ref = excluded.checkpoint_ref,
         decision_ref = excluded.decision_ref,
         outcome_ref = excluded.outcome_ref,
+        decision_state = excluded.decision_state,
         validity_state = excluded.validity_state,
         resume_posture = excluded.resume_posture,
         pending_approval_ref = excluded.pending_approval_ref,
+        expires_at = excluded.expires_at,
+        revalidate_if_json = excluded.revalidate_if_json,
+        required_checks_json = excluded.required_checks_json,
         updated_at = excluded.updated_at
     `).run({
       subject_id: next.subject_id,
       checkpoint_ref: next.checkpoint_ref,
       decision_ref: next.decision_ref,
       outcome_ref: next.outcome_ref,
+      decision_state: next.decision_state,
       validity_state: next.validity_state,
       resume_posture: next.resume_posture,
       pending_approval_ref: next.pending_approval_ref,
+      expires_at: next.expires_at,
+      revalidate_if_json: JSON.stringify(next.revalidate_if),
+      required_checks_json: JSON.stringify(next.required_checks),
       updated_at: next.updated_at
     });
   }
