@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 
+/** Opens the local SQLite store with WAL and evidence-reference constraints enabled. */
 export function openDatabase(path: string): DatabaseSync {
   const db = new DatabaseSync(path);
   db.exec("PRAGMA journal_mode = WAL");
@@ -17,7 +18,7 @@ export function openDatabase(path: string): DatabaseSync {
       sequence_number INTEGER PRIMARY KEY AUTOINCREMENT,
       event_type TEXT NOT NULL,
       subject_id TEXT NOT NULL,
-      object_ref TEXT NOT NULL,
+      object_ref TEXT NOT NULL REFERENCES objects(object_id),
       previous_event_hash TEXT,
       event_hash TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL
@@ -25,19 +26,23 @@ export function openDatabase(path: string): DatabaseSync {
 
     CREATE TABLE IF NOT EXISTS current_state (
       subject_id TEXT PRIMARY KEY,
-      checkpoint_ref TEXT,
-      decision_ref TEXT,
-      outcome_ref TEXT,
-      validity_state TEXT NOT NULL,
-      resume_posture TEXT NOT NULL,
-      pending_approval_ref TEXT,
+      checkpoint_ref TEXT REFERENCES objects(object_id),
+      decision_ref TEXT REFERENCES objects(object_id),
+      outcome_ref TEXT REFERENCES objects(object_id),
+      decision_state TEXT CHECK (decision_state IN ('allow', 'deny', 'require_approval', 'revise') OR decision_state IS NULL),
+      validity_state TEXT NOT NULL CHECK (validity_state IN ('active', 'expired', 'superseded', 'invalidated')),
+      resume_posture TEXT NOT NULL CHECK (resume_posture IN ('retryable', 'requires_revalidation', 'consumed', 'non_retryable', 'pending_approval')),
+      pending_approval_ref TEXT REFERENCES objects(object_id),
+      expires_at TEXT,
+      revalidate_if_json TEXT NOT NULL DEFAULT '[]',
+      required_checks_json TEXT NOT NULL DEFAULT '[]',
       updated_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS pending_approvals (
       approval_id TEXT PRIMARY KEY,
       subject_id TEXT NOT NULL,
-      decision_ref TEXT NOT NULL,
+      decision_ref TEXT NOT NULL REFERENCES objects(object_id),
       status TEXT NOT NULL,
       expires_at TEXT,
       continuation_id TEXT
