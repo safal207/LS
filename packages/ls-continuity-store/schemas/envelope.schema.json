@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ls.example/schemas/envelope.schema.json",
+  "title": "LS Continuity Envelope",
+  "type": "object",
+  "required": ["schema", "object_type", "subject_id", "created_at", "payload"],
+  "properties": {
+    "schema": { "const": "ls.continuity.v1" },
+    "object_type": {
+      "enum": [
+        "intent",
+        "governance_decision",
+        "governance_outcome",
+        "continuation_checkpoint",
+        "verification_receipt",
+        "remediation_receipt"
+      ]
+    },
+    "object_id": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "subject_id": { "type": "string", "minLength": 1 },
+    "previous_ref": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "payload": { "type": "object" },
+    "extensions": { "type": "object" }
+  },
+  "additionalProperties": false
+}
