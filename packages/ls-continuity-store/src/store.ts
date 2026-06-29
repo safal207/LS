@@ -275,16 +275,22 @@ export class ContinuityStore {
     if (object.object_type !== "governance_decision") return;
 
     const payload = object.payload as unknown as GovernanceDecisionPayload;
+    const evidence = this.db.prepare(`
+      SELECT object_type, subject_id
+      FROM objects
+      WHERE object_id = ?
+    `).get(payload.intent_ref) as { object_type: string; subject_id: string } | undefined;
+
+    if (!evidence) throw new Error("DECISION_INTENT_NOT_INDEXED");
+    if (evidence.object_type !== "intent") throw new Error("DECISION_INTENT_TYPE_MISMATCH");
+    if (evidence.subject_id !== object.subject_id) throw new Error("DECISION_INTENT_SUBJECT_MISMATCH");
+
     const indexed = this.db.prepare(`
       SELECT 1 AS present
-      FROM event_log AS event
-      JOIN objects AS evidence ON evidence.object_id = event.object_ref
-      WHERE event.subject_id = ?
-        AND event.object_ref = ?
-        AND evidence.object_type = 'intent'
-        AND evidence.subject_id = ?
+      FROM event_log
+      WHERE subject_id = ? AND object_ref = ?
       LIMIT 1
-    `).get(object.subject_id, payload.intent_ref, object.subject_id);
+    `).get(object.subject_id, payload.intent_ref);
 
     if (!indexed) throw new Error("DECISION_INTENT_NOT_INDEXED");
 
