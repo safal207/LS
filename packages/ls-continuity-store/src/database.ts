@@ -48,6 +48,21 @@ export function openDatabase(path: string): DatabaseSync {
       expires_at TEXT,
       continuation_id TEXT
     );
+
+    CREATE TRIGGER IF NOT EXISTS reject_reauthorization_after_consumed_outcome
+    BEFORE INSERT ON objects
+    WHEN NEW.object_type = 'governance_decision'
+      AND EXISTS (
+        SELECT 1
+        FROM current_state
+        WHERE subject_id = NEW.subject_id
+          AND latest_intent_ref = json_extract(NEW.canonical_json, '$.payload.intent_ref')
+          AND outcome_ref IS NOT NULL
+          AND resume_posture = 'consumed'
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'DECISION_REQUIRES_NEW_INTENT_AFTER_CONSUMED_OUTCOME');
+    END;
   `);
 
   const stateColumns = db.prepare("PRAGMA table_info(current_state)").all() as Array<{ name: string }>;
