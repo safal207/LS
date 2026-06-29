@@ -10,7 +10,8 @@ import type {
   ContinuationCheckpointPayload,
   GovernanceDecisionPayload,
   GovernanceOutcomePayload,
-  ContinuationState
+  ContinuationState,
+  IntentPayload
 } from "./types.js";
 
 function withoutObjectId<T>(input: ContinuityEnvelope<T>): ContinuityEnvelope<T> {
@@ -42,15 +43,13 @@ export class ContinuityStore {
     const stored: StoredContinuityObject<T> = { ...normalized, object_id: objectId };
 
     const filename = this.objectPath(objectId);
-    if (fs.existsSync(filename)) {
-      const existing = JSON.parse(fs.readFileSync(filename, "utf8")) as StoredContinuityObject<T>;
-      const { object_id: existingId, ...existingUnsigned } = existing;
-      if (existingId !== objectId || !canonicalBytes(existingUnsigned).equals(canonical)) {
-        throw new Error("CONTENT_ADDRESS_COLLISION");
-      }
-    } else {
+    try {
       fs.mkdirSync(path.dirname(filename), { recursive: true });
       fs.writeFileSync(filename, JSON.stringify(stored, null, 2), { flag: "wx" });
+    } catch (error) {
+      const errno = error as NodeJS.ErrnoException;
+      if (errno.code !== "EEXIST") throw error;
+      this.assertExistingObjectMatches(filename, objectId, canonical);
     }
 
     this.db.exec("BEGIN IMMEDIATE");
@@ -166,6 +165,10 @@ export class ContinuityStore {
 
     if (object.object_type === "governance_decision") {
       const payload = object.payload as unknown as GovernanceDecisionPayload;
+      const intent = this.load<IntentPayload>(payload.intent_ref);
+      if (intent.object_type !== "intent") throw new Error("DECISION_INTENT_TYPE_MISMATCH");
+      if (intent.subject_id !== object.subject_id) throw new Error("DECISION_INTENT_SUBJECT_MISMATCH");
+
       next.decision_ref = object.object_id;
       next.outcome_ref = null;
       next.decision_state = payload.decision;
@@ -234,6 +237,19 @@ export class ContinuityStore {
     if (!OBJECT_REF_RE.test(objectId)) throw new Error("INVALID_OBJECT_REF");
     const digest = objectId.slice("sha256:".length);
     return path.join(this.objectsDir, digest.slice(0, 2), digest.slice(2, 4), `${digest}.json`);
+  }
+
+  private assertExistingObjectMatches(filename: string, objectId: string, canonical: Buffer): void {
+    try {
+      const existing = JSON.parse(fs.readFileSync(filename, "utf8")) as StoredContinuityObject<Record<string, unknown>>;
+      const { object_id: existingId, ...existingUnsigned } = existing;
+      if (existingId !== objectId || !canonicalBytes(existingUnsigned).equals(canonical)) {
+        throw new Error("CONTENT_ADDRESS_COLLISION");
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message === "CONTENT_ADDRESS_COLLISION") throw error;
+      throw new Error("CONTENT_ADDRESS_COLLISION");
+    }
   }
 
   private appendEvent(eventType: string, subjectId: string, objectRef: string, createdAt: string): void {
