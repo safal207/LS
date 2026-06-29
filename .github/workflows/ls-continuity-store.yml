@@ -6,7 +6,10 @@ on:
       - "packages/ls-continuity-store/**"
       - ".github/workflows/ls-continuity-store.yml"
   push:
-    branches: [main]
+    branches:
+      - main
+      - "feat/continuity-store-v0.1"
+      - "feat/trustworthy-transition-continuity-v0.1"
     paths:
       - "packages/ls-continuity-store/**"
       - ".github/workflows/ls-continuity-store.yml"
