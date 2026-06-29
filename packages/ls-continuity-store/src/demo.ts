@@ -1,11 +1,14 @@
+import fs from "node:fs";
 import path from "node:path";
 import { openDatabase } from "./database.js";
 import { ContinuityStore } from "./store.js";
 import { evaluateResume } from "./resume.js";
 import { recoverSubject } from "./recover.js";
 
-const db = openDatabase(path.resolve("data/continuity.db"));
-const store = new ContinuityStore(db, path.resolve("data/objects"));
+const dataDir = path.resolve("data");
+fs.mkdirSync(dataDir, { recursive: true });
+const db = openDatabase(path.join(dataDir, "continuity.db"));
+const store = new ContinuityStore(db, path.join(dataDir, "objects"));
 const now = new Date().toISOString();
 const paramsDigest = `sha256:${"0".repeat(64)}`;
 
@@ -39,3 +42,4 @@ store.persist({
 
 const state = recoverSubject(store, "agent-demo");
 console.log(JSON.stringify({ state, resume: evaluateResume(state) }, null, 2));
+db.close();
