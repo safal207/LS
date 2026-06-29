@@ -17,7 +17,7 @@ function makeStore(): ContinuityStore {
 }
 
 describe("consumed authority", () => {
-  it("requires a new intent before another governance decision", () => {
+  it("requires a new intent before another decision or outcome", () => {
     const store = makeStore();
     const subject = "consumed-intent";
 
@@ -64,10 +64,27 @@ describe("consumed authority", () => {
     assert.throws(
       () => store.persist({
         schema: "ls.continuity.v1",
-        object_type: "governance_decision",
+        object_type: "governance_outcome",
         subject_id: subject,
         previous_ref: outcome.object_id,
         created_at: "2026-06-29T00:00:03.000Z",
+        payload: {
+          decision_ref: decision.object_id,
+          status: "errored",
+          result_digest: DIGEST,
+          side_effect_committed: false
+        }
+      }),
+      /OUTCOME_REQUIRES_NEW_INTENT_AFTER_CONSUMED_OUTCOME/
+    );
+
+    assert.throws(
+      () => store.persist({
+        schema: "ls.continuity.v1",
+        object_type: "governance_decision",
+        subject_id: subject,
+        previous_ref: outcome.object_id,
+        created_at: "2026-06-29T00:00:04.000Z",
         payload: {
           intent_ref: intent.object_id,
           decision: "allow",
@@ -91,16 +108,16 @@ describe("consumed authority", () => {
       object_type: "intent",
       subject_id: subject,
       previous_ref: outcome.object_id,
-      created_at: "2026-06-29T00:00:04.000Z",
+      created_at: "2026-06-29T00:00:05.000Z",
       payload: { action: "send_payment", params_digest: DIGEST }
     });
 
-    assert.doesNotThrow(() => store.persist({
+    const replacementDecision = store.persist({
       schema: "ls.continuity.v1",
       object_type: "governance_decision",
       subject_id: subject,
       previous_ref: replacementIntent.object_id,
-      created_at: "2026-06-29T00:00:05.000Z",
+      created_at: "2026-06-29T00:00:06.000Z",
       payload: {
         intent_ref: replacementIntent.object_id,
         decision: "allow",
@@ -109,8 +126,24 @@ describe("consumed authority", () => {
         expires_at: null,
         revalidate_if: []
       }
-    }));
+    });
 
     assert.equal(evaluateResume(recoverSubject(store, subject)).reason, "OK");
+
+    assert.doesNotThrow(() => store.persist({
+      schema: "ls.continuity.v1",
+      object_type: "governance_outcome",
+      subject_id: subject,
+      previous_ref: replacementDecision.object_id,
+      created_at: "2026-06-29T00:00:07.000Z",
+      payload: {
+        decision_ref: replacementDecision.object_id,
+        status: "executed",
+        result_digest: DIGEST,
+        side_effect_committed: true
+      }
+    }));
+
+    assert.equal(evaluateResume(recoverSubject(store, subject)).reason, "AUTHORITY_CONSUMED");
   });
 });
