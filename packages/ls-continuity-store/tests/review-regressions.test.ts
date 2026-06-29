@@ -11,19 +11,29 @@ import { evaluateResume } from "../src/resume.js";
 const DIGEST = `sha256:${"2".repeat(64)}`;
 const MISSING_REF = `sha256:${"9".repeat(64)}`;
 
-function makeStore() {
+function makeFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ls-review-"));
   const db = openDatabase(path.join(root, "continuity.db"));
-  return new ContinuityStore(db, path.join(root, "objects"));
+  const store = new ContinuityStore(db, path.join(root, "objects"));
+  return { root, db, store };
 }
 
-function persistIntent(store: ContinuityStore, subject: string) {
+function makeStore() {
+  return makeFixture().store;
+}
+
+function persistIntent(
+  store: ContinuityStore,
+  subject: string,
+  action = "example_action",
+  createdAt = "2026-06-28T00:00:00.000Z"
+) {
   return store.persist({
     schema: "ls.continuity.v1",
     object_type: "intent",
     subject_id: subject,
-    created_at: "2026-06-28T00:00:00.000Z",
-    payload: { action: "example_action", params_digest: DIGEST }
+    created_at: createdAt,
+    payload: { action, params_digest: DIGEST }
   });
 }
 
@@ -178,7 +188,10 @@ describe("review regressions", () => {
 
   it("rejects a decision whose intent does not exist", () => {
     const store = makeStore();
-    assert.throws(() => persistAllowForIntent(store, "missing-intent", MISSING_REF), /OBJECT_NOT_FOUND/);
+    assert.throws(
+      () => persistAllowForIntent(store, "missing-intent", MISSING_REF),
+      /DECISION_INTENT_NOT_INDEXED/
+    );
   });
 
   it("rejects a decision whose intent_ref points to another object type", () => {
@@ -206,7 +219,52 @@ describe("review regressions", () => {
     );
   });
 
-  it("accepts a decision backed by a same-subject intent", () => {
+  it("rejects orphan intent files that were never indexed as evidence", () => {
+    const { db, store } = makeFixture();
+    const intent = persistIntent(store, "orphan");
+
+    db.prepare("DELETE FROM current_state WHERE subject_id = ?").run("orphan");
+    db.prepare("DELETE FROM event_log WHERE subject_id = ?").run("orphan");
+    db.prepare("DELETE FROM objects WHERE object_id = ?").run(intent.object_id);
+
+    assert.throws(
+      () => persistAllowForIntent(store, "orphan", intent.object_id),
+      /DECISION_INTENT_NOT_INDEXED/
+    );
+  });
+
+  it("rejects a decision for an older intent after a newer intent exists", () => {
+    const store = makeStore();
+    const first = persistIntent(store, "stale-intent", "first_action", "2026-06-28T00:00:00.000Z");
+    const second = persistIntent(store, "stale-intent", "second_action", "2026-06-28T00:00:01.000Z");
+
+    assert.throws(
+      () => persistAllowForIntent(store, "stale-intent", first.object_id),
+      /DECISION_INTENT_NOT_CURRENT/
+    );
+    assert.doesNotThrow(() => persistAllowForIntent(store, "stale-intent", second.object_id));
+  });
+
+  it("clears prior authority when a new intent is persisted", () => {
+    const store = makeStore();
+    allowDecision(store, "new-intent");
+    assert.equal(evaluateResume(recoverSubject(store, "new-intent")).reason, "OK");
+
+    const nextIntent = persistIntent(
+      store,
+      "new-intent",
+      "second_action",
+      "2026-06-28T00:00:02.000Z"
+    );
+    const state = recoverSubject(store, "new-intent");
+
+    assert.equal(state?.latest_intent_ref, nextIntent.object_id);
+    assert.equal(state?.decision_ref, null);
+    assert.equal(state?.decision_state, null);
+    assert.equal(evaluateResume(state).reason, "DECISION_NOT_ALLOWED");
+  });
+
+  it("accepts a decision backed by the current same-subject intent", () => {
     const store = makeStore();
     allowDecision(store, "valid-intent");
     assert.equal(evaluateResume(recoverSubject(store, "valid-intent")).reason, "OK");
