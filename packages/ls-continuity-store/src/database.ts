@@ -63,6 +63,19 @@ export function openDatabase(path: string): DatabaseSync {
     BEGIN
       SELECT RAISE(ABORT, 'DECISION_REQUIRES_NEW_INTENT_AFTER_CONSUMED_OUTCOME');
     END;
+
+    CREATE TRIGGER IF NOT EXISTS reject_outcome_while_authority_consumed
+    BEFORE INSERT ON objects
+    WHEN NEW.object_type = 'governance_outcome'
+      AND EXISTS (
+        SELECT 1
+        FROM current_state
+        WHERE subject_id = NEW.subject_id
+          AND resume_posture = 'consumed'
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'OUTCOME_REQUIRES_NEW_INTENT_AFTER_CONSUMED_OUTCOME');
+    END;
   `);
 
   const stateColumns = db.prepare("PRAGMA table_info(current_state)").all() as Array<{ name: string }>;
