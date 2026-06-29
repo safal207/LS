@@ -154,6 +154,22 @@ The fixture suite covers:
 Every primary fixture is persisted to SQLite/WAL, the database is closed,
 reopened, and the immutable snapshot is loaded before evaluation.
 
+## Package gate
+
+The `LS Continuity Store` workflow is owned by the base store branch and runs:
+
+```bash
+npm install --no-audit --no-fund
+npm run build
+npm test
+npm run demo
+npm run demo:transition
+```
+
+The base demo creates its SQLite data directory explicitly before opening the
+database. This makes the gate reproducible on a clean runner rather than relying
+on an untracked local directory.
+
 ## Boundary
 
 This profile proves deterministic persistence, evidence-set binding, restart
