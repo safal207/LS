@@ -26,6 +26,7 @@ export function openDatabase(path: string): DatabaseSync {
 
     CREATE TABLE IF NOT EXISTS current_state (
       subject_id TEXT PRIMARY KEY,
+      latest_intent_ref TEXT REFERENCES objects(object_id),
       checkpoint_ref TEXT REFERENCES objects(object_id),
       decision_ref TEXT REFERENCES objects(object_id),
       outcome_ref TEXT REFERENCES objects(object_id),
@@ -48,5 +49,11 @@ export function openDatabase(path: string): DatabaseSync {
       continuation_id TEXT
     );
   `);
+
+  const stateColumns = db.prepare("PRAGMA table_info(current_state)").all() as Array<{ name: string }>;
+  if (!stateColumns.some((column) => column.name === "latest_intent_ref")) {
+    db.exec("ALTER TABLE current_state ADD COLUMN latest_intent_ref TEXT REFERENCES objects(object_id)");
+  }
+
   return db;
 }
