@@ -68,6 +68,7 @@ export interface ContinuationCheckpointPayload {
 /** Rebuildable projection. It carries evidence needed to recompute resume safety. */
 export interface ContinuationState {
   subject_id: string;
+  latest_intent_ref: string | null;
   checkpoint_ref: string | null;
   decision_ref: string | null;
   outcome_ref: string | null;
