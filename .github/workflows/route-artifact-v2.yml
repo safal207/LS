@@ -5,10 +5,12 @@ on:
     paths:
       - "schemas/route_artifact_v2.schema.json"
       - "python/modules/route_artifact.py"
+      - "python/modules/route_artifact_policy.py"
       - "scripts/verify_route_artifact.py"
       - "scripts/verify_route_contract.py"
       - "tests/route_test_support.py"
       - "tests/test_route_artifact.py"
+      - "tests/test_route_artifact_policy.py"
       - "tests/fixtures/routes/**"
       - "docs/ROUTE_ARTIFACT_V2.md"
       - ".github/workflows/route-artifact-v2.yml"
@@ -17,10 +19,12 @@ on:
     paths:
       - "schemas/route_artifact_v2.schema.json"
       - "python/modules/route_artifact.py"
+      - "python/modules/route_artifact_policy.py"
       - "scripts/verify_route_artifact.py"
       - "scripts/verify_route_contract.py"
       - "tests/route_test_support.py"
       - "tests/test_route_artifact.py"
+      - "tests/test_route_artifact_policy.py"
       - "tests/fixtures/routes/**"
       - "docs/ROUTE_ARTIFACT_V2.md"
       - ".github/workflows/route-artifact-v2.yml"
@@ -48,4 +52,22 @@ jobs:
         run: python -m pip install 'jsonschema>=4.23,<5'
 
       - name: Verify complete Route Artifact contract
-        run: python scripts/verify_route_contract.py
+        shell: bash
+        run: |
+          set +e
+          python scripts/verify_route_contract.py >route-contract.log 2>&1
+          status=$?
+          cat route-contract.log
+          printf '%s\n' "$status" >route-contract.status
+          exit "$status"
+
+      - name: Preserve route contract evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: route-contract-evidence
+          path: |
+            route-contract.log
+            route-contract.status
+          if-no-files-found: error
+          retention-days: 14
