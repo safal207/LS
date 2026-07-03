@@ -6,7 +6,7 @@
   "status": "experimental",
   "integrity": {
     "digest_algorithm": "sha256",
-    "content_digest": "e1de0a5d9ba9b54056d142aa64dd50f2d2544aa4e7ae86afb96da968e0d2d985"
+    "content_digest": "81e1c04ae8229628ae740b1aeedb30ec2146152c1dfe5243f0d04547c8643094"
   },
   "lineage": {"supersedes": []},
   "task_profile": {"category": "code_review", "subtype": "security_state_machine", "risk_level": "high"},
@@ -24,6 +24,7 @@
   ],
   "verification": {
     "tier": "T1_artifact_attested",
+    "source": null,
     "exact_head": null,
     "sandbox": false,
     "replay": null,
