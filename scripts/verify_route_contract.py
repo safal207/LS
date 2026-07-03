@@ -74,7 +74,10 @@ def main() -> int:
         str(ROOT / "tests"),
         pattern="test_route_artifact.py",
     )
-    result = unittest.TextTestRunner(verbosity=2).run(tests)
+    result = unittest.TextTestRunner(
+        verbosity=2,
+        stream=sys.stderr,
+    ).run(tests)
     if not result.wasSuccessful():
         return 1
 
