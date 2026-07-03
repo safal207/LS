@@ -272,6 +272,18 @@ class RouteArtifactV2Tests(unittest.TestCase):
             artifact,
         )
 
+    def test_replay_evidence_digest_detects_post_digest_mutation(self):
+        artifact = load("route_t0_valid.json")
+        artifact["verification"]["replay"][
+            "command"
+        ] = "python3 altered_replay.py"
+        digest(artifact)
+        self.assert_code(
+            "ROUTE-V2-DIGEST",
+            verify_route_artifact,
+            artifact,
+        )
+
     def test_honeypot_requires_sealed_true(self):
         artifact = load("route_t0_valid.json")
         artifact["verification"]["honeypot_evaluations"][0][
@@ -584,6 +596,27 @@ class RouteArtifactV2Tests(unittest.TestCase):
             digest(artifact)
             self.assert_code(
                 "ROUTE-V2-PROMOTION",
+                verify_route_artifact,
+                artifact,
+                repository_root=repo,
+            )
+
+    def test_candidate_cannot_lower_protocol_promotion_floors(self):
+        with source_checkout() as (repo, head):
+            artifact = make_promotable(repo, head)
+            artifact["promotion_policy"].update(
+                {
+                    "minimum_t0_runs": 1,
+                    "minimum_repositories": 1,
+                    "minimum_task_variants": 1,
+                }
+            )
+            digest(artifact)
+            self.assertTrue(
+                list(self.validator().iter_errors(artifact))
+            )
+            self.assert_code(
+                "ROUTE-V2-POLICY",
                 verify_route_artifact,
                 artifact,
                 repository_root=repo,
