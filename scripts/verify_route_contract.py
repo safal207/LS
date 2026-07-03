@@ -73,7 +73,6 @@ def main() -> int:
     tests = unittest.defaultTestLoader.discover(
         str(ROOT / "tests"),
         pattern="test_route_artifact*.py",
-        top_level_dir=str(ROOT),
     )
     result = unittest.TextTestRunner(verbosity=2).run(tests)
     if not result.wasSuccessful():
