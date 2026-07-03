@@ -24,7 +24,13 @@ T0 requires:
 - an executable replay command;
 - matching expected and observed exit codes;
 - passing deterministic assertions;
-- an evidence digest.
+- an evidence digest recomputed from the replay payload.
+
+`verification.replay.evidence_digest` is SHA-256 over the canonical replay
+object with only the `evidence_digest` field omitted. Changing the command,
+exit codes, assertions, or replay result without updating that digest fails
+verification. The top-level Route Artifact digest independently protects the
+complete artifact.
 
 A 40-character hexadecimal string alone is not T0 evidence.
 
@@ -73,9 +79,9 @@ A promotion-eligible honeypot is an explicit evidence object:
 }
 ```
 
-Promotion checks both the configured minimum count and the actual list of
-sealed, matched ground-truth evaluations. The numeric counter must equal the
-number of verified evaluation objects, so it cannot be inflated independently.
+Promotion checks both the protocol minimum count and the actual list of sealed,
+matched ground-truth evaluations. The numeric counter must equal the number of
+verified evaluation objects, so it cannot be inflated independently.
 
 ## Canonical content identity
 
@@ -107,7 +113,7 @@ projection. Missing references, self-supersession, duplicate references, and
 cycles fail closed. Cycle detection is iterative, so a deep valid lineage does
 not escape through Python recursion depth.
 
-## Promotion statuses
+## Promotion statuses and protocol floors
 
 - `draft`
 - `experimental`
@@ -118,7 +124,7 @@ not escape through Python recursion depth.
 
 A non-T0 artifact cannot become `candidate` or `validated`.
 
-The initial promotion policy requires:
+Route Artifact v2 fixes the promotion floors in the protocol itself:
 
 - at least 20 T0 runs;
 - at least two repositories;
@@ -127,6 +133,10 @@ The initial promotion policy requires:
 - zero unresolved critical false negatives;
 - confidence intervals;
 - maintainer approval for `validated`.
+
+Artifacts must carry those exact v2 values. They cannot lower the thresholds to
+promote themselves on weaker evidence. Changing the protocol floors requires a
+new protocol version rather than a self-authored policy override.
 
 These are operational gates, not a claim of statistical proof.
 
