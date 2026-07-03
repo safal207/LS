@@ -6,21 +6,68 @@
   "status": "draft",
   "integrity": {
     "digest_algorithm": "sha256",
-    "content_digest": "aab7538f9b132ae5b34357820e24abf6bc513f4787a047c7493f4e98b0acd3da"
+    "content_digest": "af1a0793a5b67515256761cc54e12263bd2f945e7367f1df8e98fd4a76de56cc"
   },
-  "lineage": {"supersedes": []},
-  "task_profile": {"category": "code_review", "subtype": "security_state_machine", "risk_level": "high"},
+  "lineage": {
+    "supersedes": []
+  },
+  "task_profile": {
+    "category": "code_review",
+    "subtype": "security_state_machine",
+    "risk_level": "high"
+  },
   "executor_profile": [
-    {"role": "invariant_critic", "capability_class": "frontier"},
-    {"role": "adversarial_tester", "capability_class": "frontier"},
-    {"role": "evidence_verifier", "capability_class": "deterministic_tool"},
-    {"role": "regression_reviewer", "capability_class": "mid"}
+    {
+      "role": "invariant_critic",
+      "capability_class": "frontier"
+    },
+    {
+      "role": "adversarial_tester",
+      "capability_class": "frontier"
+    },
+    {
+      "role": "evidence_verifier",
+      "capability_class": "deterministic_tool"
+    },
+    {
+      "role": "regression_reviewer",
+      "capability_class": "mid"
+    }
   ],
   "stages": [
-    {"id": "invariant_scan", "role": "invariant_critic", "capability_class": "frontier", "independent": true, "depends_on": []},
-    {"id": "adversarial_test_design", "role": "adversarial_tester", "capability_class": "frontier", "independent": true, "depends_on": []},
-    {"id": "deterministic_replay", "role": "evidence_verifier", "capability_class": "deterministic_tool", "independent": false, "depends_on": ["invariant_scan", "adversarial_test_design"]},
-    {"id": "regression_scan", "role": "regression_reviewer", "capability_class": "mid", "independent": false, "depends_on": ["deterministic_replay"]}
+    {
+      "id": "invariant_scan",
+      "role": "invariant_critic",
+      "capability_class": "frontier",
+      "independent": true,
+      "depends_on": []
+    },
+    {
+      "id": "adversarial_test_design",
+      "role": "adversarial_tester",
+      "capability_class": "frontier",
+      "independent": true,
+      "depends_on": []
+    },
+    {
+      "id": "deterministic_replay",
+      "role": "evidence_verifier",
+      "capability_class": "deterministic_tool",
+      "independent": false,
+      "depends_on": [
+        "invariant_scan",
+        "adversarial_test_design"
+      ]
+    },
+    {
+      "id": "regression_scan",
+      "role": "regression_reviewer",
+      "capability_class": "mid",
+      "independent": false,
+      "depends_on": [
+        "deterministic_replay"
+      ]
+    }
   ],
   "verification": {
     "tier": "T2_narrative_only",
@@ -30,7 +77,8 @@
     "replay": null,
     "artifact_refs": [],
     "human_sign_off": null,
-    "narrative": "A model claimed this route was useful, but no reproducible artifact was supplied."
+    "narrative": "A model claimed this route was useful, but no reproducible artifact was supplied.",
+    "honeypot_evaluations": []
   },
   "metrics": {
     "sample_size": 0,
@@ -39,9 +87,18 @@
     "task_variant_count": 0,
     "sealed_honeypot_runs": 0,
     "unresolved_critical_false_negatives": 0,
-    "confirmed_effectiveness": {"point": null, "ci95": null},
-    "false_positive_rate": {"point": null, "ci95": null},
-    "reviewer_minutes_saved": {"point": null, "ci95": null},
+    "confirmed_effectiveness": {
+      "point": null,
+      "ci95": null
+    },
+    "false_positive_rate": {
+      "point": null,
+      "ci95": null
+    },
+    "reviewer_minutes_saved": {
+      "point": null,
+      "ci95": null
+    },
     "maintainer_approved": false
   },
   "promotion_policy": {
@@ -53,16 +110,23 @@
     "requires_confidence_intervals": true,
     "requires_maintainer_approval": true
   },
-  "training": {"eligible": false, "corpus_scope": "none"},
+  "training": {
+    "eligible": false,
+    "corpus_scope": "none"
+  },
   "license": {
     "artifact_license": "Apache-2.0",
     "training_permission": "none",
     "redistribution_permission": "allowed_with_attribution",
     "commercial_use": "restricted"
   },
-  "publishability": {"level": "private"},
+  "publishability": {
+    "level": "private"
+  },
   "provenance": {
-    "contributors": ["fixture-author"],
+    "contributors": [
+      "fixture-author"
+    ],
     "source_runs": [],
     "created_at": "2026-07-03T00:00:00Z"
   }
