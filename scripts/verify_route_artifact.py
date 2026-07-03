@@ -7,6 +7,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python" / "modules"))
@@ -23,23 +24,47 @@ def read_json(path: Path) -> object:
         raise RouteArtifactError("ROUTE-V2-CLI", f"invalid JSON in {path}: {exc}") from exc
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--artifact", type=Path, help="Route Artifact v2 JSON file")
-    group.add_argument("--registry", type=Path, nargs="+", help="Route Artifact files for registry projection")
+    group.add_argument(
+        "--registry",
+        type=Path,
+        nargs="+",
+        help="Route Artifact files for registry projection",
+    )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        help="Local Git checkout used to verify T0 source, origin and exact HEAD",
+    )
     parser.add_argument(
         "--allow-t2-audit",
         action="store_true",
         help="Validate a T2 rejection-audit payload without accepting it into the canonical store",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.registry and args.allow_t2_audit:
+        parser.error("--allow-t2-audit is only valid with --artifact")
 
     try:
         if args.artifact:
-            result = verify_route_artifact(read_json(args.artifact), canonical_store=not args.allow_t2_audit)
+            result = verify_route_artifact(
+                read_json(args.artifact),
+                canonical_store=not args.allow_t2_audit,
+                repository_root=args.repo_root,
+            )
         else:
-            result = build_registry_projection([read_json(path) for path in args.registry])
+            result = build_registry_projection(
+                [read_json(path) for path in args.registry],
+                repository_root=args.repo_root,
+            )
     except RouteArtifactError as exc:
         sys.stderr.write(f"{exc}\n")
         return 1
