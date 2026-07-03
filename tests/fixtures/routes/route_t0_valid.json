@@ -6,16 +6,10 @@
   "status": "experimental",
   "integrity": {
     "digest_algorithm": "sha256",
-    "content_digest": "2eac64c79ce9799c336ac1620c0c51f1f72d82383f48aa6c906008562327b602"
+    "content_digest": "e637a5323a374def1b07cd279d946d2815a644e6d1efbeea6ad8741653dbc1c6"
   },
-  "lineage": {
-    "supersedes": []
-  },
-  "task_profile": {
-    "category": "code_review",
-    "subtype": "security_state_machine",
-    "risk_level": "high"
-  },
+  "lineage": {"supersedes": []},
+  "task_profile": {"category": "code_review", "subtype": "security_state_machine", "risk_level": "high"},
   "executor_profile": [
     {"role": "invariant_critic", "capability_class": "frontier"},
     {"role": "adversarial_tester", "capability_class": "frontier"},
@@ -30,16 +24,11 @@
   ],
   "verification": {
     "tier": "T0_deterministic_replay",
-    "source": {
-      "host": "github.com",
-      "repository": "example/route-fixture",
-      "ref": "HEAD",
-      "commit": "1111111111111111111111111111111111111111"
-    },
+    "source": {"host": "github.com", "repository": "example/route-fixture", "ref": "HEAD", "commit": "1111111111111111111111111111111111111111"},
     "exact_head": "1111111111111111111111111111111111111111",
     "sandbox": true,
     "replay": {
-      "command": "python3 -m unittest tests.test_route_artifact",
+      "command": "python3 scripts/verify_route_contract.py",
       "expected_exit_code": 0,
       "observed_exit_code": 0,
       "assertions": [
@@ -51,7 +40,16 @@
     },
     "artifact_refs": ["fixture://route-v2/t0-replay-log"],
     "human_sign_off": null,
-    "narrative": null
+    "narrative": null,
+    "honeypot_evaluations": [
+      {
+        "id": "terminal_authority_multihop",
+        "sealed": true,
+        "ground_truth_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "observed_result_digest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "matched": true
+      }
+    ]
   },
   "metrics": {
     "sample_size": 1,
