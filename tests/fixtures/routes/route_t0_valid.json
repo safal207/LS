@@ -6,9 +6,11 @@
   "status": "experimental",
   "integrity": {
     "digest_algorithm": "sha256",
-    "content_digest": "61f87ac1e1ed907b49236deefa7498b90a4730b0ec8c410feedd5857d09dfb3b"
+    "content_digest": "2eac64c79ce9799c336ac1620c0c51f1f72d82383f48aa6c906008562327b602"
   },
-  "lineage": {"supersedes": []},
+  "lineage": {
+    "supersedes": []
+  },
   "task_profile": {
     "category": "code_review",
     "subtype": "security_state_machine",
@@ -28,6 +30,12 @@
   ],
   "verification": {
     "tier": "T0_deterministic_replay",
+    "source": {
+      "host": "github.com",
+      "repository": "example/route-fixture",
+      "ref": "HEAD",
+      "commit": "1111111111111111111111111111111111111111"
+    },
     "exact_head": "1111111111111111111111111111111111111111",
     "sandbox": true,
     "replay": {
