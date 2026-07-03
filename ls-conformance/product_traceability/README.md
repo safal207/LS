@@ -23,10 +23,11 @@ The first specimen covers a dark flicker visible only during the first downward 
 - Implementation is not outcome.
 - Verification is not user value.
 - A decision must bind the exact immutable hypothesis content.
-- `ADOPTED` requires a verified exact-head implementation and confirmed outcome evidence.
+- A durable record status must be authorized by its decision verdict.
+- `ADOPTED` requires an `APPROVE_EXPERIMENT` decision, verified exact-head implementation, and confirmed outcome evidence.
 - An `ADOPTED` record must reference the exact implementation and outcome it promotes.
 - A snapshot must preserve its durable record and exactly reflect active and unresolved state.
-- `REQUEST_MORE_EVIDENCE` must not fabricate a durable product record.
+- `REQUEST_MORE_EVIDENCE` must not fabricate implementation, outcome, or a durable product record.
 
 ## Current truthful state
 
@@ -56,15 +57,16 @@ Plain `jsonschema` installation is not sufficient for this fixture family becaus
 
 A product record may become `ADOPTED` only when all of the following are present:
 
-1. exact repository and 40-character head SHA;
-2. implementation status `VERIFIED`;
-3. `implementationRef` bound to that implementation;
-4. before/after cold-cache evidence;
-5. mobile regression evidence;
-6. LCP and CLS guardrail evidence;
-7. a `CONFIRMED` outcome referencing those evidence objects;
-8. `outcomeRef` bound to that outcome;
-9. snapshot source and active references that include the adopted record.
+1. the governing verdict is `APPROVE_EXPERIMENT`;
+2. exact repository and 40-character head SHA;
+3. implementation status `VERIFIED`;
+4. `implementationRef` bound to that implementation;
+5. before/after cold-cache evidence;
+6. mobile regression evidence;
+7. LCP and CLS guardrail evidence;
+8. a `CONFIRMED` outcome referencing those evidence objects;
+9. `outcomeRef` bound to that outcome;
+10. snapshot source and active references that include the adopted record.
 
 ## Architectural boundary
 
