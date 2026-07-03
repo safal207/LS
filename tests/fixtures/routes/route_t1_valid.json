@@ -1,0 +1,74 @@
+{
+  "api_version": "ls.route/v2",
+  "kind": "RouteArtifact",
+  "route_id": "high-risk-code-review",
+  "version": "2.0.0",
+  "status": "experimental",
+  "integrity": {
+    "digest_algorithm": "sha256",
+    "content_digest": "e1de0a5d9ba9b54056d142aa64dd50f2d2544aa4e7ae86afb96da968e0d2d985"
+  },
+  "lineage": {"supersedes": []},
+  "task_profile": {"category": "code_review", "subtype": "security_state_machine", "risk_level": "high"},
+  "executor_profile": [
+    {"role": "invariant_critic", "capability_class": "frontier"},
+    {"role": "adversarial_tester", "capability_class": "frontier"},
+    {"role": "evidence_verifier", "capability_class": "deterministic_tool"},
+    {"role": "regression_reviewer", "capability_class": "mid"}
+  ],
+  "stages": [
+    {"id": "invariant_scan", "role": "invariant_critic", "capability_class": "frontier", "independent": true, "depends_on": []},
+    {"id": "adversarial_test_design", "role": "adversarial_tester", "capability_class": "frontier", "independent": true, "depends_on": []},
+    {"id": "deterministic_replay", "role": "evidence_verifier", "capability_class": "deterministic_tool", "independent": false, "depends_on": ["invariant_scan", "adversarial_test_design"]},
+    {"id": "regression_scan", "role": "regression_reviewer", "capability_class": "mid", "independent": false, "depends_on": ["deterministic_replay"]}
+  ],
+  "verification": {
+    "tier": "T1_artifact_attested",
+    "exact_head": null,
+    "sandbox": false,
+    "replay": null,
+    "artifact_refs": [
+      "https://github.com/safal207/LS/pull/770",
+      "https://github.com/safal207/robys-coffee-house-demo/pull/153"
+    ],
+    "human_sign_off": {"actor": "safal207", "signed_at": "2026-07-03T00:00:00Z", "decision": "attested"},
+    "narrative": null
+  },
+  "metrics": {
+    "sample_size": 2,
+    "t0_runs": 0,
+    "repository_count": 2,
+    "task_variant_count": 2,
+    "sealed_honeypot_runs": 0,
+    "unresolved_critical_false_negatives": 0,
+    "confirmed_effectiveness": {"point": null, "ci95": null},
+    "false_positive_rate": {"point": null, "ci95": null},
+    "reviewer_minutes_saved": {"point": null, "ci95": null},
+    "maintainer_approved": false
+  },
+  "promotion_policy": {
+    "minimum_t0_runs": 20,
+    "minimum_repositories": 2,
+    "minimum_task_variants": 2,
+    "minimum_sealed_honeypot_runs": 1,
+    "requires_zero_unresolved_critical_false_negatives": true,
+    "requires_confidence_intervals": true,
+    "requires_maintainer_approval": true
+  },
+  "training": {"eligible": false, "corpus_scope": "none"},
+  "license": {
+    "artifact_license": "Apache-2.0",
+    "training_permission": "none",
+    "redistribution_permission": "allowed_with_attribution",
+    "commercial_use": "restricted"
+  },
+  "publishability": {"level": "private"},
+  "provenance": {
+    "contributors": ["safal207"],
+    "source_runs": [
+      "github:safal207/LS#770@0ed661304e422f84dac375d334336ab1b8f76ca1",
+      "github:safal207/robys-coffee-house-demo#153@e141deb1b7e54024f462480f662fc5cca034aeff"
+    ],
+    "created_at": "2026-07-03T00:00:00Z"
+  }
+}
