@@ -39,6 +39,23 @@ class ProductTraceabilityTests(unittest.TestCase):
         ):
             validator.validate_semantics(changed)
 
+    def test_rejected_decision_requires_rejected_record(self):
+        changed = copy.deepcopy(self.bundle)
+        changed["decision"]["verdict"] = "REJECT"
+        with self.assertRaisesRegex(
+            validator.TraceValidationError, "requires a REJECTED record"
+        ):
+            validator.validate_semantics(changed)
+
+    def test_rejected_record_requires_rejected_decision(self):
+        changed = copy.deepcopy(self.bundle)
+        changed["record"]["status"] = "REJECTED"
+        changed["snapshot"]["unresolvedCandidateRefs"] = []
+        with self.assertRaisesRegex(
+            validator.TraceValidationError, "requires a REJECT decision"
+        ):
+            validator.validate_semantics(changed)
+
     def test_rejects_adoption_without_implementation(self):
         changed = copy.deepcopy(self.bundle)
         changed["record"]["status"] = "ADOPTED"
@@ -84,6 +101,17 @@ class ProductTraceabilityTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             validator.TraceValidationError, "implementationRef"
+        ):
+            validator.validate_semantics(changed)
+
+    def test_rejects_adoption_from_rejected_decision(self):
+        changed = copy.deepcopy(self.bundle)
+        changed["decision"]["verdict"] = "REJECT"
+        changed["record"]["status"] = "ADOPTED"
+        changed["snapshot"]["unresolvedCandidateRefs"] = []
+        changed["snapshot"]["activeRecordRefs"] = [changed["record"]["id"]]
+        with self.assertRaisesRegex(
+            validator.TraceValidationError, "requires APPROVE_EXPERIMENT"
         ):
             validator.validate_semantics(changed)
 
