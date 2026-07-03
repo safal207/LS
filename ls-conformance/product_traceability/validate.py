@@ -74,6 +74,24 @@ def validate_semantics(bundle: dict[str, Any]) -> None:
             decision["independence"]["isIndependent"] is True,
             "approved experiments require an independent decision",
         )
+    elif decision["verdict"] == "REQUEST_MORE_EVIDENCE":
+        require(
+            record is None,
+            "REQUEST_MORE_EVIDENCE must not fabricate a durable product record",
+        )
+        require(
+            implementation is None,
+            "REQUEST_MORE_EVIDENCE must not fabricate an implementation",
+        )
+        require(
+            outcome is None,
+            "REQUEST_MORE_EVIDENCE must not fabricate a product outcome",
+        )
+    elif decision["verdict"] == "REJECT":
+        require(
+            record is not None,
+            "REJECT decision requires a durable REJECTED record",
+        )
 
     evidence_by_id = {item["id"]: item for item in evidence}
     require(len(evidence_by_id) == len(evidence), "evidence IDs must be unique")
@@ -202,10 +220,6 @@ def validate_semantics(bundle: dict[str, Any]) -> None:
         )
 
     if decision["verdict"] == "REQUEST_MORE_EVIDENCE":
-        require(
-            record is None,
-            "REQUEST_MORE_EVIDENCE must not fabricate a durable product record",
-        )
         require(
             candidate["id"] in unresolved_refs,
             "REQUEST_MORE_EVIDENCE candidate must remain unresolved",
