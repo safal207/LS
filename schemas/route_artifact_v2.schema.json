@@ -29,7 +29,7 @@
     "kind": {"const": "RouteArtifact"},
     "route_id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
     "version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
-    "status": {"type": "string", "enum": ["draft", "experimental", "candidate", "validated", "deprecated", "revoked"]},
+    "status": {"enum": ["draft", "experimental", "candidate", "validated", "deprecated", "revoked"]},
     "integrity": {
       "type": "object",
       "additionalProperties": false,
@@ -58,51 +58,149 @@
       "properties": {
         "category": {"type": "string", "minLength": 1},
         "subtype": {"type": "string", "minLength": 1},
-        "risk_level": {"type": "string", "enum": ["low", "medium", "high", "critical"]}
+        "risk_level": {"enum": ["low", "medium", "high", "critical"]}
       }
     },
-    "executor_profile": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["role", "capability_class"],
-        "properties": {
-          "role": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
-          "capability_class": {"type": "string", "enum": ["frontier", "mid", "small", "open_weight", "human", "deterministic_tool"]}
-        }
+    "executor_profile": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/executor"}},
+    "stages": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/stage"}},
+    "verification": {"$ref": "#/$defs/verification"},
+    "metrics": {"$ref": "#/$defs/metrics"},
+    "promotion_policy": {"$ref": "#/$defs/promotion_policy"},
+    "training": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eligible", "corpus_scope"],
+      "properties": {
+        "eligible": {"type": "boolean"},
+        "corpus_scope": {"enum": ["none", "research", "distillation"]}
       }
     },
-    "stages": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["id", "role", "capability_class", "independent", "depends_on"],
-        "properties": {
-          "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
-          "role": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
-          "capability_class": {"type": "string", "enum": ["frontier", "mid", "small", "open_weight", "human", "deterministic_tool"]},
-          "independent": {"type": "boolean"},
-          "depends_on": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}}
-        }
+    "license": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_license", "training_permission", "redistribution_permission", "commercial_use"],
+      "properties": {
+        "artifact_license": {"type": "string", "minLength": 1},
+        "training_permission": {"enum": ["none", "open_weight_only_v1", "any_with_attribution_v1"]},
+        "redistribution_permission": {"enum": ["prohibited", "allowed_with_attribution", "allowed"]},
+        "commercial_use": {"enum": ["prohibited", "restricted", "allowed"]}
+      }
+    },
+    "publishability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {"level": {"enum": ["private", "community", "public"]}}
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contributors", "source_runs", "created_at"],
+      "properties": {
+        "contributors": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "source_runs": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "created_at": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "$defs": {
+    "capability": {"enum": ["frontier", "mid", "small", "open_weight", "human", "deterministic_tool"]},
+    "executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "capability_class"],
+      "properties": {
+        "role": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "capability_class": {"$ref": "#/$defs/capability"}
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "role", "capability_class", "independent", "depends_on"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "role": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "capability_class": {"$ref": "#/$defs/capability"},
+        "independent": {"type": "boolean"},
+        "depends_on": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}}
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "repository", "ref", "commit"],
+      "properties": {
+        "host": {"type": "string", "pattern": "^[a-z0-9.-]+$"},
+        "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+        "ref": {"type": "string", "pattern": "^(HEAD|refs/[A-Za-z0-9._/-]+)$"},
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "passed"],
+      "properties": {"name": {"type": "string", "minLength": 1}, "passed": {"type": "boolean"}}
+    },
+    "replay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "expected_exit_code", "observed_exit_code", "assertions", "passed", "evidence_digest"],
+      "properties": {
+        "command": {"type": "string", "minLength": 1},
+        "expected_exit_code": {"type": "integer", "minimum": 0},
+        "observed_exit_code": {"type": "integer", "minimum": 0},
+        "assertions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/assertion"}},
+        "passed": {"type": "boolean"},
+        "evidence_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "signoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actor", "signed_at", "decision"],
+      "properties": {
+        "actor": {"type": "string", "minLength": 1},
+        "signed_at": {"type": "string", "minLength": 1},
+        "decision": {"const": "attested"}
+      }
+    },
+    "honeypot_evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sealed", "ground_truth_digest", "observed_result_digest", "matched"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "sealed": {"const": true},
+        "ground_truth_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "observed_result_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "matched": {"const": true}
       }
     },
     "verification": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tier", "source", "exact_head", "sandbox", "replay", "artifact_refs", "human_sign_off", "narrative"],
+      "required": ["tier", "source", "exact_head", "sandbox", "replay", "artifact_refs", "human_sign_off", "narrative", "honeypot_evaluations"],
       "properties": {
-        "tier": {"type": "string", "enum": ["T0_deterministic_replay", "T1_artifact_attested", "T2_narrative_only"]},
+        "tier": {"enum": ["T0_deterministic_replay", "T1_artifact_attested", "T2_narrative_only"]},
         "source": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/source"}]},
         "exact_head": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9a-f]{40}$"}]},
         "sandbox": {"type": "boolean"},
         "replay": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/replay"}]},
         "artifact_refs": {"type": "array", "items": {"type": "string", "minLength": 1}},
         "human_sign_off": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/signoff"}]},
-        "narrative": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]}
+        "narrative": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+        "honeypot_evaluations": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/honeypot_evaluation"}}
+      }
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["point", "ci95"],
+      "properties": {
+        "point": {"type": ["number", "null"]},
+        "ci95": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["lower", "upper"], "properties": {"lower": {"type": "number"}, "upper": {"type": "number"}}}]}
       }
     },
     "metrics": {
@@ -136,115 +234,32 @@
         "requires_maintainer_approval": {"const": true}
       }
     },
-    "training": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["eligible", "corpus_scope"],
-      "properties": {
-        "eligible": {"type": "boolean"},
-        "corpus_scope": {"type": "string", "enum": ["none", "research", "distillation"]}
-      }
-    },
-    "license": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["artifact_license", "training_permission", "redistribution_permission", "commercial_use"],
-      "properties": {
-        "artifact_license": {"type": "string", "minLength": 1},
-        "training_permission": {"type": "string", "enum": ["none", "open_weight_only_v1", "any_with_attribution_v1"]},
-        "redistribution_permission": {"type": "string", "enum": ["prohibited", "allowed_with_attribution", "allowed"]},
-        "commercial_use": {"type": "string", "enum": ["prohibited", "restricted", "allowed"]}
-      }
-    },
-    "publishability": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["level"],
-      "properties": {"level": {"type": "string", "enum": ["private", "community", "public"]}}
-    },
-    "provenance": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["contributors", "source_runs", "created_at"],
-      "properties": {
-        "contributors": {"type": "array", "items": {"type": "string", "minLength": 1}},
-        "source_runs": {"type": "array", "items": {"type": "string", "minLength": 1}},
-        "created_at": {"type": "string", "minLength": 1}
-      }
-    }
-  },
-  "$defs": {
-    "metric": {
+    "empty_metric": {
       "type": "object",
       "additionalProperties": false,
       "required": ["point", "ci95"],
-      "properties": {
-        "point": {"type": ["number", "null"]},
-        "ci95": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["lower", "upper"], "properties": {"lower": {"type": "number"}, "upper": {"type": "number"}}}]}
-      }
-    },
-    "source": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["host", "repository", "ref", "commit"],
-      "properties": {
-        "host": {"type": "string", "pattern": "^[a-z0-9.-]+$"},
-        "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
-        "ref": {"type": "string", "pattern": "^(HEAD|refs/[A-Za-z0-9._/-]+)$"},
-        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
-      }
-    },
-    "replay": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["command", "expected_exit_code", "observed_exit_code", "assertions", "passed", "evidence_digest"],
-      "properties": {
-        "command": {"type": "string", "minLength": 1},
-        "expected_exit_code": {"type": "integer", "minimum": 0},
-        "observed_exit_code": {"type": "integer", "minimum": 0},
-        "assertions": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["name", "passed"], "properties": {"name": {"type": "string", "minLength": 1}, "passed": {"type": "boolean"}}}},
-        "passed": {"type": "boolean"},
-        "evidence_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
-      }
-    },
-    "signoff": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["actor", "signed_at", "decision"],
-      "properties": {
-        "actor": {"type": "string", "minLength": 1},
-        "signed_at": {"type": "string", "minLength": 1},
-        "decision": {"const": "attested"}
-      }
+      "properties": {"point": {"type": "null"}, "ci95": {"type": "null"}}
     }
   },
   "allOf": [
     {
       "if": {"properties": {"verification": {"properties": {"tier": {"const": "T0_deterministic_replay"}}}}},
-      "then": {"properties": {"verification": {"properties": {"source": {"$ref": "#/$defs/source"}, "exact_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "sandbox": {"const": true}, "replay": {"$ref": "#/$defs/replay"}}}}}
+      "then": {"properties": {"verification": {"properties": {"source": {"$ref": "#/$defs/source"}, "exact_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "sandbox": {"const": true}, "replay": {"$ref": "#/$defs/replay"}, "narrative": {"type": "null"}}}}}
     },
     {
       "if": {"properties": {"verification": {"properties": {"tier": {"const": "T1_artifact_attested"}}}}},
       "then": {"properties": {
-        "verification": {"properties": {"source": {"type": "null"}, "replay": {"type": "null"}, "artifact_refs": {"minItems": 1}, "human_sign_off": {"$ref": "#/$defs/signoff"}}},
-        "training": {"properties": {"eligible": {"const": false}, "corpus_scope": {"const": "none"}}},
-        "metrics": {"properties": {
-          "confirmed_effectiveness": {"properties": {"point": {"type": "null"}, "ci95": {"type": "null"}}},
-          "false_positive_rate": {"properties": {"point": {"type": "null"}, "ci95": {"type": "null"}}},
-          "reviewer_minutes_saved": {"properties": {"point": {"type": "null"}, "ci95": {"type": "null"}}}
-        }}
+        "verification": {"properties": {"source": {"type": "null"}, "exact_head": {"type": "null"}, "sandbox": {"const": false}, "replay": {"type": "null"}, "artifact_refs": {"minItems": 1}, "human_sign_off": {"$ref": "#/$defs/signoff"}, "narrative": {"type": "null"}, "honeypot_evaluations": {"maxItems": 0}}},
+        "metrics": {"properties": {"t0_runs": {"const": 0}, "sealed_honeypot_runs": {"const": 0}, "confirmed_effectiveness": {"$ref": "#/$defs/empty_metric"}, "false_positive_rate": {"$ref": "#/$defs/empty_metric"}, "reviewer_minutes_saved": {"$ref": "#/$defs/empty_metric"}}},
+        "training": {"properties": {"eligible": {"const": false}, "corpus_scope": {"const": "none"}}}
       }}
     },
     {
       "if": {"properties": {"verification": {"properties": {"tier": {"const": "T2_narrative_only"}}}}},
       "then": {"properties": {
-        "verification": {"properties": {"source": {"type": "null"}, "replay": {"type": "null"}, "artifact_refs": {"maxItems": 0}, "human_sign_off": {"type": "null"}, "narrative": {"type": "string", "minLength": 1}}},
-        "training": {"properties": {"eligible": {"const": false}, "corpus_scope": {"const": "none"}}},
-        "metrics": {"properties": {
-          "confirmed_effectiveness": {"properties": {"point": {"type": "null"}, "ci95": {"type": "null"}}},
-          "false_positive_rate": {"properties": {"point": {"type": "null"}, "ci95": {"type": "null"}}},
-          "reviewer_minutes_saved": {"properties": {"point": {"type": "null"}, "ci95": {"type": "null"}}}
-        }}
+        "verification": {"properties": {"source": {"type": "null"}, "exact_head": {"type": "null"}, "sandbox": {"const": false}, "replay": {"type": "null"}, "artifact_refs": {"maxItems": 0}, "human_sign_off": {"type": "null"}, "narrative": {"type": "string", "minLength": 1}, "honeypot_evaluations": {"maxItems": 0}}},
+        "metrics": {"properties": {"t0_runs": {"const": 0}, "sealed_honeypot_runs": {"const": 0}, "confirmed_effectiveness": {"$ref": "#/$defs/empty_metric"}, "false_positive_rate": {"$ref": "#/$defs/empty_metric"}, "reviewer_minutes_saved": {"$ref": "#/$defs/empty_metric"}}},
+        "training": {"properties": {"eligible": {"const": false}, "corpus_scope": {"const": "none"}}}
       }}
     },
     {
