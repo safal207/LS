@@ -29,10 +29,7 @@
     "kind": {"const": "RouteArtifact"},
     "route_id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
     "version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
-    "status": {
-      "type": "string",
-      "enum": ["draft", "experimental", "candidate", "validated", "deprecated", "revoked"]
-    },
+    "status": {"type": "string", "enum": ["draft", "experimental", "candidate", "validated", "deprecated", "revoked"]},
     "integrity": {
       "type": "object",
       "additionalProperties": false,
@@ -50,10 +47,7 @@
         "supersedes": {
           "type": "array",
           "uniqueItems": true,
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*@(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
-          }
+          "items": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*@(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"}
         }
       }
     },
@@ -76,10 +70,7 @@
         "required": ["role", "capability_class"],
         "properties": {
           "role": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
-          "capability_class": {
-            "type": "string",
-            "enum": ["frontier", "mid", "small", "open_weight", "human", "deterministic_tool"]
-          }
+          "capability_class": {"type": "string", "enum": ["frontier", "mid", "small", "open_weight", "human", "deterministic_tool"]}
         }
       }
     },
@@ -93,107 +84,31 @@
         "properties": {
           "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
           "role": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
-          "capability_class": {
-            "type": "string",
-            "enum": ["frontier", "mid", "small", "open_weight", "human", "deterministic_tool"]
-          },
+          "capability_class": {"type": "string", "enum": ["frontier", "mid", "small", "open_weight", "human", "deterministic_tool"]},
           "independent": {"type": "boolean"},
-          "depends_on": {
-            "type": "array",
-            "uniqueItems": true,
-            "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}
-          }
+          "depends_on": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}}
         }
       }
     },
     "verification": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tier", "exact_head", "sandbox", "replay", "artifact_refs", "human_sign_off", "narrative"],
+      "required": ["tier", "source", "exact_head", "sandbox", "replay", "artifact_refs", "human_sign_off", "narrative"],
       "properties": {
-        "tier": {
-          "type": "string",
-          "enum": ["T0_deterministic_replay", "T1_artifact_attested", "T2_narrative_only"]
-        },
-        "exact_head": {
-          "oneOf": [
-            {"type": "null"},
-            {"type": "string", "pattern": "^[0-9a-f]{40}$"}
-          ]
-        },
+        "tier": {"type": "string", "enum": ["T0_deterministic_replay", "T1_artifact_attested", "T2_narrative_only"]},
+        "source": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/source"}]},
+        "exact_head": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9a-f]{40}$"}]},
         "sandbox": {"type": "boolean"},
-        "replay": {
-          "oneOf": [
-            {"type": "null"},
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["command", "expected_exit_code", "observed_exit_code", "assertions", "passed", "evidence_digest"],
-              "properties": {
-                "command": {"type": "string", "minLength": 1},
-                "expected_exit_code": {"type": "integer", "minimum": 0},
-                "observed_exit_code": {"type": "integer", "minimum": 0},
-                "assertions": {
-                  "type": "array",
-                  "minItems": 1,
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["name", "passed"],
-                    "properties": {
-                      "name": {"type": "string", "minLength": 1},
-                      "passed": {"type": "boolean"}
-                    }
-                  }
-                },
-                "passed": {"type": "boolean"},
-                "evidence_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
-              }
-            }
-          ]
-        },
-        "artifact_refs": {
-          "type": "array",
-          "items": {"type": "string", "minLength": 1}
-        },
-        "human_sign_off": {
-          "oneOf": [
-            {"type": "null"},
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["actor", "signed_at", "decision"],
-              "properties": {
-                "actor": {"type": "string", "minLength": 1},
-                "signed_at": {"type": "string", "minLength": 1},
-                "decision": {"const": "attested"}
-              }
-            }
-          ]
-        },
-        "narrative": {
-          "oneOf": [
-            {"type": "null"},
-            {"type": "string", "minLength": 1}
-          ]
-        }
+        "replay": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/replay"}]},
+        "artifact_refs": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "human_sign_off": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/signoff"}]},
+        "narrative": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]}
       }
     },
     "metrics": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "sample_size",
-        "t0_runs",
-        "repository_count",
-        "task_variant_count",
-        "sealed_honeypot_runs",
-        "unresolved_critical_false_negatives",
-        "confirmed_effectiveness",
-        "false_positive_rate",
-        "reviewer_minutes_saved",
-        "maintainer_approved"
-      ],
+      "required": ["sample_size", "t0_runs", "repository_count", "task_variant_count", "sealed_honeypot_runs", "unresolved_critical_false_negatives", "confirmed_effectiveness", "false_positive_rate", "reviewer_minutes_saved", "maintainer_approved"],
       "properties": {
         "sample_size": {"type": "integer", "minimum": 0},
         "t0_runs": {"type": "integer", "minimum": 0},
@@ -210,15 +125,7 @@
     "promotion_policy": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "minimum_t0_runs",
-        "minimum_repositories",
-        "minimum_task_variants",
-        "minimum_sealed_honeypot_runs",
-        "requires_zero_unresolved_critical_false_negatives",
-        "requires_confidence_intervals",
-        "requires_maintainer_approval"
-      ],
+      "required": ["minimum_t0_runs", "minimum_repositories", "minimum_task_variants", "minimum_sealed_honeypot_runs", "requires_zero_unresolved_critical_false_negatives", "requires_confidence_intervals", "requires_maintainer_approval"],
       "properties": {
         "minimum_t0_runs": {"type": "integer", "minimum": 1},
         "minimum_repositories": {"type": "integer", "minimum": 1},
@@ -244,14 +151,8 @@
       "required": ["artifact_license", "training_permission", "redistribution_permission", "commercial_use"],
       "properties": {
         "artifact_license": {"type": "string", "minLength": 1},
-        "training_permission": {
-          "type": "string",
-          "enum": ["none", "open_weight_only_v1", "any_with_attribution_v1"]
-        },
-        "redistribution_permission": {
-          "type": "string",
-          "enum": ["prohibited", "allowed_with_attribution", "allowed"]
-        },
+        "training_permission": {"type": "string", "enum": ["none", "open_weight_only_v1", "any_with_attribution_v1"]},
+        "redistribution_permission": {"type": "string", "enum": ["prohibited", "allowed_with_attribution", "allowed"]},
         "commercial_use": {"type": "string", "enum": ["prohibited", "restricted", "allowed"]}
       }
     },
@@ -259,9 +160,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["level"],
-      "properties": {
-        "level": {"type": "string", "enum": ["private", "community", "public"]}
-      }
+      "properties": {"level": {"type": "string", "enum": ["private", "community", "public"]}}
     },
     "provenance": {
       "type": "object",
@@ -281,21 +180,76 @@
       "required": ["point", "ci95"],
       "properties": {
         "point": {"type": ["number", "null"]},
-        "ci95": {
-          "oneOf": [
-            {"type": "null"},
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["lower", "upper"],
-              "properties": {
-                "lower": {"type": "number"},
-                "upper": {"type": "number"}
-              }
-            }
-          ]
-        }
+        "ci95": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["lower", "upper"], "properties": {"lower": {"type": "number"}, "upper": {"type": "number"}}}]}
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "repository", "ref", "commit"],
+      "properties": {
+        "host": {"type": "string", "pattern": "^[a-z0-9.-]+$"},
+        "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+        "ref": {"type": "string", "pattern": "^(HEAD|refs/[A-Za-z0-9._/-]+)$"},
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "replay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "expected_exit_code", "observed_exit_code", "assertions", "passed", "evidence_digest"],
+      "properties": {
+        "command": {"type": "string", "minLength": 1},
+        "expected_exit_code": {"type": "integer", "minimum": 0},
+        "observed_exit_code": {"type": "integer", "minimum": 0},
+        "assertions": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["name", "passed"], "properties": {"name": {"type": "string", "minLength": 1}, "passed": {"type": "boolean"}}}},
+        "passed": {"type": "boolean"},
+        "evidence_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "signoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actor", "signed_at", "decision"],
+      "properties": {
+        "actor": {"type": "string", "minLength": 1},
+        "signed_at": {"type": "string", "minLength": 1},
+        "decision": {"const": "attested"}
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"verification": {"properties": {"tier": {"const": "T0_deterministic_replay"}}}}},
+      "then": {"properties": {"verification": {"properties": {"source": {"$ref": "#/$defs/source"}, "exact_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "sandbox": {"const": true}, "replay": {"$ref": "#/$defs/replay"}}}}}
+    },
+    {
+      "if": {"properties": {"verification": {"properties": {"tier": {"const": "T1_artifact_attested"}}}}},
+      "then": {"properties": {
+        "verification": {"properties": {"source": {"type": "null"}, "replay": {"type": "null"}, "artifact_refs": {"minItems": 1}, "human_sign_off": {"$ref": "#/$defs/signoff"}}},
+        "training": {"properties": {"eligible": {"const": false}, "corpus_scope": {"const": "none"}}},
+        "metrics": {"properties": {
+          "confirmed_effectiveness": {"properties": {"point": {"type": "null"}, "ci95": {"type": "null"}}},
+          "false_positive_rate": {"properties": {"point": {"type": "null"}, "ci95": {"type": "null"}}},
+          "reviewer_minutes_saved": {"properties": {"point": {"type": "null"}, "ci95": {"type": "null"}}}
+        }}
+      }}
+    },
+    {
+      "if": {"properties": {"verification": {"properties": {"tier": {"const": "T2_narrative_only"}}}}},
+      "then": {"properties": {
+        "verification": {"properties": {"source": {"type": "null"}, "replay": {"type": "null"}, "artifact_refs": {"maxItems": 0}, "human_sign_off": {"type": "null"}, "narrative": {"type": "string", "minLength": 1}}},
+        "training": {"properties": {"eligible": {"const": false}, "corpus_scope": {"const": "none"}}},
+        "metrics": {"properties": {
+          "confirmed_effectiveness": {"properties": {"point": {"type": "null"}, "ci95": {"type": "null"}}},
+          "false_positive_rate": {"properties": {"point": {"type": "null"}, "ci95": {"type": "null"}}},
+          "reviewer_minutes_saved": {"properties": {"point": {"type": "null"}, "ci95": {"type": "null"}}}
+        }}
+      }}
+    },
+    {
+      "if": {"properties": {"status": {"enum": ["candidate", "validated"]}}},
+      "then": {"properties": {"verification": {"properties": {"tier": {"const": "T0_deterministic_replay"}}}}}
+    }
+  ]
 }
