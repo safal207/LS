@@ -60,10 +60,10 @@ class RouteArtifactPolicyTests(unittest.TestCase):
             PROTOCOL_PROMOTION_FLOORS,
         )
 
-    def test_artifact_cannot_lower_any_protocol_floor(self):
-        for key in PROTOCOL_PROMOTION_FLOORS:
+    def test_artifact_cannot_override_protocol_floor(self):
+        for key, expected in PROTOCOL_PROMOTION_FLOORS.items():
             artifact = load_fixture("route_t1_valid.json")
-            artifact["promotion_policy"][key] = 1
+            artifact["promotion_policy"][key] = 1 if expected > 1 else 2
             rehash(artifact, compute_digest=compute_content_digest)
             with self.subTest(key=key):
                 self.assert_code(
