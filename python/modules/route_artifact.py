@@ -21,6 +21,17 @@ TIERS = {"T0_deterministic_replay", "T1_artifact_attested", "T2_narrative_only"}
 CAPABILITIES = {"frontier", "mid", "small", "open_weight", "human", "deterministic_tool"}
 RISKS = {"low", "medium", "high", "critical"}
 
+PROTOCOL_MINIMUM_T0_RUNS = 20
+PROTOCOL_MINIMUM_REPOSITORIES = 2
+PROTOCOL_MINIMUM_TASK_VARIANTS = 2
+PROTOCOL_MINIMUM_SEALED_HONEYPOT_RUNS = 1
+PROTOCOL_PROMOTION_FLOORS = {
+    "minimum_t0_runs": PROTOCOL_MINIMUM_T0_RUNS,
+    "minimum_repositories": PROTOCOL_MINIMUM_REPOSITORIES,
+    "minimum_task_variants": PROTOCOL_MINIMUM_TASK_VARIANTS,
+    "minimum_sealed_honeypot_runs": PROTOCOL_MINIMUM_SEALED_HONEYPOT_RUNS,
+}
+
 ROUTE_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SEMVER_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 REF_RE = re.compile(
@@ -105,6 +116,19 @@ def compute_content_digest(artifact: Mapping[str, Any]) -> str:
     ).hexdigest()
 
 
+def replay_evidence_payload(replay: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the replay evidence bytes covered by evidence_digest."""
+    payload = copy.deepcopy(dict(replay))
+    payload.pop("evidence_digest", None)
+    return payload
+
+
+def compute_replay_evidence_digest(replay: Mapping[str, Any]) -> str:
+    return hashlib.sha256(
+        canonical_json(replay_evidence_payload(replay)).encode("utf-8")
+    ).hexdigest()
+
+
 def artifact_ref(artifact: Mapping[str, Any]) -> str:
     return f"{artifact.get('route_id')}@{artifact.get('version')}"
 
@@ -169,13 +193,11 @@ def metric(value: Any, path: str) -> None:
     exact(ci, f"{path}.ci95", {"lower", "upper"})
     lower = ci["lower"]
     upper = ci["upper"]
-
     for name, bound in (("lower", lower), ("upper", upper)):
         if isinstance(bound, bool) or not isinstance(bound, (int, float)):
             fail("ROUTE-V2-METRIC", f"{path}.ci95.{name} must be numeric")
         if not math.isfinite(bound):
             fail("ROUTE-V2-METRIC", f"{path}.ci95.{name} must be finite")
-
     if lower > upper or (point is not None and not lower <= point <= upper):
         fail("ROUTE-V2-METRIC", f"{path} has inconsistent point/ci95")
 
@@ -234,24 +256,22 @@ def verify_replay(value: Any) -> None:
 
     seen_names: set[str] = set()
     for index, raw in enumerate(assertions):
-        assertion = obj(raw, f"verification.replay.assertions[{index}]")
-        exact(
-            assertion,
-            f"verification.replay.assertions[{index}]",
-            {"name", "passed"},
-        )
-        name = text(
-            assertion["name"],
-            f"verification.replay.assertions[{index}].name",
-        )
+        path = f"verification.replay.assertions[{index}]"
+        assertion = obj(raw, path)
+        exact(assertion, path, {"name", "passed"})
+        name = text(assertion["name"], f"{path}.name")
         if name in seen_names:
             fail("ROUTE-V2-REPLAY", f"duplicate replay assertion: {name}")
         seen_names.add(name)
-        if not boolean(
-            assertion["passed"],
-            f"verification.replay.assertions[{index}].passed",
-        ):
+        if not boolean(assertion["passed"], f"{path}.passed"):
             fail("ROUTE-V2-REPLAY", f"replay assertion failed: {name}")
+
+    expected_digest = compute_replay_evidence_digest(replay)
+    if digest != expected_digest:
+        fail(
+            "ROUTE-V2-DIGEST",
+            f"replay evidence digest mismatch: expected {expected_digest}",
+        )
 
 
 def verify_honeypot_evaluations(value: Any) -> list[Mapping[str, Any]]:
@@ -279,7 +299,6 @@ def verify_honeypot_evaluations(value: Any) -> list[Mapping[str, Any]]:
                 f"invalid or duplicate honeypot evaluation id: {evaluation_id}",
             )
         seen_ids.add(evaluation_id)
-
         if not boolean(evaluation["sealed"], f"{path}.sealed"):
             fail("ROUTE-V2-HONEYPOT", f"{evaluation_id} was not sealed")
         if not boolean(evaluation["matched"], f"{path}.matched"):
@@ -287,7 +306,6 @@ def verify_honeypot_evaluations(value: Any) -> list[Mapping[str, Any]]:
                 "ROUTE-V2-HONEYPOT",
                 f"{evaluation_id} did not match known ground truth",
             )
-
         for key in ("ground_truth_digest", "observed_result_digest"):
             digest = text(evaluation[key], f"{path}.{key}")
             if not SHA256_RE.fullmatch(digest):
@@ -338,7 +356,6 @@ def verify_source_checkout(
     """Bind T0 evidence to an actual local checkout at the declared repository HEAD."""
     source = obj(source, "verification.source")
     exact(source, "verification.source", {"host", "repository", "ref", "commit"})
-
     host = text(source["host"], "verification.source.host").lower()
     repository = text(source["repository"], "verification.source.repository")
     ref_name = text(source["ref"], "verification.source.ref")
@@ -351,22 +368,13 @@ def verify_source_checkout(
     ):
         fail("ROUTE-V2-HEAD", "source host, repository, or ref is invalid")
     if not HEAD_RE.fullmatch(commit) or commit != exact_head:
-        fail(
-            "ROUTE-V2-HEAD",
-            "source.commit must equal verification.exact_head",
-        )
+        fail("ROUTE-V2-HEAD", "source.commit must equal verification.exact_head")
     if repository_root is None:
-        fail(
-            "ROUTE-V2-HEAD",
-            "T0 ingest requires a local repository checkout",
-        )
+        fail("ROUTE-V2-HEAD", "T0 ingest requires a local repository checkout")
 
     root = Path(repository_root).resolve()
     if not root.is_dir():
-        fail(
-            "ROUTE-V2-HEAD",
-            f"repository checkout does not exist: {root}",
-        )
+        fail("ROUTE-V2-HEAD", f"repository checkout does not exist: {root}")
 
     current_head = _run_git(root, "rev-parse", "--verify", "HEAD^{commit}")
     if current_head != exact_head:
@@ -374,7 +382,6 @@ def verify_source_checkout(
             "ROUTE-V2-HEAD",
             f"checkout HEAD {current_head} does not match exact_head {exact_head}",
         )
-
     declared_ref = _run_git(
         root,
         "rev-parse",
@@ -386,8 +393,8 @@ def verify_source_checkout(
             "ROUTE-V2-HEAD",
             f"source ref {ref_name} does not resolve to exact_head",
         )
-
     _run_git(root, "cat-file", "-e", f"{exact_head}^{{commit}}")
+
     remote = _run_git(root, "remote", "get-url", "origin")
     normalized = _normalize_remote(remote)
     if normalized is None:
@@ -395,12 +402,8 @@ def verify_source_checkout(
             "ROUTE-V2-HEAD",
             f"unsupported origin URL for deterministic binding: {remote}",
         )
-
     actual_host, actual_repository = normalized
-    if (
-        actual_host != host
-        or actual_repository.lower() != repository.lower()
-    ):
+    if actual_host != host or actual_repository.lower() != repository.lower():
         fail(
             "ROUTE-V2-HEAD",
             (
@@ -414,9 +417,7 @@ def verify_promotion(route: Mapping[str, Any]) -> None:
     status = route["status"]
     if status not in {"candidate", "validated"}:
         return
-
-    tier = route["verification"]["tier"]
-    if tier != "T0_deterministic_replay":
+    if route["verification"]["tier"] != "T0_deterministic_replay":
         fail(
             "ROUTE-V2-PROMOTION",
             f"{status} status requires T0 deterministic replay",
@@ -427,36 +428,33 @@ def verify_promotion(route: Mapping[str, Any]) -> None:
     honeypots = route["verification"]["honeypot_evaluations"]
     failures: list[str] = []
 
-    for metric_key, policy_key in (
-        ("t0_runs", "minimum_t0_runs"),
-        ("repository_count", "minimum_repositories"),
-        ("task_variant_count", "minimum_task_variants"),
-        ("sealed_honeypot_runs", "minimum_sealed_honeypot_runs"),
-    ):
-        if metrics[metric_key] < policy[policy_key]:
-            failures.append(policy_key)
+    metric_floors = {
+        "t0_runs": PROTOCOL_MINIMUM_T0_RUNS,
+        "repository_count": PROTOCOL_MINIMUM_REPOSITORIES,
+        "task_variant_count": PROTOCOL_MINIMUM_TASK_VARIANTS,
+        "sealed_honeypot_runs": PROTOCOL_MINIMUM_SEALED_HONEYPOT_RUNS,
+    }
+    for metric_key, floor in metric_floors.items():
+        if metrics[metric_key] < floor:
+            failures.append(metric_key)
 
-    if len(honeypots) < policy["minimum_sealed_honeypot_runs"]:
+    if len(honeypots) < PROTOCOL_MINIMUM_SEALED_HONEYPOT_RUNS:
         failures.append("sealed_honeypot_ground_truth_evaluations")
-
     if (
         policy["requires_zero_unresolved_critical_false_negatives"]
         and metrics["unresolved_critical_false_negatives"]
     ):
         failures.append("unresolved_critical_false_negatives")
-
     if policy["requires_confidence_intervals"]:
         if not complete_metric(metrics["confirmed_effectiveness"]):
             failures.append("confirmed_effectiveness_ci95")
         if not complete_metric(metrics["false_positive_rate"]):
             failures.append("false_positive_rate_ci95")
-
     if failures:
         fail(
             "ROUTE-V2-PROMOTION",
             f"promotion gates failed: {', '.join(failures)}",
         )
-
     if (
         status == "validated"
         and policy["requires_maintainer_approval"]
@@ -498,38 +496,22 @@ def verify_route_artifact(
             "provenance",
         },
     )
-
     if route["api_version"] != API_VERSION or route["kind"] != KIND:
-        fail(
-            "ROUTE-V2-VERSION",
-            "unsupported Route Artifact version or kind",
-        )
+        fail("ROUTE-V2-VERSION", "unsupported Route Artifact version or kind")
 
     route_id = text(route["route_id"], "route.route_id")
     version = text(route["version"], "route.version")
     status = text(route["status"], "route.status")
-
     if not ROUTE_RE.fullmatch(route_id) or not SEMVER_RE.fullmatch(version):
         fail("ROUTE-V2-ID", "route_id or version is invalid")
     if status not in STATUSES:
         fail("ROUTE-V2-STATUS", f"unsupported status: {status}")
 
     integrity = obj(route["integrity"], "route.integrity")
-    exact(
-        integrity,
-        "route.integrity",
-        {"digest_algorithm", "content_digest"},
-    )
-    digest = text(
-        integrity["content_digest"],
-        "route.integrity.content_digest",
-    )
-    if (
-        integrity["digest_algorithm"] != "sha256"
-        or not SHA256_RE.fullmatch(digest)
-    ):
+    exact(integrity, "route.integrity", {"digest_algorithm", "content_digest"})
+    digest = text(integrity["content_digest"], "route.integrity.content_digest")
+    if integrity["digest_algorithm"] != "sha256" or not SHA256_RE.fullmatch(digest):
         fail("ROUTE-V2-DIGEST", "invalid content digest contract")
-
     expected_digest = compute_content_digest(route)
     if digest != expected_digest:
         fail(
@@ -542,14 +524,9 @@ def verify_route_artifact(
     exact(lineage, "route.lineage", {"supersedes"})
     parents = arr(lineage["supersedes"], "route.lineage.supersedes")
     seen_parents: set[str] = set()
-
     for parent_value in parents:
         parent = text(parent_value, "route.lineage.supersedes[]")
-        if (
-            not REF_RE.fullmatch(parent)
-            or parent == ref
-            or parent in seen_parents
-        ):
+        if not REF_RE.fullmatch(parent) or parent == ref or parent in seen_parents:
             fail(
                 "ROUTE-V2-LINEAGE",
                 f"invalid supersession reference: {parent}",
@@ -557,11 +534,7 @@ def verify_route_artifact(
         seen_parents.add(parent)
 
     profile = obj(route["task_profile"], "route.task_profile")
-    exact(
-        profile,
-        "route.task_profile",
-        {"category", "subtype", "risk_level"},
-    )
+    exact(profile, "route.task_profile", {"category", "subtype", "risk_level"})
     text(profile["category"], "route.task_profile.category")
     text(profile["subtype"], "route.task_profile.subtype")
     if profile["risk_level"] not in RISKS:
@@ -570,20 +543,13 @@ def verify_route_artifact(
     roles: dict[str, str] = {}
     executors = arr(route["executor_profile"], "route.executor_profile")
     if not executors:
-        fail(
-            "ROUTE-V2-EXECUTOR",
-            "executor_profile must not be empty",
-        )
-
+        fail("ROUTE-V2-EXECUTOR", "executor_profile must not be empty")
     for index, raw in enumerate(executors):
         path = f"route.executor_profile[{index}]"
         executor = obj(raw, path)
         exact(executor, path, {"role", "capability_class"})
         role = text(executor["role"], f"{path}.role")
-        capability = text(
-            executor["capability_class"],
-            f"{path}.capability_class",
-        )
+        capability = text(executor["capability_class"], f"{path}.capability_class")
         if (
             not NAME_RE.fullmatch(role)
             or capability not in CAPABILITIES
@@ -599,40 +565,25 @@ def verify_route_artifact(
     stages = arr(route["stages"], "route.stages")
     if not stages:
         fail("ROUTE-V2-STAGE", "stages must not be empty")
-
     for index, raw in enumerate(stages):
         path = f"route.stages[{index}]"
         stage = obj(raw, path)
         exact(
             stage,
             path,
-            {
-                "id",
-                "role",
-                "capability_class",
-                "independent",
-                "depends_on",
-            },
+            {"id", "role", "capability_class", "independent", "depends_on"},
         )
         stage_id = text(stage["id"], f"{path}.id")
         role = text(stage["role"], f"{path}.role")
-        capability = text(
-            stage["capability_class"],
-            f"{path}.capability_class",
-        )
+        capability = text(stage["capability_class"], f"{path}.capability_class")
         boolean(stage["independent"], f"{path}.independent")
-
         if (
             not NAME_RE.fullmatch(stage_id)
             or stage_id in known_stages
             or role not in roles
             or capability != roles[role]
         ):
-            fail(
-                "ROUTE-V2-STAGE",
-                f"invalid stage declaration: {stage_id}",
-            )
-
+            fail("ROUTE-V2-STAGE", f"invalid stage declaration: {stage_id}")
         dependencies = arr(stage["depends_on"], f"{path}.depends_on")
         seen_dependencies: set[str] = set()
         for dependency_value in dependencies:
@@ -642,19 +593,12 @@ def verify_route_artifact(
                     f"stage {stage_id} dependency must be a string",
                 )
             dependency = dependency_value
-            if (
-                dependency in seen_dependencies
-                or dependency not in known_stages
-            ):
+            if dependency in seen_dependencies or dependency not in known_stages:
                 fail(
                     "ROUTE-V2-STAGE",
-                    (
-                        f"stage {stage_id} has missing, repeated, "
-                        "or non-prior dependency"
-                    ),
+                    f"stage {stage_id} has missing, repeated, or non-prior dependency",
                 )
             seen_dependencies.add(dependency)
-
         known_stages.add(stage_id)
 
     verification = obj(route["verification"], "route.verification")
@@ -673,15 +617,10 @@ def verify_route_artifact(
             "honeypot_evaluations",
         },
     )
-
     tier = text(verification["tier"], "route.verification.tier")
     if tier not in TIERS:
         fail("ROUTE-V2-TIER", f"unsupported tier: {tier}")
-
-    sandbox = boolean(
-        verification["sandbox"],
-        "route.verification.sandbox",
-    )
+    sandbox = boolean(verification["sandbox"], "route.verification.sandbox")
     artifact_refs = arr(
         verification["artifact_refs"],
         "route.verification.artifact_refs",
@@ -690,12 +629,8 @@ def verify_route_artifact(
         text(item, "route.verification.artifact_refs[]")
 
     head = verification["exact_head"]
-    if (
-        head is not None
-        and (
-            not isinstance(head, str)
-            or not HEAD_RE.fullmatch(head)
-        )
+    if head is not None and (
+        not isinstance(head, str) or not HEAD_RE.fullmatch(head)
     ):
         fail(
             "ROUTE-V2-HEAD",
@@ -704,43 +639,26 @@ def verify_route_artifact(
 
     sign_off = verification["human_sign_off"]
     if sign_off is not None:
-        sign_off = obj(
-            sign_off,
-            "route.verification.human_sign_off",
-        )
+        sign_off = obj(sign_off, "route.verification.human_sign_off")
         exact(
             sign_off,
             "route.verification.human_sign_off",
             {"actor", "signed_at", "decision"},
         )
-        text(
-            sign_off["actor"],
-            "route.verification.human_sign_off.actor",
-        )
-        text(
-            sign_off["signed_at"],
-            "route.verification.human_sign_off.signed_at",
-        )
+        text(sign_off["actor"], "route.verification.human_sign_off.actor")
+        text(sign_off["signed_at"], "route.verification.human_sign_off.signed_at")
         if sign_off["decision"] != "attested":
-            fail(
-                "ROUTE-V2-TIER",
-                "human sign-off must be attested",
-            )
+            fail("ROUTE-V2-TIER", "human sign-off must be attested")
 
     narrative = verification["narrative"]
     if narrative is not None:
         text(narrative, "route.verification.narrative")
-
     honeypots = verify_honeypot_evaluations(
         verification["honeypot_evaluations"]
     )
 
     if tier == "T0_deterministic_replay":
-        if (
-            head is None
-            or not sandbox
-            or verification["source"] is None
-        ):
+        if head is None or not sandbox or verification["source"] is None:
             fail(
                 "ROUTE-V2-T0",
                 "T0 requires source, exact_head and sandbox=true",
@@ -753,7 +671,6 @@ def verify_route_artifact(
             head,
             repository_root,
         )
-
     elif tier == "T1_artifact_attested":
         if (
             verification["source"] is not None
@@ -769,16 +686,11 @@ def verify_route_artifact(
                     "or honeypot ground-truth verification"
                 ),
             )
-        if (
-            not artifact_refs
-            or sign_off is None
-            or narrative is not None
-        ):
+        if not artifact_refs or sign_off is None or narrative is not None:
             fail(
                 "ROUTE-V2-T1",
                 "T1 requires artifacts and sign-off without narrative",
             )
-
     else:
         if (
             verification["source"] is not None
@@ -789,22 +701,13 @@ def verify_route_artifact(
             or sign_off is not None
             or honeypots
         ):
-            fail(
-                "ROUTE-V2-T2",
-                "T2 must remain strictly narrative-only",
-            )
+            fail("ROUTE-V2-T2", "T2 must remain strictly narrative-only")
         if not narrative:
-            fail(
-                "ROUTE-V2-T2",
-                "T2 rejection audit requires a narrative",
-            )
+            fail("ROUTE-V2-T2", "T2 rejection audit requires a narrative")
         if canonical_store:
             fail(
                 "ROUTE-V2-T2",
-                (
-                    "narrative-only submissions are rejected "
-                    "from the canonical store"
-                ),
+                "narrative-only submissions are rejected from the canonical store",
             )
 
     metrics = obj(route["metrics"], "route.metrics")
@@ -824,7 +727,6 @@ def verify_route_artifact(
             "maintainer_approved",
         },
     )
-
     for key in (
         "sample_size",
         "t0_runs",
@@ -834,12 +736,8 @@ def verify_route_artifact(
         "unresolved_critical_false_negatives",
     ):
         integer(metrics[key], f"route.metrics.{key}")
-
     if metrics["t0_runs"] > metrics["sample_size"]:
-        fail(
-            "ROUTE-V2-METRIC",
-            "t0_runs cannot exceed sample_size",
-        )
+        fail("ROUTE-V2-METRIC", "t0_runs cannot exceed sample_size")
     if metrics["sealed_honeypot_runs"] != len(honeypots):
         fail(
             "ROUTE-V2-HONEYPOT",
@@ -848,14 +746,12 @@ def verify_route_artifact(
                 "verified honeypot evaluations"
             ),
         )
-
     for key in (
         "confirmed_effectiveness",
         "false_positive_rate",
         "reviewer_minutes_saved",
     ):
         metric(metrics[key], f"route.metrics.{key}")
-
     boolean(
         metrics["maintainer_approved"],
         "route.metrics.maintainer_approved",
@@ -875,24 +771,22 @@ def verify_route_artifact(
             "requires_maintainer_approval",
         },
     )
-
-    for key in (
-        "minimum_t0_runs",
-        "minimum_repositories",
-        "minimum_task_variants",
-        "minimum_sealed_honeypot_runs",
-    ):
-        integer(policy[key], f"route.promotion_policy.{key}", 1)
-
+    for key, protocol_value in PROTOCOL_PROMOTION_FLOORS.items():
+        value = integer(policy[key], f"route.promotion_policy.{key}", 1)
+        if value != protocol_value:
+            fail(
+                "ROUTE-V2-POLICY",
+                (
+                    f"route.promotion_policy.{key} must equal the v2 protocol "
+                    f"floor {protocol_value}"
+                ),
+            )
     for key in (
         "requires_zero_unresolved_critical_false_negatives",
         "requires_confidence_intervals",
         "requires_maintainer_approval",
     ):
-        if not boolean(
-            policy[key],
-            f"route.promotion_policy.{key}",
-        ):
+        if not boolean(policy[key], f"route.promotion_policy.{key}"):
             fail(
                 "ROUTE-V2-POLICY",
                 f"initial v2 policy requires {key}=true",
@@ -900,19 +794,9 @@ def verify_route_artifact(
 
     training = obj(route["training"], "route.training")
     exact(training, "route.training", {"eligible", "corpus_scope"})
-    eligible = boolean(
-        training["eligible"],
-        "route.training.eligible",
-    )
-    if training["corpus_scope"] not in {
-        "none",
-        "research",
-        "distillation",
-    }:
-        fail(
-            "ROUTE-V2-TRAINING",
-            "unsupported corpus scope",
-        )
+    eligible = boolean(training["eligible"], "route.training.eligible")
+    if training["corpus_scope"] not in {"none", "research", "distillation"}:
+        fail("ROUTE-V2-TRAINING", "unsupported corpus scope")
 
     license_value = obj(route["license"], "route.license")
     exact(
@@ -925,52 +809,30 @@ def verify_route_artifact(
             "commercial_use",
         },
     )
-    text(
-        license_value["artifact_license"],
-        "route.license.artifact_license",
-    )
+    text(license_value["artifact_license"], "route.license.artifact_license")
     if license_value["training_permission"] not in {
         "none",
         "open_weight_only_v1",
         "any_with_attribution_v1",
     }:
-        fail(
-            "ROUTE-V2-LICENSE",
-            "unsupported training permission",
-        )
+        fail("ROUTE-V2-LICENSE", "unsupported training permission")
     if license_value["redistribution_permission"] not in {
         "prohibited",
         "allowed_with_attribution",
         "allowed",
     }:
-        fail(
-            "ROUTE-V2-LICENSE",
-            "unsupported redistribution permission",
-        )
+        fail("ROUTE-V2-LICENSE", "unsupported redistribution permission")
     if license_value["commercial_use"] not in {
         "prohibited",
         "restricted",
         "allowed",
     }:
-        fail(
-            "ROUTE-V2-LICENSE",
-            "unsupported commercial-use policy",
-        )
+        fail("ROUTE-V2-LICENSE", "unsupported commercial-use policy")
 
-    publishability = obj(
-        route["publishability"],
-        "route.publishability",
-    )
+    publishability = obj(route["publishability"], "route.publishability")
     exact(publishability, "route.publishability", {"level"})
-    if publishability["level"] not in {
-        "private",
-        "community",
-        "public",
-    }:
-        fail(
-            "ROUTE-V2-PUBLISH",
-            "unsupported publishability level",
-        )
+    if publishability["level"] not in {"private", "community", "public"}:
+        fail("ROUTE-V2-PUBLISH", "unsupported publishability level")
 
     provenance = obj(route["provenance"], "route.provenance")
     exact(
@@ -1014,17 +876,13 @@ def verify_route_artifact(
                     "ROUTE-V2-METRIC",
                     f"non-T0 routes cannot claim {key}",
                 )
-    elif (
-        eligible
-        and license_value["training_permission"] == "none"
-    ):
+    elif eligible and license_value["training_permission"] == "none":
         fail(
             "ROUTE-V2-TRAINING",
             "training eligibility requires explicit permission",
         )
 
     verify_promotion(route)
-
     return {
         "route_ref": ref,
         "content_digest": digest,
@@ -1048,10 +906,7 @@ def verify_immutable_update(
         repository_root=repository_root,
     )
     previous = existing_digests.get(summary["route_ref"])
-    if (
-        previous is not None
-        and previous != summary["content_digest"]
-    ):
+    if previous is not None and previous != summary["content_digest"]:
         fail(
             "ROUTE-V2-IMMUTABLE",
             f"immutable route version was modified: {summary['route_ref']}",
@@ -1064,7 +919,6 @@ def build_registry_projection(
     repository_root: Path | str | None = None,
 ) -> dict[str, Any]:
     records: dict[str, dict[str, Any]] = {}
-
     for artifact in artifacts:
         summary = verify_route_artifact(
             artifact,
@@ -1072,10 +926,7 @@ def build_registry_projection(
         )
         ref = summary["route_ref"]
         if ref in records:
-            fail(
-                "ROUTE-V2-REGISTRY",
-                f"duplicate route version: {ref}",
-            )
+            fail("ROUTE-V2-REGISTRY", f"duplicate route version: {ref}")
         records[ref] = {
             "route_ref": ref,
             "content_digest": summary["content_digest"],
@@ -1085,13 +936,8 @@ def build_registry_projection(
             "superseded_by": [],
         }
 
-    children: dict[str, list[str]] = {
-        ref: [] for ref in records
-    }
-    indegree: dict[str, int] = {
-        ref: 0 for ref in records
-    }
-
+    children: dict[str, list[str]] = {ref: [] for ref in records}
+    indegree: dict[str, int] = {ref: 0 for ref in records}
     for ref, record in records.items():
         for parent in record["supersedes"]:
             if parent not in records:
@@ -1103,13 +949,9 @@ def build_registry_projection(
             children[parent].append(ref)
             indegree[ref] += 1
 
-    queue = [
-        ref for ref, degree in indegree.items()
-        if degree == 0
-    ]
+    queue = [ref for ref, degree in indegree.items() if degree == 0]
     heapq.heapify(queue)
     topological_order: list[str] = []
-
     while queue:
         current = heapq.heappop(queue)
         topological_order.append(current)
@@ -1120,23 +962,16 @@ def build_registry_projection(
 
     if len(topological_order) != len(records):
         cycle_nodes = sorted(
-            ref for ref, degree in indegree.items()
-            if degree > 0
+            ref for ref, degree in indegree.items() if degree > 0
         )
         fail(
             "ROUTE-V2-REGISTRY",
-            (
-                "supersession cycle detected: "
-                f"{', '.join(cycle_nodes)}"
-            ),
+            f"supersession cycle detected: {', '.join(cycle_nodes)}",
         )
 
     for record in records.values():
         record["superseded_by"].sort()
-
     return {
-        "routes": [
-            records[ref] for ref in sorted(records)
-        ],
+        "routes": [records[ref] for ref in sorted(records)],
         "topological_order": topological_order,
     }
