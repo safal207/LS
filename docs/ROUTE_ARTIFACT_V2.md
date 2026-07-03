@@ -140,37 +140,29 @@ new protocol version rather than a self-authored policy override.
 
 These are operational gates, not a claim of statistical proof.
 
-## Governance compatibility freeze
+## Architecture hold
+
+This PR defines the narrow route-evidence contract only. It does not establish a
+generic governance lifecycle or a universal registry runtime.
+
+Route-governance compatibility is evaluated separately by issue `#773` and
+Draft PR `#774`. Their canonical manual specimen binds a decision to an exact
+candidate digest and returns `REQUEST_MORE_EVIDENCE` without creating a promoted
+`RouteVersionRecord` or ledger entry when the protocol floors are not met.
+
+Until that decision is independently reviewed, this PR does not add:
+
+- a generic candidate framework;
+- a universal graph registry;
+- additional lifecycle states;
+- marketplace behavior;
+- route or model rankings;
+- CausalFragment execution tooling.
 
 The current `status`, `metrics.maintainer_approved`, promotion-policy, lineage,
-and registry-projection fields remain part of this narrow Draft verifier
-contract. They do not prove that Route Artifact is the final generic lifecycle
-object or that LS already has a universal registry runtime.
-
-PR `#772` freezes additional architecture expansion while the compatibility ADR
-and one manual T0 specimen test this external boundary:
-
-```text
-RouteEvidenceBundle
-  -> RoutePromotionCandidate
-  -> GovernanceDecision
-  -> RouteVersionRecord
-  -> RouteLedgerEntry
-  -> RouteRegistrySnapshot
-```
-
-The candidate must not approve itself or carry an authoritative `validated`
-claim. A decision binds the exact candidate digest, and active state is a
-reconstructed projection rather than a self-attested field.
-
-See:
-
-- `docs/adr/ADR-00772-route-governance-compatibility.md`;
-- `examples/route-governance/route-governance-t0-manual-specimen.json`.
-
-Until that probe is evaluated, this PR does not add a generic candidate
-framework, universal graph registry, new lifecycle states, marketplace
-semantics, rankings, or CausalFragment execution.
+and registry-projection fields remain part of this Draft verifier contract.
+They are not proof that an artifact may approve itself, finalize independent
+truth, or gain action authority.
 
 ## One deterministic command
 
