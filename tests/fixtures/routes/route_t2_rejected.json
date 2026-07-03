@@ -6,7 +6,7 @@
   "status": "draft",
   "integrity": {
     "digest_algorithm": "sha256",
-    "content_digest": "adbf758c9704523af0b7753af318ccfd6c3e55f03f224d582e7a6a42b75e1707"
+    "content_digest": "aab7538f9b132ae5b34357820e24abf6bc513f4787a047c7493f4e98b0acd3da"
   },
   "lineage": {"supersedes": []},
   "task_profile": {"category": "code_review", "subtype": "security_state_machine", "risk_level": "high"},
@@ -24,6 +24,7 @@
   ],
   "verification": {
     "tier": "T2_narrative_only",
+    "source": null,
     "exact_head": null,
     "sandbox": false,
     "replay": null,
