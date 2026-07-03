@@ -6,7 +6,7 @@
   "status": "experimental",
   "integrity": {
     "digest_algorithm": "sha256",
-    "content_digest": "e637a5323a374def1b07cd279d946d2815a644e6d1efbeea6ad8741653dbc1c6"
+    "content_digest": "a67ced8479bd83c67b4dde4f630395996fd3a292fca8acaf73bd50b57ea76edf"
   },
   "lineage": {"supersedes": []},
   "task_profile": {"category": "code_review", "subtype": "security_state_machine", "risk_level": "high"},
@@ -36,7 +36,7 @@
         {"name": "same defect is absent after fix", "passed": true}
       ],
       "passed": true,
-      "evidence_digest": "2222222222222222222222222222222222222222222222222222222222222222"
+      "evidence_digest": "f6bee80cdb3c0cb5a7f0a96297b28e4c08eabcd96ca250a0d4fe6efd05f9ea95"
     },
     "artifact_refs": ["fixture://route-v2/t0-replay-log"],
     "human_sign_off": null,
