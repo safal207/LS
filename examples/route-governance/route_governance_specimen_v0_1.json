@@ -1,0 +1,195 @@
+{
+  "$schema_note": "Reference specimen only. This is not a normative JSON Schema and grants no runtime authority.",
+  "example_name": "route_governance_compatibility_specimen_v0_1",
+  "specimen_version": "0.1",
+  "source_issue": "https://github.com/safal207/LS/issues/773",
+  "source_pull_request": "https://github.com/safal207/LS/pull/772",
+  "source_head": "61216069d60c3cfe68c975ff2385d0d53339525c",
+  "route_promotion_candidate": {
+    "candidate_id": "rpc_high-risk-code-review_2.0.0_001",
+    "candidate_version": "0.1",
+    "candidate_digest": "sha256:c2697dc32521e240c5142fe6426891805afd638a63b8e64690546b34faf503e4",
+    "created_at": "2026-07-03T21:50:00Z",
+    "created_by": "route_evidence_adapter:v0.1",
+    "subject": {
+      "kind": "RouteArtifact",
+      "ref": "high-risk-code-review@2.0.0",
+      "content_digest": "sha256:a67ced8479bd83c67b4dde4f630395996fd3a292fca8acaf73bd50b57ea76edf",
+      "source_pr": "https://github.com/safal207/LS/pull/772",
+      "source_head": "61216069d60c3cfe68c975ff2385d0d53339525c"
+    },
+    "requested_transition": {
+      "from": "experimental",
+      "to": "candidate"
+    },
+    "evidence": {
+      "tier": "T0_deterministic_replay",
+      "exact_head": "61216069d60c3cfe68c975ff2385d0d53339525c",
+      "replay_evidence_digest": "sha256:f6bee80cdb3c0cb5a7f0a96297b28e4c08eabcd96ca250a0d4fe6efd05f9ea95",
+      "sealed_honeypot_refs": [
+        "honeypot:terminal_authority_multihop"
+      ],
+      "supporting_refs": [
+        "workflow:route-artifact-v2@61216069d60c3cfe68c975ff2385d0d53339525c"
+      ],
+      "counterevidence_refs": [],
+      "unavailable_provider_refs": [
+        "provider:codex/code-review-usage-limit"
+      ]
+    },
+    "observed_metrics": {
+      "t0_runs": 1,
+      "repository_count": 1,
+      "task_variant_count": 1,
+      "sealed_honeypot_runs": 1,
+      "unresolved_critical_false_negatives": 0
+    },
+    "protocol_requirements": {
+      "minimum_t0_runs": 20,
+      "minimum_repositories": 2,
+      "minimum_task_variants": 2,
+      "minimum_sealed_honeypot_runs": 1,
+      "requires_zero_unresolved_critical_false_negatives": true,
+      "requires_confidence_intervals": true,
+      "requires_maintainer_approval": true
+    },
+    "independent_truth_fields": {
+      "executor_may_write": [
+        "observed_result",
+        "replay_output",
+        "finding_candidates"
+      ],
+      "executor_must_not_finalize": [
+        "confirmedEffectiveness",
+        "falsePositiveRate",
+        "reviewerMinutesSaved",
+        "sealed",
+        "groundTruthMatched",
+        "promotionEligible",
+        "maintainerApproved",
+        "validatedState"
+      ]
+    },
+    "candidate_state": "READY_FOR_GOVERNANCE",
+    "authority_effects": {
+      "may_approve_route": false,
+      "may_mark_validated": false,
+      "may_grant_merge_authority": false,
+      "may_grant_deploy_authority": false,
+      "may_grant_execution_authority": false,
+      "may_change_policy": false
+    },
+    "rollback_and_supersession": {
+      "supersedes_candidate_ref": null,
+      "rollback_plan_ref": "route-rollback-plan:high-risk-code-review-v0.1",
+      "revalidate_if": [
+        "candidate_content_changes",
+        "evidence_set_changes",
+        "protocol_policy_changes",
+        "new_material_counterevidence"
+      ]
+    }
+  },
+  "governance_decision": {
+    "decision_id": "gd_route_high-risk-code-review_001",
+    "decision_version": "0.1",
+    "decision_digest": "sha256:9a6f2eddc5c9863ca6dfc4302dcff00689b824040e0b92823846018d60b03dc9",
+    "decided_at": "2026-07-03T21:55:00Z",
+    "decided_by": "route_governance_reviewer:v0.1",
+    "proposing_actor": "route_evidence_adapter:v0.1",
+    "subject_candidate_ref": "rpc_high-risk-code-review_2.0.0_001",
+    "subject_candidate_digest": "sha256:c2697dc32521e240c5142fe6426891805afd638a63b8e64690546b34faf503e4",
+    "reviewed_subject": {
+      "route_ref": "high-risk-code-review@2.0.0",
+      "route_content_digest": "sha256:a67ced8479bd83c67b4dde4f630395996fd3a292fca8acaf73bd50b57ea76edf",
+      "source_head": "61216069d60c3cfe68c975ff2385d0d53339525c"
+    },
+    "decision": "REQUEST_MORE_EVIDENCE",
+    "reason_codes": [
+      "minimum_t0_runs_not_met",
+      "minimum_repositories_not_met",
+      "minimum_task_variants_not_met",
+      "confidence_intervals_missing",
+      "maintainer_approval_missing"
+    ],
+    "evidence_refs": [
+      "workflow:route-artifact-v2@61216069d60c3cfe68c975ff2385d0d53339525c",
+      "replay:sha256:f6bee80cdb3c0cb5a7f0a96297b28e4c08eabcd96ca250a0d4fe6efd05f9ea95",
+      "honeypot:terminal_authority_multihop"
+    ],
+    "counterevidence_refs": [],
+    "decision_binding": {
+      "invalidated_by_candidate_change": true,
+      "invalidated_by_evidence_change": true,
+      "invalidated_by_policy_change": true,
+      "invalidated_by_scope_change": true
+    },
+    "authority_effects": {
+      "route_version_record_may_be_created": false,
+      "route_may_be_marked_candidate": false,
+      "route_may_be_marked_validated": false,
+      "merge_authority_granted": false,
+      "deployment_authority_granted": false
+    }
+  },
+  "route_version_record": null,
+  "route_ledger_entry": null,
+  "route_registry_snapshot": {
+    "snapshot_id": "route_registry_snapshot_2026_07_03_001",
+    "snapshot_version": "0.1",
+    "snapshot_digest": "sha256:715db240b19c113b23fb2ab4b5d3e02f00d4025ac5e73ce4747b44f5141628f8",
+    "as_of": "2026-07-03T22:00:00Z",
+    "created_by": "route_registry_reconstructor:v0.1",
+    "reconstruction_basis": {
+      "route_artifact_refs": [
+        "high-risk-code-review@2.0.0"
+      ],
+      "route_promotion_candidate_refs": [
+        "rpc_high-risk-code-review_2.0.0_001"
+      ],
+      "governance_decision_refs": [
+        "gd_route_high-risk-code-review_001"
+      ],
+      "route_version_record_refs": [],
+      "route_ledger_entry_refs": []
+    },
+    "active_route_state": [
+      {
+        "route_ref": "high-risk-code-review@2.0.0",
+        "state": "experimental_evidence_only",
+        "source_content_digest": "sha256:a67ced8479bd83c67b4dde4f630395996fd3a292fca8acaf73bd50b57ea76edf",
+        "promotion_candidate_ref": "rpc_high-risk-code-review_2.0.0_001",
+        "latest_governance_decision_ref": "gd_route_high-risk-code-review_001",
+        "promotion_blockers": [
+          "minimum_t0_runs_not_met",
+          "minimum_repositories_not_met",
+          "minimum_task_variants_not_met",
+          "confidence_intervals_missing",
+          "maintainer_approval_missing"
+        ],
+        "confirmed_effectiveness": null,
+        "action_authority": "none"
+      }
+    ],
+    "pending_candidates": [
+      "rpc_high-risk-code-review_2.0.0_001"
+    ],
+    "durable_route_version_records": [],
+    "warnings": [
+      "No governed RouteVersionRecord exists because promotion requirements are not met.",
+      "The source RouteArtifact status is evidence metadata, not authoritative validated state."
+    ],
+    "fail_closed_guards": {
+      "candidate_without_exact_digest_binding": "reject_snapshot",
+      "self_approved_candidate": "reject_snapshot",
+      "validated_state_without_approving_decision": "reject_snapshot",
+      "active_record_missing_ledger_history": "reject_snapshot",
+      "route_memory_used_as_action_authority": "reject_snapshot"
+    }
+  },
+  "interpretation": {
+    "outcome": "promotion_blocked_request_more_evidence",
+    "why_no_route_version_record": "The current evidence has one T0 run, one repository, one task variant, no confidence intervals, and no maintainer approval. Governance must not fabricate durable promoted state.",
+    "provisional_compatibility_decision": "B_shared_governance_envelope_domain_specific_records"
+  }
+}
