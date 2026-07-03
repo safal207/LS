@@ -1,0 +1,41 @@
+name: Route Artifact v2
+
+on:
+  pull_request:
+    paths:
+      - "schemas/route_artifact_v2.schema.json"
+      - "python/modules/route_artifact.py"
+      - "scripts/verify_route_artifact.py"
+      - "tests/test_route_artifact.py"
+      - "tests/fixtures/routes/**"
+      - "docs/ROUTE_ARTIFACT_V2.md"
+      - ".github/workflows/route-artifact-v2.yml"
+  push:
+    branches: [main]
+    paths:
+      - "schemas/route_artifact_v2.schema.json"
+      - "python/modules/route_artifact.py"
+      - "scripts/verify_route_artifact.py"
+      - "tests/test_route_artifact.py"
+      - "tests/fixtures/routes/**"
+      - "docs/ROUTE_ARTIFACT_V2.md"
+      - ".github/workflows/route-artifact-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Parse schema
+        run: python3 -m json.tool schemas/route_artifact_v2.schema.json
+      - name: Verify T0 and T1 fixtures
+        run: |
+          python3 scripts/verify_route_artifact.py --artifact tests/fixtures/routes/route_t0_valid.json
+          python3 scripts/verify_route_artifact.py --artifact tests/fixtures/routes/route_t1_valid.json
+      - name: Run contract tests
+        run: python3 -m unittest tests/test_route_artifact.py -v
