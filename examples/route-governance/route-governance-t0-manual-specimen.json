@@ -1,0 +1,181 @@
+{
+  "$schema_note": "Reference specimen only. This is not a normative JSON Schema and does not create a generic governance runtime.",
+  "specimen_name": "route_governance_compatibility_t0_manual_v0_1",
+  "specimen_version": "0.1",
+  "source": {
+    "pull_request": "safal207/LS#772",
+    "route_artifact_fixture": "tests/fixtures/routes/route_t0_valid.json",
+    "route_artifact_content_digest": "sha256:a67ced8479bd83c67b4dde4f630395996fd3a292fca8acaf73bd50b57ea76edf",
+    "note": "The contract runner materializes the fixture against a local Git checkout and binds source, ref, commit, and exact HEAD before T0 verification."
+  },
+  "evidence_bundle": {
+    "kind": "RouteEvidenceBundle",
+    "evidence_ref": "route-evidence://high-risk-code-review/2.0.0/t0",
+    "route_ref": "route://high-risk-code-review",
+    "route_version": "2.0.0",
+    "verification_tier": "T0_deterministic_replay",
+    "source_artifact_ref": "tests/fixtures/routes/route_t0_valid.json",
+    "source_artifact_digest": "sha256:a67ced8479bd83c67b4dde4f630395996fd3a292fca8acaf73bd50b57ea76edf",
+    "exact_head": "1111111111111111111111111111111111111111",
+    "replay": {
+      "command": "python3 scripts/verify_route_contract.py",
+      "evidence_digest": "sha256:f6bee80cdb3c0cb5a7f0a96297b28e4c08eabcd96ca250a0d4fe6efd05f9ea95",
+      "passed": true
+    },
+    "honeypot_evaluations": [
+      {
+        "id": "terminal_authority_multihop",
+        "sealed": true,
+        "ground_truth_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "observed_result_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+        "matched": true
+      }
+    ],
+    "metrics": {
+      "t0_runs": 1,
+      "repository_count": 1,
+      "task_variant_count": 1,
+      "sealed_honeypot_runs": 1,
+      "unresolved_critical_false_negatives": 0,
+      "false_positive_rate": {
+        "point": null,
+        "ci95": null
+      },
+      "reviewer_minutes_saved": {
+        "point": null,
+        "ci95": null
+      }
+    }
+  },
+  "promotion_candidate": {
+    "kind": "RoutePromotionCandidate",
+    "candidate_id": "route-candidate://high-risk-code-review/2.0.0/promotion-001",
+    "candidate_version": "0.1",
+    "created_at": "2026-07-04T00:00:00Z",
+    "proposed_by": "actor://fixture-author",
+    "route_ref": "route://high-risk-code-review",
+    "route_version": "2.0.0",
+    "requested_state": "experimental",
+    "evidence_ref": "route-evidence://high-risk-code-review/2.0.0/t0",
+    "evidence_digest": "sha256:a67ced8479bd83c67b4dde4f630395996fd3a292fca8acaf73bd50b57ea76edf",
+    "exact_head": "1111111111111111111111111111111111111111",
+    "gate_evaluation": {
+      "protocol_floor_satisfied": false,
+      "allowed_state": "experimental",
+      "blocking_reasons": [
+        "minimum_t0_runs_not_met",
+        "minimum_repositories_not_met",
+        "minimum_task_variants_not_met",
+        "confidence_intervals_missing",
+        "independent_maintainer_approval_not_yet_recorded"
+      ]
+    },
+    "evidence_refs": [
+      "fixture://route-v2/t0-replay-log",
+      "fixture://route-v2/t0-run-001"
+    ],
+    "counterevidence_refs": [],
+    "forbidden_claims": [
+      "validated",
+      "maintainer_approved",
+      "action_authority"
+    ],
+    "authority_effects": {
+      "may_approve_self": false,
+      "may_activate_route": false,
+      "may_authorize_execution": false,
+      "may_authorize_merge": false,
+      "may_write_memory": false
+    }
+  },
+  "candidate_digest": {
+    "algorithm": "sha256",
+    "canonicalization": "Unicode NFC, sorted object keys, compact UTF-8 JSON; digest covers promotion_candidate exactly as written.",
+    "value": "sha256:104faf6094421ea4ed65e8756abe2ef87db2f778383033a3ebcf543ee8ef0fba"
+  },
+  "governance_decision": {
+    "kind": "GovernanceDecision",
+    "decision_id": "decision://route/high-risk-code-review/2.0.0/001",
+    "subject_kind": "route_promotion_candidate",
+    "subject_ref": "route-candidate://high-risk-code-review/2.0.0/promotion-001",
+    "subject_digest": "sha256:104faf6094421ea4ed65e8756abe2ef87db2f778383033a3ebcf543ee8ef0fba",
+    "decision": "approve",
+    "approved_state": "experimental",
+    "decided_by": "actor://independent-maintainer",
+    "proposed_by": "actor://fixture-author",
+    "decided_at": "2026-07-04T00:05:00Z",
+    "evidence_refs": [
+      "route-evidence://high-risk-code-review/2.0.0/t0"
+    ],
+    "counterevidence_refs": [],
+    "reason": "Approve durable registration only as experimental evidence memory. Promotion floors for candidate or validated state are not satisfied.",
+    "constraints": [
+      "must_not_project_validated_state",
+      "must_not_claim_maintainer_approval_inside_candidate",
+      "must_not_grant_action_authority"
+    ]
+  },
+  "route_version_record": {
+    "kind": "RouteVersionRecord",
+    "record_id": "route-version://high-risk-code-review/2.0.0",
+    "route_ref": "route://high-risk-code-review",
+    "route_version": "2.0.0",
+    "candidate_ref": "route-candidate://high-risk-code-review/2.0.0/promotion-001",
+    "candidate_digest": "sha256:104faf6094421ea4ed65e8756abe2ef87db2f778383033a3ebcf543ee8ef0fba",
+    "evidence_ref": "route-evidence://high-risk-code-review/2.0.0/t0",
+    "evidence_digest": "sha256:a67ced8479bd83c67b4dde4f630395996fd3a292fca8acaf73bd50b57ea76edf",
+    "governance_decision_ref": "decision://route/high-risk-code-review/2.0.0/001",
+    "decision_effect": {
+      "recorded_state": "experimental"
+    },
+    "exact_head": "1111111111111111111111111111111111111111",
+    "supersedes": [],
+    "immutable": true,
+    "authority_effects": {
+      "may_authorize_execution": false,
+      "may_authorize_merge": false,
+      "may_write_memory": false
+    }
+  },
+  "route_ledger_entries": [
+    {
+      "sequence": 1,
+      "event": "version_recorded",
+      "subject_ref": "route-version://high-risk-code-review/2.0.0",
+      "caused_by": "decision://route/high-risk-code-review/2.0.0/001",
+      "recorded_at": "2026-07-04T00:06:00Z"
+    },
+    {
+      "sequence": 2,
+      "event": "activated",
+      "subject_ref": "route-version://high-risk-code-review/2.0.0",
+      "caused_by": "decision://route/high-risk-code-review/2.0.0/001",
+      "recorded_at": "2026-07-04T00:06:01Z"
+    }
+  ],
+  "route_registry_snapshot": {
+    "kind": "RouteRegistrySnapshot",
+    "route_ref": "route://high-risk-code-review",
+    "generated_from_ledger_sequence": 2,
+    "active_version_ref": "route-version://high-risk-code-review/2.0.0",
+    "active_state": "experimental",
+    "projection_only": true
+  },
+  "supersession_probe": {
+    "rule": "A later approved route version creates a new RouteVersionRecord and new ledger entries. It must not modify this specimen's RouteVersionRecord.",
+    "required_assertions": [
+      "old_record_bytes_unchanged",
+      "new_record_has_distinct_candidate_and_decision_digests",
+      "ledger_contains_explicit_superseded_and_activated_events",
+      "snapshot_rebuild_selects_new_active_version"
+    ]
+  },
+  "manual_acceptance_checks": [
+    "T0 replay and honeypot evidence remain reachable without copying governance state into the evidence bundle.",
+    "GovernanceDecision subject_digest exactly matches the canonical RoutePromotionCandidate digest.",
+    "Proposer and decision actor are different.",
+    "Validated state cannot be projected from this evidence because protocol floors are not satisfied.",
+    "Deleting the snapshot and replaying the ordered ledger reconstructs active_state=experimental.",
+    "Supersession requires a new version record and new ledger entries; the old record remains immutable."
+  ]
+}
