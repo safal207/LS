@@ -20,21 +20,25 @@ remains the responsibility of the appropriate evidence and action gates.
 
 T0 requires:
 
-- an exact 40-character Git HEAD;
+- a declared Git host, repository, ref and exact commit;
+- a local checkout whose `origin`, `HEAD`, declared ref and commit all match;
 - sandbox execution;
 - an executable replay command;
 - matching expected and observed exit codes;
 - passing deterministic assertions;
 - an evidence digest.
 
-Only T0 may contribute to `confirmed_effectiveness`, route promotion, or a
+A 40-character hexadecimal string alone is not T0 evidence.
+
+Only T0 may contribute to confirmed metrics, route promotion, or a
 training/distillation corpus.
 
 ### T1 — artifact-attested
 
 T1 requires inspectable artifacts and explicit human sign-off, but it does not
-claim deterministic replay. T1 may be stored as experimental evidence, but it
-cannot contribute to confirmed effectiveness or training eligibility.
+claim deterministic replay or verified source-checkout binding. T1 may be stored
+as experimental evidence, but it cannot contribute to any confirmed metric,
+promotion, or training eligibility.
 
 The first seed route references the live review experiments in:
 
@@ -49,10 +53,22 @@ T2 has no reproducible artifact. It is rejected from the canonical store. The
 verifier may parse it only in rejection-audit mode so the rejection reason can
 be recorded without promoting the narrative into route evidence.
 
-## Immutable versions and lineage
+## Canonical content identity
 
-Each route version has a canonical SHA-256 digest. The digest covers the whole
+Each route version has a SHA-256 content digest. The digest covers the whole
 artifact with `integrity.content_digest` normalized to `null` before hashing.
+
+Canonicalization:
+
+- recursively normalizes all strings and object keys to Unicode NFC;
+- sorts object keys;
+- uses compact UTF-8 JSON;
+- rejects NaN, positive infinity and negative infinity;
+- rejects key collisions created by Unicode normalization.
+
+This defines the portable subset used by LS for content addressing.
+
+## Immutable versions and lineage
 
 A newer immutable object may declare:
 
@@ -66,49 +82,62 @@ A newer immutable object may declare:
 
 The older object is never edited. `superseded_by` is a derived registry
 projection, not a field written back into the prior content-addressed object.
-Missing references and direct or multi-hop supersession cycles fail closed.
+
+Missing references, self-supersession, duplicate references, and direct or
+multi-hop cycles fail closed. Registry cycle detection is iterative so a deep
+valid lineage cannot escape through Python recursion depth.
 
 ## Route stages
 
 Stages refer to roles and capability classes, not provider brands. Dependencies
-must reference existing earlier stages. This yields a deterministic topological
-order and rejects missing dependencies or cycles.
+must be strings, unique, and reference existing earlier stages. Invalid arrays,
+missing dependencies and cycle-shaped ordering fail with stable
+`RouteArtifactError` codes rather than raw runtime exceptions.
 
 ## Registry statuses
 
 - `draft` — incomplete contract work;
 - `experimental` — valid artifact with insufficient promotion evidence;
-- `candidate` — automated quantitative gates pass;
+- `candidate` — T0 evidence and configured quantitative gates pass;
 - `validated` — candidate gates plus required maintainer approval pass;
-- `deprecated` — still historically valid but obsolete;
+- `deprecated` — historically valid but obsolete;
 - `revoked` — unsafe or invalid and must not be recommended.
 
-The initial promotion policy uses configurable thresholds. The sample policy
-requires at least 20 T0 runs, two repositories, two task variants, one sealed
-honeypot, no unresolved critical false negatives, confidence intervals, and
-maintainer approval. These thresholds are operational gates, not a claim of
-statistical proof.
+A non-T0 artifact is explicitly barred from `candidate` and `validated`.
 
-## Local verification
+The initial promotion policy requires at least 20 T0 runs, two repositories,
+two task variants, one sealed honeypot, no unresolved critical false negatives,
+confidence intervals, and maintainer approval. These are operational gates, not
+a claim of statistical proof.
+
+## One deterministic verification command
+
+Install the route-test extra once:
+
+```bash
+python3 -m pip install -e '.[route-test]'
+```
+
+Then run the complete contract:
+
+```bash
+python3 scripts/verify_route_contract.py
+```
+
+That single command validates the JSON Schema, materializes a real local Git
+checkout for T0 source binding, verifies T0 and T1, proves canonical T2
+rejection plus rejection-audit acceptance, and runs all mutation/contract tests.
+
+For a single artifact:
 
 ```bash
 python3 scripts/verify_route_artifact.py \
-  --artifact tests/fixtures/routes/route_t0_valid.json
-
-python3 scripts/verify_route_artifact.py \
-  --artifact tests/fixtures/routes/route_t1_valid.json
-
-# Expected to fail: T2 cannot enter the canonical store.
-python3 scripts/verify_route_artifact.py \
-  --artifact tests/fixtures/routes/route_t2_rejected.json
-
-# Rejection-audit mode is allowed.
-python3 scripts/verify_route_artifact.py \
-  --artifact tests/fixtures/routes/route_t2_rejected.json \
-  --allow-t2-audit
-
-python3 -m unittest tests/test_route_artifact.py -v
+  --artifact path/to/route.json \
+  --repo-root path/to/its/checked-out-repository
 ```
+
+`--repo-root` is mandatory for T0 ingestion. `--allow-t2-audit` is valid only
+with `--artifact`; combining it with registry projection is rejected.
 
 ## Deliberate non-goals
 
