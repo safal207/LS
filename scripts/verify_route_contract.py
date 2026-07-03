@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import sys
 import unittest
@@ -15,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python" / "modules"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from route_artifact import (  # noqa: E402
+from route_artifact_policy import (  # noqa: E402
     RouteArtifactError,
     compute_content_digest,
     verify_route_artifact,
@@ -71,29 +70,22 @@ def main() -> int:
         canonical_store=False,
     )
 
-    test_path = ROOT / "tests" / "test_route_artifact.py"
-    spec = importlib.util.spec_from_file_location(
-        "test_route_artifact",
-        test_path,
+    tests = unittest.defaultTestLoader.discover(
+        str(ROOT / "tests"),
+        pattern="test_route_artifact*.py",
+        top_level_dir=str(ROOT),
     )
-    if spec is None or spec.loader is None:
-        raise RouteArtifactError(
-            "ROUTE-V2-SUITE",
-            f"cannot load tests from {test_path}",
-        )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    tests = unittest.defaultTestLoader.loadTestsFromModule(module)
     result = unittest.TextTestRunner(verbosity=2).run(tests)
     if not result.wasSuccessful():
         return 1
 
     summary = {
         "schema": "valid",
-        "t0": "source-bound-and-replayed",
+        "t0": "source-bound-replay-evidence-verified",
         "t1": "artifact-attested",
         "t2": "rejected-canonical-audited",
         "honeypot": "sealed-ground-truth-matched",
+        "promotion_floors": "protocol-pinned",
         "tests_run": result.testsRun,
         "failures": len(result.failures),
         "errors": len(result.errors),
