@@ -112,13 +112,8 @@ a claim of statistical proof.
 
 ## One deterministic verification command
 
-Install the route-test extra once:
-
-```bash
-python3 -m pip install -e '.[route-test]'
-```
-
-Then run the complete contract:
+The verification environment must provide `jsonschema` version 4.23 or newer.
+Then run:
 
 ```bash
 python3 scripts/verify_route_contract.py
