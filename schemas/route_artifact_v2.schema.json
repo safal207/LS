@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/route_artifact_v2.schema.json",
+  "title": "LS Route Artifact v2",
+  "description": "A provider-neutral, content-addressed route version whose promotion depends on reproducible evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "api_version",
+    "kind",
+    "route_id",
+    "version",
+    "status",
+    "integrity",
+    "lineage",
+    "task_profile",
+    "executor_profile",
+    "stages",
+    "verification",
+    "metrics",
+    "promotion_policy",
+    "training",
+    "license",
+    "publishability",
+    "provenance"
+  ],
+  "properties": {
+    "api_version": {"const": "ls.route/v2"},
+    "kind": {"const": "RouteArtifact"},
+    "route_id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+    "version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
+    "status": {
+      "type": "string",
+      "enum": ["draft", "experimental", "candidate", "validated", "deprecated", "revoked"]
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["digest_algorithm", "content_digest"],
+      "properties": {
+        "digest_algorithm": {"const": "sha256"},
+        "content_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supersedes"],
+      "properties": {
+        "supersedes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*@(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+          }
+        }
+      }
+    },
+    "task_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "subtype", "risk_level"],
+      "properties": {
+        "category": {"type": "string", "minLength": 1},
+        "subtype": {"type": "string", "minLength": 1},
+        "risk_level": {"type": "string", "enum": ["low", "medium", "high", "critical"]}
+      }
+    },
+    "executor_profile": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "capability_class"],
+        "properties": {
+          "role": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "capability_class": {
+            "type": "string",
+            "enum": ["frontier", "mid", "small", "open_weight", "human", "deterministic_tool"]
+          }
+        }
+      }
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "role", "capability_class", "independent", "depends_on"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "role": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "capability_class": {
+            "type": "string",
+            "enum": ["frontier", "mid", "small", "open_weight", "human", "deterministic_tool"]
+          },
+          "independent": {"type": "boolean"},
+          "depends_on": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}
+          }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier", "exact_head", "sandbox", "replay", "artifact_refs", "human_sign_off", "narrative"],
+      "properties": {
+        "tier": {
+          "type": "string",
+          "enum": ["T0_deterministic_replay", "T1_artifact_attested", "T2_narrative_only"]
+        },
+        "exact_head": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+          ]
+        },
+        "sandbox": {"type": "boolean"},
+        "replay": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["command", "expected_exit_code", "observed_exit_code", "assertions", "passed", "evidence_digest"],
+              "properties": {
+                "command": {"type": "string", "minLength": 1},
+                "expected_exit_code": {"type": "integer", "minimum": 0},
+                "observed_exit_code": {"type": "integer", "minimum": 0},
+                "assertions": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["name", "passed"],
+                    "properties": {
+                      "name": {"type": "string", "minLength": 1},
+                      "passed": {"type": "boolean"}
+                    }
+                  }
+                },
+                "passed": {"type": "boolean"},
+                "evidence_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+              }
+            }
+          ]
+        },
+        "artifact_refs": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "human_sign_off": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["actor", "signed_at", "decision"],
+              "properties": {
+                "actor": {"type": "string", "minLength": 1},
+                "signed_at": {"type": "string", "minLength": 1},
+                "decision": {"const": "attested"}
+              }
+            }
+          ]
+        },
+        "narrative": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "minLength": 1}
+          ]
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sample_size",
+        "t0_runs",
+        "repository_count",
+        "task_variant_count",
+        "sealed_honeypot_runs",
+        "unresolved_critical_false_negatives",
+        "confirmed_effectiveness",
+        "false_positive_rate",
+        "reviewer_minutes_saved",
+        "maintainer_approved"
+      ],
+      "properties": {
+        "sample_size": {"type": "integer", "minimum": 0},
+        "t0_runs": {"type": "integer", "minimum": 0},
+        "repository_count": {"type": "integer", "minimum": 0},
+        "task_variant_count": {"type": "integer", "minimum": 0},
+        "sealed_honeypot_runs": {"type": "integer", "minimum": 0},
+        "unresolved_critical_false_negatives": {"type": "integer", "minimum": 0},
+        "confirmed_effectiveness": {"$ref": "#/$defs/metric"},
+        "false_positive_rate": {"$ref": "#/$defs/metric"},
+        "reviewer_minutes_saved": {"$ref": "#/$defs/metric"},
+        "maintainer_approved": {"type": "boolean"}
+      }
+    },
+    "promotion_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_t0_runs",
+        "minimum_repositories",
+        "minimum_task_variants",
+        "minimum_sealed_honeypot_runs",
+        "requires_zero_unresolved_critical_false_negatives",
+        "requires_confidence_intervals",
+        "requires_maintainer_approval"
+      ],
+      "properties": {
+        "minimum_t0_runs": {"type": "integer", "minimum": 1},
+        "minimum_repositories": {"type": "integer", "minimum": 1},
+        "minimum_task_variants": {"type": "integer", "minimum": 1},
+        "minimum_sealed_honeypot_runs": {"type": "integer", "minimum": 1},
+        "requires_zero_unresolved_critical_false_negatives": {"const": true},
+        "requires_confidence_intervals": {"const": true},
+        "requires_maintainer_approval": {"const": true}
+      }
+    },
+    "training": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eligible", "corpus_scope"],
+      "properties": {
+        "eligible": {"type": "boolean"},
+        "corpus_scope": {"type": "string", "enum": ["none", "research", "distillation"]}
+      }
+    },
+    "license": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_license", "training_permission", "redistribution_permission", "commercial_use"],
+      "properties": {
+        "artifact_license": {"type": "string", "minLength": 1},
+        "training_permission": {
+          "type": "string",
+          "enum": ["none", "open_weight_only_v1", "any_with_attribution_v1"]
+        },
+        "redistribution_permission": {
+          "type": "string",
+          "enum": ["prohibited", "allowed_with_attribution", "allowed"]
+        },
+        "commercial_use": {"type": "string", "enum": ["prohibited", "restricted", "allowed"]}
+      }
+    },
+    "publishability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": {"type": "string", "enum": ["private", "community", "public"]}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contributors", "source_runs", "created_at"],
+      "properties": {
+        "contributors": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "source_runs": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "created_at": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "$defs": {
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["point", "ci95"],
+      "properties": {
+        "point": {"type": ["number", "null"]},
+        "ci95": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["lower", "upper"],
+              "properties": {
+                "lower": {"type": "number"},
+                "upper": {"type": "number"}
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
