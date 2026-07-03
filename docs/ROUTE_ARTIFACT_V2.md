@@ -4,15 +4,13 @@ Route Artifact v2 is the first narrow contract for the **Verified Route Network*
 It records a reusable problem-solving route without binding that route forever to
 one model provider.
 
-The core rule is:
-
-> Models are replaceable. A route is promoted only when its useful effect is reproducible.
+> Models are replaceable. A route is promoted only when its useful effect is
+> reproducible.
 
 ## Boundary
 
 A route artifact is evidence memory. It does not authorize merge, deployment,
-execution, memory writes, or any other protected side effect. Authorization
-remains the responsibility of the appropriate evidence and action gates.
+execution, memory writes, or any other protected side effect.
 
 ## Verification tiers
 
@@ -20,8 +18,8 @@ remains the responsibility of the appropriate evidence and action gates.
 
 T0 requires:
 
-- a declared Git host, repository, ref and exact commit;
-- a local checkout whose `origin`, `HEAD`, declared ref and commit all match;
+- a declared Git host, repository, ref, and exact commit;
+- a local checkout whose `origin`, `HEAD`, declared ref, and commit all match;
 - sandbox execution;
 - an executable replay command;
 - matching expected and observed exit codes;
@@ -36,11 +34,10 @@ training/distillation corpus.
 ### T1 — artifact-attested
 
 T1 requires inspectable artifacts and explicit human sign-off, but it does not
-claim deterministic replay or verified source-checkout binding. T1 may be stored
-as experimental evidence, but it cannot contribute to any confirmed metric,
-promotion, or training eligibility.
+claim deterministic replay, source-checkout binding, or sealed honeypot
+ground-truth evaluation.
 
-The first seed route references the live review experiments in:
+The seed route references:
 
 - `safal207/LS#770`;
 - `safal207/robys-coffee-house-demo#153`.
@@ -49,9 +46,36 @@ Those runs remain T1 until replayable evidence and outcomes exist.
 
 ### T2 — narrative-only
 
-T2 has no reproducible artifact. It is rejected from the canonical store. The
-verifier may parse it only in rejection-audit mode so the rejection reason can
-be recorded without promoting the narrative into route evidence.
+T2 is strictly narrative-only:
+
+- no source;
+- no exact HEAD;
+- no sandbox claim;
+- no replay;
+- no artifact references;
+- no human sign-off;
+- no honeypot evaluation.
+
+T2 is rejected from the canonical store. It may be parsed only in
+rejection-audit mode so the rejection reason can be recorded.
+
+## Sealed honeypot ground truth
+
+A promotion-eligible honeypot is an explicit evidence object:
+
+```json
+{
+  "id": "terminal_authority_multihop",
+  "sealed": true,
+  "ground_truth_digest": "<sha256>",
+  "observed_result_digest": "<sha256>",
+  "matched": true
+}
+```
+
+Promotion checks both the configured minimum count and the actual list of
+sealed, matched ground-truth evaluations. The numeric counter must equal the
+number of verified evaluation objects, so it cannot be inflated independently.
 
 ## Canonical content identity
 
@@ -60,17 +84,15 @@ artifact with `integrity.content_digest` normalized to `null` before hashing.
 
 Canonicalization:
 
-- recursively normalizes all strings and object keys to Unicode NFC;
+- recursively normalizes strings and object keys to Unicode NFC;
 - sorts object keys;
 - uses compact UTF-8 JSON;
-- rejects NaN, positive infinity and negative infinity;
+- rejects NaN and infinities;
 - rejects key collisions created by Unicode normalization.
 
-This defines the portable subset used by LS for content addressing.
+## Immutable lineage
 
-## Immutable versions and lineage
-
-A newer immutable object may declare:
+A newer object may declare:
 
 ```json
 {
@@ -81,47 +103,45 @@ A newer immutable object may declare:
 ```
 
 The older object is never edited. `superseded_by` is a derived registry
-projection, not a field written back into the prior content-addressed object.
+projection. Missing references, self-supersession, duplicate references, and
+cycles fail closed. Cycle detection is iterative, so a deep valid lineage does
+not escape through Python recursion depth.
 
-Missing references, self-supersession, duplicate references, and direct or
-multi-hop cycles fail closed. Registry cycle detection is iterative so a deep
-valid lineage cannot escape through Python recursion depth.
+## Promotion statuses
 
-## Route stages
+- `draft`
+- `experimental`
+- `candidate`
+- `validated`
+- `deprecated`
+- `revoked`
 
-Stages refer to roles and capability classes, not provider brands. Dependencies
-must be strings, unique, and reference existing earlier stages. Invalid arrays,
-missing dependencies and cycle-shaped ordering fail with stable
-`RouteArtifactError` codes rather than raw runtime exceptions.
+A non-T0 artifact cannot become `candidate` or `validated`.
 
-## Registry statuses
+The initial promotion policy requires:
 
-- `draft` — incomplete contract work;
-- `experimental` — valid artifact with insufficient promotion evidence;
-- `candidate` — T0 evidence and configured quantitative gates pass;
-- `validated` — candidate gates plus required maintainer approval pass;
-- `deprecated` — historically valid but obsolete;
-- `revoked` — unsafe or invalid and must not be recommended.
+- at least 20 T0 runs;
+- at least two repositories;
+- at least two task variants;
+- at least one sealed, matched honeypot evaluation;
+- zero unresolved critical false negatives;
+- confidence intervals;
+- maintainer approval for `validated`.
 
-A non-T0 artifact is explicitly barred from `candidate` and `validated`.
+These are operational gates, not a claim of statistical proof.
 
-The initial promotion policy requires at least 20 T0 runs, two repositories,
-two task variants, one sealed honeypot, no unresolved critical false negatives,
-confidence intervals, and maintainer approval. These are operational gates, not
-a claim of statistical proof.
+## One deterministic command
 
-## One deterministic verification command
-
-The verification environment must provide `jsonschema` version 4.23 or newer.
-Then run:
+The verification environment must provide Python 3.11 and `jsonschema` 4.23 or
+newer.
 
 ```bash
 python3 scripts/verify_route_contract.py
 ```
 
-That single command validates the JSON Schema, materializes a real local Git
-checkout for T0 source binding, verifies T0 and T1, proves canonical T2
-rejection plus rejection-audit acceptance, and runs all mutation/contract tests.
+The command validates the JSON Schema, materializes a real local Git checkout
+for T0 source binding, verifies T0 and T1, proves canonical T2 rejection plus
+rejection-audit acceptance, and runs all mutation/contract tests.
 
 For a single artifact:
 
@@ -132,9 +152,9 @@ python3 scripts/verify_route_artifact.py \
 ```
 
 `--repo-root` is mandatory for T0 ingestion. `--allow-t2-audit` is valid only
-with `--artifact`; combining it with registry projection is rejected.
+with `--artifact`.
 
-## Deliberate non-goals
+## Non-goals
 
 This slice does not add model integrations, a finding graph, a marketplace,
 global model rankings, hidden chain-of-thought storage, or action authority.
