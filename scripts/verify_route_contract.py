@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python" / "modules"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from route_artifact_policy import (  # noqa: E402
+from route_artifact import (  # noqa: E402
     RouteArtifactError,
     compute_content_digest,
     verify_route_artifact,
@@ -72,7 +72,7 @@ def main() -> int:
 
     tests = unittest.defaultTestLoader.discover(
         str(ROOT / "tests"),
-        pattern="test_route_artifact*.py",
+        pattern="test_route_artifact.py",
     )
     result = unittest.TextTestRunner(verbosity=2).run(tests)
     if not result.wasSuccessful():
