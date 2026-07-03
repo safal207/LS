@@ -17,7 +17,8 @@ try:
     from jsonschema import Draft202012Validator, FormatChecker
 except ImportError as exc:
     raise SystemExit(
-        "Missing dependency: jsonschema. Install with: pip install jsonschema"
+        "Missing dependency: jsonschema with format support. "
+        "Install with: pip install 'jsonschema[format]'"
     ) from exc
 
 
@@ -114,10 +115,23 @@ def validate_semantics(bundle: dict[str, Any]) -> None:
         if record["status"] == "ADOPTED":
             require(implementation is not None, "ADOPTED requires implementation")
             require(
+                "implementationRef" in record,
+                "ADOPTED requires implementationRef",
+            )
+            require(
+                record["implementationRef"] == implementation["id"],
+                "ADOPTED implementationRef must match implementation.id",
+            )
+            require(
                 implementation["status"] == "VERIFIED",
                 "ADOPTED requires VERIFIED implementation",
             )
             require(outcome is not None, "ADOPTED requires outcome")
+            require("outcomeRef" in record, "ADOPTED requires outcomeRef")
+            require(
+                record["outcomeRef"] == outcome["id"],
+                "ADOPTED outcomeRef must match outcome.id",
+            )
             require(
                 outcome["status"] == "CONFIRMED",
                 "ADOPTED requires CONFIRMED outcome",
@@ -125,36 +139,55 @@ def validate_semantics(bundle: dict[str, Any]) -> None:
             require(bool(outcome["evidenceRefs"]), "ADOPTED requires outcome evidence")
 
     record_ids = {record["id"]} if record else set()
-    unknown_sources = set(snapshot["sourceRecordRefs"]) - record_ids
+    source_refs = set(snapshot["sourceRecordRefs"])
+    active_refs = set(snapshot["activeRecordRefs"])
+    unresolved_refs = set(snapshot["unresolvedCandidateRefs"])
+
+    unknown_sources = source_refs - record_ids
     require(
         not unknown_sources,
         f"snapshot references missing source records: {sorted(unknown_sources)}",
     )
-    unknown_active = set(snapshot["activeRecordRefs"]) - record_ids
+    unknown_active = active_refs - record_ids
     require(
         not unknown_active,
         f"snapshot references missing active records: {sorted(unknown_active)}",
     )
 
-    if snapshot["activeRecordRefs"]:
-        require(record is not None, "active snapshot requires a record")
+    if record is not None:
         require(
-            record["status"] in {"EXPERIMENT_ACTIVE", "ADOPTED"},
-            "only EXPERIMENT_ACTIVE or ADOPTED records may be active",
+            record["id"] in source_refs,
+            "snapshot.sourceRecordRefs must include record.id",
         )
 
-    unresolved = set(snapshot["unresolvedCandidateRefs"])
-    if candidate["id"] in unresolved:
+        is_active = record["status"] in {"EXPERIMENT_ACTIVE", "ADOPTED"}
         require(
-            record is None
-            or record["status"] not in {"ADOPTED", "REJECTED", "ROLLED_BACK"},
-            "resolved candidate cannot remain unresolved in snapshot",
+            (record["id"] in active_refs) == is_active,
+            "snapshot.activeRecordRefs must exactly reflect active record status",
+        )
+
+        is_unresolved = record["status"] in {
+            "EXPERIMENT_APPROVED",
+            "EXPERIMENT_ACTIVE",
+        }
+        require(
+            (candidate["id"] in unresolved_refs) == is_unresolved,
+            "snapshot.unresolvedCandidateRefs must exactly reflect candidate resolution",
+        )
+    else:
+        require(
+            not source_refs and not active_refs,
+            "snapshot cannot reference product records when record is absent",
         )
 
     if decision["verdict"] == "REQUEST_MORE_EVIDENCE":
         require(
             record is None,
             "REQUEST_MORE_EVIDENCE must not fabricate a durable product record",
+        )
+        require(
+            candidate["id"] in unresolved_refs,
+            "REQUEST_MORE_EVIDENCE candidate must remain unresolved",
         )
 
 
