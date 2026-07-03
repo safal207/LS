@@ -24,6 +24,8 @@ The first specimen covers a dark flicker visible only during the first downward 
 - Verification is not user value.
 - A decision must bind the exact immutable hypothesis content.
 - `ADOPTED` requires a verified exact-head implementation and confirmed outcome evidence.
+- An `ADOPTED` record must reference the exact implementation and outcome it promotes.
+- A snapshot must preserve its durable record and exactly reflect active and unresolved state.
 - `REQUEST_MORE_EVIDENCE` must not fabricate a durable product record.
 
 ## Current truthful state
@@ -40,13 +42,15 @@ The reference fixture intentionally stops at `EXPERIMENT_APPROVED`:
 
 ## Validate
 
+Install the validator dependencies, including support for schema formats:
+
 ```bash
-python -m pip install jsonschema
-python ls-conformance/product_traceability/validate.py \
-  ls-conformance/product_traceability/fixtures/robys_first_scroll_flicker.pending.json
-python -m unittest discover \
-  -s ls-conformance/product_traceability/tests -v
+python -m pip install -r ls-conformance/product_traceability/requirements.txt
+python ls-conformance/product_traceability/validate.py ls-conformance/product_traceability/fixtures/robys_first_scroll_flicker.pending.json
+python -m unittest discover -s ls-conformance/product_traceability/tests -v
 ```
+
+Plain `jsonschema` installation is not sufficient for this fixture family because missing optional format dependencies may cause malformed timestamps to be accepted.
 
 ## Promotion rule
 
@@ -54,10 +58,13 @@ A product record may become `ADOPTED` only when all of the following are present
 
 1. exact repository and 40-character head SHA;
 2. implementation status `VERIFIED`;
-3. before/after cold-cache evidence;
-4. mobile regression evidence;
-5. LCP and CLS guardrail evidence;
-6. a `CONFIRMED` outcome referencing those evidence objects.
+3. `implementationRef` bound to that implementation;
+4. before/after cold-cache evidence;
+5. mobile regression evidence;
+6. LCP and CLS guardrail evidence;
+7. a `CONFIRMED` outcome referencing those evidence objects;
+8. `outcomeRef` bound to that outcome;
+9. snapshot source and active references that include the adopted record.
 
 ## Architectural boundary
 
