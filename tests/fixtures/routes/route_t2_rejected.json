@@ -1,0 +1,68 @@
+{
+  "api_version": "ls.route/v2",
+  "kind": "RouteArtifact",
+  "route_id": "high-risk-code-review",
+  "version": "2.0.0",
+  "status": "draft",
+  "integrity": {
+    "digest_algorithm": "sha256",
+    "content_digest": "adbf758c9704523af0b7753af318ccfd6c3e55f03f224d582e7a6a42b75e1707"
+  },
+  "lineage": {"supersedes": []},
+  "task_profile": {"category": "code_review", "subtype": "security_state_machine", "risk_level": "high"},
+  "executor_profile": [
+    {"role": "invariant_critic", "capability_class": "frontier"},
+    {"role": "adversarial_tester", "capability_class": "frontier"},
+    {"role": "evidence_verifier", "capability_class": "deterministic_tool"},
+    {"role": "regression_reviewer", "capability_class": "mid"}
+  ],
+  "stages": [
+    {"id": "invariant_scan", "role": "invariant_critic", "capability_class": "frontier", "independent": true, "depends_on": []},
+    {"id": "adversarial_test_design", "role": "adversarial_tester", "capability_class": "frontier", "independent": true, "depends_on": []},
+    {"id": "deterministic_replay", "role": "evidence_verifier", "capability_class": "deterministic_tool", "independent": false, "depends_on": ["invariant_scan", "adversarial_test_design"]},
+    {"id": "regression_scan", "role": "regression_reviewer", "capability_class": "mid", "independent": false, "depends_on": ["deterministic_replay"]}
+  ],
+  "verification": {
+    "tier": "T2_narrative_only",
+    "exact_head": null,
+    "sandbox": false,
+    "replay": null,
+    "artifact_refs": [],
+    "human_sign_off": null,
+    "narrative": "A model claimed this route was useful, but no reproducible artifact was supplied."
+  },
+  "metrics": {
+    "sample_size": 0,
+    "t0_runs": 0,
+    "repository_count": 0,
+    "task_variant_count": 0,
+    "sealed_honeypot_runs": 0,
+    "unresolved_critical_false_negatives": 0,
+    "confirmed_effectiveness": {"point": null, "ci95": null},
+    "false_positive_rate": {"point": null, "ci95": null},
+    "reviewer_minutes_saved": {"point": null, "ci95": null},
+    "maintainer_approved": false
+  },
+  "promotion_policy": {
+    "minimum_t0_runs": 20,
+    "minimum_repositories": 2,
+    "minimum_task_variants": 2,
+    "minimum_sealed_honeypot_runs": 1,
+    "requires_zero_unresolved_critical_false_negatives": true,
+    "requires_confidence_intervals": true,
+    "requires_maintainer_approval": true
+  },
+  "training": {"eligible": false, "corpus_scope": "none"},
+  "license": {
+    "artifact_license": "Apache-2.0",
+    "training_permission": "none",
+    "redistribution_permission": "allowed_with_attribution",
+    "commercial_use": "restricted"
+  },
+  "publishability": {"level": "private"},
+  "provenance": {
+    "contributors": ["fixture-author"],
+    "source_runs": [],
+    "created_at": "2026-07-03T00:00:00Z"
+  }
+}
