@@ -140,6 +140,38 @@ new protocol version rather than a self-authored policy override.
 
 These are operational gates, not a claim of statistical proof.
 
+## Governance compatibility freeze
+
+The current `status`, `metrics.maintainer_approved`, promotion-policy, lineage,
+and registry-projection fields remain part of this narrow Draft verifier
+contract. They do not prove that Route Artifact is the final generic lifecycle
+object or that LS already has a universal registry runtime.
+
+PR `#772` freezes additional architecture expansion while the compatibility ADR
+and one manual T0 specimen test this external boundary:
+
+```text
+RouteEvidenceBundle
+  -> RoutePromotionCandidate
+  -> GovernanceDecision
+  -> RouteVersionRecord
+  -> RouteLedgerEntry
+  -> RouteRegistrySnapshot
+```
+
+The candidate must not approve itself or carry an authoritative `validated`
+claim. A decision binds the exact candidate digest, and active state is a
+reconstructed projection rather than a self-attested field.
+
+See:
+
+- `docs/adr/ADR-00772-route-governance-compatibility.md`;
+- `examples/route-governance/route-governance-t0-manual-specimen.json`.
+
+Until that probe is evaluated, this PR does not add a generic candidate
+framework, universal graph registry, new lifecycle states, marketplace
+semantics, rankings, or CausalFragment execution.
+
 ## One deterministic command
 
 The verification environment must provide Python 3.11 and `jsonschema` 4.23 or
