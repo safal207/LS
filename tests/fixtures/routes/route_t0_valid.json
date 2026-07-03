@@ -1,0 +1,82 @@
+{
+  "api_version": "ls.route/v2",
+  "kind": "RouteArtifact",
+  "route_id": "high-risk-code-review",
+  "version": "2.0.0",
+  "status": "experimental",
+  "integrity": {
+    "digest_algorithm": "sha256",
+    "content_digest": "61f87ac1e1ed907b49236deefa7498b90a4730b0ec8c410feedd5857d09dfb3b"
+  },
+  "lineage": {"supersedes": []},
+  "task_profile": {
+    "category": "code_review",
+    "subtype": "security_state_machine",
+    "risk_level": "high"
+  },
+  "executor_profile": [
+    {"role": "invariant_critic", "capability_class": "frontier"},
+    {"role": "adversarial_tester", "capability_class": "frontier"},
+    {"role": "evidence_verifier", "capability_class": "deterministic_tool"},
+    {"role": "regression_reviewer", "capability_class": "mid"}
+  ],
+  "stages": [
+    {"id": "invariant_scan", "role": "invariant_critic", "capability_class": "frontier", "independent": true, "depends_on": []},
+    {"id": "adversarial_test_design", "role": "adversarial_tester", "capability_class": "frontier", "independent": true, "depends_on": []},
+    {"id": "deterministic_replay", "role": "evidence_verifier", "capability_class": "deterministic_tool", "independent": false, "depends_on": ["invariant_scan", "adversarial_test_design"]},
+    {"id": "regression_scan", "role": "regression_reviewer", "capability_class": "mid", "independent": false, "depends_on": ["deterministic_replay"]}
+  ],
+  "verification": {
+    "tier": "T0_deterministic_replay",
+    "exact_head": "1111111111111111111111111111111111111111",
+    "sandbox": true,
+    "replay": {
+      "command": "python3 -m unittest tests.test_route_artifact",
+      "expected_exit_code": 0,
+      "observed_exit_code": 0,
+      "assertions": [
+        {"name": "known defect is reproduced before fix", "passed": true},
+        {"name": "same defect is absent after fix", "passed": true}
+      ],
+      "passed": true,
+      "evidence_digest": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "artifact_refs": ["fixture://route-v2/t0-replay-log"],
+    "human_sign_off": null,
+    "narrative": null
+  },
+  "metrics": {
+    "sample_size": 1,
+    "t0_runs": 1,
+    "repository_count": 1,
+    "task_variant_count": 1,
+    "sealed_honeypot_runs": 1,
+    "unresolved_critical_false_negatives": 0,
+    "confirmed_effectiveness": {"point": null, "ci95": null},
+    "false_positive_rate": {"point": null, "ci95": null},
+    "reviewer_minutes_saved": {"point": null, "ci95": null},
+    "maintainer_approved": false
+  },
+  "promotion_policy": {
+    "minimum_t0_runs": 20,
+    "minimum_repositories": 2,
+    "minimum_task_variants": 2,
+    "minimum_sealed_honeypot_runs": 1,
+    "requires_zero_unresolved_critical_false_negatives": true,
+    "requires_confidence_intervals": true,
+    "requires_maintainer_approval": true
+  },
+  "training": {"eligible": true, "corpus_scope": "research"},
+  "license": {
+    "artifact_license": "Apache-2.0",
+    "training_permission": "open_weight_only_v1",
+    "redistribution_permission": "allowed_with_attribution",
+    "commercial_use": "restricted"
+  },
+  "publishability": {"level": "community"},
+  "provenance": {
+    "contributors": ["fixture-author"],
+    "source_runs": ["fixture://route-v2/t0-run-001"],
+    "created_at": "2026-07-03T00:00:00Z"
+  }
+}
