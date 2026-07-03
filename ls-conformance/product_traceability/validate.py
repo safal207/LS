@@ -98,6 +98,27 @@ def validate_semantics(bundle: dict[str, Any]) -> None:
             "record.decisionRef does not reference decision.id",
         )
 
+        approved_statuses = {
+            "EXPERIMENT_APPROVED",
+            "EXPERIMENT_ACTIVE",
+            "ADOPTED",
+        }
+        if record["status"] in approved_statuses:
+            require(
+                decision["verdict"] == "APPROVE_EXPERIMENT",
+                f"{record['status']} requires APPROVE_EXPERIMENT decision",
+            )
+        if decision["verdict"] == "REJECT":
+            require(
+                record["status"] == "REJECTED",
+                "REJECT decision requires a REJECTED record",
+            )
+        if record["status"] == "REJECTED":
+            require(
+                decision["verdict"] == "REJECT",
+                "REJECTED record requires a REJECT decision",
+            )
+
         if "implementationRef" in record:
             require(implementation is not None, "record references missing implementation")
             require(
