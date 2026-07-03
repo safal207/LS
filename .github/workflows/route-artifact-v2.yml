@@ -6,9 +6,11 @@ on:
       - "schemas/route_artifact_v2.schema.json"
       - "python/modules/route_artifact.py"
       - "scripts/verify_route_artifact.py"
+      - "scripts/verify_route_contract.py"
       - "tests/test_route_artifact.py"
       - "tests/fixtures/routes/**"
       - "docs/ROUTE_ARTIFACT_V2.md"
+      - "pyproject.toml"
       - ".github/workflows/route-artifact-v2.yml"
   push:
     branches: [main]
@@ -16,9 +18,11 @@ on:
       - "schemas/route_artifact_v2.schema.json"
       - "python/modules/route_artifact.py"
       - "scripts/verify_route_artifact.py"
+      - "scripts/verify_route_contract.py"
       - "tests/test_route_artifact.py"
       - "tests/fixtures/routes/**"
       - "docs/ROUTE_ARTIFACT_V2.md"
+      - "pyproject.toml"
       - ".github/workflows/route-artifact-v2.yml"
 
 permissions:
@@ -31,11 +35,11 @@ jobs:
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - name: Parse schema
-        run: python3 -m json.tool schemas/route_artifact_v2.schema.json
-      - name: Verify T0 and T1 fixtures
-        run: |
-          python3 scripts/verify_route_artifact.py --artifact tests/fixtures/routes/route_t0_valid.json
-          python3 scripts/verify_route_artifact.py --artifact tests/fixtures/routes/route_t1_valid.json
-      - name: Run contract tests
-        run: python3 -m unittest tests/test_route_artifact.py -v
+        with:
+          persist-credentials: false
+
+      - name: Install contract-test dependency
+        run: python3 -m pip install 'jsonschema>=4.23,<5'
+
+      - name: Verify complete Route Artifact contract
+        run: python3 scripts/verify_route_contract.py
