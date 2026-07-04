@@ -3,6 +3,7 @@
   "runId": "ATTRRUN-ROBYS-BASELINE-001",
   "mode": "BASELINE",
   "productRef": "PROD-ROBYS-WEB",
+  "measurementPlanRef": "MPLAN-ROBYS-MENU-TO-VISIT-001",
   "currency": "TRY",
   "attributionWindowHours": 24,
   "webEvents": [
