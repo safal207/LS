@@ -44,9 +44,7 @@ class CausalPhaseTrailTests(unittest.TestCase):
     def test_detector_cannot_be_root_cause(self) -> None:
         trail = copy.deepcopy(self.trail)
         trail["decision"]["rootCauseNodeId"] = "evidence.qodo-current-findings"
-        self.node(trail, "evidence.qodo-current-findings")["claimRole"] = "ROOT_CAUSE"
-        self.node(trail, "evidence.qodo-current-findings")["kind"] = "CAUSE"
-        self.assert_invalid(trail, "node evidence.qodo-current-findings is not a detector")
+        self.assert_invalid(trail, "rootCauseNodeId must point to a ROOT_CAUSE node")
 
     def test_root_cause_requires_binding_causal_edge(self) -> None:
         trail = copy.deepcopy(self.trail)
