@@ -56,9 +56,8 @@ class CausalLevelOverlayTests(unittest.TestCase):
 
     def test_edge_bound_interaction_must_match_edge_endpoints(self) -> None:
         overlay = copy.deepcopy(self.overlay)
-        self.interaction(overlay, "interaction.system-exposes-environment-risk")["toNodeId"] = "state.current-risk-discovered"
-        self.interaction(overlay, "interaction.system-exposes-environment-risk")["toLevel"] = "SYSTEM"
-        self.assert_invalid(overlay, "toNodeId disagrees with edge")
+        self.interaction(overlay, "interaction.system-exposes-environment-risk")["fromNodeId"] = "cause.hidden-source-text"
+        self.assert_invalid(overlay, "fromNodeId disagrees with edge")
 
     def test_derived_interaction_needs_multiple_evidence_nodes(self) -> None:
         overlay = copy.deepcopy(self.overlay)
