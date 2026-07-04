@@ -100,4 +100,4 @@ python -m unittest discover \
   -s ls-conformance/profit_traceability/measurement_readiness/reference_runtime/tests -v
 ```
 
-The readiness regression suite contains 15 positive and negative tests. The attribution runtime adds 13 tests covering deterministic output, deduplication, ambiguity, TTL boundaries, exact decimal money handling, and fail-closed input validation.
+The readiness regression suite contains 15 positive and negative tests. The attribution runtime adds 14 tests covering complete deterministic output, deduplication, ambiguity, TTL boundaries, exact decimal money handling, and fail-closed input validation.
