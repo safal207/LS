@@ -10,8 +10,28 @@ REQUEST_MORE_EVIDENCE
   -> privacy-safe campaign token
   -> verified web/POS join
   -> baseline evidence
+  -> new immutable economic candidate
   -> new independent economic decision
 ```
+
+## Parent binding
+
+The readiness bundle is not a free-standing copy of identifiers. It is validated against the merged parent fixture:
+
+```text
+ls-conformance/profit_traceability/fixtures/robys_menu_to_visit.blocked.json
+```
+
+The validator requires exact agreement on:
+
+- parent bundle id;
+- product id;
+- economic candidate id;
+- decision id;
+- candidate binding and digest;
+- `REQUEST_MORE_EVIDENCE` verdict.
+
+Only the fixed repository-relative locator above is accepted. Absolute paths and traversal with `..` are rejected.
 
 ## Current truthful state
 
@@ -37,6 +57,8 @@ The plan requires:
 - a seven-day baseline;
 - evidence for instrumentation, join integrity, baseline export, and cost sources.
 
+Every evidence object is bound to the exact implementation id and 40-character head SHA. A readiness decision is bound to the exact plan and, after instrumentation, to the verified implementation.
+
 ## Promotion rules
 
 `READY_FOR_BASELINE` requires:
@@ -45,7 +67,8 @@ The plan requires:
 2. no unresolved blockers;
 3. instrumentation test evidence;
 4. join-integrity evidence;
-5. complete snapshot reconstruction.
+5. exact plan and implementation bindings;
+6. complete snapshot reconstruction with no unknown plan references.
 
 `BASELINE_COMPLETE` additionally requires:
 
@@ -63,3 +86,5 @@ python ls-conformance/profit_traceability/measurement_readiness/validate.py \
 python -m unittest discover \
   -s ls-conformance/profit_traceability/measurement_readiness/tests -v
 ```
+
+The current regression suite contains 15 positive and negative tests, including stale-head evidence, dangling snapshot references, parent-digest mismatch, path traversal, and malformed timestamps.
