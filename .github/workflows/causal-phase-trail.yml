@@ -1,0 +1,60 @@
+name: Causal phase trail conformance
+
+on:
+  pull_request:
+    paths:
+      - "ls-conformance/causal_phase_trail/**"
+      - ".github/workflows/causal-phase-trail.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  causal-phase-trail:
+    name: CPT-001 deterministic trail
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Validate real PR 164 specimen
+        run: |
+          python ls-conformance/causal_phase_trail/validate.py \
+            ls-conformance/causal_phase_trail/fixtures/robys_pr_164_wordmark.json
+
+      - name: Run mutation suite
+        run: |
+          python -m unittest discover \
+            -s ls-conformance/causal_phase_trail/tests -v
+
+      - name: Publish phase summary
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          trail = json.loads(Path(
+              "ls-conformance/causal_phase_trail/fixtures/robys_pr_164_wordmark.json"
+          ).read_text(encoding="utf-8"))
+          lines = [
+              "# Causal Phase Trail 001",
+              "",
+              f"**Trail:** {trail['trailId']}  ",
+              f"**Subject:** {trail['subject']['repository']}#{trail['subject']['pullRequest']}  ",
+              f"**Exact head:** `{trail['subject']['currentHead']}`  ",
+              f"**Current phase:** {trail['decision']['currentPhase']}  ",
+              f"**Best route:** {trail['decision']['bestRouteId']}  ",
+              f"**Unresolved blockers:** {len(trail['decision']['unresolvedBlockerNodeIds'])}",
+              "",
+              "> This trail records evidence and explanation. It grants no merge or execution authority.",
+          ]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("\n".join(lines) + "\n")
+          PY
