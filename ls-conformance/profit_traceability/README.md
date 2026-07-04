@@ -44,12 +44,33 @@ The fixture deliberately returns `REQUEST_MORE_EVIDENCE` because the current sys
 
 Therefore no business outcome, unit-economics record, durable profit record, or active profit state is created.
 
+## Measurement readiness
+
+[`measurement_readiness`](./measurement_readiness/README.md) converts the blocked Roby's candidate into a concrete baseline and POS-attribution implementation contract.
+
+It keeps the authority boundary explicit:
+
+```text
+REQUEST_MORE_EVIDENCE
+  -> instrumentation
+  -> baseline evidence
+  -> new immutable candidate
+  -> new independent decision
+```
+
+Measurement readiness does not authorize the offer experiment, profit claims, or `SCALE`.
+
 ## Validate
 
 ```bash
 python -m pip install -r ls-conformance/profit_traceability/requirements.txt
 python ls-conformance/profit_traceability/validate.py ls-conformance/profit_traceability/fixtures/robys_menu_to_visit.blocked.json
 python -m unittest discover -s ls-conformance/profit_traceability/tests -v
+
+python ls-conformance/profit_traceability/measurement_readiness/validate.py \
+  ls-conformance/profit_traceability/measurement_readiness/fixtures/robys_menu_to_visit.instrumentation_required.json
+python -m unittest discover \
+  -s ls-conformance/profit_traceability/measurement_readiness/tests -v
 ```
 
 ## Relationship to Product Traceability
