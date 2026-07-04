@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "robys-attribution-input.v0",
+  "runId": "ATTRRUN-ROBYS-BASELINE-001",
+  "mode": "BASELINE",
+  "productRef": "PROD-ROBYS-WEB",
+  "measurementPlanRef": "MPLAN-ROBYS-MENU-TO-VISIT-001",
+  "currency": "TRY",
+  "attributionWindowHours": 24,
+  "webEvents": [
+    {
+      "eventId": "wev_001",
+      "eventName": "visit_intent_created",
+      "occurredAt": "2026-07-04T09:00:00+03:00",
+      "campaignToken": "rv_aaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "eventId": "wev_002",
+      "eventName": "visit_intent_created",
+      "occurredAt": "2026-07-04T10:00:00+03:00",
+      "campaignToken": "rv_bbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "eventId": "wev_002",
+      "eventName": "visit_intent_created",
+      "occurredAt": "2026-07-04T10:00:00+03:00",
+      "campaignToken": "rv_bbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "posOrders": [
+    {
+      "orderId": "ord_001",
+      "orderedAt": "2026-07-04T11:00:00+03:00",
+      "campaignToken": "rv_aaaaaaaaaaaaaaaaaaaa",
+      "grossRevenue": "300.00",
+      "currency": "TRY",
+      "variableCost": "140.00"
+    },
+    {
+      "orderId": "ord_002",
+      "orderedAt": "2026-07-05T13:00:00+03:00",
+      "campaignToken": "rv_bbbbbbbbbbbbbbbbbbbb",
+      "grossRevenue": "250.00",
+      "currency": "TRY",
+      "variableCost": "120.00"
+    },
+    {
+      "orderId": "ord_003",
+      "orderedAt": "2026-07-04T11:30:00+03:00",
+      "campaignToken": "rv_cccccccccccccccccccc",
+      "grossRevenue": "200.00",
+      "currency": "TRY",
+      "variableCost": "90.00"
+    }
+  ]
+}
