@@ -63,7 +63,7 @@ Every evidence object is bound to the exact implementation id and 40-character h
 
 [`reference_runtime`](./reference_runtime/README.md) provides an executable standard-library implementation of the required web-event to POS-order join.
 
-V0 is bound to the approved measurement plan, accepts only `BASELINE` mode and the 24-hour attribution window, and rejects noncanonical money formats or unsafe identifiers.
+V0 is bound to the approved measurement plan, accepts only `BASELINE` mode and the 24-hour attribution window, and rejects noncanonical money formats, unsafe identifiers, and non-object JSON inputs.
 
 It deterministically classifies orders as matched, expired, unmatched, or ambiguous and calculates attributable gross revenue, variable costs, and gross contribution before acquisition and experiment costs.
 
@@ -102,4 +102,4 @@ python -m unittest discover \
   -s ls-conformance/profit_traceability/measurement_readiness/reference_runtime/tests -v
 ```
 
-The readiness regression suite contains 15 positive and negative tests. The attribution runtime adds 19 tests covering complete deterministic output, decision-bound baseline authority, deduplication, ambiguity, TTL boundaries, canonical decimal money handling, and fail-closed input validation.
+The readiness regression suite contains 15 positive and negative tests. The attribution runtime adds 20 tests covering complete deterministic output, decision-bound baseline authority, deduplication, ambiguity, TTL boundaries, canonical decimal money handling, non-object JSON, and fail-closed input validation.
