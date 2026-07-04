@@ -74,6 +74,11 @@ def validate_semantics(bundle: dict[str, Any]) -> None:
         "web token and POS contracts must use the same join key",
     )
 
+    require(
+        readiness["planRef"] == plan["id"],
+        "readinessDecision.planRef must match measurementPlan.id",
+    )
+
     evidence_by_id = {item["id"]: item for item in evidence}
     require(len(evidence_by_id) == len(evidence), "evidence IDs must be unique")
     missing_evidence = set(readiness["evidenceRefs"]) - set(evidence_by_id)
@@ -84,6 +89,18 @@ def validate_semantics(bundle: dict[str, Any]) -> None:
     evidence_kinds = {
         evidence_by_id[evidence_id]["kind"] for evidence_id in readiness["evidenceRefs"]
     }
+
+    if evidence:
+        require(implementation is not None, "evidence requires an implementation")
+        for item in evidence:
+            require(
+                item["implementationRef"] == implementation["id"],
+                "evidence.implementationRef must match implementation.id",
+            )
+            require(
+                item["headSha"] == implementation["headSha"],
+                "evidence.headSha must match the exact implementation headSha",
+            )
 
     if plan["status"] == "INSTRUMENTATION_REQUIRED":
         require(
@@ -103,6 +120,10 @@ def validate_semantics(bundle: dict[str, Any]) -> None:
         require(
             implementation["status"] == "VERIFIED",
             f"{plan['status']} requires VERIFIED implementation",
+        )
+        require(
+            readiness.get("implementationRef") == implementation["id"],
+            f"{plan['status']} requires readinessDecision.implementationRef",
         )
         require(
             not plan["blockers"],
@@ -138,6 +159,19 @@ def validate_semantics(bundle: dict[str, Any]) -> None:
     active_refs = set(snapshot["activePlanRefs"])
     blocked_refs = set(snapshot["blockedPlanRefs"])
 
+    known_plan_refs = {plan_id}
+    require(
+        not (source_refs - known_plan_refs),
+        "snapshot.sourcePlanRefs contains unknown plans",
+    )
+    require(
+        not (active_refs - known_plan_refs),
+        "snapshot.activePlanRefs contains unknown plans",
+    )
+    require(
+        not (blocked_refs - known_plan_refs),
+        "snapshot.blockedPlanRefs contains unknown plans",
+    )
     require(plan_id in source_refs, "snapshot.sourcePlanRefs must include plan.id")
     is_active = plan["status"] in {
         "READY_FOR_BASELINE",
