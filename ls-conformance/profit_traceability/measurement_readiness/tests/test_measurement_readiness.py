@@ -41,6 +41,8 @@ class MeasurementReadinessTests(unittest.TestCase):
                 "locator": "test:visit-token",
                 "supports": "Token is issued and persisted without PII",
                 "confidence": 0.95,
+                "implementationRef": "MIMPL-ROBYS-MENU-TO-VISIT-001",
+                "headSha": "a" * 40,
             },
             {
                 "id": "MEVD-ROBYS-JOIN-001",
@@ -50,9 +52,13 @@ class MeasurementReadinessTests(unittest.TestCase):
                 "locator": "test:pos-join",
                 "supports": "Web token joins exactly one POS order",
                 "confidence": 0.95,
+                "implementationRef": "MIMPL-ROBYS-MENU-TO-VISIT-001",
+                "headSha": "a" * 40,
             },
         ]
         changed["readinessDecision"] = {
+            "planRef": changed["measurementPlan"]["id"],
+            "implementationRef": changed["implementation"]["id"],
             "status": "READY_FOR_BASELINE",
             "reason": "Verified instrumentation and POS join evidence are present.",
             "evidenceRefs": [
@@ -136,6 +142,22 @@ class MeasurementReadinessTests(unittest.TestCase):
         changed["snapshot"]["sourcePlanRefs"] = []
         with self.assertRaisesRegex(
             validator.MeasurementReadinessValidationError, "must include plan.id"
+        ):
+            validator.validate_semantics(changed)
+
+    def test_rejects_stale_head_evidence(self):
+        changed = self.ready_bundle()
+        changed["evidence"][0]["headSha"] = "b" * 40
+        with self.assertRaisesRegex(
+            validator.MeasurementReadinessValidationError, "exact implementation headSha"
+        ):
+            validator.validate_semantics(changed)
+
+    def test_rejects_unknown_snapshot_plan(self):
+        changed = copy.deepcopy(self.bundle)
+        changed["snapshot"]["sourcePlanRefs"].append("MPLAN-UNKNOWN-001")
+        with self.assertRaisesRegex(
+            validator.MeasurementReadinessValidationError, "unknown plans"
         ):
             validator.validate_semantics(changed)
 
