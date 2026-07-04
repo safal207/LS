@@ -12,7 +12,13 @@ from pathlib import Path
 from typing import Any, Iterable, NamedTuple
 
 TOKEN_RE = re.compile(r"^rv_[a-z0-9]{20}$")
+RUN_ID_RE = re.compile(r"^ATTRRUN-[A-Z0-9-]{3,80}$")
+EVENT_ID_RE = re.compile(r"^wev_[a-z0-9][a-z0-9_-]{2,63}$")
+ORDER_ID_RE = re.compile(r"^ord_[a-z0-9][a-z0-9_-]{2,63}$")
+MONEY_RE = re.compile(r"^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,2})?$")
 MONEY_QUANTUM = Decimal("0.01")
+MEASUREMENT_PLAN_REF = "MPLAN-ROBYS-MENU-TO-VISIT-001"
+ATTRIBUTION_WINDOW_HOURS = 24
 
 
 class AttributionError(ValueError):
@@ -35,16 +41,15 @@ def parse_datetime(value: str, field: str) -> datetime:
 
 def parse_money(value: str, field: str) -> Decimal:
     require(isinstance(value, str), f"{field} must be a decimal string")
+    require(
+        bool(MONEY_RE.fullmatch(value)),
+        f"{field} must use canonical non-negative decimal notation with at most 2 decimal places",
+    )
     try:
         amount = Decimal(value)
     except InvalidOperation as exc:
         raise AttributionError(f"{field} must be a valid decimal string") from exc
     require(amount.is_finite(), f"{field} must be finite")
-    require(amount >= 0, f"{field} must be non-negative")
-    require(
-        amount == amount.quantize(MONEY_QUANTUM),
-        f"{field} must have at most 2 decimal places",
-    )
     return amount
 
 
@@ -81,6 +86,7 @@ def validate_input(bundle: dict[str, Any]) -> None:
         "runId",
         "mode",
         "productRef",
+        "measurementPlanRef",
         "currency",
         "attributionWindowHours",
         "webEvents",
@@ -95,20 +101,25 @@ def validate_input(bundle: dict[str, Any]) -> None:
         "unsupported schemaVersion",
     )
     require(
-        isinstance(bundle["runId"], str) and bundle["runId"].startswith("ATTRRUN-"),
+        isinstance(bundle["runId"], str)
+        and bool(RUN_ID_RE.fullmatch(bundle["runId"])),
         "runId is invalid",
     )
     require(
-        bundle["mode"] in {"BASELINE", "EXPERIMENT"},
-        "mode must be BASELINE or EXPERIMENT",
+        bundle["mode"] == "BASELINE",
+        "V0 runtime only authorizes BASELINE mode",
     )
     require(
         bundle["productRef"] == "PROD-ROBYS-WEB",
         "productRef must be PROD-ROBYS-WEB",
     )
     require(
+        bundle["measurementPlanRef"] == MEASUREMENT_PLAN_REF,
+        "measurementPlanRef must match the approved readiness plan",
+    )
+    require(
         isinstance(bundle["currency"], str)
-        and re.fullmatch(r"[A-Z]{3}", bundle["currency"]),
+        and bool(re.fullmatch(r"[A-Z]{3}", bundle["currency"])),
         "currency must be ISO-4217 style",
     )
     require(
@@ -116,8 +127,8 @@ def validate_input(bundle: dict[str, Any]) -> None:
         "attributionWindowHours must be an integer",
     )
     require(
-        1 <= bundle["attributionWindowHours"] <= 168,
-        "attributionWindowHours must be between 1 and 168",
+        bundle["attributionWindowHours"] == ATTRIBUTION_WINDOW_HOURS,
+        "attributionWindowHours must match the approved 24-hour readiness contract",
     )
     require(isinstance(bundle["webEvents"], list), "webEvents must be an array")
     require(isinstance(bundle["posOrders"], list), "posOrders must be an array")
@@ -134,7 +145,7 @@ def validate_input(bundle: dict[str, Any]) -> None:
         )
         require(
             isinstance(event["eventId"], str)
-            and event["eventId"].startswith("wev_"),
+            and bool(EVENT_ID_RE.fullmatch(event["eventId"])),
             f"webEvents[{index}].eventId is invalid",
         )
         require(
@@ -158,7 +169,7 @@ def validate_input(bundle: dict[str, Any]) -> None:
         )
         require(
             isinstance(order["orderId"], str)
-            and order["orderId"].startswith("ord_"),
+            and bool(ORDER_ID_RE.fullmatch(order["orderId"])),
             f"posOrders[{index}].orderId is invalid",
         )
         require(
@@ -196,7 +207,7 @@ def calculate_attribution(bundle: dict[str, Any]) -> dict[str, Any]:
     for refs in events_by_token.values():
         refs.sort(key=lambda item: (item.occurred_at, item.event_id))
 
-    ttl = timedelta(hours=bundle["attributionWindowHours"])
+    ttl = timedelta(hours=ATTRIBUTION_WINDOW_HOURS)
     matched: list[dict[str, Any]] = []
     unmatched: list[str] = []
     expired: list[str] = []
@@ -255,8 +266,9 @@ def calculate_attribution(bundle: dict[str, Any]) -> dict[str, Any]:
         "runId": bundle["runId"],
         "mode": bundle["mode"],
         "productRef": bundle["productRef"],
+        "measurementPlanRef": bundle["measurementPlanRef"],
         "currency": bundle["currency"],
-        "attributionWindowHours": bundle["attributionWindowHours"],
+        "attributionWindowHours": ATTRIBUTION_WINDOW_HOURS,
         "status": status,
         "deduplication": {
             "inputWebEvents": len(bundle["webEvents"]),
