@@ -28,6 +28,12 @@ jobs:
           python ls-conformance/causal_phase_trail/validate.py \
             ls-conformance/causal_phase_trail/fixtures/robys_pr_164_wordmark.json
 
+      - name: Validate individual system environment overlay
+        run: |
+          python ls-conformance/causal_phase_trail/validate_levels.py \
+            ls-conformance/causal_phase_trail/fixtures/robys_pr_164_wordmark.json \
+            ls-conformance/causal_phase_trail/fixtures/robys_pr_164_levels.json
+
       - name: Run mutation suite
         run: |
           python -m unittest discover \
@@ -40,9 +46,10 @@ jobs:
           import os
           from pathlib import Path
 
-          trail = json.loads(Path(
-              "ls-conformance/causal_phase_trail/fixtures/robys_pr_164_wordmark.json"
-          ).read_text(encoding="utf-8"))
+          root = Path("ls-conformance/causal_phase_trail/fixtures")
+          trail = json.loads((root / "robys_pr_164_wordmark.json").read_text(encoding="utf-8"))
+          levels = json.loads((root / "robys_pr_164_levels.json").read_text(encoding="utf-8"))
+          loop = " -> ".join(levels["summary"]["dominantLoop"])
           lines = [
               "# Causal Phase Trail 001",
               "",
@@ -51,7 +58,8 @@ jobs:
               f"**Exact head:** `{trail['subject']['currentHead']}`  ",
               f"**Current phase:** {trail['decision']['currentPhase']}  ",
               f"**Best route:** {trail['decision']['bestRouteId']}  ",
-              f"**Unresolved blockers:** {len(trail['decision']['unresolvedBlockerNodeIds'])}",
+              f"**Unresolved blockers:** {len(trail['decision']['unresolvedBlockerNodeIds'])}  ",
+              f"**Level loop:** {loop}",
               "",
               "> This trail records evidence and explanation. It grants no merge or execution authority.",
           ]
