@@ -14,6 +14,7 @@ spec.loader.exec_module(validator)
 
 FIXTURE = ROOT / "fixtures" / "robys_menu_to_visit.instrumentation_required.json"
 SCHEMA = ROOT / "schema.json"
+PARENT_FIXTURE = ROOT.parent / "fixtures" / "robys_menu_to_visit.blocked.json"
 
 
 class MeasurementReadinessTests(unittest.TestCase):
@@ -71,7 +72,7 @@ class MeasurementReadinessTests(unittest.TestCase):
         return changed
 
     def test_blocked_fixture_passes_full_validation(self):
-        validator.validate_file(FIXTURE, SCHEMA)
+        validator.validate_file(FIXTURE, SCHEMA, PARENT_FIXTURE)
 
     def test_ready_bundle_passes(self):
         validator.validate_semantics(self.ready_bundle())
@@ -161,6 +162,26 @@ class MeasurementReadinessTests(unittest.TestCase):
         ):
             validator.validate_semantics(changed)
 
+    def test_rejects_parent_candidate_digest_mismatch(self):
+        parent = json.loads(PARENT_FIXTURE.read_text(encoding="utf-8"))
+        changed = copy.deepcopy(self.bundle)
+        changed["decisionBinding"]["candidateDigest"] = "sha256:" + "0" * 64
+        with self.assertRaisesRegex(
+            validator.MeasurementReadinessValidationError, "parent candidate digest"
+        ):
+            validator.validate_parent_binding(changed, parent)
+
+    def test_rejects_parent_locator_traversal(self):
+        parent = json.loads(PARENT_FIXTURE.read_text(encoding="utf-8"))
+        changed = copy.deepcopy(self.bundle)
+        changed["sourceProfitBundle"]["locator"] = (
+            "../fixtures/robys_menu_to_visit.blocked.json"
+        )
+        with self.assertRaisesRegex(
+            validator.MeasurementReadinessValidationError, "safe repo-relative"
+        ):
+            validator.validate_parent_binding(changed, parent)
+
     def test_full_validation_rejects_malformed_datetime(self):
         changed = copy.deepcopy(self.bundle)
         changed["measurementPlan"]["createdAt"] = "not-a-date-time"
@@ -171,7 +192,7 @@ class MeasurementReadinessTests(unittest.TestCase):
                 validator.MeasurementReadinessValidationError,
                 "JSON Schema validation failed",
             ):
-                validator.validate_file(path, SCHEMA)
+                validator.validate_file(path, SCHEMA, PARENT_FIXTURE)
 
 
 if __name__ == "__main__":
