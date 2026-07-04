@@ -34,6 +34,12 @@ jobs:
             ls-conformance/causal_phase_trail/fixtures/robys_pr_164_wordmark.json \
             ls-conformance/causal_phase_trail/fixtures/robys_pr_164_levels.json
 
+      - name: Validate July 2026 visual benchmark axis
+        run: |
+          python ls-conformance/causal_phase_trail/validate_visual_benchmark.py \
+            ls-conformance/causal_phase_trail/fixtures/robys_pr_164_wordmark.json \
+            ls-conformance/causal_phase_trail/fixtures/robys_pr_164_visual_benchmark_2026_07.json
+
       - name: Run mutation suite
         run: |
           python -m unittest discover \
@@ -49,7 +55,9 @@ jobs:
           root = Path("ls-conformance/causal_phase_trail/fixtures")
           trail = json.loads((root / "robys_pr_164_wordmark.json").read_text(encoding="utf-8"))
           levels = json.loads((root / "robys_pr_164_levels.json").read_text(encoding="utf-8"))
+          benchmark = json.loads((root / "robys_pr_164_visual_benchmark_2026_07.json").read_text(encoding="utf-8"))
           loop = " -> ".join(levels["summary"]["dominantLoop"])
+          largest_gap = ", ".join(benchmark["summary"]["largestGapCriterionIds"])
           lines = [
               "# Causal Phase Trail 001",
               "",
@@ -59,9 +67,13 @@ jobs:
               f"**Current phase:** {trail['decision']['currentPhase']}  ",
               f"**Best route:** {trail['decision']['bestRouteId']}  ",
               f"**Unresolved blockers:** {len(trail['decision']['unresolvedBlockerNodeIds'])}  ",
-              f"**Level loop:** {loop}",
+              f"**Level loop:** {loop}  ",
+              f"**Visual benchmark period:** {benchmark['benchmarkWindow']['periodKey']}  ",
+              f"**Visual score:** {benchmark['summary']['weightedCurrentScore']} / {benchmark['summary']['weightedTargetScore']}  ",
+              f"**Largest visual gap:** {largest_gap}  ",
+              f"**Benchmark refresh after:** {benchmark['summary']['refreshRequiredAfter']}",
               "",
-              "> This trail records evidence and explanation. It grants no merge or execution authority.",
+              "> Trail and visual benchmark record evidence and explanation. Neither grants merge or execution authority.",
           ]
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
               summary.write("\n".join(lines) + "\n")
