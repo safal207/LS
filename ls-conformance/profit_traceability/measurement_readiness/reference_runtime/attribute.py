@@ -81,6 +81,7 @@ def dedupe_by_id(
 
 
 def validate_input(bundle: dict[str, Any]) -> None:
+    require(isinstance(bundle, dict), "input must be a JSON object")
     required_top = {
         "schemaVersion",
         "runId",
@@ -306,7 +307,12 @@ def main() -> int:
     try:
         bundle = json.loads(args.input.read_text(encoding="utf-8"))
         result = calculate_attribution(bundle)
-    except (OSError, json.JSONDecodeError, AttributionError) as exc:
+    except (
+        OSError,
+        TypeError,
+        json.JSONDecodeError,
+        AttributionError,
+    ) as exc:
         print(f"INVALID: {exc}", file=sys.stderr)
         return 1
     rendered = json.dumps(result, indent=2, ensure_ascii=False) + "\n"
