@@ -73,18 +73,71 @@ score = riskReduction
 
 The score is advisory. The selected route must also contain a human-readable explanation and may not be selected from the number alone.
 
+## Causal levels
+
+The exact-head level overlay assigns every trail node to `INDIVIDUAL`, `SYSTEM`, or `ENVIRONMENT` and validates the closed feedback loop:
+
+```text
+INDIVIDUAL -> SYSTEM -> ENVIRONMENT -> SYSTEM -> INDIVIDUAL
+```
+
+See `LEVEL_MODEL.md`.
+
+## Time-scoped visual benchmark axis
+
+`VBA-001` compares exact-head interface evidence with current external UI/UX references for a named month or year:
+
+```text
+our interface evidence
+  + normative guidance
+  + current design-system guidance
+  + current trend/exemplar feed
+  -> criterion gaps
+  -> ADOPT / EXPERIMENT / DEFER / REJECT
+```
+
+The visual axis is deliberately separate from the causal levels. It answers whether a route is visually competitive now, while the levels answer where causes and constraints live.
+
+Fail-closed rules include:
+
+- every assessment binds both interface evidence and external source evidence;
+- normative criteria require a normative source;
+- trend-only evidence cannot directly justify `ADOPT`;
+- every `EXPERIMENT` requires a guard;
+- fast-moving sources expire quickly;
+- scores and largest gaps are recomputed;
+- the benchmark is always `ADVISORY_ONLY` and never grants merge authority.
+
+The July 2026 Roby's fixture preserves the distinctive wordmark, proposes guarded experiments in expressive motion and tactile editorial imagery, rejects novelty navigation, and identifies product storytelling as the largest visual gap.
+
+See `VISUAL_BENCHMARK_MODEL.md`.
+
 ## Files
 
-- `causal-phase-trail.schema.json` — closed serialized shape;
-- `validate.py` — deterministic semantic validator;
+- `causal-phase-trail.schema.json` — closed serialized trail shape;
+- `validate.py` — deterministic trail validator;
+- `causal-level-overlay.schema.json` — closed causal-level overlay shape;
+- `validate_levels.py` — deterministic level validator;
+- `visual-benchmark-axis.schema.json` — closed time-scoped benchmark shape;
+- `validate_visual_benchmark.py` — deterministic benchmark validator;
 - `fixtures/robys_pr_164_wordmark.json` — real CPT-001 specimen;
-- `tests/test_causal_phase_trail.py` — positive and mutation coverage.
+- `fixtures/robys_pr_164_levels.json` — three-level causal overlay;
+- `fixtures/robys_pr_164_visual_benchmark_2026_07.json` — July 2026 visual benchmark;
+- `tests/` — positive and mutation coverage.
 
 ## Run
 
 ```bash
 python ls-conformance/causal_phase_trail/validate.py \
   ls-conformance/causal_phase_trail/fixtures/robys_pr_164_wordmark.json
+
+python ls-conformance/causal_phase_trail/validate_levels.py \
+  ls-conformance/causal_phase_trail/fixtures/robys_pr_164_wordmark.json \
+  ls-conformance/causal_phase_trail/fixtures/robys_pr_164_levels.json
+
+python ls-conformance/causal_phase_trail/validate_visual_benchmark.py \
+  ls-conformance/causal_phase_trail/fixtures/robys_pr_164_wordmark.json \
+  ls-conformance/causal_phase_trail/fixtures/robys_pr_164_visual_benchmark_2026_07.json
 
 python -m unittest discover \
   -s ls-conformance/causal_phase_trail/tests -v
