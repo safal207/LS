@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/ls-conformance/causal_phase_trail/causal-level-overlay.schema.json",
+  "title": "LS Causal Level Interaction Overlay V0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "overlayId",
+    "authority",
+    "trailRef",
+    "levelDefinitions",
+    "assignments",
+    "interactions",
+    "summary"
+  ],
+  "properties": {
+    "schemaVersion": {"const": "ls.causal-level-overlay.v0"},
+    "overlayId": {"type": "string", "pattern": "^CLO-[A-Z0-9-]{3,80}$"},
+    "authority": {"const": "EVIDENCE_ONLY"},
+    "trailRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trailId", "path", "currentHead"],
+      "properties": {
+        "trailId": {"type": "string", "pattern": "^CPT-[A-Z0-9-]{3,80}$"},
+        "path": {"type": "string", "minLength": 1},
+        "currentHead": {"$ref": "#/$defs/sha"}
+      }
+    },
+    "levelDefinitions": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["level", "meaning"],
+        "properties": {
+          "level": {"$ref": "#/$defs/level"},
+          "meaning": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "assignments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["nodeId", "level", "rationale"],
+        "properties": {
+          "nodeId": {"$ref": "#/$defs/id"},
+          "level": {"$ref": "#/$defs/level"},
+          "rationale": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "interactions": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "edgeId",
+          "fromNodeId",
+          "toNodeId",
+          "fromLevel",
+          "toLevel",
+          "mode",
+          "mechanism",
+          "evidenceNodeIds",
+          "explanation"
+        ],
+        "properties": {
+          "id": {"$ref": "#/$defs/id"},
+          "edgeId": {
+            "oneOf": [
+              {"$ref": "#/$defs/id"},
+              {"type": "null"}
+            ]
+          },
+          "fromNodeId": {"$ref": "#/$defs/id"},
+          "toNodeId": {"$ref": "#/$defs/id"},
+          "fromLevel": {"$ref": "#/$defs/level"},
+          "toLevel": {"$ref": "#/$defs/level"},
+          "mode": {"enum": ["INTRA_LEVEL", "CROSS_LEVEL"]},
+          "mechanism": {
+            "enum": [
+              "OBSERVES",
+              "CONSTRAINS",
+              "MODIFIES",
+              "INVALIDATES",
+              "CONFIRMS",
+              "ADAPTS_TO",
+              "AMPLIFIES",
+              "BLOCKS"
+            ]
+          },
+          "evidenceNodeIds": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/id"},
+            "uniqueItems": true
+          },
+          "explanation": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dominantLoop", "conclusion"],
+      "properties": {
+        "dominantLoop": {
+          "type": "array",
+          "minItems": 3,
+          "items": {"$ref": "#/$defs/level"}
+        },
+        "conclusion": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9._-]{2,79}$"},
+    "level": {"enum": ["INDIVIDUAL", "SYSTEM", "ENVIRONMENT"]}
+  }
+}
