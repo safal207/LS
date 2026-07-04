@@ -189,9 +189,62 @@ def validate_semantics(bundle: dict[str, Any]) -> None:
     )
 
 
-def validate_file(bundle_path: Path, schema_path: Path) -> None:
+def validate_parent_binding(bundle: dict[str, Any], parent: dict[str, Any]) -> None:
+    source = bundle["sourceProfitBundle"]
+    binding = bundle["decisionBinding"]
+    require(
+        source["locator"]
+        == "ls-conformance/profit_traceability/fixtures/robys_menu_to_visit.blocked.json",
+        "sourceProfitBundle.locator must be the safe repo-relative parent fixture path",
+    )
+    require(
+        source["bundleId"] == parent["bundleId"],
+        "sourceProfitBundle.bundleId must match the parent profit bundle",
+    )
+    require(
+        bundle["productRef"] == parent["product"]["productId"],
+        "productRef must match the parent profit bundle product",
+    )
+    require(
+        bundle["economicCandidateRef"] == parent["candidate"]["id"],
+        "economicCandidateRef must match the parent candidate",
+    )
+    require(
+        binding["decisionRef"] == parent["decision"]["id"],
+        "decisionBinding.decisionRef must match the parent decision",
+    )
+    require(
+        binding["candidateRef"]
+        == parent["decision"]["candidateRef"]
+        == parent["candidate"]["id"],
+        "decisionBinding.candidateRef must match the parent candidate binding",
+    )
+    require(
+        binding["candidateDigest"]
+        == parent["decision"]["candidateDigest"]
+        == parent["candidate"]["contentDigest"],
+        "decisionBinding.candidateDigest must match the parent candidate digest",
+    )
+    require(
+        binding["verdict"] == parent["decision"]["verdict"],
+        "decisionBinding.verdict must match the parent decision verdict",
+    )
+
+
+def validate_file(
+    bundle_path: Path,
+    schema_path: Path,
+    profit_bundle_path: Path | None = None,
+) -> None:
     bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    if profit_bundle_path is None:
+        profit_bundle_path = (
+            Path(__file__).parent.parent
+            / "fixtures"
+            / "robys_menu_to_visit.blocked.json"
+        )
+    parent = json.loads(profit_bundle_path.read_text(encoding="utf-8"))
     validator = Draft202012Validator(schema, format_checker=FormatChecker())
     errors = sorted(validator.iter_errors(bundle), key=lambda item: list(item.path))
     if errors:
@@ -202,6 +255,7 @@ def validate_file(bundle_path: Path, schema_path: Path) -> None:
         raise MeasurementReadinessValidationError(
             f"JSON Schema validation failed:\n{details}"
         )
+    validate_parent_binding(bundle, parent)
     validate_semantics(bundle)
 
 
@@ -211,9 +265,18 @@ def main() -> int:
     parser.add_argument(
         "--schema", type=Path, default=Path(__file__).with_name("schema.json")
     )
+    parser.add_argument(
+        "--profit-bundle",
+        type=Path,
+        default=(
+            Path(__file__).parent.parent
+            / "fixtures"
+            / "robys_menu_to_visit.blocked.json"
+        ),
+    )
     args = parser.parse_args()
     try:
-        validate_file(args.bundle, args.schema)
+        validate_file(args.bundle, args.schema, args.profit_bundle)
     except (OSError, json.JSONDecodeError, MeasurementReadinessValidationError) as exc:
         print(f"INVALID: {exc}", file=sys.stderr)
         return 1
