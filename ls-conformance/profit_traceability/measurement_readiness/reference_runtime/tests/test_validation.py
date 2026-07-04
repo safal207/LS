@@ -3,6 +3,10 @@ from _support import load_bundle, runtime
 
 
 class ValidationTests(unittest.TestCase):
+    def test_non_object_input_is_rejected(self):
+        with self.assertRaisesRegex(runtime.AttributionError, "JSON object"):
+            runtime.calculate_attribution([])
+
     def test_experiment_mode_is_rejected(self):
         bundle = load_bundle()
         bundle["mode"] = "EXPERIMENT"
