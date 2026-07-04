@@ -1,8 +1,15 @@
+import json
 import unittest
-from _support import load_bundle, runtime
+from _support import ROOT, load_bundle, runtime
 
 
 class ReferenceTests(unittest.TestCase):
+    def test_reference_output_is_fully_deterministic(self):
+        expected = json.loads(
+            (ROOT / "fixtures" / "reference_output.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(runtime.calculate_attribution(load_bundle()), expected)
+
     def test_reference_totals_and_classification(self):
         result = runtime.calculate_attribution(load_bundle())
         self.assertEqual(result["status"], "ATTRIBUTION_CALCULATED")
