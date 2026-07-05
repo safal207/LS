@@ -1,0 +1,27 @@
+name: Causal delivery tails
+
+on:
+  pull_request:
+    paths:
+      - "ls-conformance/causal_phase_trail/fixtures/robys_pr_165_open_delivery_tails.json"
+      - "ls-conformance/causal_phase_trail/validate.py"
+      - ".github/workflows/causal-delivery-tails.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  validate-delivery-tails:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Validate Robys PR 165 delivery tails
+        run: >-
+          python ls-conformance/causal_phase_trail/validate.py
+          ls-conformance/causal_phase_trail/fixtures/robys_pr_165_open_delivery_tails.json
