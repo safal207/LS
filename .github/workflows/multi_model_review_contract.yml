@@ -9,6 +9,7 @@ on:
       - ".github/workflows/multi_model_review_contract.yml"
       - ".github/workflows/multi_model_pr_review.yml"
       - "scripts/run_multi_model_pr_review.py"
+      - "scripts/multi_model_review/**"
       - "python/tests/test_multi_model_pr_review.py"
       - "docs/MULTI_MODEL_PR_REVIEW.md"
   pull_request:
@@ -40,7 +41,7 @@ jobs:
           python-version: "3.11"
 
       - name: Compile the review runtime
-        run: python -m py_compile scripts/run_multi_model_pr_review.py
+        run: python -m py_compile scripts/run_multi_model_pr_review.py scripts/multi_model_review/*.py
 
       - name: Run deterministic contract tests
         run: python -m unittest python/tests/test_multi_model_pr_review.py -v
