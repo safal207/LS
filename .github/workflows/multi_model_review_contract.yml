@@ -6,6 +6,7 @@ on:
       - main
     paths: &multi_model_review_paths
       - ".github/ai-review-models.json"
+      - ".github/ai-review-provider-routes.json"
       - ".github/workflows/multi_model_review_contract.yml"
       - ".github/workflows/multi_model_pr_review.yml"
       - "scripts/run_multi_model_pr_review.py"
@@ -60,15 +61,20 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Validate the checked-in model roster
+      - name: Validate neutral roster and provider route binding
         run: |
           python - <<'PY'
           import sys
           from pathlib import Path
 
           sys.path.insert(0, "scripts")
-          from run_multi_model_pr_review import load_config
+          from run_multi_model_pr_review import bind_provider_routes, load_config, load_provider_config
 
           roster = load_config(Path(".github/ai-review-models.json"))
-          print(f"validated {len(roster['models'])} model roles")
+          provider = load_provider_config(Path(".github/ai-review-provider-routes.json"))
+          bound = bind_provider_routes(roster, provider)
+          print(
+              f"validated {len(roster['models'])} neutral roles against "
+              f"provider={bound['provider']['key']} adapter={bound['provider']['adapter']}"
+          )
           PY
