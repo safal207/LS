@@ -19,8 +19,8 @@
       "activation": "always",
       "model": "cohere/north-mini-code:free",
       "fallbacks": [
-        "openai/gpt-oss-120b:free",
-        "nvidia/nemotron-3-ultra-550b-a55b:free"
+        "tencent/hy3:free",
+        "poolside/laguna-xs-2.1:free"
       ]
     },
     {
@@ -29,8 +29,8 @@
       "activation": "always",
       "model": "poolside/laguna-xs-2.1:free",
       "fallbacks": [
-        "nvidia/nemotron-3-ultra-550b-a55b:free",
-        "openai/gpt-oss-120b:free"
+        "cohere/north-mini-code:free",
+        "tencent/hy3:free"
       ]
     },
     {
@@ -39,8 +39,8 @@
       "activation": "always",
       "model": "tencent/hy3:free",
       "fallbacks": [
-        "openai/gpt-oss-120b:free",
-        "nvidia/nemotron-3-ultra-550b-a55b:free"
+        "poolside/laguna-xs-2.1:free",
+        "cohere/north-mini-code:free"
       ]
     },
     {
@@ -48,18 +48,14 @@
       "role": "architecture_and_governance_reviewer",
       "activation": "high_risk",
       "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
-      "fallbacks": [
-        "openai/gpt-oss-120b:free"
-      ]
+      "fallbacks": []
     },
     {
       "key": "tie_breaker",
       "role": "evidence_tie_breaker",
       "activation": "conflict",
       "model": "openai/gpt-oss-120b:free",
-      "fallbacks": [
-        "nvidia/nemotron-3-ultra-550b-a55b:free"
-      ]
+      "fallbacks": []
     }
   ]
 }
