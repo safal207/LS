@@ -76,6 +76,7 @@ class RecordingClient:
             }
         )
         if model_id in {
+            "cohere/north-mini-code:free",
             "poolside/laguna-xs-2.1:free",
             "tencent/hy3:free",
         }:
