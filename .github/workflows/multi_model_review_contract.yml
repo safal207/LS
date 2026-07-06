@@ -44,7 +44,21 @@ jobs:
         run: python -m py_compile scripts/run_multi_model_pr_review.py scripts/multi_model_review/*.py
 
       - name: Run deterministic contract tests
-        run: python -m unittest python/tests/test_multi_model_pr_review.py -v
+        run: |
+          set +e
+          python -m unittest python/tests/test_multi_model_pr_review.py -v > multi-model-contract-tests.log 2>&1
+          result=$?
+          cat multi-model-contract-tests.log
+          exit "${result}"
+
+      - name: Upload contract-test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-model-contract-tests-${{ github.sha }}
+          path: multi-model-contract-tests.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Validate the checked-in model roster
         run: |
