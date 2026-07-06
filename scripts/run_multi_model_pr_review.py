@@ -89,7 +89,7 @@ def main() -> int:
         write_outputs(artifact, args.output, args.markdown_output)
         print(json.dumps({"status": artifact["status"], "verdict": artifact["aggregate"]["verdict"], "policy": artifact["policy"]}))
         return 2 if artifact["policy"]["enforced_block"] else 0
-    except ReviewRuntimeError as exc:
+    except (ReviewRuntimeError, OSError, ValueError, TypeError) as exc:
         print(f"multi-model review error: {exc}", file=sys.stderr)
         return 3
 
