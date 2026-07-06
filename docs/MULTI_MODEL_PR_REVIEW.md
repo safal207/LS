@@ -6,9 +6,11 @@ provider-neutral review runtime.
 ```text
 exact PR diff
 -> bounded and redacted evidence packet
+-> high-risk specialist reservation
 -> independent role-based reviews
 -> deterministic output validation
 -> candidate / confirmed findings
+-> bounded conflict evidence for the tie-breaker
 -> exact-head publication check
 -> human review evidence
 ```
@@ -52,16 +54,49 @@ The versioned roster lives in `.github/ai-review-models.json`.
 | Architecture/governance reviewer | `nvidia/nemotron-3-ultra-550b-a55b:free` | High-risk diffs |
 | Evidence tie-breaker | `openai/gpt-oss-120b:free` | Conflicting evidence |
 
-Each role has explicit free fallbacks. Before a call, the runtime reads the
-provider catalog and accepts an endpoint only when:
+The three always-on roles use a deterministic fallback pool. Specialist capacity
+is reserved before those roles resolve:
+
+```text
+high-risk architecture lane
+-> always-on lanes with specialist ids reserved
+-> conflict tie-breaker, only when conflict remains
+```
+
+This prevents an ordinary fallback from consuming the architecture or
+conflict-adjudication endpoint before those lanes can run. If a reserved
+specialist is unavailable, the lane is reported unavailable instead of silently
+borrowing authority from another role.
+
+Before a call, the runtime reads the provider catalog and accepts an endpoint
+only when:
 
 - the exact model id exists;
 - prompt and completion prices are numerically zero;
 - the endpoint has not passed its declared expiration date;
-- the resolved endpoint has not already filled another independent role.
+- the resolved endpoint has not already filled another independent role;
+- the endpoint is not reserved for a later specialist lane.
 
 A `:free` suffix is not trusted by itself. The runtime never removes that suffix
 or silently switches to an endpoint whose live catalog price is nonzero.
+
+## Role-specific review semantics
+
+Each role receives materially different instructions:
+
+- fast diff focuses on local changed-line regressions and API misuse;
+- deep implementation traces data flow, invariants, state transitions, and error paths;
+- challenger tries to falsify the PR claims and searches for bypasses;
+- architecture/governance reviews trust boundaries, authority, durability, and exact-head binding;
+- tie-breaker adjudicates only conflicts present in prior validated model output.
+
+The tie-breaker does not run as another generic reviewer. It receives a bounded,
+explicitly delimited packet containing prior role, model, verdict, summary, and
+finding evidence. That packet is treated as untrusted data, not as instructions.
+The tie-breaker must re-ground any retained finding in the exact diff.
+
+Role execution is deterministic rather than concurrent in v0.1. This preserves
+reservation order and makes degraded-lane behavior reproducible.
 
 ## Repository setup
 
@@ -151,23 +186,27 @@ Overlap requires:
 
 - the same exact reviewed file;
 - compatible line locations when both provide a line;
-- meaningful token overlap in the title and failure scenario.
+- meaningful token overlap in the title and failure scenario;
+- compatibility with every existing member of the finding cluster.
 
 A response is rejected when it is not one JSON object, uses an unknown verdict
 or severity, exceeds field limits, or points outside the reviewed files.
 
 ## Prompt-injection and data boundary
 
-The model receives only:
+Always-on and architecture models receive only:
 
 - exact-head metadata;
 - reviewed-file paths;
 - deterministic risk tags;
 - a bounded PR diff.
 
+The tie-breaker additionally receives bounded prior-review evidence containing
+validated fields only. Both the diff and the prior-review packet are explicitly
+tagged as untrusted.
+
 Before transmission, LS redacts common credential-shaped assignments, bearer
-values, and PEM key blocks. The packet is length-bounded and explicitly tagged
-as untrusted.
+values, and PEM key blocks. The packet is length-bounded.
 
 Models receive no GitHub token, tools, shell, repository checkout, or permission
 to apply patches. Returned text is schema-validated, whitespace-normalized, and
@@ -180,7 +219,7 @@ private repository. Private use therefore requires explicit opt-in.
 
 ```bash
 python -m py_compile scripts/run_multi_model_pr_review.py scripts/multi_model_review/*.py
-python -m unittest python/tests/test_multi_model_pr_review.py -v
+python -m unittest discover -s python/tests -p 'test_multi_model_pr_review*.py' -v
 ```
 
 ## Local advisory run
