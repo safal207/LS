@@ -153,8 +153,10 @@ def resolve_models(
     high_risk: bool,
     activation: str,
     used_model_ids: set[str] | None = None,
+    reserved_model_ids: set[str] | None = None,
 ) -> tuple[list[ResolvedModel], list[dict[str, Any]]]:
     used = set() if used_model_ids is None else set(used_model_ids)
+    reserved = set() if reserved_model_ids is None else set(reserved_model_ids)
     resolved: list[ResolvedModel] = []
     unavailable: list[dict[str, Any]] = []
     for item in config["models"]:
@@ -167,12 +169,22 @@ def resolve_models(
             (
                 candidate
                 for candidate in candidates
-                if candidate in catalog and model_is_active(catalog[candidate]) and candidate not in used
+                if candidate in catalog
+                and model_is_active(catalog[candidate])
+                and candidate not in used
+                and candidate not in reserved
             ),
             None,
         )
         if chosen is None:
-            unavailable.append({"key": item["key"], "requested_model": item["model"], "candidates": candidates})
+            unavailable.append(
+                {
+                    "key": item["key"],
+                    "requested_model": item["model"],
+                    "candidates": candidates,
+                    "reserved_candidates": [candidate for candidate in candidates if candidate in reserved],
+                }
+            )
             continue
         used.add(chosen)
         resolved.append(
