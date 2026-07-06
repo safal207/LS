@@ -39,7 +39,7 @@ def aggregate_reviews(reviews: list[dict[str, Any]], confirmation_threshold: int
 
     clusters: list[list[dict[str, Any]]] = []
     for finding in findings:
-        target = next((cluster for cluster in clusters if any(findings_overlap(finding, other) for other in cluster)), None)
+        target = next((cluster for cluster in clusters if all(findings_overlap(finding, other) for other in cluster)), None)
         (clusters.append([finding]) if target is None else target.append(finding))
 
     candidates: list[dict[str, Any]] = []
