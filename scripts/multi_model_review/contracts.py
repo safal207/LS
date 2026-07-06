@@ -52,6 +52,7 @@ def load_config(path: Path) -> dict[str, Any]:
     if not isinstance(models, list) or not models:
         raise ReviewRuntimeError("model roster must contain at least one model")
     keys: set[str] = set()
+    roles: set[str] = set()
     for index, item in enumerate(models):
         if not isinstance(item, dict):
             raise ReviewRuntimeError(f"models[{index}] must be an object")
@@ -59,8 +60,14 @@ def load_config(path: Path) -> dict[str, Any]:
         if not isinstance(key, str) or not key or key in keys:
             raise ReviewRuntimeError(f"models[{index}].key must be unique and non-empty")
         keys.add(key)
+        role = item.get("role")
+        if not isinstance(role, str) or not role.strip() or role in roles:
+            raise ReviewRuntimeError(f"models[{index}].role must be unique and non-empty")
+        roles.add(role)
         if item.get("activation") not in {"always", "high_risk", "conflict"}:
             raise ReviewRuntimeError(f"models[{index}].activation is invalid")
+        if item.get("enabled", True) not in {True, False}:
+            raise ReviewRuntimeError(f"models[{index}].enabled must be boolean when present")
         if not isinstance(item.get("model"), str) or not item["model"].endswith(":free"):
             raise ReviewRuntimeError(f"models[{index}].model must name an explicit :free endpoint")
         fallbacks = item.get("fallbacks", [])
@@ -68,6 +75,8 @@ def load_config(path: Path) -> dict[str, Any]:
             not isinstance(value, str) or not value.endswith(":free") for value in fallbacks
         ):
             raise ReviewRuntimeError(f"models[{index}].fallbacks must contain only explicit :free endpoints")
+        if item["model"] in fallbacks or len(fallbacks) != len(set(fallbacks)):
+            raise ReviewRuntimeError(f"models[{index}].fallbacks must be unique and exclude the primary model")
     return data
 
 
