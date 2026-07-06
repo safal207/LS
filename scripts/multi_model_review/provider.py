@@ -110,12 +110,18 @@ class OpenRouterClient:
         for attempt in range(1, self.max_attempts + 1):
             try:
                 return self._transport(f"{self.base_url}{path}", headers, payload, self.timeout_seconds)
-            except (HTTPError, URLError, TimeoutError, ReviewRuntimeError) as exc:
+            except ReviewRuntimeError:
+                # Contract/shape errors are deterministic; retrying cannot repair the response.
+                raise
+            except HTTPError as exc:
                 last_error = exc
-                retryable = not isinstance(exc, HTTPError) or exc.code in {408, 409, 425, 429, 500, 502, 503, 504}
-                if not retryable or attempt == self.max_attempts:
-                    break
-                self._sleeper(min(8.0, float(2 ** (attempt - 1))))
+                retryable = exc.code in {408, 409, 425, 429, 500, 502, 503, 504}
+            except (URLError, TimeoutError) as exc:
+                last_error = exc
+                retryable = True
+            if not retryable or attempt == self.max_attempts:
+                break
+            self._sleeper(min(8.0, float(2 ** (attempt - 1))))
         raise ReviewRuntimeError(f"provider request failed after {self.max_attempts} attempt(s): {last_error}")
 
 
