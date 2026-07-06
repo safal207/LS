@@ -58,11 +58,10 @@ class FakeClient:
     def catalog(self):
         ids = {
             "cohere/north-mini-code:free",
-            "poolside/laguna-m.1:free",
+            "poolside/laguna-xs-2.1:free",
             "tencent/hy3:free",
             "nvidia/nemotron-3-ultra-550b-a55b:free",
             "openai/gpt-oss-120b:free",
-            "poolside/laguna-xs-2.1:free",
         }
         return {model_id: review.CatalogModel(model_id, True, None) for model_id in ids}
 
@@ -124,8 +123,8 @@ class MultiModelReviewTests(unittest.TestCase):
     def test_resolve_models_uses_deterministic_free_fallback(self):
         catalog = {
             "cohere/north-mini-code:free": review.CatalogModel("cohere/north-mini-code:free", False, None),
+            "openai/gpt-oss-120b:free": review.CatalogModel("openai/gpt-oss-120b:free", True, None),
             "poolside/laguna-xs-2.1:free": review.CatalogModel("poolside/laguna-xs-2.1:free", True, None),
-            "poolside/laguna-m.1:free": review.CatalogModel("poolside/laguna-m.1:free", True, None),
             "tencent/hy3:free": review.CatalogModel("tencent/hy3:free", True, None),
         }
         selected, unavailable = review.resolve_models(
@@ -134,9 +133,9 @@ class MultiModelReviewTests(unittest.TestCase):
             high_risk=False,
             activation="always",
         )
-        self.assertEqual(selected[0].model_id, "poolside/laguna-xs-2.1:free")
+        self.assertEqual(selected[0].model_id, "openai/gpt-oss-120b:free")
         self.assertTrue(selected[0].fallback_used)
-        self.assertEqual(selected[1].model_id, "poolside/laguna-m.1:free")
+        self.assertEqual(selected[1].model_id, "poolside/laguna-xs-2.1:free")
         self.assertEqual(selected[2].model_id, "tencent/hy3:free")
         self.assertEqual(unavailable, [])
 
@@ -194,7 +193,7 @@ class MultiModelReviewTests(unittest.TestCase):
     def test_run_review_uses_high_risk_and_conflict_lanes(self):
         responses = {
             "cohere/north-mini-code:free": payload(title="Missing execution guard"),
-            "poolside/laguna-m.1:free": payload(title="Execution guard is missing", line=5),
+            "poolside/laguna-xs-2.1:free": payload(title="Execution guard is missing", line=5),
             "tencent/hy3:free": {**payload(verdict="APPROVE", severity="low", title="Guard evidence unclear"), "findings": []},
             "nvidia/nemotron-3-ultra-550b-a55b:free": payload(title="Approval guard missing", line=5),
             "openai/gpt-oss-120b:free": payload(title="Execution lacks approval guard", line=5),
