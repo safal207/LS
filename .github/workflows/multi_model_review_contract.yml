@@ -1,0 +1,59 @@
+name: Multi-model review contract
+
+on:
+  push:
+    branches:
+      - main
+    paths: &multi_model_review_paths
+      - ".github/ai-review-models.json"
+      - ".github/workflows/multi_model_review_contract.yml"
+      - ".github/workflows/multi_model_pr_review.yml"
+      - "scripts/run_multi_model_pr_review.py"
+      - "python/tests/test_multi_model_pr_review.py"
+      - "docs/MULTI_MODEL_PR_REVIEW.md"
+  pull_request:
+    branches:
+      - main
+    paths: *multi_model_review_paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: multi-model-review-contract-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out candidate code without credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile the review runtime
+        run: python -m py_compile scripts/run_multi_model_pr_review.py
+
+      - name: Run deterministic contract tests
+        run: python -m unittest python/tests/test_multi_model_pr_review.py -v
+
+      - name: Validate the checked-in model roster
+        run: |
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "scripts")
+          from run_multi_model_pr_review import load_config
+
+          roster = load_config(Path(".github/ai-review-models.json"))
+          print(f"validated {len(roster['models'])} model roles")
+          PY
