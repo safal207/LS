@@ -46,8 +46,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Validate trusted runtime contracts
-        run: python -m unittest python/tests/test_multi_model_pr_review.py -v
+      - name: Validate complete trusted runtime contract
+        run: python -m unittest discover -s python/tests -p 'test_multi_model_pr_review*.py' -v
 
       - id: pr
         name: Resolve exact pull-request metadata
@@ -93,6 +93,7 @@ jobs:
           set +e
           python scripts/run_multi_model_pr_review.py \
             --config .github/ai-review-models.json \
+            --provider-config .github/ai-review-provider-routes.json \
             --diff-file artifacts/pr.diff \
             --repository "${GITHUB_REPOSITORY}" \
             --pr-number "${PR_NUMBER}" \
