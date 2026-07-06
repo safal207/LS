@@ -3,19 +3,19 @@ name: Durable approval fixtures
 on:
   pull_request:
     paths:
-      - "spec/durable-approval-conformance-v0.1.md"
+      - "spec/durable-approval-conformance-v0.*.md"
       - "fixtures/trusted-runtime/durable-approval/**"
-      - "tools/validate_durable_approval_v0_1.py"
-      - "tools/test_durable_approval_v0_1.py"
+      - "tools/validate_durable_approval_v0_*.py"
+      - "tools/test_durable_approval_v0_*.py"
       - ".github/workflows/durable-approval-fixtures.yml"
   push:
     branches:
       - main
     paths:
-      - "spec/durable-approval-conformance-v0.1.md"
+      - "spec/durable-approval-conformance-v0.*.md"
       - "fixtures/trusted-runtime/durable-approval/**"
-      - "tools/validate_durable_approval_v0_1.py"
-      - "tools/test_durable_approval_v0_1.py"
+      - "tools/validate_durable_approval_v0_*.py"
+      - "tools/test_durable_approval_v0_*.py"
       - ".github/workflows/durable-approval-fixtures.yml"
 
 permissions:
@@ -35,5 +35,17 @@ jobs:
             fixtures/trusted-runtime/durable-approval/pending_approval_not_missing_authority_v0.1.json \
             fixtures/trusted-runtime/durable-approval/envelope.schema.json \
             fixtures/trusted-runtime/durable-approval/event.schema.json
-      - name: Run durable approval negative controls
+      - name: Run durable approval v0.1 negative controls
         run: python tools/test_durable_approval_v0_1.py
+      - name: Validate durable approval lifecycle suite v0.2
+        run: |
+          python tools/validate_durable_approval_v0_2.py \
+            --envelope-schema fixtures/trusted-runtime/durable-approval/envelope.schema.json \
+            --event-schema fixtures/trusted-runtime/durable-approval/event.schema.json \
+            fixtures/trusted-runtime/durable-approval/configured_policy_expiry_v0.2.json \
+            fixtures/trusted-runtime/durable-approval/verified_context_invalidation_v0.2.json \
+            fixtures/trusted-runtime/durable-approval/durable_state_loss_v0.2.json \
+            fixtures/trusted-runtime/durable-approval/reconcile_in_doubt_committed_v0.2.json \
+            fixtures/trusted-runtime/durable-approval/reconcile_in_doubt_failed_v0.2.json
+      - name: Run durable approval v0.2 negative controls
+        run: python tools/test_durable_approval_v0_2.py
