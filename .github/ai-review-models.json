@@ -19,6 +19,7 @@
       "activation": "always",
       "model": "cohere/north-mini-code:free",
       "fallbacks": [
+        "openai/gpt-oss-120b:free",
         "tencent/hy3:free",
         "poolside/laguna-xs-2.1:free"
       ]
