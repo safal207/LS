@@ -1,13 +1,17 @@
 """Deterministic contracts for LS multi-model review."""
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import re
 from pathlib import Path
 from typing import Any, Iterable
+from urllib.parse import urlparse
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+MODEL_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{1,127}$")
+ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]{2,127}$")
 SEVERITY_ORDER = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
 VALID_VERDICTS = {"APPROVE", "COMMENT", "REQUEST_CHANGES"}
 TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -41,13 +45,34 @@ def validate_sha(value: str, field: str) -> str:
     return value
 
 
+def _config_int(defaults: dict[str, Any], field: str, *, minimum: int, maximum: int) -> int:
+    value = defaults.get(field)
+    if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
+        raise ReviewRuntimeError(f"defaults.{field} must be an integer from {minimum} to {maximum}")
+    return value
+
+
 def load_config(path: Path) -> dict[str, Any]:
+    """Load the provider-neutral role/model roster."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ReviewRuntimeError(f"cannot load model roster: {exc}") from exc
     if not isinstance(data, dict) or data.get("schema_version") != "ls.ai_review_model_roster.v0.1":
         raise ReviewRuntimeError("unsupported model roster schema")
+    if "provider" in data:
+        raise ReviewRuntimeError("model roster must not embed provider configuration")
+    defaults = data.get("defaults")
+    if not isinstance(defaults, dict):
+        raise ReviewRuntimeError("model roster defaults must be an object")
+    if defaults.get("mode") not in {"advisory", "strict"}:
+        raise ReviewRuntimeError("defaults.mode must be advisory or strict")
+    _config_int(defaults, "max_diff_chars", minimum=1000, maximum=250000)
+    _config_int(defaults, "max_output_tokens", minimum=128, maximum=10000)
+    _config_int(defaults, "request_timeout_seconds", minimum=5, maximum=180)
+    _config_int(defaults, "max_attempts", minimum=1, maximum=5)
+    _config_int(defaults, "confirmation_threshold", minimum=2, maximum=10)
+
     models = data.get("models")
     if not isinstance(models, list) or not models:
         raise ReviewRuntimeError("model roster must contain at least one model")
@@ -66,18 +91,77 @@ def load_config(path: Path) -> dict[str, Any]:
         roles.add(role)
         if item.get("activation") not in {"always", "high_risk", "conflict"}:
             raise ReviewRuntimeError(f"models[{index}].activation is invalid")
-        if item.get("enabled", True) not in {True, False}:
+        enabled = item.get("enabled", True)
+        if not isinstance(enabled, bool):
             raise ReviewRuntimeError(f"models[{index}].enabled must be boolean when present")
-        if not isinstance(item.get("model"), str) or not item["model"].endswith(":free"):
-            raise ReviewRuntimeError(f"models[{index}].model must name an explicit :free endpoint")
+        model = item.get("model")
+        if not isinstance(model, str) or MODEL_NAME_RE.fullmatch(model) is None:
+            raise ReviewRuntimeError(f"models[{index}].model must be a logical model name")
         fallbacks = item.get("fallbacks", [])
         if not isinstance(fallbacks, list) or any(
-            not isinstance(value, str) or not value.endswith(":free") for value in fallbacks
+            not isinstance(value, str) or MODEL_NAME_RE.fullmatch(value) is None for value in fallbacks
         ):
-            raise ReviewRuntimeError(f"models[{index}].fallbacks must contain only explicit :free endpoints")
-        if item["model"] in fallbacks or len(fallbacks) != len(set(fallbacks)):
+            raise ReviewRuntimeError(f"models[{index}].fallbacks must contain logical model names")
+        if model in fallbacks or len(fallbacks) != len(set(fallbacks)):
             raise ReviewRuntimeError(f"models[{index}].fallbacks must be unique and exclude the primary model")
     return data
+
+
+def load_provider_config(path: Path) -> dict[str, Any]:
+    """Load provider-specific routes separately from the neutral roster."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ReviewRuntimeError(f"cannot load provider routes: {exc}") from exc
+    if not isinstance(data, dict) or data.get("schema_version") != "ls.ai_review_provider_routes.v0.1":
+        raise ReviewRuntimeError("unsupported provider route schema")
+    provider = data.get("provider")
+    if not isinstance(provider, dict):
+        raise ReviewRuntimeError("provider route config must contain a provider object")
+    for field in ("key", "adapter", "base_url", "credential_env"):
+        if not isinstance(provider.get(field), str) or not provider[field].strip():
+            raise ReviewRuntimeError(f"provider.{field} must be a non-empty string")
+    parsed = urlparse(provider["base_url"])
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise ReviewRuntimeError("provider.base_url must be an absolute HTTPS URL")
+    if ENV_NAME_RE.fullmatch(provider["credential_env"]) is None:
+        raise ReviewRuntimeError("provider.credential_env must be an uppercase environment variable name")
+    routes = data.get("routes")
+    if not isinstance(routes, dict) or not routes:
+        raise ReviewRuntimeError("provider routes must be a non-empty object")
+    endpoints: set[str] = set()
+    for logical_name, endpoint in routes.items():
+        if not isinstance(logical_name, str) or MODEL_NAME_RE.fullmatch(logical_name) is None:
+            raise ReviewRuntimeError("provider route keys must be logical model names")
+        if not isinstance(endpoint, str) or not endpoint.endswith(":free"):
+            raise ReviewRuntimeError(f"provider route {logical_name} must name an explicit :free endpoint")
+        if endpoint in endpoints:
+            raise ReviewRuntimeError(f"provider endpoint {endpoint} is mapped more than once")
+        endpoints.add(endpoint)
+    return data
+
+
+def bind_provider_routes(roster: dict[str, Any], provider_config: dict[str, Any]) -> dict[str, Any]:
+    """Bind logical roster names to one provider without mutating the roster."""
+    routes = provider_config.get("routes")
+    provider = provider_config.get("provider")
+    if not isinstance(routes, dict) or not isinstance(provider, dict):
+        raise ReviewRuntimeError("provider routes must be validated before binding")
+    bound = copy.deepcopy(roster)
+    for index, item in enumerate(bound["models"]):
+        candidates = [item["model"], *item.get("fallbacks", [])]
+        missing = [candidate for candidate in candidates if candidate not in routes]
+        if missing:
+            raise ReviewRuntimeError(
+                f"models[{index}] has no provider route for: {', '.join(sorted(missing))}"
+            )
+        item["logical_model"] = item["model"]
+        item["logical_fallbacks"] = list(item.get("fallbacks", []))
+        item["model"] = routes[item["model"]]
+        item["fallbacks"] = [routes[value] for value in item.get("fallbacks", [])]
+    bound["provider"] = copy.deepcopy(provider)
+    bound["provider_routes_schema_version"] = provider_config.get("schema_version")
+    return bound
 
 
 def changed_files_from_diff(diff_text: str) -> list[str]:
