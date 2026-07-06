@@ -31,8 +31,31 @@ from multi_model_review import (
     write_outputs,
 )
 
-# Re-exports preserve a simple import surface for contract tests and adopters.
-__all__ = [name for name in globals() if not name.startswith("_")]
+# Re-exports preserve a small, intentional import surface for tests and adopters.
+__all__ = [
+    "CatalogModel",
+    "OpenRouterClient",
+    "ResolvedModel",
+    "ReviewRuntimeError",
+    "aggregate_reviews",
+    "build_prompts",
+    "changed_files_from_diff",
+    "classify_risk",
+    "extract_json_object",
+    "findings_overlap",
+    "load_config",
+    "main",
+    "model_is_active",
+    "parse_args",
+    "policy_decision",
+    "redact_diff",
+    "render_markdown",
+    "resolve_models",
+    "run_review",
+    "validate_review_payload",
+    "validate_sha",
+    "write_outputs",
+]
 
 
 def parse_args() -> argparse.Namespace:
