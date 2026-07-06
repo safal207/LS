@@ -1,0 +1,39 @@
+name: Durable approval fixtures
+
+on:
+  pull_request:
+    paths:
+      - "spec/durable-approval-conformance-v0.1.md"
+      - "fixtures/trusted-runtime/durable-approval/**"
+      - "tools/validate_durable_approval_v0_1.py"
+      - "tools/test_durable_approval_v0_1.py"
+      - ".github/workflows/durable-approval-fixtures.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "spec/durable-approval-conformance-v0.1.md"
+      - "fixtures/trusted-runtime/durable-approval/**"
+      - "tools/validate_durable_approval_v0_1.py"
+      - "tools/test_durable_approval_v0_1.py"
+      - ".github/workflows/durable-approval-fixtures.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate durable approval fixture v0.1
+        run: |
+          python tools/validate_durable_approval_v0_1.py \
+            fixtures/trusted-runtime/durable-approval/pending_approval_not_missing_authority_v0.1.json \
+            fixtures/trusted-runtime/durable-approval/envelope.schema.json \
+            fixtures/trusted-runtime/durable-approval/event.schema.json
+      - name: Run durable approval negative controls
+        run: python tools/test_durable_approval_v0_1.py
