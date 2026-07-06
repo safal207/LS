@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/fixtures/trusted-runtime/durable-approval/event.schema.json",
+  "title": "LS Approval Lifecycle Event v0.1",
+  "type": "object",
+  "required": ["schema_version", "event_id", "approval_id", "sequence", "event_type", "occurred_at", "actor"],
+  "properties": {
+    "schema_version": {"const": "ls-approval-lifecycle-event-v0.1"},
+    "event_id": {"type": "string", "minLength": 1},
+    "approval_id": {"type": "string", "minLength": 1},
+    "sequence": {"type": "integer", "minimum": 1},
+    "event_type": {
+      "enum": [
+        "ApprovalRequested",
+        "ApprovalPresented",
+        "RequesterDetached",
+        "RequesterCancelled",
+        "TransportDisconnected",
+        "TransportRestored",
+        "UiDismissed",
+        "WaitWindowElapsed",
+        "UserApproved",
+        "UserRejected",
+        "ApprovalExpired",
+        "ApprovalInvalidated",
+        "ExecutionClaimed",
+        "EffectObserved",
+        "RuntimeRestarted",
+        "LostStateDetected"
+      ]
+    },
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "actor": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": {"enum": ["USER", "REVIEWER", "AGENT", "RUNTIME", "TRANSPORT", "POLICY", "VERIFIER", "SYSTEM"]},
+        "id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "reason": {"type": ["string", "null"]},
+    "evidence_ref": {"type": ["string", "null"]},
+    "bindings": {
+      "type": "object",
+      "properties": {
+        "action_digest": {"type": "string"},
+        "scope_digest": {"type": "string"},
+        "policy_digest": {"type": "string"},
+        "workspace_identity": {"type": "string"},
+        "target_state_digest": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "outcome": {"enum": ["COMMITTED", "FAILED"]}
+  },
+  "additionalProperties": false
+}
