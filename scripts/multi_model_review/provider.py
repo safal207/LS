@@ -5,6 +5,7 @@ import json
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -27,6 +28,13 @@ class ResolvedModel:
     model_id: str
     activation: str
     fallback_used: bool
+
+
+def _is_zero_price(value: Any) -> bool:
+    try:
+        return Decimal(str(value)) == Decimal("0")
+    except (InvalidOperation, ValueError):
+        return False
 
 
 class OpenRouterClient:
@@ -59,7 +67,7 @@ class OpenRouterClient:
             pricing = row.get("pricing") if isinstance(row.get("pricing"), dict) else {}
             result[row["id"]] = CatalogModel(
                 model_id=row["id"],
-                is_free=str(pricing.get("prompt", "")) == "0" and str(pricing.get("completion", "")) == "0",
+                is_free=_is_zero_price(pricing.get("prompt")) and _is_zero_price(pricing.get("completion")),
                 expiration_date=row.get("expiration_date") if isinstance(row.get("expiration_date"), str) else None,
             )
         return result
@@ -132,7 +140,7 @@ def model_is_active(model: CatalogModel, today: datetime | None = None) -> bool:
         return True
     now = (today or datetime.now(timezone.utc)).date()
     try:
-        expires = datetime.fromisoformat(model.expiration_date).date()
+        expires = datetime.fromisoformat(model.expiration_date.replace("Z", "+00:00")).date()
     except ValueError:
         return False
     return now <= expires
