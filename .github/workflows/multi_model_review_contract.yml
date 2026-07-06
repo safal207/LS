@@ -10,7 +10,7 @@ on:
       - ".github/workflows/multi_model_pr_review.yml"
       - "scripts/run_multi_model_pr_review.py"
       - "scripts/multi_model_review/**"
-      - "python/tests/test_multi_model_pr_review.py"
+      - "python/tests/test_multi_model_pr_review*.py"
       - "docs/MULTI_MODEL_PR_REVIEW.md"
   pull_request:
     branches:
@@ -46,7 +46,7 @@ jobs:
       - name: Run deterministic contract tests
         run: |
           set +e
-          python -m unittest python/tests/test_multi_model_pr_review.py -v > multi-model-contract-tests.log 2>&1
+          python -m unittest discover -s python/tests -p 'test_multi_model_pr_review*.py' -v > multi-model-contract-tests.log 2>&1
           result=$?
           cat multi-model-contract-tests.log
           exit "${result}"
