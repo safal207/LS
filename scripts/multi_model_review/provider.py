@@ -1,4 +1,4 @@
-"""OpenRouter adapter and free-endpoint resolution."""
+"""Provider adapters and free-endpoint resolution."""
 from __future__ import annotations
 
 import json
@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -30,6 +30,16 @@ class ResolvedModel:
     fallback_used: bool
 
 
+class ReviewProviderClient(Protocol):
+    """Minimal provider-neutral interface consumed by the review runtime."""
+
+    def catalog(self) -> dict[str, CatalogModel]:
+        ...
+
+    def review(self, *, model_id: str, system_prompt: str, user_prompt: str, max_tokens: int) -> str:
+        ...
+
+
 def _is_zero_price(value: Any) -> bool:
     try:
         return Decimal(str(value)) == Decimal("0")
@@ -38,6 +48,8 @@ def _is_zero_price(value: Any) -> bool:
 
 
 class OpenRouterClient:
+    """OpenRouter implementation of the provider-neutral review interface."""
+
     def __init__(
         self,
         *,
@@ -111,7 +123,6 @@ class OpenRouterClient:
             try:
                 return self._transport(f"{self.base_url}{path}", headers, payload, self.timeout_seconds)
             except ReviewRuntimeError:
-                # Contract/shape errors are deterministic; retrying cannot repair the response.
                 raise
             except HTTPError as exc:
                 last_error = exc
@@ -125,10 +136,29 @@ class OpenRouterClient:
         raise ReviewRuntimeError(f"provider request failed after {self.max_attempts} attempt(s): {last_error}")
 
 
+def build_provider_client(
+    provider: dict[str, Any],
+    *,
+    credential: str,
+    timeout_seconds: int,
+    max_attempts: int,
+) -> ReviewProviderClient:
+    """Construct a configured adapter without coupling the runtime to one provider."""
+    adapter = provider.get("adapter")
+    if adapter == "openrouter":
+        return OpenRouterClient(
+            base_url=provider["base_url"],
+            api_key=credential,
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+        )
+    raise ReviewRuntimeError(f"unsupported review provider adapter: {adapter}")
+
+
 def _http_json(url: str, headers: dict[str, str], payload: dict[str, Any] | None, timeout: int) -> dict[str, Any]:
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     request = Request(url, data=body, headers=headers, method="GET" if payload is None else "POST")
-    with urlopen(request, timeout=timeout) as response:  # noqa: S310 - provider URL comes from reviewed config
+    with urlopen(request, timeout=timeout) as response:  # noqa: S310 - URL comes from validated provider config
         raw = response.read().decode("utf-8")
     try:
         parsed = json.loads(raw)
@@ -186,7 +216,7 @@ def resolve_models(
             unavailable.append(
                 {
                     "key": item["key"],
-                    "requested_model": item["model"],
+                    "requested_model": item.get("logical_model", item["model"]),
                     "candidates": candidates,
                     "reserved_candidates": [candidate for candidate in candidates if candidate in reserved],
                 }
@@ -197,7 +227,7 @@ def resolve_models(
             ResolvedModel(
                 key=item["key"],
                 role=item["role"],
-                requested_model=item["model"],
+                requested_model=item.get("logical_model", item["model"]),
                 model_id=chosen,
                 activation=item["activation"],
                 fallback_used=chosen != item["model"],
