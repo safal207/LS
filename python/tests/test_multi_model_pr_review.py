@@ -179,6 +179,23 @@ class MultiModelReviewTests(unittest.TestCase):
         self.assertEqual(aggregate["confirmed_findings"][0]["support_count"], 2)
         self.assertEqual(aggregate["verdict"], "REQUEST_CHANGES")
 
+    def test_transitive_overlap_does_not_bridge_distinct_findings(self):
+        results = [
+            review.validate_review_payload(payload(title="Execution guard missing", line=1), ["scripts/example.py"]),
+            review.validate_review_payload(payload(title="Execution guard missing", line=4), ["scripts/example.py"]),
+            review.validate_review_payload(payload(title="Execution guard missing", line=7), ["scripts/example.py"]),
+        ]
+        aggregate = review.aggregate_reviews(
+            [
+                {"key": "a", "model_id": "model/a", "status": "VALID", "result": results[0]},
+                {"key": "b", "model_id": "model/b", "status": "VALID", "result": results[1]},
+                {"key": "c", "model_id": "model/c", "status": "VALID", "result": results[2]},
+            ],
+            3,
+        )
+        self.assertEqual(aggregate["confirmed_findings"], [])
+        self.assertEqual(sorted(item["support_count"] for item in aggregate["candidate_findings"]), [1, 2])
+
     def test_single_model_high_finding_stays_candidate(self):
         result = review.validate_review_payload(payload(), ["scripts/example.py"])
         aggregate = review.aggregate_reviews(
