@@ -19,18 +19,18 @@
       "activation": "always",
       "model": "cohere/north-mini-code:free",
       "fallbacks": [
-        "poolside/laguna-xs-2.1:free",
-        "openai/gpt-oss-120b:free"
+        "openai/gpt-oss-120b:free",
+        "nvidia/nemotron-3-ultra-550b-a55b:free"
       ]
     },
     {
       "key": "deep_code",
       "role": "deep_implementation_reviewer",
       "activation": "always",
-      "model": "poolside/laguna-m.1:free",
+      "model": "poolside/laguna-xs-2.1:free",
       "fallbacks": [
-        "poolside/laguna-xs-2.1:free",
-        "nvidia/nemotron-3-ultra-550b-a55b:free"
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openai/gpt-oss-120b:free"
       ]
     },
     {
