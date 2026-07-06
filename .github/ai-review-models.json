@@ -1,9 +1,5 @@
 {
   "schema_version": "ls.ai_review_model_roster.v0.1",
-  "provider": {
-    "name": "openrouter",
-    "base_url": "https://openrouter.ai/api/v1"
-  },
   "defaults": {
     "mode": "advisory",
     "max_diff_chars": 45000,
@@ -17,45 +13,45 @@
       "key": "fast_diff",
       "role": "fast_diff_reviewer",
       "activation": "always",
-      "model": "cohere/north-mini-code:free",
+      "model": "north-mini-code",
       "fallbacks": [
-        "openai/gpt-oss-120b:free",
-        "tencent/hy3:free",
-        "poolside/laguna-xs-2.1:free"
+        "gpt-oss-120b",
+        "hy3",
+        "laguna-xs-2.1"
       ]
     },
     {
       "key": "deep_code",
       "role": "deep_implementation_reviewer",
       "activation": "always",
-      "model": "poolside/laguna-xs-2.1:free",
+      "model": "laguna-xs-2.1",
       "fallbacks": [
-        "cohere/north-mini-code:free",
-        "tencent/hy3:free"
+        "north-mini-code",
+        "hy3"
       ]
     },
     {
       "key": "independent_challenger",
       "role": "independent_challenger",
       "activation": "always",
-      "model": "tencent/hy3:free",
+      "model": "hy3",
       "fallbacks": [
-        "poolside/laguna-xs-2.1:free",
-        "cohere/north-mini-code:free"
+        "laguna-xs-2.1",
+        "north-mini-code"
       ]
     },
     {
       "key": "architecture",
       "role": "architecture_and_governance_reviewer",
       "activation": "high_risk",
-      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "model": "nemotron-3-ultra-550b-a55b",
       "fallbacks": []
     },
     {
       "key": "tie_breaker",
       "role": "evidence_tie_breaker",
       "activation": "conflict",
-      "model": "openai/gpt-oss-120b:free",
+      "model": "gpt-oss-120b",
       "fallbacks": []
     }
   ]
