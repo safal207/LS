@@ -44,10 +44,10 @@ manually and provide the open PR number.
 
 The versioned roster lives in `.github/ai-review-models.json`.
 
-| Role | Preferred free endpoint | Activation |
+| Role | Preferred zero-priced endpoint | Activation |
 | --- | --- | --- |
 | Fast diff reviewer | `cohere/north-mini-code:free` | Every review |
-| Deep implementation reviewer | `poolside/laguna-m.1:free` | Every review |
+| Deep implementation reviewer | `poolside/laguna-xs-2.1:free` | Every review |
 | Independent challenger | `tencent/hy3:free` | Every review |
 | Architecture/governance reviewer | `nvidia/nemotron-3-ultra-550b-a55b:free` | High-risk diffs |
 | Evidence tie-breaker | `openai/gpt-oss-120b:free` | Conflicting evidence |
@@ -60,7 +60,8 @@ provider catalog and accepts an endpoint only when:
 - the endpoint has not passed its declared expiration date;
 - the resolved endpoint has not already filled another independent role.
 
-The runtime never removes `:free` or silently switches to a paid variant.
+A `:free` suffix is not trusted by itself. The runtime never removes that suffix
+or silently switches to an endpoint whose live catalog price is nonzero.
 
 ## Repository setup
 
