@@ -191,6 +191,9 @@ def _strict_sanitize_case(
             if not isinstance(actor.get("id"), str):
                 errors.append(f"{location}.actor.id must be a string")
                 actor["id"] = ""
+        else:
+            errors.append(f"{location}.actor: must be an object")
+            event["actor"] = {"type": "", "id": ""}
 
         bindings = event.get("bindings")
         if isinstance(bindings, dict):

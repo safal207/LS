@@ -117,6 +117,15 @@ class DurableApprovalSchemaParityTests(unittest.TestCase):
         effect["outcome"] = []
         cases.append((fixture, "outcome must be a string"))
 
+        fixture = copy.deepcopy(self.fixture)
+        approval = next(
+            event
+            for event in fixture["events"]
+            if event["event_type"] == "UserApproved"
+        )
+        approval["actor"] = []
+        cases.append((fixture, "actor: must be an object"))
+
         for fixture, fragment in cases:
             with self.subTest(fragment=fragment):
                 self.assert_rejected_with(fixture, fragment)
