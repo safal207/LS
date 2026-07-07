@@ -6,6 +6,7 @@ on:
       - "docs/product/review-decision-gateway-v0.1.md"
       - "tools/review_decision_gateway_v0_1.py"
       - "tools/test_review_decision_gateway_v0_1.py"
+      - "tools/test_review_decision_gateway_hardening_v0_1.py"
       - ".github/workflows/review-decision-gateway.yml"
   push:
     branches:
@@ -14,6 +15,7 @@ on:
       - "docs/product/review-decision-gateway-v0.1.md"
       - "tools/review_decision_gateway_v0_1.py"
       - "tools/test_review_decision_gateway_v0_1.py"
+      - "tools/test_review_decision_gateway_hardening_v0_1.py"
       - ".github/workflows/review-decision-gateway.yml"
 
 permissions:
@@ -30,5 +32,7 @@ jobs:
           python-version: "3.12"
       - name: Render gateway demo
         run: python tools/review_decision_gateway_v0_1.py --demo
-      - name: Run gateway test suite
+      - name: Run gateway HTTP test suite
         run: python tools/test_review_decision_gateway_v0_1.py
+      - name: Run gateway hardening controls
+        run: python tools/test_review_decision_gateway_hardening_v0_1.py
