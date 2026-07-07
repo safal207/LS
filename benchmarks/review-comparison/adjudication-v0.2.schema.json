@@ -1,0 +1,188 @@
+{
+  "$id": "https://github.com/safal207/LS/benchmarks/review-comparison/adjudication-v0.2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "adjudicator": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "case_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "clusters": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "adjudicated_severity": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "none"
+            ]
+          },
+          "canonical_claim": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "cluster_id": {
+            "pattern": "^C[0-9]{3,}$",
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "TRUE_REPRODUCED",
+              "TRUE_STATICALLY_PROVEN",
+              "PLAUSIBLE_NOT_PROVEN",
+              "FALSE_POSITIVE",
+              "DUPLICATE",
+              "OUT_OF_SCOPE",
+              "REQUIRES_HUMAN_DECISION"
+            ]
+          },
+          "members": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "attribution_correct": {
+                  "type": "boolean"
+                },
+                "finding_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "lane": {
+                  "enum": [
+                    "FRONTIER_MODEL",
+                    "LS"
+                  ]
+                }
+              },
+              "required": [
+                "lane",
+                "finding_id",
+                "attribution_correct"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "rationale": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "cluster_id",
+          "canonical_claim",
+          "members",
+          "decision",
+          "adjudicated_severity",
+          "rationale"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "edge_decisions": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "APPROVE_PROPOSAL",
+              "REJECT_PROPOSAL",
+              "DEFER"
+            ]
+          },
+          "lane": {
+            "enum": [
+              "FRONTIER_MODEL",
+              "LS"
+            ]
+          },
+          "proposal_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "rationale": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "lane",
+          "proposal_id",
+          "decision",
+          "rationale"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "evidence_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "ground_truth_complete": {
+      "type": "boolean"
+    },
+    "known_truth": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "ground_truth_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "matched_cluster_ids": {
+            "items": {
+              "pattern": "^C[0-9]{3,}$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "title": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "ground_truth_id",
+          "title",
+          "severity",
+          "matched_cluster_ids"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "ls.review_benchmark_adjudication.v0.2"
+    }
+  },
+  "required": [
+    "schema_version",
+    "case_id",
+    "evidence_sha256",
+    "adjudicator",
+    "ground_truth_complete",
+    "known_truth",
+    "clusters",
+    "edge_decisions"
+  ],
+  "title": "LS Blind Review Benchmark Adjudication v0.2",
+  "type": "object"
+}

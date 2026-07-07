@@ -1,0 +1,161 @@
+{
+  "$id": "https://github.com/safal207/LS/benchmarks/review-comparison/run-binding-v0.2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "level": {
+                "const": "API_VERIFIED"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "executor": {
+            "properties": {
+              "channel": {
+                "const": "API"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "level": {
+                "const": "WORKFLOW_VERIFIED"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "executor": {
+            "properties": {
+              "channel": {
+                "const": "WORKFLOW"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "case_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "evidence_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "executor": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "enum": [
+            "WEB_UI",
+            "API",
+            "LOCAL",
+            "WORKFLOW"
+          ]
+        },
+        "model": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "provider": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "version",
+        "channel"
+      ],
+      "type": "object"
+    },
+    "lane": {
+      "enum": [
+        "FRONTIER_MODEL",
+        "LS"
+      ]
+    },
+    "nonce": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "prompt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "issuer": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "level": {
+          "enum": [
+            "USER_ATTESTED",
+            "API_VERIFIED",
+            "WORKFLOW_VERIFIED"
+          ]
+        }
+      },
+      "required": [
+        "level",
+        "issuer",
+        "evidence"
+      ],
+      "type": "object"
+    },
+    "run_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ls.review_benchmark_run_binding.v0.2"
+    }
+  },
+  "required": [
+    "schema_version",
+    "case_id",
+    "lane",
+    "evidence_sha256",
+    "prompt_sha256",
+    "run_id",
+    "executor",
+    "provenance",
+    "nonce"
+  ],
+  "title": "LS Blind Review Run Binding v0.2",
+  "type": "object"
+}
