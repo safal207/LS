@@ -2,6 +2,16 @@
 
 This directory contains vendor-neutral conformance artifacts for manual approval ownership and execution reconciliation.
 
+## Product demo
+
+Run the executable product walkthrough:
+
+```bash
+python tools/demo_approval_integrity.py
+```
+
+See `docs/product/approval-integrity-30-second-demo.md` for the user-facing scenario and integration direction.
+
 ## Frozen wire contracts
 
 - `envelope.schema.json` — immutable approval bindings (`ls-durable-approval-envelope-v0.1`).
