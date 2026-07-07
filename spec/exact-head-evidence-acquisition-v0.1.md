@@ -35,7 +35,9 @@ Branch names and mutable refs are not valid artifact identifiers.
 
 ## Fail-closed rules
 
-Acquisition verifies the live base SHA, head SHA, and changed-file count before listing files. Changed paths are enumerated from the GitHub compare endpoint for the manifest base/head pair, never from the mutable PR Files endpoint. The number of unique compare paths must equal the PR metadata count. After every artifact has been fetched, the PR metadata is checked again. Any change, truncation, duplicate listing, or incomplete comparison discards the bundle.
+Acquisition verifies the live base SHA, head SHA, and changed-file count before listing files. Changed paths are enumerated from the GitHub compare endpoint for the manifest base/head pair, never from the mutable PR Files endpoint. The number of unique compare paths must equal the PR metadata count. After every artifact has been fetched, the PR metadata is checked again. Any change, truncation, duplicate listing, malformed response entry, or incomplete comparison discards the bundle.
+
+GitHub's compare response exposes at most 300 changed files. Acquisition therefore intentionally fails closed for a PR whose metadata count exceeds the complete compare listing; it never treats a capped 300-file response as full coverage.
 
 It also rejects:
 
@@ -45,6 +47,8 @@ It also rejects:
 - a changed artifact being relabeled as `RELATED`;
 - related paths whose source is not a directly changed artifact;
 - related paths without relation evidence;
+- malformed pull-request, compare, or contents response objects;
+- missing, empty, or wrongly typed response fields;
 - Git blob SHAs that are not lowercase 40-character hashes;
 - path mismatches in the GitHub response;
 - redirects from GitHub API requests;
@@ -65,7 +69,7 @@ Artifacts are ordered by repository path. Every artifact independently records:
 - content SHA-256;
 - byte length;
 - UTF-8 content;
-- admission and relation provenance.
+- admission and relation provenance, including relation evidence.
 
 The bundle evidence SHA-256 additionally covers schema version, changed-file count, selection mode, and the complete ordered artifact array.
 
@@ -81,4 +85,4 @@ The manifest contains no expected findings. A successful acquisition proves only
 
 The pull-request job runs deterministic tests with an in-memory fake transport. Live GitHub acquisition is available only through `workflow_dispatch` on the repository default branch after the runtime has become trusted there.
 
-The workflow accepts manifests only from `benchmarks/exact-head`, uses read-only `contents` and `pull-requests` permissions, and uploads the bundle as a workflow artifact. The REST client refuses redirects rather than forwarding authorization and wraps HTTP, transport, UTF-8, and JSON failures with deterministic API-path context. Acquired content is never executed.
+The workflow accepts manifests only from `benchmarks/exact-head`, uses read-only `contents` and `pull-requests` permissions, and uploads the bundle as a workflow artifact. The REST client refuses redirects rather than forwarding authorization and wraps HTTP, transport, UTF-8, JSON, and response-shape failures with deterministic API-path or artifact-path context. Acquired content is never executed.
