@@ -75,11 +75,27 @@ The bundle evidence SHA-256 additionally covers schema version, changed-file cou
 
 Acquisition time is intentionally excluded, so independent acquisitions of the same bytes produce the same evidence digest.
 
-## PR #796 calibration manifest
+## PR #796 calibration manifests
 
-`benchmarks/exact-head/pr796-calibration-v0.1.json` binds to PR #796 head `a9bcc1c550f1139cd0233ecc8b05837d5c6d558c`, expected changed-file count `17`, and all 17 paths in the exact base/head comparison under `ALL_CHANGED`.
+`benchmarks/exact-head/pr796-calibration-v0.1.json` preserves the earlier calibration point at head `a9bcc1c550f1139cd0233ecc8b05837d5c6d558c` with 17 changed files.
 
-The manifest contains no expected findings. A successful acquisition proves only that the exact files were frozen with reproducible provenance. Probe recall and comparison with Claude are separate benchmark stages.
+`benchmarks/exact-head/pr796-final-calibration-v0.1.json` is the benchmark input for the final merged PR head:
+
+```text
+base SHA:           66353d32cafe9a7e2e4b62ee98575859eca9f531
+head SHA:           c482e19d829c39bdffa1352e8579c2362e7699c4
+changed-file count: 19
+selection mode:     ALL_CHANGED
+```
+
+The final head adds two artifacts that were absent from the earlier calibration point:
+
+- `docs/product/approval-integrity-30-second-demo.md`;
+- `tools/demo_approval_integrity.py`.
+
+Both manifests contain no expected findings. A successful acquisition proves only that the selected exact-head files were frozen with reproducible provenance. Probe recall and comparison with Claude are separate benchmark stages.
+
+The workflow defaults to the final-head manifest so a manual run cannot silently benchmark the earlier 17-file state.
 
 ## Workflow trust boundary
 
