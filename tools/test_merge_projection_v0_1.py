@@ -66,6 +66,31 @@ class ProjectionTests(unittest.TestCase):
         with self.assertRaises(subject.ProjectionError):
             subject.validate_response(changed, "request-1")
 
+    def test_malformed_or_mismatched_shapes_fail_closed(self) -> None:
+        cases = []
+        changed = deepcopy(response())
+        changed["gateway_version"] = "unexpected"
+        cases.append(changed)
+        changed = deepcopy(response())
+        changed["request_id"] = "other-request"
+        cases.append(changed)
+        changed = deepcopy(response())
+        changed.pop("adapter")
+        cases.append(changed)
+        changed = deepcopy(response())
+        changed["projection"] = []
+        cases.append(changed)
+        changed = deepcopy(response())
+        changed["adapter"]["valid"] = "true"
+        cases.append(changed)
+        changed = deepcopy(response())
+        changed["adapter"]["errors"] = [7]
+        cases.append(changed)
+        for changed in cases:
+            with self.subTest(changed=changed):
+                with self.assertRaises(subject.ProjectionError):
+                    subject.validate_response(changed, "request-1")
+
 
 if __name__ == "__main__":
     unittest.main()
