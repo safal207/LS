@@ -99,6 +99,16 @@ class MultiModelReviewHardeningTests(unittest.TestCase):
             with self.assertRaisesRegex(review.ReviewRuntimeError, "role must be unique and non-empty"):
                 review.load_config(path)
 
+    def test_roster_rejects_numeric_enabled_values(self):
+        for numeric_value in (0, 1):
+            with self.subTest(enabled=numeric_value), tempfile.TemporaryDirectory() as tmp:
+                broken = json.loads(json.dumps(self.roster))
+                broken["models"][0]["enabled"] = numeric_value
+                path = Path(tmp) / "models.json"
+                path.write_text(json.dumps(broken), encoding="utf-8")
+                with self.assertRaisesRegex(review.ReviewRuntimeError, "enabled must be boolean"):
+                    review.load_config(path)
+
     def test_ordinary_lane_excludes_reserved_specialists(self):
         specialists = {
             "nvidia/nemotron-3-ultra-550b-a55b:free",
