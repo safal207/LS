@@ -39,20 +39,25 @@ class WatchResult:
         return self.next_cursor > self.previous_cursor
 
 
+def cursor_value(body: str) -> int:
+    matches = CURSOR_PATTERN.findall(body)
+    if len(matches) != 1:
+        raise WatchError("tracker issue must contain exactly one external-watch cursor marker")
+    return int(matches[0])
+
+
 def parse_cursor(body: str) -> int:
-    match = CURSOR_PATTERN.search(body)
-    if match is None:
-        raise WatchError("tracker issue is missing external-watch cursor marker")
-    return int(match.group(1))
+    return cursor_value(body)
 
 
 def replace_cursor(body: str, cursor: int) -> str:
     if cursor < 0:
         raise WatchError("cursor must be non-negative")
+    cursor_value(body)
     replacement = f"<!-- external-watch:last-comment-id={cursor} -->"
-    updated, count = CURSOR_PATTERN.subn(replacement, body, count=1)
+    updated, count = CURSOR_PATTERN.subn(replacement, body)
     if count != 1:
-        raise WatchError("tracker issue is missing external-watch cursor marker")
+        raise WatchError("tracker issue must contain exactly one external-watch cursor marker")
     return updated
 
 
