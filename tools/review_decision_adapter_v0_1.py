@@ -2,7 +2,7 @@
 """Safe projection adapter for coarse ReviewDecision-style runtime signals.
 
 The adapter never invents a user decision. Lifecycle-loss signals update only
-requester or presentation state, while ambiguous/unsafe inputs fail closed.
+requester or presentation state, while ambiguous or malformed inputs fail closed.
 """
 
 from __future__ import annotations
@@ -117,6 +117,14 @@ OUTWARD_STATUS = {
     "STATE_LOST": "LOST_STATE",
 }
 
+LIFECYCLE_SIGNALS = {
+    "REQUESTER_CANCELLED",
+    "REQUESTER_DETACHED",
+    "TRANSPORT_DISCONNECTED",
+    "UI_DISMISSED",
+    "WAIT_WINDOW_ELAPSED",
+}
+
 
 def load_object(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
@@ -124,6 +132,15 @@ def load_object(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{path}: top-level value must be an object")
     return value
+
+
+def require(errors: list[str], condition: bool, message: str) -> None:
+    if not condition:
+        errors.append(message)
+
+
+def is_nonempty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value)
 
 
 def base_projection() -> dict[str, Any]:
@@ -154,11 +171,6 @@ def fail_closed(errors: list[str]) -> dict[str, Any]:
     }
 
 
-def require(errors: list[str], condition: bool, message: str) -> None:
-    if not condition:
-        errors.append(message)
-
-
 def validate_input(value: Any) -> tuple[dict[str, Any], list[str]]:
     errors: list[str] = []
     if not isinstance(value, dict):
@@ -171,12 +183,19 @@ def validate_input(value: Any) -> tuple[dict[str, Any], list[str]]:
     signal = value.get("signal")
     actor = value.get("actor")
     reason = value.get("reason")
+    evidence_ref = value.get("evidence_ref")
     exact_bindings_match = value.get("exact_bindings_match")
     expiry_policy_configured = value.get("expiry_policy_configured")
 
-    require(errors, isinstance(approval_id, str) and bool(approval_id), "approval_id is required")
-    require(errors, signal in SIGNALS, f"unsupported signal: {signal!r}")
-    require(errors, isinstance(reason, str) and bool(reason), "reason is required")
+    signal_valid = isinstance(signal, str) and signal in SIGNALS
+    require(errors, is_nonempty_string(approval_id), "approval_id is required")
+    require(errors, signal_valid, f"unsupported signal: {signal!r}")
+    require(errors, is_nonempty_string(reason), "reason is required")
+    require(
+        errors,
+        evidence_ref is None or is_nonempty_string(evidence_ref),
+        "evidence_ref must be null or a non-empty string",
+    )
     require(errors, type(exact_bindings_match) is bool, "exact_bindings_match must be boolean")
     require(errors, type(expiry_policy_configured) is bool, "expiry_policy_configured must be boolean")
 
@@ -189,40 +208,32 @@ def validate_input(value: Any) -> tuple[dict[str, Any], list[str]]:
         require(errors, not extra_actor, f"actor contains unsupported fields: {sorted(extra_actor)}")
         actor_type = actor.get("type")
         actor_id = actor.get("id")
-        require(errors, isinstance(actor_type, str) and bool(actor_type), "actor.type is required")
-        require(errors, isinstance(actor_id, str) and bool(actor_id), "actor.id is required")
+        require(errors, is_nonempty_string(actor_type), "actor.type is required")
+        require(errors, is_nonempty_string(actor_id), "actor.id is required")
 
-    if signal in ACTOR_OWNERS:
+    if signal_valid:
         require(
             errors,
-            actor_type in ACTOR_OWNERS[signal],
+            isinstance(actor_type, str) and actor_type in ACTOR_OWNERS[signal],
             f"actor {actor_type!r} cannot emit {signal}",
         )
 
-    if signal in EVIDENCE_REQUIRED:
-        evidence_ref = value.get("evidence_ref")
-        require(
-            errors,
-            isinstance(evidence_ref, str) and bool(evidence_ref),
-            f"{signal} requires evidence_ref",
-        )
+        if signal in EVIDENCE_REQUIRED:
+            require(errors, is_nonempty_string(evidence_ref), f"{signal} requires evidence_ref")
 
-    if signal == "POLICY_EXPIRED":
-        require(
-            errors,
-            expiry_policy_configured is True,
-            "POLICY_EXPIRED requires configured expiry policy",
-        )
-    elif expiry_policy_configured is True:
-        # The policy may exist, but only POLICY_EXPIRED is allowed to resolve it.
-        pass
+        if signal == "POLICY_EXPIRED":
+            require(
+                errors,
+                expiry_policy_configured is True,
+                "POLICY_EXPIRED requires configured expiry policy",
+            )
 
-    if signal == "USER_APPROVED":
-        require(
-            errors,
-            exact_bindings_match is True,
-            "USER_APPROVED requires exact action and scope bindings",
-        )
+        if signal == "USER_APPROVED":
+            require(
+                errors,
+                exact_bindings_match is True,
+                "USER_APPROVED requires exact action and scope bindings",
+            )
 
     return value, errors
 
@@ -232,7 +243,7 @@ def project_signal(value: Any) -> dict[str, Any]:
     if errors:
         return fail_closed(errors)
 
-    signal = str(signal_input["signal"])
+    signal = signal_input["signal"]
     actor = signal_input["actor"]
     projection = base_projection()
     projection["durable_event_type"] = EVENT_TYPES[signal]
@@ -253,8 +264,6 @@ def project_signal(value: Any) -> dict[str, Any]:
         projection["presentation_state"] = "DISCONNECTED"
     elif signal == "UI_DISMISSED":
         projection["presentation_state"] = "NOT_PRESENTED"
-    elif signal == "WAIT_WINDOW_ELAPSED":
-        pass
     elif signal == "POLICY_EXPIRED":
         projection["authority_state"] = "EXPIRED"
     elif signal == "CONTEXT_INVALIDATED":
@@ -304,14 +313,19 @@ def validate_fixture(fixture: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(cases, list) or not cases:
         return {
             "fixture_id": fixture.get("fixture_id"),
+            "fixture_version": fixture.get("fixture_version"),
             "passed": False,
             "errors": errors + ["fixture: cases must be a non-empty array"],
             "results": [],
+            "invariants": {},
         }
 
-    case_counts = Counter(
-        case.get("case_id") for case in cases if isinstance(case, dict)
-    )
+    case_ids = [
+        case.get("case_id")
+        for case in cases
+        if isinstance(case, dict) and isinstance(case.get("case_id"), str)
+    ]
+    case_counts = Counter(case_ids)
     require(
         errors,
         set(case_counts) == REQUIRED_CASES and all(count == 1 for count in case_counts.values()),
@@ -323,7 +337,9 @@ def validate_fixture(fixture: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(case, dict):
             errors.append(f"fixture.cases[{index}]: must be an object")
             continue
-        case_id = str(case.get("case_id"))
+
+        raw_case_id = case.get("case_id")
+        case_id = raw_case_id if isinstance(raw_case_id, str) else f"case[{index}]"
         expected = case.get("expected_projection")
         if not isinstance(expected, dict):
             errors.append(f"{case_id}: expected_projection is required")
@@ -340,25 +356,19 @@ def validate_fixture(fixture: dict[str, Any]) -> dict[str, Any]:
                 f"{case_id}: projection mismatch: expected {expected}, observed {first['projection']}"
             )
 
-        signal = case.get("input", {}).get("signal") if isinstance(case.get("input"), dict) else ""
+        raw_signal = case.get("input", {}).get("signal") if isinstance(case.get("input"), dict) else None
+        signal = raw_signal if isinstance(raw_signal, str) else "<invalid>"
         results.append(
             {
                 "case_id": case_id,
                 "input_signal": signal,
-                "unsafe_legacy_status": unsafe_legacy_status(str(signal)),
+                "unsafe_legacy_status": unsafe_legacy_status(signal),
                 "safe_result": first,
             }
         )
 
-    lifecycle_signals = {
-        "REQUESTER_CANCELLED",
-        "REQUESTER_DETACHED",
-        "TRANSPORT_DISCONNECTED",
-        "UI_DISMISSED",
-        "WAIT_WINDOW_ELAPSED",
-    }
     for result in results:
-        if result["input_signal"] not in lifecycle_signals:
+        if result["input_signal"] not in LIFECYCLE_SIGNALS:
             continue
         projection = result["safe_result"]["projection"]
         require(
@@ -387,12 +397,12 @@ def validate_fixture(fixture: dict[str, Any]) -> dict[str, Any]:
             "adapter_never_invents_user_rejection": all(
                 result["safe_result"]["projection"]["durable_event_type"] != "UserRejected"
                 for result in results
-                if result["input_signal"] in lifecycle_signals
+                if result["input_signal"] in LIFECYCLE_SIGNALS
             ),
             "lifecycle_loss_preserves_pending": all(
                 result["safe_result"]["projection"]["authority_state"] == "PENDING"
                 for result in results
-                if result["input_signal"] in lifecycle_signals
+                if result["input_signal"] in LIFECYCLE_SIGNALS
             ),
             "safe_projection_is_deterministic": not any(
                 "not deterministic" in error for error in errors
