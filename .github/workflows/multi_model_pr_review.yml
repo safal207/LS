@@ -1,0 +1,167 @@
+name: Multi-model PR review
+
+on:
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Open pull request number to review from the trusted default branch"
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+concurrency:
+  group: multi-model-pr-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.repository.private == false || vars.LS_ALLOW_EXTERNAL_AI_REVIEW == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+      REVIEW_MODE: ${{ vars.LS_AI_REVIEW_MODE || 'advisory' }}
+    steps:
+      - name: Check out trusted default-branch runtime
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate complete trusted runtime contract
+        run: python -m unittest discover -s python/tests -p 'test_multi_model_pr_review*.py' -v
+
+      - id: pr
+        name: Resolve exact pull-request metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > artifacts/pr.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          data = json.loads(Path("artifacts/pr.json").read_text(encoding="utf-8"))
+          if data.get("state") != "open":
+              raise SystemExit("pull request must be open")
+          base_sha = data.get("base", {}).get("sha", "")
+          head_sha = data.get("head", {}).get("sha", "")
+          if len(base_sha) != 40 or len(head_sha) != 40:
+              raise SystemExit("GitHub did not return exact 40-character SHAs")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"base_sha={base_sha}\n")
+              output.write(f"head_sha={head_sha}\n")
+          PY
+
+      - name: Download the exact GitHub-generated PR diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api \
+            -H "Accept: application/vnd.github.v3.diff" \
+            "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" \
+            > artifacts/pr.diff
+          test -s artifacts/pr.diff
+
+      - id: model_review
+        name: Run free multi-model review
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          set +e
+          python scripts/run_multi_model_pr_review.py \
+            --config .github/ai-review-models.json \
+            --provider-config .github/ai-review-provider-routes.json \
+            --diff-file artifacts/pr.diff \
+            --repository "${GITHUB_REPOSITORY}" \
+            --pr-number "${PR_NUMBER}" \
+            --base-sha "${{ steps.pr.outputs.base_sha }}" \
+            --head-sha "${{ steps.pr.outputs.head_sha }}" \
+            --mode "${REVIEW_MODE}" \
+            --output artifacts/multi-model-review.json \
+            --markdown-output artifacts/multi-model-review.md
+          result=$?
+          echo "exit_code=${result}" >> "${GITHUB_OUTPUT}"
+          exit 0
+
+      - name: Re-check exact head before publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ steps.pr.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          current_head="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          if [ "${current_head}" != "${EXPECTED_HEAD}" ]; then
+            echo "PR head moved from ${EXPECTED_HEAD} to ${current_head}; refusing to publish stale review evidence." >&2
+            exit 1
+          fi
+
+      - name: Publish or update the exact-head PR summary
+        if: hashFiles('artifacts/multi-model-review.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          comment_id="$(
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+              --jq '.[] | select(.body | startswith("<!-- ls-multi-model-review -->")) | .id' \
+              | head -n 1
+          )"
+          body="$(cat artifacts/multi-model-review.md)"
+          if [ -n "${comment_id}" ]; then
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" \
+              -f body="${body}" >/dev/null
+          else
+            gh api --method POST \
+              "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              -f body="${body}" >/dev/null
+          fi
+
+      - name: Upload exact-head review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-model-review-pr-${{ env.PR_NUMBER }}-${{ steps.pr.outputs.head_sha }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Apply configured review policy
+        if: always()
+        env:
+          REVIEW_EXIT_CODE: ${{ steps.model_review.outputs.exit_code || '3' }}
+        run: |
+          case "${REVIEW_EXIT_CODE}" in
+            0) exit 0 ;;
+            2)
+              echo "Strict mode blocked because the review was incomplete or independently confirmed a high-severity finding." >&2
+              exit 2
+              ;;
+            *)
+              echo "The trusted multi-model review runtime failed with exit code ${REVIEW_EXIT_CODE}." >&2
+              exit "${REVIEW_EXIT_CODE}"
+              ;;
+          esac

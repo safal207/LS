@@ -1,0 +1,80 @@
+name: Multi-model review contract
+
+on:
+  push:
+    branches:
+      - main
+    paths: &multi_model_review_paths
+      - ".github/ai-review-models.json"
+      - ".github/ai-review-provider-routes.json"
+      - ".github/workflows/multi_model_review_contract.yml"
+      - ".github/workflows/multi_model_pr_review.yml"
+      - "scripts/run_multi_model_pr_review.py"
+      - "scripts/multi_model_review/**"
+      - "python/tests/test_multi_model_pr_review*.py"
+      - "docs/MULTI_MODEL_PR_REVIEW.md"
+  pull_request:
+    branches:
+      - main
+    paths: *multi_model_review_paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: multi-model-review-contract-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out candidate code without credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile the review runtime
+        run: python -m py_compile scripts/run_multi_model_pr_review.py scripts/multi_model_review/*.py
+
+      - name: Run deterministic contract tests
+        run: |
+          set +e
+          python -m unittest discover -s python/tests -p 'test_multi_model_pr_review*.py' -v > multi-model-contract-tests.log 2>&1
+          result=$?
+          cat multi-model-contract-tests.log
+          exit "${result}"
+
+      - name: Upload contract-test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-model-contract-tests-${{ github.sha }}
+          path: multi-model-contract-tests.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Validate neutral roster and provider route binding
+        run: |
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "scripts")
+          from run_multi_model_pr_review import bind_provider_routes, load_config, load_provider_config
+
+          roster = load_config(Path(".github/ai-review-models.json"))
+          provider = load_provider_config(Path(".github/ai-review-provider-routes.json"))
+          bound = bind_provider_routes(roster, provider)
+          print(
+              f"validated {len(roster['models'])} neutral roles against "
+              f"provider={bound['provider']['key']} adapter={bound['provider']['adapter']}"
+          )
+          PY
