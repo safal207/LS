@@ -432,12 +432,25 @@ class GitHubRestClient:
     ) -> Sequence[str]:
         _require_sha1(base_sha, "base_sha")
         _require_sha1(head_sha, "head_sha")
-        value = self._request_json(
-            f"/repos/{repository}/compare/{base_sha}...{head_sha}"
-        )
+        compare_path = f"/repos/{repository}/compare/{base_sha}...{head_sha}"
+        value = self._request_json(compare_path)
         if not isinstance(value, dict) or not isinstance(value.get("files"), list):
-            raise RuntimeError("GitHub compare response must contain a files array")
-        return [item["filename"] for item in value["files"]]
+            raise RuntimeError(
+                f"GitHub compare response for {compare_path} must contain a files array"
+            )
+        filenames: list[str] = []
+        for index, item in enumerate(value["files"]):
+            if not isinstance(item, dict):
+                raise RuntimeError(
+                    f"GitHub compare response for {compare_path} has invalid files[{index}] entry"
+                )
+            filename = item.get("filename")
+            if not isinstance(filename, str) or not filename:
+                raise RuntimeError(
+                    f"GitHub compare response for {compare_path} has invalid files[{index}].filename"
+                )
+            filenames.append(filename)
+        return filenames
 
     def fetch_artifact(self, repository: str, head_sha: str, path: str) -> FetchedArtifact:
         _require_sha1(head_sha, "head_sha")
