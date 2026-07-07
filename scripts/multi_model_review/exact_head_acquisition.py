@@ -105,12 +105,8 @@ class AcquisitionManifest:
         pr_number = value.get("pr_number")
         if not isinstance(pr_number, int) or isinstance(pr_number, bool) or pr_number <= 0:
             raise ValueError("pr_number must be a positive integer")
-        expected_changed_file_count = value.get("expected_changed_file_count")
-        if (
-            not isinstance(expected_changed_file_count, int)
-            or isinstance(expected_changed_file_count, bool)
-            or expected_changed_file_count <= 0
-        ):
+        expected_count = value.get("expected_changed_file_count")
+        if not isinstance(expected_count, int) or isinstance(expected_count, bool) or expected_count <= 0:
             raise ValueError("expected_changed_file_count must be a positive integer")
 
         raw_paths = value.get("artifact_paths")
@@ -133,10 +129,7 @@ class AcquisitionManifest:
 
         max_file_bytes = value.get("max_file_bytes", 200_000)
         max_total_bytes = value.get("max_total_bytes", 2_000_000)
-        for name, limit in (
-            ("max_file_bytes", max_file_bytes),
-            ("max_total_bytes", max_total_bytes),
-        ):
+        for name, limit in (("max_file_bytes", max_file_bytes), ("max_total_bytes", max_total_bytes)):
             if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
                 raise ValueError(f"{name} must be a positive integer")
         if max_file_bytes > max_total_bytes:
@@ -147,7 +140,7 @@ class AcquisitionManifest:
             pr_number=pr_number,
             expected_base_sha=_require_sha1(value.get("expected_base_sha"), "expected_base_sha"),
             expected_head_sha=_require_sha1(value.get("expected_head_sha"), "expected_head_sha"),
-            expected_changed_file_count=expected_changed_file_count,
+            expected_changed_file_count=expected_count,
             artifact_paths=artifact_paths,
             related_artifacts=related,
             selection_mode=selection_mode,
@@ -193,9 +186,7 @@ class AcquisitionClient(Protocol):
     def get_pull_request(self, repository: str, pr_number: int) -> PullRequestSnapshot:
         ...
 
-    def list_changed_paths(
-        self, repository: str, base_sha: str, head_sha: str
-    ) -> Sequence[str]:
+    def list_changed_paths(self, repository: str, base_sha: str, head_sha: str) -> Sequence[str]:
         ...
 
     def fetch_artifact(self, repository: str, head_sha: str, path: str) -> FetchedArtifact:
@@ -220,26 +211,17 @@ def acquire_exact_head_bundle(
         raise ValueError("pull request identity mismatch")
     _require_sha1(pr.base_sha, "live base_sha")
     _require_sha1(pr.head_sha, "live head_sha")
-    if (
-        not isinstance(pr.changed_file_count, int)
-        or isinstance(pr.changed_file_count, bool)
-        or pr.changed_file_count < 0
-    ):
+    if not isinstance(pr.changed_file_count, int) or isinstance(pr.changed_file_count, bool) or pr.changed_file_count < 0:
         raise ValueError("live changed_file_count must be a non-negative integer")
     if pr.changed_file_count != manifest.expected_changed_file_count:
         raise ValueError(
             "changed-file count drift: "
-            f"expected {manifest.expected_changed_file_count}, "
-            f"observed {pr.changed_file_count}"
+            f"expected {manifest.expected_changed_file_count}, observed {pr.changed_file_count}"
         )
     if pr.base_sha != manifest.expected_base_sha:
-        raise ValueError(
-            f"base SHA drift: expected {manifest.expected_base_sha}, observed {pr.base_sha}"
-        )
+        raise ValueError(f"base SHA drift: expected {manifest.expected_base_sha}, observed {pr.base_sha}")
     if pr.head_sha != manifest.expected_head_sha:
-        raise ValueError(
-            f"head SHA drift: expected {manifest.expected_head_sha}, observed {pr.head_sha}"
-        )
+        raise ValueError(f"head SHA drift: expected {manifest.expected_head_sha}, observed {pr.head_sha}")
 
     changed_paths = {
         normalize_repo_path(path)
@@ -260,10 +242,10 @@ def acquire_exact_head_bundle(
 
     direct_paths = set(manifest.artifact_paths)
     if manifest.selection_mode == "ALL_CHANGED" and direct_paths != changed_paths:
-        omitted = sorted(changed_paths - direct_paths)
-        undeclared = sorted(direct_paths - changed_paths)
         raise ValueError(
-            f"ALL_CHANGED selection mismatch: omitted={omitted}, undeclared={undeclared}"
+            "ALL_CHANGED selection mismatch: "
+            f"omitted={sorted(changed_paths - direct_paths)}, "
+            f"undeclared={sorted(direct_paths - changed_paths)}"
         )
 
     related_by_path: dict[str, RelatedArtifactAdmission] = {}
@@ -273,19 +255,13 @@ def acquire_exact_head_bundle(
                 f"related artifact source must be a directly changed artifact: {admission.source_path}"
             )
         if admission.path in changed_paths:
-            raise ValueError(
-                f"changed artifact cannot be admitted as RELATED: {admission.path}"
-            )
+            raise ValueError(f"changed artifact cannot be admitted as RELATED: {admission.path}")
         related_by_path[admission.path] = admission
 
     artifacts: list[EvidenceArtifact] = []
     total_bytes = 0
     for path in sorted(direct_paths | set(related_by_path)):
-        fetched = client.fetch_artifact(
-            manifest.repository,
-            manifest.expected_head_sha,
-            path,
-        )
+        fetched = client.fetch_artifact(manifest.repository, manifest.expected_head_sha, path)
         if normalize_repo_path(fetched.path) != path:
             raise ValueError(f"fetched path mismatch: expected {path}, observed {fetched.path}")
         _require_sha1(fetched.git_blob_sha, f"{path} git_blob_sha")
@@ -298,9 +274,7 @@ def acquire_exact_head_bundle(
             )
         total_bytes += byte_length
         if total_bytes > manifest.max_total_bytes:
-            raise ValueError(
-                f"bundle exceeds max_total_bytes={manifest.max_total_bytes}"
-            )
+            raise ValueError(f"bundle exceeds max_total_bytes={manifest.max_total_bytes}")
         try:
             text = fetched.content.decode("utf-8")
         except UnicodeDecodeError as exc:
@@ -367,7 +341,7 @@ class _RejectRedirectHandler(urllib.request.HTTPRedirectHandler):
 
 
 class GitHubRestClient:
-    """Read-only GitHub REST client that fetches file content by exact commit SHA."""
+    """Read-only GitHub REST client that fetches content by exact commit SHA."""
 
     def __init__(
         self,
@@ -400,9 +374,7 @@ class GitHubRestClient:
                 raw = response.read()
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:500]
-            raise RuntimeError(
-                f"GitHub API HTTP {exc.code} for {path}: {detail}"
-            ) from exc
+            raise RuntimeError(f"GitHub API HTTP {exc.code} for {path}: {detail}") from exc
         except (urllib.error.URLError, TimeoutError) as exc:
             raise RuntimeError(
                 f"GitHub API transport failure for {path} "
@@ -417,14 +389,45 @@ class GitHubRestClient:
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"GitHub API returned invalid JSON for {path}") from exc
 
+    @staticmethod
+    def _require_object(value: Any, path: str, field: str = "response") -> dict[str, Any]:
+        if not isinstance(value, dict):
+            raise RuntimeError(f"GitHub API {field} for {path} must be an object")
+        return value
+
+    @staticmethod
+    def _require_non_empty_string(value: Any, path: str, field: str) -> str:
+        if not isinstance(value, str) or not value:
+            raise RuntimeError(f"GitHub API response for {path} has invalid {field}")
+        return value
+
     def get_pull_request(self, repository: str, pr_number: int) -> PullRequestSnapshot:
-        value = self._request_json(f"/repos/{repository}/pulls/{pr_number}")
+        api_path = f"/repos/{repository}/pulls/{pr_number}"
+        value = self._require_object(self._request_json(api_path), api_path)
+        base = self._require_object(value.get("base"), api_path, "base")
+        head = self._require_object(value.get("head"), api_path, "head")
+        base_sha = self._require_non_empty_string(base.get("sha"), api_path, "base.sha")
+        head_sha = self._require_non_empty_string(head.get("sha"), api_path, "head.sha")
+        changed_file_count = value.get("changed_files")
+        if (
+            not isinstance(changed_file_count, int)
+            or isinstance(changed_file_count, bool)
+            or changed_file_count < 0
+        ):
+            raise RuntimeError(
+                f"GitHub API response for {api_path} has invalid changed_files"
+            )
+        try:
+            _require_sha1(base_sha, "base.sha")
+            _require_sha1(head_sha, "head.sha")
+        except ValueError as exc:
+            raise RuntimeError(f"GitHub API response for {api_path} has invalid SHA data") from exc
         return PullRequestSnapshot(
             repository=repository,
             pr_number=pr_number,
-            base_sha=value["base"]["sha"],
-            head_sha=value["head"]["sha"],
-            changed_file_count=value["changed_files"],
+            base_sha=base_sha,
+            head_sha=head_sha,
+            changed_file_count=changed_file_count,
         )
 
     def list_changed_paths(
@@ -457,27 +460,26 @@ class GitHubRestClient:
         normalized = normalize_repo_path(path)
         encoded_path = urllib.parse.quote(normalized, safe="/")
         encoded_ref = urllib.parse.quote(head_sha, safe="")
-        value = self._request_json(
-            f"/repos/{repository}/contents/{encoded_path}?ref={encoded_ref}"
-        )
+        api_path = f"/repos/{repository}/contents/{encoded_path}?ref={encoded_ref}"
+        value = self._require_object(self._request_json(api_path), api_path)
         if value.get("type") != "file" or value.get("encoding") != "base64":
             raise RuntimeError(f"{normalized}: GitHub contents response is not a base64 file")
-        returned_path = normalize_repo_path(value.get("path"))
+        returned_path_raw = self._require_non_empty_string(value.get("path"), api_path, "path")
+        blob_sha = self._require_non_empty_string(value.get("sha"), api_path, "sha")
+        encoded_content = value.get("content")
+        if not isinstance(encoded_content, str):
+            raise RuntimeError(f"{normalized}: invalid base64 content response")
         try:
-            encoded_content = "".join(value["content"].split())
-            content = base64.b64decode(encoded_content, validate=True)
-        except (KeyError, AttributeError, ValueError) as exc:
-            raise RuntimeError(f"{normalized}: invalid base64 content response") from exc
-        return FetchedArtifact(
-            path=returned_path,
-            git_blob_sha=value["sha"],
-            content=content,
-        )
+            returned_path = normalize_repo_path(returned_path_raw)
+            _require_sha1(blob_sha, f"{normalized} git_blob_sha")
+            content = base64.b64decode("".join(encoded_content.split()), validate=True)
+        except (ValueError, TypeError) as exc:
+            raise RuntimeError(f"{normalized}: invalid GitHub contents response") from exc
+        return FetchedArtifact(path=returned_path, git_blob_sha=blob_sha, content=content)
 
 
 def load_manifest(path: Path) -> AcquisitionManifest:
-    value = json.loads(path.read_text(encoding="utf-8"))
-    return AcquisitionManifest.from_dict(value)
+    return AcquisitionManifest.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
 
 def write_bundle(path: Path, bundle: ExactHeadEvidenceBundle) -> None:
