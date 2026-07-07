@@ -1,0 +1,32 @@
+{
+  "schema_version": "ls.exact_head_acquisition_manifest.v0.1",
+  "repository": "safal207/LS",
+  "pr_number": 796,
+  "expected_base_sha": "66353d32cafe9a7e2e4b62ee98575859eca9f531",
+  "expected_head_sha": "a9bcc1c550f1139cd0233ecc8b05837d5c6d558c",
+  "artifact_paths": [
+    ".github/workflows/durable-approval-fixtures.yml",
+    "fixtures/trusted-runtime/durable-approval/CONFORMANCE.md",
+    "fixtures/trusted-runtime/durable-approval/README.md",
+    "fixtures/trusted-runtime/durable-approval/configured_policy_expiry_v0.2.json",
+    "fixtures/trusted-runtime/durable-approval/durable_state_loss_v0.2.json",
+    "fixtures/trusted-runtime/durable-approval/envelope.schema.json",
+    "fixtures/trusted-runtime/durable-approval/event.schema.json",
+    "fixtures/trusted-runtime/durable-approval/pending_approval_not_missing_authority_v0.1.json",
+    "fixtures/trusted-runtime/durable-approval/reconcile_in_doubt_committed_v0.2.json",
+    "fixtures/trusted-runtime/durable-approval/reconcile_in_doubt_failed_v0.2.json",
+    "fixtures/trusted-runtime/durable-approval/verified_context_invalidation_v0.2.json",
+    "spec/durable-approval-conformance-v0.1.md",
+    "spec/durable-approval-conformance-v0.2.md",
+    "tools/test_durable_approval_v0_1.py",
+    "tools/test_durable_approval_v0_2.py",
+    "tools/validate_durable_approval_v0_1.py",
+    "tools/validate_durable_approval_v0_2.py"
+  ],
+  "related_artifacts": [],
+  "max_file_bytes": 250000,
+  "max_total_bytes": 2000000,
+  "purpose": "Calibration input only. This manifest does not encode expected findings.",
+  "selection_mode": "ALL_CHANGED",
+  "expected_changed_file_count": 17
+}
