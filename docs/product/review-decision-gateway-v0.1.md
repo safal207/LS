@@ -75,10 +75,11 @@ Exports:
 ```text
 review_decision_requests_total
 blocked_ambiguous_signals_total
+transport_rejections_total
 invented_user_decisions_total
 ```
 
-`invented_user_decisions_total` is a sentinel invariant and must remain zero.
+`blocked_ambiguous_signals_total` counts adapter-level ambiguity only. Transport and framing failures use `transport_rejections_total`. `invented_user_decisions_total` is a zero-only sentinel invariant.
 
 ## HTTP behavior
 
@@ -87,22 +88,28 @@ invented_user_decisions_total
 | valid adapter input | `200` | canonical projection |
 | unsafe or unsupported signal | `422` | `ADAPTER_ERROR`, `PENDING`, `UNUSED`, blocked |
 | malformed UTF-8 or JSON | `400` | fail closed |
-| missing or invalid length | `411` | fail closed |
+| duplicate, missing, or invalid length | `411` | fail closed |
+| incomplete body | `400` | fail closed and close connection |
+| body read timeout | `408` | fail closed and close connection |
 | body above 64 KiB | `413` | rejected before body read |
 | wrong content type | `415` | fail closed |
+| unsupported transfer framing | `400` | fail closed and close connection |
 | unknown path | `404` | no side effect |
 
 All projection and error responses include `side_effects_performed=false`.
 
 ## Request identity
 
-A valid ASCII `X-Request-ID` of at most 128 characters is preserved. Otherwise the gateway derives a deterministic ID from the request-body SHA-256 digest.
+An `X-Request-ID` matching `[A-Za-z0-9._:-]{1,128}` is preserved. Otherwise the gateway derives a deterministic ID from the request-body SHA-256 digest.
 
 ## Security properties
 
 - standard-library implementation;
 - localhost binding by default;
 - strict 64 KiB request limit;
+- five-second body-read timeout;
+- exact-length reads with early-EOF rejection;
+- duplicate content-length and transfer-framing rejection;
 - JSON-only projection endpoint;
 - no shell commands or dynamic code execution;
 - canonical adapter remains the single authority mapping source;
@@ -115,6 +122,7 @@ A valid ASCII `X-Request-ID` of at most 128 characters is preserved. Otherwise t
 ```bash
 python tools/review_decision_gateway_v0_1.py --demo
 python tools/test_review_decision_gateway_v0_1.py
+python tools/test_review_decision_gateway_hardening_v0_1.py
 ```
 
-The suite covers live HTTP behavior, malformed and oversized requests, adapter failure, health, metrics, deterministic responses, zero invented decisions, and concurrent metric updates.
+The suites cover live HTTP behavior, malformed and oversized requests, adapter failure, health, metrics, deterministic responses, zero invented decisions, exact reads, and concurrent metric updates.
