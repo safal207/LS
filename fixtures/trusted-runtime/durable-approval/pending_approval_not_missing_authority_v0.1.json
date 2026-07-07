@@ -12,7 +12,7 @@
   },
   "fixture_id": "pending_approval_not_missing_authority_v0.1",
   "fixture_version": "ls-durable-approval-conformance-v0.1",
-  "description": "Independent approval dimensions remain distinguishable across cancellation, disconnection, waiting, explicit resolution, and restart.",
+  "description": "Independent approval dimensions remain distinguishable across cancellation, disconnection, UI dismissal, waiting, explicit resolution, and restart.",
   "envelope": {
     "schema_version": "ls-durable-approval-envelope-v0.1",
     "approval_id": "approval-codex-29627-001",
@@ -110,6 +110,48 @@
         "authority_state": "PENDING",
         "requester_state": "ATTACHED",
         "presentation_state": "DISCONNECTED",
+        "execution_state": "UNUSED",
+        "resolution": null
+      }
+    },
+    {
+      "case_id": "ui_dismissed_without_rejection",
+      "events": [
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-requested-01",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 1,
+          "event_type": "ApprovalRequested",
+          "occurred_at": "2026-07-06T18:30:00Z",
+          "actor": {"type": "SYSTEM", "id": "codex-runtime"},
+          "reason": "manual approval required"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-presented-02",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 2,
+          "event_type": "ApprovalPresented",
+          "occurred_at": "2026-07-06T18:30:01Z",
+          "actor": {"type": "RUNTIME", "id": "codex-tui"},
+          "reason": "approval dialog visible"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-ui-dismissed-03",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 3,
+          "event_type": "UiDismissed",
+          "occurred_at": "2026-07-06T18:31:00Z",
+          "actor": {"type": "USER", "id": "local-operator"},
+          "reason": "user closed the approval surface without choosing reject"
+        }
+      ],
+      "expected_snapshot": {
+        "authority_state": "PENDING",
+        "requester_state": "ATTACHED",
+        "presentation_state": "NOT_PRESENTED",
         "execution_state": "UNUSED",
         "resolution": null
       }
