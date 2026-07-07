@@ -338,14 +338,30 @@ def probe_timezone_comparison_safety(*, source: str, path: str) -> ProbeFinding 
     return None
 
 
+def _is_add_argument_call(node: ast.Call) -> bool:
+    if isinstance(node.func, ast.Attribute):
+        return node.func.attr == "add_argument"
+    return isinstance(node.func, ast.Name) and node.func.id == "add_argument"
+
+
 def _required_flags(argparse_source: str) -> set[str]:
+    tree = _parse_source(argparse_source)
+    if tree is None:
+        return set()
     flags: set[str] = set()
-    for match in re.finditer(
-        r"add_argument\(\s*[\"'](--[a-z0-9-]+)[\"'][^\)]*required\s*=\s*True",
-        argparse_source,
-        flags=re.IGNORECASE | re.DOTALL,
-    ):
-        flags.add(match.group(1))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not _is_add_argument_call(node):
+            continue
+        required = next((keyword.value for keyword in node.keywords if keyword.arg == "required"), None)
+        if not isinstance(required, ast.Constant) or required.value is not True:
+            continue
+        for argument in node.args:
+            if (
+                isinstance(argument, ast.Constant)
+                and isinstance(argument.value, str)
+                and argument.value.startswith("--")
+            ):
+                flags.add(argument.value)
     return flags
 
 
