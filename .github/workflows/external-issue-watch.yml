@@ -17,10 +17,6 @@ on:
     - cron: "17 * * * *"
   workflow_dispatch:
 
-concurrency:
-  group: external-issue-watch-codex-29627
-  cancel-in-progress: false
-
 jobs:
   unit-tests:
     if: github.event_name == 'pull_request' || github.event_name == 'push'
@@ -40,6 +36,9 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    concurrency:
+      group: external-issue-watch-codex-29627
+      cancel-in-progress: false
     permissions:
       contents: read
       issues: write
