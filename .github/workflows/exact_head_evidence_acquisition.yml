@@ -5,7 +5,7 @@ on:
     paths:
       - "scripts/multi_model_review/exact_head_acquisition.py"
       - "scripts/multi_model_review/acquire_exact_head_bundle.py"
-      - "python/tests/test_exact_head_acquisition.py"
+      - "python/tests/test_exact_head_acquisition*.py"
       - "benchmarks/exact-head/**"
       - "spec/exact-head-evidence-acquisition-v0.1.md"
       - ".github/workflows/exact_head_evidence_acquisition.yml"
@@ -42,7 +42,7 @@ jobs:
           scripts/multi_model_review/exact_head_acquisition.py
           scripts/multi_model_review/acquire_exact_head_bundle.py
       - name: Run deterministic acquisition contract
-        run: python -m unittest python/tests/test_exact_head_acquisition.py -v
+        run: python -m unittest discover -s python/tests -p 'test_exact_head_acquisition*.py' -v
 
   acquire:
     if: >-
