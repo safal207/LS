@@ -12,6 +12,7 @@
     "changed_file_count": 19
   },
   "prompt_path": "benchmarks/review-comparison/prompts/blind-review-v0.2.md",
+  "prompt_sha256": "8bd3a92d8599f8979b986cd632ff6188a3d90754d779ae3c8e3dd51429e0ed75",
   "lanes": [
     {
       "lane": "FRONTIER_MODEL",

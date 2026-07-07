@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from review_benchmark_v0_2_common import BenchmarkV02Error, sha256_json
@@ -25,8 +26,13 @@ def _body(report: dict[str, Any], binding: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def seal_report(case: dict[str, Any], binding: dict[str, Any], report: dict[str, Any]) -> dict[str, Any]:
-    validate_report(report, case, binding)
+def seal_report(
+    case: dict[str, Any],
+    binding: dict[str, Any],
+    report: dict[str, Any],
+    repository_root: Path,
+) -> dict[str, Any]:
+    validate_report(report, case, binding, repository_root)
     body = _body(report, binding)
     return {**body, "seal_sha256": sha256_json(body)}
 

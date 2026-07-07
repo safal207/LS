@@ -165,6 +165,10 @@
       "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
       "type": "string"
     },
+    "prompt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
     "schema_version": {
       "const": "ls.review_benchmark_case.v0.2"
     },
@@ -183,6 +187,7 @@
     "evidence_sha256",
     "coordinates",
     "prompt_path",
+    "prompt_sha256",
     "lanes"
   ],
   "title": "LS Blind Review Benchmark Case v0.2",

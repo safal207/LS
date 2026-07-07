@@ -67,6 +67,11 @@ def validate_finding(item: Any, index: int, ids: set[str], lane: str) -> None:
             raise BenchmarkV02Error("evidence line range is invalid")
         text(source["observation"], "evidence.observation")
     reproduction = exact(item["reproduction"], {"status", "steps"}, "reproduction")
-    if reproduction["status"] not in REPRODUCTION_STATUSES:
+    status = reproduction["status"]
+    if status not in REPRODUCTION_STATUSES:
         raise BenchmarkV02Error("reproduction.status is invalid")
-    strings(reproduction["steps"], "reproduction.steps")
+    strings(
+        reproduction["steps"],
+        "reproduction.steps",
+        nonempty=status in {"REPRODUCED", "STATICALLY_PROVEN"},
+    )

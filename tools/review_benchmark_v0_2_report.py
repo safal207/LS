@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
-from review_benchmark_v0_2_binding import validate_case, validate_run_binding
+from review_benchmark_v0_2_binding import validate_run_binding
 from review_benchmark_v0_2_common import (
     VERDICTS,
     BenchmarkV02Error,
@@ -16,11 +17,13 @@ from review_benchmark_v0_2_finding import validate_finding
 from review_benchmark_v0_2_structure import validate_structured
 
 
-def validate_report(report: dict[str, Any], case: dict[str, Any], binding: dict[str, Any]) -> None:
-    validate_case(case)
-    if case["status"] != "FROZEN":
-        raise BenchmarkV02Error("reports cannot be accepted until case is FROZEN")
-    validate_run_binding(binding, case)
+def validate_report(
+    report: dict[str, Any],
+    case: dict[str, Any],
+    binding: dict[str, Any],
+    repository_root: Path,
+) -> None:
+    validate_run_binding(binding, case, repository_root)
     exact(
         report,
         {
@@ -51,6 +54,10 @@ def validate_report(report: dict[str, Any], case: dict[str, Any], binding: dict[
     for index, item in enumerate(report["findings"]):
         validate_finding(item, index, finding_ids, report["lane"])
     validate_structured(report["structured_analysis"], report["lane"], finding_ids)
+    node_ids = {
+        node["node_id"]
+        for node in report["structured_analysis"]["artifact_nodes"]
+    }
 
     if not isinstance(report["proposed_edges"], list):
         raise BenchmarkV02Error("proposed_edges must be an array")
@@ -67,6 +74,10 @@ def validate_report(report: dict[str, Any], case: dict[str, Any], binding: dict[
         proposal_ids.add(proposal_id)
         for name in ("source_node", "target_node", "relation_type"):
             text(edge[name], f"edge.{name}")
+        if edge["source_node"] not in node_ids or edge["target_node"] not in node_ids:
+            raise BenchmarkV02Error(
+                f"proposed_edges[{index}] references unknown node"
+            )
         refs = strings(edge["provenance_finding_ids"], "edge provenance", nonempty=True)
         if any(ref not in finding_ids for ref in refs):
             raise BenchmarkV02Error("edge references unknown finding provenance")

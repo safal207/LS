@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from review_benchmark_v0_2_common import sha256_json
+from pathlib import Path
 
+from review_benchmark_v0_2_common import sha256_file, sha256_json
+
+ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE = "f" * 64
-PROMPT = "a" * 64
+PROMPT = sha256_file(
+    ROOT / "benchmarks/review-comparison/prompts/blind-review-v0.2.md"
+)
 
 
 def case_value():
@@ -21,6 +26,7 @@ def case_value():
             "changed_file_count": 19,
         },
         "prompt_path": "benchmarks/review-comparison/prompts/blind-review-v0.2.md",
+        "prompt_sha256": PROMPT,
         "lanes": [
             {
                 "lane": "FRONTIER_MODEL",

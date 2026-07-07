@@ -38,7 +38,7 @@ class BenchmarkV02Error(ValueError):
 def load_json(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise BenchmarkV02Error(f"cannot load JSON from {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise BenchmarkV02Error(f"{path} must contain an object")
@@ -63,6 +63,13 @@ def sha256_json(value: Any) -> str:
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
+def sha256_file(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise BenchmarkV02Error(f"cannot hash file {path}: {exc}") from exc
+
+
 def exact(value: Any, keys: set[str], field: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise BenchmarkV02Error(f"{field} must be an object")
@@ -76,7 +83,7 @@ def exact(value: Any, keys: set[str], field: str) -> dict[str, Any]:
 
 
 def text(value: Any, field: str) -> str:
-    if not isinstance(value, str) or not value:
+    if not isinstance(value, str) or not value.strip():
         raise BenchmarkV02Error(f"{field} must be a non-empty string")
     return value
 
@@ -84,7 +91,7 @@ def text(value: Any, field: str) -> str:
 def strings(value: Any, field: str, *, nonempty: bool = False) -> list[str]:
     if not isinstance(value, list) or (nonempty and not value):
         raise BenchmarkV02Error(f"{field} must be an array")
-    if any(not isinstance(item, str) or not item for item in value):
+    if any(not isinstance(item, str) or not item.strip() for item in value):
         raise BenchmarkV02Error(f"{field} must contain non-empty strings")
     return value
 

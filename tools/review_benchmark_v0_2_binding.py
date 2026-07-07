@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from review_benchmark_v0_2_common import (
@@ -12,12 +13,13 @@ from review_benchmark_v0_2_common import (
     digest,
     exact,
     repo_path,
+    sha256_file,
     strings,
     text,
 )
 
 
-def validate_case(case: dict[str, Any]) -> None:
+def validate_case(case: dict[str, Any], repository_root: Path | None = None) -> None:
     exact(
         case,
         {
@@ -28,6 +30,7 @@ def validate_case(case: dict[str, Any]) -> None:
             "evidence_sha256",
             "coordinates",
             "prompt_path",
+            "prompt_sha256",
             "lanes",
         },
         "case",
@@ -39,6 +42,7 @@ def validate_case(case: dict[str, Any]) -> None:
         raise BenchmarkV02Error("case status must be PREPARED or FROZEN")
     repo_path(case["evidence_manifest_path"], "evidence_manifest_path")
     repo_path(case["prompt_path"], "prompt_path")
+    digest(case["prompt_sha256"], "prompt_sha256")
     if case["status"] == "PREPARED":
         if case["evidence_sha256"] is not None:
             raise BenchmarkV02Error("PREPARED case must not claim evidence_sha256")
@@ -79,9 +83,25 @@ def validate_case(case: dict[str, Any]) -> None:
             raise BenchmarkV02Error("lane visibility must be FROZEN_BUNDLE_ONLY")
         strings(lane["must_not_receive"], "must_not_receive", nonempty=True)
 
+    if repository_root is not None:
+        root = repository_root.resolve()
+        prompt_path = (root / case["prompt_path"]).resolve()
+        try:
+            prompt_path.relative_to(root)
+        except ValueError as exc:
+            raise BenchmarkV02Error("prompt_path escapes repository root") from exc
+        if sha256_file(prompt_path) != case["prompt_sha256"]:
+            raise BenchmarkV02Error(
+                "case prompt_sha256 does not match frozen prompt bytes"
+            )
 
-def validate_run_binding(binding: dict[str, Any], case: dict[str, Any]) -> None:
-    validate_case(case)
+
+def validate_run_binding(
+    binding: dict[str, Any],
+    case: dict[str, Any],
+    repository_root: Path,
+) -> None:
+    validate_case(case, repository_root)
     if case["status"] != "FROZEN":
         raise BenchmarkV02Error("run binding requires a FROZEN case")
     exact(
@@ -107,7 +127,8 @@ def validate_run_binding(binding: dict[str, Any], case: dict[str, Any]) -> None:
         raise BenchmarkV02Error("run binding lane is invalid")
     if binding["evidence_sha256"] != case["evidence_sha256"]:
         raise BenchmarkV02Error("run binding is not bound to frozen evidence")
-    digest(binding["prompt_sha256"], "run_binding.prompt_sha256")
+    if binding["prompt_sha256"] != case["prompt_sha256"]:
+        raise BenchmarkV02Error("run binding is not bound to frozen prompt")
     digest(binding["nonce"], "run_binding.nonce")
     if not isinstance(binding["run_id"], str) or not RUN_ID.fullmatch(
         binding["run_id"]
