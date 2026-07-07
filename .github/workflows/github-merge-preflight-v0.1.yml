@@ -1,0 +1,46 @@
+name: GitHub Merge Preflight
+
+on:
+  pull_request:
+    paths:
+      - "docs/product/github-merge-preflight-v0.1.md"
+      - "fixtures/github-merge-preflight/**"
+      - "tools/github_merge_preflight_core_v0_1.py"
+      - "tools/run_github_merge_preflight_v0_1.py"
+      - "tools/test_github_merge_preflight_core_v0_1.py"
+      - "tools/test_merge_preflight_integration_v0_1.py"
+      - "tools/review_decision_adapter_v0_1.py"
+      - "tools/review_decision_gateway_v0_1.py"
+      - ".github/workflows/github-merge-preflight-v0.1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/product/github-merge-preflight-v0.1.md"
+      - "fixtures/github-merge-preflight/**"
+      - "tools/github_merge_preflight_core_v0_1.py"
+      - "tools/run_github_merge_preflight_v0_1.py"
+      - "tools/test_github_merge_preflight_core_v0_1.py"
+      - "tools/test_merge_preflight_integration_v0_1.py"
+      - "tools/review_decision_adapter_v0_1.py"
+      - "tools/review_decision_gateway_v0_1.py"
+      - ".github/workflows/github-merge-preflight-v0.1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run exact-head allow fixture
+        run: python tools/run_github_merge_preflight_v0_1.py --input fixtures/github-merge-preflight/approved_exact_head.json
+      - name: Run decision-core controls
+        run: python tools/test_github_merge_preflight_core_v0_1.py
+      - name: Run Gateway integration controls
+        run: python tools/test_merge_preflight_integration_v0_1.py
