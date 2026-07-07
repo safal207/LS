@@ -15,7 +15,6 @@
       "activation": "always",
       "model": "north-mini-code",
       "fallbacks": [
-        "gpt-oss-120b",
         "hy3",
         "laguna-xs-2.1"
       ]
