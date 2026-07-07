@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import re
 import sys
 import threading
 from copy import deepcopy
@@ -20,6 +21,7 @@ ADAPTER_PATH = ROOT / "tools" / "review_decision_adapter_v0_1.py"
 GATEWAY_VERSION = "ls-review-decision-gateway-v0.1"
 PROJECT_PATH = "/v1/review-decision/project"
 MAX_BODY_BYTES = 65536
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 _spec = importlib.util.spec_from_file_location("review_decision_adapter_v0_1", ADAPTER_PATH)
 if _spec is None or _spec.loader is None:
@@ -63,7 +65,7 @@ class ReviewDecisionGateway:
     @staticmethod
     def request_id(body: bytes, supplied: str | None = None) -> str:
         candidate = supplied.strip() if isinstance(supplied, str) else ""
-        if candidate and len(candidate) <= 128 and candidate.isascii():
+        if REQUEST_ID_PATTERN.fullmatch(candidate):
             return candidate
         return "req-" + hashlib.sha256(body).hexdigest()[:24]
 
@@ -123,6 +125,8 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        if self.close_connection:
+            self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
 
@@ -136,6 +140,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def transport_error(self, status: HTTPStatus, error: str, body: bytes = b"") -> None:
+        self.close_connection = True
         request_id = self.server.gateway.request_id(body, self.headers.get("X-Request-ID"))
         code, response = self.server.gateway.reject(status, error, request_id)
         self.send_json(code, response)
@@ -150,7 +155,11 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         if self.path != PROJECT_PATH:
+            self.close_connection = True
             self.send_json(404, {"gateway_version": GATEWAY_VERSION, "error": "not found", "side_effects_performed": False})
+            return
+        if self.headers.get("Transfer-Encoding") is not None:
+            self.transport_error(HTTPStatus.BAD_REQUEST, "Transfer-Encoding is not supported")
             return
         if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
             self.transport_error(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "Content-Type must be application/json")
