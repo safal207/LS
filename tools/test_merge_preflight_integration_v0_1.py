@@ -36,6 +36,16 @@ def value(signal: str = "USER_APPROVED") -> dict:
     }
 
 
+class FailingService:
+    def project(self, _approval: dict, _request_id: str) -> tuple[int, dict]:
+        raise RuntimeError("sensitive internal detail")
+
+
+class MalformedService:
+    def project(self, _approval: dict, _request_id: str) -> object:
+        return object()
+
+
 class IntegrationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.service = gateway.ReviewDecisionGateway()
@@ -59,6 +69,15 @@ class IntegrationTests(unittest.TestCase):
         candidate = value()
         candidate["approval"]["actor"] = {"type": "AGENT", "id": "agent-root"}
         self.assertEqual("ADAPTER_REJECTED", adapter.evaluate(candidate, self.service)["reason_code"])
+
+    def test_service_exceptions_and_bad_return_shapes_block(self) -> None:
+        for service in (FailingService(), MalformedService()):
+            with self.subTest(service=type(service).__name__):
+                result = adapter.evaluate(value(), service)
+                self.assertEqual("BLOCK", result["decision"])
+                self.assertEqual("GATEWAY_INTERNAL_FAILURE", result["reason_code"])
+                self.assertNotIn("sensitive internal detail", result["detail"])
+                self.assertFalse(result["side_effects_performed"])
 
 
 if __name__ == "__main__":
