@@ -76,15 +76,20 @@ class DurableApprovalV02Tests(unittest.TestCase):
         fixture["events"][-1]["occurred_at"] = "2026-07-06T18:54:59Z"
         self.assert_rejected_with(fixture, "expiry event cannot precede expires_at")
 
+    def test_expiry_timestamp_requires_timezone(self) -> None:
+        fixture = copy.deepcopy(self.fixtures["configured_policy_expiry"])
+        fixture["events"][-1]["occurred_at"] = "2026-07-06T18:55:00"
+        self.assert_rejected_with(fixture, "timestamp must include timezone offset")
+
     def test_invalidation_requires_evidence(self) -> None:
         fixture = copy.deepcopy(self.fixtures["verified_context_invalidation"])
         fixture["events"][-1].pop("evidence_ref")
-        self.assert_rejected_with(fixture, "invalidation evidence_ref is required")
+        self.assert_rejected_with(fixture, "evidence_ref is required")
 
     def test_lost_state_requires_evidence(self) -> None:
         fixture = copy.deepcopy(self.fixtures["durable_state_loss"])
         fixture["events"][-1].pop("evidence_ref")
-        self.assert_rejected_with(fixture, "lost-state evidence_ref is required")
+        self.assert_rejected_with(fixture, "durable_state_loss: evidence_ref is required")
 
     def test_reconciliation_requires_evidence(self) -> None:
         fixture = copy.deepcopy(self.fixtures["reconcile_in_doubt_committed"])
