@@ -92,6 +92,8 @@ class MultiModelReviewTests(unittest.TestCase):
         self.assertIn("api_key = <REDACTED>", bounded)
         self.assertNotIn("sample-value", bounded)
         self.assertTrue(metadata["truncated"])
+        self.assertLessEqual(len(bounded), 1200)
+        self.assertEqual(metadata["sent_chars"], len(bounded))
         self.assertEqual(metadata["redaction_count"], 1)
         self.assertEqual(len(metadata["sha256"]), 64)
 
