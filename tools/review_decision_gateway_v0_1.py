@@ -8,19 +8,21 @@ import hashlib
 import importlib.util
 import json
 import re
+import socket
 import sys
 import threading
 from copy import deepcopy
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 ROOT = Path(__file__).resolve().parents[1]
 ADAPTER_PATH = ROOT / "tools" / "review_decision_adapter_v0_1.py"
 GATEWAY_VERSION = "ls-review-decision-gateway-v0.1"
 PROJECT_PATH = "/v1/review-decision/project"
 MAX_BODY_BYTES = 65536
+READ_TIMEOUT_SECONDS = 5.0
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 _spec = importlib.util.spec_from_file_location("review_decision_adapter_v0_1", ADAPTER_PATH)
@@ -31,20 +33,36 @@ sys.modules[_spec.name] = adapter
 _spec.loader.exec_module(adapter)
 
 
+def read_exact(stream: BinaryIO, length: int) -> bytes | None:
+    """Read exactly length bytes or return None on early EOF."""
+    chunks: list[bytes] = []
+    remaining = length
+    while remaining:
+        chunk = stream.read(min(remaining, 8192))
+        if not chunk:
+            return None
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
+
+
 class GatewayMetrics:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._values = {
             "review_decision_requests_total": 0,
             "blocked_ambiguous_signals_total": 0,
+            "transport_rejections_total": 0,
             "invented_user_decisions_total": 0,
         }
 
-    def record(self, blocked: bool, invented: bool = False) -> None:
+    def record(self, *, blocked_ambiguous: bool = False, transport_rejection: bool = False) -> None:
         with self._lock:
             self._values["review_decision_requests_total"] += 1
-            self._values["blocked_ambiguous_signals_total"] += int(blocked)
-            self._values["invented_user_decisions_total"] += int(invented)
+            self._values["blocked_ambiguous_signals_total"] += int(blocked_ambiguous)
+            self._values["transport_rejections_total"] += int(transport_rejection)
+            if self._values["invented_user_decisions_total"] != 0:
+                raise RuntimeError("invented_user_decisions_total invariant violated")
 
     def snapshot(self) -> dict[str, int]:
         with self._lock:
@@ -92,13 +110,13 @@ class ReviewDecisionGateway:
         }
         if invented:
             result = adapter.fail_closed(["gateway invariant violation: invented user decision"])
-        self.metrics.record(blocked=not result["valid"], invented=invented)
+        self.metrics.record(blocked_ambiguous=not result["valid"])
         status = HTTPStatus.OK if result["valid"] else HTTPStatus.UNPROCESSABLE_ENTITY
         return int(status), self.envelope(request_id, result)
 
     def reject(self, status: HTTPStatus, error: str, request_id: str) -> tuple[int, dict[str, Any]]:
         result = adapter.fail_closed([error])
-        self.metrics.record(blocked=True)
+        self.metrics.record(transport_rejection=True)
         return int(status), self.envelope(request_id, result)
 
 
@@ -136,6 +154,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         self.wfile.write(body)
 
@@ -164,9 +183,12 @@ class GatewayHandler(BaseHTTPRequestHandler):
         if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
             self.transport_error(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "Content-Type must be application/json")
             return
-        raw_length = self.headers.get("Content-Length")
+        length_headers = self.headers.get_all("Content-Length", [])
+        if len(length_headers) != 1:
+            self.transport_error(HTTPStatus.LENGTH_REQUIRED, "exactly one Content-Length is required")
+            return
         try:
-            length = int(raw_length) if raw_length is not None else -1
+            length = int(length_headers[0])
         except ValueError:
             length = -1
         if length < 0:
@@ -175,7 +197,19 @@ class GatewayHandler(BaseHTTPRequestHandler):
         if length > MAX_BODY_BYTES:
             self.transport_error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "request body exceeds 65536 bytes")
             return
-        body = self.rfile.read(length)
+
+        self.connection.settimeout(READ_TIMEOUT_SECONDS)
+        try:
+            body = read_exact(self.rfile, length)
+        except (socket.timeout, TimeoutError):
+            self.connection.settimeout(None)
+            self.transport_error(HTTPStatus.REQUEST_TIMEOUT, "request body read timed out")
+            return
+        self.connection.settimeout(None)
+        if body is None:
+            self.transport_error(HTTPStatus.BAD_REQUEST, "request body was truncated")
+            return
+
         request_id = self.server.gateway.request_id(body, self.headers.get("X-Request-ID"))
         try:
             payload = json.loads(body.decode("utf-8"))
