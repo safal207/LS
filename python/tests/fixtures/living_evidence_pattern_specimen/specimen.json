@@ -1,0 +1,77 @@
+{
+  "schema_version": "ls.living_evidence_pattern_specimen.v0.1",
+  "artifact_fidelity": "SYNTHETIC_PATTERN_SPECIMEN",
+  "inspired_by_pr": 796,
+  "source_head_reference": "a9bcc1c550f1139cd0233ecc8b05837d5c6d558c",
+  "limitations": [
+    "This is not a byte-for-byte or semantic replay of PR #796.",
+    "The snippets are intentionally minimal and contain known signatures for probe regression.",
+    "Passing this specimen does not prove recall on real repository artifacts."
+  ],
+  "known_paths": [
+    "fixtures/trusted-runtime/durable-approval/envelope.schema.json",
+    "fixtures/trusted-runtime/durable-approval/event.schema.json",
+    "fixtures/trusted-runtime/durable-approval/configured_policy_expiry_v0.2.json",
+    "fixtures/trusted-runtime/durable-approval/verified_context_invalidation_v0.2.json",
+    "fixtures/trusted-runtime/durable-approval/durable_state_loss_v0.2.json",
+    "fixtures/trusted-runtime/durable-approval/reconcile_in_doubt_committed_v0.2.json",
+    "fixtures/trusted-runtime/durable-approval/reconcile_in_doubt_failed_v0.2.json"
+  ],
+  "files": {
+    "envelope.schema.json": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_digest": {"type": "string", "pattern": "^sha256:[A-Za-z0-9._-]+$"},
+        "scope_digest": {"type": "string", "pattern": "^sha256:[A-Za-z0-9._-]+$"},
+        "expiry_policy": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {"policy_id": {"type": "string"}}
+            }
+          ]
+        }
+      }
+    },
+    "event.schema.json": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "enum": [
+            "ApprovalRequested",
+            "ApprovalPresented",
+            "RequesterCancelled",
+            "TransportDisconnected",
+            "UiDismissed",
+            "WaitWindowElapsed",
+            "UserApproved",
+            "UserRejected",
+            "ApprovalExpired",
+            "ApprovalInvalidated",
+            "ExecutionClaimed",
+            "EffectObserved",
+            "RuntimeRestarted",
+            "LostStateDetected"
+          ]
+        },
+        "actor": {"type": "object", "additionalProperties": false},
+        "bindings": {"type": "object", "additionalProperties": false}
+      }
+    },
+    "validate_v0_1.py": "from datetime import datetime\n\ndef parse_timestamp(value):\n    return datetime.fromisoformat(value.replace('Z', '+00:00'))\n\ndef validate_envelope(envelope, errors):\n    for field in {'action_digest', 'scope_digest'}:\n        value = envelope.get(field)\n        if not value.startswith('sha256:'):\n            errors.append('digest')\n\ndef reduce_case(events):\n    previous_time = None\n    for event in events:\n        occurred_at = parse_timestamp(event.get('occurred_at'))\n        if previous_time is not None and occurred_at >= previous_time:\n            pass\n        previous_time = occurred_at\n        if event.get('event_type') == 'UiDismissed':\n            pass\n        if event.get('event_type') == 'ApprovalRequested':\n            pass\n        if event.get('event_type') == 'ApprovalPresented':\n            pass\n        if event.get('event_type') == 'RequesterCancelled':\n            pass\n        if event.get('event_type') == 'TransportDisconnected':\n            pass\n        if event.get('event_type') == 'WaitWindowElapsed':\n            pass\n        if event.get('event_type') == 'UserApproved':\n            pass\n        if event.get('event_type') == 'UserRejected':\n            pass\n        if event.get('event_type') == 'ApprovalExpired':\n            pass\n        if event.get('event_type') == 'ApprovalInvalidated':\n            pass\n        if event.get('event_type') == 'ExecutionClaimed':\n            pass\n        if event.get('event_type') == 'EffectObserved':\n            pass\n        if event.get('event_type') == 'RuntimeRestarted':\n            pass\n        if event.get('event_type') == 'LostStateDetected':\n            pass\n",
+    "validate_v0_2.py": "parser.add_argument('--envelope-schema', required=True)\nparser.add_argument('--event-schema', required=True)\nparser.add_argument('fixtures', nargs='+')\n",
+    "spec_v0_2.md": "```bash\npython tools/validate_durable_approval_v0_2.py fixtures/trusted-runtime/durable-approval/full_lifecycle_v0.2.json fixtures/trusted-runtime/durable-approval/envelope.schema.json fixtures/trusted-runtime/durable-approval/event.schema.json\n```",
+    "coverage.txt": "ApprovalRequested ApprovalPresented RequesterCancelled TransportDisconnected WaitWindowElapsed UserApproved UserRejected ApprovalExpired ApprovalInvalidated ExecutionClaimed EffectObserved RuntimeRestarted LostStateDetected"
+  },
+  "expected_signature_ids": [
+    "schema-runtime-additional-properties-parity",
+    "schema-runtime-digest-pattern-parity",
+    "temporal-naive-aware-comparison",
+    "cli-spec-parity",
+    "event-coverage-UiDismissed"
+  ]
+}
