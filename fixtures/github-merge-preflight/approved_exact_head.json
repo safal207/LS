@@ -1,0 +1,18 @@
+{
+  "repository": "safal207/LS",
+  "pull_request_number": 813,
+  "expected_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "gateway_url": "in-process://review-decision-gateway-v0.1",
+  "approval": {
+    "approval_id": "github-merge:7e38e20b28a64bf879c267ba0d0d0f6f33be8870735085bb5afea8a0ef732298",
+    "signal": "USER_APPROVED",
+    "actor": {
+      "type": "USER",
+      "id": "operator-1"
+    },
+    "reason": "explicit approval for exact repository, PR, and head",
+    "evidence_ref": null,
+    "exact_bindings_match": true,
+    "expiry_policy_configured": false
+  }
+}
