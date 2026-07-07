@@ -58,6 +58,7 @@ class SignalPhase(str, Enum):
     UNFOLDED = "UNFOLDED"
     REPRODUCED = "REPRODUCED"
     CONFIRMED = "CONFIRMED"
+    HARMONIZED = "HARMONIZED"
     BLOCKING = "BLOCKING"
     FIXED = "FIXED"
     VERIFIED = "VERIFIED"
@@ -68,7 +69,8 @@ _ALLOWED_PHASE_TRANSITIONS: dict[SignalPhase, set[SignalPhase]] = {
     SignalPhase.LATENT: {SignalPhase.UNFOLDED},
     SignalPhase.UNFOLDED: {SignalPhase.REPRODUCED},
     SignalPhase.REPRODUCED: {SignalPhase.CONFIRMED},
-    SignalPhase.CONFIRMED: {SignalPhase.BLOCKING},
+    SignalPhase.CONFIRMED: {SignalPhase.HARMONIZED},
+    SignalPhase.HARMONIZED: {SignalPhase.BLOCKING},
     SignalPhase.BLOCKING: {SignalPhase.FIXED},
     SignalPhase.FIXED: {SignalPhase.VERIFIED},
     SignalPhase.VERIFIED: {SignalPhase.DORMANT},
@@ -154,7 +156,23 @@ class Observation:
     observed_at: str
 
     def __post_init__(self) -> None:
+        if not self.observation_id or not self.method or not self.observer or not self.evidence:
+            raise ValueError("observation identity, method, observer, and evidence are required")
         _parse_aware(self.observed_at, "observed_at")
+
+
+@dataclass(frozen=True)
+class HarmonizationDecision:
+    decision_id: str
+    observation_id: str
+    resolution: str
+    evidence: str
+    decided_at: str
+
+    def __post_init__(self) -> None:
+        if not self.decision_id or not self.observation_id or not self.resolution or not self.evidence:
+            raise ValueError("harmonization decision fields are required")
+        _parse_aware(self.decided_at, "decided_at")
 
 
 @dataclass(frozen=True)
@@ -179,6 +197,7 @@ class EvidenceSignal:
     phase: SignalPhase = SignalPhase.LATENT
     observations: list[Observation] = field(default_factory=list)
     transitions: list[PhaseTransition] = field(default_factory=list)
+    harmonization: HarmonizationDecision | None = None
     regression_rule: str | None = None
 
     def add_observation(self, observation: Observation) -> None:
@@ -186,17 +205,40 @@ class EvidenceSignal:
             raise ValueError(f"duplicate observation_id {observation.observation_id}")
         self.observations.append(observation)
 
+    def record_harmonization(self, decision: HarmonizationDecision) -> None:
+        if self.harmonization is not None:
+            raise ValueError("harmonization decision is already recorded")
+        if self.phase != SignalPhase.CONFIRMED:
+            raise ValueError("harmonization decision requires CONFIRMED phase")
+        observations = {item.observation_id: item for item in self.observations}
+        if decision.observation_id not in observations:
+            raise ValueError("harmonization decision requires an attributed observation")
+        decision_time = _parse_aware(decision.decided_at, "decided_at")
+        if decision_time < _parse_aware(observations[decision.observation_id].observed_at, "observed_at"):
+            raise ValueError("harmonization decision cannot precede its observation")
+        if self.transitions and decision_time < _parse_aware(self.transitions[-1].occurred_at, "occurred_at"):
+            raise ValueError("harmonization decision must be time-monotonic")
+        self.harmonization = decision
+
     def advance(self, to_phase: SignalPhase, observation_id: str, occurred_at: str) -> None:
-        if observation_id not in {item.observation_id for item in self.observations}:
+        observations = {item.observation_id: item for item in self.observations}
+        if observation_id not in observations:
             raise ValueError("phase transition requires an attributed observation")
         if to_phase not in _ALLOWED_PHASE_TRANSITIONS[self.phase]:
             raise ValueError(f"invalid phase transition {self.phase.value} -> {to_phase.value}")
         transition_time = _parse_aware(occurred_at, "occurred_at")
-        observation = next(item for item in self.observations if item.observation_id == observation_id)
+        observation = observations[observation_id]
         if transition_time < _parse_aware(observation.observed_at, "observed_at"):
             raise ValueError("phase transition cannot precede its observation")
         if self.transitions and transition_time < _parse_aware(self.transitions[-1].occurred_at, "occurred_at"):
             raise ValueError("phase transitions must be time-monotonic")
+        if to_phase == SignalPhase.HARMONIZED:
+            if self.harmonization is None:
+                raise ValueError("HARMONIZED transition requires a harmonization decision")
+            if self.harmonization.observation_id != observation_id:
+                raise ValueError("HARMONIZED transition must use the harmonization observation")
+            if transition_time < _parse_aware(self.harmonization.decided_at, "decided_at"):
+                raise ValueError("HARMONIZED transition cannot precede the harmonization decision")
         self.transitions.append(PhaseTransition(self.phase, to_phase, observation_id, occurred_at))
         self.phase = to_phase
 
@@ -220,10 +262,19 @@ class LivingEvidenceGraph:
         if any(item.signal_id == signal.signal_id for item in self.signals):
             raise ValueError(f"duplicate signal_id {signal.signal_id}")
         node_ids = {node.node_id for node in self.nodes}
-        if signal.primary_artifact not in node_ids:
-            raise ValueError("primary artifact is not in the graph")
-        if any(node_id not in node_ids for node_id in signal.related_artifacts):
-            raise ValueError("related artifact is not in the graph")
+        path_to_id = {node.path: node.node_id for node in self.nodes}
+
+        def normalize(reference: str, field_name: str) -> str:
+            if reference in node_ids:
+                return reference
+            if reference in path_to_id:
+                return path_to_id[reference]
+            raise ValueError(f"{field_name} is not in the graph")
+
+        primary = normalize(signal.primary_artifact, "primary artifact")
+        related = [normalize(reference, "related artifact") for reference in signal.related_artifacts]
+        signal.primary_artifact = primary
+        signal.related_artifacts = related
         self.signals.append(signal)
 
     def to_dict(self) -> dict[str, Any]:
@@ -252,7 +303,12 @@ def classify_artifact(path: str) -> ArtifactKind:
     return ArtifactKind.SOURCE
 
 
-def _node_id(path: str) -> str:
+def node_id_for_path(path: str) -> str:
+    if not isinstance(path, str) or not path or path.startswith("/") or "\\" in path:
+        raise ValueError("artifact path must be a non-empty relative POSIX path")
+    normalized = str(PurePosixPath(path))
+    if normalized != path or any(part in {"", ".", ".."} for part in path.split("/")):
+        raise ValueError("artifact path must be canonical")
     return path.replace("/", "::")
 
 
@@ -269,9 +325,13 @@ def build_artifact_graph(
     spatial = SpatialContext(repository, base_sha, head_sha, branch=branch)
     temporal = TemporalContext(observed_at=observed_at, valid_from=observed_at)
     unique_paths = sorted(set(paths))
+    node_pairs = [(node_id_for_path(path), path) for path in unique_paths]
+    node_ids = [node_id for node_id, _ in node_pairs]
+    if len(node_ids) != len(set(node_ids)):
+        raise ValueError("artifact paths produce colliding node IDs")
     nodes = [
-        ArtifactNode(_node_id(path), path, classify_artifact(path), spatial, temporal)
-        for path in unique_paths
+        ArtifactNode(node_id, path, classify_artifact(path), spatial, temporal)
+        for node_id, path in node_pairs
     ]
     known_paths = set(unique_paths)
     edges: list[ArtifactEdge] = []
@@ -288,9 +348,9 @@ def build_artifact_graph(
         seen_edges.add(key)
         edges.append(
             ArtifactEdge(
-                source=_node_id(hint.source_path),
+                source=node_id_for_path(hint.source_path),
                 relation=hint.relation,
-                target=_node_id(hint.target_path),
+                target=node_id_for_path(hint.target_path),
                 evidence=hint.evidence,
             )
         )
