@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -21,6 +23,8 @@ BOUND_DIGEST_FIELDS = {
     "workspace_identity",
     "target_state_digest",
 }
+DIGEST_FIELDS = BOUND_DIGEST_FIELDS - {"workspace_identity"}
+DIGEST_PATTERN = re.compile(r"^sha256:[A-Za-z0-9._-]+$")
 REQUIRED_ENVELOPE_FIELDS = {
     "schema_version",
     "approval_id",
@@ -60,6 +64,19 @@ EVENT_OWNERS = {
     "RuntimeRestarted": {"RUNTIME"},
     "LostStateDetected": {"RUNTIME"},
 }
+REASON_REQUIRED_EVENTS = {
+    "UserApproved",
+    "UserRejected",
+    "ApprovalExpired",
+    "ApprovalInvalidated",
+    "LostStateDetected",
+}
+EVIDENCE_REQUIRED_EVENTS = {
+    "ApprovalExpired",
+    "ApprovalInvalidated",
+    "EffectObserved",
+    "LostStateDetected",
+}
 
 
 def load_object(path: Path) -> dict[str, Any]:
@@ -80,10 +97,29 @@ def parse_timestamp(value: Any, location: str, errors: list[str]) -> datetime | 
         errors.append(f"{location}: timestamp must be a string")
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         errors.append(f"{location}: invalid RFC 3339 timestamp {value!r}")
         return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        errors.append(f"{location}: timestamp must include timezone offset")
+        return None
+    return parsed
+
+
+def _conditional_event_types(event_schema: dict[str, Any], required_field: str) -> set[str]:
+    event_types: set[str] = set()
+    for clause in event_schema.get("allOf", []):
+        if not isinstance(clause, dict):
+            continue
+        required = clause.get("then", {}).get("required", [])
+        if required_field not in required:
+            continue
+        event_type_schema = clause.get("if", {}).get("properties", {}).get("event_type", {})
+        if "const" in event_type_schema:
+            event_types.add(event_type_schema["const"])
+        event_types.update(event_type_schema.get("enum", []))
+    return event_types
 
 
 def validate_schema_contracts(
@@ -108,6 +144,26 @@ def validate_schema_contracts(
     )
     declared_events = set(event_schema.get("properties", {}).get("event_type", {}).get("enum", []))
     require(errors, declared_events == set(EVENT_OWNERS), "event schema: event_type enum does not match reducer")
+    require(
+        errors,
+        REASON_REQUIRED_EVENTS <= _conditional_event_types(event_schema, "reason"),
+        "event schema: authority resolution events must require reason",
+    )
+    require(
+        errors,
+        EVIDENCE_REQUIRED_EVENTS <= _conditional_event_types(event_schema, "evidence_ref"),
+        "event schema: evidence-backed events must require evidence_ref",
+    )
+    require(
+        errors,
+        {"ExecutionClaimed"} <= _conditional_event_types(event_schema, "bindings"),
+        "event schema: ExecutionClaimed must require bindings",
+    )
+    require(
+        errors,
+        {"EffectObserved"} <= _conditional_event_types(event_schema, "outcome"),
+        "event schema: EffectObserved must require outcome",
+    )
 
 
 def validate_envelope(envelope: Any, errors: list[str]) -> dict[str, Any]:
@@ -122,10 +178,18 @@ def validate_envelope(envelope: Any, errors: list[str]) -> dict[str, Any]:
         "fixture.envelope: unexpected schema_version",
     )
     for field in REQUIRED_ENVELOPE_FIELDS - {"expiry_policy", "single_use"}:
-        require(errors, isinstance(envelope.get(field), str) and bool(envelope.get(field)), f"fixture.envelope: {field} is required")
-    for field in BOUND_DIGEST_FIELDS - {"workspace_identity"}:
+        require(
+            errors,
+            isinstance(envelope.get(field), str) and bool(envelope.get(field)),
+            f"fixture.envelope: {field} is required",
+        )
+    for field in DIGEST_FIELDS:
         value = envelope.get(field)
-        require(errors, isinstance(value, str) and value.startswith("sha256:"), f"fixture.envelope: {field} must use sha256:")
+        require(
+            errors,
+            isinstance(value, str) and DIGEST_PATTERN.fullmatch(value) is not None,
+            f"fixture.envelope: {field} must match ^sha256:[A-Za-z0-9._-]+$",
+        )
     require(errors, envelope.get("single_use") is True, "fixture.envelope: single_use must be true")
     parse_timestamp(envelope.get("created_at"), "fixture.envelope.created_at", errors)
 
@@ -218,6 +282,18 @@ def reduce_case(
                 actor_type in EVENT_OWNERS[event_type],
                 f"{location}: actor {actor_type!r} cannot emit {event_type}",
             )
+        if event_type in REASON_REQUIRED_EVENTS:
+            require(
+                errors,
+                isinstance(event.get("reason"), str) and bool(event.get("reason")),
+                f"{location}: resolution reason is required",
+            )
+        if event_type in EVIDENCE_REQUIRED_EVENTS:
+            require(
+                errors,
+                isinstance(event.get("evidence_ref"), str) and bool(event.get("evidence_ref")),
+                f"{location}: evidence_ref is required",
+            )
 
         if index == 0:
             require(errors, event_type == "ApprovalRequested", f"{location}: first event must be ApprovalRequested")
@@ -231,39 +307,28 @@ def reduce_case(
                 execution_state="UNUSED",
                 resolution=None,
             )
-
         elif snapshot["authority_state"] is None:
             errors.append(f"{location}: event before ApprovalRequested")
-
         elif event_type == "ApprovalPresented":
             snapshot["presentation_state"] = "VISIBLE"
-
         elif event_type == "RequesterDetached":
             snapshot["requester_state"] = "DETACHED"
-
         elif event_type == "RequesterCancelled":
             snapshot["requester_state"] = "CANCELLED"
-
         elif event_type == "TransportDisconnected":
             snapshot["presentation_state"] = "DISCONNECTED"
-
         elif event_type == "TransportRestored":
             snapshot["presentation_state"] = "RESTORED"
-
         elif event_type == "UiDismissed":
             snapshot["presentation_state"] = "NOT_PRESENTED"
-
         elif event_type == "WaitWindowElapsed":
             pass
-
         elif event_type in {"UserApproved", "UserRejected", "ApprovalExpired", "ApprovalInvalidated"}:
             require(
                 errors,
                 snapshot["authority_state"] == "PENDING",
                 f"{location}: authority resolution requires PENDING",
             )
-            require(errors, bool(event.get("reason")), f"{location}: resolution reason is required")
-
             if event_type == "UserApproved":
                 snapshot["authority_state"] = "APPROVED"
             elif event_type == "UserRejected":
@@ -274,13 +339,10 @@ def reduce_case(
                     envelope.get("expiry_policy") is not None,
                     f"{location}: expiry requires configured expiry_policy",
                 )
-                require(errors, bool(event.get("evidence_ref")), f"{location}: expiry evidence_ref is required")
                 snapshot["authority_state"] = "EXPIRED"
-            elif event_type == "ApprovalInvalidated":
-                require(errors, bool(event.get("evidence_ref")), f"{location}: invalidation evidence_ref is required")
+            else:
                 snapshot["authority_state"] = "INVALIDATED"
             snapshot["resolution"] = resolution_from(event)
-
         elif event_type == "ExecutionClaimed":
             require(errors, snapshot["authority_state"] == "APPROVED", f"{location}: execution requires APPROVED authority")
             require(errors, snapshot["requester_state"] == "ATTACHED", f"{location}: cancelled/detached requester cannot claim execution")
@@ -288,16 +350,20 @@ def reduce_case(
             bindings = event.get("bindings")
             require(errors, isinstance(bindings, dict), f"{location}: bindings are required")
             if isinstance(bindings, dict):
+                missing_bindings = BOUND_DIGEST_FIELDS - bindings.keys()
+                require(errors, not missing_bindings, f"{location}: bindings missing {sorted(missing_bindings)}")
                 for field in BOUND_DIGEST_FIELDS:
+                    require(errors, bindings.get(field) == envelope.get(field), f"{location}: binding mismatch for {field}")
+                for field in DIGEST_FIELDS:
+                    value = bindings.get(field)
                     require(
                         errors,
-                        bindings.get(field) == envelope.get(field),
-                        f"{location}: binding mismatch for {field}",
+                        isinstance(value, str) and DIGEST_PATTERN.fullmatch(value) is not None,
+                        f"{location}: binding {field} must match ^sha256:[A-Za-z0-9._-]+$",
                     )
             claim_count += 1
             require(errors, claim_count == 1, f"{location}: duplicate execution claim")
             snapshot["execution_state"] = "CLAIMED"
-
         elif event_type == "EffectObserved":
             require(
                 errors,
@@ -308,14 +374,10 @@ def reduce_case(
             require(errors, outcome in {"COMMITTED", "FAILED"}, f"{location}: invalid effect outcome")
             if outcome in {"COMMITTED", "FAILED"}:
                 snapshot["execution_state"] = outcome
-
         elif event_type == "RuntimeRestarted":
             if snapshot["execution_state"] == "CLAIMED":
                 snapshot["execution_state"] = "IN_DOUBT"
-
         elif event_type == "LostStateDetected":
-            require(errors, bool(event.get("reason")), f"{location}: lost-state reason is required")
-            require(errors, bool(event.get("evidence_ref")), f"{location}: lost-state evidence_ref is required")
             snapshot["authority_state"] = "LOST"
             snapshot["resolution"] = resolution_from(event)
 
@@ -366,17 +428,22 @@ def validate(
 
     cases = fixture.get("cases")
     require(errors, isinstance(cases, list) and bool(cases), "fixture: cases must be a non-empty array")
-    case_ids = {
+    case_id_counts = Counter(
         case.get("case_id") for case in cases if isinstance(case, dict)
-    } if isinstance(cases, list) else set()
+    ) if isinstance(cases, list) else Counter()
     required_cases = {
         "agent_cancels_requester",
         "transport_disconnects",
+        "ui_dismissed_without_rejection",
         "elapsed_wait_without_expiry",
         "explicit_user_rejection",
         "restart_after_execution_claim",
     }
-    require(errors, case_ids == required_cases, "fixture: required v0.1 cases must appear exactly once")
+    require(
+        errors,
+        set(case_id_counts) == required_cases and all(count == 1 for count in case_id_counts.values()),
+        "fixture: required v0.1 cases must appear exactly once",
+    )
 
     observed: dict[str, Any] = {}
     if isinstance(cases, list):
@@ -388,7 +455,13 @@ def validate(
             observed[str(case.get("case_id"))] = snapshot
             errors.extend(case_errors)
 
-    for case_id in ("agent_cancels_requester", "transport_disconnects", "elapsed_wait_without_expiry"):
+    pending_cases = (
+        "agent_cancels_requester",
+        "transport_disconnects",
+        "ui_dismissed_without_rejection",
+        "elapsed_wait_without_expiry",
+    )
+    for case_id in pending_cases:
         snapshot = observed.get(case_id, {})
         require(errors, snapshot.get("authority_state") == "PENDING", f"{case_id}: authority must remain PENDING")
         require(errors, snapshot.get("execution_state") == "UNUSED", f"{case_id}: execution must remain UNUSED")
@@ -412,6 +485,7 @@ def validate(
         "invariants": {
             "requester_cancellation_is_not_rejection": observed.get("agent_cancels_requester", {}).get("authority_state") == "PENDING",
             "transport_loss_is_not_rejection": observed.get("transport_disconnects", {}).get("authority_state") == "PENDING",
+            "ui_dismissal_is_not_rejection": observed.get("ui_dismissed_without_rejection", {}).get("authority_state") == "PENDING",
             "wait_timeout_without_policy_is_not_expiry": observed.get("elapsed_wait_without_expiry", {}).get("authority_state") == "PENDING",
             "only_explicit_user_rejection_rejects": observed.get("explicit_user_rejection", {}).get("authority_state") == "REJECTED",
             "claim_without_effect_is_in_doubt_after_restart": observed.get("restart_after_execution_claim", {}).get("execution_state") == "IN_DOUBT",
