@@ -24,3 +24,10 @@ def evaluate(value: Any, service: Any) -> dict[str, Any]:
         return projection_core.envelope(validated, "BLOCK", exc.code, detail=exc.detail)
     except projection_core.ProjectionError as exc:
         return projection_core.envelope(validated, "BLOCK", exc.code, detail=exc.detail)
+    except Exception as exc:
+        return projection_core.envelope(
+            validated,
+            "BLOCK",
+            "GATEWAY_INTERNAL_FAILURE",
+            detail=type(exc).__name__,
+        )
