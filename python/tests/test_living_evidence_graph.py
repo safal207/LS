@@ -22,6 +22,7 @@ from multi_model_review.evidence_graph import (  # noqa: E402
 )
 from multi_model_review.evidence_probes import (  # noqa: E402
     load_pattern_specimen,
+    probe_additional_properties_parity,
     probe_digest_pattern_parity,
     probe_timezone_comparison_safety,
     run_pattern_specimen,
@@ -213,6 +214,39 @@ class LivingEvidenceGraphTests(unittest.TestCase):
         self.assertEqual(graph.signals[0].phase, SignalPhase.DORMANT)
         self.assertEqual(graph.signals[0].regression_rule, "schema_runtime_closed_object_parity")
 
+    def test_shape_probe_ignores_comments_and_docstrings(self) -> None:
+        schema = {"type": "object", "additionalProperties": False}
+        source = '''
+"""The validator should reject an unexpected key and enforce additionalProperties."""
+
+def validate(value):
+    # Future implementation may compare value.keys() - allowed.
+    return True
+'''
+        finding = probe_additional_properties_parity(
+            schema=schema,
+            schema_path="schema.json",
+            validator_source=source,
+            validator_path="validate.py",
+        )
+        self.assertIsNotNone(finding)
+
+    def test_shape_probe_accepts_executable_unknown_key_guard(self) -> None:
+        schema = {"type": "object", "additionalProperties": False}
+        source = '''
+def validate(value):
+    unknown = value.keys() - {"known"}
+    if unknown:
+        raise ValueError("unexpected key")
+'''
+        finding = probe_additional_properties_parity(
+            schema=schema,
+            schema_path="schema.json",
+            validator_source=source,
+            validator_path="validate.py",
+        )
+        self.assertIsNone(finding)
+
     def test_digest_probe_recurses_into_conditional_branches(self) -> None:
         schema = {
             "oneOf": [
@@ -234,6 +268,53 @@ class LivingEvidenceGraphTests(unittest.TestCase):
             validator_path="validate.py",
         )
         self.assertIsNotNone(finding)
+
+    def test_digest_probe_ignores_docstring_fullmatch_mentions(self) -> None:
+        schema = {
+            "type": "object",
+            "properties": {
+                "action_digest": {
+                    "type": "string",
+                    "pattern": "^sha256:[A-Za-z0-9._-]+$",
+                }
+            },
+        }
+        source = '''
+def validate(value):
+    """Use fullmatch with ^sha256:[A-Za-z0-9._-]+$ in a future revision."""
+    return value.startswith("sha256:")
+'''
+        finding = probe_digest_pattern_parity(
+            schema=schema,
+            schema_path="envelope.schema.json",
+            validator_source=source,
+            validator_path="validate.py",
+        )
+        self.assertIsNotNone(finding)
+
+    def test_digest_probe_accepts_executable_fullmatch(self) -> None:
+        schema = {
+            "type": "object",
+            "properties": {
+                "action_digest": {
+                    "type": "string",
+                    "pattern": "^sha256:[A-Za-z0-9._-]+$",
+                }
+            },
+        }
+        source = '''
+import re
+
+def validate(value):
+    return re.fullmatch(r"^sha256:[A-Za-z0-9._-]+$", value) is not None
+'''
+        finding = probe_digest_pattern_parity(
+            schema=schema,
+            schema_path="envelope.schema.json",
+            validator_source=source,
+            validator_path="validate.py",
+        )
+        self.assertIsNone(finding)
 
     def test_timezone_probe_scopes_parse_and_compare_to_same_chain(self) -> None:
         unrelated = """
@@ -275,6 +356,27 @@ def compare_events(left, right):
     return parsed_left < parsed_right
 """
         self.assertIsNone(probe_timezone_comparison_safety(source=guarded, path="guarded.py"))
+
+    def test_timezone_guard_must_match_parsed_variable(self) -> None:
+        source = """
+from datetime import datetime, timezone
+
+class Context:
+    tzinfo = timezone.utc
+
+def parse_timestamp(value, context):
+    parsed = datetime.fromisoformat(value)
+    if context.tzinfo is None:
+        raise ValueError("context timezone required")
+    return parsed
+
+def compare_events(left, right, context):
+    parsed_left = parse_timestamp(left, context)
+    parsed_right = parse_timestamp(right, context)
+    return parsed_left < parsed_right
+"""
+        finding = probe_timezone_comparison_safety(source=source, path="wrong_guard.py")
+        self.assertIsNotNone(finding)
 
     def test_synthetic_pattern_specimen_recognizes_expected_signatures(self) -> None:
         specimen = load_pattern_specimen(
