@@ -6,6 +6,7 @@
 |---|---|---|---|---|
 | agent cancels requester | `PENDING` | `CANCELLED` | `VISIBLE` | `UNUSED` |
 | transport disconnects | `PENDING` | `ATTACHED` | `DISCONNECTED` | `UNUSED` |
+| UI is dismissed without explicit rejection | `PENDING` | `ATTACHED` | `NOT_PRESENTED` | `UNUSED` |
 | wait window elapses without expiry policy | `PENDING` | `ATTACHED` | `VISIBLE` | `UNUSED` |
 | user explicitly rejects | `REJECTED` | `ATTACHED` | `VISIBLE` | `UNUSED` |
 | approved claim survives restart without effect evidence | `APPROVED` | `ATTACHED` | `VISIBLE` | `IN_DOUBT` |
@@ -27,6 +28,7 @@ The matrices are reconstructed from append-only events by the reference reducers
 ```text
 requester lifecycle cannot manufacture authority resolution
 presentation lifecycle cannot manufacture authority resolution
+UI disappearance is not user rejection
 LOST is not REJECTED
 reconciliation does not mint new authority
 single-use approval cannot be claimed twice
