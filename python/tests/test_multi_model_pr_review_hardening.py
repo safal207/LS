@@ -99,11 +99,19 @@ class MultiModelReviewHardeningTests(unittest.TestCase):
             with self.assertRaisesRegex(review.ReviewRuntimeError, "role must be unique and non-empty"):
                 review.load_config(path)
 
-    def test_reserved_specialists_cannot_be_consumed_by_always_lane(self):
+    def test_ordinary_lane_excludes_reserved_specialists(self):
         specialists = {
             "nvidia/nemotron-3-ultra-550b-a55b:free",
             "openai/gpt-oss-120b:free",
         }
+        ordinary_candidates = {
+            candidate
+            for item in self.config["models"]
+            if item["activation"] == "always"
+            for candidate in [item["model"], *item.get("fallbacks", [])]
+        }
+        self.assertTrue(ordinary_candidates.isdisjoint(specialists))
+
         catalog = {
             model_id: review.CatalogModel(model_id, True, None)
             for model_id in specialists
@@ -117,9 +125,7 @@ class MultiModelReviewHardeningTests(unittest.TestCase):
         )
         self.assertEqual(selected, [])
         self.assertEqual(len(unavailable), 3)
-        self.assertTrue(
-            any("openai/gpt-oss-120b:free" in item["reserved_candidates"] for item in unavailable)
-        )
+        self.assertTrue(all(not item["reserved_candidates"] for item in unavailable))
 
     def test_role_prompts_are_materially_different(self):
         common = {
