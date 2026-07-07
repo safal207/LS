@@ -1,0 +1,76 @@
+name: Exact-head evidence acquisition
+
+on:
+  pull_request:
+    paths:
+      - "scripts/multi_model_review/exact_head_acquisition.py"
+      - "scripts/multi_model_review/acquire_exact_head_bundle.py"
+      - "python/tests/test_exact_head_acquisition*.py"
+      - "benchmarks/exact-head/**"
+      - "spec/exact-head-evidence-acquisition-v0.1.md"
+      - ".github/workflows/exact_head_evidence_acquisition.yml"
+  workflow_dispatch:
+    inputs:
+      manifest_path:
+        description: "Trusted manifest path in the default branch"
+        required: true
+        default: "benchmarks/exact-head/pr796-calibration-v0.1.json"
+      artifact_name:
+        description: "Workflow artifact name"
+        required: true
+        default: "exact-head-evidence-bundle"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile acquisition runtime
+        run: >-
+          python -m py_compile
+          scripts/multi_model_review/exact_head_acquisition.py
+          scripts/multi_model_review/acquire_exact_head_bundle.py
+      - name: Run deterministic acquisition contract
+        run: python -m unittest discover -s python/tests -p 'test_exact_head_acquisition*.py' -v
+
+  acquire:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Acquire exact-head bundle
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MANIFEST_PATH: ${{ inputs.manifest_path }}
+        run: >-
+          python scripts/multi_model_review/acquire_exact_head_bundle.py
+          --manifest "$MANIFEST_PATH"
+          --manifest-root benchmarks/exact-head
+          --output exact-head-evidence-bundle.json
+      - name: Upload frozen evidence bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: exact-head-evidence-bundle.json
+          if-no-files-found: error
+          retention-days: 30
