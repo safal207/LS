@@ -44,7 +44,9 @@ def read_exact(
     """Read exactly length bytes, honoring an optional wall-clock deadline."""
     chunks: list[bytes] = []
     remaining = length
-    read_chunk = getattr(stream, "read1", stream.read)
+    read_chunk = getattr(stream, "read1", None)
+    if read_chunk is None:
+        read_chunk = stream.read
     while remaining:
         if deadline is not None:
             remaining_seconds = deadline - time.monotonic()
