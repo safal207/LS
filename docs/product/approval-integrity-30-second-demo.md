@@ -58,6 +58,16 @@ Presentation: VISIBLE
 Execution:    UNUSED
 ```
 
+## Why this is a product, not only a specification
+
+The demo gives an agent platform three immediately usable capabilities:
+
+1. a stable runtime status that survives requester cancellation and transport loss;
+2. user-facing language that never attributes an unmade decision to the user;
+3. an execution gate that remains closed until exact authority is validly claimed.
+
+The conformance fixture, reducer, and CI check make that product promise regression-testable.
+
 ## Executable evidence
 
 The demo is reconstructed from the canonical conformance fixture rather than hard-coded as a screenshot.
