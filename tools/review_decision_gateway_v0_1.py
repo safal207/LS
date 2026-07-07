@@ -133,6 +133,10 @@ class GatewayHandler(BaseHTTPRequestHandler):
     server: GatewayServer
     protocol_version = "HTTP/1.1"
 
+    def setup(self) -> None:
+        self.timeout = READ_TIMEOUT_SECONDS
+        super().setup()
+
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
         return
 
@@ -198,14 +202,11 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self.transport_error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "request body exceeds 65536 bytes")
             return
 
-        self.connection.settimeout(READ_TIMEOUT_SECONDS)
         try:
             body = read_exact(self.rfile, length)
         except (socket.timeout, TimeoutError):
-            self.connection.settimeout(None)
             self.transport_error(HTTPStatus.REQUEST_TIMEOUT, "request body read timed out")
             return
-        self.connection.settimeout(None)
         if body is None:
             self.transport_error(HTTPStatus.BAD_REQUEST, "request body was truncated")
             return
