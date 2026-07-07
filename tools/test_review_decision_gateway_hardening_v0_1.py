@@ -21,12 +21,29 @@ sys.modules[_spec.name] = gateway
 _spec.loader.exec_module(gateway)
 
 
+class OneByteStream:
+    def read1(self, _size: int) -> bytes:
+        return b"x"
+
+
 class ReviewDecisionGatewayHardeningTests(unittest.TestCase):
     def test_read_exact_accepts_complete_body(self) -> None:
         self.assertEqual(b"abcdef", gateway.read_exact(io.BytesIO(b"abcdef"), 6))
 
     def test_read_exact_rejects_truncated_body(self) -> None:
         self.assertIsNone(gateway.read_exact(io.BytesIO(b"abc"), 6))
+
+    def test_read_exact_enforces_aggregate_deadline(self) -> None:
+        applied_timeouts: list[float] = []
+        with patch.object(gateway.time, "monotonic", side_effect=[0.0, 1.0, 6.0]):
+            with self.assertRaises(TimeoutError):
+                gateway.read_exact(
+                    OneByteStream(),
+                    3,
+                    deadline=5.0,
+                    set_timeout=applied_timeouts.append,
+                )
+        self.assertEqual([5.0, 4.0], applied_timeouts)
 
     def test_transport_rejection_does_not_pollute_ambiguous_signal_metric(self) -> None:
         metrics = gateway.GatewayMetrics()
