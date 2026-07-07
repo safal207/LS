@@ -7,7 +7,6 @@ import argparse
 import importlib.util
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -38,15 +37,6 @@ def load_object(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{path}: top-level value must be an object")
     return value
-
-
-def parse_time(value: Any) -> datetime | None:
-    if not isinstance(value, str):
-        return None
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
 
 
 def event_of(fixture: dict[str, Any], event_type: str) -> dict[str, Any] | None:
@@ -118,8 +108,16 @@ def validate_fixture(
                 isinstance(actor, dict) and actor.get("id") == expiry.get("policy_id"),
                 "configured_policy_expiry: actor id must match expiry policy id",
             )
-            expires_at = parse_time(expiry.get("expires_at"))
-            occurred_at = parse_time(event.get("occurred_at"))
+            expires_at = base.parse_timestamp(
+                expiry.get("expires_at"),
+                "configured_policy_expiry.envelope.expiry_policy.expires_at",
+                errors,
+            )
+            occurred_at = base.parse_timestamp(
+                event.get("occurred_at"),
+                "configured_policy_expiry.ApprovalExpired.occurred_at",
+                errors,
+            )
             base.require(
                 errors,
                 expires_at is not None and occurred_at is not None and occurred_at >= expires_at,
