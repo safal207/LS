@@ -159,7 +159,11 @@ def _http_json(url: str, headers: dict[str, str], payload: dict[str, Any] | None
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     request = Request(url, data=body, headers=headers, method="GET" if payload is None else "POST")
     with urlopen(request, timeout=timeout) as response:  # noqa: S310 - URL comes from validated provider config
-        raw = response.read().decode("utf-8")
+        response_bytes = response.read()
+    try:
+        raw = response_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ReviewRuntimeError("provider returned a non-UTF-8 response") from exc
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError as exc:
