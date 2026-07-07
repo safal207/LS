@@ -15,9 +15,24 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 import run_multi_model_pr_review as review  # noqa: E402
+from multi_model_review import provider as provider_module  # noqa: E402
 
 BASE_SHA = "a" * 40
 HEAD_SHA = "b" * 40
+
+
+class FakeResponse:
+    def __init__(self, body: bytes) -> None:
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def read(self) -> bytes:
+        return self.body
 
 
 class MultiModelReviewTransportTests(unittest.TestCase):
@@ -41,6 +56,16 @@ class MultiModelReviewTransportTests(unittest.TestCase):
             client.catalog()
         self.assertEqual(len(calls), 1)
         self.assertEqual(sleeps, [])
+
+    def test_non_utf8_provider_response_is_normalized(self):
+        with patch.object(provider_module, "urlopen", return_value=FakeResponse(b"\xff")):
+            with self.assertRaisesRegex(review.ReviewRuntimeError, "non-UTF-8"):
+                provider_module._http_json(
+                    "https://example.test/v1/models",
+                    {"Accept": "application/json"},
+                    None,
+                    5,
+                )
 
     def test_transient_network_error_keeps_bounded_retry(self):
         calls = []
