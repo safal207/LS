@@ -33,6 +33,7 @@ PRIVATE_KEY_RE = re.compile(
     rf"-----BEGIN [A-Z0-9 ]*{_PRIVATE_MARKER}-----.*?-----END [A-Z0-9 ]*{_PRIVATE_MARKER}-----",
     re.DOTALL,
 )
+DIFF_TRUNCATION_MARKER = "\n\n<DIFF_TRUNCATED_BY_LS>\n"
 
 
 class ReviewRuntimeError(RuntimeError):
@@ -202,9 +203,10 @@ def redact_diff(diff_text: str, max_chars: int) -> tuple[str, dict[str, Any]]:
     redacted = SENSITIVE_ASSIGNMENT_RE.sub(assignment_replacer, redacted)
     redacted = BEARER_RE.sub(bearer_replacer, redacted)
     truncated = len(redacted) > max_chars
-    bounded = redacted[:max_chars]
     if truncated:
-        bounded += "\n\n<DIFF_TRUNCATED_BY_LS>\n"
+        bounded = redacted[: max_chars - len(DIFF_TRUNCATION_MARKER)] + DIFF_TRUNCATION_MARKER
+    else:
+        bounded = redacted
     return bounded, {
         "original_chars": len(diff_text),
         "sent_chars": len(bounded),
