@@ -1,9 +1,9 @@
 {
   "schema_version": "ls.review_benchmark_case.v0.1",
   "case_id": "pr796-final-v0.1",
-  "status": "PREPARED",
+  "status": "FROZEN",
   "evidence_manifest_path": "benchmarks/exact-head/pr796-final-calibration-v0.1.json",
-  "evidence_sha256": null,
+  "evidence_sha256": "fb9fdeafdb418485e988e7d0973309e35b4a46c5a0efca30b8082801fb501b79",
   "coordinates": {
     "repository": "safal207/LS",
     "pr_number": 796,
