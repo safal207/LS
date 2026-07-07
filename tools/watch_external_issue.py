@@ -22,6 +22,12 @@ from typing import Any, Iterable
 
 API_ROOT = "https://api.github.com"
 CURSOR_PATTERN = re.compile(r"<!--\s*external-watch:last-comment-id=(\d+)\s*-->")
+SOURCE_COMMENT_PATTERN = re.compile(
+    r"<!--\s*external-watch:source-comment-id=(\d+)\s*-->"
+)
+MARKDOWN_ACTIVE_PATTERN = re.compile(r"([\\`*_\[\]()!])")
+URL_SCHEME_PATTERN = re.compile(r"(?i)\b(https?)://")
+WWW_PATTERN = re.compile(r"(?i)\bwww\.")
 
 
 class WatchError(RuntimeError):
@@ -66,10 +72,48 @@ def sanitize_excerpt(value: Any, limit: int = 600) -> str:
         return ""
     normalized = " ".join(value.split())
     normalized = normalized.replace("@", "@\u200b")
+    normalized = URL_SCHEME_PATTERN.sub(lambda match: f"{match.group(1)}:\u200b//", normalized)
+    normalized = WWW_PATTERN.sub("www\u200b.", normalized)
+    normalized = MARKDOWN_ACTIVE_PATTERN.sub(r"\\\1", normalized)
     escaped = html.escape(normalized, quote=False)
     if len(escaped) <= limit:
         return escaped
     return escaped[: max(0, limit - 1)].rstrip() + "…"
+
+
+def comment_id(comment: dict[str, Any]) -> int | None:
+    value = comment.get("id")
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
+def source_comment_marker(source_comment_id: int) -> str:
+    if source_comment_id < 0:
+        raise WatchError("source comment id must be non-negative")
+    return f"<!-- external-watch:source-comment-id={source_comment_id} -->"
+
+
+def mirrored_source_comment_ids(comments: Iterable[dict[str, Any]]) -> set[int]:
+    mirrored: set[int] = set()
+    for comment in comments:
+        body = comment.get("body")
+        if not isinstance(body, str):
+            continue
+        mirrored.update(int(value) for value in SOURCE_COMMENT_PATTERN.findall(body))
+    return mirrored
+
+
+def unmirrored_comments(
+    comments: Iterable[dict[str, Any]],
+    mirrored_ids: set[int],
+) -> tuple[dict[str, Any], ...]:
+    result: list[dict[str, Any]] = []
+    for comment in comments:
+        value = comment_id(comment)
+        if value is not None and value not in mirrored_ids:
+            result.append(comment)
+    return tuple(result)
 
 
 def is_bot(comment: dict[str, Any]) -> bool:
@@ -103,16 +147,14 @@ def select_new_comments(
 ) -> WatchResult:
     ordered: list[dict[str, Any]] = []
     for comment in comments:
-        comment_id = comment.get("id")
-        if isinstance(comment_id, bool) or not isinstance(comment_id, int):
-            continue
-        if comment_id > previous_cursor:
+        value = comment_id(comment)
+        if value is not None and value > previous_cursor:
             ordered.append(comment)
-    ordered.sort(key=lambda item: item["id"])
+    ordered.sort(key=lambda item: comment_id(item) or 0)
 
     next_cursor = previous_cursor
     if ordered:
-        next_cursor = ordered[-1]["id"]
+        next_cursor = comment_id(ordered[-1]) or previous_cursor
 
     meaningful = tuple(
         comment for comment in ordered if is_meaningful(comment, ignored_logins)
@@ -125,13 +167,21 @@ def build_tracker_comment(
     source_issue: int,
     comments: Iterable[dict[str, Any]],
 ) -> str:
+    comment_list = tuple(comments)
+    markers = [
+        source_comment_marker(value)
+        for comment in comment_list
+        if (value := comment_id(comment)) is not None
+    ]
     lines = [
+        *markers,
+        "",
         "## New external response",
         "",
         f"Source: https://github.com/{source_repo}/issues/{source_issue}",
         "",
     ]
-    for comment in comments:
+    for comment in comment_list:
         user = comment.get("user") if isinstance(comment.get("user"), dict) else {}
         login = sanitize_excerpt(user.get("login"), limit=80) or "unknown"
         url = comment.get("html_url")
@@ -190,13 +240,13 @@ def api_request(
         raise WatchError(f"GitHub API returned invalid JSON for {url}") from exc
 
 
-def fetch_all_comments(source_repo: str, source_issue: int, token: str) -> list[dict[str, Any]]:
+def fetch_all_comments(repo: str, issue: int, token: str) -> list[dict[str, Any]]:
     comments: list[dict[str, Any]] = []
     page = 1
-    encoded_repo = urllib.parse.quote(source_repo, safe="/")
+    encoded_repo = urllib.parse.quote(repo, safe="/")
     while True:
         path = (
-            f"/repos/{encoded_repo}/issues/{source_issue}/comments"
+            f"/repos/{encoded_repo}/issues/{issue}/comments"
             f"?per_page=100&page={page}&sort=created&direction=asc"
         )
         batch = api_request("GET", path, token)
@@ -220,21 +270,32 @@ def run_watch(args: argparse.Namespace) -> WatchResult:
 
     previous_cursor = parse_cursor(tracker["body"])
     ignored = {login.casefold() for login in args.ignore_login}
-    comments = fetch_all_comments(args.source_repo, args.source_issue, token)
-    result = select_new_comments(comments, previous_cursor, ignored)
+    source_comments = fetch_all_comments(args.source_repo, args.source_issue, token)
+    result = select_new_comments(source_comments, previous_cursor, ignored)
 
     if result.meaningful_comments:
-        body = build_tracker_comment(
-            args.source_repo,
-            args.source_issue,
-            result.meaningful_comments,
-        )
-        api_request(
-            "POST",
-            f"/repos/{args.tracker_repo}/issues/{args.tracker_issue}/comments",
+        tracker_comments = fetch_all_comments(
+            args.tracker_repo,
+            args.tracker_issue,
             token,
-            {"body": body},
         )
+        mirrored_ids = mirrored_source_comment_ids(tracker_comments)
+        pending_comments = unmirrored_comments(
+            result.meaningful_comments,
+            mirrored_ids,
+        )
+        if pending_comments:
+            body = build_tracker_comment(
+                args.source_repo,
+                args.source_issue,
+                pending_comments,
+            )
+            api_request(
+                "POST",
+                f"/repos/{args.tracker_repo}/issues/{args.tracker_issue}/comments",
+                token,
+                {"body": body},
+            )
 
     if result.changed:
         updated_body = replace_cursor(tracker["body"], result.next_cursor)
