@@ -67,29 +67,30 @@ class ProjectionTests(unittest.TestCase):
             subject.validate_response(changed, "request-1")
 
     def test_malformed_or_mismatched_shapes_fail_closed(self) -> None:
-        cases = []
+        cases = [("GATEWAY_PROTOCOL_ERROR", [])]
         changed = deepcopy(response())
         changed["gateway_version"] = "unexpected"
-        cases.append(changed)
+        cases.append(("GATEWAY_VERSION_MISMATCH", changed))
         changed = deepcopy(response())
         changed["request_id"] = "other-request"
-        cases.append(changed)
+        cases.append(("GATEWAY_REQUEST_ID_MISMATCH", changed))
         changed = deepcopy(response())
         changed.pop("adapter")
-        cases.append(changed)
+        cases.append(("GATEWAY_PROTOCOL_ERROR", changed))
         changed = deepcopy(response())
         changed["projection"] = []
-        cases.append(changed)
+        cases.append(("GATEWAY_PROTOCOL_ERROR", changed))
         changed = deepcopy(response())
         changed["adapter"]["valid"] = "true"
-        cases.append(changed)
+        cases.append(("GATEWAY_PROTOCOL_ERROR", changed))
         changed = deepcopy(response())
         changed["adapter"]["errors"] = [7]
-        cases.append(changed)
-        for changed in cases:
-            with self.subTest(changed=changed):
-                with self.assertRaises(subject.ProjectionError):
+        cases.append(("GATEWAY_PROTOCOL_ERROR", changed))
+        for expected_code, changed in cases:
+            with self.subTest(expected_code=expected_code):
+                with self.assertRaises(subject.ProjectionError) as raised:
                     subject.validate_response(changed, "request-1")
+                self.assertEqual(expected_code, raised.exception.code)
 
 
 if __name__ == "__main__":
