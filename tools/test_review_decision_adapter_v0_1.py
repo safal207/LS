@@ -115,9 +115,34 @@ class ReviewDecisionAdapterTests(unittest.TestCase):
         value["legacy_status"] = "denied"
         self.assert_invalid_with(value, "unsupported fields")
 
+    def test_malformed_signal_type_fails_closed_without_crash(self) -> None:
+        value = self.case_input("requester_cancelled")
+        value["signal"] = ["REQUESTER_CANCELLED"]
+        self.assert_invalid_with(value, "unsupported signal")
+
+    def test_malformed_actor_type_fails_closed_without_crash(self) -> None:
+        value = self.case_input("requester_cancelled")
+        value["actor"]["type"] = ["AGENT"]
+        self.assert_invalid_with(value, "actor.type is required")
+
+    def test_malformed_evidence_type_fails_closed_without_crash(self) -> None:
+        value = self.case_input("durable_state_loss")
+        value["evidence_ref"] = {"ref": "not-a-string"}
+        self.assert_invalid_with(value, "evidence_ref must be null or a non-empty string")
+
     def test_duplicate_fixture_case_is_rejected(self) -> None:
         fixture = copy.deepcopy(self.fixture)
         fixture["cases"].append(copy.deepcopy(fixture["cases"][0]))
+        report = adapter.validate_fixture(fixture)
+        self.assertFalse(report["passed"], report)
+        self.assertTrue(
+            any("required adapter cases must appear exactly once" in error for error in report["errors"]),
+            report,
+        )
+
+    def test_malformed_fixture_case_id_is_rejected_without_crash(self) -> None:
+        fixture = copy.deepcopy(self.fixture)
+        fixture["cases"][0]["case_id"] = ["explicit_user_approval"]
         report = adapter.validate_fixture(fixture)
         self.assertFalse(report["passed"], report)
         self.assertTrue(
