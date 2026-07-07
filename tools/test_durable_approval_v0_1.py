@@ -55,10 +55,18 @@ class DurableApprovalConformanceTests(unittest.TestCase):
         result = self.evaluate(copy.deepcopy(self.fixture))
         self.assertTrue(result["passed"], result)
 
+    def test_ui_dismissal_preserves_pending_authority(self) -> None:
+        result = self.evaluate(copy.deepcopy(self.fixture))
+        snapshot = result["observed_snapshots"]["ui_dismissed_without_rejection"]
+        self.assertEqual("PENDING", snapshot["authority_state"])
+        self.assertEqual("NOT_PRESENTED", snapshot["presentation_state"])
+        self.assertEqual("UNUSED", snapshot["execution_state"])
+
     def test_agent_cannot_emit_user_rejection(self) -> None:
         fixture = copy.deepcopy(self.fixture)
         case = next(case for case in fixture["cases"] if case["case_id"] == "agent_cancels_requester")
         case["events"][2]["event_type"] = "UserRejected"
+        case["events"][2]["reason"] = "agent synthesized rejection"
         self.assert_rejected_with(fixture, "actor 'AGENT' cannot emit UserRejected")
 
     def test_expiry_without_expiry_policy_is_rejected(self) -> None:
@@ -78,17 +86,33 @@ class DurableApprovalConformanceTests(unittest.TestCase):
         claim["bindings"]["action_digest"] = "sha256:CHANGED_ACTION"
         self.assert_rejected_with(fixture, "binding mismatch for action_digest")
 
+    def test_malformed_digest_is_rejected(self) -> None:
+        fixture = copy.deepcopy(self.fixture)
+        fixture["envelope"]["action_digest"] = "sha256:bad digest"
+        self.assert_rejected_with(fixture, "action_digest must match")
+
     def test_duplicate_event_id_is_rejected(self) -> None:
         fixture = copy.deepcopy(self.fixture)
         case = next(case for case in fixture["cases"] if case["case_id"] == "transport_disconnects")
         case["events"][2]["event_id"] = case["events"][1]["event_id"]
         self.assert_rejected_with(fixture, "duplicate event_id")
 
+    def test_duplicate_case_id_is_rejected(self) -> None:
+        fixture = copy.deepcopy(self.fixture)
+        fixture["cases"].append(copy.deepcopy(fixture["cases"][0]))
+        self.assert_rejected_with(fixture, "required v0.1 cases must appear exactly once")
+
     def test_reordered_sequence_is_rejected(self) -> None:
         fixture = copy.deepcopy(self.fixture)
         case = next(case for case in fixture["cases"] if case["case_id"] == "explicit_user_rejection")
         case["events"][2]["sequence"] = 2
         self.assert_rejected_with(fixture, "sequence must equal 3")
+
+    def test_naive_timestamp_is_rejected_without_crash(self) -> None:
+        fixture = copy.deepcopy(self.fixture)
+        case = next(case for case in fixture["cases"] if case["case_id"] == "transport_disconnects")
+        case["events"][2]["occurred_at"] = "2026-07-06T18:31:00"
+        self.assert_rejected_with(fixture, "timestamp must include timezone offset")
 
 
 if __name__ == "__main__":
