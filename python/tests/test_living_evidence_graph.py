@@ -14,17 +14,20 @@ from multi_model_review.evidence_graph import (  # noqa: E402
     ArtifactKind,
     EvidenceSignal,
     EvidenceTier,
+    HarmonizationDecision,
     Observation,
     Relation,
     RelationHint,
     SignalPhase,
     build_artifact_graph,
+    node_id_for_path,
 )
 from multi_model_review.evidence_probes import (  # noqa: E402
     load_pattern_specimen,
     probe_additional_properties_parity,
     probe_digest_pattern_parity,
     probe_timezone_comparison_safety,
+    probe_unknown_property_parity,
     run_pattern_specimen,
 )
 
@@ -137,13 +140,19 @@ class LivingEvidenceGraphTests(unittest.TestCase):
                 observed_at="2026-07-06T20:56:29",
             )
 
-    def _signal(self) -> EvidenceSignal:
+    def _signal(self, *, use_paths: bool = False) -> EvidenceSignal:
+        primary = "tools/validate_case.py" if use_paths else "tools::validate_case.py"
+        related = (
+            ["fixtures/runtime/envelope.schema.json"]
+            if use_paths
+            else ["fixtures::runtime::envelope.schema.json"]
+        )
         return EvidenceSignal(
             signal_id="closed-object-parity",
             title="Runtime accepts a schema-rejected field",
             tier=EvidenceTier.T1_STRUCTURAL,
-            primary_artifact="tools::validate_case.py",
-            related_artifacts=["fixtures::runtime::envelope.schema.json"],
+            primary_artifact=primary,
+            related_artifacts=related,
             violated_relation=Relation.IMPLEMENTS,
         )
 
@@ -155,6 +164,22 @@ class LivingEvidenceGraphTests(unittest.TestCase):
             evidence="schema and validator disagree",
             repeatable=True,
             observed_at=OBSERVED_AT,
+        )
+
+    def test_add_signal_accepts_paths_and_normalizes_to_node_ids(self) -> None:
+        graph = build_artifact_graph(
+            ["tools/validate_case.py", "fixtures/runtime/envelope.schema.json"],
+            repository="safal207/LS",
+            base_sha=BASE_SHA,
+            head_sha=HEAD_SHA,
+            observed_at=OBSERVED_AT,
+        )
+        signal = self._signal(use_paths=True)
+        graph.add_signal(signal)
+        self.assertEqual(signal.primary_artifact, node_id_for_path("tools/validate_case.py"))
+        self.assertEqual(
+            signal.related_artifacts,
+            [node_id_for_path("fixtures/runtime/envelope.schema.json")],
         )
 
     def test_phase_sequence_is_strictly_linear(self) -> None:
@@ -178,6 +203,26 @@ class LivingEvidenceGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cannot precede"):
             signal.advance(SignalPhase.UNFOLDED, "obs-1", "2026-07-06T20:56:28Z")
 
+    def test_harmonized_transition_requires_decision(self) -> None:
+        signal = self._signal()
+        signal.add_observation(self._observation())
+        signal.advance(SignalPhase.UNFOLDED, "obs-1", "2026-07-06T20:56:30Z")
+        signal.advance(SignalPhase.REPRODUCED, "obs-1", "2026-07-06T20:56:31Z")
+        signal.advance(SignalPhase.CONFIRMED, "obs-1", "2026-07-06T20:56:32Z")
+        with self.assertRaisesRegex(ValueError, "harmonization decision"):
+            signal.advance(SignalPhase.HARMONIZED, "obs-1", "2026-07-06T20:56:33Z")
+        signal.record_harmonization(
+            HarmonizationDecision(
+                decision_id="harm-1",
+                observation_id="obs-1",
+                resolution="schema and runtime converge on closed-object rejection",
+                evidence="the same mutation is rejected by both contracts",
+                decided_at="2026-07-06T20:56:33Z",
+            )
+        )
+        signal.advance(SignalPhase.HARMONIZED, "obs-1", "2026-07-06T20:56:34Z")
+        self.assertEqual(signal.phase, SignalPhase.HARMONIZED)
+
     def test_signal_lifecycle_preserves_regression_memory(self) -> None:
         graph = build_artifact_graph(
             ["tools/validate_case.py", "fixtures/runtime/envelope.schema.json"],
@@ -196,23 +241,28 @@ class LivingEvidenceGraphTests(unittest.TestCase):
         )
         signal = self._signal()
         signal.add_observation(self._observation())
-        for index, phase in enumerate(
-            (
-                SignalPhase.UNFOLDED,
-                SignalPhase.REPRODUCED,
-                SignalPhase.CONFIRMED,
-                SignalPhase.BLOCKING,
-                SignalPhase.FIXED,
-                SignalPhase.VERIFIED,
-                SignalPhase.DORMANT,
-            ),
-            start=30,
-        ):
-            signal.advance(phase, "obs-1", f"2026-07-06T20:56:{index:02d}Z")
+        signal.advance(SignalPhase.UNFOLDED, "obs-1", "2026-07-06T20:56:30Z")
+        signal.advance(SignalPhase.REPRODUCED, "obs-1", "2026-07-06T20:56:31Z")
+        signal.advance(SignalPhase.CONFIRMED, "obs-1", "2026-07-06T20:56:32Z")
+        signal.record_harmonization(
+            HarmonizationDecision(
+                decision_id="harm-1",
+                observation_id="obs-1",
+                resolution="runtime and schema now reject the same counterexample",
+                evidence="verified exact-head parity",
+                decided_at="2026-07-06T20:56:33Z",
+            )
+        )
+        signal.advance(SignalPhase.HARMONIZED, "obs-1", "2026-07-06T20:56:34Z")
+        signal.advance(SignalPhase.BLOCKING, "obs-1", "2026-07-06T20:56:35Z")
+        signal.advance(SignalPhase.FIXED, "obs-1", "2026-07-06T20:56:36Z")
+        signal.advance(SignalPhase.VERIFIED, "obs-1", "2026-07-06T20:56:37Z")
+        signal.advance(SignalPhase.DORMANT, "obs-1", "2026-07-06T20:56:38Z")
         signal.preserve_regression_memory("schema_runtime_closed_object_parity")
         graph.add_signal(signal)
         self.assertEqual(graph.signals[0].phase, SignalPhase.DORMANT)
         self.assertEqual(graph.signals[0].regression_rule, "schema_runtime_closed_object_parity")
+        self.assertIsNotNone(graph.signals[0].harmonization)
 
     def test_shape_probe_ignores_comments_and_docstrings(self) -> None:
         schema = {"type": "object", "additionalProperties": False}
@@ -247,6 +297,27 @@ def validate(value):
         )
         self.assertIsNone(finding)
 
+    def test_granular_shape_probe_ignores_unrelated_function_guard(self) -> None:
+        schema = {"type": "object", "additionalProperties": False}
+        source = '''
+def validate_other(value):
+    unknown = value.keys() - {"known"}
+    if unknown:
+        raise ValueError("unexpected key")
+
+def validate_envelope(value):
+    return True
+'''
+        finding = probe_unknown_property_parity(
+            schema=schema,
+            schema_path="envelope.schema.json",
+            validator_source=source,
+            validator_path="validate.py",
+            category="envelope",
+            function_name="validate_envelope",
+        )
+        self.assertIsNotNone(finding)
+
     def test_digest_probe_recurses_into_conditional_branches(self) -> None:
         schema = {
             "oneOf": [
@@ -269,30 +340,7 @@ def validate(value):
         )
         self.assertIsNotNone(finding)
 
-    def test_digest_probe_ignores_docstring_fullmatch_mentions(self) -> None:
-        schema = {
-            "type": "object",
-            "properties": {
-                "action_digest": {
-                    "type": "string",
-                    "pattern": "^sha256:[A-Za-z0-9._-]+$",
-                }
-            },
-        }
-        source = '''
-def validate(value):
-    """Use fullmatch with ^sha256:[A-Za-z0-9._-]+$ in a future revision."""
-    return value.startswith("sha256:")
-'''
-        finding = probe_digest_pattern_parity(
-            schema=schema,
-            schema_path="envelope.schema.json",
-            validator_source=source,
-            validator_path="validate.py",
-        )
-        self.assertIsNotNone(finding)
-
-    def test_digest_probe_accepts_executable_fullmatch(self) -> None:
+    def test_digest_probe_does_not_use_unrelated_fullmatch(self) -> None:
         schema = {
             "type": "object",
             "properties": {
@@ -305,8 +353,38 @@ def validate(value):
         source = '''
 import re
 
+def validate_digest(value):
+    return value.startswith("sha256:")
+
+def validate_other(other):
+    return re.fullmatch(r"^sha256:[A-Za-z0-9._-]+$", other) is not None
+'''
+        finding = probe_digest_pattern_parity(
+            schema=schema,
+            schema_path="envelope.schema.json",
+            validator_source=source,
+            validator_path="validate.py",
+        )
+        self.assertIsNotNone(finding)
+
+    def test_digest_probe_accepts_matching_compiled_regex(self) -> None:
+        schema = {
+            "type": "object",
+            "properties": {
+                "action_digest": {
+                    "type": "string",
+                    "pattern": "^sha256:[A-Za-z0-9._-]+$",
+                }
+            },
+        }
+        source = '''
+import re
+DIGEST = re.compile(r"^sha256:[A-Za-z0-9._-]+$")
+
 def validate(value):
-    return re.fullmatch(r"^sha256:[A-Za-z0-9._-]+$", value) is not None
+    if not value.startswith("sha256:"):
+        return False
+    return DIGEST.fullmatch(value) is not None
 '''
         finding = probe_digest_pattern_parity(
             schema=schema,
@@ -376,6 +454,23 @@ def compare_events(left, right, context):
     return parsed_left < parsed_right
 """
         finding = probe_timezone_comparison_safety(source=source, path="wrong_guard.py")
+        self.assertIsNotNone(finding)
+
+    def test_timezone_access_without_enforcement_is_not_a_guard(self) -> None:
+        source = """
+from datetime import datetime
+
+def parse_timestamp(value):
+    parsed = datetime.fromisoformat(value)
+    print(parsed.tzinfo)
+    return parsed
+
+def compare_events(left, right):
+    parsed_left = parse_timestamp(left)
+    parsed_right = parse_timestamp(right)
+    return parsed_left < parsed_right
+"""
+        finding = probe_timezone_comparison_safety(source=source, path="logging_only.py")
         self.assertIsNotNone(finding)
 
     def test_synthetic_pattern_specimen_recognizes_expected_signatures(self) -> None:
