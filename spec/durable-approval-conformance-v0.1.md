@@ -68,6 +68,26 @@ Changing any bound digest requires a new approval.
 
 Requester, presentation, and execution events cannot manufacture a user-owned authority resolution.
 
+## ReviewDecision adapter guidance
+
+Runtimes that currently expose a single `ReviewDecision`-style result MUST map source events without collapsing the four dimensions.
+
+| Legacy/runtime signal | Durable event | Authority effect |
+|---|---|---|
+| authenticated user/reviewer approves the exact bound action | `UserApproved` | `PENDING -> APPROVED` |
+| authenticated user/reviewer explicitly rejects | `UserRejected` | `PENDING -> REJECTED` |
+| requester future is cancelled or caller stops waiting | `RequesterCancelled` or `RequesterDetached` | none |
+| transport/session disconnects | `TransportDisconnected` | none |
+| approval surface is closed without an explicit rejection | `UiDismissed` | none |
+| local wait window elapses without configured expiry policy | `WaitWindowElapsed` | none |
+| configured policy deadline elapses | `ApprovalExpired` | `PENDING -> EXPIRED` |
+| exact action, scope, workspace, target, or policy drifts | `ApprovalInvalidated` | `PENDING -> INVALIDATED` |
+| durable authority cannot be reconstructed | `LostStateDetected` | authority becomes `LOST`; execution remains blocked |
+
+A legacy `Denied`, `Rejected`, or equivalent terminal value MUST NOT be emitted for cancellation, timeout, disconnect, or UI dismissal. If the adapter cannot distinguish an explicit user decision from lifecycle loss, it MUST fail closed as `LOST` or preserve `PENDING`; it must never synthesize `UserRejected`.
+
+Every authority event must retain the original `approval_id`, actor attribution, and exact action/scope bindings. Execution claiming remains a separate operation.
+
 ## Commit before effect
 
 Execution follows:
@@ -89,9 +109,10 @@ Events are append-only and MUST have:
 
 - unique `event_id`;
 - strictly consecutive `sequence` values starting at 1;
-- non-decreasing RFC 3339 timestamps;
+- non-decreasing timezone-aware RFC 3339 timestamps;
 - actor attribution;
-- reason and evidence for authority expiry, invalidation, or lost-state resolution.
+- reason for authority resolution;
+- evidence for expiry, invalidation, effect observation, or lost-state resolution.
 
 Duplicate, reordered, contradictory, or ownership-invalid events fail conformance.
 
@@ -101,9 +122,10 @@ The initial fixture proves:
 
 1. agent cancellation leaves authority `PENDING`;
 2. transport loss leaves authority `PENDING`;
-3. an elapsed wait window without expiry policy leaves authority `PENDING`;
-4. only explicit user rejection produces `REJECTED`;
-5. explicit approval followed by an execution claim and restart produces `IN_DOUBT`.
+3. UI dismissal without explicit rejection leaves authority `PENDING`;
+4. an elapsed wait window without expiry policy leaves authority `PENDING`;
+5. only explicit user rejection produces `REJECTED`;
+6. explicit approval followed by an execution claim and restart produces `IN_DOUBT`.
 
 ## Verification
 
@@ -114,6 +136,8 @@ python tools/validate_durable_approval_v0_1.py \
   fixtures/trusted-runtime/durable-approval/pending_approval_not_missing_authority_v0.1.json \
   fixtures/trusted-runtime/durable-approval/envelope.schema.json \
   fixtures/trusted-runtime/durable-approval/event.schema.json
+
+python tools/test_durable_approval_v0_1.py
 ```
 
 The validator is dependency-free and emits a machine-readable conformance report.
