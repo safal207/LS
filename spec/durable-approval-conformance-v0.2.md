@@ -13,7 +13,7 @@ DurableApprovalEnvelope v0.1
 
 ## Purpose
 
-v0.1 proved that requester cancellation, transport loss, and an elapsed local wait cannot manufacture user rejection or expiry.
+v0.1 proved that requester cancellation, transport loss, UI dismissal, and an elapsed local wait cannot manufacture user rejection or expiry.
 
 v0.2 adds deterministic terminal-resolution and reconciliation coverage:
 
@@ -33,6 +33,19 @@ v0.2 adds deterministic terminal-resolution and reconciliation coverage:
 | `LOST` | `LostStateDetected` | `RUNTIME` | durable-state-loss evidence |
 
 `LOST` is not rejection. It means that authority cannot be reconstructed safely and therefore cannot authorize execution.
+
+## ReviewDecision adapter guidance
+
+A `ReviewDecision` adapter must preserve the v0.1 mapping rules and keep reconciliation separate from authority resolution:
+
+- `Approved` may be emitted only from an attributed `UserApproved` or authorized reviewer event bound to the exact envelope;
+- `Rejected` may be emitted only from an attributed `UserRejected`;
+- cancellation, disconnect, UI dismissal, or local timeout remain requester/presentation events and do not resolve authority;
+- context drift maps to `INVALIDATED`, not `Rejected`;
+- unrecoverable durable-state loss maps to `LOST`, not `Rejected`;
+- `IN_DOUBT`, `COMMITTED`, and `FAILED` describe execution reconciliation and must not mint, revoke, or reinterpret authority.
+
+Adapters that expose one outward status should return a structured projection containing authority and execution separately, or fail closed when a lossless projection is impossible.
 
 ## Reconciliation
 
@@ -90,9 +103,13 @@ Run:
 
 ```bash
 python tools/validate_durable_approval_v0_2.py \
-  fixtures/trusted-runtime/durable-approval/full_lifecycle_v0.2.json \
-  fixtures/trusted-runtime/durable-approval/envelope.schema.json \
-  fixtures/trusted-runtime/durable-approval/event.schema.json
+  --envelope-schema fixtures/trusted-runtime/durable-approval/envelope.schema.json \
+  --event-schema fixtures/trusted-runtime/durable-approval/event.schema.json \
+  fixtures/trusted-runtime/durable-approval/configured_policy_expiry_v0.2.json \
+  fixtures/trusted-runtime/durable-approval/verified_context_invalidation_v0.2.json \
+  fixtures/trusted-runtime/durable-approval/durable_state_loss_v0.2.json \
+  fixtures/trusted-runtime/durable-approval/reconcile_in_doubt_committed_v0.2.json \
+  fixtures/trusted-runtime/durable-approval/reconcile_in_doubt_failed_v0.2.json
 
 python tools/test_durable_approval_v0_2.py
 ```
