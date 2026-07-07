@@ -14,11 +14,11 @@ on:
       manifest_path:
         description: "Trusted manifest path in the default branch"
         required: true
-        default: "benchmarks/exact-head/pr796-calibration-v0.1.json"
+        default: "benchmarks/exact-head/pr796-final-calibration-v0.1.json"
       artifact_name:
         description: "Workflow artifact name"
         required: true
-        default: "exact-head-evidence-bundle"
+        default: "pr796-final-exact-head-evidence"
 
 permissions:
   contents: read
