@@ -48,6 +48,16 @@ class ExternalIssueWatcherTests(unittest.TestCase):
         with self.assertRaises(watcher.WatchError):
             watcher.replace_cursor("no marker", 1)
 
+    def test_duplicate_cursor_is_rejected(self) -> None:
+        body = (
+            "<!-- external-watch:last-comment-id=10 -->\n"
+            "<!-- external-watch:last-comment-id=11 -->"
+        )
+        with self.assertRaises(watcher.WatchError):
+            watcher.parse_cursor(body)
+        with self.assertRaises(watcher.WatchError):
+            watcher.replace_cursor(body, 12)
+
     def test_new_human_comments_are_selected(self) -> None:
         comments = [
             self.comment(10, "safal207", "our follow-up"),
