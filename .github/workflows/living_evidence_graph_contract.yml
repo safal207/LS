@@ -5,7 +5,7 @@ on:
     paths:
       - "scripts/multi_model_review/evidence_graph.py"
       - "scripts/multi_model_review/evidence_probes.py"
-      - "python/tests/test_living_evidence_graph.py"
+      - "python/tests/test_living_evidence*.py"
       - "python/tests/fixtures/living_evidence_pattern_specimen/**"
       - "spec/living-evidence-graph-v0.1.md"
       - ".github/workflows/living_evidence_graph_contract.yml"
@@ -15,7 +15,7 @@ on:
     paths:
       - "scripts/multi_model_review/evidence_graph.py"
       - "scripts/multi_model_review/evidence_probes.py"
-      - "python/tests/test_living_evidence_graph.py"
+      - "python/tests/test_living_evidence*.py"
       - "python/tests/fixtures/living_evidence_pattern_specimen/**"
       - "spec/living-evidence-graph-v0.1.md"
       - ".github/workflows/living_evidence_graph_contract.yml"
@@ -38,4 +38,4 @@ jobs:
       - name: Compile living evidence graph
         run: python -m py_compile scripts/multi_model_review/evidence_graph.py scripts/multi_model_review/evidence_probes.py
       - name: Run deterministic structural-probe contract
-        run: python -m unittest python/tests/test_living_evidence_graph.py -v
+        run: python -m unittest discover -s python/tests -p 'test_living_evidence*.py' -v
