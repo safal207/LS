@@ -5,8 +5,11 @@ on:
     paths:
       - "spec/durable-approval-conformance-v0.*.md"
       - "docs/product/approval-integrity-30-second-demo.md"
+      - "docs/product/review-decision-adapter-v0.1.md"
       - "fixtures/trusted-runtime/durable-approval/**"
       - "tools/demo_approval_integrity.py"
+      - "tools/review_decision_adapter_v0_1.py"
+      - "tools/test_review_decision_adapter_v0_1.py"
       - "tools/validate_durable_approval_v0_*.py"
       - "tools/test_durable_approval_v0_*.py"
       - ".github/workflows/durable-approval-fixtures.yml"
@@ -16,8 +19,11 @@ on:
     paths:
       - "spec/durable-approval-conformance-v0.*.md"
       - "docs/product/approval-integrity-30-second-demo.md"
+      - "docs/product/review-decision-adapter-v0.1.md"
       - "fixtures/trusted-runtime/durable-approval/**"
       - "tools/demo_approval_integrity.py"
+      - "tools/review_decision_adapter_v0_1.py"
+      - "tools/test_review_decision_adapter_v0_1.py"
       - "tools/validate_durable_approval_v0_*.py"
       - "tools/test_durable_approval_v0_*.py"
       - ".github/workflows/durable-approval-fixtures.yml"
@@ -43,6 +49,12 @@ jobs:
         run: python tools/test_durable_approval_v0_1.py
       - name: Verify LS Approval Integrity product demo
         run: python tools/demo_approval_integrity.py --check
+      - name: Validate ReviewDecision adapter fixture
+        run: python tools/review_decision_adapter_v0_1.py --check
+      - name: Render ReviewDecision adapter demo
+        run: python tools/review_decision_adapter_v0_1.py --demo
+      - name: Run ReviewDecision adapter negative controls
+        run: python tools/test_review_decision_adapter_v0_1.py
       - name: Validate durable approval lifecycle suite v0.2
         run: |
           python tools/validate_durable_approval_v0_2.py \
