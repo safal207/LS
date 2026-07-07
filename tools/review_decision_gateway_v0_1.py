@@ -11,11 +11,12 @@ import re
 import socket
 import sys
 import threading
+import time
 from copy import deepcopy
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 ADAPTER_PATH = ROOT / "tools" / "review_decision_adapter_v0_1.py"
@@ -33,12 +34,25 @@ sys.modules[_spec.name] = adapter
 _spec.loader.exec_module(adapter)
 
 
-def read_exact(stream: BinaryIO, length: int) -> bytes | None:
-    """Read exactly length bytes or return None on early EOF."""
+def read_exact(
+    stream: BinaryIO,
+    length: int,
+    *,
+    deadline: float | None = None,
+    set_timeout: Callable[[float], None] | None = None,
+) -> bytes | None:
+    """Read exactly length bytes, honoring an optional wall-clock deadline."""
     chunks: list[bytes] = []
     remaining = length
+    read_chunk = getattr(stream, "read1", stream.read)
     while remaining:
-        chunk = stream.read(min(remaining, 8192))
+        if deadline is not None:
+            remaining_seconds = deadline - time.monotonic()
+            if remaining_seconds <= 0:
+                raise TimeoutError("request body deadline exceeded")
+            if set_timeout is not None:
+                set_timeout(remaining_seconds)
+        chunk = read_chunk(min(remaining, 8192))
         if not chunk:
             return None
         chunks.append(chunk)
@@ -202,11 +216,19 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self.transport_error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "request body exceeds 65536 bytes")
             return
 
+        deadline = time.monotonic() + READ_TIMEOUT_SECONDS
         try:
-            body = read_exact(self.rfile, length)
+            body = read_exact(
+                self.rfile,
+                length,
+                deadline=deadline,
+                set_timeout=self.connection.settimeout,
+            )
         except (socket.timeout, TimeoutError):
             self.transport_error(HTTPStatus.REQUEST_TIMEOUT, "request body read timed out")
             return
+        finally:
+            self.connection.settimeout(READ_TIMEOUT_SECONDS)
         if body is None:
             self.transport_error(HTTPStatus.BAD_REQUEST, "request body was truncated")
             return
