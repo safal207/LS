@@ -89,34 +89,57 @@ class ExternalIssueWatcherTests(unittest.TestCase):
         self.assertFalse(result.changed)
         self.assertEqual(5, result.next_cursor)
 
-    def test_sanitize_excerpt_blocks_mentions_and_html(self) -> None:
-        excerpt = watcher.sanitize_excerpt("Hello @team <details>secret</details>")
+    def test_sanitize_excerpt_blocks_mentions_html_and_markdown_links(self) -> None:
+        excerpt = watcher.sanitize_excerpt(
+            "Hello @team <details>secret</details> [click](https://evil.example) "
+            "![pixel](https://img.example/p.gif) www.evil.example"
+        )
         self.assertIn("@\u200bteam", excerpt)
         self.assertIn("&lt;details&gt;", excerpt)
         self.assertNotIn("<details>", excerpt)
+        self.assertNotIn("[click](https://evil.example)", excerpt)
+        self.assertNotIn("https://evil.example", excerpt)
+        self.assertNotIn("www.evil.example", excerpt)
+        self.assertIn("https:\u200b//evil.example", excerpt)
+        self.assertIn("www\u200b.evil.example", excerpt)
 
     def test_sanitize_excerpt_truncates(self) -> None:
         excerpt = watcher.sanitize_excerpt("x" * 20, limit=10)
         self.assertEqual(10, len(excerpt))
         self.assertTrue(excerpt.endswith("…"))
 
-    def test_tracker_comment_contains_safe_links_and_excerpt(self) -> None:
+    def test_tracker_comment_contains_safe_links_excerpt_and_source_marker(self) -> None:
         body = watcher.build_tracker_comment(
             "openai/codex",
             29627,
             [self.comment(31, "maintainer", "Please review @safal207 <script>x</script>")],
         )
+        self.assertIn("<!-- external-watch:source-comment-id=31 -->", body)
         self.assertIn("https://github.com/openai/codex/issues/29627", body)
         self.assertIn("issuecomment-31", body)
         self.assertIn("@\u200bsafal207", body)
         self.assertIn("&lt;script&gt;", body)
         self.assertNotIn("<script>", body)
 
+    def test_mirrored_source_ids_make_retries_idempotent(self) -> None:
+        tracker_comments = [
+            {"body": "<!-- external-watch:source-comment-id=61 -->\nrecorded"},
+            {"body": "<!-- external-watch:source-comment-id=62 -->\nrecorded"},
+            {"body": None},
+        ]
+        mirrored = watcher.mirrored_source_comment_ids(tracker_comments)
+        self.assertEqual({61, 62}, mirrored)
+        pending = watcher.unmirrored_comments(
+            [self.comment(61, "human"), self.comment(62, "human"), self.comment(63, "human")],
+            mirrored,
+        )
+        self.assertEqual([63], [comment["id"] for comment in pending])
+
     def test_non_github_comment_url_is_not_linked(self) -> None:
         comment = self.comment(41, "human")
         comment["html_url"] = "https://example.com/phishing"
         body = watcher.build_tracker_comment("openai/codex", 29627, [comment])
-        self.assertNotIn("example.com", body)
+        self.assertNotIn("example.com/phishing", body)
 
     def test_bot_and_empty_comments_are_not_meaningful(self) -> None:
         self.assertFalse(
