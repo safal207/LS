@@ -1,0 +1,34 @@
+name: ReviewDecision Gateway
+
+on:
+  pull_request:
+    paths:
+      - "docs/product/review-decision-gateway-v0.1.md"
+      - "tools/review_decision_gateway_v0_1.py"
+      - "tools/test_review_decision_gateway_v0_1.py"
+      - ".github/workflows/review-decision-gateway.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/product/review-decision-gateway-v0.1.md"
+      - "tools/review_decision_gateway_v0_1.py"
+      - "tools/test_review_decision_gateway_v0_1.py"
+      - ".github/workflows/review-decision-gateway.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  gateway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Render gateway demo
+        run: python tools/review_decision_gateway_v0_1.py --demo
+      - name: Run gateway test suite
+        run: python tools/test_review_decision_gateway_v0_1.py
