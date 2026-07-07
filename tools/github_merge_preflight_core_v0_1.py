@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pure exact-head binding and decision core for GitHub merge preflight v0.1."""
+"""Pure exact-base/head binding and decision core for GitHub merge preflight v0.1."""
 
 from __future__ import annotations
 
@@ -26,11 +26,17 @@ def canonical_json(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
 
 
-def exact_binding(repository: str, pull_request_number: int, expected_head_sha: str) -> dict[str, Any]:
+def exact_binding(
+    repository: str,
+    pull_request_number: int,
+    expected_base_sha: str,
+    expected_head_sha: str,
+) -> dict[str, Any]:
     return {
         "action": "github.merge_pull_request",
         "repository": repository,
         "pull_request_number": pull_request_number,
+        "expected_base_sha": expected_base_sha,
         "expected_head_sha": expected_head_sha,
     }
 
@@ -46,13 +52,21 @@ def expected_approval_id(binding: dict[str, Any]) -> str:
 def validate_input(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise PreflightError("INVALID_INPUT", "input must be an object")
-    allowed = {"repository", "pull_request_number", "expected_head_sha", "gateway_url", "approval"}
+    allowed = {
+        "repository",
+        "pull_request_number",
+        "expected_base_sha",
+        "expected_head_sha",
+        "gateway_url",
+        "approval",
+    }
     extra = set(value) - allowed
     if extra:
         raise PreflightError("INVALID_INPUT", f"unsupported input fields: {sorted(extra)}")
 
     repository = value.get("repository")
     pr_number = value.get("pull_request_number")
+    base_sha = value.get("expected_base_sha")
     head_sha = value.get("expected_head_sha")
     approval = value.get("approval")
     gateway_url = value.get("gateway_url")
@@ -61,6 +75,8 @@ def validate_input(value: Any) -> dict[str, Any]:
         raise PreflightError("INVALID_REPOSITORY", "repository must match owner/name")
     if type(pr_number) is not int or pr_number <= 0:
         raise PreflightError("INVALID_PULL_REQUEST", "pull_request_number must be a positive integer")
+    if not isinstance(base_sha, str) or not SHA_PATTERN.fullmatch(base_sha):
+        raise PreflightError("INVALID_EXACT_BASE", "expected_base_sha must be 40 lowercase hexadecimal characters")
     if not isinstance(head_sha, str) or not SHA_PATTERN.fullmatch(head_sha):
         raise PreflightError("INVALID_EXACT_HEAD", "expected_head_sha must be 40 lowercase hexadecimal characters")
     if not isinstance(gateway_url, str) or not gateway_url:
@@ -68,12 +84,12 @@ def validate_input(value: Any) -> dict[str, Any]:
     if not isinstance(approval, dict):
         raise PreflightError("INVALID_APPROVAL", "approval must be an object")
 
-    binding = exact_binding(repository, pr_number, head_sha)
+    binding = exact_binding(repository, pr_number, base_sha, head_sha)
     digest = binding_digest(binding)
     if approval.get("approval_id") != "github-merge:" + digest:
         raise PreflightError(
             "APPROVAL_BINDING_MISMATCH",
-            "approval_id does not bind the exact repository, PR, and head",
+            "approval_id does not bind the exact repository, PR, base, and head",
         )
     if approval.get("exact_bindings_match") is not True:
         raise PreflightError("APPROVAL_BINDING_MISMATCH", "approval must declare exact bindings matched")
@@ -136,7 +152,7 @@ def classify(response: dict[str, Any], approval: dict[str, Any]) -> tuple[str, s
         return "BLOCK", "EXECUTION_CLAIM_NOT_ALLOWED"
     if projection.get("execution_blocked") is not False:
         return "BLOCK", "EXECUTION_BLOCKED"
-    return "ALLOW_CLAIM", "EXACT_HEAD_USER_APPROVAL_VERIFIED"
+    return "ALLOW_CLAIM", "EXACT_BASE_HEAD_USER_APPROVAL_VERIFIED"
 
 
 def envelope(
