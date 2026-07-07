@@ -1,0 +1,311 @@
+{
+  "_meta": {
+    "role": "Canonical safe ReviewDecision adapter fixture for LS issue #803.",
+    "external_validation": "https://github.com/openai/codex/issues/29627",
+    "product_promise": "The adapter never invents a user decision."
+  },
+  "fixture_id": "review_decision_adapter_cases_v0.1",
+  "fixture_version": "ls-review-decision-adapter-v0.1",
+  "cases": [
+    {
+      "case_id": "explicit_user_approval",
+      "input": {
+        "approval_id": "approval-review-adapter-001",
+        "signal": "USER_APPROVED",
+        "actor": {
+          "type": "USER",
+          "id": "local-operator"
+        },
+        "reason": "user explicitly approved exact action",
+        "evidence_ref": null,
+        "exact_bindings_match": true,
+        "expiry_policy_configured": false
+      },
+      "expected_projection": {
+        "durable_event_type": "UserApproved",
+        "authority_state": "APPROVED",
+        "requester_state": "ATTACHED",
+        "presentation_state": "VISIBLE",
+        "execution_state": "UNUSED",
+        "outward_status": "APPROVED",
+        "user_message": "Approved for the exact reviewed action. Nothing has executed yet.",
+        "execution_blocked": false,
+        "execution_claim_allowed": true,
+        "resolution": {
+          "event_type": "UserApproved",
+          "actor_type": "USER",
+          "actor_id": "local-operator",
+          "reason": "user explicitly approved exact action",
+          "evidence_ref": null
+        }
+      }
+    },
+    {
+      "case_id": "explicit_user_rejection",
+      "input": {
+        "approval_id": "approval-review-adapter-001",
+        "signal": "USER_REJECTED",
+        "actor": {
+          "type": "USER",
+          "id": "local-operator"
+        },
+        "reason": "user explicitly rejected action",
+        "evidence_ref": null,
+        "exact_bindings_match": true,
+        "expiry_policy_configured": false
+      },
+      "expected_projection": {
+        "durable_event_type": "UserRejected",
+        "authority_state": "REJECTED",
+        "requester_state": "ATTACHED",
+        "presentation_state": "VISIBLE",
+        "execution_state": "UNUSED",
+        "outward_status": "REJECTED_BY_USER",
+        "user_message": "You rejected this action. Nothing was executed.",
+        "execution_blocked": true,
+        "execution_claim_allowed": false,
+        "resolution": {
+          "event_type": "UserRejected",
+          "actor_type": "USER",
+          "actor_id": "local-operator",
+          "reason": "user explicitly rejected action",
+          "evidence_ref": null
+        }
+      }
+    },
+    {
+      "case_id": "requester_cancelled",
+      "input": {
+        "approval_id": "approval-review-adapter-001",
+        "signal": "REQUESTER_CANCELLED",
+        "actor": {
+          "type": "AGENT",
+          "id": "agent-root"
+        },
+        "reason": "requesting future cancelled",
+        "evidence_ref": null,
+        "exact_bindings_match": true,
+        "expiry_policy_configured": false
+      },
+      "expected_projection": {
+        "durable_event_type": "RequesterCancelled",
+        "authority_state": "PENDING",
+        "requester_state": "CANCELLED",
+        "presentation_state": "VISIBLE",
+        "execution_state": "UNUSED",
+        "outward_status": "WAITING_FOR_USER",
+        "user_message": "Your decision is still pending. The agent stopped waiting. Nothing was executed.",
+        "execution_blocked": true,
+        "execution_claim_allowed": false,
+        "resolution": null
+      }
+    },
+    {
+      "case_id": "requester_detached",
+      "input": {
+        "approval_id": "approval-review-adapter-001",
+        "signal": "REQUESTER_DETACHED",
+        "actor": {
+          "type": "RUNTIME",
+          "id": "adapter-runtime"
+        },
+        "reason": "caller detached from pending approval",
+        "evidence_ref": null,
+        "exact_bindings_match": true,
+        "expiry_policy_configured": false
+      },
+      "expected_projection": {
+        "durable_event_type": "RequesterDetached",
+        "authority_state": "PENDING",
+        "requester_state": "DETACHED",
+        "presentation_state": "VISIBLE",
+        "execution_state": "UNUSED",
+        "outward_status": "WAITING_FOR_USER",
+        "user_message": "Your decision is still pending. The requester detached. Nothing was executed.",
+        "execution_blocked": true,
+        "execution_claim_allowed": false,
+        "resolution": null
+      }
+    },
+    {
+      "case_id": "transport_disconnected",
+      "input": {
+        "approval_id": "approval-review-adapter-001",
+        "signal": "TRANSPORT_DISCONNECTED",
+        "actor": {
+          "type": "TRANSPORT",
+          "id": "app-server-websocket"
+        },
+        "reason": "connection lost",
+        "evidence_ref": null,
+        "exact_bindings_match": true,
+        "expiry_policy_configured": false
+      },
+      "expected_projection": {
+        "durable_event_type": "TransportDisconnected",
+        "authority_state": "PENDING",
+        "requester_state": "ATTACHED",
+        "presentation_state": "DISCONNECTED",
+        "execution_state": "UNUSED",
+        "outward_status": "CONNECTION_LOST_PENDING",
+        "user_message": "Connection lost. Your pending decision was preserved. Nothing was executed.",
+        "execution_blocked": true,
+        "execution_claim_allowed": false,
+        "resolution": null
+      }
+    },
+    {
+      "case_id": "ui_dismissed",
+      "input": {
+        "approval_id": "approval-review-adapter-001",
+        "signal": "UI_DISMISSED",
+        "actor": {
+          "type": "USER",
+          "id": "local-operator"
+        },
+        "reason": "approval surface closed without decision",
+        "evidence_ref": null,
+        "exact_bindings_match": true,
+        "expiry_policy_configured": false
+      },
+      "expected_projection": {
+        "durable_event_type": "UiDismissed",
+        "authority_state": "PENDING",
+        "requester_state": "ATTACHED",
+        "presentation_state": "NOT_PRESENTED",
+        "execution_state": "UNUSED",
+        "outward_status": "PENDING_DECISION_HIDDEN",
+        "user_message": "The approval view was closed. Your decision is still pending. Nothing was executed.",
+        "execution_blocked": true,
+        "execution_claim_allowed": false,
+        "resolution": null
+      }
+    },
+    {
+      "case_id": "wait_elapsed_without_expiry",
+      "input": {
+        "approval_id": "approval-review-adapter-001",
+        "signal": "WAIT_WINDOW_ELAPSED",
+        "actor": {
+          "type": "RUNTIME",
+          "id": "approval-waiter"
+        },
+        "reason": "local wait window elapsed",
+        "evidence_ref": null,
+        "exact_bindings_match": true,
+        "expiry_policy_configured": false
+      },
+      "expected_projection": {
+        "durable_event_type": "WaitWindowElapsed",
+        "authority_state": "PENDING",
+        "requester_state": "ATTACHED",
+        "presentation_state": "VISIBLE",
+        "execution_state": "UNUSED",
+        "outward_status": "WAITING_FOR_USER",
+        "user_message": "Still waiting for your decision. Nothing was executed.",
+        "execution_blocked": true,
+        "execution_claim_allowed": false,
+        "resolution": null
+      }
+    },
+    {
+      "case_id": "configured_policy_expiry",
+      "input": {
+        "approval_id": "approval-review-adapter-001",
+        "signal": "POLICY_EXPIRED",
+        "actor": {
+          "type": "POLICY",
+          "id": "manual-approval-10m"
+        },
+        "reason": "configured approval lifetime elapsed",
+        "evidence_ref": "policy:manual-approval-10m@2026-07-07T05:40:00Z",
+        "exact_bindings_match": true,
+        "expiry_policy_configured": true
+      },
+      "expected_projection": {
+        "durable_event_type": "ApprovalExpired",
+        "authority_state": "EXPIRED",
+        "requester_state": "ATTACHED",
+        "presentation_state": "VISIBLE",
+        "execution_state": "UNUSED",
+        "outward_status": "EXPIRED",
+        "user_message": "This approval expired under its configured policy. Nothing was executed.",
+        "execution_blocked": true,
+        "execution_claim_allowed": false,
+        "resolution": {
+          "event_type": "ApprovalExpired",
+          "actor_type": "POLICY",
+          "actor_id": "manual-approval-10m",
+          "reason": "configured approval lifetime elapsed",
+          "evidence_ref": "policy:manual-approval-10m@2026-07-07T05:40:00Z"
+        }
+      }
+    },
+    {
+      "case_id": "verified_context_invalidation",
+      "input": {
+        "approval_id": "approval-review-adapter-001",
+        "signal": "CONTEXT_INVALIDATED",
+        "actor": {
+          "type": "VERIFIER",
+          "id": "binding-verifier"
+        },
+        "reason": "workspace target state changed",
+        "evidence_ref": "evidence:workspace-drift-state-c",
+        "exact_bindings_match": false,
+        "expiry_policy_configured": false
+      },
+      "expected_projection": {
+        "durable_event_type": "ApprovalInvalidated",
+        "authority_state": "INVALIDATED",
+        "requester_state": "ATTACHED",
+        "presentation_state": "VISIBLE",
+        "execution_state": "UNUSED",
+        "outward_status": "REVIEW_REQUIRED",
+        "user_message": "The action changed. Review and approve the new version. Nothing was executed.",
+        "execution_blocked": true,
+        "execution_claim_allowed": false,
+        "resolution": {
+          "event_type": "ApprovalInvalidated",
+          "actor_type": "VERIFIER",
+          "actor_id": "binding-verifier",
+          "reason": "workspace target state changed",
+          "evidence_ref": "evidence:workspace-drift-state-c"
+        }
+      }
+    },
+    {
+      "case_id": "durable_state_loss",
+      "input": {
+        "approval_id": "approval-review-adapter-001",
+        "signal": "STATE_LOST",
+        "actor": {
+          "type": "RUNTIME",
+          "id": "approval-store"
+        },
+        "reason": "durable approval history could not be reconstructed",
+        "evidence_ref": "evidence:approval-history-integrity-failure",
+        "exact_bindings_match": true,
+        "expiry_policy_configured": false
+      },
+      "expected_projection": {
+        "durable_event_type": "LostStateDetected",
+        "authority_state": "LOST",
+        "requester_state": "ATTACHED",
+        "presentation_state": "VISIBLE",
+        "execution_state": "UNUSED",
+        "outward_status": "LOST_STATE",
+        "user_message": "Approval state could not be verified. Nothing will execute without a new decision.",
+        "execution_blocked": true,
+        "execution_claim_allowed": false,
+        "resolution": {
+          "event_type": "LostStateDetected",
+          "actor_type": "RUNTIME",
+          "actor_id": "approval-store",
+          "reason": "durable approval history could not be reconstructed",
+          "evidence_ref": "evidence:approval-history-integrity-failure"
+        }
+      }
+    }
+  ]
+}
