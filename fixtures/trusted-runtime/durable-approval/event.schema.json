@@ -3,7 +3,15 @@
   "$id": "https://github.com/safal207/LS/fixtures/trusted-runtime/durable-approval/event.schema.json",
   "title": "LS Approval Lifecycle Event v0.1",
   "type": "object",
-  "required": ["schema_version", "event_id", "approval_id", "sequence", "event_type", "occurred_at", "actor"],
+  "required": [
+    "schema_version",
+    "event_id",
+    "approval_id",
+    "sequence",
+    "event_type",
+    "occurred_at",
+    "actor"
+  ],
   "properties": {
     "schema_version": {"const": "ls-approval-lifecycle-event-v0.1"},
     "event_id": {"type": "string", "minLength": 1},
@@ -43,16 +51,35 @@
     "evidence_ref": {"type": ["string", "null"]},
     "bindings": {
       "type": "object",
+      "required": ["action_digest", "scope_digest", "policy_digest", "workspace_identity", "target_state_digest"],
       "properties": {
-        "action_digest": {"type": "string"},
-        "scope_digest": {"type": "string"},
-        "policy_digest": {"type": "string"},
-        "workspace_identity": {"type": "string"},
-        "target_state_digest": {"type": "string"}
+        "action_digest": {"type": "string", "pattern": "^sha256:[A-Za-z0-9._-]+$"},
+        "scope_digest": {"type": "string", "pattern": "^sha256:[A-Za-z0-9._-]+$"},
+        "policy_digest": {"type": "string", "pattern": "^sha256:[A-Za-z0-9._-]+$"},
+        "workspace_identity": {"type": "string", "minLength": 1},
+        "target_state_digest": {"type": "string", "pattern": "^sha256:[A-Za-z0-9._-]+$"}
       },
       "additionalProperties": false
     },
     "outcome": {"enum": ["COMMITTED", "FAILED"]}
   },
+  "allOf": [
+    {
+      "if": {"properties": {"event_type": {"enum": ["UserApproved", "UserRejected", "ApprovalExpired", "ApprovalInvalidated", "LostStateDetected"]}}},
+      "then": {"required": ["reason"], "properties": {"reason": {"type": "string", "minLength": 1}}}
+    },
+    {
+      "if": {"properties": {"event_type": {"enum": ["ApprovalExpired", "ApprovalInvalidated", "EffectObserved", "LostStateDetected"]}}},
+      "then": {"required": ["evidence_ref"], "properties": {"evidence_ref": {"type": "string", "minLength": 1}}}
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "ExecutionClaimed"}}},
+      "then": {"required": ["bindings"]}
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "EffectObserved"}}},
+      "then": {"required": ["outcome"]}
+    }
+  ],
   "additionalProperties": false
 }
