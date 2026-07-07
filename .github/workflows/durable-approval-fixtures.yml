@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - "spec/durable-approval-conformance-v0.*.md"
+      - "docs/product/approval-integrity-30-second-demo.md"
       - "fixtures/trusted-runtime/durable-approval/**"
+      - "tools/demo_approval_integrity.py"
       - "tools/validate_durable_approval_v0_*.py"
       - "tools/test_durable_approval_v0_*.py"
       - ".github/workflows/durable-approval-fixtures.yml"
@@ -13,7 +15,9 @@ on:
       - main
     paths:
       - "spec/durable-approval-conformance-v0.*.md"
+      - "docs/product/approval-integrity-30-second-demo.md"
       - "fixtures/trusted-runtime/durable-approval/**"
+      - "tools/demo_approval_integrity.py"
       - "tools/validate_durable_approval_v0_*.py"
       - "tools/test_durable_approval_v0_*.py"
       - ".github/workflows/durable-approval-fixtures.yml"
@@ -37,6 +41,8 @@ jobs:
             fixtures/trusted-runtime/durable-approval/event.schema.json
       - name: Run durable approval v0.1 negative controls
         run: python tools/test_durable_approval_v0_1.py
+      - name: Verify LS Approval Integrity product demo
+        run: python tools/demo_approval_integrity.py --check
       - name: Validate durable approval lifecycle suite v0.2
         run: |
           python tools/validate_durable_approval_v0_2.py \
