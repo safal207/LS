@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "docs/product/review-decision-gateway-v0.1.md"
+      - "tools/review_decision_adapter_v0_1.py"
       - "tools/review_decision_gateway_v0_1.py"
       - "tools/test_review_decision_gateway_v0_1.py"
       - "tools/test_review_decision_gateway_hardening_v0_1.py"
@@ -13,6 +14,7 @@ on:
       - main
     paths:
       - "docs/product/review-decision-gateway-v0.1.md"
+      - "tools/review_decision_adapter_v0_1.py"
       - "tools/review_decision_gateway_v0_1.py"
       - "tools/test_review_decision_gateway_v0_1.py"
       - "tools/test_review_decision_gateway_hardening_v0_1.py"
