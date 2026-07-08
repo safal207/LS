@@ -53,9 +53,10 @@ jobs:
           python test_build_ls_audit_pack.py
 
       - name: Fetch PR comments
+        if: github.event_name == 'workflow_dispatch'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          REVIEW_PR_NUMBER: ${{ github.event.inputs.review_pr_number || github.event.pull_request.number }}
+          REVIEW_PR_NUMBER: ${{ github.event.inputs.review_pr_number }}
         run: |
           mkdir -p artifacts/ls-audit
           curl -fsSL \
@@ -66,9 +67,10 @@ jobs:
             -o artifacts/ls-audit/pr_comments.json
 
       - name: Extract repo-native LS response
+        if: github.event_name == 'workflow_dispatch'
         env:
-          REVIEW_PR_NUMBER: ${{ github.event.inputs.review_pr_number || github.event.pull_request.number }}
-          CASE_ID: ${{ github.event.inputs.case_id || 'pr824-ls-audit-v0.1' }}
+          REVIEW_PR_NUMBER: ${{ github.event.inputs.review_pr_number }}
+          CASE_ID: ${{ github.event.inputs.case_id }}
         run: |
           python tools/extract_ls_review_response.py \
             --comments-json artifacts/ls-audit/pr_comments.json \
@@ -77,10 +79,11 @@ jobs:
             --out artifacts/ls-audit/ls_response.json
 
       - name: Validate extracted LS response
+        if: github.event_name == 'workflow_dispatch'
         env:
-          TARGET_PR_NUMBER: ${{ github.event.inputs.target_pr_number || '824' }}
-          TARGET_COMMIT_SHA: ${{ github.event.inputs.target_commit_sha || 'f1cfdfbf5f648bc28434fb2f5a0cb77eb7e86666' }}
-          CASE_ID: ${{ github.event.inputs.case_id || 'pr824-ls-audit-v0.1' }}
+          TARGET_PR_NUMBER: ${{ github.event.inputs.target_pr_number }}
+          TARGET_COMMIT_SHA: ${{ github.event.inputs.target_commit_sha }}
+          CASE_ID: ${{ github.event.inputs.case_id }}
         run: |
           python tools/build_ls_audit_pack.py \
             --pr-number "$TARGET_PR_NUMBER" \
@@ -89,6 +92,7 @@ jobs:
             --ls-response-json artifacts/ls-audit/ls_response.json
 
       - name: Upload native LS validation artifacts
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: ls-native-review-validation
