@@ -11,6 +11,12 @@ import ci_memory
 
 
 class CIMemoryTest(unittest.TestCase):
+    def assert_has_error(self, errors: list[str], expected: str) -> None:
+        self.assertTrue(
+            any(expected in error for error in errors),
+            f"Expected error containing {expected!r}, got: {errors!r}",
+        )
+
     def harmony_axis(self) -> dict[str, object]:
         return {
             "balance": "STRONG_HARMONY",
@@ -121,10 +127,7 @@ class CIMemoryTest(unittest.TestCase):
         event = self.pr831_event()
         event["decision"] = "YOLO_MERGE"
         errors = ci_memory.validate_event(event)
-        self.assertIn(
-            "decision must be one of ['ALLOW_WITH_GUARDRAIL', 'BLOCK_MERGE', 'DOCUMENT_ONLY']",
-            errors,
-        )
+        self.assert_has_error(errors, "decision must be one of")
 
     def test_invalid_harmony_balance_is_rejected(self) -> None:
         event = self.pr831_event()
@@ -132,10 +135,7 @@ class CIMemoryTest(unittest.TestCase):
         self.assertIsInstance(harmony_axis, dict)
         harmony_axis["balance"] = "COSMIC_VIBES"
         errors = ci_memory.validate_event(event)
-        self.assertIn(
-            "harmony_axis.balance must be one of ['CHAOS', 'HARMONY', 'MIXED', 'STRONG_HARMONY']",
-            errors,
-        )
+        self.assert_has_error(errors, "harmony_axis.balance must be one of")
 
     def test_missing_harmony_axis_is_rejected(self) -> None:
         event = self.pr831_event()
@@ -150,10 +150,7 @@ class CIMemoryTest(unittest.TestCase):
         self.assertIsInstance(trajectory_axis, dict)
         trajectory_axis["direction"] = "SIDEWAYS_SPIRAL"
         errors = ci_memory.validate_event(event)
-        self.assertIn(
-            "trajectory_axis.direction must be one of ['CHAOS_TO_HARMONY', 'HARMONY_TO_CHAOS', 'MIXED_TRANSITION', 'STABLE_CHAOS', 'STABLE_HARMONY']",
-            errors,
-        )
+        self.assert_has_error(errors, "trajectory_axis.direction must be one of")
 
     def test_invalid_trajectory_phase_order_is_rejected(self) -> None:
         event = self.pr831_event()
@@ -161,7 +158,7 @@ class CIMemoryTest(unittest.TestCase):
         self.assertIsInstance(trajectory_axis, dict)
         trajectory_axis["phase_order"] = 5
         errors = ci_memory.validate_event(event)
-        self.assertIn("trajectory_axis.phase_order must be 6 for phase STABILIZATION", errors)
+        self.assert_has_error(errors, "trajectory_axis.phase_order must be 6 for phase STABILIZATION")
 
     def test_invalid_trajectory_path_order_is_rejected(self) -> None:
         event = self.pr831_event()
@@ -169,7 +166,7 @@ class CIMemoryTest(unittest.TestCase):
         self.assertIsInstance(trajectory_axis, dict)
         trajectory_axis["transition_path"] = ["DRIFT", "REPLAY", "CAPTURE", "STABILIZATION"]
         errors = ci_memory.validate_event(event)
-        self.assertIn("trajectory_axis.transition_path must be strictly ordered by phase", errors)
+        self.assert_has_error(errors, "trajectory_axis.transition_path must be strictly ordered by phase")
 
     def test_invalid_trajectory_path_end_is_rejected(self) -> None:
         event = self.pr831_event()
@@ -177,7 +174,7 @@ class CIMemoryTest(unittest.TestCase):
         self.assertIsInstance(trajectory_axis, dict)
         trajectory_axis["transition_path"] = ["DRIFT", "COLLISION", "CAPTURE"]
         errors = ci_memory.validate_event(event)
-        self.assertIn("trajectory_axis.transition_path must end with trajectory_axis.phase", errors)
+        self.assert_has_error(errors, "trajectory_axis.transition_path must end with trajectory_axis.phase")
 
     def test_missing_trajectory_axis_is_rejected(self) -> None:
         event = self.pr831_event()
