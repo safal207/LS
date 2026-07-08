@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_PR_NUMBER = "824"
+DEFAULT_PR_NUMBER = 824
 DEFAULT_COMMIT_SHA = "f1cfdfbf5f648bc28434fb2f5a0cb77eb7e86666"
 DEFAULT_CASE_ID = "pr824-ls-audit-v0.1"
 
@@ -30,6 +30,7 @@ EVIDENCE_PATHS = [
     "fixtures/trusted-runtime/durable-approval/event.schema.json",
 ]
 
+VALID_VERDICTS = {"APPROVE", "REQUEST_CHANGES", "INCOMPLETE"}
 EXPECTED_SCHEMA = {
     "schema_version": "ls.manual_real_model_audit_report.v0.1",
     "case_id": DEFAULT_CASE_ID,
@@ -39,12 +40,10 @@ EXPECTED_SCHEMA = {
         "channel": "LS_RUN",
         "operator_note": "Independent LS audit of merged PR #824.",
     },
-    "verdict": "APPROVE | REQUEST_CHANGES | INCOMPLETE",
+    "verdict": "APPROVE",
     "findings": [],
     "limitations": [],
 }
-
-VALID_VERDICTS = {"APPROVE", "REQUEST_CHANGES", "INCOMPLETE"}
 REQUIRED_REPORT_FIELDS = {
     "schema_version",
     "case_id",
@@ -53,6 +52,16 @@ REQUIRED_REPORT_FIELDS = {
     "findings",
     "limitations",
 }
+
+
+def positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer") from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
 
 
 def read_text(path: str) -> str:
@@ -66,16 +75,22 @@ def sha256_text(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
-def build_prompt(pr_number: str, commit_sha: str, case_id: str) -> str:
+def build_expected_report_schema(case_id: str) -> dict[str, Any]:
+    return {
+        **EXPECTED_SCHEMA,
+        "case_id": case_id,
+        "verdict_allowed_values": sorted(VALID_VERDICTS),
+    }
+
+
+def build_prompt(pr_number: int, commit_sha: str, case_id: str) -> str:
     evidence_lines = "\n".join(f"- {path}" for path in EVIDENCE_PATHS)
     expected_schema = json.dumps(
-        {
-            **EXPECTED_SCHEMA,
-            "case_id": case_id,
-        },
+        build_expected_report_schema(case_id),
         indent=2,
         sort_keys=True,
     )
+    allowed_verdicts = ", ".join(sorted(VALID_VERDICTS))
     return f"""Perform an independent LS audit of merged PR #{pr_number}.
 
 Target:
@@ -90,13 +105,13 @@ Check whether PR #{pr_number} correctly closes the durable approval schema/runti
 Evidence scope:
 {evidence_lines}
 
-Return only JSON matching this shape:
+Return only JSON matching this shape. The verdict value must be exactly one of: {allowed_verdicts}.
 
 {expected_schema}
 """
 
 
-def build_evidence_pack(pr_number: str, commit_sha: str, case_id: str) -> dict[str, Any]:
+def build_evidence_pack(pr_number: int, commit_sha: str, case_id: str) -> dict[str, Any]:
     files = []
     for path in EVIDENCE_PATHS:
         content = read_text(path)
@@ -113,20 +128,20 @@ def build_evidence_pack(pr_number: str, commit_sha: str, case_id: str) -> dict[s
         "schema_version": "ls.audit_evidence_pack.v0.1",
         "case_id": case_id,
         "repository": "safal207/LS",
-        "pull_request": int(pr_number),
+        "pull_request": pr_number,
         "commit_sha": commit_sha,
         "audit_goal": "durable approval optional event field schema/runtime parity",
         "evidence_files": files,
         "prompt": build_prompt(pr_number, commit_sha, case_id),
-        "expected_report_schema": {
-            **EXPECTED_SCHEMA,
-            "case_id": case_id,
-        },
+        "expected_report_schema": build_expected_report_schema(case_id),
     }
 
 
-def validate_ls_response(report: dict[str, Any], expected_case_id: str) -> list[str]:
+def validate_ls_response(report: Any, expected_case_id: str) -> list[str]:
     errors: list[str] = []
+
+    if not isinstance(report, dict):
+        return ["report must be an object"]
 
     missing = REQUIRED_REPORT_FIELDS - report.keys()
     if missing:
@@ -152,17 +167,20 @@ def validate_ls_response(report: dict[str, Any], expected_case_id: str) -> list[
     if not isinstance(attestation, dict):
         errors.append("model_attestation must be an object")
     else:
+        for field in ("provider", "model", "channel", "operator_note"):
+            if not isinstance(attestation.get(field), str) or not attestation.get(field):
+                errors.append(f"model_attestation.{field} must be a non-empty string")
         if attestation.get("provider") != "LS":
             errors.append("model_attestation.provider must be LS")
-        if not attestation.get("model"):
-            errors.append("model_attestation.model is required")
-        if not attestation.get("channel"):
-            errors.append("model_attestation.channel is required")
 
     return errors
 
 
-def build_scorecard(report: dict[str, Any] | None, errors: list[str]) -> dict[str, Any]:
+def build_scorecard(
+    case_id: str,
+    report: dict[str, Any] | None,
+    errors: list[str],
+) -> dict[str, Any]:
     if report is None:
         ls_status: dict[str, Any] = {
             "status": "PENDING",
@@ -182,7 +200,7 @@ def build_scorecard(report: dict[str, Any] | None, errors: list[str]) -> dict[st
 
     return {
         "schema_version": "ls.audit_comparison_scorecard.v0.1",
-        "case_id": DEFAULT_CASE_ID,
+        "case_id": case_id,
         "known_independent_model_result": {
             "provider": "OpenAI",
             "model": "GPT-5.5 High / Thinking",
@@ -197,9 +215,16 @@ def build_scorecard(report: dict[str, Any] | None, errors: list[str]) -> dict[st
     }
 
 
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--pr-number", default=DEFAULT_PR_NUMBER)
+    parser.add_argument("--pr-number", default=DEFAULT_PR_NUMBER, type=positive_int)
     parser.add_argument("--commit-sha", default=DEFAULT_COMMIT_SHA)
     parser.add_argument("--case-id", default=DEFAULT_CASE_ID)
     parser.add_argument("--out-dir", default="artifacts/ls-audit")
@@ -213,7 +238,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    out_dir = ROOT / args.out_dir
+    out_dir = Path(args.out_dir)
+    if not out_dir.is_absolute():
+        out_dir = ROOT / out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
     evidence_pack = build_evidence_pack(args.pr_number, args.commit_sha, args.case_id)
@@ -227,7 +254,7 @@ def main() -> int:
         encoding="utf-8",
     )
 
-    report: dict[str, Any] | None = None
+    report: Any = None
     errors: list[str] = []
     if args.ls_response_json:
         response_path = Path(args.ls_response_json)
@@ -240,14 +267,17 @@ def main() -> int:
             encoding="utf-8",
         )
 
-    scorecard = build_scorecard(report, errors)
-    scorecard["case_id"] = args.case_id
+    scorecard = build_scorecard(
+        args.case_id,
+        report if isinstance(report, dict) else None,
+        errors,
+    )
     (out_dir / "comparison_scorecard.json").write_text(
         json.dumps(scorecard, indent=2, sort_keys=True),
         encoding="utf-8",
     )
 
-    print(f"Wrote LS audit artifacts to {out_dir.relative_to(ROOT)}")
+    print(f"Wrote LS audit artifacts to {display_path(out_dir)}")
     if errors:
         for error in errors:
             print(f"ERROR: {error}")
