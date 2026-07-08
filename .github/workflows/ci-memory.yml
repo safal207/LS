@@ -1,0 +1,40 @@
+name: CI memory replay
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "tools/ci_memory.py"
+      - "tools/test_ci_memory.py"
+      - "audits/ci-memory/**"
+      - ".github/workflows/ci-memory.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run CI memory unit tests
+        run: |
+          cd tools
+          python test_ci_memory.py
+
+      - name: Build CI memory artifacts
+        run: |
+          python tools/ci_memory.py
+
+      - name: Upload CI memory artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-memory
+          path: artifacts/ci-memory/
