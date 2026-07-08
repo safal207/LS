@@ -1,0 +1,77 @@
+name: LS response validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      response_path:
+        description: Path to a committed LS JSON response
+        required: true
+        default: "audits/ls-responses/pr824/ls_response.json"
+      pr_number:
+        description: Pull request number
+        required: true
+        default: "824"
+      commit_sha:
+        description: Target commit SHA
+        required: true
+        default: "f1cfdfbf5f648bc28434fb2f5a0cb77eb7e86666"
+      case_id:
+        description: Audit case id
+        required: true
+        default: "pr824-ls-audit-v0.1"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "tools/build_ls_audit_pack.py"
+      - "tools/test_build_ls_audit_pack.py"
+      - ".github/workflows/ls-response-validation.yml"
+      - "audits/ls-responses/**/*.json"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run builder unit tests
+        run: |
+          cd tools
+          python test_build_ls_audit_pack.py
+
+      - name: Validate LS response if present
+        env:
+          RESPONSE_PATH: ${{ github.event.inputs.response_path || 'audits/ls-responses/pr824/ls_response.json' }}
+          PR_NUMBER: ${{ github.event.inputs.pr_number || '824' }}
+          COMMIT_SHA: ${{ github.event.inputs.commit_sha || 'f1cfdfbf5f648bc28434fb2f5a0cb77eb7e86666' }}
+          CASE_ID: ${{ github.event.inputs.case_id || 'pr824-ls-audit-v0.1' }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ -f "$RESPONSE_PATH" ]; then
+            python tools/build_ls_audit_pack.py \
+              --pr-number "$PR_NUMBER" \
+              --commit-sha "$COMMIT_SHA" \
+              --case-id "$CASE_ID" \
+              --ls-response-json "$RESPONSE_PATH"
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "::error::LS response JSON not found at $RESPONSE_PATH"
+            exit 1
+          else
+            echo "No LS response JSON found at $RESPONSE_PATH; building audit pack only."
+            python tools/build_ls_audit_pack.py \
+              --pr-number "$PR_NUMBER" \
+              --commit-sha "$COMMIT_SHA" \
+              --case-id "$CASE_ID"
+          fi
+
+      - name: Upload validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ls-response-validation
+          path: artifacts/ls-audit/
