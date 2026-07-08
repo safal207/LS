@@ -53,25 +53,63 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           gh pr diff "$PR_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
             --patch > "$PATCH_FILE"
 
+          cp "$PATCH_FILE" "$RUNNER_TEMP/pr.patch"
           echo "Patch size: $(wc -c < "$PATCH_FILE") bytes" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install Grok CLI
         if: ${{ steps.api_key.outputs.available == 'true' }}
-        run: npm install -g @xai-official/grok
+        run: |
+          set -euo pipefail
+
+          if npm view @xai-official/grok version >/dev/null 2>&1; then
+            npm install -g @xai-official/grok
+          else
+            curl -fsSL https://x.ai/cli/install.sh -o "$RUNNER_TEMP/xai-install.sh"
+            bash "$RUNNER_TEMP/xai-install.sh"
+          fi
+
+          {
+            echo "$HOME/.local/bin"
+            echo "$HOME/.xai/bin"
+            echo "$HOME/.grok/bin"
+            echo "$HOME/.config/xai/bin"
+          } >> "$GITHUB_PATH"
+
+      - name: Resolve Grok binary
+        if: ${{ steps.api_key.outputs.available == 'true' }}
+        run: |
+          set -euo pipefail
+
+          GROK_BIN="$(command -v grok || true)"
+
+          if [ -z "$GROK_BIN" ]; then
+            GROK_BIN="$(find "$HOME" -maxdepth 5 -type f -name grok -perm -111 2>/dev/null | head -n 1 || true)"
+          fi
+
+          if [ -z "$GROK_BIN" ]; then
+            echo "Could not find Grok CLI binary after installation." >&2
+            exit 1
+          fi
+
+          echo "GROK_BIN=$GROK_BIN" >> "$GITHUB_ENV"
+          "$GROK_BIN" --help | head -n 80 || true
 
       - name: Run Grok review
         if: ${{ steps.api_key.outputs.available == 'true' }}
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
         run: |
+          set -euo pipefail
+
           cat > "$RUNNER_TEMP/grok_prompt.md" <<'PROMPT'
           You are an advisory pull-request reviewer for the LS project.
 
-          Review ./pr.patch as a strict senior QA engineer, code reviewer, and CI-risk analyst.
+          Review the PR patch provided on stdin as a strict senior QA engineer, code reviewer, and CI-risk analyst.
 
           Scope:
           - real bugs and regressions
@@ -96,22 +134,15 @@ jobs:
           - Treat this as advisory only; do not attempt to modify files.
           PROMPT
 
-          grok \
-            --no-auto-update \
-            --cwd "$RUNNER_TEMP" \
-            -p "$(cat "$RUNNER_TEMP/grok_prompt.md")" \
-            --output-format plain \
-            --sandbox read-only \
-            --permission-mode dontAsk \
-            --allow Read \
-            --allow Grep \
-            --deny 'Bash(*)' \
-            --deny 'Edit(**/*)' \
-            > "$REVIEW_FILE"
+          PROMPT_TEXT="$(cat "$RUNNER_TEMP/grok_prompt.md")"
+
+          cd "$RUNNER_TEMP"
+          "$GROK_BIN" -p "$PROMPT_TEXT" < "$PATCH_FILE" > "$REVIEW_FILE"
 
       - name: Truncate long review for GitHub comment
         if: ${{ steps.api_key.outputs.available == 'true' }}
         run: |
+          set -euo pipefail
           MAX_CHARS=58000
           if [ "$(wc -c < "$REVIEW_FILE")" -gt "$MAX_CHARS" ]; then
             head -c "$MAX_CHARS" "$REVIEW_FILE" > "$REVIEW_FILE.tmp"
