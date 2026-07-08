@@ -114,6 +114,19 @@ class CIMemoryTest(unittest.TestCase):
         self.assertEqual(report["trajectory_axis"][0]["phase"], "STABILIZATION")
         self.assertEqual(report["trajectory_axis"][0]["phase_order"], 6)
 
+    def test_replay_emits_temporal_layered_matrix(self) -> None:
+        report = ci_memory.replay_events([self.pr831_event()])
+        matrix = report["temporal_layered_matrix"][0]
+        self.assertEqual(matrix["event_id"], "pr831-provenance-mismatch-v0.1")
+        self.assertEqual(matrix["time_slices"], ["t_past", "t_more", "t_present"])
+        self.assertEqual(matrix["space_layers"], ["project", "intermediate", "realization"])
+        self.assertEqual(len(matrix["cells"]), 9)
+        rows = ci_memory.matrix_rows(matrix)
+        self.assertEqual(rows[0]["time_slice"], "t_past")
+        self.assertEqual(rows[0]["project"], "UNTRACKED_PROVENANCE_CHAOS")
+        self.assertEqual(rows[1]["intermediate"], "STABILIZATION")
+        self.assertEqual(rows[2]["realization"], "append-only CI memory event")
+
     def test_duplicate_event_ids_are_rejected(self) -> None:
         report = ci_memory.replay_events([self.pr831_event(), self.pr831_event()])
         self.assertEqual(report["status"], "INVALID_EVENTS")
@@ -282,6 +295,8 @@ class CIMemoryTest(unittest.TestCase):
             self.assertTrue((out_dir / "ci_memory_events.ndjson").is_file())
             self.assertTrue((out_dir / "ci_memory_report.json").is_file())
             self.assertTrue((out_dir / "ci_memory_report.md").is_file())
+            self.assertTrue((out_dir / "ci_memory_temporal_matrix.json").is_file())
+            self.assertTrue((out_dir / "ci_memory_temporal_matrix.md").is_file())
 
 
 if __name__ == "__main__":
