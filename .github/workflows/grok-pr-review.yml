@@ -23,7 +23,7 @@ jobs:
   grok-review:
     name: Advisory Grok review
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false }}
 
     env:
@@ -43,26 +43,8 @@ jobs:
             'The workflow started but has not written a final result yet.' \
             > "$REVIEW_FILE"
 
-      - name: Check xAI API key
-        id: api_key
-        timeout-minutes: 1
-        env:
-          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-        run: |
-          if [ -z "$XAI_API_KEY" ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            printf '%s\n\n%s\n\n%s\n' \
-              '⚠️ Grok PR Review skipped.' \
-              'Repository secret `XAI_API_KEY` is not configured yet.' \
-              'Add it in: Settings → Secrets and variables → Actions → New repository secret.' \
-              > "$REVIEW_FILE"
-            exit 0
-          fi
-          echo "available=true" >> "$GITHUB_OUTPUT"
-
       - name: Validate pull request input
         id: pr
-        if: ${{ steps.api_key.outputs.available == 'true' }}
         timeout-minutes: 2
         env:
           GH_TOKEN: ${{ github.token }}
@@ -89,9 +71,27 @@ jobs:
           echo "valid=true" >> "$GITHUB_OUTPUT"
           echo "Validated PR: $pr_json" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Check xAI API key
+        id: api_key
+        if: ${{ steps.pr.outputs.valid == 'true' }}
+        timeout-minutes: 1
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        run: |
+          if [ -z "$XAI_API_KEY" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            printf '%s\n\n%s\n\n%s\n' \
+              '⚠️ Grok PR Review skipped.' \
+              'Repository secret `XAI_API_KEY` is not configured yet.' \
+              'Add it in: Settings → Secrets and variables → Actions → New repository secret.' \
+              > "$REVIEW_FILE"
+            exit 0
+          fi
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
       - name: Prepare PR patch
         id: patch
-        if: ${{ steps.api_key.outputs.available == 'true' && steps.pr.outputs.valid == 'true' }}
+        if: ${{ steps.pr.outputs.valid == 'true' && steps.api_key.outputs.available == 'true' }}
         timeout-minutes: 3
         env:
           GH_TOKEN: ${{ github.token }}
@@ -129,7 +129,7 @@ jobs:
           echo "Patch size: $(wc -c < "$PATCH_FILE") bytes" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run Grok review via xAI Chat API
-        if: ${{ steps.api_key.outputs.available == 'true' && steps.pr.outputs.valid == 'true' && steps.patch.outputs.available == 'true' }}
+        if: ${{ steps.pr.outputs.valid == 'true' && steps.api_key.outputs.available == 'true' && steps.patch.outputs.available == 'true' }}
         continue-on-error: true
         timeout-minutes: 8
         env:
@@ -160,13 +160,6 @@ jobs:
                   write_diagnostic(
                       "Could not prepare PR patch.",
                       f"`{patch_path}` does not exist. The patch step probably failed for PR `{os.environ.get('PR_NUMBER')}`.",
-                  )
-                  raise SystemExit(0)
-
-              if patch_path.stat().st_size == 0:
-                  write_diagnostic(
-                      "No patch content to review.",
-                      f"The patch for PR `{os.environ.get('PR_NUMBER')}` was empty, so Grok was not called.",
                   )
                   raise SystemExit(0)
 
@@ -285,7 +278,7 @@ jobs:
           fi
 
       - name: Upsert PR comment
-        if: always()
+        if: ${{ always() && (github.event_name != 'workflow_dispatch' || steps.pr.outputs.valid == 'true') }}
         timeout-minutes: 2
         uses: actions/github-script@v7
         env:
@@ -301,29 +294,41 @@ jobs:
 
             const body = `${marker}\n## 🤖 Grok PR Review — advisory\n\n${review || '_Grok returned an empty review._'}\n\n---\n_Mode: advisory only. This comment does not block merge._`;
 
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number,
-              per_page: 100,
-            });
-
-            const existing = comments.find(comment =>
-              comment.user?.type === 'Bot' && comment.body?.includes(marker)
-            );
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, {
                 owner,
                 repo,
                 issue_number,
-                body,
+                per_page: 100,
               });
+
+              const existing = comments.find(comment =>
+                comment.user?.type === 'Bot' && comment.body?.includes(marker)
+              );
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number,
+                  body,
+                });
+              }
+            } catch (error) {
+              if (error.status === 404) {
+                core.warning(`Could not upsert Grok comment because PR/issue ${issue_number} was not found.`);
+                await core.summary
+                  .addHeading('Grok PR Review comment was not posted')
+                  .addRaw(`PR/issue ${issue_number} was not found. This is treated as a non-blocking diagnostic outcome.`)
+                  .write();
+                return;
+              }
+              throw error;
             }
