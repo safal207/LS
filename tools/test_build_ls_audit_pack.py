@@ -15,6 +15,19 @@ class LSAuditPackBuilderTest(unittest.TestCase):
         return {
             "schema_version": "ls.manual_real_model_audit_report.v0.1",
             "case_id": audit_pack.DEFAULT_CASE_ID,
+            "subject": {
+                "repository": audit_pack.REPOSITORY,
+                "pr_number": audit_pack.DEFAULT_PR_NUMBER,
+                "commit_sha": audit_pack.DEFAULT_COMMIT_SHA,
+            },
+            "source": {
+                "type": "LS_RUN",
+                "reviewed_pr_number": audit_pack.DEFAULT_PR_NUMBER,
+                "reviewed_commit_sha": audit_pack.DEFAULT_COMMIT_SHA,
+                "source_pr_number": audit_pack.DEFAULT_PR_NUMBER,
+                "source_comment_id": None,
+                "source_head_sha": audit_pack.DEFAULT_COMMIT_SHA,
+            },
             "model_attestation": {
                 "provider": "LS",
                 "model": "LS deterministic",
@@ -46,12 +59,53 @@ class LSAuditPackBuilderTest(unittest.TestCase):
             errors,
         )
 
+    def test_missing_subject_is_rejected(self) -> None:
+        report = self.valid_report()
+        del report["subject"]
+        errors = audit_pack.validate_ls_response(report, audit_pack.DEFAULT_CASE_ID)
+        self.assertIn("missing top-level fields: ['subject']", errors)
+        self.assertIn("subject must be an object", errors)
+
+    def test_source_reviewed_pr_mismatch_is_rejected(self) -> None:
+        report = self.valid_report()
+        source = report["source"]
+        self.assertIsInstance(source, dict)
+        source["reviewed_pr_number"] = 828
+        errors = audit_pack.validate_ls_response(report, audit_pack.DEFAULT_CASE_ID)
+        self.assertIn("provenance mismatch: source.reviewed_pr_number must be 824", errors)
+
+    def test_source_head_mismatch_is_rejected(self) -> None:
+        report = self.valid_report()
+        source = report["source"]
+        self.assertIsInstance(source, dict)
+        source["type"] = "GITHUB_PR_COMMENT"
+        source["source_comment_id"] = 4914994285
+        source["source_head_sha"] = "0b953d3428adca691421dddd861e20e1c0213b47"
+        errors = audit_pack.validate_ls_response(report, audit_pack.DEFAULT_CASE_ID)
+        self.assertIn(
+            "provenance mismatch: source.source_head_sha must match "
+            f"{audit_pack.DEFAULT_COMMIT_SHA!r}",
+            errors,
+        )
+
+    def test_provenance_errors_get_distinct_scorecard_status(self) -> None:
+        scorecard = audit_pack.build_scorecard(
+            audit_pack.DEFAULT_CASE_ID,
+            self.valid_report(),
+            ["provenance mismatch: source.reviewed_pr_number must be 824"],
+        )
+        self.assertEqual(scorecard["ls_result"]["status"], "PROVENANCE_MISMATCH")
+
     def test_expected_schema_uses_concrete_verdict_and_allowed_values(self) -> None:
         schema = audit_pack.build_expected_report_schema(audit_pack.DEFAULT_CASE_ID)
         self.assertEqual(schema["verdict"], "APPROVE")
         self.assertEqual(
             schema["verdict_allowed_values"],
             ["APPROVE", "INCOMPLETE", "REQUEST_CHANGES"],
+        )
+        self.assertEqual(
+            schema["source_type_allowed_values"],
+            ["GITHUB_PR_COMMENT", "LS_RUN"],
         )
 
     def test_positive_int_rejects_invalid_values(self) -> None:
