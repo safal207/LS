@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""Regression tests for tools/ci_memory.py."""
+
+from __future__ import annotations
+
+import tempfile
+import unittest
+from pathlib import Path
+
+import ci_memory
+
+
+class CIMemoryTest(unittest.TestCase):
+    def pr831_event(self) -> dict[str, object]:
+        return {
+            "schema_version": ci_memory.EVENT_SCHEMA_VERSION,
+            "event_id": "pr831-provenance-mismatch-v0.1",
+            "event_type": "PROVENANCE_MISMATCH",
+            "observed_at": "2026-07-08T16:32:31Z",
+            "observed_in_pr": 831,
+            "subject": {
+                "pr_number": 824,
+                "commit_sha": "f1cfdfbf5f648bc28434fb2f5a0cb77eb7e86666",
+            },
+            "source": {
+                "pr_number": 828,
+                "head_sha": "0b953d3428adca691421dddd861e20e1c0213b47",
+            },
+            "decision": "BLOCK_MERGE",
+            "evidence": [
+                "audits/ls-responses/pr824/ls_response.json",
+                ".github/workflows/ls-response-validation.yml",
+                "tools/build_ls_audit_pack.py",
+            ],
+        }
+
+    def test_pr831_event_is_valid_known_failure(self) -> None:
+        event = self.pr831_event()
+        self.assertEqual(ci_memory.validate_event(event), [])
+        self.assertTrue(ci_memory.is_known_failure(event))
+
+    def test_replay_emits_known_failure_status(self) -> None:
+        report = ci_memory.replay_events([self.pr831_event()])
+        self.assertEqual(report["status"], "KNOWN_FAILURE_REPLAYED")
+        self.assertEqual(report["known_failures_count"], 1)
+        self.assertEqual(
+            report["known_failure_ids"],
+            ["pr831-provenance-mismatch-v0.1"],
+        )
+
+    def test_duplicate_event_ids_are_rejected(self) -> None:
+        report = ci_memory.replay_events([self.pr831_event(), self.pr831_event()])
+        self.assertFalse(report["validation"][1]["valid"])
+        self.assertIn(
+            "duplicate event_id: pr831-provenance-mismatch-v0.1",
+            report["validation"][1]["errors"],
+        )
+
+    def test_build_ci_memory_writes_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            events_dir = root / "events"
+            out_dir = root / "out"
+            events_dir.mkdir()
+            (events_dir / "pr831.json").write_text(
+                '{\n'
+                '  "schema_version": "ls.ci_memory_event.v0.1",\n'
+                '  "event_id": "pr831-provenance-mismatch-v0.1",\n'
+                '  "event_type": "PROVENANCE_MISMATCH",\n'
+                '  "observed_at": "2026-07-08T16:32:31Z",\n'
+                '  "observed_in_pr": 831,\n'
+                '  "subject": {\n'
+                '    "pr_number": 824,\n'
+                '    "commit_sha": "f1cfdfbf5f648bc28434fb2f5a0cb77eb7e86666"\n'
+                '  },\n'
+                '  "source": {\n'
+                '    "pr_number": 828,\n'
+                '    "head_sha": "0b953d3428adca691421dddd861e20e1c0213b47"\n'
+                '  },\n'
+                '  "decision": "BLOCK_MERGE",\n'
+                '  "evidence": ["audits/ls-responses/pr824/ls_response.json"]\n'
+                '}\n',
+                encoding="utf-8",
+            )
+            report = ci_memory.build_ci_memory(events_dir, out_dir)
+            self.assertEqual(report["status"], "KNOWN_FAILURE_REPLAYED")
+            self.assertTrue((out_dir / "ci_memory_events.ndjson").is_file())
+            self.assertTrue((out_dir / "ci_memory_report.json").is_file())
+            self.assertTrue((out_dir / "ci_memory_report.md").is_file())
+
+
+if __name__ == "__main__":
+    unittest.main()
