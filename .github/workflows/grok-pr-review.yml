@@ -1,0 +1,169 @@
+name: Grok PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull request number to review"
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: grok-pr-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  grok-review:
+    name: Advisory Grok review
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false }}
+
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+      REVIEW_FILE: ${{ runner.temp }}/grok_review.md
+      PATCH_FILE: ${{ runner.temp }}/pr.patch
+
+    steps:
+      - name: Check xAI API key
+        id: api_key
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        run: |
+          if [ -z "$XAI_API_KEY" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Grok PR Review skipped"
+              echo ""
+              echo "Repository secret \`XAI_API_KEY\` is not configured yet."
+              echo "Add it in: Settings → Secrets and variables → Actions → New repository secret."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare PR patch
+        if: ${{ steps.api_key.outputs.available == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr diff "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --patch > "$PATCH_FILE"
+
+          echo "Patch size: $(wc -c < "$PATCH_FILE") bytes" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install Grok CLI
+        if: ${{ steps.api_key.outputs.available == 'true' }}
+        run: npm install -g @xai-official/grok
+
+      - name: Run Grok review
+        if: ${{ steps.api_key.outputs.available == 'true' }}
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        run: |
+          cat > "$RUNNER_TEMP/grok_prompt.md" <<'PROMPT'
+          You are an advisory pull-request reviewer for the LS project.
+
+          Review ./pr.patch as a strict senior QA engineer, code reviewer, and CI-risk analyst.
+
+          Scope:
+          - real bugs and regressions
+          - broken edge cases
+          - missing or weak tests
+          - security/privacy risks
+          - CI/release risks
+          - unclear logic or requirements gaps
+
+          Output format in Markdown:
+          1. Verdict: APPROVE / COMMENT / REQUEST_CHANGES
+          2. Risk level: low / medium / high
+          3. Findings table with: ID, severity, file/path, evidence, recommendation
+          4. Tests to add or run
+          5. Human decision points
+
+          Rules:
+          - Be concrete and actionable.
+          - Do not invent line numbers if the patch does not support them.
+          - Do not request changes for style-only opinions.
+          - Prefer COMMENT when evidence is uncertain.
+          - Treat this as advisory only; do not attempt to modify files.
+          PROMPT
+
+          grok \
+            --no-auto-update \
+            --cwd "$RUNNER_TEMP" \
+            -p "$(cat "$RUNNER_TEMP/grok_prompt.md")" \
+            --output-format plain \
+            --sandbox read-only \
+            --permission-mode dontAsk \
+            --allow Read \
+            --allow Grep \
+            --deny 'Bash(*)' \
+            --deny 'Edit(**/*)' \
+            > "$REVIEW_FILE"
+
+      - name: Truncate long review for GitHub comment
+        if: ${{ steps.api_key.outputs.available == 'true' }}
+        run: |
+          MAX_CHARS=58000
+          if [ "$(wc -c < "$REVIEW_FILE")" -gt "$MAX_CHARS" ]; then
+            head -c "$MAX_CHARS" "$REVIEW_FILE" > "$REVIEW_FILE.tmp"
+            {
+              echo ""
+              echo "---"
+              echo "Review was truncated because GitHub comments have a size limit. See workflow logs for full output."
+            } >> "$REVIEW_FILE.tmp"
+            mv "$REVIEW_FILE.tmp" "$REVIEW_FILE"
+          fi
+
+      - name: Upsert PR comment
+        if: ${{ steps.api_key.outputs.available == 'true' }}
+        uses: actions/github-script@v7
+        env:
+          REVIEW_FILE: ${{ env.REVIEW_FILE }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- grok-pr-reviewer -->';
+            const review = fs.readFileSync(process.env.REVIEW_FILE, 'utf8').trim();
+            const [owner, repo] = context.repo.owner && context.repo.repo
+              ? [context.repo.owner, context.repo.repo]
+              : process.env.GITHUB_REPOSITORY.split('/');
+            const issue_number = Number(process.env.PR_NUMBER);
+
+            const body = `${marker}\n## 🤖 Grok PR Review — advisory\n\n${review || '_Grok returned an empty review._'}\n\n---\n_Mode: advisory only. This comment does not block merge._`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            const existing = comments.find(comment =>
+              comment.user?.type === 'Bot' && comment.body?.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
