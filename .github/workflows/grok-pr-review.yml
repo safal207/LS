@@ -29,8 +29,8 @@ jobs:
       PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
       REVIEW_FILE: ${{ runner.temp }}/grok_review.md
       PATCH_FILE: ${{ runner.temp }}/pr.patch
-      XAI_MODEL: grok-4.5
-      PATCH_LIMIT_CHARS: "120000"
+      XAI_MODEL: grok-latest
+      PATCH_LIMIT_CHARS: "60000"
 
     steps:
       - name: Check xAI API key
@@ -62,7 +62,7 @@ jobs:
 
           echo "Patch size: $(wc -c < "$PATCH_FILE") bytes" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Run Grok review via xAI API
+      - name: Run Grok review via xAI Chat API
         if: ${{ steps.api_key.outputs.available == 'true' }}
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
@@ -78,16 +78,23 @@ jobs:
 
           patch_path = pathlib.Path(os.environ["PATCH_FILE"])
           review_path = pathlib.Path(os.environ["REVIEW_FILE"])
-          limit = int(os.environ.get("PATCH_LIMIT_CHARS", "120000"))
+          limit = int(os.environ.get("PATCH_LIMIT_CHARS", "60000"))
+          model = os.environ.get("XAI_MODEL", "grok-latest")
+
           patch = patch_path.read_text(encoding="utf-8", errors="replace")
           original_len = len(patch)
           if len(patch) > limit:
               patch = patch[:limit] + "\n\n[PATCH TRUNCATED FOR COST/CONTEXT LIMITS]"
 
-          prompt = f"""
+          system_prompt = """
           You are an advisory pull-request reviewer for the LS project.
+          Act as a strict senior QA engineer, code reviewer, and CI-risk analyst.
+          Return concise, concrete, actionable Markdown.
+          Do not modify files. Do not invent evidence.
+          """.strip()
 
-          Review the PR patch below as a strict senior QA engineer, code reviewer, and CI-risk analyst.
+          user_prompt = f"""
+          Review this PR patch.
 
           Scope:
           - real bugs and regressions
@@ -97,7 +104,7 @@ jobs:
           - CI/release risks
           - unclear logic or requirements gaps
 
-          Output format in Markdown:
+          Output format:
           1. Verdict: APPROVE / COMMENT / REQUEST_CHANGES
           2. Risk level: low / medium / high
           3. Findings table with: ID, severity, file/path, evidence, recommendation
@@ -109,7 +116,6 @@ jobs:
           - Do not invent line numbers if the patch does not support them.
           - Do not request changes for style-only opinions.
           - Prefer COMMENT when evidence is uncertain.
-          - Treat this as advisory only; do not attempt to modify files.
 
           PR PATCH:
           ```patch
@@ -118,12 +124,15 @@ jobs:
           """.strip()
 
           payload = {
-              "model": os.environ.get("XAI_MODEL", "grok-4.5"),
-              "input": prompt,
+              "model": model,
+              "messages": [
+                  {"role": "system", "content": system_prompt},
+                  {"role": "user", "content": user_prompt},
+              ],
           }
 
           request = urllib.request.Request(
-              "https://api.x.ai/v1/responses",
+              "https://api.x.ai/v1/chat/completions",
               data=json.dumps(payload).encode("utf-8"),
               headers={
                   "Authorization": f"Bearer {os.environ['XAI_API_KEY']}",
@@ -135,31 +144,36 @@ jobs:
           try:
               with urllib.request.urlopen(request, timeout=240) as response:
                   raw = response.read().decode("utf-8", errors="replace")
+              data = json.loads(raw)
+              text = (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+              if not text:
+                  text = "_Grok response did not contain choices[0].message.content._\n\n```json\n" + json.dumps(data, indent=2)[:10000] + "\n```"
+              header = f"_Model: `{model}`. Patch chars: `{original_len}`; sent chars: `{len(patch)}`._\n\n"
+              review_path.write_text(header + text, encoding="utf-8")
+              print(f"Review written to {review_path}")
           except urllib.error.HTTPError as exc:
               error_body = exc.read().decode("utf-8", errors="replace")
-              print(f"xAI API HTTP {exc.code}", file=sys.stderr)
-              print(error_body[:4000], file=sys.stderr)
-              raise
+              diagnostic = f"""
+              ⚠️ Grok API call failed.
 
-          data = json.loads(raw)
-          text = data.get("output_text")
+              _Model attempted: `{model}`. Patch chars: `{original_len}`; sent chars: `{len(patch)}`._
 
-          if not text:
-              chunks = []
-              for item in data.get("output", []) or []:
-                  if not isinstance(item, dict):
-                      continue
-                  for content in item.get("content", []) or []:
-                      if isinstance(content, dict) and "text" in content:
-                          chunks.append(content.get("text") or "")
-              text = "\n".join(chunks).strip()
+              HTTP status: `{exc.code}`
 
-          if not text:
-              text = "_Grok response did not contain output_text. Raw response excerpt:_\n\n```json\n" + json.dumps(data, indent=2)[:10000] + "\n```"
+              Error body excerpt:
 
-          header = f"_Model: `{payload['model']}`. Patch chars: `{original_len}`; sent chars: `{len(patch)}`._\n\n"
-          review_path.write_text(header + text, encoding="utf-8")
-          print(f"Review written to {review_path}")
+              ```text
+              {error_body[:4000]}
+              ```
+
+              This usually means one of these:
+              - the model is not enabled for this API key;
+              - billing/credits are not active yet;
+              - the key was copied incorrectly;
+              - the xAI API endpoint rejected the request schema.
+              """.strip()
+              review_path.write_text(diagnostic, encoding="utf-8")
+              print(diagnostic, file=sys.stderr)
           PY
 
       - name: Truncate long review for GitHub comment
