@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PR_NUMBER = 824
 DEFAULT_COMMIT_SHA = "f1cfdfbf5f648bc28434fb2f5a0cb77eb7e86666"
 DEFAULT_CASE_ID = "pr824-ls-audit-v0.1"
+REPOSITORY = "safal207/LS"
 
 EVIDENCE_PATHS = [
     "tools/validate_durable_approval_v0_1.py",
@@ -31,9 +32,23 @@ EVIDENCE_PATHS = [
 ]
 
 VALID_VERDICTS = {"APPROVE", "REQUEST_CHANGES", "INCOMPLETE"}
+VALID_SOURCE_TYPES = {"LS_RUN", "GITHUB_PR_COMMENT"}
 EXPECTED_SCHEMA = {
     "schema_version": "ls.manual_real_model_audit_report.v0.1",
     "case_id": DEFAULT_CASE_ID,
+    "subject": {
+        "repository": REPOSITORY,
+        "pr_number": DEFAULT_PR_NUMBER,
+        "commit_sha": DEFAULT_COMMIT_SHA,
+    },
+    "source": {
+        "type": "LS_RUN",
+        "reviewed_pr_number": DEFAULT_PR_NUMBER,
+        "reviewed_commit_sha": DEFAULT_COMMIT_SHA,
+        "source_pr_number": DEFAULT_PR_NUMBER,
+        "source_comment_id": None,
+        "source_head_sha": DEFAULT_COMMIT_SHA,
+    },
     "model_attestation": {
         "provider": "LS",
         "model": "LS deterministic",
@@ -47,6 +62,8 @@ EXPECTED_SCHEMA = {
 REQUIRED_REPORT_FIELDS = {
     "schema_version",
     "case_id",
+    "subject",
+    "source",
     "model_attestation",
     "verdict",
     "findings",
@@ -80,6 +97,7 @@ def build_expected_report_schema(case_id: str) -> dict[str, Any]:
         **EXPECTED_SCHEMA,
         "case_id": case_id,
         "verdict_allowed_values": sorted(VALID_VERDICTS),
+        "source_type_allowed_values": sorted(VALID_SOURCE_TYPES),
     }
 
 
@@ -107,6 +125,10 @@ Evidence scope:
 
 Return only JSON matching this shape. The verdict value must be exactly one of: {allowed_verdicts}.
 
+The `subject` block must identify the PR and commit being audited. The `source`
+block must identify what LS evidence produced the response, and the reviewed PR
+and commit in `source` must match the `subject`.
+
 {expected_schema}
 """
 
@@ -127,7 +149,7 @@ def build_evidence_pack(pr_number: int, commit_sha: str, case_id: str) -> dict[s
     return {
         "schema_version": "ls.audit_evidence_pack.v0.1",
         "case_id": case_id,
-        "repository": "safal207/LS",
+        "repository": REPOSITORY,
         "pull_request": pr_number,
         "commit_sha": commit_sha,
         "audit_goal": "durable approval optional event field schema/runtime parity",
@@ -137,7 +159,87 @@ def build_evidence_pack(pr_number: int, commit_sha: str, case_id: str) -> dict[s
     }
 
 
-def validate_ls_response(report: Any, expected_case_id: str) -> list[str]:
+def has_provenance_errors(errors: list[str]) -> bool:
+    return any(error.startswith("provenance mismatch:") for error in errors)
+
+
+def _validate_subject(
+    subject: Any,
+    expected_pr_number: int,
+    expected_commit_sha: str,
+    errors: list[str],
+) -> None:
+    if not isinstance(subject, dict):
+        errors.append("subject must be an object")
+        return
+
+    if subject.get("repository") != REPOSITORY:
+        errors.append(f"provenance mismatch: subject.repository must be {REPOSITORY}")
+
+    if subject.get("pr_number") != expected_pr_number:
+        errors.append(
+            f"provenance mismatch: subject.pr_number must be {expected_pr_number}"
+        )
+
+    if subject.get("commit_sha") != expected_commit_sha:
+        errors.append(
+            f"provenance mismatch: subject.commit_sha must be {expected_commit_sha!r}"
+        )
+
+
+def _validate_source(
+    source: Any,
+    expected_pr_number: int,
+    expected_commit_sha: str,
+    errors: list[str],
+) -> None:
+    if not isinstance(source, dict):
+        errors.append("source must be an object")
+        return
+
+    source_type = source.get("type")
+    if source_type not in VALID_SOURCE_TYPES:
+        errors.append(f"source.type must be one of {sorted(VALID_SOURCE_TYPES)}")
+
+    if source.get("reviewed_pr_number") != expected_pr_number:
+        errors.append(
+            f"provenance mismatch: source.reviewed_pr_number must be {expected_pr_number}"
+        )
+
+    if source.get("reviewed_commit_sha") != expected_commit_sha:
+        errors.append(
+            "provenance mismatch: source.reviewed_commit_sha must be "
+            f"{expected_commit_sha!r}"
+        )
+
+    source_pr_number = source.get("source_pr_number")
+    if not isinstance(source_pr_number, int) or source_pr_number <= 0:
+        errors.append("source.source_pr_number must be a positive integer")
+
+    source_head_sha = source.get("source_head_sha")
+    if not isinstance(source_head_sha, str) or not source_head_sha:
+        errors.append("source.source_head_sha must be a non-empty string")
+    elif source_head_sha != expected_commit_sha:
+        errors.append(
+            "provenance mismatch: source.source_head_sha must match "
+            f"{expected_commit_sha!r}"
+        )
+
+    if source_type == "GITHUB_PR_COMMENT":
+        source_comment_id = source.get("source_comment_id")
+        if not isinstance(source_comment_id, int) or source_comment_id <= 0:
+            errors.append(
+                "source.source_comment_id must be a positive integer for "
+                "GITHUB_PR_COMMENT sources"
+            )
+
+
+def validate_ls_response(
+    report: Any,
+    expected_case_id: str,
+    expected_pr_number: int = DEFAULT_PR_NUMBER,
+    expected_commit_sha: str = DEFAULT_COMMIT_SHA,
+) -> list[str]:
     errors: list[str] = []
 
     if not isinstance(report, dict):
@@ -152,6 +254,19 @@ def validate_ls_response(report: Any, expected_case_id: str) -> list[str]:
 
     if report.get("case_id") != expected_case_id:
         errors.append(f"case_id must be {expected_case_id!r}")
+
+    _validate_subject(
+        report.get("subject"),
+        expected_pr_number,
+        expected_commit_sha,
+        errors,
+    )
+    _validate_source(
+        report.get("source"),
+        expected_pr_number,
+        expected_commit_sha,
+        errors,
+    )
 
     verdict = report.get("verdict")
     if verdict not in VALID_VERDICTS:
@@ -183,7 +298,9 @@ def build_scorecard(
 ) -> dict[str, Any]:
     if errors:
         ls_status: dict[str, Any] = {
-            "status": "INVALID_REPORT",
+            "status": "PROVENANCE_MISMATCH"
+            if has_provenance_errors(errors)
+            else "INVALID_REPORT",
             "errors": errors,
         }
     elif report is None:
@@ -269,9 +386,25 @@ def main() -> int:
                 f"ls response JSON is invalid: {exc.msg} at line {exc.lineno} column {exc.colno}"
             ]
         else:
-            errors = validate_ls_response(report, args.case_id)
+            errors = validate_ls_response(
+                report,
+                args.case_id,
+                args.pr_number,
+                args.commit_sha,
+            )
+        validation_status = (
+            "VALID"
+            if not errors
+            else "PROVENANCE_MISMATCH"
+            if has_provenance_errors(errors)
+            else "INVALID_REPORT"
+        )
         (out_dir / "ls_response_validation.json").write_text(
-            json.dumps({"valid": not errors, "errors": errors}, indent=2, sort_keys=True),
+            json.dumps(
+                {"valid": not errors, "status": validation_status, "errors": errors},
+                indent=2,
+                sort_keys=True,
+            ),
             encoding="utf-8",
         )
 
