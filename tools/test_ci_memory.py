@@ -28,6 +28,24 @@ class CIMemoryTest(unittest.TestCase):
             "transition": "PR #831 provenance chaos became a replayable CI memory guardrail.",
         }
 
+    def trajectory_axis(self) -> dict[str, object]:
+        return {
+            "from_state": "UNTRACKED_PROVENANCE_CHAOS",
+            "to_state": "REPLAYABLE_CI_MEMORY_GUARDRAIL",
+            "direction": "CHAOS_TO_HARMONY",
+            "phase": "STABILIZATION",
+            "phase_order": 6,
+            "transition_path": [
+                "DRIFT",
+                "COLLISION",
+                "CAPTURE",
+                "TRANSLATION",
+                "REPLAY",
+                "STABILIZATION",
+            ],
+            "trajectory_summary": "The PR #831 provenance mismatch moved from hidden audit risk into deterministic CI memory.",
+        }
+
     def pr831_event(self) -> dict[str, object]:
         return {
             "schema_version": ci_memory.EVENT_SCHEMA_VERSION,
@@ -50,6 +68,7 @@ class CIMemoryTest(unittest.TestCase):
                 "tools/build_ls_audit_pack.py",
             ],
             "harmony_axis": self.harmony_axis(),
+            "trajectory_axis": self.trajectory_axis(),
         }
 
     def test_pr831_event_is_valid_known_failure(self) -> None:
@@ -63,6 +82,8 @@ class CIMemoryTest(unittest.TestCase):
         self.assertEqual(report["known_failures_count"], 1)
         self.assertEqual(report["invalid_events_count"], 0)
         self.assertEqual(report["timeline"][0]["harmony_balance"], "STRONG_HARMONY")
+        self.assertEqual(report["timeline"][0]["trajectory_direction"], "CHAOS_TO_HARMONY")
+        self.assertEqual(report["timeline"][0]["trajectory_phase"], "STABILIZATION")
         self.assertEqual(
             report["known_failure_ids"],
             ["pr831-provenance-mismatch-v0.1"],
@@ -77,6 +98,15 @@ class CIMemoryTest(unittest.TestCase):
             "cross-PR source mismatch",
             report["harmony_axis"][0]["chaos_sources"],
         )
+
+    def test_replay_emits_trajectory_axis_summary(self) -> None:
+        report = ci_memory.replay_events([self.pr831_event()])
+        self.assertEqual(report["trajectory_axis"][0]["event_id"], "pr831-provenance-mismatch-v0.1")
+        self.assertEqual(report["trajectory_axis"][0]["from_state"], "UNTRACKED_PROVENANCE_CHAOS")
+        self.assertEqual(report["trajectory_axis"][0]["to_state"], "REPLAYABLE_CI_MEMORY_GUARDRAIL")
+        self.assertEqual(report["trajectory_axis"][0]["direction"], "CHAOS_TO_HARMONY")
+        self.assertEqual(report["trajectory_axis"][0]["phase"], "STABILIZATION")
+        self.assertEqual(report["trajectory_axis"][0]["phase_order"], 6)
 
     def test_duplicate_event_ids_are_rejected(self) -> None:
         report = ci_memory.replay_events([self.pr831_event(), self.pr831_event()])
@@ -113,6 +143,48 @@ class CIMemoryTest(unittest.TestCase):
         errors = ci_memory.validate_event(event)
         self.assertIn("missing fields: ['harmony_axis']", errors)
         self.assertIn("harmony_axis must be an object", errors)
+
+    def test_invalid_trajectory_direction_is_rejected(self) -> None:
+        event = self.pr831_event()
+        trajectory_axis = event["trajectory_axis"]
+        self.assertIsInstance(trajectory_axis, dict)
+        trajectory_axis["direction"] = "SIDEWAYS_SPIRAL"
+        errors = ci_memory.validate_event(event)
+        self.assertIn(
+            "trajectory_axis.direction must be one of ['CHAOS_TO_HARMONY', 'HARMONY_TO_CHAOS', 'MIXED_TRANSITION', 'STABLE_CHAOS', 'STABLE_HARMONY']",
+            errors,
+        )
+
+    def test_invalid_trajectory_phase_order_is_rejected(self) -> None:
+        event = self.pr831_event()
+        trajectory_axis = event["trajectory_axis"]
+        self.assertIsInstance(trajectory_axis, dict)
+        trajectory_axis["phase_order"] = 5
+        errors = ci_memory.validate_event(event)
+        self.assertIn("trajectory_axis.phase_order must be 6 for phase STABILIZATION", errors)
+
+    def test_invalid_trajectory_path_order_is_rejected(self) -> None:
+        event = self.pr831_event()
+        trajectory_axis = event["trajectory_axis"]
+        self.assertIsInstance(trajectory_axis, dict)
+        trajectory_axis["transition_path"] = ["DRIFT", "REPLAY", "CAPTURE", "STABILIZATION"]
+        errors = ci_memory.validate_event(event)
+        self.assertIn("trajectory_axis.transition_path must be strictly ordered by phase", errors)
+
+    def test_invalid_trajectory_path_end_is_rejected(self) -> None:
+        event = self.pr831_event()
+        trajectory_axis = event["trajectory_axis"]
+        self.assertIsInstance(trajectory_axis, dict)
+        trajectory_axis["transition_path"] = ["DRIFT", "COLLISION", "CAPTURE"]
+        errors = ci_memory.validate_event(event)
+        self.assertIn("trajectory_axis.transition_path must end with trajectory_axis.phase", errors)
+
+    def test_missing_trajectory_axis_is_rejected(self) -> None:
+        event = self.pr831_event()
+        del event["trajectory_axis"]
+        errors = ci_memory.validate_event(event)
+        self.assertIn("missing fields: ['trajectory_axis']", errors)
+        self.assertIn("trajectory_axis must be an object", errors)
 
     def test_invalid_observed_at_is_rejected(self) -> None:
         event = self.pr831_event()
@@ -195,6 +267,15 @@ class CIMemoryTest(unittest.TestCase):
                 '    "chaos_sources": ["cross-PR source mismatch"],\n'
                 '    "harmony_mechanisms": ["append-only CI memory event"],\n'
                 '    "transition": "chaos became replayable CI memory"\n'
+                '  },\n'
+                '  "trajectory_axis": {\n'
+                '    "from_state": "UNTRACKED_PROVENANCE_CHAOS",\n'
+                '    "to_state": "REPLAYABLE_CI_MEMORY_GUARDRAIL",\n'
+                '    "direction": "CHAOS_TO_HARMONY",\n'
+                '    "phase": "STABILIZATION",\n'
+                '    "phase_order": 6,\n'
+                '    "transition_path": ["DRIFT", "COLLISION", "CAPTURE", "TRANSLATION", "REPLAY", "STABILIZATION"],\n'
+                '    "trajectory_summary": "chaos became a CI guardrail"\n'
                 '  }\n'
                 '}\n',
                 encoding="utf-8",
