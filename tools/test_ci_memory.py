@@ -67,6 +67,28 @@ class CIMemoryTest(unittest.TestCase):
             errors,
         )
 
+    def test_invalid_observed_at_is_rejected(self) -> None:
+        event = self.pr831_event()
+        event["observed_at"] = "not-a-date"
+        errors = ci_memory.validate_event(event)
+        self.assertIn("observed_at must be an ISO-8601 datetime", errors)
+
+    def test_events_replay_in_observed_at_order(self) -> None:
+        later = self.pr831_event()
+        earlier = self.pr831_event()
+        later["event_id"] = "later"
+        later["observed_at"] = "2026-07-08T16:32:31Z"
+        earlier["event_id"] = "earlier"
+        earlier["observed_at"] = "2026-07-08T12:55:43Z"
+
+        report = ci_memory.replay_events([later, earlier])
+        self.assertEqual(
+            [item["event_id"] for item in report["timeline"]],
+            ["earlier", "later"],
+        )
+        self.assertEqual(report["timeline"][0]["replay_index"], 1)
+        self.assertEqual(report["validation"][0]["event_id"], "earlier")
+
     def test_invalid_json_file_does_not_crash_replay(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
