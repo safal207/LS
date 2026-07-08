@@ -35,11 +35,10 @@ jobs:
     steps:
       - name: Initialize diagnostic file
         run: |
-          cat > "$REVIEW_FILE" <<'MD'
-          ⚠️ Grok PR Review did not complete.
-
-          The workflow started but has not written a final result yet.
-          MD
+          printf '%s\n\n%s\n' \
+            '⚠️ Grok PR Review did not complete.' \
+            'The workflow started but has not written a final result yet.' \
+            > "$REVIEW_FILE"
 
       - name: Check xAI API key
         id: api_key
@@ -48,13 +47,11 @@ jobs:
         run: |
           if [ -z "$XAI_API_KEY" ]; then
             echo "available=false" >> "$GITHUB_OUTPUT"
-            cat > "$REVIEW_FILE" <<'MD'
-            ⚠️ Grok PR Review skipped.
-
-            Repository secret `XAI_API_KEY` is not configured yet.
-
-            Add it in: Settings → Secrets and variables → Actions → New repository secret.
-            MD
+            printf '%s\n\n%s\n\n%s\n' \
+              '⚠️ Grok PR Review skipped.' \
+              'Repository secret `XAI_API_KEY` is not configured yet.' \
+              'Add it in: Settings → Secrets and variables → Actions → New repository secret.' \
+              > "$REVIEW_FILE"
             exit 0
           fi
           echo "available=true" >> "$GITHUB_OUTPUT"
@@ -197,11 +194,10 @@ jobs:
         if: always()
         run: |
           if [ ! -s "$REVIEW_FILE" ]; then
-            cat > "$REVIEW_FILE" <<'MD'
-            ⚠️ Grok PR Review produced no output.
-
-            No review file was created. Check workflow logs for the failing step.
-            MD
+            printf '%s\n\n%s\n' \
+              '⚠️ Grok PR Review produced no output.' \
+              'No review file was created. Check workflow logs for the failing step.' \
+              > "$REVIEW_FILE"
           fi
 
       - name: Truncate long review for GitHub comment
