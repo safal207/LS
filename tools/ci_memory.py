@@ -9,6 +9,7 @@ report, and emits machine-readable artifacts for GitHub Actions.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Any
@@ -52,6 +53,26 @@ def invalid_event(path: Path, error: str) -> dict[str, Any]:
     }
 
 
+def parse_observed_at(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    normalized = value.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def event_sort_key(event: dict[str, Any]) -> tuple[str, str]:
+    parsed = parse_observed_at(event.get("observed_at"))
+    observed_key = parsed.isoformat() if parsed else "9999-12-31T23:59:59+00:00"
+    event_id = event.get("event_id")
+    return observed_key, event_id if isinstance(event_id, str) else ""
+
+
 def load_event(path: Path) -> dict[str, Any]:
     try:
         event = json.loads(path.read_text(encoding="utf-8"))
@@ -67,6 +88,7 @@ def load_event(path: Path) -> dict[str, Any]:
 
     if not isinstance(event, dict):
         return invalid_event(path, "event must be an object")
+    event.setdefault("source_file", str(path))
     return event
 
 
@@ -76,7 +98,7 @@ def load_events(events_dir: Path) -> list[dict[str, Any]]:
     events = []
     for path in sorted(events_dir.glob("*.json")):
         events.append(load_event(path))
-    return events
+    return sorted(events, key=event_sort_key)
 
 
 def validate_event(event: dict[str, Any]) -> list[str]:
@@ -96,6 +118,8 @@ def validate_event(event: dict[str, Any]) -> list[str]:
 
     if not isinstance(event.get("observed_at"), str) or not event.get("observed_at"):
         errors.append("observed_at must be a non-empty string")
+    elif parse_observed_at(event.get("observed_at")) is None:
+        errors.append("observed_at must be an ISO-8601 datetime")
 
     if not isinstance(event.get("observed_in_pr"), int) or event.get("observed_in_pr", 0) <= 0:
         errors.append("observed_in_pr must be a positive integer")
@@ -145,11 +169,12 @@ def is_known_failure(event: dict[str, Any]) -> bool:
 
 
 def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
+    ordered_events = sorted(events, key=event_sort_key)
     validation: list[dict[str, Any]] = []
     known_failures: list[dict[str, Any]] = []
     event_ids: set[str] = set()
 
-    for event in events:
+    for index, event in enumerate(ordered_events, start=1):
         errors = validate_event(event)
         event_id = event.get("event_id")
         if isinstance(event_id, str) and event_id in event_ids:
@@ -160,6 +185,8 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         validation.append(
             {
                 "event_id": event.get("event_id"),
+                "observed_at": event.get("observed_at"),
+                "replay_index": index,
                 "valid": not errors,
                 "errors": errors,
             }
@@ -177,20 +204,32 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "schema_version": REPORT_SCHEMA_VERSION,
-        "events_count": len(events),
+        "events_count": len(ordered_events),
         "valid_events_count": sum(1 for item in validation if item["valid"]),
         "invalid_events_count": invalid_events_count,
         "known_failures_count": len(known_failures),
         "known_failure_ids": [event["event_id"] for event in known_failures],
         "status": status,
+        "timeline": [
+            {
+                "replay_index": index,
+                "event_id": event.get("event_id"),
+                "event_type": event.get("event_type"),
+                "observed_at": event.get("observed_at"),
+                "observed_in_pr": event.get("observed_in_pr"),
+                "decision": event.get("decision"),
+            }
+            for index, event in enumerate(ordered_events, start=1)
+        ],
         "validation": validation,
         "known_failures": known_failures,
     }
 
 
 def write_ndjson(path: Path, events: list[dict[str, Any]]) -> None:
+    ordered_events = sorted(events, key=event_sort_key)
     path.write_text(
-        "".join(json.dumps(event, sort_keys=True) + "\n" for event in events),
+        "".join(json.dumps(event, sort_keys=True) + "\n" for event in ordered_events),
         encoding="utf-8",
     )
 
@@ -206,7 +245,22 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"Invalid events: `{report['invalid_events_count']}`",
         f"Known failures replayed: `{report['known_failures_count']}`",
         "",
+        "## Timeline",
+        "",
     ]
+    if not report["timeline"]:
+        lines.append("No CI memory events found.")
+    else:
+        lines.append("| # | Event | Type | Observed at | PR | Decision |")
+        lines.append("|---:|---|---|---|---:|---|")
+        for item in report["timeline"]:
+            lines.append(
+                f"| {item['replay_index']} | `{item['event_id']}` | "
+                f"`{item['event_type']}` | `{item['observed_at']}` | "
+                f"#{item['observed_in_pr']} | `{item['decision']}` |"
+            )
+    lines.append("")
+
     if report["invalid_events_count"]:
         lines.extend(["## Invalid events", ""])
         lines.append("| Event | Errors |")
