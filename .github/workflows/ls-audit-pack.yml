@@ -1,0 +1,54 @@
+name: LS audit pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number
+        required: true
+        default: "824"
+      commit_sha:
+        description: Target commit SHA
+        required: true
+        default: "f1cfdfbf5f648bc28434fb2f5a0cb77eb7e86666"
+      case_id:
+        description: Audit case id
+        required: true
+        default: "pr824-ls-audit-v0.1"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "tools/build_ls_audit_pack.py"
+      - "tools/test_build_ls_audit_pack.py"
+      - ".github/workflows/ls-audit-pack.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run builder unit tests
+        run: |
+          cd tools
+          python test_build_ls_audit_pack.py
+
+      - name: Build audit pack
+        run: |
+          python tools/build_ls_audit_pack.py \
+            --pr-number "${{ github.event.inputs.pr_number || '824' }}" \
+            --commit-sha "${{ github.event.inputs.commit_sha || github.sha }}" \
+            --case-id "${{ github.event.inputs.case_id || 'pr824-ls-audit-v0.1' }}"
+
+      - name: Upload audit pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: ls-audit-pack
+          path: artifacts/ls-audit/
