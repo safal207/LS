@@ -87,6 +87,8 @@ TRAJECTORY_PHASE_ORDER = {
     phase: index for index, phase in enumerate(TRAJECTORY_PHASES, start=1)
 }
 VALID_TRAJECTORY_PHASES = set(TRAJECTORY_PHASES)
+TIME_SLICES = ("t_past", "t_more", "t_present")
+SPACE_LAYERS = ("project", "intermediate", "realization")
 
 
 def invalid_event(path: Path, error: str) -> dict[str, Any]:
@@ -270,6 +272,175 @@ def trajectory_axis_summary(event: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def first_item(value: Any, default: str) -> str:
+    if isinstance(value, list) and value:
+        first = value[0]
+        if isinstance(first, str) and first:
+            return first
+    return default
+
+
+def temporal_cell(
+    event: dict[str, Any],
+    time_slice: str,
+    space_layer: str,
+    state: str,
+    summary: str,
+) -> dict[str, Any]:
+    harmony_axis = event.get("harmony_axis", {})
+    trajectory_axis = event.get("trajectory_axis", {})
+    transition_path = trajectory_axis.get("transition_path", [])
+    return {
+        "event_id": event.get("event_id"),
+        "time_slice": time_slice,
+        "space_layer": space_layer,
+        "state": state,
+        "summary": summary,
+        "balance": harmony_axis.get(space_layer) if isinstance(harmony_axis, dict) else None,
+        "trajectory_direction": (
+            trajectory_axis.get("direction") if isinstance(trajectory_axis, dict) else None
+        ),
+        "trajectory_phase": (
+            trajectory_axis.get("phase") if isinstance(trajectory_axis, dict) else None
+        ),
+        "transition_path": transition_path if isinstance(transition_path, list) else [],
+    }
+
+
+def temporal_layered_matrix_summary(event: dict[str, Any]) -> dict[str, Any]:
+    harmony_axis = event.get("harmony_axis", {})
+    trajectory_axis = event.get("trajectory_axis", {})
+    subject = event.get("subject", {})
+    source = event.get("source", {})
+
+    from_state = (
+        trajectory_axis.get("from_state", "UNTRACKED_STATE")
+        if isinstance(trajectory_axis, dict)
+        else "UNTRACKED_STATE"
+    )
+    to_state = (
+        trajectory_axis.get("to_state", "TRACKED_STATE")
+        if isinstance(trajectory_axis, dict)
+        else "TRACKED_STATE"
+    )
+    phase = (
+        trajectory_axis.get("phase", "UNKNOWN_PHASE")
+        if isinstance(trajectory_axis, dict)
+        else "UNKNOWN_PHASE"
+    )
+    direction = (
+        trajectory_axis.get("direction", "UNKNOWN_DIRECTION")
+        if isinstance(trajectory_axis, dict)
+        else "UNKNOWN_DIRECTION"
+    )
+    transition_path = (
+        trajectory_axis.get("transition_path", [])
+        if isinstance(trajectory_axis, dict)
+        else []
+    )
+    chaos_source = (
+        first_item(harmony_axis.get("chaos_sources"), "unknown chaos source")
+        if isinstance(harmony_axis, dict)
+        else "unknown chaos source"
+    )
+    harmony_mechanism = (
+        first_item(harmony_axis.get("harmony_mechanisms"), "unknown harmony mechanism")
+        if isinstance(harmony_axis, dict)
+        else "unknown harmony mechanism"
+    )
+
+    cells = [
+        temporal_cell(
+            event,
+            "t_past",
+            "project",
+            str(from_state),
+            "The risk existed before it was represented as CI memory.",
+        ),
+        temporal_cell(
+            event,
+            "t_past",
+            "intermediate",
+            first_item(transition_path, "DRIFT"),
+            "The failure class was still moving through an implicit design gap.",
+        ),
+        temporal_cell(
+            event,
+            "t_past",
+            "realization",
+            chaos_source,
+            "The concrete implementation risk was present but not yet guarded.",
+        ),
+        temporal_cell(
+            event,
+            "t_more",
+            "project",
+            str(event.get("event_type")),
+            "The failure class was named as an event.",
+        ),
+        temporal_cell(
+            event,
+            "t_more",
+            "intermediate",
+            str(phase),
+            "The transition phase became explicit and validated.",
+        ),
+        temporal_cell(
+            event,
+            "t_more",
+            "realization",
+            str(event.get("event_id")),
+            "The event was replayed into deterministic artifacts.",
+        ),
+        temporal_cell(
+            event,
+            "t_present",
+            "project",
+            str(to_state),
+            "The desired target state is now represented in CI memory.",
+        ),
+        temporal_cell(
+            event,
+            "t_present",
+            "intermediate",
+            str(direction),
+            "The system movement is explicit and reviewable.",
+        ),
+        temporal_cell(
+            event,
+            "t_present",
+            "realization",
+            harmony_mechanism,
+            "The guardrail mechanism is visible in the report.",
+        ),
+    ]
+
+    return {
+        "event_id": event.get("event_id"),
+        "subject_pr": subject.get("pr_number") if isinstance(subject, dict) else None,
+        "source_pr": source.get("pr_number") if isinstance(source, dict) else None,
+        "time_slices": list(TIME_SLICES),
+        "space_layers": list(SPACE_LAYERS),
+        "cells": cells,
+    }
+
+
+def matrix_rows(matrix: dict[str, Any]) -> list[dict[str, str]]:
+    rows = []
+    cells = matrix.get("cells", [])
+    for time_slice in TIME_SLICES:
+        row: dict[str, str] = {"time_slice": time_slice}
+        for space_layer in SPACE_LAYERS:
+            matching = [
+                cell for cell in cells
+                if cell.get("time_slice") == time_slice
+                and cell.get("space_layer") == space_layer
+            ]
+            row[space_layer] = str(matching[0].get("state")) if matching else ""
+        rows.append(row)
+    return rows
+
+
 def validate_event(event: dict[str, Any]) -> list[str]:
     errors: list[str] = list(event.get("_load_errors", []))
     missing = REQUIRED_EVENT_FIELDS - event.keys()
@@ -345,6 +516,7 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     known_failures: list[dict[str, Any]] = []
     harmony_axis: list[dict[str, Any]] = []
     trajectory_axis: list[dict[str, Any]] = []
+    temporal_layered_matrix: list[dict[str, Any]] = []
     event_ids: set[str] = set()
 
     for index, event in enumerate(ordered_events, start=1):
@@ -367,6 +539,7 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         if not errors:
             harmony_axis.append(harmony_axis_summary(event))
             trajectory_axis.append(trajectory_axis_summary(event))
+            temporal_layered_matrix.append(temporal_layered_matrix_summary(event))
         if not errors and is_known_failure(event):
             known_failures.append(event)
 
@@ -414,6 +587,7 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         ],
         "harmony_axis": harmony_axis,
         "trajectory_axis": trajectory_axis,
+        "temporal_layered_matrix": temporal_layered_matrix,
         "validation": validation,
         "known_failures": known_failures,
     }
@@ -425,6 +599,24 @@ def write_ndjson(path: Path, events: list[dict[str, Any]]) -> None:
         "".join(json.dumps(event, sort_keys=True) + "\n" for event in ordered_events),
         encoding="utf-8",
     )
+
+
+def write_temporal_matrix_markdown(path: Path, matrices: list[dict[str, Any]]) -> None:
+    lines = ["# LS CI Memory Temporal Layered Matrix", ""]
+    if not matrices:
+        lines.append("No valid CI memory events found.")
+    for matrix in matrices:
+        lines.append(f"## `{matrix['event_id']}`")
+        lines.append("")
+        lines.append("| Time slice | Project | Intermediate | Realization |")
+        lines.append("|---|---|---|---|")
+        for row in matrix_rows(matrix):
+            lines.append(
+                f"| `{row['time_slice']}` | `{row['project']}` | "
+                f"`{row['intermediate']}` | `{row['realization']}` |"
+            )
+        lines.append("")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def write_markdown(path: Path, report: dict[str, Any]) -> None:
@@ -501,6 +693,20 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             lines.append(item["trajectory_summary"])
             lines.append("")
 
+    if report["temporal_layered_matrix"]:
+        lines.extend(["## Temporal Layered Matrix", ""])
+        for matrix in report["temporal_layered_matrix"]:
+            lines.append(f"### `{matrix['event_id']}`")
+            lines.append("")
+            lines.append("| Time slice | Project | Intermediate | Realization |")
+            lines.append("|---|---|---|---|")
+            for row in matrix_rows(matrix):
+                lines.append(
+                    f"| `{row['time_slice']}` | `{row['project']}` | "
+                    f"`{row['intermediate']}` | `{row['realization']}` |"
+                )
+            lines.append("")
+
     if report["invalid_events_count"]:
         lines.extend(["## Invalid events", ""])
         lines.append("| Event | Errors |")
@@ -535,7 +741,15 @@ def build_ci_memory(events_dir: Path, out_dir: Path) -> dict[str, Any]:
         json.dumps(report, indent=2, sort_keys=True),
         encoding="utf-8",
     )
+    (out_dir / "ci_memory_temporal_matrix.json").write_text(
+        json.dumps(report["temporal_layered_matrix"], indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
     write_markdown(out_dir / "ci_memory_report.md", report)
+    write_temporal_matrix_markdown(
+        out_dir / "ci_memory_temporal_matrix.md",
+        report["temporal_layered_matrix"],
+    )
     return report
 
 
