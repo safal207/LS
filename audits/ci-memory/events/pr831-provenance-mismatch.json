@@ -37,5 +37,21 @@
     ],
     "transition": "PR #831 provenance chaos became a replayable CI memory guardrail."
   },
+  "trajectory_axis": {
+    "from_state": "UNTRACKED_PROVENANCE_CHAOS",
+    "to_state": "REPLAYABLE_CI_MEMORY_GUARDRAIL",
+    "direction": "CHAOS_TO_HARMONY",
+    "phase": "STABILIZATION",
+    "phase_order": 6,
+    "transition_path": [
+      "DRIFT",
+      "COLLISION",
+      "CAPTURE",
+      "TRANSLATION",
+      "REPLAY",
+      "STABILIZATION"
+    ],
+    "trajectory_summary": "The PR #831 provenance mismatch moved from hidden audit risk into deterministic CI memory."
+  },
   "summary": "PR #831 attempted to commit a canonical PR #824 LS response whose source attestation pointed to PR #828/head 0b953d3428adca691421dddd861e20e1c0213b47. This is schema-valid but audit-provenance-invalid and must remain a remembered blocking failure class."
 }

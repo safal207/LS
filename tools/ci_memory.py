@@ -31,6 +31,7 @@ REQUIRED_EVENT_FIELDS = {
     "decision",
     "evidence",
     "harmony_axis",
+    "trajectory_axis",
 }
 REQUIRED_HARMONY_AXIS_FIELDS = {
     "balance",
@@ -40,6 +41,15 @@ REQUIRED_HARMONY_AXIS_FIELDS = {
     "chaos_sources",
     "harmony_mechanisms",
     "transition",
+}
+REQUIRED_TRAJECTORY_AXIS_FIELDS = {
+    "from_state",
+    "to_state",
+    "direction",
+    "phase",
+    "phase_order",
+    "transition_path",
+    "trajectory_summary",
 }
 
 BLOCKING_EVENT_TYPES = {
@@ -57,6 +67,26 @@ VALID_HARMONY_BALANCES = {
     "HARMONY",
     "STRONG_HARMONY",
 }
+VALID_TRAJECTORY_DIRECTIONS = {
+    "CHAOS_TO_HARMONY",
+    "HARMONY_TO_CHAOS",
+    "STABLE_HARMONY",
+    "STABLE_CHAOS",
+    "MIXED_TRANSITION",
+}
+TRAJECTORY_PHASES = [
+    "DRIFT",
+    "COLLISION",
+    "CAPTURE",
+    "TRANSLATION",
+    "REPLAY",
+    "STABILIZATION",
+    "INSTITUTIONALIZATION",
+]
+TRAJECTORY_PHASE_ORDER = {
+    phase: index for index, phase in enumerate(TRAJECTORY_PHASES, start=1)
+}
+VALID_TRAJECTORY_PHASES = set(TRAJECTORY_PHASES)
 
 
 def invalid_event(path: Path, error: str) -> dict[str, Any]:
@@ -149,6 +179,65 @@ def validate_harmony_axis(event: dict[str, Any]) -> list[str]:
     return errors
 
 
+def validate_transition_path(value: Any, phase: Any) -> list[str]:
+    errors = validate_string_list(value, "trajectory_axis.transition_path")
+    if errors:
+        return errors
+    assert isinstance(value, list)
+
+    invalid_phases = [item for item in value if item not in VALID_TRAJECTORY_PHASES]
+    if invalid_phases:
+        errors.append(f"trajectory_axis.transition_path contains invalid phases: {invalid_phases}")
+        return errors
+
+    phase_orders = [TRAJECTORY_PHASE_ORDER[item] for item in value]
+    if phase_orders != sorted(phase_orders) or len(phase_orders) != len(set(phase_orders)):
+        errors.append("trajectory_axis.transition_path must be strictly ordered by phase")
+
+    if isinstance(phase, str) and value and value[-1] != phase:
+        errors.append("trajectory_axis.transition_path must end with trajectory_axis.phase")
+
+    return errors
+
+
+def validate_trajectory_axis(event: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    axis = event.get("trajectory_axis")
+    if not isinstance(axis, dict):
+        return ["trajectory_axis must be an object"]
+
+    missing = REQUIRED_TRAJECTORY_AXIS_FIELDS - axis.keys()
+    if missing:
+        errors.append(f"trajectory_axis missing fields: {sorted(missing)}")
+
+    for field in ("from_state", "to_state", "trajectory_summary"):
+        if not isinstance(axis.get(field), str) or not axis.get(field):
+            errors.append(f"trajectory_axis.{field} must be a non-empty string")
+
+    direction = axis.get("direction")
+    if direction not in VALID_TRAJECTORY_DIRECTIONS:
+        errors.append(
+            f"trajectory_axis.direction must be one of {sorted(VALID_TRAJECTORY_DIRECTIONS)}"
+        )
+
+    phase = axis.get("phase")
+    if phase not in VALID_TRAJECTORY_PHASES:
+        errors.append(f"trajectory_axis.phase must be one of {sorted(VALID_TRAJECTORY_PHASES)}")
+
+    phase_order = axis.get("phase_order")
+    if not isinstance(phase_order, int) or phase_order <= 0:
+        errors.append("trajectory_axis.phase_order must be a positive integer")
+    elif isinstance(phase, str) and phase in TRAJECTORY_PHASE_ORDER:
+        expected_order = TRAJECTORY_PHASE_ORDER[phase]
+        if phase_order != expected_order:
+            errors.append(
+                f"trajectory_axis.phase_order must be {expected_order} for phase {phase}"
+            )
+
+    errors.extend(validate_transition_path(axis.get("transition_path"), phase))
+    return errors
+
+
 def harmony_axis_summary(event: dict[str, Any]) -> dict[str, Any]:
     axis = event.get("harmony_axis")
     if not isinstance(axis, dict):
@@ -162,6 +251,22 @@ def harmony_axis_summary(event: dict[str, Any]) -> dict[str, Any]:
         "chaos_sources": axis.get("chaos_sources", []),
         "harmony_mechanisms": axis.get("harmony_mechanisms", []),
         "transition": axis.get("transition"),
+    }
+
+
+def trajectory_axis_summary(event: dict[str, Any]) -> dict[str, Any]:
+    axis = event.get("trajectory_axis")
+    if not isinstance(axis, dict):
+        return {}
+    return {
+        "event_id": event.get("event_id"),
+        "from_state": axis.get("from_state"),
+        "to_state": axis.get("to_state"),
+        "direction": axis.get("direction"),
+        "phase": axis.get("phase"),
+        "phase_order": axis.get("phase_order"),
+        "transition_path": axis.get("transition_path", []),
+        "trajectory_summary": axis.get("trajectory_summary"),
     }
 
 
@@ -217,6 +322,7 @@ def validate_event(event: dict[str, Any]) -> list[str]:
         errors.append("evidence must contain only non-empty strings")
 
     errors.extend(validate_harmony_axis(event))
+    errors.extend(validate_trajectory_axis(event))
     return errors
 
 
@@ -238,6 +344,7 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     validation: list[dict[str, Any]] = []
     known_failures: list[dict[str, Any]] = []
     harmony_axis: list[dict[str, Any]] = []
+    trajectory_axis: list[dict[str, Any]] = []
     event_ids: set[str] = set()
 
     for index, event in enumerate(ordered_events, start=1):
@@ -259,6 +366,7 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         )
         if not errors:
             harmony_axis.append(harmony_axis_summary(event))
+            trajectory_axis.append(trajectory_axis_summary(event))
         if not errors and is_known_failure(event):
             known_failures.append(event)
 
@@ -291,10 +399,21 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
                     if isinstance(event.get("harmony_axis"), dict)
                     else None
                 ),
+                "trajectory_direction": (
+                    event.get("trajectory_axis", {}).get("direction")
+                    if isinstance(event.get("trajectory_axis"), dict)
+                    else None
+                ),
+                "trajectory_phase": (
+                    event.get("trajectory_axis", {}).get("phase")
+                    if isinstance(event.get("trajectory_axis"), dict)
+                    else None
+                ),
             }
             for index, event in enumerate(ordered_events, start=1)
         ],
         "harmony_axis": harmony_axis,
+        "trajectory_axis": trajectory_axis,
         "validation": validation,
         "known_failures": known_failures,
     }
@@ -325,14 +444,15 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     if not report["timeline"]:
         lines.append("No CI memory events found.")
     else:
-        lines.append("| # | Event | Type | Observed at | PR | Decision | Balance |")
-        lines.append("|---:|---|---|---|---:|---|---|")
+        lines.append("| # | Event | Type | Observed at | PR | Decision | Balance | Direction | Phase |")
+        lines.append("|---:|---|---|---|---:|---|---|---|---|")
         for item in report["timeline"]:
             lines.append(
                 f"| {item['replay_index']} | `{item['event_id']}` | "
                 f"`{item['event_type']}` | `{item['observed_at']}` | "
                 f"#{item['observed_in_pr']} | `{item['decision']}` | "
-                f"`{item['harmony_balance']}` |"
+                f"`{item['harmony_balance']}` | `{item['trajectory_direction']}` | "
+                f"`{item['trajectory_phase']}` |"
             )
     lines.append("")
 
@@ -358,6 +478,27 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
             lines.append("Harmony mechanisms:")
             for mechanism in item["harmony_mechanisms"]:
                 lines.append(f"- {mechanism}")
+            lines.append("")
+
+    if report["trajectory_axis"]:
+        lines.extend(["## Trajectory Axis", ""])
+        lines.append("| Event | From | To | Direction | Phase | Order |")
+        lines.append("|---|---|---|---|---|---:|")
+        for item in report["trajectory_axis"]:
+            lines.append(
+                f"| `{item['event_id']}` | `{item['from_state']}` | `{item['to_state']}` | "
+                f"`{item['direction']}` | `{item['phase']}` | `{item['phase_order']}` |"
+            )
+        lines.append("")
+        lines.append("### Transition paths")
+        lines.append("")
+        for item in report["trajectory_axis"]:
+            lines.append(f"#### `{item['event_id']}`")
+            lines.append("")
+            transition_path = " → ".join(item["transition_path"])
+            lines.append(f"Path: `{transition_path}`")
+            lines.append("")
+            lines.append(item["trajectory_summary"])
             lines.append("")
 
     if report["invalid_events_count"]:
