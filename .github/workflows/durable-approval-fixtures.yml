@@ -12,6 +12,7 @@ on:
       - "tools/test_review_decision_adapter_v0_1.py"
       - "tools/validate_durable_approval_v0_*.py"
       - "tools/test_durable_approval_v0_*.py"
+      - "tools/test_durable_approval_schema_parity.py"
       - ".github/workflows/durable-approval-fixtures.yml"
   push:
     branches:
@@ -26,6 +27,7 @@ on:
       - "tools/test_review_decision_adapter_v0_1.py"
       - "tools/validate_durable_approval_v0_*.py"
       - "tools/test_durable_approval_v0_*.py"
+      - "tools/test_durable_approval_schema_parity.py"
       - ".github/workflows/durable-approval-fixtures.yml"
 
 permissions:
@@ -67,3 +69,5 @@ jobs:
             fixtures/trusted-runtime/durable-approval/reconcile_in_doubt_failed_v0.2.json
       - name: Run durable approval v0.2 negative controls
         run: python tools/test_durable_approval_v0_2.py
+      - name: Run durable approval schema parity controls
+        run: python tools/test_durable_approval_schema_parity.py
