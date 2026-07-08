@@ -35,12 +35,38 @@ BLOCKING_EVENT_TYPES = {
     "PROVENANCE_MISMATCH",
     "KNOWN_FAILURE_REPLAYED",
 }
+VALID_DECISIONS = {
+    "BLOCK_MERGE",
+    "DOCUMENT_ONLY",
+    "ALLOW_WITH_GUARDRAIL",
+}
+
+
+def invalid_event(path: Path, error: str) -> dict[str, Any]:
+    """Return a synthetic event so replay can continue after a bad file."""
+    return {
+        "event_id": f"invalid:{path.name}",
+        "event_type": "INVALID_EVENT_FILE",
+        "source_file": str(path),
+        "_load_errors": [error],
+    }
 
 
 def load_event(path: Path) -> dict[str, Any]:
-    event = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        event = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return invalid_event(path, "file not found")
+    except OSError as exc:
+        return invalid_event(path, f"failed to read event file: {exc}")
+    except json.JSONDecodeError as exc:
+        return invalid_event(
+            path,
+            f"invalid JSON at line {exc.lineno} column {exc.colno}: {exc.msg}",
+        )
+
     if not isinstance(event, dict):
-        raise ValueError(f"{path}: event must be an object")
+        return invalid_event(path, "event must be an object")
     return event
 
 
@@ -54,7 +80,7 @@ def load_events(events_dir: Path) -> list[dict[str, Any]]:
 
 
 def validate_event(event: dict[str, Any]) -> list[str]:
-    errors: list[str] = []
+    errors: list[str] = list(event.get("_load_errors", []))
     missing = REQUIRED_EVENT_FIELDS - event.keys()
     if missing:
         errors.append(f"missing fields: {sorted(missing)}")
@@ -68,8 +94,15 @@ def validate_event(event: dict[str, Any]) -> list[str]:
     if not isinstance(event.get("event_type"), str) or not event.get("event_type"):
         errors.append("event_type must be a non-empty string")
 
+    if not isinstance(event.get("observed_at"), str) or not event.get("observed_at"):
+        errors.append("observed_at must be a non-empty string")
+
     if not isinstance(event.get("observed_in_pr"), int) or event.get("observed_in_pr", 0) <= 0:
         errors.append("observed_in_pr must be a positive integer")
+
+    decision = event.get("decision")
+    if decision not in VALID_DECISIONS:
+        errors.append(f"decision must be one of {sorted(VALID_DECISIONS)}")
 
     subject = event.get("subject")
     if not isinstance(subject, dict):
@@ -89,8 +122,11 @@ def validate_event(event: dict[str, Any]) -> list[str]:
         if not isinstance(source.get("head_sha"), str) or not source.get("head_sha"):
             errors.append("source.head_sha must be a non-empty string")
 
-    if not isinstance(event.get("evidence"), list):
+    evidence = event.get("evidence")
+    if not isinstance(evidence, list):
         errors.append("evidence must be a list")
+    elif not all(isinstance(item, str) and item for item in evidence):
+        errors.append("evidence must contain only non-empty strings")
 
     return errors
 
@@ -131,13 +167,22 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         if not errors and is_known_failure(event):
             known_failures.append(event)
 
+    invalid_events_count = sum(1 for item in validation if not item["valid"])
+    if invalid_events_count:
+        status = "INVALID_EVENTS"
+    elif known_failures:
+        status = "KNOWN_FAILURE_REPLAYED"
+    else:
+        status = "CLEAR"
+
     return {
         "schema_version": REPORT_SCHEMA_VERSION,
         "events_count": len(events),
         "valid_events_count": sum(1 for item in validation if item["valid"]),
+        "invalid_events_count": invalid_events_count,
         "known_failures_count": len(known_failures),
         "known_failure_ids": [event["event_id"] for event in known_failures],
-        "status": "KNOWN_FAILURE_REPLAYED" if known_failures else "CLEAR",
+        "status": status,
         "validation": validation,
         "known_failures": known_failures,
     }
@@ -157,11 +202,22 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         f"Status: `{report['status']}`",
         "",
         f"Events replayed: `{report['events_count']}`",
+        f"Valid events: `{report['valid_events_count']}`",
+        f"Invalid events: `{report['invalid_events_count']}`",
         f"Known failures replayed: `{report['known_failures_count']}`",
         "",
-        "## Known failures",
-        "",
     ]
+    if report["invalid_events_count"]:
+        lines.extend(["## Invalid events", ""])
+        lines.append("| Event | Errors |")
+        lines.append("|---|---|")
+        for item in report["validation"]:
+            if not item["valid"]:
+                errors = "<br>".join(item["errors"])
+                lines.append(f"| `{item['event_id']}` | {errors} |")
+        lines.append("")
+
+    lines.extend(["## Known failures", ""])
     if not report["known_failures"]:
         lines.append("No known blocking failure patterns replayed.")
     else:
@@ -198,6 +254,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Exit non-zero when known blocking failure patterns are replayed.",
     )
+    parser.add_argument(
+        "--fail-on-invalid-event",
+        action="store_true",
+        help="Exit non-zero when malformed CI memory events are found.",
+    )
     return parser.parse_args()
 
 
@@ -208,6 +269,8 @@ def main() -> int:
         "CI memory replayed "
         f"{report['events_count']} events; status={report['status']}"
     )
+    if args.fail_on_invalid_event and report["status"] == "INVALID_EVENTS":
+        return 1
     if args.fail_on_known_failure and report["status"] == "KNOWN_FAILURE_REPLAYED":
         return 1
     return 0
