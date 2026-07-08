@@ -19,5 +19,23 @@
     "tools/build_ls_audit_pack.py",
     "https://github.com/safal207/LS/pull/831"
   ],
+  "harmony_axis": {
+    "balance": "STRONG_HARMONY",
+    "project": "HARMONY",
+    "intermediate": "HARMONY",
+    "realization": "STRONG_HARMONY",
+    "chaos_sources": [
+      "schema-valid but audit-provenance-invalid LS response artifact",
+      "cross-PR source mismatch: subject PR #824, source PR #828",
+      "manual transcription could create false confidence in VALID_REPORT status"
+    ],
+    "harmony_mechanisms": [
+      "append-only CI memory event",
+      "temporal replay ordered by observed_at",
+      "known failure detection for provenance mismatch",
+      "artifact report exposing timeline, validation, and blocking decision"
+    ],
+    "transition": "PR #831 provenance chaos became a replayable CI memory guardrail."
+  },
   "summary": "PR #831 attempted to commit a canonical PR #824 LS response whose source attestation pointed to PR #828/head 0b953d3428adca691421dddd861e20e1c0213b47. This is schema-valid but audit-provenance-invalid and must remain a remembered blocking failure class."
 }
