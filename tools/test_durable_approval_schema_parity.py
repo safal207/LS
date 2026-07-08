@@ -130,6 +130,29 @@ class DurableApprovalSchemaParityTests(unittest.TestCase):
             with self.subTest(fragment=fragment):
                 self.assert_rejected_with(fixture, fragment)
 
+    def test_optional_event_fields_are_validated_when_present(self) -> None:
+        cases = []
+
+        fixture = copy.deepcopy(self.fixture)
+        fixture["events"][0]["reason"] = []
+        cases.append((fixture, "reason must be a string or null"))
+
+        fixture = copy.deepcopy(self.fixture)
+        fixture["events"][0]["evidence_ref"] = []
+        cases.append((fixture, "evidence_ref must be a string or null"))
+
+        fixture = copy.deepcopy(self.fixture)
+        fixture["events"][0]["bindings"] = {}
+        cases.append((fixture, "bindings: missing"))
+
+        fixture = copy.deepcopy(self.fixture)
+        fixture["events"][0]["outcome"] = "NOT_A_REAL_OUTCOME"
+        cases.append((fixture, "invalid outcome"))
+
+        for fixture, fragment in cases:
+            with self.subTest(fragment=fragment):
+                self.assert_rejected_with(fixture, fragment)
+
     def test_non_rfc3339_space_separator_is_rejected(self) -> None:
         fixture = copy.deepcopy(self.fixture)
         fixture["events"][0]["occurred_at"] = "2026-07-06 18:45:00Z"

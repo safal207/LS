@@ -140,6 +140,73 @@ def validate_envelope(envelope: Any, errors: list[str]) -> dict[str, Any]:
     return legacy.validate_envelope(envelope, errors)
 
 
+def _sanitize_optional_string_or_null(
+    event: dict[str, Any],
+    field: str,
+    location: str,
+    errors: list[str],
+) -> None:
+    if field not in event:
+        return
+    value = event.get(field)
+    if value is not None and not isinstance(value, str):
+        errors.append(f"{location}.{field} must be a string or null")
+        event[field] = None
+
+
+def _sanitize_bindings_if_present(
+    event: dict[str, Any],
+    location: str,
+    errors: list[str],
+) -> None:
+    if "bindings" not in event:
+        return
+    bindings = event.get("bindings")
+    if not isinstance(bindings, dict):
+        errors.append(f"{location}.bindings: must be an object")
+        event["bindings"] = {}
+        return
+
+    reject_unknown_properties(
+        bindings,
+        ALLOWED_BINDING_FIELDS,
+        f"{location}.bindings",
+        errors,
+    )
+    missing = BOUND_DIGEST_FIELDS - bindings.keys()
+    require(errors, not missing, f"{location}.bindings: missing {sorted(missing)}")
+    for field in BOUND_DIGEST_FIELDS:
+        value = bindings.get(field)
+        if field == "workspace_identity":
+            require(
+                errors,
+                isinstance(value, str) and bool(value),
+                f"{location}.bindings.{field} is required",
+            )
+        else:
+            require(
+                errors,
+                isinstance(value, str) and DIGEST_PATTERN.fullmatch(value) is not None,
+                f"{location}.bindings.{field} must match ^sha256:[A-Za-z0-9._-]+$",
+            )
+
+
+def _sanitize_outcome_if_present(
+    event: dict[str, Any],
+    location: str,
+    errors: list[str],
+) -> None:
+    if "outcome" not in event:
+        return
+    outcome = event.get("outcome")
+    if not isinstance(outcome, str):
+        errors.append(f"{location}.outcome must be a string")
+        event["outcome"] = ""
+        return
+    if outcome not in {"COMMITTED", "FAILED"}:
+        errors.append(f"{location}.outcome: invalid outcome {outcome!r}")
+
+
 def _strict_sanitize_case(
     case: dict[str, Any],
 ) -> tuple[dict[str, Any], list[str]]:
@@ -195,18 +262,10 @@ def _strict_sanitize_case(
             errors.append(f"{location}.actor: must be an object")
             event["actor"] = {"type": "", "id": ""}
 
-        bindings = event.get("bindings")
-        if isinstance(bindings, dict):
-            reject_unknown_properties(
-                bindings,
-                ALLOWED_BINDING_FIELDS,
-                f"{location}.bindings",
-                errors,
-            )
-
-        if "outcome" in event and not isinstance(event.get("outcome"), str):
-            errors.append(f"{location}.outcome must be a string")
-            event["outcome"] = ""
+        _sanitize_optional_string_or_null(event, "reason", location, errors)
+        _sanitize_optional_string_or_null(event, "evidence_ref", location, errors)
+        _sanitize_bindings_if_present(event, location, errors)
+        _sanitize_outcome_if_present(event, location, errors)
 
     return safe, errors
 
