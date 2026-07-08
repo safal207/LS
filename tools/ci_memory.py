@@ -17,6 +17,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 EVENT_SCHEMA_VERSION = "ls.ci_memory_event.v0.1"
 REPORT_SCHEMA_VERSION = "ls.ci_memory_report.v0.1"
+GRAPH_SCHEMA_VERSION = "ls.ci_memory_graph.v0.1"
 DEFAULT_EVENTS_DIR = ROOT / "audits" / "ci-memory" / "events"
 DEFAULT_OUT_DIR = ROOT / "artifacts" / "ci-memory"
 
@@ -441,6 +442,158 @@ def matrix_rows(matrix: dict[str, Any]) -> list[dict[str, str]]:
     return rows
 
 
+def add_graph_node(
+    nodes: dict[str, dict[str, Any]],
+    node_id: str,
+    node_type: str,
+    label: str | None = None,
+    **attributes: Any,
+) -> None:
+    if node_id not in nodes:
+        nodes[node_id] = {"id": node_id, "type": node_type}
+    if label:
+        nodes[node_id].setdefault("label", label)
+    for key, value in attributes.items():
+        if value is not None:
+            nodes[node_id].setdefault(key, value)
+
+
+def add_graph_edge(
+    edges: list[dict[str, Any]],
+    source: str,
+    target: str,
+    edge_type: str,
+    **attributes: Any,
+) -> None:
+    edge: dict[str, Any] = {"from": source, "to": target, "type": edge_type}
+    for key, value in attributes.items():
+        if value is not None:
+            edge[key] = value
+    edges.append(edge)
+
+
+def build_ci_memory_graph(report: dict[str, Any]) -> dict[str, Any]:
+    nodes: dict[str, dict[str, Any]] = {}
+    edges: list[dict[str, Any]] = []
+    raw_events_by_id = {
+        event.get("event_id"): event
+        for event in report.get("known_failures", [])
+        if isinstance(event, dict)
+    }
+
+    for time_slice in TIME_SLICES:
+        add_graph_node(nodes, f"time:{time_slice}", "TIME_SLICE", time_slice)
+    for space_layer in SPACE_LAYERS:
+        add_graph_node(nodes, f"space:{space_layer}", "SPACE_LAYER", space_layer)
+
+    for matrix in report.get("temporal_layered_matrix", []):
+        event_id = str(matrix.get("event_id"))
+        event_node = f"event:{event_id}"
+        add_graph_node(
+            nodes,
+            event_node,
+            "EVENT",
+            event_id,
+            subject_pr=matrix.get("subject_pr"),
+            source_pr=matrix.get("source_pr"),
+        )
+
+        if matrix.get("subject_pr"):
+            subject_node = f"pr:{matrix['subject_pr']}"
+            add_graph_node(nodes, subject_node, "PR", f"PR #{matrix['subject_pr']}")
+            add_graph_edge(edges, event_node, subject_node, "HAS_SUBJECT_PR", event_id=event_id)
+        if matrix.get("source_pr"):
+            source_node = f"pr:{matrix['source_pr']}"
+            add_graph_node(nodes, source_node, "PR", f"PR #{matrix['source_pr']}")
+            add_graph_edge(edges, event_node, source_node, "HAS_SOURCE_PR", event_id=event_id)
+
+        cells = matrix.get("cells", [])
+        for cell in cells:
+            time_slice = str(cell.get("time_slice"))
+            space_layer = str(cell.get("space_layer"))
+            state = str(cell.get("state"))
+            cell_node = f"cell:{event_id}:{time_slice}:{space_layer}"
+            time_node = f"time:{time_slice}"
+            space_node = f"space:{space_layer}"
+            state_node = f"state:{state}"
+
+            add_graph_node(
+                nodes,
+                cell_node,
+                "TEMPORAL_CELL",
+                f"{time_slice} / {space_layer}",
+                time_slice=time_slice,
+                space_layer=space_layer,
+                event_id=event_id,
+            )
+            add_graph_node(nodes, state_node, "STATE", state)
+            add_graph_edge(edges, event_node, cell_node, "HAS_CELL", event_id=event_id)
+            add_graph_edge(edges, cell_node, time_node, "AT_TIME", event_id=event_id)
+            add_graph_edge(edges, cell_node, space_node, "IN_LAYER", event_id=event_id)
+            add_graph_edge(edges, cell_node, state_node, "HAS_STATE", event_id=event_id)
+
+            balance = cell.get("balance")
+            if balance:
+                balance_node = f"balance:{balance}"
+                add_graph_node(nodes, balance_node, "BALANCE", str(balance))
+                add_graph_edge(edges, cell_node, balance_node, "HAS_BALANCE", event_id=event_id)
+
+            phase = cell.get("trajectory_phase")
+            if phase:
+                phase_node = f"phase:{phase}"
+                add_graph_node(nodes, phase_node, "TRAJECTORY_PHASE", str(phase))
+                add_graph_edge(edges, cell_node, phase_node, "HAS_PHASE", event_id=event_id)
+
+            direction = cell.get("trajectory_direction")
+            if direction:
+                direction_node = f"direction:{direction}"
+                add_graph_node(nodes, direction_node, "TRAJECTORY_DIRECTION", str(direction))
+                add_graph_edge(edges, cell_node, direction_node, "MOVES_TOWARD", event_id=event_id)
+
+        transition_paths = [
+            cell.get("transition_path", [])
+            for cell in cells
+            if isinstance(cell.get("transition_path"), list)
+        ]
+        transition_path = transition_paths[0] if transition_paths else []
+        for left, right in zip(transition_path, transition_path[1:]):
+            left_node = f"phase:{left}"
+            right_node = f"phase:{right}"
+            add_graph_node(nodes, left_node, "TRAJECTORY_PHASE", str(left))
+            add_graph_node(nodes, right_node, "TRAJECTORY_PHASE", str(right))
+            add_graph_edge(edges, left_node, right_node, "TRANSITIONS_TO", event_id=event_id)
+
+        raw_event = raw_events_by_id.get(event_id)
+        if isinstance(raw_event, dict):
+            for evidence in raw_event.get("evidence", []):
+                evidence_node = f"evidence:{evidence}"
+                add_graph_node(nodes, evidence_node, "EVIDENCE", str(evidence))
+                add_graph_edge(edges, event_node, evidence_node, "SUPPORTED_BY", event_id=event_id)
+            event_type = raw_event.get("event_type")
+            if event_type:
+                guardrail_node = f"guardrail:{event_type}"
+                add_graph_node(nodes, guardrail_node, "GUARDRAIL", str(event_type))
+                add_graph_edge(edges, event_node, guardrail_node, "GUARDS_AGAINST", event_id=event_id)
+
+    sorted_nodes = sorted(nodes.values(), key=lambda node: node["id"])
+    sorted_edges = sorted(
+        edges,
+        key=lambda edge: (
+            edge.get("event_id", ""),
+            edge["from"],
+            edge["type"],
+            edge["to"],
+        ),
+    )
+    return {
+        "schema_version": GRAPH_SCHEMA_VERSION,
+        "nodes_count": len(sorted_nodes),
+        "edges_count": len(sorted_edges),
+        "nodes": sorted_nodes,
+        "edges": sorted_edges,
+    }
+
+
 def validate_event(event: dict[str, Any]) -> list[str]:
     errors: list[str] = list(event.get("_load_errors", []))
     missing = REQUIRED_EVENT_FIELDS - event.keys()
@@ -551,7 +704,7 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     else:
         status = "CLEAR"
 
-    return {
+    report = {
         "schema_version": REPORT_SCHEMA_VERSION,
         "events_count": len(ordered_events),
         "valid_events_count": sum(1 for item in validation if item["valid"]),
@@ -591,6 +744,8 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         "validation": validation,
         "known_failures": known_failures,
     }
+    report["graph_network"] = build_ci_memory_graph(report)
+    return report
 
 
 def write_ndjson(path: Path, events: list[dict[str, Any]]) -> None:
@@ -616,6 +771,27 @@ def write_temporal_matrix_markdown(path: Path, matrices: list[dict[str, Any]]) -
                 f"`{row['intermediate']}` | `{row['realization']}` |"
             )
         lines.append("")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def mermaid_label(value: str) -> str:
+    return value.replace('"', "'").replace("\n", " ")
+
+
+def write_graph_mermaid(path: Path, graph: dict[str, Any]) -> None:
+    lines = ["graph TD"]
+    aliases: dict[str, str] = {}
+    for index, node in enumerate(graph.get("nodes", []), start=1):
+        alias = f"N{index}"
+        aliases[node["id"]] = alias
+        label = mermaid_label(f"{node['type']}: {node.get('label', node['id'])}")
+        lines.append(f'    {alias}["{label}"]')
+    for edge in graph.get("edges", []):
+        source = aliases.get(edge["from"])
+        target = aliases.get(edge["to"])
+        if source and target:
+            label = mermaid_label(edge["type"])
+            lines.append(f"    {source} -->|{label}| {target}")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -707,6 +883,18 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
                 )
             lines.append("")
 
+    graph = report.get("graph_network", {})
+    if graph:
+        lines.extend(["## Graph Network", ""])
+        lines.append(f"Graph schema: `{graph.get('schema_version')}`")
+        lines.append(f"Nodes: `{graph.get('nodes_count')}`")
+        lines.append(f"Edges: `{graph.get('edges_count')}`")
+        lines.append("")
+        lines.append("Dedicated artifacts:")
+        lines.append("- `ci_memory_graph.json`")
+        lines.append("- `ci_memory_graph.mmd`")
+        lines.append("")
+
     if report["invalid_events_count"]:
         lines.extend(["## Invalid events", ""])
         lines.append("| Event | Errors |")
@@ -745,11 +933,16 @@ def build_ci_memory(events_dir: Path, out_dir: Path) -> dict[str, Any]:
         json.dumps(report["temporal_layered_matrix"], indent=2, sort_keys=True),
         encoding="utf-8",
     )
+    (out_dir / "ci_memory_graph.json").write_text(
+        json.dumps(report["graph_network"], indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
     write_markdown(out_dir / "ci_memory_report.md", report)
     write_temporal_matrix_markdown(
         out_dir / "ci_memory_temporal_matrix.md",
         report["temporal_layered_matrix"],
     )
+    write_graph_mermaid(out_dir / "ci_memory_graph.mmd", report["graph_network"])
     return report
 
 
