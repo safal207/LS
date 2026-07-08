@@ -1,0 +1,18 @@
+{
+  "case_id": "pr824-ls-audit-v0.1",
+  "findings": [],
+  "limitations": [
+    "LS review status was PARTIAL.",
+    "LS aggregate verdict was COMMENT; normalized to INCOMPLETE.",
+    "Incomplete lane: `provider`: {'key': 'provider', 'reason': 'provider credential is not configured'}",
+    "At least one LS model execution lane was NOT_RUN."
+  ],
+  "model_attestation": {
+    "channel": "GITHUB_PR_COMMENT",
+    "model": "LS multi-model PR review",
+    "operator_note": "Extracted from repo-native LS multi-model PR review comment on PR #828 created at 2026-07-08T12:55:43Z; exact head 0b953d3428adca691421dddd861e20e1c0213b47.",
+    "provider": "LS"
+  },
+  "schema_version": "ls.manual_real_model_audit_report.v0.1",
+  "verdict": "INCOMPLETE"
+}
