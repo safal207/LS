@@ -11,6 +11,23 @@ import ci_memory
 
 
 class CIMemoryTest(unittest.TestCase):
+    def harmony_axis(self) -> dict[str, object]:
+        return {
+            "balance": "STRONG_HARMONY",
+            "project": "HARMONY",
+            "intermediate": "HARMONY",
+            "realization": "STRONG_HARMONY",
+            "chaos_sources": [
+                "schema-valid but audit-provenance-invalid LS response artifact",
+                "cross-PR source mismatch",
+            ],
+            "harmony_mechanisms": [
+                "append-only CI memory event",
+                "temporal replay ordered by observed_at",
+            ],
+            "transition": "PR #831 provenance chaos became a replayable CI memory guardrail.",
+        }
+
     def pr831_event(self) -> dict[str, object]:
         return {
             "schema_version": ci_memory.EVENT_SCHEMA_VERSION,
@@ -32,6 +49,7 @@ class CIMemoryTest(unittest.TestCase):
                 ".github/workflows/ls-response-validation.yml",
                 "tools/build_ls_audit_pack.py",
             ],
+            "harmony_axis": self.harmony_axis(),
         }
 
     def test_pr831_event_is_valid_known_failure(self) -> None:
@@ -44,9 +62,20 @@ class CIMemoryTest(unittest.TestCase):
         self.assertEqual(report["status"], "KNOWN_FAILURE_REPLAYED")
         self.assertEqual(report["known_failures_count"], 1)
         self.assertEqual(report["invalid_events_count"], 0)
+        self.assertEqual(report["timeline"][0]["harmony_balance"], "STRONG_HARMONY")
         self.assertEqual(
             report["known_failure_ids"],
             ["pr831-provenance-mismatch-v0.1"],
+        )
+
+    def test_replay_emits_harmony_axis_summary(self) -> None:
+        report = ci_memory.replay_events([self.pr831_event()])
+        self.assertEqual(report["harmony_axis"][0]["event_id"], "pr831-provenance-mismatch-v0.1")
+        self.assertEqual(report["harmony_axis"][0]["balance"], "STRONG_HARMONY")
+        self.assertEqual(report["harmony_axis"][0]["project"], "HARMONY")
+        self.assertIn(
+            "cross-PR source mismatch",
+            report["harmony_axis"][0]["chaos_sources"],
         )
 
     def test_duplicate_event_ids_are_rejected(self) -> None:
@@ -66,6 +95,24 @@ class CIMemoryTest(unittest.TestCase):
             "decision must be one of ['ALLOW_WITH_GUARDRAIL', 'BLOCK_MERGE', 'DOCUMENT_ONLY']",
             errors,
         )
+
+    def test_invalid_harmony_balance_is_rejected(self) -> None:
+        event = self.pr831_event()
+        harmony_axis = event["harmony_axis"]
+        self.assertIsInstance(harmony_axis, dict)
+        harmony_axis["balance"] = "COSMIC_VIBES"
+        errors = ci_memory.validate_event(event)
+        self.assertIn(
+            "harmony_axis.balance must be one of ['CHAOS', 'HARMONY', 'MIXED', 'STRONG_HARMONY']",
+            errors,
+        )
+
+    def test_missing_harmony_axis_is_rejected(self) -> None:
+        event = self.pr831_event()
+        del event["harmony_axis"]
+        errors = ci_memory.validate_event(event)
+        self.assertIn("missing fields: ['harmony_axis']", errors)
+        self.assertIn("harmony_axis must be an object", errors)
 
     def test_invalid_observed_at_is_rejected(self) -> None:
         event = self.pr831_event()
@@ -139,7 +186,16 @@ class CIMemoryTest(unittest.TestCase):
                 '    "head_sha": "0b953d3428adca691421dddd861e20e1c0213b47"\n'
                 '  },\n'
                 '  "decision": "BLOCK_MERGE",\n'
-                '  "evidence": ["audits/ls-responses/pr824/ls_response.json"]\n'
+                '  "evidence": ["audits/ls-responses/pr824/ls_response.json"],\n'
+                '  "harmony_axis": {\n'
+                '    "balance": "STRONG_HARMONY",\n'
+                '    "project": "HARMONY",\n'
+                '    "intermediate": "HARMONY",\n'
+                '    "realization": "STRONG_HARMONY",\n'
+                '    "chaos_sources": ["cross-PR source mismatch"],\n'
+                '    "harmony_mechanisms": ["append-only CI memory event"],\n'
+                '    "transition": "chaos became replayable CI memory"\n'
+                '  }\n'
                 '}\n',
                 encoding="utf-8",
             )
