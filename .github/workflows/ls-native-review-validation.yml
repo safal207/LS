@@ -1,0 +1,95 @@
+name: LS native review validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      review_pr_number:
+        description: PR number containing the repo-native LS multi-model review comment
+        required: true
+        default: "828"
+      target_pr_number:
+        description: Pull request number being audited
+        required: true
+        default: "824"
+      target_commit_sha:
+        description: Target commit SHA being audited
+        required: true
+        default: "f1cfdfbf5f648bc28434fb2f5a0cb77eb7e86666"
+      case_id:
+        description: Audit case id
+        required: true
+        default: "pr824-ls-audit-v0.1"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "tools/extract_ls_review_response.py"
+      - "tools/test_extract_ls_review_response.py"
+      - "tools/build_ls_audit_pack.py"
+      - ".github/workflows/ls-native-review-validation.yml"
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  validate-native-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run LS extraction tests
+        run: |
+          cd tools
+          python test_extract_ls_review_response.py
+
+      - name: Run audit pack builder tests
+        run: |
+          cd tools
+          python test_build_ls_audit_pack.py
+
+      - name: Fetch PR comments
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REVIEW_PR_NUMBER: ${{ github.event.inputs.review_pr_number || github.event.pull_request.number }}
+        run: |
+          mkdir -p artifacts/ls-audit
+          curl -fsSL \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues/$REVIEW_PR_NUMBER/comments?per_page=100" \
+            -o artifacts/ls-audit/pr_comments.json
+
+      - name: Extract repo-native LS response
+        env:
+          REVIEW_PR_NUMBER: ${{ github.event.inputs.review_pr_number || github.event.pull_request.number }}
+          CASE_ID: ${{ github.event.inputs.case_id || 'pr824-ls-audit-v0.1' }}
+        run: |
+          python tools/extract_ls_review_response.py \
+            --comments-json artifacts/ls-audit/pr_comments.json \
+            --case-id "$CASE_ID" \
+            --pr-number "$REVIEW_PR_NUMBER" \
+            --out artifacts/ls-audit/ls_response.json
+
+      - name: Validate extracted LS response
+        env:
+          TARGET_PR_NUMBER: ${{ github.event.inputs.target_pr_number || '824' }}
+          TARGET_COMMIT_SHA: ${{ github.event.inputs.target_commit_sha || 'f1cfdfbf5f648bc28434fb2f5a0cb77eb7e86666' }}
+          CASE_ID: ${{ github.event.inputs.case_id || 'pr824-ls-audit-v0.1' }}
+        run: |
+          python tools/build_ls_audit_pack.py \
+            --pr-number "$TARGET_PR_NUMBER" \
+            --commit-sha "$TARGET_COMMIT_SHA" \
+            --case-id "$CASE_ID" \
+            --ls-response-json artifacts/ls-audit/ls_response.json
+
+      - name: Upload native LS validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ls-native-review-validation
+          path: artifacts/ls-audit/
