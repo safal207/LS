@@ -44,6 +44,7 @@ python/data/
 artifacts/chat*/
 artifacts/council-ledger/*.json
 artifacts/council-quality/*.json
+artifacts/ls-audit/
 artifacts/relation-memory/
 artifacts/relational-episodes/
 artifacts/relational-learning/
