@@ -29,6 +29,8 @@ jobs:
       PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
       REVIEW_FILE: ${{ runner.temp }}/grok_review.md
       PATCH_FILE: ${{ runner.temp }}/pr.patch
+      XAI_MODEL: grok-4.5
+      PATCH_LIMIT_CHARS: "120000"
 
     steps:
       - name: Check xAI API key
@@ -58,58 +60,34 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --patch > "$PATCH_FILE"
 
-          cp "$PATCH_FILE" "$RUNNER_TEMP/pr.patch"
           echo "Patch size: $(wc -c < "$PATCH_FILE") bytes" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Install Grok CLI
-        if: ${{ steps.api_key.outputs.available == 'true' }}
-        run: |
-          set -euo pipefail
-
-          if npm view @xai-official/grok version >/dev/null 2>&1; then
-            npm install -g @xai-official/grok
-          else
-            curl -fsSL https://x.ai/cli/install.sh -o "$RUNNER_TEMP/xai-install.sh"
-            bash "$RUNNER_TEMP/xai-install.sh"
-          fi
-
-          {
-            echo "$HOME/.local/bin"
-            echo "$HOME/.xai/bin"
-            echo "$HOME/.grok/bin"
-            echo "$HOME/.config/xai/bin"
-          } >> "$GITHUB_PATH"
-
-      - name: Resolve Grok binary
-        if: ${{ steps.api_key.outputs.available == 'true' }}
-        run: |
-          set -euo pipefail
-
-          GROK_BIN="$(command -v grok || true)"
-
-          if [ -z "$GROK_BIN" ]; then
-            GROK_BIN="$(find "$HOME" -maxdepth 5 -type f -name grok -perm -111 2>/dev/null | head -n 1 || true)"
-          fi
-
-          if [ -z "$GROK_BIN" ]; then
-            echo "Could not find Grok CLI binary after installation." >&2
-            exit 1
-          fi
-
-          echo "GROK_BIN=$GROK_BIN" >> "$GITHUB_ENV"
-          "$GROK_BIN" --help | head -n 80 || true
-
-      - name: Run Grok review
+      - name: Run Grok review via xAI API
         if: ${{ steps.api_key.outputs.available == 'true' }}
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
         run: |
           set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+          import urllib.error
+          import urllib.request
 
-          cat > "$RUNNER_TEMP/grok_prompt.md" <<'PROMPT'
+          patch_path = pathlib.Path(os.environ["PATCH_FILE"])
+          review_path = pathlib.Path(os.environ["REVIEW_FILE"])
+          limit = int(os.environ.get("PATCH_LIMIT_CHARS", "120000"))
+          patch = patch_path.read_text(encoding="utf-8", errors="replace")
+          original_len = len(patch)
+          if len(patch) > limit:
+              patch = patch[:limit] + "\n\n[PATCH TRUNCATED FOR COST/CONTEXT LIMITS]"
+
+          prompt = f"""
           You are an advisory pull-request reviewer for the LS project.
 
-          Review the PR patch provided on stdin as a strict senior QA engineer, code reviewer, and CI-risk analyst.
+          Review the PR patch below as a strict senior QA engineer, code reviewer, and CI-risk analyst.
 
           Scope:
           - real bugs and regressions
@@ -132,12 +110,57 @@ jobs:
           - Do not request changes for style-only opinions.
           - Prefer COMMENT when evidence is uncertain.
           - Treat this as advisory only; do not attempt to modify files.
-          PROMPT
 
-          PROMPT_TEXT="$(cat "$RUNNER_TEMP/grok_prompt.md")"
+          PR PATCH:
+          ```patch
+          {patch}
+          ```
+          """.strip()
 
-          cd "$RUNNER_TEMP"
-          "$GROK_BIN" -p "$PROMPT_TEXT" < "$PATCH_FILE" > "$REVIEW_FILE"
+          payload = {
+              "model": os.environ.get("XAI_MODEL", "grok-4.5"),
+              "input": prompt,
+          }
+
+          request = urllib.request.Request(
+              "https://api.x.ai/v1/responses",
+              data=json.dumps(payload).encode("utf-8"),
+              headers={
+                  "Authorization": f"Bearer {os.environ['XAI_API_KEY']}",
+                  "Content-Type": "application/json",
+              },
+              method="POST",
+          )
+
+          try:
+              with urllib.request.urlopen(request, timeout=240) as response:
+                  raw = response.read().decode("utf-8", errors="replace")
+          except urllib.error.HTTPError as exc:
+              error_body = exc.read().decode("utf-8", errors="replace")
+              print(f"xAI API HTTP {exc.code}", file=sys.stderr)
+              print(error_body[:4000], file=sys.stderr)
+              raise
+
+          data = json.loads(raw)
+          text = data.get("output_text")
+
+          if not text:
+              chunks = []
+              for item in data.get("output", []) or []:
+                  if not isinstance(item, dict):
+                      continue
+                  for content in item.get("content", []) or []:
+                      if isinstance(content, dict) and "text" in content:
+                          chunks.append(content.get("text") or "")
+              text = "\n".join(chunks).strip()
+
+          if not text:
+              text = "_Grok response did not contain output_text. Raw response excerpt:_\n\n```json\n" + json.dumps(data, indent=2)[:10000] + "\n```"
+
+          header = f"_Model: `{payload['model']}`. Patch chars: `{original_len}`; sent chars: `{len(patch)}`._\n\n"
+          review_path.write_text(header + text, encoding="utf-8")
+          print(f"Review written to {review_path}")
+          PY
 
       - name: Truncate long review for GitHub comment
         if: ${{ steps.api_key.outputs.available == 'true' }}
