@@ -495,8 +495,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
         for item in report["trajectory_axis"]:
             lines.append(f"#### `{item['event_id']}`")
             lines.append("")
-            path = " → ".join(item["transition_path"])
-            lines.append(f"Path: `{path}`")
+            transition_path = " → ".join(item["transition_path"])
+            lines.append(f"Path: `{transition_path}`")
             lines.append("")
             lines.append(item["trajectory_summary"])
             lines.append("")
