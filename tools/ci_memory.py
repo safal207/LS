@@ -30,6 +30,16 @@ REQUIRED_EVENT_FIELDS = {
     "source",
     "decision",
     "evidence",
+    "harmony_axis",
+}
+REQUIRED_HARMONY_AXIS_FIELDS = {
+    "balance",
+    "project",
+    "intermediate",
+    "realization",
+    "chaos_sources",
+    "harmony_mechanisms",
+    "transition",
 }
 
 BLOCKING_EVENT_TYPES = {
@@ -40,6 +50,12 @@ VALID_DECISIONS = {
     "BLOCK_MERGE",
     "DOCUMENT_ONLY",
     "ALLOW_WITH_GUARDRAIL",
+}
+VALID_HARMONY_BALANCES = {
+    "CHAOS",
+    "MIXED",
+    "HARMONY",
+    "STRONG_HARMONY",
 }
 
 
@@ -101,6 +117,54 @@ def load_events(events_dir: Path) -> list[dict[str, Any]]:
     return sorted(events, key=event_sort_key)
 
 
+def validate_string_list(value: Any, field_name: str) -> list[str]:
+    if not isinstance(value, list):
+        return [f"{field_name} must be a list"]
+    if not all(isinstance(item, str) and item for item in value):
+        return [f"{field_name} must contain only non-empty strings"]
+    return []
+
+
+def validate_harmony_axis(event: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    axis = event.get("harmony_axis")
+    if not isinstance(axis, dict):
+        return ["harmony_axis must be an object"]
+
+    missing = REQUIRED_HARMONY_AXIS_FIELDS - axis.keys()
+    if missing:
+        errors.append(f"harmony_axis missing fields: {sorted(missing)}")
+
+    for field in ("balance", "project", "intermediate", "realization"):
+        if axis.get(field) not in VALID_HARMONY_BALANCES:
+            errors.append(f"harmony_axis.{field} must be one of {sorted(VALID_HARMONY_BALANCES)}")
+
+    errors.extend(validate_string_list(axis.get("chaos_sources"), "harmony_axis.chaos_sources"))
+    errors.extend(
+        validate_string_list(axis.get("harmony_mechanisms"), "harmony_axis.harmony_mechanisms")
+    )
+    if not isinstance(axis.get("transition"), str) or not axis.get("transition"):
+        errors.append("harmony_axis.transition must be a non-empty string")
+
+    return errors
+
+
+def harmony_axis_summary(event: dict[str, Any]) -> dict[str, Any]:
+    axis = event.get("harmony_axis")
+    if not isinstance(axis, dict):
+        return {}
+    return {
+        "event_id": event.get("event_id"),
+        "balance": axis.get("balance"),
+        "project": axis.get("project"),
+        "intermediate": axis.get("intermediate"),
+        "realization": axis.get("realization"),
+        "chaos_sources": axis.get("chaos_sources", []),
+        "harmony_mechanisms": axis.get("harmony_mechanisms", []),
+        "transition": axis.get("transition"),
+    }
+
+
 def validate_event(event: dict[str, Any]) -> list[str]:
     errors: list[str] = list(event.get("_load_errors", []))
     missing = REQUIRED_EVENT_FIELDS - event.keys()
@@ -152,6 +216,7 @@ def validate_event(event: dict[str, Any]) -> list[str]:
     elif not all(isinstance(item, str) and item for item in evidence):
         errors.append("evidence must contain only non-empty strings")
 
+    errors.extend(validate_harmony_axis(event))
     return errors
 
 
@@ -172,6 +237,7 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     ordered_events = sorted(events, key=event_sort_key)
     validation: list[dict[str, Any]] = []
     known_failures: list[dict[str, Any]] = []
+    harmony_axis: list[dict[str, Any]] = []
     event_ids: set[str] = set()
 
     for index, event in enumerate(ordered_events, start=1):
@@ -191,6 +257,8 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
                 "errors": errors,
             }
         )
+        if not errors:
+            harmony_axis.append(harmony_axis_summary(event))
         if not errors and is_known_failure(event):
             known_failures.append(event)
 
@@ -218,9 +286,15 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
                 "observed_at": event.get("observed_at"),
                 "observed_in_pr": event.get("observed_in_pr"),
                 "decision": event.get("decision"),
+                "harmony_balance": (
+                    event.get("harmony_axis", {}).get("balance")
+                    if isinstance(event.get("harmony_axis"), dict)
+                    else None
+                ),
             }
             for index, event in enumerate(ordered_events, start=1)
         ],
+        "harmony_axis": harmony_axis,
         "validation": validation,
         "known_failures": known_failures,
     }
@@ -251,15 +325,40 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     if not report["timeline"]:
         lines.append("No CI memory events found.")
     else:
-        lines.append("| # | Event | Type | Observed at | PR | Decision |")
-        lines.append("|---:|---|---|---|---:|---|")
+        lines.append("| # | Event | Type | Observed at | PR | Decision | Balance |")
+        lines.append("|---:|---|---|---|---:|---|---|")
         for item in report["timeline"]:
             lines.append(
                 f"| {item['replay_index']} | `{item['event_id']}` | "
                 f"`{item['event_type']}` | `{item['observed_at']}` | "
-                f"#{item['observed_in_pr']} | `{item['decision']}` |"
+                f"#{item['observed_in_pr']} | `{item['decision']}` | "
+                f"`{item['harmony_balance']}` |"
             )
     lines.append("")
+
+    if report["harmony_axis"]:
+        lines.extend(["## Harmony / Chaos Axis", ""])
+        lines.append("| Event | Balance | Project | Intermediate | Realization | Transition |")
+        lines.append("|---|---|---|---|---|---|")
+        for item in report["harmony_axis"]:
+            lines.append(
+                f"| `{item['event_id']}` | `{item['balance']}` | `{item['project']}` | "
+                f"`{item['intermediate']}` | `{item['realization']}` | {item['transition']} |"
+            )
+        lines.append("")
+        lines.append("### Chaos sources and harmony mechanisms")
+        lines.append("")
+        for item in report["harmony_axis"]:
+            lines.append(f"#### `{item['event_id']}`")
+            lines.append("")
+            lines.append("Chaos sources:")
+            for source in item["chaos_sources"]:
+                lines.append(f"- {source}")
+            lines.append("")
+            lines.append("Harmony mechanisms:")
+            for mechanism in item["harmony_mechanisms"]:
+                lines.append(f"- {mechanism}")
+            lines.append("")
 
     if report["invalid_events_count"]:
         lines.extend(["## Invalid events", ""])
