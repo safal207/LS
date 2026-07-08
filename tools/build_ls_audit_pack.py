@@ -178,20 +178,22 @@ def validate_ls_response(report: Any, expected_case_id: str) -> list[str]:
 
 def build_scorecard(
     case_id: str,
-    report: dict[str, Any] | None,
+    report: Any,
     errors: list[str],
 ) -> dict[str, Any]:
-    if report is None:
+    if errors:
         ls_status: dict[str, Any] = {
-            "status": "PENDING",
-            "reason": "No LS response JSON was provided.",
-        }
-    elif errors:
-        ls_status = {
             "status": "INVALID_REPORT",
             "errors": errors,
         }
+    elif report is None:
+        ls_status = {
+            "status": "PENDING",
+            "reason": "No LS response JSON was provided.",
+        }
     else:
+        if not isinstance(report, dict):
+            raise TypeError("valid LS report must be an object")
         ls_status = {
             "status": "VALID_REPORT",
             "verdict": report["verdict"],
@@ -260,8 +262,14 @@ def main() -> int:
         response_path = Path(args.ls_response_json)
         if not response_path.is_absolute():
             response_path = ROOT / response_path
-        report = json.loads(response_path.read_text(encoding="utf-8"))
-        errors = validate_ls_response(report, args.case_id)
+        try:
+            report = json.loads(response_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            errors = [
+                f"ls response JSON is invalid: {exc.msg} at line {exc.lineno} column {exc.colno}"
+            ]
+        else:
+            errors = validate_ls_response(report, args.case_id)
         (out_dir / "ls_response_validation.json").write_text(
             json.dumps({"valid": not errors, "errors": errors}, indent=2, sort_keys=True),
             encoding="utf-8",
@@ -269,7 +277,7 @@ def main() -> int:
 
     scorecard = build_scorecard(
         args.case_id,
-        report if isinstance(report, dict) else None,
+        report,
         errors,
     )
     (out_dir / "comparison_scorecard.json").write_text(

@@ -71,6 +71,19 @@ class LSAuditPackBuilderTest(unittest.TestCase):
         self.assertEqual(scorecard["case_id"], "case-x")
         self.assertEqual(scorecard["ls_result"]["status"], "PENDING")
 
+    def test_build_scorecard_marks_invalid_non_object_report(self) -> None:
+        scorecard = audit_pack.build_scorecard(
+            "case-x",
+            [],
+            ["report must be an object"],
+        )
+        self.assertEqual(scorecard["case_id"], "case-x")
+        self.assertEqual(scorecard["ls_result"]["status"], "INVALID_REPORT")
+        self.assertEqual(
+            scorecard["ls_result"]["errors"],
+            ["report must be an object"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
