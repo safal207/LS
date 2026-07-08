@@ -39,6 +39,44 @@ class LSAuditPackBuilderTest(unittest.TestCase):
             "limitations": [],
         }
 
+    def pr831_style_report(self) -> dict[str, object]:
+        """Report shape that caused PR #831's temporal provenance defect."""
+        return {
+            "schema_version": "ls.manual_real_model_audit_report.v0.1",
+            "case_id": audit_pack.DEFAULT_CASE_ID,
+            "subject": {
+                "repository": audit_pack.REPOSITORY,
+                "pr_number": audit_pack.DEFAULT_PR_NUMBER,
+                "commit_sha": audit_pack.DEFAULT_COMMIT_SHA,
+            },
+            "source": {
+                "type": "GITHUB_PR_COMMENT",
+                "reviewed_pr_number": 828,
+                "reviewed_commit_sha": "0b953d3428adca691421dddd861e20e1c0213b47",
+                "source_pr_number": 828,
+                "source_comment_id": 4914994285,
+                "source_head_sha": "0b953d3428adca691421dddd861e20e1c0213b47",
+            },
+            "model_attestation": {
+                "provider": "LS",
+                "model": "LS multi-model PR review",
+                "channel": "GITHUB_PR_COMMENT",
+                "operator_note": (
+                    "Extracted from repo-native LS multi-model PR review comment on "
+                    "PR #828 created at 2026-07-08T12:55:43Z; exact head "
+                    "0b953d3428adca691421dddd861e20e1c0213b47."
+                ),
+            },
+            "verdict": "INCOMPLETE",
+            "findings": [],
+            "limitations": [
+                "LS review status was PARTIAL.",
+                "LS aggregate verdict was COMMENT; normalized to INCOMPLETE.",
+                "Incomplete lane: `provider`: {'key': 'provider', 'reason': 'provider credential is not configured'}",
+                "At least one LS model execution lane was NOT_RUN.",
+            ],
+        }
+
     def test_valid_report_passes_validation(self) -> None:
         errors = audit_pack.validate_ls_response(
             self.valid_report(),
@@ -87,6 +125,31 @@ class LSAuditPackBuilderTest(unittest.TestCase):
             f"{audit_pack.DEFAULT_COMMIT_SHA!r}",
             errors,
         )
+
+    def test_pr831_style_cross_pr_source_is_provenance_mismatch(self) -> None:
+        errors = audit_pack.validate_ls_response(
+            self.pr831_style_report(),
+            audit_pack.DEFAULT_CASE_ID,
+            audit_pack.DEFAULT_PR_NUMBER,
+            audit_pack.DEFAULT_COMMIT_SHA,
+        )
+        self.assertIn("provenance mismatch: source.reviewed_pr_number must be 824", errors)
+        self.assertIn(
+            "provenance mismatch: source.reviewed_commit_sha must be "
+            f"{audit_pack.DEFAULT_COMMIT_SHA!r}",
+            errors,
+        )
+        self.assertIn(
+            "provenance mismatch: source.source_head_sha must match "
+            f"{audit_pack.DEFAULT_COMMIT_SHA!r}",
+            errors,
+        )
+        scorecard = audit_pack.build_scorecard(
+            audit_pack.DEFAULT_CASE_ID,
+            self.pr831_style_report(),
+            errors,
+        )
+        self.assertEqual(scorecard["ls_result"]["status"], "PROVENANCE_MISMATCH")
 
     def test_provenance_errors_get_distinct_scorecard_status(self) -> None:
         scorecard = audit_pack.build_scorecard(
