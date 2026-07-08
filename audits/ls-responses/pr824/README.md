@@ -16,7 +16,15 @@ That file should be created only after an actual LS run has reviewed the audit p
 
 ## Expected shape
 
-Use `ls_response.example.json` only as a format guide. Copy it to `ls_response.json` and replace every value with the real LS run output.
+Use the generated `ls_audit_expected_schema.json` artifact from the `LS audit pack` workflow as the response contract reference.
+
+The real LS response must use:
+
+```text
+schema_version: ls.manual_real_model_audit_report.v0.1
+case_id: pr824-ls-audit-v0.1
+verdict: APPROVE | REQUEST_CHANGES | INCOMPLETE
+```
 
 ## Validation
 
