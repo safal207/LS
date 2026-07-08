@@ -27,8 +27,8 @@ jobs:
 
     env:
       PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
-      REVIEW_FILE: ${{ runner.temp }}/grok_review.md
-      PATCH_FILE: ${{ runner.temp }}/pr.patch
+      REVIEW_FILE: /tmp/grok_review.md
+      PATCH_FILE: /tmp/pr.patch
       XAI_MODEL: grok-latest
       PATCH_LIMIT_CHARS: "60000"
 
