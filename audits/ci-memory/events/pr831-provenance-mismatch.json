@@ -1,0 +1,23 @@
+{
+  "schema_version": "ls.ci_memory_event.v0.1",
+  "event_id": "pr831-provenance-mismatch-v0.1",
+  "event_type": "PROVENANCE_MISMATCH",
+  "observed_at": "2026-07-08T16:32:31Z",
+  "observed_in_pr": 831,
+  "subject": {
+    "pr_number": 824,
+    "commit_sha": "f1cfdfbf5f648bc28434fb2f5a0cb77eb7e86666"
+  },
+  "source": {
+    "pr_number": 828,
+    "head_sha": "0b953d3428adca691421dddd861e20e1c0213b47"
+  },
+  "decision": "BLOCK_MERGE",
+  "evidence": [
+    "audits/ls-responses/pr824/ls_response.json",
+    ".github/workflows/ls-response-validation.yml",
+    "tools/build_ls_audit_pack.py",
+    "https://github.com/safal207/LS/pull/831"
+  ],
+  "summary": "PR #831 attempted to commit a canonical PR #824 LS response whose source attestation pointed to PR #828/head 0b953d3428adca691421dddd861e20e1c0213b47. This is schema-valid but audit-provenance-invalid and must remain a remembered blocking failure class."
+}
