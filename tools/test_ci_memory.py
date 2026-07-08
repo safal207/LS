@@ -43,6 +43,7 @@ class CIMemoryTest(unittest.TestCase):
         report = ci_memory.replay_events([self.pr831_event()])
         self.assertEqual(report["status"], "KNOWN_FAILURE_REPLAYED")
         self.assertEqual(report["known_failures_count"], 1)
+        self.assertEqual(report["invalid_events_count"], 0)
         self.assertEqual(
             report["known_failure_ids"],
             ["pr831-provenance-mismatch-v0.1"],
@@ -50,11 +51,49 @@ class CIMemoryTest(unittest.TestCase):
 
     def test_duplicate_event_ids_are_rejected(self) -> None:
         report = ci_memory.replay_events([self.pr831_event(), self.pr831_event()])
+        self.assertEqual(report["status"], "INVALID_EVENTS")
         self.assertFalse(report["validation"][1]["valid"])
         self.assertIn(
             "duplicate event_id: pr831-provenance-mismatch-v0.1",
             report["validation"][1]["errors"],
         )
+
+    def test_invalid_decision_is_rejected(self) -> None:
+        event = self.pr831_event()
+        event["decision"] = "YOLO_MERGE"
+        errors = ci_memory.validate_event(event)
+        self.assertIn(
+            "decision must be one of ['ALLOW_WITH_GUARDRAIL', 'BLOCK_MERGE', 'DOCUMENT_ONLY']",
+            errors,
+        )
+
+    def test_invalid_json_file_does_not_crash_replay(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            events_dir = root / "events"
+            events_dir.mkdir()
+            bad_path = events_dir / "bad.json"
+            bad_path.write_text('{"schema_version": ', encoding="utf-8")
+
+            events = ci_memory.load_events(events_dir)
+            self.assertEqual(len(events), 1)
+            report = ci_memory.replay_events(events)
+            self.assertEqual(report["status"], "INVALID_EVENTS")
+            self.assertEqual(report["invalid_events_count"], 1)
+            self.assertIn("invalid JSON", report["validation"][0]["errors"][0])
+
+    def test_non_object_json_file_does_not_crash_replay(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            events_dir = root / "events"
+            events_dir.mkdir()
+            bad_path = events_dir / "array.json"
+            bad_path.write_text("[]", encoding="utf-8")
+
+            events = ci_memory.load_events(events_dir)
+            report = ci_memory.replay_events(events)
+            self.assertEqual(report["status"], "INVALID_EVENTS")
+            self.assertIn("event must be an object", report["validation"][0]["errors"][0])
 
     def test_build_ci_memory_writes_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
