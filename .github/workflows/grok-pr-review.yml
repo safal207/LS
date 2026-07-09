@@ -12,7 +12,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: read
   issues: write
 
 concurrency:
@@ -23,25 +23,58 @@ jobs:
   grok-review:
     name: Advisory Grok review
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false }}
 
     env:
       PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
       REVIEW_FILE: /tmp/grok_review.md
       PATCH_FILE: /tmp/pr.patch
+      PATCH_ERROR_FILE: /tmp/pr.patch.err
       XAI_MODEL: grok-latest
       PATCH_LIMIT_CHARS: "60000"
 
     steps:
       - name: Initialize diagnostic file
+        timeout-minutes: 1
         run: |
           printf '%s\n\n%s\n' \
             '⚠️ Grok PR Review did not complete.' \
             'The workflow started but has not written a final result yet.' \
             > "$REVIEW_FILE"
 
+      - name: Validate pull request input
+        id: pr
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          pr_json="$(gh pr view "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json number,state,isDraft,headRefName,baseRefName \
+            2>"$PATCH_ERROR_FILE")"
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            error_excerpt="$(head -c 4000 "$PATCH_ERROR_FILE" || true)"
+            printf '%s\n\n%s\n\n```text\n%s\n```\n' \
+              '⚠️ Could not validate PR input.' \
+              "PR number \`$PR_NUMBER\` could not be loaded from \`$GITHUB_REPOSITORY\`." \
+              "$error_excerpt" \
+              > "$REVIEW_FILE"
+            exit 0
+          fi
+
+          echo "valid=true" >> "$GITHUB_OUTPUT"
+          echo "Validated PR: $pr_json" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Check xAI API key
         id: api_key
+        if: ${{ steps.pr.outputs.valid == 'true' }}
+        timeout-minutes: 1
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
         run: |
@@ -57,21 +90,48 @@ jobs:
           echo "available=true" >> "$GITHUB_OUTPUT"
 
       - name: Prepare PR patch
-        if: ${{ steps.api_key.outputs.available == 'true' }}
-        continue-on-error: true
+        id: patch
+        if: ${{ steps.pr.outputs.valid == 'true' && steps.api_key.outputs.available == 'true' }}
+        timeout-minutes: 3
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
+          set +e
           gh pr diff "$PR_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
-            --patch > "$PATCH_FILE"
+            --patch > "$PATCH_FILE" 2> "$PATCH_ERROR_FILE"
+          status=$?
+          set -e
 
+          if [ "$status" -ne 0 ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            error_excerpt="$(head -c 4000 "$PATCH_ERROR_FILE" || true)"
+            printf '%s\n\n%s\n\nExit code: `%s`\n\n```text\n%s\n```\n' \
+              '⚠️ Could not prepare PR patch.' \
+              "The \`gh pr diff\` command failed for PR \`$PR_NUMBER\`." \
+              "$status" \
+              "$error_excerpt" \
+              > "$REVIEW_FILE"
+            exit 0
+          fi
+
+          if [ ! -s "$PATCH_FILE" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            printf '%s\n\n%s\n' \
+              '⚠️ No patch content to review.' \
+              "The patch for PR \`$PR_NUMBER\` was empty, so Grok was not called." \
+              > "$REVIEW_FILE"
+            echo "Patch size: 0 bytes" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "available=true" >> "$GITHUB_OUTPUT"
           echo "Patch size: $(wc -c < "$PATCH_FILE") bytes" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run Grok review via xAI Chat API
-        if: ${{ steps.api_key.outputs.available == 'true' }}
+        if: ${{ steps.pr.outputs.valid == 'true' && steps.api_key.outputs.available == 'true' && steps.patch.outputs.available == 'true' }}
         continue-on-error: true
+        timeout-minutes: 8
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
         run: |
@@ -99,7 +159,7 @@ jobs:
               if not patch_path.exists():
                   write_diagnostic(
                       "Could not prepare PR patch.",
-                      f"`{patch_path}` does not exist. The `gh pr diff` step probably failed for PR `{os.environ.get('PR_NUMBER')}`.",
+                      f"`{patch_path}` does not exist. The patch step probably failed for PR `{os.environ.get('PR_NUMBER')}`.",
                   )
                   raise SystemExit(0)
 
@@ -164,7 +224,7 @@ jobs:
               )
 
               try:
-                  with urllib.request.urlopen(request, timeout=240) as response:
+                  with urllib.request.urlopen(request, timeout=420) as response:
                       raw = response.read().decode("utf-8", errors="replace")
               except urllib.error.HTTPError as exc:
                   error_body = exc.read().decode("utf-8", errors="replace")
@@ -192,6 +252,7 @@ jobs:
 
       - name: Ensure review file exists
         if: always()
+        timeout-minutes: 1
         run: |
           if [ ! -s "$REVIEW_FILE" ]; then
             printf '%s\n\n%s\n' \
@@ -202,6 +263,7 @@ jobs:
 
       - name: Truncate long review for GitHub comment
         if: always()
+        timeout-minutes: 1
         run: |
           set -euo pipefail
           MAX_CHARS=58000
@@ -216,7 +278,8 @@ jobs:
           fi
 
       - name: Upsert PR comment
-        if: always()
+        if: ${{ always() && (github.event_name != 'workflow_dispatch' || steps.pr.outputs.valid == 'true') }}
+        timeout-minutes: 2
         uses: actions/github-script@v7
         env:
           REVIEW_FILE: ${{ env.REVIEW_FILE }}
@@ -231,29 +294,41 @@ jobs:
 
             const body = `${marker}\n## 🤖 Grok PR Review — advisory\n\n${review || '_Grok returned an empty review._'}\n\n---\n_Mode: advisory only. This comment does not block merge._`;
 
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number,
-              per_page: 100,
-            });
-
-            const existing = comments.find(comment =>
-              comment.user?.type === 'Bot' && comment.body?.includes(marker)
-            );
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, {
                 owner,
                 repo,
                 issue_number,
-                body,
+                per_page: 100,
               });
+
+              const existing = comments.find(comment =>
+                comment.user?.type === 'Bot' && comment.body?.includes(marker)
+              );
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number,
+                  body,
+                });
+              }
+            } catch (error) {
+              if (error.status === 404) {
+                core.warning(`Could not upsert Grok comment because PR/issue ${issue_number} was not found.`);
+                await core.summary
+                  .addHeading('Grok PR Review comment was not posted')
+                  .addRaw(`PR/issue ${issue_number} was not found. This is treated as a non-blocking diagnostic outcome.`)
+                  .write();
+                return;
+              }
+              throw error;
             }
