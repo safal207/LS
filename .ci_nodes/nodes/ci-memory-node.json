@@ -1,0 +1,9 @@
+{
+  "schema_version": "ls.ci_node.v0.1",
+  "node_id": "ls.ci_memory",
+  "repo": "safal207/LS",
+  "type": "memory_node",
+  "authority": "evidence_only",
+  "known_exports": ["ci_memory_report", "ci_memory_graph.json", "ci_memory_graph.mmd"],
+  "evidence_refs": ["#838"]
+}
