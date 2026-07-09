@@ -17,7 +17,7 @@ sentence-transformers>=2.2.2
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.10.0+cpu
 cryptography>=46.0.7
-Pillow>=12.2.0
+Pillow>=12.3.0
 
 # Security fixes for transitive dependencies (Dependabot alerts)
 python-multipart>=0.0.21
