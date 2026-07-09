@@ -1,0 +1,71 @@
+{
+  "schema_version": "ls.agent_context.v0.1",
+  "context_id": "ls.agent_context.latest",
+  "generated_from": [
+    ".ci_nodes/registry.json",
+    ".ci_exchange/routes/grok-review-command-bus.route.json",
+    ".ci_exchange/contexts/connector-safe-command-bus.context.json",
+    "docs/CI_NODE_MESH.md"
+  ],
+  "summary": "Use the PR-backed command-file route for connector-safe Grok review requests. Earlier connector issue-comment, branch-push, and pull_request_target attempts did not provide the same observable end-to-end confirmation in LS.",
+  "known_working_routes": [
+    {
+      "route_id": "ls.route.grok_review.command_pr_pull_request",
+      "description": "Create or update a same-repository command PR whose branch starts with ci/grok-review-command and whose diff changes .github/grok-review-command.json. The pull_request workflow reads the JSON command, publishes source diagnostic, target ack, Grok review, and target result markers.",
+      "route_export": ".ci_exchange/routes/grok-review-command-bus.route.json",
+      "confidence": "medium_high",
+      "evidence_refs": ["#847", "#848", "workflow_run:29027359506"],
+      "observable_markers": [
+        "grok-review-command-bus-source-diagnostic",
+        "grok-review-command-bus-ack",
+        "grok-review-command-bus-result"
+      ]
+    }
+  ],
+  "known_bad_routes": [
+    {
+      "route_id": "connector_issue_comment_command",
+      "description": "Connector-created issue comments appeared in GitHub but did not reliably produce command acknowledgement markers in LS smoke tests.",
+      "replacement": "ls.route.grok_review.command_pr_pull_request",
+      "evidence_refs": ["#842", "#843", "#838 smoke target"],
+      "confidence": "medium_high"
+    },
+    {
+      "route_id": "connector_push_command_branch",
+      "description": "Connector-created command-file branch updates wrote the JSON command but did not produce the expected target acknowledgement marker in the observed smoke.",
+      "replacement": "ls.route.grok_review.command_pr_pull_request",
+      "evidence_refs": ["#844", "#838 smoke target"],
+      "confidence": "medium_high"
+    },
+    {
+      "route_id": "pull_request_target_command_pr",
+      "description": "The command PR existed, but the expected source diagnostic marker did not appear in the observed smoke.",
+      "replacement": "ls.route.grok_review.command_pr_pull_request",
+      "evidence_refs": ["#845", "#847 before #848"],
+      "confidence": "medium"
+    }
+  ],
+  "next_recommended_action": "For new connector-safe review requests, create or update a same-repository command PR using the pull_request command-file route. Watch for source diagnostic first, then target ack, then target result.",
+  "authority_boundary": "This file is advisory memory for agents. It does not approve, merge, deploy, or replace human review.",
+  "evidence": [
+    {"kind": "issue", "ref": "#846", "description": "Internet CI / CI Node Mesh epic."},
+    {"kind": "pull_request", "ref": "#847", "description": "Validation-only command PR closed unmerged after successful smoke."},
+    {"kind": "pull_request", "ref": "#848", "description": "Merged command-bus switch to pull_request route."},
+    {"kind": "pull_request", "ref": "#849", "description": "Merged CI Node Mesh registry and route export."},
+    {"kind": "workflow_run", "ref": "29027359506", "description": "Successful command-bus smoke run."}
+  ],
+  "valid_for": [
+    "LS repository",
+    "GitHub connector",
+    "same-repository command PRs",
+    "advisory Grok review command bus",
+    "CI route memory"
+  ],
+  "not_validated_for": [
+    "forked command PRs",
+    "GitLab",
+    "Bitbucket",
+    "self-hosted runners",
+    "production deployment commands"
+  ]
+}
