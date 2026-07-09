@@ -1,7 +1,7 @@
 name: Grok PR Review Command Bus
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, reopened]
     branches:
       - main
@@ -235,7 +235,7 @@ jobs:
             const valid = process.env.VALID === 'true';
             const marker = 'grok-review-command-bus-ack';
             const status = valid ? 'accepted' : 'invalid-target';
-            const body = `## 🤖 Grok command bus acknowledgement\n\nMarker: \`${marker}\`\nStatus: \`${status}\`\nTarget PR: #${issue_number}\nSource command PR: #${process.env.SOURCE_PR_NUMBER}\nRequested by: \`${process.env.REQUESTED_BY || 'connector'}\`\nNonce: \`${process.env.NONCE || ''}\`\nRun: \`${context.runId}\`\n\n${valid ? 'The PR-backed command bus accepted this request and will continue with patch preparation and advisory Grok review.' : 'The command bus received the request, but target PR validation did not pass.'}`;
+            const body = `## 🤖 Grok command bus acknowledgement\n\nMarker: \`${marker}\`\nStatus: \`${status}\`\nTarget PR: #${issue_number}\nSource command PR: #${process.env.SOURCE_PR_NUMBER}\nRequested by: \`${process.env.REQUESTED_BY || 'connector'}\`\nNonce: \`${process.env.NONCE || ''}\`\nRun: \`${context.runId}\`\n\n${valid ? 'The pull_request command bus accepted this request and will continue with patch preparation and advisory Grok review.' : 'The command bus received the request, but target PR validation did not pass.'}`;
             const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
             const existing = comments.find((comment) => comment.body?.includes(`Marker: \`${marker}\``) && comment.body?.includes(`Nonce: \`${process.env.NONCE || ''}\``));
             if (existing) {
