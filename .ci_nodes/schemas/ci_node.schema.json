@@ -3,7 +3,7 @@
   "$id": "https://ls.local/schemas/ci_node.schema.json",
   "title": "LS CI Node Manifest",
   "type": "object",
-  "required": ["schema_version", "node_id", "repo", "type", "authority", "inputs", "outputs", "safety"],
+  "required": ["schema_version", "node_id", "repo", "type", "authority"],
   "additionalProperties": true,
   "properties": {
     "schema_version": {"type": "string"},
@@ -25,12 +25,19 @@
     "outputs": {"type": "object"},
     "safety": {
       "type": "object",
-      "required": ["executes_untrusted_code", "merge_authority"],
+      "additionalProperties": true,
       "properties": {
-        "executes_untrusted_code": {"type": "boolean"},
         "merge_authority": {"type": "boolean"},
         "advisory_only": {"type": "boolean"}
       }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "known_exports": {
+      "type": "array",
+      "items": {"type": "string"}
     }
   }
 }
