@@ -1,0 +1,59 @@
+{
+  "schema_version": "ls.ci_exchange.health.v0.1",
+  "report_id": "ls.ci_exchange.health.latest",
+  "status": "pass",
+  "summary": "CI Exchange metadata is internally consistent.",
+  "checks": [
+    {
+      "name": "metadata_validator",
+      "status": "pass",
+      "error_count": 0
+    },
+    {
+      "name": "registry",
+      "status": "pass",
+      "node_count": 3,
+      "manifest_count": 3
+    },
+    {
+      "name": "routes",
+      "status": "pass",
+      "route_count": 1
+    },
+    {
+      "name": "contexts",
+      "status": "pass",
+      "context_count": 1
+    },
+    {
+      "name": "anti_patterns",
+      "status": "pass",
+      "anti_pattern_count": 1
+    },
+    {
+      "name": "agent_context",
+      "status": "pass",
+      "generated_from_count": 4,
+      "known_working_route_count": 1,
+      "known_bad_route_count": 3
+    }
+  ],
+  "counts": {
+    "nodes": 3,
+    "node_manifests": 3,
+    "routes": 1,
+    "contexts": 1,
+    "anti_patterns": 1,
+    "agent_context_sources": 4,
+    "known_working_routes": 1,
+    "known_bad_routes": 3
+  },
+  "errors": [],
+  "sources": {
+    "registry": ".ci_nodes/registry.json",
+    "agent_context": ".ci_exchange/agent_context.latest.json",
+    "routes_dir": ".ci_exchange/routes",
+    "contexts_dir": ".ci_exchange/contexts",
+    "anti_patterns_dir": ".ci_exchange/anti_patterns"
+  }
+}
