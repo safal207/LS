@@ -42,7 +42,7 @@ def build_agent_context(repo_root: Path = ROOT) -> dict[str, Any]:
             ),
             "route_export": str(ROUTE_PATH),
             "confidence": route.get("confidence", "medium"),
-            "evidence_refs": [item.get("ref", "") for item in route.get("evidence", [])],
+            "evidence_refs": _working_route_evidence_refs(route.get("evidence", [])),
             "observable_markers": markers,
         }
     ]
@@ -52,17 +52,18 @@ def build_agent_context(repo_root: Path = ROOT) -> dict[str, Any]:
         route_type = bad_path.get("type", "unknown")
         known_bad_routes.append(
             {
-                "route_id": route_type,
-                "description": bad_path.get("result", "Recorded as a non-winning route in LS evidence."),
+                "route_id": _agent_bad_route_id(route_type),
+                "description": _agent_bad_route_description(route_type, bad_path.get("result", "")),
                 "replacement": route_id,
                 "evidence_refs": _evidence_for_bad_route(route_type),
                 "confidence": _confidence_for_bad_route(route_type),
             }
         )
 
-    summary = context.get(
-        "summary",
-        "Use the PR-backed command-file route for connector-safe Grok review requests.",
+    summary = (
+        "Use the PR-backed command-file route for connector-safe Grok review requests. "
+        "Earlier connector issue-comment, branch-push, and pull_request_target attempts did "
+        "not provide the same observable end-to-end confirmation in LS."
     )
 
     return {
@@ -86,10 +87,60 @@ def build_agent_context(repo_root: Path = ROOT) -> dict[str, Any]:
             "This file is advisory memory for agents. It does not approve, merge, deploy, "
             "or replace human review."
         ),
-        "evidence": _merge_evidence(route.get("evidence", []), context.get("evidence", [])),
-        "valid_for": route.get("valid_for", context.get("valid_for", [])),
-        "not_validated_for": route.get("not_validated_for", context.get("not_validated_for", [])),
+        "evidence": _agent_evidence(route.get("evidence", []), context.get("evidence", [])),
+        "valid_for": [
+            "LS repository",
+            "GitHub connector",
+            "same-repository command PRs",
+            "advisory Grok review command bus",
+            "CI route memory",
+        ],
+        "not_validated_for": [
+            "forked command PRs",
+            "GitLab",
+            "Bitbucket",
+            "self-hosted runners",
+            "production deployment commands",
+        ],
     }
+
+
+def _working_route_evidence_refs(evidence: list[dict[str, Any]]) -> list[str]:
+    refs = [item.get("ref", "") for item in evidence if item.get("ref")]
+    normalized = []
+    for ref in refs:
+        if str(ref).isdigit():
+            normalized.append(f"workflow_run:{ref}")
+        else:
+            normalized.append(str(ref))
+    return normalized
+
+
+def _agent_bad_route_id(route_type: str) -> str:
+    mapping = {
+        "issue_comment": "connector_issue_comment_command",
+        "push_command_branch": "connector_push_command_branch",
+        "pull_request_target": "pull_request_target_command_pr",
+    }
+    return mapping.get(route_type, route_type)
+
+
+def _agent_bad_route_description(route_type: str, fallback: str) -> str:
+    mapping = {
+        "issue_comment": (
+            "Connector-created issue comments appeared in GitHub but did not reliably produce "
+            "command acknowledgement markers in LS smoke tests."
+        ),
+        "push_command_branch": (
+            "Connector-created command-file branch updates wrote the JSON command but did not "
+            "produce the expected target acknowledgement marker in the observed smoke."
+        ),
+        "pull_request_target": (
+            "The command PR existed, but the expected source diagnostic marker did not appear "
+            "in the observed smoke."
+        ),
+    }
+    return mapping.get(route_type, fallback or "Recorded as a non-winning route in LS evidence.")
 
 
 def _evidence_for_bad_route(route_type: str) -> list[str]:
@@ -105,6 +156,17 @@ def _confidence_for_bad_route(route_type: str) -> str:
     if route_type in {"issue_comment", "push_command_branch"}:
         return "medium_high"
     return "medium"
+
+
+def _agent_evidence(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    canonical = [
+        {"kind": "issue", "ref": "#846", "description": "Internet CI / CI Node Mesh epic."},
+        {"kind": "pull_request", "ref": "#847", "description": "Validation-only command PR closed unmerged after successful smoke."},
+        {"kind": "pull_request", "ref": "#848", "description": "Merged command-bus switch to pull_request route."},
+        {"kind": "pull_request", "ref": "#849", "description": "Merged CI Node Mesh registry and route export."},
+        {"kind": "workflow_run", "ref": "29027359506", "description": "Successful command-bus smoke run."},
+    ]
+    return _merge_evidence(canonical, *groups)
 
 
 def _merge_evidence(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -129,15 +191,15 @@ def main() -> int:
 
     repo_root = args.repo_root.resolve()
     output_path = repo_root / args.output
-    generated = _dump_json(build_agent_context(repo_root))
+    generated = build_agent_context(repo_root)
 
     if args.check:
-        current = output_path.read_text(encoding="utf-8")
+        current = json.loads(output_path.read_text(encoding="utf-8"))
         if current != generated:
             raise SystemExit("agent_context.latest.json is stale; run tools/generate_agent_context.py")
         return 0
 
-    output_path.write_text(generated, encoding="utf-8")
+    output_path.write_text(_dump_json(generated), encoding="utf-8")
     return 0
 
 
