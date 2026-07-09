@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ls.local/schemas/memory_event.schema.json",
+  "title": "LS CI Memory Event",
+  "type": "object",
+  "required": ["event_id", "event_type", "source_node", "subject", "timestamp", "immutable"],
+  "additionalProperties": true,
+  "properties": {
+    "event_id": {"type": "string", "minLength": 1},
+    "event_type": {"type": "string", "minLength": 1},
+    "source_node": {"type": "string", "minLength": 1},
+    "subject": {"type": "string", "minLength": 1},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "immutable": {"type": "boolean"},
+    "derived_from": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "ref"],
+        "properties": {
+          "kind": {"type": "string"},
+          "ref": {"type": "string"},
+          "description": {"type": "string"}
+        }
+      }
+    }
+  }
+}
