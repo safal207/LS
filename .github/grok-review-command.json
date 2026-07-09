@@ -1,0 +1,6 @@
+{
+  "command": "grok-review",
+  "target_pr": 838,
+  "requested_by": "connector",
+  "nonce": "2026-07-09T06:16:00Z"
+}
