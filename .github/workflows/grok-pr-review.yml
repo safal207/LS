@@ -34,11 +34,6 @@ jobs:
           github.event_name == 'issue_comment'
           && github.event.issue.pull_request != null
           && startsWith(github.event.comment.body, '/grok-review')
-          && (
-            github.event.comment.author_association == 'OWNER'
-            || github.event.comment.author_association == 'MEMBER'
-            || github.event.comment.author_association == 'COLLABORATOR'
-          )
         )
       }}
 
@@ -51,7 +46,65 @@ jobs:
       PATCH_LIMIT_CHARS: "60000"
 
     steps:
+      - name: Resolve review request
+        id: request
+        timeout-minutes: 1
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ env.PR_NUMBER }}
+        with:
+          script: |
+            const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
+            const eventName = context.eventName;
+            let accepted = true;
+            let reason = '';
+            let prNumber = process.env.PR_NUMBER || '';
+
+            if (eventName === 'issue_comment') {
+              const issue = context.payload.issue || {};
+              const comment = context.payload.comment || {};
+              const body = (comment.body || '').trim();
+              const authorAssociation = comment.author_association || 'NONE';
+              const actor = comment.user?.login || context.actor;
+              const trusted = ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(authorAssociation);
+              prNumber = String(issue.number || prNumber || '');
+
+              if (!issue.pull_request) {
+                accepted = false;
+                reason = 'The command was posted on an issue, not a pull request.';
+              } else if (!body.startsWith('/grok-review')) {
+                accepted = false;
+                reason = 'The comment is not a /grok-review command.';
+              } else if (!trusted) {
+                accepted = false;
+                reason = `The command author is not trusted for this repository. author_association=${authorAssociation}`;
+              }
+
+              const marker = '<!-- grok-review-command-ack -->';
+              const status = accepted ? 'accepted' : 'ignored';
+              const title = accepted ? 'Grok review command accepted' : 'Grok review command ignored';
+              const details = accepted
+                ? 'The advisory Grok review workflow accepted this command and will continue with PR validation, patch preparation, review generation, summary/artifact persistence, and best-effort comment publication.'
+                : `Reason: ${reason}`;
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: Number(prNumber),
+                body: `${marker}\n## 🤖 ${title}\n\nStatus: \`${status}\`\n\nTarget PR: #${prNumber}\nActor: @${actor}\nAuthor association: \`${authorAssociation}\`\nRun: \`${context.runId}\`\n\n${details}`,
+              });
+            }
+
+            core.setOutput('accepted', String(accepted));
+            core.setOutput('pr_number', String(prNumber));
+            core.setOutput('reason', reason);
+
+            if (!accepted) {
+              core.notice(`Grok review request ignored: ${reason}`);
+            }
+
       - name: Initialize diagnostic file
+        if: ${{ steps.request.outputs.accepted == 'true' }}
         timeout-minutes: 1
         run: |
           printf '%s\n\n%s\n' \
@@ -61,6 +114,7 @@ jobs:
 
       - name: Validate pull request input
         id: pr
+        if: ${{ steps.request.outputs.accepted == 'true' }}
         timeout-minutes: 2
         env:
           GH_TOKEN: ${{ github.token }}
@@ -89,7 +143,7 @@ jobs:
 
       - name: Check xAI API key
         id: api_key
-        if: ${{ steps.pr.outputs.valid == 'true' }}
+        if: ${{ steps.request.outputs.accepted == 'true' && steps.pr.outputs.valid == 'true' }}
         timeout-minutes: 1
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
@@ -107,7 +161,7 @@ jobs:
 
       - name: Prepare PR patch
         id: patch
-        if: ${{ steps.pr.outputs.valid == 'true' && steps.api_key.outputs.available == 'true' }}
+        if: ${{ steps.request.outputs.accepted == 'true' && steps.pr.outputs.valid == 'true' && steps.api_key.outputs.available == 'true' }}
         timeout-minutes: 3
         env:
           GH_TOKEN: ${{ github.token }}
@@ -145,7 +199,7 @@ jobs:
           echo "Patch size: $(wc -c < "$PATCH_FILE") bytes" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run Grok review via xAI Chat API
-        if: ${{ steps.pr.outputs.valid == 'true' && steps.api_key.outputs.available == 'true' && steps.patch.outputs.available == 'true' }}
+        if: ${{ steps.request.outputs.accepted == 'true' && steps.pr.outputs.valid == 'true' && steps.api_key.outputs.available == 'true' && steps.patch.outputs.available == 'true' }}
         continue-on-error: true
         timeout-minutes: 8
         env:
@@ -267,7 +321,7 @@ jobs:
           PY
 
       - name: Ensure review file exists
-        if: always()
+        if: ${{ always() && steps.request.outputs.accepted == 'true' }}
         timeout-minutes: 1
         run: |
           if [ ! -s "$REVIEW_FILE" ]; then
@@ -278,7 +332,7 @@ jobs:
           fi
 
       - name: Truncate long review for GitHub comment
-        if: always()
+        if: ${{ always() && steps.request.outputs.accepted == 'true' }}
         timeout-minutes: 1
         run: |
           set -euo pipefail
@@ -294,7 +348,7 @@ jobs:
           fi
 
       - name: Write review to job summary
-        if: always()
+        if: ${{ always() && steps.request.outputs.accepted == 'true' }}
         timeout-minutes: 1
         run: |
           {
@@ -304,7 +358,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Grok review artifact
-        if: always()
+        if: ${{ always() && steps.request.outputs.accepted == 'true' }}
         continue-on-error: true
         timeout-minutes: 1
         uses: actions/upload-artifact@v4
@@ -315,7 +369,7 @@ jobs:
           retention-days: 14
 
       - name: Upsert PR comment
-        if: ${{ always() && (github.event_name != 'workflow_dispatch' || steps.pr.outputs.valid == 'true') }}
+        if: ${{ always() && steps.request.outputs.accepted == 'true' && (github.event_name != 'workflow_dispatch' || steps.pr.outputs.valid == 'true') }}
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/github-script@v7
