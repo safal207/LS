@@ -6,6 +6,12 @@ on:
       - ci/grok-review-command
     paths:
       - .github/grok-review-command.json
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+    paths:
+      - .github/grok-review-command.json
 
 permissions:
   contents: read
@@ -13,7 +19,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: grok-review-command-bus-${{ github.ref }}
+  group: grok-review-command-bus-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -21,6 +27,15 @@ jobs:
     name: Connector-safe Grok review command
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    if: >-
+      ${{
+        github.event_name == 'push'
+        || (
+          github.event_name == 'pull_request_target'
+          && github.event.pull_request.head.repo.full_name == github.repository
+          && startsWith(github.event.pull_request.head.ref, 'ci/grok-review-command')
+        )
+      }}
 
     env:
       COMMAND_FILE: .github/grok-review-command.json
@@ -32,10 +47,24 @@ jobs:
 
     steps:
       - name: Checkout command branch
+        if: ${{ github.event_name == 'push' }}
         timeout-minutes: 2
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Load command file from PR head
+        if: ${{ github.event_name == 'pull_request_target' }}
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$COMMAND_FILE")"
+          gh api "repos/$GITHUB_REPOSITORY/contents/$COMMAND_FILE?ref=$HEAD_SHA" \
+            --jq .content | base64 -d > "$COMMAND_FILE"
+          test -s "$COMMAND_FILE"
 
       - name: Resolve command
         id: command
