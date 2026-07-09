@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ls.local/schemas/agent_context.schema.json",
+  "title": "LS Agent Context Export",
+  "type": "object",
+  "required": ["schema_version", "context_id", "generated_from", "summary", "known_working_routes", "known_bad_routes", "next_recommended_action", "authority_boundary"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {"type": "string"},
+    "context_id": {"type": "string", "minLength": 1},
+    "generated_from": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "summary": {"type": "string"},
+    "known_working_routes": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "known_bad_routes": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "next_recommended_action": {"type": "string"},
+    "authority_boundary": {"type": "string"},
+    "evidence": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "valid_for": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "not_validated_for": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}
