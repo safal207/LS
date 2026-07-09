@@ -1,9 +1,10 @@
 name: Grok PR Review Command Bus
 
 on:
-  push:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
     branches:
-      - ci/grok-review-command
+      - main
     paths:
       - .github/grok-review-command.json
 
@@ -13,7 +14,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: grok-review-command-bus-${{ github.ref }}
+  group: grok-review-command-bus-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
@@ -21,6 +22,11 @@ jobs:
     name: Connector-safe Grok review command
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    if: >-
+      ${{
+        github.event.pull_request.head.repo.full_name == github.repository
+        && startsWith(github.event.pull_request.head.ref, 'ci/grok-review-command')
+      }}
 
     env:
       COMMAND_FILE: .github/grok-review-command.json
@@ -29,19 +35,57 @@ jobs:
       PATCH_ERROR_FILE: /tmp/pr.patch.err
       XAI_MODEL: grok-latest
       PATCH_LIMIT_CHARS: "60000"
+      SOURCE_PR_NUMBER: ${{ github.event.pull_request.number }}
+      COMMAND_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
     steps:
-      - name: Checkout command branch
-        timeout-minutes: 2
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Resolve command
-        id: command
+      - name: Load command file from PR head
+        id: load
         timeout-minutes: 2
         env:
           GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          mkdir -p "$(dirname "$COMMAND_FILE")"
+          last_error=""
+
+          for attempt in 1 2 3; do
+            gh api "repos/$GITHUB_REPOSITORY/contents/$COMMAND_FILE?ref=$COMMAND_HEAD_SHA" \
+              --jq .content > /tmp/grok_command_file.b64 2> /tmp/grok_command_file.err
+            status=$?
+            if [ "$status" -eq 0 ]; then
+              base64 -d /tmp/grok_command_file.b64 > "$COMMAND_FILE" 2> /tmp/grok_command_decode.err
+              decode_status=$?
+              if [ "$decode_status" -eq 0 ] && [ -s "$COMMAND_FILE" ]; then
+                echo "loaded=true" >> "$GITHUB_OUTPUT"
+                echo "reason=" >> "$GITHUB_OUTPUT"
+                echo "Loaded command file from PR head $COMMAND_HEAD_SHA" >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
+              last_error="decode_failed: $(head -c 1000 /tmp/grok_command_decode.err 2>/dev/null || true)"
+            else
+              last_error="gh_api_failed: $(head -c 1000 /tmp/grok_command_file.err 2>/dev/null || true)"
+            fi
+            sleep 2
+          done
+
+          echo "loaded=false" >> "$GITHUB_OUTPUT"
+          {
+            echo "reason<<EOF"
+            echo "$last_error"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          printf '%s\n\n%s\n\n```text\n%s\n```\n' \
+            '⚠️ Grok command bus could not load command file.' \
+            "The workflow could not load \`$COMMAND_FILE\` from PR head \`$COMMAND_HEAD_SHA\`." \
+            "$last_error" \
+            > "$REVIEW_FILE"
+          exit 0
+
+      - name: Resolve command
+        id: command
+        if: ${{ always() }}
+        timeout-minutes: 2
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -58,23 +102,34 @@ jobs:
               with output_file.open("a", encoding="utf-8") as fh:
                   fh.write(f"{key}={value}\n")
 
+          def out_multiline(key, value):
+              with output_file.open("a", encoding="utf-8") as fh:
+                  fh.write(f"{key}<<EOF\n{value}\nEOF\n")
+
           def summary(text):
               with summary_file.open("a", encoding="utf-8") as fh:
                   fh.write(text + "\n")
 
-          if not command_file.exists():
+          def reject(reason, detail=""):
               out("accepted", "false")
-              out("reason", "command_file_missing")
-              summary("Command file is missing; nothing to execute.")
+              out("target_pr", "")
+              out("nonce", "")
+              out("requested_by", "")
+              out("reason", reason)
+              out_multiline("detail", detail)
+              summary(f"Command rejected: `{reason}`")
+              if detail:
+                  summary("")
+                  summary(detail[:1000])
               sys.exit(0)
+
+          if not command_file.exists():
+              reject("command_file_missing", "Command file was not available after the load step.")
 
           try:
               data = json.loads(command_file.read_text(encoding="utf-8"))
           except Exception as exc:
-              out("accepted", "false")
-              out("reason", "invalid_json")
-              summary(f"Invalid command JSON: {exc}")
-              sys.exit(0)
+              reject("invalid_json", str(exc))
 
           command = data.get("command")
           target_pr = data.get("target_pr")
@@ -82,27 +137,55 @@ jobs:
           requested_by = str(data.get("requested_by", "connector"))[:160]
 
           if command != "grok-review":
-              out("accepted", "false")
-              out("reason", "unsupported_command")
-              summary(f"Unsupported command: `{command}`")
-              sys.exit(0)
+              reject("unsupported_command", f"Unsupported command: {command!r}")
           if not isinstance(target_pr, int) or target_pr <= 0:
-              out("accepted", "false")
-              out("reason", "invalid_target_pr")
-              summary("`target_pr` must be a positive integer.")
-              sys.exit(0)
+              reject("invalid_target_pr", "`target_pr` must be a positive integer.")
+          if not nonce:
+              reject("missing_nonce", "`nonce` is required for idempotent command processing.")
 
           out("accepted", "true")
           out("target_pr", str(target_pr))
           out("nonce", nonce)
           out("requested_by", requested_by)
           out("reason", "")
+          out_multiline("detail", "")
           summary("## Grok command accepted")
           summary("")
           summary(f"Target PR: `#{target_pr}`")
           summary(f"Requested by: `{requested_by}`")
           summary(f"Nonce: `{nonce}`")
           PY
+
+      - name: Publish source diagnostic
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/github-script@v7
+        env:
+          SOURCE_PR_NUMBER: ${{ env.SOURCE_PR_NUMBER }}
+          COMMAND_HEAD_SHA: ${{ env.COMMAND_HEAD_SHA }}
+          LOADED: ${{ steps.load.outputs.loaded }}
+          LOAD_REASON: ${{ steps.load.outputs.reason }}
+          ACCEPTED: ${{ steps.command.outputs.accepted }}
+          REASON: ${{ steps.command.outputs.reason }}
+          DETAIL: ${{ steps.command.outputs.detail }}
+          TARGET_PR: ${{ steps.command.outputs.target_pr }}
+          NONCE: ${{ steps.command.outputs.nonce }}
+        with:
+          script: |
+            const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
+            const issue_number = Number(process.env.SOURCE_PR_NUMBER);
+            const marker = 'grok-review-command-bus-source-diagnostic';
+            const nonce = process.env.NONCE || 'none';
+            const status = process.env.ACCEPTED === 'true' ? 'accepted' : 'rejected';
+            const body = `## 🧭 Grok command bus source diagnostic\n\nMarker: \`${marker}\`\nStatus: \`${status}\`\nSource PR: #${issue_number}\nTarget PR: ${process.env.TARGET_PR ? `#${process.env.TARGET_PR}` : '`unresolved`'}\nNonce: \`${nonce}\`\nCommand head: \`${process.env.COMMAND_HEAD_SHA || ''}\`\nLoaded: \`${process.env.LOADED || 'false'}\`\nReason: \`${process.env.REASON || process.env.LOAD_REASON || ''}\`\nRun: \`${context.runId}\`\n\n${process.env.DETAIL ? `\`\`\`text\n${process.env.DETAIL.slice(0, 4000)}\n\`\`\`` : '_No additional diagnostic detail._'}\n\n---\n_Mode: source-level diagnostic. Target PR acknowledgement is posted only after command resolution._`;
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
+            const existing = comments.find((comment) => comment.body?.includes(`Marker: \`${marker}\``) && comment.body?.includes(`Nonce: \`${nonce}\``));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
 
       - name: Validate target pull request
         id: pr
@@ -134,7 +217,7 @@ jobs:
           echo "valid=true" >> "$GITHUB_OUTPUT"
           echo "Validated PR: $pr_json" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Publish command acknowledgement
+      - name: Upsert target acknowledgement
         if: ${{ always() && steps.command.outputs.accepted == 'true' }}
         continue-on-error: true
         timeout-minutes: 2
@@ -144,6 +227,7 @@ jobs:
           NONCE: ${{ steps.command.outputs.nonce }}
           REQUESTED_BY: ${{ steps.command.outputs.requested_by }}
           VALID: ${{ steps.pr.outputs.valid }}
+          SOURCE_PR_NUMBER: ${{ env.SOURCE_PR_NUMBER }}
         with:
           script: |
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
@@ -151,12 +235,14 @@ jobs:
             const valid = process.env.VALID === 'true';
             const marker = 'grok-review-command-bus-ack';
             const status = valid ? 'accepted' : 'invalid-target';
-            await github.rest.issues.createComment({
-              owner,
-              repo,
-              issue_number,
-              body: `## 🤖 Grok command bus acknowledgement\n\nMarker: \`${marker}\`\nStatus: \`${status}\`\nTarget PR: #${issue_number}\nRequested by: \`${process.env.REQUESTED_BY || 'connector'}\`\nNonce: \`${process.env.NONCE || ''}\`\nRun: \`${context.runId}\`\n\n${valid ? 'The command bus accepted this request and will continue with patch preparation and advisory Grok review.' : 'The command bus received the request, but target PR validation did not pass.'}`,
-            });
+            const body = `## 🤖 Grok command bus acknowledgement\n\nMarker: \`${marker}\`\nStatus: \`${status}\`\nTarget PR: #${issue_number}\nSource command PR: #${process.env.SOURCE_PR_NUMBER}\nRequested by: \`${process.env.REQUESTED_BY || 'connector'}\`\nNonce: \`${process.env.NONCE || ''}\`\nRun: \`${context.runId}\`\n\n${valid ? 'The PR-backed command bus accepted this request and will continue with patch preparation and advisory Grok review.' : 'The command bus received the request, but target PR validation did not pass.'}`;
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
+            const existing = comments.find((comment) => comment.body?.includes(`Marker: \`${marker}\``) && comment.body?.includes(`Nonce: \`${process.env.NONCE || ''}\``));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
 
       - name: Check xAI API key
         id: api_key
@@ -331,7 +417,7 @@ jobs:
             cat "$REVIEW_FILE"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upsert PR review comment
+      - name: Upsert target review result
         if: ${{ always() && steps.command.outputs.accepted == 'true' && steps.pr.outputs.valid == 'true' }}
         continue-on-error: true
         timeout-minutes: 2
@@ -340,6 +426,7 @@ jobs:
           REVIEW_FILE: ${{ env.REVIEW_FILE }}
           PR_NUMBER: ${{ steps.command.outputs.target_pr }}
           NONCE: ${{ steps.command.outputs.nonce }}
+          SOURCE_PR_NUMBER: ${{ env.SOURCE_PR_NUMBER }}
         with:
           script: |
             const fs = require('fs');
@@ -347,9 +434,15 @@ jobs:
             const review = fs.readFileSync(process.env.REVIEW_FILE, 'utf8').trim();
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
             const issue_number = Number(process.env.PR_NUMBER);
-            const body = `## 🤖 Grok PR Review Command Bus — advisory\n\nMarker: \`${marker}\`\nNonce: \`${process.env.NONCE || ''}\`\nRun: \`${context.runId}\`\n\n${review || '_Grok returned an empty review._'}\n\n---\n_Mode: advisory only. This comment does not block merge._`;
+            const body = `## 🤖 Grok PR Review Command Bus — advisory\n\nMarker: \`${marker}\`\nNonce: \`${process.env.NONCE || ''}\`\nSource command PR: #${process.env.SOURCE_PR_NUMBER}\nRun: \`${context.runId}\`\n\n${review || '_Grok returned an empty review._'}\n\n---\n_Mode: advisory only. This comment does not block merge._`;
             try {
-              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+              const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
+              const existing = comments.find((comment) => comment.body?.includes(`Marker: \`${marker}\``) && comment.body?.includes(`Nonce: \`${process.env.NONCE || ''}\``));
+              if (existing) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number, body });
+              }
             } catch (error) {
               core.warning(`Could not publish command bus result: ${error.status || 'unknown'} ${error.message || error}`);
             }
