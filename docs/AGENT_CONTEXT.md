@@ -47,10 +47,31 @@ The context currently records these routes as non-winning in the observed LS con
 
 They are not erased. They remain useful evidence for future routing decisions.
 
+## Generator
+
+The latest context is generated from CI Exchange metadata:
+
+```bash
+python tools/generate_agent_context.py
+```
+
+To verify the committed file is still consistent with the generator:
+
+```bash
+python tools/generate_agent_context.py --check
+```
+
+The generator currently reads:
+
+```text
+.ci_exchange/routes/grok-review-command-bus.route.json
+.ci_exchange/contexts/connector-safe-command-bus.context.json
+```
+
 ## Authority boundary
 
 This file is advisory memory. It does not approve, merge, deploy, or replace human review.
 
 ## Maintenance rule
 
-Update this file when a route changes, when new evidence invalidates a prior claim, or when a new command bus becomes more reliable than the current one.
+Update the underlying route/context exports first, then regenerate this file. Update this file directly only when recording a temporary transition that the generator does not support yet.
