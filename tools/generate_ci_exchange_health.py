@@ -113,6 +113,26 @@ def write_reports(
     return report
 
 
+def check_reports(
+    repo_root: Path = ROOT,
+    json_output: Path = DEFAULT_JSON_OUTPUT,
+    markdown_output: Path = DEFAULT_MARKDOWN_OUTPUT,
+) -> dict[str, Any]:
+    report = build_health_report(repo_root)
+    json_path = repo_root / json_output
+    markdown_path = repo_root / markdown_output
+
+    current_json = json.loads(json_path.read_text(encoding="utf-8"))
+    current_markdown = markdown_path.read_text(encoding="utf-8")
+
+    expected_markdown = render_markdown(report)
+    if current_json != report:
+        raise SystemExit("ci_exchange_health.json is stale; run tools/generate_ci_exchange_health.py")
+    if current_markdown != expected_markdown:
+        raise SystemExit("ci_exchange_health.md is stale; run tools/generate_ci_exchange_health.py")
+    return report
+
+
 def _build_sections(repo_root: Path, errors: list[str]) -> list[Section]:
     registry = load_json(repo_root, REGISTRY_PATH)
     agent_context = load_json(repo_root, AGENT_CONTEXT_PATH)
@@ -182,11 +202,16 @@ def main() -> int:
     parser.add_argument("--repo-root", type=Path, default=ROOT)
     parser.add_argument("--json-output", type=Path, default=DEFAULT_JSON_OUTPUT)
     parser.add_argument("--markdown-output", type=Path, default=DEFAULT_MARKDOWN_OUTPUT)
-    parser.add_argument("--check", action="store_true", help="Build the report and return non-zero if metadata is unhealthy.")
+    parser.add_argument("--check", action="store_true", help="Fail if committed reports are stale or metadata is unhealthy.")
     args = parser.parse_args()
 
-    report = write_reports(args.repo_root.resolve(), args.json_output, args.markdown_output)
-    if args.check and report["status"] != "pass":
+    repo_root = args.repo_root.resolve()
+    if args.check:
+        report = check_reports(repo_root, args.json_output, args.markdown_output)
+    else:
+        report = write_reports(repo_root, args.json_output, args.markdown_output)
+
+    if report["status"] != "pass":
         return 1
     print(f"CI Exchange health: {report['status']}")
     return 0
