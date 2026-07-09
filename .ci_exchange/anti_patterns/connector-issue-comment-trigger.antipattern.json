@@ -1,0 +1,13 @@
+{
+  "schema_version": "ls.ci_exchange.anti_pattern.v0.1",
+  "anti_pattern_id": "ls.antipattern.connector_issue_comment_command",
+  "symptom": "A connector-created PR comment appears in GitHub, but the expected command acknowledgement does not appear.",
+  "impact": "The agent can think a command was dispatched while no observable CI work happened.",
+  "replacement": "Use a same-repository command PR that changes a command JSON file and is handled by a pull_request workflow.",
+  "confidence": "medium_high",
+  "evidence": [
+    {"kind": "pull_request", "ref": "#842", "description": "Initial issue_comment command path."},
+    {"kind": "pull_request", "ref": "#843", "description": "Observable acknowledgement attempt."},
+    {"kind": "smoke", "ref": "#838 target", "description": "Connector-created issue_comment path did not produce the expected marker."}
+  ]
+}
