@@ -2,7 +2,7 @@
 
 **Product claim:** LS reduces the risk of accepting AI-generated pull requests by binding every review result to reproducible evidence: an exact commit, an identified reviewer/model, explicit execution status, adjudicated findings, and a human-readable verdict.
 
-**Release status:** **RELEASE CANDIDATE.** The Robys external pilot and the Grok 4.5 provenance control are verified. LS v0.1 requires one more external exact-head pilot before release tagging.
+**Release status:** **EVIDENCE COMPLETE.** Two external pilots and the Grok 4.5 provenance gate are verified. This scorecard is ready to ship as the LS v0.1 release proof.
 
 ## Repeatable review contract
 
@@ -12,7 +12,7 @@ A result counts only when all of these are present:
 2. deterministic checks with their real status;
 3. each AI reviewer identified by provider/model or bot identity;
 4. `NOT_RUN`, missing credentials, stale evidence, or model mismatch recorded as incomplete — never converted into success;
-5. findings confirmed, rejected, or left unresolved by human adjudication;
+5. findings confirmed, rejected, or left unresolved by adjudication;
 6. fixes and the final verdict bound to the same evidence trail.
 
 ## Proof A — Robys causal delivery closure
@@ -56,14 +56,51 @@ Canonical evidence:
 
 A green advisory job alone is not a model success. If the reviewer is `NOT_RUN`, credentials are missing, or provenance is absent/mismatched, LS records an incomplete lane or diagnostic and publishes no model verdict.
 
+## Proof C — ibex reviewer-gate pilot
+
+| Scorecard field | Result |
+| --- | --- |
+| What LS checked | A real three-file, security-sensitive AI reviewer bootstrap in another repository: secret isolation, exact-head binding, untrusted diff parsing, reviewer execution status, and whether green CI justified acceptance. |
+| Evidence | Frozen target files and Git blobs; exact-head CI/job status; independent CodeRabbit findings; a blind Grok 4.5 artifact; explicit adjudication; and a later fix-head compare. |
+| Agents | CodeRabbit, Grok 4.5, deterministic CI, Ibex Verilator E2E, DeepSeek contract validation, and adjudication. The DeepSeek model lane is explicitly `NOT_RUN`. |
+| What they found | CodeRabbit found three major defects: cross-event cancellation, a force-push head race, and patch-body path allowlist contamination. Grok partially reproduced the parser defect, confirmed the green-vs-`NOT_RUN` evidence problem, missed two known defects, and produced one rejected false positive. |
+| Confirmed findings | All three CodeRabbit findings were confirmed against the frozen source. Grok F1 was rejected because YAML dedentation preserves the marker at column 0; one defense-in-depth candidate remains unresolved. |
+| Fixes delivered | Follow-up head `e0b465f131dad4ff6300c66e9fb8660757d94cff` adds event-scoped concurrency, checks the current head before and after diff fetch, restricts paths to `diff --git` metadata, and adds regression coverage. Exact-head CI and Ibex E2E passed. |
+| Exact heads | Vulnerable target: `afc29b1db985d705c90c91685ad4460cf981a805`; LS carrier: `90573c90c01060d8d9373e170e17a4af31d8f7e1`; fix recheck: `e0b465f131dad4ff6300c66e9fb8660757d94cff`. |
+| Verdict | **PILOT PASS / TARGET HOLD.** LS correctly returned `REQUEST_CHANGES` for the frozen target despite green workflows. The later fixes are confirmed, but the DeepSeek model lane remains incomplete and is not upgraded to PASS. |
+
+Canonical evidence:
+
+- [External target PR #57](https://github.com/safal207/ibex-agent-verification/pull/57) and [frozen compare](https://github.com/safal207/ibex-agent-verification/compare/4db48bc4eab67390e38542cbe676bb3cba2dd9b6...afc29b1db985d705c90c91685ad4460cf981a805)
+- [LS pilot PR #861](https://github.com/safal207/LS/pull/861) with frozen files and the adjudication record
+- [Grok PR Review run #198](https://github.com/safal207/LS/actions/runs/29105494882) and [artifact 8232627268](https://github.com/safal207/LS/actions/runs/29105494882/artifacts/8232627268), digest `sha256:2e00df8de5ed4a14a49780bde2bcfcf7fdc4a4e6e4244c1ce8e74e73190978ac`
+- Grok artifact header: `Requested model: grok-4.5. Provider model: grok-4.5.`
+- Vulnerable-head runs: [CI #708](https://github.com/safal207/ibex-agent-verification/actions/runs/28337168705), [DeepSeek #18](https://github.com/safal207/ibex-agent-verification/actions/runs/28337168706), [Ibex E2E #188](https://github.com/safal207/ibex-agent-verification/actions/runs/28337168708)
+- Fix-head runs: [CI #720](https://github.com/safal207/ibex-agent-verification/actions/runs/28338283813), [DeepSeek #21](https://github.com/safal207/ibex-agent-verification/actions/runs/28338283812), [Ibex E2E #192](https://github.com/safal207/ibex-agent-verification/actions/runs/28338283801)
+
+## Two-case comparison
+
+| Dimension | Robys | ibex PR #57 |
+| --- | --- | --- |
+| Product surface | Customer-facing wordmark and pairing journey | Secret-bearing AI reviewer workflow |
+| Frozen evidence | Historical open snapshots plus append-only closure | Immutable three-file target plus later fix-head compare |
+| Deterministic signal | Causal validators and delivery-tail CI passed | CI and E2E passed on both vulnerable and fixed heads |
+| Reviewer signal | Qodo, CodeRabbit, and Grok found fail-closed gaps that were fixed | CodeRabbit reproduced 3/3 known defects; Grok reproduced 1/3, missed 2/3, and had 1 rejected false positive |
+| Incomplete lane handling | Stale evidence invalidated instead of reused | Green DeepSeek workflow contained a skipped model job, recorded as `NOT_RUN` |
+| Adjudicated outcome | **PASS — delivered closure** | **REQUEST_CHANGES** on vulnerable head; fixes confirmed, model lane still incomplete |
+| Product lesson | LS preserves a true past risk and a later successful outcome without rewriting history | LS prevents green CI from laundering an unexecuted model lane or known review defects into acceptance |
+
+The cases differ in repository, domain, evidence shape, and final verdict. Both use the same contract: exact identity, real execution status, independent findings, explicit adjudication, fix evidence, and a verdict that does not exceed the evidence.
+
 ## v0.1 release gate
 
 | Gate | Status |
 | --- | --- |
 | Robys external causal proof | **PASS** |
 | Grok 4.5 provenance proof | **PASS** |
-| Second external exact-head pilot | **PENDING** |
-| Two-case comparison | **PENDING** |
-| LS v0.1 tag | **BLOCKED until the two pending gates pass** |
+| ibex external exact-head pilot | **PASS as product proof / target HOLD** |
+| Two-case comparison | **PASS** |
+| README product entry | **READY in release PR** |
+| LS v0.1 tag | **READY after the release PR lands** |
 
 The product-level success criterion is not “the AI found many bugs.” It is: evidence is reproducible; SHA and reviewer identity are exact; incomplete execution is visible; findings can be confirmed or rejected; and a person can understand the decision without knowing LS internals.
