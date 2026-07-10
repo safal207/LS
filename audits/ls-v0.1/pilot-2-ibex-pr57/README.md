@@ -21,13 +21,14 @@ The files under `target/` are byte-for-byte snapshots from that immutable head:
 
 ## Pre-review execution evidence
 
-These statuses describe execution only; they are not treated as a safety verdict.
+A green workflow is not automatically a successful reviewer lane.
 
-| Lane | Run | Status |
-| --- | --- | --- |
-| Deterministic CI | [CI #708](https://github.com/safal207/ibex-agent-verification/actions/runs/28337168705) | `PASS` |
-| Existing model lane | [DeepSeek PR Review #18](https://github.com/safal207/ibex-agent-verification/actions/runs/28337168706) | `PASS` |
-| Hardware/E2E lane | [Ibex Verilator E2E #188](https://github.com/safal207/ibex-agent-verification/actions/runs/28337168708) | `PASS` |
+| Lane | Run | Status | Evidence |
+| --- | --- | --- | --- |
+| Deterministic CI | [CI #708](https://github.com/safal207/ibex-agent-verification/actions/runs/28337168705) | `PASS` | Full unit suite passed on Python 3.11, 3.12, and 3.13. |
+| DeepSeek contract validation | [DeepSeek PR Review #18](https://github.com/safal207/ibex-agent-verification/actions/runs/28337168706) | `PASS` | The `validate` job and reviewer contract tests passed. |
+| DeepSeek model review | [DeepSeek PR Review #18](https://github.com/safal207/ibex-agent-verification/actions/runs/28337168706) | `NOT_RUN` | The `review` job was `skipped`; no model verdict exists despite top-level workflow `success`. |
+| Hardware/E2E lane | [Ibex Verilator E2E #188](https://github.com/safal207/ibex-agent-verification/actions/runs/28337168708) | `PASS` | Deterministic tests, pinned simulation, and evidence-bundle verification passed. |
 
 ## Blind-review rule
 
