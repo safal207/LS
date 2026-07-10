@@ -4,13 +4,13 @@ Status: **PASS**
 
 ## Checks
 
-| Check | Status | Summary |
-| --- | --- | --- |
-| `registry` | `pass` | CI node registry is present and references reachable node manifests. |
-| `routes` | `pass` | Route exports include best path, markers, evidence, and applicability boundaries. |
-| `contexts` | `pass` | Context exports include summary, claims, and evidence. |
-| `anti_patterns` | `pass` | Anti-pattern exports include symptom, impact, replacement, and evidence. |
-| `agent_context` | `pass` | Latest agent context references existing sources and keeps key route memory. |
+| Check | Status | Summary | Errors |
+| --- | --- | --- | --- |
+| `registry` | `pass` | CI node registry is present and references reachable node manifests. | None |
+| `routes` | `pass` | Route exports include best path, markers, evidence, and applicability boundaries. | None |
+| `contexts` | `pass` | Context exports include summary, claims, and evidence. | None |
+| `anti_patterns` | `pass` | Anti-pattern exports include symptom, impact, replacement, and evidence. | None |
+| `agent_context` | `pass` | Latest agent context references existing sources and keeps key route memory. | None |
 
 ## Generated from
 
