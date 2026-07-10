@@ -68,6 +68,14 @@ class CausalPhaseTrailTests(unittest.TestCase):
         trail["edges"] = []
         self.assert_invalid(trail, "edges must not be empty")
 
+    def test_phase_cannot_enter_before_trigger_event(self) -> None:
+        trail = copy.deepcopy(self.trail)
+        trail["phaseHistory"][1]["enteredAt"] = "2026-07-04T18:40:00Z"
+        self.assert_invalid(
+            trail,
+            "phaseHistory\\[1\\] cannot enter before trigger event evidence.pre-fallback-visual",
+        )
+
     def test_fresh_binding_evidence_rejects_stale_head(self) -> None:
         trail = copy.deepcopy(self.trail)
         self.node(trail, "evidence.current-ci-green")["validFromHead"] = trail["subject"]["baseHead"]
