@@ -42,7 +42,7 @@ jobs:
       REVIEW_FILE: /tmp/grok_review.md
       PATCH_FILE: /tmp/pr.patch
       PATCH_ERROR_FILE: /tmp/pr.patch.err
-      # Exact pin: review evidence must identify the model actually requested.
+      # Exact model pin verified against the live xAI API on 2026-07-10.
       XAI_MODEL: grok-4.5
       PATCH_LIMIT_CHARS: "60000"
 
@@ -306,9 +306,27 @@ jobs:
                   raise SystemExit(0)
 
               data = json.loads(raw)
-              provider_model = str(data.get("model") or "").strip() or model
-              print(f"Requested model: {model}; provider model: {provider_model}")
+              raw_provider_model = data.get("model")
+              provider_model = (
+                  str(raw_provider_model).strip()
+                  if raw_provider_model is not None
+                  else ""
+              )
+              print(f"Requested model: {model}; provider model: {provider_model or '<missing>'}")
+
+              if not provider_model:
+                  print("::warning title=Grok model provenance missing::GROK_MODEL_PIN_MISSING=1")
+                  write_diagnostic(
+                      "Grok provider model is missing.",
+                      f"Requested model: `{model}`\n\nThe xAI response did not include a non-empty top-level `model` value. No advisory verdict was published because exact model provenance could not be confirmed.",
+                  )
+                  raise SystemExit(0)
+
               if provider_model != model:
+                  print(
+                      "::warning title=Grok model pin mismatch::"
+                      f"GROK_MODEL_PIN_MISMATCH=1 requested={model} provider={provider_model}"
+                  )
                   write_diagnostic(
                       "Grok provider model mismatch.",
                       f"Requested model: `{model}`\n\nProvider model: `{provider_model}`\n\nNo advisory verdict was published because exact model provenance did not match the configured pin.",
