@@ -43,13 +43,29 @@ CHECKS = [
 ]
 
 
+def _normalized_runtime_error(exc: Exception) -> str:
+    """Return deterministic validation failure details without host-specific paths."""
+
+    error_type = type(exc).__name__
+    if isinstance(exc, json.JSONDecodeError):
+        return f"validate_ci_exchange crashed: {error_type}: line={exc.lineno},column={exc.colno}"
+    if isinstance(exc, UnicodeDecodeError):
+        return (
+            f"validate_ci_exchange crashed: {error_type}: "
+            f"encoding={exc.encoding},start={exc.start},end={exc.end}"
+        )
+    if isinstance(exc, OSError) and exc.errno is not None:
+        return f"validate_ci_exchange crashed: {error_type}: errno={exc.errno}"
+    return f"validate_ci_exchange crashed: {error_type}"
+
+
 def build_health_report(repo_root: Path = ROOT) -> dict[str, Any]:
     runtime_errors: list[str] = []
     try:
         section_errors = validate_sections(repo_root)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, AttributeError, ValueError) as exc:
         section_errors = {check["check_id"]: [] for check in CHECKS}
-        runtime_errors.append(f"validate_ci_exchange crashed: {type(exc).__name__}: {exc}")
+        runtime_errors.append(_normalized_runtime_error(exc))
 
     all_errors = [error for errors in section_errors.values() for error in errors]
     all_errors.extend(runtime_errors)

@@ -49,6 +49,24 @@ def test_health_report_preserves_section_causality(monkeypatch) -> None:
     assert all(errors[check_id] == [] for check_id in statuses if check_id != "routes")
 
 
+def test_health_report_runtime_error_does_not_include_checkout_path(monkeypatch, tmp_path) -> None:
+    missing_path = tmp_path / "environment-specific" / "registry.json"
+
+    def raise_missing_file(_repo_root: Path) -> dict[str, list[str]]:
+        raise FileNotFoundError(2, "No such file or directory", missing_path)
+
+    monkeypatch.setattr(generate_ci_exchange_health, "validate_sections", raise_missing_file)
+
+    report = build_health_report(ROOT)
+
+    assert report["status"] == "fail"
+    assert report["errors"] == ["validate_ci_exchange crashed: FileNotFoundError: errno=2"]
+    assert str(tmp_path) not in json.dumps(report)
+    assert {check["status"] for check in report["checks"][:-1]} == {"unknown"}
+    assert report["checks"][-1]["check_id"] == "validator_runtime"
+    assert report["checks"][-1]["status"] == "fail"
+
+
 def test_committed_health_json_matches_generator() -> None:
     generated = build_health_report(ROOT)
     committed = json.loads((ROOT / JSON_OUTPUT).read_text(encoding="utf-8"))

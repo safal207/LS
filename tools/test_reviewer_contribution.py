@@ -39,7 +39,11 @@ def test_duplicate_finding_gets_reduced_uniqueness_credit() -> None:
         for finding in reviewers["qodo"]["findings"]
         if finding["finding_id"] == "qodo-misleading-per-check-status"
     )
-    grok_overlap = reviewers["grok"]["findings"][0]
+    grok_overlap = next(
+        finding
+        for finding in reviewers["grok"]["findings"]
+        if finding["finding_id"] == "grok-misleading-per-check-status"
+    )
 
     assert qodo_overlap["uniqueness"] == 0.5
     assert grok_overlap["uniqueness"] == 0.5
