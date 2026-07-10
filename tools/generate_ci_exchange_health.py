@@ -44,8 +44,15 @@ CHECKS = [
 
 
 def build_health_report(repo_root: Path = ROOT) -> dict[str, Any]:
-    section_errors = validate_sections(repo_root)
+    runtime_errors: list[str] = []
+    try:
+        section_errors = validate_sections(repo_root)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, AttributeError, ValueError) as exc:
+        section_errors = {check["check_id"]: [] for check in CHECKS}
+        runtime_errors.append(f"validate_ci_exchange crashed: {type(exc).__name__}: {exc}")
+
     all_errors = [error for errors in section_errors.values() for error in errors]
+    all_errors.extend(runtime_errors)
     status = "pass" if not all_errors else "fail"
     checks = []
     for check in CHECKS:
@@ -54,10 +61,21 @@ def build_health_report(repo_root: Path = ROOT) -> dict[str, Any]:
         checks.append(
             {
                 "check_id": check_id,
-                "status": "pass" if not errors else "fail",
+                "status": "pass" if not errors and not runtime_errors else ("unknown" if runtime_errors else "fail"),
                 "summary": check["summary"],
                 "evidence": check["evidence"],
                 "errors": errors,
+            }
+        )
+
+    if runtime_errors:
+        checks.append(
+            {
+                "check_id": "validator_runtime",
+                "status": "fail",
+                "summary": "The metadata validator must complete before section health can be trusted.",
+                "evidence": ["tools/validate_ci_exchange.py"],
+                "errors": runtime_errors,
             }
         )
 
@@ -120,6 +138,16 @@ def _dump_json(data: dict[str, Any]) -> str:
     return json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
 
 
+def _read_committed_output(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise SystemExit(
+            f"Missing CI Exchange health report output: {exc.filename}; "
+            "run tools/generate_ci_exchange_health.py"
+        ) from exc
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=ROOT)
@@ -134,8 +162,8 @@ def main() -> int:
     markdown_text = render_markdown(report)
 
     if args.check:
-        current_json = (repo_root / args.json_output).read_text(encoding="utf-8")
-        current_markdown = (repo_root / args.markdown_output).read_text(encoding="utf-8")
+        current_json = _read_committed_output(repo_root / args.json_output)
+        current_markdown = _read_committed_output(repo_root / args.markdown_output)
         if current_json != json_text or current_markdown != markdown_text:
             raise SystemExit("CI Exchange health reports are stale; run tools/generate_ci_exchange_health.py")
         return 0 if report["status"] == "pass" else 1
