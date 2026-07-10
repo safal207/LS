@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import generate_ci_exchange_health
 from generate_ci_exchange_health import JSON_OUTPUT, MARKDOWN_OUTPUT, build_health_report, render_markdown
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +17,36 @@ def test_ci_exchange_health_report_is_passing() -> None:
     assert report["errors"] == []
     assert {check["status"] for check in report["checks"]} == {"pass"}
     assert all(check["errors"] == [] for check in report["checks"])
+
+
+def test_health_report_preserves_section_causality(monkeypatch) -> None:
+    monkeypatch.setattr(
+        generate_ci_exchange_health,
+        "validate_sections",
+        lambda _repo_root: {
+            "registry": [],
+            "routes": ["route evidence is missing"],
+            "contexts": [],
+            "anti_patterns": [],
+            "agent_context": [],
+        },
+    )
+
+    report = build_health_report(ROOT)
+    statuses = {check["check_id"]: check["status"] for check in report["checks"]}
+    errors = {check["check_id"]: check["errors"] for check in report["checks"]}
+
+    assert report["status"] == "fail"
+    assert report["errors"] == ["route evidence is missing"]
+    assert statuses == {
+        "registry": "pass",
+        "routes": "fail",
+        "contexts": "pass",
+        "anti_patterns": "pass",
+        "agent_context": "pass",
+    }
+    assert errors["routes"] == ["route evidence is missing"]
+    assert all(errors[check_id] == [] for check_id in statuses if check_id != "routes")
 
 
 def test_committed_health_json_matches_generator() -> None:
