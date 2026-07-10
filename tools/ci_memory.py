@@ -472,13 +472,17 @@ def add_graph_edge(
     edges.append(edge)
 
 
-def build_ci_memory_graph(report: dict[str, Any]) -> dict[str, Any]:
+def build_ci_memory_graph(
+    report: dict[str, Any],
+    valid_events: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     nodes: dict[str, dict[str, Any]] = {}
     edges: list[dict[str, Any]] = []
+    source_events = valid_events if valid_events is not None else report.get("known_failures", [])
     raw_events_by_id = {
         event.get("event_id"): event
-        for event in report.get("known_failures", [])
-        if isinstance(event, dict)
+        for event in source_events
+        if isinstance(event, dict) and isinstance(event.get("event_id"), str)
     }
 
     for time_slice in TIME_SLICES:
@@ -670,6 +674,7 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     harmony_axis: list[dict[str, Any]] = []
     trajectory_axis: list[dict[str, Any]] = []
     temporal_layered_matrix: list[dict[str, Any]] = []
+    valid_events: list[dict[str, Any]] = []
     event_ids: set[str] = set()
 
     for index, event in enumerate(ordered_events, start=1):
@@ -690,6 +695,7 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
             }
         )
         if not errors:
+            valid_events.append(event)
             harmony_axis.append(harmony_axis_summary(event))
             trajectory_axis.append(trajectory_axis_summary(event))
             temporal_layered_matrix.append(temporal_layered_matrix_summary(event))
@@ -744,7 +750,7 @@ def replay_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         "validation": validation,
         "known_failures": known_failures,
     }
-    report["graph_network"] = build_ci_memory_graph(report)
+    report["graph_network"] = build_ci_memory_graph(report, valid_events)
     return report
 
 
@@ -775,7 +781,7 @@ def write_temporal_matrix_markdown(path: Path, matrices: list[dict[str, Any]]) -
 
 
 def mermaid_label(value: str) -> str:
-    return value.replace('"', "'").replace("\n", " ")
+    return value.replace('"', "'").replace("\n", " ").replace("#", "#35;")
 
 
 def write_graph_mermaid(path: Path, graph: dict[str, Any]) -> None:
