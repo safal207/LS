@@ -260,7 +260,12 @@ def validate_trail(trail: dict[str, Any]) -> None:
         if prior_time is not None:
             require(prior_time <= entered_at, "phaseHistory must be chronological")
         prior_time = entered_at
-        require(entry["triggerNodeId"] in node_index, f"phaseHistory[{index}] trigger is unknown")
+        trigger_id = entry["triggerNodeId"]
+        require(trigger_id in node_index, f"phaseHistory[{index}] trigger is unknown")
+        require(
+            node_times[trigger_id] <= entered_at,
+            f"phaseHistory[{index}] cannot enter before trigger event {trigger_id}",
+        )
         require(entry["transitionKind"] in {"FORWARD", "REGRESSION"}, f"phaseHistory[{index}].transitionKind is invalid")
         guards = require_list(entry["guards"], f"phaseHistory[{index}].guards")
         require(guards, f"phaseHistory[{index}] must contain guards")
