@@ -1,0 +1,468 @@
+{
+  "schemaVersion": "ls.causal-phase-trail.v0",
+  "trailId": "CPT-ROBYS-WORDMARK-001",
+  "authority": "EVIDENCE_ONLY",
+  "observedAt": "2026-07-04T19:05:00Z",
+  "subject": {
+    "repository": "safal207/robys-coffee-house-demo",
+    "pullRequest": 164,
+    "baseHead": "3716b183a2873d61e33635a37ca6933af855af95",
+    "currentHead": "3063729d7290b47116cdf56d81eae8e2b060a5bf"
+  },
+  "spaces": [
+    {"id": "space.repo", "kind": "REPOSITORY", "value": "safal207/robys-coffee-house-demo"},
+    {"id": "space.pr164", "kind": "PULL_REQUEST", "value": "#164"},
+    {"id": "space.styles", "kind": "ARTIFACT", "value": "styles.css"},
+    {"id": "space.wordmark", "kind": "COMPONENT", "value": ".brand-copy"},
+    {"id": "space.chrome", "kind": "SURFACE", "value": "header/footer/menu chrome"},
+    {"id": "space.narrow", "kind": "VIEWPORT", "value": "340-390px"},
+    {"id": "space.legacy-css", "kind": "BROWSER_CAPABILITY", "value": "generated-content alt syntax unsupported"},
+    {"id": "space.coderabbit", "kind": "AGENT", "value": "CodeRabbit"},
+    {"id": "space.qodo", "kind": "AGENT", "value": "Qodo"},
+    {"id": "space.visual", "kind": "GATE", "value": "Visual Regression"},
+    {"id": "space.ai-review", "kind": "GATE", "value": "AI review contract"},
+    {"id": "space.review-record", "kind": "EVIDENCE", "value": "content-bound visual approval"}
+  ],
+  "nodes": [
+    {
+      "id": "event.enhanced-syntax",
+      "kind": "EVENT",
+      "label": "Enhanced generated-content alternative syntax introduced",
+      "eventTime": "2026-07-04T18:37:27Z",
+      "observedAt": "2026-07-04T18:37:27Z",
+      "validFromHead": "11d8375f0f542b7a3be6818fba45e95f27abe89a",
+      "validUntilHead": null,
+      "spaceRefs": ["space.repo", "space.pr164", "space.styles", "space.wordmark"],
+      "agent": "safal207",
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "https://github.com/safal207/robys-coffee-house-demo/commit/11d8375f0f542b7a3be6818fba45e95f27abe89a"
+    },
+    {
+      "id": "cause.generated-content-dependency",
+      "kind": "CAUSE",
+      "label": "Visible wordmark letters depend on CSS generated content",
+      "eventTime": "2026-07-04T18:37:27Z",
+      "observedAt": "2026-07-04T18:47:00Z",
+      "validFromHead": "11d8375f0f542b7a3be6818fba45e95f27abe89a",
+      "validUntilHead": null,
+      "spaceRefs": ["space.styles", "space.wordmark", "space.chrome"],
+      "agent": null,
+      "claimRole": "ROOT_CAUSE",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "reconstructed from PR #164 diff and review timeline"
+    },
+    {
+      "id": "cause.legacy-parser-rejection",
+      "kind": "CAUSE",
+      "label": "A legacy CSS parser can reject the enhanced content declaration",
+      "eventTime": "2026-07-04T18:37:27Z",
+      "observedAt": "2026-07-04T18:47:00Z",
+      "validFromHead": "11d8375f0f542b7a3be6818fba45e95f27abe89a",
+      "validUntilHead": "3063729d7290b47116cdf56d81eae8e2b060a5bf",
+      "spaceRefs": ["space.styles", "space.legacy-css"],
+      "agent": null,
+      "claimRole": "IMMEDIATE_CAUSE",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "compatibility diagnosis reconstructed from PR #164"
+    },
+    {
+      "id": "cause.hidden-source-text",
+      "kind": "CAUSE",
+      "label": "Source wordmark text is visually suppressed by font-size zero",
+      "eventTime": "2026-07-04T18:37:27Z",
+      "observedAt": "2026-07-04T18:47:00Z",
+      "validFromHead": "11d8375f0f542b7a3be6818fba45e95f27abe89a",
+      "validUntilHead": null,
+      "spaceRefs": ["space.styles", "space.wordmark"],
+      "agent": null,
+      "claimRole": "AMPLIFYING_CONDITION",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "styles.css wordmark implementation"
+    },
+    {
+      "id": "evidence.compatibility-review",
+      "kind": "EVIDENCE",
+      "label": "Compatibility review detects legacy generated-content risk",
+      "eventTime": "2026-07-04T18:47:00Z",
+      "observedAt": "2026-07-04T18:47:00Z",
+      "validFromHead": "9d469124fb17cfce6e7ae986f6ac07121c82afe4",
+      "validUntilHead": "3063729d7290b47116cdf56d81eae8e2b060a5bf",
+      "spaceRefs": ["space.pr164", "space.coderabbit", "space.styles", "space.legacy-css"],
+      "agent": "CodeRabbit",
+      "claimRole": "DETECTOR",
+      "evidenceStatus": "STALE",
+      "blocking": false,
+      "binding": true,
+      "source": "PR #164 compatibility review episode"
+    },
+    {
+      "id": "evidence.pre-fallback-visual",
+      "kind": "EVIDENCE",
+      "label": "Content-bound visual approval before fallback",
+      "eventTime": "2026-07-04T18:43:01Z",
+      "observedAt": "2026-07-04T18:43:01Z",
+      "validFromHead": "9d469124fb17cfce6e7ae986f6ac07121c82afe4",
+      "validUntilHead": "3063729d7290b47116cdf56d81eae8e2b060a5bf",
+      "spaceRefs": ["space.visual", "space.review-record", "space.styles"],
+      "agent": "human-maintainer",
+      "claimRole": "OTHER",
+      "evidenceStatus": "STALE",
+      "blocking": false,
+      "binding": true,
+      "source": "https://github.com/safal207/robys-coffee-house-demo/commit/9d469124fb17cfce6e7ae986f6ac07121c82afe4"
+    },
+    {
+      "id": "event.plain-fallback",
+      "kind": "EVENT",
+      "label": "Plain content fallback added before enhanced declaration",
+      "eventTime": "2026-07-04T18:50:30Z",
+      "observedAt": "2026-07-04T18:50:30Z",
+      "validFromHead": "3063729d7290b47116cdf56d81eae8e2b060a5bf",
+      "validUntilHead": null,
+      "spaceRefs": ["space.styles", "space.wordmark", "space.legacy-css"],
+      "agent": "safal207",
+      "claimRole": "CORRECTIVE_ACTION",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "current PR #164 diff: content fallback followed by enhanced declaration"
+    },
+    {
+      "id": "event.evidence-rebind",
+      "kind": "EVENT",
+      "label": "Reviewed visual evidence rebound after fallback",
+      "eventTime": "2026-07-04T18:51:46Z",
+      "observedAt": "2026-07-04T18:51:46Z",
+      "validFromHead": "3063729d7290b47116cdf56d81eae8e2b060a5bf",
+      "validUntilHead": null,
+      "spaceRefs": ["space.review-record", "space.visual", "space.styles"],
+      "agent": "safal207",
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "https://github.com/safal207/robys-coffee-house-demo/commit/3063729d7290b47116cdf56d81eae8e2b060a5bf"
+    },
+    {
+      "id": "evidence.current-ci-green",
+      "kind": "EVIDENCE",
+      "label": "Visual, Lighthouse, Security, CodeQL and browser gates are green",
+      "eventTime": "2026-07-04T18:53:30Z",
+      "observedAt": "2026-07-04T18:53:30Z",
+      "validFromHead": "3063729d7290b47116cdf56d81eae8e2b060a5bf",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr164", "space.visual", "space.ai-review"],
+      "agent": "github-actions",
+      "claimRole": "OTHER",
+      "evidenceStatus": "FRESH",
+      "blocking": false,
+      "binding": true,
+      "source": "GitHub Actions runs for current head"
+    },
+    {
+      "id": "evidence.ai-review-failure",
+      "kind": "EVIDENCE",
+      "label": "AI review contract fails on current head",
+      "eventTime": "2026-07-04T18:54:19Z",
+      "observedAt": "2026-07-04T18:54:19Z",
+      "validFromHead": "3063729d7290b47116cdf56d81eae8e2b060a5bf",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr164", "space.ai-review"],
+      "agent": "github-actions",
+      "claimRole": "OTHER",
+      "evidenceStatus": "FRESH",
+      "blocking": true,
+      "binding": true,
+      "source": "AI review contract run 600 and Codex quota response"
+    },
+    {
+      "id": "evidence.qodo-current-findings",
+      "kind": "EVIDENCE",
+      "label": "Qodo detects current-head localization, responsive and test-wiring risks",
+      "eventTime": "2026-07-04T18:57:39Z",
+      "observedAt": "2026-07-04T18:57:39Z",
+      "validFromHead": "3063729d7290b47116cdf56d81eae8e2b060a5bf",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr164", "space.qodo", "space.styles", "space.narrow"],
+      "agent": "Qodo",
+      "claimRole": "DETECTOR",
+      "evidenceStatus": "FRESH",
+      "blocking": true,
+      "binding": true,
+      "source": "https://github.com/safal207/robys-coffee-house-demo/pull/164#issuecomment-4883481777"
+    },
+    {
+      "id": "evidence.coderabbit-current-finding",
+      "kind": "EVIDENCE",
+      "label": "CodeRabbit detects missing HTML bindings in visual approval",
+      "eventTime": "2026-07-04T18:58:27Z",
+      "observedAt": "2026-07-04T18:58:27Z",
+      "validFromHead": "3063729d7290b47116cdf56d81eae8e2b060a5bf",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr164", "space.coderabbit", "space.review-record"],
+      "agent": "CodeRabbit",
+      "claimRole": "DETECTOR",
+      "evidenceStatus": "FRESH",
+      "blocking": true,
+      "binding": true,
+      "source": "current unresolved CodeRabbit review thread on visual contentBindings"
+    },
+    {
+      "id": "state.current-risk-discovered",
+      "kind": "STATE",
+      "label": "Fresh binding review evidence reopens risk discovery",
+      "eventTime": "2026-07-04T18:58:27Z",
+      "observedAt": "2026-07-04T18:58:27Z",
+      "validFromHead": "3063729d7290b47116cdf56d81eae8e2b060a5bf",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr164", "space.ai-review", "space.qodo", "space.coderabbit"],
+      "agent": null,
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "derived from unresolved current-head blockers"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge.root-causes-parser-risk",
+      "from": "cause.generated-content-dependency",
+      "to": "cause.legacy-parser-rejection",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "The browser capability becomes user-visible risk because the visible letters depend on generated content."
+    },
+    {
+      "id": "edge.hidden-text-amplifies-risk",
+      "from": "cause.hidden-source-text",
+      "to": "cause.legacy-parser-rejection",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "Suppressing the source text removes a visual fallback when the enhanced declaration is rejected."
+    },
+    {
+      "id": "edge.syntax-precedes-review",
+      "from": "event.enhanced-syntax",
+      "to": "evidence.compatibility-review",
+      "relation": "PRECEDED",
+      "binding": false,
+      "explanation": "The syntax existed before the review learned about the compatibility risk."
+    },
+    {
+      "id": "edge.review-detects-risk",
+      "from": "evidence.compatibility-review",
+      "to": "cause.legacy-parser-rejection",
+      "relation": "DETECTED",
+      "binding": true,
+      "explanation": "The review surfaced the risk but did not create it."
+    },
+    {
+      "id": "edge.fallback-resolves-risk",
+      "from": "event.plain-fallback",
+      "to": "cause.legacy-parser-rejection",
+      "relation": "RESOLVED",
+      "binding": true,
+      "explanation": "A legacy parser can retain the plain declaration even if it rejects the enhanced declaration."
+    },
+    {
+      "id": "edge.rebind-invalidates-old-visual",
+      "from": "event.evidence-rebind",
+      "to": "evidence.pre-fallback-visual",
+      "relation": "INVALIDATED",
+      "binding": true,
+      "explanation": "The fallback changed the exact content binding, so the earlier approval became stale."
+    },
+    {
+      "id": "edge.current-ci-confirms-fallback",
+      "from": "evidence.current-ci-green",
+      "to": "event.plain-fallback",
+      "relation": "CONFIRMED",
+      "binding": true,
+      "explanation": "Current-head visual and browser gates support the corrected implementation."
+    },
+    {
+      "id": "edge.ai-contract-blocks-merge-ready",
+      "from": "evidence.ai-review-failure",
+      "to": "state.current-risk-discovered",
+      "relation": "BLOCKED",
+      "binding": true,
+      "explanation": "Missing qualifying current-head AI evidence prevents the legal MERGE_READY transition."
+    },
+    {
+      "id": "edge.qodo-detects-new-risk",
+      "from": "evidence.qodo-current-findings",
+      "to": "state.current-risk-discovered",
+      "relation": "DETECTED",
+      "binding": true,
+      "explanation": "Fresh Qodo evidence surfaces independent current-head blockers after green runtime gates."
+    },
+    {
+      "id": "edge.coderabbit-detects-binding-gap",
+      "from": "evidence.coderabbit-current-finding",
+      "to": "state.current-risk-discovered",
+      "relation": "DETECTED",
+      "binding": true,
+      "explanation": "Fresh CodeRabbit evidence shows that HTML changes would not invalidate the visual approval."
+    },
+    {
+      "id": "edge.qodo-blocks-stability",
+      "from": "evidence.qodo-current-findings",
+      "to": "state.current-risk-discovered",
+      "relation": "BLOCKED",
+      "binding": true,
+      "explanation": "Unresolved current-head findings prevent STABLE and MERGE_READY."
+    },
+    {
+      "id": "edge.coderabbit-blocks-stability",
+      "from": "evidence.coderabbit-current-finding",
+      "to": "state.current-risk-discovered",
+      "relation": "BLOCKED",
+      "binding": true,
+      "explanation": "The content-binding gap is unresolved on the current head."
+    }
+  ],
+  "phaseHistory": [
+    {
+      "phase": "CANDIDATE",
+      "enteredAt": "2026-07-04T18:37:27Z",
+      "triggerNodeId": "event.enhanced-syntax",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {"name": "wordmark candidate exists", "satisfied": true, "evidenceNodeIds": ["event.enhanced-syntax"]}
+      ]
+    },
+    {
+      "phase": "UNDER_REVIEW",
+      "enteredAt": "2026-07-04T18:43:01Z",
+      "triggerNodeId": "evidence.pre-fallback-visual",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {"name": "visual evidence recorded", "satisfied": true, "evidenceNodeIds": ["evidence.pre-fallback-visual"]}
+      ]
+    },
+    {
+      "phase": "RISK_DISCOVERED",
+      "enteredAt": "2026-07-04T18:47:00Z",
+      "triggerNodeId": "evidence.compatibility-review",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {"name": "compatibility risk resolved", "satisfied": false, "evidenceNodeIds": ["evidence.compatibility-review"]}
+      ]
+    },
+    {
+      "phase": "CORRECTED",
+      "enteredAt": "2026-07-04T18:50:30Z",
+      "triggerNodeId": "event.plain-fallback",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {"name": "plain fallback precedes enhanced declaration", "satisfied": true, "evidenceNodeIds": ["event.plain-fallback"]}
+      ]
+    },
+    {
+      "phase": "EVIDENCE_ACCUMULATING",
+      "enteredAt": "2026-07-04T18:51:46Z",
+      "triggerNodeId": "event.evidence-rebind",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {"name": "visual approval rebound to changed content", "satisfied": true, "evidenceNodeIds": ["event.evidence-rebind"]}
+      ]
+    },
+    {
+      "phase": "STABLE",
+      "enteredAt": "2026-07-04T18:53:30Z",
+      "triggerNodeId": "evidence.current-ci-green",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {"name": "runtime and visual gates green", "satisfied": true, "evidenceNodeIds": ["evidence.current-ci-green"]}
+      ]
+    },
+    {
+      "phase": "RISK_DISCOVERED",
+      "enteredAt": "2026-07-04T18:57:39Z",
+      "triggerNodeId": "evidence.qodo-current-findings",
+      "transitionKind": "REGRESSION",
+      "guards": [
+        {"name": "qualifying current-head AI review evidence", "satisfied": false, "evidenceNodeIds": ["evidence.ai-review-failure"]},
+        {"name": "no unresolved current-head review findings", "satisfied": false, "evidenceNodeIds": ["evidence.qodo-current-findings", "evidence.coderabbit-current-finding"]},
+        {"name": "runtime and visual gates remain green", "satisfied": true, "evidenceNodeIds": ["evidence.current-ci-green"]}
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "routeId": "route.ignore-risk",
+      "title": "Ignore the compatibility risk",
+      "selected": false,
+      "components": {
+        "riskReduction": 0,
+        "evidenceConfidence": 1,
+        "reversibility": 5,
+        "implementationCost": 0,
+        "scopeExpansion": 0,
+        "staleEvidenceCost": 0
+      },
+      "score": 6,
+      "explanation": "This route is cheap but leaves a known browser-capability risk and cannot support a trustworthy phase transition.",
+      "rejectedReason": "Residual user-visible risk remains high."
+    },
+    {
+      "routeId": "route.plain-fallback",
+      "title": "Add a plain content fallback before enhanced syntax",
+      "selected": true,
+      "components": {
+        "riskReduction": 5,
+        "evidenceConfidence": 4,
+        "reversibility": 5,
+        "implementationCost": 1,
+        "scopeExpansion": 0,
+        "staleEvidenceCost": 2
+      },
+      "score": 11,
+      "explanation": "This route gives high risk reduction with a two-declaration reversible change and a bounded exact-head evidence refresh.",
+      "rejectedReason": null
+    },
+    {
+      "routeId": "route.svg-refactor",
+      "title": "Replace the reconstructed CSS wordmark with approved SVG or HTML",
+      "selected": false,
+      "components": {
+        "riskReduction": 5,
+        "evidenceConfidence": 5,
+        "reversibility": 2,
+        "implementationCost": 5,
+        "scopeExpansion": 5,
+        "staleEvidenceCost": 5
+      },
+      "score": -3,
+      "explanation": "This may be the stronger long-term architecture, but it expands the current PR into asset, accessibility, localization and visual-governance work.",
+      "rejectedReason": "Scope and evidence debt are disproportionate for the current phase."
+    }
+  ],
+  "decision": {
+    "currentPhase": "RISK_DISCOVERED",
+    "bestRouteId": "route.plain-fallback",
+    "rootCauseNodeId": "cause.generated-content-dependency",
+    "detectorNodeIds": [
+      "evidence.compatibility-review",
+      "evidence.qodo-current-findings",
+      "evidence.coderabbit-current-finding"
+    ],
+    "unresolvedBlockerNodeIds": [
+      "evidence.ai-review-failure",
+      "evidence.qodo-current-findings",
+      "evidence.coderabbit-current-finding"
+    ],
+    "nextLegalTransitions": ["CORRECTED"],
+    "summary": "The plain fallback was the best route for the original compatibility risk, but fresh exact-head review evidence found new blockers after green runtime gates. PR #164 therefore regressed legally to RISK_DISCOVERED and cannot transition to MERGE_READY."
+  }
+}
