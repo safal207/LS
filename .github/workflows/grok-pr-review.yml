@@ -42,7 +42,7 @@ jobs:
       REVIEW_FILE: /tmp/grok_review.md
       PATCH_FILE: /tmp/pr.patch
       PATCH_ERROR_FILE: /tmp/pr.patch.err
-      XAI_MODEL: grok-latest
+      XAI_MODEL: grok-4.5
       PATCH_LIMIT_CHARS: "60000"
 
     steps:
@@ -217,7 +217,7 @@ jobs:
           patch_path = pathlib.Path(os.environ["PATCH_FILE"])
           review_path = pathlib.Path(os.environ["REVIEW_FILE"])
           limit = int(os.environ.get("PATCH_LIMIT_CHARS", "60000"))
-          model = os.environ.get("XAI_MODEL", "grok-latest")
+          model = os.environ.get("XAI_MODEL", "grok-4.5")
 
           def write_diagnostic(title, details):
               review_path.write_text(
