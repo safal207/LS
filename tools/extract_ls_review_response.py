@@ -160,8 +160,11 @@ def build_response(
         },
         "source": {
             "type": "GITHUB_PR_COMMENT",
-            "reviewed_pr_number": target_pr_number,
-            "reviewed_commit_sha": target_commit_sha,
+            # The current LS comment format describes the PR containing the
+            # comment and its exact head. Do not relabel that evidence as a
+            # different target merely because target CLI inputs requested it.
+            "reviewed_pr_number": source_pr_number,
+            "reviewed_commit_sha": exact_head,
             "source_pr_number": source_pr_number,
             "source_comment_id": comment.get("id"),
             "source_head_sha": exact_head,

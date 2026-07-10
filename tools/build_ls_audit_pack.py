@@ -242,7 +242,7 @@ def _validate_source(
         errors.append(
             "provenance mismatch: source.source_pr_number must be a positive integer"
         )
-    elif source_pr_number != expected_pr_number:
+    elif source_type == "LS_RUN" and source_pr_number != expected_pr_number:
         errors.append(
             f"provenance mismatch: source.source_pr_number must be {expected_pr_number}"
         )
@@ -250,7 +250,7 @@ def _validate_source(
     source_head_sha = source.get("source_head_sha")
     if not isinstance(source_head_sha, str) or not source_head_sha:
         errors.append("source.source_head_sha must be a non-empty string")
-    elif source_head_sha != expected_commit_sha:
+    elif source_type == "LS_RUN" and source_head_sha != expected_commit_sha:
         errors.append(
             "provenance mismatch: source.source_head_sha must match "
             f"{expected_commit_sha!r}"

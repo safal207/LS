@@ -118,7 +118,7 @@ class LSAuditPackBuilderTest(unittest.TestCase):
         errors = audit_pack.validate_ls_response(report, audit_pack.DEFAULT_CASE_ID)
         self.assertIn("provenance mismatch: source.reviewed_pr_number must be 824", errors)
 
-    def test_source_head_mismatch_is_rejected(self) -> None:
+    def test_comment_source_head_is_separate_from_reviewed_target(self) -> None:
         report = self.valid_report()
         source = report["source"]
         self.assertIsInstance(source, dict)
@@ -126,11 +126,7 @@ class LSAuditPackBuilderTest(unittest.TestCase):
         source["source_comment_id"] = 4914994285
         source["source_head_sha"] = "0b953d3428adca691421dddd861e20e1c0213b47"
         errors = audit_pack.validate_ls_response(report, audit_pack.DEFAULT_CASE_ID)
-        self.assertIn(
-            "provenance mismatch: source.source_head_sha must match "
-            f"{audit_pack.DEFAULT_COMMIT_SHA!r}",
-            errors,
-        )
+        self.assertEqual(errors, [])
 
     def test_source_pr_number_mismatch_is_rejected(self) -> None:
         report = self.valid_report()
@@ -150,11 +146,6 @@ class LSAuditPackBuilderTest(unittest.TestCase):
         self.assertIn("provenance mismatch: source.reviewed_pr_number must be 824", errors)
         self.assertIn(
             "provenance mismatch: source.reviewed_commit_sha must be "
-            f"{audit_pack.DEFAULT_COMMIT_SHA!r}",
-            errors,
-        )
-        self.assertIn(
-            "provenance mismatch: source.source_head_sha must match "
             f"{audit_pack.DEFAULT_COMMIT_SHA!r}",
             errors,
         )

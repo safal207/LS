@@ -89,6 +89,11 @@ class LSReviewResponseExtractionTest(unittest.TestCase):
         self.assertEqual(response["subject"]["pr_number"], 824)
         self.assertEqual(response["source"]["source_pr_number"], 828)
         self.assertEqual(response["source"]["source_comment_id"], 4914994285)
+        self.assertEqual(response["source"]["reviewed_pr_number"], 828)
+        self.assertEqual(
+            response["source"]["reviewed_commit_sha"],
+            "0b953d3428adca691421dddd861e20e1c0213b47",
+        )
         self.assertTrue(
             any("provider credential is not configured" in item for item in response["limitations"])
         )
@@ -122,6 +127,33 @@ class LSReviewResponseExtractionTest(unittest.TestCase):
 
         errors = audit_pack.validate_ls_response(response, "case-x", 830, "abc123")
         self.assertEqual(errors, [])
+
+    def test_extracted_cross_pr_response_cannot_relabel_reviewed_target(self) -> None:
+        response = extractor.build_response(
+            {
+                "id": 4914994285,
+                "body": PARTIAL_COMMENT,
+                "created_at": "2026-07-08T12:55:43Z",
+            },
+            "pr824-ls-audit-v0.1",
+            828,
+            824,
+            audit_pack.DEFAULT_COMMIT_SHA,
+        )
+
+        errors = audit_pack.validate_ls_response(
+            response,
+            "pr824-ls-audit-v0.1",
+            824,
+            audit_pack.DEFAULT_COMMIT_SHA,
+        )
+
+        self.assertIn("provenance mismatch: source.reviewed_pr_number must be 824", errors)
+        self.assertIn(
+            "provenance mismatch: source.reviewed_commit_sha must be "
+            f"{audit_pack.DEFAULT_COMMIT_SHA!r}",
+            errors,
+        )
 
     def test_missing_comment_returns_none(self) -> None:
         self.assertIsNone(extractor.latest_ls_review_comment([{"body": "no marker"}]))
